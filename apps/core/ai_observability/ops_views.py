@@ -1097,9 +1097,31 @@ class DependencyGraphView(AdminRequiredMixin, View):
 
 
 class AllEnginesView(AdminRequiredMixin, TemplateView):
-    """All engines table view with search."""
+    """All engines table view with search and sortable columns."""
 
     template_name = "admin_console/all_engines.html"
+
+    # Criticality tiers: 0=P0 (system stops), 1=P1 (major degradation),
+    # 2=P2 (reduced intelligence), 3=P3 (minimal impact)
+    ENGINE_CRITICALITY = {
+        # P0 — System stops if these go down
+        "UAIO": 0, "SAE": 0, "ISE": 0, "SAME": 0,
+        # P1 — Major degradation, core pipeline
+        "UAL": 1, "PIE": 1, "PRIE": 1, "DNE": 1, "PGE": 1,
+        "GLOE": 1, "ICQG": 1, "EAE": 1, "SUE": 1, "SLCME": 1,
+        "HTIE": 1, "DOMAIN_REG": 1,
+        # P2 — Reduced intelligence, localized failure
+        "CDCE": 2, "DBE": 2, "WIRE": 2, "TRIGGERS": 2, "XDOMAIN": 2,
+        "DRIFT": 2, "PRESSURE": 2, "PROTECTIVE": 2, "EXPLAIN": 2,
+        "PERSONA": 2, "COSSCHED": 2, "COSDELIV": 2, "CDCE_CI": 2,
+        "ESCALATE": 2, "COS_GOV": 2,
+        # P3 — Minimal impact, governance/learning/reporting
+        "ARCH": 3, "REFLECT": 3, "RELDRIFT": 3, "PREDVAL": 3,
+        "INTEFF": 3, "ECC": 3, "PRESSNAP": 3, "TMRWPROT": 3,
+        "PROTALRT": 3, "IOCD": 3, "MATURITY": 3, "FEEDBACK": 3,
+        "DOCS": 3, "GUID_LEARN": 3,
+    }
+    CRITICALITY_LABELS = {0: "P0", 1: "P1", 2: "P2", 3: "P3"}
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1114,7 +1136,7 @@ class AllEnginesView(AdminRequiredMixin, TemplateView):
         cadence_config = get_cadence_config()
 
         engines = []
-        for engine_name in sorted(set(ALL_ENGINES)):
+        for engine_name in set(ALL_ENGINES):
             cfg = cadence_config.get(engine_name, {})
             last_run = (
                 EngineRun.objects.filter(engine_name=engine_name)
@@ -1135,14 +1157,26 @@ class AllEnginesView(AdminRequiredMixin, TemplateView):
             else:
                 interval_label = "—"
 
+            criticality = self.ENGINE_CRITICALITY.get(engine_name, 3)
+            last_run_ts = (
+                int(last_run["started_at"].timestamp()) if last_run else 0
+            )
+
             engines.append({
                 "name": engine_name,
                 "interval_label": interval_label,
+                "interval_seconds": interval,
                 "enabled": cfg.get("enabled", False),
                 "last_run_at": last_run["started_at"] if last_run else None,
+                "last_run_ts": last_run_ts,
                 "last_status": last_run["status"] if last_run else "never",
                 "last_duration": last_run["duration_ms"] if last_run else 0,
+                "criticality": criticality,
+                "criticality_label": self.CRITICALITY_LABELS.get(criticality, "P3"),
             })
+
+        # Default sort: enabled first, then by criticality (P0 first), then name
+        engines.sort(key=lambda e: (not e["enabled"], e["criticality"], e["name"]))
 
         context["engines"] = engines
         return context

@@ -14,6 +14,7 @@
     --ae-yellow: #f59e0b;
     --ae-red: #ef4444;
     --ae-blue: #3b82f6;
+    --ae-orange: #f97316;
 
     background: var(--ae-bg);
     color: var(--ae-text);
@@ -58,7 +59,17 @@
     padding: 10px 14px; text-align: left;
     border-bottom: 1px solid var(--ae-border);
     font-weight: 600;
+    cursor: pointer; user-select: none;
+    white-space: nowrap;
+    transition: color 0.15s;
 }
+.ae-table th:hover { color: var(--ae-text); }
+.ae-table th .sort-arrow {
+    display: inline-block; width: 12px; text-align: center;
+    font-size: 0.5rem; margin-left: 4px; color: var(--ae-text-dim);
+}
+.ae-table th.sort-active { color: var(--ae-blue); }
+.ae-table th.sort-active .sort-arrow { color: var(--ae-blue); }
 .ae-table td {
     padding: 10px 14px; border-bottom: 1px solid rgba(55,65,81,0.3);
     font-size: 0.8125rem;
@@ -77,6 +88,15 @@
 
 .ae-enabled { color: var(--ae-green); }
 .ae-disabled { color: var(--ae-text-dim); }
+
+.ae-crit {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 0.625rem; font-weight: 700; letter-spacing: 0.08em;
+}
+.ae-crit.p0 { color: var(--ae-red); background: rgba(239,68,68,0.15); }
+.ae-crit.p1 { color: var(--ae-orange); background: rgba(249,115,22,0.15); }
+.ae-crit.p2 { color: var(--ae-yellow); background: rgba(245,158,11,0.15); }
+.ae-crit.p3 { color: var(--ae-text-dim); background: rgba(107,114,128,0.15); }
 </style>
 
 <div class="all-engines">
@@ -90,18 +110,26 @@
     <table class="ae-table" id="engineTable">
         <thead>
             <tr>
-                <th>Engine</th>
-                <th>Interval</th>
-                <th>Monitoring</th>
-                <th>Last Run</th>
-                <th>Status</th>
-                <th>Duration</th>
+                <th data-sort="name">Engine <span class="sort-arrow"></span></th>
+                <th data-sort="criticality">Criticality <span class="sort-arrow"></span></th>
+                <th data-sort="interval">Interval <span class="sort-arrow"></span></th>
+                <th data-sort="enabled">Monitoring <span class="sort-arrow"></span></th>
+                <th data-sort="lastrun">Last Run <span class="sort-arrow"></span></th>
+                <th data-sort="status">Status <span class="sort-arrow"></span></th>
+                <th data-sort="duration">Duration <span class="sort-arrow"></span></th>
             </tr>
         </thead>
         <tbody>
             {% for engine in engines %}
-            <tr data-name="{{ engine.name }}">
+            <tr data-name="{{ engine.name }}"
+                data-criticality="{{ engine.criticality }}"
+                data-enabled="{% if engine.enabled %}1{% else %}0{% endif %}"
+                data-interval="{{ engine.interval_seconds }}"
+                data-lastrun="{{ engine.last_run_ts }}"
+                data-status="{{ engine.last_status }}"
+                data-duration="{{ engine.last_duration }}">
                 <td><strong>{{ engine.name }}</strong></td>
+                <td><span class="ae-crit {{ engine.criticality_label|lower }}">{{ engine.criticality_label }}</span></td>
                 <td>{{ engine.interval_label }}</td>
                 <td>
                     {% if engine.enabled %}
@@ -125,9 +153,92 @@
 
 <script nonce="{{ csp_nonce }}">
 (function() {
+    var table = document.getElementById('engineTable');
+    var thead = table.querySelector('thead');
+    var tbody = table.querySelector('tbody');
+    var headers = thead.querySelectorAll('th[data-sort]');
+    var currentSort = null;
+    var currentDir = 'asc';
+
+    // Status sort order: error=0, never=1, skipped=2, success=3
+    var statusOrder = {error: 0, never: 1, skipped: 2, success: 3};
+
+    function getSortValue(row, key) {
+        switch (key) {
+            case 'name': return row.dataset.name.toLowerCase();
+            case 'criticality': return parseInt(row.dataset.criticality, 10);
+            case 'enabled': return parseInt(row.dataset.enabled, 10);
+            case 'interval': return parseInt(row.dataset.interval, 10);
+            case 'lastrun': return parseInt(row.dataset.lastrun, 10);
+            case 'status': return statusOrder[row.dataset.status] !== undefined ? statusOrder[row.dataset.status] : 4;
+            case 'duration': return parseInt(row.dataset.duration, 10);
+            default: return row.dataset.name.toLowerCase();
+        }
+    }
+
+    function isNumeric(key) {
+        return key !== 'name';
+    }
+
+    function sortTable(key) {
+        if (currentSort === key) {
+            currentDir = currentDir === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort = key;
+            // For numeric columns, default descending (highest first);
+            // for name, default ascending (A-Z);
+            // for criticality, default ascending (P0 first);
+            // for enabled, default descending (enabled first)
+            if (key === 'name' || key === 'criticality') {
+                currentDir = 'asc';
+            } else if (key === 'enabled') {
+                currentDir = 'desc';
+            } else {
+                currentDir = 'desc';
+            }
+        }
+
+        var rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.sort(function(a, b) {
+            var va = getSortValue(a, key);
+            var vb = getSortValue(b, key);
+            var cmp;
+            if (typeof va === 'string') {
+                cmp = va.localeCompare(vb);
+            } else {
+                cmp = va - vb;
+            }
+            return currentDir === 'asc' ? cmp : -cmp;
+        });
+
+        rows.forEach(function(row) { tbody.appendChild(row); });
+        updateArrows();
+    }
+
+    function updateArrows() {
+        headers.forEach(function(th) {
+            var arrow = th.querySelector('.sort-arrow');
+            var key = th.dataset.sort;
+            if (key === currentSort) {
+                th.classList.add('sort-active');
+                arrow.textContent = currentDir === 'asc' ? '\u25B2' : '\u25BC';
+            } else {
+                th.classList.remove('sort-active');
+                arrow.textContent = '';
+            }
+        });
+    }
+
+    headers.forEach(function(th) {
+        th.addEventListener('click', function() {
+            sortTable(th.dataset.sort);
+        });
+    });
+
+    // Search filter
     document.getElementById('engineSearch').addEventListener('input', function() {
         var query = this.value.toLowerCase();
-        var rows = document.querySelectorAll('#engineTable tbody tr');
+        var rows = tbody.querySelectorAll('tr');
         rows.forEach(function(row) {
             var name = (row.dataset.name || '').toLowerCase();
             row.style.display = name.indexOf(query) !== -1 ? '' : 'none';

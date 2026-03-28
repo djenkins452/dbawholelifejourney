@@ -6,6 +6,13 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-28 — Enhancement: Engine List Criticality Sort + Clickable Column Headers
+
+- **Change:** All Intelligence Engines page now defaults to showing enabled engines first, sorted by criticality tier (P0→P3), with a new Criticality column
+- **Criticality tiers:** P0 (system stops: UAIO, SAE, ISE, SAME), P1 (major degradation: UAL, PIE, PRIE, DNE, etc.), P2 (reduced intelligence: CDCE, DBE, TRIGGERS, etc.), P3 (minimal impact: ARCH, DOCS, MATURITY, etc.)
+- **Clickable headers:** All 7 column headers are now clickable to sort ascending/descending with visual arrow indicators
+- **Files:** `apps/core/ai_observability/ops_views.py`, `templates/admin_console/all_engines.html`
+
 ## 2026-03-27 — Fix: Natural Language Completion Detection + Auto-Complete
 
 - **Bug:** "I just finished my journal" was routed to `create_journal_entry` intent, creating a journal entry with body "I just finished my journal" instead of marking the journal routine item complete. Same issue with "I did my workout", "I prayed", etc.

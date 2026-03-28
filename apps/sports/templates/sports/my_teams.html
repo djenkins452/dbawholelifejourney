@@ -330,8 +330,9 @@
 
         {% if hero.score %}
             <div class="hero-score" id="hero-score" data-score="{{ hero.score }}">{{ hero.score }}</div>
-        {% elif hero.start_time %}
-            <div class="hero-time" data-start-time="{{ hero.start_time }}"></div>
+        {% endif %}
+        {% if hero.start_time and not hero.score %}
+            <div class="hero-time" data-start-time="{{ hero.start_time }}">{{ hero.start_time }}</div>
             <div class="hero-countdown" data-countdown="{{ hero.start_time }}"></div>
         {% endif %}
 
@@ -407,7 +408,7 @@
                 {% endif %}
             </div>
             <div class="next-right">
-                <div class="next-time" data-start-time="{{ g.start_time }}"></div>
+                <div class="next-time" data-start-time="{{ g.start_time }}">{{ g.start_time|truncatechars:16 }}</div>
                 <span class="next-badge next-badge--{{ g.urgency }}">
                     {% if g.urgency == "starting_soon" %}SOON
                     {% elif g.urgency == "today" %}TODAY
@@ -465,7 +466,7 @@
         <div class="more-row">
             {% if g.team_logo %}<img src="{{ g.team_logo }}" alt="" class="more-logo" loading="lazy" onerror="this.style.display='none'">{% endif %}
             <span class="more-teams">{{ g.team_name }} {% if g.is_home %}vs{% else %}@{% endif %} {{ g.opponent }}</span>
-            <span class="more-time" data-start-time="{{ g.start_time }}"></span>
+            <span class="more-time" data-start-time="{{ g.start_time }}">{{ g.start_time|truncatechars:16 }}</span>
             <span class="more-league">{{ g.league }}</span>
         </div>
         {% endfor %}

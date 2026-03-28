@@ -6,6 +6,26 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-28 — Deterministic Hero Selection Engine (Phase 3)
+
+- **Objective:** Replace implicit hero selection with an explicit, deterministic engine function.
+- **New functions:**
+  - `select_hero_game(teams)` — canonical hero selection for contract path. Returns `(team_entry, score)` or `(None, 0)`.
+  - `select_hero_signal(scored_games, final_signals, ...)` — parallel function for signal fallback path.
+  - `_compute_contract_priority_score_for_final(team_entry)` — scores completed games for hero fallback (same dimensions, no time sensitivity).
+- **Importance engine reused:** Both functions delegate to the existing `_compute_contract_priority_score` / `_compute_priority_score` — zero duplicated scoring logic.
+- **Priority weighting (strict order, encoded in importance engine):**
+  1. LIVE boost (+70) — live games almost always win
+  2. Tournament boost (+80, +30 for Final Four/Championship) — outranks regular season
+  3. User affinity (+100/+60/+30 for primary/secondary/casual)
+  4. Time proximity — closer start = higher score
+  5. Momentum — streaks amplify (+10/+15/+20)
+- **Edge cases handled:** no games → None; only finals → best final; multiple LIVE → highest importance; deterministic tiebreak by team_name.
+- **Integration:** `_assemble_page_contract()` and `_assemble_page_contract_from_signals()` now call the selection engine instead of inline hero logic.
+- **Determinism:** Stable sort with team_name tiebreaker — same input always returns same hero.
+- **Tests:** All 95 sports tests pass.
+- **Files:** `apps/sports/services/sports_view_model.py`, `docs/wlj_claude_changelog.md`
+
 ## 2026-03-28 — Sports Page Contract Consolidation (Phase 2)
 
 - **Objective:** Introduce single canonical page contract builder — eliminate fragmented assembly, enforce deterministic contract shape.

@@ -367,39 +367,72 @@ class TaskToggleAction(LoginRequiredMixin, View):
 
 
 class MedicineLogAction(LoginRequiredMixin, View):
-    """HTMX POST endpoint to log medicine dose from dashboard."""
+    """HTMX POST endpoint to log medicine dose from dashboard.
+
+    Matches canonical MedicineTakeView behavior:
+    - Sets scheduled_time on log
+    - Uses mark_taken() for late/on-time classification
+    - Decrements supply if tracked
+    - Fires medication taken event
+    """
 
     def post(self, request, schedule_id):
+        from apps.core.events.domain_events import EventTypes, safe_emit_event
         from apps.core.utils import get_user_today
         from apps.health.models import MedicineLog, MedicineSchedule
 
         schedule = get_object_or_404(
-            MedicineSchedule,
+            MedicineSchedule.objects.select_related("medicine"),
             pk=schedule_id,
             medicine__user=request.user,
         )
         today = get_user_today(request.user)
+        medicine = schedule.medicine
+
+        # Validate schedule applies to today
+        if not schedule.applies_to_day(today.weekday()):
+            return _render_action_center(request)
 
         # Check if already logged
         existing = MedicineLog.objects.filter(
             user=request.user,
-            medicine=schedule.medicine,
+            medicine=medicine,
             schedule=schedule,
             scheduled_date=today,
             log_status__in=["taken", "late"],
         ).first()
 
         if existing:
+            # Undo: delete log and restore supply
             existing.delete()
+            if medicine.current_supply is not None:
+                medicine.current_supply += 1
+                medicine.save(update_fields=["current_supply", "updated_at"])
         else:
-            MedicineLog.objects.create(
+            # Create log with canonical fields
+            log, _created = MedicineLog.objects.get_or_create(
                 user=request.user,
-                medicine=schedule.medicine,
+                medicine=medicine,
                 schedule=schedule,
                 scheduled_date=today,
-                log_status="taken",
-                taken_at=timezone.now(),
+                defaults={
+                    "scheduled_time": schedule.scheduled_time,
+                    "is_prn_dose": False,
+                },
             )
+            # mark_taken handles late/on-time classification via grace period
+            log.mark_taken()
+
+            # Decrement supply if tracked
+            if medicine.current_supply is not None and medicine.current_supply > 0:
+                medicine.current_supply -= 1
+                medicine.save(update_fields=["current_supply", "updated_at"])
+
+            # Fire event for signal pipeline
+            safe_emit_event(EventTypes.HEALTH_MEDICATION_TAKEN, request.user, {
+                "log_id": log.id, "medicine_name": medicine.name,
+                "source": "dashboard_action_center",
+            })
 
         # Return unified action center
         return _render_action_center(request)
@@ -469,55 +502,116 @@ class RoutineCompleteToggleAction(LoginRequiredMixin, View):
 
 
 class MedicineGroupLogAction(LoginRequiredMixin, View):
-    """HTMX POST endpoint to log/unlog all medicines in a time_of_day group."""
+    """HTMX POST endpoint to log/unlog all medicines in a time_of_day group.
+
+    Matches canonical MedicineBulkTakeView behavior:
+    - Filters by days_of_week (only schedules applicable today)
+    - Sets scheduled_time on each log
+    - Uses mark_taken() for late/on-time classification
+    - Decrements supply per medicine
+    - Fires medication taken event
+    """
 
     def post(self, request, time_of_day):
+        from apps.core.events.domain_events import EventTypes, safe_emit_event
         from apps.health.models import Medicine, MedicineLog, MedicineSchedule
 
         today = get_user_today(request.user)
 
-        # Get all active schedules for this time_of_day
-        schedules = MedicineSchedule.objects.filter(
-            medicine__user=request.user,
-            medicine__medicine_status=Medicine.STATUS_ACTIVE,
-            time_of_day=time_of_day,
-        ).select_related("medicine")
+        # Get all active, non-PRN schedules for this time_of_day
+        schedules = list(
+            MedicineSchedule.objects.filter(
+                medicine__user=request.user,
+                medicine__medicine_status=Medicine.STATUS_ACTIVE,
+                medicine__is_prn=False,
+                is_active=True,
+                time_of_day=time_of_day,
+            ).select_related("medicine")
+        )
 
-        if not schedules.exists():
-            return HttpResponse(status=404)
+        # Filter to schedules that apply today (day-of-week check)
+        applicable = [s for s in schedules if s.applies_to_day(today.weekday())]
 
-        # Check if ALL are already logged
+        if not applicable:
+            return _render_action_center(request)
+
+        applicable_pks = {s.pk for s in applicable}
+
+        # Check if ALL applicable are already logged
         today_logs = set(
             MedicineLog.objects.filter(
                 user=request.user,
                 scheduled_date=today,
                 log_status__in=["taken", "late"],
-                schedule__in=schedules,
+                schedule_id__in=applicable_pks,
             ).values_list("schedule_id", flat=True)
         )
-        all_taken = len(today_logs) == schedules.count()
+        all_taken = len(today_logs) >= len(applicable)
 
         if all_taken:
-            # Un-log all
-            MedicineLog.objects.filter(
+            # Undo: delete logs and restore supply
+            logs_to_delete = MedicineLog.objects.filter(
                 user=request.user,
                 scheduled_date=today,
                 log_status__in=["taken", "late"],
-                schedule__in=schedules,
-            ).delete()
+                schedule_id__in=applicable_pks,
+            ).select_related("medicine")
+
+            # Restore supply per medicine before deleting
+            for log in logs_to_delete:
+                med = log.medicine
+                if med.current_supply is not None:
+                    med.current_supply += 1
+                    med.save(update_fields=["current_supply", "updated_at"])
+
+            logs_to_delete.delete()
         else:
-            # Log missing ones
-            now = timezone.now()
-            for schedule in schedules:
-                if schedule.pk not in today_logs:
-                    MedicineLog.objects.create(
-                        user=request.user,
-                        medicine=schedule.medicine,
-                        schedule=schedule,
-                        scheduled_date=today,
-                        log_status="taken",
-                        taken_at=now,
-                    )
+            # Log missing ones — matching canonical MedicineBulkTakeView
+            taken_count = 0
+            for schedule in applicable:
+                if schedule.pk in today_logs:
+                    continue  # Already handled
+
+                # Check for any existing log (taken/late/skipped/missed)
+                existing_log = MedicineLog.objects.filter(
+                    medicine=schedule.medicine,
+                    schedule=schedule,
+                    scheduled_date=today,
+                ).first()
+
+                if existing_log and existing_log.log_status in [
+                    MedicineLog.STATUS_TAKEN,
+                    MedicineLog.STATUS_LATE,
+                    MedicineLog.STATUS_SKIPPED,
+                ]:
+                    continue  # Already handled (skipped counts as handled)
+
+                # Create or update log with canonical fields
+                log, _created = MedicineLog.objects.get_or_create(
+                    user=request.user,
+                    medicine=schedule.medicine,
+                    schedule=schedule,
+                    scheduled_date=today,
+                    defaults={
+                        "scheduled_time": schedule.scheduled_time,
+                        "is_prn_dose": False,
+                    },
+                )
+                # mark_taken handles late/on-time classification
+                log.mark_taken()
+                taken_count += 1
+
+                # Decrement supply if tracked
+                med = schedule.medicine
+                if med.current_supply is not None and med.current_supply > 0:
+                    med.current_supply -= 1
+                    med.save(update_fields=["current_supply", "updated_at"])
+
+            if taken_count > 0:
+                safe_emit_event(EventTypes.HEALTH_MEDICATION_TAKEN, request.user, {
+                    "count": taken_count, "time_of_day": time_of_day,
+                    "source": "dashboard_action_center_bulk",
+                })
 
         # Invalidate cache and return the unified action center
         return _render_action_center(request)

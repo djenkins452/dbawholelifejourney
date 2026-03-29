@@ -245,6 +245,7 @@ def _collect_routine_items(user, user_now, user_today):
 def _collect_medication_items(user, user_now, user_today):
     """Collect today's medication dose instances as ExecutionItems + window summaries."""
     from apps.core.ai_state.state_builder import build_medicine_state
+    from apps.core.time_windows import WINDOW_DISPLAY_NAMES
 
     med_state = build_medicine_state(user)
     schedule_status = med_state.get('schedule_status_today', [])
@@ -256,11 +257,12 @@ def _collect_medication_items(user, user_now, user_today):
         completed = status in ('taken',)
         window = entry.get('window_label', 'unscheduled')
 
-        # Build window summary
+        # Build window summary with canonical display names
         if window not in window_summaries:
+            display_name = WINDOW_DISPLAY_NAMES.get(window, window.replace('_', ' ').title())
             window_summaries[window] = {
                 'total': 0, 'taken': 0, 'all_taken': False,
-                'label': window.replace('_', ' ').title() + ' Stack',
+                'label': display_name + ' Medications',
             }
         window_summaries[window]['total'] += 1
         if completed:
@@ -278,12 +280,24 @@ def _collect_medication_items(user, user_now, user_today):
 
         # Build toggle URL for individual dose completion
         schedule_id = entry.get('schedule_id')
+        medicine_id = entry.get('medicine_id')
         toggle_url = ''
         if schedule_id:
             try:
                 toggle_url = reverse(
                     'dashboard_v2:medicine_log',
                     kwargs={'schedule_id': schedule_id},
+                )
+            except Exception:
+                pass
+
+        # Build detail URL linking to medicine detail page
+        detail_url = ''
+        if medicine_id:
+            try:
+                detail_url = reverse(
+                    'health:medicine_detail',
+                    kwargs={'pk': medicine_id},
                 )
             except Exception:
                 pass
@@ -302,7 +316,7 @@ def _collect_medication_items(user, user_now, user_today):
             'is_actionable': not completed and status != 'missed',
             'is_foundational': True,
             'toggle_url': toggle_url,
-            'detail_url': '',
+            'detail_url': detail_url,
             'execution_group_type': 'medication_window',
             'execution_group_id': window,
             'parent_title': window_summaries[window]['label'],

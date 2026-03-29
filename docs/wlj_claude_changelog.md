@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-29 — Fix: Medication groups in Action Center sorted alphabetically instead of chronologically
+
+**Problem:** Medication window groups (Morning, Evening, Nightly) were sorted alphabetically by title, causing Evening to appear before Morning. The sort key at `action_prioritizer.py:597` used `g['title']` for all group types.
+
+**Fix:** Added canonical `WINDOW_ORDER` rank as a sort key for `medication_window` groups, so they sort chronologically (Morning → Mid-Morning → Lunch → Afternoon → Evening → Nightly). Non-medication groups continue to sort by title.
+
+**Files changed:** `apps/core/decision_engine/action_prioritizer.py`
+
+---
+
 ## 2026-03-29 — Fix: Medication state builder crash on `completed_at` attribute
 
 **Root cause:** `build_medicine_state()` in `state_builder.py:2248` referenced `log.completed_at` but `MedicineLog` only has `taken_at`. When any dose was marked taken today, the AttributeError was caught by the outer `except Exception` block, silently returning empty `schedule_status_today`. This caused ALL medication items to vanish from Action Center whenever a dose had been taken.

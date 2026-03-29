@@ -594,10 +594,16 @@ def build_grouped_action_center(execution_items, current_time, summaries=None):
         })
 
     # Step 4: Sort groups — within each phase, pending first then completed
+    # Medication window groups use canonical WINDOW_ORDER for chronological
+    # ordering instead of alphabetical title sort.
+    from apps.core.time_windows import WINDOW_ORDER
+    _window_rank = {w: i for i, w in enumerate(WINDOW_ORDER)}
+
     result_groups.sort(key=lambda g: (
         URGENCY_ORDER.get(g['urgency'], 9),
         g['all_complete'],  # Completed groups after pending within same phase
         not g['is_foundational'],
+        _window_rank.get(g['group_id'], 99) if g['group_type'] == 'medication_window' else 99,
         g['title'],
     ))
 

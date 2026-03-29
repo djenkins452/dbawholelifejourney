@@ -3,8 +3,27 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-04 (session close documentation audit)
+# Last Updated: 2026-03-29 (significant event awareness)
 # ================================================================# WLJ Change History
+
+## 2026-03-29 — Significant Event Awareness: Deterministic Signal Pipeline
+
+**Problem:** CoS/Beth did not acknowledge the user's birthday or other significant events. Events were injected as optional advisory context that the LLM could (and did) ignore.
+
+**Root Cause:** Significant events were only in the operational/advisory layer of the CoS prompt, not in the LOCKED FACTS block (the mandatory truth layer).
+
+**Changes:**
+- `apps/life/services/event_signals.py` — NEW: Deterministic signal builder for significant events with relationship priority inference (self > spouse > child > family > general). Generates `significant_event_today` (mandatory), `significant_event_upcoming`, and `gift_consideration_window` signals.
+- `apps/ai/cos_fact_statements.py` — Added `_build_significant_event_summary()` and `significant_events_summary` to LOCKED FACTS. Today events now produce MANDATORY acknowledgment rules in the locked facts block. Birthday detection produces "TODAY IS YOUR BIRTHDAY!" locked statement.
+- `apps/core/ai_state/state_builder.py` — Enhanced `build_life_events_state()` to enrich events with structured relationship data from Person FK → Relationship records.
+- `apps/core/ai_orchestrator/cos_context.py` — Wired event signals into `_build_health_and_vitals()` context builder. Added mandatory signal rendering in `format_cos_system_injection()`.
+- `apps/ai/executive_briefing.py` — Updated `_build_life_events_section()` with mandatory acknowledgment rules for today events. Updated check-in briefing instruction to enforce event acknowledgment.
+- `apps/life/tests/test_event_signals.py` — NEW: 14 tests for signal builder and relationship priority inference.
+- `apps/ai/tests/test_event_locked_facts.py` — NEW: 8 tests for locked facts integration.
+
+**Why:** Events existed in the system but were passive — no signal pipeline meant CoS treated them as optional. This adds the missing Raw Data → Signals → CoS layer with deterministic rules that force acknowledgment of important events.
+
+---
 
 ## 2026-03-29 — Fix: Medication groups in Action Center sorted alphabetically instead of chronologically
 

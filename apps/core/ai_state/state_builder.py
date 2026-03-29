@@ -1683,6 +1683,20 @@ def build_life_events_state(user):
                         }
                         if event.original_year:
                             event_info["years"] = today.year - event.original_year
+                        # Enrich with structured relationship data
+                        if event.person_id:
+                            try:
+                                person_obj = event.person
+                                event_info["person_type"] = (
+                                    person_obj.person_type
+                                )
+                                rel = person_obj.relationships.first()
+                                if rel:
+                                    event_info["relationship_type"] = (
+                                        rel.relationship_type
+                                    )
+                            except Exception:
+                                pass
                         approaching.append(event_info)
                 except Exception:
                     continue

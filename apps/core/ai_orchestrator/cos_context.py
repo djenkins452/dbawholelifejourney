@@ -635,6 +635,24 @@ def _build_health_and_vitals(user):
     except Exception:
         logger.warning("CoS context: task priority summary failed", exc_info=True)
 
+    # Significant Event Signals (deterministic layer)
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        from apps.life.services.event_signals import build_significant_event_signals
+
+        life_events_state = get_module_state(user, 'life_events') or {}
+        if life_events_state:
+            ev_signals = build_significant_event_signals(life_events_state)
+            if ev_signals:
+                result['event_signals'] = [
+                    {k: v for k, v in s.items()
+                     if k in ('key', 'state', 'priority', 'priority_label',
+                              'insight', 'mandatory')}
+                    for s in ev_signals
+                ]
+    except Exception:
+        logger.warning("CoS context: event signals failed", exc_info=True)
+
     return result
 
 
@@ -6200,6 +6218,18 @@ def format_cos_system_injection(context, user_message=None):
             if ev.get('years'):
                 parts.append(f"({ev['years']} years)")
             lines.append(' '.join(parts))
+
+    # Event signals (deterministic relationship-aware layer)
+    ev_signals = context.get('event_signals', [])
+    if ev_signals:
+        for sig in ev_signals:
+            if sig.get('mandatory'):
+                lines.append(
+                    f"  ⚡ MANDATORY: {sig.get('insight', '')} "
+                    f"[priority: {sig.get('priority_label', 'general')}]"
+                )
+            elif sig.get('key') == 'gift_consideration_window':
+                lines.append(f"  💡 {sig.get('insight', '')}")
 
     # Open loops (things to address)
     loops = context.get('open_loops', {})

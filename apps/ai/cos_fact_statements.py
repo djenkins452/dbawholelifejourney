@@ -101,6 +101,9 @@ def build_locked_facts(user) -> dict:
             if not item.get('is_completed'):
                 pending_names.append(item.get('item_name', 'Unknown'))
 
+    # Significant events — deterministic, from DB
+    event_summary, event_signals = _build_significant_event_summary(user)
+
     facts = {
         'faith_summary': _build_faith_summary(raw),
         'routine_summary': _build_routine_summary(
@@ -110,9 +113,11 @@ def build_locked_facts(user) -> dict:
         'workout_summary': _build_workout_summary(raw),
         'journal_summary': _build_journal_summary(raw),
         'medication_summary': _build_medication_summary(raw),
+        'significant_events_summary': event_summary,
         'overall_summary': _build_overall_summary(raw),
         'next_action': build_locked_next_action(user),
         '_raw': raw,
+        '_event_signals': event_signals,
     }
 
     logger.info(
@@ -290,6 +295,127 @@ def _build_overall_summary(raw):
     return f"{done_text} completed so far.{routine_text}{task_text}"
 
 
+def _build_significant_event_summary(user):
+    """
+    Build locked significant event fact statements.
+
+    Queries SignificantEvent model directly (not Execution Truth Engine)
+    because events are not execution items — they're relational awareness.
+
+    Returns:
+        tuple: (summary_string, event_signals_list)
+    """
+    try:
+        from apps.core.utils import get_user_today
+        from apps.life.models import SignificantEvent
+        from apps.life.services.event_signals import (
+            build_significant_event_signals,
+            infer_relationship_priority,
+            PRIORITY_LABELS,
+        )
+
+        today = get_user_today(user)
+
+        # Build events state (same shape as SAE state builder)
+        approaching = []
+        for event in SignificantEvent.objects.filter(user=user):
+            try:
+                days_until = event.days_until_next(today)
+                if days_until is not None and days_until <= 14:
+                    event_info = {
+                        "title": event.title,
+                        "type": event.event_type,
+                        "days_until": days_until,
+                        "person": event.person_name or "",
+                    }
+                    if event.original_year:
+                        event_info["years"] = today.year - event.original_year
+                    # Enrich with structured relationship data if available
+                    if event.person_id:
+                        try:
+                            person_obj = event.person
+                            event_info["person_type"] = person_obj.person_type
+                            # Check for Relationship record
+                            rel = person_obj.relationships.first()
+                            if rel:
+                                event_info["relationship_type"] = (
+                                    rel.relationship_type
+                                )
+                        except Exception:
+                            pass
+                    approaching.append(event_info)
+            except Exception:
+                continue
+
+        approaching.sort(key=lambda e: e["days_until"])
+        today_events = [e for e in approaching if e["days_until"] == 0]
+
+        events_state = {
+            "today_events": today_events,
+            "approaching_events": approaching[:10],
+        }
+
+        # Build signals
+        signals = build_significant_event_signals(events_state)
+
+        # Build the summary string
+        parts = []
+
+        if today_events:
+            for ev in today_events:
+                priority = infer_relationship_priority(ev)
+                plabel = PRIORITY_LABELS.get(priority, "general")
+                person = ev.get("person") or ""
+                title = ev.get("title", "Event")
+                years = ev.get("years")
+
+                if plabel == "self":
+                    if years:
+                        parts.append(
+                            f"TODAY IS YOUR BIRTHDAY! You are turning {years}."
+                        )
+                    else:
+                        parts.append("TODAY IS YOUR BIRTHDAY!")
+                else:
+                    desc = title
+                    if person:
+                        desc += f" — {person}"
+                    if years:
+                        desc += f" ({years} years)"
+                    parts.append(f"TODAY: {desc}.")
+
+        # Upcoming high-priority events (spouse/family only, to avoid spam)
+        upcoming_high = [
+            e for e in approaching
+            if e["days_until"] > 0
+            and infer_relationship_priority(e) <= 4  # family or closer
+        ][:3]
+        for ev in upcoming_high:
+            days = ev["days_until"]
+            person = ev.get("person") or ev.get("title", "Event")
+            day_label = "tomorrow" if days == 1 else f"in {days} days"
+            parts.append(f"Upcoming: {person}'s {ev.get('type', 'event')} {day_label}.")
+
+        if not parts:
+            summary = "No significant events today or upcoming."
+        else:
+            summary = " ".join(parts)
+
+        logger.info(
+            "[CoS LOCKED EVENTS] user=%s today=%d upcoming=%d summary=%s",
+            user.id, len(today_events), len(upcoming_high),
+            summary[:100],
+        )
+
+        return summary, signals
+
+    except Exception:
+        logger.warning(
+            "[CoS LOCKED EVENTS] FAILED user=%s", user.id, exc_info=True,
+        )
+        return "No significant events today or upcoming.", []
+
+
 def build_locked_next_action(user) -> str:
     """
     Build the system-determined next action recommendation.
@@ -350,6 +476,10 @@ def format_locked_facts_block(facts) -> str:
     This is the ONLY source of factual statements about today's status.
     The LLM must use these statements exactly.
     """
+    # Check if there are today events that require mandatory acknowledgment
+    events_summary = facts.get('significant_events_summary', '')
+    has_today_events = events_summary.startswith("TODAY")
+
     lines = [
         "=" * 60,
         "LOCKED FACT STATEMENTS (SYSTEM-GENERATED — DO NOT CHANGE)",
@@ -361,6 +491,7 @@ def format_locked_facts_block(facts) -> str:
         f"  Workout: {facts['workout_summary']}",
         f"  Journal: {facts['journal_summary']}",
         f"  Medications: {facts['medication_summary']}",
+        f"  Significant Events: {events_summary}",
         f"  Overall: {facts['overall_summary']}",
         "",
         f"  NEXT ACTION: {facts.get('next_action', 'Unable to determine.')}",
@@ -396,6 +527,25 @@ def format_locked_facts_block(facts) -> str:
         "  signals, patterns).",
         "- The NEXT ACTION is computed by the system from execution priority.",
         "  You do NOT decide priority — you only communicate it.",
-        "=" * 60,
     ]
+
+    # Mandatory event acknowledgment rules (deterministic — not LLM-decided)
+    if has_today_events:
+        lines.extend([
+            "",
+            "SIGNIFICANT EVENT ACKNOWLEDGMENT (MANDATORY):",
+            "- The Significant Events line above contains a TODAY event.",
+            "- You MUST acknowledge this event in your response.",
+            "- This is NON-NEGOTIABLE — do NOT skip, defer, or minimize it.",
+            "- If it is the user's birthday: lead with warm, genuine "
+            "acknowledgment. This takes priority over status reporting.",
+            "- If it is someone else's event: mention it naturally and "
+            "warmly within your response.",
+            "- You MAY use appropriate tone (celebration, remembrance) "
+            "based on the event type (birthday vs memorial).",
+            "- Do NOT just list it as data — treat it as personally "
+            "meaningful because it IS personally meaningful.",
+        ])
+
+    lines.append("=" * 60)
     return "\n".join(lines)

@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-29 — Fix: Action Center Medication Toggle Parity with Canonical Views
+
+**Problem:** Dashboard Action Center medication toggle endpoints (`MedicineLogAction`, `MedicineGroupLogAction`) did not match the behavior of canonical medicine views (`MedicineTakeView`, `MedicineBulkTakeView`). This caused: missing `scheduled_time` on logs, no late/on-time classification, no supply decrement, no event firing for the signal pipeline, and no day-of-week filtering on group toggles.
+
+**Changes:**
+- `apps/dashboard_v2/views.py` — Rewrote `MedicineLogAction` to: validate `applies_to_day()`, use `get_or_create` with `scheduled_time`, call `mark_taken()` for late/on-time classification, decrement supply, fire `HEALTH_MEDICATION_TAKEN` event, and restore supply on undo.
+- `apps/dashboard_v2/views.py` — Rewrote `MedicineGroupLogAction` to: filter by `is_prn=False` and `is_active=True`, apply `applies_to_day()` filter, skip already-handled doses (taken/late/skipped), use `get_or_create` with `scheduled_time`, call `mark_taken()`, decrement supply per medicine, fire bulk event, and restore supply on undo.
+- `apps/core/execution/today_execution.py` — Updated `_collect_medication_items()`: added `detail_url` linking to `health:medicine_detail` for each medication item, changed group labels from "X Stack" to "X Medications" using canonical `WINDOW_DISPLAY_NAMES`.
+
+**Architecture preserved:** No new models, services, or pipelines. Medications remain in Medical domain. `MedicineLog` remains canonical truth. Adherence, signals, and CoS flow unchanged.
+
+---
+
 ## 2026-03-29 — Fix: Evening summary marking future items as "Missed"
 
 **What:** `_render_evening()` in `beth_checkin_renderer.py` was lumping all non-completed items (overdue + coming_up + later) into the "Missed" label. Items whose scheduled time hadn't passed yet (e.g., Journal at 8pm, Medicines at 10pm) were incorrectly shown as "Missed" at 7pm.

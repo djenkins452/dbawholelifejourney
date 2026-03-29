@@ -1568,6 +1568,16 @@ def _build_faith_context(user):
                 'streak_days': reading_streak,
             }
 
+        # Biblical calendar day — deterministic date-derived signal
+        try:
+            from apps.faith.biblical_calendar import get_biblical_day
+            from apps.core.utils import get_user_today
+            biblical_day = get_biblical_day(get_user_today(user))
+            if biblical_day:
+                result['faith_summary']['biblical_day'] = biblical_day
+        except Exception:
+            pass  # Non-critical — fail silently if calendar unavailable
+
         return result
 
     except Exception as e:
@@ -2383,6 +2393,13 @@ def _build_signal_aware_context(user):
                 f['intent_type'] for f in facts
                 if isinstance(f, dict) and f.get('intent_type')
             })
+
+            # Faith significance signals carry ontology-classified intents
+            # in source_signals.signal_ontology (event + influence).
+            ontology = source.get('signal_ontology') or {}
+            if ontology.get('event'):
+                intents = sorted(set(intents) | {ontology['event']})
+
             if intents:
                 signal_entry['intents'] = intents
 
@@ -2760,6 +2777,22 @@ def build_cos_context(user, scoped_builders=None):
     # =====================================================================
     # POST-ASSEMBLY (depends on composed context — must be sequential)
     # =====================================================================
+
+    # Day Significance — promote biblical day to top-level cross-domain context.
+    # This is a peer of daily_signals and goal_momentum, not nested under faith.
+    faith_summary = context.get('faith_summary') or {}
+    _biblical_day = faith_summary.get('biblical_day')
+    if _biblical_day:
+        context['day_significance'] = {
+            'type': 'biblical',
+            'name': _biblical_day['name'],
+            'level': _biblical_day['level'],
+            'theme': _biblical_day['theme'],
+            'scripture_reference': _biblical_day['scripture_reference'],
+            'influence': _biblical_day.get('signal_ontology', {}).get(
+                'influence', 'faith_theme_active'
+            ),
+        }
 
     # Executive tone mode (depends on full context)
     context['executive_tone_mode'] = _determine_tone_mode(user, context)

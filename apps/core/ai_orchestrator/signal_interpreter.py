@@ -38,6 +38,12 @@ _INTENT_SEMANTICS = {
         'meaning_code': 'upcoming_schedule_block',
         'priority_hint': 'time_sensitive',
     },
+    # Faith calendar signals — biblical day detection (derived_pattern)
+    'biblical_day_detected': {
+        'semantic_class': 'faith_calendar_event',
+        'meaning_code': 'biblical_significance_day',
+        'priority_hint': 'contextual',
+    },
 }
 
 

@@ -49,6 +49,7 @@ SIGNAL_TYPE_DOMAIN = {
     'domain_neglect': 'life',                 # domain-level decline → organize/life management
     'compliance_drift': 'health',             # medication_adherence + health_biometrics
     'wellbeing_convergence': 'journal',       # reflection + relational + faith → inner life
+    'faith_significance': 'faith',             # biblical calendar day detection (derived_pattern)
     # Emotion-derived signal types (deterministic, from structured journal emotion selections)
     'emotional_stress': 'emotional',          # stressed/overwhelmed/anxious
     'emotional_low_mood': 'emotional',        # sad/angry/low/difficult/tired
@@ -104,6 +105,7 @@ class SignalAggregationService:
             SignalAggregationService._compute_productivity_progress,
             SignalAggregationService._compute_relational_engagement,   # Phase 4
             SignalAggregationService._compute_financial_health,        # Phase 4 (stub)
+            SignalAggregationService._compute_faith_significance,      # Biblical calendar signal
         ]
 
         for computer in signal_computers:
@@ -487,6 +489,37 @@ class SignalAggregationService:
             source_signals=source_data,
             expected=is_expected,
             state=state,
+        )
+
+    @staticmethod
+    def _compute_faith_significance(user, date, expected_map):
+        """
+        Biblical calendar day detection — derived_pattern signal.
+
+        Sources: apps.faith.biblical_calendar (deterministic date resolver).
+        NOT a behavioral signal. NOT scored. Level is authoritative.
+        Returns None on non-significant days (no snapshot created).
+        """
+        from apps.faith.biblical_calendar import get_biblical_day
+
+        biblical_day = get_biblical_day(date)
+        if biblical_day is None:
+            return None  # Not a significant day — no snapshot, no zero-fill
+
+        return SignalAggregationService._upsert_snapshot(
+            user, date, 'faith_significance',
+            score=0.0,  # Not a metric signal — level is authoritative
+            confidence=CONFIDENCE_EXPLICIT,  # Date-derived fact, maximum confidence
+            signal_class='derived_pattern',
+            source_signals={
+                'name': biblical_day['name'],
+                'level': biblical_day['level'],
+                'theme': biblical_day['theme'],
+                'scripture_reference': biblical_day['scripture_reference'],
+                'signal_ontology': biblical_day['signal_ontology'],
+            },
+            expected=False,  # Calendar events are not user-expected actions
+            state='detected',
         )
 
     @staticmethod

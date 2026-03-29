@@ -173,7 +173,7 @@ def _build_structured_from_truth(user) -> dict:
 
     _validate_output(rendered_text)
 
-    return {
+    result = {
         'greeting': greeting,
         'day_narrative': day_narrative,
         'state': state,
@@ -188,6 +188,17 @@ def _build_structured_from_truth(user) -> dict:
         'phase': phase,
         'rendered_text': rendered_text,
     }
+
+    # Include day significance in structured output if present
+    day_sig = _get_day_significance(user)
+    if day_sig:
+        result['day_significance'] = {
+            'name': day_sig['name'],
+            'level': day_sig['level'],
+            'theme': day_sig['theme'],
+        }
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -262,24 +273,34 @@ def _render_morning(ctx, user, user_now) -> str:
     """Morning briefing — CoS contract: greeting, situation, plan, day view.
 
     Structure:
-    A. Opening — greeting + situation awareness
+    A. Opening — greeting + situation awareness (shaped by day_significance)
     B. Immediate plan — 1-2 next actions + constraint anchor
     C. Full-day view — key items later today (medications, priorities)
-    D. Closing — directional statement
+    D. Closing — directional statement (shaped by day_significance)
     """
     lines = []
     first_name = getattr(user, 'first_name', '') or ''
     hour = user_now.hour
 
+    # ── Day Significance check (deterministic, zero-cost) ──
+    day_sig = _get_day_significance(user)
+
     # ── A. Opening: Greeting + Situation ──
-    if hour < 5:
-        lines.append(f"Early start{', ' + first_name if first_name else ''}.")
-    elif hour < 9:
-        lines.append(
-            f"Good morning{', ' + first_name if first_name else ''}."
-        )
+    # defining → override opening tone entirely
+    # highlighted → weave into situation line
+    # baseline → passive (no mention)
+    if day_sig and day_sig['level'] == 'defining':
+        # Defining days override the greeting with significance-aware opening
+        lines.append(_build_defining_day_opening(day_sig, first_name, hour))
     else:
-        lines.append(f"Morning{', ' + first_name if first_name else ''}.")
+        if hour < 5:
+            lines.append(f"Early start{', ' + first_name if first_name else ''}.")
+        elif hour < 9:
+            lines.append(
+                f"Good morning{', ' + first_name if first_name else ''}."
+            )
+        else:
+            lines.append(f"Morning{', ' + first_name if first_name else ''}.")
 
     overdue = ctx.get("overdue", [])
     coming_up = ctx.get("coming_up", [])
@@ -289,8 +310,14 @@ def _render_morning(ctx, user, user_now) -> str:
     _state, situation = _assess_situation_structured(
         overdue, completed, coming_up, user_now,
     )
-    lines.append("")
-    lines.append(situation)
+
+    # highlighted → weave significance into the situation line
+    if day_sig and day_sig['level'] == 'highlighted':
+        lines.append("")
+        lines.append(_build_highlighted_day_situation(day_sig, situation))
+    else:
+        lines.append("")
+        lines.append(situation)
 
     # ── B. Immediate Plan: next actions + anchor ──
     triage = _build_morning_triage(
@@ -321,10 +348,15 @@ def _render_morning(ctx, user, user_now) -> str:
         lines.append(day_view)
 
     # ── D. Closing: directional ──
-    closing = _morning_closing(_state, completed, overdue, later, user_now)
-    if closing:
+    # defining → theme-connected directive replaces rotating closer
+    if day_sig and day_sig['level'] == 'defining':
         lines.append("")
-        lines.append(closing)
+        lines.append(_build_defining_day_closing(day_sig))
+    else:
+        closing = _morning_closing(_state, completed, overdue, later, user_now)
+        if closing:
+            lines.append("")
+            lines.append(closing)
 
     return "\n".join(lines)
 
@@ -404,6 +436,78 @@ def _morning_closing(state, completed, overdue, later, user_now=None) -> str:
     if later:
         return _rotating_phrase(_CLOSING_PHRASES_DEFAULT, now)
     return ""
+
+
+# ---------------------------------------------------------------------------
+# Day Significance — tone shaping for biblically significant days
+# ---------------------------------------------------------------------------
+# These functions implement deterministic tone adjustments based on
+# biblical calendar signals. No LLM, no user data, no DB queries.
+# Source: apps.faith.biblical_calendar (pure date computation).
+
+def _get_day_significance(user):
+    """Return day significance data if today is biblically significant.
+
+    Returns dict with: name, level, theme, scripture_reference
+    or None. Respects faith_enabled preference.
+    """
+    try:
+        prefs = getattr(user, 'preferences', None)
+        if prefs and not getattr(prefs, 'faith_enabled', True):
+            return None
+        from apps.faith.biblical_calendar import get_biblical_day
+        from apps.core.utils import get_user_today
+        return get_biblical_day(get_user_today(user))
+    except Exception:
+        return None
+
+
+# Defining-day opening phrases — keyed by biblical day name.
+# These override the standard greeting entirely.
+_DEFINING_DAY_OPENINGS = {
+    'Good Friday': "Today is Good Friday{name_clause}. This is not a day to rush.",
+    'Easter Sunday': "He is risen{name_clause}. This is a defining day.",
+}
+
+# Fallback for defining days not in the map
+_DEFINING_DAY_OPENING_DEFAULT = "Today is {day_name}{name_clause} — a defining day."
+
+
+def _build_defining_day_opening(day_sig: dict, first_name: str, hour: int) -> str:
+    """Build a significance-aware opening for defining-level days.
+
+    Replaces the standard greeting. Tone is directive, not devotional.
+    """
+    name_clause = f", {first_name}" if first_name else ""
+    template = _DEFINING_DAY_OPENINGS.get(
+        day_sig['name'], _DEFINING_DAY_OPENING_DEFAULT
+    )
+    return template.format(name_clause=name_clause, day_name=day_sig['name'])
+
+
+def _build_highlighted_day_situation(day_sig: dict, situation: str) -> str:
+    """Weave day significance into the situation line for highlighted days.
+
+    Prepends a brief acknowledgment before the normal situation text.
+    """
+    return f"Today is {day_sig['name']}. {situation}"
+
+
+# Defining-day closing directives — keyed by biblical day name.
+# These replace the rotating closer with a theme-connected directive.
+_DEFINING_DAY_CLOSINGS = {
+    'Good Friday': "Carry today with weight — not haste.",
+    'Easter Sunday': "Step forward today with conviction, not hesitation.",
+}
+
+_DEFINING_DAY_CLOSING_DEFAULT = "Let today's meaning shape how you move."
+
+
+def _build_defining_day_closing(day_sig: dict) -> str:
+    """Build a theme-connected closing for defining-level days."""
+    return _DEFINING_DAY_CLOSINGS.get(
+        day_sig['name'], _DEFINING_DAY_CLOSING_DEFAULT
+    )
 
 
 def _build_day_narrative(ctx, user_now) -> str:

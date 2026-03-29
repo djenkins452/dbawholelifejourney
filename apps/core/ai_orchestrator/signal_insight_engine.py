@@ -52,6 +52,15 @@ _INSIGHT_RULES = {
         'priority_default': 'medium',
         'must_surface': True,
     },
+    # Faith calendar signals — biblical day significance
+    'biblical_significance_day': {
+        'insight_code': 'faith_day_significance',
+        'default_domain': 'faith',
+        'summary': 'A biblically significant day is active.',
+        'priority_when_time_sensitive': 'high',
+        'priority_default': 'high',
+        'must_surface': True,
+    },
 }
 
 

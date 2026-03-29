@@ -6,6 +6,28 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-29 — Feature: Biblical Significance Signal Layer
+
+**What:** Deterministic signal system that detects biblically significant days (Palm Sunday, Good Friday, Easter, Christmas) and influences the CoS morning briefing tone.
+
+**Architecture:** Raw Data → Signal → CoS → LLM (no new pipelines, no new models, no LLM-generated meaning)
+
+**Files changed:**
+- `apps/faith/biblical_calendar.py` — NEW: Deterministic date resolver with Easter computation (Anonymous Gregorian algorithm) and structured biblical day registry
+- `apps/core/ai_eae/signal_aggregation.py` — Added `_compute_faith_significance()` signal computer producing `faith_significance` SignalSnapshot with `derived_pattern` class, no numeric score (level is authoritative)
+- `apps/core/ai_orchestrator/signal_interpreter.py` — Registered `biblical_day_detected` intent in `_INTENT_SEMANTICS`
+- `apps/core/ai_orchestrator/signal_insight_engine.py` — Registered `biblical_significance_day` insight rule with `must_surface=True`
+- `apps/core/ai_orchestrator/cos_context.py` — Enriched `_build_faith_context()` with `biblical_day`; promoted to top-level `context["day_significance"]` in post-assembly (cross-domain context); added ontology-based intent extraction for faith_significance signals
+- `apps/ai/beth_checkin_renderer.py` — Added day significance tone shaping: `defining` overrides greeting + closing, `highlighted` weaves into situation line, `baseline` is passive
+- `apps/faith/tests/test_biblical_calendar.py` — NEW: 16 tests for date computation and resolver
+- `apps/ai/tests/test_beth_significance_rendering.py` — NEW: 10 tests for renderer tone shaping
+
+**Why:** The faith signal layer knew what the user did but not what today means. Easter Sunday got the same briefing tone as any other day. This adds a deterministic, signal-driven system where biblical significance flows through the existing pipeline to shape daily alignment.
+
+**Signal ontology:** Event signal (`biblical_day_detected`), Influence signal (`faith_theme_active`). Gated by `faith_enabled` preference.
+
+---
+
 ## 2026-03-28 — Fix: Desktop Chrome Time Picker Ignores step=900
 
 **Problem:** Chrome's desktop native time picker dropdown shows all 60 minutes regardless of `step="900"`. The step attribute only affects arrow key increments, not the dropdown list.

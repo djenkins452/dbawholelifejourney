@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-29 — Fix: Medication state builder crash on `completed_at` attribute
+
+**Root cause:** `build_medicine_state()` in `state_builder.py:2248` referenced `log.completed_at` but `MedicineLog` only has `taken_at`. When any dose was marked taken today, the AttributeError was caught by the outer `except Exception` block, silently returning empty `schedule_status_today`. This caused ALL medication items to vanish from Action Center whenever a dose had been taken.
+
+**Fix:** Changed `log.completed_at` → `log.taken_at` (2 occurrences on the same line).
+
+**Files changed:** `apps/core/ai_state/state_builder.py`
+
+---
+
 ## 2026-03-29 — Fix: Action Center Medication Toggle Parity with Canonical Views
 
 **Problem:** Dashboard Action Center medication toggle endpoints (`MedicineLogAction`, `MedicineGroupLogAction`) did not match the behavior of canonical medicine views (`MedicineTakeView`, `MedicineBulkTakeView`). This caused: missing `scheduled_time` on logs, no late/on-time classification, no supply decrement, no event firing for the signal pipeline, and no day-of-week filtering on group toggles.

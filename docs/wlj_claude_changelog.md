@@ -6,6 +6,17 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-29 — Fix: Day significance now surfaces in midday and evening briefings
+
+**What:** The biblical significance signal layer only shaped the morning renderer. If the morning check-in ran before the code was deployed (or the user missed morning), they'd never see day significance for that day. Added `day_significance` awareness to `_render_midday()` and `_render_evening()`.
+
+**Files changed:**
+- `apps/ai/beth_checkin_renderer.py` — Added day significance tone shaping to midday (defining: significance-aware greeting, highlighted: brief acknowledgment) and evening (defining: significance-aware opening + theme-connected closing via `_build_defining_day_evening_closing()`, highlighted: brief acknowledgment). Added `_DEFINING_DAY_EVENING_CLOSINGS` dict and `_build_defining_day_evening_closing()` function.
+
+**Why:** Palm Sunday (2026-03-29) was not surfacing because the morning check-in ran before deployment. Midday/evening renderers had no day significance awareness, so the signal was invisible for the rest of the day.
+
+---
+
 ## 2026-03-29 — Fix: Medication state builder crash on `completed_at` attribute
 
 **Root cause:** `build_medicine_state()` in `state_builder.py:2248` referenced `log.completed_at` but `MedicineLog` only has `taken_at`. When any dose was marked taken today, the AttributeError was caught by the outer `except Exception` block, silently returning empty `schedule_status_today`. This caused ALL medication items to vanish from Action Center whenever a dose had been taken.

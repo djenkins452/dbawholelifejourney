@@ -510,6 +510,22 @@ def _build_defining_day_closing(day_sig: dict) -> str:
     )
 
 
+# Evening closing directives for defining days.
+_DEFINING_DAY_EVENING_CLOSINGS = {
+    'Good Friday': "Let the weight of today settle. Rest now.",
+    'Easter Sunday': "Today carried meaning. Carry it forward tomorrow.",
+}
+
+_DEFINING_DAY_EVENING_CLOSING_DEFAULT = "Today was significant. Let it land."
+
+
+def _build_defining_day_evening_closing(day_sig: dict) -> str:
+    """Build a theme-connected evening closing for defining-level days."""
+    return _DEFINING_DAY_EVENING_CLOSINGS.get(
+        day_sig['name'], _DEFINING_DAY_EVENING_CLOSING_DEFAULT
+    )
+
+
 def _build_day_narrative(ctx, user_now) -> str:
     """Build a 1-sentence flow description of the day.
 
@@ -915,12 +931,29 @@ def _build_triage_structured(
 # ---------------------------------------------------------------------------
 
 def _render_midday(ctx, user, user_now) -> str:
-    """Midday alignment — progress, slipping, recalibrated guidance."""
+    """Midday alignment — progress, slipping, recalibrated guidance.
+
+    Day significance:
+    - defining → significance-aware greeting replaces standard
+    - highlighted → brief acknowledgment after greeting
+    - baseline → passive (no mention)
+    """
     lines = []
     first_name = getattr(user, 'first_name', '') or ''
+    day_sig = _get_day_significance(user)
 
-    # Greeting
-    lines.append(f"Midday check{', ' + first_name if first_name else ''}.")
+    # Greeting — shaped by day significance
+    if day_sig and day_sig['level'] == 'defining':
+        lines.append(
+            f"It's still {day_sig['name']}"
+            f"{', ' + first_name if first_name else ''}. "
+            f"Let that shape your afternoon."
+        )
+    elif day_sig and day_sig['level'] == 'highlighted':
+        lines.append(f"Midday check{', ' + first_name if first_name else ''}.")
+        lines.append(f"Today is {day_sig['name']}.")
+    else:
+        lines.append(f"Midday check{', ' + first_name if first_name else ''}.")
 
     # Progress narrative
     all_items = ctx.get("all_items", [])
@@ -985,13 +1018,31 @@ def _render_midday(ctx, user, user_now) -> str:
 # ---------------------------------------------------------------------------
 
 def _render_evening(ctx, user, user_now) -> str:
-    """Evening debrief — results, explicit misses, tomorrow."""
+    """Evening debrief — results, explicit misses, tomorrow.
+
+    Day significance:
+    - defining → significance-aware opening + theme-connected closing
+    - highlighted → brief acknowledgment in opening
+    - baseline → passive (no mention)
+    """
     lines = []
     first_name = getattr(user, 'first_name', '') or ''
+    day_sig = _get_day_significance(user)
 
-    lines.append(
-        f"End of day{', ' + first_name if first_name else ''}."
-    )
+    if day_sig and day_sig['level'] == 'defining':
+        lines.append(
+            f"{day_sig['name']} is closing"
+            f"{', ' + first_name if first_name else ''}."
+        )
+    elif day_sig and day_sig['level'] == 'highlighted':
+        lines.append(
+            f"End of day{', ' + first_name if first_name else ''}."
+        )
+        lines.append(f"Today was {day_sig['name']}.")
+    else:
+        lines.append(
+            f"End of day{', ' + first_name if first_name else ''}."
+        )
 
     # Results
     all_items = ctx.get("all_items", [])
@@ -1050,6 +1101,11 @@ def _render_evening(ctx, user, user_now) -> str:
             )
     except Exception:
         pass
+
+    # Defining-day evening closing — theme-connected reflection
+    if day_sig and day_sig['level'] == 'defining':
+        lines.append("")
+        lines.append(_build_defining_day_evening_closing(day_sig))
 
     return "\n".join(lines)
 

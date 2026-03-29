@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-29 — Fix: Medication groups in Action Center sorted alphabetically instead of chronologically
+
+**Problem:** Medication window groups (Morning, Evening, Nightly) were sorted alphabetically by title, causing Evening to appear before Morning.
+
+**Fix:** Added canonical `WINDOW_ORDER` rank as a sort key for `medication_window` groups, so they sort chronologically (Morning → Mid-Morning → Lunch → Afternoon → Evening → Nightly). Non-medication groups continue to sort by title.
+
+**Files changed:** `apps/core/decision_engine/action_prioritizer.py`
+
+---
+
 ## 2026-03-29 — Fix: Day significance now surfaces in midday and evening briefings
 
 **What:** The biblical significance signal layer only shaped the morning renderer. If the morning check-in ran before the code was deployed (or the user missed morning), they'd never see day significance for that day. Added `day_significance` awareness to `_render_midday()` and `_render_evening()`.

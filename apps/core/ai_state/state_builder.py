@@ -2245,8 +2245,8 @@ def build_medicine_state(user):
                 if log and log.log_status in ('taken', 'late'):
                     status = 'taken'
                     log_time = (
-                        log.completed_at.astimezone(user_now.tzinfo).strftime('%I:%M %p').lstrip('0')
-                        if log.completed_at else None
+                        log.taken_at.astimezone(user_now.tzinfo).strftime('%I:%M %p').lstrip('0')
+                        if log.taken_at else None
                     )
                 elif log and log.log_status == 'missed':
                     status = 'missed'

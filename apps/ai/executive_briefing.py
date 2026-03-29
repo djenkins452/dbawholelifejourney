@@ -526,6 +526,8 @@ def build_checkin_briefing(user) -> str:
             "- NEVER infer completion from schedule, habits, patterns, or streaks.\n"
             "- If nothing is completed, say so honestly. Do NOT fabricate.\n"
             "- Do NOT say 'great start' or 'productive' when most items are not done.\n"
+            "- If Significant Events contains a TODAY event, you MUST "
+            "acknowledge it warmly. This is NON-NEGOTIABLE.\n"
             "Present as a brief, natural narrative — not a bullet list. "
             "End by asking what they want to tackle next."
         )
@@ -915,13 +917,28 @@ def _build_life_events_section(user, today) -> str:
             return ""
 
         events.sort(key=lambda x: x[0])
+
+        # Check for today events — these get mandatory acknowledgment
+        today_items = [desc for d, desc in events if d == 0]
+        has_today = bool(today_items)
+
         lines = ["Relational/Life Events This Week:"]
         for _, desc in events[:5]:
             lines.append(f"  - {desc}")
-        lines.append(
-            "Mention relevant events naturally. For relationships, "
-            "show you remember and care."
-        )
+
+        if has_today:
+            lines.append("")
+            lines.append(
+                "MANDATORY: Events marked 'today' MUST be acknowledged "
+                "in your response. This is non-negotiable. Lead with "
+                "warmth — birthdays, anniversaries, and memorials are "
+                "personally meaningful. Do NOT skip them."
+            )
+        else:
+            lines.append(
+                "Mention relevant events naturally. For relationships, "
+                "show you remember and care."
+            )
         return "\n".join(lines)
 
     except Exception:

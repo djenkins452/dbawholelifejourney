@@ -1023,15 +1023,27 @@ def _render_evening(ctx, user, user_now) -> str:
             f"Done: {', '.join(names)}, +{len(completed) - 4} more."
         )
 
-    # Explicit misses
+    # Explicit misses vs still remaining
     overdue = ctx.get("overdue", [])
     coming_up = ctx.get("coming_up", [])
     later = ctx.get("later", [])
-    missed = overdue + coming_up + later
-    if missed:
-        names = [e['label'] for e in missed[:4]]
+    if overdue:
+        names = [e['label'] for e in overdue[:4]]
+        remainder = len(overdue) - 4
+        label = ', '.join(names)
+        if remainder > 0:
+            label += f", +{remainder} more"
         lines.append("")
-        lines.append(f"Missed: {', '.join(names)}.")
+        lines.append(f"Missed: {label}.")
+    remaining = coming_up + later
+    if remaining:
+        names = [e['label'] for e in remaining[:4]]
+        remainder = len(remaining) - 4
+        label = ', '.join(names)
+        if remainder > 0:
+            label += f", +{remainder} more"
+        lines.append("")
+        lines.append(f"Still ahead: {label}.")
 
     # Tomorrow's load
     try:

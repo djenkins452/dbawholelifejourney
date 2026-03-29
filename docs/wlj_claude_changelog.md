@@ -6,6 +6,18 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-29 — Fix: Evening summary marking future items as "Missed"
+
+**What:** `_render_evening()` in `beth_checkin_renderer.py` was lumping all non-completed items (overdue + coming_up + later) into the "Missed" label. Items whose scheduled time hadn't passed yet (e.g., Journal at 8pm, Medicines at 10pm) were incorrectly shown as "Missed" at 7pm.
+
+**Fix:** Split non-completed items into two groups: `overdue` → "Missed", `coming_up + later` → "Still ahead". Added test to prevent regression.
+
+**Files changed:**
+- `apps/ai/beth_checkin_renderer.py` — separated missed vs remaining logic in `_render_evening()`
+- `apps/ai/tests/test_beth_briefing.py` — added `test_evening_future_items_not_marked_missed`
+
+---
+
 ## 2026-03-29 — Feature: Biblical Significance Signal Layer
 
 **What:** Deterministic signal system that detects biblically significant days (Palm Sunday, Good Friday, Easter, Christmas) and influences the CoS morning briefing tone.

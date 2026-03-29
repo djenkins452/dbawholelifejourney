@@ -378,6 +378,42 @@ class TestEveningOutput(TestCase):
         self.assertIn('Missed', output)
         self.assertIn('1 of 2', output)
 
+    def test_evening_future_items_not_marked_missed(self):
+        """Items in coming_up/later should say 'Still ahead', not 'Missed'."""
+        user = MagicMock()
+        user.first_name = 'Danny'
+        user.id = 1
+        user_now = timezone.now().replace(hour=19, minute=0)
+
+        done = _make_item('Bible Reading', '5:00 AM', 5, 0, completed=True)
+        overdue_item = _make_item('Workout', '6:15 AM', 6, 15)
+        future_item = _make_item('Journal', '8:00 PM', 20, 0)
+        late_item = _make_item('Magnesium', '10:00 PM', 22, 0)
+
+        ctx = {
+            'all_items': [done, overdue_item, future_item, late_item],
+            'foundation': [],
+            'overdue': [_make_entry(overdue_item)],
+            'coming_up': [_make_entry(future_item)],
+            'later': [_make_entry(late_item)],
+            'completed': [_make_entry(done)],
+            'next': '',
+        }
+
+        output = _render_evening(ctx, user, user_now)
+
+        # Overdue item should be "Missed"
+        self.assertIn('Missed', output)
+        self.assertIn('Workout', output)
+        # Future items should be "Still ahead", not "Missed"
+        self.assertIn('Still ahead', output)
+        self.assertIn('Journal', output)
+        self.assertIn('Magnesium', output)
+        # Verify future items are NOT in the Missed line
+        missed_line = [l for l in output.split('\n') if 'Missed' in l][0]
+        self.assertNotIn('Journal', missed_line)
+        self.assertNotIn('Magnesium', missed_line)
+
 
 class TestCanonicalRendererEnforcement(TestCase):
     """Enforce that all user-facing CoS paths use the canonical renderer.

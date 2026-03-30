@@ -61,6 +61,13 @@ def get_missed_events(user, start_date, end_date):
 
     This is the primary query for "what did I miss?" questions.
 
+    Includes BOTH:
+    - Doses explicitly logged as missed (log_status='missed')
+    - Expected doses with NO log entry at all (unlogged = missed)
+
+    This matches the dashboard/CoS adherence calculation in medicine_utils.py
+    which correctly treats unlogged expected doses as not taken.
+
     Args:
         user: Django User instance
         start_date: date — inclusive start
@@ -73,6 +80,7 @@ def get_missed_events(user, start_date, end_date):
 
     from apps.health.models import MedicineLog
 
+    # 1. Explicitly logged misses
     logs = (
         MedicineLog.objects
         .filter(
@@ -84,8 +92,15 @@ def get_missed_events(user, start_date, end_date):
         .select_related('medicine', 'schedule')
         .order_by('scheduled_date', 'scheduled_time')
     )
+    events = [_log_to_event(log) for log in logs]
 
-    return [_log_to_event(log) for log in logs]
+    # 2. Unlogged expected doses (scheduled but no log entry exists)
+    unlogged = _find_unlogged_doses(user, start_date, end_date)
+    events.extend(unlogged)
+
+    # Sort combined results by timestamp
+    events.sort(key=lambda e: e.timestamp)
+    return events
 
 
 def get_skipped_events(user, start_date, end_date):
@@ -133,6 +148,104 @@ def get_late_events(user, start_date, end_date):
 def get_day_events(user, target_date):
     """Get all medication events for a specific date."""
     return get_events(user, target_date, target_date)
+
+
+def _find_unlogged_doses(user, start_date, end_date):
+    """
+    Find expected doses that have NO log entry at all.
+
+    Walks active medicine schedules day-by-day (same approach as
+    medicine_utils.calculate_medicine_adherence) and checks for missing
+    MedicineLog rows. For today, skips future doses (not due yet).
+
+    Returns list[EventRecord] for each unlogged dose.
+    """
+    from apps.core.utils import get_user_now, get_user_today
+    from apps.health.models import Medicine, MedicineLog
+
+    user_today = get_user_today(user)
+    user_now = get_user_now(user)
+    current_time = user_now.time()
+
+    active_medicines = Medicine.objects.filter(
+        user=user,
+        medicine_status=Medicine.STATUS_ACTIVE,
+    ).prefetch_related("schedules")
+
+    # Build set of (medicine_id, scheduled_date) pairs that have log entries
+    existing_logs = set(
+        MedicineLog.objects.filter(
+            user=user,
+            scheduled_date__gte=start_date,
+            scheduled_date__lte=end_date,
+        ).values_list('medicine_id', 'schedule_id', 'scheduled_date')
+    )
+
+    events = []
+    day = start_date
+    while day <= end_date:
+        day_of_week = day.weekday()
+        is_today = (day == user_today)
+        # Don't report future days as missed
+        if day > user_today:
+            break
+        for medicine in active_medicines:
+            for schedule in medicine.schedules.filter(is_active=True):
+                if not schedule.applies_to_day(day_of_week):
+                    continue
+                # Skip future doses today — can't miss what isn't due yet
+                if is_today and schedule.scheduled_time and schedule.scheduled_time > current_time:
+                    continue
+                # Check if a log entry exists for this schedule+date
+                if (medicine.id, schedule.id, day) not in existing_logs:
+                    events.append(
+                        _unlogged_to_event(medicine, schedule, day, user)
+                    )
+        day += timedelta(days=1)
+
+    return events
+
+
+def _unlogged_to_event(medicine, schedule, scheduled_date, user):
+    """Convert an unlogged expected dose into an EventRecord."""
+    from django.utils import timezone as tz
+
+    time_str = schedule.scheduled_time.strftime("%-I:%M %p") if schedule.scheduled_time else "unscheduled"
+    dose_str = medicine.dose if medicine.dose else ""
+    label = f"{medicine.name}"
+    if dose_str:
+        label += f" ({dose_str})"
+    label += f" — {time_str}"
+
+    # Build timestamp
+    if schedule.scheduled_time:
+        naive_dt = tz.datetime.combine(scheduled_date, schedule.scheduled_time)
+    else:
+        naive_dt = tz.datetime.combine(scheduled_date, tz.datetime.min.time())
+    try:
+        user_tz = _get_user_timezone(user)
+        timestamp = tz.make_aware(naive_dt, user_tz)
+    except Exception:
+        timestamp = tz.make_aware(naive_dt, tz.get_default_timezone())
+
+    detail = {
+        'medicine_name': medicine.name,
+        'dose': dose_str,
+        'scheduled_date': str(scheduled_date),
+        'scheduled_time': str(schedule.scheduled_time) if schedule.scheduled_time else None,
+        'log_status': 'unlogged',
+    }
+
+    return EventRecord(
+        domain='medication',
+        event_type='dose_missed',
+        timestamp=timestamp,
+        label=label,
+        status='missed',
+        detail=detail,
+        source_model='MedicineSchedule',
+        source_id=schedule.pk,
+    )
 
 
 def _log_to_event(log):

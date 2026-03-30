@@ -873,10 +873,11 @@ class StepsEntry(UserOwnedModel):
 
 class WaterEntry(UserOwnedModel):
     """
-    Water/hydration tracking entry.
+    Hydration tracking entry.
 
-    Tracks daily water intake with support for different units and containers.
-    Designed for simple daily logging with optional goal tracking.
+    Tracks daily fluid intake with drink type awareness and hydration
+    coefficients. Supports different units, containers, and beverage types.
+    Creatine drinks are tracked here (consumed as a drink, not a pill).
     """
 
     UNIT_CHOICES = [
@@ -894,15 +895,46 @@ class WaterEntry(UserOwnedModel):
         ("other", "Other"),
     ]
 
+    DRINK_TYPE_CHOICES = [
+        ("water", "Water"),
+        ("coffee", "Coffee"),
+        ("tea", "Tea"),
+        ("electrolyte", "Electrolyte Drink"),
+        ("creatine", "Creatine Drink"),
+        ("juice", "Juice"),
+        ("milk", "Milk"),
+        ("other", "Other"),
+    ]
+
+    # Conservative coefficients — understate rather than overstate.
+    # 1.0 = fully hydrating. < 1.0 = mild diuretic effect.
+    # > 1.0 = enhanced absorption. Differences are intentionally small.
+    HYDRATION_COEFFICIENTS = {
+        "water": 1.0,
+        "coffee": 0.9,
+        "tea": 0.95,
+        "electrolyte": 1.05,
+        "creatine": 1.0,       # Water-based, but flags creatine intake
+        "juice": 0.9,
+        "milk": 0.9,
+        "other": 0.9,
+    }
+
     amount = models.DecimalField(
         max_digits=6,
         decimal_places=1,
-        help_text="Amount of water consumed",
+        help_text="Amount consumed",
     )
     unit = models.CharField(
         max_length=10,
         choices=UNIT_CHOICES,
         default="oz",
+    )
+    drink_type = models.CharField(
+        max_length=20,
+        choices=DRINK_TYPE_CHOICES,
+        default="water",
+        help_text="Type of beverage consumed",
     )
     container = models.CharField(
         max_length=20,
@@ -911,7 +943,7 @@ class WaterEntry(UserOwnedModel):
         blank=True,
     )
     logged_date = models.DateField(
-        help_text="Date the water was logged for",
+        help_text="Date the fluid was logged for",
     )
     recorded_at = models.DateTimeField(
         default=timezone.now,
@@ -938,61 +970,119 @@ class WaterEntry(UserOwnedModel):
 
     class Meta:
         ordering = ["-logged_date", "-recorded_at"]
-        verbose_name = "water entry"
-        verbose_name_plural = "water entries"
+        verbose_name = "hydration entry"
+        verbose_name_plural = "hydration entries"
 
     def __str__(self):
-        return f"{self.amount} {self.unit} on {self.logged_date}"
+        dt = self.get_drink_type_display() if self.drink_type != "water" else ""
+        prefix = f"{dt} " if dt else ""
+        return f"{prefix}{self.amount} {self.unit} on {self.logged_date}"
 
     @property
     def amount_oz(self):
-        """Convert amount to ounces for standardized calculations."""
+        """Convert amount to ounces (raw volume, no coefficient)."""
         conversions = {
             "oz": 1,
-            "ml": 0.033814,  # 1 ml = 0.033814 oz
-            "cups": 8,  # 1 cup = 8 oz
-            "liters": 33.814,  # 1 liter = 33.814 oz
+            "ml": 0.033814,
+            "cups": 8,
+            "liters": 33.814,
         }
         return round(float(self.amount) * conversions.get(self.unit, 1), 1)
 
     @property
     def amount_ml(self):
-        """Convert amount to milliliters for standardized calculations."""
+        """Convert amount to milliliters (raw volume, no coefficient)."""
         conversions = {
-            "oz": 29.5735,  # 1 oz = 29.5735 ml
+            "oz": 29.5735,
             "ml": 1,
-            "cups": 236.588,  # 1 cup = 236.588 ml
-            "liters": 1000,  # 1 liter = 1000 ml
+            "cups": 236.588,
+            "liters": 1000,
         }
         return round(float(self.amount) * conversions.get(self.unit, 1), 1)
 
+    @property
+    def effective_oz(self):
+        """Amount adjusted by hydration coefficient.
+
+        Coffee 12oz × 0.9 = 10.8 effective oz.
+        Electrolyte 16oz × 1.05 = 16.8 effective oz.
+        """
+        coeff = self.HYDRATION_COEFFICIENTS.get(self.drink_type or "water", 0.9)
+        return round(self.amount_oz * coeff, 1)
+
     @classmethod
     def get_daily_total(cls, user, date):
-        """Get total water intake for a specific date in ounces."""
+        """Get total EFFECTIVE hydration for a date in ounces.
+
+        Uses hydration coefficients — coffee counts less, electrolytes more.
+        """
+        entries = cls.objects.filter(user=user, logged_date=date)
+        return sum(entry.effective_oz for entry in entries)
+
+    @classmethod
+    def get_daily_total_raw(cls, user, date):
+        """Get total RAW fluid intake (no coefficients) for display."""
         entries = cls.objects.filter(user=user, logged_date=date)
         return sum(entry.amount_oz for entry in entries)
 
     @classmethod
     def get_daily_goal_progress(cls, user, date, goal_oz=64):
-        """
-        Get progress toward daily water goal.
-
-        Args:
-            user: The user
-            date: The date to check
-            goal_oz: Daily goal in ounces (default 64oz = 8 glasses)
+        """Progress toward daily hydration goal (uses effective oz).
 
         Returns:
-            dict with total_oz, goal_oz, percentage, and goal_met
+            dict with total_oz (effective), raw_total_oz, goal_oz,
+            percentage, and goal_met.
         """
         total = cls.get_daily_total(user, date)
+        raw_total = cls.get_daily_total_raw(user, date)
         percentage = min(100, round((total / goal_oz) * 100, 1)) if goal_oz > 0 else 0
         return {
             "total_oz": total,
+            "raw_total_oz": raw_total,
             "goal_oz": goal_oz,
             "percentage": percentage,
             "goal_met": total >= goal_oz,
         }
+
+    # ── Creatine helpers ──
+
+    @classmethod
+    def is_creatine_active(cls, user, window_days=7, min_days=4):
+        """True if user has logged creatine on at least min_days of last window_days.
+
+        A single log does NOT make someone "creatine active." Requires
+        consistent usage (4 of 7 days default) to trigger goal adjustments
+        and conflict detection.
+        """
+        cutoff = date.today() - timedelta(days=window_days)
+        distinct_days = (
+            cls.objects.filter(
+                user=user,
+                drink_type="creatine",
+                logged_date__gte=cutoff,
+            )
+            .values_list("logged_date", flat=True)
+            .distinct()
+            .count()
+        )
+        return distinct_days >= min_days
+
+    @classmethod
+    def creatine_start_date(cls, user):
+        """Date of user's first-ever creatine log, or None."""
+        return (
+            cls.objects.filter(user=user, drink_type="creatine")
+            .order_by("logged_date")
+            .values_list("logged_date", flat=True)
+            .first()
+        )
+
+    @classmethod
+    def has_creatine_today(cls, user, date):
+        """True if user logged creatine today."""
+        return cls.objects.filter(
+            user=user, drink_type="creatine", logged_date=date,
+        ).exists()
 
 
 class GlucoseEntry(UserOwnedModel):

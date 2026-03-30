@@ -76,8 +76,10 @@ def _detect(user, signals, trend, outcome):
         })
 
     # ── 2. Creatine Weight Gain Masking ──
+    # Check both the signal flag (consistent usage) and recent start
+    creatine_flag = signals.get("creatine_active", False)
     if (
-        _started_creatine_recently(user, days=21)
+        (creatine_flag or _started_creatine_recently(user, days=21))
         and trend.get("fat_loss_status") in ("not_confirmed", "reversed")
         and _waist_not_gaining(trend)
     ):
@@ -213,9 +215,19 @@ def apply_conflict_corrections(outcome, conflicts):
 def _started_creatine_recently(user, days=21):
     """Check if user started creatine within the last N days.
 
-    Checks MedicineLog for creatine-related entries since we don't have
-    a dedicated supplement model yet. Falls back to False if no data.
+    Uses WaterEntry drink_type='creatine' as the primary source.
+    Falls back to MedicineLog for creatine-related entries.
     """
+    try:
+        from apps.health.models import WaterEntry
+
+        start = WaterEntry.creatine_start_date(user)
+        if start and (date.today() - start).days <= days:
+            return True
+    except Exception:
+        pass
+
+    # Fallback to MedicineLog for users who track creatine as medication
     try:
         from apps.health.models import MedicineLog
 

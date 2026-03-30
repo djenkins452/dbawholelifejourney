@@ -3,8 +3,38 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-30 (Physical Intelligence coach hardening)
+# Last Updated: 2026-03-30 (Hydration system accuracy + creatine integration)
 # ================================================================# WLJ Change History
+
+## 2026-03-30 — Feature: Hydration System — Drink Types + Creatine Integration
+
+Added `drink_type` field to `WaterEntry` model with 8 beverage types and conservative hydration coefficients. Creatine drinks are tracked as a drink type, enabling physiology-aware hydration intelligence.
+
+**Model changes (`apps/health/models.py`):**
+- Added `drink_type` CharField (water/coffee/tea/electrolyte/creatine/juice/milk/other)
+- Added `HYDRATION_COEFFICIENTS` (conservative: coffee 0.9, tea 0.95, electrolyte 1.05)
+- Added `effective_oz` property (amount × coefficient)
+- `get_daily_total()` now returns effective hydration, not raw volume
+- Added `get_daily_total_raw()` for display (raw volume)
+- Added `is_creatine_active()` — requires 4 of last 7 days (no false positives from single log)
+- Added `creatine_start_date()` and `has_creatine_today()` helpers
+
+**Signal changes (`physical_decision.py`):**
+- Creatine active → hydration goal +16 oz (64→80)
+- Added `creatine_active`, `hydration_adjustment_reason` signal fields
+- Hydration tier threshold raised to 60% (was 50%) — dehydration affects performance earlier than we were catching
+- Below 40% = medium impact (was always low)
+- Signal interpretation: new creatine-specific case (weight up + creatine + waist stable → "water retention from creatine, not fat gain")
+
+**Conflict detection (`conflict_detection.py`):**
+- Creatine conflict now reads `WaterEntry.creatine_start_date()` + signal flag (was MedicineLog only)
+- Falls back to MedicineLog for users who track creatine as medication
+
+**Migration:** `0071_add_drink_type_to_water_entry` — adds CharField with default="water", fully backward compatible.
+
+**Files:** `apps/health/models.py`, `apps/health/services/physical_decision.py`, `apps/health/services/conflict_detection.py`, migration
+
+---
 
 ## 2026-03-30 — Enhancement: Physical Intelligence Final Hardening (Coach-Level Output)
 

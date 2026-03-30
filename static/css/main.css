@@ -1150,6 +1150,43 @@ a:hover {
 }
 
 /* ==========================================================================
+   Quarter-Hour Time Picker
+   ========================================================================== */
+
+.wlj-time-picker-wrapper {
+    display: inline-flex;
+    gap: var(--space-1);
+    align-items: center;
+    width: 100%;
+}
+
+.wlj-time-picker-wrapper .wlj-time-select {
+    flex: 1;
+    min-width: 0;
+    padding: var(--space-2) var(--space-2);
+    font-size: var(--font-size-base);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-background);
+    color: var(--color-text);
+    appearance: auto;
+    -webkit-appearance: auto;
+}
+
+.wlj-time-picker-wrapper .wlj-time-select:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+@media (max-width: 480px) {
+    .wlj-time-picker-wrapper .wlj-time-select {
+        font-size: 16px;  /* Prevent iOS zoom */
+        padding: var(--space-2);
+    }
+}
+
+/* ==========================================================================
    Cards
    ========================================================================== */
 

@@ -375,6 +375,9 @@
             container.appendChild(newItem);
             totalForms.value = count + 1;
 
+            // Init time pickers for new item
+            if (window.wljInitTimePickers) window.wljInitTimePickers(newItem);
+
             // Init toggles for new item
             initMaintenanceBridgeToggles(newItem);
             initActivityTypeToggles(newItem);

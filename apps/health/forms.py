@@ -926,6 +926,7 @@ class FoodEntryForm(forms.ModelForm):
             "logged_time": forms.TimeInput(attrs={
                 "class": "form-input",
                 "type": "time",
+                "step": "900",
             }),
             "meal_type": forms.Select(attrs={
                 "class": "form-select",

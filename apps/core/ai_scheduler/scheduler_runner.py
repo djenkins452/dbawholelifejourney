@@ -1244,7 +1244,7 @@ def run_cdce_check_ins():
 
     users = User.objects.filter(
         is_active=True,
-        preferences__assistant_enabled=True,
+        preferences__personal_assistant_enabled=True,
     ).select_related('preferences')[:50]
 
     processed = 0

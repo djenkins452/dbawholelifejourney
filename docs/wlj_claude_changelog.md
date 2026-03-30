@@ -6,6 +6,14 @@
 # Last Updated: 2026-03-30 (deterministic event acknowledgment)
 # ================================================================# WLJ Change History
 
+## 2026-03-30 — Fix CDCE_CI Engine FieldError (ERROR status)
+
+**Problem:** The CDCE_CI engine (cross-domain correlation check-ins) was failing with ERROR status and 0ms latency on every run. The user query in `run_cdce_check_ins()` used `preferences__assistant_enabled=True` but the actual field on UserPreferences is `personal_assistant_enabled`, causing a Django `FieldError`.
+
+**Fix:** Changed `preferences__assistant_enabled` to `preferences__personal_assistant_enabled` in `apps/core/ai_scheduler/scheduler_runner.py:1247`, matching all other scheduler runners.
+
+**Files:** `apps/core/ai_scheduler/scheduler_runner.py`
+
 ## 2026-03-30 — Deterministic Significant Event Acknowledgment
 
 **Problem:** Birthday/anniversary acknowledgment relied on LLM compliance with prompt instructions. A real failure occurred where the user's birthday was in the locked facts and event signals, but CoS did not acknowledge it. Per WLJ architecture, critical behaviors must be deterministic, not LLM-dependent.

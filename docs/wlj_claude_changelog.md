@@ -3,8 +3,33 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-29 (significant event awareness)
+# Last Updated: 2026-03-30 (Physical Intelligence V2)
 # ================================================================# WLJ Change History
+
+## 2026-03-30 — Feature: Physical Intelligence V2 — Decision + Outcome Validation System
+
+**What:** Implemented the canonical Physical Intelligence System (V2) that answers four questions deterministically: (1) What is the user doing? (2) How is the body responding? (3) Is it working? (4) What should change?
+
+**Architecture:** Pure function chain with no new engines, no LLM dependency, no new models. Reads pre-computed data from DailyHealthSummary, BodyCompositionEntry, SAE state, and TransformationProtocol.
+
+**Components:**
+- **Body Composition Signal** (`body_composition_signal.py`) — Multi-source voting system for fat loss status, muscle gain status, recomposition detection, velocity, and plateau detection. Uses 14-28 day trend windows with median-filter noise rejection.
+- **Outcome Validation** (`outcome_validation.py`) — Determines whether the user's protocol (cut/bulk/recomp/maintenance) is producing expected results. Includes goal trajectory projection.
+- **Conflict Detection** (`conflict_detection.py`) — Detects contradictions between inputs and outcomes: compliant-but-stalled, creatine weight masking, overtraining paradox, recomposition hidden by flat scale, sleep sabotage. Positive conflicts correct false-negative outcome validation.
+- **Physical Decision** (`physical_decision.py`) — The master function. 7-tier priority hierarchy (health risk → outcome failure → behavior gaps → on track) with protocol-aware tier ordering (cut prioritizes nutrition, bulk prioritizes training). Includes momentum tracking, impact statements, and 4-quadrant narrative builder (reinforce/investigate/caution/correct).
+- **CoS Integration** — Physical intelligence context injected into Beth's operational context for decision-aware coaching.
+
+**Files created:**
+- `apps/health/services/body_composition_signal.py`
+- `apps/health/services/outcome_validation.py`
+- `apps/health/services/conflict_detection.py`
+- `apps/health/services/physical_decision.py`
+- `apps/health/tests/test_physical_intelligence_v2.py` (44 tests)
+
+**Files modified:**
+- `apps/core/ai_orchestrator/cos_context.py` — Added physical intelligence context block
+
+---
 
 ## 2026-03-29 — Fix: Three Physical Health / Dashboard UX issues
 

@@ -4,18 +4,20 @@
 <section class="v2-section pi-section" id="physical-intelligence">
     <h2 class="v2-section-title">Physical Intelligence</h2>
 
-    {# ── 1. PRIMARY VERDICT (most dominant element) ── #}
+    {# ── 1. PRIMARY VERDICT ── #}
     {% if is_unclear %}
-    {# Clarity mode: replace dead-end "Unknown" with actionable guidance #}
     <div class="pi-verdict-card pi-verdict-unclear">
         <div class="pi-verdict-row">
             <span class="pi-verdict-label">Progress Unclear</span>
         </div>
         <p class="pi-clarity-reason">{{ clarity_reason }}</p>
-        <div class="pi-clarity-action">
+        <div class="pi-clarity-action {% if is_clarity_action %}pi-clarity-type{% else %}pi-performance-type{% endif %}">
             <span class="pi-clarity-arrow">&rarr;</span>
             <span class="pi-clarity-text">{{ clarity_action }}</span>
         </div>
+        {% if signal_interpretation %}
+        <p class="pi-signal-interp">{{ signal_interpretation }}</p>
+        {% endif %}
         <span class="pi-confidence pi-confidence-{{ confidence_value }}">{{ confidence_label }}</span>
     </div>
     {% else %}
@@ -32,13 +34,16 @@
         {% if trajectory_detail %}
         <p class="pi-verdict-detail">{{ trajectory_detail }}</p>
         {% endif %}
+        {% if signal_interpretation %}
+        <p class="pi-signal-interp">{{ signal_interpretation }}</p>
+        {% endif %}
         <span class="pi-confidence pi-confidence-{{ confidence_value }}">{{ confidence_label }}</span>
     </div>
     {% endif %}
 
     {# ── 2. PRIMARY DECISION (coach instruction) ── #}
-    {% if decision_type != "on_track" %}
-    <div class="pi-action-card">
+    {% if decision_type != "on_track" and not is_unclear %}
+    <div class="pi-action-card {% if is_clarity_action %}pi-action-clarity{% else %}pi-action-performance{% endif %}">
         <div class="pi-action-header">
             <span class="pi-urgency {{ urgency_css }}">{{ urgency_label }}</span>
             <span class="pi-action-summary">{{ summary }}</span>

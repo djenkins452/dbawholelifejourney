@@ -3,29 +3,26 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-30 (nutrition decimals, FatSecret resilience, cockpit perf)
+# Last Updated: 2026-03-30 (Physical Intelligence coach hardening)
 # ================================================================# WLJ Change History
 
-## 2026-03-30 — Nutrition decimal calories, FatSecret resilience, cockpit perf
+## 2026-03-30 — Enhancement: Physical Intelligence Final Hardening (Coach-Level Output)
 
-### Fix: Nutrition log rejects decimal calories (712.5)
-**Problem:** Pizza with 2.5 servings produces 712.5 calories, but the form rejects non-integer values. The chain had integer constraints at 4 points while the DB uses `DecimalField(decimal_places=2)`.
-**Fix:**
-- `QuickAddFoodForm.calories`: `IntegerField` → `DecimalField(max_digits=10, decimal_places=2)`
-- `FoodEntryForm` widget `total_calories`: `step="1"` → `step="0.01"`
-- AI intent `calories` type: `"integer"` → `"number"`
-- `handle_log_food` signature: `calories: int` → `calories: float`
-- Nutrition event adapter: `int()` → `round(float())` to avoid truncation
+Upgraded all Physical Intelligence output to decisive, coach-level language. Eliminated soft phrasing ("focus on", "consider", "try to") across all tier decisions, clarity messages, and narrative builders.
 
-### Fix: FatSecret API "Expecting value" JSON decode error
-**Problem:** FatSecret occasionally returns HTTP 200 with empty body, causing `response.json()` to raise `JSONDecodeError`. All 5 API call sites were vulnerable.
-**Fix:** Added `_safe_json()` helper that checks for empty `response.content` before parsing. Applied to all 5 call sites.
+**Language upgrade (all tiers):** Every summary now states the condition + consequence. Every recommended_action is specific, time-bound, and includes expected outcome. No passive suggestions.
 
-### Perf: Cockpit faith dial — 560 queries → ~4 queries
-**Problem:** `_faith_window()` called `get_execution_truth()` 16 times (8-day current + 8-day previous) on every dashboard load. Each call runs ~35 queries = ~560 per request.
-**Fix:** Batch queries: one for ReadingPlanProgress, one for faith Tasks, one for RoutineLog faith items. Split into windows in Python. Same logic as Execution Truth Engine's faith bridge.
+**New fields:**
+- `action_category`: "performance" (fix behavior) or "clarity" (fix visibility/data). Enables UI to distinguish "do this to improve" vs "do this to confirm."
+- `signal_interpretation`: One-line synthesis when signals contradict (weight up + waist down, fat confirmed + muscle losing, everything flat). Empty when signals agree.
 
-**Files:** `apps/health/forms.py`, `apps/ai/intents/health_intents.py`, `apps/ai/action_handlers.py`, `apps/core/ai_events/adapters/nutrition.py`, `apps/health/services/fatsecret.py`, `apps/dashboard_v2/services/cockpit_service.py`
+**Narrative builders upgraded:** All 4 quadrants (reinforce/investigate/caution/correct) now speak with confident, direct coach tone. Signal interpretation injected into narratives. No hedging.
+
+**Dashboard:** Template shows signal interpretation line (italic, left-bordered). Action cards styled differently for clarity (amber border) vs performance (green border). Clarity action boxes in unclear state also get category-specific styling.
+
+**Verified:** No soft language remains in any tier decision (automated scan of all 10 decision paths). All 20 validation tests passed.
+
+**Files:** `apps/health/services/physical_decision.py`, `apps/dashboard_v2/views.py`, `templates/dashboard_v2/sections/physical_intelligence.html`, `static/css/dashboard_v2.css`
 
 ---
 

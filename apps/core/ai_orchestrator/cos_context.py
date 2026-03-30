@@ -9474,6 +9474,31 @@ def format_learning_mode_injection(context):
         for ev in cal[:6]:
             lines.append(f"  {ev['start']} {ev['title']}")
 
+    # Significant events — relational awareness must survive Learning Mode.
+    # The deterministic post-LLM injection (event_acknowledgment.py) is the
+    # real enforcement, but providing event context here helps the LLM
+    # generate a more natural response that integrates the acknowledgment.
+    try:
+        _lm_user = context.get('_user')
+        if not _lm_user and 'user_id' in context:
+            from django.contrib.auth import get_user_model
+            _LMUser = get_user_model()
+            try:
+                _lm_user = _LMUser.objects.get(id=context['user_id'])
+            except _LMUser.DoesNotExist:
+                _lm_user = None
+        if _lm_user:
+            from apps.life.services.event_acknowledgment import (
+                build_event_acknowledgment,
+            )
+            _lm_ack = build_event_acknowledgment(_lm_user)
+            if _lm_ack:
+                lines.append("")
+                lines.append("SIGNIFICANT EVENT (MANDATORY — acknowledge this):")
+                lines.append(f"  {_lm_ack}")
+    except Exception:
+        pass  # Event awareness in Learning Mode is supplementary
+
     # Hard write-suppressed contract
     lines.append("")
     lines.append(COS_WRITE_SUPPRESSED_CONTRACT.strip())

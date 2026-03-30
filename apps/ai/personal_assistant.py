@@ -1965,6 +1965,11 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
             except Exception:
                 pass  # Undo tracking must never break chat
 
+        # ── Deterministic event acknowledgment (post-LLM, never skipped) ──
+        # Critical relational events (birthdays, anniversaries) are injected
+        # deterministically — the LLM does NOT decide whether to include them.
+        response = self._inject_event_acknowledgment(response)
+
         # Return structured response
         result = {'response': response}
         if actions_taken:
@@ -2008,6 +2013,62 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
         store_result(self.user.id, message, result)
 
         return result
+
+    def _inject_event_acknowledgment(self, response):
+        """
+        Deterministic injection of today's significant event acknowledgments.
+
+        Runs AFTER LLM response generation. The LLM does NOT decide whether
+        events are acknowledged — this layer ensures critical relational
+        events are ALWAYS present in the final response.
+
+        Idempotent: if the LLM already included the acknowledgment text,
+        no duplicate is injected.
+
+        Args:
+            response: str — The LLM-generated (or deterministic) response.
+
+        Returns:
+            str — Response with acknowledgment prepended if needed.
+        """
+        try:
+            from apps.life.services.event_acknowledgment import (
+                build_event_acknowledgment,
+            )
+
+            ack = build_event_acknowledgment(self.user)
+            if not ack:
+                return response
+
+            # Idempotency: check if acknowledgment content is already present
+            # Use a normalized comparison to catch slight variations
+            ack_key = ack.split('.')[0].lower().strip()
+            if ack_key and ack_key in (response or '').lower():
+                logger.info(
+                    "EVENT_ACK_ALREADY_PRESENT user=%s — LLM included "
+                    "acknowledgment, skipping injection",
+                    self.user.id,
+                )
+                return response
+
+            logger.warning(
+                "EVENT_ACK_INJECTED user=%s — LLM missed critical event "
+                "acknowledgment, injecting deterministically",
+                self.user.id,
+            )
+            # Prepend acknowledgment before LLM response
+            if response:
+                return ack + "\n\n" + response
+            return ack
+
+        except Exception:
+            logger.error(
+                "EVENT_ACK_FAILED user=%s — injection failed, returning "
+                "original response",
+                self.user.id,
+                exc_info=True,
+            )
+            return response
 
     def _build_action_taken(self, action_result) -> dict:
         """Build the action_taken dict for API response."""
@@ -5860,6 +5921,36 @@ Rules for this response:
                 conversation.save(update_fields=['metadata', 'updated_at'])
             except Exception:
                 pass
+
+        # ── Deterministic event acknowledgment (stream path) ──
+        # Same enforcement as non-streaming: if today has a significant event,
+        # it MUST appear in the response regardless of LLM behavior.
+        try:
+            from apps.life.services.event_acknowledgment import (
+                build_event_acknowledgment as _stream_build_ack,
+            )
+
+            _stream_ack = _stream_build_ack(self.user)
+            if _stream_ack and response_text:
+                _ack_key = _stream_ack.split('.')[0].lower().strip()
+                if _ack_key and _ack_key not in response_text.lower():
+                    response_text = _stream_ack + "\n\n" + response_text
+                    assistant_msg.content = response_text
+                    assistant_msg.save(update_fields=['content'])
+                    yield {
+                        'type': 'correction',
+                        'content': response_text,
+                    }
+                    logger.warning(
+                        "EVENT_ACK_INJECTED_STREAM user=%s — LLM missed "
+                        "critical event, injecting via correction",
+                        self.user.id,
+                    )
+        except Exception:
+            logger.error(
+                "EVENT_ACK_STREAM_FAILED user=%s", self.user.id,
+                exc_info=True,
+            )
 
         # Done event — include options and navigation for front-end rendering
         result_data = {'conversation_id': conversation.id}

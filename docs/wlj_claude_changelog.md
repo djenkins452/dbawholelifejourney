@@ -3,8 +3,23 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-30 (Physical Intelligence V2)
+# Last Updated: 2026-03-30 (recurring task deletion fix)
 # ================================================================# WLJ Change History
+
+## 2026-03-30 — Fix: Recurring/routine tasks cannot be permanently deleted
+
+**Root cause:** When deleting a recurring task from the web UI, only the single instance was soft-deleted. Multiple background systems (`_ensure_routine_tasks_for_today()` in executive briefing, `process_overdue_recurring_tasks()` in recurrence service) would recreate the task from any surviving instance in the series. The `delete_task_series()` method existed but was only called from the AI chat handler, never from the web UI.
+
+**Changes:**
+- Added `RecurrenceService.delete_task_series_complete()` — thorough series deletion that clears both `is_recurring` AND `is_routine` flags on ALL instances (including completed/deleted via `all_objects`), then soft-deletes all active instances. This prevents all regeneration paths.
+- Updated `TaskDeleteView` to detect recurring/routine tasks and offer "Delete Entire Series" vs "Delete This Instance Only" options.
+- Updated `BulkDeleteTasksView` to accept `delete_series` flag for recurring task series deletion.
+- Updated `task_confirm_delete.html` template with series deletion UI (CSP-compliant).
+
+**Files changed:**
+- `apps/life/views.py` — TaskDeleteView series handling, BulkDeleteTasksView series support
+- `apps/life/services/recurrence.py` — new `delete_task_series_complete()` method
+- `templates/life/task_confirm_delete.html` — series delete option UI
 
 ## 2026-03-30 — Fix: Beth says "no missed medication" when dashboard shows 1 missed
 

@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Case, Count, Q, Sum, Value, When
-from django.http import FileResponse, HttpResponse, JsonResponse
+from django.http import FileResponse, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy, reverse
 from django.utils import timezone
@@ -570,13 +570,32 @@ class TaskUpdateView(LifeAccessMixin, UpdateView):
 
 
 class TaskDeleteView(LifeAccessMixin, DeleteView):
-    """Delete a task."""
+    """Delete a task (single instance or entire recurring series)."""
     model = Task
     template_name = "life/task_confirm_delete.html"
     success_url = reverse_lazy('life:task_list')
-    
+
     def get_queryset(self):
         return Task.objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        task = self.get_object()
+        context['is_series'] = task.is_recurring or task.is_routine
+        return context
+
+    def post(self, request, *args, **kwargs):
+        task = self.get_object()
+        delete_series = request.POST.get('delete_series') == 'true'
+
+        if delete_series and (task.is_recurring or task.is_routine):
+            # Delete ALL instances (active, completed, etc.) and stop regeneration
+            from apps.life.services.recurrence import RecurrenceService
+            RecurrenceService.delete_task_series_complete(task)
+        else:
+            task.soft_delete()
+
+        return HttpResponseRedirect(self.success_url)
 
 
 class TaskToggleView(LifeAccessMixin, View):
@@ -3219,8 +3238,14 @@ class BulkDeleteTasksView(LoginRequiredMixin, View):
         if count == 0:
             return JsonResponse({'success': False, 'error': 'No entries found'}, status=404)
 
+        delete_series = data.get('delete_series', False)
+
         for entry in entries:
-            entry.soft_delete()
+            if delete_series and (entry.is_recurring or entry.is_routine):
+                from apps.life.services.recurrence import RecurrenceService
+                RecurrenceService.delete_task_series_complete(entry)
+            else:
+                entry.soft_delete()
 
         return JsonResponse({
             'success': True,

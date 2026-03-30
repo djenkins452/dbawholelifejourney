@@ -408,6 +408,64 @@ class RecurrenceService:
         return count
 
     @staticmethod
+    def delete_task_series_complete(task):
+        """
+        Thoroughly delete an entire recurring/routine task series.
+
+        Unlike delete_task_series(), this method:
+        1. Uses title + user + is_routine matching (not just recurrence_pattern)
+        2. Stops ALL regeneration by clearing is_recurring AND is_routine
+        3. Soft-deletes all active instances
+        4. Marks completed/skipped instances as non-recurring to prevent
+           process_overdue_recurring_tasks() from creating new instances
+
+        This is the correct method to call when a user wants to permanently
+        remove a recurring routine (e.g., "Wake Up", "Workout") from their
+        task list.
+        """
+        from apps.life.models import Task
+
+        # Find ALL instances of this series across all statuses
+        # (active, completed, skipped, deleted) using all_objects
+        series_qs = Task.all_objects.filter(
+            user=task.user,
+            title=task.title,
+        )
+
+        # If it has a recurrence pattern, also match on that
+        if task.recurrence_pattern:
+            series_qs = series_qs.filter(
+                recurrence_pattern=task.recurrence_pattern,
+            )
+
+        # Stop ALL regeneration: clear both is_recurring and is_routine
+        # on every instance so no background job can use them as templates
+        series_qs.update(is_recurring=False, is_routine=False)
+
+        # Soft-delete all active instances
+        active_instances = Task.objects.filter(
+            user=task.user,
+            title=task.title,
+        )
+        if task.recurrence_pattern:
+            active_instances = active_instances.filter(
+                recurrence_pattern=task.recurrence_pattern,
+            )
+
+        count = 0
+        for instance in active_instances:
+            instance.soft_delete()
+            count += 1
+
+        logger.info(
+            "Completely deleted task series '%s' for user %s: "
+            "%d active instances soft-deleted, all instances marked "
+            "non-recurring and non-routine",
+            task.title, task.user_id, count,
+        )
+        return count
+
+    @staticmethod
     def count_series_instances(task):
         """
         Count active instances of a recurring task series.

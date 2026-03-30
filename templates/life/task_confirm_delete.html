@@ -12,11 +12,27 @@
                 <line x1="9" y1="9" x2="15" y2="15"/>
             </svg>
         </div>
-        
+
         <h2>Delete this task?</h2>
         <p class="task-preview">"{{ object.title }}"</p>
         <p class="text-muted">This action cannot be undone.</p>
-        
+
+        {% if is_series %}
+        <form method="post" id="delete-form">
+            {% csrf_token %}
+            <input type="hidden" name="delete_series" id="delete-series-input" value="false">
+            <div class="series-options">
+                <p class="series-label">This is a recurring task:</p>
+                <div class="confirm-actions">
+                    <button type="submit" class="btn btn-error" id="btn-delete-series">Delete Entire Series</button>
+                    <button type="submit" class="btn btn-outline-error" id="btn-delete-single">Delete This Instance Only</button>
+                </div>
+            </div>
+            <div class="confirm-actions" style="margin-top: var(--space-3);">
+                <a href="{% url 'life:task_list' %}" class="btn btn-ghost">Cancel</a>
+            </div>
+        </form>
+        {% else %}
         <form method="post">
             {% csrf_token %}
             <div class="confirm-actions">
@@ -24,12 +40,13 @@
                 <a href="{% url 'life:task_list' %}" class="btn btn-ghost">Cancel</a>
             </div>
         </form>
+        {% endif %}
     </div>
 </div>
 
 <style nonce="{{ csp_nonce }}">
 .confirm-card {
-    max-width: 400px;
+    max-width: 440px;
     margin: var(--space-8) auto;
     background: var(--color-background);
     border: 1px solid var(--color-border);
@@ -66,13 +83,53 @@
 }
 
 .confirm-card .text-muted {
-    margin-bottom: var(--space-6);
+    margin-bottom: var(--space-4);
+}
+
+.series-label {
+    font-weight: 600;
+    margin-bottom: var(--space-3);
+    color: var(--color-text-secondary);
+}
+
+.series-options {
+    margin-bottom: var(--space-2);
+}
+
+.btn-outline-error {
+    background: transparent;
+    color: var(--color-error);
+    border: 1px solid var(--color-error);
+}
+
+.btn-outline-error:hover {
+    background: color-mix(in srgb, var(--color-error) 10%, transparent);
 }
 
 .confirm-actions {
     display: flex;
     justify-content: center;
     gap: var(--space-3);
+    flex-wrap: wrap;
 }
 </style>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    var seriesBtn = document.getElementById('btn-delete-series');
+    var singleBtn = document.getElementById('btn-delete-single');
+    var hiddenInput = document.getElementById('delete-series-input');
+
+    if (seriesBtn) {
+        seriesBtn.addEventListener('click', function() {
+            hiddenInput.value = 'true';
+        });
+    }
+    if (singleBtn) {
+        singleBtn.addEventListener('click', function() {
+            hiddenInput.value = 'false';
+        });
+    }
+});
+</script>
 {% endblock %}

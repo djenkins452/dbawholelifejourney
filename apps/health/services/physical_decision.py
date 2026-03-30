@@ -135,7 +135,10 @@ def _compute(user, as_of_date):
     # ── Step 10: Decision stability (prevent flip-flopping) ──
     decision = _stabilize_decision(decision, user)
 
-    # ── Step 11: Build narrative ──
+    # ── Step 11: Clarity enrichment (eliminate "unknown" dead-ends) ──
+    decision = _enrich_with_clarity(decision, signals, body_comp)
+
+    # ── Step 12: Build narrative ──
     decision["narrative"] = _build_narrative(decision)
 
     return decision
@@ -571,6 +574,132 @@ def _get_previous_decision(user):
 
 
 # =========================================================================
+# Clarity Enrichment (eliminate "unknown" dead-ends)
+# =========================================================================
+
+
+def _enrich_with_clarity(decision, signals, body_comp):
+    """When outcome is uncertain, explain WHY and provide a specific next step.
+
+    Populates clarity_reason + clarity_action based on existing signals.
+    Deterministic: checks signal gaps in priority order, first match wins.
+    """
+    decision.setdefault("clarity_reason", "")
+    decision.setdefault("clarity_action", "")
+
+    outcome = decision.get("outcome_status")
+    confidence = decision.get("confidence", "low")
+
+    # ── Only populate when uncertain ──
+    # Case A: outcome is explicitly unknown
+    needs_clarity = outcome == "unknown"
+
+    # Case B: low/medium confidence with a weak outcome
+    if not needs_clarity and confidence in ("low", "medium"):
+        if outcome in ("partial", "unknown", None):
+            needs_clarity = True
+        # Also if there are conflicting signals
+        elif decision.get("has_positive_conflict") and outcome == "not_working":
+            needs_clarity = True
+
+    if not needs_clarity:
+        return decision
+
+    # ── Determine reason (check in priority order, first match wins) ──
+    bc = body_comp or {}
+    fat_loss = bc.get("fat_loss_status", "no_data")
+    muscle = bc.get("muscle_gain_status", "no_data")
+    waist_trend = bc.get("waist_trend")
+    weight_trend = bc.get("weight_trend")
+    bc_confidence = bc.get("confidence", "low")
+
+    nutrition_score = signals.get("nutrition_score", 100)
+    training_score = signals.get("training_score", 100)
+
+    # Priority 1: Not enough data at all
+    if bc_confidence == "low" and fat_loss == "no_data":
+        decision["clarity_reason"] = (
+            "Not enough consistent data to determine progress."
+        )
+        decision["clarity_action"] = (
+            "Track weight and waist measurements for the next 7 days "
+            "to establish a baseline."
+        )
+        return decision
+
+    # Priority 2: Waist data missing or stale
+    if waist_trend is None:
+        decision["clarity_reason"] = (
+            "No recent waist measurements to confirm whether fat loss is occurring."
+        )
+        decision["clarity_action"] = (
+            "Measure your waist at navel level and log it. "
+            "One measurement now plus one in 7 days will establish a trend."
+        )
+        return decision
+
+    # Priority 3: Nutrition too inconsistent to draw conclusions
+    if nutrition_score < 60:
+        decision["clarity_reason"] = (
+            "Inconsistent nutrition is making it impossible "
+            "to determine whether your protocol is working."
+        )
+        decision["clarity_action"] = (
+            "Hit your macro targets consistently for the next 5 days. "
+            "That will give enough signal to assess progress."
+        )
+        return decision
+
+    # Priority 4: Training too inconsistent
+    if training_score < 50:
+        decision["clarity_reason"] = (
+            "Training has been too inconsistent to evaluate "
+            "whether the program is producing results."
+        )
+        decision["clarity_action"] = (
+            "Complete your next 3 scheduled workouts. "
+            "Consistency is needed before the system can assess effectiveness."
+        )
+        return decision
+
+    # Priority 5: Conflicting signals (some up, some down)
+    if fat_loss in ("stalled", "not_confirmed") and waist_trend is not None:
+        if abs(waist_trend) < 0.1 and weight_trend is not None and abs(weight_trend) < 0.3:
+            decision["clarity_reason"] = (
+                "Weight and waist are both flat. "
+                "The system cannot yet tell if this is a plateau or normal variation."
+            )
+            decision["clarity_action"] = (
+                "Maintain your current approach for 5 more days. "
+                "If both remain flat, it will confirm a plateau and trigger a strategy adjustment."
+            )
+            return decision
+
+    # Priority 6: Signals conflict with each other
+    if fat_loss == "not_confirmed" and muscle in ("gaining", "maintaining"):
+        decision["clarity_reason"] = (
+            "Muscle signals look positive but fat loss is unconfirmed. "
+            "This may be early recomposition — more data will clarify."
+        )
+        decision["clarity_action"] = (
+            "Continue current approach and measure waist again in 7 days. "
+            "If waist drops while weight holds, recomposition is confirmed."
+        )
+        return decision
+
+    # Fallback: generic low-confidence
+    decision["clarity_reason"] = (
+        "Available signals are mixed. "
+        "More consistent data is needed to assess progress accurately."
+    )
+    decision["clarity_action"] = (
+        "Maintain consistency in nutrition and training for the next 5 days "
+        "to establish a clear trend."
+    )
+    return decision
+
+
+# =========================================================================
 # Narrative Builder
 # =========================================================================
 
@@ -891,5 +1020,7 @@ def _fallback_decision():
         "impact_statement": "",
         "outcome_risk": "low",
         "impact_time_horizon": "today",
+        "clarity_reason": "Not enough data yet to assess progress.",
+        "clarity_action": "Start tracking weight and waist measurements to unlock insights.",
         "narrative": "Physical intelligence data not yet available. Continue logging to build baseline data.",
     }

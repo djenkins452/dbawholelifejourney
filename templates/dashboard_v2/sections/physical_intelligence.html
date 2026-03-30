@@ -5,6 +5,20 @@
     <h2 class="v2-section-title">Physical Intelligence</h2>
 
     {# ── 1. PRIMARY VERDICT (most dominant element) ── #}
+    {% if is_unclear %}
+    {# Clarity mode: replace dead-end "Unknown" with actionable guidance #}
+    <div class="pi-verdict-card pi-verdict-unclear">
+        <div class="pi-verdict-row">
+            <span class="pi-verdict-label">Progress Unclear</span>
+        </div>
+        <p class="pi-clarity-reason">{{ clarity_reason }}</p>
+        <div class="pi-clarity-action">
+            <span class="pi-clarity-arrow">&rarr;</span>
+            <span class="pi-clarity-text">{{ clarity_action }}</span>
+        </div>
+        <span class="pi-confidence pi-confidence-{{ confidence_value }}">{{ confidence_label }}</span>
+    </div>
+    {% else %}
     <div class="pi-verdict-card {{ verdict_css }}">
         <div class="pi-verdict-row">
             <span class="pi-verdict-label">{{ verdict_label }}</span>
@@ -20,6 +34,7 @@
         {% endif %}
         <span class="pi-confidence pi-confidence-{{ confidence_value }}">{{ confidence_label }}</span>
     </div>
+    {% endif %}
 
     {# ── 2. PRIMARY DECISION (coach instruction) ── #}
     {% if decision_type != "on_track" %}

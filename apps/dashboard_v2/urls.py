@@ -57,6 +57,12 @@ urlpatterns = [
         views.SignalInsightsSectionView.as_view(),
         name="section_signal_insights",
     ),
+    # Physical Intelligence coach panel (HTMX lazy-load)
+    path(
+        "sections/physical-intelligence/",
+        views.PhysicalIntelligenceSectionView.as_view(),
+        name="section_physical_intelligence",
+    ),
     # Morning reconciliation (HTMX lazy-load + POST response)
     path(
         "sections/reconciliation/",

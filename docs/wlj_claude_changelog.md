@@ -3,8 +3,18 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-30 (Physical Intelligence V2 architecture fix)
+# Last Updated: 2026-03-30 (Physical Intelligence Dashboard V1)
 # ================================================================# WLJ Change History
+
+## 2026-03-30 — Feature: Physical Intelligence Dashboard V1 (Coach Mode)
+
+Added Physical Intelligence section to Dashboard V2 as HTMX lazy-loaded panel. Zero computation — reads PhysicalDecision from SAE state only.
+
+**Sections:** Primary Verdict, Coach Action, Body Signal Snapshot (fat/muscle/weight/waist), Conflicts (conditional), Plateau badge, Expired protocol banner.
+
+**Files:** `apps/dashboard_v2/views.py` (PhysicalIntelligenceSectionView), `apps/dashboard_v2/urls.py`, `templates/dashboard_v2/sections/physical_intelligence.html`, `templates/dashboard_v2/home.html`, `static/css/dashboard_v2.css` (+230 lines)
+
+---
 
 ## 2026-03-30 — Fix: Physical Intelligence V2 — Architecture Corrections
 

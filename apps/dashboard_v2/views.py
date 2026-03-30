@@ -220,6 +220,213 @@ class SignalInsightsSectionView(LoginRequiredMixin, View):
 NextActionSectionView = ActionCenterSectionView
 
 
+# ── Physical Intelligence Section ──────────────────────────────────
+
+
+class PhysicalIntelligenceSectionView(LoginRequiredMixin, View):
+    """HTMX endpoint for Physical Intelligence coach panel.
+
+    Reads pre-computed PhysicalDecision from SAE state.
+    Zero computation — display only.
+    """
+
+    def get(self, request):
+        pi = None
+        try:
+            from apps.core.ai_state.state_engine import get_module_state
+
+            health_state = get_module_state(request.user, "health") or {}
+            pi = health_state.get("physical_decision")
+        except ImportError:
+            pass
+        except Exception:
+            logger.warning("Physical Intelligence section failed", exc_info=True)
+
+        # Build display context from pre-computed decision
+        ctx = self._build_display_context(pi)
+        ctx["request"] = request
+
+        html = render_to_string(
+            "dashboard_v2/sections/physical_intelligence.html",
+            ctx,
+            request=request,
+        )
+        return HttpResponse(html)
+
+    def _build_display_context(self, pi):
+        """Transform PhysicalDecision dict into display-ready context.
+
+        No computation. Only formatting and label mapping.
+        """
+        if not pi or pi.get("decision_type") == "fallback":
+            return {"pi_available": False}
+
+        body_comp = pi.get("body_composition") or {}
+
+        # ── Verdict display ──
+        outcome_status = pi.get("outcome_status")
+        VERDICT_LABELS = {
+            "working": "Working",
+            "partial": "Partially Working",
+            "not_working": "Not Working",
+            "unknown": "Unknown",
+            "too_early": "Building Baseline",
+            None: "No Active Goal",
+        }
+        VERDICT_CSS = {
+            "working": "pi-verdict-good",
+            "partial": "pi-verdict-mixed",
+            "not_working": "pi-verdict-bad",
+            "unknown": "pi-verdict-neutral",
+            "too_early": "pi-verdict-neutral",
+            None: "pi-verdict-neutral",
+        }
+
+        # ── Trajectory display ──
+        trajectory = pi.get("goal_trajectory")
+        TRAJECTORY_LABELS = {
+            "ahead": "Ahead of Schedule",
+            "on_pace": "On Pace",
+            "behind": "Behind",
+            "off_track": "Off Track",
+            None: "",
+        }
+        TRAJECTORY_ICONS = {
+            "ahead": "\u2191\u2191",    # ↑↑
+            "on_pace": "\u2192",        # →
+            "behind": "\u2193",         # ↓
+            "off_track": "\u2193\u2193", # ↓↓
+            None: "",
+        }
+        TRAJECTORY_CSS = {
+            "ahead": "pi-trend-good",
+            "on_pace": "pi-trend-good",
+            "behind": "pi-trend-bad",
+            "off_track": "pi-trend-bad",
+            None: "",
+        }
+
+        # ── Confidence display ──
+        confidence = pi.get("confidence", "low")
+        CONFIDENCE_LABELS = {
+            "high": "High Confidence",
+            "medium": "Moderate Confidence",
+            "low": "Low Confidence",
+        }
+
+        # ── Body signals ──
+        fat_loss = body_comp.get("fat_loss_status", "no_data")
+        muscle = body_comp.get("muscle_gain_status", "no_data")
+        plateau = body_comp.get("plateau_status", "none")
+
+        SIGNAL_ICONS = {
+            "confirmed": "\u2193",       # ↓ (losing fat = good)
+            "likely": "\u2198",          # ↘
+            "not_confirmed": "\u2192",   # →
+            "stalled": "\u2192",         # →
+            "reversed": "\u2191",        # ↑ (gaining fat = bad)
+            "gaining": "\u2191",         # ↑
+            "maintaining": "\u2192",     # →
+            "losing": "\u2193",          # ↓
+            "unclear": "?",
+            "no_data": "\u2014",         # —
+        }
+        SIGNAL_CSS = {
+            "confirmed": "pi-signal-good",
+            "likely": "pi-signal-good",
+            "not_confirmed": "pi-signal-neutral",
+            "stalled": "pi-signal-warn",
+            "reversed": "pi-signal-bad",
+            "gaining": "pi-signal-good",
+            "maintaining": "pi-signal-neutral",
+            "losing": "pi-signal-bad",
+            "unclear": "pi-signal-neutral",
+            "no_data": "pi-signal-neutral",
+        }
+
+        FAT_LABELS = {
+            "confirmed": "Losing Fat",
+            "likely": "Likely Losing",
+            "not_confirmed": "Flat",
+            "stalled": "Stalled",
+            "reversed": "Gaining",
+            "no_data": "No Data",
+        }
+        MUSCLE_LABELS = {
+            "gaining": "Gaining",
+            "maintaining": "Holding",
+            "losing": "Losing",
+            "unclear": "Unclear",
+            "no_data": "No Data",
+        }
+
+        # ── Urgency display ──
+        urgency = pi.get("urgency", "this_week")
+        URGENCY_LABELS = {
+            "immediate": "Now",
+            "today": "Today",
+            "this_week": "This Week",
+        }
+        URGENCY_CSS = {
+            "immediate": "pi-urgency-now",
+            "today": "pi-urgency-today",
+            "this_week": "pi-urgency-week",
+        }
+
+        # ── Conflicts ──
+        conflicts = pi.get("conflicts") or []
+        display_conflicts = []
+        for c in conflicts[:2]:
+            display_conflicts.append(
+                {
+                    "description": c.get("description", ""),
+                    "resolution": c.get("resolution", ""),
+                    "positive": c.get("positive", False),
+                    "css": "pi-conflict-positive" if c.get("positive") else "pi-conflict-warning",
+                }
+            )
+
+        # ── Protocol expired special case ──
+        is_expired = pi.get("decision_type") == "protocol_expired"
+
+        return {
+            "pi_available": True,
+            "is_expired": is_expired,
+            # Verdict
+            "verdict_label": VERDICT_LABELS.get(outcome_status, "Unknown"),
+            "verdict_css": VERDICT_CSS.get(outcome_status, "pi-verdict-neutral"),
+            # Trajectory
+            "trajectory_label": TRAJECTORY_LABELS.get(trajectory, ""),
+            "trajectory_icon": TRAJECTORY_ICONS.get(trajectory, ""),
+            "trajectory_css": TRAJECTORY_CSS.get(trajectory, ""),
+            "trajectory_detail": pi.get("trajectory_detail", ""),
+            # Confidence
+            "confidence_label": CONFIDENCE_LABELS.get(confidence, "Low Confidence"),
+            "confidence_value": confidence,
+            # Decision / Action
+            "summary": pi.get("summary", ""),
+            "recommended_action": pi.get("recommended_action", ""),
+            "urgency_label": URGENCY_LABELS.get(urgency, ""),
+            "urgency_css": URGENCY_CSS.get(urgency, ""),
+            "decision_type": pi.get("decision_type", "on_track"),
+            "impact_statement": pi.get("impact_statement", ""),
+            # Body signals
+            "fat_loss_label": FAT_LABELS.get(fat_loss, "No Data"),
+            "fat_loss_icon": SIGNAL_ICONS.get(fat_loss, "\u2014"),
+            "fat_loss_css": SIGNAL_CSS.get(fat_loss, "pi-signal-neutral"),
+            "muscle_label": MUSCLE_LABELS.get(muscle, "No Data"),
+            "muscle_icon": SIGNAL_ICONS.get(muscle, "\u2014"),
+            "muscle_css": SIGNAL_CSS.get(muscle, "pi-signal-neutral"),
+            "weight_trend": body_comp.get("weight_trend"),
+            "waist_trend": body_comp.get("waist_trend"),
+            "plateau_active": plateau in ("confirmed", "possible"),
+            "plateau_days": body_comp.get("plateau_days", 0),
+            # Conflicts
+            "conflicts": display_conflicts,
+            "has_conflicts": bool(display_conflicts),
+        }
+
+
 # ── Morning Reconciliation ──────────────────────────────────────────
 
 

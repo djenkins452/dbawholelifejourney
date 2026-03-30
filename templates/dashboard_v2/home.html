@@ -32,6 +32,15 @@
     </section>
     {% endif %}
 
+    <!-- Physical Intelligence Coach Panel (HTMX lazy-load) -->
+    {% if health_enabled %}
+    <div id="physical-intelligence-container"
+         hx-get="{% url 'dashboard_v2:section_physical_intelligence' %}"
+         hx-trigger="load delay:100ms"
+         hx-swap="innerHTML">
+    </div>
+    {% endif %}
+
     <!-- Celebration (prominent, immediately visible) -->
     {% if has_celebration %}
     <div id="celebration-container"

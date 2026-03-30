@@ -6,11 +6,20 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
-## 2026-03-29 — Fix: Water quick-log buttons cause full page reload
+## 2026-03-29 — Fix: Three Physical Health / Dashboard UX issues
 
-**Problem:** Clicking +8oz or +16oz on the Physical Health page submitted a form POST that redirected back to the top of the page. Users had to scroll back down to add more water.
+**1. Fitness "Needs Attention" on rest days**
+The card emphasis logic flagged fitness as needing attention whenever the user had workout history and hadn't worked out today — even on rest days or days with no schedule. Changed condition from `latest_workout` (any workout ever) to `workout_scheduled_today` (explicit schedule match). Rest days and unscheduled days no longer trigger "Needs Attention."
 
-**Fix:** Replaced form-based buttons with AJAX fetch calls. The view already supported `X-Requested-With: XMLHttpRequest` returning JSON. Buttons now update the progress bar, oz display, and goal badge in-place without scrolling. CSP-compliant: uses `addEventListener` with nonce, `data-*` attributes, no inline handlers.
+**2. Water quick-log `messages.success()` causing flash on next page load**
+The `QuickWaterLogView` called `messages.success()` even on AJAX requests. While the JSON response was handled correctly without a page reload, the flash message queued in the session would appear on the next page load. Moved `messages.success()` to only fire on non-AJAX fallback path.
+
+**3. Church attendance Quick Confirmation — no canonical tracking target**
+The Signal Engine detected "church" keywords (from journal text mentioning worship/sermon on Sunday) and surfaced a "Did you complete church attendance today?" Quick Confirmation. But `church` has no canonical model, no completion record, and clicking Yes/No had no meaningful effect. Added `UNSURFACEABLE_ITEMS` set in `signal_presenter.py` to exclude items with no tracking target from being surfaced.
+
+**Files changed:**
+- `apps/health/views.py` — fitness card emphasis condition, water view messages fix
+- `apps/core/signals/signal_presenter.py` — UNSURFACEABLE_ITEMS filter
 
 **Files changed:** `templates/health/home.html`
 

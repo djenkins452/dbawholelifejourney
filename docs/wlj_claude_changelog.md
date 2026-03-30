@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-29 (significant event awareness)
 # ================================================================# WLJ Change History
 
+## 2026-03-29 — Fix: Fitness "Needs Attention" card shown on rest days
+
+**Problem:** The "Needs Attention" section showed a Fitness card with "No workout today" on rest/unscheduled days. The `card_emphasis` logic only checked `workout_today_completed` and `latest_workout`, not whether today is a rest day.
+
+**Fix:** Added `workout_rest_day` check to the fitness card emphasis condition. Rest days no longer trigger the Needs Attention fitness card.
+
+**Files changed:** `apps/health/views.py`
+
+---
+
 ## 2026-03-29 — Fix: Physical Health Today card — workout rest day + medicine window timing
 
 **Problem 1:** Workout card showed "Not completed" on rest/unscheduled days (e.g., Sunday). The view never checked `WorkoutPlan`/`WorkoutSchedule` — it showed "Not completed" any day the user had workout history.

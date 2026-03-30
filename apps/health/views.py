@@ -595,10 +595,12 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             if any(w["status"] == "missed" for w in context["medicine_windows"]):
                 card_emphasis["medicine"] = "medium"
 
-        if not context.get("workout_today_completed") and context.get(
-            "latest_workout"
+        if (
+            not context.get("workout_today_completed")
+            and not context.get("workout_rest_day")
+            and context.get("latest_workout")
         ):
-            # Only flag if user has workout history (they exercise regularly)
+            # Only flag if user has workout history and today is a workout day
             card_emphasis["fitness"] = "medium"
 
         if context.get("glucose_variability_level") == "high":

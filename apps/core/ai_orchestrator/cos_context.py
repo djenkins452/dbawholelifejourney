@@ -534,10 +534,12 @@ def _build_health_and_vitals(user):
             "Failed to build health intelligence for CoS", exc_info=True,
         )
 
-    # Physical Intelligence V2 — deterministic decision + outcome validation
+    # Physical Intelligence V2 — read pre-computed decision from SAE state
+    # (computation happens in build_health_state, NOT here on request path)
     try:
-        from apps.health.services.physical_decision import compute_physical_decision
-        phys_decision = compute_physical_decision(user)
+        from apps.core.ai_state.state_engine import get_module_state
+        _health_state = get_module_state(user, 'health') or {}
+        phys_decision = _health_state.get('physical_decision')
         if phys_decision and phys_decision.get('decision_type') != 'on_track':
             result['physical_intelligence'] = {
                 'decision_type': phys_decision.get('decision_type'),

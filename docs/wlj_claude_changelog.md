@@ -3,8 +3,25 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-30 (Physical Intelligence V2)
+# Last Updated: 2026-03-30 (Physical Intelligence V2 architecture fix)
 # ================================================================# WLJ Change History
+
+## 2026-03-30 — Fix: Physical Intelligence V2 — Architecture Corrections
+
+Three surgical fixes to correct architectural violations identified during post-build review:
+
+1. **Move computation off request path (CRITICAL):** `compute_physical_decision()` was called inside CoS context assembly (`cos_context.py`), violating the "no computation on request path" rule. Moved to `build_health_state()` in SAE state builder. CoS now reads pre-computed `physical_decision` from SAE state via `get_module_state()`.
+
+2. **Decision stability (flip-flop protection):** Added `_stabilize_decision()` function. Prevents `outcome_status` from flip-flopping between evaluations. Rules: (a) hold previous status unless new status has persisted 1+ days, (b) allow immediate change only for severe transitions (working → not_working with confirmed plateau), (c) accept any status when no previous decision exists.
+
+3. **Protocol expiration handling:** Added check for `protocol.target_end_date < today`. Expired protocols produce `decision_type: "protocol_expired"` with recommendation to set a new goal. `protocol_type` set to `None` (preventing stale protocol from influencing tier ordering or outcome validation).
+
+**Files changed:**
+- `apps/core/ai_state/state_builder.py` — Added physical decision computation to `build_health_state()`
+- `apps/core/ai_orchestrator/cos_context.py` — Changed from live computation to SAE state read
+- `apps/health/services/physical_decision.py` — Added `_stabilize_decision()`, `_get_previous_decision()`, protocol expiration check
+
+---
 
 ## 2026-03-30 — Feature: Physical Intelligence V2 — Decision + Outcome Validation System
 

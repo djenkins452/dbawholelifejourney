@@ -398,6 +398,17 @@ def build_health_state(user):
     except Exception:
         logger.debug("Health score pipeline failed in SAE", exc_info=True)
 
+    # ── Physical Intelligence V2 (runs in SAE cycle, NOT on request path) ──
+    try:
+        from apps.health.services.physical_decision import compute_physical_decision
+        phys = compute_physical_decision(user)
+        if phys:
+            state["physical_decision"] = phys
+    except ImportError:
+        pass  # Module not yet deployed
+    except Exception:
+        logger.warning("Physical Intelligence V2 failed in SAE", exc_info=True)
+
     return state
 
 

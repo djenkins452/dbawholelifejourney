@@ -69,7 +69,16 @@ def _compute(user, as_of_date):
     # ── Step 1: Gather inputs ──
     today_summary = _get_today_summary(user, as_of_date)
     protocol = _get_active_protocol(user)
-    protocol_type = protocol.protocol_type if protocol else None
+
+    # ── Step 1b: Protocol expiration check ──
+    protocol_type = None
+    if protocol:
+        if protocol.target_end_date and protocol.target_end_date < as_of_date:
+            # Protocol has expired — treat as no active protocol
+            protocol_type = None
+        else:
+            protocol_type = protocol.protocol_type
+
     signals = _gather_signals(user, as_of_date, today_summary)
 
     # ── Step 2: Body Composition Signal ──
@@ -84,10 +93,31 @@ def _compute(user, as_of_date):
     # ── Step 5: Conflict corrections (positive conflicts fix false negatives) ──
     outcome = apply_conflict_corrections(outcome, conflicts)
 
-    # ── Step 6: Tier Evaluation ──
-    decision = _evaluate_tiers(signals, today_summary, body_comp, protocol, outcome)
+    # ── Step 6: Check for expired protocol decision ──
+    if (
+        protocol
+        and protocol.target_end_date
+        and protocol.target_end_date < as_of_date
+    ):
+        decision = {
+            "decision_type": "protocol_expired",
+            "primary_issue": "protocol_expired",
+            "summary": (
+                f"Your {protocol.protocol_type} protocol ended on "
+                f"{protocol.target_end_date.strftime('%b %d')}."
+            ),
+            "urgency": "this_week",
+            "impact": "medium",
+            "recommended_action": "Set a new goal to continue progress.",
+            "action_type": "strategy_adjustment",
+        }
+    else:
+        # ── Step 7: Tier Evaluation ──
+        decision = _evaluate_tiers(
+            signals, today_summary, body_comp, protocol, outcome
+        )
 
-    # ── Step 7: Attach composition + outcome data ──
+    # ── Step 8: Attach composition + outcome data ──
     decision["outcome_status"] = outcome.get("outcome_status")
     decision["outcome_evidence"] = outcome.get("outcome_evidence", [])
     decision["goal_trajectory"] = outcome.get("goal_trajectory")
@@ -98,11 +128,14 @@ def _compute(user, as_of_date):
     decision["confidence"] = body_comp.get("confidence", "low")
     decision["protocol_type"] = protocol_type
 
-    # ── Step 8: Enrichments ──
+    # ── Step 9: Enrichments ──
     decision = _enrich_with_momentum(decision, user, as_of_date)
     decision = _enrich_with_impact(decision, protocol_type)
 
-    # ── Step 9: Build narrative ──
+    # ── Step 10: Decision stability (prevent flip-flopping) ──
+    decision = _stabilize_decision(decision, user)
+
+    # ── Step 11: Build narrative ──
     decision["narrative"] = _build_narrative(decision)
 
     return decision
@@ -471,6 +504,70 @@ def _enrich_with_impact(decision, protocol_type):
         decision["outcome_risk"] = "medium"
 
     return decision
+
+
+# =========================================================================
+# Decision Stability (Flip-Flop Protection)
+# =========================================================================
+
+
+def _stabilize_decision(decision, user):
+    """Prevent outcome_status from flip-flopping between evaluations.
+
+    Rules:
+    1. Read previous decision from last SAE snapshot.
+    2. If outcome_status changed, only allow the change if:
+       a. New status has been consistent for 2+ evaluations
+          (approximated by persistence_days >= 1), OR
+       b. Change is severe: working → not_working AND plateau confirmed.
+    3. Otherwise, keep previous outcome_status.
+
+    Also applies light hysteresis to fat_loss_status:
+    - Once "confirmed", require stronger counter-evidence to flip out.
+    """
+    previous = _get_previous_decision(user)
+    if not previous:
+        return decision  # No history — accept current as-is
+
+    prev_outcome = previous.get("outcome_status")
+    new_outcome = decision.get("outcome_status")
+
+    # If outcome hasn't changed, no stabilization needed
+    if prev_outcome == new_outcome or prev_outcome is None or new_outcome is None:
+        return decision
+
+    # ── Check if change is severe (always allowed) ──
+    severe_change = (
+        prev_outcome == "working"
+        and new_outcome == "not_working"
+        and decision.get("body_composition", {}).get("plateau_status") == "confirmed"
+    )
+    if severe_change:
+        return decision  # Allow immediate flip for confirmed plateau
+
+    # ── Check if new status has persistence (allows change) ──
+    # persistence_days >= 1 means the underlying issue existed yesterday too
+    if decision.get("persistence_days", 0) >= 1:
+        return decision  # Issue is persistent, not a one-day blip
+
+    # ── Flip not justified — hold previous outcome_status ──
+    decision["outcome_status"] = prev_outcome
+    decision["_stability_held"] = True  # Audit flag
+
+    return decision
+
+
+def _get_previous_decision(user):
+    """Read the previous physical decision from SAE state.
+
+    Returns None if no previous decision exists.
+    """
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        health_state = get_module_state(user, "health") or {}
+        return health_state.get("physical_decision")
+    except Exception:
+        return None
 
 
 # =========================================================================

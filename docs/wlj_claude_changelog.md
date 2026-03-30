@@ -3,8 +3,27 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-30 (Physical Intelligence Dashboard V1)
+# Last Updated: 2026-03-30 (critical signal injection V2 hardening)
 # ================================================================# WLJ Change History
+
+## 2026-03-30 — V2: Critical Signal Injection Hardening
+
+**Enhancement:** Upgraded the deterministic event acknowledgment system from raw string injection to a structured, CoS-aware critical signal layer. System now determines WHAT must be said; LLM determines HOW it is expressed.
+
+**Changes:**
+1. **Structured critical event objects** — `get_today_critical_events(user)` returns typed dicts with `type`, `priority`, `priority_rank`, `person`, `message`, and `keywords` for each event. Sorted by relationship priority (self > spouse > family > general).
+2. **Advisory LLM context** — `critical_events_today` injected into CoS context builder and `format_cos_system_injection()` as `CRITICAL EVENTS TODAY` section. Helps LLM weave acknowledgment naturally into opening.
+3. **Structured idempotency** — Replaced naive string matching with event-type keyword + person name matching via `check_response_acknowledges_events()`. Self events need keyword only ("birthday"); non-self events need keyword + person name. "Hope you have a great day" correctly does NOT count as acknowledgment.
+4. **Generalized injection pipeline** — Renamed `_inject_event_acknowledgment()` to `_inject_critical_signals()` (backward-compatible alias preserved). Only injects specifically unacknowledged events, not the full list.
+5. **Learning Mode** — Updated to use structured `get_today_critical_events()` instead of raw text.
+
+**Files changed:**
+- `apps/life/services/event_acknowledgment.py` — Refactored: `get_today_critical_events()`, `check_response_acknowledges_events()`, `build_event_acknowledgment()`, keyword-based detection
+- `apps/ai/personal_assistant.py` — Renamed to `_inject_critical_signals()`, structured idempotency in both streaming + non-streaming paths
+- `apps/core/ai_orchestrator/cos_context.py` — Added `critical_events_today` to context builder + prompt formatting + Learning Mode injection
+- `apps/life/tests/test_event_acknowledgment.py` — Expanded to 21 tests: structured objects, keyword matching, partial acknowledgment, edge cases
+
+---
 
 ## 2026-03-30 — Feature: Physical Intelligence Dashboard V1 (Coach Mode)
 

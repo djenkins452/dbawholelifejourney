@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-29 (significant event awareness)
 # ================================================================# WLJ Change History
 
+## 2026-03-29 — Fix: Water quick-log buttons cause full page reload
+
+**Problem:** Clicking +8oz or +16oz on the Physical Health page submitted a form POST that redirected back to the top of the page. Users had to scroll back down to add more water.
+
+**Fix:** Replaced form-based buttons with AJAX fetch calls. The view already supported `X-Requested-With: XMLHttpRequest` returning JSON. Buttons now update the progress bar, oz display, and goal badge in-place without scrolling. CSP-compliant: uses `addEventListener` with nonce, `data-*` attributes, no inline handlers.
+
+**Files changed:** `templates/health/home.html`
+
+---
+
 ## 2026-03-29 — Fix: Fitness "Needs Attention" card shown on rest days
 
 **Problem:** The "Needs Attention" section showed a Fitness card with "No workout today" on rest/unscheduled days. The `card_emphasis` logic only checked `workout_today_completed` and `latest_workout`, not whether today is a rest day.

@@ -361,8 +361,14 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                                 "label": tod_display,
                                 "total": 0,
                                 "taken": 0,
+                                "latest_time": None,
                             }
                         windows[tod]["total"] += 1
+                        # Track latest scheduled_time in window for missed vs pending
+                        if schedule.scheduled_time:
+                            prev = windows[tod]["latest_time"]
+                            if prev is None or schedule.scheduled_time > prev:
+                                windows[tod]["latest_time"] = schedule.scheduled_time
 
                         log = MedicineLog.objects.filter(
                             medicine=medicine,
@@ -401,7 +407,12 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 elif w["taken"] > 0:
                     w["status"] = "partial"
                 else:
-                    w["status"] = "missed"
+                    # Only mark as missed if the window's latest dose time has passed
+                    latest = w.get("latest_time")
+                    if latest and now_local_naive > dt_cls.combine(today, latest):
+                        w["status"] = "missed"
+                    else:
+                        w["status"] = "pending"
             context["medicine_windows"] = list(windows.values())
 
             # Check for low supply
@@ -462,6 +473,27 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             context["workout_today_name"] = workout_today.name
         else:
             context["workout_today_completed"] = False
+
+        # Check if today is a scheduled workout day via WorkoutPlan/WorkoutSchedule
+        try:
+            from .models import WorkoutPlan, WorkoutSchedule
+            active_plan = WorkoutPlan.objects.filter(
+                user=user, is_active=True
+            ).first()
+            if active_plan:
+                day_schedule = WorkoutSchedule.objects.filter(
+                    plan=active_plan, day_of_week=today.weekday()
+                ).first()
+                if day_schedule and day_schedule.is_rest_day:
+                    context["workout_rest_day"] = True
+                elif day_schedule:
+                    context["workout_scheduled_today"] = True
+                else:
+                    # No schedule entry for today = rest day
+                    context["workout_rest_day"] = True
+            # No active plan — show workout card only if user has workout history
+        except ImportError:
+            pass
 
         # Cycle Tracking summary (only if opted in)
         try:

@@ -34,17 +34,22 @@
         <div class="today-grid">
             {# ── Workout Status ── #}
             {% if features.health.workouts %}
-            <div class="today-item {% if workout_today_completed %}today-complete{% else %}today-incomplete{% endif %}">
-                <span class="today-icon" aria-hidden="true">{% if workout_today_completed %}&#10003;{% else %}&#9675;{% endif %}</span>
+            <div class="today-item {% if workout_today_completed %}today-complete{% elif workout_rest_day %}today-neutral{% else %}today-incomplete{% endif %}">
+                <span class="today-icon" aria-hidden="true">{% if workout_today_completed %}&#10003;{% elif workout_rest_day %}&#128164;{% else %}&#9675;{% endif %}</span>
                 <div class="today-content">
                     <span class="today-label">Workout</span>
                     {% if workout_today_completed %}
                         <span class="today-value today-value-good">Completed{% if workout_today_time %} at {{ workout_today_time|time:"g:i A" }}{% endif %}</span>
+                    {% elif workout_rest_day %}
+                        <span class="today-value today-value-neutral">Rest Day</span>
+                    {% elif workout_scheduled_today %}
+                        <span class="today-value today-value-pending">Not completed</span>
+                        <span class="today-nudge nudge-pending">&#8594; Complete your workout</span>
                     {% elif latest_workout %}
                         <span class="today-value today-value-pending">Not completed</span>
                         <span class="today-nudge nudge-pending">&#8594; Complete your workout</span>
                     {% else %}
-                        <span class="today-value today-value-pending">Not completed</span>
+                        <span class="today-value today-value-neutral">No workouts yet</span>
                     {% endif %}
                 </div>
             </div>
@@ -1117,6 +1122,7 @@
 
 .today-value-good { color: #16a34a; }
 .today-value-pending { color: #6b7280; }
+.today-value-neutral { color: #9ca3af; }
 
 .today-windows {
     display: flex;
@@ -1132,6 +1138,7 @@
 .tw-complete { color: #16a34a; }
 .tw-partial { color: #d97706; }
 .tw-missed { color: #dc2626; }
+.tw-pending { color: #6b7280; }
 
 .today-signal {
     font-size: var(--font-size-xs);

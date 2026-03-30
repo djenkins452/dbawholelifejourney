@@ -6287,12 +6287,12 @@ def format_cos_system_injection(context, user_message=None):
     _critical = context.get('critical_events_today', [])
     if _critical:
         lines.append("")
-        lines.append("CRITICAL EVENTS TODAY (acknowledge naturally in your opening):")
+        lines.append("CRITICAL EVENTS TODAY:")
         for cev in _critical:
             lines.append(f"  • {cev.get('message', cev.get('title', ''))}")
         lines.append(
-            "Note: The system guarantees these are acknowledged. "
-            "Incorporate them warmly and briefly — do not ignore them."
+            "INSTRUCTION: Acknowledge these events in the FIRST LINE of "
+            "your response. Be warm and human — not robotic. Keep it brief."
         )
 
     # Event signals (deterministic relationship-aware layer)

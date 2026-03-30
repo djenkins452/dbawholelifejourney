@@ -2025,7 +2025,8 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
 
         Uses structured idempotency: checks event-type keywords + person
         name to determine if the LLM already acknowledged each event.
-        Only injects events the LLM missed.
+        Only injects events the LLM missed, using grouped formatting
+        for natural multi-event phrasing.
 
         Args:
             response: str — The LLM-generated (or deterministic) response.
@@ -2037,6 +2038,7 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
             from apps.life.services.event_acknowledgment import (
                 get_today_critical_events,
                 check_response_acknowledges_events,
+                build_grouped_acknowledgment,
             )
 
             events = get_today_critical_events(self.user)
@@ -2047,34 +2049,38 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
             unacknowledged = check_response_acknowledges_events(
                 response, events,
             )
+            ack_count = len(events) - len(unacknowledged)
 
             if not unacknowledged:
                 logger.info(
-                    "CRITICAL_SIGNALS_ACKNOWLEDGED user=%s — LLM included "
-                    "all %d event(s), skipping injection",
-                    self.user.id, len(events),
+                    "critical_signal_evaluation user=%s events_found=%d "
+                    "acknowledged_by_llm=%d injected=0",
+                    self.user.id, len(events), ack_count,
                 )
                 return response
 
-            # Build injection text from only the missed events
-            injection_parts = [
-                e["message"] for e in unacknowledged if e.get("message")
-            ]
-            if not injection_parts:
+            # Build grouped injection from only the missed events
+            injection = build_grouped_acknowledgment(unacknowledged)
+            if not injection:
+                # Events exist but no injection built — critical failure
+                logger.error(
+                    "CRITICAL: events_found=%d acknowledged=0 injected=0 "
+                    "— event not acknowledged or injected user=%s",
+                    len(events), self.user.id,
+                )
                 return response
 
-            injection = "\n".join(injection_parts)
-
             logger.warning(
-                "CRITICAL_SIGNALS_INJECTED user=%s — LLM missed %d of %d "
-                "event(s), injecting: %s",
+                "critical_signal_evaluation user=%s events_found=%d "
+                "acknowledged_by_llm=%d injected=%d types=%s",
                 self.user.id,
-                len(unacknowledged),
                 len(events),
+                ack_count,
+                len(unacknowledged),
                 [e.get("type") for e in unacknowledged],
             )
 
-            # Prepend: self events first (already sorted by priority)
+            # Prepend at top of response (already sorted by priority)
             if response:
                 return injection + "\n\n" + response
             return injection
@@ -5945,22 +5951,22 @@ Rules for this response:
 
         # ── Deterministic critical signal injection (stream path) ──
         # Same enforcement as non-streaming: critical signals are guaranteed
-        # regardless of LLM behavior. Uses structured idempotency.
+        # regardless of LLM behavior. Uses structured idempotency + grouping.
         try:
             from apps.life.services.event_acknowledgment import (
                 get_today_critical_events as _stream_get_events,
                 check_response_acknowledges_events as _stream_check,
+                build_grouped_acknowledgment as _stream_group,
             )
 
             _stream_events = _stream_get_events(self.user)
             if _stream_events and response_text:
                 _unacked = _stream_check(response_text, _stream_events)
+                _s_ack_count = len(_stream_events) - len(_unacked)
+
                 if _unacked:
-                    _parts = [
-                        e["message"] for e in _unacked if e.get("message")
-                    ]
-                    if _parts:
-                        _injection = "\n".join(_parts)
+                    _injection = _stream_group(_unacked)
+                    if _injection:
                         response_text = _injection + "\n\n" + response_text
                         assistant_msg.content = response_text
                         assistant_msg.save(update_fields=['content'])
@@ -5969,12 +5975,29 @@ Rules for this response:
                             'content': response_text,
                         }
                         logger.warning(
-                            "CRITICAL_SIGNALS_INJECTED_STREAM user=%s — "
-                            "LLM missed %d of %d event(s)",
+                            "critical_signal_evaluation user=%s path=stream "
+                            "events_found=%d acknowledged_by_llm=%d "
+                            "injected=%d",
                             self.user.id,
-                            len(_unacked),
                             len(_stream_events),
+                            _s_ack_count,
+                            len(_unacked),
                         )
+                    else:
+                        logger.error(
+                            "CRITICAL: events_found=%d acknowledged=0 "
+                            "injected=0 — stream event not acknowledged "
+                            "or injected user=%s",
+                            len(_stream_events), self.user.id,
+                        )
+                else:
+                    logger.info(
+                        "critical_signal_evaluation user=%s path=stream "
+                        "events_found=%d acknowledged_by_llm=%d injected=0",
+                        self.user.id,
+                        len(_stream_events),
+                        _s_ack_count,
+                    )
         except Exception:
             logger.error(
                 "CRITICAL_SIGNALS_STREAM_FAILED user=%s",

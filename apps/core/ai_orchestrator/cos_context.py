@@ -534,6 +534,50 @@ def _build_health_and_vitals(user):
             "Failed to build health intelligence for CoS", exc_info=True,
         )
 
+    # Physical Intelligence V2 — deterministic decision + outcome validation
+    try:
+        from apps.health.services.physical_decision import compute_physical_decision
+        phys_decision = compute_physical_decision(user)
+        if phys_decision and phys_decision.get('decision_type') != 'on_track':
+            result['physical_intelligence'] = {
+                'decision_type': phys_decision.get('decision_type'),
+                'primary_issue': phys_decision.get('primary_issue'),
+                'summary': phys_decision.get('summary'),
+                'urgency': phys_decision.get('urgency'),
+                'recommended_action': phys_decision.get('recommended_action'),
+                'outcome_status': phys_decision.get('outcome_status'),
+                'outcome_risk': phys_decision.get('outcome_risk'),
+                'confidence': phys_decision.get('confidence'),
+                'narrative': phys_decision.get('narrative'),
+                'messaging_phase': phys_decision.get('messaging_phase'),
+                'protocol_type': phys_decision.get('protocol_type'),
+                'impact_statement': phys_decision.get('impact_statement'),
+            }
+        elif phys_decision:
+            # On track — still provide outcome status and composition summary
+            result['physical_intelligence'] = {
+                'decision_type': 'on_track',
+                'outcome_status': phys_decision.get('outcome_status'),
+                'narrative': phys_decision.get('narrative'),
+                'confidence': phys_decision.get('confidence'),
+            }
+        # Add conflict context if present
+        conflicts = phys_decision.get('conflicts', []) if phys_decision else []
+        if conflicts:
+            result['physical_conflicts'] = [
+                {
+                    'type': c.get('type'),
+                    'description': c.get('description'),
+                    'resolution': c.get('resolution'),
+                    'positive': c.get('positive', False),
+                }
+                for c in conflicts
+            ]
+    except ImportError:
+        pass  # Module not yet deployed
+    except Exception:
+        logger.warning("CoS context: physical intelligence failed", exc_info=True)
+
     # Health Priority Summary + Signals + Coaching (deterministic layer)
     try:
         from apps.core.ai_state.state_engine import get_module_state

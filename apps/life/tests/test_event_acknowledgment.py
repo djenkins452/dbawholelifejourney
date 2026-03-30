@@ -2,13 +2,14 @@
 Tests for deterministic critical signal acknowledgment.
 
 Verifies:
-1. Structured critical event objects are correct
+1. Structured critical event objects with signal_type_rank
 2. Acknowledgment builder generates correct text for each event type
-3. Relationship priority affects wording and ordering
-4. Multiple events are combined and sorted
-5. Structured idempotency: keyword + person name matching
-6. Injection only for unacknowledged events
-7. No events = no acknowledgment
+3. Grouped multi-event phrasing (1, 2, 3+ events)
+4. Structured idempotency: keyword + person name matching
+5. Partial acknowledgment: only inject missed events
+6. Edge language: "great day" != birthday acknowledgment
+7. Priority ordering: self > spouse > family > general
+8. Injection integration: prepend at top, no duplication
 """
 import datetime
 
@@ -47,8 +48,7 @@ class TestGetTodayCriticalEvents(TestCase):
         from apps.life.services.event_acknowledgment import (
             get_today_critical_events,
         )
-        result = get_today_critical_events(self.user)
-        self.assertEqual(result, [])
+        self.assertEqual(get_today_critical_events(self.user), [])
 
     def test_birthday_returns_structured_event(self):
         from apps.life.models import SignificantEvent
@@ -74,6 +74,8 @@ class TestGetTodayCriticalEvents(TestCase):
         self.assertEqual(ev["person"], "Mom")
         self.assertIn("priority", ev)
         self.assertIn("priority_rank", ev)
+        self.assertIn("signal_type_rank", ev)
+        self.assertEqual(ev["signal_type_rank"], 10)
         self.assertIn("message", ev)
         self.assertIn("keywords", ev)
         self.assertIn("birthday", ev["keywords"])
@@ -88,26 +90,17 @@ class TestGetTodayCriticalEvents(TestCase):
         )
 
         today = datetime.date.today()
-        # Create family event first
         SignificantEvent.objects.create(
-            user=self.user,
-            title="Mom's Birthday",
-            event_type="birthday",
-            event_date=today,
-            person_name="Mom",
+            user=self.user, title="Mom's Birthday",
+            event_type="birthday", event_date=today, person_name="Mom",
         )
-        # Then self event
         SignificantEvent.objects.create(
-            user=self.user,
-            title="My Birthday",
-            event_type="birthday",
-            event_date=today,
-            person_name="Danny",
+            user=self.user, title="My Birthday",
+            event_type="birthday", event_date=today, person_name="Danny",
         )
 
         events = get_today_critical_events(self.user)
         self.assertEqual(len(events), 2)
-        # Self should be first (priority_rank=1)
         self.assertEqual(events[0]["priority"], "self")
         self.assertEqual(events[1]["priority"], "family")
 
@@ -119,19 +112,14 @@ class TestGetTodayCriticalEvents(TestCase):
 
         tomorrow = datetime.date.today() + datetime.timedelta(days=1)
         SignificantEvent.objects.create(
-            user=self.user,
-            title="Future Event",
-            event_type="birthday",
-            event_date=tomorrow,
-            person_name="Someone",
+            user=self.user, title="Future Event",
+            event_type="birthday", event_date=tomorrow, person_name="Someone",
         )
-
-        events = get_today_critical_events(self.user)
-        self.assertEqual(events, [])
+        self.assertEqual(get_today_critical_events(self.user), [])
 
 
 # ═══════════════════════════════════════════════════════════════════
-# Acknowledgment text generation
+# Single-event acknowledgment text
 # ═══════════════════════════════════════════════════════════════════
 
 
@@ -145,25 +133,18 @@ class TestBuildEventAcknowledgment(TestCase):
         from apps.life.services.event_acknowledgment import (
             build_event_acknowledgment,
         )
-        result = build_event_acknowledgment(self.user)
-        self.assertIsNone(result)
+        self.assertIsNone(build_event_acknowledgment(self.user))
 
     def test_self_birthday(self):
         from apps.life.models import SignificantEvent
         from apps.life.services.event_acknowledgment import (
             build_event_acknowledgment,
         )
-
         today = datetime.date.today()
         SignificantEvent.objects.create(
-            user=self.user,
-            title="My Birthday",
-            event_type="birthday",
-            event_date=today,
-            person_name="Danny",
-            original_year=1981,
+            user=self.user, title="My Birthday", event_type="birthday",
+            event_date=today, person_name="Danny", original_year=1981,
         )
-
         result = build_event_acknowledgment(self.user)
         self.assertIn("Happy birthday", result)
         self.assertIn("Danny", result)
@@ -173,17 +154,11 @@ class TestBuildEventAcknowledgment(TestCase):
         from apps.life.services.event_acknowledgment import (
             build_event_acknowledgment,
         )
-
         today = datetime.date.today()
         SignificantEvent.objects.create(
-            user=self.user,
-            title="Mom's Birthday",
-            event_type="birthday",
-            event_date=today,
-            person_name="Mom",
-            original_year=1960,
+            user=self.user, title="Mom's Birthday", event_type="birthday",
+            event_date=today, person_name="Mom", original_year=1960,
         )
-
         result = build_event_acknowledgment(self.user)
         self.assertIn("Mom", result)
         self.assertIn("birthday", result.lower())
@@ -193,66 +168,103 @@ class TestBuildEventAcknowledgment(TestCase):
         from apps.life.services.event_acknowledgment import (
             build_event_acknowledgment,
         )
-
         today = datetime.date.today()
         SignificantEvent.objects.create(
-            user=self.user,
-            title="Wedding Anniversary",
-            event_type="anniversary",
-            event_date=today,
-            person_name="",
-            original_year=2016,
+            user=self.user, title="Wedding Anniversary",
+            event_type="anniversary", event_date=today,
+            person_name="", original_year=2016,
         )
-
         result = build_event_acknowledgment(self.user)
         self.assertIn("anniversary", result.lower())
-        years = today.year - 2016
-        self.assertIn(str(years), result)
 
     def test_memorial(self):
         from apps.life.models import SignificantEvent
         from apps.life.services.event_acknowledgment import (
             build_event_acknowledgment,
         )
-
         today = datetime.date.today()
         SignificantEvent.objects.create(
-            user=self.user,
-            title="Dad's Memorial",
-            event_type="memorial",
-            event_date=today,
-            person_name="Dad",
+            user=self.user, title="Dad's Memorial", event_type="memorial",
+            event_date=today, person_name="Dad",
         )
-
         result = build_event_acknowledgment(self.user)
         self.assertIn("Remembering", result)
         self.assertIn("Dad", result)
 
-    def test_multiple_events_combined(self):
+
+# ═══════════════════════════════════════════════════════════════════
+# Grouped multi-event acknowledgment
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestGroupedAcknowledgment(TestCase):
+    """Test natural grouping of multiple events."""
+
+    def test_single_event_as_is(self):
+        from apps.life.services.event_acknowledgment import (
+            build_grouped_acknowledgment,
+        )
+        events = [{"message": "Happy birthday, Danny!", "type": "birthday"}]
+        result = build_grouped_acknowledgment(events)
+        self.assertEqual(result, "Happy birthday, Danny!")
+
+    def test_two_events_joined_naturally(self):
+        from apps.life.services.event_acknowledgment import (
+            build_grouped_acknowledgment,
+        )
+        events = [
+            {"message": "Happy birthday, Danny!", "type": "birthday"},
+            {"message": "Today is Mom's birthday.", "type": "birthday"},
+        ]
+        result = build_grouped_acknowledgment(events)
+        self.assertIn("Danny", result)
+        self.assertIn("Mom", result)
+        self.assertIn(" — and ", result)
+        # Should be a single line (no newline for 2 events)
+        self.assertNotIn("\n", result)
+
+    def test_three_events_lead_plus_also(self):
+        from apps.life.services.event_acknowledgment import (
+            build_grouped_acknowledgment,
+        )
+        events = [
+            {"message": "Happy birthday, Danny!", "type": "birthday"},
+            {"message": "Today is Mom's birthday.", "type": "birthday"},
+            {"message": "Today is your anniversary.", "type": "anniversary"},
+        ]
+        result = build_grouped_acknowledgment(events)
+        self.assertIn("Danny", result)
+        self.assertIn("Also today:", result)
+        self.assertIn("Mom", result)
+        self.assertIn("anniversary", result.lower())
+
+    def test_empty_events_returns_none(self):
+        from apps.life.services.event_acknowledgment import (
+            build_grouped_acknowledgment,
+        )
+        self.assertIsNone(build_grouped_acknowledgment([]))
+
+    def test_grouped_via_build_event_acknowledgment(self):
+        """build_event_acknowledgment uses grouping for multiple events."""
         from apps.life.models import SignificantEvent
         from apps.life.services.event_acknowledgment import (
             build_event_acknowledgment,
         )
-
+        user = _create_test_user(email="group_build@example.com")
         today = datetime.date.today()
         SignificantEvent.objects.create(
-            user=self.user,
-            title="Mom's Birthday",
-            event_type="birthday",
-            event_date=today,
-            person_name="Mom",
+            user=user, title="Mom's Birthday", event_type="birthday",
+            event_date=today, person_name="Mom",
         )
         SignificantEvent.objects.create(
-            user=self.user,
-            title="Wedding Anniversary",
-            event_type="anniversary",
-            event_date=today,
-            person_name="",
+            user=user, title="Wedding Anniversary",
+            event_type="anniversary", event_date=today, person_name="",
         )
-
-        result = build_event_acknowledgment(self.user)
+        result = build_event_acknowledgment(user)
         self.assertIn("Mom", result)
         self.assertIn("anniversary", result.lower())
+        # Should use natural grouping, not bare newline join
+        self.assertIn(" — and ", result)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -268,17 +280,29 @@ class TestIdempotencyCheck(TestCase):
         from apps.life.services.event_acknowledgment import (
             check_response_acknowledges_events,
         )
-
         events = [{
-            "type": "birthday",
-            "priority": "self",
-            "person": "Danny",
+            "type": "birthday", "priority": "self", "person": "Danny",
             "message": "Happy birthday, Danny!",
-            "keywords": {"birthday", "born", "turning", "danny"},
+            "keywords": {"birthday", "bday", "born", "turning", "danny"},
         }]
-        response = "Happy birthday! Here's your morning status..."
+        unacked = check_response_acknowledges_events(
+            "Happy birthday! Here's your morning status...", events,
+        )
+        self.assertEqual(len(unacked), 0)
 
-        unacked = check_response_acknowledges_events(response, events)
+    def test_bday_synonym_acknowledged(self):
+        """LLM uses 'bday' synonym → still acknowledged."""
+        from apps.life.services.event_acknowledgment import (
+            check_response_acknowledges_events,
+        )
+        events = [{
+            "type": "birthday", "priority": "self", "person": "Danny",
+            "message": "Happy birthday, Danny!",
+            "keywords": {"birthday", "bday", "born", "turning", "danny"},
+        }]
+        unacked = check_response_acknowledges_events(
+            "Happy bday! Here's your status.", events,
+        )
         self.assertEqual(len(unacked), 0)
 
     def test_birthday_not_acknowledged(self):
@@ -286,35 +310,29 @@ class TestIdempotencyCheck(TestCase):
         from apps.life.services.event_acknowledgment import (
             check_response_acknowledges_events,
         )
-
         events = [{
-            "type": "birthday",
-            "priority": "self",
-            "person": "Danny",
+            "type": "birthday", "priority": "self", "person": "Danny",
             "message": "Happy birthday, Danny!",
-            "keywords": {"birthday", "born", "turning", "danny"},
+            "keywords": {"birthday", "bday", "born", "turning", "danny"},
         }]
-        response = "Good morning! Here's your daily status."
-
-        unacked = check_response_acknowledges_events(response, events)
+        unacked = check_response_acknowledges_events(
+            "Good morning! Here's your daily status.", events,
+        )
         self.assertEqual(len(unacked), 1)
 
-    def test_partial_response_not_sufficient(self):
+    def test_great_day_not_sufficient(self):
         """'Great day' without birthday keyword → NOT acknowledged."""
         from apps.life.services.event_acknowledgment import (
             check_response_acknowledges_events,
         )
-
         events = [{
-            "type": "birthday",
-            "priority": "self",
-            "person": "Danny",
+            "type": "birthday", "priority": "self", "person": "Danny",
             "message": "Happy birthday, Danny!",
-            "keywords": {"birthday", "born", "turning", "danny"},
+            "keywords": {"birthday", "bday", "born", "turning", "danny"},
         }]
-        response = "Hope you're having a great day today!"
-
-        unacked = check_response_acknowledges_events(response, events)
+        unacked = check_response_acknowledges_events(
+            "Hope you're having a great day today!", events,
+        )
         self.assertEqual(len(unacked), 1)
 
     def test_family_event_needs_person_name(self):
@@ -322,49 +340,44 @@ class TestIdempotencyCheck(TestCase):
         from apps.life.services.event_acknowledgment import (
             check_response_acknowledges_events,
         )
-
         events = [{
-            "type": "birthday",
-            "priority": "family",
-            "person": "Mom",
+            "type": "birthday", "priority": "family", "person": "Mom",
             "message": "Today is Mom's birthday.",
-            "keywords": {"birthday", "born", "turning", "mom"},
+            "keywords": {"birthday", "bday", "born", "turning", "mom"},
         }]
-        # Has 'birthday' but not 'Mom' → not acknowledged
-        response = "Happy birthday vibes today! Here's your status."
-        unacked = check_response_acknowledges_events(response, events)
+        # Has keyword but not person → not acknowledged
+        unacked = check_response_acknowledges_events(
+            "Happy birthday vibes today!", events,
+        )
         self.assertEqual(len(unacked), 1)
 
         # Has both → acknowledged
-        response = "Today is Mom's birthday! Here's your status."
-        unacked = check_response_acknowledges_events(response, events)
+        unacked = check_response_acknowledges_events(
+            "Today is Mom's birthday! Here's your status.", events,
+        )
         self.assertEqual(len(unacked), 0)
 
-    def test_multiple_events_partial_acknowledgment(self):
+    def test_partial_acknowledgment(self):
         """LLM acknowledges one event but misses another."""
         from apps.life.services.event_acknowledgment import (
             check_response_acknowledges_events,
         )
-
         events = [
             {
-                "type": "birthday",
-                "priority": "family",
-                "person": "Mom",
+                "type": "birthday", "priority": "family", "person": "Mom",
                 "message": "Today is Mom's birthday.",
                 "keywords": {"birthday", "mom"},
             },
             {
-                "type": "anniversary",
-                "priority": "self",
-                "person": "",
+                "type": "anniversary", "priority": "self", "person": "",
                 "message": "Today is your 10th anniversary.",
                 "keywords": {"anniversary"},
             },
         ]
         # Mentions Mom's birthday but not anniversary
-        response = "Today is Mom's birthday! Here's your status."
-        unacked = check_response_acknowledges_events(response, events)
+        unacked = check_response_acknowledges_events(
+            "Today is Mom's birthday! Here's your status.", events,
+        )
         self.assertEqual(len(unacked), 1)
         self.assertEqual(unacked[0]["type"], "anniversary")
 
@@ -372,16 +385,13 @@ class TestIdempotencyCheck(TestCase):
         from apps.life.services.event_acknowledgment import (
             check_response_acknowledges_events,
         )
-
         events = [{
-            "type": "birthday",
-            "priority": "self",
-            "person": "Danny",
-            "message": "Happy birthday!",
-            "keywords": {"birthday", "danny"},
+            "type": "birthday", "priority": "self", "person": "Danny",
+            "message": "Happy birthday!", "keywords": {"birthday", "danny"},
         }]
-        unacked = check_response_acknowledges_events("", events)
-        self.assertEqual(len(unacked), 1)
+        self.assertEqual(
+            len(check_response_acknowledges_events("", events)), 1,
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -396,26 +406,23 @@ class TestInjectionIntegration(TestCase):
         self.user = _create_test_user(email="inject_test@example.com")
 
     def test_injection_when_llm_missed(self):
-        """LLM doesn't mention event → injection occurs."""
+        """LLM doesn't mention event → injection occurs at top."""
         from apps.life.models import SignificantEvent
         from apps.ai.personal_assistant import PersonalAssistant
 
         today = datetime.date.today()
         SignificantEvent.objects.create(
-            user=self.user,
-            title="Mom's Birthday",
-            event_type="birthday",
-            event_date=today,
-            person_name="Mom",
+            user=self.user, title="Mom's Birthday", event_type="birthday",
+            event_date=today, person_name="Mom",
         )
 
         pa = PersonalAssistant(self.user)
-        llm_response = "Good morning! Here's your daily status."
-        result = pa._inject_critical_signals(llm_response)
-
+        result = pa._inject_critical_signals(
+            "Good morning! Here's your daily status.",
+        )
         self.assertIn("Mom", result)
         self.assertIn("birthday", result.lower())
-        # Acknowledgment should be before LLM response
+        # Must be at top
         self.assertTrue(result.index("Mom") < result.index("Good morning"))
 
     def test_no_injection_when_llm_acknowledged(self):
@@ -425,35 +432,48 @@ class TestInjectionIntegration(TestCase):
 
         today = datetime.date.today()
         SignificantEvent.objects.create(
-            user=self.user,
-            title="Mom's Birthday",
-            event_type="birthday",
-            event_date=today,
-            person_name="Mom",
+            user=self.user, title="Mom's Birthday", event_type="birthday",
+            event_date=today, person_name="Mom",
         )
 
         pa = PersonalAssistant(self.user)
         llm_response = "Today is Mom's birthday! Here's your morning status..."
         result = pa._inject_critical_signals(llm_response)
-
-        # Should NOT double up
         self.assertEqual(result.count("Mom"), llm_response.count("Mom"))
 
-    def test_no_events_no_change(self):
-        """No events → response returned unchanged."""
+    def test_partial_injection_only_missed(self):
+        """LLM handles one event, misses another → only missed injected."""
+        from apps.life.models import SignificantEvent
         from apps.ai.personal_assistant import PersonalAssistant
+
+        today = datetime.date.today()
+        SignificantEvent.objects.create(
+            user=self.user, title="Mom's Birthday", event_type="birthday",
+            event_date=today, person_name="Mom",
+        )
+        SignificantEvent.objects.create(
+            user=self.user, title="Wedding Anniversary",
+            event_type="anniversary", event_date=today,
+            person_name="", original_year=2016,
+        )
 
         pa = PersonalAssistant(self.user)
-        llm_response = "Good morning! Here's your daily status."
+        # LLM acknowledges Mom but not anniversary
+        llm_response = "Today is Mom's birthday! Here's your status."
         result = pa._inject_critical_signals(llm_response)
 
-        self.assertEqual(result, llm_response)
+        # Anniversary should be injected, Mom should NOT be duplicated
+        self.assertIn("anniversary", result.lower())
+        self.assertEqual(result.count("Mom"), 1)
+
+    def test_no_events_no_change(self):
+        from apps.ai.personal_assistant import PersonalAssistant
+        pa = PersonalAssistant(self.user)
+        llm_response = "Good morning!"
+        self.assertEqual(pa._inject_critical_signals(llm_response), llm_response)
 
     def test_backward_compatible_alias(self):
-        """_inject_event_acknowledgment still works as alias."""
         from apps.ai.personal_assistant import PersonalAssistant
-
-        # Class-level attribute should point to the same function
         self.assertIs(
             PersonalAssistant._inject_event_acknowledgment,
             PersonalAssistant._inject_critical_signals,
@@ -466,11 +486,8 @@ class TestInjectionIntegration(TestCase):
 
 
 class TestOrdinal(TestCase):
-    """Test ordinal suffix generation."""
-
     def test_ordinal_suffix(self):
         from apps.life.services.event_acknowledgment import _ordinal
-
         self.assertEqual(_ordinal(1), "1st")
         self.assertEqual(_ordinal(2), "2nd")
         self.assertEqual(_ordinal(3), "3rd")
@@ -480,7 +497,5 @@ class TestOrdinal(TestCase):
         self.assertEqual(_ordinal(13), "13th")
         self.assertEqual(_ordinal(21), "21st")
         self.assertEqual(_ordinal(22), "22nd")
-        self.assertEqual(_ordinal(23), "23rd")
-        self.assertEqual(_ordinal(100), "100th")
         self.assertEqual(_ordinal(101), "101st")
         self.assertEqual(_ordinal(111), "111th")

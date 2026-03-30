@@ -3,8 +3,29 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-30 (cross-browser time picker)
+# Last Updated: 2026-03-30 (deterministic event acknowledgment)
 # ================================================================# WLJ Change History
+
+## 2026-03-30 — Deterministic Significant Event Acknowledgment
+
+**Problem:** Birthday/anniversary acknowledgment relied on LLM compliance with prompt instructions. A real failure occurred where the user's birthday was in the locked facts and event signals, but CoS did not acknowledge it. Per WLJ architecture, critical behaviors must be deterministic, not LLM-dependent.
+
+**Fix:** Added a post-LLM deterministic injection layer that ALWAYS includes today's significant event acknowledgments in the response, regardless of LLM behavior or mode (including Learning Mode).
+
+**Architecture:** The system now has three layers of event awareness:
+1. **Locked facts** (existing) — birthday data in system prompt for LLM context
+2. **Event signals** (existing) — ⚡ MANDATORY signals in CoS injection
+3. **Deterministic injection** (NEW) — post-LLM prepend that ensures the acknowledgment is present
+
+**Files changed:**
+- `apps/life/services/event_acknowledgment.py` — NEW: Deterministic acknowledgment builder (pure function, direct DB query, no LLM)
+- `apps/ai/personal_assistant.py` — Added `_inject_event_acknowledgment()` method; injected at non-streaming return + streaming completion via `correction` event
+- `apps/core/ai_orchestrator/cos_context.py` — Added event data to `format_learning_mode_injection()` so Learning Mode no longer suppresses event awareness
+- `apps/life/tests/test_event_acknowledgment.py` — NEW: 11 tests covering all event types, idempotency, and injection logic
+
+**Why:** LLM prompt compliance is not guaranteed, especially in long system prompts. Critical relational events (birthdays, anniversaries, memorials) must be acknowledged deterministically.
+
+---
 
 ## 2026-03-30 — Cross-Browser Quarter-Hour Time Picker
 

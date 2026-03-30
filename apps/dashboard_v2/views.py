@@ -424,6 +424,10 @@ class PhysicalIntelligenceSectionView(LoginRequiredMixin, View):
             # Conflicts
             "conflicts": display_conflicts,
             "has_conflicts": bool(display_conflicts),
+            # Clarity (replaces dead-end "Unknown" state)
+            "clarity_reason": pi.get("clarity_reason", ""),
+            "clarity_action": pi.get("clarity_action", ""),
+            "is_unclear": bool(pi.get("clarity_reason")),
         }
 
 

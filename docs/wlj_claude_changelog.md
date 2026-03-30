@@ -3,8 +3,20 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-30 (Physical Intelligence Dashboard V1)
+# Last Updated: 2026-03-30 (Physical Intelligence clarity upgrade)
 # ================================================================# WLJ Change History
+
+## 2026-03-30 — Enhancement: Physical Intelligence Clarity Upgrade
+
+Eliminated "Unknown" as a dead-end state. When outcome is uncertain, the system now explains WHY and provides a specific, time-bound next step.
+
+**Backend:** Added `_enrich_with_clarity()` to `physical_decision.py` — deterministic 6-priority check (insufficient data → missing waist → poor nutrition → low training → flat signals → possible recomp → generic fallback). Populates `clarity_reason` + `clarity_action` fields. Only fires when outcome_status is "unknown" or confidence is low/medium with a weak outcome.
+
+**Dashboard:** Template shows amber "Progress Unclear" card with reason + highlighted action instead of dead-end "Unknown" verdict. Existing working/not_working display unchanged.
+
+**Files:** `apps/health/services/physical_decision.py`, `apps/dashboard_v2/views.py`, `templates/dashboard_v2/sections/physical_intelligence.html`, `static/css/dashboard_v2.css`
+
+---
 
 ## 2026-03-30 — Feature: Physical Intelligence Dashboard V1 (Coach Mode)
 

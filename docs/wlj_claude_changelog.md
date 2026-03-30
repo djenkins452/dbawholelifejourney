@@ -3,8 +3,28 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-30 (Physical Intelligence clarity upgrade)
+# Last Updated: 2026-03-30 (Physical Intelligence coach hardening)
 # ================================================================# WLJ Change History
+
+## 2026-03-30 — Enhancement: Physical Intelligence Final Hardening (Coach-Level Output)
+
+Upgraded all Physical Intelligence output to decisive, coach-level language. Eliminated soft phrasing ("focus on", "consider", "try to") across all tier decisions, clarity messages, and narrative builders.
+
+**Language upgrade (all tiers):** Every summary now states the condition + consequence. Every recommended_action is specific, time-bound, and includes expected outcome. No passive suggestions.
+
+**New fields:**
+- `action_category`: "performance" (fix behavior) or "clarity" (fix visibility/data). Enables UI to distinguish "do this to improve" vs "do this to confirm."
+- `signal_interpretation`: One-line synthesis when signals contradict (weight up + waist down, fat confirmed + muscle losing, everything flat). Empty when signals agree.
+
+**Narrative builders upgraded:** All 4 quadrants (reinforce/investigate/caution/correct) now speak with confident, direct coach tone. Signal interpretation injected into narratives. No hedging.
+
+**Dashboard:** Template shows signal interpretation line (italic, left-bordered). Action cards styled differently for clarity (amber border) vs performance (green border). Clarity action boxes in unclear state also get category-specific styling.
+
+**Verified:** No soft language remains in any tier decision (automated scan of all 10 decision paths). All 20 validation tests passed.
+
+**Files:** `apps/health/services/physical_decision.py`, `apps/dashboard_v2/views.py`, `templates/dashboard_v2/sections/physical_intelligence.html`, `static/css/dashboard_v2.css`
+
+---
 
 ## 2026-03-30 — Enhancement: Physical Intelligence Clarity Upgrade
 

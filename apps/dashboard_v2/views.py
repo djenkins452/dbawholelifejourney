@@ -428,6 +428,10 @@ class PhysicalIntelligenceSectionView(LoginRequiredMixin, View):
             "clarity_reason": pi.get("clarity_reason", ""),
             "clarity_action": pi.get("clarity_action", ""),
             "is_unclear": bool(pi.get("clarity_reason")),
+            # Action category + signal interpretation
+            "action_category": pi.get("action_category", "performance"),
+            "is_clarity_action": pi.get("action_category") == "clarity",
+            "signal_interpretation": pi.get("signal_interpretation", ""),
         }
 
 

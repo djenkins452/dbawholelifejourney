@@ -104,12 +104,17 @@ def _compute(user, as_of_date):
             "primary_issue": "protocol_expired",
             "summary": (
                 f"Your {protocol.protocol_type} protocol ended on "
-                f"{protocol.target_end_date.strftime('%b %d')}."
+                f"{protocol.target_end_date.strftime('%b %d')} — "
+                f"the system has no active goal to evaluate against"
             ),
             "urgency": "this_week",
             "impact": "medium",
-            "recommended_action": "Set a new goal to continue progress.",
+            "recommended_action": (
+                "Set a new goal now. Without one, the system cannot tell you "
+                "whether your efforts are working."
+            ),
             "action_type": "strategy_adjustment",
+            "action_category": "clarity",
         }
     else:
         # ── Step 7: Tier Evaluation ──
@@ -200,36 +205,45 @@ def _check_health_risk(today):
         return {
             "decision_type": "health_risk",
             "primary_issue": "muscle_loss_risk",
-            "summary": "Muscle loss risk is HIGH — adjust approach",
+            "summary": "You are losing muscle — your deficit is too aggressive",
             "urgency": "immediate",
             "impact": "high",
             "recommended_action": (
-                "Increase protein intake and reduce caloric deficit. "
-                "Prioritize compound lifts to maintain strength stimulus."
+                "Increase protein to 1g per pound body weight and reduce your deficit by 200 calories today. "
+                "This stops the muscle loss within 48 hours."
             ),
             "action_type": "strategy_adjustment",
+            "action_category": "performance",
         }
 
     if speed_label == "TOO_FAST":
         return {
             "decision_type": "health_risk",
             "primary_issue": "extreme_deficit",
-            "summary": "Losing weight too fast — risk of muscle loss and metabolic adaptation",
+            "summary": "Weight is dropping too fast — your body is burning muscle for fuel",
             "urgency": "immediate",
             "impact": "high",
-            "recommended_action": "Increase calories by 200-300/day to slow the rate of loss.",
+            "recommended_action": (
+                "Add 200-300 calories today. Losing faster than 1.5% body weight per week "
+                "causes metabolic adaptation that stalls progress later."
+            ),
             "action_type": "strategy_adjustment",
+            "action_category": "performance",
         }
 
     if recovery is not None and recovery < 30:
         return {
             "decision_type": "health_risk",
             "primary_issue": "severe_fatigue",
-            "summary": f"Recovery critically low at {recovery}/100 — rest recommended",
+            "summary": f"Recovery is critically low at {recovery}/100 — training today will make it worse",
             "urgency": "immediate",
             "impact": "high",
-            "recommended_action": "Skip today's workout. Focus on sleep and hydration.",
+            "recommended_action": (
+                "Skip today's workout. Get 8+ hours of sleep tonight. "
+                "One rest day now prevents a week of forced recovery later."
+            ),
             "action_type": "rest_recommendation",
+            "action_category": "performance",
         }
 
     return None
@@ -241,27 +255,31 @@ def _build_outcome_failure_decision(protocol_type, body_comp, outcome):
 
     recommendations = {
         "cut": (
-            "Recalculate TDEE at current weight. Consider a structured diet break "
-            "(maintenance for 1-2 weeks) to reset metabolic adaptation."
+            "Recalculate your TDEE at current weight — the deficit that worked 10 lbs ago "
+            "is not creating a deficit now. If stalled 21+ days, do a structured diet break: "
+            "eat at maintenance for 10-14 days, then resume. This resets metabolic adaptation."
         ),
         "bulk": (
-            "Review progressive overload — are weights increasing weekly? "
-            "If training is stale, consider a new program."
+            "Your training needs a new stimulus. Increase weight or volume on compound lifts this week. "
+            "If the program hasn't changed in 6+ weeks, switch to a new one."
         ),
         "recomposition": (
-            "Recomp requires precise calorie cycling. Consider surplus on "
-            "training days, deficit on rest days. Ensure protein is at 1g/lb."
+            "Tighten calorie cycling: surplus on training days, deficit on rest days. "
+            "Keep protein at 1g per pound minimum. Recomp only works with precision."
         ),
-        "maintenance": "Review calorie targets — maintenance needs may have changed.",
+        "maintenance": (
+            "Recalculate your maintenance calories — your body composition has changed "
+            "and your old targets no longer hold."
+        ),
     }
 
     return {
         "decision_type": "outcome_failure",
         "primary_issue": "protocol_stalled",
         "summary": (
-            f"{(protocol_type or 'Protocol').title()} has stalled despite "
-            f"good compliance"
-            + (f" ({plateau_days} days)" if plateau_days > 0 else "")
+            f"Your {protocol_type or 'protocol'} is not working — "
+            f"you're doing everything right but your body isn't responding"
+            + (f" ({plateau_days} days stalled)" if plateau_days > 0 else "")
         ),
         "urgency": "this_week",
         "impact": "high",
@@ -269,6 +287,7 @@ def _build_outcome_failure_decision(protocol_type, body_comp, outcome):
             protocol_type, recommendations["maintenance"]
         ),
         "action_type": "strategy_adjustment",
+        "action_category": "performance",
     }
 
 
@@ -309,22 +328,37 @@ def _check_nutrition_gap(signals, today):
         return {
             "decision_type": "nutrition",
             "primary_issue": "low_protein",
-            "summary": f"Protein at {protein_pct:.0f}% of target — limiting muscle preservation",
+            "summary": (
+                f"Protein is at {protein_pct:.0f}% of target — "
+                f"this is directly limiting muscle preservation"
+            ),
             "urgency": "today",
             "impact": "high",
-            "recommended_action": "Increase protein at next meal — chicken, fish, or protein shake.",
+            "recommended_action": (
+                "Add 30-40g protein at your next meal. Chicken breast, "
+                "protein shake, or Greek yogurt. This is the single biggest "
+                "lever for protecting muscle right now."
+            ),
             "action_type": "nutrition_guidance",
+            "action_category": "performance",
         }
 
     if nutrition_score < 60:
         return {
             "decision_type": "nutrition",
             "primary_issue": "poor_nutrition",
-            "summary": f"Overall nutrition at {nutrition_score:.0f}% — undermining progress",
+            "summary": (
+                f"Nutrition is at {nutrition_score:.0f}% — "
+                f"your body cannot produce results without fuel"
+            ),
             "urgency": "this_week",
             "impact": "medium",
-            "recommended_action": "Focus on hitting macro targets today.",
+            "recommended_action": (
+                "Hit your macro targets today. Every day below 60% compliance "
+                "undermines the work you put in at the gym."
+            ),
             "action_type": "nutrition_guidance",
+            "action_category": "performance",
         }
 
     return None
@@ -337,11 +371,18 @@ def _check_recovery_deficit(signals, today):
         return {
             "decision_type": "recovery",
             "primary_issue": "low_recovery",
-            "summary": f"Recovery at {recovery}/100 — consider lighter training",
+            "summary": (
+                f"Recovery is at {recovery}/100 — pushing hard today "
+                f"will dig the hole deeper"
+            ),
             "urgency": "today",
             "impact": "medium",
-            "recommended_action": "Reduce intensity or swap to active recovery.",
+            "recommended_action": (
+                "Go lighter today or swap to active recovery. "
+                "One easy day now protects your next 3 hard sessions."
+            ),
             "action_type": "training_adjustment",
+            "action_category": "performance",
         }
     return None
 
@@ -353,11 +394,15 @@ def _check_hydration_deficit(signals, today):
         return {
             "decision_type": "hydration",
             "primary_issue": "low_hydration",
-            "summary": f"Hydration at {hydration_pct:.0f}% of target",
+            "summary": (
+                f"Hydration is at {hydration_pct:.0f}% — dehydration reduces "
+                f"strength and makes the scale unreliable"
+            ),
             "urgency": "today",
             "impact": "low",
-            "recommended_action": "Drink 12-16 oz water now.",
+            "recommended_action": "Drink 16 oz water right now. Set a reminder for another 16 oz in 2 hours.",
             "action_type": "hydration_nudge",
+            "action_category": "performance",
         }
     return None
 
@@ -369,11 +414,18 @@ def _check_training_gap(signals, today):
         return {
             "decision_type": "training",
             "primary_issue": "training_inconsistent",
-            "summary": f"Workout consistency at {training_score:.0f}% this week",
+            "summary": (
+                f"Training consistency is at {training_score:.0f}% — "
+                f"your body adapts to what you do consistently, not occasionally"
+            ),
             "urgency": "this_week",
             "impact": "medium",
-            "recommended_action": "Prioritize your next scheduled workout.",
+            "recommended_action": (
+                "Do your next scheduled workout. No modifications, no excuses. "
+                "Consistency beats intensity every time."
+            ),
             "action_type": "training_adjustment",
+            "action_category": "performance",
         }
     return None
 
@@ -383,24 +435,26 @@ def _build_on_track(body_comp, outcome):
     outcome_status = outcome.get("outcome_status", "unknown")
     verdict = body_comp.get("verdict", "no_data")
 
-    summary_parts = ["All systems on track"]
-    if outcome_status == "working":
-        summary_parts.append("protocol is working")
     if verdict == "recomposition":
-        summary_parts.append("recomposition detected")
+        summary = "Everything is dialed in — fat is dropping and muscle is growing"
     elif verdict == "effective_cut":
-        summary_parts.append("fat loss confirmed with muscle preservation")
+        summary = "Your cut is working — fat loss confirmed, muscle preserved"
     elif verdict == "effective_bulk":
-        summary_parts.append("muscle growth on track")
+        summary = "Your bulk is on track — muscle is growing as expected"
+    elif outcome_status == "working":
+        summary = "On track — keep doing exactly what you're doing"
+    else:
+        summary = "No issues detected — maintain your current approach"
 
     return {
         "decision_type": "on_track",
         "primary_issue": "none",
-        "summary": " — ".join(summary_parts),
+        "summary": summary,
         "urgency": "this_week",
         "impact": "low",
-        "recommended_action": "Continue current approach.",
+        "recommended_action": "Keep doing what you're doing. No changes needed.",
         "action_type": "maintain",
+        "action_category": "performance",
     }
 
 
@@ -581,31 +635,37 @@ def _get_previous_decision(user):
 def _enrich_with_clarity(decision, signals, body_comp):
     """When outcome is uncertain, explain WHY and provide a specific next step.
 
-    Populates clarity_reason + clarity_action based on existing signals.
+    Populates:
+    - clarity_reason: WHY progress is unclear (with impact)
+    - clarity_action: specific, time-bound next step
+    - action_category: "clarity" (data/visibility fix) or "performance" (behavior fix)
+    - signal_interpretation: one-line synthesis of contradictory signals
+
     Deterministic: checks signal gaps in priority order, first match wins.
     """
     decision.setdefault("clarity_reason", "")
     decision.setdefault("clarity_action", "")
+    decision.setdefault("action_category", decision.get("action_category", "performance"))
+    decision.setdefault("signal_interpretation", "")
 
     outcome = decision.get("outcome_status")
     confidence = decision.get("confidence", "low")
 
     # ── Only populate when uncertain ──
-    # Case A: outcome is explicitly unknown
     needs_clarity = outcome == "unknown"
-
-    # Case B: low/medium confidence with a weak outcome
     if not needs_clarity and confidence in ("low", "medium"):
         if outcome in ("partial", "unknown", None):
             needs_clarity = True
-        # Also if there are conflicting signals
         elif decision.get("has_positive_conflict") and outcome == "not_working":
             needs_clarity = True
+
+    # ── Build signal_interpretation even when not unclear ──
+    _build_signal_interpretation(decision, body_comp)
 
     if not needs_clarity:
         return decision
 
-    # ── Determine reason (check in priority order, first match wins) ──
+    # ── Determine reason (priority order, first match wins) ──
     bc = body_comp or {}
     fat_loss = bc.get("fat_loss_status", "no_data")
     muscle = bc.get("muscle_gain_status", "no_data")
@@ -619,84 +679,142 @@ def _enrich_with_clarity(decision, signals, body_comp):
     # Priority 1: Not enough data at all
     if bc_confidence == "low" and fat_loss == "no_data":
         decision["clarity_reason"] = (
-            "Not enough consistent data to determine progress."
+            "The system cannot assess your progress — there is not enough data yet. "
+            "Without a baseline, every decision is a guess."
         )
         decision["clarity_action"] = (
-            "Track weight and waist measurements for the next 7 days "
-            "to establish a baseline."
+            "Log your weight and measure your waist every morning for 7 days. "
+            "That unlocks fat loss tracking and body composition signals."
         )
+        decision["action_category"] = "clarity"
         return decision
 
     # Priority 2: Waist data missing or stale
     if waist_trend is None:
         decision["clarity_reason"] = (
-            "No recent waist measurements to confirm whether fat loss is occurring."
+            "We cannot confirm fat loss without waist measurements. "
+            "The scale alone is unreliable — water, food timing, and creatine all distort it."
         )
         decision["clarity_action"] = (
-            "Measure your waist at navel level and log it. "
-            "One measurement now plus one in 7 days will establish a trend."
+            "Measure your waist today at navel level. Repeat in 7 days. "
+            "Two measurements confirm the trend the scale cannot show."
         )
+        decision["action_category"] = "clarity"
         return decision
 
-    # Priority 3: Nutrition too inconsistent to draw conclusions
+    # Priority 3: Nutrition too inconsistent
     if nutrition_score < 60:
         decision["clarity_reason"] = (
-            "Inconsistent nutrition is making it impossible "
-            "to determine whether your protocol is working."
+            "Inconsistent nutrition is preventing your body from producing readable results. "
+            "The system cannot separate real progress from noise when compliance is this variable."
         )
         decision["clarity_action"] = (
-            "Hit your macro targets consistently for the next 5 days. "
-            "That will give enough signal to assess progress."
+            "Hit your macro targets for 5 consecutive days. "
+            "No partial days — 5 full days of compliance unlocks a clear progress signal."
         )
+        decision["action_category"] = "performance"
         return decision
 
     # Priority 4: Training too inconsistent
     if training_score < 50:
         decision["clarity_reason"] = (
-            "Training has been too inconsistent to evaluate "
-            "whether the program is producing results."
+            "Training has been too sporadic to evaluate. "
+            "Your body needs consistent stimulus before the system can measure its response."
         )
         decision["clarity_action"] = (
-            "Complete your next 3 scheduled workouts. "
-            "Consistency is needed before the system can assess effectiveness."
+            "Complete your next 3 scheduled workouts without skipping. "
+            "That creates enough signal to assess whether the program is working."
         )
+        decision["action_category"] = "performance"
         return decision
 
-    # Priority 5: Conflicting signals (some up, some down)
+    # Priority 5: Everything flat (possible plateau vs noise)
     if fat_loss in ("stalled", "not_confirmed") and waist_trend is not None:
         if abs(waist_trend) < 0.1 and weight_trend is not None and abs(weight_trend) < 0.3:
             decision["clarity_reason"] = (
-                "Weight and waist are both flat. "
-                "The system cannot yet tell if this is a plateau or normal variation."
+                "Weight and waist are both flat. This is either a plateau or normal variation — "
+                "the system needs 5 more days to tell the difference."
             )
             decision["clarity_action"] = (
-                "Maintain your current approach for 5 more days. "
-                "If both remain flat, it will confirm a plateau and trigger a strategy adjustment."
+                "Change nothing for 5 days. Stay on plan exactly as-is. "
+                "If both stay flat, it confirms a plateau and the system will recommend a new strategy."
             )
+            decision["action_category"] = "clarity"
             return decision
 
-    # Priority 6: Signals conflict with each other
+    # Priority 6: Possible early recomposition
     if fat_loss == "not_confirmed" and muscle in ("gaining", "maintaining"):
         decision["clarity_reason"] = (
-            "Muscle signals look positive but fat loss is unconfirmed. "
-            "This may be early recomposition — more data will clarify."
+            "Muscle signals are positive but fat loss is not yet confirmed. "
+            "This pattern often means early recomposition — but we need one more data point to be sure."
         )
         decision["clarity_action"] = (
-            "Continue current approach and measure waist again in 7 days. "
-            "If waist drops while weight holds, recomposition is confirmed."
+            "Measure your waist in 7 days. "
+            "If waist drops while weight holds steady, recomposition is confirmed and your approach is working."
         )
+        decision["action_category"] = "clarity"
         return decision
 
-    # Fallback: generic low-confidence
+    # Fallback
     decision["clarity_reason"] = (
-        "Available signals are mixed. "
-        "More consistent data is needed to assess progress accurately."
+        "Signals are mixed — the system does not have enough consistency "
+        "to make a confident assessment."
     )
     decision["clarity_action"] = (
-        "Maintain consistency in nutrition and training for the next 5 days "
-        "to establish a clear trend."
+        "Stay consistent with nutrition and training for the next 5 days. "
+        "That clears the noise and reveals the real trend."
     )
+    decision["action_category"] = "clarity"
     return decision
+
+
+def _build_signal_interpretation(decision, body_comp):
+    """Build a one-line synthesis when signals contradict each other.
+
+    Only populated when signals tell a conflicting or nuanced story.
+    """
+    bc = body_comp or {}
+    fat = bc.get("fat_loss_status", "no_data")
+    muscle = bc.get("muscle_gain_status", "no_data")
+    weight = bc.get("weight_trend")
+    waist = bc.get("waist_trend")
+
+    # Weight down but fat not confirmed → water loss or measurement gap
+    if weight is not None and weight < -0.5 and fat == "not_confirmed":
+        decision["signal_interpretation"] = (
+            "Weight is dropping but fat loss is unconfirmed — "
+            "this may be water loss, not true fat loss. Waist measurement will clarify."
+        )
+        return
+
+    # Weight up but waist down → likely creatine or recomp
+    if weight is not None and weight > 0.3 and waist is not None and waist < -0.1:
+        decision["signal_interpretation"] = (
+            "Weight is up but waist is down — this is not fat gain. "
+            "Most likely water retention or muscle growth."
+        )
+        return
+
+    # Fat confirmed but muscle losing → deficit too aggressive
+    if fat == "confirmed" and muscle == "losing":
+        decision["signal_interpretation"] = (
+            "Fat is coming off but muscle is going with it — "
+            "the deficit is too aggressive or protein is too low."
+        )
+        return
+
+    # Everything flat → possible plateau
+    if (fat in ("stalled", "not_confirmed")
+            and weight is not None and abs(weight) < 0.3
+            and waist is not None and abs(waist) < 0.1):
+        decision["signal_interpretation"] = (
+            "All signals are flat — the body has adapted to the current input. "
+            "Something needs to change."
+        )
+        return
+
+    # No contradictions — leave empty
+    decision["signal_interpretation"] = ""
 
 
 # =========================================================================
@@ -739,85 +857,109 @@ def _determine_quadrant(decision):
 
 
 def _narrative_reinforce(d):
-    """Behavior good + outcome good."""
+    """Behavior good + outcome good. Confident, affirming."""
     parts = []
+    pt = d.get("protocol_type")
     if d.get("outcome_status") == "working":
-        pt = d.get("protocol_type")
         parts.append(f"Your {pt or 'approach'} is working.")
+
     if d.get("trajectory_detail"):
         parts.append(d["trajectory_detail"])
 
-    # Positive conflicts
     for c in d.get("conflicts", []):
         if c.get("positive"):
             parts.append(c["resolution"])
 
     verdict = d.get("body_composition", {}).get("verdict")
     if verdict == "recomposition":
-        parts.append("Fat is going down and muscle is going up.")
+        parts.append("Fat is dropping and muscle is growing. This is the goal.")
     elif verdict == "effective_cut":
-        parts.append("Fat loss confirmed with muscle preservation.")
+        parts.append("Fat loss confirmed. Muscle preserved. This is a clean cut.")
     elif verdict == "effective_bulk":
-        parts.append("Muscle growth on track.")
+        parts.append("Muscle is growing as expected.")
 
-    parts.append("Continue current approach.")
+    if d.get("signal_interpretation"):
+        parts.append(d["signal_interpretation"])
+
+    parts.append("Keep doing what you're doing. No changes needed.")
     return " ".join(parts)
 
 
 def _narrative_investigate(d):
-    """Behavior good + outcome bad."""
+    """Behavior good + outcome bad. Respect the effort, redirect the strategy."""
     parts = [
-        "Compliance has been strong — nutrition and training are on target."
+        "Your compliance has been strong — nutrition and training are dialed in."
     ]
     if d.get("outcome_status") == "not_working":
         pt = d.get("protocol_type")
-        parts.append(f"But your {pt or 'protocol'} isn't producing expected results.")
+        parts.append(
+            f"But your {pt or 'protocol'} is not producing results. "
+            f"The effort is there — the strategy needs to change."
+        )
     elif d.get("outcome_status") == "partial":
-        parts.append("Results are mixed — not what your effort should produce.")
+        parts.append(
+            "Results are behind where they should be given your effort."
+        )
 
     plateau_days = d.get("body_composition", {}).get("plateau_days", 0)
     if plateau_days > 0:
-        parts.append(f"Plateau for {plateau_days} days.")
+        parts.append(f"Stalled for {plateau_days} days.")
+
+    if d.get("signal_interpretation"):
+        parts.append(d["signal_interpretation"])
 
     for c in d.get("conflicts", []):
         if not c.get("positive"):
             parts.append(c["resolution"])
 
-    parts.append(f"Recommended: {d.get('recommended_action', '')}")
-    parts.append("This isn't a discipline problem — it's a strategy adjustment.")
+    parts.append(d.get("recommended_action", ""))
+    parts.append("This is not a discipline problem. It is a strategy problem.")
     return " ".join(parts)
 
 
 def _narrative_caution(d):
-    """Behavior bad + outcome good."""
-    parts = ["Good news — your body is responding well right now."]
+    """Behavior bad + outcome good. Acknowledge results, warn about sustainability."""
+    parts = [
+        "Your body is responding right now — but the inputs are not sustainable."
+    ]
     parts.append(d.get("summary", ""))
     if d.get("impact_statement"):
         parts.append(d["impact_statement"])
+
+    if d.get("signal_interpretation"):
+        parts.append(d["signal_interpretation"])
+
     parts.append(
-        "Results are happening now but unlikely to continue without consistent effort."
+        "Early results often come regardless of optimization. "
+        "Without consistency, they plateau within 4-6 weeks."
     )
-    parts.append(f"To sustain this: {d.get('recommended_action', '')}")
+    parts.append(d.get("recommended_action", ""))
     return " ".join(parts)
 
 
 def _narrative_correct(d):
-    """Behavior bad + outcome bad."""
+    """Behavior bad + outcome bad. Direct, no hedging."""
     parts = [d.get("summary", "")]
     if d.get("impact_statement"):
         parts.append(d["impact_statement"])
     if d.get("outcome_status") == "not_working":
         pt = d.get("protocol_type")
-        parts.append(f"Your {pt or 'approach'} is not producing results right now.")
+        parts.append(f"Your {pt or 'approach'} is not producing results.")
+
+    if d.get("signal_interpretation"):
+        parts.append(d["signal_interpretation"])
 
     phase = d.get("messaging_phase", "initial")
     persistence = d.get("persistence_days", 0)
     if phase == "escalating":
-        parts.append(f"Day {persistence + 1} of this pattern.")
+        parts.append(f"This is day {persistence + 1}. The pattern is clear.")
     elif phase == "pattern_alert":
-        parts.append(f"Persistent for {persistence + 1} days.")
+        parts.append(
+            f"This has been going on for {persistence + 1} days. "
+            f"It will not fix itself."
+        )
 
-    parts.append(f"Recommended: {d.get('recommended_action', '')}")
+    parts.append(d.get("recommended_action", ""))
     return " ".join(parts)
 
 
@@ -1020,7 +1162,9 @@ def _fallback_decision():
         "impact_statement": "",
         "outcome_risk": "low",
         "impact_time_horizon": "today",
-        "clarity_reason": "Not enough data yet to assess progress.",
-        "clarity_action": "Start tracking weight and waist measurements to unlock insights.",
-        "narrative": "Physical intelligence data not yet available. Continue logging to build baseline data.",
+        "clarity_reason": "The system cannot assess your progress without data.",
+        "clarity_action": "Log your weight and measure your waist daily for 7 days to unlock insights.",
+        "action_category": "clarity",
+        "signal_interpretation": "",
+        "narrative": "Physical intelligence data not yet available. Log weight and waist measurements to unlock progress tracking.",
     }

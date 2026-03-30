@@ -3,8 +3,27 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-30 (recurring task deletion fix)
+# Last Updated: 2026-03-30 (cross-browser time picker)
 # ================================================================# WLJ Change History
+
+## 2026-03-30 — Cross-Browser Quarter-Hour Time Picker
+
+**Problem:** Native `<input type="time">` with `step="900"` only constrains the picker UI in Chrome/Edge. Safari and Firefox show all 60 minutes regardless of the step attribute.
+
+**Fix:** Created `static/js/time-picker.js` — progressive enhancement that replaces native time inputs with hour + minute `<select>` dropdowns. Minutes show only 00, 15, 30, 45. Hours display in 12-hour format with AM/PM. Works identically in all browsers.
+
+**Files changed:**
+- `static/js/time-picker.js` — NEW: Auto-initializes on DOMContentLoaded, handles HTMX swaps, exposes `window.wljInitTimePickers()` for dynamic content
+- `static/css/main.css` — Added `.wlj-time-picker-wrapper` and `.wlj-time-select` styles with mobile font-size: 16px for iOS zoom prevention
+- `templates/base.html` — Replaced old snapping script with new `time-picker.js` include
+- `templates/life/routine_form.html` — Added `wljInitTimePickers()` call for dynamically added formset items
+- `templates/health/medicine/history.html` — Added missing `step="900"` to take-time modal input
+- `apps/health/forms.py` — Added missing `step="900"` to meal log `logged_time` widget
+- `apps/faith/forms.py` — Added missing `step="900"` to reading plan `reminder_time` widget
+
+**Scope:** All time inputs across WLJ: tasks, routines, events, medicines, reading plans, preferences, meal logging.
+
+---
 
 ## 2026-03-30 — Fix: Recurring/routine tasks cannot be permanently deleted
 

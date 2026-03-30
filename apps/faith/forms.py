@@ -208,6 +208,7 @@ class StartReadingPlanForm(forms.Form):
         widget=forms.TimeInput(attrs={
             "class": "form-input",
             "type": "time",
+            "step": "900",
         }),
         label="Daily Reminder Time",
         help_text="Optional: Set a time to be reminded to complete your daily reading",

@@ -656,19 +656,9 @@
                 <p class="metric-avg">7-day avg: {{ avg_water_oz }} oz/day</p>
             {% endif %}
 
-            <div class="quick-water-buttons">
-                <form method="post" action="{% url 'health:water_quick_log' %}" class="inline-form">
-                    {% csrf_token %}
-                    <input type="hidden" name="preset" value="8">
-                    <input type="hidden" name="next" value="{% url 'health:home' %}">
-                    <button type="submit" class="btn btn-ghost btn-xs">+8oz</button>
-                </form>
-                <form method="post" action="{% url 'health:water_quick_log' %}" class="inline-form">
-                    {% csrf_token %}
-                    <input type="hidden" name="preset" value="16">
-                    <input type="hidden" name="next" value="{% url 'health:home' %}">
-                    <button type="submit" class="btn btn-ghost btn-xs">+16oz</button>
-                </form>
+            <div class="quick-water-buttons" data-water-url="{% url 'health:water_quick_log' %}" data-csrf="{{ csrf_token }}">
+                <button type="button" class="btn btn-ghost btn-xs" data-water-preset="8">+8oz</button>
+                <button type="button" class="btn btn-ghost btn-xs" data-water-preset="16">+16oz</button>
             </div>
 
             <a href="{% url 'health:water_list' %}" class="card-link">View history{% if water_entry_count %} ({{ water_entry_count }}){% endif %}</a>
@@ -1505,4 +1495,63 @@
     .today-grid { grid-template-columns: 1fr; }
 }
 </style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    var container = document.querySelector('.quick-water-buttons');
+    if (!container) return;
+
+    var url = container.dataset.waterUrl;
+    var csrf = container.dataset.csrf;
+
+    container.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-water-preset]');
+        if (!btn) return;
+
+        var preset = btn.dataset.waterPreset;
+        btn.disabled = true;
+        btn.textContent = '...';
+
+        var body = new FormData();
+        body.append('preset', preset);
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': csrf
+            },
+            body: body
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                // Update progress bar
+                var fill = document.querySelector('.water-progress-fill');
+                if (fill) fill.style.width = Math.min(data.percentage, 100) + '%';
+
+                // Update current oz display
+                var current = document.querySelector('.water-current');
+                if (current) current.textContent = Math.round(data.total_oz) + ' oz';
+
+                // Update goal badge
+                var badge = document.querySelector('.goal-badge');
+                if (data.goal_met && !badge) {
+                    var goalP = document.createElement('p');
+                    goalP.className = 'goal-badge';
+                    goalP.textContent = 'Goal Met!';
+                    var progress = document.querySelector('.water-progress');
+                    if (progress) progress.parentNode.insertBefore(goalP, progress.nextSibling);
+                }
+            }
+            btn.disabled = false;
+            btn.textContent = '+' + preset + 'oz';
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.textContent = '+' + preset + 'oz';
+        });
+    });
+})();
+</script>
 {% endblock %}

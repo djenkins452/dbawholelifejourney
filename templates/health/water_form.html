@@ -1,46 +1,46 @@
 {% extends "base.html" %}
 
-{% block title %}{% if object %}Edit{% else %}Log{% endif %} Water - Health - Whole Life Journey{% endblock %}
+{% block title %}{% if object %}Edit{% else %}Log{% endif %} Drink - Health - Whole Life Journey{% endblock %}
 
 {% block content %}
 <div class="content-container" data-testid="health-water-form">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}">Health</a>
         <span>/</span>
-        <a href="{% url 'health:water_list' %}" data-testid="health-back-link">Water</a>
+        <a href="{% url 'health:water_list' %}" data-testid="health-back-link">Hydration</a>
         <span>/</span>
         <span>{% if object %}Edit{% else %}Log{% endif %}</span>
     </nav>
 
     <div class="page-header">
-        <h1 class="page-title">{% if object %}Edit{% else %}Log{% endif %} Water Intake</h1>
+        <h1 class="page-title">{% if object %}Edit{% else %}Log{% endif %} Drink</h1>
     </div>
 
     <form method="post" class="card" data-testid="water-form">
         {% csrf_token %}
 
-        <!-- Quick Presets -->
+        <!-- Quick Presets by Drink Type -->
         {% if not object %}
         <div class="quick-presets">
             <h3>Quick Add</h3>
             <div class="preset-buttons">
-                <button type="button" class="preset-btn" data-amount="8" data-unit="oz" data-container="glass">
-                    8oz Glass
+                <button type="button" class="preset-btn" data-amount="16" data-unit="oz" data-container="bottle" data-drink-type="water">
+                    16oz Water
                 </button>
-                <button type="button" class="preset-btn" data-amount="12" data-unit="oz" data-container="cup">
-                    12oz Cup
+                <button type="button" class="preset-btn" data-amount="32" data-unit="oz" data-container="large_bottle" data-drink-type="water">
+                    32oz Water
                 </button>
-                <button type="button" class="preset-btn" data-amount="16" data-unit="oz" data-container="bottle">
-                    16oz Bottle
+                <button type="button" class="preset-btn preset-btn-coffee" data-amount="12" data-unit="oz" data-container="cup" data-drink-type="coffee">
+                    12oz Coffee
                 </button>
-                <button type="button" class="preset-btn" data-amount="20" data-unit="oz" data-container="bottle">
-                    20oz Bottle
+                <button type="button" class="preset-btn preset-btn-tea" data-amount="8" data-unit="oz" data-container="cup" data-drink-type="tea">
+                    8oz Tea
                 </button>
-                <button type="button" class="preset-btn" data-amount="32" data-unit="oz" data-container="large_bottle">
-                    32oz Bottle
+                <button type="button" class="preset-btn preset-btn-creatine" data-amount="16" data-unit="oz" data-container="glass" data-drink-type="creatine">
+                    Creatine (16oz)
                 </button>
-                <button type="button" class="preset-btn" data-amount="1" data-unit="liters" data-container="large_bottle">
-                    1 Liter
+                <button type="button" class="preset-btn preset-btn-electrolyte" data-amount="16" data-unit="oz" data-container="bottle" data-drink-type="electrolyte">
+                    Electrolyte (16oz)
                 </button>
             </div>
         </div>
@@ -48,42 +48,11 @@
 
         <div class="form-row">
             <div class="form-group">
-                <label for="id_amount" class="form-label">Amount</label>
-                <input
-                    type="number"
-                    inputmode="decimal"
-                    name="amount"
-                    id="id_amount"
-                    class="form-input"
-                    value="{{ form.amount.value|default:'' }}"
-                    min="0"
-                    step="0.5"
-                    placeholder="e.g., 8"
-                    required
-                    autofocus
-                >
-            </div>
-
-            <div class="form-group">
-                <label for="id_unit" class="form-label">Unit</label>
-                <select name="unit" id="id_unit" class="form-select">
-                    <option value="oz" {% if form.unit.value == 'oz' or not form.unit.value %}selected{% endif %}>Ounces (oz)</option>
-                    <option value="ml" {% if form.unit.value == 'ml' %}selected{% endif %}>Milliliters (ml)</option>
-                    <option value="cups" {% if form.unit.value == 'cups' %}selected{% endif %}>Cups</option>
-                    <option value="liters" {% if form.unit.value == 'liters' %}selected{% endif %}>Liters</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="form-row">
-            <div class="form-group">
-                <label for="id_container" class="form-label">Container (optional)</label>
-                <select name="container" id="id_container" class="form-select">
-                    <option value="glass" {% if form.container.value == 'glass' or not form.container.value %}selected{% endif %}>Glass</option>
-                    <option value="bottle" {% if form.container.value == 'bottle' %}selected{% endif %}>Water Bottle</option>
-                    <option value="cup" {% if form.container.value == 'cup' %}selected{% endif %}>Cup/Mug</option>
-                    <option value="large_bottle" {% if form.container.value == 'large_bottle' %}selected{% endif %}>Large Bottle (32oz+)</option>
-                    <option value="other" {% if form.container.value == 'other' %}selected{% endif %}>Other</option>
+                <label for="id_drink_type" class="form-label">Drink Type</label>
+                <select name="drink_type" id="id_drink_type" class="form-select">
+                    {% for value, label in form.fields.drink_type.choices %}
+                    <option value="{{ value }}" {% if form.drink_type.value == value or value == "water" and not form.drink_type.value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
                 </select>
             </div>
 
@@ -100,13 +69,54 @@
             </div>
         </div>
 
+        <div class="form-row">
+            <div class="form-group">
+                <label for="id_amount" class="form-label">Amount</label>
+                <input
+                    type="number"
+                    inputmode="decimal"
+                    name="amount"
+                    id="id_amount"
+                    class="form-input"
+                    value="{{ form.amount.value|default:'' }}"
+                    min="0"
+                    step="0.5"
+                    placeholder="e.g., 16"
+                    required
+                    autofocus
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="id_unit" class="form-label">Unit</label>
+                <select name="unit" id="id_unit" class="form-select">
+                    <option value="oz" {% if form.unit.value == 'oz' or not form.unit.value %}selected{% endif %}>Ounces (oz)</option>
+                    <option value="ml" {% if form.unit.value == 'ml' %}selected{% endif %}>Milliliters (ml)</option>
+                    <option value="cups" {% if form.unit.value == 'cups' %}selected{% endif %}>Cups</option>
+                    <option value="liters" {% if form.unit.value == 'liters' %}selected{% endif %}>Liters</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="id_container" class="form-label">Container (optional)</label>
+            <select name="container" id="id_container" class="form-select">
+                <option value="glass" {% if form.container.value == 'glass' or not form.container.value %}selected{% endif %}>Glass</option>
+                <option value="bottle" {% if form.container.value == 'bottle' %}selected{% endif %}>Water Bottle</option>
+                <option value="cup" {% if form.container.value == 'cup' %}selected{% endif %}>Cup/Mug</option>
+                <option value="large_bottle" {% if form.container.value == 'large_bottle' %}selected{% endif %}>Large Bottle (32oz+)</option>
+                <option value="other" {% if form.container.value == 'other' %}selected{% endif %}>Other</option>
+            </select>
+        </div>
+
         <div class="hydration-guide">
-            <h3>Hydration Tips</h3>
+            <h3>Hydration Guide</h3>
             <ul>
-                <li><strong>Daily Goal:</strong> Most adults need about 64oz (8 cups) per day</li>
-                <li><strong>Active?</strong> Add 12oz for every 30 minutes of exercise</li>
-                <li><strong>Hot weather?</strong> Drink extra to compensate for sweating</li>
-                <li>Urine should be light yellow - dark means drink more!</li>
+                <li><strong>Daily Goal:</strong> 64 oz minimum (80 oz if on creatine)</li>
+                <li><strong>Coffee:</strong> Counts at 90% — a 12 oz coffee = ~11 oz hydration</li>
+                <li><strong>Creatine:</strong> Mix with 16 oz water. Increases daily water needs by ~16 oz</li>
+                <li><strong>Electrolytes:</strong> Enhanced absorption — counts at 105% of volume</li>
+                <li><strong>Post-workout:</strong> Drink 16-24 oz within 30 minutes</li>
             </ul>
         </div>
 
@@ -116,14 +126,14 @@
                 name="notes"
                 id="id_notes"
                 class="form-textarea"
-                placeholder="e.g., with lemon, after workout..."
+                placeholder="e.g., post-workout, with lemon..."
                 rows="2"
             >{{ form.notes.value|default:'' }}</textarea>
         </div>
 
         <div class="form-actions">
             <button type="submit" class="btn btn-primary" data-testid="water-save-button">
-                {% if object %}Save Changes{% else %}Log Water{% endif %}
+                {% if object %}Save Changes{% else %}Log Drink{% endif %}
             </button>
             {% if not object %}
             <button type="submit" name="save_add_another" class="btn btn-secondary">
@@ -168,8 +178,17 @@
 }
 
 .preset-btn:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.35);
 }
+
+.preset-btn-coffee { background: rgba(217, 119, 6, 0.5); }
+.preset-btn-coffee:hover { background: rgba(217, 119, 6, 0.7); }
+.preset-btn-tea { background: rgba(5, 150, 105, 0.5); }
+.preset-btn-tea:hover { background: rgba(5, 150, 105, 0.7); }
+.preset-btn-creatine { background: rgba(219, 39, 119, 0.5); }
+.preset-btn-creatine:hover { background: rgba(219, 39, 119, 0.7); }
+.preset-btn-electrolyte { background: rgba(91, 33, 182, 0.5); }
+.preset-btn-electrolyte:hover { background: rgba(91, 33, 182, 0.7); }
 
 .form-row {
     display: grid;
@@ -183,11 +202,11 @@
     }
 
     .preset-buttons {
-        flex-direction: column;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
     }
 
     .preset-btn {
-        width: 100%;
         text-align: center;
     }
 }
@@ -227,14 +246,30 @@
 
 <script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
-    // Quick preset buttons
-    document.querySelectorAll('.preset-btn').forEach(btn => {
+    // Quick preset buttons — set amount, unit, container, AND drink type
+    document.querySelectorAll('.preset-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
             document.getElementById('id_amount').value = this.dataset.amount;
             document.getElementById('id_unit').value = this.dataset.unit;
             document.getElementById('id_container').value = this.dataset.container;
+            var drinkTypeSelect = document.getElementById('id_drink_type');
+            if (drinkTypeSelect && this.dataset.drinkType) {
+                drinkTypeSelect.value = this.dataset.drinkType;
+            }
         });
     });
+
+    // Auto-set container based on drink type selection
+    var drinkTypeSelect = document.getElementById('id_drink_type');
+    if (drinkTypeSelect) {
+        drinkTypeSelect.addEventListener('change', function() {
+            var containerSelect = document.getElementById('id_container');
+            if (!containerSelect) return;
+            if (this.value === 'coffee' || this.value === 'tea') {
+                containerSelect.value = 'cup';
+            }
+        });
+    }
 });
 </script>
 {% endblock %}

@@ -1219,14 +1219,14 @@ class WaterListView(HelpContextMixin, LoginRequiredMixin, ListView):
 
 class WaterCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
     """
-    Log a new water entry.
+    Log a new hydration entry.
     """
 
     model = WaterEntry
-    fields = ["amount", "unit", "container", "logged_date", "notes"]
+    fields = ["drink_type", "amount", "unit", "container", "logged_date", "notes"]
     template_name = "health/water_form.html"
     success_url = reverse_lazy("health:water_list")
-    save_add_another_message = "Water logged. Add another!"
+    save_add_another_message = "Drink logged. Add another!"
 
     def get_initial(self):
         initial = super().get_initial()
@@ -1235,8 +1235,11 @@ class WaterCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.user = self.request.user
+        drink_label = dict(WaterEntry.DRINK_TYPE_CHOICES).get(
+            form.instance.drink_type, "Drink"
+        )
         if 'save_add_another' not in self.request.POST:
-            messages.success(self.request, "Water logged.")
+            messages.success(self.request, f"{drink_label} logged.")
         response = super().form_valid(form)
         safe_emit_event(EventTypes.HEALTH_WATER_LOGGED, self.request.user, {
             "entry_id": self.object.id, "source": "web_view",
@@ -1246,11 +1249,11 @@ class WaterCreateView(SaveAddAnotherMixin, LoginRequiredMixin, CreateView):
 
 class WaterUpdateView(LoginRequiredMixin, UpdateView):
     """
-    Edit a water entry.
+    Edit a hydration entry.
     """
 
     model = WaterEntry
-    fields = ["amount", "unit", "container", "logged_date", "notes"]
+    fields = ["drink_type", "amount", "unit", "container", "logged_date", "notes"]
     template_name = "health/water_form.html"
     success_url = reverse_lazy("health:water_list")
 
@@ -1278,29 +1281,48 @@ class WaterDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
 
 class QuickWaterLogView(LoginRequiredMixin, View):
     """
-    Quick log water from dashboard or widget.
-    Accepts preset amounts for fast logging.
+    Quick log hydration from dashboard or widget.
+    Accepts preset amounts and optional drink_type for fast logging.
     """
 
     def post(self, request):
-        preset = request.POST.get("preset", "8")  # Default to 8oz glass
+        preset = request.POST.get("preset", "8")
+        drink_type = request.POST.get("drink_type", "water")
+
         try:
             amount = float(preset)
         except ValueError:
             amount = 8.0
 
+        # Validate drink_type
+        valid_types = [c[0] for c in WaterEntry.DRINK_TYPE_CHOICES]
+        if drink_type not in valid_types:
+            drink_type = "water"
+
+        # Smart container selection based on drink type
+        if drink_type in ("coffee", "tea"):
+            container = "cup"
+        elif amount <= 12:
+            container = "glass"
+        elif amount >= 32:
+            container = "large_bottle"
+        else:
+            container = "bottle"
+
         entry = WaterEntry.objects.create(
             user=request.user,
             amount=amount,
             unit="oz",
-            container="glass" if amount <= 12 else "bottle",
+            drink_type=drink_type,
+            container=container,
             logged_date=get_user_today(request.user),
         )
         safe_emit_event(EventTypes.HEALTH_WATER_LOGGED, request.user, {
             "entry_id": entry.id, "amount": amount, "source": "web_view_quick",
         })
 
-        messages.success(request, f"Logged {amount}oz of water!")
+        type_label = dict(WaterEntry.DRINK_TYPE_CHOICES).get(drink_type, "Drink")
+        messages.success(request, f"Logged {amount:.0f}oz {type_label}!")
 
         # Handle AJAX requests
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -1313,6 +1335,8 @@ class QuickWaterLogView(LoginRequiredMixin, View):
                 "total_oz": today_progress["total_oz"],
                 "percentage": today_progress["percentage"],
                 "goal_met": today_progress["goal_met"],
+                "drink_type": drink_type,
+                "type_label": type_label,
             })
 
         return redirect(request.POST.get("next", "health:water_list"))

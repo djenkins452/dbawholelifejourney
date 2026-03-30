@@ -3,52 +3,25 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-30 (cross-browser time picker)
+# Last Updated: 2026-03-30 (Physical Intelligence V2 architecture fix)
 # ================================================================# WLJ Change History
 
-## 2026-03-30 — Cross-Browser Quarter-Hour Time Picker
+## 2026-03-30 — Fix: Physical Intelligence V2 — Architecture Corrections
 
-**Problem:** Native `<input type="time">` with `step="900"` only constrains the picker UI in Chrome/Edge. Safari and Firefox show all 60 minutes regardless of the step attribute.
+Three surgical fixes to correct architectural violations identified during post-build review:
 
-**Fix:** Created `static/js/time-picker.js` — progressive enhancement that replaces native time inputs with hour + minute `<select>` dropdowns. Minutes show only 00, 15, 30, 45. Hours display in 12-hour format with AM/PM. Works identically in all browsers.
+1. **Move computation off request path (CRITICAL):** `compute_physical_decision()` was called inside CoS context assembly (`cos_context.py`), violating the "no computation on request path" rule. Moved to `build_health_state()` in SAE state builder. CoS now reads pre-computed `physical_decision` from SAE state via `get_module_state()`.
+
+2. **Decision stability (flip-flop protection):** Added `_stabilize_decision()` function. Prevents `outcome_status` from flip-flopping between evaluations. Rules: (a) hold previous status unless new status has persisted 1+ days, (b) allow immediate change only for severe transitions (working → not_working with confirmed plateau), (c) accept any status when no previous decision exists.
+
+3. **Protocol expiration handling:** Added check for `protocol.target_end_date < today`. Expired protocols produce `decision_type: "protocol_expired"` with recommendation to set a new goal. `protocol_type` set to `None` (preventing stale protocol from influencing tier ordering or outcome validation).
 
 **Files changed:**
-- `static/js/time-picker.js` — NEW: Auto-initializes on DOMContentLoaded, handles HTMX swaps, exposes `window.wljInitTimePickers()` for dynamic content
-- `static/css/main.css` — Added `.wlj-time-picker-wrapper` and `.wlj-time-select` styles with mobile font-size: 16px for iOS zoom prevention
-- `templates/base.html` — Replaced old snapping script with new `time-picker.js` include
-- `templates/life/routine_form.html` — Added `wljInitTimePickers()` call for dynamically added formset items
-- `templates/health/medicine/history.html` — Added missing `step="900"` to take-time modal input
-- `apps/health/forms.py` — Added missing `step="900"` to meal log `logged_time` widget
-- `apps/faith/forms.py` — Added missing `step="900"` to reading plan `reminder_time` widget
-
-**Scope:** All time inputs across WLJ: tasks, routines, events, medicines, reading plans, preferences, meal logging.
+- `apps/core/ai_state/state_builder.py` — Added physical decision computation to `build_health_state()`
+- `apps/core/ai_orchestrator/cos_context.py` — Changed from live computation to SAE state read
+- `apps/health/services/physical_decision.py` — Added `_stabilize_decision()`, `_get_previous_decision()`, protocol expiration check
 
 ---
-
-## 2026-03-30 — Fix: Recurring/routine tasks cannot be permanently deleted
-
-**Root cause:** When deleting a recurring task from the web UI, only the single instance was soft-deleted. Multiple background systems (`_ensure_routine_tasks_for_today()` in executive briefing, `process_overdue_recurring_tasks()` in recurrence service) would recreate the task from any surviving instance in the series. The `delete_task_series()` method existed but was only called from the AI chat handler, never from the web UI.
-
-**Changes:**
-- Added `RecurrenceService.delete_task_series_complete()` — thorough series deletion that clears both `is_recurring` AND `is_routine` flags on ALL instances (including completed/deleted via `all_objects`), then soft-deletes all active instances. This prevents all regeneration paths.
-- Updated `TaskDeleteView` to detect recurring/routine tasks and offer "Delete Entire Series" vs "Delete This Instance Only" options.
-- Updated `BulkDeleteTasksView` to accept `delete_series` flag for recurring task series deletion.
-- Updated `task_confirm_delete.html` template with series deletion UI (CSP-compliant).
-
-**Files changed:**
-- `apps/life/views.py` — TaskDeleteView series handling, BulkDeleteTasksView series support
-- `apps/life/services/recurrence.py` — new `delete_task_series_complete()` method
-- `templates/life/task_confirm_delete.html` — series delete option UI
-
-## 2026-03-30 — Fix: Beth says "no missed medication" when dashboard shows 1 missed
-
-**Problem:** Dashboard CoS showed "64/65 doses, 1 missed" but Beth responded "You haven't missed any medication items. Everything is on track." The medication event adapter's `get_missed_events()` only queried for `MedicineLog` entries with `log_status='missed'`. If a dose was simply never logged (no DB row), it was invisible to the AI — even though the dashboard correctly counted it as missed via schedule-based adherence.
-
-**Root cause:** Data definition mismatch. Dashboard uses `medicine_utils.calculate_medicine_adherence()` which walks schedules and counts unlogged expected doses as missed. The AI event adapter only looked for explicit `log_status='missed'` rows.
-
-**Fix:** Updated `get_missed_events()` to also walk active medicine schedules and identify expected doses with no corresponding log entry (same approach as `medicine_utils`). Added `_find_unlogged_doses()` and `_unlogged_to_event()` helpers. Now CoS and Beth agree.
-
-**Files:** `apps/core/ai_events/adapters/medication.py`
 
 ## 2026-03-30 — Feature: Physical Intelligence V2 — Decision + Outcome Validation System
 
@@ -75,20 +48,11 @@
 
 ---
 
-## 2026-03-29 — Fix: Three Physical Health / Dashboard UX issues
+## 2026-03-29 — Fix: Water quick-log buttons cause full page reload
 
-**1. Fitness "Needs Attention" on rest days**
-The card emphasis logic flagged fitness as needing attention whenever the user had workout history and hadn't worked out today — even on rest days or days with no schedule. Changed condition from `latest_workout` (any workout ever) to `workout_scheduled_today` (explicit schedule match). Rest days and unscheduled days no longer trigger "Needs Attention."
+**Problem:** Clicking +8oz or +16oz on the Physical Health page submitted a form POST that redirected back to the top of the page. Users had to scroll back down to add more water.
 
-**2. Water quick-log `messages.success()` causing flash on next page load**
-The `QuickWaterLogView` called `messages.success()` even on AJAX requests. While the JSON response was handled correctly without a page reload, the flash message queued in the session would appear on the next page load. Moved `messages.success()` to only fire on non-AJAX fallback path.
-
-**3. Church attendance Quick Confirmation — no canonical tracking target**
-The Signal Engine detected "church" keywords (from journal text mentioning worship/sermon on Sunday) and surfaced a "Did you complete church attendance today?" Quick Confirmation. But `church` has no canonical model, no completion record, and clicking Yes/No had no meaningful effect. Added `UNSURFACEABLE_ITEMS` set in `signal_presenter.py` to exclude items with no tracking target from being surfaced.
-
-**Files changed:**
-- `apps/health/views.py` — fitness card emphasis condition, water view messages fix
-- `apps/core/signals/signal_presenter.py` — UNSURFACEABLE_ITEMS filter
+**Fix:** Replaced form-based buttons with AJAX fetch calls. The view already supported `X-Requested-With: XMLHttpRequest` returning JSON. Buttons now update the progress bar, oz display, and goal badge in-place without scrolling. CSP-compliant: uses `addEventListener` with nonce, `data-*` attributes, no inline handlers.
 
 **Files changed:** `templates/health/home.html`
 

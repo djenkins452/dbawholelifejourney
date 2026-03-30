@@ -1,29 +1,23 @@
 {% extends "base.html" %}
 {% load humanize %}
 
-{% block title %}Water Intake - Health - Whole Life Journey{% endblock %}
+{% block title %}Hydration - Health - Whole Life Journey{% endblock %}
 
 {% block content %}
 <div class="container" data-testid="health-water-list">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}" data-testid="health-back-link">Health</a>
         <span>/</span>
-        <span>Water</span>
+        <span>Hydration</span>
     </nav>
 
     <div class="page-header flex justify-between items-center">
         <div>
-            <h1 class="page-title">Water Intake {% include "components/favorite_toggle.html" with page_title="Water Intake" %}</h1>
-            <p class="page-subtitle">Track your daily hydration</p>
+            <h1 class="page-title">Hydration {% include "components/favorite_toggle.html" with page_title="Hydration" %}</h1>
+            <p class="page-subtitle">Track your daily fluid intake</p>
         </div>
         <div class="header-actions">
-            <form method="post" action="{% url 'health:water_quick_log' %}" class="inline-form">
-                {% csrf_token %}
-                <input type="hidden" name="preset" value="8">
-                <input type="hidden" name="next" value="{% url 'health:water_list' %}">
-                <button type="submit" class="btn btn-ghost">+ 8oz Glass</button>
-            </form>
-            <a href="{% url 'health:water_create' %}" class="btn btn-primary" data-testid="health-add-water-button">Log Water</a>
+            <a href="{% url 'health:water_create' %}" class="btn btn-primary" data-testid="health-add-water-button">Log Drink</a>
         </div>
     </div>
 
@@ -45,21 +39,24 @@
         <div class="quick-add-buttons">
             <form method="post" action="{% url 'health:water_quick_log' %}" class="inline-form">
                 {% csrf_token %}
-                <input type="hidden" name="preset" value="8">
+                <input type="hidden" name="preset" value="16">
+                <input type="hidden" name="drink_type" value="water">
                 <input type="hidden" name="next" value="{% url 'health:water_list' %}">
-                <button type="submit" class="btn btn-ghost btn-sm">+8oz</button>
+                <button type="submit" class="btn btn-ghost btn-sm">+16oz Water</button>
+            </form>
+            <form method="post" action="{% url 'health:water_quick_log' %}" class="inline-form">
+                {% csrf_token %}
+                <input type="hidden" name="preset" value="12">
+                <input type="hidden" name="drink_type" value="coffee">
+                <input type="hidden" name="next" value="{% url 'health:water_list' %}">
+                <button type="submit" class="btn btn-ghost btn-sm">+12oz Coffee</button>
             </form>
             <form method="post" action="{% url 'health:water_quick_log' %}" class="inline-form">
                 {% csrf_token %}
                 <input type="hidden" name="preset" value="16">
+                <input type="hidden" name="drink_type" value="creatine">
                 <input type="hidden" name="next" value="{% url 'health:water_list' %}">
-                <button type="submit" class="btn btn-ghost btn-sm">+16oz</button>
-            </form>
-            <form method="post" action="{% url 'health:water_quick_log' %}" class="inline-form">
-                {% csrf_token %}
-                <input type="hidden" name="preset" value="32">
-                <input type="hidden" name="next" value="{% url 'health:water_list' %}">
-                <button type="submit" class="btn btn-ghost btn-sm">+32oz</button>
+                <button type="submit" class="btn btn-ghost btn-sm">+Creatine</button>
             </form>
         </div>
     </div>
@@ -105,8 +102,8 @@
                 <thead>
                     <tr>
                         <th>Date</th>
+                        <th>Type</th>
                         <th>Amount</th>
-                        <th>Container</th>
                         <th>Notes</th>
                         <th></th>
                     </tr>
@@ -118,8 +115,8 @@
                                 <span class="entry-date">{{ entry.logged_date|date:"M j, Y" }}</span>
                                 <span class="entry-time">{{ entry.recorded_at|time:"g:i A" }}</span>
                             </td>
+                            <td><span class="drink-type-badge drink-type-{{ entry.drink_type|default:'water' }}">{{ entry.get_drink_type_display }}</span></td>
                             <td class="entry-value">{{ entry.amount }} {{ entry.unit }}</td>
-                            <td>{{ entry.get_container_display|default:"-" }}</td>
                             <td class="entry-notes">{{ entry.notes|truncatewords:10|default:"-" }}</td>
                             <td class="entry-actions">
                                 <a href="{% url 'health:water_update' entry.pk %}" class="btn btn-ghost btn-sm">Edit</a>
@@ -147,9 +144,9 @@
         {% endif %}
     {% else %}
         <div class="empty-state">
-            <h2 class="empty-state-title">No water logged yet</h2>
-            <p class="empty-state-text">Start tracking your hydration to stay healthy!</p>
-            <a href="{% url 'health:water_create' %}" class="btn btn-primary">Log Your First Entry</a>
+            <h2 class="empty-state-title">No drinks logged yet</h2>
+            <p class="empty-state-text">Start tracking your hydration — water, coffee, creatine, and more.</p>
+            <a href="{% url 'health:water_create' %}" class="btn btn-primary">Log Your First Drink</a>
         </div>
     {% endif %}
 
@@ -316,6 +313,25 @@
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
 }
+
+.drink-type-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+}
+.drink-type-water { background: #dbeafe; color: #1d4ed8; }
+.drink-type-coffee { background: #fef3c7; color: #92400e; }
+.drink-type-tea { background: #d1fae5; color: #065f46; }
+.drink-type-electrolyte { background: #ede9fe; color: #5b21b6; }
+.drink-type-creatine { background: #fce7f3; color: #9d174d; }
+.drink-type-juice { background: #ffedd5; color: #9a3412; }
+.drink-type-milk { background: #f3f4f6; color: #374151; }
+.drink-type-other { background: #f3f4f6; color: #6b7280; }
 
 .entry-actions {
     display: flex;

@@ -3,8 +3,24 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-30 (Hydration system accuracy + creatine integration)
+# Last Updated: 2026-03-30 (Hydration UI — drink type selector)
 # ================================================================# WLJ Change History
+
+## 2026-03-30 — Feature: Hydration UI — Drink Type Selector + Quick Log by Type
+
+Exposed the `drink_type` field in all hydration UI surfaces. Users can now log water, coffee, tea, electrolytes, creatine drinks, juice, milk, and other beverages with type-aware quick presets.
+
+**Form (`water_form.html`):** Added drink type dropdown as first field. Quick presets now include 16oz Water, 32oz Water, 12oz Coffee, 8oz Tea, Creatine (16oz), Electrolyte (16oz) with color-coded buttons. Auto-sets container to "cup" for coffee/tea. Hydration guide updated with coefficient info. Renamed "Log Water Intake" → "Log Drink".
+
+**List (`water_list.html`):** Added drink type column with color-coded badges (blue=water, amber=coffee, green=tea, purple=electrolyte, pink=creatine). Quick-add buttons: +16oz Water, +12oz Coffee, +Creatine. Renamed "Water Intake" → "Hydration".
+
+**Health home card (`home.html`):** Renamed "Water" → "Hydration". Quick buttons: +16oz Water, +Coffee, +Creatine (with drink_type in AJAX payload). JS handler sends `drink_type` param and preserves button label text on restore.
+
+**Views (`views.py`):** `WaterCreateView` + `WaterUpdateView` now include `drink_type` in fields. `QuickWaterLogView` accepts `drink_type` param, validates against `DRINK_TYPE_CHOICES`, smart container selection (cup for coffee/tea), type-aware success messages.
+
+**Files:** `apps/health/views.py`, `templates/health/water_form.html`, `templates/health/water_list.html`, `templates/health/home.html`, `docs/wlj_claude_changelog.md`
+
+---
 
 ## 2026-03-30 — Feature: Hydration System — Drink Types + Creatine Integration
 

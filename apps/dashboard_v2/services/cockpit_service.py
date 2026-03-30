@@ -57,14 +57,18 @@ class GoalCockpitService:
 
     def _compute_faith(self):
         try:
-            from apps.core.execution.execution_truth_engine import get_execution_truth
-        except ImportError:
-            return self._empty_domain('Faith', '#3b82f6')
-
-        try:
             window_days = 8  # today - timedelta(days=7) through today inclusive
-            current = self._faith_window(self.today - timedelta(days=7), self.today)
-            previous = self._faith_window(self.today - timedelta(days=15), self.today - timedelta(days=8))
+            # Batch-load faith completion for full 16-day range (3-4 queries
+            # instead of 16 × get_execution_truth calls at ~35 queries each).
+            full_start = self.today - timedelta(days=15)
+            bible_dates, prayer_dates = self._faith_completion_dates(full_start, self.today)
+
+            current_start = self.today - timedelta(days=7)
+            prev_start = self.today - timedelta(days=15)
+            prev_end = self.today - timedelta(days=8)
+
+            current = self._split_faith_window(current_start, self.today, bible_dates, prayer_dates)
+            previous = self._split_faith_window(prev_start, prev_end, bible_dates, prayer_dates)
 
             bible_days = current['bible_days']
             prayer_days = current['prayer_days']
@@ -92,30 +96,113 @@ class GoalCockpitService:
             logger.warning("Cockpit: faith score failed", exc_info=True)
             return self._empty_domain('Faith', '#3b82f6')
 
-    def _faith_window(self, start_date, end_date):
-        """Count Bible reading and prayer days in a date range."""
-        from apps.core.execution.execution_truth_engine import get_execution_truth
+    def _faith_completion_dates(self, start_date, end_date):
+        """
+        Batch-load Bible and prayer completion dates for a date range.
 
+        Returns two sets of dates: (bible_dates, prayer_dates).
+        Uses the same sources as Execution Truth Engine's faith bridge:
+          - ReadingPlanProgress for Bible (reading_plan source)
+          - RoutineLog for Bible/Prayer (routine source)
+          - Task for Prayer (task source)
+        """
+        from apps.core.execution.execution_truth_engine import (
+            FAITH_BIBLE_NAMES, FAITH_PRAYER_NAMES,
+        )
+
+        bible_dates = set()
+        prayer_dates = set()
+
+        # 1. Bible via ReadingPlanProgress
+        try:
+            from apps.faith.models import UserReadingPlan, UserReadingProgress
+            active_plans = UserReadingPlan.objects.filter(
+                user=self.user, plan_status='active',
+            ).exclude(status='deleted')
+            if active_plans.exists():
+                progress_dates = (
+                    UserReadingProgress.objects.filter(
+                        user_plan__in=active_plans,
+                        is_completed=True,
+                        completed_at__date__gte=start_date,
+                        completed_at__date__lte=end_date,
+                    )
+                    .values_list('completed_at__date', flat=True)
+                    .distinct()
+                )
+                bible_dates.update(progress_dates)
+        except ImportError:
+            pass
+
+        # 2. Prayer via faith-module Task completion
+        try:
+            from apps.life.models import Task
+            task_dates = (
+                Task.objects.filter(
+                    user=self.user,
+                    module='faith',
+                    completion_status='completed',
+                    completed_at__date__gte=start_date,
+                    completed_at__date__lte=end_date,
+                )
+                .values_list('completed_at__date', flat=True)
+                .distinct()
+            )
+            prayer_dates.update(task_dates)
+        except ImportError:
+            pass
+
+        # 3. Bible/Prayer via RoutineLog (the faith bridge)
+        try:
+            from apps.life.models import RoutineLog, RoutineSchedule
+            all_faith_names = FAITH_BIBLE_NAMES | FAITH_PRAYER_NAMES
+            faith_schedule_ids = [
+                sched.id
+                for sched in RoutineSchedule.objects.filter(
+                    routine__user=self.user,
+                    routine__is_active=True,
+                ).exclude(routine__status='deleted').only('id', 'name')
+                if sched.name.lower().strip() in all_faith_names
+            ]
+
+            if faith_schedule_ids:
+                completed_logs = RoutineLog.objects.filter(
+                    schedule_id__in=faith_schedule_ids,
+                    scheduled_date__gte=start_date,
+                    scheduled_date__lte=end_date,
+                    log_status__in=(
+                        RoutineLog.STATUS_COMPLETED,
+                        RoutineLog.STATUS_COMPLETED_LATE,
+                    ),
+                ).select_related('schedule').only(
+                    'scheduled_date', 'schedule__name', 'log_status',
+                )
+
+                for log in completed_logs:
+                    item_name = (log.schedule.name or '').lower().strip()
+                    if item_name in FAITH_BIBLE_NAMES:
+                        bible_dates.add(log.scheduled_date)
+                    if item_name in FAITH_PRAYER_NAMES:
+                        prayer_dates.add(log.scheduled_date)
+        except ImportError:
+            pass
+
+        return bible_dates, prayer_dates
+
+    def _split_faith_window(self, start_date, end_date, bible_dates, prayer_dates):
+        """Split pre-loaded faith dates into a window result dict."""
         bible_days = 0
         prayer_days = 0
         bible_daily = []
         prayer_daily = []
         day = start_date
         while day <= end_date:
-            try:
-                truth = get_execution_truth(self.user, day)
-                faith = truth.get('domains', {}).get('faith', {})
-                bible_done = bool(faith.get('bible_reading_completed'))
-                prayer_done = bool(faith.get('prayer_completed'))
-                if bible_done:
-                    bible_days += 1
-                if prayer_done:
-                    prayer_days += 1
-                bible_daily.append(1 if bible_done else 0)
-                prayer_daily.append(1 if prayer_done else 0)
-            except Exception:
-                bible_daily.append(0)
-                prayer_daily.append(0)
+            b = 1 if day in bible_dates else 0
+            p = 1 if day in prayer_dates else 0
+            bible_days += b
+            prayer_days += p
+            bible_daily.append(b)
+            prayer_daily.append(p)
             day += timedelta(days=1)
 
         return {

@@ -96,6 +96,20 @@ class FatSecretService:
         """Check if FatSecret API credentials are configured."""
         return bool(self.client_id and self.client_secret)
 
+    def _safe_json(self, response, context: str = "FatSecret"):
+        """Parse JSON from response, handling empty/malformed bodies."""
+        if not response.content:
+            logger.warning("%s returned empty response body (status=%s)", context, response.status_code)
+            return None
+        try:
+            return response.json()
+        except ValueError as e:
+            logger.error(
+                "%s JSON decode error (status=%s, body=%s): %s",
+                context, response.status_code, response.text[:200], e,
+            )
+            return None
+
     def _get_access_token(self, scope: str = 'basic') -> Optional[str]:
         """
         Get OAuth 2.0 access token with caching.
@@ -135,7 +149,9 @@ class FatSecretService:
             )
             response.raise_for_status()
 
-            data = response.json()
+            data = self._safe_json(response, "FatSecret token")
+            if data is None:
+                return None
             token = data.get('access_token')
 
             if token:
@@ -194,7 +210,9 @@ class FatSecretService:
             )
             response.raise_for_status()
 
-            data = response.json()
+            data = self._safe_json(response, "FatSecret foods.search")
+            if data is None:
+                return []
             foods_data = data.get('foods', {})
 
             # Handle empty results
@@ -245,7 +263,9 @@ class FatSecretService:
             )
             response.raise_for_status()
 
-            data = response.json()
+            data = self._safe_json(response, "FatSecret food.get")
+            if data is None:
+                return None
             food_data = data.get('food', {})
 
             if not food_data:
@@ -407,7 +427,9 @@ class FatSecretService:
             )
             response.raise_for_status()
 
-            data = response.json()
+            data = self._safe_json(response, "FatSecret barcode")
+            if data is None:
+                return None
             food_data = data.get('food')
 
             if not food_data:
@@ -458,7 +480,9 @@ class FatSecretService:
             )
             response.raise_for_status()
 
-            data = response.json()
+            data = self._safe_json(response, "FatSecret image-recognition")
+            if data is None:
+                return []
             food_responses = data.get('food_response', [])
 
             if not food_responses:

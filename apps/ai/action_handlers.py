@@ -918,7 +918,7 @@ class ActionHandler:
             )
 
     def handle_log_food(self, food_name: str, quantity: float = 1,
-                        meal_type: str = None, calories: int = None,
+                        meal_type: str = None, calories: float = None,
                         notes: str = "", **kwargs) -> ActionResult:
         """
         Log a food entry with smart nutrition lookup.

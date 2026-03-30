@@ -879,7 +879,7 @@ class FoodEntryForm(forms.ModelForm):
             }),
             "total_calories": forms.NumberInput(attrs={
                 "class": "form-input",
-                "step": "1",
+                "step": "0.01",
                 "min": "0",
                 "placeholder": "Calories",
             }),
@@ -1069,11 +1069,14 @@ class QuickAddFoodForm(forms.Form):
             "placeholder": "What did you eat?",
         }),
     )
-    calories = forms.IntegerField(
+    calories = forms.DecimalField(
         min_value=0,
+        max_digits=10,
+        decimal_places=2,
         widget=forms.NumberInput(attrs={
             "class": "form-input",
             "placeholder": "Calories",
+            "step": "0.01",
         }),
     )
     meal_type = forms.ChoiceField(

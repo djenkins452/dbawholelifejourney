@@ -36,7 +36,7 @@ def _to_event(entry):
     from django.utils import timezone as tz
     meal = entry.meal_type or ''
     name = entry.food_name or 'Food'
-    cal = int(entry.total_calories) if entry.total_calories else None
+    cal = round(float(entry.total_calories)) if entry.total_calories else None
     label = f"{meal.title()}: {name}" if meal else name
     if cal:
         label += f" ({cal} cal)"

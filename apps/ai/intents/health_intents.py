@@ -202,8 +202,8 @@ HEALTH_INTENT_TOOLS = [
                         "description": "Type of meal. Infer from time of day if not specified."
                     },
                     "calories": {
-                        "type": "integer",
-                        "description": "Estimated calories if known or mentioned"
+                        "type": "number",
+                        "description": "Estimated calories if known or mentioned (can be decimal, e.g. 712.5)"
                     },
                     "notes": {
                         "type": "string",

@@ -1,0 +1,92 @@
+{% if not pi_available %}
+{# Fallback: no data yet — render nothing (no empty shell clutter) #}
+{% else %}
+<section class="v2-section pi-section" id="physical-intelligence">
+    <h2 class="v2-section-title">Physical Intelligence</h2>
+
+    {# ── 1. PRIMARY VERDICT (most dominant element) ── #}
+    <div class="pi-verdict-card {{ verdict_css }}">
+        <div class="pi-verdict-row">
+            <span class="pi-verdict-label">{{ verdict_label }}</span>
+            {% if trajectory_label %}
+            <span class="pi-trajectory {{ trajectory_css }}">
+                <span class="pi-trajectory-icon">{{ trajectory_icon }}</span>
+                {{ trajectory_label }}
+            </span>
+            {% endif %}
+        </div>
+        {% if trajectory_detail %}
+        <p class="pi-verdict-detail">{{ trajectory_detail }}</p>
+        {% endif %}
+        <span class="pi-confidence pi-confidence-{{ confidence_value }}">{{ confidence_label }}</span>
+    </div>
+
+    {# ── 2. PRIMARY DECISION (coach instruction) ── #}
+    {% if decision_type != "on_track" %}
+    <div class="pi-action-card">
+        <div class="pi-action-header">
+            <span class="pi-urgency {{ urgency_css }}">{{ urgency_label }}</span>
+            <span class="pi-action-summary">{{ summary }}</span>
+        </div>
+        {% if impact_statement %}
+        <p class="pi-impact">{{ impact_statement }}</p>
+        {% endif %}
+        <p class="pi-instruction">{{ recommended_action }}</p>
+    </div>
+    {% endif %}
+
+    {# ── 3. BODY SIGNAL SNAPSHOT ── #}
+    <div class="pi-signals-row">
+        <div class="pi-signal {{ fat_loss_css }}">
+            <span class="pi-signal-icon">{{ fat_loss_icon }}</span>
+            <span class="pi-signal-label">Fat</span>
+            <span class="pi-signal-value">{{ fat_loss_label }}</span>
+        </div>
+        <div class="pi-signal {{ muscle_css }}">
+            <span class="pi-signal-icon">{{ muscle_icon }}</span>
+            <span class="pi-signal-label">Muscle</span>
+            <span class="pi-signal-value">{{ muscle_label }}</span>
+        </div>
+        {% if weight_trend is not None %}
+        <div class="pi-signal pi-signal-neutral">
+            <span class="pi-signal-icon">{% if weight_trend < 0 %}&darr;{% elif weight_trend > 0 %}&uarr;{% else %}&rarr;{% endif %}</span>
+            <span class="pi-signal-label">Weight</span>
+            <span class="pi-signal-value">{% if weight_trend > 0 %}+{% endif %}{{ weight_trend|floatformat:1 }} lb/wk</span>
+        </div>
+        {% endif %}
+        {% if waist_trend is not None %}
+        <div class="pi-signal pi-signal-neutral">
+            <span class="pi-signal-icon">{% if waist_trend < 0 %}&darr;{% elif waist_trend > 0 %}&uarr;{% else %}&rarr;{% endif %}</span>
+            <span class="pi-signal-label">Waist</span>
+            <span class="pi-signal-value">{% if waist_trend > 0 %}+{% endif %}{{ waist_trend|floatformat:1 }} in</span>
+        </div>
+        {% endif %}
+    </div>
+    {% if plateau_active %}
+    <div class="pi-plateau-badge">
+        Plateau detected{% if plateau_days %} &mdash; {{ plateau_days }} days{% endif %}
+    </div>
+    {% endif %}
+
+    {# ── 4. CONFLICTS (conditional) ── #}
+    {% if has_conflicts %}
+    <div class="pi-conflicts">
+        {% for c in conflicts %}
+        <div class="pi-conflict {{ c.css }}">
+            <p class="pi-conflict-desc">{{ c.description }}</p>
+            <p class="pi-conflict-resolution">{{ c.resolution }}</p>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {# ── 5. EXPIRED PROTOCOL ── #}
+    {% if is_expired %}
+    <div class="pi-expired-banner">
+        <p>{{ summary }}</p>
+        <p class="pi-instruction">{{ recommended_action }}</p>
+    </div>
+    {% endif %}
+
+</section>
+{% endif %}

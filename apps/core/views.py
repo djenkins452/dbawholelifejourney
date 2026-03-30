@@ -527,6 +527,7 @@ def custom_500(request):
     Custom 500 error handler.
 
     Logs the error and returns a user-friendly error page.
+    Falls back to a plain HTML response if rendering fails (e.g., DB connection dead).
     Note: The actual exception is logged by Django's default handler.
     """
     import sys
@@ -537,7 +538,26 @@ def custom_500(request):
         logger.error(f"500 error occurred for path: {request.path}\n{tb_str}")
     else:
         logger.error(f"500 error occurred for path: {request.path} (no exception info available)")
-    return render(request, '500.html', status=500)
+    try:
+        return render(request, '500.html', status=500)
+    except Exception:
+        # DB or cache is down — context processors can't run.
+        # Return a minimal static HTML response that doesn't touch the DB.
+        from django.http import HttpResponse
+        return HttpResponse(
+            '<!DOCTYPE html><html><head><title>Server Error</title>'
+            '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<style>body{font-family:system-ui,sans-serif;display:flex;justify-content:center;'
+            'align-items:center;min-height:100vh;margin:0;background:#f8f9fa;color:#333}'
+            '.c{text-align:center;padding:2rem}'
+            'h1{font-size:2rem;margin-bottom:1rem}'
+            'p{color:#666}</style></head>'
+            '<body><div class="c"><h1>Something went wrong</h1>'
+            '<p>We\'re experiencing a temporary issue. Please try again in a moment.</p>'
+            '</div></body></html>',
+            status=500,
+            content_type='text/html',
+        )
 
 
 # =============================================================================

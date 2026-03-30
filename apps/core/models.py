@@ -371,11 +371,21 @@ class SiteConfiguration(models.Model):
         Get the single instance of SiteConfiguration.
         Creates one with defaults if it doesn't exist.
         Uses caching for performance.
+        If DB is unreachable, returns a default unsaved instance.
         """
         config = cache.get('site_configuration')
         if config is None:
-            config, created = cls.objects.get_or_create(pk=1)
-            cache.set('site_configuration', config, 60 * 60)  # Cache for 1 hour
+            try:
+                config, created = cls.objects.get_or_create(pk=1)
+                cache.set('site_configuration', config, 60 * 60)  # Cache for 1 hour
+            except Exception:
+                # DB connection dead — return an unsaved default instance
+                # so callers get safe default values without crashing
+                import logging
+                logging.getLogger(__name__).warning(
+                    "SiteConfiguration.get_solo: DB unavailable, returning defaults"
+                )
+                return cls()
         return config
     
     @classmethod

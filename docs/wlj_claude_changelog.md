@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-30 (Hydration UI — drink type selector)
 # ================================================================# WLJ Change History
 
+## 2026-03-30 — Fix: Stale DB connection cascade in 500 error handler
+
+**Root cause:** When Railway PostgreSQL restarts or drops connections mid-request, `psycopg2.InterfaceError: connection already closed` fires. The `custom_500` error handler then tries to render `500.html`, which triggers `site_context` context processor → `SiteConfiguration.get_solo()` → another DB query on the dead connection → infinite error cascade. Every middleware layer retries the 500 handler, multiplying the error logs.
+
+**Fixes:**
+- `apps/core/views.py` `custom_500()`: Wrapped `render()` in try/except — falls back to a minimal static HTML response if rendering fails (no DB, no context processors)
+- `apps/core/context_processors.py` `site_context()`: Wrapped DB call in try/except — returns safe defaults ('Whole Life Journey', etc.) if DB is unreachable
+- `apps/core/models.py` `SiteConfiguration.get_solo()`: Catches DB exceptions during `get_or_create()` — returns an unsaved default instance instead of crashing
+
+**Impact:** Eliminates the cascading 500 error loop when DB connections are stale. Users see a clean error page instead of a raw server error. Normal operation resumes automatically when connections recover.
+
+---
+
 ## 2026-03-30 — Feature: Hydration UI — Drink Type Selector + Quick Log by Type
 
 Exposed the `drink_type` field in all hydration UI surfaces. Users can now log water, coffee, tea, electrolytes, creatine drinks, juice, milk, and other beverages with type-aware quick presets.

@@ -6,6 +6,22 @@
 # Last Updated: 2026-03-04 (session close documentation audit)
 # ================================================================# WLJ Change History
 
+## 2026-03-29 — Fix: Physical Health Today card — workout rest day + medicine window timing
+
+**Problem 1:** Workout card showed "Not completed" on rest/unscheduled days (e.g., Sunday). The view never checked `WorkoutPlan`/`WorkoutSchedule` — it showed "Not completed" any day the user had workout history.
+
+**Fix:** Check active `WorkoutPlan` and `WorkoutSchedule` for today's day-of-week. If the schedule entry is a rest day (or no entry exists), set `workout_rest_day=True` and show "Rest Day" with a neutral style instead of "Not completed".
+
+**Problem 2:** Nightly medications showed red ✗ "missed" status even though the scheduled time hadn't passed yet. The window status logic set `"missed"` for any window with 0 doses taken, regardless of time.
+
+**Fix:** Track the latest `scheduled_time` per window. Only set `"missed"` if `now > latest_scheduled_time` for that window. Otherwise set `"pending"` (gray, no ✗). Added `tw-pending` CSS class.
+
+**Files changed:**
+- `apps/health/views.py` — workout rest day detection + medicine window pending vs missed logic
+- `templates/health/home.html` — workout rest day template branch + `tw-pending` / `today-value-neutral` CSS
+
+---
+
 ## 2026-03-29 — Fix: Medication groups in Action Center sorted alphabetically instead of chronologically
 
 **Problem:** Medication window groups (Morning, Evening, Nightly) were sorted alphabetically by title, causing Evening to appear before Morning. The sort key at `action_prioritizer.py:597` used `g['title']` for all group types.

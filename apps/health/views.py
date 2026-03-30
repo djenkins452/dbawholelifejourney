@@ -598,9 +598,9 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         if (
             not context.get("workout_today_completed")
             and not context.get("workout_rest_day")
-            and context.get("latest_workout")
+            and context.get("workout_scheduled_today")
         ):
-            # Only flag if user has workout history and today is a workout day
+            # Only flag if today is a scheduled workout day (not rest/unscheduled)
             card_emphasis["fitness"] = "medium"
 
         if context.get("glucose_variability_level") == "high":
@@ -1300,9 +1300,7 @@ class QuickWaterLogView(LoginRequiredMixin, View):
             "entry_id": entry.id, "amount": amount, "source": "web_view_quick",
         })
 
-        messages.success(request, f"Logged {amount}oz of water!")
-
-        # Handle AJAX requests
+        # Handle AJAX requests — no messages.success() to avoid flash on next page load
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             today_progress = WaterEntry.get_daily_goal_progress(
                 request.user,
@@ -1315,6 +1313,7 @@ class QuickWaterLogView(LoginRequiredMixin, View):
                 "goal_met": today_progress["goal_met"],
             })
 
+        messages.success(request, f"Logged {amount}oz of water!")
         return redirect(request.POST.get("next", "health:water_list"))
 
 

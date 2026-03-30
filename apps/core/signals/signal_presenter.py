@@ -56,6 +56,12 @@ logger = logging.getLogger(__name__)
 
 MAX_SUGGESTIONS = 2
 
+# Items that should never be surfaced as Quick Confirmations because they
+# have no canonical tracking target (no model, no completion record).
+# The signal engine may still detect them, but presenting them to the user
+# creates a dead-end UX — clicking Yes/No has no meaningful effect.
+UNSURFACEABLE_ITEMS = frozenset({"church"})
+
 # Priority order: lower number = higher priority
 SIGNAL_TYPE_PRIORITY = {
     POSSIBLE_COMPLETION: 1,
@@ -577,6 +583,7 @@ def get_presented_signals(user) -> Dict:
 
     # Filter pipeline
     signals = _filter_same_day(signals)
+    signals = [s for s in signals if s.get("item") not in UNSURFACEABLE_ITEMS]
     signals = _filter_completed_or_unexpected(signals, truth)
 
     # Phase 5: Adaptive tuning (after truth filters, before prioritization)

@@ -6,6 +6,16 @@
 # Last Updated: 2026-03-30 (Physical Intelligence V2)
 # ================================================================# WLJ Change History
 
+## 2026-03-30 — Fix: Beth says "no missed medication" when dashboard shows 1 missed
+
+**Problem:** Dashboard CoS showed "64/65 doses, 1 missed" but Beth responded "You haven't missed any medication items. Everything is on track." The medication event adapter's `get_missed_events()` only queried for `MedicineLog` entries with `log_status='missed'`. If a dose was simply never logged (no DB row), it was invisible to the AI — even though the dashboard correctly counted it as missed via schedule-based adherence.
+
+**Root cause:** Data definition mismatch. Dashboard uses `medicine_utils.calculate_medicine_adherence()` which walks schedules and counts unlogged expected doses as missed. The AI event adapter only looked for explicit `log_status='missed'` rows.
+
+**Fix:** Updated `get_missed_events()` to also walk active medicine schedules and identify expected doses with no corresponding log entry (same approach as `medicine_utils`). Added `_find_unlogged_doses()` and `_unlogged_to_event()` helpers. Now CoS and Beth agree.
+
+**Files:** `apps/core/ai_events/adapters/medication.py`
+
 ## 2026-03-30 — Feature: Physical Intelligence V2 — Decision + Outcome Validation System
 
 **What:** Implemented the canonical Physical Intelligence System (V2) that answers four questions deterministically: (1) What is the user doing? (2) How is the body responding? (3) Is it working? (4) What should change?

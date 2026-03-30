@@ -697,6 +697,24 @@ def _build_health_and_vitals(user):
     except Exception:
         logger.warning("CoS context: event signals failed", exc_info=True)
 
+    # Critical Events Today (structured objects for advisory LLM context)
+    # These are passed to the LLM so it can incorporate events naturally.
+    # The deterministic post-LLM injection layer is the actual guarantee;
+    # this context is advisory to improve tone integration.
+    try:
+        from apps.life.services.event_acknowledgment import (
+            get_today_critical_events,
+        )
+        _critical_events = get_today_critical_events(user)
+        if _critical_events:
+            # Strip non-serializable 'keywords' set for context dict
+            result['critical_events_today'] = [
+                {k: v for k, v in ev.items() if k != 'keywords'}
+                for ev in _critical_events
+            ]
+    except Exception:
+        logger.warning("CoS context: critical events failed", exc_info=True)
+
     return result
 
 
@@ -6263,6 +6281,20 @@ def format_cos_system_injection(context, user_message=None):
                 parts.append(f"({ev['years']} years)")
             lines.append(' '.join(parts))
 
+    # Critical events today (structured — advisory for LLM tone integration)
+    # The deterministic post-LLM injection guarantees these are acknowledged.
+    # This section helps the LLM weave acknowledgment naturally into its opening.
+    _critical = context.get('critical_events_today', [])
+    if _critical:
+        lines.append("")
+        lines.append("CRITICAL EVENTS TODAY (acknowledge naturally in your opening):")
+        for cev in _critical:
+            lines.append(f"  • {cev.get('message', cev.get('title', ''))}")
+        lines.append(
+            "Note: The system guarantees these are acknowledged. "
+            "Incorporate them warmly and briefly — do not ignore them."
+        )
+
     # Event signals (deterministic relationship-aware layer)
     ev_signals = context.get('event_signals', [])
     if ev_signals:
@@ -9472,10 +9504,9 @@ def format_learning_mode_injection(context):
         for ev in cal[:6]:
             lines.append(f"  {ev['start']} {ev['title']}")
 
-    # Significant events — relational awareness must survive Learning Mode.
-    # The deterministic post-LLM injection (event_acknowledgment.py) is the
-    # real enforcement, but providing event context here helps the LLM
-    # generate a more natural response that integrates the acknowledgment.
+    # Critical events — relational awareness must survive Learning Mode.
+    # The deterministic post-LLM injection is the real guarantee, but
+    # providing structured context helps the LLM weave it naturally.
     try:
         _lm_user = context.get('_user')
         if not _lm_user and 'user_id' in context:
@@ -9487,13 +9518,17 @@ def format_learning_mode_injection(context):
                 _lm_user = None
         if _lm_user:
             from apps.life.services.event_acknowledgment import (
-                build_event_acknowledgment,
+                get_today_critical_events,
             )
-            _lm_ack = build_event_acknowledgment(_lm_user)
-            if _lm_ack:
+            _lm_events = get_today_critical_events(_lm_user)
+            if _lm_events:
                 lines.append("")
-                lines.append("SIGNIFICANT EVENT (MANDATORY — acknowledge this):")
-                lines.append(f"  {_lm_ack}")
+                lines.append(
+                    "CRITICAL EVENTS TODAY "
+                    "(acknowledge naturally in your opening):"
+                )
+                for _ev in _lm_events:
+                    lines.append(f"  • {_ev.get('message', _ev.get('title', ''))}")
     except Exception:
         pass  # Event awareness in Learning Mode is supplementary
 

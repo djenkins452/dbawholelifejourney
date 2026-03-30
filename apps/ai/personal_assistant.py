@@ -1965,10 +1965,10 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
             except Exception:
                 pass  # Undo tracking must never break chat
 
-        # ── Deterministic event acknowledgment (post-LLM, never skipped) ──
-        # Critical relational events (birthdays, anniversaries) are injected
-        # deterministically — the LLM does NOT decide whether to include them.
-        response = self._inject_event_acknowledgment(response)
+        # ── Deterministic critical signal injection (post-LLM, never skipped) ──
+        # Critical signals (birthdays, anniversaries, and future: health alerts)
+        # are injected deterministically — the LLM does NOT decide inclusion.
+        response = self._inject_critical_signals(response)
 
         # Return structured response
         result = {'response': response}
@@ -2014,61 +2014,82 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
 
         return result
 
-    def _inject_event_acknowledgment(self, response):
+    def _inject_critical_signals(self, response):
         """
-        Deterministic injection of today's significant event acknowledgments.
+        Deterministic injection of critical signals into the response.
 
-        Runs AFTER LLM response generation. The LLM does NOT decide whether
-        events are acknowledged — this layer ensures critical relational
-        events are ALWAYS present in the final response.
+        Runs AFTER LLM response generation. The system — not the LLM —
+        determines what must be acknowledged. Currently handles significant
+        events (birthdays, anniversaries, memorials). Designed to support
+        future signal types (health alerts, missed commitments).
 
-        Idempotent: if the LLM already included the acknowledgment text,
-        no duplicate is injected.
+        Uses structured idempotency: checks event-type keywords + person
+        name to determine if the LLM already acknowledged each event.
+        Only injects events the LLM missed.
 
         Args:
             response: str — The LLM-generated (or deterministic) response.
 
         Returns:
-            str — Response with acknowledgment prepended if needed.
+            str — Response with unacknowledged signals prepended if needed.
         """
         try:
             from apps.life.services.event_acknowledgment import (
-                build_event_acknowledgment,
+                get_today_critical_events,
+                check_response_acknowledges_events,
             )
 
-            ack = build_event_acknowledgment(self.user)
-            if not ack:
+            events = get_today_critical_events(self.user)
+            if not events:
                 return response
 
-            # Idempotency: check if acknowledgment content is already present
-            # Use a normalized comparison to catch slight variations
-            ack_key = ack.split('.')[0].lower().strip()
-            if ack_key and ack_key in (response or '').lower():
+            # Structured idempotency: check which events LLM missed
+            unacknowledged = check_response_acknowledges_events(
+                response, events,
+            )
+
+            if not unacknowledged:
                 logger.info(
-                    "EVENT_ACK_ALREADY_PRESENT user=%s — LLM included "
-                    "acknowledgment, skipping injection",
-                    self.user.id,
+                    "CRITICAL_SIGNALS_ACKNOWLEDGED user=%s — LLM included "
+                    "all %d event(s), skipping injection",
+                    self.user.id, len(events),
                 )
                 return response
 
+            # Build injection text from only the missed events
+            injection_parts = [
+                e["message"] for e in unacknowledged if e.get("message")
+            ]
+            if not injection_parts:
+                return response
+
+            injection = "\n".join(injection_parts)
+
             logger.warning(
-                "EVENT_ACK_INJECTED user=%s — LLM missed critical event "
-                "acknowledgment, injecting deterministically",
+                "CRITICAL_SIGNALS_INJECTED user=%s — LLM missed %d of %d "
+                "event(s), injecting: %s",
                 self.user.id,
+                len(unacknowledged),
+                len(events),
+                [e.get("type") for e in unacknowledged],
             )
-            # Prepend acknowledgment before LLM response
+
+            # Prepend: self events first (already sorted by priority)
             if response:
-                return ack + "\n\n" + response
-            return ack
+                return injection + "\n\n" + response
+            return injection
 
         except Exception:
             logger.error(
-                "EVENT_ACK_FAILED user=%s — injection failed, returning "
-                "original response",
+                "CRITICAL_SIGNALS_FAILED user=%s — injection failed, "
+                "returning original response",
                 self.user.id,
                 exc_info=True,
             )
             return response
+
+    # Backward-compatible alias (tests, external callers)
+    _inject_event_acknowledgment = _inject_critical_signals
 
     def _build_action_taken(self, action_result) -> dict:
         """Build the action_taken dict for API response."""
@@ -5922,33 +5943,42 @@ Rules for this response:
             except Exception:
                 pass
 
-        # ── Deterministic event acknowledgment (stream path) ──
-        # Same enforcement as non-streaming: if today has a significant event,
-        # it MUST appear in the response regardless of LLM behavior.
+        # ── Deterministic critical signal injection (stream path) ──
+        # Same enforcement as non-streaming: critical signals are guaranteed
+        # regardless of LLM behavior. Uses structured idempotency.
         try:
             from apps.life.services.event_acknowledgment import (
-                build_event_acknowledgment as _stream_build_ack,
+                get_today_critical_events as _stream_get_events,
+                check_response_acknowledges_events as _stream_check,
             )
 
-            _stream_ack = _stream_build_ack(self.user)
-            if _stream_ack and response_text:
-                _ack_key = _stream_ack.split('.')[0].lower().strip()
-                if _ack_key and _ack_key not in response_text.lower():
-                    response_text = _stream_ack + "\n\n" + response_text
-                    assistant_msg.content = response_text
-                    assistant_msg.save(update_fields=['content'])
-                    yield {
-                        'type': 'correction',
-                        'content': response_text,
-                    }
-                    logger.warning(
-                        "EVENT_ACK_INJECTED_STREAM user=%s — LLM missed "
-                        "critical event, injecting via correction",
-                        self.user.id,
-                    )
+            _stream_events = _stream_get_events(self.user)
+            if _stream_events and response_text:
+                _unacked = _stream_check(response_text, _stream_events)
+                if _unacked:
+                    _parts = [
+                        e["message"] for e in _unacked if e.get("message")
+                    ]
+                    if _parts:
+                        _injection = "\n".join(_parts)
+                        response_text = _injection + "\n\n" + response_text
+                        assistant_msg.content = response_text
+                        assistant_msg.save(update_fields=['content'])
+                        yield {
+                            'type': 'correction',
+                            'content': response_text,
+                        }
+                        logger.warning(
+                            "CRITICAL_SIGNALS_INJECTED_STREAM user=%s — "
+                            "LLM missed %d of %d event(s)",
+                            self.user.id,
+                            len(_unacked),
+                            len(_stream_events),
+                        )
         except Exception:
             logger.error(
-                "EVENT_ACK_STREAM_FAILED user=%s", self.user.id,
+                "CRITICAL_SIGNALS_STREAM_FAILED user=%s",
+                self.user.id,
                 exc_info=True,
             )
 

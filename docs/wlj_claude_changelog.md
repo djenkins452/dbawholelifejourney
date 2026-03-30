@@ -3,26 +3,36 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-30 (critical signal V3 final hardening)
+# Last Updated: 2026-03-30 (Hydration system accuracy + creatine integration)
 # ================================================================# WLJ Change History
 
-## 2026-03-30 — V3: Critical Signal Final Hardening
+## 2026-03-30 — Feature: Hydration System — Drink Types + Creatine Integration
 
-**Objective:** Lock down the critical signal system for natural tone, edge case stability, and future extensibility.
+Added `drink_type` field to `WaterEntry` model with 8 beverage types and conservative hydration coefficients. Creatine drinks are tracked as a drink type, enabling physiology-aware hydration intelligence.
 
-**Changes:**
-1. **Grouped multi-event acknowledgment** — `build_grouped_acknowledgment()`: 1 event = as-is; 2 events = natural join with " — and "; 3+ = lead event + "Also today: X and Y."
-2. **Opening placement instruction** — CoS system prompt now explicitly instructs LLM to put event acknowledgment in the FIRST LINE. Advisory only — deterministic injection is the guarantee.
-3. **signal_type_rank** — Each event now carries `signal_type_rank=10` (events). Future signal types (health=5, execution=8) can slot in at different priorities. Sort key: `(signal_type_rank, priority_rank)`.
-4. **Synonym support** — Idempotency keywords include "bday" for birthday. Keeps detection deterministic and explainable.
-5. **Structured observability** — Both streaming and non-streaming paths log `critical_signal_evaluation` with `events_found`, `acknowledged_by_llm`, `injected` counts. Error log fires if events exist but neither LLM nor injection acknowledged them.
-6. **Partial injection** — If LLM handles Mom's birthday but misses anniversary, only the anniversary is injected. Grouped formatting applied to injected subset only.
+**Model changes (`apps/health/models.py`):**
+- Added `drink_type` CharField (water/coffee/tea/electrolyte/creatine/juice/milk/other)
+- Added `HYDRATION_COEFFICIENTS` (conservative: coffee 0.9, tea 0.95, electrolyte 1.05)
+- Added `effective_oz` property (amount × coefficient)
+- `get_daily_total()` now returns effective hydration, not raw volume
+- Added `get_daily_total_raw()` for display (raw volume)
+- Added `is_creatine_active()` — requires 4 of last 7 days (no false positives from single log)
+- Added `creatine_start_date()` and `has_creatine_today()` helpers
 
-**Files changed:**
-- `apps/life/services/event_acknowledgment.py` — Added `build_grouped_acknowledgment()`, `signal_type_rank`, "bday" synonym, `_lowercase_first()` helper
-- `apps/ai/personal_assistant.py` — Uses grouped acknowledgment + structured logging in both paths
-- `apps/core/ai_orchestrator/cos_context.py` — Updated prompt instruction for opening placement
-- `apps/life/tests/test_event_acknowledgment.py` — 27 tests: grouping (1/2/3+), bday synonym, partial ack, edge language, priority ordering
+**Signal changes (`physical_decision.py`):**
+- Creatine active → hydration goal +16 oz (64→80)
+- Added `creatine_active`, `hydration_adjustment_reason` signal fields
+- Hydration tier threshold raised to 60% (was 50%) — dehydration affects performance earlier than we were catching
+- Below 40% = medium impact (was always low)
+- Signal interpretation: new creatine-specific case (weight up + creatine + waist stable → "water retention from creatine, not fat gain")
+
+**Conflict detection (`conflict_detection.py`):**
+- Creatine conflict now reads `WaterEntry.creatine_start_date()` + signal flag (was MedicineLog only)
+- Falls back to MedicineLog for users who track creatine as medication
+
+**Migration:** `0071_add_drink_type_to_water_entry` — adds CharField with default="water", fully backward compatible.
+
+**Files:** `apps/health/models.py`, `apps/health/services/physical_decision.py`, `apps/health/services/conflict_detection.py`, migration
 
 ---
 

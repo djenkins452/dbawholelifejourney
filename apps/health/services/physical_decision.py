@@ -132,6 +132,10 @@ def _compute(user, as_of_date):
     decision["has_positive_conflict"] = any(c.get("positive") for c in conflicts)
     decision["confidence"] = body_comp.get("confidence", "low")
     decision["protocol_type"] = protocol_type
+    decision["creatine_active"] = signals.get("creatine_active", False)
+    decision["hydration_adjustment_reason"] = signals.get(
+        "hydration_adjustment_reason"
+    )
 
     # ── Step 9: Enrichments ──
     decision = _enrich_with_momentum(decision, user, as_of_date)
@@ -388,23 +392,29 @@ def _check_recovery_deficit(signals, today):
 
 
 def _check_hydration_deficit(signals, today):
-    """Check for hydration issues."""
+    """Check for hydration issues. Threshold at 60% — dehydration affects performance early."""
     hydration_pct = signals.get("hydration_pct")
-    if hydration_pct is not None and hydration_pct < 50:
-        return {
-            "decision_type": "hydration",
-            "primary_issue": "low_hydration",
-            "summary": (
-                f"Hydration is at {hydration_pct:.0f}% — dehydration reduces "
-                f"strength and makes the scale unreliable"
-            ),
-            "urgency": "today",
-            "impact": "low",
-            "recommended_action": "Drink 16 oz water right now. Set a reminder for another 16 oz in 2 hours.",
-            "action_type": "hydration_nudge",
-            "action_category": "performance",
-        }
-    return None
+    if hydration_pct is None or hydration_pct >= 60:
+        return None
+
+    creatine_active = signals.get("creatine_active", False)
+    creatine_note = " Your creatine goal is 80 oz today." if creatine_active else ""
+
+    return {
+        "decision_type": "hydration",
+        "primary_issue": "low_hydration",
+        "summary": (
+            f"Hydration is at {hydration_pct:.0f}% — this is affecting "
+            f"performance, recovery, and scale reliability"
+        ),
+        "urgency": "today",
+        "impact": "medium" if hydration_pct < 40 else "low",
+        "recommended_action": (
+            f"Drink 16-24 oz of fluids now and maintain intake through the day.{creatine_note}"
+        ),
+        "action_type": "hydration_nudge",
+        "action_category": "performance",
+    }
 
 
 def _check_training_gap(signals, today):
@@ -772,12 +782,24 @@ def _build_signal_interpretation(decision, body_comp):
     """Build a one-line synthesis when signals contradict each other.
 
     Only populated when signals tell a conflicting or nuanced story.
+    Checks are ordered by specificity — most specific match wins.
     """
     bc = body_comp or {}
     fat = bc.get("fat_loss_status", "no_data")
     muscle = bc.get("muscle_gain_status", "no_data")
     weight = bc.get("weight_trend")
     waist = bc.get("waist_trend")
+
+    # Creatine + weight increase + waist stable → creatine water retention
+    # (Most specific — check first before generic weight-up interpretations)
+    creatine_active = decision.get("creatine_active", False)
+    if (creatine_active and weight is not None and weight > 0.3
+            and (waist is None or waist <= 0.1)):
+        decision["signal_interpretation"] = (
+            "Weight increase is water retention from creatine, not fat gain. "
+            "Waist is stable — trust the tape measure over the scale."
+        )
+        return
 
     # Weight down but fat not confirmed → water loss or measurement gap
     if weight is not None and weight < -0.5 and fat == "not_confirmed":
@@ -787,7 +809,7 @@ def _build_signal_interpretation(decision, body_comp):
         )
         return
 
-    # Weight up but waist down → likely creatine or recomp
+    # Weight up but waist down → likely recomp or water
     if weight is not None and weight > 0.3 and waist is not None and waist < -0.1:
         decision["signal_interpretation"] = (
             "Weight is up but waist is down — this is not fat gain. "
@@ -1049,7 +1071,7 @@ def _gather_signals(user, as_of_date, today_summary):
     except Exception:
         pass
 
-    # Hydration from WaterEntry
+    # Hydration from WaterEntry (uses effective oz — coefficient-adjusted)
     try:
         from apps.health.models import WaterEntry
 
@@ -1065,10 +1087,22 @@ def _gather_signals(user, as_of_date, today_summary):
         except Exception:
             pass
 
+        # Creatine awareness — adjust goal and flag status
+        creatine_active = WaterEntry.is_creatine_active(user)
+        signals["creatine_active"] = creatine_active
+        signals["hydration_adjustment_reason"] = None
+
+        if creatine_active:
+            goal = goal + 16  # +16 oz (~500ml) for creatine users
+            signals["hydration_adjustment_reason"] = (
+                "Creatine increases your daily hydration needs by ~16 oz"
+            )
+
         if daily_total is not None and goal > 0:
             signals["hydration_pct"] = min(100, (float(daily_total) / goal) * 100)
     except Exception:
-        pass
+        signals["creatine_active"] = False
+        signals["hydration_adjustment_reason"] = None
 
     return signals
 

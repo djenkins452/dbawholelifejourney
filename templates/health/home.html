@@ -305,11 +305,575 @@
     </div>
     {% endif %}
 
-    {# ── MAIN HEALTH GRID (all cards, ordered: actionable first) ── #}
-    <div class="card-section" data-testid="health-cards">
-        {% if card_emphasis.medicine or card_emphasis.fitness or card_emphasis.glucose %}
-        <h2 class="card-section-title">All Health Metrics</h2>
+    {# ════════════════════════════════════════════════════════════════════ #}
+    {# GROUPED HEALTH SECTIONS                                            #}
+    {# ════════════════════════════════════════════════════════════════════ #}
+
+    {# ── GROUP 1: Body Composition ── #}
+    {% if has_body_comp_data or latest_weight %}
+    <div class="health-group">
+        <h2 class="group-title">Body Composition</h2>
+
+        {% if body_comp_insight %}
+        <div class="body-comp-insight body-comp-insight--{{ body_comp_insight.severity }}">
+            <p class="insight-headline">{{ body_comp_insight.headline }}</p>
+            {% if body_comp_insight.details %}
+            <div class="insight-details">
+                {% for detail in body_comp_insight.details %}
+                <span class="insight-detail">
+                    <span class="detail-label">{{ detail.label }}:</span>
+                    <span class="detail-value">{{ detail.value }}</span>
+                    {% if detail.trend == "up" %}<span class="trend-arrow trend-up">&uarr;</span>
+                    {% elif detail.trend == "down" %}<span class="trend-arrow trend-down">&darr;</span>
+                    {% elif detail.trend == "stable" %}<span class="trend-arrow trend-stable">&rarr;</span>
+                    {% endif %}
+                </span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
         {% endif %}
+
+        <div class="health-grid">
+            {# ── Weight Card ── #}
+            {% if features.health.weight %}
+            <div class="health-card">
+                <div class="card-header">
+                    <h2>
+                        <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/>
+                            <circle cx="12" cy="12" r="4"/>
+                        </svg>
+                        Weight
+                    </h2>
+                    <a href="{% url 'health:weight_create' %}" class="btn btn-primary btn-sm">Log</a>
+                </div>
+
+                {% if latest_weight %}
+                    <div class="metric-display">
+                        <span class="metric-value">{{ latest_weight.value }}</span>
+                        <span class="metric-unit">{{ latest_weight.unit }}</span>
+                    </div>
+                    <p class="metric-date">{{ latest_weight.recorded_at|date:"M j" }}</p>
+
+                    {% if weight_change_30d is not None %}
+                        <p class="metric-change {% if weight_change_30d < 0 %}change-down{% elif weight_change_30d > 0 %}change-up{% endif %}">
+                            {% if weight_trend_direction == "down" %}<span class="trend-arrow trend-down" aria-label="trending down">&#8595;</span>{% elif weight_trend_direction == "up" %}<span class="trend-arrow trend-up" aria-label="trending up">&#8593;</span>{% elif weight_trend_direction == "stable" %}<span class="trend-arrow trend-stable" aria-label="stable">&#8594;</span>{% endif %}
+                            {% if weight_change_30d > 0 %}+{% endif %}{{ weight_change_30d }} lb in 30 days
+                        </p>
+                    {% endif %}
+
+                    <a href="{% url 'health:weight_list' %}" class="card-link">View history ({{ weight_count }})</a>
+                {% else %}
+                    <p class="text-muted">No weight logged yet.</p>
+                    <a href="{% url 'health:weight_create' %}" class="btn btn-secondary btn-sm mt-4">Log weight</a>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% for key, metric in body_comp_metrics.items %}
+            <div class="health-card health-card-compact">
+                <div class="card-header">
+                    <h3>{{ metric.display }}</h3>
+                </div>
+                <div class="metric-display">
+                    <span class="metric-value">{{ metric.value|floatformat:1 }}</span>
+                    {% if metric.unit %}<span class="metric-unit">{{ metric.unit }}</span>{% endif %}
+                </div>
+                <p class="metric-date">{{ metric.date|date:"M j" }}</p>
+            </div>
+            {% endfor %}
+        </div>
+
+        <a href="{% url 'health:body_composition_list' %}" class="group-link">View all body composition &rarr;</a>
+    </div>
+    {% endif %}
+
+    {# ── GROUP 2: Heart & Vitals ── #}
+    <div class="health-group">
+        <h2 class="group-title">Heart & Vitals</h2>
+        <div class="health-grid">
+
+        {# ── Heart Rate Card ── #}
+        {% if features.health.heart_rate %}
+        <div class="health-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                    </svg>
+                    Heart Rate
+                </h2>
+                <a href="{% url 'health:heartrate_create' %}" class="btn btn-primary btn-sm">Log</a>
+            </div>
+
+            {% if latest_heart_rate %}
+                <div class="metric-display">
+                    <span class="metric-value">{{ latest_heart_rate.bpm }}</span>
+                    <span class="metric-unit">BPM</span>
+                </div>
+                <p class="metric-context">{{ latest_heart_rate.get_context_display }}</p>
+                <p class="metric-date">{{ latest_heart_rate.recorded_at|date:"M j" }}</p>
+
+                {% if avg_resting_hr %}
+                    <p class="metric-avg">Avg resting: {{ avg_resting_hr }} BPM</p>
+                {% endif %}
+
+                <div class="card-actions">
+                    <a href="{% url 'health:heartrate_list' %}" class="card-link">View history</a>
+                    <a href="{% url 'health:heartrate_dashboard' %}" class="card-link-secondary">Dashboard</a>
+                </div>
+            {% else %}
+                <p class="text-muted">No heart rate logged yet.</p>
+                <a href="{% url 'health:heartrate_create' %}" class="btn btn-secondary btn-sm mt-4">Log a reading</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# ── Blood Pressure Card ── #}
+        {% if features.health.blood_pressure %}
+        <div class="health-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                    </svg>
+                    Blood Pressure
+                </h2>
+                <a href="{% url 'health:blood_pressure_create' %}" class="btn btn-primary btn-sm">Log</a>
+            </div>
+
+            {% if latest_blood_pressure %}
+                <div class="metric-display">
+                    <span class="metric-value">{{ latest_blood_pressure.reading }}</span>
+                    <span class="metric-unit">mmHg</span>
+                </div>
+                <p class="metric-context">
+                    <span class="category-badge category-{{ latest_blood_pressure.category }}">
+                        {{ latest_blood_pressure.category_display }}
+                    </span>
+                </p>
+                <p class="metric-date">{{ latest_blood_pressure.recorded_at|date:"M j" }}</p>
+
+                {% if avg_systolic %}
+                    <p class="metric-avg">Avg: {{ avg_systolic }}/{{ avg_diastolic }} mmHg</p>
+                {% endif %}
+
+                <div class="card-actions">
+                    <a href="{% url 'health:blood_pressure_list' %}" class="card-link">View history</a>
+                    <a href="{% url 'health:blood_pressure_dashboard' %}" class="card-link-secondary">Dashboard</a>
+                </div>
+            {% else %}
+                <p class="text-muted">No blood pressure logged yet.</p>
+                <a href="{% url 'health:blood_pressure_create' %}" class="btn btn-secondary btn-sm mt-4">Log a reading</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# ── Blood Oxygen Card ── #}
+        {% if features.health.blood_oxygen %}
+        <div class="health-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 6v6l3 3"/>
+                    </svg>
+                    Blood Oxygen
+                </h2>
+                <a href="{% url 'health:blood_oxygen_create' %}" class="btn btn-primary btn-sm">Log</a>
+            </div>
+
+            {% if latest_blood_oxygen %}
+                <div class="metric-display">
+                    <span class="metric-value">{{ latest_blood_oxygen.spo2 }}</span>
+                    <span class="metric-unit">% SpO2</span>
+                </div>
+                <p class="metric-context">
+                    <span class="category-badge category-{{ latest_blood_oxygen.category }}">
+                        {{ latest_blood_oxygen.category_display }}
+                    </span>
+                </p>
+                <p class="metric-date">{{ latest_blood_oxygen.recorded_at|date:"M j" }}</p>
+
+                {% if avg_spo2 %}
+                    <p class="metric-avg">Avg: {{ avg_spo2 }}%</p>
+                {% endif %}
+
+                <div class="card-actions">
+                    <a href="{% url 'health:blood_oxygen_list' %}" class="card-link">View history</a>
+                    <a href="{% url 'health:blood_oxygen_dashboard' %}" class="card-link-secondary">Dashboard</a>
+                </div>
+            {% else %}
+                <p class="text-muted">No blood oxygen logged yet.</p>
+                <a href="{% url 'health:blood_oxygen_create' %}" class="btn btn-secondary btn-sm mt-4">Log a reading</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# ── Advanced vitals moved from old Advanced Metrics section ── #}
+        {% if has_hrv_data %}
+        <a href="{% url 'health:hrv_dashboard' %}" class="metric-link-card">
+            <div class="metric-link-icon" style="color: #8b5cf6;">&#128156;</div>
+            <div class="metric-link-info">
+                <span class="metric-link-name">Heart Rate Variability</span>
+                {% if latest_hrv %}<span class="metric-link-value">{{ latest_hrv|floatformat:0 }} ms</span>{% endif %}
+            </div>
+            <span class="metric-link-arrow">&rarr;</span>
+        </a>
+        {% endif %}
+
+        {% if has_vo2_max_data %}
+        <a href="{% url 'health:vo2_max_dashboard' %}" class="metric-link-card">
+            <div class="metric-link-icon" style="color: #10b981;">&#127939;</div>
+            <div class="metric-link-info">
+                <span class="metric-link-name">VO2 Max</span>
+                {% if latest_vo2_max %}<span class="metric-link-value">{{ latest_vo2_max|floatformat:1 }} mL/kg/min</span>{% endif %}
+            </div>
+            <span class="metric-link-arrow">&rarr;</span>
+        </a>
+        {% endif %}
+
+        {% if has_respiratory_rate_data %}
+        <a href="{% url 'health:respiratory_rate_dashboard' %}" class="metric-link-card">
+            <div class="metric-link-icon" style="color: #06b6d4;">&#128168;</div>
+            <div class="metric-link-info">
+                <span class="metric-link-name">Respiratory Rate</span>
+                {% if latest_respiratory_rate %}<span class="metric-link-value">{{ latest_respiratory_rate|floatformat:1 }} brpm</span>{% endif %}
+            </div>
+            <span class="metric-link-arrow">&rarr;</span>
+        </a>
+        {% endif %}
+
+        {% if has_body_temperature %}
+        <a href="{% url 'health:body_temperature_dashboard' %}" class="metric-link-card">
+            <div class="metric-link-icon" style="color: #f97316;">&#127777;</div>
+            <div class="metric-link-info">
+                <span class="metric-link-name">Body Temperature</span>
+                {% if latest_body_temperature %}<span class="metric-link-value">{{ latest_body_temperature.temperature_fahrenheit|floatformat:1 }}&deg;F</span>{% endif %}
+            </div>
+            <span class="metric-link-arrow">&rarr;</span>
+        </a>
+        {% endif %}
+
+        </div>
+    </div>
+
+    {# ── GROUP 3: Fitness & Activity ── #}
+    <div class="health-group">
+        <h2 class="group-title">Fitness & Activity</h2>
+        <div class="health-grid">
+
+        {# ── Fitness Card (if NOT in attention section) ── #}
+        {% if features.health.workouts and not card_emphasis.fitness %}
+        <div class="health-card fitness-card card-ok">
+            <div class="card-header">
+                <h2>
+                    <span class="card-status-icon status-ok" aria-hidden="true">&#10003;</span>
+                    Fitness
+                </h2>
+                <a href="{% url 'health:workout_create' %}" class="btn btn-primary btn-sm">Log Workout</a>
+            </div>
+
+            {% if workout_today_completed %}
+            <div class="workout-today workout-done">
+                <span class="workout-today-icon" aria-hidden="true">&#10003;</span>
+                <span class="workout-today-status">Completed{% if workout_today_time %} at {{ workout_today_time|time:"g:i A" }}{% endif %}</span>
+            </div>
+            {% endif %}
+
+            {% if latest_workout %}
+                <div class="fitness-stats">
+                    <div class="stat">
+                        <span class="stat-value">{{ workouts_this_week }}</span>
+                        <span class="stat-label">workouts this week</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-value">{{ workouts_this_month }}</span>
+                        <span class="stat-label">this month</span>
+                    </div>
+                </div>
+                {% if fitness_duration_this_week %}
+                    <p class="metric-avg">{{ fitness_duration_this_week }} min this week</p>
+                {% endif %}
+                <p class="metric-date">Last workout: {{ latest_workout.date|date:"M j" }}</p>
+            {% else %}
+                <p class="text-muted">No workouts logged yet.</p>
+                <a href="{% url 'health:workout_create' %}" class="btn btn-secondary btn-sm mt-4">Log a workout</a>
+            {% endif %}
+
+            <a href="{% url 'health:fitness_home' %}" class="card-link">Go to Fitness</a>
+        </div>
+        {% endif %}
+
+        {# ── Steps Card ── #}
+        {% if features.health.steps %}
+        <div class="health-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 4v2c4.39.54 8 4.53 8 9.19V17l2 2v1H1v-1l2-2v-1.81C3 10.53 6.61 6.54 11 6V4h2zM11 6a9 9 0 0 0-9 9h18a9 9 0 0 0-9-9z"/>
+                    </svg>
+                    Steps
+                </h2>
+                <a href="{% url 'health:steps_create' %}" class="btn btn-primary btn-sm">Log</a>
+            </div>
+
+            {% if latest_steps %}
+                <div class="metric-display">
+                    <span class="metric-value">{{ latest_steps.count|intcomma }}</span>
+                    <span class="metric-unit">steps</span>
+                </div>
+                <p class="metric-date">{{ latest_steps.logged_date|date:"M j" }}</p>
+
+                {% if latest_steps.goal_percentage %}
+                    <p class="metric-avg">{{ latest_steps.goal_percentage }}% of goal</p>
+                {% endif %}
+
+                {% if avg_steps %}
+                    <p class="metric-avg">7-day avg: {{ avg_steps|intcomma }}</p>
+                {% endif %}
+
+                <div class="card-actions">
+                    <a href="{% url 'health:steps_list' %}" class="card-link">View history</a>
+                    <a href="{% url 'health:activity_dashboard' %}" class="card-link-secondary">Activity Dashboard</a>
+                </div>
+            {% else %}
+                <p class="text-muted">No steps logged yet.</p>
+                <a href="{% url 'health:steps_create' %}" class="btn btn-secondary btn-sm mt-4">Log your steps</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# ── Fasting Card ── #}
+        {% if features.health.fasting %}
+        <div class="health-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    Fasting
+                </h2>
+                {% if not active_fast %}
+                    <a href="{% url 'health:fasting_start' %}" class="btn btn-primary btn-sm">Start Fast</a>
+                {% endif %}
+            </div>
+
+            {% if fasts_this_month %}
+                <div class="fasting-stats">
+                    <div class="stat">
+                        <span class="stat-value">{{ fasts_this_month }}</span>
+                        <span class="stat-label">fasts this month</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-value">{{ avg_fast_duration }}h</span>
+                        <span class="stat-label">avg duration</span>
+                    </div>
+                </div>
+            {% else %}
+                <p class="text-muted">No fasts completed this month.</p>
+            {% endif %}
+
+            <a href="{% url 'health:fasting_list' %}" class="card-link">View all fasts</a>
+        </div>
+        {% endif %}
+
+        </div>
+    </div>
+
+    {# ── GROUP 4: Nutrition & Hydration ── #}
+    <div class="health-group">
+        <h2 class="group-title">Nutrition & Hydration</h2>
+        <div class="health-grid">
+
+        {# ── Nutrition Card ── #}
+        {% if features.health.nutrition %}
+        <div class="health-card nutrition-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L12 6M12 18L12 22M4.93 4.93L7.76 7.76M16.24 16.24L19.07 19.07M2 12L6 12M18 12L22 12M4.93 19.07L7.76 16.24M16.24 7.76L19.07 4.93"/>
+                        <circle cx="12" cy="12" r="4"/>
+                    </svg>
+                    Nutrition
+                </h2>
+                <a href="{% url 'health:food_entry_create' %}" class="btn btn-primary btn-sm">Log Food</a>
+            </div>
+
+            {% if nutrition_today_calories %}
+            <div class="nutrition-stats">
+                <div class="stat">
+                    <span class="stat-value">{{ nutrition_today_calories|floatformat:0 }}</span>
+                    <span class="stat-label">calories today</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">{{ nutrition_today_entries }}</span>
+                    <span class="stat-label">entries</span>
+                </div>
+            </div>
+            {% else %}
+            <p class="text-muted">No food logged today.</p>
+            {% endif %}
+
+            <a href="{% url 'health:nutrition_home' %}" class="card-link">Go to Nutrition</a>
+        </div>
+        {% endif %}
+
+        {# ── Water Card (not feature-gated, always shown) ── #}
+        <div class="health-card water-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+                    </svg>
+                    Water
+                </h2>
+                <a href="{% url 'health:water_create' %}" class="btn btn-primary btn-sm">Log</a>
+            </div>
+
+            <div class="water-progress">
+                <div class="water-progress-bar">
+                    <div class="water-progress-fill" style="width: {{ water_today_percentage }}%"></div>
+                </div>
+                <div class="water-stats">
+                    <span class="water-current">{{ water_today_oz|floatformat:0 }} oz</span>
+                    <span class="water-goal">/ {{ water_goal_oz }} oz</span>
+                </div>
+            </div>
+
+            {% if water_goal_met %}
+                <p class="goal-badge">Goal Met!</p>
+            {% endif %}
+
+            {% if avg_water_oz %}
+                <p class="metric-avg">7-day avg: {{ avg_water_oz }} oz/day</p>
+            {% endif %}
+
+            <div class="quick-water-buttons" data-water-url="{% url 'health:water_quick_log' %}" data-csrf="{{ csrf_token }}">
+                <button type="button" class="btn btn-ghost btn-xs" data-water-preset="8">+8oz</button>
+                <button type="button" class="btn btn-ghost btn-xs" data-water-preset="16">+16oz</button>
+            </div>
+
+            <a href="{% url 'health:water_list' %}" class="card-link">View history{% if water_entry_count %} ({{ water_entry_count }}){% endif %}</a>
+        </div>
+
+        {# ── Glucose Card (if NOT in attention section) ── #}
+        {% if features.health.glucose and not card_emphasis.glucose %}
+        <div class="health-card card-ok">
+            <div class="card-header">
+                <h2>
+                    <span class="card-status-icon status-ok" aria-hidden="true">&#10003;</span>
+                    Blood Glucose
+                </h2>
+                <a href="{% url 'health:glucose_create' %}" class="btn btn-primary btn-sm">Log</a>
+            </div>
+
+            {% if latest_glucose %}
+                <div class="metric-display">
+                    <span class="metric-value">{{ latest_glucose.value }}</span>
+                    <span class="metric-unit">{{ latest_glucose.unit }}</span>
+                    {% if latest_glucose.trend_arrow_display %}
+                        <span class="trend-arrow">{{ latest_glucose.trend_arrow_display }}</span>
+                    {% endif %}
+                </div>
+                <p class="metric-context">{{ latest_glucose.get_context_display }}</p>
+                <p class="metric-date">{{ latest_glucose.recorded_at|date:"M j" }}</p>
+
+                {% if avg_fasting_glucose %}
+                    <p class="metric-avg">Avg fasting: {{ avg_fasting_glucose }} {{ latest_glucose.unit }}</p>
+                {% endif %}
+
+                {% if glucose_variability_label %}
+                <div class="glucose-variability-badge variability-{{ glucose_variability_level }}">
+                    &#10003; {{ glucose_variability_label }}{% if glucose_variability %} (CV {{ glucose_variability }}%){% endif %}
+                </div>
+                {% endif %}
+
+                <a href="{% url 'health:glucose_dashboard' %}" class="card-link">View Dashboard</a>
+            {% else %}
+                <p class="text-muted">No glucose logged yet.</p>
+                <a href="{% url 'health:glucose_dashboard' %}" class="btn btn-secondary btn-sm mt-4">Open Glucose Dashboard</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        </div>
+    </div>
+
+    {# ── GROUP 5: Sleep & Recovery ── #}
+    <div class="health-group">
+        <h2 class="group-title">Sleep & Recovery</h2>
+        <div class="health-grid">
+
+        {# ── Sleep Card ── #}
+        {% if features.health.sleep %}
+        <div class="health-card">
+            <div class="card-header">
+                <h2>
+                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                    Sleep
+                </h2>
+                <a href="{% url 'health:sleep_quick' %}" class="btn btn-primary btn-sm">Log</a>
+            </div>
+
+            {% if latest_sleep %}
+                <div class="metric-display">
+                    <span class="metric-value">{{ latest_sleep.total_hours }}</span>
+                    <span class="metric-unit">hours</span>
+                </div>
+                <p class="metric-context">{{ latest_sleep.quality_display }}</p>
+                <p class="metric-date">{{ latest_sleep.sleep_date|date:"M j" }}</p>
+
+                {% if avg_sleep_hours %}
+                    <p class="metric-avg">7-day avg: {{ avg_sleep_hours }}h</p>
+                {% endif %}
+
+                {% if latest_sleep.quality_score %}
+                    <p class="metric-score {% if latest_sleep.quality_score >= 70 %}score-good{% elif latest_sleep.quality_score < 50 %}score-poor{% endif %}">
+                        Quality: {{ latest_sleep.quality_score }}
+                    </p>
+                {% endif %}
+
+                <a href="{% url 'health:sleep_list' %}" class="card-link">View history{% if sleep_count %} ({{ sleep_count }}){% endif %}</a>
+            {% else %}
+                <p class="text-muted">No sleep logged yet.</p>
+                <a href="{% url 'health:sleep_quick' %}" class="btn btn-secondary btn-sm mt-4">Log last night</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# ── Caffeine (from old Advanced Metrics) ── #}
+        {% if has_caffeine_data %}
+        <a href="{% url 'health:caffeine_dashboard' %}" class="metric-link-card">
+            <div class="metric-link-icon" style="color: #92400e;">&#9749;</div>
+            <div class="metric-link-info">
+                <span class="metric-link-name">Caffeine</span>
+            </div>
+            <span class="metric-link-arrow">&rarr;</span>
+        </a>
+        {% endif %}
+
+        {# ── Mindful Minutes (from old Advanced Metrics) ── #}
+        {% if has_mindful_minutes_data %}
+        <a href="{% url 'health:mindful_minutes_dashboard' %}" class="metric-link-card">
+            <div class="metric-link-icon" style="color: #7c3aed;">&#128993;</div>
+            <div class="metric-link-info">
+                <span class="metric-link-name">Mindful Minutes</span>
+            </div>
+            <span class="metric-link-arrow">&rarr;</span>
+        </a>
+        {% endif %}
+
+        </div>
+    </div>
+
+    {# ── GROUP 6: Medicine & Medical ── #}
+    <div class="health-group">
+        <h2 class="group-title">Medicine & Medical</h2>
         <div class="health-grid">
 
         {# ── Medicine Card (if NOT in attention section) ── #}
@@ -354,394 +918,85 @@
         </div>
         {% endif %}
 
-        {# ── Fitness Card (if NOT in attention section) ── #}
-        {% if features.health.workouts and not card_emphasis.fitness %}
-        <div class="health-card fitness-card card-ok">
-            <div class="card-header">
-                <h2>
-                    <span class="card-status-icon status-ok" aria-hidden="true">&#10003;</span>
-                    Fitness
-                </h2>
-                <a href="{% url 'health:workout_create' %}" class="btn btn-primary btn-sm">Log Workout</a>
-            </div>
-
-            {% if workout_today_completed %}
-            <div class="workout-today workout-done">
-                <span class="workout-today-icon" aria-hidden="true">&#10003;</span>
-                <span class="workout-today-status">Completed{% if workout_today_time %} at {{ workout_today_time|time:"g:i A" }}{% endif %}</span>
-            </div>
-            {% endif %}
-
-            {% if latest_workout %}
-                <div class="fitness-stats">
-                    <div class="stat">
-                        <span class="stat-value">{{ workouts_this_week }}</span>
-                        <span class="stat-label">workouts this week</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-value">{{ workouts_this_month }}</span>
-                        <span class="stat-label">this month</span>
-                    </div>
-                </div>
-                {% if fitness_duration_this_week %}
-                    <p class="metric-avg">{{ fitness_duration_this_week }} min this week</p>
-                {% endif %}
-                <p class="metric-date">Last workout: {{ latest_workout.date|date:"M j" }}</p>
-            {% else %}
-                <p class="text-muted">No workouts logged yet.</p>
-                <a href="{% url 'health:workout_create' %}" class="btn btn-secondary btn-sm mt-4">Log a workout</a>
-            {% endif %}
-
-            <a href="{% url 'health:fitness_home' %}" class="card-link">Go to Fitness</a>
-        </div>
-        {% endif %}
-
-        {# ── Glucose Card (if NOT in attention section) ── #}
-        {% if features.health.glucose and not card_emphasis.glucose %}
-        <div class="health-card card-ok">
-            <div class="card-header">
-                <h2>
-                    <span class="card-status-icon status-ok" aria-hidden="true">&#10003;</span>
-                    Blood Glucose
-                </h2>
-                <a href="{% url 'health:glucose_create' %}" class="btn btn-primary btn-sm">Log</a>
-            </div>
-
-            {% if latest_glucose %}
-                <div class="metric-display">
-                    <span class="metric-value">{{ latest_glucose.value }}</span>
-                    <span class="metric-unit">{{ latest_glucose.unit }}</span>
-                    {% if latest_glucose.trend_arrow_display %}
-                        <span class="trend-arrow">{{ latest_glucose.trend_arrow_display }}</span>
-                    {% endif %}
-                </div>
-                <p class="metric-context">{{ latest_glucose.get_context_display }}</p>
-                <p class="metric-date">{{ latest_glucose.recorded_at|date:"M j" }}</p>
-
-                {% if avg_fasting_glucose %}
-                    <p class="metric-avg">Avg fasting: {{ avg_fasting_glucose }} {{ latest_glucose.unit }}</p>
-                {% endif %}
-
-                {% if glucose_variability_label %}
-                <div class="glucose-variability-badge variability-{{ glucose_variability_level }}">
-                    &#10003; {{ glucose_variability_label }}{% if glucose_variability %} (CV {{ glucose_variability }}%){% endif %}
-                </div>
-                {% endif %}
-
-                <a href="{% url 'health:glucose_dashboard' %}" class="card-link">View Dashboard</a>
-            {% else %}
-                <p class="text-muted">No glucose logged yet.</p>
-                <a href="{% url 'health:glucose_dashboard' %}" class="btn btn-secondary btn-sm mt-4">Open Glucose Dashboard</a>
-            {% endif %}
-        </div>
-        {% endif %}
-
-        <!-- Sleep Card -->
-        {% if features.health.sleep %}
-        <div class="health-card">
+        {# ── Labs & Vitals Card ── #}
+        <div class="health-card labs-card">
             <div class="card-header">
                 <h2>
                     <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                        <line x1="9" y1="12" x2="15" y2="12"/>
+                        <line x1="9" y1="16" x2="15" y2="16"/>
                     </svg>
-                    Sleep
+                    Labs & Vitals
                 </h2>
-                <a href="{% url 'health:sleep_quick' %}" class="btn btn-primary btn-sm">Log</a>
+                <a href="{% url 'medical:upload' %}" class="btn btn-primary btn-sm">Upload</a>
             </div>
 
-            {% if latest_sleep %}
-                <div class="metric-display">
-                    <span class="metric-value">{{ latest_sleep.total_hours }}</span>
-                    <span class="metric-unit">hours</span>
+            {% if lab_result_count %}
+            <div class="labs-stats">
+                <div class="stat">
+                    <span class="stat-value">{{ lab_result_count }}</span>
+                    <span class="stat-label">lab results</span>
                 </div>
-                <p class="metric-context">{{ latest_sleep.quality_display }}</p>
-                <p class="metric-date">{{ latest_sleep.sleep_date|date:"M j" }}</p>
-
-                {% if avg_sleep_hours %}
-                    <p class="metric-avg">7-day avg: {{ avg_sleep_hours }}h</p>
+                {% if lab_abnormal_count %}
+                <div class="stat">
+                    <span class="stat-value stat-abnormal">{{ lab_abnormal_count }}</span>
+                    <span class="stat-label">abnormal</span>
+                </div>
                 {% endif %}
-
-                {% if latest_sleep.quality_score %}
-                    <p class="metric-score {% if latest_sleep.quality_score >= 70 %}score-good{% elif latest_sleep.quality_score < 50 %}score-poor{% endif %}">
-                        Quality: {{ latest_sleep.quality_score }}
-                    </p>
-                {% endif %}
-
-                <a href="{% url 'health:sleep_list' %}" class="card-link">View history{% if sleep_count %} ({{ sleep_count }}){% endif %}</a>
+            </div>
             {% else %}
-                <p class="text-muted">No sleep logged yet.</p>
-                <a href="{% url 'health:sleep_quick' %}" class="btn btn-secondary btn-sm mt-4">Log last night</a>
+            <p class="text-muted">Upload lab PDFs to track your results over time.</p>
             {% endif %}
-        </div>
-        {% endif %}
 
-        <!-- Blood Pressure Card -->
-        {% if features.health.blood_pressure %}
-        <div class="health-card">
+            <a href="{% url 'medical:home' %}" class="card-link">View Labs & Vitals</a>
+        </div>
+
+        {# ── Medical Providers Card ── #}
+        {% if features.health.providers %}
+        <div class="health-card providers-card">
             <div class="card-header">
                 <h2>
                     <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="8.5" cy="7" r="4"/>
+                        <path d="M20 8v6M23 11h-6"/>
                     </svg>
-                    Blood Pressure
+                    My Providers
                 </h2>
-                <a href="{% url 'health:blood_pressure_create' %}" class="btn btn-primary btn-sm">Log</a>
+                <a href="{% url 'health:provider_create' %}" class="btn btn-primary btn-sm">Add</a>
             </div>
 
-            {% if latest_blood_pressure %}
-                <div class="metric-display">
-                    <span class="metric-value">{{ latest_blood_pressure.reading }}</span>
-                    <span class="metric-unit">mmHg</span>
+            {% if provider_count %}
+            <div class="provider-stats">
+                <div class="stat">
+                    <span class="stat-value">{{ provider_count }}</span>
+                    <span class="stat-label">provider{{ provider_count|pluralize }}</span>
                 </div>
-                <p class="metric-context">
-                    <span class="category-badge category-{{ latest_blood_pressure.category }}">
-                        {{ latest_blood_pressure.category_display }}
-                    </span>
-                </p>
-                <p class="metric-date">{{ latest_blood_pressure.recorded_at|date:"M j" }}</p>
-
-                {% if avg_systolic %}
-                    <p class="metric-avg">Avg: {{ avg_systolic }}/{{ avg_diastolic }} mmHg</p>
+                {% if primary_provider %}
+                <div class="primary-provider">
+                    <span class="stat-label">Primary Care</span>
+                    <span class="provider-name">{{ primary_provider.name }}</span>
+                </div>
                 {% endif %}
-
-                <div class="card-actions">
-                    <a href="{% url 'health:blood_pressure_list' %}" class="card-link">View history</a>
-                    <a href="{% url 'health:blood_pressure_dashboard' %}" class="card-link-secondary">Dashboard</a>
-                </div>
+            </div>
             {% else %}
-                <p class="text-muted">No blood pressure logged yet.</p>
-                <a href="{% url 'health:blood_pressure_create' %}" class="btn btn-secondary btn-sm mt-4">Log a reading</a>
+            <p class="text-muted">Keep track of your doctors, clinics, and healthcare contacts.</p>
             {% endif %}
+
+            <a href="{% url 'health:provider_list' %}" class="card-link">View Providers</a>
         </div>
         {% endif %}
 
-        <!-- Weight Card -->
-        {% if features.health.weight %}
-        <div class="health-card">
-            <div class="card-header">
-                <h2>
-                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/>
-                        <circle cx="12" cy="12" r="4"/>
-                    </svg>
-                    Weight
-                </h2>
-                <a href="{% url 'health:weight_create' %}" class="btn btn-primary btn-sm">Log</a>
-            </div>
-
-            {% if latest_weight %}
-                <div class="metric-display">
-                    <span class="metric-value">{{ latest_weight.value }}</span>
-                    <span class="metric-unit">{{ latest_weight.unit }}</span>
-                </div>
-                <p class="metric-date">{{ latest_weight.recorded_at|date:"M j" }}</p>
-
-                {% if weight_change_30d is not None %}
-                    <p class="metric-change {% if weight_change_30d < 0 %}change-down{% elif weight_change_30d > 0 %}change-up{% endif %}">
-                        {% if weight_trend_direction == "down" %}<span class="trend-arrow trend-down" aria-label="trending down">&#8595;</span>{% elif weight_trend_direction == "up" %}<span class="trend-arrow trend-up" aria-label="trending up">&#8593;</span>{% elif weight_trend_direction == "stable" %}<span class="trend-arrow trend-stable" aria-label="stable">&#8594;</span>{% endif %}
-                        {% if weight_change_30d > 0 %}+{% endif %}{{ weight_change_30d }} lb in 30 days
-                    </p>
-                {% endif %}
-
-                <a href="{% url 'health:weight_list' %}" class="card-link">View history ({{ weight_count }})</a>
-            {% else %}
-                <p class="text-muted">No weight logged yet.</p>
-                <a href="{% url 'health:weight_create' %}" class="btn btn-secondary btn-sm mt-4">Log weight</a>
-            {% endif %}
         </div>
-        {% endif %}
+    </div>
 
-        <!-- Heart Rate Card -->
-        {% if features.health.heart_rate %}
-        <div class="health-card">
-            <div class="card-header">
-                <h2>
-                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                    </svg>
-                    Heart Rate
-                </h2>
-                <a href="{% url 'health:heartrate_create' %}" class="btn btn-primary btn-sm">Log</a>
-            </div>
+    {# ── GROUP 7: Cycle Tracking (conditional) ── #}
+    {% if cycle_tracking_enabled %}
+    <div class="health-group">
+        <h2 class="group-title">Cycle Tracking</h2>
+        <div class="health-grid">
 
-            {% if latest_heart_rate %}
-                <div class="metric-display">
-                    <span class="metric-value">{{ latest_heart_rate.bpm }}</span>
-                    <span class="metric-unit">BPM</span>
-                </div>
-                <p class="metric-context">{{ latest_heart_rate.get_context_display }}</p>
-                <p class="metric-date">{{ latest_heart_rate.recorded_at|date:"M j" }}</p>
-
-                {% if avg_resting_hr %}
-                    <p class="metric-avg">Avg resting: {{ avg_resting_hr }} BPM</p>
-                {% endif %}
-
-                <div class="card-actions">
-                    <a href="{% url 'health:heartrate_list' %}" class="card-link">View history</a>
-                    <a href="{% url 'health:heartrate_dashboard' %}" class="card-link-secondary">Dashboard</a>
-                </div>
-            {% else %}
-                <p class="text-muted">No heart rate logged yet.</p>
-                <a href="{% url 'health:heartrate_create' %}" class="btn btn-secondary btn-sm mt-4">Log a reading</a>
-            {% endif %}
-        </div>
-        {% endif %}
-
-        <!-- Steps Card -->
-        {% if features.health.steps %}
-        <div class="health-card">
-            <div class="card-header">
-                <h2>
-                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M13 4v2c4.39.54 8 4.53 8 9.19V17l2 2v1H1v-1l2-2v-1.81C3 10.53 6.61 6.54 11 6V4h2zM11 6a9 9 0 0 0-9 9h18a9 9 0 0 0-9-9z"/>
-                    </svg>
-                    Steps
-                </h2>
-                <a href="{% url 'health:steps_create' %}" class="btn btn-primary btn-sm">Log</a>
-            </div>
-
-            {% if latest_steps %}
-                <div class="metric-display">
-                    <span class="metric-value">{{ latest_steps.count|intcomma }}</span>
-                    <span class="metric-unit">steps</span>
-                </div>
-                <p class="metric-date">{{ latest_steps.logged_date|date:"M j" }}</p>
-
-                {% if latest_steps.goal_percentage %}
-                    <p class="metric-avg">{{ latest_steps.goal_percentage }}% of goal</p>
-                {% endif %}
-
-                {% if avg_steps %}
-                    <p class="metric-avg">7-day avg: {{ avg_steps|intcomma }}</p>
-                {% endif %}
-
-                <div class="card-actions">
-                    <a href="{% url 'health:steps_list' %}" class="card-link">View history</a>
-                    <a href="{% url 'health:activity_dashboard' %}" class="card-link-secondary">Activity Dashboard</a>
-                </div>
-            {% else %}
-                <p class="text-muted">No steps logged yet.</p>
-                <a href="{% url 'health:steps_create' %}" class="btn btn-secondary btn-sm mt-4">Log your steps</a>
-            {% endif %}
-        </div>
-        {% endif %}
-
-        <!-- Water Card (not feature-gated, always shown) -->
-        <div class="health-card water-card">
-            <div class="card-header">
-                <h2>
-                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
-                    </svg>
-                    Water
-                </h2>
-                <a href="{% url 'health:water_create' %}" class="btn btn-primary btn-sm">Log</a>
-            </div>
-
-            <div class="water-progress">
-                <div class="water-progress-bar">
-                    <div class="water-progress-fill" style="width: {{ water_today_percentage }}%"></div>
-                </div>
-                <div class="water-stats">
-                    <span class="water-current">{{ water_today_oz|floatformat:0 }} oz</span>
-                    <span class="water-goal">/ {{ water_goal_oz }} oz</span>
-                </div>
-            </div>
-
-            {% if water_goal_met %}
-                <p class="goal-badge">Goal Met!</p>
-            {% endif %}
-
-            {% if avg_water_oz %}
-                <p class="metric-avg">7-day avg: {{ avg_water_oz }} oz/day</p>
-            {% endif %}
-
-            <div class="quick-water-buttons" data-water-url="{% url 'health:water_quick_log' %}" data-csrf="{{ csrf_token }}">
-                <button type="button" class="btn btn-ghost btn-xs" data-water-preset="8">+8oz</button>
-                <button type="button" class="btn btn-ghost btn-xs" data-water-preset="16">+16oz</button>
-            </div>
-
-            <a href="{% url 'health:water_list' %}" class="card-link">View history{% if water_entry_count %} ({{ water_entry_count }}){% endif %}</a>
-        </div>
-
-        <!-- Fasting Card -->
-        {% if features.health.fasting %}
-        <div class="health-card">
-            <div class="card-header">
-                <h2>
-                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <polyline points="12 6 12 12 16 14"/>
-                    </svg>
-                    Fasting
-                </h2>
-                {% if not active_fast %}
-                    <a href="{% url 'health:fasting_start' %}" class="btn btn-primary btn-sm">Start Fast</a>
-                {% endif %}
-            </div>
-
-            {% if fasts_this_month %}
-                <div class="fasting-stats">
-                    <div class="stat">
-                        <span class="stat-value">{{ fasts_this_month }}</span>
-                        <span class="stat-label">fasts this month</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-value">{{ avg_fast_duration }}h</span>
-                        <span class="stat-label">avg duration</span>
-                    </div>
-                </div>
-            {% else %}
-                <p class="text-muted">No fasts completed this month.</p>
-            {% endif %}
-
-            <a href="{% url 'health:fasting_list' %}" class="card-link">View all fasts</a>
-        </div>
-        {% endif %}
-
-        <!-- Blood Oxygen Card -->
-        {% if features.health.blood_oxygen %}
-        <div class="health-card">
-            <div class="card-header">
-                <h2>
-                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 6v6l3 3"/>
-                    </svg>
-                    Blood Oxygen
-                </h2>
-                <a href="{% url 'health:blood_oxygen_create' %}" class="btn btn-primary btn-sm">Log</a>
-            </div>
-
-            {% if latest_blood_oxygen %}
-                <div class="metric-display">
-                    <span class="metric-value">{{ latest_blood_oxygen.spo2 }}</span>
-                    <span class="metric-unit">% SpO2</span>
-                </div>
-                <p class="metric-context">
-                    <span class="category-badge category-{{ latest_blood_oxygen.category }}">
-                        {{ latest_blood_oxygen.category_display }}
-                    </span>
-                </p>
-                <p class="metric-date">{{ latest_blood_oxygen.recorded_at|date:"M j" }}</p>
-
-                {% if avg_spo2 %}
-                    <p class="metric-avg">Avg: {{ avg_spo2 }}%</p>
-                {% endif %}
-
-                <div class="card-actions">
-                    <a href="{% url 'health:blood_oxygen_list' %}" class="card-link">View history</a>
-                    <a href="{% url 'health:blood_oxygen_dashboard' %}" class="card-link-secondary">Dashboard</a>
-                </div>
-            {% else %}
-                <p class="text-muted">No blood oxygen logged yet.</p>
-                <a href="{% url 'health:blood_oxygen_create' %}" class="btn btn-secondary btn-sm mt-4">Log a reading</a>
-            {% endif %}
-        </div>
-        {% endif %}
-
-        <!-- Cycle Tracking Card (only shown if opted in via CycleSettings) -->
-        {% if cycle_tracking_enabled %}
         <div class="health-card cycle-card">
             <div class="card-header">
                 <h2>
@@ -794,113 +1049,10 @@
 
             <a href="{% url 'health:cycle_dashboard' %}" class="card-link">Go to Cycle Tracking</a>
         </div>
-        {% endif %}
-
-        <!-- Nutrition Card -->
-        {% if features.health.nutrition %}
-        <div class="health-card nutrition-card">
-            <div class="card-header">
-                <h2>
-                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 2L12 6M12 18L12 22M4.93 4.93L7.76 7.76M16.24 16.24L19.07 19.07M2 12L6 12M18 12L22 12M4.93 19.07L7.76 16.24M16.24 7.76L19.07 4.93"/>
-                        <circle cx="12" cy="12" r="4"/>
-                    </svg>
-                    Nutrition
-                </h2>
-                <a href="{% url 'health:food_entry_create' %}" class="btn btn-primary btn-sm">Log Food</a>
-            </div>
-
-            {% if nutrition_today_calories %}
-            <div class="nutrition-stats">
-                <div class="stat">
-                    <span class="stat-value">{{ nutrition_today_calories|floatformat:0 }}</span>
-                    <span class="stat-label">calories today</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-value">{{ nutrition_today_entries }}</span>
-                    <span class="stat-label">entries</span>
-                </div>
-            </div>
-            {% else %}
-            <p class="text-muted">No food logged today.</p>
-            {% endif %}
-
-            <a href="{% url 'health:nutrition_home' %}" class="card-link">Go to Nutrition</a>
-        </div>
-        {% endif %}
-
-        <!-- Medical Providers Card -->
-        {% if features.health.providers %}
-        <div class="health-card providers-card">
-            <div class="card-header">
-                <h2>
-                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                        <circle cx="8.5" cy="7" r="4"/>
-                        <path d="M20 8v6M23 11h-6"/>
-                    </svg>
-                    My Providers
-                </h2>
-                <a href="{% url 'health:provider_create' %}" class="btn btn-primary btn-sm">Add</a>
-            </div>
-
-            {% if provider_count %}
-            <div class="provider-stats">
-                <div class="stat">
-                    <span class="stat-value">{{ provider_count }}</span>
-                    <span class="stat-label">provider{{ provider_count|pluralize }}</span>
-                </div>
-                {% if primary_provider %}
-                <div class="primary-provider">
-                    <span class="stat-label">Primary Care</span>
-                    <span class="provider-name">{{ primary_provider.name }}</span>
-                </div>
-                {% endif %}
-            </div>
-            {% else %}
-            <p class="text-muted">Keep track of your doctors, clinics, and healthcare contacts.</p>
-            {% endif %}
-
-            <a href="{% url 'health:provider_list' %}" class="card-link">View Providers</a>
-        </div>
-        {% endif %}
-
-        <!-- Labs & Vitals Card -->
-        <div class="health-card labs-card">
-            <div class="card-header">
-                <h2>
-                    <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                        <line x1="9" y1="12" x2="15" y2="12"/>
-                        <line x1="9" y1="16" x2="15" y2="16"/>
-                    </svg>
-                    Labs & Vitals
-                </h2>
-                <a href="{% url 'medical:upload' %}" class="btn btn-primary btn-sm">Upload</a>
-            </div>
-
-            {% if lab_result_count %}
-            <div class="labs-stats">
-                <div class="stat">
-                    <span class="stat-value">{{ lab_result_count }}</span>
-                    <span class="stat-label">lab results</span>
-                </div>
-                {% if lab_abnormal_count %}
-                <div class="stat">
-                    <span class="stat-value stat-abnormal">{{ lab_abnormal_count }}</span>
-                    <span class="stat-label">abnormal</span>
-                </div>
-                {% endif %}
-            </div>
-            {% else %}
-            <p class="text-muted">Upload lab PDFs to track your results over time.</p>
-            {% endif %}
-
-            <a href="{% url 'medical:home' %}" class="card-link">View Labs & Vitals</a>
-        </div>
 
         </div>
     </div>
+    {% endif %}
 
     {# ── AI INSIGHT (CoS) — interpretation lives BELOW truth ── #}
     {% if ai_insight %}
@@ -917,80 +1069,6 @@
                 <h3 class="ai-insight-title">AI Insight</h3>
                 <p class="ai-insight-text">{{ ai_insight }}</p>
             </div>
-        </div>
-    </div>
-    {% endif %}
-
-    {# Advanced Metrics Section - shows when user has wearable/sync data #}
-    {% if has_hrv_data or has_vo2_max_data or has_respiratory_rate_data or has_caffeine_data or has_mindful_minutes_data or has_body_temperature %}
-    <div class="advanced-metrics-section mt-8">
-        <h2 class="section-title">Advanced Metrics</h2>
-        <p class="section-subtitle">Detailed dashboards for metrics synced from your devices</p>
-
-        <div class="metric-links-grid">
-            {% if has_hrv_data %}
-            <a href="{% url 'health:hrv_dashboard' %}" class="metric-link-card">
-                <div class="metric-link-icon" style="color: #8b5cf6;">&#128156;</div>
-                <div class="metric-link-info">
-                    <span class="metric-link-name">Heart Rate Variability</span>
-                    {% if latest_hrv %}<span class="metric-link-value">{{ latest_hrv|floatformat:0 }} ms</span>{% endif %}
-                </div>
-                <span class="metric-link-arrow">&rarr;</span>
-            </a>
-            {% endif %}
-
-            {% if has_vo2_max_data %}
-            <a href="{% url 'health:vo2_max_dashboard' %}" class="metric-link-card">
-                <div class="metric-link-icon" style="color: #10b981;">&#127939;</div>
-                <div class="metric-link-info">
-                    <span class="metric-link-name">VO2 Max</span>
-                    {% if latest_vo2_max %}<span class="metric-link-value">{{ latest_vo2_max|floatformat:1 }} mL/kg/min</span>{% endif %}
-                </div>
-                <span class="metric-link-arrow">&rarr;</span>
-            </a>
-            {% endif %}
-
-            {% if has_respiratory_rate_data %}
-            <a href="{% url 'health:respiratory_rate_dashboard' %}" class="metric-link-card">
-                <div class="metric-link-icon" style="color: #06b6d4;">&#128168;</div>
-                <div class="metric-link-info">
-                    <span class="metric-link-name">Respiratory Rate</span>
-                    {% if latest_respiratory_rate %}<span class="metric-link-value">{{ latest_respiratory_rate|floatformat:1 }} brpm</span>{% endif %}
-                </div>
-                <span class="metric-link-arrow">&rarr;</span>
-            </a>
-            {% endif %}
-
-            {% if has_body_temperature %}
-            <a href="{% url 'health:body_temperature_dashboard' %}" class="metric-link-card">
-                <div class="metric-link-icon" style="color: #f97316;">&#127777;</div>
-                <div class="metric-link-info">
-                    <span class="metric-link-name">Body Temperature</span>
-                    {% if latest_body_temperature %}<span class="metric-link-value">{{ latest_body_temperature.temperature_fahrenheit|floatformat:1 }}&deg;F</span>{% endif %}
-                </div>
-                <span class="metric-link-arrow">&rarr;</span>
-            </a>
-            {% endif %}
-
-            {% if has_caffeine_data %}
-            <a href="{% url 'health:caffeine_dashboard' %}" class="metric-link-card">
-                <div class="metric-link-icon" style="color: #92400e;">&#9749;</div>
-                <div class="metric-link-info">
-                    <span class="metric-link-name">Caffeine</span>
-                </div>
-                <span class="metric-link-arrow">&rarr;</span>
-            </a>
-            {% endif %}
-
-            {% if has_mindful_minutes_data %}
-            <a href="{% url 'health:mindful_minutes_dashboard' %}" class="metric-link-card">
-                <div class="metric-link-icon" style="color: #7c3aed;">&#128993;</div>
-                <div class="metric-link-info">
-                    <span class="metric-link-name">Mindful Minutes</span>
-                </div>
-                <span class="metric-link-arrow">&rarr;</span>
-            </a>
-            {% endif %}
         </div>
     </div>
     {% endif %}
@@ -1493,6 +1571,103 @@
     .card-actions { flex-direction: column; gap: var(--space-2); }
     .metric-links-grid { grid-template-columns: 1fr; }
     .today-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Grouped sections ── */
+.health-group {
+    margin-bottom: var(--space-6, 1.5rem);
+}
+.group-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 var(--space-3, 0.75rem) 0;
+    padding-bottom: var(--space-2, 0.5rem);
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+.group-link {
+    display: inline-block;
+    margin-top: var(--space-2, 0.5rem);
+    font-size: 0.875rem;
+    color: var(--accent-color, #3b82f6);
+    text-decoration: none;
+}
+.group-link:hover {
+    text-decoration: underline;
+}
+
+/* ── Body Comp Insight Banner ── */
+.body-comp-insight {
+    padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+    border-radius: var(--radius-md, 0.5rem);
+    margin-bottom: var(--space-4, 1rem);
+    border-left: 4px solid;
+}
+.body-comp-insight--green {
+    background: var(--success-bg, #f0fdf4);
+    border-left-color: var(--success-color, #22c55e);
+}
+.body-comp-insight--yellow {
+    background: var(--warning-bg, #fffbeb);
+    border-left-color: var(--warning-color, #f59e0b);
+}
+.body-comp-insight--red {
+    background: var(--error-bg, #fef2f2);
+    border-left-color: var(--error-color, #ef4444);
+}
+.insight-headline {
+    margin: 0 0 var(--space-2, 0.5rem) 0;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.4;
+}
+.insight-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3, 0.75rem);
+}
+.insight-detail {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+.detail-label {
+    font-weight: 500;
+}
+.body-comp-insight .trend-arrow {
+    font-size: 0.75rem;
+    margin-left: 2px;
+}
+.body-comp-insight .trend-up { color: var(--error-color, #ef4444); }
+.body-comp-insight .trend-down { color: var(--success-color, #22c55e); }
+.body-comp-insight .trend-stable { color: var(--text-secondary); }
+
+/* ── Compact body comp cards ── */
+.health-card-compact {
+    padding: var(--space-3, 0.75rem);
+    min-height: auto;
+}
+.health-card-compact .card-header h3 {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin: 0;
+}
+.health-card-compact .metric-display {
+    margin: var(--space-1, 0.25rem) 0;
+}
+.health-card-compact .metric-value {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+.health-card-compact .metric-unit {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+.health-card-compact .metric-date {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+    margin: 0;
 }
 </style>
 

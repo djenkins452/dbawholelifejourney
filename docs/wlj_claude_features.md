@@ -4,7 +4,7 @@
 # Description: Detailed feature documentation for reference when needed
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-02-20
+# Last Updated: 2026-03-30
 # ==============================================================================
 
 # WLJ Feature Documentation
@@ -56,21 +56,31 @@ For core project context, see `CLAUDE.md` (project root).
 37. [Guides Hub (Admin Guide, Data Dictionary, User Guide)](#guides-hub) *(Feb-Mar 2026)*
 38. [Workout Plans & Training Splits](#workout-plans--training-splits) *(Feb 2026)*
 39. [Data Export & Report Generation](#data-export--report-generation) *(Mar 2026)*
-40. [Additional Jan-Feb 2026 Enhancements](#additional-jan-feb-2026-enhancements)
-41. [Time Command Center (Calendar Engine)](#time-command-center-calendar-engine) *(Feb 2026)*
-42. [Users & Authentication](#users--authentication)
-43. [Core Infrastructure](#core-infrastructure)
-44. [Dashboard](#dashboard)
-45. [Journal](#journal)
-46. [Life & Organization](#life--organization)
-47. [Admin Console](#admin-console)
-48. [Help System](#help-system)
-49. [Mobile API & iOS Support](#mobile-api--ios-support)
-50. [Security Assessment](#security-assessment)
-51. [Ops Command Center (Intelligence Monitoring)](#ops-command-center-intelligence-monitoring)
-52. [Calendar Engine (Technical Reference)](#calendar-engine-technical-reference)
-53. [Owner Financial Command Center](#owner-financial-command-center) *(Feb 2026)*
-54. [Health Intelligence Engine](#health-intelligence-engine) *(Mar 2026)*
+40. [Life Command Center (Dashboard V2)](#life-command-center-dashboard-v2) *(Mar 2026)*
+41. [Execution Truth Engine](#execution-truth-engine) *(Mar 2026)*
+42. [Today Engine](#today-engine) *(Mar 2026)*
+43. [Routines System](#routines-system) *(Mar 2026)*
+44. [Compliance Engine](#compliance-engine) *(Mar 2026)*
+45. [Goal Momentum & Celebration Detection](#goal-momentum--celebration-detection) *(Mar 2026)*
+46. [Critical Signal V3](#critical-signal-v3) *(Mar 2026)*
+47. [Hydration System with Drink Types](#hydration-system-with-drink-types) *(Mar 2026)*
+48. [Smart Task Coaching](#smart-task-coaching) *(Mar 2026)*
+49. [Physical Intelligence Coach](#physical-intelligence-coach) *(Mar 2026)*
+50. [Additional Jan-Feb 2026 Enhancements](#additional-jan-feb-2026-enhancements)
+51. [Time Command Center (Calendar Engine)](#time-command-center-calendar-engine) *(Feb 2026)*
+52. [Users & Authentication](#users--authentication)
+53. [Core Infrastructure](#core-infrastructure)
+54. [Dashboard](#dashboard)
+55. [Journal](#journal)
+56. [Life & Organization](#life--organization)
+57. [Admin Console](#admin-console)
+58. [Help System](#help-system)
+59. [Mobile API & iOS Support](#mobile-api--ios-support)
+60. [Security Assessment](#security-assessment)
+61. [Ops Command Center (Intelligence Monitoring)](#ops-command-center-intelligence-monitoring)
+62. [Calendar Engine (Technical Reference)](#calendar-engine-technical-reference)
+63. [Owner Financial Command Center](#owner-financial-command-center) *(Feb 2026)*
+64. [Health Intelligence Engine](#health-intelligence-engine) *(Mar 2026)*
 
 ---
 
@@ -3116,6 +3126,361 @@ Two-tier data export system: a direct Excel download from the Fitness page and a
 
 ---
 
+## Life Command Center (Dashboard V2)
+
+### Overview
+The Life Command Center (`apps/dashboard_v2/`) is a complete rebuild of the user dashboard at `/dashboard/`. It replaces the original tile-based dashboard with a purpose-driven command center that surfaces the right information at the right time. All heavy sections use HTMX lazy-loading to keep initial page load fast.
+
+### Features
+- **Goal Cockpit** — Three-domain dial visualization (Faith, Health, Work/Purpose) showing real-time momentum scores. Each dial displays a 0–100 score computed nightly by GoalMomentumService using a 5-driver formula
+- **Morning Reconciliation** — Surfaces yesterday's incomplete items via the Compliance Engine so users can mark them done, skip, or reschedule before the day begins
+- **Action Center** — Time-phased task/routine view with three buckets: Now (overdue + current window), Upcoming (next 2 hours), Later (rest of day). Powered by the Today Engine
+- **Celebration Detection** — Identifies achievements (streaks, goals met, personal bests) and displays contextual celebrations with cooldown logic to avoid fatigue
+- **Physical Intelligence Coach** — Synthesizes body composition, workout patterns, recovery signals, and nutrition into a single coaching card. Loaded via HTMX
+- **Signal Suggestions** — Critical Signal V3 cards with adaptive feedback, loaded lazily via HTMX
+
+### Models
+| Model | Location | Purpose |
+|-------|----------|---------|
+| `GoalMomentumSnapshot` | `apps/dashboard_v2/models.py` | Nightly snapshot of 5-driver momentum score per domain |
+| `PreparedCelebration` | `apps/dashboard_v2/models.py` | Pre-computed celebration with type, cooldown, and display state |
+| `DailyProgressSnapshot` | `apps/dashboard_v2/models.py` | Daily completion percentage and domain breakdown |
+| `ComplianceEvent` | `apps/dashboard_v2/compliance/models.py` | Canonical audit trail of expected vs completed actions |
+
+### Services
+| Service | Purpose |
+|---------|---------|
+| `DashboardV2Service` | Main orchestrator — assembles all dashboard sections |
+| `GoalMomentumService` | Computes 5-driver momentum scores per domain |
+| `GoalCockpitService` | Builds cockpit dial data for the three domains |
+| `CelebrationDetectionService` | Detects achievements and manages cooldowns |
+| `DailyProgressService` | Calculates daily completion rates |
+| `ComplianceService` | Powers morning reconciliation from ComplianceEvent data |
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `apps/dashboard_v2/views.py` | Dashboard view + HTMX partial endpoints |
+| `apps/dashboard_v2/services/` | All dashboard services |
+| `apps/dashboard_v2/compliance/` | Compliance engine and domain adapters |
+| `templates/dashboard_v2/home.html` | Main dashboard template |
+| `templates/dashboard_v2/partials/` | HTMX lazy-loaded section templates |
+
+---
+
+## Execution Truth Engine
+
+### Overview
+The Execution Truth Engine (`apps/core/execution/`) is the single source of truth for "what was expected today vs what was completed." It eliminates the problem of multiple systems independently computing completion status with inconsistent logic.
+
+### Architecture
+Three modules form the engine:
+- **`execution_truth_engine.py`** — Core API: `get_execution_truth(user, date)` returns a unified view of all expected and completed actions across every domain
+- **`expected_map.py`** — Builds the "expected" side: routines, tasks, medication schedules, calendar events, habits
+- **`today_execution.py`** — Builds the "completed" side: queries actual logs, entries, and check-offs
+
+### Cross-Domain Bridges
+The engine maps abstract routine activities to concrete domain models:
+- Prayer Time → `apps/faith/` prayer entries
+- Bible Reading → `apps/faith/` bible reading logs
+- Workout → `apps/health/` WorkoutSession
+- Journal → `apps/journal/` JournalEntry
+- Medicine → `apps/health/` MedicineLog
+
+### Consumers
+| Consumer | How It Uses Truth |
+|----------|-------------------|
+| Dashboard V2 | Action Center completion states |
+| Today Engine | Time-bucketed execution status |
+| Compliance Engine | Morning reconciliation of gaps |
+| Signal Computers | Behavioral signals from execution patterns |
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `apps/core/execution/execution_truth_engine.py` | Core truth API |
+| `apps/core/execution/expected_map.py` | Expected actions builder |
+| `apps/core/execution/today_execution.py` | Completed actions builder |
+
+---
+
+## Today Engine
+
+### Overview
+The Today Engine (`apps/core/today/`) is a pure aggregation layer that collects everything a user needs to do today and organizes it into time buckets. It contains no coaching logic, no AI, and no opinions — just facts about the day's schedule.
+
+### Entry Point
+`get_today_context(user)` — returns a structured dict with all items bucketed by time.
+
+### Data Sources
+- Routines (from `apps/life/` RoutineSchedule)
+- Tasks (from `apps/life/` Task with due dates)
+- Calendar events (from `apps/calendar_engine/` CalendarEvent)
+- Medication schedules (from `apps/health/` MedicineSchedule)
+
+### Time Buckets
+| Bucket | Contents |
+|--------|----------|
+| `foundation` | Morning routines and non-negotiable items |
+| `overdue` | Items past their scheduled time, not yet completed |
+| `coming_up` | Items due within the next 2 hours |
+| `later` | Items scheduled for later in the day |
+| `completed` | Items already done today |
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `apps/core/today/` | Today engine module |
+
+---
+
+## Routines System
+
+### Overview
+The Routines system (`apps/life/` models, `/life/routines/` URL) lets users define repeating daily/weekly activities and track adherence. Routines come in two types: binary (manual check-off) and activity (auto-complete when the linked domain action occurs).
+
+### Routine Types
+- **Binary** — User manually marks complete (e.g., "Make bed", "Review goals")
+- **Activity** — Auto-completes when the system detects the linked action was performed
+
+### Activity Types
+| Activity Type | Auto-Complete Trigger |
+|---------------|----------------------|
+| `workout` | WorkoutSession created |
+| `journal` | JournalEntry created |
+| `bible_reading` | Bible reading plan entry logged |
+| `faith_reflection` | Faith reflection entry created |
+| `prayer` | Prayer entry created |
+| `medicine` | MedicineLog for scheduled medicine |
+| `meal_logging` | FoodEntry created |
+
+### Models
+| Model | Purpose |
+|-------|---------|
+| `Routine` | Definition: name, type (binary/activity), activity_type, time window |
+| `RoutineSchedule` | Recurrence pattern: days of week, time slots |
+| `RoutineLog` | Completion record: date, time, auto vs manual |
+
+### Features
+- Bulk actions per time window (mark all morning routines done)
+- Adherence tracking with streak counting
+- Time-window grouping (Morning, Midday, Evening, Anytime)
+- Activity routines fire Django signals on completion for downstream consumers
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `apps/life/models.py` | Routine, RoutineSchedule, RoutineLog models |
+| `apps/life/views.py` | Routine CRUD and log views |
+| `apps/life/urls.py` | `/life/routines/` URL patterns |
+| `templates/life/routines/` | Routine templates |
+
+---
+
+## Compliance Engine
+
+### Overview
+The Compliance Engine (`apps/dashboard_v2/compliance/`) maintains a canonical audit trail of what was expected and what was actually done each day. It powers morning reconciliation on the Dashboard V2 and feeds into daily progress scoring.
+
+### Model
+`ComplianceEvent` — each record represents one expected action and its outcome:
+- `user`, `date`, `domain`, `action_type`
+- `expected_at`, `completed_at` (nullable if missed)
+- `status`: completed, missed, skipped, rescheduled
+- `source_id`, `source_type` — links back to the originating model
+
+### Domain Adapters
+Six adapters generate ComplianceEvents from their respective domains:
+
+| Adapter | Domain | Source Models |
+|---------|--------|---------------|
+| `task` | Life/Organization | Task |
+| `journal` | Journal | JournalEntry (for journaling routines) |
+| `workout` | Fitness | WorkoutSession |
+| `medication` | Medicine | MedicineSchedule → MedicineLog |
+| `faith` | Faith | Prayer, Bible reading, reflection routines |
+| `routine` | Routines | Routine → RoutineLog |
+
+### Integration
+- **Morning Reconciliation**: Dashboard V2 queries yesterday's missed/incomplete ComplianceEvents and presents them for resolution
+- **Daily Progress Scoring**: `DailyProgressService` calculates completion percentage from ComplianceEvent counts
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `apps/dashboard_v2/compliance/` | Engine module |
+| `apps/dashboard_v2/compliance/models.py` | ComplianceEvent model |
+| `apps/dashboard_v2/compliance/adapters/` | Per-domain adapter modules |
+
+---
+
+## Goal Momentum & Celebration Detection
+
+### Overview
+Two complementary systems that drive engagement on Dashboard V2: GoalMomentumSnapshot provides nightly scoring of progress across domains, and PreparedCelebration detects and surfaces achievements with fatigue-aware cooldowns.
+
+### Goal Momentum
+`GoalMomentumSnapshot` is computed nightly per domain (Faith, Health, Work/Purpose) using a 5-driver weighted formula:
+
+| Driver | Weight | Source |
+|--------|--------|--------|
+| Habits | 30% | Routine adherence rate over trailing 7 days |
+| Tasks | 20% | Task completion rate for active goals |
+| Signals | 20% | Critical signal scores from Signal V3 |
+| Discipline | 15% | Consistency of daily engagement (no gaps) |
+| Recency | 15% | Bonus for activity in last 24–48 hours |
+
+The resulting 0–100 score powers the Goal Cockpit dials on the dashboard.
+
+### Celebration Detection
+`PreparedCelebration` records are generated when the system detects an achievement. Seven celebration types are supported:
+
+| Type | Trigger |
+|------|---------|
+| `streak` | N-day consecutive streak on a routine or habit |
+| `goal` | A measurable goal target is met |
+| `weekly_discipline` | 5+ of 7 days with full routine completion |
+| `momentum_surge` | Momentum score jumps 15+ points in one day |
+| `health_breakthrough` | Significant health metric improvement (weight, BP, glucose) |
+| `cross_domain` | Achievement spanning multiple domains simultaneously |
+| `personal_best` | New personal record (workout, streak length, etc.) |
+
+Each type has a configurable cooldown period to prevent celebration fatigue (e.g., streak celebrations limited to once per 7 days).
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `apps/dashboard_v2/models.py` | GoalMomentumSnapshot, PreparedCelebration models |
+| `apps/dashboard_v2/services/goal_momentum_service.py` | Nightly momentum computation |
+| `apps/dashboard_v2/services/celebration_detection_service.py` | Achievement detection and cooldowns |
+| `apps/dashboard_v2/services/goal_cockpit_service.py` | Cockpit dial data assembly |
+
+---
+
+## Critical Signal V3
+
+### Overview
+Critical Signal V3 (`apps/core/signals/`) is the third generation of the behavioral signal system. It combines text-based pattern detection with deterministic health signals derived from canonical state, plus execution signals fired via Django signal handlers.
+
+### Signal Categories
+
+**Behavioral Signals (text-based):**
+Pattern detection from journal entries, assistant conversations, and notes to identify mood, stress, motivation, and engagement patterns.
+
+**Health Signals (deterministic from canonical state):**
+| Signal | Source |
+|--------|--------|
+| `medication_adherence` | MedicineLog vs MedicineSchedule |
+| `sleep_recovery` | Sleep entries and consistency |
+| `activity_momentum` | Workout frequency and intensity trends |
+| `cardiometabolic_stability` | Weight, blood pressure, glucose trends |
+
+**Execution Signals (Django signal handlers):**
+Fired automatically when domain models are created/updated:
+- `RoutineLog` save → routine execution signal
+- `WorkoutSession` save → fitness execution signal
+- `JournalEntry` save → journaling execution signal
+- `MedicineLog` save → medication execution signal
+
+### Signal Presenter
+Adaptive dashboard cards that display signals with contextual feedback. Cards adjust their appearance and messaging based on signal severity and trend direction. Supports user feedback (helpful/not helpful) to tune future signal relevance.
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `apps/core/signals/` | Signal engine module |
+| `apps/core/signals/signal_engine.py` | Core signal computation |
+| `apps/core/signals/health_signals.py` | Deterministic health signal computers |
+| `apps/core/signals/execution_signals.py` | Django signal handlers for execution events |
+| `apps/core/signals/signal_presenter.py` | Dashboard card rendering and feedback |
+
+---
+
+## Hydration System with Drink Types
+
+### Overview
+The hydration tracking system extends the existing `WaterEntry` model in `apps/health/` with drink type support and intelligent coefficient-based effective hydration calculation. Includes creatine usage detection with automatic hydration goal adjustment.
+
+### Drink Types & Coefficients
+| Drink Type | Coefficient | Notes |
+|------------|-------------|-------|
+| `water` | 1.0 | Default, baseline hydration |
+| `coffee` | 0.9 | Mild diuretic effect |
+| `tea` | 0.95 | Less diuretic than coffee |
+| `electrolyte` | 1.05 | Enhanced absorption |
+| `creatine` | 1.0 | Tracked separately for goal adjustment |
+| `juice` | 0.9 | Sugar offsets some hydration |
+| `milk` | 0.9 | Moderate hydration value |
+| `other` | 0.9 | Conservative default |
+
+### Effective Hydration Calculation
+Each entry's effective hydration = `amount_oz × coefficient`. Daily totals sum effective amounts, not raw amounts. This gives users a more accurate picture of actual hydration.
+
+### Creatine Integration
+The system detects consistent creatine usage (4+ of last 7 days with a creatine-type entry) and automatically increases the user's daily hydration goal to account for creatine's increased water requirements.
+
+### Features
+- Quick-log buttons for each drink type on the hydration page
+- Drink type selector with visual icons
+- Effective vs raw hydration display
+- Daily goal progress bar using effective hydration
+- History view with drink type breakdown
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `apps/health/models.py` | WaterEntry model with drink_type and coefficient fields |
+| `apps/health/views.py` | Hydration views with drink type support |
+| `templates/health/water/` | Hydration templates with drink type UI |
+
+---
+
+## Smart Task Coaching
+
+### Overview
+Smart Task Coaching (`apps/life/services/task_coaching_builder.py`) is a fully deterministic (no LLM) coaching layer for the task management system. It generates time-aware nudges, overdue reminders, and prioritization hints that feed into the CoS context for the AI assistant.
+
+### Features
+- **Time-aware nudges** — Context-sensitive reminders based on task due dates and current time of day
+- **Overdue reminders** — Escalating urgency messaging for past-due tasks
+- **Prioritization hints** — Suggests which tasks to focus on based on due date, priority level, and domain importance
+- **CoS integration** — Coaching output is injected into the Chief of Staff context pipeline so Beth can reference task priorities in conversations
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `apps/life/services/task_coaching_builder.py` | Deterministic coaching logic |
+| `apps/core/ai_orchestrator/cos_context.py` | Consumes coaching output for CoS context |
+
+---
+
+## Physical Intelligence Coach
+
+### Overview
+The Physical Intelligence Coach (`apps/health/services/physical_decision.py`) synthesizes body composition data, workout patterns, recovery signals, and nutrition information into actionable coaching insights. It appears as a dedicated section on Dashboard V2, loaded via HTMX for performance.
+
+### Components
+| Service | Purpose |
+|---------|---------|
+| `body_composition_signal` | Analyzes weight trends, body fat %, lean mass changes |
+| `outcome_validation` | Validates whether current training approach is producing results |
+| `conflict_detection` | Identifies conflicting signals (e.g., cutting calories while trying to build muscle) |
+
+### Features
+- Synthesizes data from multiple health domains into a single coherent coaching view
+- Detects conflicts between user goals and actual behavior
+- Validates training outcomes against stated objectives
+- Dashboard V2 card with HTMX lazy-loading
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `apps/health/services/physical_decision.py` | Core intelligence service |
+| `templates/dashboard_v2/partials/physical_intelligence.html` | HTMX partial template |
+| `apps/dashboard_v2/views.py` | HTMX endpoint for physical intelligence section |
+
+---
+
 ## Additional Jan-Feb 2026 Enhancements
 
 ### Scroll Position Preservation
@@ -4233,4 +4598,4 @@ Body composition intelligence that transforms raw weight and body-fat data into 
 
 ---
 
-*Last updated: 2026-03-05*
+*Last updated: 2026-03-30*

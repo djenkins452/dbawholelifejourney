@@ -1,6 +1,91 @@
 [
   {
     "model": "help.teachingdestination",
+    "pk": 186,
+    "fields": {
+      "destination_id": "sports-hub",
+      "name": "Sports",
+      "path_description": "Sports",
+      "explanation": "Follow your favorite sports teams and track game schedules and results.",
+      "url": "/sports/",
+      "keywords": "sports,teams,games,scores,schedule,follow",
+      "module": "sports",
+      "sort_order": 240,
+      "is_active": true,
+      "created_at": "2026-03-30T12:00:00Z",
+      "updated_at": "2026-03-30T12:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 185,
+    "fields": {
+      "destination_id": "signal-insights",
+      "name": "Signal Insights",
+      "path_description": "Signals - Insights",
+      "explanation": "View AI-detected behavioral signals from your daily data — medication adherence, sleep recovery, activity patterns. Give feedback to improve relevance.",
+      "url": "/api/signals/insights/",
+      "keywords": "signals,insights,behavioral,patterns,feedback,medication,sleep,activity",
+      "module": "core",
+      "sort_order": 230,
+      "is_active": true,
+      "created_at": "2026-03-30T12:00:00Z",
+      "updated_at": "2026-03-30T12:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 184,
+    "fields": {
+      "destination_id": "routine-migration",
+      "name": "Routine Migration",
+      "path_description": "Organize - Routines - Migration",
+      "explanation": "Convert old-style routine tasks to the new dedicated Routine system with scheduling, time windows, and activity-type auto-completion.",
+      "url": "/life/routines/migrate/",
+      "keywords": "routine migration,convert,upgrade,legacy,tasks to routines",
+      "module": "life",
+      "sort_order": 182,
+      "is_active": true,
+      "created_at": "2026-03-30T12:00:00Z",
+      "updated_at": "2026-03-30T12:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 183,
+    "fields": {
+      "destination_id": "routine-adherence",
+      "name": "Routine Adherence",
+      "path_description": "Organize - Routines - Adherence",
+      "explanation": "View your routine completion rates over time. See which routines and individual items you're most and least consistent with.",
+      "url": "/life/routines/adherence/",
+      "keywords": "routine adherence,consistency,completion rate,streaks,habits,tracking",
+      "module": "life",
+      "sort_order": 181,
+      "is_active": true,
+      "created_at": "2026-03-30T12:00:00Z",
+      "updated_at": "2026-03-30T12:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 182,
+    "fields": {
+      "destination_id": "dashboard-v2",
+      "name": "Life Command Center",
+      "path_description": "Dashboard",
+      "explanation": "Your daily operating surface with goal cockpit, action center, morning reconciliation, celebrations, physical intelligence coaching, and signal suggestions.",
+      "url": "/dashboard/",
+      "keywords": "dashboard,home,command center,cockpit,action center,reconciliation,progress",
+      "module": "dashboard_v2",
+      "sort_order": 1,
+      "is_active": true,
+      "created_at": "2026-03-30T12:00:00Z",
+      "updated_at": "2026-03-30T12:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
     "pk": 178,
     "fields": {
       "destination_id": "life-routines",

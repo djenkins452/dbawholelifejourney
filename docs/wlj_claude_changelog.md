@@ -3,8 +3,28 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-30 (Full documentation reconciliation)
+# Last Updated: 2026-03-30 (Production docs update — all fixtures, features, engine ref)
 # ================================================================# WLJ Change History
+
+## 2026-03-30 — Docs: Update All Production Documentation Files
+
+Updated all production-facing documentation files to reflect March 2026 features:
+
+**Help topics (`apps/help/fixtures/help_topics.json`):** Added 7 new topics (DASHBOARD_V2_HOME, HEALTH_COGNITIVE_HUB, RECIPE_BULK_IMPORT, DASHBOARD_V2_RECONCILIATION, DASHBOARD_V2_COMPLIANCE, DASHBOARD_V2_COCKPIT, SIGNALS_HOME). Updated HEALTH_WATER with drink types and hydration coefficients. Total: 155 topics.
+
+**Teaching destinations (`apps/help/fixtures/teaching_destinations.json`):** Added 5 new destinations (dashboard-v2, routine-adherence, routine-migration, signal-insights, sports-hub). Total: 184 destinations.
+
+**Release notes (`apps/core/fixtures/release_notes.json`):** Added 5 new entries (Hydration Drink Types, Compliance Engine, Physical Intelligence Coach, Signals V3, Stale DB Recovery). Total: 178 entries.
+
+**Features doc (`docs/wlj_claude_features.md`):** Added 10 new feature sections (Life Command Center, Execution Truth Engine, Today Engine, Routines System, Compliance Engine, Goal Momentum & Celebrations, Signal V3, Hydration System, Smart Task Coaching, Physical Intelligence Coach). Updated ToC.
+
+**Engine reference (`docs/ENGINE_COS_REFERENCE.md`):** Added ETE, Today Engine, Compliance Engine, Signal V3 to engine inventory. Added key file paths. Added signal models known bug.
+
+**Fixture loader reset:** Migration `0036_reset_fixtures_for_march_docs.py` resets help_topics, teaching_destinations, and release_notes loaders.
+
+**Files:** `apps/help/fixtures/help_topics.json`, `apps/help/fixtures/teaching_destinations.json`, `apps/core/fixtures/release_notes.json`, `docs/wlj_claude_features.md`, `docs/ENGINE_COS_REFERENCE.md`, `apps/admin_console/migrations/0036_reset_fixtures_for_march_docs.py`, `docs/wlj_claude_changelog.md`
+
+---
 
 ## 2026-03-30 — Docs: Full Documentation Reconciliation Suite
 

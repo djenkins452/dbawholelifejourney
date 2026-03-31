@@ -1,6 +1,86 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 179,
+    "fields": {
+      "title": "Stale DB Connection Recovery",
+      "description": "Improved error handling when database connections are temporarily interrupted. The app now recovers gracefully instead of showing raw error pages, and resumes normal operation automatically when connections restore.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-03-30",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-30T12:00:00Z",
+      "updated_at": "2026-03-30T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 178,
+    "fields": {
+      "title": "Behavioral Signals V3",
+      "description": "The behavioral signal system has been upgraded with grouped event presentation, adaptive dashboard cards, and feedback buttons. You'll see more relevant insights about your patterns \u2014 medication adherence, sleep recovery, activity momentum \u2014 and can give thumbs up/down to improve what gets surfaced.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-16",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-16T12:00:00Z",
+      "updated_at": "2026-03-16T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 177,
+    "fields": {
+      "title": "Dashboard: Physical Intelligence Coach",
+      "description": "A new coaching panel on your dashboard synthesizes health data across body composition, workout patterns, recovery signals, and nutrition into clear, actionable guidance. All analysis is deterministic \u2014 grounded in your actual data, not AI guesses.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-24",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-24T12:00:00Z",
+      "updated_at": "2026-03-24T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 176,
+    "fields": {
+      "title": "Execution Compliance Engine",
+      "description": "The system now tracks what you committed to vs. what you actually did across 6 domains: tasks, journal, workouts, medication, faith, and routines. Your dashboard shows a compliance summary that powers morning reconciliation and daily progress scoring.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-22",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-03-22T12:00:00Z",
+      "updated_at": "2026-03-22T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 175,
+    "fields": {
+      "title": "Hydration: Drink Type Tracking",
+      "description": "Water tracking just got smarter. You can now log 8 different drink types \u2014 water, coffee, tea, electrolytes, creatine, juice, milk, and more. Each drink has a hydration coefficient so your daily total reflects actual hydration impact (coffee counts as 90%, electrolytes as 105%). Quick-log buttons on your health dashboard let you tap to add common drinks instantly. If you're consistently taking creatine, your hydration goal automatically adjusts upward.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-03-30",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-03-30T12:00:00Z",
+      "updated_at": "2026-03-30T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 174,
     "fields": {
       "title": "Life Alignment Cockpit",

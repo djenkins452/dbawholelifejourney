@@ -111,6 +111,9 @@ def theme_context(request):
     """
     Add theme, accent color, and module flags to template context.
     """
+    import time as _time
+    _t0 = _time.perf_counter()
+
     # Build module enablement defaults from catalog (deterministic source of truth)
     _module_defaults = _get_module_enablement_defaults()
 
@@ -286,6 +289,15 @@ def theme_context(request):
             }
         except Exception:
             pass
+
+    # PERF TRACE (temporary — remove after diagnosis)
+    _elapsed = round((_time.perf_counter() - _t0) * 1000)
+    if _elapsed > 200:
+        import logging as _logging
+        _logging.getLogger(__name__).warning(
+            "PERF_TRACE theme_context: %dms (user=%s)",
+            _elapsed, getattr(request.user, 'id', '?'),
+        )
 
     return context
 

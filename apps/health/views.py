@@ -2850,6 +2850,8 @@ class MedicineHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     help_context_id = "HEALTH_MEDICINE_HOME"
 
     def get_context_data(self, **kwargs):
+        import time as _time
+        _t0 = _time.perf_counter()
         context = super().get_context_data(**kwargs)
         user = self.request.user
         today = get_user_today(user)
@@ -2962,6 +2964,13 @@ class MedicineHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             log_status__in=[MedicineLog.STATUS_TAKEN, MedicineLog.STATUS_LATE],
         ).select_related("medicine")
         context["prn_doses_today"] = prn_today
+
+        # PERF TRACE (temporary — remove after diagnosis)
+        _elapsed = round((_time.perf_counter() - _t0) * 1000)
+        if _elapsed > 200:
+            logger.warning(
+                "PERF_TRACE MedicineHomeView.get_context_data: %dms", _elapsed,
+            )
 
         return context
 
@@ -3328,6 +3337,9 @@ class MedicineTakeView(LoginRequiredMixin, View):
     """
 
     def post(self, request, pk, schedule_pk):
+        import time as _time
+        _t0 = _time.perf_counter()
+
         medicine = get_object_or_404(
             Medicine.objects.filter(user=request.user),
             pk=pk,
@@ -3349,6 +3361,7 @@ class MedicineTakeView(LoginRequiredMixin, View):
                 "is_prn_dose": False,
             }
         )
+        _t1 = _time.perf_counter()
 
         # Determine taken_at time
         taken_at = None
@@ -3363,6 +3376,7 @@ class MedicineTakeView(LoginRequiredMixin, View):
 
         # Mark as taken (with scheduled time or current time)
         log.mark_taken(taken_at=taken_at)
+        _t2 = _time.perf_counter()
 
         # Auto-complete matching routine task
         try:
@@ -3371,6 +3385,7 @@ class MedicineTakeView(LoginRequiredMixin, View):
             RoutineTaskService.auto_complete_routine_task(request.user, "Medication")
         except Exception:
             pass
+        _t3 = _time.perf_counter()
 
         # Decrease supply if tracked
         if medicine.current_supply is not None and medicine.current_supply > 0:
@@ -3381,6 +3396,16 @@ class MedicineTakeView(LoginRequiredMixin, View):
         safe_emit_event(EventTypes.HEALTH_MEDICATION_TAKEN, request.user, {
             "log_id": log.id, "medicine_name": medicine.name, "source": "web_view",
         })
+        _t4 = _time.perf_counter()
+
+        # === PERF TRACE (temporary — remove after diagnosis) ===
+        logger.warning(
+            "PERF_TRACE MedicineTakeView: total=%dms | "
+            "get_or_create=%dms | mark_taken=%dms | auto_complete=%dms | rest=%dms",
+            round((_t4-_t0)*1000), round((_t1-_t0)*1000),
+            round((_t2-_t1)*1000), round((_t3-_t2)*1000),
+            round((_t4-_t3)*1000),
+        )
 
         # Return to referring page or home
         next_url = request.POST.get("next", reverse_lazy("health:medicine_home"))

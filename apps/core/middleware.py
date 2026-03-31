@@ -337,11 +337,20 @@ class DiagnosticsTraceMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        import time as _time
         from apps.core.ai_observability.trace import trace_context
 
+        _t0 = _time.perf_counter()
         with trace_context(source="request") as trace_id:
             request.trace_id = trace_id
             response = self.get_response(request)
+            elapsed_ms = round((_time.perf_counter() - _t0) * 1000)
+            # Log any request taking > 500ms (temporary — remove after diagnosis)
+            if elapsed_ms > 500:
+                logger.warning(
+                    "PERF_TRACE slow_request: %dms %s %s (status=%s)",
+                    elapsed_ms, request.method, request.path, response.status_code,
+                )
             return response
 
 

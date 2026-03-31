@@ -74,8 +74,16 @@ def _refresh_sae_module(user, module):
     - Reads-modifies-writes UserState.state_data
     """
     try:
+        import time as _time
+        _t0 = _time.perf_counter()
         from apps.core.ai_state.state_updater import update_user_state
         update_user_state(user, module)
+        _elapsed = round((_time.perf_counter() - _t0) * 1000)
+        if _elapsed > 100:
+            logger.warning(
+                "PERF_TRACE SAE_REFRESH user=%s module=%s — %dms",
+                user.id, module, _elapsed,
+            )
     except Exception:
         # SAE refresh must never break data saves
         logger.warning(

@@ -3407,10 +3407,11 @@ class BulkDeleteSignificantEventsView(LoginRequiredMixin, View):
 def _invalidate_routine_caches(user):
     """Invalidate SAE state + CoS context + dashboard cache after routine CRUD."""
     try:
-        from apps.core.ai_state.state_engine import rebuild_user_state
-        rebuild_user_state(user)
+        from apps.core.ai_state.state_updater import update_user_state
+        update_user_state(user, 'routine')
+        update_user_state(user, 'tasks')
     except Exception:
-        logger.warning("Failed to rebuild SAE state after routine change", exc_info=True)
+        logger.warning("Failed to update SAE state after routine change", exc_info=True)
     try:
         from apps.ai.readiness_cache import invalidate_cos_context_on_action
         invalidate_cos_context_on_action(user)

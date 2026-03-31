@@ -56,6 +56,10 @@ def handle_task_saved(sender, instance, created, **kwargs):
     Also invalidates the CoS context cache so the next CoS interaction
     reflects the updated schedule (prevents stale [done]/[MISSED] tags).
     """
+    # Skip heavy processing for tasks created by recurrence (future pending tasks).
+    # Calendar projection still runs but SAE rebuild + cache invalidation is skipped.
+    skip_heavy = getattr(instance, '_skip_heavy_signals', False)
+
     if instance.is_routine and instance.scheduled_time and instance.due_date and not instance.is_completed:
         # Routine task — execution block + CoS prompts
         try:
@@ -77,6 +81,9 @@ def handle_task_saved(sender, instance, created, **kwargs):
                 "Failed to project task %s to calendar: %s", instance.pk, e
             )
 
+    if skip_heavy:
+        return  # Calendar projection done above; skip SAE + cache work
+
     # Invalidate stale task insights so Organize page reflects current state
     try:
         from apps.core.ai_insights.models import Insight
@@ -96,12 +103,14 @@ def handle_task_saved(sender, instance, created, **kwargs):
     except Exception:
         pass  # Cache invalidation is best-effort
 
-    # 2. SAE state (UserState DB row — feeds CoS data state snapshot)
+    # 2. SAE state — incremental update for 'tasks' module only.
+    #    (Previously called rebuild_user_state which rebuilt ALL 27 modules;
+    #     a task save only affects task state, not health/finance/faith/etc.)
     try:
-        from apps.core.ai_state.state_engine import rebuild_user_state
-        rebuild_user_state(instance.user)
+        from apps.core.ai_state.state_updater import update_user_state
+        update_user_state(instance.user, 'tasks')
     except Exception:
-        pass  # SAE rebuild is best-effort
+        pass  # SAE update is best-effort
 
     # 3. Dashboard cache (execution context, action center)
     try:
@@ -132,12 +141,17 @@ def handle_routine_schedule_saved(sender, instance, **kwargs):
 
 
 def _rebuild_routine_sae(user):
-    """Shared SAE + cache invalidation for routine model changes."""
+    """Shared SAE + cache invalidation for routine model changes.
+
+    Uses incremental update_user_state() for the affected modules only
+    (routine + tasks) instead of rebuilding all 27 domain modules.
+    """
     try:
-        from apps.core.ai_state.state_engine import rebuild_user_state
-        rebuild_user_state(user)
+        from apps.core.ai_state.state_updater import update_user_state
+        update_user_state(user, 'routine')
+        update_user_state(user, 'tasks')
     except Exception:
-        logger.warning("Failed to rebuild SAE after routine change", exc_info=True)
+        logger.warning("Failed to update SAE after routine change", exc_info=True)
     try:
         from apps.ai.readiness_cache import invalidate_cos_context
         invalidate_cos_context(user)
@@ -165,12 +179,13 @@ def handle_routine_log_saved(sender, instance, **kwargs):
     except Exception:
         return
 
-    # 1. SAE state (execution contract)
+    # 1. SAE state (execution contract) — incremental update for affected modules only
     try:
-        from apps.core.ai_state.state_engine import rebuild_user_state
-        rebuild_user_state(user)
+        from apps.core.ai_state.state_updater import update_user_state
+        update_user_state(user, 'routine')
+        update_user_state(user, 'execution')
     except Exception:
-        logger.warning("Failed to rebuild SAE after RoutineLog change", exc_info=True)
+        logger.warning("Failed to update SAE after RoutineLog change", exc_info=True)
 
     # 2. CoS context cache
     try:

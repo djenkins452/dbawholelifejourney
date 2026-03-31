@@ -534,9 +534,12 @@ class RecurrenceService:
         if existing_task:
             return existing_task
 
-        # Create new task for next occurrence
+        # Create new task for next occurrence.
+        # Mark it to skip heavy signal processing — this is a future pending task,
+        # not a state change that needs SAE rebuild or dashboard invalidation.
+        # Calendar projection still runs (handle_task_saved checks the flag).
         with transaction.atomic():
-            new_task = Task.objects.create(
+            new_task = Task(
                 user=task.user,
                 title=task.title,
                 notes=task.notes,
@@ -560,6 +563,8 @@ class RecurrenceService:
                 skip_streak=task.skip_streak,
                 last_skipped_at=task.last_skipped_at,
             )
+            new_task._skip_heavy_signals = True
+            new_task.save()
 
         return new_task
     

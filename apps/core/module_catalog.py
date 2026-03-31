@@ -115,6 +115,50 @@ def is_module_enabled(user, module_slug):
     return module_def.default_enabled
 
 
+def get_user_module_enablement_map(user):
+    """
+    Return a dict of {module_slug: bool} for all modules in one batch query.
+
+    Replaces 11+ individual is_module_enabled() calls (each doing a separate
+    DB query) with a single query for all UserModulePreference rows.
+
+    The enablement logic matches is_module_enabled() exactly:
+        1. is_active=False → disabled
+        2. always_available=True → enabled
+        3. status='coming_soon' → disabled
+        4. UserModulePreference.is_enabled → user's choice
+        5. default_enabled → catalog default
+    """
+    catalog = get_module_catalog()
+    if not catalog:
+        return {}
+
+    # Single batch query for all user preferences
+    from apps.users.models import UserModulePreference
+    try:
+        user_prefs = dict(
+            UserModulePreference.objects.filter(user=user)
+            .values_list('module__slug', 'is_enabled')
+        )
+    except Exception:
+        user_prefs = {}
+
+    result = {}
+    for slug, module_def in catalog.items():
+        if not module_def.is_active:
+            result[slug] = False
+        elif module_def.always_available:
+            result[slug] = True
+        elif module_def.status == 'coming_soon':
+            result[slug] = False
+        elif slug in user_prefs:
+            result[slug] = user_prefs[slug]
+        else:
+            result[slug] = module_def.default_enabled
+
+    return result
+
+
 def get_enabled_modules(user):
     """
     Return list of ModuleDefinition objects that are enabled for this user.

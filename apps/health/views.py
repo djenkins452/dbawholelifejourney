@@ -2553,14 +2553,10 @@ def save_set_ajax(request):
         except Exception:
             logger.exception("Error in PR detection on set update")
 
-    # Refresh fitness SAE state so CoS and dashboard read fresh data.
-    # Uses incremental module rebuild (fitness only) — avoids expensive
-    # full state rebuild on every single set save.
-    try:
-        from apps.core.ai_state.state_updater import update_user_state
-        update_user_state(user, "fitness")
-    except Exception:
-        logger.debug("Deferred fitness state refresh after set save failed", exc_info=True)
+    # SAE fitness state refresh + CoS cache invalidation are now handled by
+    # the ExerciseSet post_save signal chain in apps/ai/signals.py
+    # (invalidate_cache_on_exercise_set_save → _refresh_sae_module('fitness')).
+    # No need to duplicate here.
 
     # Invalidate CoS readiness cache so Beth reads fresh fitness state
     try:

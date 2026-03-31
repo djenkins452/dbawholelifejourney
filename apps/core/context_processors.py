@@ -162,19 +162,20 @@ def theme_context(request):
             # Navigation behavior
             context['hide_nav_on_scroll'] = prefs.hide_nav_on_scroll
             context['desktop_nav_collapsed'] = prefs.desktop_nav_collapsed
-            # Module toggles — derived from canonical module catalog
-            from apps.core.module_catalog import is_module_enabled
-            context['journal_enabled'] = is_module_enabled(request.user, 'journal')
-            context['faith_enabled'] = is_module_enabled(request.user, 'faith')
-            context['health_enabled'] = is_module_enabled(request.user, 'health')
-            context['life_enabled'] = is_module_enabled(request.user, 'life')
-            context['purpose_enabled'] = is_module_enabled(request.user, 'purpose')
-            context['finance_enabled'] = is_module_enabled(request.user, 'finance')
-            context['relationships_enabled'] = is_module_enabled(request.user, 'relationships')
-            context['capture_enabled'] = is_module_enabled(request.user, 'capture')
-            context['documents_enabled'] = is_module_enabled(request.user, 'documents')
-            context['meals_enabled'] = is_module_enabled(request.user, 'meals')
-            context['sports_enabled'] = is_module_enabled(request.user, 'sports')
+            # Module toggles — batch query (1 DB query instead of 11 individual ones)
+            from apps.core.module_catalog import get_user_module_enablement_map
+            module_map = get_user_module_enablement_map(request.user)
+            context['journal_enabled'] = module_map.get('journal', False)
+            context['faith_enabled'] = module_map.get('faith', False)
+            context['health_enabled'] = module_map.get('health', False)
+            context['life_enabled'] = module_map.get('life', True)
+            context['purpose_enabled'] = module_map.get('purpose', False)
+            context['finance_enabled'] = module_map.get('finance', False)
+            context['relationships_enabled'] = module_map.get('relationships', False)
+            context['capture_enabled'] = module_map.get('capture', False)
+            context['documents_enabled'] = module_map.get('documents', False)
+            context['meals_enabled'] = module_map.get('meals', False)
+            context['sports_enabled'] = module_map.get('sports', False)
             # AI toggles
             context['ai_enabled'] = prefs.ai_enabled
             context['ai_data_consent'] = prefs.ai_data_consent

@@ -69,8 +69,11 @@ def calculate_medicine_behavior_output(user, start_date, end_date):
         return None
 
     # Count actual logs — split taken from late
+    # Filter to active medicines only so logs from discontinued medicines
+    # don't inflate the taken count beyond expected.
     logs = MedicineLog.objects.filter(
         user=user,
+        medicine__in=active_medicines,
         scheduled_date__gte=start_date,
         scheduled_date__lte=end_date,
     )

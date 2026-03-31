@@ -2370,8 +2370,10 @@ def build_medicine_state(user):
                 state['adherence_score_7d'] = (
                     round(med_beh['adherence']) if med_beh.get('adherence') is not None else None
                 )
-                state['completed_7d'] = med_beh.get('completed', 0) + med_beh.get('late', 0)
-                state['expected_7d'] = med_beh.get('expected', 0)
+                expected = med_beh.get('expected', 0)
+                completed = med_beh.get('completed', 0) + med_beh.get('late', 0)
+                state['completed_7d'] = min(completed, expected)  # cap at expected
+                state['expected_7d'] = expected
                 state['missed_7d'] = med_beh.get('missed', 0)
         except Exception:
             logger.debug("Medicine 7d behavior output failed", exc_info=True)

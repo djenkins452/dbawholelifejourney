@@ -6,6 +6,19 @@
 # Last Updated: 2026-03-30 (Production docs update — all fixtures, features, engine ref)
 # ================================================================# WLJ Change History
 
+## 2026-03-30 — Fix medication doses taken exceeding expected count
+
+**Root cause:** Medication log queries in `domain_medication.py` and `medicine_utils.py` were not filtered to active medicines only. Logs from discontinued/inactive medicines inflated the "taken" count beyond the "expected" count (e.g., 64/63 doses).
+
+**Changes:**
+- `apps/core/behavior/domain_medication.py` — Added `medicine__in=active_medicines` filter to MedicineLog query
+- `apps/health/medicine_utils.py` — Same filter added to adherence calculation log query
+- `apps/core/ai_state/state_builder.py` — Added safety cap: `completed_7d` capped at `expected_7d`
+
+**Why:** Both files counted expected doses only from active medicines with active schedules, but counted logs from ALL medicines including discontinued ones. PRN (as-needed) doses also counted toward taken but had no matching expected entry.
+
+---
+
 ## 2026-03-31 — Body Composition Intelligence System
 
 Full end-to-end body composition intelligence system: HealthKit sync expansion, signal layer, insight-first UI.

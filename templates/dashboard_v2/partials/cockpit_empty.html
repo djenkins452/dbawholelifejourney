@@ -1,0 +1,13 @@
+{# Cockpit Empty State — shown when user has no active goals or domain signals #}
+
+<section class="v2-section v2-cockpit-section">
+    <div style="text-align: center; padding: 1.5rem 1rem;">
+        <p style="font-size: 1rem; color: var(--text-secondary, #64748b); margin-bottom: 0.75rem;">
+            Set your first life goal to see your alignment cockpit.
+        </p>
+        <a href="{% url 'purpose:goal_create' %}"
+           style="display: inline-block; padding: 0.5rem 1.25rem; background: var(--color-accent, #3b82f6); color: #fff; border-radius: 0.5rem; font-size: 0.9rem; text-decoration: none;">
+            Create a Goal
+        </a>
+    </div>
+</section>

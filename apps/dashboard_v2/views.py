@@ -54,15 +54,14 @@ class DashboardV2View(HelpContextMixin, LoginRequiredMixin, TemplateView):
         context["purpose_enabled"] = getattr(prefs, "purpose_enabled", True)
         context["life_enabled"] = getattr(prefs, "life_enabled", True)
 
-        # Goal Cockpit — three domain dials (faith, health, work)
-        # Health reads from SAE canonical state; no live adherence computation needed.
+        # Goal Cockpit — dynamic domain dials driven by user's active goals and SAE signals
         try:
             from .services.cockpit_service import GoalCockpitService
             cockpit = GoalCockpitService(self.request.user)
-            context["cockpit"] = cockpit.get_cockpit_data()
+            context["cockpit_domains"] = cockpit.get_cockpit_data()
         except Exception:
             logger.warning("Goal cockpit computation failed", exc_info=True)
-            context["cockpit"] = None
+            context["cockpit_domains"] = []
 
         # Weather data
         try:
@@ -90,18 +89,34 @@ class DashboardV2View(HelpContextMixin, LoginRequiredMixin, TemplateView):
 class CockpitPanelView(LoginRequiredMixin, View):
     """HTMX endpoint for cockpit domain expanded panel."""
 
-    VALID_DOMAINS = ('faith', 'health', 'work')
+    # Domain-specific panel templates (rich detail views)
+    PANEL_TEMPLATES = {
+        'faith': 'dashboard_v2/partials/cockpit_panels/faith_panel.html',
+        'health': 'dashboard_v2/partials/cockpit_panels/health_panel.html',
+        'work': 'dashboard_v2/partials/cockpit_panels/work_panel.html',
+    }
 
     def get(self, request, domain):
-        if domain not in self.VALID_DOMAINS:
-            return HttpResponse("Invalid domain", status=400)
-
         from .services.cockpit_service import GoalCockpitService
 
+        # Validate against user's actual active domains (not a hardcoded list)
         service = GoalCockpitService(request.user)
+        active_slugs = service.get_active_domain_slugs()
+        if domain not in active_slugs:
+            return HttpResponse("Invalid domain", status=400)
+
         data = service.get_domain_detail(domain)
-        template = f"dashboard_v2/partials/cockpit_panels/{domain}_panel.html"
-        html = render_to_string(template, {domain: data, "request": request}, request=request)
+
+        # Use domain-specific template if available, otherwise generic
+        template = self.PANEL_TEMPLATES.get(
+            domain,
+            'dashboard_v2/partials/cockpit_panels/generic_panel.html',
+        )
+        html = render_to_string(
+            template,
+            {domain: data, 'domain_data': data, "request": request},
+            request=request,
+        )
         return HttpResponse(html)
 
 

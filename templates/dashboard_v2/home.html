@@ -15,21 +15,17 @@
         <p class="v2-date">{{ current_date|date:"l, F j, Y" }}</p>
     </div>
 
-    <!-- Goal Cockpit — Three Domain Dials -->
-    {% if cockpit %}
+    <!-- Goal Cockpit — Dynamic Domain Dials (driven by user's goals + SAE signals) -->
+    {% if cockpit_domains %}
     <section class="v2-section v2-cockpit-section">
         <div class="v2-cockpit-row">
-            {% if faith_enabled %}
-            {% include "dashboard_v2/partials/cockpit_dial.html" with domain_key="faith" domain_data=cockpit.faith %}
-            {% endif %}
-            {% if health_enabled %}
-            {% include "dashboard_v2/partials/cockpit_dial.html" with domain_key="health" domain_data=cockpit.health %}
-            {% endif %}
-            {% if purpose_enabled %}
-            {% include "dashboard_v2/partials/cockpit_dial.html" with domain_key="work" domain_data=cockpit.work %}
-            {% endif %}
+            {% for domain in cockpit_domains %}
+            {% include "dashboard_v2/partials/cockpit_dial.html" with domain_key=domain.slug domain_data=domain %}
+            {% endfor %}
         </div>
     </section>
+    {% else %}
+    {% include "dashboard_v2/partials/cockpit_empty.html" %}
     {% endif %}
 
     <!-- Physical Intelligence Coach Panel (HTMX lazy-load) -->

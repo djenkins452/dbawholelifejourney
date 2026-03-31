@@ -3,7 +3,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-30 (Goal Cockpit refactor — dynamic domain activation)
+# Last Updated: 2026-03-31 (Goal Cockpit — goals-only activation, remove signal-based rule)
 # ================================================================# WLJ Change History
 
 ## 2026-03-30 — Refactor: Goal Cockpit — Dynamic Domain Activation

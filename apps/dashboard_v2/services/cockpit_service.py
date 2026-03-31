@@ -32,8 +32,8 @@ MAX_COCKPIT_DIALS = 5
 
 # ── Domain-to-SAE Signal Mapping ──────────────────────────────────────
 # Maps LifeDomain slugs to SAE module keys and the fields that indicate
-# "recent high-confidence activity" (used for signal-based activation).
-# A domain is signal-active if ANY of its signal_fields returns a truthy value.
+# domain-level activity. Used by scorers to read signal data — NOT for
+# activation (activation is goal-driven only).
 DOMAIN_SAE_MAP = {
     'health': {
         'modules': ['health', 'fitness', 'medicine', 'nutrition', 'fasting'],
@@ -142,15 +142,15 @@ class GoalCockpitService:
         """
         Determine which domains should appear in the cockpit.
 
-        A domain is active if:
-        1. The user has active LifeGoals OR HabitGoals in that domain, OR
-        2. The domain has recent high-confidence signals in SAE state.
+        A domain is active ONLY if the user has active LifeGoals or HabitGoals
+        in that domain. This is a Goal Cockpit — it shows what the user has
+        committed to, not what modules have data.
 
-        No hardcoded domain exceptions.
+        SAE signals feed the scorers (how well you're doing), not the activation
+        (whether the dial appears at all).
         """
         from apps.purpose.models import HabitGoal, LifeDomain, LifeGoal
 
-        # Rule 1: Domains with active goals or habits
         goal_domain_ids = set(
             LifeGoal.objects.filter(user=self.user, status='active')
             .exclude(domain__isnull=True)
@@ -165,46 +165,14 @@ class GoalCockpitService:
         )
         active_ids = goal_domain_ids | habit_domain_ids
 
-        # Rule 2: Domains with recent SAE signals
-        signal_domain_slugs = self._get_signal_active_domains()
+        if not active_ids:
+            return []
 
-        # Combine: get LifeDomain objects for all active domains
-        all_domains = LifeDomain.objects.filter(is_active=True)
+        return list(
+            LifeDomain.objects.filter(id__in=active_ids, is_active=True)
+            .order_by('sort_order')
+        )
 
-        result = []
-        for domain in all_domains:
-            if domain.id in active_ids or domain.slug in signal_domain_slugs:
-                result.append(domain)
-
-        # Sort by sort_order
-        result.sort(key=lambda d: d.sort_order)
-        return result
-
-    def _get_signal_active_domains(self):
-        """
-        Check SAE state for domains with recent high-confidence signals.
-        Returns set of domain slugs that have signal activity.
-
-        Uses cached SAE state — no DB queries. O(1) per field check.
-        """
-        try:
-            from apps.core.ai_state.state_engine import get_state_value
-        except ImportError:
-            return set()
-
-        active_slugs = set()
-
-        for domain_slug, config in DOMAIN_SAE_MAP.items():
-            for module_key, field_key in config['signal_fields']:
-                try:
-                    value = get_state_value(self.user, f'{module_key}.{field_key}')
-                    if value and value not in (0, '0', None, False):
-                        active_slugs.add(domain_slug)
-                        break  # One signal is enough
-                except Exception:
-                    continue
-
-        return active_slugs
 
 
 # ── Scorer Base Class ──────────────────────────────────────────────────

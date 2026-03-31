@@ -148,17 +148,13 @@ class GoalCockpitDomainActivationTest(CockpitTestMixin, TestCase):
         data = service.get_cockpit_data()
         self.assertLessEqual(len(data), 5)
 
-    @patch("apps.dashboard_v2.services.cockpit_service.GoalCockpitService._get_signal_active_domains")
-    def test_sae_signals_activate_domain(self, mock_signals):
-        """Domain with SAE signals but no goals still appears."""
-        # Simulate health having signal activity
-        mock_signals.return_value = {"health"}
-
+    def test_sae_signals_alone_dont_activate_domain(self):
+        """Domain with SAE data but no goals does NOT appear — goal cockpit is goal-driven."""
+        # User has no goals at all — even if health has SAE signals,
+        # the cockpit should be empty
         service = GoalCockpitService(self.user)
         data = service.get_cockpit_data()
-
-        slugs = {d["slug"] for d in data}
-        self.assertIn("health", slugs)
+        self.assertEqual(data, [])
 
     def test_labels_from_model(self):
         """Labels and colors come from LifeDomain model, not hardcoded."""
@@ -241,13 +237,7 @@ class FaithScorerTest(CockpitTestMixin, TestCase):
 class HealthScorerTest(CockpitTestMixin, TestCase):
     """Tests for health domain scoring."""
 
-    def setUp(self):
-        super().setUp()
-        # Stop the global SAE mock so we can use test-specific mock values
-        self._gsv_patcher.stop()
-
-    @patch("apps.core.ai_state.state_engine.get_state_value")
-    def test_health_score_from_sae(self, mock_gsv):
+    def test_health_score_from_sae(self):
         """Health score uses HealthScoreService composite from SAE."""
         sae_data = {
             'health.health_score': 72,
@@ -281,9 +271,20 @@ class HealthScorerTest(CockpitTestMixin, TestCase):
             'health.glucose_avg_7d': 105,
             'health.blood_oxygen_avg_7d': 97.5,
         }
-        mock_gsv.side_effect = lambda user, path, default=None: sae_data.get(path, default)
+        # Override the mixin's global mock with test-specific SAE data
+        self._gsv_patcher.stop()
+        specific_patcher = patch(
+            "apps.core.ai_state.state_engine.get_state_value",
+            side_effect=lambda user, path, default=None: sae_data.get(path, default),
+        )
+        specific_patcher.start()
+        self.addCleanup(specific_patcher.stop)
 
-        # Health activates via SAE signals, not just goals
+        # Health only appears when user has a health goal
+        LifeGoal.objects.create(
+            user=self.user, title="Get healthy", domain=self.health_domain, status="active",
+        )
+
         service = GoalCockpitService(self.user)
         data = service.get_cockpit_data()
 

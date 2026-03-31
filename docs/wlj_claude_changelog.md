@@ -3,6 +3,33 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
+# Last Updated: 2026-03-30 (Goal Cockpit refactor — dynamic domain activation)
+# ================================================================# WLJ Change History
+
+## 2026-03-30 — Refactor: Goal Cockpit — Dynamic Domain Activation
+
+**Architecture fix:** The Goal Cockpit was hardcoded to show exactly three domains (Faith, Health, Work/Purpose) for every user. This violated WLJ architecture by bypassing the LifeDomain model, LifeGoal model, and domain registry.
+
+**New activation rule — a domain appears in the cockpit if:**
+1. The user has active LifeGoals OR HabitGoals in that domain, OR
+2. The domain has recent high-confidence signals in SAE state (e.g., health data activity)
+
+No hardcoded domain exceptions. Health appears because SAE health signals exist, not because it's special-cased.
+
+**Changes:**
+- `apps/dashboard_v2/services/cockpit_service.py` — Complete rewrite: scorer registry pattern with `BaseDomainScorer`, `FaithDomainScorer`, `HealthDomainScorer`, `WorkDomainScorer`, `GenericDomainScorer`. `DOMAIN_SAE_MAP` maps domain slugs to SAE signal fields. `_get_active_domains()` queries LifeGoal/HabitGoal + SAE signals. Max 5 dials. Labels and colors read from LifeDomain model.
+- `apps/dashboard_v2/views.py` — Removed `VALID_DOMAINS` hardcoding. `CockpitPanelView` validates against user's actual active domains. Uses generic panel template for domains without specialized panels.
+- `templates/dashboard_v2/home.html` — Replaced three hardcoded includes with `{% for domain in cockpit_domains %}` loop.
+- `templates/dashboard_v2/partials/cockpit_panels/generic_panel.html` — New generic panel showing milestones, habits, and tasks for any domain.
+- `templates/dashboard_v2/partials/cockpit_empty.html` — Empty state with "Create a Goal" CTA.
+- `apps/dashboard_v2/tests/test_cockpit_service.py` — Rewritten: 20 tests covering domain activation (0/1/3/6+ domains), signal activation, generic scorer, label sourcing, max cap, trend calculation.
+
+**Data flow:** Raw Data → SAE State → Domain Activation → Scorer → UI (LLM never involved)
+
+**Files:** `apps/dashboard_v2/services/cockpit_service.py`, `apps/dashboard_v2/views.py`, `templates/dashboard_v2/home.html`, `templates/dashboard_v2/partials/cockpit_panels/generic_panel.html` (new), `templates/dashboard_v2/partials/cockpit_empty.html` (new), `apps/dashboard_v2/tests/test_cockpit_service.py`
+
+---
+
 # Last Updated: 2026-03-30 (Production docs update — all fixtures, features, engine ref)
 # ================================================================# WLJ Change History
 

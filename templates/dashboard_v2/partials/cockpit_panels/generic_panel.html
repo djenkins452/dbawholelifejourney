@@ -1,0 +1,58 @@
+{# Generic Domain Expanded Panel — milestones, habits, tasks for any domain #}
+
+<div class="v2-panel-content">
+    <h3 class="v2-panel-title">{{ domain_data.label }} — 7-Day Breakdown</h3>
+
+    <div class="v2-panel-grid">
+        {# Milestone Progress #}
+        {% if domain_data.components.milestones.total > 0 %}
+        <div class="v2-panel-metric">
+            <div class="v2-panel-metric-label">Milestones</div>
+            <div class="v2-panel-metric-value">
+                <span class="v2-panel-metric-number">{{ domain_data.components.milestones.completed }}</span>
+                <span class="v2-panel-metric-total">/ {{ domain_data.components.milestones.total }} complete</span>
+            </div>
+            {% if domain_data.components.milestones.active_goals %}
+            <div class="v2-panel-metric-sub">
+                {{ domain_data.components.milestones.active_goals }} active goal{{ domain_data.components.milestones.active_goals|pluralize }}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# Habit Completion #}
+        {% if domain_data.components.habits.active_habits > 0 %}
+        <div class="v2-panel-metric">
+            <div class="v2-panel-metric-label">Habits</div>
+            <div class="v2-panel-metric-value">
+                <span class="v2-panel-metric-number">{{ domain_data.components.habits.completion_rate }}%</span>
+                <span class="v2-panel-metric-total">completion rate</span>
+            </div>
+            <div class="v2-panel-metric-sub">
+                {{ domain_data.components.habits.active_habits }} active habit{{ domain_data.components.habits.active_habits|pluralize }}
+            </div>
+        </div>
+        {% endif %}
+
+        {# Task Completion #}
+        {% if domain_data.components.tasks.total > 0 %}
+        <div class="v2-panel-metric">
+            <div class="v2-panel-metric-label">Tasks</div>
+            <div class="v2-panel-metric-value">
+                <span class="v2-panel-metric-number">{{ domain_data.components.tasks.completed }}</span>
+                <span class="v2-panel-metric-total">/ {{ domain_data.components.tasks.total }} completed</span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {# Empty state when no components have data #}
+    {% if not domain_data.components.milestones.total and not domain_data.components.habits.active_habits and not domain_data.components.tasks.total %}
+    <p style="font-size: 0.85rem; color: var(--text-tertiary, #94a3b8); text-align: center; padding: 0.5rem 0;">
+        Add milestones, habits, or tasks to see your progress here.
+    </p>
+    {% endif %}
+
+    {# Quick link #}
+    <a href="{% url 'purpose:goal_list' %}" class="v2-panel-link">View Goals &#x2192;</a>
+</div>

@@ -1,16 +1,20 @@
 """
-Goal Cockpit Service — computes three life-domain scores for the cockpit dials.
+Goal Cockpit Service — computes dynamic life-domain scores for the cockpit dials.
 
-Domains:
-  - Faith (Bible reading + prayer consistency, 7-day window)
-  - Health (medication + workout + sleep + water, 7-day window)
-  - Work/Purpose (task completion + session consistency + milestone progress, 7-day window)
+Domains are determined dynamically from the user's active LifeGoals and HabitGoals,
+plus any domains with recent high-confidence signals in SAE state. No domains are
+hardcoded — the cockpit shows what matters to THIS user.
+
+Specialized scorers exist for Faith, Health, and Work/Purpose. All other domains
+use a generic scorer based on milestone progress + habit completion + task completion.
 
 Architecture:
   - 100% deterministic (no LLM)
   - Health reads ONLY from SAE canonical state (single source of truth)
   - Faith uses Execution Truth Engine
   - Work uses Task/LifeGoal models directly
+  - Generic domains use milestone + habit + task completion
+  - Domain activation: Raw Data → SAE Signals → Domain Activation → UI
 """
 
 import logging
@@ -23,9 +27,71 @@ logger = logging.getLogger(__name__)
 # Trend threshold — difference must exceed this to show ↑ or ↓
 TREND_THRESHOLD = 5
 
+# Maximum number of dials to show (prevents UI clutter)
+MAX_COCKPIT_DIALS = 5
+
+# ── Domain-to-SAE Signal Mapping ──────────────────────────────────────
+# Maps LifeDomain slugs to SAE module keys and the fields that indicate
+# "recent high-confidence activity" (used for signal-based activation).
+# A domain is signal-active if ANY of its signal_fields returns a truthy value.
+DOMAIN_SAE_MAP = {
+    'health': {
+        'modules': ['health', 'fitness', 'medicine', 'nutrition', 'fasting'],
+        'signal_fields': [
+            ('health', 'sleep_entries_7d'),
+            ('health', 'steps_entries_7d'),
+            ('health', 'water_tracked_days_7d'),
+            ('health', 'weight_entries_90d'),
+            ('fitness', 'workouts_7d'),
+            ('medicine', 'adherence_score_7d'),
+        ],
+    },
+    'faith': {
+        'modules': ['faith'],
+        'signal_fields': [
+            ('faith', 'reading_streak'),
+            ('faith', 'active_reading_plans'),
+        ],
+    },
+    'work': {
+        'modules': ['tasks', 'goals'],
+        'signal_fields': [
+            ('tasks', 'completed_today'),
+            ('tasks', 'tasks_now'),
+            ('goals', 'active_goal_count'),
+        ],
+    },
+    'finances': {
+        'modules': ['finance'],
+        'signal_fields': [
+            ('finance', '_contract.summary.account_count'),
+        ],
+    },
+    'personal-growth': {
+        'modules': ['habits', 'journal'],
+        'signal_fields': [
+            ('habits', 'active_habit_count'),
+            ('journal', 'entries_7d'),
+        ],
+    },
+    'learning': {
+        'modules': ['brain_training'],
+        'signal_fields': [
+            ('brain_training', '_contract.summary.sessions_this_week'),
+        ],
+    },
+    'relationships': {
+        'modules': ['relationships'],
+        'signal_fields': [
+            ('relationships', '_contract.summary.active_count'),
+        ],
+    },
+    # 'family' has no dedicated SAE module — activates only via LifeGoal/HabitGoal
+}
+
 
 class GoalCockpitService:
-    """Computes the three domain dials for the goal-based cockpit."""
+    """Computes dynamic goal-driven cockpit dials."""
 
     def __init__(self, user):
         self.user = user
@@ -33,78 +99,242 @@ class GoalCockpitService:
 
     def get_cockpit_data(self):
         """
-        Returns dict with faith, health, work keys.
-        Each value is a dict: {score, trend, trend_delta, priority, label, color, components}
+        Returns ordered list of domain dicts for active domains.
+        Each dict: {slug, label, color, icon, score, trend, trend_delta, priority, components, goal_progress, sort_key}
         """
+        active_domains = self._get_active_domains()
+
+        results = []
+        for domain in active_domains:
+            scorer_cls = DOMAIN_SCORERS.get(domain.slug, GenericDomainScorer)
+            try:
+                data = scorer_cls(self.user, domain, self.today).compute()
+                results.append(data)
+            except Exception:
+                logger.warning("Cockpit: scorer failed for %s", domain.slug, exc_info=True)
+                results.append(_empty_domain(domain))
+
+        # Sort: foundational goals first, then by score descending, then domain sort_order
+        results.sort(key=lambda d: d.get('sort_key', (1, 0, 999)))
+
+        return results[:MAX_COCKPIT_DIALS]
+
+    def get_domain_detail(self, domain_slug):
+        """Returns expanded panel data for a single domain."""
+        try:
+            from apps.purpose.models import LifeDomain
+            domain = LifeDomain.objects.get(slug=domain_slug, is_active=True)
+        except Exception:
+            return _empty_domain_from_slug(domain_slug)
+
+        scorer_cls = DOMAIN_SCORERS.get(domain_slug, GenericDomainScorer)
+        try:
+            return scorer_cls(self.user, domain, self.today).compute()
+        except Exception:
+            logger.warning("Cockpit: detail scorer failed for %s", domain_slug, exc_info=True)
+            return _empty_domain(domain)
+
+    def get_active_domain_slugs(self):
+        """Returns set of active domain slugs for validation."""
+        return {d.slug for d in self._get_active_domains()}
+
+    def _get_active_domains(self):
+        """
+        Determine which domains should appear in the cockpit.
+
+        A domain is active if:
+        1. The user has active LifeGoals OR HabitGoals in that domain, OR
+        2. The domain has recent high-confidence signals in SAE state.
+
+        No hardcoded domain exceptions.
+        """
+        from apps.purpose.models import HabitGoal, LifeDomain, LifeGoal
+
+        # Rule 1: Domains with active goals or habits
+        goal_domain_ids = set(
+            LifeGoal.objects.filter(user=self.user, status='active')
+            .exclude(domain__isnull=True)
+            .values_list('domain_id', flat=True)
+            .distinct()
+        )
+        habit_domain_ids = set(
+            HabitGoal.objects.filter(user=self.user, status='active')
+            .exclude(domain__isnull=True)
+            .values_list('domain_id', flat=True)
+            .distinct()
+        )
+        active_ids = goal_domain_ids | habit_domain_ids
+
+        # Rule 2: Domains with recent SAE signals
+        signal_domain_slugs = self._get_signal_active_domains()
+
+        # Combine: get LifeDomain objects for all active domains
+        all_domains = LifeDomain.objects.filter(is_active=True)
+
+        result = []
+        for domain in all_domains:
+            if domain.id in active_ids or domain.slug in signal_domain_slugs:
+                result.append(domain)
+
+        # Sort by sort_order
+        result.sort(key=lambda d: d.sort_order)
+        return result
+
+    def _get_signal_active_domains(self):
+        """
+        Check SAE state for domains with recent high-confidence signals.
+        Returns set of domain slugs that have signal activity.
+
+        Uses cached SAE state — no DB queries. O(1) per field check.
+        """
+        try:
+            from apps.core.ai_state.state_engine import get_state_value
+        except ImportError:
+            return set()
+
+        active_slugs = set()
+
+        for domain_slug, config in DOMAIN_SAE_MAP.items():
+            for module_key, field_key in config['signal_fields']:
+                try:
+                    value = get_state_value(self.user, f'{module_key}.{field_key}')
+                    if value and value not in (0, '0', None, False):
+                        active_slugs.add(domain_slug)
+                        break  # One signal is enough
+                except Exception:
+                    continue
+
+        return active_slugs
+
+
+# ── Scorer Base Class ──────────────────────────────────────────────────
+
+
+class BaseDomainScorer:
+    """Base class for domain-specific cockpit scorers."""
+
+    def __init__(self, user, domain, today):
+        self.user = user
+        self.domain = domain
+        self.today = today
+
+    def compute(self):
+        """Compute and return the domain data dict."""
+        score, components = self._score()
+        trend, trend_delta = self._trend(score)
+
+        # Determine sort key: foundational goals first, then score desc
+        has_foundational = self._has_foundational_goal()
+
         return {
-            'faith': self._compute_faith(),
-            'health': self._compute_health(),
-            'work': self._compute_work(),
+            'slug': self.domain.slug,
+            'label': self.domain.name,
+            'color': self.domain.color,
+            'icon': getattr(self.domain, 'icon', ''),
+            'score': score,
+            'trend': trend,
+            'trend_delta': trend_delta,
+            'priority': score < 60,
+            'components': components,
+            'goal_progress': self._goal_progress(),
+            'sort_key': (0 if has_foundational else 1, -score, self.domain.sort_order),
         }
 
-    def get_domain_detail(self, domain):
-        """Returns expanded panel data for a single domain."""
-        method = {
-            'faith': self._compute_faith,
-            'health': self._compute_health,
-            'work': self._compute_work,
-        }.get(domain)
-        if method:
-            return method()
-        return self._empty_domain('Unknown', '#888')
+    def _score(self):
+        """Return (score_int, components_dict). Override in subclasses."""
+        return 0, {}
 
-    # ── Faith ─────────────────────────────────────────────
+    def _trend(self, current_score):
+        """Default trend calculation. Override for domain-specific logic."""
+        return 'flat', 0
 
-    def _compute_faith(self):
+    def _has_foundational_goal(self):
+        """Check if user has foundational-level goals in this domain."""
+        from apps.purpose.models import LifeGoal
+        return LifeGoal.objects.filter(
+            user=self.user, status='active',
+            domain=self.domain, commitment_level='foundational',
+        ).exists()
+
+    def _goal_progress(self):
+        """Lifetime milestone progress for this domain."""
         try:
-            window_days = 8  # today - timedelta(days=7) through today inclusive
-            # Batch-load faith completion for full 16-day range (3-4 queries
-            # instead of 16 × get_execution_truth calls at ~35 queries each).
-            full_start = self.today - timedelta(days=15)
-            bible_dates, prayer_dates = self._faith_completion_dates(full_start, self.today)
+            from apps.purpose.models import GoalMilestone, LifeGoal
 
-            current_start = self.today - timedelta(days=7)
-            prev_start = self.today - timedelta(days=15)
-            prev_end = self.today - timedelta(days=8)
+            goals = LifeGoal.objects.filter(
+                user=self.user, status='active', domain=self.domain,
+            )
+            if not goals.exists():
+                return None
 
-            current = self._split_faith_window(current_start, self.today, bible_dates, prayer_dates)
-            previous = self._split_faith_window(prev_start, prev_end, bible_dates, prayer_dates)
+            total = GoalMilestone.objects.filter(goal__in=goals).count()
+            completed = GoalMilestone.objects.filter(
+                goal__in=goals, completed=True,
+            ).count()
 
-            bible_days = current['bible_days']
-            prayer_days = current['prayer_days']
-            score = round((bible_days / window_days * 50) + (prayer_days / window_days * 50))
-
-            prev_score = round((previous['bible_days'] / window_days * 50) + (previous['prayer_days'] / window_days * 50))
-            trend, trend_delta = self._calc_trend(score, prev_score)
+            if total == 0:
+                return None
 
             return {
-                'score': score,
-                'trend': trend,
-                'trend_delta': trend_delta,
-                'priority': score < 60,
-                'label': 'Faith',
-                'color': '#3b82f6',
-                'goal_progress': self._goal_progress('faith'),
-                'components': {
-                    'bible_days': bible_days,
-                    'prayer_days': prayer_days,
-                    'bible_daily': current['bible_daily'],
-                    'prayer_daily': current['prayer_daily'],
-                },
+                'total': total,
+                'completed': completed,
+                'percent': round((completed / total) * 100),
             }
         except Exception:
-            logger.warning("Cockpit: faith score failed", exc_info=True)
-            return self._empty_domain('Faith', '#3b82f6')
+            return None
+
+    @staticmethod
+    def _calc_trend(current, previous):
+        """Compare two scores and return (trend_str, delta_int)."""
+        delta = current - previous
+        if delta > TREND_THRESHOLD:
+            return 'up', delta
+        elif delta < -TREND_THRESHOLD:
+            return 'down', delta
+        return 'flat', delta
+
+
+# ── Faith Scorer ───────────────────────────────────────────────────────
+
+
+class FaithDomainScorer(BaseDomainScorer):
+    """Faith scoring: Bible reading + prayer consistency, 8-day window."""
+
+    def _score(self):
+        window_days = 8
+        full_start = self.today - timedelta(days=15)
+        bible_dates, prayer_dates = self._faith_completion_dates(full_start, self.today)
+
+        current_start = self.today - timedelta(days=7)
+        current = self._split_faith_window(current_start, self.today, bible_dates, prayer_dates)
+
+        bible_days = current['bible_days']
+        prayer_days = current['prayer_days']
+        score = round((bible_days / window_days * 50) + (prayer_days / window_days * 50))
+
+        return score, {
+            'bible_days': bible_days,
+            'prayer_days': prayer_days,
+            'bible_daily': current['bible_daily'],
+            'prayer_daily': current['prayer_daily'],
+        }
+
+    def _trend(self, current_score):
+        window_days = 8
+        full_start = self.today - timedelta(days=15)
+        bible_dates, prayer_dates = self._faith_completion_dates(full_start, self.today)
+
+        prev_start = self.today - timedelta(days=15)
+        prev_end = self.today - timedelta(days=8)
+        previous = self._split_faith_window(prev_start, prev_end, bible_dates, prayer_dates)
+        prev_score = round((previous['bible_days'] / window_days * 50) + (previous['prayer_days'] / window_days * 50))
+
+        return self._calc_trend(current_score, prev_score)
 
     def _faith_completion_dates(self, start_date, end_date):
         """
         Batch-load Bible and prayer completion dates for a date range.
-
-        Returns two sets of dates: (bible_dates, prayer_dates).
-        Uses the same sources as Execution Truth Engine's faith bridge:
-          - ReadingPlanProgress for Bible (reading_plan source)
-          - RoutineLog for Bible/Prayer (routine source)
-          - Task for Prayer (task source)
+        Uses the same sources as Execution Truth Engine's faith bridge.
         """
         from apps.core.execution.execution_truth_engine import (
             FAITH_BIBLE_NAMES, FAITH_PRAYER_NAMES,
@@ -212,111 +442,82 @@ class GoalCockpitService:
             'prayer_daily': prayer_daily,
         }
 
-    # ── Health ────────────────────────────────────────────
 
-    def _compute_health(self):
-        """
-        Health score from HealthScoreService (7-domain composite) via SAE.
+# ── Health Scorer ──────────────────────────────────────────────────────
 
-        Primary: HealthScoreService composite (sleep, recovery, glucose,
-        weight, workout, nutrition, activity — adaptive weighting).
-        Fallback: weighted average of available behavioral sub-scores from
-        SAE (medication, workout, sleep, water) when composite not yet
-        available (baseline collecting or stale state).
-        """
-        try:
-            from apps.core.ai_state.state_engine import get_state_value
 
-            user = self.user
+class HealthDomainScorer(BaseDomainScorer):
+    """Health scoring from HealthScoreService (7-domain composite) via SAE."""
 
-            # Primary score: HealthScoreService composite stored in SAE
-            score = get_state_value(user, 'health.health_score')
-            drivers = get_state_value(user, 'health.health_score_drivers', {})
+    def _score(self):
+        from apps.core.ai_state.state_engine import get_state_value
 
-            # Fallback: if HealthScoreService hasn't computed yet (baseline
-            # not ready, or DailyHealthSummary not scored), derive a basic
-            # score from available behavioral sub-scores in SAE.
+        user = self.user
+
+        # Primary: HealthScoreService composite
+        score = get_state_value(user, 'health.health_score')
+        drivers = get_state_value(user, 'health.health_score_drivers', {})
+
+        # Fallback: behavioral sub-scores
+        if score is None:
+            score, drivers = self._fallback_health_score(user)
             if score is None:
-                score, drivers = self._fallback_health_score(user)
-                if score is None:
-                    return self._empty_domain('Health', '#22c55e')
+                return 0, {}
 
-            # Trend from HealthScoreService previous-week delta
-            prev_score = get_state_value(user, 'health.health_score_prev_7d')
-            if prev_score is not None:
-                trend, trend_delta = self._calc_trend(score, prev_score)
-            else:
-                adh_delta = get_state_value(user, 'behavior.adherence_delta', 0)
-                trend, trend_delta = self._calc_trend(score, score - adh_delta)
+        domains = drivers.get('domains', {})
 
-            # Score domain breakdown from HealthScoreService
-            domains = drivers.get('domains', {})
+        components = {
+            'medication': {
+                'completed': get_state_value(user, 'medicine.completed_7d', 0),
+                'expected': get_state_value(user, 'medicine.expected_7d', 0),
+                'missed': get_state_value(user, 'medicine.missed_7d', 0),
+            },
+            'workout': {
+                'completed': get_state_value(user, 'fitness.workout_completed_7d', 0),
+                'expected': get_state_value(user, 'fitness.workout_expected_7d', 0),
+                'missed': get_state_value(user, 'fitness.workout_missed_7d', 0),
+            },
+            'sleep': {
+                'avg_hours': get_state_value(user, 'health.sleep_avg_hours_7d'),
+                'good_nights': get_state_value(user, 'health.sleep_good_nights_7d', 0),
+                'tracked_nights': get_state_value(user, 'health.sleep_entries_7d', 0),
+            },
+            'water': {
+                'avg_oz': get_state_value(user, 'health.water_avg_oz_7d'),
+                'good_days': get_state_value(user, 'health.water_good_days_7d', 0),
+                'tracked_days': get_state_value(user, 'health.water_tracked_days_7d', 0),
+                'goal_oz': get_state_value(user, 'health.water_goal_oz', 64),
+            },
+            'vitals': {
+                'bp_systolic': get_state_value(user, 'health.bp_systolic'),
+                'bp_diastolic': get_state_value(user, 'health.bp_diastolic'),
+                'heart_rate_avg': get_state_value(user, 'health.heart_rate_avg_7d'),
+                'glucose_avg': get_state_value(user, 'health.glucose_avg_7d'),
+                'blood_oxygen_avg': get_state_value(user, 'health.blood_oxygen_avg_7d'),
+                'recovery_score': get_state_value(user, 'health.recovery_score_today'),
+            },
+            'score_domains': domains,
+            'missing_signals': drivers.get('missing_signals', []),
+            'med_score': get_state_value(user, 'medicine.adherence_score_7d'),
+            'workout_score': get_state_value(user, 'fitness.workout_adherence_score'),
+            'sleep_score': get_state_value(user, 'health.sleep_consistency_score'),
+            'water_score': get_state_value(user, 'health.water_consistency_score'),
+        }
 
-            # Component details for expanded health panel
-            components = {
-                # Behavioral detail cards (existing)
-                'medication': {
-                    'completed': get_state_value(user, 'medicine.completed_7d', 0),
-                    'expected': get_state_value(user, 'medicine.expected_7d', 0),
-                    'missed': get_state_value(user, 'medicine.missed_7d', 0),
-                },
-                'workout': {
-                    'completed': get_state_value(user, 'fitness.workout_completed_7d', 0),
-                    'expected': get_state_value(user, 'fitness.workout_expected_7d', 0),
-                    'missed': get_state_value(user, 'fitness.workout_missed_7d', 0),
-                },
-                'sleep': {
-                    'avg_hours': get_state_value(user, 'health.sleep_avg_hours_7d'),
-                    'good_nights': get_state_value(user, 'health.sleep_good_nights_7d', 0),
-                    'tracked_nights': get_state_value(user, 'health.sleep_entries_7d', 0),
-                },
-                'water': {
-                    'avg_oz': get_state_value(user, 'health.water_avg_oz_7d'),
-                    'good_days': get_state_value(user, 'health.water_good_days_7d', 0),
-                    'tracked_days': get_state_value(user, 'health.water_tracked_days_7d', 0),
-                    'goal_oz': get_state_value(user, 'health.water_goal_oz', 64),
-                },
-                # Vitals snapshot
-                'vitals': {
-                    'bp_systolic': get_state_value(user, 'health.bp_systolic'),
-                    'bp_diastolic': get_state_value(user, 'health.bp_diastolic'),
-                    'heart_rate_avg': get_state_value(user, 'health.heart_rate_avg_7d'),
-                    'glucose_avg': get_state_value(user, 'health.glucose_avg_7d'),
-                    'blood_oxygen_avg': get_state_value(user, 'health.blood_oxygen_avg_7d'),
-                    'recovery_score': get_state_value(user, 'health.recovery_score_today'),
-                },
-                # HealthScoreService domain breakdown
-                'score_domains': domains,
-                'missing_signals': drivers.get('missing_signals', []),
-                # Individual sub-scores for template compatibility
-                'med_score': get_state_value(user, 'medicine.adherence_score_7d'),
-                'workout_score': get_state_value(user, 'fitness.workout_adherence_score'),
-                'sleep_score': get_state_value(user, 'health.sleep_consistency_score'),
-                'water_score': get_state_value(user, 'health.water_consistency_score'),
-            }
+        return score, components
 
-            return {
-                'score': score,
-                'trend': trend,
-                'trend_delta': trend_delta,
-                'priority': score < 60,
-                'label': 'Health',
-                'color': '#22c55e',
-                'goal_progress': self._goal_progress('health'),
-                'components': components,
-            }
-        except Exception:
-            logger.warning("Cockpit: health score failed", exc_info=True)
-            return self._empty_domain('Health', '#22c55e')
+    def _trend(self, current_score):
+        from apps.core.ai_state.state_engine import get_state_value
+
+        prev_score = get_state_value(self.user, 'health.health_score_prev_7d')
+        if prev_score is not None:
+            return self._calc_trend(current_score, prev_score)
+        adh_delta = get_state_value(self.user, 'behavior.adherence_delta', 0)
+        return self._calc_trend(current_score, current_score - adh_delta)
 
     @staticmethod
     def _fallback_health_score(user):
-        """
-        Basic health score from behavioral sub-scores when HealthScoreService
-        composite is not available (baseline collecting or stale state).
-
-        Uses SAE fields only — no raw queries.
-        """
+        """Basic health score from behavioral sub-scores when composite unavailable."""
         from apps.core.ai_state.state_engine import get_state_value
 
         weights = {}
@@ -357,73 +558,58 @@ class GoalCockpitService:
         }
         return score, drivers
 
-    # ── Work / Purpose ────────────────────────────────────
 
-    def _compute_work(self):
-        try:
-            task_score, task_detail = self._compute_task_completion()
-            session_score, session_detail = self._compute_session_consistency()
-            milestone_score, milestone_detail = self._compute_milestone_progress()
+# ── Work/Purpose Scorer ────────────────────────────────────────────────
 
-            # Weighted average with redistribution
-            weights = {}
-            scores_map = {}
-            if task_score is not None:
-                weights['tasks'] = 40
-                scores_map['tasks'] = task_score
-            if session_score is not None:
-                weights['sessions'] = 30
-                scores_map['sessions'] = session_score
-            if milestone_score is not None:
-                weights['milestones'] = 30
-                scores_map['milestones'] = milestone_score
 
-            if weights:
-                weight_sum = sum(weights.values())
-                score = round(sum(
-                    scores_map[k] * (w / weight_sum)
-                    for k, w in weights.items()
-                ))
-            else:
-                score = 0
+class WorkDomainScorer(BaseDomainScorer):
+    """Work/Purpose scoring: task completion + session consistency + milestone progress."""
 
-            # Trend: compare current vs prior 7d task rate
-            prev_task_score, _ = self._compute_task_completion(
-                start=self.today - timedelta(days=13),
-                end=self.today - timedelta(days=7),
-            )
-            prev_score = prev_task_score if prev_task_score is not None else 0
-            trend, trend_delta = self._calc_trend(score, prev_score)
+    def _score(self):
+        task_score, task_detail = self._compute_task_completion()
+        session_score, session_detail = self._compute_session_consistency()
+        milestone_score, milestone_detail = self._compute_milestone_progress()
 
-            return {
-                'score': score,
-                'trend': trend,
-                'trend_delta': trend_delta,
-                'priority': score < 60,
-                'label': 'Work / Purpose',
-                'color': '#f59e0b',
-                'goal_progress': self._goal_progress('work'),
-                'components': {
-                    'tasks': task_detail,
-                    'sessions': session_detail,
-                    'milestones': milestone_detail,
-                    'task_score': task_score,
-                    'session_score': session_score,
-                    'milestone_score': milestone_score,
-                },
-            }
-        except Exception:
-            logger.warning("Cockpit: work score failed", exc_info=True)
-            return self._empty_domain('Work / Purpose', '#f59e0b')
+        weights = {}
+        scores_map = {}
+        if task_score is not None:
+            weights['tasks'] = 40
+            scores_map['tasks'] = task_score
+        if session_score is not None:
+            weights['sessions'] = 30
+            scores_map['sessions'] = session_score
+        if milestone_score is not None:
+            weights['milestones'] = 30
+            scores_map['milestones'] = milestone_score
+
+        if weights:
+            weight_sum = sum(weights.values())
+            score = round(sum(
+                scores_map[k] * (w / weight_sum)
+                for k, w in weights.items()
+            ))
+        else:
+            score = 0
+
+        return score, {
+            'tasks': task_detail,
+            'sessions': session_detail,
+            'milestones': milestone_detail,
+            'task_score': task_score,
+            'session_score': session_score,
+            'milestone_score': milestone_score,
+        }
+
+    def _trend(self, current_score):
+        prev_task_score, _ = self._compute_task_completion(
+            start=self.today - timedelta(days=13),
+            end=self.today - timedelta(days=7),
+        )
+        prev_score = prev_task_score if prev_task_score is not None else 0
+        return self._calc_trend(current_score, prev_score)
 
     def _compute_task_completion(self, start=None, end=None):
-        """
-        Non-routine task completion rate over a date range.
-
-        Today's incomplete tasks are excluded from the denominator — the day
-        isn't over, so they aren't failures yet. They're included once
-        completed or once the day passes.
-        """
+        """Non-routine task completion rate over a date range."""
         try:
             from django.db.models import Q
             from apps.life.models import Task
@@ -440,11 +626,9 @@ class GoalCockpitService:
                 due_date__lte=end,
             ).exclude(status='deleted')
 
-            # Only count tasks where the due date has passed OR already completed.
-            # Today's incomplete tasks aren't failures yet — the day isn't over.
             countable_tasks = base_tasks.filter(
-                Q(due_date__lt=self.today)  # past days: always count
-                | Q(completion_status='completed')  # completed today: count
+                Q(due_date__lt=self.today)
+                | Q(completion_status='completed')
             )
 
             total = countable_tasks.count()
@@ -481,7 +665,6 @@ class GoalCockpitService:
 
             score = round((days_with_tasks / 7) * 100)
 
-            # Find last worked date
             last_task = (
                 Task.objects.filter(
                     user=self.user,
@@ -504,27 +687,18 @@ class GoalCockpitService:
             return None, {'days_active': 0, 'last_worked': None}
 
     def _compute_milestone_progress(self):
-        """
-        Milestone completion across active life goals.
-
-        Only counts milestones that are due (target_date <= today) or have
-        no target_date. Future milestones are excluded — you shouldn't be
-        penalized for milestones that aren't due yet.
-        """
+        """Milestone completion across active life goals."""
         try:
             from django.db.models import Q
-
             from apps.purpose.models import GoalMilestone, LifeGoal
 
             goals = LifeGoal.objects.filter(
-                user=self.user,
-                status='active',
+                user=self.user, status='active',
             )
 
             if not goals.exists():
                 return None, {'total_milestones': 0, 'completed_milestones': 0, 'active_goals': 0}
 
-            # Only milestones that are due or have no deadline
             due_milestones = GoalMilestone.objects.filter(
                 goal__in=goals,
             ).filter(
@@ -547,60 +721,206 @@ class GoalCockpitService:
             logger.debug("Cockpit: milestone query failed", exc_info=True)
             return None, {'total_milestones': 0, 'completed_milestones': 0, 'active_goals': 0}
 
-    # ── Helpers ───────────────────────────────────────────
 
-    def _calc_trend(self, current, previous):
-        """Compare two scores and return (trend_str, delta_int)."""
-        delta = current - previous
-        if delta > TREND_THRESHOLD:
-            return 'up', delta
-        elif delta < -TREND_THRESHOLD:
-            return 'down', delta
-        return 'flat', delta
+# ── Generic Domain Scorer ──────────────────────────────────────────────
 
-    def _goal_progress(self, domain_slug):
-        """
-        Lifetime milestone progress for a LifeDomain.
 
-        Returns dict with total, completed, percent for use in progress bar.
-        Queries ALL milestones (not just due ones) for lifetime view.
-        """
+class GenericDomainScorer(BaseDomainScorer):
+    """
+    Generic scorer for any domain without specialized logic.
+
+    Score = weighted average of:
+      - Milestone completion (50%) — from LifeGoal milestones in this domain
+      - Habit completion rate (30%) — from HabitGoal entries in this domain
+      - Task completion (20%) — from Tasks assigned to this domain's module
+    """
+
+    def _score(self):
+        milestone_score, milestone_detail = self._milestone_completion()
+        habit_score, habit_detail = self._habit_completion()
+        task_score, task_detail = self._task_completion()
+
+        weights = {}
+        scores_map = {}
+        if milestone_score is not None:
+            weights['milestones'] = 50
+            scores_map['milestones'] = milestone_score
+        if habit_score is not None:
+            weights['habits'] = 30
+            scores_map['habits'] = habit_score
+        if task_score is not None:
+            weights['tasks'] = 20
+            scores_map['tasks'] = task_score
+
+        if weights:
+            weight_sum = sum(weights.values())
+            score = round(sum(
+                scores_map[k] * (w / weight_sum)
+                for k, w in weights.items()
+            ))
+        else:
+            score = 0
+
+        return score, {
+            'milestones': milestone_detail,
+            'habits': habit_detail,
+            'tasks': task_detail,
+            'milestone_score': milestone_score,
+            'habit_score': habit_score,
+            'task_score': task_score,
+        }
+
+    def _trend(self, current_score):
+        # Generic domains use flat trend (no historical comparison yet)
+        return 'flat', 0
+
+    def _milestone_completion(self):
+        """Milestone completion for goals in this domain."""
         try:
+            from django.db.models import Q
             from apps.purpose.models import GoalMilestone, LifeGoal
 
             goals = LifeGoal.objects.filter(
-                user=self.user,
-                status='active',
-                domain__slug=domain_slug,
+                user=self.user, status='active', domain=self.domain,
             )
             if not goals.exists():
-                return None
+                return None, {'total': 0, 'completed': 0}
 
-            total = GoalMilestone.objects.filter(goal__in=goals).count()
-            completed = GoalMilestone.objects.filter(
-                goal__in=goals, completed=True,
-            ).count()
+            due = GoalMilestone.objects.filter(goal__in=goals).filter(
+                Q(target_date__isnull=True) | Q(target_date__lte=self.today)
+            )
+            total = due.count()
+            completed = due.filter(completed=True).count()
 
             if total == 0:
-                return None
+                return None, {'total': 0, 'completed': 0, 'active_goals': goals.count()}
 
-            return {
+            return round((completed / total) * 100), {
                 'total': total,
                 'completed': completed,
-                'percent': round((completed / total) * 100),
+                'active_goals': goals.count(),
             }
         except Exception:
-            logger.debug("Cockpit: goal progress failed for %s", domain_slug)
-            return None
+            return None, {'total': 0, 'completed': 0}
 
-    def _empty_domain(self, label, color):
-        return {
-            'score': 0,
-            'trend': 'flat',
-            'trend_delta': 0,
-            'priority': False,
-            'label': label,
-            'color': color,
-            'components': {},
-            'goal_progress': None,
-        }
+    def _habit_completion(self):
+        """7-day habit completion rate for habits in this domain."""
+        try:
+            from apps.purpose.models import HabitEntry, HabitGoal
+
+            habits = HabitGoal.objects.filter(
+                user=self.user, status='active', domain=self.domain,
+            )
+            if not habits.exists():
+                return None, {'active_habits': 0, 'completion_rate': 0}
+
+            start = self.today - timedelta(days=6)
+            entries = HabitEntry.objects.filter(
+                goal__in=habits,
+                date__gte=start,
+                date__lte=self.today,
+            )
+            total = entries.count()
+            completed = entries.filter(completed=True).count()
+
+            if total == 0:
+                return None, {'active_habits': habits.count(), 'completion_rate': 0}
+
+            rate = round((completed / total) * 100)
+            return rate, {
+                'active_habits': habits.count(),
+                'completed_entries': completed,
+                'total_entries': total,
+                'completion_rate': rate,
+            }
+        except Exception:
+            return None, {'active_habits': 0, 'completion_rate': 0}
+
+    def _task_completion(self):
+        """7-day task completion for tasks linked to this domain."""
+        try:
+            from django.db.models import Q
+            from apps.life.models import Task
+
+            # Map domain slugs to task module names
+            module_map = {
+                'faith': 'faith',
+                'health': 'health',
+                'work': 'purpose',
+                'finances': 'finance',
+                'family': 'life',
+                'learning': 'life',
+                'personal-growth': 'life',
+                'relationships': 'life',
+            }
+            module = module_map.get(self.domain.slug, 'life')
+
+            start = self.today - timedelta(days=6)
+            tasks = Task.objects.filter(
+                user=self.user,
+                module=module,
+                is_routine=False,
+                due_date__gte=start,
+                due_date__lte=self.today,
+            ).exclude(status='deleted').filter(
+                Q(due_date__lt=self.today) | Q(completion_status='completed')
+            )
+
+            total = tasks.count()
+            completed = tasks.filter(completion_status='completed').count()
+
+            if total == 0:
+                return None, {'completed': 0, 'total': 0}
+
+            return round((completed / total) * 100), {
+                'completed': completed,
+                'total': total,
+            }
+        except Exception:
+            return None, {'completed': 0, 'total': 0}
+
+
+# ── Scorer Registry ────────────────────────────────────────────────────
+
+DOMAIN_SCORERS = {
+    'faith': FaithDomainScorer,
+    'health': HealthDomainScorer,
+    'work': WorkDomainScorer,
+}
+
+
+# ── Helpers ────────────────────────────────────────────────────────────
+
+
+def _empty_domain(domain):
+    """Zero-state fallback for a LifeDomain object."""
+    return {
+        'slug': domain.slug,
+        'label': domain.name,
+        'color': domain.color,
+        'icon': getattr(domain, 'icon', ''),
+        'score': 0,
+        'trend': 'flat',
+        'trend_delta': 0,
+        'priority': False,
+        'components': {},
+        'goal_progress': None,
+        'sort_key': (1, 0, domain.sort_order),
+    }
+
+
+def _empty_domain_from_slug(slug):
+    """Zero-state fallback when LifeDomain lookup fails."""
+    return {
+        'slug': slug,
+        'label': slug.replace('-', ' ').title(),
+        'color': '#888888',
+        'icon': '',
+        'score': 0,
+        'trend': 'flat',
+        'trend_delta': 0,
+        'priority': False,
+        'components': {},
+        'goal_progress': None,
+        'sort_key': (1, 0, 999),
+    }

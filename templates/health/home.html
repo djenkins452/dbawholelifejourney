@@ -752,8 +752,9 @@
             {% endif %}
 
             <div class="quick-water-buttons" data-water-url="{% url 'health:water_quick_log' %}" data-csrf="{{ csrf_token }}">
-                <button type="button" class="btn btn-ghost btn-xs" data-water-preset="8">+8oz</button>
-                <button type="button" class="btn btn-ghost btn-xs" data-water-preset="16">+16oz</button>
+                <button type="button" class="btn btn-ghost btn-xs" data-water-preset="16" data-water-type="water">+16oz Water</button>
+                <button type="button" class="btn btn-ghost btn-xs" data-water-preset="12" data-water-type="coffee">+Coffee</button>
+                <button type="button" class="btn btn-ghost btn-xs" data-water-preset="16" data-water-type="creatine">+Creatine</button>
             </div>
 
             <a href="{% url 'health:water_list' %}" class="card-link">View history{% if water_entry_count %} ({{ water_entry_count }}){% endif %}</a>
@@ -1684,11 +1685,14 @@
         if (!btn) return;
 
         var preset = btn.dataset.waterPreset;
+        var drinkType = btn.dataset.waterType || 'water';
+        var originalText = btn.textContent;
         btn.disabled = true;
         btn.textContent = '...';
 
         var body = new FormData();
         body.append('preset', preset);
+        body.append('drink_type', drinkType);
 
         fetch(url, {
             method: 'POST',
@@ -1720,11 +1724,11 @@
                 }
             }
             btn.disabled = false;
-            btn.textContent = '+' + preset + 'oz';
+            btn.textContent = originalText;
         })
         .catch(function() {
             btn.disabled = false;
-            btn.textContent = '+' + preset + 'oz';
+            btn.textContent = originalText;
         });
     });
 })();

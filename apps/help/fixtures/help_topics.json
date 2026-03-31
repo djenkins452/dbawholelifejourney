@@ -1,6 +1,118 @@
 [
   {
     "model": "help.helptopic",
+    "pk": 156,
+    "fields": {
+      "context_id": "SIGNALS_HOME",
+      "help_id": "signals-home",
+      "title": "Behavioral Signals",
+      "description": "AI-detected patterns in your daily activity and health data.",
+      "content": "## Behavioral Signals\n\nSignals are patterns the AI detects automatically from your daily activity, health data, and routine execution. They provide a real-time picture of how your habits and health metrics are trending.\n\n### What Are Signals?\n\nEach signal represents a measurable behavioral or health pattern:\n\n- **Medication Adherence** \u2014 How consistently you take prescribed medications on time\n- **Sleep Recovery** \u2014 Whether your sleep quality is supporting physical recovery\n- **Activity Momentum** \u2014 Your workout frequency and consistency trend\n- **Cardiometabolic Stability** \u2014 How stable your vitals (heart rate, blood pressure, glucose) are over time\n- **Nutrition Consistency** \u2014 Meal logging regularity and macro balance\n- **Faith Engagement** \u2014 Prayer, Bible reading, and devotional consistency\n\n### Signal States\n\nEach signal has a current state:\n- **Strong** (green) \u2014 Consistent, healthy pattern\n- **Moderate** (yellow) \u2014 Some variability, room for improvement\n- **Poor** (red) \u2014 Pattern has declined or is inconsistent\n\n### Signal Trends\n\nTrends show the direction of change:\n- **Improving** \u2014 Getting better over the last 7 days\n- **Stable** \u2014 No significant change\n- **Declining** \u2014 Getting worse, may need attention\n\n### Feedback Buttons\n\nEach signal card has thumbs up/down buttons. Your feedback helps the AI learn which signals matter most to you and improves the relevance of future suggestions.\n\n### How Signals Connect\n\nSignals feed directly into your dashboard suggestions and the Physical Intelligence Coach. When a signal declines, the coach may suggest specific actions to address it.\n\n### Tips\n\n- Check signals weekly to spot trends early\n- Use feedback buttons so the AI learns your priorities\n- A declining signal isn\u2019t failure \u2014 it\u2019s an early warning to adjust\n- Signals improve naturally as you log data consistently",
+      "app_name": "core",
+      "order": 156,
+      "is_active": true,
+      "created_at": "2026-03-30T12:00:00Z",
+      "updated_at": "2026-03-30T12:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 155,
+    "fields": {
+      "context_id": "DASHBOARD_V2_COCKPIT",
+      "help_id": "dashboard-cockpit",
+      "title": "Goal Cockpit",
+      "description": "Three domain dials showing your 7-day alignment across Faith, Health, and Work.",
+      "content": "## Goal Cockpit\n\nThe Goal Cockpit displays three circular dials at the top of your dashboard, each representing a core life domain. They give you an instant visual read on how well your actions align with your goals over the past 7 days.\n\n### The Three Dials\n\n1. **Faith** \u2014 Scored 0\u2013100% based on prayer consistency, Bible reading completion, and devotional engagement over the last 7 days.\n\n2. **Health** \u2014 Scored 0\u2013100% based on workout completion, medication adherence, and vitals logging over the last 7 days.\n\n3. **Work / Purpose** \u2014 Scored 0\u2013100% based on task completion rate, goal progress, and habit execution over the last 7 days.\n\n### Color Coding\n\n- **Green (70\u2013100%)** \u2014 Strong alignment. Keep it up.\n- **Yellow (40\u201369%)** \u2014 Moderate alignment. Some areas need attention.\n- **Red (0\u201339%)** \u2014 Low alignment. Consider focusing on this domain today.\n\n### Expanding a Dial\n\nTap any dial to expand it and see the breakdown of individual components. For example, tapping the Health dial shows separate scores for workouts, medication, and vitals.\n\n### Domain Visibility\n\nOnly domains you have enabled in your preferences appear. If you haven\u2019t activated Faith features, that dial won\u2019t show.\n\n### Tips\n\n- Use the cockpit as your morning check-in \u2014 which domain needs attention today?\n- A red dial doesn\u2019t mean failure; it means opportunity\n- Scores reset on a rolling 7-day window, so today\u2019s actions immediately affect tomorrow\u2019s score\n- Balance across all three dials is the goal \u2014 avoid maximizing one at the expense of others",
+      "app_name": "dashboard_v2",
+      "order": 155,
+      "is_active": true,
+      "created_at": "2026-03-30T12:00:00Z",
+      "updated_at": "2026-03-30T12:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 154,
+    "fields": {
+      "context_id": "DASHBOARD_V2_COMPLIANCE",
+      "help_id": "dashboard-compliance",
+      "title": "Execution Compliance",
+      "description": "Track what you committed to vs. what you actually did.",
+      "content": "## Execution Compliance\n\nThe compliance engine measures the gap between what you planned to do and what you actually completed. It covers 6 domains and feeds into your daily progress score and morning reconciliation.\n\n### The 6 Domains\n\n1. **Tasks** \u2014 Scheduled tasks due today vs. completed\n2. **Journal** \u2014 Expected journal entries vs. entries written\n3. **Workouts** \u2014 Planned workout sessions vs. logged workouts\n4. **Medication** \u2014 Scheduled medication doses vs. doses taken\n5. **Faith** \u2014 Planned devotional activities vs. completed (prayer, Bible reading)\n6. **Routines** \u2014 Scheduled routine items vs. checked-off items\n\n### How It Works\n\nEach domain shows:\n- **Expected** \u2014 The number of items you committed to for the day\n- **Completed** \u2014 The number you actually finished\n- **Compliance %** \u2014 Completed \u00f7 Expected\n\n### Drill Down\n\nTap any domain to see the specific items \u2014 which tasks were completed, which medications were missed, etc. This detail view helps you understand exactly where gaps are.\n\n### Connection to Other Features\n\n- **Morning Reconciliation** \u2014 Yesterday\u2019s incomplete items appear for reconciliation the next morning\n- **Daily Progress Score** \u2014 Your overall score is a weighted average of compliance across all active domains\n- **Behavioral Signals** \u2014 Persistent low compliance in a domain triggers declining signals\n\n### Tips\n\n- Don\u2019t overcommit \u2014 it\u2019s better to complete 5 of 5 items than 5 of 10\n- Use reconciliation to keep your history accurate\n- Focus on the domains that matter most to your current goals\n- Compliance data helps the AI coach give you better suggestions",
+      "app_name": "dashboard_v2",
+      "order": 154,
+      "is_active": true,
+      "created_at": "2026-03-30T12:00:00Z",
+      "updated_at": "2026-03-30T12:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 153,
+    "fields": {
+      "context_id": "DASHBOARD_V2_RECONCILIATION",
+      "help_id": "dashboard-reconciliation",
+      "title": "Morning Reconciliation",
+      "description": "Account for yesterday's missed routine items and medications.",
+      "content": "## Morning Reconciliation\n\nEach morning, any items from yesterday that weren\u2019t marked as completed appear in a reconciliation panel at the top of your dashboard. This lets you account for what actually happened before starting a new day.\n\n### How It Works\n\n1. **Missed items surface automatically** \u2014 Routine items, medications, and tasks that were due yesterday but not completed appear in the reconciliation panel.\n\n2. **Choose a resolution for each item:**\n   - **On Schedule** \u2014 You did it on time (marks as completed at original time)\n   - **Later** \u2014 You did it, but later than scheduled (marks as completed late)\n   - **Skip** \u2014 You intentionally didn\u2019t do it (marks as skipped, not missed)\n\n3. **Items disappear once addressed** \u2014 As you resolve each item, it fades from the panel. When all items are resolved, the reconciliation panel closes.\n\n### Why It Matters\n\n- **Accurate history** \u2014 Without reconciliation, missed items stay as \u201cmissed\u201d even if you did them late. Reconciliation corrects the record.\n- **Better compliance scores** \u2014 Late completions still count toward your compliance percentage.\n- **Honest tracking** \u2014 Skipping an item is different from forgetting it. The distinction helps the AI understand your patterns.\n\n### Tips\n\n- Do reconciliation first thing in the morning before checking your Action Center\n- Be honest \u2014 skipping is fine; it helps the AI learn your actual capacity\n- If reconciliation items keep piling up, consider reducing your scheduled commitments",
+      "app_name": "dashboard_v2",
+      "order": 153,
+      "is_active": true,
+      "created_at": "2026-03-30T12:00:00Z",
+      "updated_at": "2026-03-30T12:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 152,
+    "fields": {
+      "context_id": "RECIPE_BULK_IMPORT",
+      "help_id": "recipe-bulk-import",
+      "title": "Bulk Recipe Import",
+      "description": "Upload multiple recipe photos at once for AI extraction.",
+      "content": "## Bulk Recipe Import\n\nUpload multiple recipe photos in a single batch and let the AI extract each one into a structured recipe entry.\n\n### How It Works\n\n1. **Upload Photos** \u2014 Select up to 50 recipe photos at once from your device. Supported formats: JPEG, PNG, HEIC.\n\n2. **AI Extraction** \u2014 Each photo is processed by Vision AI to extract recipe details (title, ingredients, instructions, prep time, servings, etc.). A real-time progress bar shows extraction status.\n\n3. **Review All** \u2014 All extracted recipes appear on a single review page. Each recipe card shows the extracted fields alongside the original photo.\n\n4. **Edit Fields** \u2014 Click any field to edit it before saving. Fix titles, adjust ingredient quantities, or add missing instructions.\n\n5. **Confirm** \u2014 Save recipes individually by clicking the confirm button on each card, or use \u201cConfirm All\u201d to save everything at once.\n\n### Multi-Recipe Photos\n\nIf a single photo contains multiple recipes (e.g., a two-page spread), the AI will detect this and create separate recipe entries for each one.\n\n### Tips\n\n- Use good lighting and flat surfaces for best extraction accuracy\n- Review AI-extracted ingredients carefully \u2014 handwritten recipes may have recognition errors\n- Batch import works great for digitizing a cookbook section at a time\n- Photos are stored with the recipe for future reference",
+      "app_name": "life",
+      "order": 152,
+      "is_active": true,
+      "created_at": "2026-03-30T12:00:00Z",
+      "updated_at": "2026-03-30T12:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 151,
+    "fields": {
+      "context_id": "HEALTH_COGNITIVE_HUB",
+      "help_id": "health-cognitive-hub",
+      "title": "Brain Training",
+      "description": "Cognitive fitness exercises to keep your mind sharp.",
+      "content": "## Brain Training\n\nBrain Training offers five cognitive exercise games designed to challenge different mental faculties. Play daily to build streaks and track your cognitive fitness score over time.\n\n### Game Types\n\n1. **Sudoku** \u2014 Classic number-placement puzzle. Fill the 9\u00d79 grid so every row, column, and 3\u00d73 box contains digits 1\u20139. Trains logical reasoning and pattern recognition.\n\n2. **KenKen** \u2014 Math-based grid puzzle. Fill cells so each row and column has unique digits, and caged groups hit their arithmetic target. Trains calculation and constraint satisfaction.\n\n3. **Memory Matrix** \u2014 A grid of tiles flashes briefly. Recall and tap the highlighted tiles from memory. Trains short-term visual memory and spatial recall.\n\n4. **Nonogram** \u2014 Use row and column number clues to fill in a grid and reveal a hidden picture. Trains deductive reasoning and patience.\n\n5. **Word Ladder** \u2014 Transform one word into another by changing one letter at a time, with each step forming a valid word. Trains vocabulary and lateral thinking.\n\n### Difficulty Levels\n\nEach game offers multiple difficulty levels. The system tracks your performance and suggests when you\u2019re ready to move up.\n\n### Streaks & Scoring\n\n- **Daily Streak** \u2014 Play at least one game per day to maintain your streak\n- **Cognitive Fitness Score** \u2014 A composite score based on accuracy, speed, and difficulty across all game types\n- **Personal Bests** \u2014 Track your best times and scores for each game and difficulty level\n\n### Tips\n\n- Play at least one game daily to build your streak\n- Rotate between game types to exercise different cognitive skills\n- Increase difficulty gradually \u2014 mastering Easy before moving to Medium builds a solid foundation\n- Check the Stats page to see your cognitive fitness trend over time",
+      "app_name": "brain_training",
+      "order": 151,
+      "is_active": true,
+      "created_at": "2026-03-30T12:00:00Z",
+      "updated_at": "2026-03-30T12:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 150,
+    "fields": {
+      "context_id": "DASHBOARD_V2_HOME",
+      "help_id": "dashboard-v2-home",
+      "title": "Life Command Center",
+      "description": "Your daily operating dashboard with goal cockpit, action center, and coaching.",
+      "content": "## Life Command Center\n\nThe Life Command Center is your daily operating dashboard \u2014 the first thing you see when you open the app. It brings together goal tracking, daily actions, coaching, and behavioral signals into a single view designed to help you start and execute your day.\n\n### Goal Cockpit\n\nAt the top of the dashboard, three circular dials show your 7-day alignment scores for your core life domains:\n- **Faith** \u2014 Prayer, Bible reading, and devotional consistency\n- **Health** \u2014 Workout completion, medication adherence, and vitals logging\n- **Work / Purpose** \u2014 Task completion, goal progress, and habit execution\n\nEach dial is color-coded: green (70\u2013100%), yellow (40\u201369%), red (0\u201339%). Tap a dial to see the detailed breakdown.\n\n### Morning Reconciliation\n\nIf you have unresolved items from yesterday, a reconciliation panel appears at the top. For each missed item, choose:\n- **On Schedule** \u2014 Did it on time\n- **Later** \u2014 Did it late\n- **Skip** \u2014 Intentionally didn\u2019t do it\n\nItems disappear as you resolve them. This keeps your routine history accurate.\n\n### Action Center\n\nYour day\u2019s items are organized into time-phased sections:\n- **Now** \u2014 Items due in the current time window. These need attention first.\n- **Upcoming** \u2014 Items due in the next time window.\n- **Later Today** \u2014 Items for later in the day.\n\nEach item has a checkbox. Tap to mark it complete. Completed items move to a \u201cDone\u201d section.\n\n### Celebration Banners\n\nWhen you hit milestones (streak records, goal completions, perfect compliance days), a celebration banner appears with confetti and an encouraging message.\n\n### Physical Intelligence Coach\n\nA coaching panel provides contextual suggestions based on your current data:\n- Exercise recommendations based on recovery status\n- Medication reminders when doses are due\n- Hydration nudges based on activity level\n- Rest suggestions when sleep debt is high\n\n### Signal Suggestions\n\nAt the bottom, the AI surfaces behavioral signal insights with feedback buttons (thumbs up/down). Your feedback helps the AI learn what\u2019s relevant to you.\n\n### Tips\n\n- Start your day with morning reconciliation to clear yesterday\u2019s items\n- Work through the \u201cNow\u201d section before moving to \u201cUpcoming\u201d\n- Check the cockpit dials for weekly balance \u2014 a red dial suggests where to focus today\n- Use signal feedback buttons to train the AI on your priorities\n- The dashboard updates in real-time as you complete items throughout the day",
+      "app_name": "dashboard_v2",
+      "order": 150,
+      "is_active": true,
+      "created_at": "2026-03-30T12:00:00Z",
+      "updated_at": "2026-03-30T12:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
     "pk": 147,
     "fields": {
       "context_id": "ROUTINE_LIST",
@@ -853,14 +965,14 @@
     "fields": {
       "context_id": "HEALTH_WATER",
       "help_id": "health-water",
-      "title": "Water Intake Tracking",
-      "description": "Track your daily water intake to stay hydrated.",
-      "content": "## Water Intake\n\nStaying hydrated affects energy, focus, and overall health.\n\n### Logging Water\n\n1. Click **\"Log Water\"**\n2. Enter the amount (oz or mL)\n3. Save\n\nYou can log multiple times per day. Each entry adds to your daily total.\n\n### HealthKit Integration\nIf using the iOS app, water intake from Apple Health syncs automatically.\n\n### Tips\n1. **Log as you drink** - Easier than remembering later\n2. **Set a daily goal** - Aim for 64+ oz (8 glasses)\n3. **Track consistently** - Even partial days help build the habit",
+      "title": "Hydration Tracking",
+      "description": "Track your daily hydration across multiple drink types with smart coefficients.",
+      "content": "## Hydration Tracking\n\nStaying hydrated affects energy, focus, and overall health. The hydration system goes beyond simple water tracking \u2014 it understands different drink types, calculates effective hydration, and integrates with your supplement data.\n\n### Drink Types & Coefficients\n\nNot all drinks hydrate equally. Each drink type has a hydration coefficient that determines how much it contributes to your effective hydration:\n\n| Drink Type | Coefficient | Notes |\n|---|---|---|\n| **Water** | 1.0 | Pure hydration baseline |\n| **Tea** | 0.95 | Slight diuretic offset |\n| **Coffee** | 0.9 | Moderate diuretic effect |\n| **Electrolyte Drink** | 1.05 | Enhanced absorption |\n| **Creatine Mix** | 1.0 | Full hydration value |\n| **Juice** | 0.9 | Sugar offsets some hydration |\n| **Milk** | 0.9 | Good hydration but calorie-dense |\n| **Other** | 0.9 | Default for unlisted drinks |\n\n### Effective Hydration\n\nYour effective hydration is calculated as: **raw amount \u00d7 coefficient**. For example, 16 oz of coffee contributes 14.4 oz of effective hydration (16 \u00d7 0.9).\n\n### Creatine Integration\n\nIf you take creatine supplements consistently (4+ days in the last 7), the system detects this as consistent creatine usage and increases your daily hydration goal. Creatine draws water into muscles, so adequate hydration is critical for both performance and safety.\n\n### Quick-Log Buttons\n\nThe health dashboard includes quick-log buttons for common drink amounts. Tap a button to instantly log a drink without opening the full form. You can customize which drink types appear as quick-log options.\n\n### Container Tracking\n\nSave your frequently used containers (water bottle, coffee mug, etc.) with their sizes. Then log by tapping a container instead of entering an amount manually.\n\n### Logging Hydration\n\n1. Choose a drink type from the selector\n2. Enter the amount (oz or mL)\n3. Save\n\nYou can log multiple times per day. Each entry adds to your daily total with its coefficient applied.\n\n### HealthKit Integration\n\nIf using the iOS app, water intake from Apple Health syncs automatically. Synced entries default to the Water drink type (coefficient 1.0).\n\n### Tips\n\n1. **Log as you drink** \u2014 Easier than remembering later\n2. **Use quick-log buttons** \u2014 The fastest way to track throughout the day\n3. **Mix drink types** \u2014 Electrolyte drinks after workouts boost effective hydration\n4. **Watch your goal** \u2014 If you take creatine, aim for the higher adjusted goal\n5. **Track consistently** \u2014 Even partial days help build the habit",
       "app_name": "health",
       "order": 16,
       "is_active": true,
       "created_at": "2026-02-14T00:00:00Z",
-      "updated_at": "2026-02-14T00:00:00Z"
+      "updated_at": "2026-03-30T12:00:00Z"
     }
   },
   {

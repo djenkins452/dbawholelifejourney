@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-27 (Sports _contract architecture: state builder produces _contract with teams/games/storylines, CoS context + view model consume _contract as single source of truth)
+**Last updated:** 2026-03-30 (Added ETE, Today Engine, Compliance Engine, Signal V3 to inventory; added key file paths for execution/compliance/signals; noted signal models migration gap)
 
 ---
 
@@ -68,6 +68,8 @@ Phase 1 (Interpretation)        Phase 2 (Execution)          Phase 3 (Post-Execu
 | **UAIO** Execution | `apps/core/ai_orchestrator/execution_engine.py` | `execute_action()` | Request | Execute domain actions |
 | **UAIO** Safety | `apps/core/ai_orchestrator/safety_engine.py` | `validate_action()` | Request | Safety validation |
 | **UAIO** Action Router | `apps/core/ai_orchestrator/action_router.py` | `route_action()` | Request | Route enriched actions |
+| **ETE** Execution Truth | `apps/core/execution/` | `get_execution_truth()` | Request | Single source of truth for expected vs completed. Cross-domain bridges. |
+| **Today Engine** | `apps/core/today/` | `build_today()` | Request | Day aggregation: routines + tasks + calendar + meds into time-bucketed dataset. |
 
 ### Phase 3: Post-Execution Engines
 
@@ -91,6 +93,8 @@ Phase 1 (Interpretation)        Phase 2 (Execution)          Phase 3 (Post-Execu
 | **Maturity** Engine | `apps/core/ai_observability/maturity_engine.py` | `compute_all_maturity_scores()` | On-demand + daily snapshot | Daily | All engines + registry | `SystemMaturitySnapshot` |
 | **AAFR** Telemetry | `apps/core/ai_orchestrator/execution_engine.py` | `_record_aafr()` | Every `execute_action()` call | Real-time | AI mutation outcomes | `AIActionMetric` |
 | **PGS** Proactive Guidance | `apps/ai/proactive_checkins.py` | `run_proactive_guidance_scheduler()` | ISE 15m | Every 15m | Per-user time windows, feature flags | `AssistantMessage(is_proactive=True)` via DNE |
+| **Compliance Engine** | `apps/dashboard_v2/compliance/service.py` | `compute_compliance()` | Post-execution + nightly | N/A | Execution compliance tracking across 6 domains with reconciliation. | `ComplianceEvent` model |
+| **Signal V3** | `apps/core/signals/signal_engine.py` | `detect_signals()` | Post-execution + ISE | N/A | Behavioral signal detection, health signals, execution signals, adaptive presentation. | Signal models |
 
 ### Blueprint & Governance Engines
 
@@ -653,6 +657,10 @@ Auto-discovered at startup via `CoreConfig.ready()` → `autodiscover()`. Each d
 
 **Files:** `apps/core/engine_runtime.py` (NEW), `apps/core/tasks.py`, `apps/core/ai_scheduler/scheduler_engine.py`, `apps/core/ai_observability/heartbeat.py`, `apps/core/ai_observability/models.py`, `apps/core/ai_observability/ops_aggregates.py`
 
+### OPEN: Signal Models Without Migrations
+
+**Severity:** Medium — `apps/core/signals/models.py` defines `SignalFeedback` and `ExecutionSignal` but `apps/core/signals/` is not in INSTALLED_APPS and has no migrations directory. DB persistence of these models may not be operational.
+
 ### GAP 3: CoS Bypasses SAE Truth Layer
 
 **Severity:** Medium — potential data drift.
@@ -849,6 +857,32 @@ When the user asks a health intelligence question with a brevity keyword ("keep 
 | `apps/core/blueprint/pressure_engine.py` | Pressure forecasting |
 | `apps/core/blueprint/escalation_engine.py` | Anomaly escalation |
 | `apps/core/blueprint/protective_engine.py` | Protective actions |
+
+### Execution Truth & Today
+
+| File | Purpose |
+|------|---------|
+| `apps/core/execution/execution_truth_engine.py` | Completion authority |
+| `apps/core/execution/expected_map.py` | Signal bridge |
+| `apps/core/execution/today_execution.py` | Dashboard V2 execution items |
+| `apps/core/today/today_engine.py` | Day aggregation |
+
+### Compliance
+
+| File | Purpose |
+|------|---------|
+| `apps/dashboard_v2/compliance/service.py` | Compliance pipeline |
+| `apps/dashboard_v2/compliance/models.py` | ComplianceEvent model |
+| `apps/dashboard_v2/compliance/adapters/` | 6 domain adapters |
+
+### Signals V3
+
+| File | Purpose |
+|------|---------|
+| `apps/core/signals/signal_engine.py` | Behavioral detection |
+| `apps/core/signals/health_signals.py` | Deterministic health signals |
+| `apps/core/signals/execution_signals.py` | Django signal handlers |
+| `apps/core/signals/signal_presenter.py` | Dashboard presentation |
 
 ### Domain
 

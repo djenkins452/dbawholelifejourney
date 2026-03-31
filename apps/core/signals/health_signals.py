@@ -333,6 +333,136 @@ def _signal_cardio_stability(health_state, current_dt):
     )
 
 
+# ── Signal 5: Body Composition ────────────────────────────────────────────
+
+def _signal_body_composition(health_state):
+    """
+    Body composition signal.
+
+    Reads pre-computed DailyHealthSummary intelligence fields from SAE state.
+    Synthesizes a single signal representing overall body comp trajectory.
+
+    Inputs (all from DHS via SAE state):
+        - fat_loss_quality_label: EXCELLENT|GOOD|MIXED|MUSCLE_LOSS_RISK|INSUFFICIENT_DATA
+        - muscle_loss_risk_level: LOW|MODERATE|HIGH
+        - muscle_preservation_status: HIGH_QUALITY|MODERATE_QUALITY|MUSCLE_RISK|INSUFFICIENT_DATA
+        - plateau_status: TRUE_PLATEAU|RECOMP|WATER|INSUFFICIENT_DATA
+        - recomposition_flag_14d: bool
+        - fat_loss_phase: RAPID_INITIAL_LOSS|STABLE_FAT_LOSS|RECOMPOSITION|PLATEAU|REBOUND_RISK
+    """
+    fat_loss_quality = health_state.get("fat_loss_quality_label")
+    muscle_risk = health_state.get("muscle_loss_risk_level")
+    muscle_preservation = health_state.get("muscle_preservation_status")
+    plateau = health_state.get("plateau_status")
+    recomp = health_state.get("recomposition_flag_14d")
+    phase = health_state.get("fat_loss_phase")
+
+    # Need at least fat_loss_quality to emit a signal
+    if not fat_loss_quality or fat_loss_quality == "INSUFFICIENT_DATA":
+        return None
+
+    # ── State classification ──
+    if recomp or (
+        fat_loss_quality in ("EXCELLENT", "GOOD")
+        and muscle_preservation == "HIGH_QUALITY"
+    ):
+        state = STRONG
+    elif muscle_risk == "HIGH" or fat_loss_quality == "MUSCLE_LOSS_RISK":
+        state = POOR
+    elif (
+        fat_loss_quality == "MIXED"
+        or muscle_risk == "MODERATE"
+        or plateau == "TRUE_PLATEAU"
+    ):
+        state = WATCH
+    else:
+        state = MODERATE
+
+    # ── Trend from fat_loss_phase ──
+    if phase in ("RAPID_INITIAL_LOSS", "STABLE_FAT_LOSS"):
+        trend = IMPROVING
+    elif phase in ("PLATEAU", "REBOUND_RISK"):
+        trend = DECLINING
+    elif phase == "RECOMPOSITION":
+        trend = IMPROVING
+    else:
+        trend = UNKNOWN
+
+    # ── Insight text ──
+    if state == POOR:
+        if muscle_risk == "HIGH":
+            insight = "Significant muscle loss detected — consider increasing protein and resistance training"
+        else:
+            insight = "Body composition trends need attention — fat loss quality is declining"
+    elif state == WATCH:
+        if plateau == "TRUE_PLATEAU":
+            insight = "Weight loss has stalled — may need to adjust approach"
+        elif muscle_risk == "MODERATE":
+            insight = "Some muscle loss detected alongside fat loss"
+        else:
+            insight = "Body composition signals are mixed this period"
+    elif state == STRONG:
+        if recomp:
+            insight = "Body recomposition in progress — fat decreasing while muscle holds steady"
+        else:
+            insight = "Body composition is improving — effective fat loss with muscle preservation"
+    else:
+        insight = "Body composition is progressing steadily"
+
+    return _signal(
+        "body_composition",
+        state,
+        trend=trend,
+        insight=insight,
+    )
+
+
+# ── Signal 6: Metabolic Efficiency ───────────────────────────────────────
+
+def _signal_metabolic_efficiency(health_state):
+    """
+    Metabolic efficiency signal.
+
+    Tracks BMR trend relative to weight loss to detect metabolic adaptation.
+    Only emitted if user has BMR data.
+
+    Inputs:
+        - bmr_current: latest BMR in kcal/day (from BodyCompositionEntry via SAE)
+        - fat_loss_speed_label: SAFE|SLOW|FAST|TOO_FAST|GAINING (from DHS via SAE)
+        - plateau_status: from DHS via SAE
+    """
+    bmr = health_state.get("bmr_current")
+    speed_label = health_state.get("fat_loss_speed_label")
+    plateau = health_state.get("plateau_status")
+
+    if bmr is None:
+        return None  # No BMR data → don't emit
+
+    # ── State classification ──
+    # Without historical BMR comparison, use speed_label + plateau as proxy
+    if speed_label in ("SAFE", "SLOW") and plateau != "TRUE_PLATEAU":
+        state = STRONG
+        insight = "Metabolism is holding steady during weight loss"
+    elif speed_label == "TOO_FAST" or (
+        plateau == "TRUE_PLATEAU" and speed_label not in ("GAINING", None)
+    ):
+        state = POOR
+        insight = "Metabolic adaptation may be occurring — consider a diet break or refeed"
+    elif speed_label == "FAST":
+        state = WATCH
+        insight = "Weight loss pace is aggressive — monitor for metabolic slowdown"
+    else:
+        state = MODERATE
+        insight = "Metabolic rate is within normal range"
+
+    return _signal(
+        "metabolic_efficiency",
+        state,
+        value=round(bmr),
+        insight=insight,
+    )
+
+
 # ── Main builder ─────────────────────────────────────────────────────────────
 
 def build_health_signals(health_state, medicine_state, current_dt):
@@ -366,6 +496,14 @@ def build_health_signals(health_state, medicine_state, current_dt):
         signals.append(sig)
 
     sig = _signal_cardio_stability(health_state, current_dt)
+    if sig:
+        signals.append(sig)
+
+    sig = _signal_body_composition(health_state)
+    if sig:
+        signals.append(sig)
+
+    sig = _signal_metabolic_efficiency(health_state)
     if sig:
         signals.append(sig)
 

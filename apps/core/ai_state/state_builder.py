@@ -12,6 +12,7 @@ Safety Requirements:
 
 import logging
 from datetime import timedelta
+from decimal import Decimal
 
 from apps.core.time.system_clock import get_current_time
 
@@ -128,6 +129,58 @@ def build_health_state(user):
     if latest_fm:
         state["fat_mass_current"] = float(latest_fm[0])
         state["last_fat_mass_entry"] = latest_fm[1].isoformat()
+
+    # BMI
+    latest_bmi = (
+        BodyCompositionEntry.objects.filter(
+            user=user, metric_name="bmi"
+        )
+        .order_by("-measurement_date")
+        .values_list("value", "measurement_date")
+        .first()
+    )
+    if latest_bmi:
+        state["bmi_current"] = float(latest_bmi[0])
+        state["last_bmi_entry"] = latest_bmi[1].isoformat()
+
+    # BMR (Basal Metabolic Rate)
+    latest_bmr = (
+        BodyCompositionEntry.objects.filter(
+            user=user, metric_name="bmr"
+        )
+        .order_by("-measurement_date")
+        .values_list("value", "measurement_date")
+        .first()
+    )
+    if latest_bmr:
+        state["bmr_current"] = float(latest_bmr[0])
+        state["last_bmr_entry"] = latest_bmr[1].isoformat()
+
+    # ── DailyHealthSummary body comp intelligence fields ──────
+    from apps.health.models import DailyHealthSummary
+
+    latest_dhs = (
+        DailyHealthSummary.objects.filter(user=user)
+        .order_by("-summary_date")
+        .values(
+            "fat_loss_phase",
+            "fat_loss_quality_label",
+            "fat_loss_speed_label",
+            "fat_loss_speed_pct_per_week",
+            "muscle_loss_risk_level",
+            "muscle_loss_risk_score",
+            "muscle_preservation_status",
+            "plateau_status",
+            "plateau_risk_label",
+            "plateau_risk_score",
+            "recomposition_flag_14d",
+        )
+        .first()
+    )
+    if latest_dhs:
+        for key, val in latest_dhs.items():
+            if val is not None:
+                state[key] = float(val) if isinstance(val, Decimal) else val
 
     # ── Sleep (last 7 days) ───────────────────────────────────
     cutoff_7d = now - timedelta(days=7)

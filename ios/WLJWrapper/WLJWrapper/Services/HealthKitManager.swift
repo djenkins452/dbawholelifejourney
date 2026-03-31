@@ -94,6 +94,11 @@ class HealthKitManager {
             types.insert(leanMassType)
         }
 
+        // BMI (Body Mass Index)
+        if let bmiType = HKQuantityType.quantityType(forIdentifier: .bodyMassIndex) {
+            types.insert(bmiType)
+        }
+
         // Respiratory Rate
         if let respRateType = HKQuantityType.quantityType(forIdentifier: .respiratoryRate) {
             types.insert(respRateType)
@@ -305,6 +310,7 @@ class HealthKitManager {
         let bodyFat = try await fetchBodyFat(from: startDate, to: endDate)
         let workouts = try await fetchWorkouts(from: startDate, to: endDate)
         let leanMass = try await fetchLeanBodyMass(from: startDate, to: endDate)
+        let bmi = try await fetchBMI(from: startDate, to: endDate)
         let respiratoryRate = try await fetchRespiratoryRate(from: startDate, to: endDate)
         let hrv = try await fetchHeartRateVariability(from: startDate, to: endDate)
         let vo2Max = try await fetchVO2Max(from: startDate, to: endDate)
@@ -329,6 +335,7 @@ class HealthKitManager {
         metrics.append(contentsOf: bodyFat)
         metrics.append(contentsOf: workouts)
         metrics.append(contentsOf: leanMass)
+        metrics.append(contentsOf: bmi)
         metrics.append(contentsOf: respiratoryRate)
         metrics.append(contentsOf: hrv)
         metrics.append(contentsOf: vo2Max)
@@ -1159,6 +1166,65 @@ class HealthKitManager {
                         bodyFatPercentage: data.percentage,
                         source: "apple_health",
                         syncId: "bodyfat-\(dateStr)"
+                    ))
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    // MARK: - Fetch BMI (Body Mass Index)
+
+    private func fetchBMI(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        guard let bmiType = HKQuantityType.quantityType(forIdentifier: .bodyMassIndex) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictEndDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: bmiType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                // Group by date, keeping most recent per day
+                var latestPerDay: [String: (date: Date, bmi: Double)] = [:]
+
+                for sample in (samples as? [HKQuantitySample]) ?? [] {
+                    let bmi = sample.quantity.doubleValue(for: .count())
+                    let dateStr = dateFormatter.string(from: sample.startDate)
+
+                    if let existing = latestPerDay[dateStr] {
+                        if sample.startDate > existing.date {
+                            latestPerDay[dateStr] = (sample.startDate, bmi)
+                        }
+                    } else {
+                        latestPerDay[dateStr] = (sample.startDate, bmi)
+                    }
+                }
+
+                for (dateStr, data) in latestPerDay {
+                    metrics.append(HealthMetric(
+                        type: "bmi",
+                        date: dateStr,
+                        bmiValue: data.bmi,
+                        source: "apple_health",
+                        syncId: "bmi-\(dateStr)"
                     ))
                 }
 

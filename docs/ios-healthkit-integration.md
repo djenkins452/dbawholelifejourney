@@ -4,7 +4,7 @@ Technical documentation for the WLJ iOS HealthKit integration.
 
 ## Overview
 
-The WLJ iOS app reads health data from Apple Health and syncs it to the Django backend. This provides users with automatic tracking without manual data entry. The integration currently covers **37+ HealthKit data types** across 7 categories.
+The WLJ iOS app reads health data from Apple Health and syncs it to the Django backend. This provides users with automatic tracking without manual data entry. The integration currently covers **38+ HealthKit data types** across 7 categories.
 
 ## Data Types Synced
 
@@ -26,8 +26,11 @@ The WLJ iOS app reads health data from Apple Health and syncs it to the Django b
 | Type | HealthKit Identifier | WLJ Model | Notes |
 |------|---------------------|-----------|-------|
 | Weight | `.bodyMass` | WeightEntry | Most recent per day |
-| Body Fat % | `.bodyFatPercentage` | WeightEntry.body_fat_percentage | Most recent per day |
-| Lean Body Mass | `.leanBodyMass` | WeightEntry.lean_body_mass | In pounds |
+| Body Fat % | `.bodyFatPercentage` | WeightEntry.body_fat_percentage + BodyCompositionEntry | Most recent per day |
+| Lean Body Mass | `.leanBodyMass` | WeightEntry.lean_body_mass + BodyCompositionEntry | In pounds |
+| BMI | `.bodyMassIndex` | BodyCompositionEntry(bmi) | Most recent per day |
+| Fat Mass | *computed* | BodyCompositionEntry(fat_mass) | weight × body_fat_pct / 100 |
+| BMR | `.basalEnergyBurned` | BodyCompositionEntry(bmr) | Mirrored from StepsEntry.resting_calories |
 
 ### Sleep & Recovery
 

@@ -67,6 +67,9 @@ struct HealthMetric: Codable {
     // Body Fat Percentage
     var bodyFatPercentage: Double?
 
+    // BMI (Body Mass Index)
+    var bmiValue: Double?
+
     // Workout
     var workoutType: String?
     var workoutDuration: Int?
@@ -171,6 +174,7 @@ struct HealthMetric: Codable {
         case exerciseMinutesValue = "exercise_minutes_value"
         case standHoursValue = "stand_hours_value"
         case bodyFatPercentage = "body_fat_percentage"
+        case bmiValue = "bmi_value"
         case workoutType = "workout_type"
         case workoutDuration = "workout_duration"
         case workoutCalories = "workout_calories"
@@ -371,6 +375,15 @@ struct HealthMetric: Codable {
         self.type = type
         self.date = date
         self.bodyFatPercentage = bodyFatPercentage
+        self.source = source
+        self.syncId = syncId
+    }
+
+    /// Create a BMI metric
+    init(type: String, date: String, bmiValue: Double, source: String, syncId: String) {
+        self.type = type
+        self.date = date
+        self.bmiValue = bmiValue
         self.source = source
         self.syncId = syncId
     }

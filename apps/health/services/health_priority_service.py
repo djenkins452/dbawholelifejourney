@@ -305,8 +305,8 @@ def _eval_heart_rate(health_state, current_dt):
 _CONCERN_STATES = frozenset({"poor", "declining", "unstable", "low", "watch"})
 
 # Signal priority order (lower index = higher priority)
-_SIGNAL_PRIORITY = ["med_adherence", "cardio_stability", "activity_momentum",
-                     "sleep_recovery"]
+_SIGNAL_PRIORITY = ["med_adherence", "body_composition", "cardio_stability",
+                     "metabolic_efficiency", "activity_momentum", "sleep_recovery"]
 
 # Map signal state → summary priority
 _SIGNAL_STATE_TO_PRIORITY = {
@@ -346,6 +346,8 @@ def _select_signal_for_summary(signals, selected_keys):
                              "hr_elevated"},
         "activity_momentum": {"activity_low", "activity_on_track"},
         "sleep_recovery": {"sleep_short", "sleep_strong"},
+        "body_composition": set(),  # No overlap with existing items
+        "metabolic_efficiency": set(),
     }
 
     # Index signals by key for ordered lookup

@@ -4300,6 +4300,7 @@ BODY_COMPOSITION_METRIC_CHOICES = [
     ("visceral_fat", "Visceral Fat"),
     ("bmr", "Basal Metabolic Rate"),
     ("metabolic_age", "Metabolic Age"),
+    ("bmi", "BMI"),
     ("custom", "Custom"),
 ]
 

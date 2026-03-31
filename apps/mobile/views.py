@@ -615,6 +615,7 @@ def process_health_metric(user, metric, existing_glucose_sync_ids=None):
         "exercise_minutes": process_exercise_minutes_metric,
         "stand_hours": process_stand_hours_metric,
         "body_fat": process_body_fat_metric,
+        "bmi": process_bmi_metric,
         "workout": process_workout_metric,
         "lean_body_mass": process_lean_body_mass_metric,
         "respiratory_rate": process_respiratory_rate_metric,
@@ -753,6 +754,7 @@ def process_weight_metric(user, metric_date, source, sync_id, data):
                 existing.unit = unit
                 existing.source = source or "apple_health"
                 existing.save(update_fields=["value", "unit", "source", "updated_at"])
+                _compute_and_sync_fat_mass(user, metric_date, source)
                 return "updated"
             return "skipped"
 
@@ -770,6 +772,7 @@ def process_weight_metric(user, metric_date, source, sync_id, data):
             if not existing.sync_id and sync_id:
                 existing.sync_id = sync_id
             existing.save(update_fields=["value", "unit", "source", "sync_id", "updated_at"])
+            _compute_and_sync_fat_mass(user, metric_date, source)
             return "updated"
         # Backfill sync_id if missing
         if not existing.sync_id and sync_id:
@@ -787,6 +790,7 @@ def process_weight_metric(user, metric_date, source, sync_id, data):
         source=source or "apple_health",
         sync_id=sync_id,
     )
+    _compute_and_sync_fat_mass(user, metric_date, source)
     return "created"
 
 
@@ -1397,6 +1401,10 @@ def process_resting_calories_metric(user, metric_date, source, sync_id, data):
         if existing.resting_calories != resting_calories_value:
             existing.resting_calories = resting_calories_value
             existing.save(update_fields=["resting_calories", "updated_at"])
+            # Mirror to BodyCompositionEntry as BMR (kcal/day)
+            _sync_body_composition_entry(
+                user, "bmr", Decimal(str(resting_calories_value)), "kcal/day", metric_date, source
+            )
             return "updated"
         return "skipped"
 
@@ -1408,6 +1416,10 @@ def process_resting_calories_metric(user, metric_date, source, sync_id, data):
         resting_calories=resting_calories_value,
         source=source,
         sync_id=sync_id,
+    )
+    # Mirror to BodyCompositionEntry as BMR (kcal/day)
+    _sync_body_composition_entry(
+        user, "bmr", Decimal(str(resting_calories_value)), "kcal/day", metric_date, source
     )
     return "created"
 
@@ -1553,6 +1565,75 @@ def process_stand_hours_metric(user, metric_date, source, sync_id, data):
     return "created"
 
 
+def _compute_and_sync_fat_mass(user, metric_date, source):
+    """
+    Compute fat mass from weight and body fat % and sync to BodyCompositionEntry.
+
+    Called after weight or body fat ingestion. Uses the existing
+    BodyCompositionIntelligence.compute_fat_mass() to avoid duplicating logic.
+    Only syncs if both weight and body fat exist for the same date.
+    """
+    from apps.health.services.body_composition_intelligence import BodyCompositionIntelligence
+
+    # Get weight for this date (prefer non-placeholder entries)
+    weight_entry = WeightEntry.objects.filter(
+        user=user,
+        recorded_at__date=metric_date,
+    ).exclude(value=Decimal("0")).order_by("-recorded_at").first()
+
+    if not weight_entry:
+        return
+
+    # Get body fat for this date from BodyCompositionEntry
+    from apps.health.models import BodyCompositionEntry
+
+    bf_entry = BodyCompositionEntry.objects.filter(
+        user=user,
+        metric_name="body_fat_pct",
+        measurement_date=metric_date,
+    ).order_by("-updated_at").first()
+
+    if not bf_entry:
+        return
+
+    # Convert weight to lbs for consistent storage
+    weight_lb = float(weight_entry.value)
+    if weight_entry.unit == "kg":
+        weight_lb = weight_lb * 2.20462
+
+    fat_mass = BodyCompositionIntelligence.compute_fat_mass(
+        Decimal(str(weight_lb)), bf_entry.value
+    )
+    if fat_mass is not None:
+        _sync_body_composition_entry(
+            user, "fat_mass", fat_mass, "lb", metric_date, source
+        )
+
+
+def process_bmi_metric(user, metric_date, source, sync_id, data):
+    """
+    Process BMI (Body Mass Index) metric from Apple HealthKit.
+
+    BMI goes directly to BodyCompositionEntry (no WeightEntry field for it).
+    """
+    bmi_value = data.get("bmi_value")
+
+    if bmi_value is None:
+        raise ValueError("bmi_value is required for bmi")
+
+    try:
+        bmi_value = Decimal(str(bmi_value))
+    except (TypeError, InvalidOperation):
+        raise ValueError(f"Invalid BMI value: {bmi_value}")
+
+    # Validate range (10-80 is generous — normal is 18.5-24.9)
+    if bmi_value < 10 or bmi_value > 80:
+        raise ValueError(f"BMI value out of range: {bmi_value}")
+
+    _sync_body_composition_entry(user, "bmi", bmi_value, "", metric_date, source)
+    return "created"
+
+
 def _sync_body_composition_entry(user, metric_name, value, unit, measurement_date, source):
     """
     Create or update a BodyCompositionEntry so the intelligence engine
@@ -1620,6 +1701,7 @@ def process_body_fat_metric(user, metric_date, source, sync_id, data):
             existing.body_fat_percentage = body_fat_percentage
             existing.save(update_fields=["body_fat_percentage", "updated_at"])
             _sync_body_composition_entry(user, "body_fat_pct", body_fat_percentage, "pct", metric_date, source)
+            _compute_and_sync_fat_mass(user, metric_date, source)
             return "updated"
         return "skipped"
 
@@ -1634,6 +1716,7 @@ def process_body_fat_metric(user, metric_date, source, sync_id, data):
             weight_entry.body_fat_percentage = body_fat_percentage
             weight_entry.save(update_fields=["body_fat_percentage", "updated_at"])
             _sync_body_composition_entry(user, "body_fat_pct", body_fat_percentage, "pct", metric_date, source)
+            _compute_and_sync_fat_mass(user, metric_date, source)
             return "updated"
         return "skipped"
 
@@ -1651,6 +1734,7 @@ def process_body_fat_metric(user, metric_date, source, sync_id, data):
         sync_id=sync_id,
     )
     _sync_body_composition_entry(user, "body_fat_pct", body_fat_percentage, "pct", metric_date, source)
+    _compute_and_sync_fat_mass(user, metric_date, source)
     return "created"
 
 

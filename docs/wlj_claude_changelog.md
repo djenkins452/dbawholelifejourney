@@ -6,6 +6,45 @@
 # Last Updated: 2026-03-30 (Production docs update — all fixtures, features, engine ref)
 # ================================================================# WLJ Change History
 
+## 2026-03-31 — Body Composition Intelligence System
+
+Full end-to-end body composition intelligence system: HealthKit sync expansion, signal layer, insight-first UI.
+
+**HealthKit Sync Expansion:**
+- Added BMI (`.bodyMassIndex`) sync from Apple Health (iOS + Django handler)
+- BMR now mirrored from `resting_calories` to `BodyCompositionEntry(bmr)` for body comp intelligence
+- Fat mass auto-computed server-side when both weight and body fat % exist for same date
+- Added `bmi` to `BODY_COMPOSITION_METRIC_CHOICES`
+
+**Signal Layer (NEW):**
+- Added Signal 5: `body_composition` — synthesizes fat loss quality, muscle preservation, plateau status into single signal (strong/watch/poor)
+- Added Signal 6: `metabolic_efficiency` — tracks BMR trend relative to weight loss to detect metabolic adaptation
+- Both signals wired into health priority summary for "Health Right Now" display
+- SAE state builder now exposes BMI, BMR, and all DHS body comp intelligence fields
+
+**Insight Builder (NEW):**
+- Created `apps/health/services/body_composition_insight_builder.py` — deterministic formatter that converts signals into user-facing text with severity (green/yellow/red)
+- Produces headlines like "Body recomposition in progress" or "Muscle loss risk is elevated"
+
+**Physical Home Page Reorganization:**
+- Reorganized flat 15-card grid into 7 logical groups: Body Composition, Heart & Vitals, Fitness & Activity, Nutrition & Hydration, Sleep & Recovery, Medicine & Medical, Cycle Tracking
+- Body Composition group shows insight banner first (severity-colored), then compact metric cards with trend arrows
+- Advanced Metrics (HRV, VO2 Max, etc.) promoted into Heart & Vitals group
+- Caffeine and Mindful Minutes moved into Sleep & Recovery group
+
+**Files changed:**
+- `apps/health/models.py` — Added BMI to choices
+- `ios/.../HealthMetric.swift` — BMI field + CodingKey + init
+- `ios/.../HealthKitManager.swift` — fetchBMI method, .bodyMassIndex auth
+- `apps/mobile/views.py` — BMI handler, BMR sync, fat mass computation
+- `apps/core/ai_state/state_builder.py` — BMI, BMR, DHS intelligence fields
+- `apps/core/signals/health_signals.py` — 2 new signals
+- `apps/health/services/body_composition_insight_builder.py` — NEW
+- `apps/health/views.py` — Body comp context in HealthHomeView
+- `templates/health/home.html` — Grouped layout with insight-first body comp
+- `apps/health/services/health_priority_service.py` — Signal integration
+- `docs/ios-healthkit-integration.md` — Updated data type table
+
 ## 2026-03-30 — Docs: Update All Production Documentation Files
 
 Updated all production-facing documentation files to reflect March 2026 features:

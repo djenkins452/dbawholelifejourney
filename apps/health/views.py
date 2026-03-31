@@ -610,6 +610,53 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
         context["card_emphasis"] = card_emphasis
 
+        # ── Body Composition metrics + insight ───────────────────
+        from apps.health.models import BodyCompositionEntry
+
+        BODY_COMP_DISPLAY = [
+            "body_fat_pct", "lean_mass", "fat_mass", "bmi", "bmr",
+            "skeletal_muscle_mass", "visceral_fat", "body_water_pct",
+            "bone_mass", "metabolic_age",
+        ]
+        user_body_comp = BodyCompositionEntry.objects.filter(user=user)
+        seen_metrics = set(
+            user_body_comp.values_list("metric_name", flat=True).distinct()
+        )
+        body_comp_metrics = {}
+        for metric_name in BODY_COMP_DISPLAY:
+            if metric_name in seen_metrics:
+                entry = (
+                    user_body_comp.filter(metric_name=metric_name)
+                    .order_by("-measurement_date")
+                    .first()
+                )
+                if entry:
+                    body_comp_metrics[metric_name] = {
+                        "display": entry.get_metric_display(),
+                        "value": entry.value,
+                        "unit": entry.unit,
+                        "date": entry.measurement_date,
+                    }
+
+        context["body_comp_metrics"] = body_comp_metrics
+        context["has_body_comp_data"] = bool(body_comp_metrics)
+
+        # Body comp insight (from pre-computed SAE state — fast, no computation)
+        try:
+            from apps.core.ai_state import get_module_state
+            from apps.health.services.body_composition_insight_builder import (
+                build_body_comp_insight,
+            )
+
+            health_state = get_module_state(user, "health")
+            context["body_comp_insight"] = build_body_comp_insight(
+                health_state or {}
+            )
+        except ImportError:
+            logger.debug("Body comp insight builder not available")
+        except Exception:
+            logger.error("Failed to build body comp insight", exc_info=True)
+
         return context
 
 

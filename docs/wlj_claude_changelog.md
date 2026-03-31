@@ -3,8 +3,22 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-31 (Goal Cockpit — goals-only activation, remove signal-based rule)
+# Last Updated: 2026-03-31 (Evening check-in tone — warm greeting, bullet list, end-of-day split)
 # ================================================================# WLJ Change History
+
+## 2026-03-31 — UX: Evening Check-in Tone & End-of-Day Split
+
+**Problem:** Beth's evening check-in at 6:30 PM said "End of day, Danny" even though the user still had 8+ items remaining. The tone was clinical/summary rather than warm and forward-looking.
+
+**Changes:**
+- Split evening phase into two distinct sub-phases:
+  - **Evening check-in** (17:00–21:59, items remaining): Warm greeting ("Good evening, Danny"), conversational progress ("Sitting pretty good for this time in the day"), bullet list of upcoming items
+  - **End of day** (22:00+ OR everything complete): Summary/debrief with completion stats and misses
+- Phase routing updated in `render_checkin_for_time()` and `build_cos_structured_output()`
+- `_render_evening()` rewritten for warm, human tone with bullet-list format for remaining items
+- New `_render_end_of_day()` function preserves the original debrief behavior for true end-of-day
+
+**Files:** `apps/ai/beth_checkin_renderer.py`
 
 ## 2026-03-30 — Refactor: Goal Cockpit — Dynamic Domain Activation
 

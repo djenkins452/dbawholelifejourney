@@ -51,12 +51,23 @@ def render_checkin_for_time(user) -> str:
     """Render a briefing appropriate for the current time of day."""
     try:
         from apps.core.utils import get_user_now
+        from apps.core.today.today_engine import get_today_context
         hour = get_user_now(user).hour
         if hour < 12:
             return _render_checkin_from_truth(user, phase="morning")
         elif hour < 17:
             return _render_checkin_from_truth(user, phase="midday")
+        elif hour >= 22:
+            # Late night — true end of day
+            return _render_checkin_from_truth(user, phase="end_of_day")
         else:
+            # 17-21: check if everything is already complete
+            ctx = get_today_context(user)
+            all_items = ctx.get("all_items", [])
+            completed = ctx.get("completed", [])
+            remaining = ctx.get("coming_up", []) + ctx.get("later", [])
+            if all_items and not remaining and len(completed) == len(all_items):
+                return _render_checkin_from_truth(user, phase="end_of_day")
             return _render_checkin_from_truth(user, phase="evening")
     except Exception:
         logger.error(
@@ -126,8 +137,17 @@ def _build_structured_from_truth(user) -> dict:
         phase = 'morning'
     elif hour < 17:
         phase = 'midday'
+    elif hour >= 22:
+        phase = 'end_of_day'
     else:
-        phase = 'evening'
+        # 17-21: end_of_day if everything complete, else evening
+        all_items = ctx.get("all_items", [])
+        completed = ctx.get("completed", [])
+        remaining = ctx.get("coming_up", []) + ctx.get("later", [])
+        if all_items and not remaining and len(completed) == len(all_items):
+            phase = 'end_of_day'
+        else:
+            phase = 'evening'
 
     # 1. Greeting
     if phase == 'morning':
@@ -139,8 +159,10 @@ def _build_structured_from_truth(user) -> dict:
             greeting = f"Morning{', ' + first_name if first_name else ''}."
     elif phase == 'midday':
         greeting = f"Midday check{', ' + first_name if first_name else ''}."
-    else:
+    elif phase == 'end_of_day':
         greeting = f"End of day{', ' + first_name if first_name else ''}."
+    else:
+        greeting = f"Good evening{', ' + first_name if first_name else ''}."
 
     # 2. Day narrative
     day_narrative = _build_day_narrative(ctx, user_now)
@@ -168,6 +190,8 @@ def _build_structured_from_truth(user) -> dict:
         rendered_text = _render_morning(ctx, user, user_now)
     elif phase == 'midday':
         rendered_text = _render_midday(ctx, user, user_now)
+    elif phase == 'end_of_day':
+        rendered_text = _render_end_of_day(ctx, user, user_now)
     else:
         rendered_text = _render_evening(ctx, user, user_now)
 
@@ -256,6 +280,8 @@ def _render_checkin_from_truth(user, phase: str = "morning") -> str:
         output = _render_morning(ctx, user, user_now)
     elif phase == "midday":
         output = _render_midday(ctx, user, user_now)
+    elif phase == "end_of_day":
+        output = _render_end_of_day(ctx, user, user_now)
     elif phase == "evening":
         output = _render_evening(ctx, user, user_now)
     else:
@@ -1018,12 +1044,111 @@ def _render_midday(ctx, user, user_now) -> str:
 # ---------------------------------------------------------------------------
 
 def _render_evening(ctx, user, user_now) -> str:
-    """Evening debrief — results, explicit misses, tomorrow.
+    """Evening check-in — warm, conversational, forward-looking.
 
-    Day significance:
-    - defining → significance-aware opening + theme-connected closing
-    - highlighted → brief acknowledgment in opening
-    - baseline → passive (no mention)
+    This fires during the evening window (17:00-21:59) when there are
+    still items remaining.  Tone is human and encouraging — not a
+    summary or debrief.
+    """
+    lines = []
+    first_name = getattr(user, 'first_name', '') or ''
+    day_sig = _get_day_significance(user)
+
+    # Warm greeting
+    if day_sig and day_sig['level'] == 'defining':
+        lines.append(
+            f"Good evening{', ' + first_name if first_name else ''}. "
+            f"Wrapping up {day_sig['name']}."
+        )
+    elif day_sig and day_sig['level'] == 'highlighted':
+        lines.append(
+            f"Good evening{', ' + first_name if first_name else ''}."
+        )
+        lines.append(f"Today was {day_sig['name']}.")
+    else:
+        lines.append(
+            f"Good evening{', ' + first_name if first_name else ''}."
+        )
+
+    # Progress snapshot — conversational
+    all_items = ctx.get("all_items", [])
+    completed = ctx.get("completed", [])
+    total = len(all_items)
+    done = len(completed)
+
+    lines.append("")
+    if total == 0:
+        lines.append("Light day — nothing on the schedule.")
+    elif done == total:
+        lines.append("Everything's done for the day. Nice work.")
+    elif done >= total * 0.7:
+        lines.append(
+            f"Sitting pretty good for this time in the day. "
+            f"{done} of {total} done."
+        )
+    elif done >= total * 0.4:
+        lines.append(f"{done} of {total} done so far.")
+    elif done > 0:
+        lines.append(f"{done} of {total} done — still have some ground to cover.")
+    else:
+        lines.append("Haven't gotten to anything yet today.")
+
+    # What got done (brief, only if there are some)
+    if completed and done < total:
+        if len(completed) <= 5:
+            names = [e['label'] for e in completed]
+            lines.append("")
+            lines.append(f"Done: {', '.join(names)}.")
+        else:
+            names = [e['label'] for e in completed[:4]]
+            lines.append("")
+            lines.append(
+                f"Done: {', '.join(names)}, +{len(completed) - 4} more."
+            )
+
+    # Coming up — bullet list
+    overdue = ctx.get("overdue", [])
+    coming_up = ctx.get("coming_up", [])
+    later = ctx.get("later", [])
+    remaining = overdue + coming_up + later
+    if remaining:
+        lines.append("")
+        lines.append("Coming up you have:")
+        for item in remaining[:8]:
+            label = item['label']
+            time_str = item.get('time', '')
+            if time_str:
+                lines.append(f"• {label} ({time_str})")
+            else:
+                lines.append(f"• {label}")
+        if len(remaining) > 8:
+            lines.append(f"• +{len(remaining) - 8} more")
+
+    # Tomorrow preview
+    try:
+        from apps.core.utils import get_user_today
+        from apps.life.models import Task
+        today = get_user_today(user)
+        tomorrow = today + timedelta(days=1)
+        tomorrow_count = Task.objects.filter(
+            user=user, due_date=tomorrow, deleted_at__isnull=True,
+        ).exclude(completion_status='skipped').count()
+        if tomorrow_count:
+            lines.append("")
+            lines.append(
+                f"Tomorrow has {tomorrow_count} "
+                f"thing{'s' if tomorrow_count != 1 else ''} lined up."
+            )
+    except Exception:
+        pass
+
+    return "\n".join(lines)
+
+
+def _render_end_of_day(ctx, user, user_now) -> str:
+    """End of day debrief — fires at 22:00+ or when everything is complete.
+
+    This is the true wrap-up: results, misses, and tomorrow preview.
     """
     lines = []
     first_name = getattr(user, 'first_name', '') or ''
@@ -1074,27 +1199,19 @@ def _render_evening(ctx, user, user_now) -> str:
             f"Done: {', '.join(names)}, +{len(completed) - 4} more."
         )
 
-    # Explicit misses vs still remaining
+    # Explicit misses
     overdue = ctx.get("overdue", [])
     coming_up = ctx.get("coming_up", [])
     later = ctx.get("later", [])
-    if overdue:
-        names = [e['label'] for e in overdue[:4]]
-        remainder = len(overdue) - 4
+    missed = overdue + coming_up + later
+    if missed:
+        names = [e['label'] for e in missed[:4]]
+        remainder = len(missed) - 4
         label = ', '.join(names)
         if remainder > 0:
             label += f", +{remainder} more"
         lines.append("")
         lines.append(f"Missed: {label}.")
-    remaining = coming_up + later
-    if remaining:
-        names = [e['label'] for e in remaining[:4]]
-        remainder = len(remaining) - 4
-        label = ', '.join(names)
-        if remainder > 0:
-            label += f", +{remainder} more"
-        lines.append("")
-        lines.append(f"Still ahead: {label}.")
 
     # Tomorrow's load
     try:

@@ -10,7 +10,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Avg, Count, Max, Min, Sum, F
+from django.db.models import Avg, Count, Max, Min, Prefetch, Sum, F
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -2863,18 +2863,31 @@ class MedicineHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         context["active_medicines"] = active_medicines
         context["active_count"] = active_medicines.count()
 
-        # Get today's scheduled doses
-        today_schedules = []
-        for medicine in active_medicines.filter(is_prn=False):
-            for schedule in medicine.schedules.filter(is_active=True):
-                if schedule.applies_to_day(today.weekday()):
-                    # Check if there's already a log for this dose today
-                    log = MedicineLog.objects.filter(
-                        medicine=medicine,
-                        schedule=schedule,
-                        scheduled_date=today,
-                    ).first()
+        # Get today's scheduled doses — batch-load logs to avoid N+1 queries.
+        # Previously queried MedicineLog per schedule; now 1 query for all logs.
+        scheduled_medicines = list(
+            active_medicines.filter(is_prn=False).prefetch_related(
+                Prefetch(
+                    'schedules',
+                    queryset=MedicineSchedule.objects.filter(is_active=True),
+                )
+            )
+        )
+        # Batch-load all today's logs for this user's medicines in one query
+        today_logs = {
+            (log.medicine_id, log.schedule_id): log
+            for log in MedicineLog.objects.filter(
+                user=user,
+                medicine__in=scheduled_medicines,
+                scheduled_date=today,
+            ).select_related('medicine', 'schedule')
+        }
 
+        today_schedules = []
+        for medicine in scheduled_medicines:
+            for schedule in medicine.schedules.all():
+                if schedule.applies_to_day(today.weekday()):
+                    log = today_logs.get((medicine.pk, schedule.pk))
                     today_schedules.append({
                         "medicine": medicine,
                         "schedule": schedule,

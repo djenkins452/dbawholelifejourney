@@ -270,7 +270,8 @@ def invalidate_insights_on_task_save(sender, instance, created, **kwargs):
     insight_types = ['daily_insight', 'life_home', 'accountability_nudge']
     invalidate_user_insights(instance.user, insight_types)
     invalidate_state_snapshot(instance.user)
-    _refresh_sae_module(instance.user, 'tasks')
+    # SAE 'tasks' module refresh is handled by handle_task_saved in life/signals.py
+    # (update_user_state(user, 'tasks')). No need to duplicate here.
 
 
 @receiver(post_delete, sender='life.Task')
@@ -360,7 +361,9 @@ def invalidate_cache_on_medicine_log_save(sender, instance, created, **kwargs):
     invalidate_personal_data_cache(instance.user, 'medication')
     invalidate_daily_insight_cache(instance.user)
     invalidate_state_snapshot(instance.user)
-    _refresh_sae_module(instance.user, 'health')
+    # Only refresh 'medicine' module — MedicineLog doesn't affect weight, sleep,
+    # body composition, or other health metrics tracked by build_health_state().
+    # build_health_state() runs ~69 queries; skipping it saves ~200ms on production.
     _refresh_sae_module(instance.user, 'medicine')
 
 
@@ -369,7 +372,6 @@ def invalidate_cache_on_medicine_log_delete(sender, instance, **kwargs):
     """Invalidate personal data cache when a medicine log is deleted."""
     invalidate_personal_data_cache(instance.user, 'medication')
     invalidate_state_snapshot(instance.user)
-    _refresh_sae_module(instance.user, 'health')
     _refresh_sae_module(instance.user, 'medicine')
 
 

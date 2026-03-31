@@ -33,6 +33,19 @@ No hardcoded domain exceptions. Health appears because SAE health signals exist,
 # Last Updated: 2026-03-30 (Production docs update — all fixtures, features, engine ref)
 # ================================================================# WLJ Change History
 
+## 2026-03-31 — Medication Completion Performance: Remove 102 Unnecessary Queries + N+1 Fix
+
+**Root cause:** MedicineLog post_save signal ran `_refresh_sae_module('health')` (build_health_state = ~69 queries) in addition to `_refresh_sae_module('medicine')` (~33 queries). A medicine dose log does NOT change weight, sleep, body composition, or other health metrics — only medicine state. Also, the redirect target page (MedicineHomeView) had an N+1 query: for each medicine × schedule, it queried MedicineLog individually. And `invalidate_insights_on_task_save` duplicated SAE 'tasks' refresh already done by `handle_task_saved`.
+
+**Changes:**
+- `apps/ai/signals.py` — Removed `_refresh_sae_module('health')` from MedicineLog save/delete handlers (only 'medicine' module needed)
+- `apps/ai/signals.py` — Removed duplicate `_refresh_sae_module('tasks')` from Task save handler (life/signals.py already handles it)
+- `apps/health/views.py` — MedicineHomeView: batch-load all today's MedicineLogs in 1 query + prefetch schedules (eliminates N+1)
+
+**Expected result on production:** ~69 fewer queries on medicine save + N+1 eliminated on page load.
+
+---
+
 ## 2026-03-31 — Write-Path Performance: 94% Query Reduction on Task Completion
 
 **Root cause:** `handle_task_saved` signal called `rebuild_user_state()` which rebuilt ALL 27 domain modules (health, finance, faith, goals, etc.) on every task save — even though only the 'tasks' module changed. Combined with duplicate SAE calls from `ai/signals.py` and `fire_intelligence()`, a single task completion triggered 213 DB queries.

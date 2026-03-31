@@ -564,8 +564,8 @@
         <h2 class="group-title">Fitness & Activity</h2>
         <div class="health-grid">
 
-        {# ── Fitness Card (if NOT in attention section) ── #}
-        {% if features.health.workouts and not card_emphasis.fitness %}
+        {# ── Fitness Card ── #}
+        {% if features.health.workouts %}
         <div class="health-card fitness-card card-ok">
             <div class="card-header">
                 <h2>
@@ -760,7 +760,7 @@
         </div>
 
         {# ── Glucose Card (if NOT in attention section) ── #}
-        {% if features.health.glucose and not card_emphasis.glucose %}
+        {% if features.health.glucose %}
         <div class="health-card card-ok">
             <div class="card-header">
                 <h2>
@@ -877,7 +877,7 @@
         <div class="health-grid">
 
         {# ── Medicine Card (if NOT in attention section) ── #}
-        {% if features.health.medicine and not card_emphasis.medicine %}
+        {% if features.health.medicine %}
         <div class="health-card medicine-card card-ok">
             <div class="card-header">
                 <h2>

@@ -3,8 +3,20 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-31 (Evening check-in tone — warm greeting, bullet list, end-of-day split)
+# Last Updated: 2026-03-31 (CoS bullet-format item lists across all phases)
 # ================================================================# WLJ Change History
+
+## 2026-03-31 — UX: Bullet-Format Item Lists Across All CoS Phases
+
+**Problem:** All CoS check-in phases (morning, midday, evening, end-of-day) rendered item lists as comma-separated strings ("Done: item1, item2, +3 more"). This was hard to scan and felt robotic.
+
+**Changes:** Converted ALL item lists to bullet format with `•` prefix:
+- **Morning:** "Already done" items, "Later today" items
+- **Midday:** "Slipping" items, "Still ahead" items (now with times)
+- **Evening:** "Done so far" items (already had bullet "Coming up")
+- **End of day:** "Completed" items, "Missed" items
+
+**Files:** `apps/ai/beth_checkin_renderer.py`
 
 ## 2026-03-31 — UX: Evening Check-in Tone & End-of-Day Split
 

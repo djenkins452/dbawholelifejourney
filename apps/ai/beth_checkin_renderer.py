@@ -356,16 +356,12 @@ def _render_morning(ctx, user, user_now) -> str:
 
     # Completed acknowledgment (brief, only if some done)
     if completed:
-        names = [e['label'] for e in completed[:3]]
-        if len(completed) <= 3:
-            lines.append("")
-            lines.append(f"Already done: {', '.join(names)}.")
-        else:
-            lines.append("")
-            lines.append(
-                f"Already done: {', '.join(names)}, "
-                f"+{len(completed) - 3} more."
-            )
+        lines.append("")
+        lines.append("Already done:")
+        for item in completed[:5]:
+            lines.append(f"• {item['label']}")
+        if len(completed) > 5:
+            lines.append(f"• +{len(completed) - 5} more")
 
     # ── C. Full-Day View: key afternoon/evening items ──
     day_view = _build_full_day_view(ctx, user_now)
@@ -444,7 +440,10 @@ def _build_full_day_view(ctx, user_now) -> str:
     if not notable:
         return ""
 
-    return "Later today: " + ", ".join(notable) + "."
+    result = "Later today:\n"
+    for item in notable:
+        result += f"• {item}\n"
+    return result.rstrip()
 
 
 def _morning_closing(state, completed, overdue, later, user_now=None) -> str:
@@ -1016,10 +1015,11 @@ def _render_midday(ctx, user, user_now) -> str:
                 f"Can you get to it this afternoon?"
             )
         else:
-            names = [e['label'] for e in overdue[:3]]
-            lines.append(
-                f"Slipping: {', '.join(names)}."
-            )
+            lines.append("Slipping:")
+            for item in overdue[:4]:
+                lines.append(f"• {item['label']}")
+            if len(overdue) > 4:
+                lines.append(f"• +{len(overdue) - 4} more")
 
     # Remaining
     coming_up = ctx.get("coming_up", [])
@@ -1027,8 +1027,16 @@ def _render_midday(ctx, user, user_now) -> str:
     remaining = coming_up + later
     if remaining:
         lines.append("")
-        names = [e['label'] for e in remaining[:4]]
-        lines.append(f"Still ahead: {', '.join(names)}.")
+        lines.append("Still ahead:")
+        for item in remaining[:6]:
+            label = item['label']
+            time_str = item.get('time', '')
+            if time_str:
+                lines.append(f"• {label} ({time_str})")
+            else:
+                lines.append(f"• {label}")
+        if len(remaining) > 6:
+            lines.append(f"• +{len(remaining) - 6} more")
 
     # Next action
     next_action = ctx.get('next', '')
@@ -1095,16 +1103,12 @@ def _render_evening(ctx, user, user_now) -> str:
 
     # What got done (brief, only if there are some)
     if completed and done < total:
-        if len(completed) <= 5:
-            names = [e['label'] for e in completed]
-            lines.append("")
-            lines.append(f"Done: {', '.join(names)}.")
-        else:
-            names = [e['label'] for e in completed[:4]]
-            lines.append("")
-            lines.append(
-                f"Done: {', '.join(names)}, +{len(completed) - 4} more."
-            )
+        lines.append("")
+        lines.append("Done so far:")
+        for item in completed[:6]:
+            lines.append(f"• {item['label']}")
+        if len(completed) > 6:
+            lines.append(f"• +{len(completed) - 6} more")
 
     # Coming up — bullet list
     overdue = ctx.get("overdue", [])
@@ -1187,17 +1191,14 @@ def _render_end_of_day(ctx, user, user_now) -> str:
     else:
         lines.append("Tough day — nothing got checked off.")
 
-    # What got done (brief)
-    if completed and len(completed) <= 5:
-        names = [e['label'] for e in completed]
+    # What got done
+    if completed:
         lines.append("")
-        lines.append(f"Done: {', '.join(names)}.")
-    elif completed:
-        names = [e['label'] for e in completed[:4]]
-        lines.append("")
-        lines.append(
-            f"Done: {', '.join(names)}, +{len(completed) - 4} more."
-        )
+        lines.append("Completed:")
+        for item in completed[:8]:
+            lines.append(f"• {item['label']}")
+        if len(completed) > 8:
+            lines.append(f"• +{len(completed) - 8} more")
 
     # Explicit misses
     overdue = ctx.get("overdue", [])
@@ -1205,13 +1206,12 @@ def _render_end_of_day(ctx, user, user_now) -> str:
     later = ctx.get("later", [])
     missed = overdue + coming_up + later
     if missed:
-        names = [e['label'] for e in missed[:4]]
-        remainder = len(missed) - 4
-        label = ', '.join(names)
-        if remainder > 0:
-            label += f", +{remainder} more"
         lines.append("")
-        lines.append(f"Missed: {label}.")
+        lines.append("Missed:")
+        for item in missed[:6]:
+            lines.append(f"• {item['label']}")
+        if len(missed) > 6:
+            lines.append(f"• +{len(missed) - 6} more")
 
     # Tomorrow's load
     try:

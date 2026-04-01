@@ -1044,14 +1044,15 @@ def _build_health_gate_section(user, today) -> str:
     except Exception:
         pass
 
-    # Workout check
+    # Workout check — unified across WorkoutSession, WorkoutSchedule,
+    # AND routine items.  All three sources must agree.
+    has_workout_today = False
     try:
         from apps.health.models import WorkoutSession
         has_workout_today = WorkoutSession.objects.filter(
             user=user, date=today
         ).exclude(status='deleted').exists()
         if has_workout_today:
-            # Positive confirmation so AI knows workout was completed
             workout = WorkoutSession.objects.filter(
                 user=user, date=today
             ).exclude(status='deleted').first()
@@ -1060,21 +1061,48 @@ def _build_health_gate_section(user, today) -> str:
                 f"Workout: {workout_name} logged today. Acknowledge this."
             )
         else:
-            # Check if there's a scheduled workout
+            # Check scheduled workout plan
+            has_scheduled = False
             try:
                 from apps.health.models import WorkoutSchedule
-                day_of_week = today.weekday()  # 0=Monday
+                day_of_week = today.weekday()
                 has_scheduled = WorkoutSchedule.objects.filter(
                     plan__user=user,
                     plan__is_active=True,
                     day_of_week=day_of_week,
                 ).exists()
-                if has_scheduled:
-                    lines.append(
-                        "Workout: Scheduled for today but not yet logged."
-                    )
             except Exception:
                 pass
+
+            # Also check routine items with workout keywords
+            has_routine_workout = False
+            try:
+                from apps.life.models import Task
+                _WORKOUT_KEYWORDS = {
+                    'workout', 'exercise', 'gym', 'training', 'run',
+                    'running', 'cardio', 'fitness', 'yoga', 'stretching',
+                }
+                pending_routine_titles = list(Task.objects.filter(
+                    user=user, is_routine=True,
+                    completion_status='pending', due_date=today,
+                ).values_list('title', flat=True))
+                for title in pending_routine_titles:
+                    if any(kw in title.lower() for kw in _WORKOUT_KEYWORDS):
+                        has_routine_workout = True
+                        break
+            except Exception:
+                pass
+
+            if has_scheduled:
+                lines.append(
+                    "Workout: Scheduled for today but not yet logged."
+                )
+            elif has_routine_workout:
+                lines.append(
+                    "Workout: Expected today (from routine) but not yet logged."
+                )
+            # If neither scheduled nor in routines, say nothing about workout
+            # — don't claim "no workout scheduled" which contradicts routine items
     except Exception:
         pass
 

@@ -234,7 +234,11 @@
 
             <div class="workout-today workout-pending">
                 <span class="workout-today-icon" aria-hidden="true">&#9675;</span>
-                <span class="workout-today-status">No workout today</span>
+                {% if workout_scheduled_today %}
+                <span class="workout-today-status">Not logged yet</span>
+                {% else %}
+                <span class="workout-today-status">No workout scheduled</span>
+                {% endif %}
             </div>
 
             {% if latest_workout %}

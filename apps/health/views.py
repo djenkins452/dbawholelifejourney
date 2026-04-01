@@ -491,7 +491,25 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 else:
                     # No schedule entry for today = rest day
                     context["workout_rest_day"] = True
-            # No active plan — show workout card only if user has workout history
+            # No active plan — check if routine items expect a workout today
+            else:
+                try:
+                    from apps.life.models import Task
+                    _WK = {
+                        'workout', 'exercise', 'gym', 'training',
+                        'cardio', 'fitness', 'yoga',
+                    }
+                    pending_titles = list(Task.objects.filter(
+                        user=user, is_routine=True,
+                        completion_status='pending', due_date=today,
+                    ).values_list('title', flat=True))
+                    if any(
+                        any(kw in t.lower() for kw in _WK)
+                        for t in pending_titles
+                    ):
+                        context["workout_scheduled_today"] = True
+                except Exception:
+                    pass
         except ImportError:
             pass
 

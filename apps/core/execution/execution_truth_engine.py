@@ -184,7 +184,7 @@ def _derive_expectations(user, target_date: date, routines: Dict) -> Dict:
         'journal_expected': False,
     }
 
-    # Scan today's routine items for domain-mapped names
+    # Scan today's routine items (RoutineItem model) for domain-mapped names
     raw_items = routines.get('_raw_items', {})
     for _window, items in raw_items.items():
         for item in items:
@@ -197,6 +197,36 @@ def _derive_expectations(user, target_date: date, routines: Dict) -> Dict:
                 expectations['workout_expected'] = True
             if item_name in JOURNAL_NAMES:
                 expectations['journal_expected'] = True
+
+    # Also scan routine Tasks (is_routine=True) — these are a separate
+    # data source from RoutineItems and may contain workout/journal/etc.
+    # expectations that RoutineItems don't capture.  Use keyword-in-title
+    # matching (not exact match) because Task titles can be compound
+    # like "Workout and Drink Protein Shake".
+    try:
+        from apps.life.models import Task
+        routine_titles = list(Task.objects.filter(
+            user=user, is_routine=True, due_date=target_date,
+        ).exclude(
+            completion_status='skipped',
+        ).values_list('title', flat=True))
+        for title in routine_titles:
+            title_lower = title.lower()
+            if any(kw in title_lower for kw in WORKOUT_NAMES):
+                expectations['workout_expected'] = True
+            if any(kw in title_lower for kw in JOURNAL_NAMES):
+                expectations['journal_expected'] = True
+            if any(kw in title_lower for kw in FAITH_PRAYER_NAMES):
+                expectations['prayer_expected'] = True
+            if any(kw in title_lower for kw in FAITH_BIBLE_NAMES):
+                expectations['bible_expected'] = True
+    except ImportError:
+        pass
+    except Exception:
+        logger.warning(
+            "execution_truth: routine task expectation scan failed",
+            exc_info=True,
+        )
 
     # Bible reading plan = bible expected (regardless of routine)
     try:

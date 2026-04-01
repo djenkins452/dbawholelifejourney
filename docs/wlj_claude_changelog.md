@@ -3,8 +3,25 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-03-31 (CoS bullet-format item lists across all phases)
+# Last Updated: 2026-04-01 (Fix workout contradiction — unified expectation across routine Tasks, exec briefing, dashboard)
 # ================================================================# WLJ Change History
+
+## 2026-04-01 — Fix: CoS Workout Contradiction + Dashboard Ambiguity
+
+**Problem:** CoS morning brief told the user "Workout is pending" in Routines but "No workout scheduled today" in the Workout section. The dashboard fitness card showed "No workout today" ambiguously (could mean "nothing logged yet" or "nothing scheduled").
+
+**Root cause:** Three independent workout data sources disagreed:
+1. **Routine Tasks** (`Task.objects.filter(is_routine=True)`) — saw pending workout task
+2. **Execution Truth Engine** — only checked RoutineItem model (not Task model) for workout keywords → missed compound names like "Workout and Drink Protein Shake"
+3. **Executive Briefing** — health gate checked WorkoutSession/WorkoutSchedule only → saw no workout
+
+**Fixes:**
+- `apps/core/execution/execution_truth_engine.py` — `_derive_expectations()` now also scans routine Tasks (is_routine=True) for workout/journal/faith keywords using substring matching. This ensures `workout_expected=True` when a routine Task with "workout" in the title exists.
+- `apps/ai/executive_briefing.py` — `_build_health_gate_section()` workout check now also queries routine Tasks for workout keywords. When a routine workout exists but no WorkoutSession/WorkoutSchedule, says "Expected today (from routine) but not yet logged" instead of silence.
+- `templates/health/home.html` — Fitness card now shows "Not logged yet" when workout is scheduled/expected, "No workout scheduled" when truly nothing exists.
+- `apps/health/views.py` — Health home view now checks routine Tasks for workout keywords when no active WorkoutPlan exists, sets `workout_scheduled_today=True` accordingly.
+
+**Files:** `apps/core/execution/execution_truth_engine.py`, `apps/ai/executive_briefing.py`, `apps/health/views.py`, `templates/health/home.html`
 
 ## 2026-03-31 — UX: Bullet-Format Item Lists Across All CoS Phases
 

@@ -3,8 +3,16 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-04-01 (Fix waist 'stable' with no data + add Log Measurement button)
+# Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
+
+## 2026-04-01 — Fix: Foundation Section Shows Completed Items
+
+**Problem:** When user asks "How is my day going?", the Foundation section listed items that were already completed (e.g., Wake up, Prayer Time, Bible Reading) AND those same items appeared in the Completed section. Completed items shouldn't appear in Foundation — they belong only in Completed.
+
+**Fix:** Changed `today_engine.py` partition logic: foundational items are now only included in the Foundation bucket when they are NOT completed. Completed foundationals go only to the Completed bucket. Updated 2 tests that asserted the old (incorrect) behavior.
+
+**Files:** `apps/core/today/today_engine.py`, `apps/core/today/tests/test_today_engine.py`
 
 ## 2026-04-01 — Fix: Waist "Stable" Showing With No Data + Log Measurement Button
 

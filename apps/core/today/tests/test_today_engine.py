@@ -539,7 +539,7 @@ class TestDomainCompletionDedup(SimpleTestCase):
 
 
 class TestFoundationIncludesCompleted(SimpleTestCase):
-    """Foundation shows ALL foundational items — complete + incomplete."""
+    """Foundation shows only INCOMPLETE foundational items."""
 
     @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
@@ -547,8 +547,8 @@ class TestFoundationIncludesCompleted(SimpleTestCase):
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_completed_foundational_in_foundation(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
-        """Completed foundational item still appears in Foundation."""
+    def test_completed_foundational_not_in_foundation(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
+        """Completed foundational item does NOT appear in Foundation."""
         mock_now.return_value = _fixed_now(10, 0)
         mock_facts.return_value = _make_locked_facts()
         mock_truth.return_value = _make_truth({
@@ -561,9 +561,9 @@ class TestFoundationIncludesCompleted(SimpleTestCase):
         ctx = get_today_context(MagicMock(id=1))
 
         f_labels = [e["label"] for e in ctx["foundation"]]
-        self.assertIn("Prayer (5:30 AM)", f_labels)   # completed but foundational
-        self.assertIn("Shower (6:00 AM)", f_labels)    # incomplete and foundational
-        self.assertEqual(len(f_labels), 2)
+        self.assertNotIn("Prayer (5:30 AM)", f_labels)  # completed → only in Completed
+        self.assertIn("Shower (6:00 AM)", f_labels)       # incomplete → in Foundation
+        self.assertEqual(len(f_labels), 1)
 
     @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])
@@ -571,8 +571,8 @@ class TestFoundationIncludesCompleted(SimpleTestCase):
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_completed_foundational_also_in_completed(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
-        """Completed foundational appears in BOTH Foundation and Completed."""
+    def test_completed_foundational_only_in_completed(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
+        """Completed foundational appears ONLY in Completed, not Foundation."""
         mock_now.return_value = _fixed_now(10, 0)
         mock_facts.return_value = _make_locked_facts()
         mock_truth.return_value = _make_truth({
@@ -585,7 +585,7 @@ class TestFoundationIncludesCompleted(SimpleTestCase):
 
         f_labels = [e["label"] for e in ctx["foundation"]]
         c_labels = [e["label"] for e in ctx["completed"]]
-        self.assertIn("Prayer (5:30 AM)", f_labels)
+        self.assertNotIn("Prayer (5:30 AM)", f_labels)
         self.assertIn("Prayer (5:30 AM)", c_labels)
 
 

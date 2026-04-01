@@ -96,9 +96,9 @@ def get_today_context(user) -> dict:
         sort_time = sched or _TIME_MAX
         label = f"{name} ({time_str})" if time_str else name
 
-        # Foundation → ALWAYS included (complete + incomplete)
-        # Must run BEFORE the completed continue to capture done foundationals
-        if is_found:
+        # Foundation → only INCOMPLETE foundational items.
+        # Completed foundationals belong in the Completed section only.
+        if is_found and not is_done:
             if label not in seen_foundation:
                 seen_foundation.add(label)
                 foundation.append(_bucket_entry(sort_time, label, item))

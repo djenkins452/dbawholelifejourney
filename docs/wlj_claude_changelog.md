@@ -3,8 +3,20 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-04-01 (Fix workout contradiction — unified expectation across routine Tasks, exec briefing, dashboard)
+# Last Updated: 2026-04-01 (Fix waist 'stable' with no data + add Log Measurement button)
 # ================================================================# WLJ Change History
+
+## 2026-04-01 — Fix: Waist "Stable" Showing With No Data + Log Measurement Button
+
+**Problem:** Physical Intelligence dashboard showed "WAIST: 0.0 in" with a "stable" arrow even though the user had never entered waist measurements. No obvious UI to log waist measurements from the Body Composition section.
+
+**Root cause:** `_compute_waist_trend()` returned `0.0` when insufficient data instead of `None`. The template checked `{% if waist_trend is not None %}` which passed for `0.0`, rendering a false card.
+
+**Fixes:**
+- `apps/health/services/body_composition_signal.py` — `_compute_waist_trend()` now returns `None` when fewer than 2 measurements exist (instead of `0.0`). Fallback dict also returns `None` for waist_trend.
+- `templates/health/home.html` — Added "Log Measurement" button to Body Composition section header (links to body_composition_create view). Added `.group-header` CSS for flex layout.
+
+**Files:** `apps/health/services/body_composition_signal.py`, `templates/health/home.html`
 
 ## 2026-04-01 — Fix: CoS Workout Contradiction + Dashboard Ambiguity
 

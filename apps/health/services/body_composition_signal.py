@@ -314,9 +314,9 @@ def _compute_weight_trend(summaries):
 
 
 def _compute_waist_trend(user, as_of_date):
-    """Waist delta over 28 days."""
+    """Waist delta over 28 days.  Returns None when insufficient data."""
     delta, ok = _measurement_trend(user, "waist", as_of_date, days=28)
-    return round(delta, 2) if ok else 0.0
+    return round(delta, 2) if ok else None
 
 
 def _compute_velocity(today, user, as_of_date):
@@ -522,7 +522,7 @@ def _insufficient_data():
         "muscle_evidence": [],
         "recomposition_status": False,
         "weight_trend": 0.0,
-        "waist_trend": 0.0,
+        "waist_trend": None,
         "confidence": "low",
         "fat_loss_rate_lbs_per_week": None,
         "fat_loss_speed": None,

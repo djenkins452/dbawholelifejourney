@@ -316,7 +316,10 @@
     {# ── GROUP 1: Body Composition ── #}
     {% if has_body_comp_data or latest_weight %}
     <div class="health-group">
-        <h2 class="group-title">Body Composition</h2>
+        <div class="group-header">
+            <h2 class="group-title">Body Composition</h2>
+            <a href="{% url 'health:body_composition_create' %}" class="btn btn-primary btn-sm">Log Measurement</a>
+        </div>
 
         {% if body_comp_insight %}
         <div class="body-comp-insight body-comp-insight--{{ body_comp_insight.severity }}">
@@ -1581,6 +1584,19 @@
 /* ── Grouped sections ── */
 .health-group {
     margin-bottom: var(--space-6, 1.5rem);
+}
+.group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-3, 0.75rem);
+    padding-bottom: var(--space-2, 0.5rem);
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+.group-header .group-title {
+    margin: 0;
+    padding-bottom: 0;
+    border-bottom: none;
 }
 .group-title {
     font-size: 1.1rem;

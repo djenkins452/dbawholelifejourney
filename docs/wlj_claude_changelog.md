@@ -6,6 +6,18 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-02 — Enhancement: Expand Qualified Status Query Coverage (Imperative Exclusions)
+
+**Problem:** The qualifier detection added earlier covered prepositional exclusions ("other than", "besides") but missed imperative forms ("skip nutrition", "leave out meds", "ignore journal", "forget about X").
+
+**Fix:** Expanded `QUALIFIED_STATUS_PREFIXES` from 10 to 25 phrases, adding imperative exclusion verbs ("leave out", "skip", "ignore", "forget", "minus", etc.) and their gerund forms. Documented the exhaustive categorization (prepositional vs imperative). Added 8 new unit tests covering the expanded phrases.
+
+**Design decision:** Evaluated introducing a `FULL | FILTERED | BOOLEAN | DELTA` classification system. Rejected — the routing outcome is identical for all qualified types (fall through to LLM), so a category label adds abstraction without behavior change. English exclusion phrases are a closed class; phrase expansion is the correct tool.
+
+**Files:** `apps/ai/deterministic_router.py`, `apps/ai/tests/test_deterministic_router.py`
+
+**Tests:** 202 tests pass (34 qualifier + 168 existing).
+
 ## 2026-04-02 — Fix: CoS Repeats Full Briefing on Filtered/Follow-up Status Questions
 
 **Problem:** When a user asked "other than nutrition, anything left?", the CoS repeated the full structured briefing instead of answering the actual question. The substring `'anything left'` in `CHECKIN_PATTERNS` matched the qualified query, triggering a terminal deterministic route that renders a full briefing with zero awareness of filters or conversational context.

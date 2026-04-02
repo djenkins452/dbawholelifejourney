@@ -980,6 +980,47 @@ class QualifiedStatusQueryTests(TestCase):
     def test_am_i_finished(self):
         self.assertTrue(is_qualified_status_query("am i finished?"))
 
+    # ── Imperative exclusion verbs ────────────────────────────────
+    def test_leave_out_x(self):
+        self.assertTrue(is_qualified_status_query(
+            "leave out nutrition — what's left?"
+        ))
+
+    def test_skip_x(self):
+        self.assertTrue(is_qualified_status_query(
+            "skip nutrition, what's left?"
+        ))
+
+    def test_forget_about_x(self):
+        self.assertTrue(is_qualified_status_query(
+            "forget about meds — anything remaining?"
+        ))
+
+    def test_ignore_x(self):
+        self.assertTrue(is_qualified_status_query(
+            "ignore journal, anything left?"
+        ))
+
+    def test_ignoring_x(self):
+        self.assertTrue(is_qualified_status_query(
+            "ignoring meds, what do i have left?"
+        ))
+
+    def test_without_counting_x(self):
+        self.assertTrue(is_qualified_status_query(
+            "without counting nutrition, anything left?"
+        ))
+
+    def test_minus_x(self):
+        self.assertTrue(is_qualified_status_query(
+            "minus nutrition, anything remaining?"
+        ))
+
+    def test_skipping_x(self):
+        self.assertTrue(is_qualified_status_query(
+            "skipping workout, what's left?"
+        ))
+
     # ── MUST NOT match — unqualified queries stay on terminal routes ──
     def test_whats_left_today_not_qualified(self):
         self.assertFalse(is_qualified_status_query("what's left today?"))

@@ -6,6 +6,19 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-02 — Enhancement: Enforce Strict Response Discipline for Qualified Status Queries
+
+**Problem:** Qualified status queries ("other than nutrition, anything left?", "am I done?") correctly fell through to the LLM, but the LLM could still expand into summaries, repeat prior context, or add coaching commentary. The existing `brief` mode instruction ("Answer in 1-3 sentences max") was too generic — the full CoS system prompt with proactive intelligence and conversational rules could override it.
+
+**Fix:** Three-layer enforcement following the health intel override pattern:
+1. **Prompt override:** Replaced generic brief rules with DIRECT ANSWER MODE — dominant, specific instructions: no summaries, no lists, no completed items, no coaching. Includes example Q&A pairs. Suppressed conversational rules and chain-of-thought reasoning.
+2. **Token budget:** Hard cap at 150 tokens (~2 sentences). Physical LLM constraint — cannot generate more regardless of prompt.
+3. **Post-LLM failsafe:** Truncation to 2 sentences if LLM still expands beyond 3 sentences. Deterministic enforcement, not prompt-only.
+
+**Files:** `apps/ai/personal_assistant.py`
+
+**Tests:** 226 existing tests pass. Pre-existing failure in `test_chat_endpoint` confirmed on main (unrelated).
+
 ## 2026-04-02 — Enhancement: Expand Qualified Status Query Coverage (Imperative Exclusions)
 
 **Problem:** The qualifier detection added earlier covered prepositional exclusions ("other than", "besides") but missed imperative forms ("skip nutrition", "leave out meds", "ignore journal", "forget about X").

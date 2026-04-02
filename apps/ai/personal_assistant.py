@@ -4262,6 +4262,28 @@ Rules for voice responses:
                 "Do NOT add unrelated content (schedule, sleep, calendar)."
             )
 
+        # Qualified status query override: "other than X, anything left?",
+        # "am I done?", "anything else?" — strict direct-answer mode.
+        # Same pattern as health intel override: replace the rules block
+        # with a dominant, specific instruction set.
+        if _is_qualified_status:
+            response_mode = 'brief'  # Force brief even for verbose phrasing
+            rules_block = (
+                "- DIRECT ANSWER MODE — the user asked a specific question about "
+                "their remaining items. Answer ONLY what was asked.\n"
+                "- Respond in 1-2 sentences MAXIMUM. No lists, no sections, no headers.\n"
+                "- Do NOT summarize the day. Do NOT list completed items.\n"
+                "- Do NOT repeat information from the prior briefing.\n"
+                "- Do NOT add motivational commentary or coaching.\n"
+                "- If they asked about exclusions (\"other than X\"), answer relative to "
+                "that filter using the LOCKED CoS STATE.\n"
+                "- If they asked yes/no (\"am I done?\"), answer yes or no with a count.\n"
+                "- Examples of CORRECT responses:\n"
+                "  Q: 'other than nutrition, anything left?' → 'No — just nutrition left.'\n"
+                "  Q: 'am I done?' → 'Not yet — 1 item left: nutrition.'\n"
+                "  Q: 'anything else?' → 'No, you're done for today.'"
+            )
+
         # Per-user response style preference (admin-configurable)
         style_pref = getattr(self.prefs, 'cos_response_style', 'balanced')
         style_nudge = ''
@@ -4370,6 +4392,11 @@ Then give your response."""
         if _is_health_intel_query and response_mode == 'brief':
             _conversational_rules = ""
             _reasoning_block = ""  # Skip chain-of-thought too — just output the enums
+        elif _is_qualified_status:
+            # Direct answer mode: suppress conversational filler and
+            # chain-of-thought reasoning. The answer is 1-2 sentences.
+            _conversational_rules = ""
+            _reasoning_block = ""
         else:
             _conversational_rules = (
                 f"{style_nudge}- Be conversational and natural — speak like someone who knows this person\n"
@@ -4397,6 +4424,10 @@ Rules for this response:
         # Health intel + brief: tiny budget constrains the LLM to just the enums
         if _is_health_intel_query and response_mode == 'brief':
             max_tokens = 100
+
+        # Qualified status: 1-2 sentences = ~30-50 tokens. Cap at 150 for safety.
+        if _is_qualified_status:
+            max_tokens = 150
 
         # Scripture breakdowns need more tokens for thorough analysis
         if scripture_context_block and any(
@@ -4529,6 +4560,28 @@ Rules for this response:
                         "Strict health status enforcement failed, "
                         "using LLM response: %s", _shi_err,
                     )
+
+            # =============================================================
+            # Qualified status failsafe: truncate verbose LLM responses.
+            # Despite tight token budget (150) and explicit instructions,
+            # the LLM may occasionally expand. Trim to first 2 sentences
+            # as a hard ceiling. This mirrors the health intel enforcement
+            # pattern — deterministic post-processing beats prompt-only.
+            # =============================================================
+            if _is_qualified_status and response:
+                _qs_response = response.strip()
+                # Split on sentence boundaries (. ! ?)
+                import re as _qs_re
+                _qs_sentences = _qs_re.split(r'(?<=[.!?])\s+', _qs_response)
+                if len(_qs_sentences) > 3:
+                    _qs_trimmed = ' '.join(_qs_sentences[:2])
+                    logger.info(
+                        "QUALIFIED_STATUS_TRIM user=%s sentences=%d→2 "
+                        "original=%r trimmed=%r",
+                        self.user.id, len(_qs_sentences),
+                        _qs_response[:120], _qs_trimmed[:120],
+                    )
+                    response = _qs_trimmed
 
             # =============================================================
             # Phase 4c: Response Quality Validation

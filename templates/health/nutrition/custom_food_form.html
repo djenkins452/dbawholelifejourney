@@ -19,7 +19,7 @@
         <h1 class="page-title">{% if form.instance.pk %}Edit Custom Food{% else %}Create Custom Food{% endif %}</h1>
     </div>
 
-    <form method="post" class="form-card">
+    <form method="post" class="form-card" novalidate>
         {% csrf_token %}
 
         <div class="form-section">

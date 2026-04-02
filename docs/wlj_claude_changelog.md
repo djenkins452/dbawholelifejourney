@@ -6,6 +6,16 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-01 — Fix: Nutrition Forms Silently Blocked by Browser Validation
+
+**Problem:** Edit form "Save Changes" still did nothing after the step fix, because browser cached old `time-picker.js` (cache buster wasn't bumped). More fundamentally, relying on HTML5 browser validation for forms with hidden/replaced inputs causes silent failures.
+
+**Fix:**
+- Added `novalidate` to all nutrition forms (food entry, quick add, custom food) — Django handles validation server-side with proper error messages
+- Bumped `time-picker.js` cache buster to `?v=2` so browsers pick up the init sync fix
+
+**Files:** `templates/health/nutrition/food_entry_form.html`, `templates/health/nutrition/quick_add.html`, `templates/health/nutrition/custom_food_form.html`, `templates/base.html`
+
 ## 2026-04-01 — Fix: Nutrition Form Rejects 2-Decimal Macro Values
 
 **Problem:** When editing a food entry with half-servings (e.g., 0.5), the computed macro values (6.25g protein, 11.25g carbs) were rejected by HTML5 step validation because the number inputs had `step="0.1"`, only allowing one decimal place.

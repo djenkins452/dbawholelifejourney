@@ -464,7 +464,7 @@ def _check_routines(user, target_date: Optional[date] = None) -> Dict:
             logs = RoutineLog.objects.filter(
                 schedule_id__in=schedule_ids,
                 scheduled_date=target_date,
-            ).select_related('schedule')
+            ).select_related('schedule', 'routine_at_time')
 
             log_by_schedule = {log.schedule_id: log for log in logs}
 
@@ -497,7 +497,12 @@ def _check_routines(user, target_date: Optional[date] = None) -> Dict:
                     'obligation_type': sched.obligation_type,
                 })
 
-                r_name = sched.routine.name
+                # Use write-time anchored routine name for historical accuracy.
+                # Falls back to current schedule.routine for pre-migration logs.
+                if log and log.routine_at_time_id:
+                    r_name = log.routine_at_time.name
+                else:
+                    r_name = sched.routine.name
                 if r_name not in routine_totals:
                     routine_totals[r_name] = {'total': 0, 'completed': 0}
                 routine_totals[r_name]['total'] += 1

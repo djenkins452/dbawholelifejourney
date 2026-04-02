@@ -2816,9 +2816,38 @@ class RoutineLog(UserOwnedModel):
             "WorkoutSession pk=42)."
         ),
     )
+    routine_at_time = models.ForeignKey(
+        'life.Routine',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='+',
+        help_text=(
+            "Routine this schedule belonged to when this log was created. "
+            "IMMUTABLE after creation — set once at write time, never updated. "
+            "Null for logs created before move-tracking was added; consumers "
+            "fall back to schedule.routine for null values."
+        ),
+    )
 
     def save(self, **kwargs):
-        """Enforce state/timing/performed_at consistency."""
+        """Enforce state/timing/performed_at consistency + routine_at_time immutability."""
+        # ── Immutability guard: routine_at_time ──
+        # Once set at creation, this field must never change. It anchors
+        # historical routine attribution and is the write-time source of truth.
+        if self.pk and self.routine_at_time_id is not None:
+            try:
+                db_value = RoutineLog.objects.filter(pk=self.pk).values_list(
+                    'routine_at_time_id', flat=True,
+                ).first()
+                if db_value is not None and db_value != self.routine_at_time_id:
+                    raise ValueError(
+                        f"RoutineLog.routine_at_time is immutable after creation. "
+                        f"Cannot change from routine_id={db_value} to "
+                        f"routine_id={self.routine_at_time_id} on log pk={self.pk}."
+                    )
+            except RoutineLog.DoesNotExist:
+                pass  # New object, no DB row yet
         if self.log_status in (self.STATUS_COMPLETED, self.STATUS_COMPLETED_LATE):
             if self.performed_at is None:
                 # Auto-fill from completed_at for backwards compatibility

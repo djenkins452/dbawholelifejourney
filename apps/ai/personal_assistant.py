@@ -3656,6 +3656,25 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
         if is_asking_about_tasks and not is_requesting_checkin:
             is_requesting_checkin = True
 
+        # Qualified/filtered status questions ("other than nutrition, anything
+        # left?", "am I done?") must NOT trigger the full check-in assembly or
+        # history wipe. These are questions ABOUT the state — the LLM answers
+        # them using LOCKED CoS STATE + conversation history (the prior briefing).
+        _is_qualified_status = False
+        try:
+            from apps.ai.deterministic_router import is_qualified_status_query
+            _is_qualified_status = is_qualified_status_query(message_lower)
+        except ImportError:
+            pass
+        if _is_qualified_status:
+            is_requesting_checkin = False
+            is_asking_about_tasks = False
+            logger.info(
+                "QUALIFIED_STATUS user=%s msg=%r — bypassing checkin assembly, "
+                "preserving history for LLM direct answer",
+                self.user.id, message[:80],
+            )
+
         if is_asking_about_tasks or is_asking_for_analysis or is_requesting_checkin:
             # Drop ALL conversation history for check-in/task queries.
             # The system prompt injects AUTHORITATIVE current-state data

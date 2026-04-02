@@ -110,11 +110,19 @@ _EXCLUSION_PHRASES = (
 def is_status_query(msg_lower: str) -> bool:
     """Detect if a message is a today-status query.
 
-    Returns True only for clear status queries.
-    Returns False for coaching, planning, or reflective questions.
+    Returns True only for clear, unqualified status queries.
+    Returns False for coaching, planning, reflective, or filtered questions.
+    Qualified queries ("other than X, what's left?") need the LLM.
     """
     if any(phrase in msg_lower for phrase in _EXCLUSION_PHRASES):
         return False
+    # Qualified/filtered queries must reach the LLM, not terminal routes
+    try:
+        from apps.ai.deterministic_router import is_qualified_status_query
+        if is_qualified_status_query(msg_lower):
+            return False
+    except ImportError:
+        pass
     return any(phrase in msg_lower for phrase in _STATUS_QUERY_PHRASES)
 
 

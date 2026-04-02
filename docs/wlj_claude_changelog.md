@@ -6,6 +6,16 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-01 — Fix: Nutrition Form Submit Buttons Do Nothing
+
+**Problem:** Clicking "Log Food" or "+ Another" on the nutrition entry form had no effect. The form silently refused to submit.
+
+**Root Cause:** The quarter-hour time picker (`time-picker.js`) replaces `<input type="time" step="900">` with hour/minute `<select>` dropdowns and hides the original input via `display: none`. On initialization, it snaps the select values to the nearest 15-minute mark (e.g., 6:23 PM → 6:30 PM) but did NOT sync the snapped value back to the hidden input. The hidden input retained the original unsnapped value (e.g., "18:23"), which fails HTML5 `step="900"` validation. Since the input is invisible, the browser cannot show the validation tooltip and silently blocks form submission.
+
+**Fix:** Added `syncToInput(input, hourSel, minSel)` call immediately after creating the select dropdowns in `replaceInput()`, so the hidden input always has a valid quarter-hour value from the start.
+
+**Files:** `static/js/time-picker.js`
+
 ## 2026-04-01 — Fix: Foundation Section Shows Completed Items
 
 **Problem:** When user asks "How is my day going?", the Foundation section listed items that were already completed (e.g., Wake up, Prayer Time, Bible Reading) AND those same items appeared in the Completed section. Completed items shouldn't appear in Foundation — they belong only in Completed.

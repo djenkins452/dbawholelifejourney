@@ -130,6 +130,10 @@
     input.style.display = 'none';
     input.parentNode.insertBefore(wrapper, input.nextSibling);
 
+    // Sync snapped value back to hidden input immediately so HTML5
+    // step validation doesn't fail on non-quarter-hour initial values
+    syncToInput(input, hourSel, minSel);
+
     // Sync on change
     hourSel.addEventListener('change', function () { syncToInput(input, hourSel, minSel); });
     minSel.addEventListener('change', function () { syncToInput(input, hourSel, minSel); });

@@ -720,3 +720,146 @@ def check_system_health_task():
     from apps.core.jobs import check_system_health
     check_system_health()
     return {"status": "ok"}
+
+
+# =========================================================================
+# DEFERRED SAE REFRESH — Fast-Write / Async-Refresh Architecture
+# =========================================================================
+# These tasks move expensive SAE state rebuilds off the HTTP request path.
+# Write paths (medicine take, task complete, routine toggle) persist the
+# canonical record and invalidate caches synchronously, then enqueue
+# SAE module rebuilds here. Beth reads state from cache/DB, and the cache
+# keys are already deleted by the time she checks — so she'll rebuild
+# fresh from DB, never reading stale state.
+#
+# Dedup: Redis-based lock prevents redundant rebuilds when multiple
+# signals fire for the same user+module within a short window.
+# =========================================================================
+
+
+@shared_task(
+    name="core.deferred_sae_refresh",
+    soft_time_limit=30,
+    time_limit=45,
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
+def deferred_sae_refresh(user_id, modules, source="signal"):
+    """
+    Deferred SAE module rebuild — runs in Celery worker, not on request path.
+
+    Rebuilds only the specified modules for the user. Includes Redis-based
+    dedup to coalesce rapid-fire signals (e.g., medicine take triggers
+    MedicineLog save + Task save + RoutineLog save within milliseconds).
+
+    Args:
+        user_id: User PK
+        modules: List of module names to rebuild (e.g., ['medicine', 'tasks'])
+        source: Caller identifier for observability
+    """
+    t0 = time.monotonic()
+
+    try:
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        user = User.objects.get(pk=user_id)
+    except Exception:
+        logger.warning(
+            "DEFERRED_SAE user=%s — user not found, skipping", user_id,
+        )
+        return {"status": "skipped", "reason": "user_not_found"}
+
+    # Dedup: skip if another worker already rebuilt this module set recently
+    from django.core.cache import cache
+    dedup_key = f"wlj:sae_refresh_dedup:{user_id}:{','.join(sorted(modules))}"
+    if cache.get(dedup_key):
+        logger.debug(
+            "DEFERRED_SAE user=%s modules=%s — dedup hit, skipping",
+            user_id, modules,
+        )
+        return {"status": "deduped", "modules": modules}
+
+    # Set dedup lock (3 second window — coalesces rapid signals)
+    cache.set(dedup_key, 1, timeout=3)
+
+    from apps.core.ai_state.state_updater import update_user_state
+
+    results = {}
+    for module in modules:
+        mt0 = time.monotonic()
+        try:
+            update_user_state(user, module)
+            elapsed_ms = round((time.monotonic() - mt0) * 1000)
+            results[module] = {"status": "ok", "ms": elapsed_ms}
+            if elapsed_ms > 200:
+                logger.warning(
+                    "DEFERRED_SAE_SLOW user=%s module=%s — %dms (source=%s)",
+                    user_id, module, elapsed_ms, source,
+                )
+        except Exception as e:
+            elapsed_ms = round((time.monotonic() - mt0) * 1000)
+            results[module] = {"status": "failed", "ms": elapsed_ms, "error": str(e)[:200]}
+            logger.error(
+                "DEFERRED_SAE_FAIL user=%s module=%s — %s (source=%s)",
+                user_id, module, e, source, exc_info=True,
+            )
+
+    total_ms = round((time.monotonic() - t0) * 1000)
+    logger.info(
+        "DEFERRED_SAE user=%s modules=%s total=%dms source=%s",
+        user_id, modules, total_ms, source,
+    )
+    return {"status": "ok", "modules": results, "total_ms": total_ms}
+
+
+@shared_task(
+    name="core.deferred_routine_auto_complete",
+    soft_time_limit=15,
+    time_limit=30,
+    acks_late=True,
+)
+def deferred_routine_auto_complete(user_id, keywords, source="signal"):
+    """
+    Deferred routine task auto-completion — runs in Celery worker.
+
+    When a user takes medicine or completes a workout, the corresponding
+    routine task should auto-complete. This triggers a cascading Task save
+    with its own signal chain, so it must NOT run on the request path.
+
+    Args:
+        user_id: User PK
+        keywords: List of keywords to match against routine task titles
+        source: Caller identifier for observability
+    """
+    t0 = time.monotonic()
+
+    try:
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        user = User.objects.get(pk=user_id)
+    except Exception:
+        logger.warning(
+            "DEFERRED_AUTO_COMPLETE user=%s — user not found", user_id,
+        )
+        return {"status": "skipped", "reason": "user_not_found"}
+
+    from apps.life.services.routine_service import RoutineTaskService
+
+    completed = []
+    for keyword in keywords:
+        try:
+            task = RoutineTaskService.auto_complete_routine_task(user, keyword)
+            if task:
+                completed.append(keyword)
+        except Exception as e:
+            logger.warning(
+                "DEFERRED_AUTO_COMPLETE user=%s keyword=%s — %s",
+                user_id, keyword, e,
+            )
+
+    total_ms = round((time.monotonic() - t0) * 1000)
+    logger.info(
+        "DEFERRED_AUTO_COMPLETE user=%s keywords=%s completed=%s total=%dms source=%s",
+        user_id, keywords, completed, total_ms, source,
+    )
+    return {"status": "ok", "completed": completed, "total_ms": total_ms}

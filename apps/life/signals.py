@@ -96,23 +96,22 @@ def handle_task_saved(sender, instance, created, **kwargs):
         pass  # Insight invalidation is best-effort
 
     # Invalidate ALL caches so next interaction sees updated schedule
-    # 1. CoS context cache (Beth's prompt data)
+    # 1. CoS context cache (Beth's prompt data) — cheap cache.delete()
     try:
         from apps.ai.readiness_cache import invalidate_cos_context
         invalidate_cos_context(instance.user)
     except Exception:
         pass  # Cache invalidation is best-effort
 
-    # 2. SAE state — incremental update for 'tasks' module only.
-    #    (Previously called rebuild_user_state which rebuilt ALL 27 modules;
-    #     a task save only affects task state, not health/finance/faith/etc.)
+    # 2. SAE state — deferred to Celery worker (async primary, sync fallback).
+    #    Only rebuilds 'tasks' module, not all 27 domains.
     try:
-        from apps.core.ai_state.state_updater import update_user_state
-        update_user_state(instance.user, 'tasks')
+        from apps.ai.signals import _defer_sae_refresh
+        _defer_sae_refresh(instance.user, ['tasks'], source='task_post_save')
     except Exception:
         pass  # SAE update is best-effort
 
-    # 3. Dashboard cache (execution context, action center)
+    # 3. Dashboard cache (execution context, action center) — cheap cache.delete()
     try:
         from apps.dashboard_v2.cache import DashboardV2CacheService
         DashboardV2CacheService.invalidate_all(instance.user.pk)
@@ -143,15 +142,15 @@ def handle_routine_schedule_saved(sender, instance, **kwargs):
 def _rebuild_routine_sae(user):
     """Shared SAE + cache invalidation for routine model changes.
 
-    Uses incremental update_user_state() for the affected modules only
-    (routine + tasks) instead of rebuilding all 27 domain modules.
+    Cache invalidation runs synchronously (cheap cache.delete() calls).
+    SAE module rebuilds are deferred to Celery worker to avoid blocking
+    the HTTP response path. Rebuilds only routine + tasks modules.
     """
     try:
-        from apps.core.ai_state.state_updater import update_user_state
-        update_user_state(user, 'routine')
-        update_user_state(user, 'tasks')
+        from apps.ai.signals import _defer_sae_refresh
+        _defer_sae_refresh(user, ['routine', 'tasks'], source='routine_model_change')
     except Exception:
-        logger.warning("Failed to update SAE after routine change", exc_info=True)
+        logger.warning("Failed to defer SAE after routine change", exc_info=True)
     try:
         from apps.ai.readiness_cache import invalidate_cos_context
         invalidate_cos_context(user)
@@ -179,22 +178,22 @@ def handle_routine_log_saved(sender, instance, **kwargs):
     except Exception:
         return
 
-    # 1. SAE state (execution contract) — incremental update for affected modules only
+    # 1. SAE state (execution contract) — deferred to Celery worker.
+    #    Rebuilds routine + execution modules only (not all 27 domains).
     try:
-        from apps.core.ai_state.state_updater import update_user_state
-        update_user_state(user, 'routine')
-        update_user_state(user, 'execution')
+        from apps.ai.signals import _defer_sae_refresh
+        _defer_sae_refresh(user, ['routine', 'execution'], source='routine_log_post_save')
     except Exception:
-        logger.warning("Failed to update SAE after RoutineLog change", exc_info=True)
+        logger.warning("Failed to defer SAE after RoutineLog change", exc_info=True)
 
-    # 2. CoS context cache
+    # 2. CoS context cache — cheap cache.delete()
     try:
         from apps.ai.readiness_cache import invalidate_cos_context
         invalidate_cos_context(user)
     except Exception:
         pass
 
-    # 3. Dashboard cache
+    # 3. Dashboard cache — cheap cache.delete()
     try:
         from apps.dashboard_v2.cache import DashboardV2CacheService
         DashboardV2CacheService.invalidate_all(user.pk)

@@ -389,12 +389,9 @@ class Task(UserOwnedModel):
         self.skip_streak = 0
         self.save(update_fields=['completion_status', 'completed_at', 'skip_streak', 'updated_at'])
 
-        # Invalidate CoS context cache so next interaction sees fresh state
-        try:
-            from apps.ai.readiness_cache import invalidate_cos_context_on_action
-            invalidate_cos_context_on_action(self.user)
-        except Exception:
-            pass  # Best-effort cache invalidation
+        # CoS context invalidation is handled by the post_save signal handler
+        # (handle_task_saved in life/signals.py). Calling it here was redundant
+        # and added ~5ms of unnecessary work on every task completion.
 
         # Handle recurrence
         if self.is_recurring and self.recurrence_pattern:
@@ -426,12 +423,8 @@ class Task(UserOwnedModel):
         self.last_skipped_at = timezone.now()
         self.save(update_fields=['completion_status', 'skip_streak', 'last_skipped_at', 'updated_at'])
 
-        # Invalidate CoS context cache so next interaction sees fresh state
-        try:
-            from apps.ai.readiness_cache import invalidate_cos_context_on_action
-            invalidate_cos_context_on_action(self.user)
-        except Exception:
-            pass  # Best-effort cache invalidation
+        # CoS context invalidation is handled by the post_save signal handler
+        # (handle_task_saved in life/signals.py). No need to duplicate here.
 
         # Emit domain event for skip (matching task.completed pattern)
         try:

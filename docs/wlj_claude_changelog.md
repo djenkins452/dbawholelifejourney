@@ -6,6 +6,14 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-02 — Fix: Remove "Done so far" Section from Evening Check-in
+
+**Problem:** When asking "what's left" in the evening, the check-in renderer included a "Done so far:" section listing completed items. Users asking "what's left" want to see remaining items, not a recap of completed work.
+
+**Fix:** Removed the "Done so far" completed items list from `_render_evening()` in `beth_checkin_renderer.py`. The progress count sentence ("13 of 21 done so far") is retained as it provides useful context in one line. The end-of-day renderer (22:00+) retains its "Completed" section since that's a day summary.
+
+**Files:** `apps/ai/beth_checkin_renderer.py`
+
 ## 2026-04-02 — Enhancement: Deterministic Rendering for Qualified Status Queries (Phase 0a.1)
 
 **Problem:** Qualified status queries ("other than nutrition, anything left?", "am I done?") fell through to the LLM. Even with strict prompt instructions and 150-token budget, the LLM could include praise, recap language, or coaching tone. Post-LLM content filtering (regex-based) would be brittle and prone to false positives.

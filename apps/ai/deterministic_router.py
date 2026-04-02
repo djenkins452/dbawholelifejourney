@@ -184,10 +184,6 @@ QUALIFIED_STATUS_QUESTIONS = (
 def is_qualified_status_query(msg_lower: str) -> bool:
     """Detect if a message is a filtered/follow-up status question.
 
-    These must NOT hit terminal deterministic routes. Instead, they
-    fall through to the LLM which interprets the constraint against
-    LOCKED CoS STATE.
-
     Returns True for: "other than nutrition, anything left?",
     "am I done?", "besides meds, what's remaining?"
     """
@@ -195,6 +191,133 @@ def is_qualified_status_query(msg_lower: str) -> bool:
            for p in QUALIFIED_STATUS_PREFIXES):
         return True
     return any(p in msg_lower for p in QUALIFIED_STATUS_QUESTIONS)
+
+
+def _extract_exclusion_term(msg_lower: str):
+    """Extract the excluded domain/item from a filtered status query.
+
+    "other than nutrition, anything left?" → "nutrition"
+    "besides meds, what's remaining?"     → "meds"
+    "skip workout, am I done?"            → "workout"
+
+    Returns None if no exclusion prefix matched.
+    """
+    import re
+    # Sort longest-first so "forget about" matches before "forget"
+    sorted_prefixes = sorted(QUALIFIED_STATUS_PREFIXES, key=len, reverse=True)
+    for prefix in sorted_prefixes:
+        # Check if prefix appears in the message
+        idx = -1
+        if msg_lower.startswith(prefix):
+            idx = 0
+        elif (', ' + prefix) in msg_lower:
+            idx = msg_lower.index(', ' + prefix) + 2
+        elif (' ' + prefix) in msg_lower:
+            idx = msg_lower.index(' ' + prefix) + 1
+
+        if idx >= 0:
+            after = msg_lower[idx + len(prefix):]
+            # Extract the term — everything up to the next punctuation or
+            # status-query keyword (", anything", ", what's", "— anything")
+            match = re.match(
+                r'([a-z0-9 ]+?)(?:\s*[,—–\-?!]|\s+(?:anything|what|is|am|do|how))',
+                after,
+            )
+            if match:
+                return match.group(1).strip()
+            # Fallback: take first 1-3 words
+            words = after.split()[:3]
+            term = ' '.join(words).rstrip('.,?!—–-')
+            return term.strip() if term.strip() else None
+    return None
+
+
+def _build_qualified_status_response(msg_lower: str, user):
+    """Build a deterministic response for qualified status queries.
+
+    Uses Today Engine data to answer directly. No LLM involved.
+
+    Query types:
+      FILTERED: "other than nutrition, anything left?" → exclude term, report rest
+      BOOLEAN:  "am I done?" → yes/no with count
+      DELTA:    "anything else?" / "is that everything?" → yes/no with count
+
+    Returns a 1-2 sentence response string, or None on failure.
+    """
+    try:
+        from apps.core.today.today_engine import get_today_context
+    except ImportError:
+        return None
+
+    try:
+        ctx = get_today_context(user)
+    except Exception:
+        logger.warning(
+            "[QUALIFIED STATUS] Today Engine failed for user=%s",
+            user.id, exc_info=True,
+        )
+        return None
+
+    # Collect all remaining (incomplete) items
+    remaining = []
+    for bucket in ('overdue', 'coming_up', 'later', 'foundation'):
+        for entry in ctx.get(bucket, []):
+            item = entry.get('item', entry)
+            name = item.get('name', entry.get('label', ''))
+            if name and not item.get('completed', False):
+                remaining.append(name)
+
+    # Deduplicate while preserving order
+    seen = set()
+    unique_remaining = []
+    for name in remaining:
+        if name.lower() not in seen:
+            seen.add(name.lower())
+            unique_remaining.append(name)
+    remaining = unique_remaining
+
+    total_remaining = len(remaining)
+
+    # ── FILTERED: "other than X, anything left?" ──────────────────
+    exclusion = _extract_exclusion_term(msg_lower)
+    if exclusion:
+        excl_lower = exclusion.lower()
+        # Filter out items matching the exclusion term (fuzzy substring)
+        filtered = [
+            name for name in remaining
+            if excl_lower not in name.lower()
+        ]
+
+        if not filtered:
+            # Everything remaining IS the excluded item(s)
+            return f"No — just {exclusion} left."
+        elif len(filtered) == 1:
+            return f"Yes — {filtered[0]} is also remaining."
+        else:
+            items_str = ', '.join(filtered)
+            return f"Yes — {len(filtered)} other items: {items_str}."
+
+    # ── BOOLEAN: "am I done?" / "am I finished?" ─────────────────
+    boolean_phrases = ('am i done', 'am i finished', 'all done')
+    if any(p in msg_lower for p in boolean_phrases):
+        if total_remaining == 0:
+            return "Yes — you're done for today."
+        elif total_remaining == 1:
+            return f"Not yet — 1 item left: {remaining[0]}."
+        else:
+            items_str = ', '.join(remaining[:4])
+            suffix = '.' if total_remaining <= 4 else f' (and {total_remaining - 4} more).'
+            return f"Not yet — {total_remaining} items left: {items_str}{suffix}"
+
+    # ── DELTA: "anything else?" / "is that it?" / "is that everything?" ──
+    if total_remaining == 0:
+        return "No — you're done for today."
+    elif total_remaining == 1:
+        return f"Just {remaining[0]} left."
+    else:
+        items_str = ', '.join(remaining[:4])
+        suffix = '.' if total_remaining <= 4 else f' (and {total_remaining - 4} more).'
+        return f"{total_remaining} items left: {items_str}{suffix}"
 
 
 # =============================================================================
@@ -404,6 +527,29 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
         result.elapsed_ms = (time.monotonic() - t_start) * 1000
         _log_route_decision(result, user, message)
         return result
+
+    # ── Phase 0a.1: Qualified status query (deterministic) ───────
+    # "other than X, anything left?", "am I done?", "anything else?"
+    # Answered directly from Today Engine — no LLM involvement.
+    if is_qualified_status_query(msg_lower) and user is not None:
+        try:
+            response = _build_qualified_status_response(msg_lower, user)
+            if response:
+                result = RouteResult(
+                    category=RouteCategory.DETERMINISTIC_DATA,
+                    response=response,
+                    route_name='qualified_status',
+                    domain='execution',
+                    is_terminal=True,
+                )
+                result.elapsed_ms = (time.monotonic() - t_start) * 1000
+                _log_route_decision(result, user, message)
+                return result
+        except Exception as e:
+            logger.warning(
+                "Qualified status route failed, falling through: %s",
+                e, exc_info=True,
+            )
 
     # ── Phase 0b: Locked next-action (bypasses LLM entirely) ──────
     result = _try_next_action_route(msg_lower, user)

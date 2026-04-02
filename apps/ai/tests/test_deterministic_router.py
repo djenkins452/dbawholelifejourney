@@ -11,6 +11,8 @@ from apps.ai.deterministic_router import (
     classify_and_route,
     get_scoped_builders,
     is_qualified_status_query,
+    _build_qualified_status_response,
+    _extract_exclusion_term,
     should_skip_semantic_memory,
     _match_routine_time_query,
     _match_weight_query,
@@ -1041,48 +1043,279 @@ class QualifiedStatusQueryTests(TestCase):
         self.assertFalse(is_qualified_status_query("status"))
 
 
+class ExclusionExtractionTests(TestCase):
+    """Tests for _extract_exclusion_term() — parses the excluded item."""
+
+    def test_other_than_nutrition(self):
+        self.assertEqual(
+            _extract_exclusion_term("other than nutrition, anything left?"),
+            "nutrition",
+        )
+
+    def test_besides_meds(self):
+        self.assertEqual(
+            _extract_exclusion_term("besides meds, what's remaining?"),
+            "meds",
+        )
+
+    def test_skip_workout(self):
+        self.assertEqual(
+            _extract_exclusion_term("skip workout, am i done?"),
+            "workout",
+        )
+
+    def test_forget_about_prayer(self):
+        self.assertEqual(
+            _extract_exclusion_term("forget about prayer, anything else?"),
+            "prayer",
+        )
+
+    def test_excluding_bible_reading(self):
+        self.assertEqual(
+            _extract_exclusion_term("excluding bible reading, anything left?"),
+            "bible reading",
+        )
+
+    def test_without_counting_nutrition(self):
+        self.assertEqual(
+            _extract_exclusion_term("without counting nutrition, anything left?"),
+            "nutrition",
+        )
+
+    def test_no_exclusion_returns_none(self):
+        self.assertIsNone(_extract_exclusion_term("am i done?"))
+
+    def test_no_exclusion_anything_else(self):
+        self.assertIsNone(_extract_exclusion_term("anything else?"))
+
+
+class QualifiedStatusResponseTests(TestCase):
+    """Tests for _build_qualified_status_response() — deterministic rendering."""
+
+    _ONE_REMAINING = {
+        'all_items': [], 'foundation': [], 'overdue': [],
+        'coming_up': [], 'later': [
+            {'sort_time': None, 'label': 'Nutrition (6:00 PM)',
+             'item': {'name': 'Nutrition', 'completed': False}},
+        ],
+        'completed': [
+            {'sort_time': None, 'label': 'Prayer',
+             'item': {'name': 'Prayer', 'completed': True}},
+        ],
+        'next': 'Nutrition',
+    }
+
+    _ALL_DONE = {
+        'all_items': [], 'foundation': [], 'overdue': [],
+        'coming_up': [], 'later': [], 'completed': [
+            {'sort_time': None, 'label': 'Prayer',
+             'item': {'name': 'Prayer', 'completed': True}},
+            {'sort_time': None, 'label': 'Nutrition',
+             'item': {'name': 'Nutrition', 'completed': True}},
+        ],
+        'next': 'None',
+    }
+
+    _MULTIPLE_REMAINING = {
+        'all_items': [], 'foundation': [], 'overdue': [],
+        'coming_up': [
+            {'sort_time': None, 'label': 'Workout',
+             'item': {'name': 'Workout', 'completed': False}},
+        ],
+        'later': [
+            {'sort_time': None, 'label': 'Nutrition (6:00 PM)',
+             'item': {'name': 'Nutrition', 'completed': False}},
+        ],
+        'completed': [],
+        'next': 'Workout',
+    }
+
+    @patch('apps.core.today.today_engine.get_today_context')
+    def test_filtered_only_nutrition_left(self, mock_today):
+        mock_today.return_value = self._ONE_REMAINING
+        user = MagicMock(); user.id = 1
+        result = _build_qualified_status_response(
+            "other than nutrition, anything left?", user
+        )
+        self.assertEqual(result, "No \u2014 just nutrition left.")
+
+    @patch('apps.core.today.today_engine.get_today_context')
+    def test_boolean_one_left(self, mock_today):
+        mock_today.return_value = self._ONE_REMAINING
+        user = MagicMock(); user.id = 1
+        result = _build_qualified_status_response("am i done?", user)
+        self.assertEqual(result, "Not yet \u2014 1 item left: Nutrition.")
+
+    @patch('apps.core.today.today_engine.get_today_context')
+    def test_boolean_all_done(self, mock_today):
+        mock_today.return_value = self._ALL_DONE
+        user = MagicMock(); user.id = 1
+        result = _build_qualified_status_response("am i done?", user)
+        self.assertEqual(result, "Yes \u2014 you're done for today.")
+
+    @patch('apps.core.today.today_engine.get_today_context')
+    def test_delta_one_left(self, mock_today):
+        mock_today.return_value = self._ONE_REMAINING
+        user = MagicMock(); user.id = 1
+        result = _build_qualified_status_response("anything else?", user)
+        self.assertEqual(result, "Just Nutrition left.")
+
+    @patch('apps.core.today.today_engine.get_today_context')
+    def test_delta_all_done(self, mock_today):
+        mock_today.return_value = self._ALL_DONE
+        user = MagicMock(); user.id = 1
+        result = _build_qualified_status_response("anything else?", user)
+        self.assertEqual(result, "No \u2014 you're done for today.")
+
+    @patch('apps.core.today.today_engine.get_today_context')
+    def test_filtered_with_other_remaining(self, mock_today):
+        """Excluding nutrition when workout is also remaining → reports workout."""
+        mock_today.return_value = self._MULTIPLE_REMAINING
+        user = MagicMock(); user.id = 1
+        result = _build_qualified_status_response(
+            "other than nutrition, anything left?", user
+        )
+        self.assertEqual(result, "Yes \u2014 Workout is also remaining.")
+
+    @patch('apps.core.today.today_engine.get_today_context')
+    def test_boolean_multiple_remaining(self, mock_today):
+        mock_today.return_value = self._MULTIPLE_REMAINING
+        user = MagicMock(); user.id = 1
+        result = _build_qualified_status_response("am i done?", user)
+        self.assertEqual(result, "Not yet \u2014 2 items left: Workout, Nutrition.")
+
+    @patch('apps.core.today.today_engine.get_today_context')
+    def test_no_praise_or_coaching(self, mock_today):
+        """Response must never contain praise, coaching, or recap."""
+        mock_today.return_value = self._ONE_REMAINING
+        user = MagicMock(); user.id = 1
+        for msg in ["am i done?", "anything else?",
+                     "other than nutrition, anything left?"]:
+            result = _build_qualified_status_response(msg, user)
+            for bad in ['great job', 'well done', 'keep it up',
+                        'you completed', 'nice work', 'good progress']:
+                self.assertNotIn(bad, result.lower(),
+                                 f"Response for {msg!r} contains {bad!r}")
+
+
 class QualifiedStatusRouterIntegrationTests(TestCase):
-    """Integration: qualified queries must NOT hit terminal status/checkin routes."""
+    """Integration: qualified queries hit their own terminal deterministic route,
+    NOT the full status/checkin renderers."""
+
+    _MOCK_TODAY_CTX = {
+        'all_items': [],
+        'foundation': [],
+        'overdue': [],
+        'coming_up': [],
+        'later': [
+            {
+                'sort_time': None,
+                'label': 'Nutrition (6:00 PM)',
+                'item': {'name': 'Nutrition', 'completed': False,
+                         'priority': 'flexible', 'source': 'routine'},
+            }
+        ],
+        'completed': [
+            {'sort_time': None, 'label': 'Prayer',
+             'item': {'name': 'Prayer', 'completed': True}},
+        ],
+        'next': 'Nutrition',
+    }
 
     @override_settings(WLJ_DETERMINISTIC_ROUTER_ENABLED=True)
+    @patch('apps.core.today.today_engine.get_today_context')
     @patch('apps.core.ai_state.state_engine.get_module_state')
-    def test_other_than_x_falls_through(self, mock_gms):
-        """'other than nutrition, anything left?' must NOT be terminal."""
+    def test_other_than_x_is_terminal_deterministic(self, mock_gms, mock_today):
+        """'other than nutrition, anything left?' → terminal deterministic."""
+        mock_today.return_value = self._MOCK_TODAY_CTX
         user = MagicMock()
         user.id = 1
         result = classify_and_route(
             "other than nutrition, anything left?", user
         )
-        self.assertEqual(result.category, RouteCategory.FALLTHROUGH)
+        self.assertEqual(result.category, RouteCategory.DETERMINISTIC_DATA)
+        self.assertTrue(result.is_terminal)
+        self.assertEqual(result.route_name, 'qualified_status')
+        self.assertIn('nutrition', result.response.lower())
 
     @override_settings(WLJ_DETERMINISTIC_ROUTER_ENABLED=True)
+    @patch('apps.core.today.today_engine.get_today_context')
     @patch('apps.core.ai_state.state_engine.get_module_state')
-    def test_am_i_done_falls_through(self, mock_gms):
-        """'am I done?' must NOT be terminal."""
+    def test_am_i_done_is_terminal_deterministic(self, mock_gms, mock_today):
+        """'am I done?' → terminal deterministic with count."""
+        mock_today.return_value = self._MOCK_TODAY_CTX
         user = MagicMock()
         user.id = 1
         result = classify_and_route("am I done?", user)
-        self.assertEqual(result.category, RouteCategory.FALLTHROUGH)
+        self.assertEqual(result.category, RouteCategory.DETERMINISTIC_DATA)
+        self.assertTrue(result.is_terminal)
+        self.assertEqual(result.route_name, 'qualified_status')
+        self.assertIn('Nutrition', result.response)
 
     @override_settings(WLJ_DETERMINISTIC_ROUTER_ENABLED=True)
+    @patch('apps.core.today.today_engine.get_today_context')
     @patch('apps.core.ai_state.state_engine.get_module_state')
-    def test_besides_x_falls_through(self, mock_gms):
-        """'besides reading, what's left?' must NOT be terminal."""
+    def test_besides_x_is_terminal_deterministic(self, mock_gms, mock_today):
+        """'besides reading, what's left?' → terminal deterministic."""
+        mock_today.return_value = self._MOCK_TODAY_CTX
         user = MagicMock()
         user.id = 1
         result = classify_and_route(
             "besides reading, what's left?", user
         )
-        self.assertEqual(result.category, RouteCategory.FALLTHROUGH)
+        self.assertEqual(result.category, RouteCategory.DETERMINISTIC_DATA)
+        self.assertTrue(result.is_terminal)
+        self.assertEqual(result.route_name, 'qualified_status')
 
     @override_settings(WLJ_DETERMINISTIC_ROUTER_ENABLED=True)
     @patch('apps.ai.beth_status_renderer.build_status_response',
-           return_value="Remaining:\n• Nutrition")
+           return_value="Remaining:\n\u2022 Nutrition")
     @patch('apps.core.ai_state.state_engine.get_module_state')
     def test_unqualified_whats_left_still_terminal(self, mock_gms, mock_build):
-        """'what's left today?' must STILL hit the terminal status route."""
+        """'what's left today?' must STILL hit the status route (not qualified)."""
         user = MagicMock()
         user.id = 1
         result = classify_and_route("what's left today?", user)
         self.assertEqual(result.category, RouteCategory.DETERMINISTIC_DATA)
         self.assertTrue(result.is_terminal)
+        self.assertEqual(result.route_name, 'status_query')
+
+    @override_settings(WLJ_DETERMINISTIC_ROUTER_ENABLED=True)
+    @patch('apps.core.today.today_engine.get_today_context')
+    @patch('apps.core.ai_state.state_engine.get_module_state')
+    def test_response_content_is_concise(self, mock_gms, mock_today):
+        """Qualified status responses must be 1-2 sentences, no lists."""
+        mock_today.return_value = self._MOCK_TODAY_CTX
+        user = MagicMock()
+        user.id = 1
+        for msg in [
+            "other than nutrition, anything left?",
+            "am I done?",
+            "anything else?",
+        ]:
+            result = classify_and_route(msg, user)
+            self.assertIsNotNone(result.response, f"No response for: {msg}")
+            # Must not contain list markers, headers, or coaching
+            for bad in ['\n\u2022', '\n-', '\n*', '##', 'great job',
+                        'well done', 'keep it up', 'you completed']:
+                self.assertNotIn(bad, result.response,
+                                 f"Response for {msg!r} contains {bad!r}")
+
+    @override_settings(WLJ_DETERMINISTIC_ROUTER_ENABLED=True)
+    @patch('apps.core.today.today_engine.get_today_context')
+    @patch('apps.core.ai_state.state_engine.get_module_state')
+    def test_all_done_scenario(self, mock_gms, mock_today):
+        """When everything is complete, boolean query returns 'done'."""
+        empty_ctx = {
+            'all_items': [], 'foundation': [], 'overdue': [],
+            'coming_up': [], 'later': [], 'completed': [
+                {'sort_time': None, 'label': 'Prayer',
+                 'item': {'name': 'Prayer', 'completed': True}},
+            ],
+            'next': 'None',
+        }
+        mock_today.return_value = empty_ctx
+        user = MagicMock()
+        user.id = 1
+        result = classify_and_route("am I done?", user)
+        self.assertIn('done', result.response.lower())

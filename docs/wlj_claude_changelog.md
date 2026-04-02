@@ -6,6 +6,27 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-02 — Enhancement: Deterministic Rendering for Qualified Status Queries (Phase 0a.1)
+
+**Problem:** Qualified status queries ("other than nutrition, anything left?", "am I done?") fell through to the LLM. Even with strict prompt instructions and 150-token budget, the LLM could include praise, recap language, or coaching tone. Post-LLM content filtering (regex-based) would be brittle and prone to false positives.
+
+**Root insight:** The answer to "am I done?" or "other than X, anything left?" is fully computable from Today Engine data. The LLM adds zero value — the response is a deterministic function of remaining item count and names.
+
+**Fix:** Promoted qualified status queries from LLM fallthrough to a **terminal deterministic route** (Phase 0a.1), matching the architecture of status queries, next-action, day agenda, and check-in routes:
+- `_build_qualified_status_response()`: Renders 1-2 sentence response from Today Engine data
+- `_extract_exclusion_term()`: Parses "other than nutrition" → "nutrition" for filtered queries
+- Three query types handled: FILTERED ("other than X"), BOOLEAN ("am I done?"), DELTA ("anything else?")
+- Falls through to LLM-path defense-in-depth on renderer failure
+
+**Response contract:** Deterministic output — no praise, no coaching, no lists, no commentary. Examples:
+- "No — just nutrition left."
+- "Not yet — 1 item left: Nutrition."
+- "Yes — you're done for today."
+
+**Files:** `apps/ai/deterministic_router.py`, `apps/ai/tests/test_deterministic_router.py`
+
+**Tests:** 244 tests pass (157 router + 63 status renderer + 24 routing safety). 30+ new tests covering extraction, response building, integration, and content validation.
+
 ## 2026-04-02 — Enhancement: Enforce Strict Response Discipline for Qualified Status Queries
 
 **Problem:** Qualified status queries ("other than nutrition, anything left?", "am I done?") correctly fell through to the LLM, but the LLM could still expand into summaries, repeat prior context, or add coaching commentary. The existing `brief` mode instruction ("Answer in 1-3 sentences max") was too generic — the full CoS system prompt with proactive intelligence and conversational rules could override it.

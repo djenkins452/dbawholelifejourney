@@ -870,7 +870,7 @@ class FoodEntryForm(forms.ModelForm):
             }),
             "serving_size": forms.NumberInput(attrs={
                 "class": "form-input",
-                "step": "0.1",
+                "step": "0.01",
                 "placeholder": "e.g., 100",
             }),
             "serving_unit": forms.TextInput(attrs={
@@ -885,37 +885,37 @@ class FoodEntryForm(forms.ModelForm):
             }),
             "total_protein_g": forms.NumberInput(attrs={
                 "class": "form-input",
-                "step": "0.1",
+                "step": "0.01",
                 "min": "0",
                 "placeholder": "Protein (g)",
             }),
             "total_carbohydrates_g": forms.NumberInput(attrs={
                 "class": "form-input",
-                "step": "0.1",
+                "step": "0.01",
                 "min": "0",
                 "placeholder": "Carbs (g)",
             }),
             "total_fiber_g": forms.NumberInput(attrs={
                 "class": "form-input",
-                "step": "0.1",
+                "step": "0.01",
                 "min": "0",
                 "placeholder": "Fiber (g)",
             }),
             "total_sugar_g": forms.NumberInput(attrs={
                 "class": "form-input",
-                "step": "0.1",
+                "step": "0.01",
                 "min": "0",
                 "placeholder": "Sugar (g)",
             }),
             "total_fat_g": forms.NumberInput(attrs={
                 "class": "form-input",
-                "step": "0.1",
+                "step": "0.01",
                 "min": "0",
                 "placeholder": "Fat (g)",
             }),
             "total_saturated_fat_g": forms.NumberInput(attrs={
                 "class": "form-input",
-                "step": "0.1",
+                "step": "0.01",
                 "min": "0",
                 "placeholder": "Sat. Fat (g)",
             }),

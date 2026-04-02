@@ -6,6 +6,14 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-01 — Fix: Nutrition Form Rejects 2-Decimal Macro Values
+
+**Problem:** When editing a food entry with half-servings (e.g., 0.5), the computed macro values (6.25g protein, 11.25g carbs) were rejected by HTML5 step validation because the number inputs had `step="0.1"`, only allowing one decimal place.
+
+**Fix:** Changed `step` from `"0.1"` to `"0.01"` on all nutrition fields (protein, carbs, fat, fiber, sugar, saturated fat) and serving_size. Calories already had `step="0.01"`.
+
+**Files:** `apps/health/forms.py`
+
 ## 2026-04-01 — Feature: Move Routine Item Between Routines (Write-Time Anchoring)
 
 **Capability:** Move a RoutineSchedule from one routine to another (e.g., Nightly → Evening) while preserving all historical execution data and CoS integrity.

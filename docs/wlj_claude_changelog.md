@@ -6,6 +6,37 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-02 — Performance: Fast-Write / Async-Refresh Architecture for Medicine, Task, and Routine Completion
+
+**Problem:** Marking a medicine dose as taken, a task as complete, or a routine item as complete took 30+ seconds and froze the UI. Root cause: every write triggered 3-4 synchronous SAE module rebuilds (each running 10-50+ queries), redundant CoS cache invalidations, and cascading Task saves from `auto_complete_routine_task()` — all blocking the HTTP response.
+
+Proven evidence chain:
+- Medicine take: `update_user_state()` called 3x synchronously (medicine, tasks x2 via cascade) plus 9+ post_save handlers across 4 signal files
+- Routine toggle: `update_user_state()` called 4x (routine x2, execution, tasks) because `_invalidate_routine_caches()` duplicated post_save work
+- Task complete: `invalidate_cos_context_on_action()` called 3 separate times (in mark_complete, in post_save handler, and in event subscriber)
+- `auto_complete_routine_task("Medicine")` and `auto_complete_routine_task("Medication")` each triggered full Task post_save signal chains
+
+**Fix:** Separated transactional write path from intelligence refresh path:
+1. **Created `deferred_sae_refresh` Celery task** — SAE module rebuilds run in worker, not on request path. Includes Redis-based 3s dedup window to coalesce rapid-fire signals. Sync fallback when Celery unavailable.
+2. **Created `deferred_routine_auto_complete` Celery task** — cascading routine task auto-completions run in worker.
+3. **Converted `_refresh_sae_module()` to async dispatch** — the canonical SAE refresh entry point now dispatches to Celery with sync fallback (same pattern as journal signal extraction).
+4. **Removed redundant SAE calls** from `_invalidate_routine_caches()` in views (post_save already handles it).
+5. **Removed redundant `invalidate_cos_context_on_action()`** from `Task.mark_complete()` and `mark_skipped()` (post_save handler already does it).
+6. **Deferred `auto_complete_routine_task` in all views** — medicine, workout, Bible reading views now dispatch to Celery instead of running the cascading save chain synchronously.
+
+Architecture protection:
+- Canonical write record always persisted synchronously (MedicineLog, Task, RoutineLog)
+- Cheap cache invalidation (cache.delete) stays synchronous — Beth sees fresh state on next read
+- SAE rebuilds deferred to Celery worker with sync fallback — no data loss possible
+- CoS context cache already has 90s TTL — SAE rebuild in worker completes well within this window
+- No new state stores, no duplicate pipelines, no heuristics
+
+**Files:** `apps/core/tasks.py` (new Celery tasks), `apps/ai/signals.py` (async dispatch), `apps/life/signals.py` (deferred SAE), `apps/life/views.py` (removed redundant SAE), `apps/life/models.py` (removed redundant CoS invalidation), `apps/health/views.py` (deferred auto-complete), `apps/faith/views.py` (deferred auto-complete)
+
+**Tests:** 6/6 CoS context invalidation tests pass. Sync fallback confirmed working. No migration changes needed.
+
+---
+
 ## 2026-04-02 — Enhancement: Enforce Strict Response Discipline for Qualified Status Queries
 
 **Problem:** Qualified status queries ("other than nutrition, anything left?", "am I done?") correctly fell through to the LLM, but the LLM could still expand into summaries, repeat prior context, or add coaching commentary. The existing `brief` mode instruction ("Answer in 1-3 sentences max") was too generic — the full CoS system prompt with proactive intelligence and conversational rules could override it.

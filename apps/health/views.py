@@ -1773,12 +1773,21 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
         from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
         fire_intelligence(request.user, "health", workout.id, "log_workout")
 
-        # Auto-complete matching routine task (legacy Task system)
+        # Auto-complete matching routine task (legacy Task system) — deferred
+        # to Celery worker to avoid cascading Task save blocking the response.
         try:
-            from apps.life.services.routine_service import RoutineTaskService
-            RoutineTaskService.auto_complete_routine_task(request.user, "Workout")
+            from apps.core.tasks import deferred_routine_auto_complete
+            deferred_routine_auto_complete.delay(
+                request.user.id, ["Workout"],
+                source="workout_log_view",
+            )
         except Exception:
-            pass
+            # Sync fallback when Celery unavailable
+            try:
+                from apps.life.services.routine_service import RoutineTaskService
+                RoutineTaskService.auto_complete_routine_task(request.user, "Workout")
+            except Exception:
+                pass
 
         # Auto-complete matching RoutineSchedule items (new Routine system).
         # Belt-and-suspenders: the post_save signal also calls this, but
@@ -3396,13 +3405,32 @@ class MedicineTakeView(LoginRequiredMixin, View):
         log.mark_taken(taken_at=taken_at)
         _t2 = _time.perf_counter()
 
-        # Auto-complete matching routine task
+        # Auto-complete matching routine task — deferred to Celery worker.
+        # This triggers a cascading Task save with full post_save signal chain
+        # (SAE rebuild, CoS invalidation, dashboard invalidation, etc.),
+        # so it must NOT run on the request path.
         try:
-            from apps.life.services.routine_service import RoutineTaskService
-            RoutineTaskService.auto_complete_routine_task(request.user, "Medicine")
-            RoutineTaskService.auto_complete_routine_task(request.user, "Medication")
+            from apps.core.tasks import deferred_routine_auto_complete
+            deferred_routine_auto_complete.delay(
+                request.user.id, ["Medicine", "Medication"],
+                source="medicine_take_view",
+            )
+        except ImportError:
+            # Celery not available — sync fallback
+            try:
+                from apps.life.services.routine_service import RoutineTaskService
+                RoutineTaskService.auto_complete_routine_task(request.user, "Medicine")
+                RoutineTaskService.auto_complete_routine_task(request.user, "Medication")
+            except Exception:
+                pass
         except Exception:
-            pass
+            # Broker unavailable — sync fallback
+            try:
+                from apps.life.services.routine_service import RoutineTaskService
+                RoutineTaskService.auto_complete_routine_task(request.user, "Medicine")
+                RoutineTaskService.auto_complete_routine_task(request.user, "Medication")
+            except Exception:
+                pass
         _t3 = _time.perf_counter()
 
         # Decrease supply if tracked

@@ -1404,13 +1404,22 @@ class MarkDayCompleteView(LoginRequiredMixin, FaithRequiredMixin, View):
         from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
         fire_intelligence(request.user, "faith", progress.id, "complete_reading")
 
-        # Auto-complete matching routine task (legacy Task system)
+        # Auto-complete matching routine task (legacy Task system) — deferred
+        # to Celery worker to avoid cascading Task save blocking the response.
         try:
-            from apps.life.services.routine_service import RoutineTaskService
-            RoutineTaskService.auto_complete_routine_task(request.user, "Bible")
-            RoutineTaskService.auto_complete_routine_task(request.user, "Quiet Time")
+            from apps.core.tasks import deferred_routine_auto_complete
+            deferred_routine_auto_complete.delay(
+                request.user.id, ["Bible", "Quiet Time"],
+                source="bible_reading_view",
+            )
         except Exception:
-            pass
+            # Sync fallback when Celery unavailable
+            try:
+                from apps.life.services.routine_service import RoutineTaskService
+                RoutineTaskService.auto_complete_routine_task(request.user, "Bible")
+                RoutineTaskService.auto_complete_routine_task(request.user, "Quiet Time")
+            except Exception:
+                pass
 
         # Auto-complete matching RoutineSchedule items (new Routine system)
         try:

@@ -68,27 +68,55 @@ def _refresh_sae_module(user, module):
     data changes that happen outside Beth's action pipeline (web forms,
     API endpoints, recurring task processing, etc.).
 
-    This uses the existing update_user_state() which:
-    - Respects Learning Mode gate (no writes during calibration)
-    - Calls only the affected module's builder (not a full rebuild)
-    - Reads-modifies-writes UserState.state_data
+    Dispatches to Celery worker (async primary, sync fallback) so that
+    SAE rebuilds don't block the HTTP request path. Cache keys are
+    already invalidated before this runs, so Beth won't read stale state.
     """
+    _defer_sae_refresh(user, [module])
+
+
+def _defer_sae_refresh(user, modules, source="signal"):
+    """
+    Dispatch SAE module refresh to Celery (async primary, sync fallback).
+
+    Follows the same pattern as journal signal extraction dispatch.
+    On Celery failure, falls back to synchronous execution to guarantee
+    state freshness — but this should be rare in production.
+    """
+    # Try async dispatch first
+    try:
+        from apps.core.tasks import deferred_sae_refresh
+        deferred_sae_refresh.delay(user.id, modules, source)
+        return  # Async dispatch succeeded
+    except ImportError:
+        # Celery not installed (test environment)
+        logger.debug("Celery not available — sync SAE refresh for user %s", user.id)
+    except Exception as e:
+        # Broker connection failed, worker unavailable, etc.
+        logger.warning(
+            "DEFERRED_SAE_DISPATCH user=%s modules=%s — Celery failed (%s), "
+            "falling back to sync",
+            user.id, modules, e,
+        )
+
+    # Sync fallback — preserves current behavior when Celery is unavailable
     try:
         import time as _time
         _t0 = _time.perf_counter()
         from apps.core.ai_state.state_updater import update_user_state
-        update_user_state(user, module)
+        for module in modules:
+            update_user_state(user, module)
         _elapsed = round((_time.perf_counter() - _t0) * 1000)
         if _elapsed > 100:
             logger.warning(
-                "PERF_TRACE SAE_REFRESH user=%s module=%s — %dms",
-                user.id, module, _elapsed,
+                "PERF_TRACE SAE_REFRESH_SYNC user=%s modules=%s — %dms",
+                user.id, modules, _elapsed,
             )
     except Exception:
         # SAE refresh must never break data saves
         logger.warning(
-            "SAE_REFRESH user=%s module=%s — failed",
-            user.id, module, exc_info=True,
+            "SAE_REFRESH user=%s modules=%s — failed",
+            user.id, modules, exc_info=True,
         )
 
 

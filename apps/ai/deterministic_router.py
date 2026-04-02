@@ -129,8 +129,14 @@ def get_stashed_events():
 # Centralized here for reuse by status_query, checkin_prefilter, and
 # the LLM-path check-in detector in personal_assistant.py.
 
-# Exclusion prepositions — "other than X, anything left?"
+# Exclusion prepositions and imperative exclusion verbs.
+# English has a small, closed set of ways to say "exclude X":
+#   prepositional: "other than X", "besides X", "apart from X"
+#   imperative: "skip X", "leave out X", "ignore X", "forget X"
+# This list is exhaustive for natural English — new exclusion
+# prepositions are not being invented.
 QUALIFIED_STATUS_PREFIXES = (
+    # Prepositional exclusions
     'other than ',
     'besides ',
     'except for ',
@@ -141,6 +147,22 @@ QUALIFIED_STATUS_PREFIXES = (
     'not counting ',
     'not including ',
     'outside of ',
+    'without counting ',
+    'without ',
+    # Imperative exclusions
+    'leave out ',
+    'leaving out ',
+    'skip ',
+    'skipping ',
+    'forget ',
+    'forget about ',
+    'forgetting ',
+    'ignore ',
+    'ignoring ',
+    'setting aside ',
+    'minus ',
+    'take away ',
+    'taking away ',
 )
 
 # Yes/no closers — "am I done?", "is that everything?"

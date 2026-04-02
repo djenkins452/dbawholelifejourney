@@ -10,6 +10,7 @@ from apps.ai.deterministic_router import (
     RouteResult,
     classify_and_route,
     get_scoped_builders,
+    is_qualified_status_query,
     should_skip_semantic_memory,
     _match_routine_time_query,
     _match_weight_query,
@@ -903,3 +904,144 @@ class RoutineTimeQueryMatcherTests(TestCase):
 
     def test_no_match_move_command(self):
         self.assertIsNone(_match_routine_time_query("move workout to 6pm"))
+
+
+# ==============================================================================
+# Qualified Status Query Tests
+# ==============================================================================
+
+class QualifiedStatusQueryTests(TestCase):
+    """Tests for is_qualified_status_query() — ensures filtered/follow-up
+    status questions bypass terminal deterministic routes and reach the LLM."""
+
+    # ── Exclusion prefix patterns ────────────────────────────────
+    def test_other_than_x_anything_left(self):
+        self.assertTrue(is_qualified_status_query(
+            "other than nutrition, anything left?"
+        ))
+
+    def test_besides_x_whats_remaining(self):
+        self.assertTrue(is_qualified_status_query(
+            "besides meds, what's remaining?"
+        ))
+
+    def test_except_for_x_what_is_left(self):
+        self.assertTrue(is_qualified_status_query(
+            "except for reading, what is left today?"
+        ))
+
+    def test_apart_from_x_anything_else(self):
+        self.assertTrue(is_qualified_status_query(
+            "apart from my workout, anything else?"
+        ))
+
+    def test_aside_from_x(self):
+        self.assertTrue(is_qualified_status_query(
+            "aside from nutrition, what do i have left?"
+        ))
+
+    def test_excluding_x(self):
+        self.assertTrue(is_qualified_status_query(
+            "excluding meds, anything left to do?"
+        ))
+
+    def test_not_counting_x(self):
+        self.assertTrue(is_qualified_status_query(
+            "not counting prayer, is there anything left?"
+        ))
+
+    def test_outside_of_x(self):
+        self.assertTrue(is_qualified_status_query(
+            "outside of journal, what's left?"
+        ))
+
+    # ── Yes/no status closers ────────────────────────────────────
+    def test_am_i_done(self):
+        self.assertTrue(is_qualified_status_query("am i done?"))
+
+    def test_am_i_done_for_today(self):
+        self.assertTrue(is_qualified_status_query("am i done for today?"))
+
+    def test_is_that_it(self):
+        self.assertTrue(is_qualified_status_query("is that it?"))
+
+    def test_is_that_everything(self):
+        self.assertTrue(is_qualified_status_query("is that everything?"))
+
+    def test_anything_else(self):
+        self.assertTrue(is_qualified_status_query("anything else?"))
+
+    def test_is_there_anything_else(self):
+        self.assertTrue(is_qualified_status_query("is there anything else?"))
+
+    def test_did_i_miss_anything(self):
+        self.assertTrue(is_qualified_status_query("did i miss anything?"))
+
+    def test_am_i_finished(self):
+        self.assertTrue(is_qualified_status_query("am i finished?"))
+
+    # ── MUST NOT match — unqualified queries stay on terminal routes ──
+    def test_whats_left_today_not_qualified(self):
+        self.assertFalse(is_qualified_status_query("what's left today?"))
+
+    def test_anything_left_not_qualified(self):
+        self.assertFalse(is_qualified_status_query("anything left?"))
+
+    def test_check_in_not_qualified(self):
+        self.assertFalse(is_qualified_status_query("check in"))
+
+    def test_brief_me_not_qualified(self):
+        self.assertFalse(is_qualified_status_query("brief me"))
+
+    def test_whats_remaining_not_qualified(self):
+        self.assertFalse(is_qualified_status_query("what's remaining?"))
+
+    def test_status_not_qualified(self):
+        self.assertFalse(is_qualified_status_query("status"))
+
+
+class QualifiedStatusRouterIntegrationTests(TestCase):
+    """Integration: qualified queries must NOT hit terminal status/checkin routes."""
+
+    @override_settings(WLJ_DETERMINISTIC_ROUTER_ENABLED=True)
+    @patch('apps.core.ai_state.state_engine.get_module_state')
+    def test_other_than_x_falls_through(self, mock_gms):
+        """'other than nutrition, anything left?' must NOT be terminal."""
+        user = MagicMock()
+        user.id = 1
+        result = classify_and_route(
+            "other than nutrition, anything left?", user
+        )
+        self.assertEqual(result.category, RouteCategory.FALLTHROUGH)
+
+    @override_settings(WLJ_DETERMINISTIC_ROUTER_ENABLED=True)
+    @patch('apps.core.ai_state.state_engine.get_module_state')
+    def test_am_i_done_falls_through(self, mock_gms):
+        """'am I done?' must NOT be terminal."""
+        user = MagicMock()
+        user.id = 1
+        result = classify_and_route("am I done?", user)
+        self.assertEqual(result.category, RouteCategory.FALLTHROUGH)
+
+    @override_settings(WLJ_DETERMINISTIC_ROUTER_ENABLED=True)
+    @patch('apps.core.ai_state.state_engine.get_module_state')
+    def test_besides_x_falls_through(self, mock_gms):
+        """'besides reading, what's left?' must NOT be terminal."""
+        user = MagicMock()
+        user.id = 1
+        result = classify_and_route(
+            "besides reading, what's left?", user
+        )
+        self.assertEqual(result.category, RouteCategory.FALLTHROUGH)
+
+    @override_settings(WLJ_DETERMINISTIC_ROUTER_ENABLED=True)
+    @patch('apps.ai.beth_status_renderer.build_status_response',
+           return_value="Remaining:\n• Nutrition")
+    @patch('apps.core.ai_state.state_engine.get_module_state')
+    def test_unqualified_whats_left_still_terminal(self, mock_gms, mock_build):
+        """'what's left today?' must STILL hit the terminal status route."""
+        user = MagicMock()
+        user.id = 1
+        result = classify_and_route("what's left today?", user)
+        self.assertEqual(result.category, RouteCategory.DETERMINISTIC_DATA)
+        self.assertTrue(result.is_terminal)

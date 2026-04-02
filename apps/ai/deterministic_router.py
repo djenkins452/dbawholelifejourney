@@ -118,6 +118,64 @@ def get_stashed_events():
 
 
 # =============================================================================
+# Qualified Status Query Detection
+# =============================================================================
+# When a user asks a FILTERED or FOLLOW-UP question about their day state
+# ("other than nutrition, anything left?", "am I done?"), it must NOT match
+# terminal deterministic routes. These are questions ABOUT the state, not
+# requests to render the full state. They fall through to the LLM which
+# answers using LOCKED CoS STATE from the system prompt.
+#
+# Centralized here for reuse by status_query, checkin_prefilter, and
+# the LLM-path check-in detector in personal_assistant.py.
+
+# Exclusion prepositions — "other than X, anything left?"
+QUALIFIED_STATUS_PREFIXES = (
+    'other than ',
+    'besides ',
+    'except for ',
+    'except ',
+    'excluding ',
+    'apart from ',
+    'aside from ',
+    'not counting ',
+    'not including ',
+    'outside of ',
+)
+
+# Yes/no closers — "am I done?", "is that everything?"
+QUALIFIED_STATUS_QUESTIONS = (
+    'am i done',
+    'is that it',
+    'is that everything',
+    'is that all',
+    'anything else',
+    'nothing else',
+    'all done',
+    'am i finished',
+    'is there anything else',
+    'did i miss anything',
+    'have i missed anything',
+)
+
+
+def is_qualified_status_query(msg_lower: str) -> bool:
+    """Detect if a message is a filtered/follow-up status question.
+
+    These must NOT hit terminal deterministic routes. Instead, they
+    fall through to the LLM which interprets the constraint against
+    LOCKED CoS STATE.
+
+    Returns True for: "other than nutrition, anything left?",
+    "am I done?", "besides meds, what's remaining?"
+    """
+    if any(msg_lower.startswith(p) or (', ' + p) in msg_lower or (' ' + p) in msg_lower
+           for p in QUALIFIED_STATUS_PREFIXES):
+        return True
+    return any(p in msg_lower for p in QUALIFIED_STATUS_QUESTIONS)
+
+
+# =============================================================================
 # Event Follow-Up Resolution
 # =============================================================================
 
@@ -566,7 +624,13 @@ def _try_status_query_route(msg_lower, user):
 
     Produces a strict, contract-enforced response for "what's left today?"
     type queries. No LLM involvement. See beth_status_renderer.py.
+
+    Qualified queries ("other than X, what's left?") are excluded — they
+    need the LLM to interpret the filter against locked state.
     """
+    if is_qualified_status_query(msg_lower):
+        return None
+
     try:
         from apps.ai.beth_status_renderer import is_status_query, build_status_response
     except ImportError:
@@ -754,7 +818,13 @@ def _try_checkin_prefilter(msg_lower, user=None):
     Phase 5.2+: Check-in is now TERMINAL — the deterministic renderer
     produces the response directly. The LLM is never involved in
     generating state descriptions for check-in flows.
+
+    Qualified queries ("other than X, anything left?", "am I done?")
+    are excluded — they need the LLM to answer a specific question.
     """
+    if is_qualified_status_query(msg_lower):
+        return None
+
     from apps.ai.personal_assistant import CHECKIN_PATTERNS
 
     if any(p in msg_lower for p in CHECKIN_PATTERNS):

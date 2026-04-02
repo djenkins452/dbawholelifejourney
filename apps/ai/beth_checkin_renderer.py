@@ -1101,15 +1101,6 @@ def _render_evening(ctx, user, user_now) -> str:
     else:
         lines.append("Haven't gotten to anything yet today.")
 
-    # What got done (brief, only if there are some)
-    if completed and done < total:
-        lines.append("")
-        lines.append("Done so far:")
-        for item in completed[:6]:
-            lines.append(f"• {item['label']}")
-        if len(completed) > 6:
-            lines.append(f"• +{len(completed) - 6} more")
-
     # Coming up — bullet list
     overdue = ctx.get("overdue", [])
     coming_up = ctx.get("coming_up", [])

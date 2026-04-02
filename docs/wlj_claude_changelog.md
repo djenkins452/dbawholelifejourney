@@ -6,6 +6,7 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+<<<<<<< HEAD
 ## 2026-04-02 — Performance: Fast-Write / Async-Refresh Architecture for Medicine, Task, and Routine Completion
 
 **Problem:** Marking a medicine dose as taken, a task as complete, or a routine item as complete took 30+ seconds and froze the UI. Root cause: every write triggered 3-4 synchronous SAE module rebuilds (each running 10-50+ queries), redundant CoS cache invalidations, and cascading Task saves from `auto_complete_routine_task()` — all blocking the HTTP response.
@@ -36,6 +37,14 @@ Architecture protection:
 **Tests:** 6/6 CoS context invalidation tests pass. Sync fallback confirmed working. No migration changes needed.
 
 ---
+
+## 2026-04-02 — Fix: Remove "Done so far" Section from Evening Check-in
+
+**Problem:** When asking "what's left" in the evening, the check-in renderer included a "Done so far:" section listing completed items. Users asking "what's left" want to see remaining items, not a recap of completed work.
+
+**Fix:** Removed the "Done so far" completed items list from `_render_evening()` in `beth_checkin_renderer.py`. The progress count sentence ("13 of 21 done so far") is retained as it provides useful context in one line. The end-of-day renderer (22:00+) retains its "Completed" section since that's a day summary.
+
+**Files:** `apps/ai/beth_checkin_renderer.py`
 
 ## 2026-04-02 — Enhancement: Deterministic Rendering for Qualified Status Queries (Phase 0a.1)
 

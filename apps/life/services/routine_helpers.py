@@ -266,6 +266,7 @@ def toggle_routine_completion(user, schedule, target_date, completion_mode=None)
             performed_at=performed_at,
             timing=timing,
             completion_source=source,
+            routine_at_time=schedule.routine,
         )
         return {'status': log_status, 'is_completed': True,
                 'completed_as_scheduled': as_scheduled, 'timing': timing}
@@ -367,6 +368,7 @@ def auto_complete_routine_schedules(user, keyword, source, completion_time=None,
             timing=timing,
             completion_source=source,
             source_object_id=source_object_id,
+            routine_at_time=schedule.routine,
         )
         results.append({
             'schedule_id': schedule.pk,
@@ -429,7 +431,7 @@ def skip_routine(user, schedule, target_date):
     """
     from apps.life.models import RoutineLog
 
-    RoutineLog.objects.update_or_create(
+    _log, created = RoutineLog.objects.update_or_create(
         schedule=schedule,
         scheduled_date=target_date,
         defaults={
@@ -440,6 +442,10 @@ def skip_routine(user, schedule, target_date):
             'timing': '',
         },
     )
+    if created:
+        # routine_at_time is immutable — only set on creation, never on update.
+        _log.routine_at_time = schedule.routine
+        _log.save(update_fields=['routine_at_time'])
     return {'status': 'skipped'}
 
 
@@ -597,6 +603,7 @@ def toggle_routine_complete(user, routine, target_date):
                     completed_as_scheduled=as_scheduled,
                     performed_at=performed_at,
                     timing=timing,
+                    routine_at_time=item.routine,
                 )
         return {'all_complete': True, 'completed_count': total, 'total_count': total}
 
@@ -713,6 +720,7 @@ def reschedule_routine_item(user, schedule, target_date, new_time):
             rescheduled_time=new_time,
             completed_at=None,
             reschedule_count=1,
+            routine_at_time=schedule.routine,
         )
         count = 1
 
@@ -722,5 +730,98 @@ def reschedule_routine_item(user, schedule, target_date, new_time):
         'status': 'rescheduled',
         'rescheduled_time': formatted_time,
         'reschedule_count': count,
+        'item_name': schedule.name,
+    }
+
+
+def get_log_routine(log):
+    """Return the routine this log was executed under.
+
+    Uses the write-time anchored routine_at_time field. Falls back to
+    schedule.routine for pre-migration logs (routine_at_time is null).
+
+    This is the ONLY correct way to determine a log's routine attribution.
+    Do NOT use log.schedule.routine directly for historical queries — it
+    reflects the schedule's CURRENT routine, which may differ if the item
+    was moved.
+    """
+    return log.routine_at_time or log.schedule.routine
+
+
+def get_log_routine_name(log):
+    """Return the routine name this log was executed under.
+
+    Convenience wrapper over get_log_routine() for contexts that only
+    need the name string.
+    """
+    if log.routine_at_time_id:
+        return log.routine_at_time.name
+    return log.schedule.routine.name
+
+
+@transaction.atomic
+def move_routine_item(user, schedule, target_routine):
+    """
+    Move a RoutineSchedule from its current routine to a different routine.
+
+    This affects FUTURE execution only. Historical RoutineLog records retain
+    their routine_at_time (set at write time, immutable), so past attribution
+    is never altered.
+
+    The schedule keeps its same PK — all existing RoutineLog FK references
+    remain valid. Only the schedule.routine FK changes.
+
+    Args:
+        user: User instance (must own both schedule and target_routine)
+        schedule: RoutineSchedule instance to move
+        target_routine: Routine instance to move the schedule into
+
+    Returns:
+        dict: {success: bool, from_routine: str, to_routine: str}
+
+    Raises:
+        ValueError: If validation fails (wrong owner, same routine, etc.)
+    """
+    from apps.life.models import Routine
+
+    # ── Validation ──
+    if schedule.routine.user_id != user.id:
+        raise ValueError("Schedule does not belong to this user")
+    if target_routine.user_id != user.id:
+        raise ValueError("Target routine does not belong to this user")
+    if schedule.routine_id == target_routine.id:
+        raise ValueError("Schedule is already in this routine")
+    if not target_routine.is_active or target_routine.status == 'deleted':
+        raise ValueError("Target routine is not active")
+
+    source_name = schedule.routine.name
+
+    # ── Move: single FK update ──
+    schedule.routine = target_routine
+    schedule.save(update_fields=['routine'])
+
+    # ── Cache invalidation ──
+    # Future logs will have routine_at_time=target_routine via normal
+    # creation paths. No backfill needed.
+    try:
+        from django.core.cache import cache
+        cache.delete(f'wlj:user_state:{user.id}:routine')
+        cache.delete(f'wlj:user_state:{user.id}:execution')
+        cache.delete(f'wlj:cos_context:{user.id}')
+    except Exception:
+        pass  # Cache invalidation is best-effort
+
+    logger.info(
+        "ROUTINE_ITEM_MOVED user=%s schedule=%s (pk=%s) from='%s' to='%s' "
+        "historical_logs=%d",
+        user.id, schedule.name, schedule.pk, source_name,
+        target_routine.name,
+        schedule.logs.count(),
+    )
+
+    return {
+        'success': True,
+        'from_routine': source_name,
+        'to_routine': target_routine.name,
         'item_name': schedule.name,
     }

@@ -55,7 +55,7 @@ def get_events(user, start_date, end_date):
             scheduled_date__gte=start_date,
             scheduled_date__lte=end_date,
         )
-        .select_related('schedule', 'schedule__routine')
+        .select_related('schedule', 'schedule__routine', 'routine_at_time')
         .order_by('scheduled_date', 'schedule__scheduled_time')
     )
 
@@ -93,7 +93,7 @@ def get_missed_events(user, start_date, end_date):
             scheduled_date__lte=end_date,
             log_status=RoutineLog.STATUS_SKIPPED,
         )
-        .select_related('schedule', 'schedule__routine')
+        .select_related('schedule', 'schedule__routine', 'routine_at_time')
         .order_by('scheduled_date', 'schedule__scheduled_time')
     )
     for log in skipped_logs:
@@ -269,7 +269,14 @@ def _log_to_event(log):
     from django.utils import timezone as tz
 
     sched = log.schedule
-    routine_name = sched.routine.name if sched.routine_id else "Unknown"
+    # Use write-time anchored routine for historical accuracy.
+    # Falls back to current schedule.routine for pre-migration logs.
+    if log.routine_at_time_id:
+        routine_name = log.routine_at_time.name
+    elif sched.routine_id:
+        routine_name = sched.routine.name
+    else:
+        routine_name = "Unknown"
     item_name = sched.name if sched else "Unknown"
     time_str = sched.scheduled_time.strftime("%-I:%M %p") if sched and sched.scheduled_time else ""
 

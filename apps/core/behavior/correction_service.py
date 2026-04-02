@@ -179,6 +179,10 @@ def correct_routine_log(user, schedule_id, scheduled_date, new_status):
             'is_user_corrected': True,
         },
     )
+    if created:
+        # routine_at_time is immutable — only set on creation, never on update.
+        log.routine_at_time = schedule.routine
+        log.save(update_fields=['routine_at_time'])
 
     logger.info(
         "BEHAVIOR_CORRECTION domain=routine user=%s schedule=%s date=%s "

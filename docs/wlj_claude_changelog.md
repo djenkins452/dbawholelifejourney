@@ -6,6 +6,27 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-01 — Feature: Move Routine Item Between Routines (Write-Time Anchoring)
+
+**Capability:** Move a RoutineSchedule from one routine to another (e.g., Nightly → Evening) while preserving all historical execution data and CoS integrity.
+
+**Architecture decision:** Write-time anchoring via `routine_at_time` FK on RoutineLog. Each log is stamped with the routine it belonged to at creation time. This field is immutable — enforced by a model-level `save()` guard that raises `ValueError` if any code attempts to change it after creation.
+
+**Changes:**
+- `apps/life/models.py` — Added `routine_at_time` FK to RoutineLog with immutability guard in save()
+- `apps/life/migrations/0051_add_routine_at_time_to_routinelog.py` — Migration for new field
+- `apps/life/services/routine_helpers.py` — Added `move_routine_item()`, `get_log_routine()`, `get_log_routine_name()`. Updated all 5 RoutineLog creation paths to set `routine_at_time=schedule.routine`
+- `apps/core/behavior/correction_service.py` — Updated 6th creation path (correction) to set routine_at_time on create
+- `apps/core/execution/execution_truth_engine.py` — Historical `_check_routines()` uses write-time `routine_at_time` for routine grouping
+- `apps/core/ai_events/adapters/routine.py` — Signal adapter uses write-time `routine_at_time` for `routine_name` in event detail
+- `apps/life/tests/test_routine_move.py` — 20 new tests covering immutability, move logic, historical attribution, execution truth
+
+**Architectural properties:**
+- No duplication of truth — `routine_at_time` is a point-in-time capture (like `completion_source`)
+- Pre-migration logs (null) gracefully fall back to `schedule.routine`
+- No read-time attribution logic — no distributed `moved_at` checks across consumers
+- Future-developer-proof — field is self-documenting, immutability is model-enforced
+
 ## 2026-04-01 — Fix: Nutrition Form Submit Buttons Do Nothing
 
 **Problem:** Clicking "Log Food" or "+ Another" on the nutrition entry form had no effect. The form silently refused to submit.

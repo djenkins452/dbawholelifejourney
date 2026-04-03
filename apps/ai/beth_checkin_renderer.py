@@ -1182,15 +1182,6 @@ def _render_end_of_day(ctx, user, user_now) -> str:
     else:
         lines.append("Tough day — nothing got checked off.")
 
-    # What got done
-    if completed:
-        lines.append("")
-        lines.append("Completed:")
-        for item in completed[:8]:
-            lines.append(f"• {item['label']}")
-        if len(completed) > 8:
-            lines.append(f"• +{len(completed) - 8} more")
-
     # Explicit misses
     overdue = ctx.get("overdue", [])
     coming_up = ctx.get("coming_up", [])

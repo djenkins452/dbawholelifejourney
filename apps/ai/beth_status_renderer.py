@@ -246,21 +246,7 @@ def build_status_response(user) -> str:
     else:
         sections.append("You've completed everything for today.")
 
-    # Section 2 — COMPLETED (omit if empty)
-    if completed_items:
-        # Deduplicate while preserving order
-        seen = set()
-        unique = []
-        for c in completed_items:
-            if c not in seen:
-                seen.add(c)
-                unique.append(c)
-        completed_lines = ["Completed:"]
-        for c in unique:
-            completed_lines.append(f"• {c}")
-        sections.append("\n".join(completed_lines))
-
-    # Section 3 — NEXT (REQUIRED)
+    # Section 2 — NEXT (REQUIRED)
     if remaining_items:
         sections.append(f"Next: {next_action}")
     else:

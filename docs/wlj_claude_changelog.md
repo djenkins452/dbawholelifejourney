@@ -6,7 +6,21 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
-<<<<<<< HEAD
+## 2026-04-03 — Fix: Stale CoS Context After Medication Taken (Cache Key Mismatch)
+
+**Problem:** After marking a medication as taken, the CoS still reported it as overdue. The Status badge also showed stale intervention counts after they were resolved.
+
+**Root cause:** Cache key mismatch in event subscribers. The readiness cache uses keys `cos_ctx:v1:{user_id}`, `cos_ctx:stable:v1:{user_id}`, and `cos_ctx:dynamic:v1:{user_id}`. But the event subscribers (`on_health_event_invalidate_cos`, `on_task_change_invalidate_cos`, `on_finance_event_invalidate_cos`) were deleting `cos:context:{user_id}` — a key that doesn't exist. The CoS context cache was **never properly invalidated** on data changes, relying solely on 90-second TTL expiry.
+
+**Fix:**
+1. Updated all three CoS invalidation subscribers to use canonical `invalidate_cos_context()` from `readiness_cache.py` which deletes all three layer keys correctly.
+2. Fixed intervention polling badge: when `data.count == 0`, badges are now hidden (previously only shown on count > 0, never cleared).
+3. Removed "Completed" list from all check-in/status renderers (end-of-day, evening, status query) — users asking "what's left" want remaining items, not a recap.
+
+**Files:** `apps/core/events/subscribers.py`, `templates/components/assistant_panel.html`, `apps/ai/beth_checkin_renderer.py`, `apps/ai/beth_status_renderer.py`, `apps/ai/tests/test_beth_status_renderer.py`
+
+**Tests:** 243 tests pass. Updated 3 tests that previously asserted "Completed:" section presence.
+
 ## 2026-04-02 — Performance: Fast-Write / Async-Refresh Architecture for Medicine, Task, and Routine Completion
 
 **Problem:** Marking a medicine dose as taken, a task as complete, or a routine item as complete took 30+ seconds and froze the UI. Root cause: every write triggered 3-4 synchronous SAE module rebuilds (each running 10-50+ queries), redundant CoS cache invalidations, and cascading Task saves from `auto_complete_routine_task()` — all blocking the HTTP response.

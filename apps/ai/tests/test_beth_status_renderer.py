@@ -111,12 +111,12 @@ class TestResponseStructure(SimpleTestCase):
         user.id = 1
         response = build_status_response(user)
 
-        # Section 1: STATE
+        # Section 1: STATE (remaining items)
         self.assertIn("Here's what's left today:", response)
-        # Section 2: COMPLETED
-        self.assertIn("Completed:", response)
-        # Section 3: NEXT
+        # Section 2: NEXT
         self.assertIn("Next:", response)
+        # Completed section should NOT appear
+        self.assertNotIn("Completed:", response)
 
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
     @patch("apps.core.execution.today_execution.build_today_execution")
@@ -260,7 +260,8 @@ class TestCompletedItems(SimpleTestCase):
 
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
     @patch("apps.core.execution.today_execution.build_today_execution")
-    def test_completed_items_shown(self, mock_exec, mock_facts):
+    def test_completed_items_not_shown(self, mock_exec, mock_facts):
+        """Status response should NOT include completed items list."""
         mock_facts.return_value = {
             "_raw": {
                 "prayer_done": True, "prayer_expected": True,
@@ -278,33 +279,11 @@ class TestCompletedItems(SimpleTestCase):
         user.id = 1
         response = build_status_response(user)
 
-        self.assertIn("Completed:", response)
-        self.assertIn("Prayer", response)
-        self.assertIn("Bible Reading", response)
-
-    @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    @patch("apps.core.execution.today_execution.build_today_execution")
-    def test_completed_uses_bullet_format(self, mock_exec, mock_facts):
-        """Completed section must use bullet-per-line, not inline."""
-        mock_facts.return_value = {
-            "_raw": {
-                "prayer_done": True, "prayer_expected": True,
-                "bible_done": True, "bible_expected": True,
-                "workout_done": False, "workout_expected": True,
-                "journal_done": False, "journal_expected": True,
-                "routine_done": 0, "routine_total": 0,
-                "tasks_done": 0,
-            },
-            "next_action": "Start with Workout.",
-        }
-        mock_exec.return_value = {"items": [], "summaries": {"domains": {}, "expected": {}}}
-
-        user = MagicMock()
-        user.id = 1
-        response = build_status_response(user)
-
-        # Each completed item must be on its own line with bullet
-        self.assertIn("Completed:\n• Prayer\n• Bible Reading", response)
+        # Completed section should NOT appear — user wants remaining, not done
+        self.assertNotIn("Completed:", response)
+        # Remaining items and next action should still be present
+        self.assertIn("Workout", response)
+        self.assertIn("Next:", response)
 
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
     @patch("apps.core.execution.today_execution.build_today_execution")
@@ -905,8 +884,8 @@ class TestMedicationRawFallback(SimpleTestCase):
 
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
     @patch("apps.core.execution.today_execution.build_today_execution")
-    def test_meds_completed_shown_from_raw(self, mock_exec, mock_facts):
-        """Completed medications appear in completed section."""
+    def test_meds_completed_not_in_response(self, mock_exec, mock_facts):
+        """Completed medications should NOT appear in status response."""
         mock_facts.return_value = {
             "_raw": {
                 "prayer_done": True, "prayer_expected": True,
@@ -926,8 +905,10 @@ class TestMedicationRawFallback(SimpleTestCase):
         user.id = 1
         response = build_status_response(user)
 
-        self.assertIn("Medications", response)
-        self.assertIn("all 6 doses taken", response)
+        # Completed items should NOT be listed
+        self.assertNotIn("Completed:", response)
+        # All-done message should still appear
+        self.assertIn("completed everything", response)
 
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
     @patch("apps.core.execution.today_execution.build_today_execution")

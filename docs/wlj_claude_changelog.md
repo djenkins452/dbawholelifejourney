@@ -6,6 +6,16 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-03 — Fix: Weather Alert Tile Not Clickable
+
+**Problem:** The weather tile in alert mode (showing weather warnings) was not clickable. The normal weather card already linked to Weather.com with the user's location, but the alert variant was a plain `<div>`.
+
+**Fix:** Wrapped the alert-mode weather card in the same `<a>` tag used by the normal card, linking to `weather.weather_url` (Weather.com with location) and opening in a new tab.
+
+**Files:** `templates/dashboard/tiles/weather.html`
+
+---
+
 ## 2026-04-03 — Fix: Stale CoS Context After Medication Taken (Cache Key Mismatch)
 
 **Problem:** After marking a medication as taken, the CoS still reported it as overdue. The Status badge also showed stale intervention counts after they were resolved.

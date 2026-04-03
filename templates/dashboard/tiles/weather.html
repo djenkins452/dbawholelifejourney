@@ -6,8 +6,11 @@ Shows current weather conditions and forecast
 {% if weather %}
 <section class="weather-section tile-size-{{ tile.size|default:'medium' }} {% if weather.has_alerts %}weather-alert{% endif %}" data-tile-id="weather">
     {% if weather.has_alerts %}
-    <!-- Alert Mode: Prominent warning card -->
-    <div class="weather-alert-card">
+    <!-- Alert Mode: Prominent warning card — clickable to Weather.com -->
+    <a href="{{ weather.weather_url|default:'https://weather.com' }}" target="_blank" rel="noopener noreferrer"
+       style="text-decoration: none; color: inherit; display: block;"
+       title="View full forecast">
+    <div class="weather-alert-card" style="cursor: pointer;">
         <div class="weather-alert-header">
             <span class="weather-alert-icon">
                 <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
@@ -29,6 +32,7 @@ Shows current weather conditions and forecast
             <span class="weather-condition">{{ weather.current_condition }}</span>
         </div>
     </div>
+    </a>
     {% else %}
     <!-- Normal Mode: Compact current + forecast — clickable to Weather.com -->
     <a href="{{ weather.weather_url|default:'https://weather.com' }}" target="_blank" rel="noopener noreferrer"

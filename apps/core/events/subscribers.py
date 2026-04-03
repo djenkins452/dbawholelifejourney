@@ -159,9 +159,12 @@ def on_health_event_invalidate_cos(event):
     if not event.user:
         return
     try:
+        from apps.ai.readiness_cache import invalidate_cos_context
+        invalidate_cos_context(event.user)
+    except Exception:
+        pass
+    try:
         from django.core.cache import cache
-        # Clear the fast-changing CoS context cache
-        cache.delete(f"cos:context:{event.user.id}")
         cache.delete(f"cos:health_summary:{event.user.id}")
     except Exception:
         pass
@@ -177,8 +180,12 @@ def on_task_change_invalidate_cos(event):
     if not event.user:
         return
     try:
+        from apps.ai.readiness_cache import invalidate_cos_context
+        invalidate_cos_context(event.user)
+    except Exception:
+        pass
+    try:
         from django.core.cache import cache
-        cache.delete(f"cos:context:{event.user.id}")
         cache.delete(f"cos:tasks_summary:{event.user.id}")
     except Exception:
         pass
@@ -190,8 +197,8 @@ def on_finance_event_invalidate_cos(event):
     if not event.user:
         return
     try:
-        from django.core.cache import cache
-        cache.delete(f"cos:context:{event.user.id}")
+        from apps.ai.readiness_cache import invalidate_cos_context
+        invalidate_cos_context(event.user)
     except Exception:
         pass
 

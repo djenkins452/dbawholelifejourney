@@ -1685,17 +1685,20 @@
         fetch('/api/blueprint/interventions/check/')
         .then(function(r) { return r.json(); })
         .then(function(data) {
+            var badge = document.getElementById('intervention-count');
+            var mBadge = document.getElementById('mobile-intervention-count');
+            var sBadge = document.getElementById('ap-status-badge');
             if (data.count > 0) {
-                var badge = document.getElementById('intervention-count');
-                var mBadge = document.getElementById('mobile-intervention-count');
-                var sBadge = document.getElementById('ap-status-badge');
                 if (badge) { badge.textContent = data.count; badge.hidden = false; }
                 if (mBadge) { mBadge.textContent = data.count; mBadge.hidden = false; }
                 if (sBadge) { sBadge.textContent = data.count; sBadge.hidden = false; }
 
                 if (data.friction_gate) showFrictionGate(data.friction_gate);
-
-                /* Panel is always visible — no need to open on ping */
+            } else {
+                /* Clear badges when no interventions remain (e.g., medication taken) */
+                if (badge) { badge.hidden = true; }
+                if (mBadge) { mBadge.hidden = true; }
+                if (sBadge) { sBadge.hidden = true; }
             }
         })
         .catch(function() {});

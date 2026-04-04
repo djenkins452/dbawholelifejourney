@@ -1329,10 +1329,10 @@ def _build_day_overview_section(user, user_now, today) -> str:
     # count is always the true total from .count().
     try:
         from apps.life.models import Task
-        from apps.life.views import _refresh_stale_task_priorities
+        from apps.life.services.task_queries import refresh_stale_priorities
 
         # Refresh stale priorities so overnight changes are reflected
-        _refresh_stale_task_priorities(user)
+        refresh_stale_priorities(user)
 
         # Same base queryset as Organize page — SoftDeleteManager already
         # filters status='active'. No extra .exclude() calls.
@@ -1519,8 +1519,8 @@ def _build_gap_context_section(user, gap_hours, today) -> str:
         # Overdue tasks — use priority-based count matching Organize page
         try:
             from apps.life.models import Task
-            from apps.life.views import _refresh_stale_task_priorities
-            _refresh_stale_task_priorities(user)
+            from apps.life.services.task_queries import refresh_stale_priorities
+            refresh_stale_priorities(user)
             overdue = Task.objects.filter(
                 user=user,
                 priority='now',

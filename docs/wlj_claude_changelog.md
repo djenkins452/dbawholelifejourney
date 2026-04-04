@@ -6,6 +6,59 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-04 — Fix: Domain Truth Contract — Eliminate UI/CoS State Mismatch
+
+**Root Cause:** Three proven state mismatches between the Health UI, CoS (Beth), and
+Execution Truth Engine caused Beth to report stale or incorrect state:
+1. Workout: `_check_workout()` used `.exists()` instead of `completed_at__isnull=False`, so
+   started-but-not-finished workouts showed as "completed" to Beth but "not done" in UI.
+2. Tasks: UI called `_refresh_stale_task_priorities()` on page load but SAE builder did NOT,
+   so tasks moved to "someday" still appeared as "soon" in Beth's context until periodic rebuild.
+3. Analytics: 5+ `WorkoutSession.objects.filter()` sites in CoS intelligence modules missed
+   the `completed_at` check, inflating workout frequency/trend counts.
+
+**Fix — Domain Truth Contract layer (extends existing `TaskQueries` pattern):**
+
+- **NEW `apps/health/services/workout_queries.py`** — Canonical `WorkoutQueries` class with
+  `is_completed_on()`, `completed_on()`, `on_date()`, `completed_in_range()`, `in_range()`.
+  All consumers must use these instead of ad-hoc QuerySets.
+- **Fixed `apps/core/execution/execution_truth_engine.py`** — `_check_workout()` now uses
+  `WorkoutQueries.is_completed_on()` (requires `completed_at` set).
+- **Fixed `apps/core/ai_state/state_builder.py`** — `workout_completed` check now uses
+  `WorkoutQueries.is_completed_on()`. Added `refresh_stale_priorities(user)` call at top of
+  `build_task_state()` so SAE snapshot has the same fresh priorities as the UI.
+- **Fixed CoS intelligence modules** — `goal_gap_analyzer.py`, `behavior_forecast.py`,
+  `diagnostic_context.py` now use `WorkoutQueries.completed_in_range()` for frequency/trend counts.
+- **Fixed `apps/ai/proactive_checkins.py`** — Uses `WorkoutQueries.on_date()` (deliberately
+  includes in-progress sessions to suppress nagging).
+- **Fixed `apps/health/services/protein_service.py`** — Uses `WorkoutQueries.on_date()` for
+  training-day detection.
+- **Moved `_refresh_stale_task_priorities`** from `apps/life/views.py` (UI layer) to
+  `apps/life/services/task_queries.py` as `refresh_stale_priorities()`. Updated 5 AI module
+  imports. Left re-export in views.py for backward compatibility.
+- **NEW `apps/health/tests/test_workout_queries.py`** — 11 regression tests including
+  the key Bug #1 case: started-but-not-completed = NOT completed.
+
+**Files changed:**
+- `apps/health/services/workout_queries.py` (NEW)
+- `apps/health/tests/test_workout_queries.py` (NEW)
+- `apps/core/execution/execution_truth_engine.py`
+- `apps/core/ai_state/state_builder.py`
+- `apps/life/services/task_queries.py`
+- `apps/life/views.py`
+- `apps/cos/intelligence/goal_gap_analyzer.py`
+- `apps/cos/intelligence/behavior_forecast.py`
+- `apps/cos/context/diagnostic_context.py`
+- `apps/ai/proactive_checkins.py`
+- `apps/health/services/protein_service.py`
+- `apps/ai/state_assessment.py`
+- `apps/ai/dashboard_ai.py`
+- `apps/ai/priority_generator.py`
+- `apps/ai/executive_briefing.py`
+- `apps/health/migrations/0074_merge_20260404_1628.py` (auto-generated merge)
+
+---
+
 ## 2026-04-04 — Feature: Activity Workouts + Training Intelligence
 
 **Goal:** Support duration-based activity workouts (pickleball, walking, swimming) alongside structured exercise-set workouts, with training intelligence signals.

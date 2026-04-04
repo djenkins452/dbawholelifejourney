@@ -152,14 +152,14 @@ def _get_sleep_signals(user, week_ago, today):
 def _get_exercise_signals(user, week_ago, two_weeks_ago, today):
     """Get exercise frequency and trend."""
     try:
-        from apps.health.models import WorkoutSession
+        from apps.health.services.workout_queries import WorkoutQueries
 
-        recent = WorkoutSession.objects.filter(
-            user=user, date__gte=week_ago, date__lte=today
+        recent = WorkoutQueries.completed_in_range(
+            user, week_ago, today,
         ).count()
 
-        prior = WorkoutSession.objects.filter(
-            user=user, date__gte=two_weeks_ago, date__lt=week_ago
+        prior = WorkoutQueries.completed_in_range(
+            user, two_weeks_ago, week_ago - timedelta(days=1),
         ).count()
 
         if recent == 0 and prior == 0:

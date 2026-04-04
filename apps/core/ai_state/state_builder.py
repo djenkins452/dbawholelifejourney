@@ -1920,6 +1920,15 @@ def build_task_state(user):
     now = get_current_time()
     state = {}
 
+    # Refresh stale priorities so SAE snapshot matches the Organize UI.
+    # Without this, tasks moved to "someday" could still appear as "soon"
+    # in CoS context until the next periodic rebuild.
+    try:
+        from apps.life.services.task_queries import refresh_stale_priorities
+        refresh_stale_priorities(user)
+    except Exception:
+        pass
+
     try:
         # Active tasks by commitment level — canonical query
         from apps.life.services.task_queries import TaskQueries
@@ -2757,11 +2766,9 @@ def build_daily_execution_status(user):
         state['journal_completed'] = False
 
     try:
-        # Workout: explicit session today
-        from apps.health.models import WorkoutSession
-        state['workout_completed'] = WorkoutSession.objects.filter(
-            user=user, date=user_today,
-        ).exclude(status='deleted').exists()
+        # Workout: explicit completed session today (completed_at must be set)
+        from apps.health.services.workout_queries import WorkoutQueries
+        state['workout_completed'] = WorkoutQueries.is_completed_on(user, user_today)
     except Exception:
         state['workout_completed'] = False
 

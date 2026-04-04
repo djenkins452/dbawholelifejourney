@@ -149,14 +149,12 @@ def _batch_schedule_loads(user, start_date, end_date):
 
 
 def _batch_workout_dates(user, start_date, end_date):
-    """Get all dates with workout completions (1 query)."""
+    """Get all dates with completed workouts (1 query)."""
     try:
-        from apps.health.models import WorkoutSession
+        from apps.health.services.workout_queries import WorkoutQueries
         return set(
-            WorkoutSession.objects.filter(
-                user=user,
-                date__gte=start_date,
-                date__lte=end_date,
+            WorkoutQueries.completed_in_range(
+                user, start_date, end_date,
             ).values_list('date', flat=True).distinct()
         )
     except Exception:

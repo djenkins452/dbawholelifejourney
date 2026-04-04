@@ -320,10 +320,10 @@ class PriorityGeneratorMixin:
         """
         from apps.life.models import Task
         from apps.core.utils import get_user_today
-        from apps.life.views import _refresh_stale_task_priorities
+        from apps.life.services.task_queries import refresh_stale_priorities
 
         today = get_user_today(self.user)
-        _refresh_stale_task_priorities(self.user)
+        refresh_stale_priorities(self.user)
         priorities = []
 
         # "Now" bucket tasks, overdue first (due_date < today)

@@ -6,6 +6,24 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-04 — Fix: Broaden workout completion definition for structured workouts
+
+**Root Cause:** `WorkoutQueries.completed_on()` required `completed_at` to be set, but
+structured workouts don't set `completed_at` until user explicitly clicks "Complete Workout."
+A structured workout with exercises logged is functionally complete from the user's perspective.
+
+**Fix:** Broadened the canonical completion definition:
+- `completed_at IS NOT NULL` (explicitly finished), OR
+- Has exercises logged (structured workout with content), OR
+- Has `duration_minutes` (activity/import with duration)
+
+A session that was merely started with no content is still NOT completed.
+
+**Files changed:** `apps/health/services/workout_queries.py`, `apps/health/views.py`,
+`apps/health/tests/test_workout_queries.py`
+
+---
+
 ## 2026-04-04 — Fix: Health home "Not logged yet" despite completed workout
 
 **Root Cause:** `HealthHomeView` used `.first()` with no ordering to get today's workout.

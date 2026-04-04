@@ -35,7 +35,23 @@ Usage:
 
 from datetime import date
 
+from django.db.models import Q
+
 from apps.health.models import WorkoutSession
+
+
+# A workout is "completed" when ANY of these are true:
+#   1. completed_at is set (explicitly finished via UI or import)
+#   2. It has at least one exercise logged (structured workout with content)
+#   3. It has duration_minutes set (activity workout logged with duration)
+#
+# A session that was merely started (started_at set, no exercises, no
+# duration, no completed_at) is NOT completed — it's in-progress.
+_COMPLETED_Q = (
+    Q(completed_at__isnull=False)
+    | Q(workout_exercises__isnull=False)
+    | Q(duration_minutes__isnull=False)
+)
 
 
 class WorkoutQueries:
@@ -46,14 +62,18 @@ class WorkoutQueries:
         """
         Completed workout sessions on a specific date.
 
-        A workout is "completed" when completed_at is set.
-        A started-but-not-finished session is NOT completed.
+        A workout is "completed" when:
+          - completed_at is set (explicitly finished), OR
+          - it has exercises logged (structured workout with content), OR
+          - it has duration_minutes (activity/import with duration)
+
+        A session that was merely started with no content is NOT completed.
         """
         return WorkoutSession.objects.filter(
+            _COMPLETED_Q,
             user=user,
             date=target_date,
-            completed_at__isnull=False,
-        ).exclude(status='deleted')
+        ).exclude(status='deleted').distinct()
 
     @classmethod
     def is_completed_on(cls, user, target_date):
@@ -83,11 +103,11 @@ class WorkoutQueries:
         count toward goals like "3x/week".
         """
         return WorkoutSession.objects.filter(
+            _COMPLETED_Q,
             user=user,
             date__gte=start_date,
             date__lte=end_date,
-            completed_at__isnull=False,
-        ).exclude(status='deleted')
+        ).exclude(status='deleted').distinct()
 
     @classmethod
     def in_range(cls, user, start_date, end_date):

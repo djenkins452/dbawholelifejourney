@@ -6,6 +6,50 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-04 — Feature: Activity Workouts + Training Intelligence
+
+**Goal:** Support duration-based activity workouts (pickleball, walking, swimming) alongside structured exercise-set workouts, with training intelligence signals.
+
+**Model Changes:**
+- Added `session_mode` field to `WorkoutSession` — `"structured"` (default) or `"activity"`
+- Added `intensity` field — `"easy"`, `"moderate"`, `"hard"` (user-provided or derived)
+- Added `training_load` computed property — 0.0–1.0 score combining duration and intensity
+- Added `is_activity_workout` property for template convenience
+- Migration `0072_activity_workout_fields` adds schema; `0073_backfill_activity_workout_mode` backfills existing cardio sessions
+
+**Training Intelligence (fitness_utils.py):**
+- `derive_intensity()` — derives intensity from activity type + duration when user doesn't specify (e.g., 90 min pickleball → "hard")
+- `classify_daily_activity()` — daily classification: no_activity/light_activity/moderate_activity/strong_activity
+- `ROUTINE_COMPLETION_THRESHOLD_MINUTES` — 20 min minimum for routine completion
+- Activity baseline tables for 16 activity types
+
+**Signal Threshold (signals.py):**
+- Routine auto-completion now requires ≥20 min aggregate daily duration
+- Multiple short workouts aggregate: 10 min walk + 15 min pickleball = 25 min → completes routine
+- Existing first-workout-wins idempotency prevents double-completion
+
+**Signal Aggregation (signal_aggregation.py):**
+- Stepped scoring: <10 min → 0.0, 10–19 → 0.25, 20–44 → 0.5+, 45+ → 1.0
+- `source_signals` now includes `daily_classification`, `daily_training_load`, `max_intensity`
+
+**SAE State Builder (state_builder.py):**
+- New fields: `weekly_training_load`, `avg_daily_load_7d`, `today_training_load`, `today_classification`, `today_workout_minutes`
+- `recent_workouts` list now includes `session_mode`, `intensity`, `training_load`
+
+**Action Handlers:**
+- `handle_log_cardio()` — sets `session_mode="activity"`, derives intensity, emits domain event with training_load
+- `handle_log_workout()` — explicitly sets `session_mode="structured"`
+
+**UI Changes:**
+- Workout form: session mode toggle (Structured / Activity) with activity-specific fields (duration, intensity, calories, distance)
+- Workout list: shows intensity for activity workouts
+- Workout detail: shows intensity and training load stats for activity workouts
+- WorkoutCreateView: handles activity mode POST — single-step creation
+
+**Files:** `apps/health/models.py`, `apps/health/signals.py`, `apps/health/views.py`, `apps/health/admin.py`, `apps/health/services/fitness_utils.py`, `apps/ai/action_handlers.py`, `apps/core/ai_eae/signal_aggregation.py`, `apps/core/ai_state/state_builder.py`, `templates/health/fitness/workout_form.html`, `templates/health/fitness/workout_list.html`, `templates/health/fitness/workout_detail.html`, `apps/health/migrations/0072_activity_workout_fields.py`, `apps/health/migrations/0073_backfill_activity_workout_mode.py`
+
+---
+
 ## 2026-04-04 — Feature: First-of-Day Daily Briefing System
 
 - **Root cause:** First interaction of the day was routing to the standard check-in renderer (`beth_checkin_renderer.render_checkin_for_time`) regardless of whether it was the user's first or tenth interaction. The executive briefing's first-of-day detection existed but only injected into the LLM system prompt — which was bypassed because check-in routes are terminal (no LLM involved).

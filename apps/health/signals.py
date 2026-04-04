@@ -217,24 +217,49 @@ def handle_workout_session_completed(sender, instance, **kwargs):
     # Fires for ANY workout with a date (including ad-hoc, no template).
     # Uses started_at (preferred) > completed_at > now for timeliness,
     # because routine adherence is about when the activity BEGAN.
+    #
+    # Threshold gate: aggregate all completed workouts for the day and only
+    # trigger routine completion when total duration >= 20 minutes.
+    # This prevents a 5-minute walk from marking the workout routine done,
+    # while allowing multiple short workouts to aggregate past the threshold.
     if instance.date:
         try:
+            from django.db.models import Sum as _Sum
+
+            from apps.health.services.fitness_utils import ROUTINE_COMPLETION_THRESHOLD_MINUTES
             from apps.life.services.routine_helpers import auto_complete_routine_schedules
 
-            # Prefer start time for timeliness classification
-            effective_time = instance.started_at or instance.completed_at
-
-            results = auto_complete_routine_schedules(
-                user=instance.user,
-                keyword='workout',
-                source='workout',
-                completion_time=effective_time,
-                source_object_id=instance.pk,
+            total_today = (
+                WorkoutSession.objects.filter(
+                    user=instance.user,
+                    date=instance.date,
+                    completed_at__isnull=False,
+                )
+                .exclude(status="deleted")
+                .aggregate(total=_Sum("duration_minutes"))["total"]
+                or 0
             )
-            if results:
-                logger.info(
-                    "WORKOUT_ROUTINE_AUTOCOMPLETE user=%s date=%s matched=%d session=%s",
-                    instance.user_id, instance.date, len(results), instance.pk,
+
+            if total_today >= ROUTINE_COMPLETION_THRESHOLD_MINUTES:
+                # Prefer start time for timeliness classification
+                effective_time = instance.started_at or instance.completed_at
+
+                results = auto_complete_routine_schedules(
+                    user=instance.user,
+                    keyword='workout',
+                    source='workout',
+                    completion_time=effective_time,
+                    source_object_id=instance.pk,
+                )
+                if results:
+                    logger.info(
+                        "WORKOUT_ROUTINE_AUTOCOMPLETE user=%s date=%s matched=%d session=%s total_min=%d",
+                        instance.user_id, instance.date, len(results), instance.pk, total_today,
+                    )
+            else:
+                logger.debug(
+                    "WORKOUT_ROUTINE_THRESHOLD_NOT_MET user=%s date=%s total_min=%d threshold=%d",
+                    instance.user_id, instance.date, total_today, ROUTINE_COMPLETION_THRESHOLD_MINUTES,
                 )
         except Exception as e:
             logger.warning(

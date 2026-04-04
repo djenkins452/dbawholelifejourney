@@ -28,6 +28,92 @@ from django.db.models import Max, Sum
 logger = logging.getLogger(__name__)
 
 
+# ── Training Intelligence ─────────────────────────────────────────────
+
+# Activity baselines: (light_threshold, moderate_threshold) in minutes.
+# Below light → easy, between → moderate, above moderate → hard.
+ACTIVITY_BASELINE_MINUTES = {
+    "walking": (20, 45),
+    "running": (15, 30),
+    "cycling": (20, 40),
+    "swimming": (15, 30),
+    "pickleball": (20, 45),
+    "hiking": (30, 60),
+    "yoga": (20, 45),
+    "tennis": (20, 45),
+    "basketball": (15, 35),
+    "soccer": (15, 35),
+    "elliptical": (15, 30),
+    "rowing": (15, 30),
+    "jump rope": (10, 20),
+    "dancing": (20, 40),
+    "golf": (45, 90),
+    "_default": (15, 35),
+}
+
+# Minimum daily aggregate duration (minutes) for routine completion.
+ROUTINE_COMPLETION_THRESHOLD_MINUTES = 20
+
+
+def derive_intensity(activity, duration_minutes, user_intensity=""):
+    """
+    Derive workout intensity from activity type and duration.
+
+    If the user explicitly provided an intensity, return it unchanged.
+    Otherwise, classify based on duration relative to the activity's
+    baseline thresholds.
+
+    Args:
+        activity: Activity name (e.g., "pickleball", "running").
+        duration_minutes: Duration in minutes.
+        user_intensity: User-provided intensity (empty string if not provided).
+
+    Returns:
+        One of "easy", "moderate", "hard".
+    """
+    if user_intensity:
+        # Normalize "medium" → "moderate" (intent schema uses "medium")
+        if user_intensity == "medium":
+            return "moderate"
+        return user_intensity
+
+    if not duration_minutes or duration_minutes <= 0:
+        return "easy"
+
+    key = (activity or "").lower().strip()
+    light, moderate = ACTIVITY_BASELINE_MINUTES.get(
+        key, ACTIVITY_BASELINE_MINUTES["_default"]
+    )
+
+    if duration_minutes < light:
+        return "easy"
+    elif duration_minutes < moderate:
+        return "moderate"
+    else:
+        return "hard"
+
+
+def classify_daily_activity(total_minutes, max_intensity=""):
+    """
+    Classify a day's total workout activity into a single label.
+
+    Args:
+        total_minutes: Aggregate duration across all workouts for the day.
+        max_intensity: Highest intensity level from any workout that day.
+
+    Returns:
+        One of "no_activity", "light_activity", "moderate_activity", "strong_activity".
+    """
+    if total_minutes < 10:
+        return "no_activity"
+    elif total_minutes < 20:
+        return "light_activity"
+    elif total_minutes < 45 or max_intensity == "easy":
+        return "moderate_activity"
+    else:
+        return "strong_activity"
+
+
 def get_weekly_volume(user, week_start_date):
     """
     Calculate total training volume for a given week.

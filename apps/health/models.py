@@ -1663,7 +1663,33 @@ class WorkoutSession(UserOwnedModel):
     A single workout session.
 
     Groups multiple exercises performed in one workout.
+    Supports two modes:
+      - structured: traditional exercise-set driven (bench press 3x10)
+      - activity: duration-driven (pickleball 90 min, walking 30 min)
     """
+
+    SESSION_MODE_STRUCTURED = "structured"
+    SESSION_MODE_ACTIVITY = "activity"
+    SESSION_MODE_CHOICES = [
+        (SESSION_MODE_STRUCTURED, "Structured"),
+        (SESSION_MODE_ACTIVITY, "Activity"),
+    ]
+
+    INTENSITY_EASY = "easy"
+    INTENSITY_MODERATE = "moderate"
+    INTENSITY_HARD = "hard"
+    INTENSITY_CHOICES = [
+        (INTENSITY_EASY, "Easy"),
+        (INTENSITY_MODERATE, "Moderate"),
+        (INTENSITY_HARD, "Hard"),
+    ]
+
+    # Weights for training load calculation
+    INTENSITY_WEIGHT = {
+        INTENSITY_EASY: 0.5,
+        INTENSITY_MODERATE: 0.75,
+        INTENSITY_HARD: 1.0,
+    }
 
     date = models.DateField()
     name = models.CharField(
@@ -1686,6 +1712,21 @@ class WorkoutSession(UserOwnedModel):
         blank=True,
         related_name="workout_sessions",
         help_text="Template this workout was created from, if any",
+    )
+
+    # Session mode and intensity
+    session_mode = models.CharField(
+        max_length=20,
+        choices=SESSION_MODE_CHOICES,
+        default=SESSION_MODE_STRUCTURED,
+        help_text="Whether this is a structured workout (sets/reps) or duration-based activity",
+    )
+    intensity = models.CharField(
+        max_length=20,
+        choices=INTENSITY_CHOICES,
+        blank=True,
+        default="",
+        help_text="User-reported or derived intensity level",
     )
 
     # HealthKit workout fields
@@ -1782,6 +1823,26 @@ class WorkoutSession(UserOwnedModel):
                 if r is not None:
                     total += r
         return total
+
+    @property
+    def training_load(self):
+        """
+        Training load score (0.0 - 1.0).
+
+        Combines duration and intensity into a single metric:
+          duration_factor: 0 at 0 min, 1.0 at 60 min, capped at 1.0
+          intensity_factor: easy=0.5, moderate=0.75, hard=1.0
+        """
+        if not self.duration_minutes:
+            return 0.0
+        duration_factor = min(self.duration_minutes / 60.0, 1.0)
+        intensity_factor = self.INTENSITY_WEIGHT.get(self.intensity, 0.75)
+        return round(duration_factor * intensity_factor, 2)
+
+    @property
+    def is_activity_workout(self):
+        """Whether this is a duration-based activity (vs structured sets/reps)."""
+        return self.session_mode == self.SESSION_MODE_ACTIVITY
 
 
 class WorkoutExercise(models.Model):

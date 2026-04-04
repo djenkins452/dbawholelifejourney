@@ -1140,9 +1140,37 @@ def build_fitness_state(user):
                 "minutes": w.duration_minutes,
                 "calories": w.calories_burned,
                 "avg_hr": w.avg_heart_rate,
+                "session_mode": w.session_mode,
+                "intensity": w.intensity,
+                "training_load": w.training_load,
             }
             for w in recent_list
         ]
+
+    # ── Training intelligence (7d) ────────────────────────────────
+    weekly_training_load = sum(s.training_load for s in recent_sessions)
+    state["weekly_training_load"] = round(weekly_training_load, 2)
+    state["avg_daily_load_7d"] = round(weekly_training_load / 7, 2)
+
+    # Today's training state
+    try:
+        from apps.core.utils import get_user_today as _gut
+        from apps.health.services.fitness_utils import classify_daily_activity
+
+        user_today = _gut(user)
+        today_sessions = [s for s in recent_sessions if s.date == user_today]
+        today_minutes = sum(s.duration_minutes or 0 for s in today_sessions)
+        today_load = sum(s.training_load for s in today_sessions)
+        intensity_rank = {'hard': 3, 'moderate': 2, 'easy': 1, '': 0}
+        today_max_intensity = ''
+        for s in today_sessions:
+            if intensity_rank.get(s.intensity, 0) > intensity_rank.get(today_max_intensity, 0):
+                today_max_intensity = s.intensity
+        state["today_training_load"] = round(today_load, 2)
+        state["today_classification"] = classify_daily_activity(today_minutes, today_max_intensity)
+        state["today_workout_minutes"] = today_minutes
+    except Exception:
+        pass
 
     # ── Average workout duration ─────────────────────────────────
     sessions_with_duration = WorkoutSession.objects.filter(

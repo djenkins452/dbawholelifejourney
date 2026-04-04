@@ -6,6 +6,17 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-04 — Fix: "Next" Action Ignores Overdue Medications (Shows Evening Instead of Morning Meds)
+
+- **Root cause:** Two bugs working together. (1) In `action_prioritizer.py`, medicine groups were **always hardcoded to urgency `"next"`** (line 172), regardless of whether individual doses were overdue. This meant overdue morning meds ranked the same as future evening meds. (2) The Today Engine's `next` field came from `build_locked_next_action()` which used the broken prioritizer, so it recommended "Evening Medications" while 4 morning meds were overdue.
+- **Fix 1 — Medicine group urgency:** Added `has_overdue` tracking in `prioritize_execution_items()`. When grouping medication doses by window, if any dose has `time_status == 'overdue'`, the group inherits `has_overdue=True`. In `build_action_priorities()`, overdue groups now get `urgency="overdue"` instead of hardcoded `"next"`. Non-overdue groups get proper time-aware classification via `classify_urgency()`.
+- **Fix 2 — Today Engine next-action override:** Added overdue-first logic in `get_today_context()`. If any items are in the overdue bucket, the first overdue item becomes the `next` action, bypassing the locked-next-action pipeline entirely. This is a safety net ensuring overdue items always surface as the priority.
+- **Impact:** With the user's scenario (Atorvastatin, Lantus, Metformin, Valsartan all overdue at 9:00 AM), the system now correctly shows "Start with Atorvastatin (9:00 AM)." instead of "Start with Evening Medications."
+- **Tests:** 7 new tests (5 prioritizer + 2 today engine). All 200 affected tests pass.
+- **Files:** `apps/core/decision_engine/action_prioritizer.py`, `apps/core/today/today_engine.py`, `apps/core/decision_engine/tests/__init__.py`, `apps/core/decision_engine/tests/test_action_prioritizer.py`, `apps/core/today/tests/test_today_engine.py`
+
+---
+
 ## 2026-04-04 — Enhancement: Schedule Drift & Buffer Intelligence in Daily Briefing
 
 - **What:** Added deterministic schedule awareness to the Daily Briefing's Opening State section. Beth can now detect if the user is ahead, on track, slightly behind, or at risk — and identify available buffer time between scheduled items.

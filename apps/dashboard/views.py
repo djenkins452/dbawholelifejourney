@@ -1936,32 +1936,14 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
             if weather_data:
                 # Convert dataclass to dict for template compatibility
-                result = weather_data.to_dict()
-                # Add weather URL for clickable card
-                result['weather_url'] = self._build_weather_url(user)
-                return result
+                # (weather_url is now built inside to_dict() using lat/lon)
+                return weather_data.to_dict()
             else:
                 logger.warning(f"Weather service returned None for {location_city}")
                 return None
         except Exception as e:
             logger.warning(f"Weather data error: {e}")
             return None
-
-    @staticmethod
-    def _build_weather_url(user):
-        """Build Weather.com URL from user's location."""
-        from urllib.parse import quote_plus
-        try:
-            city = getattr(user.preferences, 'location_city', '') or ''
-            country = getattr(user.preferences, 'location_country', '') or ''
-            if city:
-                location = city
-                if country and country.lower() not in ('us', 'usa', 'united states'):
-                    location = f"{city},{country}"
-                return f"https://weather.com/weather/today/l/{quote_plus(location)}"
-        except Exception:
-            pass
-        return "https://weather.com/weather/today/l/Alcoa+TN"
 
     def _get_quick_stats(self, user_data):
         """Get quick stats for the header."""

@@ -70,13 +70,8 @@ class DashboardV2View(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 from apps.dashboard.services.weather import weather_service
                 weather_data = weather_service.get_weather_data(location_city)
                 if weather_data:
-                    wd = weather_data.to_dict()
-                    # Add clickable weather URL
-                    from urllib.parse import quote_plus
-                    wd['weather_url'] = (
-                        f"https://weather.com/weather/today/l/{quote_plus(location_city)}"
-                    )
-                    context["weather"] = wd
+                    # weather_url is now built inside to_dict() using lat/lon
+                    context["weather"] = weather_data.to_dict()
         except Exception:
             pass
 

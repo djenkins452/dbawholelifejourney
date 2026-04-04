@@ -95,6 +95,8 @@ class WeatherData:
     current_code: int
     humidity: int
     wind_speed: float
+    latitude: float = 0.0
+    longitude: float = 0.0
     forecast: list[ForecastDay] = field(default_factory=list)
     alerts: list[str] = field(default_factory=list)
 
@@ -126,6 +128,11 @@ class WeatherData:
             ],
             "alerts": self.alerts,
             "has_alerts": self.has_alerts,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "weather_url": f"https://weather.com/weather/today/l/{self.latitude},{self.longitude}"
+            if self.latitude and self.longitude
+            else "https://weather.com",
         }
 
 
@@ -188,7 +195,7 @@ class WeatherService:
             data = response.json()
 
             # Parse the response
-            weather_data = self._parse_weather_data(data, location_name)
+            weather_data = self._parse_weather_data(data, location_name, lat, lon)
 
             # Cache the result
             if weather_data:
@@ -258,7 +265,7 @@ class WeatherService:
             logger.error(f"Geocoding failed for {city}: {e}")
             return None
 
-    def _parse_weather_data(self, data: dict, location: str) -> Optional[WeatherData]:
+    def _parse_weather_data(self, data: dict, location: str, lat: float = 0.0, lon: float = 0.0) -> Optional[WeatherData]:
         """Parse Open-Meteo API response into WeatherData."""
         try:
             current = data.get("current", {})
@@ -307,6 +314,8 @@ class WeatherService:
                 current_code=current_code,
                 humidity=humidity,
                 wind_speed=wind_speed,
+                latitude=lat,
+                longitude=lon,
                 forecast=forecast,
                 alerts=alerts,
             )

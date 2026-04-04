@@ -6,13 +6,17 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
-## 2026-04-03 — Fix: Weather Alert Tile Not Clickable
+## 2026-04-04 — Fix: Weather Tile URL Using Coordinates Instead of City Name
 
-**Problem:** The weather tile in alert mode (showing weather warnings) was not clickable. The normal weather card already linked to Weather.com with the user's location, but the alert variant was a plain `<div>`.
+**Problem:** Weather.com URL was built using `quote_plus(city_name)` (e.g., `/l/Maryville`), which Weather.com doesn't resolve — it needs either a hash-based location ID or lat/lon coordinates. Both the alert and normal weather tiles were affected.
 
-**Fix:** Wrapped the alert-mode weather card in the same `<a>` tag used by the normal card, linking to `weather.weather_url` (Weather.com with location) and opening in a new tab.
+**Fix:**
+- Added `latitude`/`longitude` fields to `WeatherData` dataclass, populated from the geocoding step
+- Moved `weather_url` generation into `WeatherData.to_dict()` using coordinate format: `/l/35.7565,-83.9705`
+- Removed the broken `_build_weather_url()` helper from dashboard views
+- Also wrapped the alert-mode weather card in a clickable `<a>` tag (was previously not clickable)
 
-**Files:** `templates/dashboard/tiles/weather.html`
+**Files:** `apps/dashboard/services/weather.py`, `apps/dashboard/views.py`, `apps/dashboard_v2/views.py`, `templates/dashboard/tiles/weather.html`
 
 ---
 

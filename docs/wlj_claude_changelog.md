@@ -6,6 +6,22 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-04 — Fix: Health home "Not logged yet" despite completed workout
+
+**Root Cause:** `HealthHomeView` used `.first()` with no ordering to get today's workout.
+With multiple sessions (e.g. one started-but-abandoned, one completed), `.first()` returned
+the oldest by pk — typically the incomplete one — showing "Not logged yet" and "Needs
+Attention" even though a completed workout existed. CoS correctly reported it done (using
+`WorkoutQueries.is_completed_on` which checks ANY completed session).
+
+**Fix:** View now uses `WorkoutQueries.completed_on()` first, falling back to `on_date()`
+for in-progress display. This is the canonical contract pattern — same source of truth as
+CoS and Execution Truth Engine.
+
+**Files changed:** `apps/health/views.py`
+
+---
+
 ## 2026-04-04 — Fix: Domain Truth Contract — Eliminate UI/CoS State Mismatch
 
 **Root Cause:** Three proven state mismatches between the Health UI, CoS (Beth), and

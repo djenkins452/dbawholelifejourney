@@ -459,20 +459,28 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             month_workouts = workouts.filter(date__gte=month_start)
             context["workouts_this_month"] = month_workouts.count()
 
-        # Workout today status
-        workout_today = WorkoutSession.objects.filter(
-            user=user, date=today
-        ).first()
-        if workout_today:
-            context["workout_today_completed"] = (
-                workout_today.completed_at is not None
-            )
+        # Workout today status — use canonical WorkoutQueries contract.
+        # Must check completed sessions FIRST. If user has multiple sessions
+        # (e.g. one started-but-abandoned, one completed), .first() by pk
+        # would return the incomplete one and show "Not logged yet" even
+        # though a completed session exists.
+        from apps.health.services.workout_queries import WorkoutQueries
+        completed_today = WorkoutQueries.completed_on(user, today).order_by('-completed_at').first()
+        if completed_today:
+            context["workout_today_completed"] = True
             context["workout_today_time"] = (
-                workout_today.completed_at or workout_today.started_at
+                completed_today.completed_at or completed_today.started_at
             )
-            context["workout_today_name"] = workout_today.name
+            context["workout_today_name"] = completed_today.name
         else:
-            context["workout_today_completed"] = False
+            # Fall back to any in-progress session for display
+            any_today = WorkoutQueries.on_date(user, today).first()
+            if any_today:
+                context["workout_today_completed"] = False
+                context["workout_today_time"] = any_today.started_at
+                context["workout_today_name"] = any_today.name
+            else:
+                context["workout_today_completed"] = False
 
         # Check if today is a scheduled workout day via WorkoutPlan/WorkoutSchedule
         try:

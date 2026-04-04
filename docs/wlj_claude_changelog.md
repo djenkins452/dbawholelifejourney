@@ -6,6 +6,18 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-04 — Feature: First-of-Day Daily Briefing System
+
+- **Root cause:** First interaction of the day was routing to the standard check-in renderer (`beth_checkin_renderer.render_checkin_for_time`) regardless of whether it was the user's first or tenth interaction. The executive briefing's first-of-day detection existed but only injected into the LLM system prompt — which was bypassed because check-in routes are terminal (no LLM involved).
+- **Fix 1 — Daily Briefing Gate:** Added `_try_daily_briefing_gate()` as Phase -2 in `classify_and_route()`, executing BEFORE all other routing phases. Checks `conversation.metadata['last_briefing_date']` against today (timezone-aware). If first-of-day → renders Daily Briefing and marks delivered. Hard override — even "Hey" triggers a briefing on first touch.
+- **Fix 2 — Daily Briefing Renderer:** Added `render_daily_briefing(user)` in `beth_checkin_renderer.py` with 7-section deterministic structure: Opening State, Immediate Plan, Ordered Execution Plan, Already Done (log-confirmed only), Time Anchors, Later Today, Closing Directive. Time-aware titles: Morning (04-12), Midday (12-18), Evening (18-04).
+- **Truth enforcement:** Completion state comes exclusively from Today Engine → Execution Truth Engine (RoutineLog, WorkoutSession, etc.). No time-based inference, no pattern inference, no historical inference. Items are explicitly "not started" unless confirmed by logs.
+- **Audit result:** No harmful auto-completion logic found. Wake Up auto-complete is documented and canonical (creates RoutineLog with `completion_source='auto'`). Workout/protein completion is purely log-based. False completions previously observed were LLM hallucinations on the non-deterministic path.
+- **Tests:** 15 new tests (10 renderer + 5 routing gate). All 188 affected tests pass.
+- **Files:** `apps/ai/deterministic_router.py`, `apps/ai/beth_checkin_renderer.py`, `apps/ai/tests/test_deterministic_router.py`, `apps/ai/tests/test_beth_checkin_renderer.py`
+
+---
+
 ## 2026-04-04 — Fix: Weather Tile URL Using Coordinates Instead of City Name
 
 **Problem:** Weather.com URL was built using `quote_plus(city_name)` (e.g., `/l/Maryville`), which Weather.com doesn't resolve — it needs either a hash-based location ID or lat/lon coordinates. Both the alert and normal weather tiles were affected.

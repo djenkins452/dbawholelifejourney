@@ -1319,3 +1319,104 @@ class QualifiedStatusRouterIntegrationTests(TestCase):
         user.id = 1
         result = classify_and_route("am I done?", user)
         self.assertIn('done', result.response.lower())
+
+
+# ==============================================================================
+# Daily Briefing Gate Tests
+# ==============================================================================
+
+class DailyBriefingGateTests(TestCase):
+    """Tests for the first-of-day Daily Briefing hard override."""
+
+    @override_settings(WLJ_DETERMINISTIC_ROUTER_ENABLED=True)
+    @patch('apps.ai.executive_briefing.mark_briefing_delivered')
+    @patch('apps.ai.beth_checkin_renderer.render_daily_briefing')
+    @patch('apps.core.utils.get_user_today')
+    def test_first_of_day_triggers_daily_briefing(
+        self, mock_today, mock_render, mock_mark,
+    ):
+        """First interaction of the day → daily briefing, any message."""
+        mock_today.return_value = '2026-04-04'
+        mock_render.return_value = "Morning Briefing, Danny.\n\nStarting clean."
+
+        user = MagicMock()
+        user.id = 1
+        conversation = MagicMock()
+        conversation.metadata = {'last_briefing_date': '2026-04-03'}  # yesterday
+
+        result = classify_and_route("Hey", user, conversation=conversation)
+
+        self.assertEqual(result.route_name, 'deterministic_daily_briefing')
+        self.assertTrue(result.is_terminal)
+        self.assertIn("Morning Briefing", result.response)
+        mock_mark.assert_called_once_with(conversation)
+
+    @override_settings(WLJ_DETERMINISTIC_ROUTER_ENABLED=True)
+    @patch('apps.ai.beth_checkin_renderer.render_daily_briefing')
+    @patch('apps.core.utils.get_user_today')
+    def test_already_briefed_today_skips_gate(
+        self, mock_today, mock_render,
+    ):
+        """Same day after briefing → normal routing, no briefing."""
+        mock_today.return_value = '2026-04-04'
+
+        user = MagicMock()
+        user.id = 1
+        conversation = MagicMock()
+        conversation.metadata = {'last_briefing_date': '2026-04-04'}  # today
+
+        result = classify_and_route("Hey", user, conversation=conversation)
+
+        # Should NOT be daily briefing
+        self.assertNotEqual(result.route_name, 'deterministic_daily_briefing')
+        mock_render.assert_not_called()
+
+    @override_settings(WLJ_DETERMINISTIC_ROUTER_ENABLED=True)
+    @patch('apps.ai.executive_briefing.mark_briefing_delivered')
+    @patch('apps.ai.beth_checkin_renderer.render_daily_briefing')
+    @patch('apps.core.utils.get_user_today')
+    def test_briefing_overrides_checkin_pattern(
+        self, mock_today, mock_render, mock_mark,
+    ):
+        """Even 'check in' message gets daily briefing if first of day."""
+        mock_today.return_value = '2026-04-04'
+        mock_render.return_value = "Morning Briefing, Danny.\n\nStarting clean."
+
+        user = MagicMock()
+        user.id = 1
+        conversation = MagicMock()
+        conversation.metadata = {}  # no last_briefing_date at all
+
+        result = classify_and_route("check in", user, conversation=conversation)
+
+        self.assertEqual(result.route_name, 'deterministic_daily_briefing')
+        self.assertTrue(result.is_terminal)
+
+    @override_settings(WLJ_DETERMINISTIC_ROUTER_ENABLED=True)
+    @patch('apps.core.utils.get_user_today')
+    def test_no_conversation_skips_gate(self, mock_today):
+        """No conversation object → gate is skipped gracefully."""
+        mock_today.return_value = '2026-04-04'
+        user = MagicMock()
+        user.id = 1
+
+        # conversation=None — gate should not fire
+        result = classify_and_route("Hey", user, conversation=None)
+        self.assertNotEqual(result.route_name, 'deterministic_daily_briefing')
+
+    @override_settings(WLJ_DETERMINISTIC_ROUTER_ENABLED=True)
+    @patch('apps.ai.beth_checkin_renderer.render_daily_briefing',
+           side_effect=Exception("renderer failed"))
+    @patch('apps.core.utils.get_user_today')
+    def test_gate_failure_falls_through(self, mock_today, mock_render):
+        """If briefing renderer fails, routing falls through gracefully."""
+        mock_today.return_value = '2026-04-04'
+
+        user = MagicMock()
+        user.id = 1
+        conversation = MagicMock()
+        conversation.metadata = {}
+
+        result = classify_and_route("Hey", user, conversation=conversation)
+        # Should NOT crash — falls through to normal routing
+        self.assertNotEqual(result.route_name, 'deterministic_daily_briefing')

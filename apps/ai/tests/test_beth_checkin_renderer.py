@@ -19,6 +19,7 @@ from apps.ai.beth_checkin_renderer import (
     _SAFE_FALLBACK,
     contains_state_language,
     guard_llm_output,
+    render_daily_briefing,
     render_morning_checkin,
 )
 from apps.core.today.today_engine import _parse_time_today
@@ -251,3 +252,189 @@ class TestRouteControlledGuardBoundary(SimpleTestCase):
         # Guard fires — response is replaced
         result = guard_llm_output(llm_response, user)
         self.assertEqual(result, "End of day, Danny.\n\nYou completed everything.")
+
+
+# ==============================================================================
+# Daily Briefing Tests
+# ==============================================================================
+
+class TestDailyBriefing(SimpleTestCase):
+    """Tests for the first-of-day Daily Briefing renderer."""
+
+    def _make_user(self, first_name="Danny"):
+        user = MagicMock()
+        user.id = 1
+        user.first_name = first_name
+        user.preferences = MagicMock()
+        user.preferences.faith_enabled = True
+        return user
+
+    def _make_context_with_items(
+        self, completed=None, coming_up=None, overdue=None,
+        later=None, next_action="Start with your next planned item.",
+    ):
+        """Build Today Engine context with item dicts for briefing tests."""
+        def _entries(items, with_item=True):
+            if not items:
+                return []
+            entries = []
+            for label in items:
+                entry = {
+                    "sort_time": datetime.max,
+                    "label": label,
+                    "item": {"name": label, "completed": False, "time_str": ""},
+                }
+                if with_item:
+                    entry["time"] = ""
+                entries.append(entry)
+            return entries
+
+        all_items = []
+        for label in (completed or []):
+            all_items.append({
+                "name": label, "completed": True,
+                "scheduled_time": None, "time_str": "", "source": "",
+                "priority": "",
+            })
+        for label in (overdue or []) + (coming_up or []) + (later or []):
+            all_items.append({
+                "name": label, "completed": False,
+                "scheduled_time": None, "time_str": "", "source": "",
+                "priority": "",
+            })
+
+        return {
+            "all_items": all_items,
+            "foundation": [],
+            "overdue": _entries(overdue),
+            "coming_up": _entries(coming_up),
+            "later": _entries(later),
+            "completed": _entries(completed),
+            "next": next_action,
+        }
+
+    @patch("apps.core.utils.get_user_now")
+    @patch(_P_ENGINE)
+    def test_morning_briefing_title(self, mock_ctx, mock_now):
+        """5:10 AM → Morning Briefing title."""
+        mock_now.return_value = timezone.now().replace(hour=5, minute=10)
+        mock_ctx.return_value = self._make_context_with_items(
+            completed=["Wake Up"],
+            coming_up=["Prayer"],
+        )
+        user = self._make_user()
+        output = render_daily_briefing(user)
+        self.assertIn("Morning Briefing", output)
+
+    @patch("apps.core.utils.get_user_now")
+    @patch(_P_ENGINE)
+    def test_midday_briefing_title(self, mock_ctx, mock_now):
+        """1:00 PM → Midday Briefing title."""
+        mock_now.return_value = timezone.now().replace(hour=13, minute=0)
+        mock_ctx.return_value = self._make_context_with_items()
+        user = self._make_user()
+        output = render_daily_briefing(user)
+        self.assertIn("Midday Briefing", output)
+
+    @patch("apps.core.utils.get_user_now")
+    @patch(_P_ENGINE)
+    def test_evening_briefing_title(self, mock_ctx, mock_now):
+        """7:00 PM → Evening Briefing title."""
+        mock_now.return_value = timezone.now().replace(hour=19, minute=0)
+        mock_ctx.return_value = self._make_context_with_items()
+        user = self._make_user()
+        output = render_daily_briefing(user)
+        self.assertIn("Evening Briefing", output)
+
+    @patch("apps.core.utils.get_user_now")
+    @patch(_P_ENGINE)
+    def test_late_night_is_evening(self, mock_ctx, mock_now):
+        """2:00 AM → Evening Briefing (18:00-03:59 range)."""
+        mock_now.return_value = timezone.now().replace(hour=2, minute=0)
+        mock_ctx.return_value = self._make_context_with_items()
+        user = self._make_user()
+        output = render_daily_briefing(user)
+        self.assertIn("Evening Briefing", output)
+
+    @patch("apps.core.utils.get_user_now")
+    @patch(_P_ENGINE)
+    def test_only_logged_items_in_completed(self, mock_ctx, mock_now):
+        """Only Wake Up in completed; Workout NOT completed."""
+        mock_now.return_value = timezone.now().replace(hour=5, minute=10)
+        mock_ctx.return_value = self._make_context_with_items(
+            completed=["Wake Up"],
+            coming_up=["Workout", "Prayer"],
+        )
+        user = self._make_user()
+        output = render_daily_briefing(user)
+        # Wake Up appears in "Already done" section
+        self.assertIn("Already done:", output)
+        self.assertIn("Wake Up", output)
+        # Workout appears in execution plan, not completed
+        self.assertIn("Execution plan:", output)
+        self.assertIn("Workout", output)
+
+    @patch("apps.core.utils.get_user_now")
+    @patch(_P_ENGINE)
+    def test_execution_plan_present(self, mock_ctx, mock_now):
+        """Remaining items appear in ordered execution plan."""
+        mock_now.return_value = timezone.now().replace(hour=5, minute=10)
+        mock_ctx.return_value = self._make_context_with_items(
+            coming_up=["Prayer", "Bible Reading", "Workout"],
+        )
+        user = self._make_user()
+        output = render_daily_briefing(user)
+        self.assertIn("Execution plan:", output)
+        self.assertIn("Prayer", output)
+        self.assertIn("Bible Reading", output)
+        self.assertIn("Workout", output)
+
+    @patch("apps.core.utils.get_user_now")
+    @patch(_P_ENGINE)
+    def test_closing_directive_present(self, mock_ctx, mock_now):
+        """Briefing ends with a closing directive."""
+        mock_now.return_value = timezone.now().replace(hour=5, minute=10)
+        mock_ctx.return_value = self._make_context_with_items(
+            coming_up=["Prayer"],
+        )
+        user = self._make_user()
+        output = render_daily_briefing(user)
+        # Should have a directive mentioning the first action
+        self.assertIn("Prayer", output)
+        # Should end with a clear instruction
+        lines = [l for l in output.strip().split('\n') if l.strip()]
+        last_line = lines[-1]
+        self.assertTrue(
+            "first" in last_line.lower()
+            or "start" in last_line.lower()
+            or "handle" in last_line.lower()
+            or "clean slate" in last_line.lower(),
+            f"Closing directive missing. Last line: {last_line}"
+        )
+
+    @patch("apps.core.utils.get_user_now")
+    @patch(_P_ENGINE)
+    def test_empty_day_clean_slate(self, mock_ctx, mock_now):
+        """No items → clean slate message."""
+        mock_now.return_value = timezone.now().replace(hour=5, minute=10)
+        mock_ctx.return_value = self._make_context_with_items()
+        user = self._make_user()
+        output = render_daily_briefing(user)
+        self.assertIn("Clean slate", output)
+
+    @patch(_P_ENGINE, side_effect=Exception("DB down"))
+    def test_fail_closed(self, mock_ctx):
+        """Renderer failure returns safe fallback."""
+        user = self._make_user()
+        output = render_daily_briefing(user)
+        self.assertEqual(output, _SAFE_FALLBACK)
+
+    @patch("apps.core.utils.get_user_now")
+    @patch(_P_ENGINE)
+    def test_user_name_in_greeting(self, mock_ctx, mock_now):
+        """User's first name appears in briefing greeting."""
+        mock_now.return_value = timezone.now().replace(hour=7, minute=0)
+        mock_ctx.return_value = self._make_context_with_items()
+        user = self._make_user("Danny")
+        output = render_daily_briefing(user)
+        self.assertIn("Danny", output)

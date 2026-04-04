@@ -325,6 +325,59 @@ def _build_qualified_status_response(msg_lower: str, user):
 # =============================================================================
 
 
+def _try_daily_briefing_gate(user, conversation):
+    """First-of-day hard override — Daily Briefing.
+
+    Checks conversation.metadata['last_briefing_date'] against today
+    (user timezone). If this is the first interaction of the day,
+    renders a deterministic Daily Briefing and marks it delivered.
+
+    This executes BEFORE all other routing phases. It is the highest
+    priority gate in the pipeline.
+
+    Returns:
+        RouteResult if first-of-day briefing should fire, None otherwise.
+    """
+    try:
+        from apps.core.utils import get_user_today
+        from apps.ai.beth_checkin_renderer import render_daily_briefing
+        from apps.ai.executive_briefing import mark_briefing_delivered
+
+        today = get_user_today(user)
+        metadata = conversation.metadata or {}
+        last_briefing_date = metadata.get('last_briefing_date')
+
+        if last_briefing_date == str(today):
+            return None  # Already briefed today — normal routing
+
+        # First interaction of the day — render Daily Briefing
+        response = render_daily_briefing(user)
+        if not response:
+            return None  # Renderer failed — fall through to normal routing
+
+        # Mark delivered AFTER successful render (never before)
+        mark_briefing_delivered(conversation)
+
+        logger.info(
+            "DAILY_BRIEFING_GATE user=%s date=%s",
+            user.id, today,
+        )
+
+        return RouteResult(
+            category=RouteCategory.DETERMINISTIC_DATA,
+            response=response,
+            route_name='deterministic_daily_briefing',
+            domain=None,
+            is_terminal=True,
+        )
+    except Exception:
+        logger.error(
+            "[DAILY BRIEFING GATE] Failed for user=%s, falling through",
+            user.id if user else '?', exc_info=True,
+        )
+        return None
+
+
 def _try_event_followup(msg_lower, conversation):
     """
     Check if the message is a follow-up to a previous event query.
@@ -509,6 +562,17 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
 
     t_start = time.monotonic()
     msg_lower = message.lower()
+
+    # ── Phase -2: DAILY BRIEFING — first-of-day hard override ─────
+    # If this is the user's first interaction today, render a full
+    # Daily Briefing BEFORE any other routing. This is non-negotiable:
+    # the CoS must orient the user before reacting to their message.
+    if conversation is not None and user is not None:
+        result = _try_daily_briefing_gate(user, conversation)
+        if result is not None:
+            result.elapsed_ms = (time.monotonic() - t_start) * 1000
+            _log_route_decision(result, user, message)
+            return result
 
     # ── Phase -1: Event follow-up detection ────────────────────────
     # If a previous turn resolved an event query and the user is now

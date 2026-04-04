@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 # Used by signal computers and zero-fill to look up their expected flag.
 SIGNAL_EXPECTED_KEYS = {
     'health_activity': 'workout',
+    'training_load': 'workout',
     'health_biometrics': 'biometrics',
     'medication_adherence': 'medication',
     'nutrition_compliance': 'nutrition',

@@ -56,6 +56,140 @@
             </div>
         </div>
 
+        <!-- Workout Mode Toggle -->
+        {% if not editing %}
+        <div class="mode-toggle-section">
+            <div class="mode-toggle" id="modeToggle">
+                <button type="button" class="mode-btn active" data-mode="structured" id="modeStructured">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                    </svg>
+                    Exercises
+                </button>
+                <button type="button" class="mode-btn" data-mode="activity" id="modeActivity">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    Activity
+                </button>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Activity Panel (hidden by default) -->
+        <div id="activityPanel" style="display: none;">
+            <div class="form-section">
+                <h2>Activity Type</h2>
+                <div class="activity-presets" id="activityPresets">
+                    {% for preset_name, preset_intensity in activity_presets %}
+                    <button type="button" class="activity-preset-chip" data-activity="{{ preset_name }}" data-intensity="{{ preset_intensity }}">
+                        {{ preset_name }}
+                    </button>
+                    {% endfor %}
+                    <button type="button" class="activity-preset-chip activity-other-chip" data-activity="other" data-intensity="moderate">
+                        Other...
+                    </button>
+                </div>
+                <div id="customActivityInput" style="display: none; margin-top: var(--space-3);">
+                    <input type="text" id="customActivityName" placeholder="Activity name (e.g., Badminton)" class="form-control">
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="activityDuration">Duration (minutes) <span class="required">*</span></label>
+                        <input type="number" id="activityDuration" min="1" max="600" placeholder="45" inputmode="numeric" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Intensity</label>
+                        <div class="intensity-toggle" id="intensityToggle">
+                            <button type="button" class="intensity-btn" data-intensity="low">Low</button>
+                            <button type="button" class="intensity-btn active" data-intensity="moderate">Moderate</button>
+                            <button type="button" class="intensity-btn" data-intensity="high">High</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="activityCalories">Calories Burned (optional)</label>
+                        <input type="number" id="activityCalories" min="0" max="9999" placeholder="e.g., 350" inputmode="numeric">
+                    </div>
+                    <div class="form-group">
+                        <label for="activityDistance">Distance in miles (optional)</label>
+                        <input type="number" id="activityDistance" min="0" max="999" step="0.1" placeholder="e.g., 3.2" inputmode="decimal">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="activityNotes">Notes (optional)</label>
+                    <textarea id="activityNotes" rows="2" placeholder="How did it feel?"></textarea>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <a href="{% url 'health:fitness_home' %}" class="btn btn-secondary">Cancel</a>
+                <button type="button" class="btn btn-primary" id="logActivityBtn">Log Activity</button>
+            </div>
+        </div>
+
+        <!-- Activity Edit Form (for editing existing activity workouts) -->
+        {% if editing_activity %}
+        <div class="form-section">
+            <h2>Activity Details</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="workout_type">Activity Type</label>
+                    <input type="text" name="workout_type" id="workout_type" value="{{ workout.workout_type }}" placeholder="e.g., Pickleball">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="duration_minutes">Duration (minutes)</label>
+                    <input type="number" name="duration_minutes" id="duration_minutes" value="{{ workout.duration_minutes|default:'' }}" min="1" max="600" required>
+                </div>
+                <div class="form-group">
+                    <label for="intensity">Intensity</label>
+                    <select name="intensity" id="intensity">
+                        <option value="low" {% if workout.intensity == "low" %}selected{% endif %}>Low</option>
+                        <option value="moderate" {% if workout.intensity == "moderate" %}selected{% endif %}>Moderate</option>
+                        <option value="high" {% if workout.intensity == "high" %}selected{% endif %}>High</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="calories_burned">Calories Burned (optional)</label>
+                    <input type="number" name="calories_burned" id="calories_burned" value="{{ workout.calories_burned|default:'' }}" min="0" max="9999">
+                </div>
+                <div class="form-group">
+                    <label for="distance_miles">Distance in miles (optional)</label>
+                    <input type="number" name="distance_miles" id="distance_miles" value="{{ workout.distance_miles|default:'' }}" min="0" max="999" step="0.1">
+                </div>
+            </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="form-section">
+            <div class="form-group">
+                <label for="notes">Notes (optional)</label>
+                <textarea name="notes" id="notes" rows="3" placeholder="How did it feel?">{{ workout.notes|default:'' }}</textarea>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <a href="{% url 'health:workout_detail' workout.pk %}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+
+        {% else %}
+        <!-- Structured Workout Section (exercises + templates) -->
+        <div id="structuredPanel">
+
         <!-- Template Selection -->
         {% if templates and not editing and not copy_from %}
             {% if from_template %}
@@ -164,6 +298,9 @@
             <a href="{% if editing %}{% url 'health:workout_detail' workout.pk %}{% else %}{% url 'health:fitness_home' %}{% endif %}" class="btn btn-secondary">Cancel</a>
             <button type="submit" class="btn btn-primary" id="finishWorkoutBtn">{% if editing %}Save Changes{% else %}Finish Workout{% endif %}</button>
         </div>
+
+        </div><!-- /structuredPanel -->
+        {% endif %}<!-- /editing_activity -->
     </form>
 </div>
 
@@ -461,6 +598,92 @@
 </template>
 
 <style nonce="{{ csp_nonce }}">
+/* ── Mode Toggle ── */
+.mode-toggle-section {
+    margin-bottom: var(--space-4);
+}
+.mode-toggle {
+    display: inline-flex;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+.mode-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    border: none;
+    background: var(--color-background);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.mode-btn.active {
+    background: var(--color-primary);
+    color: #fff;
+}
+.mode-btn:not(.active):hover {
+    background: var(--color-background-hover);
+}
+
+/* ── Activity Panel ── */
+.activity-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+.activity-preset-chip {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-background);
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+.activity-preset-chip:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+.activity-preset-chip.selected {
+    background: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+}
+.activity-other-chip {
+    border-style: dashed;
+}
+
+.intensity-toggle {
+    display: inline-flex;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+.intensity-btn {
+    padding: var(--space-2) var(--space-3);
+    border: none;
+    background: var(--color-background);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    min-width: 80px;
+    text-align: center;
+}
+.intensity-btn.active {
+    background: var(--color-primary);
+    color: #fff;
+}
+.intensity-btn:not(.active):hover {
+    background: var(--color-background-hover);
+}
+
 .workout-form {
     max-width: 800px;
 }
@@ -1187,6 +1410,145 @@ const templateDefaults = {{ template_defaults_json|default:"{}"|safe }};
 // Rest timer state
 let restTimerInterval = null;
 let restTimerSeconds = 0;
+
+// ── Activity Mode State ──
+let selectedActivity = '';
+let selectedIntensity = 'moderate';
+
+// ── Mode Toggle ──
+(function initModeToggle() {
+    const modeToggle = document.getElementById('modeToggle');
+    if (!modeToggle) return;  // editing mode — no toggle
+
+    const structuredPanel = document.getElementById('structuredPanel');
+    const activityPanel = document.getElementById('activityPanel');
+
+    modeToggle.addEventListener('click', function(e) {
+        const btn = e.target.closest('.mode-btn');
+        if (!btn) return;
+
+        const mode = btn.dataset.mode;
+        modeToggle.querySelectorAll('.mode-btn').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+
+        if (mode === 'activity') {
+            structuredPanel.style.display = 'none';
+            activityPanel.style.display = 'block';
+        } else {
+            structuredPanel.style.display = 'block';
+            activityPanel.style.display = 'none';
+        }
+    });
+
+    // Activity preset chips
+    var presets = document.getElementById('activityPresets');
+    if (presets) {
+        presets.addEventListener('click', function(e) {
+            var chip = e.target.closest('.activity-preset-chip');
+            if (!chip) return;
+
+            presets.querySelectorAll('.activity-preset-chip').forEach(function(c) { c.classList.remove('selected'); });
+            chip.classList.add('selected');
+
+            var customInput = document.getElementById('customActivityInput');
+            if (chip.dataset.activity === 'other') {
+                customInput.style.display = 'block';
+                document.getElementById('customActivityName').focus();
+                selectedActivity = '';
+            } else {
+                customInput.style.display = 'none';
+                selectedActivity = chip.dataset.activity;
+                // Also update workout name field
+                var nameField = document.getElementById('name');
+                if (nameField && !nameField.value) {
+                    nameField.value = selectedActivity;
+                }
+            }
+
+            // Set intensity from preset
+            selectedIntensity = chip.dataset.intensity || 'moderate';
+            var intensityToggle = document.getElementById('intensityToggle');
+            intensityToggle.querySelectorAll('.intensity-btn').forEach(function(b) {
+                b.classList.toggle('active', b.dataset.intensity === selectedIntensity);
+            });
+        });
+    }
+
+    // Intensity toggle
+    var intensityToggle = document.getElementById('intensityToggle');
+    if (intensityToggle) {
+        intensityToggle.addEventListener('click', function(e) {
+            var btn = e.target.closest('.intensity-btn');
+            if (!btn) return;
+            intensityToggle.querySelectorAll('.intensity-btn').forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            selectedIntensity = btn.dataset.intensity;
+        });
+    }
+
+    // Log Activity button
+    var logBtn = document.getElementById('logActivityBtn');
+    if (logBtn) {
+        logBtn.addEventListener('click', function() {
+            var duration = document.getElementById('activityDuration').value;
+            if (!duration || parseInt(duration) < 1) {
+                alert('Please enter a duration (at least 1 minute).');
+                document.getElementById('activityDuration').focus();
+                return;
+            }
+
+            var activity = selectedActivity;
+            if (!activity) {
+                var customName = document.getElementById('customActivityName');
+                if (customName) activity = customName.value.trim();
+            }
+            if (!activity) {
+                alert('Please select an activity type.');
+                return;
+            }
+
+            logBtn.disabled = true;
+            logBtn.textContent = 'Logging...';
+
+            var dateField = document.getElementById('date');
+            var nameField = document.getElementById('name');
+            var payload = {
+                workout_type: activity,
+                duration_minutes: parseInt(duration),
+                intensity: selectedIntensity,
+                date: dateField ? dateField.value : '',
+                name: (nameField && nameField.value) ? nameField.value : activity,
+                notes: (document.getElementById('activityNotes') || {}).value || '',
+                calories_burned: document.getElementById('activityCalories').value || null,
+                distance_miles: document.getElementById('activityDistance').value || null,
+            };
+
+            fetch('{% url "health:log_activity_ajax" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken(),
+                },
+                body: JSON.stringify(payload),
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success && data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    alert(data.error || 'Failed to log activity.');
+                    logBtn.disabled = false;
+                    logBtn.textContent = 'Log Activity';
+                }
+            })
+            .catch(function(err) {
+                alert('Network error. Please try again.');
+                logBtn.disabled = false;
+                logBtn.textContent = 'Log Activity';
+            });
+        });
+    }
+})();
 
 // CSRF token for AJAX requests
 function getCSRFToken() {

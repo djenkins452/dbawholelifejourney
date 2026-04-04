@@ -992,6 +992,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Routine Execution Truth + Morning Reconciliation (PKs 169-170)
         self._reset_routine_execution_truth_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Activity-Based Workouts (PK 180)
+        self._reset_activity_workouts_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -6228,3 +6231,33 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset routine execution truth fixtures FAILED: {e}'))
+
+    def _reset_activity_workouts_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes with Activity-Based Workouts entry (PK 180).
+        """
+        reset_tracker_name = 'reset_activity_workouts_2026_04_04'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for Activity-Based Workouts')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for activity-based workouts',
+                'command',
+                'One-time reset: added PK 180 for activity-based workouts'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset activity workouts fixtures FAILED: {e}'))

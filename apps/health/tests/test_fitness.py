@@ -1649,3 +1649,342 @@ class TemplateFormSetDefaultsTest(FitnessTestMixin, TestCase):
         content = response.content.decode()
         self.assertTrue('value="135"' in content or 'value="135.0"' in content)
         self.assertContains(response, 'value="10"')
+
+
+# =============================================================================
+# ACTIVITY WORKOUT TESTS
+# =============================================================================
+
+class ActivityWorkoutTests(FitnessTestMixin, TestCase):
+    """Tests for activity-based workouts (pickleball, walking, etc.)."""
+
+    def setUp(self):
+        self.user = self.create_user()
+        self.login_user()
+
+    def test_log_activity_creates_session(self):
+        """log_activity_ajax creates a completed activity WorkoutSession."""
+        import json
+        response = self.client.post(
+            reverse('health:log_activity_ajax'),
+            data=json.dumps({
+                'workout_type': 'Pickleball',
+                'duration_minutes': 45,
+                'intensity': 'high',
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertIn('redirect_url', data)
+
+        workout = WorkoutSession.objects.get(pk=data['workout_id'])
+        self.assertEqual(workout.session_mode, 'activity')
+        self.assertEqual(workout.workout_type, 'Pickleball')
+        self.assertEqual(workout.duration_minutes, 45)
+        self.assertEqual(workout.intensity, 'high')
+        self.assertIsNotNone(workout.started_at)
+        self.assertIsNotNone(workout.completed_at)
+        self.assertEqual(workout.source, 'manual')
+
+    def test_activity_workout_no_exercises_required(self):
+        """Activity workouts complete without any exercises."""
+        workout = self.create_workout(
+            self.user,
+            name='Walking',
+            session_mode='activity',
+            workout_type='Walking',
+            duration_minutes=30,
+            intensity='low',
+            started_at=timezone.now() - timedelta(minutes=30),
+            completed_at=timezone.now(),
+        )
+        self.assertTrue(workout.is_activity)
+        self.assertEqual(workout.exercise_count, 0)
+        self.assertIsNotNone(workout.completed_at)
+
+    def test_is_activity_property(self):
+        """is_activity returns True for activity mode, False for structured."""
+        activity = self.create_workout(self.user, session_mode='activity')
+        structured = self.create_workout(self.user, name='Push Day')
+
+        self.assertTrue(activity.is_activity)
+        self.assertFalse(structured.is_activity)
+
+    def test_log_activity_requires_duration(self):
+        """log_activity_ajax rejects requests without duration."""
+        import json
+        response = self.client.post(
+            reverse('health:log_activity_ajax'),
+            data=json.dumps({'workout_type': 'Walking'}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_log_activity_with_optional_fields(self):
+        """log_activity_ajax accepts optional calories and distance."""
+        import json
+        response = self.client.post(
+            reverse('health:log_activity_ajax'),
+            data=json.dumps({
+                'workout_type': 'Running',
+                'duration_minutes': 30,
+                'intensity': 'high',
+                'calories_burned': 350,
+                'distance_miles': 3.2,
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        workout = WorkoutSession.objects.get(pk=response.json()['workout_id'])
+        self.assertEqual(workout.calories_burned, 350)
+        self.assertEqual(workout.distance_miles, Decimal('3.2'))
+
+    def test_structured_workout_unaffected(self):
+        """Existing structured workout flow still works identically."""
+        import json
+        # Start a structured workout
+        response = self.client.post(
+            reverse('health:start_workout_ajax'),
+            data=json.dumps({}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        workout_id = response.json()['workout_id']
+        workout = WorkoutSession.objects.get(pk=workout_id)
+        self.assertEqual(workout.session_mode, 'structured')
+
+    def test_edit_activity_workout(self):
+        """Can edit an activity workout's duration and intensity."""
+        workout = self.create_workout(
+            self.user,
+            name='Pickleball',
+            session_mode='activity',
+            workout_type='Pickleball',
+            duration_minutes=30,
+            intensity='moderate',
+            started_at=timezone.now() - timedelta(minutes=30),
+            completed_at=timezone.now(),
+        )
+
+        response = self.client.post(
+            reverse('health:workout_update', kwargs={'pk': workout.pk}),
+            data={
+                'date': str(workout.date),
+                'name': 'Pickleball',
+                'notes': 'Great game!',
+                'workout_type': 'Pickleball',
+                'duration_minutes': '60',
+                'intensity': 'high',
+            },
+        )
+        self.assertEqual(response.status_code, 302)  # redirect
+
+        workout.refresh_from_db()
+        self.assertEqual(workout.duration_minutes, 60)
+        self.assertEqual(workout.intensity, 'high')
+        self.assertEqual(workout.notes, 'Great game!')
+
+    def test_activity_str_representation(self):
+        """Activity workout __str__ uses workout_type when no name set."""
+        workout = self.create_workout(
+            self.user,
+            name='',
+            session_mode='activity',
+            workout_type='Pickleball',
+        )
+        self.assertIn('Pickleball', str(workout))
+
+
+class ActivityRoutineThresholdTests(FitnessTestMixin, TestCase):
+    """Tests for the duration threshold on routine auto-complete."""
+
+    def setUp(self):
+        self.user = self.create_user()
+
+    def test_short_workout_no_routine_completion(self):
+        """A 5-min workout does NOT auto-complete routine items."""
+        from apps.life.models import Routine, RoutineSchedule, RoutineLog
+
+        routine = Routine.objects.create(
+            user=self.user, name='Morning', time_of_day='morning',
+        )
+        from datetime import time
+        schedule = RoutineSchedule.objects.create(
+            routine=routine, name='Workout',
+            activity_type='workout', routine_type='activity',
+            days_of_week='0,1,2,3,4,5,6',
+            scheduled_time=time(7, 0),
+        )
+
+        # Log a 5-min walk (below threshold)
+        workout = WorkoutSession.objects.create(
+            user=self.user,
+            date=date.today(),
+            session_mode='activity',
+            workout_type='Walking',
+            duration_minutes=5,
+            intensity='low',
+            started_at=timezone.now() - timedelta(minutes=5),
+            completed_at=timezone.now(),
+        )
+
+        # No routine log should exist
+        self.assertFalse(
+            RoutineLog.objects.filter(schedule=schedule, scheduled_date=date.today()).exists()
+        )
+
+    def test_threshold_met_completes_routine(self):
+        """A 15-min workout auto-completes routine items (above 10 min threshold)."""
+        from apps.life.models import Routine, RoutineSchedule, RoutineLog
+
+        routine = Routine.objects.create(
+            user=self.user, name='Morning', time_of_day='morning',
+        )
+        from datetime import time
+        schedule = RoutineSchedule.objects.create(
+            routine=routine, name='Workout',
+            activity_type='workout', routine_type='activity',
+            days_of_week='0,1,2,3,4,5,6',
+            scheduled_time=time(7, 0),
+        )
+
+        workout = WorkoutSession.objects.create(
+            user=self.user,
+            date=date.today(),
+            session_mode='activity',
+            workout_type='Pickleball',
+            duration_minutes=15,
+            intensity='high',
+            started_at=timezone.now() - timedelta(minutes=15),
+            completed_at=timezone.now(),
+        )
+
+        self.assertTrue(
+            RoutineLog.objects.filter(
+                schedule=schedule, scheduled_date=date.today(),
+                completion_source='workout',
+            ).exists()
+        )
+
+    def test_multi_workout_aggregation(self):
+        """Two short workouts totaling 25 min trigger routine completion on second save."""
+        from apps.life.models import Routine, RoutineSchedule, RoutineLog
+
+        routine = Routine.objects.create(
+            user=self.user, name='Morning', time_of_day='morning',
+        )
+        from datetime import time
+        schedule = RoutineSchedule.objects.create(
+            routine=routine, name='Workout',
+            activity_type='workout', routine_type='activity',
+            days_of_week='0,1,2,3,4,5,6',
+            scheduled_time=time(7, 0),
+        )
+
+        # First workout: 8 min (below threshold)
+        WorkoutSession.objects.create(
+            user=self.user,
+            date=date.today(),
+            session_mode='activity',
+            workout_type='Walking',
+            duration_minutes=8,
+            intensity='low',
+            started_at=timezone.now() - timedelta(minutes=20),
+            completed_at=timezone.now() - timedelta(minutes=12),
+        )
+        self.assertFalse(
+            RoutineLog.objects.filter(schedule=schedule, scheduled_date=date.today()).exists()
+        )
+
+        # Second workout: 17 min (combined = 25 min, above threshold)
+        WorkoutSession.objects.create(
+            user=self.user,
+            date=date.today(),
+            session_mode='activity',
+            workout_type='Pickleball',
+            duration_minutes=17,
+            intensity='high',
+            started_at=timezone.now() - timedelta(minutes=17),
+            completed_at=timezone.now(),
+        )
+        self.assertTrue(
+            RoutineLog.objects.filter(
+                schedule=schedule, scheduled_date=date.today(),
+                completion_source='workout',
+            ).exists()
+        )
+
+
+class TrainingLoadSignalTests(FitnessTestMixin, TestCase):
+    """Tests for the training_load signal computation."""
+
+    def setUp(self):
+        self.user = self.create_user()
+
+    def test_training_load_signal_computed(self):
+        """Training load signal is computed with intensity weighting."""
+        from apps.core.ai_eae.signal_aggregation import SignalAggregationService
+        from apps.core.ai_eae.models import SignalSnapshot
+
+        WorkoutSession.objects.create(
+            user=self.user,
+            date=date.today(),
+            session_mode='activity',
+            workout_type='Pickleball',
+            duration_minutes=45,
+            intensity='high',
+            started_at=timezone.now() - timedelta(minutes=45),
+            completed_at=timezone.now(),
+        )
+
+        SignalAggregationService.compute_daily_signals(self.user, date.today())
+
+        snapshot = SignalSnapshot.objects.filter(
+            user=self.user, date=date.today(), signal_type='training_load',
+        ).first()
+        self.assertIsNotNone(snapshot)
+        # 45 min * 1.3 (high) = 58.5 weighted min → score = 1.0 (clamped)
+        self.assertEqual(snapshot.score, 1.0)
+        self.assertEqual(snapshot.source_signals['activity_level'], 'strong_activity')
+
+    def test_health_activity_includes_activity_level(self):
+        """health_activity signal includes activity_level classification."""
+        from apps.core.ai_eae.signal_aggregation import SignalAggregationService
+        from apps.core.ai_eae.models import SignalSnapshot
+
+        WorkoutSession.objects.create(
+            user=self.user,
+            date=date.today(),
+            session_mode='activity',
+            workout_type='Walking',
+            duration_minutes=25,
+            intensity='low',
+            started_at=timezone.now() - timedelta(minutes=25),
+            completed_at=timezone.now(),
+        )
+
+        SignalAggregationService.compute_daily_signals(self.user, date.today())
+
+        snapshot = SignalSnapshot.objects.filter(
+            user=self.user, date=date.today(), signal_type='health_activity',
+        ).first()
+        self.assertIsNotNone(snapshot)
+        self.assertIn('activity_level', snapshot.source_signals)
+        self.assertEqual(snapshot.source_signals['activity_level'], 'moderate_activity')
+        self.assertIn('session_modes', snapshot.source_signals)
+        self.assertEqual(snapshot.source_signals['session_modes']['activity'], 1)
+
+    def test_activity_level_classification(self):
+        """Activity level classification produces correct labels."""
+        from apps.core.ai_eae.signal_aggregation import _classify_activity_level
+
+        self.assertEqual(_classify_activity_level(0), 'no_activity')
+        self.assertEqual(_classify_activity_level(5), 'no_activity')
+        self.assertEqual(_classify_activity_level(10), 'light_activity')
+        self.assertEqual(_classify_activity_level(19), 'light_activity')
+        self.assertEqual(_classify_activity_level(20), 'moderate_activity')
+        self.assertEqual(_classify_activity_level(44), 'moderate_activity')
+        self.assertEqual(_classify_activity_level(45), 'strong_activity')
+        self.assertEqual(_classify_activity_level(90), 'strong_activity')

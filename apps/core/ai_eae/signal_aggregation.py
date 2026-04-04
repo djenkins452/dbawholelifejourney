@@ -31,9 +31,29 @@ logger = logging.getLogger(__name__)
 # Signal Type Definitions — maps to SIGNAL_TAXONOMY.md
 # =============================================================================
 
+def _classify_activity_level(minutes):
+    """Classify total workout minutes into an activity level label."""
+    if minutes < 10:
+        return 'no_activity'
+    if minutes < 20:
+        return 'light_activity'
+    if minutes < 45:
+        return 'moderate_activity'
+    return 'strong_activity'
+
+
+# Intensity weights for training load calculation
+_INTENSITY_WEIGHTS = {
+    'high': 1.3,
+    'moderate': 1.0,
+    'low': 0.7,
+}
+
+
 SIGNAL_TYPE_DOMAIN = {
     # Base signal types (Phase 4)
     'health_activity': 'health',
+    'training_load': 'health',
     'health_biometrics': 'health',
     'medication_adherence': 'health',
     'nutrition_compliance': 'health',
@@ -96,6 +116,7 @@ class SignalAggregationService:
 
         signal_computers = [
             SignalAggregationService._compute_health_activity,
+            SignalAggregationService._compute_training_load,
             SignalAggregationService._compute_health_biometrics,
             SignalAggregationService._compute_medication_adherence,
             SignalAggregationService._compute_nutrition_compliance,    # Phase 4
@@ -124,9 +145,10 @@ class SignalAggregationService:
         # Uses expected_map to set correct state (missed vs not_expected).
         produced_types = {s.signal_type for s in results}
         _ZERO_FILL_TYPES = [
-            'health_activity', 'health_biometrics', 'medication_adherence',
-            'nutrition_compliance', 'faith_practice', 'mental_reflection',
-            'cognitive_fitness', 'productivity_progress', 'relational_engagement',
+            'health_activity', 'training_load', 'health_biometrics',
+            'medication_adherence', 'nutrition_compliance', 'faith_practice',
+            'mental_reflection', 'cognitive_fitness', 'productivity_progress',
+            'relational_engagement',
         ]
         for sig_type in _ZERO_FILL_TYPES:
             if sig_type not in produced_types:
@@ -209,16 +231,17 @@ class SignalAggregationService:
         Physical activity level.
         Sources: WorkoutSession, WorkoutScheduleLog (for skip evidence).
         Normalization: 0.5 = 20 min exercise, 1.0 = 45+ min.
+        Includes activity_level classification and session_mode breakdown.
         """
         from apps.health.models import WorkoutSession
 
         is_expected = expected_map.get('workout', False)
 
-        sessions = WorkoutSession.objects.filter(
+        sessions = list(WorkoutSession.objects.filter(
             user=user, date=date, completed_at__isnull=False,
-        )
+        ))
         total_minutes = sum(s.duration_minutes or 0 for s in sessions)
-        session_count = sessions.count()
+        session_count = len(sessions)
 
         if session_count == 0 and total_minutes == 0:
             # Check for explicit skip via WorkoutScheduleLog
@@ -255,6 +278,10 @@ class SignalAggregationService:
             score = total_minutes * 0.5 / 20
             state = 'partial'
 
+        # Session mode breakdown
+        structured_count = sum(1 for s in sessions if s.session_mode == 'structured')
+        activity_count = sum(1 for s in sessions if s.session_mode == 'activity')
+
         return SignalAggregationService._upsert_snapshot(
             user, date, 'health_activity',
             score=score,
@@ -263,6 +290,73 @@ class SignalAggregationService:
             source_signals={
                 'workout_sessions': session_count,
                 'total_minutes': total_minutes,
+                'activity_level': _classify_activity_level(total_minutes),
+                'session_modes': {
+                    'structured': structured_count,
+                    'activity': activity_count,
+                },
+            },
+            expected=is_expected,
+            state=state,
+        )
+
+    @staticmethod
+    def _compute_training_load(user, date, expected_map):
+        """
+        Training load intensity signal.
+        Sources: WorkoutSession (duration + intensity).
+        Normalization: weighted duration / 45 min, clamped to 1.0.
+        Intensity weights: high=1.3x, moderate=1.0x, low=0.7x, blank=1.0x.
+        States: no_activity / light_activity / moderate_activity / strong_activity.
+        """
+        from apps.health.models import WorkoutSession
+
+        is_expected = expected_map.get('workout', False)
+
+        sessions = list(WorkoutSession.objects.filter(
+            user=user, date=date, completed_at__isnull=False,
+        ))
+        session_count = len(sessions)
+
+        if session_count == 0:
+            return None  # Zero-fill handles
+
+        # Compute intensity-weighted minutes
+        total_raw_minutes = 0
+        total_weighted_minutes = 0.0
+        intensity_breakdown = {'high': 0, 'moderate': 0, 'low': 0}
+
+        for s in sessions:
+            mins = s.duration_minutes or 0
+            total_raw_minutes += mins
+            weight = _INTENSITY_WEIGHTS.get(s.intensity, 1.0)
+            total_weighted_minutes += mins * weight
+            if s.intensity in intensity_breakdown:
+                intensity_breakdown[s.intensity] += 1
+
+        # Score: weighted_minutes / 45, clamped to 1.0
+        score = min(1.0, total_weighted_minutes / 45) if total_weighted_minutes > 0 else 0.0
+        activity_level = _classify_activity_level(total_weighted_minutes)
+
+        # Map activity_level to signal state
+        if activity_level == 'no_activity':
+            state = 'partial'
+        elif activity_level in ('light_activity', 'moderate_activity'):
+            state = 'partial'
+        else:
+            state = 'completed'
+
+        return SignalAggregationService._upsert_snapshot(
+            user, date, 'training_load',
+            score=score,
+            confidence=confidence_for_state(state),
+            signal_class='verified_action',
+            source_signals={
+                'sessions': session_count,
+                'raw_minutes': total_raw_minutes,
+                'weighted_minutes': round(total_weighted_minutes, 1),
+                'activity_level': activity_level,
+                'intensity_breakdown': intensity_breakdown,
             },
             expected=is_expected,
             state=state,

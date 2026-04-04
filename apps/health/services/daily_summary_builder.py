@@ -339,19 +339,27 @@ class DailyHealthSummaryBuilder:
         """Collect workout session data and compute training load."""
         from apps.health.models import ExerciseSet, WorkoutSession
 
-        sessions = WorkoutSession.objects.filter(
+        sessions = list(WorkoutSession.objects.filter(
             user=user, date=target_date, completed_at__isnull=False,
-        )
-        count = sessions.count()
+        ))
+        count = len(sessions)
         if count == 0:
             return {"workout_count": 0}
 
         total_minutes = 0
         total_load = Decimal("0")
+        intensity_breakdown = {'high': 0, 'moderate': 0, 'low': 0}
+        activity_sessions = 0
 
         for session in sessions:
             if session.duration_minutes:
                 total_minutes += session.duration_minutes
+
+            if session.session_mode == 'activity':
+                activity_sessions += 1
+
+            if session.intensity in intensity_breakdown:
+                intensity_breakdown[session.intensity] += 1
 
             # Training load = sum(weight * reps) for resistance
             sets = ExerciseSet.objects.filter(
@@ -373,6 +381,8 @@ class DailyHealthSummaryBuilder:
             "workout_count": count,
             "workout_minutes": total_minutes or None,
             "training_load": total_load if total_load > 0 else None,
+            "intensity_breakdown": intensity_breakdown,
+            "activity_sessions": activity_sessions,
         }
 
     def _collect_weight_and_composition(self, user, target_date):

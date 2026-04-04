@@ -1585,6 +1585,10 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
         # Pre-populate date with today
         context["date"] = today
 
+        # Activity presets for the activity mode toggle
+        from .models import ACTIVITY_PRESETS
+        context["activity_presets"] = ACTIVITY_PRESETS
+
         # Get exercises grouped by category
         context["resistance_exercises"] = Exercise.objects.filter(
             category="resistance", is_active=True
@@ -1827,6 +1831,11 @@ class WorkoutUpdateView(LoginRequiredMixin, TemplateView):
         ).prefetch_related("sets", "cardio_details", "class_details")
         context["date"] = workout.date
         context["editing"] = True
+        context["editing_activity"] = workout.is_activity
+
+        # Activity presets for activity edit
+        from .models import ACTIVITY_PRESETS
+        context["activity_presets"] = ACTIVITY_PRESETS
 
         # Get exercises grouped by category
         context["resistance_exercises"] = Exercise.objects.filter(
@@ -1853,6 +1862,26 @@ class WorkoutUpdateView(LoginRequiredMixin, TemplateView):
         workout.date = request.POST.get("date") or workout.date
         workout.name = request.POST.get("name", "")
         workout.notes = request.POST.get("notes", "")
+
+        # Activity workout edit — update activity-specific fields
+        if workout.is_activity:
+            duration = request.POST.get("duration_minutes")
+            if duration:
+                workout.duration_minutes = int(duration)
+            intensity = request.POST.get("intensity", "")
+            if intensity in ("low", "moderate", "high"):
+                workout.intensity = intensity
+            workout_type = request.POST.get("workout_type", "").strip()
+            if workout_type:
+                workout.workout_type = workout_type
+            calories = request.POST.get("calories_burned")
+            workout.calories_burned = int(calories) if calories else None
+            distance = request.POST.get("distance_miles")
+            workout.distance_miles = Decimal(distance) if distance else None
+            workout.save()
+            messages.success(request, "Activity updated!")
+            return redirect("health:workout_detail", pk=workout.pk)
+
         workout.save()
 
         # Clear existing exercises and recreate
@@ -2452,12 +2481,17 @@ def start_workout_ajax(request):
         except WorkoutTemplate.DoesNotExist:
             pass
 
+    session_mode = data.get("session_mode", "structured")
+    if session_mode not in ("structured", "activity"):
+        session_mode = "structured"
+
     workout = WorkoutSession.objects.create(
         user=user,
         date=data.get("date") or today,
         name=data.get("name") or template_name,
         started_at=timezone.now(),
         from_template=from_template,
+        session_mode=session_mode,
     )
 
     return JsonResponse({
@@ -2760,10 +2794,20 @@ def complete_workout_ajax(request):
     if name:
         workout.name = name
 
-    # Calculate duration if started_at exists
-    if workout.started_at:
+    # For activity workouts, accept user-provided duration/intensity/calories
+    if data.get("duration_minutes"):
+        workout.duration_minutes = int(data["duration_minutes"])
+    elif workout.started_at:
+        # Calculate duration from timestamps for structured workouts
         duration = workout.completed_at - workout.started_at
         workout.duration_minutes = int(duration.total_seconds() / 60)
+
+    if data.get("intensity") and data["intensity"] in ("low", "moderate", "high"):
+        workout.intensity = data["intensity"]
+    if data.get("calories_burned"):
+        workout.calories_burned = int(data["calories_burned"])
+    if data.get("workout_type"):
+        workout.workout_type = data["workout_type"]
 
     workout.save()
 
@@ -2774,6 +2818,85 @@ def complete_workout_ajax(request):
     return JsonResponse({
         "success": True,
         "message": "Workout completed!",
+        "redirect_url": f"/health/fitness/workout/{workout.pk}/",
+    })
+
+
+def log_activity_ajax(request):
+    """
+    Create a completed activity workout in one step.
+
+    Activity workouts are duration-driven (e.g., pickleball, walking) and
+    don't require exercises. Creates a WorkoutSession with session_mode='activity',
+    sets started_at/completed_at, and triggers post_save signal for routine
+    auto-complete.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Not authenticated"}, status=401)
+
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    user = request.user
+    today = get_user_today(user)
+
+    # Required fields
+    duration_minutes = data.get("duration_minutes")
+    if not duration_minutes or int(duration_minutes) < 1:
+        return JsonResponse({"error": "duration_minutes is required (min 1)"}, status=400)
+    duration_minutes = int(duration_minutes)
+
+    workout_type = data.get("workout_type", "").strip()
+    intensity = data.get("intensity", "").strip()
+    if intensity and intensity not in ("low", "moderate", "high"):
+        return JsonResponse({"error": "intensity must be low, moderate, or high"}, status=400)
+
+    # Parse date or default to today
+    date_str = data.get("date")
+    if date_str:
+        try:
+            from datetime import date as date_type
+            workout_date = date_type.fromisoformat(date_str)
+        except (ValueError, TypeError):
+            workout_date = today
+    else:
+        workout_date = today
+
+    # Compute timestamps: completed_at = now, started_at = now - duration
+    now = timezone.now()
+    started_at = now - timedelta(minutes=duration_minutes)
+
+    # Optional fields
+    name = data.get("name", "").strip() or workout_type
+    notes = data.get("notes", "").strip()
+    calories_burned = data.get("calories_burned")
+    distance_miles = data.get("distance_miles")
+
+    workout = WorkoutSession.objects.create(
+        user=user,
+        date=workout_date,
+        name=name,
+        notes=notes,
+        session_mode="activity",
+        workout_type=workout_type,
+        intensity=intensity,
+        duration_minutes=duration_minutes,
+        started_at=started_at,
+        completed_at=now,
+        calories_burned=int(calories_burned) if calories_burned else None,
+        distance_miles=Decimal(str(distance_miles)) if distance_miles else None,
+        source="manual",
+    )
+
+    return JsonResponse({
+        "success": True,
+        "message": f"{workout_type or 'Activity'} logged!",
+        "workout_id": workout.pk,
         "redirect_url": f"/health/fitness/workout/{workout.pk}/",
     })
 

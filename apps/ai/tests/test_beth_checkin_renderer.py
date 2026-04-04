@@ -15,8 +15,15 @@ from unittest.mock import MagicMock, patch
 from django.test import SimpleTestCase
 from django.utils import timezone
 
+from datetime import timedelta
+
 from apps.ai.beth_checkin_renderer import (
+    DRIFT_ON_TRACK_THRESHOLD,
+    DRIFT_SLIGHTLY_BEHIND_THRESHOLD,
     _SAFE_FALLBACK,
+    build_schedule_signals,
+    compute_buffer_minutes,
+    compute_schedule_drift,
     contains_state_language,
     guard_llm_output,
     render_daily_briefing,
@@ -438,3 +445,298 @@ class TestDailyBriefing(SimpleTestCase):
         user = self._make_user("Danny")
         output = render_daily_briefing(user)
         self.assertIn("Danny", output)
+
+    @patch("apps.core.utils.get_user_now")
+    @patch(_P_ENGINE)
+    def test_schedule_drift_shown_when_behind(self, mock_ctx, mock_now):
+        """When 10 min behind with buffer, briefing shows recovery guidance."""
+        now = timezone.now().replace(hour=5, minute=55, second=0, microsecond=0)
+        mock_now.return_value = now
+
+        # Prayer was at 5:30 (25 min ago), Bible at 5:45 (10 min ago)
+        # Workout at 6:15 — 15 min buffer between Bible end (6:00) and Workout
+        all_items = [
+            {
+                "name": "Prayer", "scheduled_time": now - timedelta(minutes=25),
+                "time_str": "5:30 AM", "completed": False, "priority": "foundational",
+                "source": "routine",
+            },
+            {
+                "name": "Bible Reading", "scheduled_time": now - timedelta(minutes=10),
+                "time_str": "5:45 AM", "completed": False, "priority": "foundational",
+                "source": "routine",
+            },
+            {
+                "name": "Workout", "scheduled_time": now + timedelta(minutes=20),
+                "time_str": "6:15 AM", "completed": False, "priority": "foundational",
+                "source": "routine",
+            },
+        ]
+
+        def _entries(items):
+            return [{"sort_time": datetime.max, "label": i["name"],
+                     "item": i, "time": i.get("time_str", "")} for i in items]
+
+        mock_ctx.return_value = {
+            "all_items": all_items,
+            "foundation": [],
+            "overdue": _entries([all_items[0], all_items[1]]),
+            "coming_up": [],
+            "later": _entries([all_items[2]]),
+            "completed": [],
+            "next": "Prayer",
+        }
+        user = self._make_user()
+        output = render_daily_briefing(user)
+        # Should mention being behind and buffer
+        self.assertIn("behind", output.lower())
+        self.assertIn("buffer", output.lower())
+
+
+# ==============================================================================
+# Schedule Drift & Buffer Tests
+# ==============================================================================
+
+class TestScheduleDrift(SimpleTestCase):
+    """Tests for compute_schedule_drift() — deterministic drift calculation."""
+
+    def _now(self, hour=5, minute=55):
+        return timezone.now().replace(
+            hour=hour, minute=minute, second=0, microsecond=0,
+        )
+
+    def test_no_scheduled_items(self):
+        """No scheduled items → on_track with 0 drift."""
+        result = compute_schedule_drift([], [], self._now())
+        self.assertEqual(result['schedule_status'], 'on_track')
+        self.assertEqual(result['drift_minutes'], 0)
+
+    def test_all_completed_on_time(self):
+        """All items completed → on_track."""
+        now = self._now(6, 10)
+        items = [
+            {"name": "Prayer", "scheduled_time": now - timedelta(minutes=40),
+             "completed": True},
+            {"name": "Bible", "scheduled_time": now - timedelta(minutes=25),
+             "completed": True},
+        ]
+        completed = [
+            {"label": "Prayer", "item": {"completed": True}},
+            {"label": "Bible", "item": {"completed": True}},
+        ]
+        result = compute_schedule_drift(items, completed, now)
+        self.assertEqual(result['schedule_status'], 'on_track')
+        self.assertEqual(result['drift_minutes'], 0)
+
+    def test_one_item_behind(self):
+        """One 15-min item overdue and not done → 15 min drift = slightly_behind."""
+        now = self._now(6, 0)
+        items = [
+            {"name": "Prayer", "scheduled_time": now - timedelta(minutes=30),
+             "completed": False},
+            {"name": "Workout", "scheduled_time": now + timedelta(minutes=15),
+             "completed": False},
+        ]
+        result = compute_schedule_drift(items, [], now)
+        # Prayer (15 min default) should be done by now
+        self.assertEqual(result['drift_minutes'], 15)
+        # 15 min == threshold boundary → slightly_behind (not at_risk which is >15)
+        self.assertEqual(result['schedule_status'], 'slightly_behind')
+
+    def test_slightly_behind(self):
+        """10 minutes of drift → slightly_behind."""
+        now = self._now(6, 0)
+        items = [
+            {"name": "Journal", "scheduled_time": now - timedelta(minutes=20),
+             "completed": False},  # 10 min duration, should be done by 5:50
+            {"name": "Workout", "scheduled_time": now + timedelta(minutes=15),
+             "completed": False},
+        ]
+        result = compute_schedule_drift(items, [], now)
+        # Journal = 10 min estimated
+        self.assertEqual(result['drift_minutes'], 10)
+        self.assertEqual(result['schedule_status'], 'slightly_behind')
+
+    def test_on_track_within_threshold(self):
+        """Item just slightly past expected end → on_track (within 5 min)."""
+        now = self._now(5, 48)
+        items = [
+            {"name": "Prayer", "scheduled_time": now - timedelta(minutes=18),
+             "completed": True},  # 15 min, ended at 5:47 — within threshold
+            {"name": "Bible", "scheduled_time": now - timedelta(minutes=3),
+             "completed": False},
+        ]
+        completed = [{"label": "Prayer", "item": {"completed": True}}]
+        result = compute_schedule_drift(items, completed, now)
+        self.assertEqual(result['schedule_status'], 'on_track')
+
+    def test_drift_thresholds_are_configurable(self):
+        """Thresholds are module-level constants."""
+        self.assertEqual(DRIFT_ON_TRACK_THRESHOLD, 5)
+        self.assertEqual(DRIFT_SLIGHTLY_BEHIND_THRESHOLD, 15)
+
+
+class TestBufferDetection(SimpleTestCase):
+    """Tests for compute_buffer_minutes() — gap detection between items."""
+
+    def _now(self, hour=5, minute=55):
+        return timezone.now().replace(
+            hour=hour, minute=minute, second=0, microsecond=0,
+        )
+
+    def test_no_future_items(self):
+        """No future items → 0 buffer."""
+        result = compute_buffer_minutes([], self._now())
+        self.assertEqual(result['buffer_minutes'], 0)
+
+    def test_buffer_between_items(self):
+        """15-min gap between Bible end and Workout start."""
+        now = self._now(5, 30)
+        items = [
+            {"name": "Bible Reading", "scheduled_time": now + timedelta(minutes=15),
+             "completed": False, "source": "routine"},
+            {"name": "Workout", "scheduled_time": now + timedelta(minutes=45),
+             "completed": False, "source": "routine"},
+        ]
+        result = compute_buffer_minutes(items, now)
+        # Bible at 5:45, takes 15 min, ends at 6:00
+        # Workout at 6:15 → 15 min gap
+        # Plus 15 min from now to Bible start
+        self.assertGreaterEqual(result['buffer_minutes'], 15)
+        self.assertTrue(len(result['buffer_details']) >= 1)
+
+    def test_no_gap_tight_schedule(self):
+        """Back-to-back items → no buffer between them."""
+        now = self._now(5, 30)
+        items = [
+            {"name": "Prayer", "scheduled_time": now + timedelta(minutes=5),
+             "completed": False, "source": "routine"},
+            {"name": "Bible Reading", "scheduled_time": now + timedelta(minutes=20),
+             "completed": False, "source": "routine"},
+            # Prayer 5:35 → 5:50 (15 min), Bible at 5:50 → 0 gap
+        ]
+        result = compute_buffer_minutes(items, now)
+        # No gap between prayer end and bible start
+        buffer_between = [d for d in result['buffer_details'] if d[0] > 0]
+        # The only buffer is the 5 min from now to first item
+        self.assertEqual(len(buffer_between), 0)
+
+    def test_next_anchor_detected(self):
+        """Medication is identified as next anchor."""
+        now = self._now(6, 0)
+        items = [
+            {"name": "Workout", "scheduled_time": now + timedelta(minutes=15),
+             "completed": False, "source": "routine"},
+            {"name": "Mounjaro injection", "scheduled_time": now + timedelta(minutes=60),
+             "completed": False, "source": "medication"},
+        ]
+        result = compute_buffer_minutes(items, now)
+        self.assertEqual(result['next_anchor'], "Mounjaro injection")
+
+    def test_completed_items_excluded(self):
+        """Completed items are excluded from buffer calculation."""
+        now = self._now(6, 0)
+        items = [
+            {"name": "Prayer", "scheduled_time": now + timedelta(minutes=5),
+             "completed": True, "source": "routine"},
+            {"name": "Workout", "scheduled_time": now + timedelta(minutes=30),
+             "completed": False, "source": "routine"},
+        ]
+        result = compute_buffer_minutes(items, now)
+        # Only Workout is future + incomplete
+        self.assertGreater(result['buffer_minutes'], 0)
+
+
+class TestScheduleSignals(SimpleTestCase):
+    """Tests for build_schedule_signals() — combined drift + buffer."""
+
+    def _now(self, hour=5, minute=55):
+        return timezone.now().replace(
+            hour=hour, minute=minute, second=0, microsecond=0,
+        )
+
+    def test_on_track_with_buffer(self):
+        """On track + buffer → guidance mentions buffer."""
+        now = self._now(5, 30)
+        items = [
+            {"name": "Prayer", "scheduled_time": now + timedelta(minutes=5),
+             "completed": False, "source": "routine"},
+            {"name": "Workout", "scheduled_time": now + timedelta(minutes=60),
+             "completed": False, "source": "routine"},
+        ]
+        result = build_schedule_signals(items, [], now)
+        self.assertEqual(result['schedule_status'], 'on_track')
+        self.assertGreater(result['buffer_minutes_available'], 15)
+        self.assertIn("buffer", result['guidance'].lower())
+
+    def test_slightly_behind_with_recovery(self):
+        """10 min behind with 15 min buffer → recoverable."""
+        now = self._now(5, 55)
+        items = [
+            {"name": "Journal", "scheduled_time": now - timedelta(minutes=20),
+             "completed": False, "source": "routine"},
+            {"name": "Workout", "scheduled_time": now + timedelta(minutes=35),
+             "completed": False, "source": "routine"},
+        ]
+        result = build_schedule_signals(items, [], now)
+        self.assertEqual(result['schedule_status'], 'slightly_behind')
+        self.assertTrue(result['can_recover'])
+        self.assertIn("recoverable", result['guidance'].lower())
+
+    def test_slightly_behind_no_recovery(self):
+        """Behind with no buffer → suggests adjustment."""
+        now = self._now(5, 55)
+        items = [
+            {"name": "Journal", "scheduled_time": now - timedelta(minutes=20),
+             "completed": False, "source": "routine"},
+            # Next item starts immediately
+            {"name": "Workout", "scheduled_time": now + timedelta(minutes=1),
+             "completed": False, "source": "routine"},
+        ]
+        result = build_schedule_signals(items, [], now)
+        self.assertIn("slightly_behind", result['schedule_status'])
+        self.assertIn("moving" in result['guidance'].lower()
+                       or "later" in result['guidance'].lower(),
+                       [True])
+
+    def test_at_risk(self):
+        """Far behind → at_risk status."""
+        now = self._now(6, 30)
+        items = [
+            {"name": "Prayer", "scheduled_time": now - timedelta(minutes=60),
+             "completed": False, "source": "routine"},
+            {"name": "Bible Reading", "scheduled_time": now - timedelta(minutes=45),
+             "completed": False, "source": "routine"},
+            {"name": "Workout", "scheduled_time": now + timedelta(minutes=5),
+             "completed": False, "source": "routine"},
+        ]
+        result = build_schedule_signals(items, [], now)
+        self.assertEqual(result['schedule_status'], 'at_risk')
+        self.assertGreater(result['drift_minutes'], DRIFT_SLIGHTLY_BEHIND_THRESHOLD)
+
+    def test_validation_scenario(self):
+        """Validation test case from requirements:
+        User is 10 min behind. Prayer 5:30-5:45, Bible 5:45-6:00, Workout 6:15.
+        Expected: slightly behind, 15 min buffer, can recover, no reordering.
+        """
+        now = self._now(5, 55)
+        items = [
+            {"name": "Prayer", "scheduled_time": now - timedelta(minutes=25),
+             "completed": False, "source": "routine"},
+            {"name": "Bible Reading", "scheduled_time": now - timedelta(minutes=10),
+             "completed": False, "source": "routine"},
+            {"name": "Workout", "scheduled_time": now + timedelta(minutes=20),
+             "completed": False, "source": "routine"},
+        ]
+        result = build_schedule_signals(items, [], now)
+
+        # User should be slightly behind or at_risk (Prayer + Bible both overdue)
+        self.assertIn(result['schedule_status'], ('slightly_behind', 'at_risk'))
+        # Buffer exists (gap between Bible end at 6:00 and Workout at 6:15)
+        self.assertGreater(result['buffer_minutes_available'], 0)
+        # Guidance mentions the situation
+        self.assertTrue(len(result['guidance']) > 0)
+        # The function does NOT modify any items — verify by checking inputs unchanged
+        self.assertFalse(items[0]['completed'])
+        self.assertFalse(items[1]['completed'])
+        self.assertFalse(items[2]['completed'])

@@ -1299,3 +1299,199 @@ def guard_llm_output(llm_output: str, user) -> str:
             user.id, exc_info=True,
         )
         return _SAFE_FALLBACK
+
+
+# ---------------------------------------------------------------------------
+# DAILY BRIEFING — first-of-day deterministic renderer
+# ---------------------------------------------------------------------------
+# This renders the FIRST interaction of the day. It is a hard override that
+# fires before any other routing. Subsequent check-ins use the standard
+# render_checkin_for_time() path.
+#
+# Structure (7 sections):
+# 1. Opening State — starting clean / on track / behind
+# 2. Immediate Plan — 1-2 actions to begin immediately
+# 3. Start With — ordered execution plan (nothing marked complete w/o logs)
+# 4. Already Done — only items confirmed by execution logs
+# 5. Time Anchors — fixed scheduled commitments
+# 6. Later Today — remaining scheduled items
+# 7. Closing Directive — one clear instruction
+
+def render_daily_briefing(user) -> str:
+    """Render the first-of-day Daily Briefing from execution truth.
+
+    Time-aware titles:
+    - 04:00–11:59 → Morning Briefing
+    - 12:00–17:59 → Midday Briefing
+    - 18:00–03:59 → Evening Briefing
+
+    Returns deterministic text following the 7-section structure.
+    """
+    try:
+        return _render_daily_briefing_from_truth(user)
+    except Exception:
+        logger.error(
+            "[DAILY BRIEFING] Failed for user=%s, returning safe fallback",
+            user.id, exc_info=True,
+        )
+        return _SAFE_FALLBACK
+
+
+def _render_daily_briefing_from_truth(user) -> str:
+    """Core daily briefing renderer — 7-section deterministic output."""
+    from apps.core.today.today_engine import get_today_context
+    from apps.core.utils import get_user_now
+
+    ctx = get_today_context(user)
+    user_now = get_user_now(user)
+    hour = user_now.hour
+    first_name = getattr(user, 'first_name', '') or ''
+
+    # Determine briefing type from time
+    if 4 <= hour < 12:
+        briefing_type = "Morning Briefing"
+    elif 12 <= hour < 18:
+        briefing_type = "Midday Briefing"
+    else:
+        briefing_type = "Evening Briefing"
+
+    # Extract buckets from Today Engine (canonical execution truth)
+    overdue = ctx.get("overdue", [])
+    coming_up = ctx.get("coming_up", [])
+    completed = ctx.get("completed", [])
+    later = ctx.get("later", [])
+    all_items = ctx.get("all_items", [])
+
+    lines = []
+
+    # ── 1. Opening State ──
+    state, state_text = _assess_situation_structured(
+        overdue, completed, coming_up, user_now,
+    )
+
+    # Greeting + state in one block
+    if first_name:
+        lines.append(f"{briefing_type}, {first_name}.")
+    else:
+        lines.append(f"{briefing_type}.")
+
+    # Day significance (if applicable)
+    day_sig = _get_day_significance(user)
+    if day_sig and day_sig['level'] == 'defining':
+        lines.append(f"Today is {day_sig['name']}.")
+
+    lines.append("")
+    lines.append(state_text)
+
+    # ── 2. Immediate Plan — 1-2 actions to begin now ──
+    triage = _build_triage_structured(
+        ctx, user_now, overdue, coming_up, later,
+        situation_state=state,
+    )
+
+    do_now = triage.get('do_now', [])
+    if do_now:
+        lines.append("")
+        if len(do_now) == 1:
+            lines.append(f"Start with {do_now[0]['name']}.")
+        else:
+            lines.append(
+                f"Start with {do_now[0]['name']}, "
+                f"then {do_now[1]['name']}."
+            )
+
+    # ── 3. Start With — ordered execution plan ──
+    # Full ordered list of ALL remaining actions. Nothing marked complete
+    # unless confirmed by execution logs.
+    remaining_items = []
+    for bucket in [overdue, coming_up, later]:
+        for entry in bucket:
+            item = entry.get('item', {})
+            name = (item.get('name') or entry.get('label', '')).strip()
+            time_str = item.get('time_str', '') or entry.get('time', '')
+            if name:
+                remaining_items.append((name, time_str))
+
+    if remaining_items:
+        lines.append("")
+        lines.append("Execution plan:")
+        for name, time_str in remaining_items:
+            if time_str:
+                lines.append(f"• {name} ({time_str})")
+            else:
+                lines.append(f"• {name}")
+
+    # ── 4. Already Done — only log-confirmed completions ──
+    if completed:
+        lines.append("")
+        lines.append("Already done:")
+        for item in completed[:8]:
+            lines.append(f"• {item['label']}")
+        if len(completed) > 8:
+            lines.append(f"• +{len(completed) - 8} more")
+
+    # ── 5. Time Anchors — fixed scheduled commitments ──
+    anchors = _extract_time_anchors(all_items, user_now)
+    if anchors:
+        lines.append("")
+        lines.append("Fixed today:")
+        for name, time_str in anchors:
+            lines.append(f"• {name} at {time_str}")
+
+    # ── 6. Later Today — remaining scheduled items not in anchors ──
+    day_view = _build_full_day_view(ctx, user_now)
+    if day_view:
+        lines.append("")
+        lines.append(day_view)
+
+    # ── 7. Closing Directive — one clear instruction ──
+    lines.append("")
+    if do_now:
+        lines.append(f"Handle {do_now[0]['name']} first. Everything else follows.")
+    elif remaining_items:
+        lines.append(f"Start with {remaining_items[0][0]}.")
+    else:
+        lines.append("Clean slate. Set your intention for the day.")
+
+    output = "\n".join(lines)
+    _validate_output(output)
+    return output
+
+
+def _extract_time_anchors(all_items, user_now):
+    """Extract fixed-time commitments (meds, appointments, meetings).
+
+    These are non-movable items with specific scheduled times.
+    Returns list of (name, time_str) tuples, sorted by time.
+    """
+    anchors = []
+    anchor_keywords = (
+        'medication', 'medicine', 'mounjaro', 'shower', 'meeting',
+        'appointment', 'call', 'class', 'pickup', 'drop off',
+    )
+
+    for item in all_items:
+        if item.get('completed'):
+            continue
+        name = (item.get('name') or '').strip()
+        sched = item.get('scheduled_time')
+        time_str = item.get('time_str', '')
+        source = item.get('source', '')
+
+        if not sched or not name:
+            continue
+
+        # Only future anchors
+        if sched <= user_now:
+            continue
+
+        is_anchor = (
+            source == 'medication'
+            or any(k in name.lower() for k in anchor_keywords)
+        )
+        if is_anchor:
+            display_time = time_str or sched.strftime('%I:%M %p').lstrip('0')
+            anchors.append((name, display_time))
+
+    # Sort by time string (already in chronological order from Today Engine)
+    return anchors[:6]

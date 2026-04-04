@@ -6,7 +6,7 @@ logged before the session_mode field was added).
 Also backfills intensity using derive_intensity() for activity workouts
 that have CardioDetails with an intensity value.
 """
-from django.db import migrations
+from django.db import migrations, models
 
 
 def backfill_activity_mode(apps, schema_editor):
@@ -64,9 +64,21 @@ def reverse_backfill(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("health", "0072_activity_workout_fields"),
+        ("health", "0072_add_session_mode_and_intensity_to_workout"),
     ]
 
     operations = [
+        # Fix intensity choices: old migration used low/high, model uses easy/hard
+        migrations.AlterField(
+            model_name="workoutsession",
+            name="intensity",
+            field=models.CharField(
+                blank=True,
+                choices=[("easy", "Easy"), ("moderate", "Moderate"), ("hard", "Hard")],
+                default="",
+                help_text="User-reported or derived intensity level",
+                max_length=20,
+            ),
+        ),
         migrations.RunPython(backfill_activity_mode, reverse_backfill),
     ]

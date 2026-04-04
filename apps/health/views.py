@@ -465,7 +465,7 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         # would return the incomplete one and show "Not logged yet" even
         # though a completed session exists.
         from apps.health.services.workout_queries import WorkoutQueries
-        completed_today = WorkoutQueries.completed_on(user, today).order_by('-completed_at').first()
+        completed_today = WorkoutQueries.completed_on(user, today).first()
         if completed_today:
             context["workout_today_completed"] = True
             context["workout_today_time"] = (

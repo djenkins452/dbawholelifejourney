@@ -50,9 +50,12 @@
                                         {% endif %}
                                     </a>
                                     <div class="workout-meta">
-                                        {% if workout.source == "apple_health" or workout.duration_minutes and not workout.exercise_count %}
+                                        {% if workout.is_activity or workout.source == "apple_health" or workout.duration_minutes and not workout.exercise_count %}
                                             {% if workout.duration_minutes %}
                                                 <span>{{ workout.duration_minutes }} min</span>
+                                            {% endif %}
+                                            {% if workout.intensity %}
+                                                <span>&bull; {{ workout.get_intensity_display }}</span>
                                             {% endif %}
                                             {% if workout.calories_burned %}
                                                 <span>&bull; {{ workout.calories_burned }} cal</span>

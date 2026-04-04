@@ -6,6 +6,25 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-04 — Feature: Activity-Based Workouts with Intelligent Training Signals
+
+- **Feature:** Added activity-based workouts (pickleball, walking, cycling, etc.) with intelligent training signals
+  - Added `session_mode` (structured/activity) and `intensity` (low/moderate/high) fields to WorkoutSession model
+  - New `log_activity_ajax` endpoint for one-step activity workout creation
+  - Duration threshold (10 min) for routine auto-complete — prevents trivial workouts from counting
+  - Multi-workout aggregation — multiple short workouts in a day combine toward the threshold
+  - New `training_load` signal in EAE signal aggregation (intensity-weighted, 0.0-1.0 score)
+  - Enhanced `health_activity` signal with activity_level classification and session_mode breakdown
+  - Workout form mode toggle: Exercises vs Activity with preset chips
+  - Display updates in list/detail views showing duration + intensity for activity workouts
+  - Activity workout edit support in WorkoutUpdateView
+  - Enriched workout event adapter with session_mode, intensity, workout_type
+  - Daily summary builder includes intensity breakdown and activity session counts
+  - 14 new tests covering activity CRUD, routine thresholds, multi-workout aggregation, and signal computation
+  - Files: apps/health/models.py, apps/health/migrations/0072_add_session_mode_and_intensity_to_workout.py, apps/health/views.py, apps/health/urls.py, apps/health/signals.py, apps/core/ai_eae/signal_aggregation.py, apps/core/execution/expected_map.py, apps/core/ai_events/adapters/workout.py, apps/health/services/daily_summary_builder.py, templates/health/fitness/workout_form.html, templates/health/fitness/workout_list.html, templates/health/fitness/workout_detail.html, apps/health/tests/test_fitness.py
+
+---
+
 ## 2026-04-04 — Enhancement: Schedule Drift & Buffer Intelligence in Daily Briefing
 
 - **What:** Added deterministic schedule awareness to the Daily Briefing's Opening State section. Beth can now detect if the user is ahead, on track, slightly behind, or at risk — and identify available buffer time between scheduled items.

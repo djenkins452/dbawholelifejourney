@@ -1658,12 +1658,51 @@ class Exercise(models.Model):
         return self.name
 
 
+SESSION_MODE_CHOICES = [
+    ("structured", "Structured"),
+    ("activity", "Activity"),
+]
+
+INTENSITY_CHOICES = [
+    ("low", "Low"),
+    ("moderate", "Moderate"),
+    ("high", "High"),
+]
+
+# Common activity presets: (name, default_intensity)
+ACTIVITY_PRESETS = [
+    ("Pickleball", "high"),
+    ("Walking", "low"),
+    ("Running", "high"),
+    ("Cycling", "moderate"),
+    ("Swimming", "high"),
+    ("Hiking", "moderate"),
+    ("Yoga", "low"),
+    ("Dance", "moderate"),
+    ("Tennis", "high"),
+    ("Golf", "low"),
+    ("Rowing", "high"),
+    ("Elliptical", "moderate"),
+    ("Stair Climbing", "moderate"),
+    ("Jump Rope", "high"),
+]
+
+# Minimum total daily workout minutes before routine auto-complete triggers
+WORKOUT_COMPLETION_THRESHOLD_MINUTES = 10
+
+
 class WorkoutSession(UserOwnedModel):
     """
     A single workout session.
 
     Groups multiple exercises performed in one workout.
+    Supports two modes:
+    - structured: exercises with sets/reps (traditional)
+    - activity: duration-driven (pickleball, walking, etc.)
     """
+
+    SESSION_MODE_CHOICES = SESSION_MODE_CHOICES
+    INTENSITY_CHOICES = INTENSITY_CHOICES
 
     date = models.DateField()
     name = models.CharField(
@@ -1688,11 +1727,25 @@ class WorkoutSession(UserOwnedModel):
         help_text="Template this workout was created from, if any",
     )
 
-    # HealthKit workout fields
+    # Session classification
+    session_mode = models.CharField(
+        max_length=20,
+        choices=SESSION_MODE_CHOICES,
+        default="structured",
+        help_text="structured = exercises with sets/reps, activity = duration-driven",
+    )
+    intensity = models.CharField(
+        max_length=20,
+        choices=INTENSITY_CHOICES,
+        blank=True,
+        help_text="User-provided intensity level for activity workouts",
+    )
+
+    # Workout type — used for both HealthKit imports and manual activity entries
     workout_type = models.CharField(
         max_length=50,
         blank=True,
-        help_text="Workout type from HealthKit (e.g., Running, Cycling, Strength Training)",
+        help_text="Activity type (e.g., Pickleball, Running, Strength Training)",
     )
     calories_burned = models.PositiveIntegerField(
         null=True,
@@ -1746,7 +1799,14 @@ class WorkoutSession(UserOwnedModel):
     def __str__(self):
         if self.name:
             return f"{self.name} - {self.date}"
+        if self.session_mode == "activity" and self.workout_type:
+            return f"{self.workout_type} - {self.date}"
         return f"Workout on {self.date}"
+
+    @property
+    def is_activity(self):
+        """Whether this is a duration-driven activity workout."""
+        return self.session_mode == "activity"
 
     @property
     def exercise_count(self):

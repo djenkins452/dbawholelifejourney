@@ -213,29 +213,50 @@ def handle_workout_session_completed(sender, instance, **kwargs):
                 instance.pk, e, exc_info=True,
             )
 
-    # ── Block 2: Auto-complete matching RoutineSchedule items ──
-    # Fires for ANY workout with a date (including ad-hoc, no template).
-    # Uses started_at (preferred) > completed_at > now for timeliness,
-    # because routine adherence is about when the activity BEGAN.
-    if instance.date:
+    # ── Block 2: Auto-complete matching RoutineSchedule items ���─
+    # Fires for ANY completed workout with a date (including ad-hoc, no template).
+    # Duration threshold: total daily workout minutes must be >= 10 min before
+    # routine auto-complete triggers. This prevents trivial activities (e.g., 5 min
+    # walk) from counting as "worked out". Multiple short workouts aggregate —
+    # e.g., 10 min walk + 15 min pickleball = 25 min total → qualifies.
+    if instance.date and instance.completed_at:
         try:
+            from apps.health.models import WorkoutSession, WORKOUT_COMPLETION_THRESHOLD_MINUTES
             from apps.life.services.routine_helpers import auto_complete_routine_schedules
+            from django.db.models import Sum
 
-            # Prefer start time for timeliness classification
-            effective_time = instance.started_at or instance.completed_at
-
-            results = auto_complete_routine_schedules(
-                user=instance.user,
-                keyword='workout',
-                source='workout',
-                completion_time=effective_time,
-                source_object_id=instance.pk,
+            # Aggregate total daily workout minutes across ALL completed sessions
+            total_daily_minutes = (
+                WorkoutSession.objects.filter(
+                    user=instance.user,
+                    date=instance.date,
+                    completed_at__isnull=False,
+                ).aggregate(total=Sum('duration_minutes'))['total'] or 0
             )
-            if results:
-                logger.info(
-                    "WORKOUT_ROUTINE_AUTOCOMPLETE user=%s date=%s matched=%d session=%s",
-                    instance.user_id, instance.date, len(results), instance.pk,
+
+            if total_daily_minutes < WORKOUT_COMPLETION_THRESHOLD_MINUTES:
+                logger.debug(
+                    "WORKOUT_ROUTINE_BELOW_THRESHOLD user=%s date=%s total_min=%d threshold=%d",
+                    instance.user_id, instance.date, total_daily_minutes,
+                    WORKOUT_COMPLETION_THRESHOLD_MINUTES,
                 )
+            else:
+                # Prefer start time for timeliness classification
+                effective_time = instance.started_at or instance.completed_at
+
+                results = auto_complete_routine_schedules(
+                    user=instance.user,
+                    keyword='workout',
+                    source='workout',
+                    completion_time=effective_time,
+                    source_object_id=instance.pk,
+                )
+                if results:
+                    logger.info(
+                        "WORKOUT_ROUTINE_AUTOCOMPLETE user=%s date=%s matched=%d session=%s total_min=%d",
+                        instance.user_id, instance.date, len(results), instance.pk,
+                        total_daily_minutes,
+                    )
         except Exception as e:
             logger.warning(
                 "Failed to auto-complete routine schedules for workout %s: %s",

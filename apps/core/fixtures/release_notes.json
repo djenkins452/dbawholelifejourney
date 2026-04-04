@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 180,
+    "fields": {
+      "title": "Activity-Based Workouts",
+      "description": "You can now log duration-based activities like pickleball, walking, cycling, and more! Just tap 'Activity' on the workout form, pick your activity, enter the duration, and you're done. Activity workouts count toward your daily routine completion (10+ minutes required) and generate intelligent training load signals. Multiple short sessions in a day combine together.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-04-04",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-04-04T12:00:00Z",
+      "updated_at": "2026-04-04T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 179,
     "fields": {
       "title": "Stale DB Connection Recovery",

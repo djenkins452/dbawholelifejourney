@@ -257,6 +257,7 @@ urlpatterns = [
     path("physical/fitness/api/save-cardio/", views.save_cardio_ajax, name="save_cardio_ajax"),
     path("physical/fitness/api/save-class/", views.save_class_ajax, name="save_class_ajax"),
     path("physical/fitness/api/complete-workout/", views.complete_workout_ajax, name="complete_workout_ajax"),
+    path("physical/fitness/api/log-activity/", views.log_activity_ajax, name="log_activity_ajax"),
     path("physical/fitness/api/workout-state/<int:workout_id>/", views.get_workout_state_ajax, name="get_workout_state_ajax"),
 
     # Nutrition / Food Tracking

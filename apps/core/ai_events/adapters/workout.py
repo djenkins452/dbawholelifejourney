@@ -73,9 +73,14 @@ def _session_to_event(session):
 
     # Build label
     duration = f"{session.duration_minutes} min" if session.duration_minutes else ""
-    label = "Workout"
-    if duration:
-        label += f" ({duration})"
+    if session.session_mode == 'activity' and session.workout_type:
+        label = session.workout_type
+        if duration:
+            label += f" ({duration})"
+    else:
+        label = "Workout"
+        if duration:
+            label += f" ({duration})"
 
     # Use started_at or date for timestamp
     if session.started_at:
@@ -88,6 +93,9 @@ def _session_to_event(session):
         'date': str(session.date),
         'duration_minutes': session.duration_minutes,
         'source': session.source or 'manual',
+        'session_mode': session.session_mode,
+        'intensity': session.intensity,
+        'workout_type': session.workout_type,
     }
     if session.started_at:
         detail['started_at'] = session.started_at.isoformat()

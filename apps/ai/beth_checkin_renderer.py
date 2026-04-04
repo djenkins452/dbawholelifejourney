@@ -268,6 +268,281 @@ def _estimate_duration(item_name: str) -> int:
     return _DEFAULT_DURATION_FALLBACK
 
 
+# ---------------------------------------------------------------------------
+# Schedule Drift & Buffer Intelligence
+# ---------------------------------------------------------------------------
+# Deterministic schedule awareness: computes drift from planned timeline
+# and detects buffer gaps between items. No inference, no LLM, no mutation.
+
+# Drift thresholds (minutes) — configurable constants
+DRIFT_ON_TRACK_THRESHOLD = 5       # ±5 min = on track
+DRIFT_SLIGHTLY_BEHIND_THRESHOLD = 15  # 5–15 min = slightly behind
+# > 15 min = at risk
+
+
+def compute_schedule_drift(all_items, completed, user_now):
+    """Compute schedule drift from planned timeline.
+
+    Walks the planned schedule from the first item forward, accumulating
+    expected completion times. Compares the "expected current position"
+    (where the user should be if on schedule) to what's actually done.
+
+    Args:
+        all_items: Full list of Today Engine items (raw dicts, not bucket entries).
+        completed: List of completed bucket entries from Today Engine.
+        user_now: User's current datetime (timezone-aware).
+
+    Returns:
+        dict with:
+            drift_minutes: int — positive = behind, negative = ahead, 0 = on track
+            schedule_status: 'on_track' | 'slightly_behind' | 'at_risk'
+            expected_item: str | None — item user should be working on now
+            completed_count: int
+            total_scheduled: int
+    """
+    # Get scheduled items sorted by time (exclude unscheduled)
+    scheduled = [
+        item for item in all_items
+        if item.get('scheduled_time') is not None
+    ]
+    scheduled.sort(key=lambda i: i['scheduled_time'])
+
+    if not scheduled:
+        return {
+            'drift_minutes': 0,
+            'schedule_status': 'on_track',
+            'expected_item': None,
+            'completed_count': 0,
+            'total_scheduled': 0,
+        }
+
+    completed_names = {
+        e.get('label', '').split(' (')[0].strip().lower()
+        for e in completed
+    }
+    done_count = sum(
+        1 for item in scheduled
+        if item.get('completed')
+        or item.get('name', '').strip().lower() in completed_names
+    )
+
+    # Walk the schedule: compute expected position at current time
+    # Each item starts at its scheduled_time and takes _estimate_duration minutes
+    expected_item = None
+    cumulative_expected_end = None
+
+    for item in scheduled:
+        sched = item['scheduled_time']
+        name = item.get('name', '')
+        duration = _estimate_duration(name)
+
+        # Expected end = scheduled start + duration
+        expected_end = sched + timedelta(minutes=duration)
+
+        if sched <= user_now < expected_end:
+            # User should be working on this item right now
+            expected_item = name
+            break
+        elif sched > user_now:
+            # Next future item — user should be done with everything before this
+            expected_item = name
+            break
+
+        cumulative_expected_end = expected_end
+
+    # Compute drift: how many scheduled items should be done by now?
+    expected_done = 0
+    for item in scheduled:
+        sched = item['scheduled_time']
+        name = item.get('name', '')
+        duration = _estimate_duration(name)
+        expected_end = sched + timedelta(minutes=duration)
+
+        if expected_end <= user_now:
+            expected_done += 1
+        else:
+            break
+
+    # Drift = items that should be done minus items actually done
+    # Convert to time: each undone item ≈ its estimated duration
+    drift_minutes = 0
+    undone_past = 0
+    for item in scheduled[:expected_done]:
+        if not item.get('completed'):
+            name = item.get('name', '').strip().lower()
+            if name not in completed_names:
+                undone_past += 1
+                drift_minutes += _estimate_duration(item.get('name', ''))
+
+    # Classify
+    if drift_minutes <= DRIFT_ON_TRACK_THRESHOLD:
+        status = 'on_track'
+    elif drift_minutes <= DRIFT_SLIGHTLY_BEHIND_THRESHOLD:
+        status = 'slightly_behind'
+    else:
+        status = 'at_risk'
+
+    return {
+        'drift_minutes': drift_minutes,
+        'schedule_status': status,
+        'expected_item': expected_item,
+        'completed_count': done_count,
+        'total_scheduled': len(scheduled),
+    }
+
+
+def compute_buffer_minutes(all_items, user_now):
+    """Detect buffer gaps between scheduled items.
+
+    Scans consecutive pairs of scheduled items and sums gaps where
+    the previous item's expected end is before the next item's start.
+
+    Args:
+        all_items: Full list of Today Engine items (raw dicts).
+        user_now: User's current datetime (timezone-aware).
+
+    Returns:
+        dict with:
+            buffer_minutes: int — total available buffer before next anchor
+            buffer_details: list of (gap_minutes, after_item, before_item)
+            next_anchor: str | None — next fixed-time commitment
+            can_recover: bool — True if buffer >= drift needed
+    """
+    # Get future scheduled items (not completed, after now)
+    future = [
+        item for item in all_items
+        if item.get('scheduled_time') is not None
+        and not item.get('completed')
+        and item['scheduled_time'] > user_now
+    ]
+    future.sort(key=lambda i: i['scheduled_time'])
+
+    if not future:
+        return {
+            'buffer_minutes': 0,
+            'buffer_details': [],
+            'next_anchor': None,
+            'can_recover': False,
+        }
+
+    # Find gaps between consecutive items
+    buffer_details = []
+    total_buffer = 0
+
+    for i in range(len(future) - 1):
+        current = future[i]
+        next_item = future[i + 1]
+
+        current_name = current.get('name', '')
+        current_end = current['scheduled_time'] + timedelta(
+            minutes=_estimate_duration(current_name),
+        )
+        next_start = next_item['scheduled_time']
+
+        gap = int((next_start - current_end).total_seconds() / 60)
+        if gap > 0:
+            buffer_details.append((
+                gap,
+                current_name,
+                next_item.get('name', ''),
+            ))
+            total_buffer += gap
+
+    # Also count buffer from now to first item
+    first_start = future[0]['scheduled_time']
+    pre_gap = int((first_start - user_now).total_seconds() / 60)
+    if pre_gap > 0:
+        total_buffer += pre_gap
+
+    # Find next anchor (fixed-time commitment)
+    anchor_keywords = (
+        'medication', 'medicine', 'mounjaro', 'shower', 'meeting',
+        'appointment', 'call', 'class',
+    )
+    next_anchor = None
+    for item in future:
+        name = (item.get('name') or '').lower()
+        source = item.get('source', '')
+        if source == 'medication' or any(k in name for k in anchor_keywords):
+            next_anchor = item.get('name', '')
+            break
+
+    return {
+        'buffer_minutes': total_buffer,
+        'buffer_details': buffer_details,
+        'next_anchor': next_anchor,
+        'can_recover': False,  # Set by caller after comparing with drift
+    }
+
+
+def build_schedule_signals(all_items, completed, user_now):
+    """Build combined schedule awareness signals.
+
+    Single entry point for drift + buffer computation.
+    Returns all signals needed for briefing integration.
+
+    Returns:
+        dict with:
+            schedule_status: 'on_track' | 'slightly_behind' | 'at_risk'
+            drift_minutes: int
+            buffer_minutes_available: int
+            can_recover: bool
+            expected_item: str | None
+            next_anchor: str | None
+            guidance: str — human-readable schedule awareness text
+    """
+    drift = compute_schedule_drift(all_items, completed, user_now)
+    buffer = compute_buffer_minutes(all_items, user_now)
+
+    # Determine recovery: can buffer absorb the drift?
+    can_recover = buffer['buffer_minutes'] >= drift['drift_minutes']
+
+    status = drift['schedule_status']
+    drift_min = drift['drift_minutes']
+    buffer_min = buffer['buffer_minutes']
+
+    # Build guidance text (deterministic, no LLM)
+    guidance = ''
+    if status == 'on_track':
+        if buffer_min > 15:
+            guidance = f"On schedule with {buffer_min} minutes of buffer."
+        else:
+            guidance = "On schedule."
+    elif status == 'slightly_behind':
+        if can_recover:
+            guidance = (
+                f"Running about {drift_min} minutes behind, "
+                f"but {buffer_min} minutes of buffer ahead — recoverable."
+            )
+        else:
+            guidance = (
+                f"Running about {drift_min} minutes behind. "
+                f"Consider moving one item to later today."
+            )
+    else:  # at_risk
+        if can_recover:
+            guidance = (
+                f"Behind by {drift_min} minutes. "
+                f"{buffer_min} minutes of buffer available — "
+                f"tight but possible if you start now."
+            )
+        else:
+            guidance = (
+                f"Behind by {drift_min} minutes with limited buffer. "
+                f"You may need to adjust your plan."
+            )
+
+    return {
+        'schedule_status': status,
+        'drift_minutes': drift_min,
+        'buffer_minutes_available': buffer_min,
+        'can_recover': can_recover,
+        'expected_item': drift['expected_item'],
+        'next_anchor': buffer['next_anchor'],
+        'guidance': guidance,
+    }
+
+
 def _render_checkin_from_truth(user, phase: str = "morning") -> str:
     """Core renderer — builds Chief of Staff briefing from Today Engine."""
     from apps.core.today.today_engine import get_today_context
@@ -1364,10 +1639,13 @@ def _render_daily_briefing_from_truth(user) -> str:
 
     lines = []
 
-    # ── 1. Opening State ──
+    # ── 1. Opening State (with schedule awareness) ──
     state, state_text = _assess_situation_structured(
         overdue, completed, coming_up, user_now,
     )
+
+    # Schedule drift + buffer signals (deterministic)
+    schedule = build_schedule_signals(all_items, completed, user_now)
 
     # Greeting + state in one block
     if first_name:
@@ -1381,7 +1659,12 @@ def _render_daily_briefing_from_truth(user) -> str:
         lines.append(f"Today is {day_sig['name']}.")
 
     lines.append("")
-    lines.append(state_text)
+    # Use schedule-aware guidance when drift data is meaningful,
+    # otherwise fall back to the standard situation text
+    if schedule['drift_minutes'] > 0 or schedule['buffer_minutes_available'] > 15:
+        lines.append(schedule['guidance'])
+    else:
+        lines.append(state_text)
 
     # ── 2. Immediate Plan — 1-2 actions to begin now ──
     triage = _build_triage_structured(

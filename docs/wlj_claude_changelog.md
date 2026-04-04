@@ -6,6 +6,19 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-04 — Enhancement: Schedule Drift & Buffer Intelligence in Daily Briefing
+
+- **What:** Added deterministic schedule awareness to the Daily Briefing's Opening State section. Beth can now detect if the user is ahead, on track, slightly behind, or at risk — and identify available buffer time between scheduled items.
+- **Drift calculation:** `compute_schedule_drift()` walks the planned schedule, compares expected completion times (using `_estimate_duration()`) against actual completions, and computes drift in minutes. Classification: ON_TRACK (≤5 min), SLIGHTLY_BEHIND (5–15 min), AT_RISK (>15 min). Thresholds are configurable module-level constants.
+- **Buffer detection:** `compute_buffer_minutes()` scans gaps between consecutive scheduled items and sums available buffer. Identifies next fixed-time anchor (medication, meeting, etc.).
+- **Combined signals:** `build_schedule_signals()` returns structured signals: `schedule_status`, `drift_minutes`, `buffer_minutes_available`, `can_recover`, `guidance` text.
+- **Briefing integration:** Opening State now uses schedule-aware guidance when drift or buffer data is meaningful. When slightly behind with buffer: "Running about 10 minutes behind, but 15 minutes of buffer ahead — recoverable." When at risk: suggests adjustment options. Beth NEVER auto-drops, auto-reorders, or auto-modifies the schedule — inform and suggest only.
+- **Guardrails:** All computation is deterministic (no LLM, no inference). No items are modified. No task ordering changes. No completion state changes. Pure signal generation from existing Today Engine data.
+- **Tests:** 17 new tests (6 drift + 5 buffer + 4 signals + 1 integration + 1 existing briefing updated).
+- **Files:** `apps/ai/beth_checkin_renderer.py`, `apps/ai/tests/test_beth_checkin_renderer.py`
+
+---
+
 ## 2026-04-04 — Feature: First-of-Day Daily Briefing System
 
 - **Root cause:** First interaction of the day was routing to the standard check-in renderer (`beth_checkin_renderer.render_checkin_for_time`) regardless of whether it was the user's first or tenth interaction. The executive briefing's first-of-day detection existed but only injected into the LLM system prompt — which was bypassed because check-in routes are terminal (no LLM involved).

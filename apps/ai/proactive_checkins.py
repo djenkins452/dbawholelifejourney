@@ -319,8 +319,9 @@ class ProactiveCheckInService:
             if schedule_entry is None or schedule_entry.is_rest_day:
                 return None
 
-        # Already worked out today? Don't ask.
-        if WorkoutSession.objects.filter(user=self.user, date=today).exists():
+        # Already worked out (or started) today? Don't ask.
+        from apps.health.services.workout_queries import WorkoutQueries
+        if WorkoutQueries.on_date(self.user, today).exists():
             return None
 
         template = get_style_template(self.user, 'workout_check')

@@ -360,8 +360,8 @@ class DashboardAI:
                 from apps.life.models import Task, Project, LifeEvent
 
                 # Refresh priorities so counts match the Organize page
-                from apps.life.views import _refresh_stale_task_priorities
-                _refresh_stale_task_priorities(self.user)
+                from apps.life.services.task_queries import refresh_stale_priorities
+                refresh_stale_priorities(self.user)
 
                 pending = Task.objects.filter(
                     user=self.user, completion_status='pending',

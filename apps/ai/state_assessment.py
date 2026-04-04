@@ -276,9 +276,9 @@ class StateAssessmentMixin:
         import time as _t
         _ts = _t.monotonic()
         from apps.life.models import Task
-        from apps.life.views import _refresh_stale_task_priorities
+        from apps.life.services.task_queries import refresh_stale_priorities
 
-        _refresh_stale_task_priorities(self.user)
+        refresh_stale_priorities(self.user)
 
         tasks = Task.objects.filter(user=self.user)
         incomplete = tasks.filter(completion_status='pending')

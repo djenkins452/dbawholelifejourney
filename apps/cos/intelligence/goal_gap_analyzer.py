@@ -132,17 +132,15 @@ def _analyze_single_goal(user, goal, today, window_start):
 def _analyze_fitness_gap(user, goal, today, window_start):
     """Fitness goal: compare workout frequency to inferred target."""
     try:
-        from apps.health.models import WorkoutSession
+        from apps.health.services.workout_queries import WorkoutQueries
 
         # Infer target: look for numbers in goal title/description
         target_per_week = _extract_frequency_target(goal, default=3)
 
-        # Count actual workouts in trailing window
+        # Count actual completed workouts in trailing window
         total_weeks = max(TRAILING_WEEKS, 1)
-        workout_count = WorkoutSession.objects.filter(
-            user=user,
-            date__gte=window_start,
-            date__lte=today,
+        workout_count = WorkoutQueries.completed_in_range(
+            user, window_start, today,
         ).count()
         actual_per_week = round(workout_count / total_weeks, 1)
 
@@ -150,11 +148,11 @@ def _analyze_fitness_gap(user, goal, today, window_start):
 
         # Trend: compare last 2 weeks vs prior 2 weeks
         midpoint = today - timedelta(weeks=2)
-        recent = WorkoutSession.objects.filter(
-            user=user, date__gte=midpoint, date__lte=today
+        recent = WorkoutQueries.completed_in_range(
+            user, midpoint, today,
         ).count()
-        earlier = WorkoutSession.objects.filter(
-            user=user, date__gte=window_start, date__lt=midpoint
+        earlier = WorkoutQueries.completed_in_range(
+            user, window_start, midpoint - timedelta(days=1),
         ).count()
         trend = _compute_trend(recent, earlier)
 

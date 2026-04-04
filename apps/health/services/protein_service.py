@@ -600,8 +600,10 @@ class ProteinService:
         if summary is not None:
             return summary > 0
 
-        # Fallback to WorkoutSession
-        return WorkoutSession.objects.filter(user=user, date=target_date).exists()
+        # Fallback to WorkoutSession — any session (incl in-progress) counts
+        # for protein-day detection since training has started
+        from apps.health.services.workout_queries import WorkoutQueries
+        return WorkoutQueries.on_date(user, target_date).exists()
 
     @staticmethod
     def _status_label(score):

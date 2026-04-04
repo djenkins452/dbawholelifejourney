@@ -69,31 +69,9 @@ class LifeAccessMixin(LoginRequiredMixin):
     pass
 
 
-def _refresh_stale_task_priorities(user):
-    """
-    Refresh task priorities that have become stale overnight.
-
-    Priority is stored in the DB at save time, so tasks due "soon" yesterday
-    still show "soon" today instead of "now". This does a lightweight bulk
-    update for the current user's pending tasks whose stored priority
-    doesn't match the calculated value.
-    """
-    user_today = get_user_today(user)
-    stale_tasks = Task.objects.filter(
-        user=user,
-        completion_status='pending',
-        due_date__isnull=False,
-    ).exclude(due_date=None)
-
-    updated = 0
-    for task in stale_tasks.only('id', 'due_date', 'priority'):
-        new_priority = task.calculate_priority(user_today=user_today)
-        if task.priority != new_priority:
-            Task.objects.filter(pk=task.pk).update(priority=new_priority)
-            updated += 1
-
-    if updated:
-        logger.debug("Refreshed %d stale task priorities for user %s", updated, user.pk)
+# Canonical location: apps.life.services.task_queries.refresh_stale_priorities
+# Re-exported here for backward compatibility with existing call sites.
+from apps.life.services.task_queries import refresh_stale_priorities as _refresh_stale_task_priorities  # noqa: F401
 
 
 # =============================================================================

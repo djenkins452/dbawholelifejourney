@@ -350,10 +350,8 @@ def _check_workout(user, target_date: date, expectations: Dict) -> Dict:
         'completed': False,
     }
     try:
-        from apps.health.models import WorkoutSession
-        result['completed'] = WorkoutSession.objects.filter(
-            user=user, date=target_date,
-        ).exclude(status='deleted').exists()
+        from apps.health.services.workout_queries import WorkoutQueries
+        result['completed'] = WorkoutQueries.is_completed_on(user, target_date)
     except ImportError:
         pass
     except Exception:

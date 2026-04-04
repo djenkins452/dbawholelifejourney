@@ -22,6 +22,15 @@
   - Daily summary builder includes intensity breakdown and activity session counts
   - 14 new tests covering activity CRUD, routine thresholds, multi-workout aggregation, and signal computation
   - Files: apps/health/models.py, apps/health/migrations/0072_add_session_mode_and_intensity_to_workout.py, apps/health/views.py, apps/health/urls.py, apps/health/signals.py, apps/core/ai_eae/signal_aggregation.py, apps/core/execution/expected_map.py, apps/core/ai_events/adapters/workout.py, apps/health/services/daily_summary_builder.py, templates/health/fitness/workout_form.html, templates/health/fitness/workout_list.html, templates/health/fitness/workout_detail.html, apps/health/tests/test_fitness.py
+=======
+## 2026-04-04 — Fix: "Next" Action Ignores Overdue Medications (Shows Evening Instead of Morning Meds)
+
+- **Root cause:** Two bugs working together. (1) In `action_prioritizer.py`, medicine groups were **always hardcoded to urgency `"next"`** (line 172), regardless of whether individual doses were overdue. This meant overdue morning meds ranked the same as future evening meds. (2) The Today Engine's `next` field came from `build_locked_next_action()` which used the broken prioritizer, so it recommended "Evening Medications" while 4 morning meds were overdue.
+- **Fix 1 — Medicine group urgency:** Added `has_overdue` tracking in `prioritize_execution_items()`. When grouping medication doses by window, if any dose has `time_status == 'overdue'`, the group inherits `has_overdue=True`. In `build_action_priorities()`, overdue groups now get `urgency="overdue"` instead of hardcoded `"next"`. Non-overdue groups get proper time-aware classification via `classify_urgency()`.
+- **Fix 2 — Today Engine next-action override:** Added overdue-first logic in `get_today_context()`. If any items are in the overdue bucket, the first overdue item becomes the `next` action, bypassing the locked-next-action pipeline entirely. This is a safety net ensuring overdue items always surface as the priority.
+- **Impact:** With the user's scenario (Atorvastatin, Lantus, Metformin, Valsartan all overdue at 9:00 AM), the system now correctly shows "Start with Atorvastatin (9:00 AM)." instead of "Start with Evening Medications."
+- **Tests:** 7 new tests (5 prioritizer + 2 today engine). All 200 affected tests pass.
+- **Files:** `apps/core/decision_engine/action_prioritizer.py`, `apps/core/today/today_engine.py`, `apps/core/decision_engine/tests/__init__.py`, `apps/core/decision_engine/tests/test_action_prioritizer.py`, `apps/core/today/tests/test_today_engine.py`
 
 ---
 

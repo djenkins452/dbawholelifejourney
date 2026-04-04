@@ -167,9 +167,15 @@ def build_action_priorities(
     for g in (medicine_groups or []):
         if g.get("all_taken"):
             continue
+        # Use time-aware urgency: overdue meds are urgent, not "next"
+        if g.get("has_overdue"):
+            med_urgency = "overdue"
+        else:
+            _med_time = _parse_time(g.get("scheduled_time"))
+            med_urgency = classify_urgency(_med_time, False, now_time)
         actions.append({
             "source": "medicine",
-            "urgency": "next",
+            "urgency": med_urgency,
             "type": "medicine_group",
             "pk": None,
             "title": g["title"],
@@ -283,10 +289,15 @@ def prioritize_execution_items(execution_items, current_time, summaries=None):
                     'all_taken': False,
                     'total': 0,
                     'taken': 0,
+                    'has_overdue': False,
+                    'scheduled_time': item.get('scheduled_time'),
                 }
             medicine_groups_map[window]['total'] += 1
             if item.get('completed_today'):
                 medicine_groups_map[window]['taken'] += 1
+            # Track if any dose in this window is overdue
+            if item.get('time_status') == 'overdue':
+                medicine_groups_map[window]['has_overdue'] = True
 
     # Finalize medicine groups
     medicine_groups = []

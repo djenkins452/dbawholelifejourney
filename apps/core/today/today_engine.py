@@ -134,7 +134,16 @@ def get_today_context(user) -> dict:
     completed = _sort_by_time(completed)
 
     # ── Step 4: Next action ──
-    next_action = facts.get("next_action", "")
+    # Priority: overdue items ALWAYS take precedence over the locked-next
+    # pipeline. If meds or other items are overdue, the user needs to
+    # handle those first — regardless of what the prioritizer says.
+    next_action = ""
+    if overdue:
+        first_overdue = overdue[0].get('label', '')
+        if first_overdue:
+            next_action = f"Start with {first_overdue}."
+    if not next_action:
+        next_action = facts.get("next_action", "")
     if not next_action or next_action == "Unable to determine.":
         next_action = "Start with your next planned item."
 

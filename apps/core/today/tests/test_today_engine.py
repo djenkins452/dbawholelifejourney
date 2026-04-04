@@ -628,3 +628,65 @@ class TestDomainDedupWithRoutine(SimpleTestCase):
 
         all_names = [i["name"] for i in ctx["all_items"]]
         self.assertIn("Prayer", all_names)  # domain added since no routine
+
+
+class TestNextActionOverduePriority(SimpleTestCase):
+    """Overdue items must take precedence over locked-next-action."""
+
+    @patch(_P_MEDS, return_value=[])
+    @patch(_P_CAL, return_value=[])
+    @patch(_P_TASKS, return_value=[])
+    @patch("apps.core.utils.get_user_now")
+    @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    def test_overdue_item_becomes_next(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
+        """When items are overdue, next should point to the first overdue item."""
+        now = _fixed_now(9, 30)
+        mock_now.return_value = now
+        # Locked facts says "Evening Medications" but meds are overdue
+        mock_facts.return_value = _make_locked_facts(
+            next_action="Start with Evening Medications.",
+        )
+        mock_truth.return_value = _make_truth({
+            "morning": [
+                _make_routine_item("Prayer", "5:30 AM", is_completed=True),
+            ],
+        })
+
+        # Add an overdue medication via the meds mock
+        # We need to make the overdue item appear in the overdue bucket
+        # The Today Engine collects from truth + tasks + meds
+        # Since we're testing the next-action override, let's use tasks
+        # to create an overdue item
+        with patch(_P_TASKS) as mock_tasks_inner:
+            mock_tasks_inner.return_value = [
+                _norm_item(
+                    "Atorvastatin", "9:00 AM",
+                    now.replace(hour=9, minute=0),
+                    priority="important", source="medication",
+                ),
+            ]
+
+            ctx = get_today_context(MagicMock(id=1))
+
+        # The overdue medication should be "next", not "Evening Medications"
+        self.assertIn("Atorvastatin", ctx["next"])
+        self.assertNotIn("Evening", ctx["next"])
+
+    @patch(_P_MEDS, return_value=[])
+    @patch(_P_CAL, return_value=[])
+    @patch(_P_TASKS, return_value=[])
+    @patch("apps.core.utils.get_user_now")
+    @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
+    @patch("apps.ai.cos_fact_statements.build_locked_facts")
+    def test_no_overdue_uses_locked_facts(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
+        """When nothing is overdue, next comes from locked facts as before."""
+        mock_now.return_value = _fixed_now(5, 0)
+        mock_facts.return_value = _make_locked_facts(
+            next_action="Start with Workout.",
+        )
+        mock_truth.return_value = _make_truth()
+
+        ctx = get_today_context(MagicMock(id=1))
+
+        self.assertEqual(ctx["next"], "Start with Workout.")

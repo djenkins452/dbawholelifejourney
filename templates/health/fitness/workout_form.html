@@ -42,6 +42,31 @@
     <form method="post" class="workout-form" id="workoutForm">
         {% csrf_token %}
 
+        <!-- Session Mode Toggle -->
+        <input type="hidden" name="session_mode" id="sessionModeInput" value="{% firstof workout.session_mode 'structured' %}">
+        {% if not editing and not from_template and not copy_from %}
+        <div class="form-section">
+            <div class="session-mode-toggle">
+                <button type="button" class="mode-btn active" id="modeStructuredBtn" data-mode="structured">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+                        <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+                        <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+                        <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+                    </svg>
+                    Structured Workout
+                </button>
+                <button type="button" class="mode-btn" id="modeActivityBtn" data-mode="activity">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    Activity / Cardio
+                </button>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Basic Info -->
         <div class="form-section">
             <div class="form-row">
@@ -50,7 +75,7 @@
                     <input type="date" name="date" id="date" value="{{ date|date:'Y-m-d' }}" required>
                 </div>
                 <div class="form-group flex-2">
-                    <label for="name">Workout Name (optional)</label>
+                    <label for="name" id="nameLabel">Workout Name (optional)</label>
                     <input type="text" name="name" id="name" value="{% firstof workout.name from_template.name copy_from.name '' %}" placeholder="e.g., Push Day, Morning Run">
                 </div>
             </div>
@@ -284,6 +309,8 @@
                 </div>
             </div>
         </div>
+
+        </div><!-- end structuredFields -->
 
         <!-- Notes -->
         <div class="form-section">
@@ -1398,6 +1425,53 @@
 </style>
 
 <script nonce="{{ csp_nonce }}">
+// ── Session Mode Toggle ────────────────────────────────────────
+(function() {
+    const modeInput = document.getElementById('sessionModeInput');
+    const structuredBtn = document.getElementById('modeStructuredBtn');
+    const activityBtn = document.getElementById('modeActivityBtn');
+    const structuredFields = document.getElementById('structuredFields');
+    const activityFields = document.getElementById('activityFields');
+    const nameLabel = document.getElementById('nameLabel');
+    const nameInput = document.getElementById('name');
+    const submitBtn = document.getElementById('finishWorkoutBtn');
+
+    if (structuredBtn && activityBtn) {
+        function setMode(mode) {
+            modeInput.value = mode;
+            if (mode === 'activity') {
+                structuredBtn.classList.remove('active');
+                activityBtn.classList.add('active');
+                structuredFields.style.display = 'none';
+                activityFields.style.display = '';
+                nameLabel.textContent = 'Activity Name';
+                nameInput.placeholder = 'e.g., Pickleball, Walking, Swimming';
+                if (submitBtn && !submitBtn.dataset.editing) {
+                    submitBtn.textContent = 'Log Activity';
+                }
+            } else {
+                activityBtn.classList.remove('active');
+                structuredBtn.classList.add('active');
+                structuredFields.style.display = '';
+                activityFields.style.display = 'none';
+                nameLabel.textContent = 'Workout Name (optional)';
+                nameInput.placeholder = 'e.g., Push Day, Morning Run';
+                if (submitBtn && !submitBtn.dataset.editing) {
+                    submitBtn.textContent = 'Finish Workout';
+                }
+            }
+        }
+
+        structuredBtn.addEventListener('click', function() { setMode('structured'); });
+        activityBtn.addEventListener('click', function() { setMode('activity'); });
+
+        // Initialize from hidden input value (e.g., when editing)
+        if (modeInput.value === 'activity') {
+            setMode('activity');
+        }
+    }
+})();
+
 // Workout state
 let workoutId = {% if workout %}{{ workout.pk }}{% else %}null{% endif %};
 let workoutStarted = {% if workout %}true{% else %}false{% endif %};

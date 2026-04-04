@@ -5143,7 +5143,8 @@ class ActionHandler:
                 notes=notes or "",
                 duration_minutes=duration_minutes,
                 started_at=now,
-                completed_at=now
+                completed_at=now,
+                session_mode=WorkoutSession.SESSION_MODE_STRUCTURED,
             )
 
             _emit_domain_event("health.workout.completed", self.user, {
@@ -5329,7 +5330,11 @@ class ActionHandler:
             today = recorded_at.date() if hasattr(recorded_at, 'date') else self._get_user_today()
             now = recorded_at
 
-            # Create workout session for cardio
+            # Derive intensity if user didn't specify
+            from apps.health.services.fitness_utils import derive_intensity
+            resolved_intensity = derive_intensity(activity, duration_minutes, intensity)
+
+            # Create workout session for cardio (activity mode)
             session = WorkoutSession.objects.create(
                 user=self.user,
                 date=today,
@@ -5337,7 +5342,9 @@ class ActionHandler:
                 notes=notes or "",
                 duration_minutes=duration_minutes,
                 started_at=now,
-                completed_at=now
+                completed_at=now,
+                session_mode=WorkoutSession.SESSION_MODE_ACTIVITY,
+                intensity=resolved_intensity,
             )
 
             # Find or create cardio exercise
@@ -5362,13 +5369,21 @@ class ActionHandler:
                 workout_exercise=workout_exercise,
                 duration_minutes=duration_minutes,
                 distance=Decimal(str(distance)) if distance else None,
-                intensity=intensity,
+                intensity=resolved_intensity,
                 calories_burned=calories_burned,
                 avg_heart_rate=avg_heart_rate
             )
 
+            _emit_domain_event("health.workout.completed", self.user, {
+                "session_id": session.id, "activity": activity,
+                "duration_minutes": duration_minutes,
+                "intensity": resolved_intensity,
+                "training_load": session.training_load,
+            })
+
             distance_str = f" - {distance} {distance_unit}" if distance else ""
             cal_str = f" ({calories_burned} cal)" if calories_burned else ""
+            intensity_str = f" ({resolved_intensity})" if resolved_intensity else ""
 
             # Trend lookup — weekly cardio count (safe — never blocks action)
             trend = None
@@ -5383,7 +5398,7 @@ class ActionHandler:
             task_msg = self._cross_complete_task(activity)
             if not task_msg:
                 task_msg = self._cross_complete_task('workout')
-            msg = f"✓ Logged: {activity.title()} - {duration_minutes} min{distance_str}{cal_str}"
+            msg = f"✓ Logged: {activity.title()} - {duration_minutes} min{intensity_str}{distance_str}{cal_str}"
             if task_msg:
                 msg += f"\n{task_msg}"
 
@@ -5391,16 +5406,18 @@ class ActionHandler:
                 success=True,
                 message=msg,
                 created_object={
-                    'model': 'CardioDetails',
-                    'id': cardio.id,
+                    'model': 'WorkoutSession',
+                    'id': session.id,
                     'activity': activity,
                     'duration_minutes': duration_minutes,
+                    'intensity': resolved_intensity,
+                    'training_load': session.training_load,
                     'distance': float(distance) if distance else None,
-                    'calories_burned': calories_burned
+                    'calories_burned': calories_burned,
                 },
                 action_type='log_cardio',
                 confirmation_detail=self._build_confirmation(
-                    what=f"{activity.title()} {duration_minutes} min",
+                    what=f"{activity.title()} {duration_minutes} min{intensity_str}",
                     where="Health > Fitness",
                     trend=trend,
                 )

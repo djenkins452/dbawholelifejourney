@@ -228,18 +228,25 @@ class SignalAggregationService:
     @staticmethod
     def _compute_health_activity(user, date, expected_map):
         """
-        Physical activity level.
+        Physical activity level with training intelligence.
+
         Sources: WorkoutSession, WorkoutScheduleLog (for skip evidence).
-        Normalization: 0.5 = 20 min exercise, 1.0 = 45+ min.
+        Scoring (stepped thresholds):
+          <10 min  → 0.0   (no_activity)
+          10-19    → 0.25  (light_activity)
+          20-44    → 0.5+  (moderate_activity)
+          45+      → 1.0   (strong_activity)
         Includes activity_level classification and session_mode breakdown.
         """
         from apps.health.models import WorkoutSession
 
         is_expected = expected_map.get('workout', False)
 
-        sessions = list(WorkoutSession.objects.filter(
-            user=user, date=date, completed_at__isnull=False,
-        ))
+        sessions = list(
+            WorkoutSession.objects.filter(
+                user=user, date=date, completed_at__isnull=False,
+            ).exclude(status='deleted')
+        )
         total_minutes = sum(s.duration_minutes or 0 for s in sessions)
         session_count = len(sessions)
 
@@ -267,15 +274,31 @@ class SignalAggregationService:
                 pass
             return None  # Zero-fill will handle
 
-        # Normalize: 0 min=0.0, 20 min=0.5, 45 min=1.0
+        # Stepped scoring with training intelligence
+        from apps.health.services.fitness_utils import classify_daily_activity
+
+        # Determine max intensity across sessions
+        intensity_rank = {'hard': 3, 'moderate': 2, 'easy': 1, '': 0}
+        max_intensity = ''
+        daily_training_load = 0.0
+        for s in sessions:
+            if intensity_rank.get(s.intensity, 0) > intensity_rank.get(max_intensity, 0):
+                max_intensity = s.intensity
+            daily_training_load += s.training_load
+
+        classification = classify_daily_activity(total_minutes, max_intensity)
+
         if total_minutes >= 45:
             score = 1.0
             state = 'completed'
         elif total_minutes >= 20:
             score = 0.5 + (total_minutes - 20) * 0.5 / 25
+            state = 'completed'
+        elif total_minutes >= 10:
+            score = 0.25
             state = 'partial'
         else:
-            score = total_minutes * 0.5 / 20
+            score = total_minutes * 0.25 / 10 if total_minutes > 0 else 0.0
             state = 'partial'
 
         # Session mode breakdown
@@ -290,7 +313,9 @@ class SignalAggregationService:
             source_signals={
                 'workout_sessions': session_count,
                 'total_minutes': total_minutes,
-                'activity_level': _classify_activity_level(total_minutes),
+                'daily_classification': classification,
+                'daily_training_load': round(daily_training_load, 2),
+                'max_intensity': max_intensity,
                 'session_modes': {
                     'structured': structured_count,
                     'activity': activity_count,
@@ -313,9 +338,11 @@ class SignalAggregationService:
 
         is_expected = expected_map.get('workout', False)
 
-        sessions = list(WorkoutSession.objects.filter(
-            user=user, date=date, completed_at__isnull=False,
-        ))
+        sessions = list(
+            WorkoutSession.objects.filter(
+                user=user, date=date, completed_at__isnull=False,
+            ).exclude(status='deleted')
+        )
         session_count = len(sessions)
 
         if session_count == 0:

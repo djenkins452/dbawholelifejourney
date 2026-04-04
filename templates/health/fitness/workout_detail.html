@@ -48,8 +48,8 @@
         </div>
     </div>
 
-    {% if workout.is_activity or workout.source == "apple_health" or workout.duration_minutes and not workout.exercise_count %}
-        <!-- Activity / HealthKit Workout Summary -->
+    {% if workout.is_activity_workout or workout.is_activity or workout.source == "apple_health" or workout.duration_minutes and not workout.exercise_count %}
+        <!-- Activity Workout Summary -->
         <div class="workout-summary mb-6">
             {% if workout.workout_type %}
                 <div class="summary-stat">
@@ -67,6 +67,12 @@
                 <div class="summary-stat">
                     <span class="stat-value">{{ workout.get_intensity_display }}</span>
                     <span class="stat-label">Intensity</span>
+                </div>
+            {% endif %}
+            {% if workout.training_load %}
+                <div class="summary-stat">
+                    <span class="stat-value">{{ workout.training_load }}</span>
+                    <span class="stat-label">Training Load</span>
                 </div>
             {% endif %}
             {% if workout.calories_burned %}

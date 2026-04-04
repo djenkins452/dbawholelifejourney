@@ -180,8 +180,8 @@ class WorkoutExerciseInline(admin.TabularInline):
 
 @admin.register(WorkoutSession)
 class WorkoutSessionAdmin(admin.ModelAdmin):
-    list_display = ["user", "name", "date", "exercise_count", "duration_minutes", "status"]
-    list_filter = ["status", "date"]
+    list_display = ["user", "name", "date", "session_mode", "exercise_count", "duration_minutes", "intensity", "status"]
+    list_filter = ["status", "date", "session_mode", "intensity"]
     search_fields = ["user__email", "name"]
     raw_id_fields = ["user"]
     date_hierarchy = "date"

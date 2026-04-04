@@ -1699,7 +1699,49 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
             except WorkoutTemplate.DoesNotExist:
                 pass
 
-        # Create workout session
+        # Determine session mode
+        session_mode = request.POST.get("session_mode", "structured")
+
+        if session_mode == "activity":
+            # Activity mode: simple duration-based workout
+            from apps.health.services.fitness_utils import derive_intensity
+
+            duration = request.POST.get("activity_duration")
+            intensity_raw = request.POST.get("activity_intensity", "moderate")
+            activity_name = request.POST.get("name", "Activity")
+            duration_val = int(duration) if duration else None
+            resolved_intensity = derive_intensity(
+                activity_name, duration_val, intensity_raw
+            )
+
+            calories = request.POST.get("activity_calories")
+            distance = request.POST.get("activity_distance")
+
+            from django.utils import timezone as _tz
+            now = _tz.now()
+
+            workout = WorkoutSession.objects.create(
+                user=user,
+                date=request.POST.get("date") or today,
+                name=activity_name,
+                notes=request.POST.get("notes", ""),
+                duration_minutes=duration_val,
+                calories_burned=int(calories) if calories else None,
+                distance_miles=Decimal(distance) if distance else None,
+                created_via=created_via,
+                session_mode=WorkoutSession.SESSION_MODE_ACTIVITY,
+                intensity=resolved_intensity,
+                started_at=now,
+                completed_at=now,
+            )
+
+            messages.success(request, "Activity logged!")
+            from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+            fire_intelligence(request.user, "health", workout.id, "log_cardio")
+
+            return redirect("health:workout_detail", pk=workout.pk)
+
+        # Create workout session (structured mode)
         workout = WorkoutSession.objects.create(
             user=user,
             date=request.POST.get("date") or today,
@@ -1707,6 +1749,7 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
             notes=request.POST.get("notes", ""),
             created_via=created_via,
             from_template=from_template,
+            session_mode=WorkoutSession.SESSION_MODE_STRUCTURED,
         )
 
         # Process exercises

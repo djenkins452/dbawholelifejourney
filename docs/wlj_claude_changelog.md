@@ -6,6 +6,25 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-04 — Fix: "Finish Workout" button silently fails on structured workouts
+
+**Root Cause:** The activity panel's duration input (`activityDuration`) had an HTML `required`
+attribute. Even though the activity panel is hidden (`display: none`) in structured workout mode,
+the browser's native form validation can block form submission on hidden required fields — and
+since the field isn't visible, no validation tooltip appears. Result: clicking "Finish Workout"
+does absolutely nothing — no error, no redirect, no alert.
+
+This is particularly noticeable when doing a second workout of the day, but can affect any
+structured workout depending on browser behavior.
+
+**Fix:** Removed `required` from the `activityDuration` input. The activity logging path already
+validates duration in JavaScript (line 1568: `if (!duration || parseInt(duration) < 1)`), so
+the HTML attribute was redundant.
+
+**Files changed:** `templates/health/fitness/workout_form.html`
+
+---
+
 ## 2026-04-04 — Fix: Broaden workout completion definition for structured workouts
 
 **Root Cause:** `WorkoutQueries.completed_on()` required `completed_at` to be set, but

@@ -33,7 +33,7 @@ def generate_proactive_suggestions(user):
             - schedule_name: str
             - type: 'upcoming' | 'load_balance'
             - priority: 'medium' | 'low'
-            - message: str (Beth-ready)
+            - message: str (CoS-ready)
             - days_until_due: int
         Returns empty list if urgent actions exist (suppression rule).
     """

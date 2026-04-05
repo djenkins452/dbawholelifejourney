@@ -9,7 +9,7 @@
 Deterministic Health Coaching Builder.
 
 Converts health priority summary + signals into a single actionable
-coaching directive for Beth (CoS). No LLM reasoning. Pure function.
+coaching directive for CoS. No LLM reasoning. Pure function.
 
 Architecture: summary + signals → THIS → time-awareness → CoS system prompt
 

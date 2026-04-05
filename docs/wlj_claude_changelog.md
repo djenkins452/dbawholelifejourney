@@ -6,6 +6,43 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-05 — Cleanup: Rename "Beth" to "CoS" in Python comments/docstrings
+
+**Problem:** Internal code comments and docstrings still referenced "Beth" (the old persona name)
+instead of the canonical "CoS" (Chief of Staff) terminology. This created inconsistency across
+the codebase since the product had already moved to the CoS naming convention.
+
+**Fix — Comment/docstring cleanup across 25 files:**
+
+- `apps/core/tasks.py` — "Beth reads" -> "CoS reads"
+- `apps/core/signals/models.py` — "via Beth or UI" -> "via CoS or UI"
+- `apps/core/signals/health_signals.py` — "Beth / nudges" -> "CoS / nudges"
+- `apps/core/signals/signal_presenter.py` — "Beth" -> "CoS" (2 locations)
+- `apps/core/ai_eae/models.py` — "Beth's framing" -> "CoS framing" (help_text)
+- `apps/core/ai_orchestrator/action_policy.py` — "Beth can execute" -> "CoS can execute"
+- `apps/core/ai_orchestrator/cos_context.py` — ~30 "Beth" references replaced with "CoS"
+- `apps/journal/services/content_intelligence.py` — "Beth's prompt" -> "CoS prompt"
+- `apps/health/services/physical_decision.py` — "for Beth" -> "for CoS" (2 locations)
+- `apps/health/services/health_priority_service.py` — "(future) Beth" -> "(future) CoS"
+- `apps/health/services/health_coaching_builder.py` — "for Beth (CoS)" -> "for CoS"
+- `apps/health/views.py` — "so Beth reads" -> "so CoS reads"
+- `apps/life/signals.py` — "Beth's prompt" -> "CoS prompt", "Beth from making" -> "CoS from making"
+- `apps/life/services/routine_action_service.py` — "for Beth" -> "for CoS"
+- `apps/life/services/proactive_planning_service.py` — "Beth-ready" -> "CoS-ready"
+- `apps/life/services/morning_reconciliation.py` — 4x "Beth" -> "CoS"
+- `apps/life/services/routine_health_service.py` — 2x "Beth" -> "CoS"
+- `apps/life/services/action_time_service.py` — 3x "Beth" -> "CoS"
+- `apps/life/services/task_priority_service.py` — "UI / Beth" -> "UI / CoS"
+- `apps/mobile/views.py` — "Beth reads" -> "CoS reads", "Beth to report" -> "CoS to report"
+- `apps/users/models.py` — "how assertively Beth" -> "how assertively CoS", "Beth (CoS)" -> "CoS"
+- `apps/dashboard_v2/compliance/models.py` — "and Beth read" -> "and CoS read"
+- `apps/purpose/models.py` — "or by Beth" -> "or by CoS"
+- `apps/purpose/services/goal_signal_config.py` — "user or Beth" -> "user or CoS"
+
+**Migrations generated:** `ai_eae.0007`, `users.0083` (help_text-only changes)
+
+---
+
 ## 2026-04-05 — Enhancement: Beth Decision Enforcement — Chief of Staff behavior upgrade
 
 **Problem:** Beth had all the intelligence (signals, momentum, patterns, priorities) but

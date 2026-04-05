@@ -728,8 +728,8 @@ def check_system_health_task():
 # These tasks move expensive SAE state rebuilds off the HTTP request path.
 # Write paths (medicine take, task complete, routine toggle) persist the
 # canonical record and invalidate caches synchronously, then enqueue
-# SAE module rebuilds here. Beth reads state from cache/DB, and the cache
-# keys are already deleted by the time she checks — so she'll rebuild
+# SAE module rebuilds here. CoS reads state from cache/DB, and the cache
+# keys are already deleted by the time it checks — so it'll rebuild
 # fresh from DB, never reading stale state.
 #
 # Dedup: Redis-based lock prevents redundant rebuilds when multiple

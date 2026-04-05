@@ -11,7 +11,7 @@ Deterministic Health Signals.
 Identifies trends and patterns from canonical health + medicine state.
 Each signal describes ONE concept: direction, state, or emerging pattern.
 
-Architecture: raw data → canonical state → THIS → summary / Beth / nudges
+Architecture: raw data → canonical state → THIS → summary / CoS / nudges
 
 Public API:
     build_health_signals(health_state, medicine_state, current_dt) -> list[dict]

@@ -1,13 +1,13 @@
 """
 Morning Reconciliation Service — identify yesterday's unresolved routine items.
 
-Surfaces missing execution truth so Beth can ask the user to confirm what
+Surfaces missing execution truth so CoS can ask the user to confirm what
 actually happened.  Runs once per day on first dashboard load (morning).
 
 Architecture contract:
-  - Beth NEVER infers truth
-  - Beth NEVER auto-completes
-  - Beth ONLY asks and records user input
+  - CoS NEVER infers truth
+  - CoS NEVER auto-completes
+  - CoS ONLY asks and records user input
   - All updates flow through existing toggle_routine_completion / skip_routine
 """
 

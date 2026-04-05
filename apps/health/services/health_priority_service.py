@@ -11,7 +11,7 @@ Deterministic Health Priority Summary.
 Converts canonical health + medicine state into a short ordered summary
 of what matters right now. Sits between canonical state and UI.
 
-Architecture: raw data → canonical state → THIS → UI / (future) Beth
+Architecture: raw data → canonical state → THIS → UI / (future) CoS
 
 Public API:
     build_health_priority_summary(health_state, medicine_state, current_dt) -> dict

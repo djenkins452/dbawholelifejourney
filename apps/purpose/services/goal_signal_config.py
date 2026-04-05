@@ -8,7 +8,7 @@
 GoalSignalConfigService — Manages GoalSignalSource configuration.
 
 Auto-populates default signal sources when a goal is created, based on
-the goal's LifeDomain. Can be customized by the user or Beth.
+the goal's LifeDomain. Can be customized by the user or CoS.
 
 Part of the WLJ Architecture Evolution — Layer 4 (Goal Momentum).
 """

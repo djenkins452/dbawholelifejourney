@@ -63,7 +63,7 @@ def generate_routine_actions(routine_signals):
             - schedule_name: str
             - priority: 'high' | 'medium' | 'low'
             - action: str (action type key)
-            - message: str (human-readable, for Beth)
+            - message: str (human-readable, for CoS)
     """
     if not routine_signals:
         return []

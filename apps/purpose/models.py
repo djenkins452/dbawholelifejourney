@@ -1273,7 +1273,7 @@ class GoalSignalSource(models.Model):
 
     Part of the WLJ Architecture Evolution (Phase 5).
     Auto-populated with domain defaults when a goal is created.
-    Can be overridden by the user or by Beth.
+    Can be overridden by the user or by CoS.
 
     Weights should sum to ~1.0 for a goal, but this is not enforced
     at the database level to allow flexible tuning.

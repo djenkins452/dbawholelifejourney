@@ -49,7 +49,7 @@ def compute_physical_decision(user, as_of_date=None):
     - Conflict detection (contradictions)
     - Impact assessment (why it matters)
     - Coaching context (how to communicate it)
-    - Narrative (pre-assembled text for Beth)
+    - Narrative (pre-assembled text for CoS)
 
     Args:
         user: Django User instance
@@ -946,7 +946,7 @@ def _build_signal_interpretation(decision, body_comp):
 
 
 def _build_narrative(decision):
-    """Assemble the complete narrative for Beth.
+    """Assemble the complete narrative for CoS.
 
     Structure varies by the behavior × outcome quadrant:
     - Reinforce: behavior good + outcome good

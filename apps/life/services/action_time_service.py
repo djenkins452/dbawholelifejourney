@@ -7,7 +7,7 @@ user's day. Answers "when should I do it?" — not "what should I do?"
 Architecture: service layer only, no models, no DB writes, no calendar
 events. Uses existing time windows from apps.core.time_windows.
 
-Output is directional guidance for Beth, not a rigid schedule.
+Output is directional guidance for CoS, not a rigid schedule.
 """
 
 import logging
@@ -65,7 +65,7 @@ def assign_time_blocks(actions, current_hour=None):
             - time_block: str (window key)
             - time_label: str (human-readable, e.g. "this afternoon")
             - suggested_duration: int (minutes)
-            - guidance: str (Beth-ready sentence)
+            - guidance: str (CoS-ready sentence)
     """
     if not actions:
         return []
@@ -118,7 +118,7 @@ def assign_time_blocks(actions, current_hour=None):
         duration = _DURATION_MAP.get(action_type, 30)
         name = action.get('schedule_name', 'this')
 
-        # Build Beth-ready guidance sentence
+        # Build CoS-ready guidance sentence
         guidance = f"Take {duration} minutes {time_label} to handle {name}."
 
         result.append({

@@ -11,7 +11,7 @@ Deterministic Task Priority Summary.
 Converts canonical task state into a short ordered summary of what
 matters right now. Follows proven Health architecture.
 
-Architecture: raw data → canonical state → THIS → coaching → UI / Beth
+Architecture: raw data → canonical state → THIS → coaching → UI / CoS
 
 Public API:
     build_task_priority_summary(task_state, current_dt) -> dict

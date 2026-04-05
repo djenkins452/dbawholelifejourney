@@ -541,9 +541,9 @@ def health_ingest(request):
         except Exception:
             pass  # Never block HealthKit response
 
-    # Update SAE state so Beth reads fresh health data (weight, body comp, etc.)
+    # Update SAE state so CoS reads fresh health data (weight, body comp, etc.)
     # Without this, Apple Health syncs create WeightEntry records but the SAE
-    # snapshot (UserState.state_data) stays stale — causing Beth to report
+    # snapshot (UserState.state_data) stays stale — causing CoS to report
     # outdated weight values while the UI shows the correct latest entry.
     if changed_types:
         try:

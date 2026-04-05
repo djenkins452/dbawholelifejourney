@@ -1,7 +1,7 @@
 """
 Routine Health & Drift Signal Service
 
-Evaluates routine health over time and produces signals for Beth and
+Evaluates routine health over time and produces signals for CoS and
 the dashboard. Reads from existing data — does NOT modify any models.
 
 Signal types:
@@ -31,7 +31,7 @@ def evaluate_routine_health(schedule, user_today):
         list[dict] — signals found (empty if healthy), each with:
             - type: str
             - severity: 'high' | 'medium' | 'low'
-            - detail: str (human-readable, for Beth)
+            - detail: str (human-readable, for CoS)
             - days: int (optional context)
     """
     signals = []

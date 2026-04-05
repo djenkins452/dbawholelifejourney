@@ -87,7 +87,7 @@ class SignalSnapshot(models.Model):
     signal_class = models.CharField(
         max_length=25,
         choices=SIGNAL_CLASS_CHOICES,
-        help_text="Trust classification — determines Beth's framing",
+        help_text="Trust classification — determines CoS framing",
     )
     score = models.FloatField(
         help_text="Normalized score 0.0–1.0",

@@ -96,7 +96,7 @@ def handle_task_saved(sender, instance, created, **kwargs):
         pass  # Insight invalidation is best-effort
 
     # Invalidate ALL caches so next interaction sees updated schedule
-    # 1. CoS context cache (Beth's prompt data) — cheap cache.delete()
+    # 1. CoS context cache (CoS prompt data) — cheap cache.delete()
     try:
         from apps.ai.readiness_cache import invalidate_cos_context
         invalidate_cos_context(instance.user)
@@ -169,7 +169,7 @@ def handle_routine_log_saved(sender, instance, **kwargs):
     When a RoutineLog is created/updated, rebuild SAE state + invalidate caches.
 
     This ensures the execution contract reflects the latest routine completion
-    status immediately, preventing Beth from making stale claims about routine
+    status immediately, preventing CoS from making stale claims about routine
     progress. Without this, CoS would read stale execution state until the next
     scheduled SAE rebuild cycle (~5 min).
     """

@@ -343,7 +343,7 @@ def _build_health_and_vitals(user):
                 # local time. If a dose is marked 'overdue' but its
                 # scheduled_time is still in the future, force it back
                 # to 'upcoming'. This prevents stale SAE state or timezone
-                # mismatches from reaching Beth.
+                # mismatches from reaching CoS.
                 try:
                     from apps.core.utils import get_user_now
                     _local_now = get_user_now(user).time()
@@ -1351,7 +1351,7 @@ def _build_intelligence_signals(user, _module_permissions=None):
         result['cross_domain_correlations'] = []
         _sources_failed.append('CDCE')
 
-    # Intelligence status — tells Beth whether she has full or degraded awareness
+    # Intelligence status — tells CoS whether it has full or degraded awareness
     if not _sources_failed:
         result['intelligence_status'] = 'full'
     elif len(_sources_failed) >= 3:
@@ -1848,7 +1848,7 @@ def _build_purpose_context(user):
                 'last_activity': habits_state.get('last_activity'),
             }
 
-        # Per-habit streak data — enables Beth to reference specific habit
+        # Per-habit streak data — enables CoS to reference specific habit
         # streaks in coaching (e.g., "14-day journaling streak — protect it").
         # Lightweight: 1 query per active habit (typically ≤5 habits).
         try:
@@ -1901,7 +1901,7 @@ def _build_purpose_context(user):
 def _build_routine_context(user):
     """Build routine context — structural awareness only (NOT execution truth).
 
-    Provides Beth awareness of the user's routine schedule structure.
+    Provides CoS awareness of the user's routine schedule structure.
     Completion claims MUST come from the execution contract section only.
     """
     result = {}
@@ -1941,7 +1941,7 @@ def _build_sports_context(user):
     - There are games today (includes starting_soon), OR
     - There are high-importance storylines (e.g., 5+ game win streak)
 
-    Returns empty dict when nothing is actionable — Beth says nothing about sports.
+    Returns empty dict when nothing is actionable — CoS says nothing about sports.
 
     Reads _contract from SAE state. Falls back to flat team_summaries if
     _contract is not yet available (backward compat during rollout).
@@ -2329,7 +2329,7 @@ def _build_operating_profile(user):
 
     This builder does ONE database lookup (no computation). The profile
     is pre-computed nightly by compute_operating_profiles_task. If the
-    profile is missing or unreliable, returns empty dict — Beth operates
+    profile is missing or unreliable, returns empty dict — CoS operates
     exactly as before.
 
     Returns:
@@ -2364,7 +2364,7 @@ def _build_compensatory_context(user):
     Compares planned commitments vs actual activity for today, identifying
     missed commitments and any compensating signals that partially offset them.
 
-    Returns dict with 'daily_commitment_gap' key for Beth's reasoning.
+    Returns dict with 'daily_commitment_gap' key for CoS reasoning.
     """
     try:
         from apps.core.utils import get_user_today
@@ -2409,7 +2409,7 @@ def _build_compensatory_context(user):
 
 def _build_signal_aware_context(user):
     """
-    Architecture Evolution Phase 8: Build signal-aware daily context for Beth.
+    Architecture Evolution Phase 8: Build signal-aware daily context for CoS.
 
     Assembles today's signal snapshots with trust classification and 7-day
     trends, plus goal momentum data with signal breakdowns.
@@ -2425,7 +2425,7 @@ def _build_signal_aware_context(user):
 
         # Build set of disabled signal domains from user preferences.
         # Signals from disabled modules/sub-features are excluded entirely
-        # so Beth never references behaviours the user turned off.
+        # so CoS never references behaviours the user turned off.
         _disabled_domains = set()
         try:
             prefs = user.preferences
@@ -3766,7 +3766,7 @@ def _build_data_state_snapshot(user) -> str:
 
     # ── Completion rate + tone gating ──
     # Count total actionable items and completed items to compute a rate.
-    # This gates Beth's summary tone so she can't say "productive day"
+    # This gates CoS summary tone so it can't say "productive day"
     # when completion is 25%. Only counts EXPECTED domains.
     _total_items = 0
     _completed_items = 0
@@ -3822,7 +3822,7 @@ def _build_data_state_snapshot(user) -> str:
     lines.append(f"  {_tone_rule}")
 
     # ── Persona message block (anchor + flex model) ──
-    # System-generated messages that Beth must use as primary output.
+    # System-generated messages that CoS must use as primary output.
     # STRICT messages: meaning locked. FLEXIBLE: natural variation OK.
     # Replaces the old PERSONA EXAMPLE approach.
     try:
@@ -3866,7 +3866,7 @@ def _build_data_state_snapshot(user) -> str:
 
     # ── 7-Day Adherence Score ──
     # Replaces momentum narrative with concrete adherence data.
-    # Beth uses this for behavioral guidance instead of vague "momentum" language.
+    # CoS uses this for behavioral guidance instead of vague "momentum" language.
     try:
         from apps.core.behavior.behavior_score_engine import compute_adherence_summary
         _adh = compute_adherence_summary(user)
@@ -3937,7 +3937,7 @@ def _build_data_state_snapshot(user) -> str:
                     _status = f"{_done}/{_total} — NOT COMPLETE ({_missed} item(s) remaining/missed)"
                 lines.append(f"  {_rname}: {_status}")
 
-        # Routine item detail (so Beth sees exactly which items are done/missed/pending)
+        # Routine item detail (so CoS sees exactly which items are done/missed/pending)
         # Activity-type items include source context (e.g., which workout fulfilled it)
         _exec_items = _exec_contract.get('items', [])
         _routine_items_for_prompt = [i for i in _exec_items if i.get('source_type') == 'routine_item']
@@ -3962,7 +3962,7 @@ def _build_data_state_snapshot(user) -> str:
                         f"{ri.get('title', '')} ({_ri_parent})"
                     )
                 elif _ri_source and _ri_source != 'manual' and _ri_status in ('DONE', 'COMPLETED', 'COMPLETED_LATE'):
-                    # Activity-completed: show source context for Beth reasoning
+                    # Activity-completed: show source context for CoS reasoning
                     _late_note = " (late)" if 'LATE' in _ri_status else ""
                     _via_detail = f" — {_ri_via}" if _ri_via else ""
                     lines.append(
@@ -4177,7 +4177,7 @@ def _format_operating_profile_injection(profile_data):
     Format the Personal Operating Context as a concise prompt block.
 
     Converts structured profile_data into behavioral observations
-    that Beth can reference when framing guidance. Output is capped at
+    that CoS can reference when framing guidance. Output is capped at
     ~300-500 tokens. Does NOT inject raw data — only interpreted signals.
 
     Each dimension is gated by its own confidence threshold (from model
@@ -4272,7 +4272,7 @@ def _format_operating_profile_injection(profile_data):
     if not sections:
         return ""
 
-    # Assemble with Beth directive
+    # Assemble with CoS directive
     lines = []
     lines.append("")
     lines.append("")
@@ -4306,8 +4306,8 @@ def _confidence_qualifier(confidence):
     Higher confidence → more direct language.
     Lower confidence → more tentative framing.
 
-    This prevents Beth from stating low-confidence patterns as facts,
-    while allowing her to be authoritative when the data is strong.
+    This prevents CoS from stating low-confidence patterns as facts,
+    while allowing it to be authoritative when the data is strong.
     """
     if confidence >= 0.80:
         return "Your data consistently shows"
@@ -4330,7 +4330,7 @@ def _hour_label(hour):
 
 
 # =============================================================================
-# Phase 7.5 — Beth Reasoning Quality Improvements
+# Phase 7.5 — CoS Reasoning Quality Improvements
 # =============================================================================
 
 RESPONSE_MODE_DIRECTIVES = {
@@ -4485,7 +4485,7 @@ def _format_signal_interpretation_summary(context):
         trend = s.get('trend_7d', '')
         trend_tag = f", {trend}" if trend else ''
 
-        # Add confidence qualifier for low-confidence signals so Beth
+        # Add confidence qualifier for low-confidence signals so CoS
         # softens language accordingly
         if confidence < 0.5:
             conf_tag = ', low confidence'
@@ -4760,7 +4760,7 @@ def _get_today_domain_override(context, domain_key):
     Check execution summaries for same-day completion status.
 
     If the user has completed this domain TODAY, returns a consistency
-    floor so Beth reacts to today's behavior, not just historical trends.
+    floor so CoS reacts to today's behavior, not just historical trends.
 
     Reads from execution summaries (authoritative) which store domain
     completion as booleans: {'journal': True, 'workout': False, ...}
@@ -4854,7 +4854,7 @@ def _build_confidence_consistency_directive(context, user):
         )
 
         # Apply today override — if user completed or is in-progress today,
-        # floor the consistency so Beth reacts to TODAY not just trends
+        # floor the consistency so CoS reacts to TODAY not just trends
         today_floor = _get_today_domain_override(context, domain_key)
         if today_floor and consistency:
             _floor_rank = {'low': 0, 'medium': 1, 'high': 2}
@@ -5348,7 +5348,7 @@ def format_cos_system_injection(context, user_message=None):
 
     # ── HEALTH SCREENSHOT ANALYSIS (PIE) ──
     # When a health screenshot was analyzed by PIE, inject the structured
-    # interpretation so Beth responds with reasoning, not data recitation.
+    # interpretation so CoS responds with reasoning, not data recitation.
     health_analysis = context.get('health_screenshot_analysis')
     if health_analysis:
         lines.append("")
@@ -5563,8 +5563,8 @@ def format_cos_system_injection(context, user_message=None):
     lines.append("")
 
     # ── USER OPERATING PROFILE (Personal Operating Context — Phase 1) ──
-    # Pre-computed behavioral synthesis. Influences HOW Beth frames guidance,
-    # not WHAT she decides. Only injected when sample_days >= 14.
+    # Pre-computed behavioral synthesis. Influences HOW CoS frames guidance,
+    # not WHAT it decides. Only injected when sample_days >= 14.
     op_profile = context.get('operating_profile', {})
     if op_profile.get('is_reliable') and op_profile.get('data'):
         try:
@@ -5586,7 +5586,7 @@ def format_cos_system_injection(context, user_message=None):
 
     # ── INTELLIGENCE SIGNALS (PRIMARY REASONING LAYER) ──
     # Intelligence signals are placed BEFORE operational data because the LLM
-    # weights earlier context more heavily. Beth should reason from signals
+    # weights earlier context more heavily. CoS should reason from signals
     # and momentum first, then reference tasks as supporting evidence.
 
     # Intelligence status — tells CoS if awareness is complete or degraded
@@ -5870,7 +5870,7 @@ def format_cos_system_injection(context, user_message=None):
 
     # ── OPERATIONAL DATA SNAPSHOT (supporting evidence) ──
     # Operational data (meds, schedule, calendar) supports the intelligence
-    # signals above. Beth should reference this data to substantiate signal
+    # signals above. CoS should reference this data to substantiate signal
     # interpretations, not as the primary narrative.
 
     # Medication (actionable — user needs to know, with names)
@@ -6006,7 +6006,7 @@ def format_cos_system_injection(context, user_message=None):
                 )
             else:
                 lines.append(f"  - MISSED: {title}")
-        # Include framing text for Beth to reference
+        # Include framing text for CoS to reference
         framing_gaps = [g for g in gaps if g.get('framing')]
         if framing_gaps:
             lines.append("")
@@ -6543,7 +6543,7 @@ def format_cos_system_injection(context, user_message=None):
             # REMOVED: Reading streak data from CoS prompt.
             # Streaks create ambiguity — the LLM interprets a high streak
             # as evidence of today's completion. Streaks remain in SAE for
-            # analytics but are NOT injected into Beth's prompt context.
+            # analytics but are NOT injected into CoS prompt context.
 
     # Phase 7.3: Finance context
     finance_goals = context.get('finance_goals', [])
@@ -6766,7 +6766,7 @@ def format_cos_system_injection(context, user_message=None):
             pass  # Snapshot must never break CoS
 
         # ── TODAY'S EXECUTION STATUS (CANONICAL — from DailyProgressService) ──
-        # This block gives Beth explicit per-domain completion truth for TODAY.
+        # This block gives CoS explicit per-domain completion truth for TODAY.
         # Without it, the LLM infers completion from 7-day aggregates and streaks,
         # causing false-positive "done" statements (the core trust bug).
         try:
@@ -6838,7 +6838,7 @@ def format_cos_system_injection(context, user_message=None):
 
             # ── DOMAIN STATE CLASSIFICATION ──
             # Classify each domain as ACTIONABLE / SATISFIED / IRRELEVANT
-            # so Beth knows which mode to operate in per-domain.
+            # so CoS knows which mode to operate in per-domain.
             _domain_states = {}
             _r_satisfied = r.get('done', 0) >= r.get('total', 0) and r.get('total', 0) > 0
             _domain_states['routines'] = 'SATISFIED' if _r_satisfied else ('ACTIONABLE' if r.get('total', 0) > 0 else 'IRRELEVANT')
@@ -6979,7 +6979,7 @@ def format_cos_system_injection(context, user_message=None):
     lines.append("")
     lines.append(
         "WHO YOU ARE:\n"
-        "You are Beth, the user\\'s Chief of Staff. You are a real person sitting "
+        "You are the user\\'s Chief of Staff. You are a real person sitting "
         "next to them, paying attention, keeping them aligned. You are NOT a "
         "reporter, a dashboard, or a command engine. You guide clearly and stay "
         "out of the way when things are on track.\n"

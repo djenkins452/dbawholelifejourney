@@ -48,7 +48,7 @@ class RiskLevel(str, Enum):
 
 
 class AuthorityLevel(str, Enum):
-    """Whether Beth can execute this automatically."""
+    """Whether CoS can execute this automatically."""
     AUTO = 'auto'           # Execute without asking (reads, navigation, control)
     CONFIRM = 'confirm'     # Requires user confirmation before execution
     BLOCKED = 'blocked'     # Never auto-execute (reserved for admin-only ops)

@@ -2789,7 +2789,7 @@ def save_set_ajax(request):
     # (invalidate_cache_on_exercise_set_save → _refresh_sae_module('fitness')).
     # No need to duplicate here.
 
-    # Invalidate CoS readiness cache so Beth reads fresh fitness state
+    # Invalidate CoS readiness cache so CoS reads fresh fitness state
     try:
         from apps.ai.readiness_cache import invalidate_cos_context
         invalidate_cos_context(user)

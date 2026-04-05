@@ -738,7 +738,7 @@ class UserPreferences(models.Model):
         choices=ASSERTIVENESS_CHOICES,
         default='firm_respectful',
         help_text=(
-            'Controls how assertively Beth intervenes on overdue/drift items. '
+            'Controls how assertively CoS intervenes on overdue/drift items. '
             'Gentle = fewer nudges, longer cooldowns. '
             'Direct = more nudges, shorter cooldowns.'
         ),
@@ -1880,7 +1880,7 @@ class ModuleDefinition(models.Model):
     )
     cos_participation = models.BooleanField(
         default=True,
-        help_text="Whether Beth (CoS) may reference this module in reasoning",
+        help_text="Whether CoS may reference this module in reasoning",
     )
 
     # ── Sub-features ──

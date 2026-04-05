@@ -358,7 +358,7 @@ def analyze_journal_for_cos(user) -> dict:
             [s.domain for s in journal_signals[:5]],
         )
 
-        # Build structured signal list for Beth's prompt context
+        # Build structured signal list for CoS prompt context
         signal_list = [
             {
                 'signal_type': s.signal_type,

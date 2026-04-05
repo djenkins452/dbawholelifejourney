@@ -3,7 +3,7 @@ ComplianceEvent — canonical audit model for tracked commitments.
 
 Every item that WLJ tracks as expected/completed/missed gets exactly one
 ComplianceEvent row per user per day per item. This is the single source
-of truth that summary cards, drill-down UIs, signals, and Beth read from.
+of truth that summary cards, drill-down UIs, signals, and CoS read from.
 
 Architecture rule:
     raw data → domain adapters → ComplianceEvent → rollup / detail / signal

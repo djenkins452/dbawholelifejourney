@@ -30,7 +30,7 @@ Pipeline:
     detect_signals(user) → get_execution_truth(user) → filter →
     signal_tuning → pattern_tuning → prioritization → present
 
-Consumers: Beth (conversational AI), optional UI suggestion cards.
+Consumers: CoS (conversational AI), optional UI suggestion cards.
 """
 
 import logging
@@ -548,7 +548,7 @@ def _apply_adaptive_tuning(user, signals: List[Dict]) -> List[Dict]:
 def get_presented_signals(user) -> Dict:
     """Transform raw signals into safe, presentation-ready suggestions.
 
-    This is the single entry point for Beth and UI consumers.
+    This is the single entry point for CoS and UI consumers.
 
     Pipeline:
         1. Fetch raw signals from Signal Engine

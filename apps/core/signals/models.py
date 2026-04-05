@@ -20,7 +20,7 @@ class SignalFeedback(models.Model):
     """Records explicit user feedback on a behavioral signal.
 
     Each record captures a single yes/no response to a signal
-    presented by the system (via Beth or UI).
+    presented by the system (via CoS or UI).
     """
 
     user = models.ForeignKey(

@@ -452,7 +452,7 @@ def health_ingest(request):
             if result == "created":
                 created += 1
                 changed_types.add(metric.get("type", "unknown"))
-            elif result == "updated":
+            elif result in ("updated", "merged"):
                 updated += 1
                 changed_types.add(metric.get("type", "unknown"))
             elif result == "skipped":
@@ -1840,26 +1840,22 @@ def process_workout_metric(user, metric_date, source, sync_id, data):
             return "skipped"
 
     # Check for overlapping manual entries on the same date.
-    # Only merge when time overlap is provable (both sessions have timestamps).
-    # This prevents HealthKit from creating a duplicate WorkoutSession when the
-    # user already manually logged the same physical workout.
+    # Only merge when time overlap is provable (both sessions have timestamps)
+    # AND the workout type matches (e.g., don't merge a cycling ride into a
+    # weight training session just because the times overlap).
     if started_at and completed_at:
-        manual_overlap = (
-            WorkoutSession.objects.filter(
-                user=user,
-                date=metric_date,
-                source="manual",
-            )
-            .filter(
-                # Manual entry must have timestamps to prove overlap
-                started_at__isnull=False,
-                completed_at__isnull=False,
-                # Time windows overlap: manual.start < hk.end AND manual.end > hk.start
-                started_at__lt=completed_at,
-                completed_at__gt=started_at,
-            )
-            .first()
+        overlap_qs = WorkoutSession.objects.filter(
+            user=user,
+            date=metric_date,
+            source="manual",
+            started_at__isnull=False,
+            completed_at__isnull=False,
+            started_at__lt=completed_at,
+            completed_at__gt=started_at,
         )
+        if workout_type:
+            overlap_qs = overlap_qs.filter(workout_type__iexact=workout_type)
+        manual_overlap = overlap_qs.first()
         if manual_overlap:
             # Enrich the existing manual entry with HealthKit data
             manual_overlap.sync_id = sync_id

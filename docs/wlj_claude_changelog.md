@@ -6,6 +6,25 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-04 — Fix: HealthKit workout merged into wrong manual workout
+
+**Root Cause:** The HealthKit ingest overlap detection merged workouts purely by
+time overlap, without checking if the workout types matched. A cycling ride that
+overlapped with a weight training session's time window would get silently merged
+into the weight training entry. Additionally, `"merged"` results weren't counted
+in the ingest response, making the issue invisible.
+
+**Fix:**
+- Added `workout_type` matching to overlap detection — only merge if the HealthKit
+  workout type matches the manual entry's type (case-insensitive)
+- Count `"merged"` results as `"updated"` in the ingest response
+- Data migration to clear stolen `sync_id` from manual workouts on 2026-04-04 so
+  the cycling workout creates its own entry on next sync
+
+**Files changed:** `apps/mobile/views.py`, `apps/health/migrations/0075_fix_merged_cycling_sync_id.py`
+
+---
+
 ## 2026-04-04 — Fix: Starting second workout resumes first workout's data
 
 **Root Cause:** `start_workout_ajax` unconditionally resumed any in-progress workout

@@ -35,7 +35,6 @@ Daily hydration tracking with quick-add buttons
     <div class="v2-water-quick" data-water-url="{% url 'health:water_quick_log' %}" data-csrf="{{ csrf_token }}">
         <button type="button" class="v2-water-btn" data-water-preset="16" data-water-type="water">+16oz Water</button>
         <button type="button" class="v2-water-btn" data-water-preset="12" data-water-type="coffee">+Coffee</button>
-        <button type="button" class="v2-water-btn" data-water-preset="16" data-water-type="creatine">+Creatine</button>
     </div>
 
     <a href="{% url 'health:water_list' %}" class="v2-water-history">View history{% if water_data.entry_count %} ({{ water_data.entry_count }}){% endif %}</a>

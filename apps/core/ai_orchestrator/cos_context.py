@@ -310,6 +310,14 @@ def _build_health_and_vitals(user):
                 'taken_today': med_state.get('today_taken', 0),
                 'adherence_pct': round(adherence_7d * 100, 1) if adherence_7d is not None else None,
             }
+            # Supplement adherence (separate from medication)
+            supp_adherence_7d = med_state.get('supplement_adherence_7d')
+            if supp_adherence_7d is not None or med_state.get('supplement_count', 0) > 0:
+                result['supplement_adherence_state'] = {
+                    'supplement_count': med_state.get('supplement_count', 0),
+                    'active_supplements': med_state.get('active_supplements', []),
+                    'adherence_pct': round(supp_adherence_7d * 100, 1) if supp_adherence_7d is not None else None,
+                }
     except Exception:
         logger.error("CoS context: medication adherence failed", exc_info=True)
 
@@ -3209,6 +3217,15 @@ _BRIEF_WINDOW_NAMES = {
     'afternoon': 'Afternoon medicines',
     'evening': 'Evening medicines',
     'nightly': 'Night medicines',
+}
+
+_BRIEF_SUPPLEMENT_WINDOW_NAMES = {
+    'morning': 'Morning supplements',
+    'mid_morning': 'Mid-morning supplements',
+    'lunch': 'Lunch supplements',
+    'afternoon': 'Afternoon supplements',
+    'evening': 'Evening supplements',
+    'nightly': 'Night supplements',
 }
 
 

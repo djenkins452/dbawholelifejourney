@@ -1832,16 +1832,56 @@ class ActionHandler:
     # MEDICINE HANDLERS
     # =========================================================================
 
+    def handle_take_supplement(self, supplement_name: str, notes: str = "",
+                               **kwargs) -> ActionResult:
+        """
+        Log that user took a supplement.
+        Same logic as handle_take_medicine but filtered to intake_type='supplement'.
+        """
+        from apps.health.models import Medicine
+
+        try:
+            supplements = Medicine.objects.filter(
+                user=self.user,
+                medicine_status=Medicine.STATUS_ACTIVE,
+                intake_type=Medicine.INTAKE_TYPE_SUPPLEMENT,
+                status='active',
+            ).filter(Q(name__icontains=supplement_name))
+
+            count = supplements.count()
+
+            if count == 0:
+                return ActionResult(
+                    success=False,
+                    message=f"I couldn't find '{supplement_name}' in your supplements. Would you like to add it?",
+                    error='supplement_not_found'
+                )
+            elif count == 1:
+                supplement = supplements.first()
+                return self._log_medicine_taken(supplement, None, notes)
+            else:
+                names = [f"• {s.name} ({s.dose})" for s in supplements[:5]]
+                return ActionResult(
+                    success=False,
+                    message=f"I found {count} supplements matching '{supplement_name}':\n" + "\n".join(names) + "\nWhich one did you take?",
+                    error='multiple_matches',
+                    created_object={
+                        'matches': [{'id': s.id, 'name': s.name, 'dose': s.dose} for s in supplements[:5]]
+                    }
+                )
+        except Exception as e:
+            logger.error(f"Error logging supplement: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message=f"{_pick_opener(_ERROR_OPENERS, 'supp')} — I wasn't able to log that supplement.",
+                error='internal_error'
+            )
+
     def handle_take_medicine(self, medicine_name: str, dose_label: str = None,
                              notes: str = "", **kwargs) -> ActionResult:
         """
-        Log that user took a medicine.
-
-        Logic:
-        1. Search user's active medicines by name (case-insensitive partial match)
-        2. If one match: Log the next scheduled dose (or most recent if PRN)
-        3. If multiple matches: Return options for user to choose
-        4. If no match: Inform user medicine not found
+        Log that user took a medication.
+        Filtered to intake_type='medication' to prevent cross-matching supplements.
 
         Args:
             medicine_name: Name of the medicine
@@ -1851,14 +1891,23 @@ class ActionHandler:
         from apps.health.models import Medicine
 
         try:
-            # Search for matching active medicines
+            # Search for matching active medications only
             medicines = Medicine.objects.filter(
                 user=self.user,
                 medicine_status=Medicine.STATUS_ACTIVE,
+                intake_type=Medicine.INTAKE_TYPE_MEDICATION,
                 status='active'  # UserOwnedModel soft delete
             ).filter(
                 Q(name__icontains=medicine_name)
             )
+            # Fallback: if no medication match, try all active items (user may
+            # not know the distinction)
+            if not medicines.exists():
+                medicines = Medicine.objects.filter(
+                    user=self.user,
+                    medicine_status=Medicine.STATUS_ACTIVE,
+                    status='active',
+                ).filter(Q(name__icontains=medicine_name))
 
             count = medicines.count()
 

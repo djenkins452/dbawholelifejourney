@@ -473,9 +473,13 @@ HEALTH:
 - "I had eggs and toast for breakfast" → log_food(food_name="eggs and toast", quantity=1, meal_type="breakfast")
 - "took my metformin" → take_medicine(medicine_name="metformin")
 - "I took my 8am meds at 10am" → take_medicine(medicine_name="8am meds")
+- "took my creatine" → take_supplement(supplement_name="creatine")
+- "I took my vitamin D" → take_supplement(supplement_name="vitamin D")
+- "took my fish oil" → take_supplement(supplement_name="fish oil")
 - "took my evening meds" → take_medicines_by_time(time_of_day="evening")
 - "mark morning medicines taken" → take_medicines_by_time(time_of_day="morning")
 - "took all my nightly pills" → take_medicines_by_time(time_of_day="nightly")
+- "took my morning supplements" → take_medicines_by_time(time_of_day="morning")
 - "I took my two evening medicines, mark them took at scheduled time" → take_medicines_by_time(time_of_day="evening", use_scheduled_time=true)
 - "email me my list of medicines" → email_medicine_list()
 - "send my medicine list to dannyjenkins71@gmail.com" → email_medicine_list(recipient_email="dannyjenkins71@gmail.com")
@@ -1295,6 +1299,10 @@ the Medications page), honor the explicit domain.
             medicine = parameters.get('medicine_name', 'medicine')
             return f"Marking {medicine} as taken."
 
+        elif intent_type == 'take_supplement':
+            supplement = parameters.get('supplement_name', 'supplement')
+            return f"Logging {supplement} as taken."
+
         elif intent_type == 'take_medicines_by_time':
             tod = parameters.get('time_of_day', 'scheduled')
             scheduled = parameters.get('use_scheduled_time', False)
@@ -1440,6 +1448,9 @@ the Medications page), honor the explicit domain.
 
             elif intent_type == 'take_medicine':
                 return handler.handle_take_medicine(**parameters)
+
+            elif intent_type == 'take_supplement':
+                return handler.handle_take_supplement(**parameters)
 
             elif intent_type == 'take_medicines_by_time':
                 return handler.handle_take_medicines_by_time(**parameters)

@@ -51,13 +51,6 @@
                 <input type="hidden" name="next" value="{% url 'health:water_list' %}">
                 <button type="submit" class="btn btn-ghost btn-sm">+12oz Coffee</button>
             </form>
-            <form method="post" action="{% url 'health:water_quick_log' %}" class="inline-form">
-                {% csrf_token %}
-                <input type="hidden" name="preset" value="16">
-                <input type="hidden" name="drink_type" value="creatine">
-                <input type="hidden" name="next" value="{% url 'health:water_list' %}">
-                <button type="submit" class="btn btn-ghost btn-sm">+Creatine</button>
-            </form>
         </div>
     </div>
 
@@ -145,7 +138,7 @@
     {% else %}
         <div class="empty-state">
             <h2 class="empty-state-title">No drinks logged yet</h2>
-            <p class="empty-state-text">Start tracking your hydration — water, coffee, creatine, and more.</p>
+            <p class="empty-state-text">Start tracking your hydration — water, coffee, electrolytes, and more.</p>
             <a href="{% url 'health:water_create' %}" class="btn btn-primary">Log Your First Drink</a>
         </div>
     {% endif %}

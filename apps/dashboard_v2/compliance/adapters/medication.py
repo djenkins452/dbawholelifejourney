@@ -101,6 +101,8 @@ def _build_dose_event(user, day, medicine, schedule, log):
         "expected_at": schedule.scheduled_time,
         "expected": True,
         "source_system": SOURCE_MEDICINE_LOG if log else SOURCE_MEDICINE_SCHEDULE,
+        "intake_type": medicine.intake_type,
+        "priority": medicine.priority,
     }
 
     if log:

@@ -647,6 +647,8 @@ class MedicineAICameraPrefillTest(MedicineTestMixin, TestCase):
                 'start_date': timezone.now().date().isoformat(),
                 'refill_threshold': 7,
                 'grace_period_minutes': 60,
+                'intake_type': 'medication',
+                'priority': 'critical',
             }
         )
 
@@ -667,6 +669,8 @@ class MedicineAICameraPrefillTest(MedicineTestMixin, TestCase):
                 'start_date': timezone.now().date().isoformat(),
                 'refill_threshold': 7,
                 'grace_period_minutes': 60,
+                'intake_type': 'medication',
+                'priority': 'critical',
             }
         )
 

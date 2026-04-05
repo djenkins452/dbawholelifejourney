@@ -35,6 +35,29 @@ She'd list multiple options instead of choosing, report state instead of driving
 
 ---
 
+## 2026-04-05 — Feature: Unified Intake System (Medications + Supplements)
+
+**Root cause:** Supplements (creatine) were logged via the hydration UI as volume-based drink entries, violating signal integrity, domain clarity, and CoS reasoning.
+
+**Changes:**
+- Added `intake_type` (medication/supplement) and `priority` (critical/optimization) fields to Medicine model
+- Added `source` field to MedicineLog (manual/cos/routine)
+- Split signal layer: separate `medication_adherence` and `supplement_adherence` signals
+- Extended state builder with `active_medications`, `active_supplements`, `supplement_adherence_7d`
+- Extended CoS context with `supplement_adherence_state`
+- Extended event adapter with intake_type/priority in event detail
+- Updated execution engine: supplement_window groups with conditional importance
+- Removed creatine from hydration system (5 templates, model choices, detection logic)
+- Rerouted creatine detection in Physical Intelligence to Medicine model
+- Seed migration creates Creatine supplement for users with hydration history
+- Added `take_supplement` AI intent + action handler
+- Updated MedicineForm with intake_type/priority fields
+- Filtered behavior domain to medications only
+- Added intake_type to compliance adapter events
+- Scaffolded supplement_consistency_pattern and supplement_outcome_correlation patterns
+
+**Files modified:** apps/health/models.py, apps/health/forms.py, apps/health/medicine_utils.py, apps/health/services/physical_decision.py, apps/health/services/conflict_detection.py, apps/core/ai_eae/signal_aggregation.py, apps/core/ai_eae/pattern_taxonomy.py, apps/core/ai_state/state_builder.py, apps/core/ai_orchestrator/cos_context.py, apps/core/ai_orchestrator/intent_engine.py, apps/core/ai_orchestrator/action_policy.py, apps/core/ai_events/adapters/medication.py, apps/core/execution/today_execution.py, apps/core/decision_engine/action_prioritizer.py, apps/core/behavior/domain_medication.py, apps/dashboard_v2/compliance/adapters/medication.py, apps/ai/intents/medicine_intents.py, apps/ai/intents/__init__.py, apps/ai/action_handlers.py, apps/ai/intent_service.py, apps/dashboard/services/config_service.py, 5 templates, 3 migrations, test fix
+
 ## 2026-04-05 — Fix: Dashboard routine/medication groups out of chronological order
 
 **Root Cause:** `action_prioritizer.py` line 617 applied `WINDOW_ORDER` rank sorting only

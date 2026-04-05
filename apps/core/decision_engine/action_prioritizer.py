@@ -278,26 +278,31 @@ def prioritize_execution_items(execution_items, current_time, summaries=None):
                 'time_display': item.get('scheduled_time', ''),
                 'is_overdue': _routine_overdue,
             })
-        elif item['source_type'] == 'medication_dose':
+        elif item['source_type'] in ('medication_dose', 'supplement_dose'):
+            # Use group_type + window as key to keep medications and supplements separate
+            group_type = item.get('execution_group_type', 'medication_window')
             window = item.get('execution_group_id', 'unscheduled')
-            if window not in medicine_groups_map:
-                medicine_groups_map[window] = {
+            group_key = f"{group_type}_{window}"
+            is_foundational = item.get('is_foundational', item['source_type'] == 'medication_dose')
+            if group_key not in medicine_groups_map:
+                medicine_groups_map[group_key] = {
                     'title': item.get('parent_title', window),
                     'time_of_day': window,
-                    'is_foundational': True,
+                    'is_foundational': is_foundational,
                     'goal_name': '',
                     'all_taken': False,
                     'total': 0,
                     'taken': 0,
                     'has_overdue': False,
                     'scheduled_time': item.get('scheduled_time'),
+                    'group_type': group_type,
                 }
-            medicine_groups_map[window]['total'] += 1
+            medicine_groups_map[group_key]['total'] += 1
             if item.get('completed_today'):
-                medicine_groups_map[window]['taken'] += 1
+                medicine_groups_map[group_key]['taken'] += 1
             # Track if any dose in this window is overdue
             if item.get('time_status') == 'overdue':
-                medicine_groups_map[window]['has_overdue'] = True
+                medicine_groups_map[group_key]['has_overdue'] = True
 
     # Finalize medicine groups
     medicine_groups = []

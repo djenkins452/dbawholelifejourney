@@ -488,11 +488,13 @@ class MedicineForm(forms.ModelForm):
     class Meta:
         model = Medicine
         fields = [
+            "intake_type",
             "name",
             "purpose",
             "dose",
             "frequency",
             "is_prn",
+            "priority",
             "start_date",
             "end_date",
             "current_supply",
@@ -505,13 +507,20 @@ class MedicineForm(forms.ModelForm):
             "grace_period_minutes",
         ]
         widgets = {
+            "intake_type": forms.Select(attrs={
+                "class": "form-select",
+                "id": "id_intake_type",
+            }),
+            "priority": forms.Select(attrs={
+                "class": "form-select",
+            }),
             "name": forms.TextInput(attrs={
                 "class": "form-input",
-                "placeholder": "Medicine name (e.g., Lisinopril)",
+                "placeholder": "Name (e.g., Lisinopril, Creatine, Vitamin D)",
             }),
             "purpose": forms.TextInput(attrs={
                 "class": "form-input",
-                "placeholder": "What is this for? (e.g., blood pressure)",
+                "placeholder": "What is this for? (e.g., blood pressure, muscle recovery)",
             }),
             "dose": forms.TextInput(attrs={
                 "class": "form-input",

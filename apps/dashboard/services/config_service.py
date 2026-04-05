@@ -49,7 +49,7 @@ TILE_DEFINITIONS = {
     'water': {
         'id': 'water',
         'name': 'Water',
-        'description': 'Daily hydration tracking with quick-add buttons for water, coffee, and creatine.',
+        'description': 'Daily hydration tracking with quick-add buttons for water, coffee, and electrolytes.',
         'icon': 'droplet',
         'module_dependency': 'health_enabled',
         'default_visible': True,

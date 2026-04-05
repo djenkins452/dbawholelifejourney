@@ -56,6 +56,7 @@ SIGNAL_TYPE_DOMAIN = {
     'training_load': 'health',
     'health_biometrics': 'health',
     'medication_adherence': 'health',
+    'supplement_adherence': 'health',
     'nutrition_compliance': 'health',
     'faith_practice': 'faith',
     'mental_reflection': 'journal',           # Phase 4: aligned with Domain Registry (was 'mind')
@@ -119,6 +120,7 @@ class SignalAggregationService:
             SignalAggregationService._compute_training_load,
             SignalAggregationService._compute_health_biometrics,
             SignalAggregationService._compute_medication_adherence,
+            SignalAggregationService._compute_supplement_adherence,
             SignalAggregationService._compute_nutrition_compliance,    # Phase 4
             SignalAggregationService._compute_faith_practice,
             SignalAggregationService._compute_mental_reflection,
@@ -146,7 +148,8 @@ class SignalAggregationService:
         produced_types = {s.signal_type for s in results}
         _ZERO_FILL_TYPES = [
             'health_activity', 'training_load', 'health_biometrics',
-            'medication_adherence', 'nutrition_compliance', 'faith_practice',
+            'medication_adherence', 'supplement_adherence',
+            'nutrition_compliance', 'faith_practice',
             'mental_reflection', 'cognitive_fitness', 'productivity_progress',
             'relational_engagement',
         ]
@@ -477,17 +480,44 @@ class SignalAggregationService:
     @staticmethod
     def _compute_medication_adherence(user, date, expected_map):
         """
-        Medication compliance.
+        Medication compliance (intake_type='medication' only).
         Sources: MedicineLog vs MedicineSchedule.
         Normalization: taken_count / scheduled_count.
         """
-        from apps.health.models import MedicineLog, MedicineSchedule
+        return SignalAggregationService._compute_intake_adherence(
+            user, date, expected_map,
+            intake_type='medication',
+            signal_type='medication_adherence',
+            expected_key='medication',
+        )
 
-        is_expected = expected_map.get('medication', False)
+    @staticmethod
+    def _compute_supplement_adherence(user, date, expected_map):
+        """
+        Supplement compliance (intake_type='supplement' only).
+        Same algorithm as medication adherence, filtered by intake_type.
+        """
+        return SignalAggregationService._compute_intake_adherence(
+            user, date, expected_map,
+            intake_type='supplement',
+            signal_type='supplement_adherence',
+            expected_key='supplement',
+        )
 
-        # Get all active schedules for this user
+    @staticmethod
+    def _compute_intake_adherence(user, date, expected_map, *, intake_type, signal_type, expected_key):
+        """
+        Shared adherence computation for medications and supplements.
+        Filters by intake_type to produce separate signals.
+        """
+        from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+
+        is_expected = expected_map.get(expected_key, expected_map.get('medication', False))
+
+        # Get active schedules filtered by intake_type
         active_schedules = MedicineSchedule.objects.filter(
             medicine__user=user,
+            medicine__intake_type=intake_type,
             is_active=True,
         )
 
@@ -499,10 +529,11 @@ class SignalAggregationService:
         if scheduled_count == 0:
             return None  # Zero-fill will handle
 
-        # Count taken logs
+        # Count taken logs — filter to matching intake_type
         logs = MedicineLog.objects.filter(
             user=user,
             scheduled_date=date,
+            medicine__intake_type=intake_type,
         )
         taken = logs.filter(log_status='taken').count()
         late = logs.filter(log_status='late').count()
@@ -518,16 +549,14 @@ class SignalAggregationService:
         elif score > 0:
             state = 'partial'
         elif skipped > 0 and (taken + late) == 0:
-            # All doses explicitly skipped, none taken
             state = 'skipped'
         elif skipped > 0:
-            # Some skipped, some not taken — partial at best
             state = 'partial'
         else:
             state = 'missed'
 
         return SignalAggregationService._upsert_snapshot(
-            user, date, 'medication_adherence',
+            user, date, signal_type,
             score=score,
             confidence=confidence_for_state(state),
             signal_class='verified_action',

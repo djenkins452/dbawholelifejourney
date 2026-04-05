@@ -995,6 +995,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Activity-Based Workouts (PK 180)
         self._reset_activity_workouts_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Unified Intake System / Supplement Tracking (PK 181)
+        self._reset_supplement_tracking_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -6261,3 +6264,33 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset activity workouts fixtures FAILED: {e}'))
+
+    def _reset_supplement_tracking_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes with Supplement Tracking entry (PK 181).
+        """
+        reset_tracker_name = 'reset_supplement_tracking_2026_04_05'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for Supplement Tracking')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for supplement tracking',
+                'command',
+                'One-time reset: added PK 181 for unified intake system'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset supplement tracking fixtures FAILED: {e}'))

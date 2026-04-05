@@ -256,17 +256,31 @@ def _collect_medication_items(user, user_now, user_today):
         status = entry.get('status', 'upcoming')
         completed = status in ('taken',)
         window = entry.get('window_label', 'unscheduled')
+        intake_type = entry.get('intake_type', 'medication')
+        priority = entry.get('priority', 'critical')
+        is_supplement = (intake_type == 'supplement')
+
+        # Determine group type and label based on intake_type
+        if is_supplement:
+            group_type = 'supplement_window'
+            label_suffix = ' Supplements'
+        else:
+            group_type = 'medication_window'
+            label_suffix = ' Medications'
+
+        # Window summary key includes group_type to keep meds/supplements separate
+        summary_key = f"{group_type}_{window}"
 
         # Build window summary with canonical display names
-        if window not in window_summaries:
+        if summary_key not in window_summaries:
             display_name = WINDOW_DISPLAY_NAMES.get(window, window.replace('_', ' ').title())
-            window_summaries[window] = {
+            window_summaries[summary_key] = {
                 'total': 0, 'taken': 0, 'all_taken': False,
-                'label': display_name + ' Medications',
+                'label': display_name + label_suffix,
             }
-        window_summaries[window]['total'] += 1
+        window_summaries[summary_key]['total'] += 1
         if completed:
-            window_summaries[window]['taken'] += 1
+            window_summaries[summary_key]['taken'] += 1
 
         # Map medication status to execution status
         if status == 'taken':
@@ -274,9 +288,17 @@ def _collect_medication_items(user, user_now, user_today):
         elif status == 'missed':
             exec_status = 'missed'
         elif status == 'overdue':
-            exec_status = 'overdue'
+            # Supplements with optimization priority don't escalate to overdue
+            if is_supplement and priority == 'optimization':
+                exec_status = 'upcoming'
+            else:
+                exec_status = 'overdue'
         else:
             exec_status = 'upcoming'
+
+        # Importance driven by priority, not intake_type
+        is_foundational = (priority == 'critical')
+        importance = 'foundational' if is_foundational else 'standard'
 
         # Build toggle URL for individual dose completion
         schedule_id = entry.get('schedule_id')
@@ -303,23 +325,25 @@ def _collect_medication_items(user, user_now, user_today):
                 pass
 
         items.append({
-            'source_type': 'medication_dose',
+            'source_type': 'medication_dose' if not is_supplement else 'supplement_dose',
             'source_id': schedule_id or hash(f"{entry.get('medicine_name')}_{window}_{entry.get('scheduled_time')}"),
-            'title': entry.get('medicine_name', 'Medication'),
+            'title': entry.get('medicine_name', 'Supplement' if is_supplement else 'Medication'),
             'domain': 'health',
-            'importance': 'foundational',  # Medications are always foundational
+            'importance': importance,
             'time_status': exec_status if exec_status in ('upcoming', 'overdue') else 'upcoming',
             'scheduled_time': entry.get('scheduled_time'),
             'grace_minutes': 0,
             'completion_status': exec_status,
             'completed_today': completed,
             'is_actionable': not completed and status != 'missed',
-            'is_foundational': True,
+            'is_foundational': is_foundational,
             'toggle_url': toggle_url,
             'detail_url': detail_url,
-            'execution_group_type': 'medication_window',
+            'execution_group_type': group_type,
             'execution_group_id': window,
-            'parent_title': window_summaries[window]['label'],
+            'parent_title': window_summaries[summary_key]['label'],
+            'intake_type': intake_type,
+            'priority': priority,
         })
 
     # Finalize window summaries

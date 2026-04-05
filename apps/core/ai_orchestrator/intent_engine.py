@@ -27,6 +27,7 @@ HEALTH_INTENTS = {
 
 MEDICINE_INTENTS = {
     "take_medicine",
+    "take_supplement",
     "take_medicines_by_time",
     "email_medicine_list",
 }

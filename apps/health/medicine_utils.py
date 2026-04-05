@@ -16,9 +16,15 @@ used across dashboard_ai, dashboard cache, personal_assistant, and trend_trackin
 from datetime import date, timedelta
 
 
-def calculate_medicine_adherence(user, start_date, end_date):
+def calculate_medicine_adherence(user, start_date, end_date, intake_type=None):
     """
     Calculate medicine adherence rate for a date range.
+
+    Args:
+        user: Django User instance
+        start_date: date — inclusive start
+        end_date: date — inclusive end
+        intake_type: optional — 'medication', 'supplement', or None for all
 
     Returns dict with:
         - expected_doses: total scheduled doses in the period
@@ -33,10 +39,13 @@ def calculate_medicine_adherence(user, start_date, end_date):
     from apps.core.utils import get_user_now, get_user_today
     from apps.health.models import Medicine, MedicineLog, MedicineSchedule
 
-    active_medicines = Medicine.objects.filter(
+    qs = Medicine.objects.filter(
         user=user,
         medicine_status=Medicine.STATUS_ACTIVE,
-    ).prefetch_related("schedules")
+    )
+    if intake_type:
+        qs = qs.filter(intake_type=intake_type)
+    active_medicines = qs.prefetch_related("schedules")
 
     user_today = get_user_today(user)
     user_now = get_user_now(user)
@@ -172,15 +181,17 @@ def calculate_single_medicine_adherence(user, medicine, start_date, end_date):
     }
 
 
-def calculate_medicine_adherence_rate(user, days=7):
+def calculate_medicine_adherence_rate(user, days=7, intake_type=None):
     """
     Convenience wrapper: returns just the adherence rate (int or None)
     for the past N days.
+
+    Args:
+        intake_type: optional — 'medication', 'supplement', or None for all
     """
-    from django.utils import timezone
     from apps.core.utils import get_user_today
 
     today = get_user_today(user)
     start = today - timedelta(days=days)
-    result = calculate_medicine_adherence(user, start, today)
+    result = calculate_medicine_adherence(user, start, today, intake_type=intake_type)
     return result["adherence_rate"]

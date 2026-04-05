@@ -2261,6 +2261,7 @@ def build_medicine_state(user):
         # Reason: medicine schedule iteration for per-dose detail — no MedicineQueries
         # contract exists yet. Uses prefetch_related for schedule walking.
         # Do not reuse for general truth evaluation
+        # Active medicines summary — split by intake_type
         active_meds = Medicine.objects.filter(
             user=user, medicine_status='active',
         ).prefetch_related('schedules')
@@ -2268,6 +2269,14 @@ def build_medicine_state(user):
         state['active_medicines'] = list(
             active_meds.values_list('name', flat=True)[:15]
         )
+
+        # Split by intake_type for semantic consumers
+        active_medications = active_meds.filter(intake_type=Medicine.INTAKE_TYPE_MEDICATION)
+        active_supplements = active_meds.filter(intake_type=Medicine.INTAKE_TYPE_SUPPLEMENT)
+        state['active_medications'] = list(active_medications.values_list('name', flat=True)[:15])
+        state['active_supplements'] = list(active_supplements.values_list('name', flat=True)[:15])
+        state['medication_count'] = active_medications.count()
+        state['supplement_count'] = active_supplements.count()
 
         # Refill alerts
         needs_refill = [
@@ -2346,6 +2355,8 @@ def build_medicine_state(user):
                     'status': status,
                     'log_time': log_time,
                     'required_today': True,
+                    'intake_type': med.intake_type,
+                    'priority': med.priority,
                 })
 
         state['expected_today'] = expected_today
@@ -2355,6 +2366,13 @@ def build_medicine_state(user):
         adherence = calculate_medicine_adherence_rate(user, days=7)
         if adherence is not None:
             state['adherence_7d'] = adherence
+
+        # 7-day supplement adherence (same utility, filtered)
+        supplement_adherence = calculate_medicine_adherence_rate(
+            user, days=7, intake_type=Medicine.INTAKE_TYPE_SUPPLEMENT,
+        )
+        if supplement_adherence is not None:
+            state['supplement_adherence_7d'] = supplement_adherence
 
         # 7-day behavior breakdown for dashboard cockpit
         try:
@@ -2390,7 +2408,12 @@ def build_medicine_state(user):
         'summary': {
             'active_count': state.get('active_count', 0),
             'active_medicines': state.get('active_medicines', []),
+            'active_medications': state.get('active_medications', []),
+            'active_supplements': state.get('active_supplements', []),
+            'medication_count': state.get('medication_count', 0),
+            'supplement_count': state.get('supplement_count', 0),
             'adherence_7d': state.get('adherence_7d'),
+            'supplement_adherence_7d': state.get('supplement_adherence_7d'),
             'expected_today': state.get('expected_today', 0),
             'today_taken': state.get('today_taken', 0),
         },

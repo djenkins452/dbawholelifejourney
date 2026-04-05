@@ -74,8 +74,9 @@ INTENT_HANDLERS = {
     'log_water': 'health',
     'log_steps': 'health',
     'log_body_measurement': 'health',
-    # Medicine
+    # Medicine & Supplements
     'take_medicine': 'medicine',
+    'take_supplement': 'medicine',
     'take_medicines_by_time': 'medicine',
     'email_medicine_list': 'medicine',
     # Fasting

@@ -215,30 +215,23 @@ def apply_conflict_corrections(outcome, conflicts):
 def _started_creatine_recently(user, days=21):
     """Check if user started creatine within the last N days.
 
-    Uses WaterEntry drink_type='creatine' as the primary source.
-    Falls back to MedicineLog for creatine-related entries.
+    Source: Medicine model (intake_type='supplement') since Unified Intake System.
+    Uses start_date on the Medicine entry as the authoritative answer.
     """
     try:
-        from apps.health.models import WaterEntry
+        from apps.health.models import Medicine
 
-        start = WaterEntry.creatine_start_date(user)
-        if start and (date.today() - start).days <= days:
-            return True
+        creatine = Medicine.objects.filter(
+            user=user,
+            intake_type=Medicine.INTAKE_TYPE_SUPPLEMENT,
+            name__icontains="creatine",
+            medicine_status=Medicine.STATUS_ACTIVE,
+        ).first()
+        if creatine and creatine.start_date:
+            return (date.today() - creatine.start_date).days <= days
     except Exception:
         pass
-
-    # Fallback to MedicineLog for users who track creatine as medication
-    try:
-        from apps.health.models import MedicineLog
-
-        cutoff = date.today() - timedelta(days=days)
-        return MedicineLog.objects.filter(
-            medicine__user=user,
-            medicine__name__icontains="creatine",
-            scheduled_date__gte=cutoff,
-        ).exists()
-    except Exception:
-        return False
+    return False
 
 
 def _waist_not_gaining(trend):

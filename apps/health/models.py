@@ -900,10 +900,12 @@ class WaterEntry(UserOwnedModel):
         ("coffee", "Coffee"),
         ("tea", "Tea"),
         ("electrolyte", "Electrolyte Drink"),
-        ("creatine", "Creatine Drink"),
         ("juice", "Juice"),
         ("milk", "Milk"),
         ("other", "Other"),
+        # NOTE: "creatine" was removed in the Unified Intake System migration.
+        # Historical rows with drink_type='creatine' are preserved in the DB.
+        # Creatine is now tracked via the Medicine model (intake_type='supplement').
     ]
 
     # Conservative coefficients — understate rather than overstate.
@@ -914,7 +916,6 @@ class WaterEntry(UserOwnedModel):
         "coffee": 0.9,
         "tea": 0.95,
         "electrolyte": 1.05,
-        "creatine": 1.0,       # Water-based, but flags creatine intake
         "juice": 0.9,
         "milk": 0.9,
         "other": 0.9,
@@ -1044,45 +1045,10 @@ class WaterEntry(UserOwnedModel):
             "goal_met": total >= goal_oz,
         }
 
-    # ── Creatine helpers ──
-
-    @classmethod
-    def is_creatine_active(cls, user, window_days=7, min_days=4):
-        """True if user has logged creatine on at least min_days of last window_days.
-
-        A single log does NOT make someone "creatine active." Requires
-        consistent usage (4 of 7 days default) to trigger goal adjustments
-        and conflict detection.
-        """
-        cutoff = date.today() - timedelta(days=window_days)
-        distinct_days = (
-            cls.objects.filter(
-                user=user,
-                drink_type="creatine",
-                logged_date__gte=cutoff,
-            )
-            .values_list("logged_date", flat=True)
-            .distinct()
-            .count()
-        )
-        return distinct_days >= min_days
-
-    @classmethod
-    def creatine_start_date(cls, user):
-        """Date of user's first-ever creatine log, or None."""
-        return (
-            cls.objects.filter(user=user, drink_type="creatine")
-            .order_by("logged_date")
-            .values_list("logged_date", flat=True)
-            .first()
-        )
-
-    @classmethod
-    def has_creatine_today(cls, user, date):
-        """True if user logged creatine today."""
-        return cls.objects.filter(
-            user=user, drink_type="creatine", logged_date=date,
-        ).exists()
+    # NOTE: Creatine helpers (is_creatine_active, creatine_start_date,
+    # has_creatine_today) were removed in the Unified Intake System migration.
+    # Creatine is now tracked via the Medicine model (intake_type='supplement').
+    # Use Medicine.objects.filter(intake_type='supplement', name__icontains='creatine').
 
 
 class GlucoseEntry(UserOwnedModel):
@@ -2315,11 +2281,29 @@ class TemplateExerciseSet(models.Model):
 
 class Medicine(UserOwnedModel):
     """
-    A medicine/medication the user takes regularly or as-needed.
+    A tracked intake item — either a medication or a supplement.
 
-    Tracks the master list of medicines with dosage and scheduling info.
-    Supports both scheduled medicines and PRN (as-needed) medicines.
+    Use intake_type to distinguish: 'medication' for prescribed/medical items,
+    'supplement' for health optimization items (creatine, vitamins, etc.).
+    Despite the model name, this is the unified intake system.
+
+    Supports both scheduled items and PRN (as-needed) items.
     """
+
+    # ── Intake classification ──
+    INTAKE_TYPE_MEDICATION = "medication"
+    INTAKE_TYPE_SUPPLEMENT = "supplement"
+    INTAKE_TYPE_CHOICES = [
+        (INTAKE_TYPE_MEDICATION, "Medication"),
+        (INTAKE_TYPE_SUPPLEMENT, "Supplement"),
+    ]
+
+    PRIORITY_CRITICAL = "critical"
+    PRIORITY_OPTIMIZATION = "optimization"
+    PRIORITY_CHOICES = [
+        (PRIORITY_CRITICAL, "Critical"),
+        (PRIORITY_OPTIMIZATION, "Optimization"),
+    ]
 
     FREQUENCY_CHOICES = [
         ("daily", "Daily"),
@@ -2441,6 +2425,20 @@ class Medicine(UserOwnedModel):
     grace_period_minutes = models.PositiveIntegerField(
         default=60,
         help_text="Minutes after scheduled time before marking as overdue",
+    )
+
+    # ── Intake classification fields ──
+    intake_type = models.CharField(
+        max_length=20,
+        choices=INTAKE_TYPE_CHOICES,
+        default=INTAKE_TYPE_MEDICATION,
+        help_text="Whether this is a medication or supplement",
+    )
+    priority = models.CharField(
+        max_length=20,
+        choices=PRIORITY_CHOICES,
+        default=PRIORITY_CRITICAL,
+        help_text="Critical (health consequence if missed) vs optimization (goal support)",
     )
 
     # Refill Request Tracking
@@ -2675,7 +2673,7 @@ class MedicineSchedule(models.Model):
 
 class MedicineLog(UserOwnedModel):
     """
-    Log of when medicines were actually taken.
+    Log of when a medication or supplement was actually taken.
 
     Records both scheduled doses and PRN (as-needed) doses.
     """
@@ -2690,6 +2688,16 @@ class MedicineLog(UserOwnedModel):
         (STATUS_MISSED, "Missed"),
         (STATUS_SKIPPED, "Skipped"),
         (STATUS_LATE, "Taken Late"),
+    ]
+
+    # Source of the log entry
+    SOURCE_MANUAL = "manual"
+    SOURCE_COS = "cos"
+    SOURCE_ROUTINE = "routine"
+    SOURCE_CHOICES = [
+        (SOURCE_MANUAL, "Manual"),
+        (SOURCE_COS, "CoS"),
+        (SOURCE_ROUTINE, "Routine"),
     ]
 
     medicine = models.ForeignKey(
@@ -2750,6 +2758,13 @@ class MedicineLog(UserOwnedModel):
     is_user_corrected = models.BooleanField(
         default=False,
         help_text="True when user has manually edited a past log",
+    )
+
+    source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default=SOURCE_MANUAL,
+        help_text="How this log was created (manual, CoS, routine bridge)",
     )
 
     class Meta:

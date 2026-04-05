@@ -2198,6 +2198,8 @@ class PersonalRecord(UserOwnedModel):
     @property
     def estimated_1rm(self):
         """Estimate 1 rep max using Brzycki formula."""
+        if not self.weight or not self.reps:
+            return None
         if self.reps == 1:
             return float(self.weight)
         reps_capped = min(self.reps, 36)

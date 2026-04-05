@@ -238,6 +238,9 @@ urlpatterns = [
 
     # Personal Records & Progress
     path("physical/fitness/prs/", views.PersonalRecordsView.as_view(), name="personal_records"),
+    path("physical/fitness/pr/new/", views.PersonalRecordCreateView.as_view(), name="pr_create"),
+    path("physical/fitness/pr/<int:pk>/edit/", views.PersonalRecordUpdateView.as_view(), name="pr_edit"),
+    path("physical/fitness/pr/<int:pk>/delete/", views.PersonalRecordDeleteView.as_view(), name="pr_delete"),
     path("physical/fitness/progress/", views.ProgressView.as_view(), name="fitness_progress"),
 
     # Export

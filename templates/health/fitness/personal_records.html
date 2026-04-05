@@ -18,21 +18,114 @@
             <h1 class="page-title">Personal Records</h1>
             <p class="page-subtitle">Your best lifts and achievements</p>
         </div>
+        <button type="button" class="btn btn-primary" id="addPrBtn">+ Add PR</button>
+    </div>
+
+    <!-- Add PR Form (hidden by default) -->
+    <div id="addPrForm" class="pr-form-card" style="display: none;">
+        <h3>Add Personal Record</h3>
+        <form method="post" action="{% url 'health:pr_create' %}">
+            {% csrf_token %}
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="exercise">Exercise</label>
+                    <select name="exercise" id="exercise" required>
+                        <option value="">Select exercise...</option>
+                        {% for ex in exercises %}
+                            <option value="{{ ex.pk }}">{{ ex.name }} ({{ ex.get_muscle_group_display }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="pr_type">PR Type</label>
+                    <select name="pr_type" id="pr_type">
+                        <option value="weight">Max Weight</option>
+                        <option value="reps">Rep PR</option>
+                        <option value="e1rm">Estimated 1RM</option>
+                        <option value="time">Longest Hold</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row" id="weightRepsFields">
+                <div class="form-group">
+                    <label for="weight">Weight (lbs)</label>
+                    <input type="number" name="weight" id="weight" step="0.5" min="0" max="2000" placeholder="135">
+                </div>
+                <div class="form-group">
+                    <label for="reps">Reps</label>
+                    <input type="number" name="reps" id="reps" min="1" max="999" placeholder="10">
+                </div>
+            </div>
+            <div class="form-row" id="timeFields" style="display: none;">
+                <div class="form-group">
+                    <label for="duration_seconds">Duration (seconds)</label>
+                    <input type="number" name="duration_seconds" id="duration_seconds" min="1" max="86400" placeholder="90">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="achieved_date">Date</label>
+                    <input type="date" name="achieved_date" id="achieved_date" value="{{ today|date:'Y-m-d' }}">
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" id="cancelPrBtn">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save PR</button>
+            </div>
+        </form>
     </div>
 
     {% if prs %}
         <div class="pr-grid">
             {% for pr in prs %}
                 <div class="pr-card">
-                    <div class="pr-exercise">{{ pr.exercise.name }}</div>
+                    <div class="pr-card-header">
+                        <div class="pr-exercise">{{ pr.exercise.name }}</div>
+                        <span class="pr-type-badge pr-type-{{ pr.pr_type }}">{{ pr.get_pr_type_display }}</span>
+                    </div>
                     <div class="pr-stats">
-                        <span class="pr-weight">{{ pr.weight }}lbs</span>
-                        <span class="pr-separator">x</span>
-                        <span class="pr-reps">{{ pr.reps }}</span>
+                        {% if pr.pr_type == "time" %}
+                            <span class="pr-weight">
+                                {% if pr.duration_seconds >= 60 %}
+                                    {{ pr.duration_seconds|divisibleby:60|yesno:"" }}{% widthratio pr.duration_seconds 60 1 %}:{% widthratio pr.duration_seconds 1 1 as total_secs %}{{ pr.duration_seconds|divisibleby:60|yesno:"" }}
+                                {% endif %}
+                            </span>
+                            <span class="pr-duration-display">
+                                {% with mins=pr.duration_seconds|divisibleby:60 %}
+                                    {% if pr.duration_seconds >= 60 %}
+                                        {{ pr.duration_seconds }} sec
+                                    {% else %}
+                                        {{ pr.duration_seconds }} sec
+                                    {% endif %}
+                                {% endwith %}
+                            </span>
+                        {% else %}
+                            {% if pr.weight %}
+                                <span class="pr-weight">{{ pr.weight }}lbs</span>
+                                <span class="pr-separator">x</span>
+                            {% endif %}
+                            <span class="pr-reps">{{ pr.reps|default:"—" }}</span>
+                        {% endif %}
                     </div>
                     <div class="pr-meta">
                         <span class="pr-date">{{ pr.achieved_date|date:"M j, Y" }}</span>
-                        <span class="pr-1rm">Est. 1RM: {{ pr.estimated_1rm|floatformat:0 }}lbs</span>
+                        {% if pr.estimated_1rm %}
+                            <span class="pr-1rm">Est. 1RM: {{ pr.estimated_1rm|floatformat:0 }}lbs</span>
+                        {% endif %}
+                    </div>
+                    <div class="pr-actions">
+                        <a href="{% url 'health:pr_edit' pr.pk %}" class="pr-action-btn" title="Edit">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                        </a>
+                        <button type="button" class="pr-action-btn pr-delete-btn" data-pk="{{ pr.pk }}" data-name="{{ pr.exercise.name }}" title="Delete">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                        </button>
                     </div>
                 </div>
             {% endfor %}
@@ -45,9 +138,58 @@
                 </svg>
             </div>
             <h2>No personal records yet</h2>
-            <p>As you log workouts, your best performances will appear here. Keep pushing!</p>
-            <a href="{% url 'health:workout_create' %}" class="btn btn-primary">Log a Workout</a>
+            <p>As you log workouts, your best performances will appear here. You can also add them manually.</p>
+            <button type="button" class="btn btn-primary" id="addPrBtnEmpty">Add Your First PR</button>
         </div>
+    {% endif %}
+
+    <!-- PR History -->
+    {% if all_prs %}
+    <div class="pr-history-section">
+        <h2>PR History</h2>
+        <div class="pr-history-table-wrapper">
+            <table class="pr-history-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Exercise</th>
+                        <th>Type</th>
+                        <th>Performance</th>
+                        <th>Previous</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pr in all_prs %}
+                    <tr>
+                        <td>{{ pr.achieved_date|date:"M j" }}</td>
+                        <td>{{ pr.exercise.name }}</td>
+                        <td><span class="pr-type-badge-sm pr-type-{{ pr.pr_type }}">{{ pr.get_pr_type_display }}</span></td>
+                        <td>
+                            {% if pr.pr_type == "time" %}
+                                {{ pr.duration_seconds }}s
+                            {% elif pr.weight %}
+                                {{ pr.weight }}lbs x {{ pr.reps|default:"—" }}
+                            {% else %}
+                                {{ pr.reps }} reps
+                            {% endif %}
+                        </td>
+                        <td class="text-muted">
+                            {% if pr.previous_value %}
+                                {{ pr.previous_value|floatformat:1 }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'health:pr_edit' pr.pk %}" class="pr-action-link">Edit</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
     {% endif %}
 
     <div class="back-link mt-6">
@@ -62,6 +204,58 @@
 </div>
 
 <style nonce="{{ csp_nonce }}">
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-5);
+}
+
+.pr-form-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    margin-bottom: var(--space-5);
+}
+
+.pr-form-card h3 {
+    margin-bottom: var(--space-4);
+}
+
+.form-row {
+    display: flex;
+    gap: var(--space-4);
+    margin-bottom: var(--space-3);
+}
+
+.form-row .form-group {
+    flex: 1;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: var(--space-1);
+    font-weight: 500;
+    font-size: var(--font-size-sm);
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: 16px;
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: flex-end;
+    margin-top: var(--space-4);
+}
+
 .pr-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -74,12 +268,40 @@
     border-radius: var(--radius-lg);
     padding: var(--space-5);
     text-align: center;
+    position: relative;
+}
+
+.pr-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-3);
 }
 
 .pr-exercise {
     font-size: var(--font-size-lg);
     font-weight: 600;
-    margin-bottom: var(--space-3);
+    text-align: left;
+}
+
+.pr-type-badge {
+    font-size: var(--font-size-xs);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.pr-type-weight { background: #fef3c7; color: #92400e; }
+.pr-type-reps { background: #dbeafe; color: #1e40af; }
+.pr-type-e1rm { background: #ede9fe; color: #5b21b6; }
+.pr-type-time { background: #d1fae5; color: #065f46; }
+
+.pr-type-badge-sm {
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: var(--radius-full);
+    font-weight: 500;
 }
 
 .pr-stats {
@@ -91,6 +313,12 @@
 }
 
 .pr-weight {
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+    color: var(--color-accent);
+}
+
+.pr-duration-display {
     font-size: var(--font-size-3xl);
     font-weight: 700;
     color: var(--color-accent);
@@ -123,6 +351,79 @@
     font-size: var(--font-size-sm);
     color: var(--color-accent);
     font-weight: 500;
+}
+
+.pr-actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+.pr-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.pr-action-btn:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+
+.pr-delete-btn:hover {
+    border-color: #dc2626;
+    color: #dc2626;
+}
+
+.pr-action-link {
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+}
+
+.pr-history-section {
+    margin-top: var(--space-8);
+}
+
+.pr-history-section h2 {
+    margin-bottom: var(--space-4);
+}
+
+.pr-history-table-wrapper {
+    overflow-x: auto;
+}
+
+.pr-history-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.pr-history-table th,
+.pr-history-table td {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.pr-history-table th {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+
+.text-muted {
+    color: var(--color-text-muted);
 }
 
 .empty-state {
@@ -167,5 +468,73 @@
     width: 16px;
     height: 16px;
 }
+
+@media (max-width: 480px) {
+    .form-row {
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+
+    .pr-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .page-header {
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+
+    .page-header .btn {
+        width: 100%;
+    }
+}
 </style>
+
+<script nonce="{{ csp_nonce }}">
+// Toggle add PR form
+document.getElementById('addPrBtn').addEventListener('click', function() {
+    var form = document.getElementById('addPrForm');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+});
+
+var emptyBtn = document.getElementById('addPrBtnEmpty');
+if (emptyBtn) {
+    emptyBtn.addEventListener('click', function() {
+        document.getElementById('addPrForm').style.display = 'block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+}
+
+document.getElementById('cancelPrBtn').addEventListener('click', function() {
+    document.getElementById('addPrForm').style.display = 'none';
+});
+
+// Toggle fields based on PR type
+document.getElementById('pr_type').addEventListener('change', function() {
+    var isTime = this.value === 'time';
+    document.getElementById('weightRepsFields').style.display = isTime ? 'none' : 'flex';
+    document.getElementById('timeFields').style.display = isTime ? 'flex' : 'none';
+});
+
+// Delete PR handlers
+document.querySelectorAll('.pr-delete-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var pk = this.dataset.pk;
+        var name = this.dataset.name;
+        if (confirm('Delete PR for ' + name + '?')) {
+            fetch('/health/physical/fitness/pr/' + pk + '/delete/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            }).then(function(response) {
+                if (response.ok) {
+                    window.location.reload();
+                }
+            });
+        }
+    });
+});
+</script>
 {% endblock %}

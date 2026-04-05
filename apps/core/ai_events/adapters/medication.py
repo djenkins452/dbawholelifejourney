@@ -234,6 +234,8 @@ def _unlogged_to_event(medicine, schedule, scheduled_date, user):
         'scheduled_date': str(scheduled_date),
         'scheduled_time': str(schedule.scheduled_time) if schedule.scheduled_time else None,
         'log_status': 'unlogged',
+        'intake_type': medicine.intake_type,
+        'priority': medicine.priority,
     }
 
     return EventRecord(
@@ -290,6 +292,8 @@ def _log_to_event(log):
         'scheduled_date': str(log.scheduled_date),
         'scheduled_time': str(log.scheduled_time) if log.scheduled_time else None,
         'log_status': log.log_status,
+        'intake_type': log.medicine.intake_type if log.medicine_id else 'medication',
+        'priority': log.medicine.priority if log.medicine_id else 'critical',
     }
     if log.taken_at:
         detail['taken_at'] = log.taken_at.isoformat()

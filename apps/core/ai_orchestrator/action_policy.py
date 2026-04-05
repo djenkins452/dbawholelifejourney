@@ -143,6 +143,8 @@ _r('log_steps', ActionCategory.LOG, RiskLevel.LOW, AuthorityLevel.CONFIRM,
    label='Log steps')
 _r('take_medicine', ActionCategory.LOG, RiskLevel.LOW, AuthorityLevel.CONFIRM,
    label='Mark medicine taken')
+_r('take_supplement', ActionCategory.LOG, RiskLevel.LOW, AuthorityLevel.CONFIRM,
+   label='Mark supplement taken')
 _r('take_medicines_by_time', ActionCategory.LOG, RiskLevel.LOW, AuthorityLevel.CONFIRM,
    label='Mark medicines taken')
 _r('start_fast', ActionCategory.LOG, RiskLevel.LOW, AuthorityLevel.CONFIRM,

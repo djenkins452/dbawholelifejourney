@@ -40,6 +40,7 @@ def calculate_medicine_behavior_output(user, start_date, end_date):
     active_medicines = Medicine.objects.filter(
         user=user,
         medicine_status=Medicine.STATUS_ACTIVE,
+        intake_type=Medicine.INTAKE_TYPE_MEDICATION,
     ).prefetch_related("schedules")
 
     if not active_medicines.exists():

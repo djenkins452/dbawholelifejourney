@@ -6,11 +6,12 @@
 # Created: 2026-01-04
 # ==============================================================================
 """
-Medicine Intent Definitions
+Medicine & Supplement Intent Definitions
 
-OpenAI function (tool) definitions for medicine-related actions:
-- take_medicine: Log that user took a medicine
-- take_medicines_by_time: Mark all medicines for a time period as taken
+OpenAI function (tool) definitions for medicine/supplement-related actions:
+- take_medicine: Log that user took a medication
+- take_supplement: Log that user took a supplement
+- take_medicines_by_time: Mark all medicines/supplements for a time period as taken
 - email_medicine_list: Email the user's current medicine list with adherence stats
 """
 
@@ -19,7 +20,7 @@ MEDICINE_INTENT_TOOLS = [
         "type": "function",
         "function": {
             "name": "take_medicine",
-            "description": "Log that the user took a specific medicine by name. Use when user mentions taking a specific medication by name.",
+            "description": "Log that the user took a specific medication by name. Use when user mentions taking a specific medication (prescription or medical). Do NOT use for supplements like creatine or vitamins — use take_supplement instead.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -43,8 +44,29 @@ MEDICINE_INTENT_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "take_supplement",
+            "description": "Log that the user took a specific supplement by name. Use when user mentions taking a supplement like creatine, vitamin D, fish oil, magnesium, protein, etc. Do NOT use for prescription medications — use take_medicine instead.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "supplement_name": {
+                        "type": "string",
+                        "description": "Name of the supplement (e.g., creatine, vitamin D, fish oil)"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Any additional notes about taking the supplement"
+                    }
+                },
+                "required": ["supplement_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "take_medicines_by_time",
-            "description": "Mark all medicines for a time-of-day period as taken. Use when user says things like 'took my evening meds', 'mark morning medicines taken', 'took all my nightly pills', 'I took my two evening medicines'. Time periods: morning, mid_morning, lunch, afternoon, evening, nightly.",
+            "description": "Mark all medicines and supplements for a time-of-day period as taken. Use when user says things like 'took my evening meds', 'mark morning medicines taken', 'took all my nightly pills', 'took my morning supplements'. Time periods: morning, mid_morning, lunch, afternoon, evening, nightly.",
             "parameters": {
                 "type": "object",
                 "properties": {

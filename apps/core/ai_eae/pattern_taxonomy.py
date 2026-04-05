@@ -67,6 +67,23 @@ PATTERN_TYPE_CATALOG = {
         ),
         'source_signals': ['mental_reflection', 'relational_engagement', 'faith_practice'],
     },
+    # ── Supplement patterns (scaffold — computation not yet implemented) ──
+    'supplement_consistency_pattern': {
+        'display_name': 'Supplement Consistency',
+        'description': (
+            'Supplement adherence trending consistently above threshold — '
+            'sustained optimization behavior'
+        ),
+        'source_signals': ['supplement_adherence'],
+    },
+    'supplement_outcome_correlation': {
+        'display_name': 'Supplement Outcome Correlation',
+        'description': (
+            'Correlation between supplement adherence and health metric changes — '
+            'e.g., creatine + weight increase + stable waist'
+        ),
+        'source_signals': ['supplement_adherence', 'health_biometrics'],
+    },
 }
 
 # Flat set for quick membership checks
@@ -75,6 +92,7 @@ PATTERN_TYPES = set(PATTERN_TYPE_CATALOG.keys())
 # Base signal types (Phase 4) — used to distinguish patterns from base signals
 BASE_SIGNAL_TYPES = {
     'health_activity', 'health_biometrics', 'medication_adherence',
+    'supplement_adherence',
     'nutrition_compliance', 'faith_practice', 'mental_reflection',
     'cognitive_fitness', 'productivity_progress', 'financial_health',
     'relational_engagement',

@@ -27,8 +27,11 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.health.models import (
+    BloodPressureEntry,
     BodyCompositionEntry,
     DailyHealthSummary,
+    GlucoseEntry,
+    HeartRateEntry,
     TransformationProtocol,
     WeightEntry,
 )
@@ -949,3 +952,257 @@ class TestScenarioRecomposition(TestCase):
             c for c in result.get("conflicts", []) if c.get("positive")
         ]
         self.assertTrue(len(positive_conflicts) > 0)
+
+
+# =========================================================================
+# Vitals Snapshot & Multi-Signal Prioritization Tests
+# =========================================================================
+
+
+class TestVitalsSnapshot(TestCase):
+    """Tests for vitals snapshot and multi-signal prioritization."""
+
+    def setUp(self):
+        self.user = create_test_user(email="vitals_test@example.com")
+        self.today = date.today()
+
+    def _create_summaries(self, days=14, weight_start=200, weight_delta=-1.0,
+                          fat_loss_quality="GOOD", muscle_preservation="HIGH_QUALITY",
+                          plateau_status="", recomp_flag=False,
+                          muscle_loss_risk_score=20, muscle_loss_risk_level="LOW",
+                          fat_loss_speed_pct=None, fat_loss_speed_label="",
+                          recovery_score=70, fat_loss_phase="",
+                          plateau_risk_label=""):
+        """Create DailyHealthSummary entries for tests."""
+        for i in range(days):
+            day = self.today - timedelta(days=days - 1 - i)
+            weight = Decimal(str(weight_start + (weight_delta / days) * i))
+            DailyHealthSummary.objects.create(
+                user=self.user,
+                summary_date=day,
+                weight=weight,
+                baseline_ready=True,
+                fat_loss_quality_label=fat_loss_quality,
+                fat_loss_speed_pct_per_week=(
+                    Decimal(str(fat_loss_speed_pct)) if fat_loss_speed_pct else None
+                ),
+                fat_loss_speed_label=fat_loss_speed_label,
+                recomposition_flag_14d=recomp_flag,
+                plateau_status=plateau_status,
+                plateau_risk_score=Decimal("0"),
+                plateau_risk_label=plateau_risk_label,
+                muscle_loss_risk_score=Decimal(str(muscle_loss_risk_score)),
+                muscle_loss_risk_level=muscle_loss_risk_level,
+                muscle_preservation_status=muscle_preservation,
+                fat_loss_phase=fat_loss_phase,
+                recovery_score=Decimal(str(recovery_score)),
+            )
+
+    def test_single_waist_measurement_no_trend(self):
+        """TC1: Only 1 waist measurement → no waist trend in body comp."""
+        self._create_summaries()
+        BodyCompositionEntry.objects.create(
+            user=self.user,
+            metric_name="waist",
+            value=Decimal("35.0"),
+            unit="in",
+            measurement_date=self.today,
+            source="manual",
+        )
+        result = compute_body_composition_trend(self.user, self.today)
+        # With only 1 measurement, waist_trend must be None
+        self.assertIsNone(result.get("waist_trend"))
+
+    def test_single_waist_no_blocking_clarity(self):
+        """TC1b: With 1 waist measurement, messaging should not be
+        exclusively about waist when other data is available."""
+        self._create_summaries()
+        BodyCompositionEntry.objects.create(
+            user=self.user,
+            metric_name="waist",
+            value=Decimal("35.0"),
+            unit="in",
+            measurement_date=self.today,
+            source="manual",
+        )
+
+        # Create real glucose entries (elevated range)
+        for i in range(3):
+            GlucoseEntry.objects.create(
+                user=self.user,
+                value=Decimal("115"),
+                unit="mg/dL",
+                context="fasting",
+                recorded_at=timezone.now() - timedelta(days=i),
+            )
+
+        from apps.health.services.physical_decision import compute_physical_decision
+        result = compute_physical_decision(self.user, self.today)
+
+        # Glucose alert (elevated) should take priority over waist request
+        clarity = result.get("clarity_reason", "")
+        self.assertIn("glucose", clarity.lower())
+
+    def test_multiple_body_measurements_no_waist_trend(self):
+        """TC2: Multiple body measurements but no waist trend →
+        system surfaces available body comp signals."""
+        self._create_summaries()
+        # Add arm measurements (not waist)
+        for i in range(3):
+            BodyCompositionEntry.objects.create(
+                user=self.user,
+                metric_name="arm_left",
+                value=Decimal("14.5") + Decimal(str(i * 0.1)),
+                unit="in",
+                measurement_date=self.today - timedelta(days=i * 7),
+                source="manual",
+            )
+
+        result = compute_body_composition_trend(self.user, self.today)
+        # No waist data → waist_trend should be None
+        self.assertIsNone(result.get("waist_trend"))
+        # But result should still contain fat_loss and other signals
+        self.assertIn("fat_loss_status", result)
+        self.assertIn("weight_trend", result)
+
+    def test_glucose_priority_over_waist(self):
+        """TC3: Glucose present → glucose insight takes priority over waist."""
+        self._create_summaries()
+
+        # Create real glucose entries in diabetic range
+        for i in range(5):
+            GlucoseEntry.objects.create(
+                user=self.user,
+                value=Decimal("135"),
+                unit="mg/dL",
+                context="fasting",
+                recorded_at=timezone.now() - timedelta(days=i),
+            )
+
+        from apps.health.services.physical_decision import compute_physical_decision
+        result = compute_physical_decision(self.user, self.today)
+
+        # Vitals snapshot should include glucose
+        vitals = result.get("vitals_snapshot", [])
+        glucose_vitals = [v for v in vitals if v["metric"] == "glucose"]
+        self.assertTrue(len(glucose_vitals) > 0)
+        self.assertEqual(glucose_vitals[0]["status"], "high")
+
+        # Clarity should prioritize glucose over waist
+        clarity = result.get("clarity_reason", "")
+        self.assertIn("glucose", clarity.lower())
+        self.assertNotIn("measure your waist", clarity.lower())
+
+    def test_all_signals_present_highest_priority(self):
+        """TC4: All signals present → highest priority signal displayed."""
+        self._create_summaries()
+
+        # Add 2 waist measurements for valid trend
+        for i in range(2):
+            BodyCompositionEntry.objects.create(
+                user=self.user,
+                metric_name="waist",
+                value=Decimal("35.0") - Decimal(str(i * 0.3)),
+                unit="in",
+                measurement_date=self.today - timedelta(days=i * 10),
+                source="manual",
+            )
+
+        # Create real vitals data (all normal ranges)
+        for i in range(5):
+            GlucoseEntry.objects.create(
+                user=self.user,
+                value=Decimal("90"),
+                unit="mg/dL",
+                context="fasting",
+                recorded_at=timezone.now() - timedelta(days=i),
+            )
+            HeartRateEntry.objects.create(
+                user=self.user,
+                bpm=68,
+                context="resting",
+                recorded_at=timezone.now() - timedelta(days=i),
+            )
+        BloodPressureEntry.objects.create(
+            user=self.user,
+            systolic=118,
+            diastolic=76,
+            context="resting",
+            recorded_at=timezone.now(),
+        )
+
+        from apps.health.services.physical_decision import compute_physical_decision
+        result = compute_physical_decision(self.user, self.today)
+
+        # Should have vitals snapshot with all 3 metrics
+        vitals = result.get("vitals_snapshot", [])
+        metrics = [v["metric"] for v in vitals]
+        self.assertIn("glucose", metrics)
+        self.assertIn("blood_pressure", metrics)
+        self.assertIn("heart_rate", metrics)
+
+        # All normal → no vitals alert should dominate
+        # Waist should still appear since we have 2 measurements
+        bc = result.get("body_composition", {})
+        self.assertIsNotNone(bc.get("waist_trend"))
+
+    def test_vitals_snapshot_priority_order(self):
+        """Vitals should be ordered: glucose (1), BP (2), HR (3)."""
+        from apps.health.services.physical_decision import _build_vitals_snapshot
+
+        signals = {
+            "heart_rate_avg_7d": 72,
+            "latest_heart_rate": 70,
+            "bp_systolic": 120,
+            "bp_diastolic": 80,
+            "glucose_avg_7d": 95,
+            "latest_glucose": 93,
+            "latest_glucose_unit": "mg/dL",
+        }
+        vitals = _build_vitals_snapshot(signals)
+        self.assertEqual(len(vitals), 3)
+        self.assertEqual(vitals[0]["metric"], "glucose")
+        self.assertEqual(vitals[1]["metric"], "blood_pressure")
+        self.assertEqual(vitals[2]["metric"], "heart_rate")
+
+    def test_vitals_snapshot_empty_when_no_data(self):
+        """No vitals data → empty snapshot."""
+        from apps.health.services.physical_decision import _build_vitals_snapshot
+
+        signals = {}
+        vitals = _build_vitals_snapshot(signals)
+        self.assertEqual(len(vitals), 0)
+
+    def test_vitals_glucose_classification(self):
+        """Glucose status classification is correct."""
+        from apps.health.services.physical_decision import _build_vitals_snapshot
+
+        # Normal
+        vitals = _build_vitals_snapshot({"glucose_avg_7d": 90, "latest_glucose_unit": "mg/dL"})
+        self.assertEqual(vitals[0]["status"], "normal")
+
+        # Elevated (pre-diabetic)
+        vitals = _build_vitals_snapshot({"glucose_avg_7d": 110, "latest_glucose_unit": "mg/dL"})
+        self.assertEqual(vitals[0]["status"], "elevated")
+
+        # High (diabetic range)
+        vitals = _build_vitals_snapshot({"glucose_avg_7d": 130, "latest_glucose_unit": "mg/dL"})
+        self.assertEqual(vitals[0]["status"], "high")
+
+        # Low (hypoglycemia)
+        vitals = _build_vitals_snapshot({"glucose_avg_7d": 65, "latest_glucose_unit": "mg/dL"})
+        self.assertEqual(vitals[0]["status"], "low")
+
+    def test_bp_classification(self):
+        """Blood pressure status classification matches AHA guidelines."""
+        from apps.health.services.physical_decision import _build_vitals_snapshot
+
+        # Normal
+        vitals = _build_vitals_snapshot({"bp_systolic": 115, "bp_diastolic": 75})
+        bp = [v for v in vitals if v["metric"] == "blood_pressure"][0]
+        self.assertEqual(bp["status"], "normal")
+
+        # High
+        vitals = _build_vitals_snapshot({"bp_systolic": 145, "bp_diastolic": 95})
+        bp = [v for v in vitals if v["metric"] == "blood_pressure"][0]
+        self.assertEqual(bp["status"], "high")

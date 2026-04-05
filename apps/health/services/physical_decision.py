@@ -25,9 +25,19 @@ Copyright: (c) Whole Life Journey. All rights reserved.
 """
 
 import logging
+import threading
 from datetime import date, timedelta
 
 logger = logging.getLogger(__name__)
+
+# Per-user recursion guard to prevent infinite recursion when
+# compute_physical_decision is called from build_health_state, which is
+# called from rebuild_user_state, which is triggered by get_module_state
+# in _gather_signals.  In production, SAE state is pre-populated by
+# background workers so this rarely triggers; in test environments and
+# cold starts it prevents stack overflow.
+_active_users = set()
+_active_users_lock = threading.Lock()
 
 
 def compute_physical_decision(user, as_of_date=None):
@@ -51,13 +61,22 @@ def compute_physical_decision(user, as_of_date=None):
     if as_of_date is None:
         as_of_date = date.today()
 
+    # Guard against infinite recursion (see _active_users comment above)
+    user_pk = user.pk
+    with _active_users_lock:
+        if user_pk in _active_users:
+            return _fallback_decision()
+        _active_users.add(user_pk)
     try:
         return _compute(user, as_of_date)
     except Exception:
         logger.error(
-            "Physical decision failed for user %s", user.pk, exc_info=True
+            "Physical decision failed for user %s", user_pk, exc_info=True
         )
         return _fallback_decision()
+    finally:
+        with _active_users_lock:
+            _active_users.discard(user_pk)
 
 
 def _compute(user, as_of_date):
@@ -136,6 +155,11 @@ def _compute(user, as_of_date):
     decision["hydration_adjustment_reason"] = signals.get(
         "hydration_adjustment_reason"
     )
+
+    # ── Step 8b: Attach vitals snapshot ──
+    # Surfaces glucose, BP, HR alongside body composition so the UI
+    # can display all available health signals, not just waist/weight.
+    decision["vitals_snapshot"] = _build_vitals_snapshot(signals)
 
     # ── Step 9: Enrichments ──
     decision = _enrich_with_momentum(decision, user, as_of_date)
@@ -686,29 +710,83 @@ def _enrich_with_clarity(decision, signals, body_comp):
     nutrition_score = signals.get("nutrition_score", 100)
     training_score = signals.get("training_score", 100)
 
-    # Priority 1: Not enough data at all
-    if bc_confidence == "low" and fat_loss == "no_data":
-        decision["clarity_reason"] = (
-            "The system cannot assess your progress — there is not enough data yet. "
-            "Without a baseline, every decision is a guess."
-        )
-        decision["clarity_action"] = (
-            "Log your weight and measure your waist every morning for 7 days. "
-            "That unlocks fat loss tracking and body composition signals."
-        )
-        decision["action_category"] = "clarity"
-        return decision
+    # ── Vitals context (used for multi-signal awareness) ──
+    vitals = decision.get("vitals_snapshot") or []
+    has_vitals = len(vitals) > 0
+    # Find high-priority vitals alerts (glucose/BP elevated or high)
+    vitals_alert = next(
+        (v for v in vitals if v.get("status") in ("elevated", "high", "low")),
+        None,
+    )
 
-    # Priority 2: Waist data missing or stale
-    if waist_trend is None:
-        decision["clarity_reason"] = (
-            "We cannot confirm fat loss without waist measurements. "
-            "The scale alone is unreliable — water, food timing, and creatine all distort it."
-        )
-        decision["clarity_action"] = (
-            "Measure your waist today at navel level. Repeat in 7 days. "
-            "Two measurements confirm the trend the scale cannot show."
-        )
+    # Priority 1: Metabolic/cardiovascular risk from vitals
+    # Clinical significance: glucose or BP alerts outrank body comp signals
+    if vitals_alert:
+        metric = vitals_alert["metric"]
+        status = vitals_alert["status"]
+        if metric == "glucose":
+            if status == "high":
+                decision["clarity_reason"] = (
+                    "Your average blood glucose is above 126 mg/dL — this is in the diabetic range "
+                    "and takes priority over any body composition signal."
+                )
+                decision["clarity_action"] = (
+                    "Review your recent meals and fasting glucose readings. "
+                    "Consult your healthcare provider about your glucose management plan."
+                )
+            elif status == "elevated":
+                decision["clarity_reason"] = (
+                    "Your average blood glucose is in the pre-diabetic range (100-125 mg/dL). "
+                    "Metabolic health is the foundation — body composition goals depend on it."
+                )
+                decision["clarity_action"] = (
+                    "Focus on post-meal glucose: check readings 2 hours after your largest meal. "
+                    "Reducing refined carbs and adding 15 minutes of walking post-meal can lower readings."
+                )
+            elif status == "low":
+                decision["clarity_reason"] = (
+                    "Your blood glucose readings are below 70 mg/dL — this indicates hypoglycemia "
+                    "and requires immediate attention before any other health goal."
+                )
+                decision["clarity_action"] = (
+                    "Have a fast-acting carb source (juice, glucose tabs) and recheck in 15 minutes. "
+                    "If this is recurring, discuss with your healthcare provider."
+                )
+            decision["action_category"] = "clarity"
+            return decision
+        elif metric == "blood_pressure" and status in ("high",):
+            decision["clarity_reason"] = (
+                f"Your blood pressure reading ({vitals_alert['value']} mmHg) is elevated. "
+                "Cardiovascular health is a higher priority than body composition tracking."
+            )
+            decision["clarity_action"] = (
+                "Monitor your blood pressure daily at the same time. "
+                "If readings remain elevated for 3+ days, consult your healthcare provider."
+            )
+            decision["action_category"] = "clarity"
+            return decision
+
+    # Priority 2: Not enough data at all
+    if bc_confidence == "low" and fat_loss == "no_data":
+        # If vitals exist, acknowledge them — don't only demand waist
+        if has_vitals:
+            decision["clarity_reason"] = (
+                "The system cannot assess body composition progress yet — not enough data. "
+                "Your vitals are being tracked and are shown below."
+            )
+            decision["clarity_action"] = (
+                "Log your weight daily for 7 days to unlock fat loss tracking. "
+                "Waist measurements (2+ readings, 7 days apart) add body composition confidence."
+            )
+        else:
+            decision["clarity_reason"] = (
+                "The system cannot assess your progress — there is not enough data yet. "
+                "Without a baseline, every decision is a guess."
+            )
+            decision["clarity_action"] = (
+                "Log your weight daily for 7 days to unlock progress tracking. "
+                "Adding waist measurements and vitals (glucose, BP) provides a complete picture."
+            )
         decision["action_category"] = "clarity"
         return decision
 
@@ -739,29 +817,52 @@ def _enrich_with_clarity(decision, signals, body_comp):
         return decision
 
     # Priority 5: Everything flat (possible plateau vs noise)
-    if fat_loss in ("stalled", "not_confirmed") and waist_trend is not None:
-        if abs(waist_trend) < 0.1 and weight_trend is not None and abs(weight_trend) < 0.3:
+    if fat_loss in ("stalled", "not_confirmed"):
+        weight_flat = weight_trend is not None and abs(weight_trend) < 0.3
+        waist_flat = waist_trend is not None and abs(waist_trend) < 0.1
+        if weight_flat and (waist_flat or waist_trend is None):
             decision["clarity_reason"] = (
-                "Weight and waist are both flat. This is either a plateau or normal variation — "
+                "Weight is flat" + (" and waist is stable" if waist_flat else "") + ". "
+                "This is either a plateau or normal variation — "
                 "the system needs 5 more days to tell the difference."
             )
             decision["clarity_action"] = (
                 "Change nothing for 5 days. Stay on plan exactly as-is. "
-                "If both stay flat, it confirms a plateau and the system will recommend a new strategy."
+                "If readings stay flat, it confirms a plateau and the system will recommend a new strategy."
             )
             decision["action_category"] = "clarity"
             return decision
 
-    # Priority 6: Possible early recomposition
+    # Priority 6: Waist data missing (informational, not blocking)
+    # Only surface this when NO vitals alerts exist and body comp is otherwise OK
+    if waist_trend is None and not has_vitals:
+        decision["clarity_reason"] = (
+            "Waist measurements add confidence to fat loss tracking. "
+            "The scale alone can be misleading — water, food timing, and creatine all distort it."
+        )
+        decision["clarity_action"] = (
+            "Measure your waist at navel level today. Repeat in 7 days. "
+            "Two measurements confirm the trend the scale cannot show."
+        )
+        decision["action_category"] = "clarity"
+        return decision
+
+    # Priority 7: Possible early recomposition
     if fat_loss == "not_confirmed" and muscle in ("gaining", "maintaining"):
         decision["clarity_reason"] = (
             "Muscle signals are positive but fat loss is not yet confirmed. "
-            "This pattern often means early recomposition — but we need one more data point to be sure."
+            "This pattern often means early recomposition — but we need more data to be sure."
         )
-        decision["clarity_action"] = (
-            "Measure your waist in 7 days. "
-            "If waist drops while weight holds steady, recomposition is confirmed and your approach is working."
-        )
+        if waist_trend is None:
+            decision["clarity_action"] = (
+                "Measure your waist in 7 days. "
+                "If waist drops while weight holds steady, recomposition is confirmed."
+            )
+        else:
+            decision["clarity_action"] = (
+                "Stay consistent for 5 more days. "
+                "The system is tracking weight, waist, and muscle signals to confirm recomposition."
+            )
         decision["action_category"] = "clarity"
         return decision
 
@@ -1104,6 +1205,75 @@ def _gather_signals(user, as_of_date, today_summary):
         signals["creatine_active"] = False
         signals["hydration_adjustment_reason"] = None
 
+    # ── Vitals directly from models (glucose, BP, HR) ──
+    # Read directly from models, NOT from SAE state, to avoid circular
+    # dependency: build_health_state() → compute_physical_decision() →
+    # _gather_signals() → get_module_state("health") → build_health_state()
+    # These are simple queries (latest + 7d avg) — lightweight and safe.
+    try:
+        from django.db.models import Avg
+        from django.utils import timezone as tz
+
+        cutoff_7d = tz.now() - timedelta(days=7)
+
+        from apps.health.models import GlucoseEntry
+        glucose_avg = GlucoseEntry.objects.filter(
+            user=user, recorded_at__gte=cutoff_7d
+        ).aggregate(avg=Avg("value"))["avg"]
+        if glucose_avg:
+            signals["glucose_avg_7d"] = round(float(glucose_avg))
+        latest_glucose = (
+            GlucoseEntry.objects.filter(user=user)
+            .order_by("-recorded_at")
+            .values_list("value", "unit", "recorded_at")
+            .first()
+        )
+        if latest_glucose:
+            signals["latest_glucose"] = float(latest_glucose[0])
+            signals["latest_glucose_unit"] = latest_glucose[1]
+            signals["last_glucose_entry"] = latest_glucose[2].isoformat()
+    except Exception:
+        pass
+
+    try:
+        from apps.health.models import BloodPressureEntry
+        latest_bp = (
+            BloodPressureEntry.objects.filter(user=user)
+            .order_by("-recorded_at")
+            .values_list("systolic", "diastolic", "recorded_at")
+            .first()
+        )
+        if latest_bp:
+            signals["bp_systolic"] = latest_bp[0]
+            signals["bp_diastolic"] = latest_bp[1]
+            signals["last_bp_entry"] = latest_bp[2].isoformat()
+    except Exception:
+        pass
+
+    try:
+        from django.db.models import Avg
+        from django.utils import timezone as tz
+
+        cutoff_7d = tz.now() - timedelta(days=7)
+
+        from apps.health.models import HeartRateEntry
+        hr_avg = HeartRateEntry.objects.filter(
+            user=user, recorded_at__gte=cutoff_7d
+        ).aggregate(avg=Avg("bpm"))["avg"]
+        if hr_avg:
+            signals["heart_rate_avg_7d"] = round(float(hr_avg))
+        latest_hr = (
+            HeartRateEntry.objects.filter(user=user)
+            .order_by("-recorded_at")
+            .values_list("bpm", "recorded_at")
+            .first()
+        )
+        if latest_hr:
+            signals["latest_heart_rate"] = latest_hr[0]
+            signals["last_heart_rate_entry"] = latest_hr[1].isoformat()
+    except Exception:
+        pass
+
     return signals
 
 
@@ -1167,6 +1337,95 @@ def _protein_impact(protocol_type):
 
 
 # =========================================================================
+# Vitals Snapshot
+# =========================================================================
+
+
+def _build_vitals_snapshot(signals):
+    """Build a structured vitals snapshot from gathered signals.
+
+    Returns a list of vitals ordered by clinical priority:
+    1. Glucose (metabolic risk — highest)
+    2. Blood pressure (cardiovascular)
+    3. Heart rate (cardiovascular)
+
+    Each entry: {metric, value, label, status, priority}
+    Only includes metrics with available data.
+    """
+    vitals = []
+
+    # ── Glucose ──
+    glucose_avg = signals.get("glucose_avg_7d")
+    latest_glucose = signals.get("latest_glucose")
+    if glucose_avg is not None or latest_glucose is not None:
+        display_val = glucose_avg or latest_glucose
+        unit = signals.get("latest_glucose_unit", "mg/dL")
+        # Classify: ADA fasting ranges (mg/dL)
+        if display_val < 70:
+            status, label = "low", "Low"
+        elif display_val <= 99:
+            status, label = "normal", "Normal"
+        elif display_val <= 125:
+            status, label = "elevated", "Elevated"
+        else:
+            status, label = "high", "High"
+        vitals.append({
+            "metric": "glucose",
+            "value": round(display_val),
+            "unit": unit,
+            "label": label,
+            "status": status,
+            "priority": 1,
+        })
+
+    # ── Blood Pressure ──
+    bp_sys = signals.get("bp_systolic")
+    bp_dia = signals.get("bp_diastolic")
+    if bp_sys is not None and bp_dia is not None:
+        # AHA classification
+        if bp_sys < 120 and bp_dia < 80:
+            status, label = "normal", "Normal"
+        elif bp_sys < 130 and bp_dia < 80:
+            status, label = "elevated", "Elevated"
+        elif bp_sys < 140 or bp_dia < 90:
+            status, label = "high", "High Stage 1"
+        else:
+            status, label = "high", "High Stage 2"
+        vitals.append({
+            "metric": "blood_pressure",
+            "value": f"{bp_sys}/{bp_dia}",
+            "unit": "mmHg",
+            "label": label,
+            "status": status,
+            "priority": 2,
+        })
+
+    # ── Heart Rate ──
+    hr_avg = signals.get("heart_rate_avg_7d")
+    latest_hr = signals.get("latest_heart_rate")
+    if hr_avg is not None or latest_hr is not None:
+        display_val = hr_avg or latest_hr
+        if display_val < 60:
+            status, label = "low", "Low"
+        elif display_val <= 100:
+            status, label = "normal", "Normal"
+        else:
+            status, label = "elevated", "Elevated"
+        vitals.append({
+            "metric": "heart_rate",
+            "value": round(display_val),
+            "unit": "bpm",
+            "label": label,
+            "status": status,
+            "priority": 3,
+        })
+
+    # Sort by priority (already ordered, but defensive)
+    vitals.sort(key=lambda v: v["priority"])
+    return vitals
+
+
+# =========================================================================
 # Fallback
 # =========================================================================
 
@@ -1197,8 +1456,9 @@ def _fallback_decision():
         "outcome_risk": "low",
         "impact_time_horizon": "today",
         "clarity_reason": "The system cannot assess your progress without data.",
-        "clarity_action": "Log your weight and measure your waist daily for 7 days to unlock insights.",
+        "clarity_action": "Log your weight daily and any vitals (glucose, blood pressure) to unlock insights.",
         "action_category": "clarity",
         "signal_interpretation": "",
-        "narrative": "Physical intelligence data not yet available. Log weight and waist measurements to unlock progress tracking.",
+        "narrative": "Physical intelligence data not yet available. Log health metrics to unlock progress tracking.",
+        "vitals_snapshot": [],
     }

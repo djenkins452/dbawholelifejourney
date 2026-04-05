@@ -65,12 +65,12 @@ def _refresh_sae_module(user, module):
     v2 cache invalidation. Neither file calls update_user_state().
 
     Called from post_save/post_delete signals to keep SAE in sync with
-    data changes that happen outside Beth's action pipeline (web forms,
+    data changes that happen outside CoS's action pipeline (web forms,
     API endpoints, recurring task processing, etc.).
 
     Dispatches to Celery worker (async primary, sync fallback) so that
     SAE rebuilds don't block the HTTP request path. Cache keys are
-    already invalidated before this runs, so Beth won't read stale state.
+    already invalidated before this runs, so CoS won't read stale state.
     """
     _defer_sae_refresh(user, [module])
 

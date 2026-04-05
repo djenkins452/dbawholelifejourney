@@ -789,7 +789,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
         }
 
     def _build_state_from_sae(self) -> Optional[Dict]:
-        """Read live state from SAE UserState and map to Beth's dict format.
+        """Read live state from SAE UserState and map to CoS dict format.
 
         Returns the same dict structure as _snapshot_to_dict() but sourced
         from SAE (always fresh, updated by signals). Returns None if SAE
@@ -821,7 +821,7 @@ What STILL needs the user's attention today? Be direct, actionable, and mindful 
             if mood_dist:
                 dominant_mood = max(mood_dist, key=mood_dist.get, default='')
 
-            # Map SAE → Beth dict format
+            # Map SAE → CoS dict format
             from apps.core.utils import get_user_today
             today = get_user_today(self.user)
 

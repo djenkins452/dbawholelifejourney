@@ -717,7 +717,7 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
             # ── v8: Interaction awareness — lightweight alignment ───
             # If a deep interaction occurred within 90 minutes, deliver
             # a compressed alignment instead of a full briefing.
-            # This prevents Beth from repeating herself.
+            # This prevents CoS from repeating herself.
             deep_at = metadata.get('last_deep_interaction_at')
             if deep_at:
                 from django.utils.dateparse import parse_datetime as _parse_dt
@@ -1760,7 +1760,7 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
             pass  # Calibration tracking must never break chat
 
         # ── CoS Truth Validation (post-response guardrail) ──
-        # Check if Beth fabricated completions that contradict live execution data.
+        # Check if CoS fabricated completions that contradict live execution data.
         # If violations found, REJECT the response and regenerate with strict mode.
         try:
             from apps.ai.cos_fact_statements import build_locked_facts
@@ -3253,7 +3253,7 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                             logger.error(
                                 "COS_TRUTH_ANCHOR_MISSING user=%s — "
                                 "FINAL TRUTH ANCHOR not found in prompt! "
-                                "This means Beth has NO execution truth.",
+                                "This means CoS has NO execution truth.",
                                 self.user.id,
                             )
 

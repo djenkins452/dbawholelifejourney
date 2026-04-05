@@ -6,6 +6,31 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-05 — Enforcement: CoS Naming Boundary — No "Beth" in global content
+
+**Problem:** The hardcoded persona name "Beth" was leaking into global content (release notes,
+templates, help) where it should always be "Chief of Staff". Personalized naming should only
+appear in direct user conversation, never in system-wide documentation.
+
+**Fix — Multi-layer enforcement:**
+
+1. **Release notes** (`apps/core/fixtures/release_notes.json`) — All 27 "Beth" references replaced
+   with "Chief of Staff" / "Your Chief of Staff" as appropriate
+2. **Templates** — `preferences.html` and `chat_widget.html` fixed
+3. **CoSNaming helper** (`apps/core/cos_naming.py`) — Single source of truth with `SYSTEM` constant
+   and `display(user)` method for personalized names
+4. **Grep test** (`apps/core/tests/test_cos_naming_boundary.py`) — Scans fixtures, templates, and
+   help content; FAILs if "Beth" appears (excludes biblical Bethlehem/Bethany/Bethesda)
+5. **Fixture loader reset** — `load_initial_data.py` resets release_notes to reload updated content
+6. **Python comments** — 60+ "Beth" references across 40+ files replaced with "CoS" in comments/docstrings
+
+**Files changed:** `apps/core/cos_naming.py` (new), `apps/core/tests/test_cos_naming_boundary.py` (new),
+`apps/core/fixtures/release_notes.json`, `apps/core/management/commands/load_initial_data.py`,
+`templates/users/preferences.html`, `templates/components/chat_widget.html`, plus 40+ Python files
+(comments only).
+
+---
+
 ## 2026-04-05 — Cleanup: Rename "Beth" to "CoS" in Python comments/docstrings
 
 **Problem:** Internal code comments and docstrings still referenced "Beth" (the old persona name)

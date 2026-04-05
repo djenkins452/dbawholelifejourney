@@ -82,9 +82,9 @@ class CrossDomainMatch:
     suggestion: str = ''
 
 
-# ── Beth Narration System ────────────────────────────────────────────
+# ── CoS Narration System ────────────────────────────────────────────
 # Warm, human-sounding message templates for all action outcomes.
-# Beth should feel like a calm, competent human assistant.
+# CoS should feel like a calm, competent human assistant.
 
 _SUCCESS_OPENERS = ["All set", "Got it", "Done", "Perfect", "Noted"]
 _ERROR_OPENERS = ["Hmm", "I ran into a problem", "That didn't work"]

@@ -58,7 +58,7 @@ def build_locked_facts(user) -> dict:
     pending_names = []
 
     # HARD CALL — no try/except. If this fails, the caller must know.
-    # A silent failure here means Beth gets all-False data and lies.
+    # A silent failure here means CoS gets all-False data and lies.
     from apps.core.execution.execution_truth_engine import get_execution_truth
     truth = get_execution_truth(user)
     logger.info(

@@ -4,7 +4,7 @@
     "pk": 181,
     "fields": {
       "title": "Supplement Tracking",
-      "description": "Track your supplements alongside medications with the new Unified Intake System! Add supplements like creatine, vitamins, and fish oil with their own schedules and adherence tracking. Supplements appear in the Action Center with their own groups, and Beth can distinguish between medications (critical) and supplements (optimization) when answering your questions. If you were tracking creatine under hydration, it has been automatically moved to the supplement system.",
+      "description": "Track your supplements alongside medications with the new Unified Intake System! Add supplements like creatine, vitamins, and fish oil with their own schedules and adherence tracking. Supplements appear in the Action Center with their own groups, and your Chief of Staff can distinguish between medications (critical) and supplements (optimization) when answering your questions. If you were tracking creatine under hydration, it has been automatically moved to the supplement system.",
       "entry_type": "feature",
       "version": "",
       "release_date": "2026-04-05",
@@ -131,8 +131,8 @@
     "model": "core.releasenote",
     "pk": 173,
     "fields": {
-      "title": "Beth: Smart Task Coaching",
-      "description": "Beth now understands your task workload in real time. She knows what's overdue, what's coming up, and how much progress you've made today. When you ask about your tasks or what to work on next, she gives you one clear action based on what matters most right now \u2014 personalized with your actual task names and time-aware based on your schedule.",
+      "title": "Chief of Staff: Smart Task Coaching",
+      "description": "Your Chief of Staff now understands your task workload in real time. She knows what's overdue, what's coming up, and how much progress you've made today. When you ask about your tasks or what to work on next, she gives you one clear action based on what matters most right now \u2014 personalized with your actual task names and time-aware based on your schedule.",
       "entry_type": "feature",
       "version": "",
       "release_date": "2026-03-24",
@@ -147,8 +147,8 @@
     "model": "core.releasenote",
     "pk": 172,
     "fields": {
-      "title": "Beth: Health-Aware Coaching",
-      "description": "Beth now understands your health status in real time. When you ask about your health or daily focus, she leads with a single clear action based on what matters most right now \u2014 whether that's taking overdue medications, getting more sleep, or simply staying consistent. Her coaching is grounded in your actual data, never guessed.",
+      "title": "Chief of Staff: Health-Aware Coaching",
+      "description": "Your Chief of Staff now understands your health status in real time. When you ask about your health or daily focus, she leads with a single clear action based on what matters most right now \u2014 whether that's taking overdue medications, getting more sleep, or simply staying consistent. Her coaching is grounded in your actual data, never guessed.",
       "entry_type": "feature",
       "version": "",
       "release_date": "2026-03-24",
@@ -212,7 +212,7 @@
     "pk": 168,
     "fields": {
       "title": "Routines: Journal & Bible Auto-Complete",
-      "description": "Routine items now auto-complete across all activity types! Journaling and Bible reading join workouts in automatically marking your routine items as done when you log the actual activity. Your routine view shows exactly what completed each item \u2014 like \"Completed via Back + Arms at 6:42 AM\" for workouts, or \"Completed via Journal Entry at 8:15 PM\" for journaling. Beth now references your actual activities instead of generic completion flags.",
+      "description": "Routine items now auto-complete across all activity types! Journaling and Bible reading join workouts in automatically marking your routine items as done when you log the actual activity. Your routine view shows exactly what completed each item \u2014 like \"Completed via Back + Arms at 6:42 AM\" for workouts, or \"Completed via Journal Entry at 8:15 PM\" for journaling. Your Chief of Staff now references your actual activities instead of generic completion flags.",
       "entry_type": "enhancement",
       "version": "",
       "release_date": "2026-03-23",
@@ -276,7 +276,7 @@
     "pk": 164,
     "fields": {
       "title": "Interactive A/B/C Option Buttons in Chat",
-      "description": "When Beth offers you choices (A, B, C, D), they now appear as tappable buttons instead of plain text. Pick your option with a single tap \u2014 no typing needed. This works for all conversational choices, not just confirmations. Options automatically highlight the recommended choice.",
+      "description": "When your Chief of Staff offers you choices (A, B, C, D), they now appear as tappable buttons instead of plain text. Pick your option with a single tap \u2014 no typing needed. This works for all conversational choices, not just confirmations. Options automatically highlight the recommended choice.",
       "entry_type": "enhancement",
       "version": "",
       "release_date": "2026-03-13",
@@ -355,8 +355,8 @@
     "model": "core.releasenote",
     "pk": 158,
     "fields": {
-      "title": "Beth Responds Instantly to Health Questions",
-      "description": "Ask Beth about your weight, workouts, sleep, glucose, medication, steps, blood pressure, or heart rate and she'll respond in under a second \u2014 no more waiting 15-30 seconds for simple status checks. She pulls your latest data directly from your tracked metrics and offers to dig deeper if you want analysis.",
+      "title": "Chief of Staff Responds Instantly to Health Questions",
+      "description": "Ask your Chief of Staff about your weight, workouts, sleep, glucose, medication, steps, blood pressure, or heart rate and she'll respond in under a second \u2014 no more waiting 15-30 seconds for simple status checks. Your Chief of Staff pulls your latest data directly from your tracked metrics and offers to dig deeper if you want analysis.",
       "entry_type": "improvement",
       "version": "",
       "release_date": "2026-03-12",
@@ -371,8 +371,8 @@
     "model": "core.releasenote",
     "pk": 157,
     "fields": {
-      "title": "Beth Checks In Throughout the Day",
-      "description": "Beth now reaches out at the right moments \u2014 morning medicine reminders, midday progress snapshots, afternoon non-negotiable nudges, and evening day-closing summaries. She respects your quiet hours and adapts to your timezone, so you'll hear from her when it actually matters.",
+      "title": "Chief of Staff Checks In Throughout the Day",
+      "description": "Your Chief of Staff now reaches out at the right moments \u2014 morning medicine reminders, midday progress snapshots, afternoon non-negotiable nudges, and evening day-closing summaries. Your Chief of Staff respects your quiet hours and adapts to your timezone, so you'll hear from her when it actually matters.",
       "entry_type": "feature",
       "version": "",
       "release_date": "2026-03-11",
@@ -387,8 +387,8 @@
     "model": "core.releasenote",
     "pk": 156,
     "fields": {
-      "title": "Beth Speaks More Naturally Now",
-      "description": "Beth's responses now feel more like a real conversation. Instead of robotic confirmations like '\u2713 Logged heart rate: 72 BPM', she says things like 'Got it \u2014 72 BPM is logged.' Confirmation buttons now say 'Sounds good' and 'Never mind' instead of 'Confirm' and 'Cancel'. When Beth can't find what you're looking for in one area, she'll check related areas too \u2014 ask to update a task that's actually a calendar event, and she'll point you in the right direction.",
+      "title": "Chief of Staff Speaks More Naturally Now",
+      "description": "Your Chief of Staff's responses now feel more like a real conversation. Instead of robotic confirmations like '\u2713 Logged heart rate: 72 BPM', she says things like 'Got it \u2014 72 BPM is logged.' Confirmation buttons now say 'Sounds good' and 'Never mind' instead of 'Confirm' and 'Cancel'. When your Chief of Staff can't find what you're looking for in one area, she'll check related areas too \u2014 ask to update a task that's actually a calendar event, and she'll point you in the right direction.",
       "entry_type": "improvement",
       "version": "",
       "release_date": "2026-03-11",
@@ -404,7 +404,7 @@
     "pk": 155,
     "fields": {
       "title": "AI Action Success Rate Monitoring",
-      "description": "The Operations Wall now tracks every AI action Beth attempts \u2014 showing real-time success rates across 5-minute, 1-hour, and 24-hour windows. Blocked actions (learning mode, safety gates) are tracked separately from actual failures, so the health signal stays clean. Status thresholds automatically flag when failure rates cross warning or critical levels.",
+      "description": "The Operations Wall now tracks every AI action the Chief of Staff attempts \u2014 showing real-time success rates across 5-minute, 1-hour, and 24-hour windows. Blocked actions (learning mode, safety gates) are tracked separately from actual failures, so the health signal stays clean. Status thresholds automatically flag when failure rates cross warning or critical levels.",
       "entry_type": "improvement",
       "version": "",
       "release_date": "2026-03-11",
@@ -420,7 +420,7 @@
     "pk": 154,
     "fields": {
       "title": "Smarter Confirmation Flow with Quick-Tap Options",
-      "description": "When Beth asks you to confirm an action (logging data, creating tasks, etc.), you now see clickable A/B/C option buttons instead of typing CONFIRM or CANCEL. Beth also learns your patterns over time \u2014 if you always confirm weight logs, she'll highlight that option first. After completing an action, you'll see a 'View it' link to jump straight to the relevant page. Behind the scenes, all pending actions are now durably stored for crash recovery, rate-limited to prevent accidental duplicates, and fully auditable.",
+      "description": "When your Chief of Staff asks you to confirm an action (logging data, creating tasks, etc.), you now see clickable A/B/C option buttons instead of typing CONFIRM or CANCEL. Your Chief of Staff also learns your patterns over time \u2014 if you always confirm weight logs, she'll highlight that option first. After completing an action, you'll see a 'View it' link to jump straight to the relevant page. Behind the scenes, all pending actions are now durably stored for crash recovery, rate-limited to prevent accidental duplicates, and fully auditable.",
       "entry_type": "feature",
       "version": "",
       "release_date": "2026-03-11",
@@ -451,8 +451,8 @@
     "model": "core.releasenote",
     "pk": 152,
     "fields": {
-      "title": "Beth Now Interprets Your Health Screenshots",
-      "description": "When you share a health screenshot from Apple Health, Fitbit, Garmin, or any health app, Beth no longer just reads the numbers back to you. She now analyzes your sleep data through the Pattern Intelligence Engine \u2014 evaluating sleep duration, stage distribution, and cycle completion against clinical reference ranges. She connects findings to your personal context (wake time, fitness goals, health conditions) and gives you one clear, actionable recommendation. This is health reasoning, not just data recitation.",
+      "title": "Chief of Staff Now Interprets Your Health Screenshots",
+      "description": "When you share a health screenshot from Apple Health, Fitbit, Garmin, or any health app, your Chief of Staff no longer just reads the numbers back to you. She now analyzes your sleep data through the Pattern Intelligence Engine \u2014 evaluating sleep duration, stage distribution, and cycle completion against clinical reference ranges. Your Chief of Staff connects findings to your personal context (wake time, fitness goals, health conditions) and gives you one clear, actionable recommendation. This is health reasoning, not just data recitation.",
       "entry_type": "feature",
       "version": "",
       "release_date": "2026-03-10",
@@ -468,7 +468,7 @@
     "pk": 151,
     "fields": {
       "title": "Delete Recurring Tasks Completely",
-      "description": "You can now ask Beth to delete an entire recurring task series \u2014 not just one instance. Say 'delete Approve Payroll completely' or 'stop this recurring task' and Beth will ask whether you want to remove the whole series or just one occurrence. Once confirmed, all instances are removed and the task stops coming back. Beth also properly handles task deletion now instead of telling you to do it manually.",
+      "description": "You can now ask your Chief of Staff to delete an entire recurring task series \u2014 not just one instance. Say 'delete Approve Payroll completely' or 'stop this recurring task' and your Chief of Staff will ask whether you want to remove the whole series or just one occurrence. Once confirmed, all instances are removed and the task stops coming back. Your Chief of Staff also properly handles task deletion now instead of telling you to do it manually.",
       "entry_type": "improvement",
       "version": "",
       "release_date": "2026-03-10",
@@ -483,8 +483,8 @@
     "model": "core.releasenote",
     "pk": 150,
     "fields": {
-      "title": "Beth Now Trusts You When You Say It's Done",
-      "description": "When Beth reminds you about something and you tell her you already did it, she now trusts your word \u2014 acknowledges it, stops reminding you, and moves on. No more repeated prompts after you've told her it's handled. She'll also offer to log it for you if you'd like, but won't do it automatically. This applies to all activities: journaling, workouts, medication, prayer, habits, and tasks.",
+      "title": "Chief of Staff Now Trusts You When You Say It's Done",
+      "description": "When your Chief of Staff reminds you about something and you tell her you already did it, she now trusts your word \u2014 acknowledges it, stops reminding you, and moves on. No more repeated prompts after you've told her it's handled. She'll also offer to log it for you if you'd like, but won't do it automatically. This applies to all activities: journaling, workouts, medication, prayer, habits, and tasks.",
       "entry_type": "improvement",
       "version": "",
       "release_date": "2026-03-09",
@@ -499,8 +499,8 @@
     "model": "core.releasenote",
     "pk": 149,
     "fields": {
-      "title": "Beth Now Remembers Your Life Story",
-      "description": "Beth now permanently remembers important personal details you share in conversation \u2014 like family relationships, losses, milestones, and life circumstances. These facts are stored securely and used to make Beth more emotionally aware and empathetic in future conversations. You never have to repeat yourself about the things that matter most.",
+      "title": "Chief of Staff Now Remembers Your Life Story",
+      "description": "Your Chief of Staff now permanently remembers important personal details you share in conversation \u2014 like family relationships, losses, milestones, and life circumstances. These facts are stored securely and used to make your Chief of Staff more emotionally aware and empathetic in future conversations. You never have to repeat yourself about the things that matter most.",
       "entry_type": "feature",
       "version": "",
       "release_date": "2026-03-09",
@@ -516,7 +516,7 @@
     "pk": 148,
     "fields": {
       "title": "Non-Negotiable Task Commitments",
-      "description": "Tasks now support commitment levels: Optional, Important, and Non-Negotiable. Mark your most essential tasks as non-negotiable and Beth will coach you if you start skipping them \u2014 gently at first, then with more awareness if it becomes a pattern. Skip streaks reset automatically after 7 days of no skips. You can also set commitment levels on your life goals.",
+      "description": "Tasks now support commitment levels: Optional, Important, and Non-Negotiable. Mark your most essential tasks as non-negotiable and your Chief of Staff will coach you if you start skipping them \u2014 gently at first, then with more awareness if it becomes a pattern. Skip streaks reset automatically after 7 days of no skips. You can also set commitment levels on your life goals.",
       "entry_type": "feature",
       "version": "",
       "release_date": "2026-03-09",
@@ -740,7 +740,7 @@
     "pk": 126,
     "fields": {
       "title": "Smarter Morning Routine: Auto-Completion & Proactive Nudges",
-      "description": "Your morning routine just got smarter. Tasks now display in chronological order (Wake Up \u2192 Prayer \u2192 Bible Reading \u2192 Workout). When you interact with Beth for the first time each day, your Wake Up task is automatically marked complete. Completing a Bible reading marks your Bible Reading task done. Logging a workout checks off your Workout task. Taking medication completes your Medicine task. Beth also proactively nudges you about upcoming activities and celebrates your accomplishments before mentioning what\u2019s next.",
+      "description": "Your morning routine just got smarter. Tasks now display in chronological order (Wake Up \u2192 Prayer \u2192 Bible Reading \u2192 Workout). When you interact with your Chief of Staff for the first time each day, your Wake Up task is automatically marked complete. Completing a Bible reading marks your Bible Reading task done. Logging a workout checks off your Workout task. Taking medication completes your Medicine task. Your Chief of Staff also proactively nudges you about upcoming activities and celebrates your accomplishments before mentioning what\u2019s next.",
       "entry_type": "enhancement",
       "version": "",
       "release_date": "2026-03-03",
@@ -2828,7 +2828,7 @@
     "pk": 140,
     "fields": {
       "title": "Friendlier Chat Error Recovery",
-      "description": "When Beth hits a hiccup, she now responds with a friendly message and a one-tap retry button instead of a cold error screen. Messages rotate so you never see the same one twice, and the tone gently shifts if the issue persists.",
+      "description": "When your Chief of Staff hits a hiccup, she now responds with a friendly message and a one-tap retry button instead of a cold error screen. Messages rotate so you never see the same one twice, and the tone gently shifts if the issue persists.",
       "entry_type": "enhancement",
       "version": "",
       "release_date": "2026-03-07",
@@ -2844,7 +2844,7 @@
     "pk": 142,
     "fields": {
       "title": "Proactive Daily Executive Briefing",
-      "description": "Beth now greets you with a personalized executive briefing when you open the chat \u2014 your goals, today\u2019s tasks, overdue items, workout status, and a clear recommendation for where to start. No need to ask \u2014 she delivers intelligence automatically, just like a real Chief of Staff.",
+      "description": "Your Chief of Staff now greets you with a personalized executive briefing when you open the chat \u2014 your goals, today\u2019s tasks, overdue items, workout status, and a clear recommendation for where to start. No need to ask \u2014 she delivers intelligence automatically.",
       "entry_type": "feature",
       "version": "",
       "release_date": "2026-03-07",
@@ -2860,7 +2860,7 @@
     "pk": 143,
     "fields": {
       "title": "Smarter Pattern Awareness",
-      "description": "Beth now tracks your behavioral patterns over time \u2014 workout consistency, weight tracking, journaling, medication adherence, and more. She can distinguish a single missed day from a real habit break, reinforce your momentum when you\u2019re consistent, and respectfully call out drift when a declared priority slips. Priorities are fully personalized \u2014 Beth uses your calibration profile, governance settings, and declared non-negotiables to know what matters most to you.",
+      "description": "Your Chief of Staff now tracks your behavioral patterns over time \u2014 workout consistency, weight tracking, journaling, medication adherence, and more. Your Chief of Staff can distinguish a single missed day from a real habit break, reinforce your momentum when you\u2019re consistent, and respectfully call out drift when a declared priority slips. Priorities are fully personalized \u2014 your Chief of Staff uses your calibration profile, governance settings, and declared non-negotiables to know what matters most to you.",
       "entry_type": "feature",
       "version": "",
       "release_date": "2026-03-07",

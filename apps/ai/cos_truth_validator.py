@@ -7,7 +7,7 @@ Checks the LLM's response against live execution data. If the response
 claims something is complete/done when it's NOT DONE in the execution
 contract, the response is REJECTED (non-streaming) or corrected (streaming).
 
-This is a hard guardrail: Beth must NEVER tell the user something is done
+This is a hard guardrail: CoS must NEVER tell the user something is done
 when it isn't. Trust > tone.
 """
 import logging
@@ -33,7 +33,7 @@ def _is_negated(context_window):
 
 
 # ─── COMPLETION CLAIM PATTERNS ───────────────────────────────────────────
-# These detect when Beth says a domain is done/completed/finished.
+# These detect when CoS says a domain is done/completed/finished.
 
 _DOMAIN_CLAIM_PATTERNS = {
     'prayer': [
@@ -75,7 +75,7 @@ _COMBINED_CLAIM_PATTERNS = [
 ]
 
 # ─── FALSE PRAISE PATTERNS ──────────────────────────────────────────────
-# These detect when Beth praises when nothing is done.
+# These detect when CoS praises when nothing is done.
 # Only flagged when completion rate is LOW (< 40%).
 _FALSE_PRAISE_PATTERNS = [
     re.compile(r'great\s+start', re.I),
@@ -217,7 +217,7 @@ def validate_response_truth(response_text, user, allow_regenerate=True):
     domain_names = [v['domain'] for v in violations]
     logger.error(
         "[CoS VALIDATOR RUN] user=%s result=FAIL domains=%s types=%s — "
-        "Beth fabricated completion or gave false praise. "
+        "CoS fabricated completion or gave false praise. "
         "Execution data contradicts response claims.",
         user.id,
         domain_names,

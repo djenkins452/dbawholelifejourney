@@ -846,7 +846,7 @@ def generate_routine_recovery_replies(schedule_id: int, item_name: str) -> list:
     Generate quick reply buttons for routine recovery check-in.
 
     Options:
-    - Reschedule: prompts user for time (Beth handles via intent)
+    - Reschedule: prompts user for time (CoS handles via intent)
     - Skip today: skips the routine item
     - Done already: marks complete (completed_late)
     """

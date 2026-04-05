@@ -245,7 +245,7 @@ def build_health_summary_response(user) -> str:
             return None
 
         # ── Assemble response ───────────────────────────────────
-        # Build a warm, brief response that sounds like Beth
+        # Build a warm, brief response that sounds like the CoS
         header = "Here's your health snapshot for the past week:"
         metrics = '\n'.join(sections)
 

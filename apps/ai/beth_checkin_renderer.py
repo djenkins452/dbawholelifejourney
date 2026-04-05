@@ -1,10 +1,10 @@
 """
-Beth Check-in Renderer — Chief of Staff Briefing Layer
+CoS Check-in Renderer — Chief of Staff Briefing Layer
 
 Renders morning/midday/evening briefings using ONLY deterministic data.
 The LLM is NOT involved in generating any state description.
 
-Beth's briefing model (every interaction):
+CoS briefing model (every interaction):
 1. Greeting (natural, simple)
 2. Day narrative (1 sentence, flow-oriented, no domain labels)
 3. Situational awareness (behind / on track / ahead)

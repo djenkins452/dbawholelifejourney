@@ -1325,7 +1325,7 @@ def _build_day_overview_section(user, user_now, today) -> str:
     # The Organize page uses Task.objects (SoftDeleteManager → status='active')
     # filtered by completion_status='pending' and the stored `priority` field.
     # We use the IDENTICAL queryset here. The count MUST match what the UI
-    # shows. Beth may include up to 3 example titles for context, but the
+    # shows. CoS may include up to 3 example titles for context, but the
     # count is always the true total from .count().
     try:
         from apps.life.models import Task

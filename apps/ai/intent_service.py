@@ -116,7 +116,7 @@ class IntentService:
         return results[0] if results else IntentResult(intent_type='no_action')
 
     # ── Correction detection ──────────────────────────────────────
-    # Phrases indicating the user is CORRECTING or CHALLENGING Beth's
+    # Phrases indicating the user is CORRECTING or CHALLENGING CoS's
     # information — not requesting an action.  If any of these match,
     # intent recognition returns no_action immediately so the message
     # goes to the conversational LLM (which can look up real data).
@@ -147,7 +147,7 @@ class IntentService:
         # Correcting a previous statement
         "I didn't say", "I never said", "I didn't ask",
         "I never asked", "I didn't mean",
-        # Telling Beth she's wrong about data
+        # Telling CoS she's wrong about data
         "not anymore", "not any more",
         "any longer",  # "won't find them for today any longer"
     ]
@@ -185,7 +185,7 @@ class IntentService:
             return [IntentResult(intent_type='no_action')]
 
         # ── Correction filter: skip intent recognition entirely ──
-        # When the user is correcting or challenging Beth's information
+        # When the user is correcting or challenging CoS's information
         # (e.g. "You won't find them for today any longer"), send to the
         # conversational LLM — never interpret as an action request.
         if self._is_correction_message(user_message):

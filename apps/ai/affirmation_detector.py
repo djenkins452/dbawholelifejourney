@@ -9,13 +9,13 @@
 Affirmation Detector
 
 Detects when a user states they have already completed an activity that
-CoS (Beth) reminded them about. Stores the affirmation in conversation
+CoS reminded them about. Stores the affirmation in conversation
 metadata to suppress further reminders — WITHOUT executing any CRUD actions.
 
 This is distinct from confirmation_detector.py which handles quick reply
 responses ("yes"/"done") and executes CRUD actions (marks medicine taken, etc.).
 The affirmation detector handles "I already did it" statements where the user
-completed the activity outside the app and just wants Beth to stop prompting.
+completed the activity outside the app and just wants CoS to stop prompting.
 
 Authority hierarchy: User statement overrides system assumptions.
 

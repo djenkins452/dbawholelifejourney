@@ -398,14 +398,14 @@ class SessionStartView(LoginRequiredMixin, AssistantMixin, View):
     """
     Deterministic session-start endpoint for Adaptive CoS Presence.
 
-    Called by the frontend/iOS app on app-open to let Beth proactively
+    Called by the frontend/iOS app on app-open to let CoS proactively
     engage without the user typing first. Returns structured, pre-computed
     data — NO LLM calls, NO heavy computation on the request path.
 
     Decision tree (all deterministic):
     1. First-of-day or gap re-entry → briefing or lightweight alignment
     2. High drift detected → drift intervention
-    3. Otherwise → action: none (Beth stays quiet)
+    3. Otherwise → action: none (CoS stays quiet)
 
     POST /assistant/api/session-start/
 

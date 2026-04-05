@@ -1,7 +1,7 @@
 """
-Beth Status Renderer — Deterministic response contract for "what's left today?"
+CoS Status Renderer — Deterministic response contract for "what's left today?"
 
-Beth is NOT thinking. Beth is RENDERING.
+CoS is NOT thinking. CoS is RENDERING.
 
 This module produces a strict, deterministic response when the user asks
 about their remaining items for today. No LLM involvement. No coaching.
@@ -181,7 +181,7 @@ def build_status_response(user) -> str:
         2. Today Execution Contract (for item-level detail)
         3. Locked Next Action (from decision engine)
 
-    Returns a formatted string matching the Beth Response Contract.
+    Returns a formatted string matching the CoS Response Contract.
     """
     # Get locked facts (includes next_action)
     from apps.ai.cos_fact_statements import build_locked_facts
@@ -227,7 +227,7 @@ def build_status_response(user) -> str:
         )
     except Exception:
         logger.error(
-            "Beth status renderer: today_execution failed, "
+            "CoS status renderer: today_execution failed, "
             "falling back to locked facts only",
             exc_info=True,
         )

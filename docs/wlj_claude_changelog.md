@@ -6,109 +6,46 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
-## 2026-04-05 — Feature: Water Tile on Dashboard V2 (Life Command Center)
+## 2026-04-05 — Architecture: System-wide domain truth contracts
 
-Added water/hydration tracking tile to the V2 dashboard (the actual `/dashboard/` page), positioned side-by-side with the weather tile. Previous attempts targeted `apps/dashboard/` which is the legacy dashboard at `/dashboard/legacy/`.
+**Root Cause:** Only workouts, tasks, and routines had canonical query contracts.
+10+ other domains (journal, faith, goals, habits, nutrition, fasting, capture, medicine)
+had raw model queries scattered across UI views, SAE state builders, execution truth engine,
+and CoS context builders — each potentially using different filter criteria.
 
-**Files Changed:**
-- `apps/dashboard_v2/views.py` — Added water data gathering (progress, 7-day avg, entry count) to `DashboardV2View.get_context_data()`
-- `templates/dashboard_v2/home.html` — Weather+Water side-by-side row, quick-add JS
-- `templates/dashboard_v2/partials/water_tile.html` — New partial with progress bar, quick-add buttons, goal badge, history link
-- `static/css/dashboard_v2.css` — Water card styles + responsive row layout (stacks on mobile)
-- `templates/dashboard/home.html` — Removed debug code from legacy dashboard
+**Fix — Domain Truth Contract enforcement across all WLJ domains:**
 
----
+**Phase 1 — Complete existing contract adoption:**
+- `build_fitness_state()`: Replaced 5 remaining `WorkoutSession.objects.filter` calls with
+  `WorkoutQueries.completed_in_range()` — all workout counts now use canonical contract
+- `build_task_state()`: Replaced 3 `Task.objects.filter` calls with `TaskQueries.overdue()`,
+  `TaskQueries.pending()`, `TaskQueries.completed_on()` — priority binning uses contract
 
-## 2026-04-04 — Fix: New dashboard tiles appear at bottom instead of intended position
+**Phase 2 — New domain contracts (7 files):**
+- `apps/journal/services/journal_queries.py` — `JournalQueries` with `has_entry_on()`, `recent()`, `with_mood()`
+- `apps/faith/services/faith_queries.py` — `FaithQueries` with `has_reading_on()`, `unanswered_prayers()`, `active_reading_plans()`
+- `apps/purpose/services/goal_queries.py` — `GoalQueries` with `active()`, `with_milestones()`, `overdue()`
+- `apps/health/services/fasting_queries.py` — `FastingQueries` with `current_active()`, `is_fasting()`, `completed_in_range()`
+- `apps/health/services/nutrition_queries.py` — `NutritionQueries` with `entries_on_date()`, `has_logged_on()`
+- `apps/life/services/habit_queries.py` — `HabitQueries` with `active()`
+- `apps/capture/services/capture_queries.py` — `CaptureQueries` with `pending_uploads()`, `ready_recent()`, `stale()`
 
-New tiles added to `TILE_DEFINITIONS` were appended at `max_order + 1` in existing users' configs, pushing them to the very bottom of the page. Changed `_merge_config_with_available()` to use the tile's `default_order` instead, so new tiles appear in their designed position.
+**Phase 3 — Wired into consumers:**
+- `state_builder.py`: All 10 `build_*_state()` functions now use canonical contracts
+- `execution_truth_engine.py`: `_check_journal()` uses `JournalQueries`, `_check_faith()` uses
+  `FaithQueries`, `_check_workout()` uses `WorkoutQueries` (already done)
 
-**File:** `apps/dashboard/services/config_service.py`
+**Phase 4 — Enforcement:**
+- `docs/DOMAIN_TRUTH_CONTRACTS.md` — Architecture standard with inventory, rules, and patterns
+- `apps/core/tests/test_domain_truth_contracts.py` — Regression tests including architectural
+  grep tests that fail if raw model queries are reintroduced in execution truth engine
 
----
-
-## 2026-04-04 — Fix: Personal Records page 500 + add CRUD
-
-**Root Cause:** `PersonalRecord.estimated_1rm` crashed on time-based PRs (Plank) where
-`weight` and `reps` are `None` — `float(None)` raises TypeError.
-
-**Fix:**
-- Added null guard to `estimated_1rm` property — returns `None` when weight/reps missing
-- Enhanced list view with proper time-based PR display and null-safe comparisons
-- Added create/edit/delete views for manual PR management
-- PR type badges (Max Weight, Rep PR, Time PR, e1RM)
-- Full PR history table below the cards
-- Edit page with type-aware field toggling
-
-**Files changed:** `apps/health/models.py`, `apps/health/views.py`, `apps/health/urls.py`,
-`templates/health/fitness/personal_records.html`, `templates/health/fitness/pr_edit.html`
-
----
-
-## 2026-04-04 — Feature: Water Tracking Tile on Home Page
-
-Added the Water/Hydration card to the Home page dashboard so users can quick-add drinks without navigating to the Health module.
-
-**Files Changed:**
-- `apps/dashboard/services/config_service.py` — Added `water` tile to `TILE_DEFINITIONS` (medium size, order 3, next to weather)
-- `apps/dashboard/views.py` — Added `_get_water_data()` method for progress, 7-day avg, and entry count; wired into `get_context_data()`
-- `templates/dashboard/tiles/water.html` — New tile template with progress bar, quick-add buttons (AJAX), goal badge, 7-day average, view history link
-- `templates/dashboard/home.html` — Added `water` tile rendering case
-
-**Why:** User requested quick drink logging from the Home page without having to navigate to Health > Water.
-
----
-
-## 2026-04-04 — Fix: HealthKit workout merged into wrong manual workout
-
-**Root Cause:** The HealthKit ingest overlap detection merged workouts purely by
-time overlap, without checking if the workout types matched. A cycling ride that
-overlapped with a weight training session's time window would get silently merged
-into the weight training entry. Additionally, `"merged"` results weren't counted
-in the ingest response, making the issue invisible.
-
-**Fix:**
-- Added `workout_type` matching to overlap detection — only merge if the HealthKit
-  workout type matches the manual entry's type (case-insensitive)
-- Count `"merged"` results as `"updated"` in the ingest response
-- Data migration to clear stolen `sync_id` from manual workouts on 2026-04-04 so
-  the cycling workout creates its own entry on next sync
-
-**Files changed:** `apps/mobile/views.py`, `apps/health/migrations/0075_fix_merged_cycling_sync_id.py`
-
----
-
-## 2026-04-04 — Fix: Starting second workout resumes first workout's data
-
-**Root Cause:** `start_workout_ajax` unconditionally resumed any in-progress workout
-from today. If the first workout wasn't properly completed (e.g., due to the "Finish
-Workout" button bug), starting a second workout would resume the first one and load
-all its saved sets, making everything appear auto-completed.
-
-**Fix:** Only auto-resume an in-progress workout if it has no exercises logged yet
-(blank session from an accidental page refresh). If the workout already has content,
-create a new session — the user is starting a second workout for the day.
-
-**Files changed:** `apps/health/views.py`
-
----
-
-## 2026-04-04 — Fix: "Finish Workout" button silently fails on structured workouts
-
-**Root Cause:** The activity panel's duration input (`activityDuration`) had an HTML `required`
-attribute. Even though the activity panel is hidden (`display: none`) in structured workout mode,
-the browser's native form validation can block form submission on hidden required fields — and
-since the field isn't visible, no validation tooltip appears. Result: clicking "Finish Workout"
-does absolutely nothing — no error, no redirect, no alert.
-
-This is particularly noticeable when doing a second workout of the day, but can affect any
-structured workout depending on browser behavior.
-
-**Fix:** Removed `required` from the `activityDuration` input. The activity logging path already
-validates duration in JavaScript (line 1568: `if (!duration || parseInt(duration) < 1)`), so
-the HTML attribute was redundant.
-
-**Files changed:** `templates/health/fitness/workout_form.html`
+**Files changed:**
+- `apps/core/ai_state/state_builder.py` (10 builders refactored)
+- `apps/core/execution/execution_truth_engine.py` (journal + faith → contracts)
+- 7 new contract files + 1 new test file + 1 new doc
+- `apps/faith/services/__init__.py` (new directory)
+- `apps/health/migrations/0075_alter_workoutsession_intensity_and_more.py` (pre-existing)
 
 ---
 

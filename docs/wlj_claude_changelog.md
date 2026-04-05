@@ -6,6 +6,35 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-05 — Enhancement: Beth Decision Enforcement — Chief of Staff behavior upgrade
+
+**Problem:** Beth had all the intelligence (signals, momentum, patterns, priorities) but
+sometimes reverted to passive reporting ("here's what's left") instead of decisive guidance.
+She'd list multiple options instead of choosing, report state instead of driving action.
+
+**Fix — Decision Enforcement injection (prompt engineering only, no new systems):**
+
+1. **Decision Enforcement Block** — 6 mandatory rules injected into Beth's system prompt:
+   - SINGLE ACTION MANDATE: Every response has exactly ONE clear next action
+   - NON-NEGOTIABLE PROTECTION: Foundational items cannot be deferred or traded off
+   - TRADEOFF RESOLUTION: Competing items get a winner chosen with stated reasoning
+   - MOMENTUM AWARENESS: Streaks and patterns named when supported by data
+   - BUFFER AWARENESS: Slight delays with available buffer don't trigger task-dropping
+   - NO PASSIVE REPORTING: Responses drive execution, not describe state
+
+2. **Strengthened Session Modes** — 4 of 8 modes upgraded with decision enforcement:
+   - MORNING: Must end with "Start with: [item]"
+   - MIDDAY: Must classify ON TRACK / AT RISK / BEHIND
+   - AFTERNOON: Must triage explicitly (non-negotiable vs slidable)
+   - EVENING: Must state day outcome and direct remaining actions
+
+3. **DECISION LINE in Daily Scan Brief** — Next action appears in TWO prompt locations
+   to reinforce single-action commitment
+
+**Files changed:** `apps/core/ai_orchestrator/cos_context.py`
+
+---
+
 ## 2026-04-05 — Fix: Dashboard routine/medication groups out of chronological order
 
 **Root Cause:** `action_prioritizer.py` line 617 applied `WINDOW_ORDER` rank sorting only

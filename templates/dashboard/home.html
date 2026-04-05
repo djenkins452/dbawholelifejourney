@@ -458,6 +458,13 @@ body.edit-mode .tile-name-label {
 
     <!-- Save Status Indicator -->
     <div class="edit-save-status" id="edit-save-status">Saved</div>
+
+    <!-- DEBUG: Water tile rendered outside tile loop -->
+    {% if health_enabled %}
+    <div style="margin-top: 1rem;">
+        {% include "dashboard/tiles/water.html" with tile=None %}
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
 

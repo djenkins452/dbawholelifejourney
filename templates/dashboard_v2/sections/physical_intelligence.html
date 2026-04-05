@@ -82,6 +82,19 @@
         </div>
         {% endif %}
     </div>
+
+    {# ── 3b. VITALS SNAPSHOT ── #}
+    {% if has_vitals %}
+    <div class="pi-signals-row pi-vitals-row">
+        {% for v in vitals %}
+        <div class="pi-signal pi-signal-{% if v.status == 'normal' %}good{% elif v.status == 'elevated' %}warn{% elif v.status == 'high' or v.status == 'low' %}bad{% else %}neutral{% endif %}">
+            <span class="pi-signal-icon">{% if v.metric == 'glucose' %}&#x1F9EA;{% elif v.metric == 'blood_pressure' %}&#x2764;{% elif v.metric == 'heart_rate' %}&#x1F4D3;{% endif %}</span>
+            <span class="pi-signal-label">{% if v.metric == 'glucose' %}Glucose{% elif v.metric == 'blood_pressure' %}BP{% elif v.metric == 'heart_rate' %}HR{% endif %}</span>
+            <span class="pi-signal-value">{{ v.value }} {{ v.unit }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
     {% if plateau_active %}
     <div class="pi-plateau-badge">
         Plateau detected{% if plateau_days %} &mdash; {{ plateau_days }} days{% endif %}

@@ -476,6 +476,9 @@ class PhysicalIntelligenceSectionView(LoginRequiredMixin, View):
             "waist_trend": body_comp.get("waist_trend"),
             "plateau_active": plateau in ("confirmed", "possible"),
             "plateau_days": body_comp.get("plateau_days", 0),
+            # Vitals snapshot (glucose, BP, HR)
+            "vitals": pi.get("vitals_snapshot") or [],
+            "has_vitals": bool(pi.get("vitals_snapshot")),
             # Conflicts
             "conflicts": display_conflicts,
             "has_conflicts": bool(display_conflicts),

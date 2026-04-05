@@ -6,6 +6,14 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-04 — Fix: New dashboard tiles appear at bottom instead of intended position
+
+New tiles added to `TILE_DEFINITIONS` were appended at `max_order + 1` in existing users' configs, pushing them to the very bottom of the page. Changed `_merge_config_with_available()` to use the tile's `default_order` instead, so new tiles appear in their designed position.
+
+**File:** `apps/dashboard/services/config_service.py`
+
+---
+
 ## 2026-04-04 — Fix: Personal Records page 500 + add CRUD
 
 **Root Cause:** `PersonalRecord.estimated_1rm` crashed on time-based PRs (Plank) where

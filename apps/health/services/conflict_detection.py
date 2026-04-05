@@ -243,6 +243,6 @@ def _started_creatine_recently(user, days=21):
 
 def _waist_not_gaining(trend):
     """Check that waist is not increasing."""
-    waist_trend = trend.get("waist_trend", 0)
+    waist_trend = trend.get("waist_trend") or 0
     waist_evidence = trend.get("fat_loss_evidence", [])
     return waist_trend <= 0.1 and "waist_up" not in waist_evidence

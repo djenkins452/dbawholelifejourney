@@ -228,7 +228,7 @@ def schedule_event_sms_for_today(event):
 # Signal Receivers
 # ==============================================================================
 
-@receiver(post_save, sender='health.Medicine')
+@receiver(post_save, sender='health.Intake')
 def on_medicine_save(sender, instance, created, **kwargs):
     """Schedule SMS when a medicine is saved."""
     try:
@@ -239,7 +239,7 @@ def on_medicine_save(sender, instance, created, **kwargs):
         logger.error(f"Error scheduling SMS for medicine {instance.id}: {e}")
 
 
-@receiver(post_save, sender='health.MedicineSchedule')
+@receiver(post_save, sender='health.IntakeSchedule')
 def on_medicine_schedule_save(sender, instance, created, **kwargs):
     """Schedule SMS when a medicine schedule is saved."""
     try:

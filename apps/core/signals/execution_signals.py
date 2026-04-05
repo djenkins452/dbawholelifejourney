@@ -61,7 +61,7 @@ def record_execution_signal_on_journal(sender, instance, created, **kwargs):
         )
 
 
-@receiver(post_save, sender='health.MedicineLog')
+@receiver(post_save, sender='health.IntakeLog')
 def record_execution_signal_on_medicine_log(sender, instance, **kwargs):
     """Generate ExecutionSignal when a MedicineLog is saved with taken_at."""
     if not instance.taken_at:

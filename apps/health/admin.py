@@ -28,9 +28,9 @@ from .models import (
     MealTemplate,
     MealTemplateItem,
     MedicalProvider,
-    Medicine,
-    MedicineLog,
-    MedicineSchedule,
+    Intake,
+    IntakeLog,
+    IntakeSchedule,
     NutritionEntryAudit,
     NutritionGoals,
     NutritionLabelEvidence,
@@ -240,38 +240,41 @@ class WorkoutPlanAdmin(admin.ModelAdmin):
 # =============================================================================
 
 
-class MedicineScheduleInline(admin.TabularInline):
-    model = MedicineSchedule
+class IntakeScheduleInline(admin.TabularInline):
+    model = IntakeSchedule
     extra = 1
 
 
-@admin.register(Medicine)
-class MedicineAdmin(admin.ModelAdmin):
+@admin.register(Intake)
+class IntakeAdmin(admin.ModelAdmin):
     list_display = [
         "name",
         "user",
         "dose",
+        "intake_type",
+        "category",
         "frequency",
-        "medicine_status",
+        "intake_status",
+        "priority",
         "needs_refill_display",
         "start_date",
         "status",
     ]
-    list_filter = ["medicine_status", "frequency", "is_prn", "status", "start_date"]
+    list_filter = ["intake_status", "intake_type", "category", "priority", "frequency", "is_prn", "status", "start_date"]
     search_fields = ["user__email", "name", "purpose", "prescribing_doctor"]
     raw_id_fields = ["user"]
     date_hierarchy = "start_date"
-    inlines = [MedicineScheduleInline]
+    inlines = [IntakeScheduleInline]
 
     fieldsets = (
         (None, {
-            "fields": ("user", "name", "purpose", "dose")
+            "fields": ("user", "name", "purpose", "dose", "intake_type", "category", "priority", "dosage_unit")
         }),
         ("Scheduling", {
             "fields": ("frequency", "is_prn", "start_date", "end_date", "grace_period_minutes")
         }),
         ("Status", {
-            "fields": ("medicine_status", "paused_at", "paused_reason")
+            "fields": ("intake_status", "paused_at", "paused_reason")
         }),
         ("Refill Tracking", {
             "fields": ("current_supply", "refill_threshold")
@@ -287,25 +290,25 @@ class MedicineAdmin(admin.ModelAdmin):
 
     def needs_refill_display(self, obj):
         if obj.needs_refill:
-            return "⚠️ Low Supply"
+            return "Low Supply"
         if obj.current_supply is not None:
             return f"{obj.current_supply} doses"
         return "—"
     needs_refill_display.short_description = "Supply"
 
 
-@admin.register(MedicineSchedule)
-class MedicineScheduleAdmin(admin.ModelAdmin):
-    list_display = ["medicine", "scheduled_time", "label", "days_of_week", "is_active"]
+@admin.register(IntakeSchedule)
+class IntakeScheduleAdmin(admin.ModelAdmin):
+    list_display = ["intake", "scheduled_time", "label", "days_of_week", "is_active"]
     list_filter = ["is_active"]
-    search_fields = ["medicine__name", "label"]
-    raw_id_fields = ["medicine"]
+    search_fields = ["intake__name", "label"]
+    raw_id_fields = ["intake"]
 
 
-@admin.register(MedicineLog)
-class MedicineLogAdmin(admin.ModelAdmin):
+@admin.register(IntakeLog)
+class IntakeLogAdmin(admin.ModelAdmin):
     list_display = [
-        "medicine",
+        "intake",
         "user",
         "scheduled_date",
         "scheduled_time",
@@ -314,8 +317,8 @@ class MedicineLogAdmin(admin.ModelAdmin):
         "is_prn_dose",
     ]
     list_filter = ["log_status", "is_prn_dose", "scheduled_date", "status"]
-    search_fields = ["user__email", "medicine__name", "notes"]
-    raw_id_fields = ["user", "medicine", "schedule"]
+    search_fields = ["user__email", "intake__name", "notes"]
+    raw_id_fields = ["user", "intake", "schedule"]
     date_hierarchy = "scheduled_date"
 
 

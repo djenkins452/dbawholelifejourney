@@ -86,22 +86,22 @@ def invalidate_on_glucose_change(sender, instance, **kwargs):
     _invalidate_health(instance.user)
 
 
-@receiver(post_save, sender='health.Medicine')
-@receiver(post_delete, sender='health.Medicine')
+@receiver(post_save, sender='health.Intake')
+@receiver(post_delete, sender='health.Intake')
 def invalidate_on_medicine_change(sender, instance, **kwargs):
     """Invalidate health cache when medicine changes."""
     _invalidate_health(instance.user)
 
 
-@receiver(post_save, sender='health.MedicineLog')
-@receiver(post_delete, sender='health.MedicineLog')
+@receiver(post_save, sender='health.IntakeLog')
+@receiver(post_delete, sender='health.IntakeLog')
 def invalidate_on_medicine_log_change(sender, instance, **kwargs):
     """Invalidate health cache when medicine log changes."""
     _invalidate_health(instance.user)
 
 
-@receiver(post_save, sender='health.MedicineSchedule')
-@receiver(post_delete, sender='health.MedicineSchedule')
+@receiver(post_save, sender='health.IntakeSchedule')
+@receiver(post_delete, sender='health.IntakeSchedule')
 def invalidate_on_medicine_schedule_change(sender, instance, **kwargs):
     """Invalidate health cache when medicine schedule changes."""
     _invalidate_health(instance.medicine.user)

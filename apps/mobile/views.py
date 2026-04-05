@@ -1810,6 +1810,11 @@ def process_workout_metric(user, metric_date, source, sync_id, data):
     # two requests check simultaneously, both find nothing, and both try INSERT.
     from django.db import IntegrityError
 
+    logger.info(
+        "process_workout_metric: type=%s duration=%s sync_id=%s date=%s",
+        workout_type, workout_duration, sync_id, metric_date,
+    )
+
     if sync_id:
         existing = WorkoutSession.objects.filter(
             user=user,
@@ -1817,6 +1822,10 @@ def process_workout_metric(user, metric_date, source, sync_id, data):
         ).first()
 
         if existing:
+            logger.info(
+                "Workout sync_id match: existing ID=%s name='%s' type='%s' source='%s'",
+                existing.pk, existing.name, existing.workout_type, existing.source,
+            )
             changed = False
             if existing.workout_type != workout_type:
                 existing.workout_type = workout_type
@@ -1857,6 +1866,10 @@ def process_workout_metric(user, metric_date, source, sync_id, data):
             overlap_qs = overlap_qs.filter(workout_type__iexact=workout_type)
         manual_overlap = overlap_qs.first()
         if manual_overlap:
+            logger.info(
+                "Workout MERGING into manual ID=%s name='%s'",
+                manual_overlap.pk, manual_overlap.name,
+            )
             # Enrich the existing manual entry with HealthKit data
             manual_overlap.sync_id = sync_id
             manual_overlap.source = "manual"  # preserve manual ownership
@@ -1869,6 +1882,7 @@ def process_workout_metric(user, metric_date, source, sync_id, data):
             manual_overlap.save()
             return "merged"
 
+    logger.info("Workout CREATING new session: type=%s date=%s", workout_type, metric_date)
     # Create new WorkoutSession, handle race condition gracefully
     try:
         WorkoutSession.objects.create(

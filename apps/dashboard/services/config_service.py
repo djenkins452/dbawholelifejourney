@@ -476,14 +476,14 @@ class DashboardConfigService:
                 merged_tiles.append(tile_config)
 
         # Then, add any new tiles that weren't in stored config
+        # Use default_order so new tiles appear in their intended position
         for tile_id, tile_def in available_tiles.items():
             if tile_id not in stored_tiles:
-                max_order += 1
                 merged_tiles.append({
                     'id': tile_id,
                     'visible': tile_def['default_visible'],
                     'size': tile_def['default_size'],
-                    'order': max_order,
+                    'order': tile_def['default_order'],
                 })
 
         # Sort by order

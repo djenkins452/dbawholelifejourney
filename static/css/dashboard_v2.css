@@ -2320,6 +2320,19 @@ a.v2-ac-item-title:hover {
 
 /* ── Weather Compact ────────────────────────────────────────────── */
 
+.v2-weather-water-row {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+}
+.v2-weather-water-row .v2-section { margin-bottom: 0; }
+.v2-weather-water-row .v2-weather-compact,
+.v2-weather-water-row .v2-water-compact {
+    flex: 1;
+    min-width: 0;
+    max-width: 50%;
+}
 .v2-weather-compact {
     max-width: 400px;
 }
@@ -2422,6 +2435,13 @@ a.v2-state-item:hover {
     }
 
     .v2-weather-compact {
+        max-width: 100%;
+    }
+    .v2-weather-water-row {
+        flex-direction: column;
+    }
+    .v2-weather-water-row .v2-weather-compact,
+    .v2-weather-water-row .v2-water-compact {
         max-width: 100%;
     }
 }
@@ -2776,4 +2796,103 @@ a.v2-state-item:hover {
     .pi-signals-row {
         grid-template-columns: repeat(4, 1fr);
     }
+}
+
+/* =====================================================================
+   Water Tile
+   ===================================================================== */
+
+.v2-water-card {
+    background: var(--color-surface, #fff);
+    border-radius: var(--radius-lg, 12px);
+    padding: 1rem;
+    border: 1px solid var(--color-border, #e5e7eb);
+}
+.v2-water-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+.v2-water-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text, #1f2937);
+    margin: 0;
+}
+.v2-water-log-btn {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #fff;
+    background: var(--color-primary, #059669);
+    border-radius: var(--radius-md, 8px);
+    text-decoration: none;
+}
+.v2-water-bar {
+    height: 12px;
+    background: var(--color-border, #e5e7eb);
+    border-radius: 9999px;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+}
+.v2-water-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0ea5e9, #0284c7);
+    border-radius: 9999px;
+    transition: width 0.3s ease;
+}
+.v2-water-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+}
+.v2-water-current { font-weight: 600; color: #0284c7; }
+.v2-water-goal { color: var(--color-text-secondary, #6b7280); }
+.v2-water-badge {
+    display: inline-block;
+    background: #dcfce7;
+    color: #16a34a;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    margin-bottom: 0.5rem;
+}
+.v2-water-avg {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary, #6b7280);
+    background: var(--color-background, #f9fafb);
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    margin: 0 0 0.75rem;
+}
+.v2-water-quick {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+}
+.v2-water-btn {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8rem;
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-text, #1f2937);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.v2-water-btn:hover {
+    background: var(--color-background, #f9fafb);
+}
+.v2-water-history {
+    font-size: 0.8rem;
+    color: var(--color-primary, #059669);
+    text-decoration: none;
+}
+.v2-water-history:hover {
+    text-decoration: underline;
 }

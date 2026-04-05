@@ -6,42 +6,19 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
-## 2026-04-05 — Fix: Physical Intelligence multi-signal awareness and waist over-indexing
+## 2026-04-05 — Fix: Dashboard routine/medication groups out of chronological order
 
-**Problem:** Physical Intelligence was over-indexing on waist measurements:
-1. Waist was the sole metric dominating clarity messaging (Priority 2 early return)
-2. Other health metrics (glucose, BP, HR) were never surfaced in PI
-3. "Measure your waist" was shown as blocking even when other signals existed
-4. Pre-existing infinite recursion bug: `compute_physical_decision` → `get_module_state("nutrition")` → `rebuild_user_state` → `build_health_state` → `compute_physical_decision` (stack overflow)
+**Root Cause:** `action_prioritizer.py` line 617 applied `WINDOW_ORDER` rank sorting only
+to `medication_window` groups, not routine groups. Both use the same `time_of_day` values
+('morning', 'evening', 'nightly') as `group_id`, but routines fell back to alphabetical
+title sort — causing "Evening" (6:00 PM) to appear after "Nightly Medications" (9:00 PM).
 
-**Root cause:**
-- `physical_decision.py:702-713`: Priority 2 checked `waist_trend is None` and returned early, making every PI message about waist for users without 2+ waist measurements
-- `body_composition_signal.py` was the sole signal source — only queried weight + waist + DailyHealthSummary. Glucose, BP, HR were invisible to PI.
-- `_gather_signals` called `get_module_state("health")` which triggered circular SAE rebuild
+**Fix:** Removed the `if g['group_type'] == 'medication_window'` guard so ALL groups sort
+by `WINDOW_ORDER` rank. Now routines and medications interleave chronologically.
 
-**Changes:**
-- `apps/health/services/physical_decision.py`:
-  - Added `_build_vitals_snapshot()`: surfaces glucose, BP, HR with clinical classification (ADA/AHA ranges)
-  - Added vitals data gathering in `_gather_signals()` via direct model queries (avoids SAE circular dependency)
-  - Rewrote `_enrich_with_clarity()` priority chain: metabolic risk (glucose) → cardiovascular (BP) → no-data-with-vitals → nutrition → training → plateau → waist (informational, non-blocking) → recomposition → fallback
-  - Added per-user recursion guard (`_active_users` set with lock) to prevent stack overflow
-  - Updated `_fallback_decision()` to not be waist-centric
-- `apps/dashboard_v2/views.py`: passes `vitals` and `has_vitals` to template context
-- `templates/dashboard_v2/sections/physical_intelligence.html`: added vitals snapshot row (glucose, BP, HR tiles with status coloring)
-- `apps/health/tests/test_physical_intelligence_v2.py`: added `TestVitalsSnapshot` class with 8 test cases
+**Files changed:** `apps/core/decision_engine/action_prioritizer.py`
 
-**Prioritization (deterministic, clinical significance):**
-1. Metabolic risk (glucose elevated/high/low) — highest
-2. Cardiovascular risk (BP high)
-3. No body comp data (with/without vitals context)
-4. Nutrition compliance
-5. Training compliance
-6. Plateau/noise detection
-7. Missing waist (informational, not blocking)
-8. Recomposition signals
-9. Fallback
-
-**Files:** physical_decision.py, views.py (dashboard_v2), physical_intelligence.html, test_physical_intelligence_v2.py, wlj_claude_changelog.md
+---
 
 ## 2026-04-05 — Architecture: System-wide domain truth contracts
 

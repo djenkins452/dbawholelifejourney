@@ -6,6 +6,49 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-05 — Architecture: System-wide domain truth contracts
+
+**Root Cause:** Only workouts, tasks, and routines had canonical query contracts.
+10+ other domains (journal, faith, goals, habits, nutrition, fasting, capture, medicine)
+had raw model queries scattered across UI views, SAE state builders, execution truth engine,
+and CoS context builders — each potentially using different filter criteria.
+
+**Fix — Domain Truth Contract enforcement across all WLJ domains:**
+
+**Phase 1 — Complete existing contract adoption:**
+- `build_fitness_state()`: Replaced 5 remaining `WorkoutSession.objects.filter` calls with
+  `WorkoutQueries.completed_in_range()` — all workout counts now use canonical contract
+- `build_task_state()`: Replaced 3 `Task.objects.filter` calls with `TaskQueries.overdue()`,
+  `TaskQueries.pending()`, `TaskQueries.completed_on()` — priority binning uses contract
+
+**Phase 2 — New domain contracts (7 files):**
+- `apps/journal/services/journal_queries.py` — `JournalQueries` with `has_entry_on()`, `recent()`, `with_mood()`
+- `apps/faith/services/faith_queries.py` — `FaithQueries` with `has_reading_on()`, `unanswered_prayers()`, `active_reading_plans()`
+- `apps/purpose/services/goal_queries.py` — `GoalQueries` with `active()`, `with_milestones()`, `overdue()`
+- `apps/health/services/fasting_queries.py` — `FastingQueries` with `current_active()`, `is_fasting()`, `completed_in_range()`
+- `apps/health/services/nutrition_queries.py` — `NutritionQueries` with `entries_on_date()`, `has_logged_on()`
+- `apps/life/services/habit_queries.py` — `HabitQueries` with `active()`
+- `apps/capture/services/capture_queries.py` — `CaptureQueries` with `pending_uploads()`, `ready_recent()`, `stale()`
+
+**Phase 3 — Wired into consumers:**
+- `state_builder.py`: All 10 `build_*_state()` functions now use canonical contracts
+- `execution_truth_engine.py`: `_check_journal()` uses `JournalQueries`, `_check_faith()` uses
+  `FaithQueries`, `_check_workout()` uses `WorkoutQueries` (already done)
+
+**Phase 4 — Enforcement:**
+- `docs/DOMAIN_TRUTH_CONTRACTS.md` — Architecture standard with inventory, rules, and patterns
+- `apps/core/tests/test_domain_truth_contracts.py` — Regression tests including architectural
+  grep tests that fail if raw model queries are reintroduced in execution truth engine
+
+**Files changed:**
+- `apps/core/ai_state/state_builder.py` (10 builders refactored)
+- `apps/core/execution/execution_truth_engine.py` (journal + faith → contracts)
+- 7 new contract files + 1 new test file + 1 new doc
+- `apps/faith/services/__init__.py` (new directory)
+- `apps/health/migrations/0075_alter_workoutsession_intensity_and_more.py` (pre-existing)
+
+---
+
 ## 2026-04-04 — Fix: Broaden workout completion definition for structured workouts
 
 **Root Cause:** `WorkoutQueries.completed_on()` required `completed_at` to be set, but

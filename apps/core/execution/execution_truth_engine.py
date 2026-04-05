@@ -230,10 +230,8 @@ def _derive_expectations(user, target_date: date, routines: Dict) -> Dict:
 
     # Bible reading plan = bible expected (regardless of routine)
     try:
-        from apps.faith.models import UserReadingPlan
-        if UserReadingPlan.objects.filter(
-            user=user, plan_status='active',
-        ).exclude(status='deleted').exists():
+        from apps.faith.services.faith_queries import FaithQueries
+        if FaithQueries.has_active_plan(user):
             expectations['bible_expected'] = True
     except ImportError:
         pass
@@ -301,18 +299,11 @@ def _check_faith(user, target_date: date, expectations: Dict) -> Dict:
         'bible_source': None,
     }
 
-    # Bible reading plan completion
+    # Bible reading plan completion (canonical contract)
     try:
-        from apps.faith.models import UserReadingPlan, UserReadingProgress
-        active_plans = UserReadingPlan.objects.filter(
-            user=user, plan_status='active',
-        ).exclude(status='deleted')
-        if active_plans.exists():
-            if UserReadingProgress.objects.filter(
-                user_plan__in=active_plans,
-                is_completed=True,
-                completed_at__date=target_date,
-            ).exists():
+        from apps.faith.services.faith_queries import FaithQueries
+        if FaithQueries.has_active_plan(user):
+            if FaithQueries.has_reading_on(user, target_date):
                 result['bible_reading_completed'] = True
                 result['bible_source'] = 'reading_plan'
     except ImportError:
@@ -322,15 +313,10 @@ def _check_faith(user, target_date: date, expectations: Dict) -> Dict:
             "execution_truth: bible reading check failed", exc_info=True,
         )
 
-    # Faith-linked task completion (prayer)
+    # Faith-linked task completion (prayer) — canonical contract
     try:
-        from apps.life.models import Task
-        if Task.objects.filter(
-            user=user,
-            module='faith',
-            completion_status='completed',
-            completed_at__date=target_date,
-        ).exists():
+        from apps.faith.services.faith_queries import FaithQueries
+        if FaithQueries.has_faith_task_completed_on(user, target_date):
             result['prayer_completed'] = True
             result['prayer_source'] = 'task'
     except ImportError:
@@ -369,10 +355,8 @@ def _check_journal(user, target_date: date, expectations: Dict) -> Dict:
         'completed': False,
     }
     try:
-        from apps.journal.models import JournalEntry
-        result['completed'] = JournalEntry.objects.filter(
-            user=user, entry_date=target_date,
-        ).exists()
+        from apps.journal.services.journal_queries import JournalQueries
+        result['completed'] = JournalQueries.has_entry_on(user, target_date)
     except ImportError:
         pass
     except Exception:

@@ -473,11 +473,12 @@ def build_goal_state(user):
         dict with active goals, completion rate, next deadline.
     """
     from apps.purpose.models import LifeGoal
+    from apps.purpose.services.goal_queries import GoalQueries
 
     now = get_current_time()
     state = {}
 
-    active_goals = LifeGoal.objects.filter(user=user, status="active")
+    active_goals = GoalQueries.with_milestones(user)
     state["active_goal_count"] = active_goals.count()
 
     if state["active_goal_count"] == 0:
@@ -527,11 +528,12 @@ def build_habit_state(user):
     Returns:
         dict with active habits, streaks, last activity.
     """
+    from apps.life.services.habit_queries import HabitQueries
     from apps.purpose.models import HabitGoal
 
     state = {}
 
-    active_habits = HabitGoal.objects.filter(user=user, status="active")
+    active_habits = HabitQueries.active(user)
     state["active_habit_count"] = active_habits.count()
 
     if state["active_habit_count"] == 0:
@@ -580,25 +582,18 @@ def build_faith_state(user):
         dict with reading plans, scripture streak, prayer requests.
     """
     from apps.faith.models import PrayerRequest, UserReadingPlan, UserReadingProgress
+    from apps.faith.services.faith_queries import FaithQueries
 
     now = get_current_time()
     state = {}
 
-    # Active reading plans
-    active_plans = UserReadingPlan.objects.filter(
-        user=user, plan_status="active"
-    )
+    # Active reading plans (canonical contract)
+    active_plans = FaithQueries.active_reading_plans(user)
     state["active_reading_plans"] = active_plans.count()
 
-    # Last scripture reading
-    last_reading = (
-        UserReadingProgress.objects.filter(
-            user_plan__user=user, is_completed=True
-        )
-        .order_by("-completed_at")
-        .values_list("completed_at", flat=True)
-        .first()
-    )
+    # Last scripture reading (canonical contract)
+    last_reading_obj = FaithQueries.last_reading(user)
+    last_reading = last_reading_obj.completed_at if last_reading_obj else None
     if last_reading:
         state["last_scripture_read"] = last_reading.isoformat()
         # Use date comparison, not datetime, to prevent a reading at 9pm
@@ -609,26 +604,19 @@ def build_faith_state(user):
     streak = _calculate_reading_streak(user, now)
     state["reading_streak"] = streak
 
-    # Prayer requests
-    state["unanswered_prayers"] = PrayerRequest.objects.filter(
-        user=user, is_answered=False
-    ).count()
-
-    state["answered_prayers"] = PrayerRequest.objects.filter(
-        user=user, is_answered=True
-    ).count()
+    # Prayer requests (canonical contract)
+    state["unanswered_prayers"] = FaithQueries.unanswered_prayers(user).count()
+    state["answered_prayers"] = FaithQueries.answered_prayers(user).count()
 
     # Recent prayer titles (top 5 active)
     state["recent_prayer_titles"] = list(
-        PrayerRequest.objects.filter(user=user, is_answered=False)
+        FaithQueries.unanswered_prayers(user)
         .order_by("-created_at")
         .values_list("title", flat=True)[:5]
     )
 
     # Urgent prayers
-    state["urgent_prayers"] = PrayerRequest.objects.filter(
-        user=user, is_answered=False, priority="urgent"
-    ).count()
+    state["urgent_prayers"] = FaithQueries.urgent_prayers(user).count()
 
     # Bible reading plan name
     active_plan = active_plans.first()
@@ -640,17 +628,10 @@ def build_faith_state(user):
 
 def _calculate_reading_streak(user, now):
     """Calculate consecutive days of scripture reading ending at today/yesterday."""
-    from apps.faith.models import UserReadingProgress
+    from apps.faith.services.faith_queries import FaithQueries
 
-    # Get distinct completion dates in reverse order
-    completion_dates = list(
-        UserReadingProgress.objects.filter(
-            user_plan__user=user, is_completed=True, completed_at__isnull=False
-        )
-        .values_list("completed_at__date", flat=True)
-        .distinct()
-        .order_by("-completed_at__date")[:60]  # Look back max 60 days
-    )
+    # Get distinct completion dates in reverse order (canonical contract)
+    completion_dates = FaithQueries.reading_completion_dates(user, limit=60)
 
     if not completion_dates:
         return 0
@@ -684,11 +665,12 @@ def build_journal_state(user):
         dict with last entry, frequency, mood distribution.
     """
     from apps.journal.models import JournalEntry
+    from apps.journal.services.journal_queries import JournalQueries
 
     now = get_current_time()
     state = {}
 
-    # Last journal entry
+    # Last journal entry (canonical contract)
     last_entry = (
         JournalEntry.objects.filter(user=user)
         .order_by("-entry_date")
@@ -702,9 +684,7 @@ def build_journal_state(user):
 
     # Entry frequency (entries per week over last 30 days)
     cutoff_30d = now - timedelta(days=30)
-    recent_count = JournalEntry.objects.filter(
-        user=user, entry_date__gte=cutoff_30d.date()
-    ).count()
+    recent_count = JournalQueries.recent(user, days=30).count()
     state["entry_frequency"] = round(recent_count / 4.3, 1)  # per week
     state["entries_30d"] = recent_count
 
@@ -834,15 +814,14 @@ def build_nutrition_state(user):
     from django.db.models import Avg, Sum
 
     from apps.health.models import DailyNutritionSummary, FoodEntry, NutritionGoals
+    from apps.health.services.nutrition_queries import NutritionQueries
 
     now = get_current_time()
     today = now.date()
     state = {}
 
-    # ── Today's intake (from FoodEntry for current day) ──────────
-    today_entries = FoodEntry.objects.filter(
-        user=user, logged_date=today, status="active"
-    )
+    # ── Today's intake (canonical contract) ──────────────────────
+    today_entries = NutritionQueries.entries_on_date(user, today)
     today_count = today_entries.count()
     if today_count > 0:
         totals = today_entries.aggregate(
@@ -927,19 +906,14 @@ def build_nutrition_state(user):
         state["rolling_7d_calories_avg"] = round(float(avgs["avg_cal"] or 0), 1)
         state["rolling_7d_protein_avg"] = round(float(avgs["avg_protein"] or 0), 1)
 
-    # ── Last food entry ──────────────────────────────────────────
-    last_entry = (
-        FoodEntry.objects.filter(user=user, status="active")
-        .order_by("-logged_date", "-logged_time")
-        .values_list("logged_date", flat=True)
-        .first()
-    )
-    if last_entry:
-        state["last_food_entry"] = last_entry.isoformat()
+    # ── Last food entry (canonical contract) ────────────────────
+    _last_food = NutritionQueries.last_entry(user)
+    if _last_food:
+        state["last_food_entry"] = _last_food.logged_date.isoformat()
 
-    # ── 7-day food entry count ───────────────────────────────────
-    state["food_entries_7d"] = FoodEntry.objects.filter(
-        user=user, logged_date__gte=cutoff_7d, status="active"
+    # ── 7-day food entry count (canonical contract) ──────────────
+    state["food_entries_7d"] = NutritionQueries.entries_in_range(
+        user, cutoff_7d, today,
     ).count()
 
     return state
@@ -958,30 +932,21 @@ def build_fasting_state(user):
     from django.db.models import Avg, Sum
 
     from apps.health.models import FastingWindow
+    from apps.health.services.fasting_queries import FastingQueries
 
     now = get_current_time()
     today = now.date()
     state = {}
 
-    # ── Current fast (active = ended_at is null) ─────────────────
-    active_fast = (
-        FastingWindow.objects.filter(user=user, ended_at__isnull=True, status="active")
-        .order_by("-started_at")
-        .first()
-    )
+    # ── Current fast (canonical contract) ────────────────────────
+    active_fast = FastingQueries.current_active(user)
     state["current_fast_active"] = active_fast is not None
     if active_fast:
         elapsed = (now - active_fast.started_at).total_seconds() / 3600
         state["current_fast_hours"] = round(elapsed, 1)
 
-    # ── Last completed fast ──────────────────────────────────────
-    last_fast = (
-        FastingWindow.objects.filter(
-            user=user, ended_at__isnull=False, status="active"
-        )
-        .order_by("-ended_at")
-        .first()
-    )
+    # ── Last completed fast (canonical contract) ───────────────
+    last_fast = FastingQueries.last_completed(user)
     if last_fast:
         duration = (last_fast.ended_at - last_fast.started_at).total_seconds() / 3600
         state["last_fast_duration"] = round(duration, 1)
@@ -989,12 +954,7 @@ def build_fasting_state(user):
 
     # ── Rolling 7-day fasting stats ──────────────────────────────
     cutoff_7d = now - timedelta(days=7)
-    fasts_7d = FastingWindow.objects.filter(
-        user=user,
-        ended_at__isnull=False,
-        started_at__gte=cutoff_7d,
-        status="active",
-    )
+    fasts_7d = FastingQueries.completed_in_range(user, cutoff_7d, now)
     fasts_7d_count = fasts_7d.count()
     state["fasts_7d"] = fasts_7d_count
 
@@ -1051,25 +1011,21 @@ def build_fitness_state(user):
     from django.db.models import Avg, Count, Sum
 
     from apps.health.models import ExerciseSet, PersonalRecord, WorkoutSession
+    from apps.health.services.workout_queries import WorkoutQueries
 
     now = get_current_time()
     state = {}
 
-    # ── Workout counts ───────────────────────────────────────────
+    # ── Workout counts (canonical contract) ──────────────────────
     cutoff_7d = now - timedelta(days=7)
     cutoff_30d = now - timedelta(days=30)
 
-    # Only count sessions with completed_at set — a session without
-    # completed_at was created (template/HealthKit) but never performed.
-    # Matches fitness_utils.get_weekly_volume() which uses completed_at__isnull=False.
-    state["workouts_7d"] = WorkoutSession.objects.filter(
-        user=user, date__gte=cutoff_7d.date(), status="active",
-        completed_at__isnull=False,
+    state["workouts_7d"] = WorkoutQueries.completed_in_range(
+        user, cutoff_7d.date(), now.date(),
     ).count()
 
-    state["workouts_30d"] = WorkoutSession.objects.filter(
-        user=user, date__gte=cutoff_30d.date(), status="active",
-        completed_at__isnull=False,
+    state["workouts_30d"] = WorkoutQueries.completed_in_range(
+        user, cutoff_30d.date(), now.date(),
     ).count()
 
     # ── Workout behavior breakdown (7d) for dashboard cockpit ────
@@ -1092,9 +1048,8 @@ def build_fitness_state(user):
         logger.debug("Workout 7d behavior output failed", exc_info=True)
 
     # ── Volume (7d) ──────────────────────────────────────────────
-    recent_sessions = WorkoutSession.objects.filter(
-        user=user, date__gte=cutoff_7d.date(), status="active",
-        completed_at__isnull=False,
+    recent_sessions = WorkoutQueries.completed_in_range(
+        user, cutoff_7d.date(), now.date(),
     ).prefetch_related('workout_exercises__sets')
     total_volume = 0
     total_movement_work = 0
@@ -1173,20 +1128,17 @@ def build_fitness_state(user):
         pass
 
     # ── Average workout duration ─────────────────────────────────
-    sessions_with_duration = WorkoutSession.objects.filter(
-        user=user,
-        date__gte=cutoff_30d.date(),
-        duration_minutes__isnull=False,
-        status="active",
-    )
+    sessions_with_duration = WorkoutQueries.completed_in_range(
+        user, cutoff_30d.date(), now.date(),
+    ).filter(duration_minutes__isnull=False)
     if sessions_with_duration.exists():
         avg = sessions_with_duration.aggregate(avg=Avg("duration_minutes"))["avg"]
         state["avg_workout_duration"] = round(float(avg), 1) if avg else None
 
     # ── Last workout date ────────────────────────────────────────
     last_workout = (
-        WorkoutSession.objects.filter(
-            user=user, status="active", completed_at__isnull=False
+        WorkoutQueries.completed_in_range(
+            user, cutoff_30d.date() - timedelta(days=365), now.date(),
         )
         .order_by("-date")
         .values_list("date", flat=True)
@@ -1203,11 +1155,8 @@ def build_fitness_state(user):
     # ── Strength trend score ─────────────────────────────────────
     # Compare 7d volume to previous 7d volume
     prev_7d_start = cutoff_7d - timedelta(days=7)
-    prev_sessions = WorkoutSession.objects.filter(
-        user=user,
-        date__gte=prev_7d_start.date(),
-        date__lt=cutoff_7d.date(),
-        status="active",
+    prev_sessions = WorkoutQueries.completed_in_range(
+        user, prev_7d_start.date(), (cutoff_7d - timedelta(days=1)).date(),
     ).prefetch_related('workout_exercises__sets')
     prev_volume = 0
     prev_movement_work = 0
@@ -1993,14 +1942,10 @@ def build_task_state(user):
                 nn_skip_streaks.append({'task': task.title, 'streak': eff})
         state['nn_skip_streaks'] = nn_skip_streaks
 
-        # Overdue NN tasks
+        # Overdue NN tasks (use canonical TaskQueries)
         today = now.date() if hasattr(now, 'date') else now
-        overdue_nn = Task.objects.filter(
-            user=user,
+        overdue_nn = TaskQueries.overdue(user, today).filter(
             commitment_level='foundational',
-            completion_status='pending',
-            status='active',
-            due_date__lt=today,
         ).count()
         state['overdue_nn_count'] = overdue_nn
 
@@ -2009,9 +1954,7 @@ def build_task_state(user):
         user_today = get_user_today(user)
         tomorrow = user_today + timedelta(days=1)
 
-        pending_qs = Task.objects.filter(
-            user=user, status='active', completion_status='pending',
-        )
+        pending_qs = TaskQueries.pending(user)
 
         priority_counts = (
             pending_qs.values('priority')
@@ -2037,10 +1980,7 @@ def build_task_state(user):
         ).count()
 
         # ── Completed today (structured with momentum signal) ──
-        _completed_qs = Task.objects.filter(
-            user=user, completion_status='completed',
-            completed_at__date=user_today,
-        )
+        _completed_qs = TaskQueries.completed_on(user, user_today)
         _completed_count = _completed_qs.count()
         _completed_titles = list(
             _completed_qs.values_list('title', flat=True)[:10]
@@ -3327,44 +3267,18 @@ def build_capture_state(user):
     """
     state = {}
     try:
-        from apps.capture.models import CaptureEntry, PendingCapture
+        from apps.capture.services.capture_queries import CaptureQueries
         from apps.core.utils import get_user_today
 
         user_today = get_user_today(user)
-        week_ago = user_today - timedelta(days=7)
 
-        # Pending uploads
-        pending_count = PendingCapture.objects.filter(
-            user=user, status__in=['pending', 'uploading'],
-        ).count()
-
-        # Recent captures by status
-        recent_ready = list(CaptureEntry.objects.filter(
-            user=user, status='ready',
-            created_at__date__gte=week_ago,
-        ).order_by('-created_at')[:10])
-
-        failed_count = CaptureEntry.objects.filter(
-            user=user, status='failed',
-            created_at__date__gte=week_ago,
-        ).count()
-
-        # Today's captures
-        today_count = CaptureEntry.objects.filter(
-            user=user, created_at__date=user_today,
-        ).count()
-
-        # Volume 7d
-        volume_7d = CaptureEntry.objects.filter(
-            user=user, created_at__date__gte=week_ago,
-        ).count()
-
-        # Stale items (ready but old — not reviewed)
-        stale_cutoff = get_current_time() - timedelta(days=14)
-        stale_count = CaptureEntry.objects.filter(
-            user=user, status='ready',
-            created_at__lt=stale_cutoff,
-        ).count()
+        # Canonical contract queries
+        pending_count = CaptureQueries.pending_uploads(user).count()
+        recent_ready = list(CaptureQueries.ready_recent(user, days=7)[:10])
+        failed_count = CaptureQueries.failed_recent(user, days=7).count()
+        today_count = CaptureQueries.today(user, as_of=user_today).count()
+        volume_7d = CaptureQueries.volume_recent(user, days=7).count()
+        stale_count = CaptureQueries.stale(user, days=14).count()
 
         # Backlog level
         total_unprocessed = pending_count + len(recent_ready) + failed_count

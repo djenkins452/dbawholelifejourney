@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-03-30 (Added ETE, Today Engine, Compliance Engine, Signal V3 to inventory; added key file paths for execution/compliance/signals; noted signal models migration gap)
+**Last updated:** 2026-04-05 (Domain Truth Contracts: all SAE builders refactored to use canonical query contracts; execution truth engine uses FaithQueries + JournalQueries + WorkoutQueries; see docs/DOMAIN_TRUTH_CONTRACTS.md for full inventory)
 
 ---
 

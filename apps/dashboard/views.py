@@ -1950,6 +1950,15 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
     def _get_water_data(self, user):
         """Get water/hydration data for the dashboard water tile."""
+        default = {
+            "total_oz": 0,
+            "raw_total_oz": 0,
+            "goal_oz": 64,
+            "percentage": 0,
+            "goal_met": False,
+            "avg_water_oz": None,
+            "entry_count": 0,
+        }
         try:
             from apps.health.models import WaterEntry
 
@@ -1983,7 +1992,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             }
         except Exception as e:
             logger.error(f"Water data error: {e}", exc_info=True)
-            return None
+            return default
 
     def _get_quick_stats(self, user_data):
         """Get quick stats for the header."""

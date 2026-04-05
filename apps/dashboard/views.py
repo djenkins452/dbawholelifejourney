@@ -174,6 +174,9 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             # Phase 2: External API with timeout + cache (no AI, no OpenAI)
             context["weather"] = self._get_weather_data(user)
 
+            # Water tracking tile (DB reads only)
+            context["water_data"] = self._get_water_data(user)
+
             # Phase 3: Command Brief + Command Mode (pure DB reads, no OpenAI)
             command_brief = self._get_command_brief(user, prefs)
             context["command_brief"] = command_brief
@@ -1943,6 +1946,43 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 return None
         except Exception as e:
             logger.warning(f"Weather data error: {e}")
+            return None
+
+    def _get_water_data(self, user):
+        """Get water/hydration data for the dashboard water tile."""
+        try:
+            from apps.health.models import WaterEntry
+
+            today = get_user_now(user).date()
+            progress = WaterEntry.get_daily_goal_progress(user, today)
+
+            # 7-day average
+            from datetime import timedelta
+            week_ago = today - timedelta(days=7)
+            week_entries = WaterEntry.objects.filter(
+                user=user, logged_date__gte=week_ago, logged_date__lte=today
+            )
+            avg_water_oz = None
+            if week_entries.exists():
+                daily_totals = {}
+                for entry in week_entries:
+                    key = entry.logged_date
+                    daily_totals[key] = daily_totals.get(key, 0) + entry.amount_oz
+                avg_water_oz = round(sum(daily_totals.values()) / len(daily_totals), 1)
+
+            entry_count = WaterEntry.objects.filter(user=user).count()
+
+            return {
+                "total_oz": progress["total_oz"],
+                "raw_total_oz": progress["raw_total_oz"],
+                "goal_oz": progress["goal_oz"],
+                "percentage": progress["percentage"],
+                "goal_met": progress["goal_met"],
+                "avg_water_oz": avg_water_oz,
+                "entry_count": entry_count,
+            }
+        except Exception as e:
+            logger.warning(f"Water data error: {e}")
             return None
 
     def _get_quick_stats(self, user_data):

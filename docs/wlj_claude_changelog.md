@@ -6,6 +6,19 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-05 — Feature: Water Tile on Dashboard V2 (Life Command Center)
+
+Added water/hydration tracking tile to the V2 dashboard (the actual `/dashboard/` page), positioned side-by-side with the weather tile. Previous attempts targeted `apps/dashboard/` which is the legacy dashboard at `/dashboard/legacy/`.
+
+**Files Changed:**
+- `apps/dashboard_v2/views.py` — Added water data gathering (progress, 7-day avg, entry count) to `DashboardV2View.get_context_data()`
+- `templates/dashboard_v2/home.html` — Weather+Water side-by-side row, quick-add JS
+- `templates/dashboard_v2/partials/water_tile.html` — New partial with progress bar, quick-add buttons, goal badge, history link
+- `static/css/dashboard_v2.css` — Water card styles + responsive row layout (stacks on mobile)
+- `templates/dashboard/home.html` — Removed debug code from legacy dashboard
+
+---
+
 ## 2026-04-04 — Fix: New dashboard tiles appear at bottom instead of intended position
 
 New tiles added to `TILE_DEFINITIONS` were appended at `max_order + 1` in existing users' configs, pushing them to the very bottom of the page. Changed `_merge_config_with_available()` to use the tile's `default_order` instead, so new tiles appear in their designed position.

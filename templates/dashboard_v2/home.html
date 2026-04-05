@@ -46,11 +46,20 @@
     </div>
     {% endif %}
 
-    <!-- Weather (compact) -->
-    {% if weather %}
-    <section class="v2-section v2-weather-compact">
-        {% include "dashboard/tiles/weather.html" %}
-    </section>
+    <!-- Weather + Water row -->
+    {% if weather or water_data %}
+    <div class="v2-weather-water-row">
+        {% if weather %}
+        <section class="v2-section v2-weather-compact">
+            {% include "dashboard/tiles/weather.html" %}
+        </section>
+        {% endif %}
+        {% if water_data %}
+        <section class="v2-section v2-water-compact">
+            {% include "dashboard_v2/partials/water_tile.html" %}
+        </section>
+        {% endif %}
+    </div>
     {% endif %}
 
     <!-- Morning Reconciliation (HTMX lazy-load, only if missing items exist) -->
@@ -279,5 +288,55 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+// Water quick-add buttons
+(function() {
+    var container = document.querySelector('.v2-water-quick');
+    if (!container) return;
+    var url = container.dataset.waterUrl;
+    var csrf = container.dataset.csrf;
+
+    container.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-water-preset]');
+        if (!btn || btn.disabled) return;
+        var preset = btn.dataset.waterPreset;
+        var drinkType = btn.dataset.waterType || 'water';
+        var originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '...';
+
+        var body = new FormData();
+        body.append('preset', preset);
+        body.append('drink_type', drinkType);
+
+        fetch(url, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf },
+            body: body
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                var fill = document.querySelector('.v2-water-fill');
+                if (fill) fill.style.width = Math.min(data.percentage, 100) + '%';
+                var current = document.querySelector('.v2-water-current');
+                if (current) current.textContent = Math.round(data.total_oz) + ' oz';
+                if (data.goal_met && !document.querySelector('.v2-water-badge')) {
+                    var badge = document.createElement('span');
+                    badge.className = 'v2-water-badge';
+                    badge.textContent = 'Goal Met!';
+                    var progress = document.querySelector('.v2-water-progress');
+                    if (progress) progress.parentNode.insertBefore(badge, progress.nextSibling);
+                }
+            }
+            btn.disabled = false;
+            btn.textContent = originalText;
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        });
+    });
+})();
 </script>
 {% endblock %}

@@ -75,6 +75,51 @@ class DashboardV2View(HelpContextMixin, LoginRequiredMixin, TemplateView):
         except Exception:
             pass
 
+        # Water tracking tile
+        if getattr(prefs, 'health_enabled', True):
+            try:
+                from apps.health.models import WaterEntry
+                from apps.core.utils import get_user_now
+                from datetime import timedelta
+
+                today = get_user_now(self.request.user).date()
+                progress = WaterEntry.get_daily_goal_progress(
+                    self.request.user, today
+                )
+                week_ago = today - timedelta(days=7)
+                week_entries = WaterEntry.objects.filter(
+                    user=self.request.user,
+                    logged_date__gte=week_ago,
+                    logged_date__lte=today,
+                )
+                avg_water_oz = None
+                if week_entries.exists():
+                    daily_totals = {}
+                    for entry in week_entries:
+                        daily_totals[entry.logged_date] = (
+                            daily_totals.get(entry.logged_date, 0)
+                            + entry.amount_oz
+                        )
+                    avg_water_oz = round(
+                        sum(daily_totals.values()) / len(daily_totals), 1
+                    )
+
+                entry_count = WaterEntry.objects.filter(
+                    user=self.request.user
+                ).count()
+
+                context["water_data"] = {
+                    "total_oz": progress["total_oz"],
+                    "raw_total_oz": progress["raw_total_oz"],
+                    "goal_oz": progress["goal_oz"],
+                    "percentage": progress["percentage"],
+                    "goal_met": progress["goal_met"],
+                    "avg_water_oz": avg_water_oz,
+                    "entry_count": entry_count,
+                }
+            except Exception:
+                logger.warning("Water data error", exc_info=True)
+
         return context
 
 

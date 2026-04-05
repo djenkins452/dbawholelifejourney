@@ -688,7 +688,9 @@ def build_journal_state(user):
     state["entry_frequency"] = round(recent_count / 4.3, 1)  # per week
     state["entries_30d"] = recent_count
 
-    # Mood distribution (last 30 days)
+    # EXCEPTION: intentional direct query (not domain truth)
+    # Reason: mood distribution aggregation with M2M emotion joins — analytics, not completion
+    # Do not reuse for general truth evaluation
     if recent_count > 0:
         from django.db.models import Count
 
@@ -708,6 +710,9 @@ def build_journal_state(user):
     # Required by cross-domain rules: MotivationDriftRule,
     # FinancialAnxietyRule, BehavioralInstabilityRule.
     # Without this, those rules silently get default "stable" and never fire.
+    # EXCEPTION: intentional direct query (not domain truth)
+    # Reason: mood trend scoring with numeric conversion — analytics, not completion
+    # Do not reuse for general truth evaluation
     _MOOD_SCORES = {'great': 5, 'good': 4, 'okay': 3, 'low': 2, 'difficult': 1}
     cutoff_7d = now - timedelta(days=7)
     moods_7d = list(
@@ -741,8 +746,9 @@ def build_journal_state(user):
         state["mood_trend"] = "stable"  # Insufficient data — safe default
 
     # ── Emotion counts (7-day, structured M2M selections) ────────
-    # Provides emotion_counts_7d for downstream signal generation
-    # and cross-domain rules (e.g., anxiety_mention_count_7d).
+    # EXCEPTION: intentional direct query (not domain truth)
+    # Reason: M2M emotion aggregation with slug-based counting — analytics for signals
+    # Do not reuse for general truth evaluation
     state["emotion_counts_7d"] = {}
     state["anxiety_mention_count_7d"] = 0
     try:
@@ -769,8 +775,9 @@ def build_journal_state(user):
         pass  # Defaults already set above
 
     # ── Rolling stress score (14-day, decay-based persistence) ───
-    # Uses exponential decay to detect sustained stress vs. one-off bad days.
-    # Computed from per-day stress emotion counts over 14 days.
+    # EXCEPTION: intentional direct query (not domain truth)
+    # Reason: 14-day stress decay scoring with per-day emotion aggregation — analytics
+    # Do not reuse for general truth evaluation
     state["stress_score"] = None
     try:
         from django.db.models import Count as _StressCount
@@ -971,7 +978,9 @@ def build_fasting_state(user):
     # If user has a target_hours, measure compliance as actual/target
     # Otherwise, consistency-based: fasts this week / 7
     if fasts_7d_count > 0:
-        # Use the most recent fast's target_hours as the protocol target
+        # EXCEPTION: intentional direct query (not domain truth)
+        # Reason: retrieves user's fasting protocol target_hours for compliance scoring
+        # Do not reuse for general truth evaluation
         recent_with_target = (
             FastingWindow.objects.filter(
                 user=user,
@@ -1893,7 +1902,10 @@ def build_task_state(user):
                 by_level[level] = entry['count']
         state['active_tasks_by_level'] = by_level
 
-        # 7-day window for consistency score
+        # EXCEPTION: intentional direct query (not domain truth)
+        # Reason: 7-day consistency score aggregate (completed + skipped + pending in one query)
+        # TaskQueries doesn't expose this multi-status aggregate
+        # Do not reuse for general truth evaluation
         seven_days_ago = now - timedelta(days=7)
 
         nn_agg = Task.objects.filter(
@@ -1927,7 +1939,9 @@ def build_task_state(user):
             'consistency_score': consistency,
         }
 
-        # Top 5 NN tasks with active skip streaks (recency-guarded)
+        # EXCEPTION: intentional direct query (not domain truth)
+        # Reason: skip streak detection with effective_skip_streak property — alert analytics
+        # Do not reuse for general truth evaluation
         nn_streak_tasks = Task.objects.filter(
             user=user,
             commitment_level='foundational',
@@ -2243,7 +2257,10 @@ def build_medicine_state(user):
         user_now = get_user_now(user)
         current_time = user_now.time()
 
-        # Active medicines summary
+        # EXCEPTION: intentional direct query (not domain truth)
+        # Reason: medicine schedule iteration for per-dose detail — no MedicineQueries
+        # contract exists yet. Uses prefetch_related for schedule walking.
+        # Do not reuse for general truth evaluation
         active_meds = Medicine.objects.filter(
             user=user, medicine_status='active',
         ).prefetch_related('schedules')
@@ -2260,7 +2277,9 @@ def build_medicine_state(user):
         if needs_refill:
             state['needs_refill'] = needs_refill
 
-        # Today's logs — batch fetch for per-schedule detail
+        # EXCEPTION: intentional direct query (not domain truth)
+        # Reason: batch log fetch for per-schedule status detail — no MedicineQueries contract
+        # Do not reuse for general truth evaluation
         today_logs = MedicineLog.objects.filter(
             medicine__user=user,
             scheduled_date=user_today,
@@ -2669,7 +2688,10 @@ def build_daily_execution_status(user):
     state = {}
 
     try:
-        # Tasks: count of tasks completed today
+        # EXCEPTION: intentional direct query (not domain truth)
+        # Reason: execution status with completed_task_ids list — broader than
+        # TaskQueries.completed_on() which returns same set but we need IDs
+        # Do not reuse for general truth evaluation
         from apps.life.models import Task
         completed_tasks = Task.objects.filter(
             user=user, completion_status='completed',
@@ -2684,7 +2706,10 @@ def build_daily_execution_status(user):
         state['completed_task_ids'] = []
 
     try:
-        # Routines: IDs of completed routine items today
+        # EXCEPTION: intentional direct query (not domain truth)
+        # Reason: routine completion IDs for execution gating — routine contract
+        # exposes completion state but not raw schedule_id lists
+        # Do not reuse for general truth evaluation
         from apps.life.models import RoutineLog
         state['completed_routine_item_ids'] = list(
             RoutineLog.objects.filter(
@@ -2697,7 +2722,10 @@ def build_daily_execution_status(user):
         state['completed_routine_item_ids'] = []
 
     try:
-        # Journal: explicit entry today
+        # EXCEPTION: intentional direct query (not domain truth)
+        # Reason: execution status boolean — JournalQueries.has_entry_on() does
+        # the same thing but this predates contract adoption. Kept for isolation.
+        # Do not reuse for general truth evaluation
         from apps.journal.models import JournalEntry
         state['journal_completed'] = JournalEntry.objects.filter(
             user=user, entry_date=user_today,

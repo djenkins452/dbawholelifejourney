@@ -204,6 +204,9 @@ def _derive_expectations(user, target_date: date, routines: Dict) -> Dict:
     # matching (not exact match) because Task titles can be compound
     # like "Workout and Drink Protein Shake".
     try:
+        # EXCEPTION: intentional direct query (not domain truth)
+        # Reason: keyword-in-title scanning for expectation derivation, not completion truth
+        # Do not reuse for general truth evaluation
         from apps.life.models import Task
         routine_titles = list(Task.objects.filter(
             user=user, is_routine=True, due_date=target_date,
@@ -242,6 +245,9 @@ def _derive_expectations(user, target_date: date, routines: Dict) -> Dict:
 
     # Faith tasks due today = prayer expected
     try:
+        # EXCEPTION: intentional direct query (not domain truth)
+        # Reason: expectation derivation — checks if pending faith tasks exist, not completion
+        # Do not reuse for general truth evaluation
         from apps.life.models import Task
         if Task.objects.filter(
             user=user,
@@ -412,9 +418,12 @@ def _check_routines(user, target_date: Optional[date] = None) -> Dict:
             result['fully_complete'] = completed >= total and total > 0
             result['_raw_items'] = routine_data.get('items_by_window', {})
         else:
-            # Historical date: query RoutineLog directly for that date.
-            # This ensures the faith bridge can detect completed Prayer Time /
-            # Bible Reading items on any date, not just today.
+            # EXCEPTION: intentional direct query (not domain truth)
+            # Reason: historical routine completion for faith bridge — requires
+            # per-schedule detail with day-of-week matching that no contract exposes.
+            # Today's routines use get_todays_routine_items() (contract); historical
+            # dates need this direct path for the cross-domain faith bridge.
+            # Do not reuse for general truth evaluation
             from apps.life.models import Routine, RoutineLog, RoutineSchedule
 
             day_of_week = target_date.weekday()
@@ -523,7 +532,10 @@ def _check_tasks(user, target_date: date) -> Dict:
     try:
         from apps.life.models import Task
 
-        # Tasks due today (non-routine)
+        # EXCEPTION: intentional direct query (not domain truth)
+        # Reason: specialized non-routine + due-today filter with completed subset —
+        # TaskQueries doesn't have this exact combination (is_routine=False exclusion).
+        # Do not reuse for general truth evaluation
         today_tasks = Task.objects.filter(
             user=user,
             is_routine=False,
@@ -534,7 +546,11 @@ def _check_tasks(user, target_date: date) -> Dict:
             completion_status='completed',
         ).count()
 
-        # All tasks completed today (for CoS "tasks completed today" count)
+        # EXCEPTION: intentional direct query (not domain truth)
+        # Reason: counts ALL tasks completed on date regardless of due_date —
+        # broader than TaskQueries.completed_on() which also covers this case,
+        # but kept direct for clarity and independence from contract changes.
+        # Do not reuse for general truth evaluation
         result['completed_today_all'] = Task.objects.filter(
             user=user,
             completion_status='completed',

@@ -1982,7 +1982,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 "entry_count": entry_count,
             }
         except Exception as e:
-            logger.warning(f"Water data error: {e}")
+            logger.error(f"Water data error: {e}", exc_info=True)
             return None
 
     def _get_quick_stats(self, user_data):

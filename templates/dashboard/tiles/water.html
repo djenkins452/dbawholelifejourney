@@ -1,0 +1,160 @@
+{% comment %}
+Dashboard Tile: Water
+Daily hydration tracking with quick-add buttons
+{% endcomment %}
+
+{% if health_enabled and water_data %}
+<section class="dashboard-water-tile tile-size-{{ tile.size|default:'medium' }}" data-tile-id="water">
+    <div class="section-header">
+        <h2 class="section-title">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#0ea5e9" stroke-width="2" style="vertical-align: text-bottom; margin-right: 4px;">
+                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+            </svg>
+            Water
+        </h2>
+        <a href="{% url 'health:water_create' %}" class="section-link btn btn-primary btn-sm">Log</a>
+    </div>
+
+    <div class="water-tile-progress">
+        <div class="water-tile-progress-bar">
+            <div class="water-tile-progress-fill" style="width: {{ water_data.percentage }}%"></div>
+        </div>
+        <div class="water-tile-stats">
+            <span class="water-tile-current">{{ water_data.total_oz|floatformat:0 }} oz</span>
+            <span class="water-tile-goal">/ {{ water_data.goal_oz }} oz</span>
+        </div>
+    </div>
+
+    {% if water_data.goal_met %}
+    <p class="water-tile-goal-badge">Goal Met!</p>
+    {% endif %}
+
+    {% if water_data.avg_water_oz %}
+    <p class="water-tile-avg">7-day avg: {{ water_data.avg_water_oz }} oz/day</p>
+    {% endif %}
+
+    <div class="water-tile-quick-buttons" data-water-url="{% url 'health:water_quick_log' %}" data-csrf="{{ csrf_token }}">
+        <button type="button" class="btn btn-ghost btn-xs" data-water-preset="16" data-water-type="water">+16oz Water</button>
+        <button type="button" class="btn btn-ghost btn-xs" data-water-preset="12" data-water-type="coffee">+Coffee</button>
+        <button type="button" class="btn btn-ghost btn-xs" data-water-preset="16" data-water-type="creatine">+Creatine</button>
+    </div>
+
+    <a href="{% url 'health:water_list' %}" class="card-link">View history{% if water_data.entry_count %} ({{ water_data.entry_count }}){% endif %}</a>
+</section>
+
+<style nonce="{{ csp_nonce }}">
+.dashboard-water-tile {
+    background: var(--color-surface, #fff);
+    border-radius: var(--radius-lg, 12px);
+    padding: var(--space-4, 1rem);
+    border: 1px solid var(--color-border, #e5e7eb);
+}
+.water-tile-progress { margin-bottom: var(--space-3, 0.75rem); }
+.water-tile-progress-bar {
+    height: 12px;
+    background: var(--color-border, #e5e7eb);
+    border-radius: var(--radius-full, 9999px);
+    margin-bottom: var(--space-2, 0.5rem);
+    overflow: hidden;
+}
+.water-tile-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0ea5e9, #0284c7);
+    border-radius: var(--radius-full, 9999px);
+    transition: width 0.3s ease;
+}
+.water-tile-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-sm, 0.875rem);
+}
+.water-tile-current { font-weight: 600; color: #0284c7; }
+.water-tile-goal { color: var(--color-text-muted, #6b7280); }
+.water-tile-goal-badge {
+    display: inline-block;
+    background: #dcfce7;
+    color: #16a34a;
+    font-size: var(--font-size-xs, 0.75rem);
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: var(--radius-full, 9999px);
+    margin-bottom: var(--space-2, 0.5rem);
+}
+.water-tile-avg {
+    font-size: var(--font-size-sm, 0.875rem);
+    color: var(--color-text-muted, #6b7280);
+    background: var(--color-background, #f9fafb);
+    padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+    border-radius: var(--radius-md, 8px);
+    margin-bottom: var(--space-3, 0.75rem);
+}
+.water-tile-quick-buttons {
+    display: flex;
+    gap: var(--space-2, 0.5rem);
+    margin: var(--space-3, 0.75rem) 0;
+    flex-wrap: wrap;
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    var container = document.querySelector('.water-tile-quick-buttons');
+    if (!container) return;
+
+    var url = container.dataset.waterUrl;
+    var csrf = container.dataset.csrf;
+
+    container.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-water-preset]');
+        if (!btn || btn.disabled) return;
+
+        var preset = btn.dataset.waterPreset;
+        var drinkType = btn.dataset.waterType || 'water';
+        var originalText = btn.textContent;
+
+        btn.disabled = true;
+        btn.textContent = '...';
+
+        var body = new FormData();
+        body.append('preset', preset);
+        body.append('drink_type', drinkType);
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': csrf
+            },
+            body: body
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                var fill = document.querySelector('.water-tile-progress-fill');
+                if (fill) fill.style.width = Math.min(data.percentage, 100) + '%';
+
+                var current = document.querySelector('.water-tile-current');
+                if (current) current.textContent = Math.round(data.total_oz) + ' oz';
+
+                if (data.goal_met) {
+                    var existing = document.querySelector('.water-tile-goal-badge');
+                    if (!existing) {
+                        var badge = document.createElement('p');
+                        badge.className = 'water-tile-goal-badge';
+                        badge.textContent = 'Goal Met!';
+                        var progress = document.querySelector('.water-tile-progress');
+                        if (progress) progress.parentNode.insertBefore(badge, progress.nextSibling);
+                    }
+                }
+            }
+            btn.disabled = false;
+            btn.textContent = originalText;
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        });
+    });
+})();
+</script>
+{% endif %}

@@ -393,6 +393,8 @@ body.edit-mode .tile-name-label {
                 {% include "dashboard/tiles/quick_stats.html" with tile=tile %}
             {% elif tile_id == 'weather' %}
                 {% include "dashboard/tiles/weather.html" with tile=tile %}
+            {% elif tile_id == 'water' %}
+                {% include "dashboard/tiles/water.html" with tile=tile %}
             {% elif tile_id == 'memory_verse' %}
                 {% include "dashboard/tiles/memory_verse.html" with tile=tile %}
             {% elif tile_id == 'ai_insights' %}

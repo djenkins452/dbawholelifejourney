@@ -46,6 +46,17 @@ TILE_DEFINITIONS = {
         'mandatory': False,
         'default_order': 2,
     },
+    'water': {
+        'id': 'water',
+        'name': 'Water',
+        'description': 'Daily hydration tracking with quick-add buttons for water, coffee, and creatine.',
+        'icon': 'droplet',
+        'module_dependency': 'health_enabled',
+        'default_visible': True,
+        'default_size': 'medium',
+        'mandatory': False,
+        'default_order': 3,
+    },
     'memory_verse': {
         'id': 'memory_verse',
         'name': 'Memory Verse',

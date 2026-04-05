@@ -6,6 +6,20 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-04 — Feature: Water Tracking Tile on Home Page
+
+Added the Water/Hydration card to the Home page dashboard so users can quick-add drinks without navigating to the Health module.
+
+**Files Changed:**
+- `apps/dashboard/services/config_service.py` — Added `water` tile to `TILE_DEFINITIONS` (medium size, order 3, next to weather)
+- `apps/dashboard/views.py` — Added `_get_water_data()` method for progress, 7-day avg, and entry count; wired into `get_context_data()`
+- `templates/dashboard/tiles/water.html` — New tile template with progress bar, quick-add buttons (AJAX), goal badge, 7-day average, view history link
+- `templates/dashboard/home.html` — Added `water` tile rendering case
+
+**Why:** User requested quick drink logging from the Home page without having to navigate to Health > Water.
+
+---
+
 ## 2026-04-04 — Fix: HealthKit workout merged into wrong manual workout
 
 **Root Cause:** The HealthKit ingest overlap detection merged workouts purely by

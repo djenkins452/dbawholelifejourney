@@ -2270,7 +2270,7 @@ class UseTemplateView(LoginRequiredMixin, View):
 
 class PersonalRecordsView(LoginRequiredMixin, TemplateView):
     """
-    View personal records.
+    View personal records — shows best PR per exercise.
     """
 
     template_name = "health/fitness/personal_records.html"
@@ -2279,21 +2279,137 @@ class PersonalRecordsView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         user = self.request.user
 
-        # Get PRs grouped by exercise
-        prs = PersonalRecord.objects.filter(user=user).select_related("exercise")
+        prs = PersonalRecord.objects.filter(user=user).select_related(
+            "exercise", "workout_session"
+        )
 
-        # Group by exercise
+        # Group: keep best PR per exercise (by estimated_1rm for
+        # weight-based, by duration for time-based)
         pr_by_exercise = {}
         for pr in prs:
-            if pr.exercise.name not in pr_by_exercise:
-                pr_by_exercise[pr.exercise.name] = pr
-            elif pr.estimated_1rm > pr_by_exercise[pr.exercise.name].estimated_1rm:
-                pr_by_exercise[pr.exercise.name] = pr
+            name = pr.exercise.name
+            if name not in pr_by_exercise:
+                pr_by_exercise[name] = pr
+            else:
+                existing = pr_by_exercise[name]
+                if pr.pr_type == "time":
+                    if (pr.duration_seconds or 0) > (existing.duration_seconds or 0):
+                        pr_by_exercise[name] = pr
+                else:
+                    if (pr.estimated_1rm or 0) > (existing.estimated_1rm or 0):
+                        pr_by_exercise[name] = pr
 
         context["prs"] = sorted(
             pr_by_exercise.values(), key=lambda x: x.exercise.name
         )
+
+        # All PRs for the full history table
+        context["all_prs"] = prs.order_by("-achieved_date")
+
+        # Exercises for the create form
+        context["exercises"] = Exercise.objects.filter(
+            is_active=True
+        ).order_by("muscle_group", "name")
+
+        context["today"] = get_user_today(user)
+
         return context
+
+
+class PersonalRecordCreateView(LoginRequiredMixin, View):
+    """Create a personal record manually."""
+
+    def post(self, request):
+        user = request.user
+        exercise_id = request.POST.get("exercise")
+        pr_type = request.POST.get("pr_type", "weight")
+        weight = request.POST.get("weight")
+        reps = request.POST.get("reps")
+        duration_seconds = request.POST.get("duration_seconds")
+        achieved_date = request.POST.get("achieved_date") or get_user_today(user)
+
+        try:
+            exercise = Exercise.objects.get(pk=exercise_id)
+        except Exercise.DoesNotExist:
+            messages.error(request, "Exercise not found.")
+            return redirect("health:personal_records")
+
+        pr = PersonalRecord(
+            user=user,
+            exercise=exercise,
+            pr_type=pr_type,
+            achieved_date=achieved_date,
+        )
+
+        if pr_type == "time":
+            if duration_seconds:
+                pr.duration_seconds = int(duration_seconds)
+        else:
+            if weight:
+                pr.weight = Decimal(weight)
+            if reps:
+                pr.reps = int(reps)
+
+        pr.save()
+        messages.success(request, f"PR added for {exercise.name}!")
+        return redirect("health:personal_records")
+
+
+class PersonalRecordUpdateView(LoginRequiredMixin, View):
+    """Update an existing personal record."""
+
+    def get(self, request, pk):
+        pr = get_object_or_404(PersonalRecord.objects.filter(user=request.user), pk=pk)
+        exercises = Exercise.objects.filter(is_active=True).order_by("muscle_group", "name")
+        return render(request, "health/fitness/pr_edit.html", {
+            "pr": pr,
+            "exercises": exercises,
+        })
+
+    def post(self, request, pk):
+        pr = get_object_or_404(PersonalRecord.objects.filter(user=request.user), pk=pk)
+
+        exercise_id = request.POST.get("exercise")
+        if exercise_id:
+            try:
+                pr.exercise = Exercise.objects.get(pk=exercise_id)
+            except Exercise.DoesNotExist:
+                pass
+
+        pr.pr_type = request.POST.get("pr_type", pr.pr_type)
+        pr.achieved_date = request.POST.get("achieved_date") or pr.achieved_date
+
+        if pr.pr_type == "time":
+            duration = request.POST.get("duration_seconds")
+            if duration:
+                pr.duration_seconds = int(duration)
+            pr.weight = None
+            pr.reps = None
+        else:
+            weight = request.POST.get("weight")
+            reps = request.POST.get("reps")
+            pr.weight = Decimal(weight) if weight else None
+            pr.reps = int(reps) if reps else None
+            pr.duration_seconds = None
+
+        pr.save()
+        messages.success(request, f"PR updated for {pr.exercise.name}!")
+        return redirect("health:personal_records")
+
+
+class PersonalRecordDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
+    """Delete a personal record with undo support."""
+
+    model = PersonalRecord
+    item_type = "health.personalrecord"
+    item_name = "personal record"
+    success_url = "health:personal_records"
+
+    def get_object(self):
+        return get_object_or_404(
+            PersonalRecord.objects.filter(user=self.request.user),
+            pk=self.kwargs["pk"],
+        )
 
 
 # Progress Tracking

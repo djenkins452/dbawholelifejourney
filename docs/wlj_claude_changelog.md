@@ -6,6 +6,24 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-04 — Fix: Personal Records page 500 + add CRUD
+
+**Root Cause:** `PersonalRecord.estimated_1rm` crashed on time-based PRs (Plank) where
+`weight` and `reps` are `None` — `float(None)` raises TypeError.
+
+**Fix:**
+- Added null guard to `estimated_1rm` property — returns `None` when weight/reps missing
+- Enhanced list view with proper time-based PR display and null-safe comparisons
+- Added create/edit/delete views for manual PR management
+- PR type badges (Max Weight, Rep PR, Time PR, e1RM)
+- Full PR history table below the cards
+- Edit page with type-aware field toggling
+
+**Files changed:** `apps/health/models.py`, `apps/health/views.py`, `apps/health/urls.py`,
+`templates/health/fitness/personal_records.html`, `templates/health/fitness/pr_edit.html`
+
+---
+
 ## 2026-04-04 — Feature: Water Tracking Tile on Home Page
 
 Added the Water/Hydration card to the Home page dashboard so users can quick-add drinks without navigating to the Health module.

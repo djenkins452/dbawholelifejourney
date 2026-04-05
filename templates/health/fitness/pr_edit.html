@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}Edit PR - {{ pr.exercise.name }} - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:fitness_home' %}">Fitness</a>
+        <span>/</span>
+        <a href="{% url 'health:personal_records' %}">Personal Records</a>
+        <span>/</span>
+        <span>Edit</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">Edit Personal Record</h1>
+    </div>
+
+    <div class="form-card">
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="exercise">Exercise</label>
+                    <select name="exercise" id="exercise" required>
+                        {% for ex in exercises %}
+                            <option value="{{ ex.pk }}" {% if ex.pk == pr.exercise_id %}selected{% endif %}>{{ ex.name }} ({{ ex.get_muscle_group_display }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="pr_type">PR Type</label>
+                    <select name="pr_type" id="pr_type">
+                        <option value="weight" {% if pr.pr_type == "weight" %}selected{% endif %}>Max Weight</option>
+                        <option value="reps" {% if pr.pr_type == "reps" %}selected{% endif %}>Rep PR</option>
+                        <option value="e1rm" {% if pr.pr_type == "e1rm" %}selected{% endif %}>Estimated 1RM</option>
+                        <option value="time" {% if pr.pr_type == "time" %}selected{% endif %}>Longest Hold</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row" id="weightRepsFields" {% if pr.pr_type == "time" %}style="display: none;"{% endif %}>
+                <div class="form-group">
+                    <label for="weight">Weight (lbs)</label>
+                    <input type="number" name="weight" id="weight" step="0.5" min="0" max="2000" value="{{ pr.weight|default:'' }}">
+                </div>
+                <div class="form-group">
+                    <label for="reps">Reps</label>
+                    <input type="number" name="reps" id="reps" min="1" max="999" value="{{ pr.reps|default:'' }}">
+                </div>
+            </div>
+            <div class="form-row" id="timeFields" {% if pr.pr_type != "time" %}style="display: none;"{% endif %}>
+                <div class="form-group">
+                    <label for="duration_seconds">Duration (seconds)</label>
+                    <input type="number" name="duration_seconds" id="duration_seconds" min="1" max="86400" value="{{ pr.duration_seconds|default:'' }}">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="achieved_date">Date</label>
+                    <input type="date" name="achieved_date" id="achieved_date" value="{{ pr.achieved_date|date:'Y-m-d' }}">
+                </div>
+            </div>
+            <div class="form-actions">
+                <a href="{% url 'health:personal_records' %}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="back-link mt-6">
+        <a href="{% url 'health:personal_records' %}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            Back to Personal Records
+        </a>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.form-card {
+    background: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+    max-width: 600px;
+}
+
+.form-row {
+    display: flex;
+    gap: var(--space-4);
+    margin-bottom: var(--space-3);
+}
+
+.form-row .form-group {
+    flex: 1;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: var(--space-1);
+    font-weight: 500;
+    font-size: var(--font-size-sm);
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: 16px;
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: flex-end;
+    margin-top: var(--space-4);
+}
+
+.back-link a {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-text-muted);
+}
+
+.back-link a:hover {
+    color: var(--color-accent);
+}
+
+@media (max-width: 480px) {
+    .form-row {
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+document.getElementById('pr_type').addEventListener('change', function() {
+    var isTime = this.value === 'time';
+    document.getElementById('weightRepsFields').style.display = isTime ? 'none' : 'flex';
+    document.getElementById('timeFields').style.display = isTime ? 'flex' : 'none';
+});
+</script>
+{% endblock %}

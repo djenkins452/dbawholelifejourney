@@ -6,6 +6,20 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-05 — Fix: Dashboard routine/medication groups out of chronological order
+
+**Root Cause:** `action_prioritizer.py` line 617 applied `WINDOW_ORDER` rank sorting only
+to `medication_window` groups, not routine groups. Both use the same `time_of_day` values
+('morning', 'evening', 'nightly') as `group_id`, but routines fell back to alphabetical
+title sort — causing "Evening" (6:00 PM) to appear after "Nightly Medications" (9:00 PM).
+
+**Fix:** Removed the `if g['group_type'] == 'medication_window'` guard so ALL groups sort
+by `WINDOW_ORDER` rank. Now routines and medications interleave chronologically.
+
+**Files changed:** `apps/core/decision_engine/action_prioritizer.py`
+
+---
+
 ## 2026-04-05 — Architecture: System-wide domain truth contracts
 
 **Root Cause:** Only workouts, tasks, and routines had canonical query contracts.

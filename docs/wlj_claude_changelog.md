@@ -6,6 +6,21 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-04 — Fix: Starting second workout resumes first workout's data
+
+**Root Cause:** `start_workout_ajax` unconditionally resumed any in-progress workout
+from today. If the first workout wasn't properly completed (e.g., due to the "Finish
+Workout" button bug), starting a second workout would resume the first one and load
+all its saved sets, making everything appear auto-completed.
+
+**Fix:** Only auto-resume an in-progress workout if it has no exercises logged yet
+(blank session from an accidental page refresh). If the workout already has content,
+create a new session — the user is starting a second workout for the day.
+
+**Files changed:** `apps/health/views.py`
+
+---
+
 ## 2026-04-04 — Fix: "Finish Workout" button silently fails on structured workouts
 
 **Root Cause:** The activity panel's duration input (`activityDuration`) had an HTML `required`

@@ -2506,7 +2506,10 @@ def start_workout_ajax(request):
     user = request.user
     today = get_user_today(user)
 
-    # Check for existing in-progress workout today
+    # Check for existing in-progress workout today — only resume if it has
+    # no exercises yet (blank session from accidental page refresh).  If the
+    # workout already has content, the user is starting a second workout for
+    # the day and we must create a new session instead of hijacking the old one.
     existing = WorkoutSession.objects.filter(
         user=user,
         date=today,
@@ -2514,7 +2517,7 @@ def start_workout_ajax(request):
         started_at__isnull=False,
     ).first()
 
-    if existing:
+    if existing and not existing.workout_exercises.exists():
         return JsonResponse({
             "workout_id": existing.pk,
             "message": "Resumed existing workout",

@@ -216,17 +216,16 @@ class StateAssessmentMixin:
             return {}
 
     def _get_workout_today(self, today) -> bool:
-        """Check if user has logged a workout today.
+        """Check if user has COMPLETED a workout today.
 
-        Truth source: WorkoutSession records ONLY. Explicitly excludes
-        soft-deleted records for defense-in-depth (matches executive_briefing.py).
-        Calendar projections and task completion status are NOT consulted.
+        Truth source: WorkoutQueries.is_completed_on() — the canonical
+        contract. A workout is complete when completed_at is set, OR
+        exercises are logged, OR duration_minutes is set. A merely
+        started session (no content) is NOT complete.
         """
         try:
-            from apps.health.models import WorkoutSession
-            return WorkoutSession.objects.filter(
-                user=self.user, date=today
-            ).exclude(status='deleted').exists()
+            from apps.health.services.workout_queries import WorkoutQueries
+            return WorkoutQueries.is_completed_on(self.user, today)
         except Exception:
             return False
 

@@ -47,7 +47,7 @@ class SignalSnapshot(models.Model):
 
     Key design rules:
     - signal_class is set at creation time and never changes
-    - Every expected signal type gets a daily snapshot (zero-fill for no activity)
+    - Signals are only created when signal computers find real user data
     - One row per (user, date, signal_type) — unique_together enforced
     - `expected` and `state` are set from the Execution Truth Engine via expected_map
     - Backward compat: state='' means legacy — infer completed if score>0, else missed

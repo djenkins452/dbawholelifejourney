@@ -50,15 +50,31 @@ class TestWorkoutTruthSource(TestCase):
         self.assertFalse(pa._get_workout_today(self.today))
 
     def test_logged_workout_returns_true(self):
-        """Active workout session → _get_workout_today returns True."""
+        """Completed workout session → _get_workout_today returns True."""
         from apps.health.models import WorkoutSession
+        from django.utils import timezone
         WorkoutSession.objects.create(
             user=self.user,
             date=self.today,
             workout_type='strength',
+            completed_at=timezone.now(),
         )
         pa = self._get_pa()
         self.assertTrue(pa._get_workout_today(self.today))
+
+    def test_started_but_not_finished_workout_returns_false(self):
+        """A started-but-not-finished session is NOT completed."""
+        from apps.health.models import WorkoutSession
+        from django.utils import timezone
+        WorkoutSession.objects.create(
+            user=self.user,
+            date=self.today,
+            workout_type='strength',
+            started_at=timezone.now(),
+            # No completed_at, no duration, no exercises
+        )
+        pa = self._get_pa()
+        self.assertFalse(pa._get_workout_today(self.today))
 
     def test_deleted_workout_returns_false(self):
         """Soft-deleted workout session must NOT count as logged."""
@@ -89,10 +105,12 @@ class TestWorkoutTruthSource(TestCase):
     def test_executive_briefing_matches_personal_assistant(self):
         """Executive briefing and personal_assistant must agree on workout status."""
         from apps.health.models import WorkoutSession
+        from django.utils import timezone
         WorkoutSession.objects.create(
             user=self.user,
             date=self.today,
             workout_type='cardio',
+            completed_at=timezone.now(),
         )
 
         # Personal assistant path

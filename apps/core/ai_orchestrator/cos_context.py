@@ -1723,6 +1723,26 @@ def _build_cross_domain_insights(user):
         return {}
 
 
+def _build_time_intelligence(user):
+    """
+    Inject time intelligence into CoS context.
+
+    Computes ON_TRACK / USING_BUFFER / LATE based on full schedule
+    chain analysis (durations, sequencing, inter-task slack).
+    """
+    try:
+        from apps.core.ai_state.time_intelligence import compute_time_status
+
+        status = compute_time_status(user)
+        if not status or not status.get('next_item'):
+            return {}
+
+        return {'time_intelligence': status}
+    except Exception as e:
+        logger.debug("CoS context: time intelligence unavailable: %s", e)
+        return {}
+
+
 def _build_faith_context(user):
     """Build faith module context — from SAE truth layer."""
     try:
@@ -2442,6 +2462,7 @@ _TAGGED_BUILDERS = [
     ('routine', lambda user, prefs: _build_routine_context(user), None),
     ('sports', lambda user, prefs: _build_sports_context(user), 'sports'),
     ('cross_domain', lambda user, prefs: _build_cross_domain_insights(user), None),
+    ('time_intelligence', lambda user, prefs: _build_time_intelligence(user), None),
 ]
 
 # Backward-compatible flat list (used by telemetry and tests)
@@ -2579,7 +2600,7 @@ def _build_signal_aware_context(user):
         except Exception:
             pass
 
-        # Today's signals with trust classification
+        # Today's signals with trust classification and validation
         daily_signals = []
         snapshots = SignalSnapshot.objects.filter(user=user, date=today)
         for s in snapshots:
@@ -2588,6 +2609,11 @@ def _build_signal_aware_context(user):
                 continue
             # Skip specific signal types disabled by sub-feature toggles
             if f'_signal:{s.signal_type}' in _disabled_domains:
+                continue
+            # Check-in validation: suppress low-confidence signals.
+            # After zero-fill removal, all signals have real data, but
+            # confidence < 0.5 indicates weak evidence — suppress from CoS.
+            if s.confidence < 0.5:
                 continue
             # Compute 7-day trend
             trend = _compute_signal_trend(user, s.signal_type, today, days=7)
@@ -5339,6 +5365,15 @@ def format_cos_system_injection(context, user_message=None):
         "If you expected data to be present but it is not in your context, say: "
         "'I'm not seeing that data in your system right now — this looks like a "
         "system issue. Let me flag it.'"
+    )
+    lines.append("")
+    lines.append(
+        "TIME INTELLIGENCE: If a time_intelligence block is present in your context, "
+        "use its status to frame urgency. ON_TRACK = don't mention timing unless asked. "
+        "USING_BUFFER = mention remaining slack briefly ('you've got about X minutes'). "
+        "LATE = acknowledge delay and offer to adjust ('you're running behind on X — "
+        "want to reschedule?'). NEVER say 'running late' when status is ON_TRACK or "
+        "USING_BUFFER. Buffer time is normal — it means the user is fine."
     )
     lines.append("")
     lines.append(

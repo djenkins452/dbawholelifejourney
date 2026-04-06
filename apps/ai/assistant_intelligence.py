@@ -275,6 +275,22 @@ class InteractionThrottler:
         one_hour_ago = now - timedelta(hours=1)
         four_hours_ago = now - timedelta(hours=4)
 
+        # Rule 0: Suppress if user is actively engaged (sent message < 3 min ago)
+        # Exception: medication is never suppressed
+        if check_type not in ('medicine', 'medication', 'intake'):
+            three_min_ago = now - timedelta(minutes=3)
+            recently_active = AssistantMessage.objects.filter(
+                conversation__user=self.user,
+                role='user',
+                created_at__gte=three_min_ago,
+            ).exists()
+            if recently_active:
+                logger.debug(
+                    "Throttled: user %s is actively engaged (message < 3 min)",
+                    self.user.id,
+                )
+                return False
+
         # Rule 1: Max 3 proactive messages per hour
         recent_count = AssistantMessage.objects.filter(
             conversation__user=self.user,

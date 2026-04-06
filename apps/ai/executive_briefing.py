@@ -1044,18 +1044,15 @@ def _build_health_gate_section(user, today) -> str:
     except Exception:
         pass
 
-    # Workout check — unified across WorkoutSession, WorkoutSchedule,
-    # AND routine items.  All three sources must agree.
+    # Workout check — canonical contract via WorkoutQueries.
+    # A workout is complete when completed_at is set, exercises logged,
+    # or duration_minutes set. A merely started session is NOT complete.
     has_workout_today = False
     try:
-        from apps.health.models import WorkoutSession
-        has_workout_today = WorkoutSession.objects.filter(
-            user=user, date=today
-        ).exclude(status='deleted').exists()
+        from apps.health.services.workout_queries import WorkoutQueries
+        has_workout_today = WorkoutQueries.is_completed_on(user, today)
         if has_workout_today:
-            workout = WorkoutSession.objects.filter(
-                user=user, date=today
-            ).exclude(status='deleted').first()
+            workout = WorkoutQueries.completed_on(user, today).first()
             workout_name = workout.name or workout.workout_type or "Workout"
             lines.append(
                 f"Workout: {workout_name} logged today. Acknowledge this."

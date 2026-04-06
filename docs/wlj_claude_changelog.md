@@ -6,6 +6,67 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-06 — Execution Truth Fix + Behavioral Intelligence (Conversation Mode, Time Intelligence, Check-in Validation)
+
+**CRITICAL FIX: False workout completion in 3 locations.**
+
+### Execution Truth — Workout Completion Bug
+- **Root cause:** `state_assessment.py`, `executive_briefing.py`, and `dashboard_ai.py` all used
+  `WorkoutSession.objects.filter(user, date).exists()` instead of `WorkoutQueries.is_completed_on()`.
+  A merely-started session (no completed_at, no exercises, no duration) was reported as "workout done".
+- **Fix:** All 3 locations now use `WorkoutQueries.is_completed_on()` — the canonical completion contract.
+- **Files:** `apps/ai/state_assessment.py`, `apps/ai/executive_briefing.py`, `apps/ai/dashboard_ai.py`
+- **Guarantee:** Workout cannot be marked complete without: completed_at set, exercises logged, or duration_minutes set.
+
+### Affirmation Detector — Broken Field Names
+- **Root cause:** `_try_auto_complete()` in `affirmation_detector.py` used wrong field names:
+  `schedule.task_name` (→ `schedule.name`), `routine_schedule=` (→ `schedule=`),
+  `date=` (→ `scheduled_date=`), `status__in` (→ `log_status__in`).
+- **Fix:** All 5 field references corrected.
+- **File:** `apps/ai/affirmation_detector.py`
+
+### Conversation Mode Persistence (NEW)
+- **New module:** `apps/core/blueprint/conversation_mode.py`
+- Detects user's conversation topic (faith, health, journal, coaching, planning, qa)
+- Mode persists across turns, auto-clears after 10 min silence or "what's next"
+- Proactive messages suppressed if domain doesn't match active mode
+- Medication overdue NEVER suppressed (critical health gate bypass)
+- **Integration:** `apps/ai/personal_assistant.py` calls `update_mode_from_message()` on each message
+- **Integration:** `apps/ai/proactive_checkins.py` checks `should_suppress_proactive()` before delivery
+
+### Task Interruption Control (NEW)
+- Added engagement detection to `InteractionThrottler` in `apps/ai/assistant_intelligence.py`
+- If user sent a message < 3 minutes ago, proactive nudges are suppressed
+- Exception: medication is never suppressed
+- Priority order: User Intent > Active Conversation > Tasks
+
+### Time Intelligence Engine (NEW)
+- **New module:** `apps/core/ai_state/time_intelligence.py`
+- Computes ON_TRACK / USING_BUFFER / LATE based on full schedule chain analysis
+- Considers task durations, sequencing, and inter-task slack (not just next item time)
+- Injected into CoS context via `_build_time_intelligence()` in cos_context.py
+- CoS directive: never say "running late" when ON_TRACK or USING_BUFFER
+
+### Check-in Signal Validation Layer
+- Added confidence-based filtering in `_build_signal_aware_context()` (cos_context.py)
+- Signals with confidence < 0.5 are suppressed from CoS context
+- Combined with zero-fill removal, eliminates all invalid/weak signals from check-in rendering
+
+### Stale Comment Cleanup
+- Updated 9 "Zero-fill will handle" comments to "No real data — no signal created" in signal_aggregation.py
+- Updated SignalSnapshot model docstring to reflect zero-fill removal
+- Updated test file: tests now create completed WorkoutSessions (with completed_at)
+
+**Files modified:** `apps/ai/state_assessment.py`, `apps/ai/executive_briefing.py`, `apps/ai/dashboard_ai.py`,
+`apps/ai/affirmation_detector.py`, `apps/ai/personal_assistant.py`, `apps/ai/proactive_checkins.py`,
+`apps/ai/assistant_intelligence.py`, `apps/ai/tests/test_workout_truth.py`,
+`apps/core/blueprint/conversation_mode.py` (new), `apps/core/ai_state/time_intelligence.py` (new),
+`apps/core/ai_orchestrator/cos_context.py`, `apps/core/ai_eae/signal_aggregation.py`, `apps/core/ai_eae/models.py`
+
+**Tests:** 24 tests pass (workout truth + signal state)
+
+---
+
 ## 2026-04-06 — System Integrity: Signal Integrity, CoS Context Completeness, Write Trust, Intervention Tiers
 
 **Multi-layer system integrity upgrade addressing 7 problem areas.**

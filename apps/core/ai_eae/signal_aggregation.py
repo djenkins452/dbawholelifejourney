@@ -251,7 +251,7 @@ class SignalAggregationService:
                     )
             except ImportError:
                 pass
-            return None  # Zero-fill will handle
+            return None  # No real data — no signal created
 
         # Stepped scoring with training intelligence
         from apps.health.services.fitness_utils import classify_daily_activity
@@ -438,7 +438,7 @@ class SignalAggregationService:
             source_data['sleep_hours'] = round(hours, 1)
 
         if not sub_scores:
-            return None  # Zero-fill will handle
+            return None  # No real data — no signal created
 
         score = sum(sub_scores) / len(sub_scores)
         state = 'completed' if score >= 0.7 else 'partial'
@@ -503,7 +503,7 @@ class SignalAggregationService:
         scheduled_count = len(applicable)
 
         if scheduled_count == 0:
-            return None  # Zero-fill will handle
+            return None  # No real data — no signal created
 
         # Count taken logs — filter to matching intake_type
         logs = IntakeLog.objects.filter(
@@ -596,7 +596,7 @@ class SignalAggregationService:
             }
 
         if not sub_scores:
-            return None  # Zero-fill will handle
+            return None  # No real data — no signal created
 
         score = sum(sub_scores) / len(sub_scores)
 
@@ -664,7 +664,7 @@ class SignalAggregationService:
         )
 
         if not entries.exists():
-            return None  # Zero-fill will handle
+            return None  # No real data — no signal created
 
         # Score based on entry substance
         best_score = 0.0
@@ -720,7 +720,7 @@ class SignalAggregationService:
 
         count = sessions.count()
         if count == 0:
-            return None  # Zero-fill will handle
+            return None  # No real data — no signal created
 
         # 1 session = 0.5, 2+ = 1.0
         if count >= 2:
@@ -769,7 +769,7 @@ class SignalAggregationService:
         completed_due = due_today.filter(completion_status='completed').count()
 
         if due_count == 0 and completed_today == 0:
-            return None  # Zero-fill will handle
+            return None  # No real data — no signal created
 
         if due_count == 0:
             # Nothing was due but something was completed — proactive work
@@ -886,7 +886,7 @@ class SignalAggregationService:
                 source_data['fasting_met_target'] = False
 
         if not sub_scores:
-            return None  # Zero-fill will handle
+            return None  # No real data — no signal created
 
         score = sum(sub_scores) / len(sub_scores)
         state = 'completed' if score >= 0.7 else 'partial'
@@ -921,7 +921,7 @@ class SignalAggregationService:
         )
         interaction_count = interactions.count()
         if interaction_count == 0:
-            return None  # Zero-fill will handle
+            return None  # No real data — no signal created
 
         # Distinct people interacted with
         distinct_people = interactions.values('person').distinct().count()

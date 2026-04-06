@@ -970,6 +970,13 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
         response = ""
         actions_taken = []
 
+        # Conversation mode persistence — detect and lock mode from message
+        try:
+            from apps.core.blueprint.conversation_mode import update_mode_from_message
+            update_mode_from_message(self.user, message)
+        except Exception:
+            pass  # Mode tracking must never break chat
+
         # Check if AI is available
         if not ai_service.is_available or not AIService.check_user_consent(self.user):
             response = self._get_fallback_response(message)

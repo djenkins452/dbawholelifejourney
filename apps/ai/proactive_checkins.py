@@ -196,7 +196,7 @@ class ProactiveCheckInService:
             )
 
         quick_replies = generate_medicine_check_in_replies(
-            medicine_id=medicine.id,
+            intake_id=medicine.id,
             medicine_name=medicine.name,
             dose_time=dose_time
         )

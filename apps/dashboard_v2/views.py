@@ -799,7 +799,7 @@ class IntakeGroupLogAction(LoginRequiredMixin, View):
                 intake__is_prn=False,
                 is_active=True,
                 time_of_day=time_of_day,
-            ).select_related("medicine")
+            ).select_related("intake")
         )
 
         # Filter to schedules that apply today (day-of-week check)

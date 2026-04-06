@@ -695,7 +695,7 @@ def upsert_from_medicine_schedule(schedule):
 
 def delete_medicine_events(schedule):
     """Remove all calendar events projected from a medicine schedule."""
-    user = schedule.medicine.user
+    user = schedule.intake.user
     CalendarEvent.objects.filter(
         user=user,
         source_type=CalendarEvent.SOURCE_MEDICINE_SCHEDULE,

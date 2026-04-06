@@ -180,7 +180,7 @@ class Command(BaseCommand):
             preferences__health_enabled=True,
             preferences__notifications_enabled=True,
             medicines__intake_status='active',
-        ).distinct().select_related('preferences').prefetch_related('medicines')
+        ).distinct().select_related('preferences').prefetch_related('intakes')
 
         for user in users:
             try:

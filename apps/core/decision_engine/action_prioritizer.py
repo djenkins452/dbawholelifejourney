@@ -534,111 +534,124 @@ def build_grouped_action_center(execution_items, current_time, summaries=None):
                 'source': key,
             })
 
-    # Step 3: Group items by execution group
-    groups_map = {}  # (group_type, group_id) → group dict
-    standalone_items = []
-
-    for item in all_items:
-        gt = item['group_type']
-        gid = item['group_id']
-
-        if gt == 'standalone' or gid is None:
-            standalone_items.append(item)
-        else:
-            key = (gt, gid)
-            if key not in groups_map:
-                groups_map[key] = {
-                    'group_type': gt,
-                    'group_id': gid,
-                    'title': item['parent_title'] or gt.replace('_', ' ').title(),
-                    'items': [],
-                    'total': 0,
-                    'completed_count': 0,
-                    'is_foundational': False,
-                }
-            group = groups_map[key]
-            group['items'].append(item)
-            group['total'] += 1
-            if item['completed']:
-                group['completed_count'] += 1
-            if item['is_foundational']:
-                group['is_foundational'] = True
-
-    # Finalize groups
-    result_groups = []
-    for group in groups_map.values():
-        group['all_complete'] = (
-            group['completed_count'] >= group['total'] and group['total'] > 0
-        )
-        # Group urgency = most urgent pending item, or "now" if all complete
-        pending_urgencies = [
-            URGENCY_ORDER.get(i['urgency'], 9)
-            for i in group['items'] if not i['completed']
-        ]
-        if pending_urgencies:
-            min_urg = min(pending_urgencies)
-            urg_map = {v: k for k, v in URGENCY_ORDER.items()}
-            group['urgency'] = urg_map.get(min_urg, 'upcoming')
-        else:
-            # All complete — assign based on scheduled time of first item
-            first_time = next(
-                (i['scheduled_time'] for i in group['items'] if i['scheduled_time']),
-                None,
-            )
-            if first_time:
-                group['urgency'] = classify_urgency(first_time, False, now_time)
-            else:
-                group['urgency'] = 'now'
-
-        # Sort items within group: pending first, then by scheduled time
-        group['items'].sort(key=lambda i: (
-            i['completed'],
-            i['scheduled_time'] or datetime.time(23, 59),
-        ))
-        result_groups.append(group)
-
-    # Wrap standalone items as single-item groups
-    for item in standalone_items:
-        result_groups.append({
-            'group_type': 'standalone',
-            'group_id': item.get('source_id'),
-            'title': item['title'],
-            'items': [item],
-            'total': 1,
-            'completed_count': 1 if item['completed'] else 0,
-            'all_complete': item['completed'],
-            'is_foundational': item['is_foundational'],
-            'urgency': item['urgency'],
-        })
-
-    # Step 4: Sort groups by EXECUTION TIME — time-first ordering
+    # Step 3: Sort ALL items globally by execution order (item-level, not group-level)
     #
-    # The primary sort axis is the earliest scheduled_time of items in the
-    # group, not the group type. This ensures that items at the same time
-    # (e.g., 6:00 PM Medications + 6:00 PM Routine) appear together,
-    # rather than all medications, then all routines.
-    #
-    # Sort key:
-    #   1. urgency phase (overdue → now → next → upcoming)
-    #   2. completion state (pending before completed)
-    #   3. earliest scheduled_time within the group (chronological)
-    #   4. foundational items before non-foundational at same time
-    #   5. title as stable tie-breaker
+    # IMPORTANCE_ORDER: critical=0 > foundational=1 > important=2 > standard=3 > flexible=4
+    _IMPORTANCE_ORDER = {
+        'foundational': 0, 'critical': 0,
+        'important': 1, 'standard': 2,
+        'flexible': 3, 'optimization': 3,
+    }
 
-    def _group_earliest_time(g):
-        """Return the earliest scheduled_time from items in a group, or 23:59."""
-        times = [i['scheduled_time'] for i in g.get('items', []) if i.get('scheduled_time')]
-        return min(times) if times else datetime.time(23, 59)
-
-    result_groups.sort(key=lambda g: (
-        URGENCY_ORDER.get(g['urgency'], 9),
-        g['all_complete'],
-        _group_earliest_time(g),
-        not g['is_foundational'],
-        g['title'],
+    all_items.sort(key=lambda i: (
+        URGENCY_ORDER.get(i['urgency'], 9),           # 1. urgency phase
+        i['scheduled_time'] or datetime.time(23, 59),  # 2. actual scheduled time
+        i['completed'],                                 # 3. incomplete before complete
+        _IMPORTANCE_ORDER.get(i['importance'], 5),      # 4. priority/importance
+        i['title'],                                     # 5. stable tie-breaker
     ))
 
-    # Step 5: Split into phase buckets — completed groups stay in their time phase
+    # Step 4: Group into TIME BLOCKS — items at the same time go together
+    #
+    # A time block is defined by (scheduled_time rounded to nearest 15 min).
+    # Items within the same time block stay together regardless of type.
+    # Unscheduled items (no scheduled_time) go into a separate "flexible" section.
+
+    def _time_block_key(scheduled_time):
+        """Round to nearest 15-min block for grouping. Returns HH:MM string or None."""
+        if scheduled_time is None:
+            return None
+        # Round to nearest 15 minutes
+        total_minutes = scheduled_time.hour * 60 + scheduled_time.minute
+        rounded = (total_minutes // 15) * 15
+        h, m = divmod(rounded, 60)
+        return f"{h:02d}:{m:02d}"
+
+    def _time_block_display(block_key):
+        """Convert HH:MM block key to display format (e.g., '6:00 PM')."""
+        if not block_key:
+            return 'Flexible'
+        h, m = int(block_key[:2]), int(block_key[3:])
+        ampm = 'AM' if h < 12 else 'PM'
+        display_h = h % 12 or 12
+        return f"{display_h}:{m:02d} {ampm}"
+
+    # Build time blocks
+    time_blocks = {}  # block_key → list of items
+    flexible_items = []
+
+    for item in all_items:
+        bk = _time_block_key(item['scheduled_time'])
+        if bk is None:
+            flexible_items.append(item)
+        else:
+            if bk not in time_blocks:
+                time_blocks[bk] = []
+            time_blocks[bk].append(item)
+
+    # Step 5: Convert time blocks into group dicts for the template
+    #
+    # Each time block becomes a group. The template renders groups with
+    # their items. Group-level toggle (bulk complete) is preserved for
+    # homogeneous groups (all items from same original execution group).
+
+    result_groups = []
+
+    for block_key in sorted(time_blocks.keys()):
+        block_items = time_blocks[block_key]
+        total_in_block = len(block_items)
+        completed_in_block = sum(1 for i in block_items if i['completed'])
+
+        # Determine the most urgent item in the block
+        block_urgencies = [URGENCY_ORDER.get(i['urgency'], 9) for i in block_items]
+        min_urg_val = min(block_urgencies) if block_urgencies else 9
+        urg_map = {v: k for k, v in URGENCY_ORDER.items()}
+        block_urgency = urg_map.get(min_urg_val, 'upcoming')
+
+        # Check if this block is homogeneous (single original group)
+        # If so, preserve group-level toggle functionality
+        orig_groups = set()
+        for item in block_items:
+            gt = item.get('group_type', 'standalone')
+            gid = item.get('group_id')
+            if gt != 'standalone' and gid is not None:
+                orig_groups.add((gt, gid))
+
+        is_homogeneous = len(orig_groups) == 1
+        homo_gt, homo_gid = orig_groups.pop() if is_homogeneous else (None, None)
+
+        result_groups.append({
+            'group_type': homo_gt if is_homogeneous else 'time_block',
+            'group_id': homo_gid if is_homogeneous else block_key,
+            'title': _time_block_display(block_key),
+            'time_block_key': block_key,
+            'items': block_items,
+            'total': total_in_block,
+            'completed_count': completed_in_block,
+            'all_complete': completed_in_block >= total_in_block and total_in_block > 0,
+            'is_foundational': any(i['is_foundational'] for i in block_items),
+            'urgency': block_urgency,
+            'is_time_block': True,
+        })
+
+    # Add flexible/unscheduled section (distinct from scheduled timeline)
+    if flexible_items:
+        flex_completed = sum(1 for i in flexible_items if i['completed'])
+        result_groups.append({
+            'group_type': 'flexible',
+            'group_id': 'flexible',
+            'title': 'Flexible',
+            'time_block_key': None,
+            'items': flexible_items,
+            'total': len(flexible_items),
+            'completed_count': flex_completed,
+            'all_complete': flex_completed >= len(flexible_items) and len(flexible_items) > 0,
+            'is_foundational': any(i['is_foundational'] for i in flexible_items),
+            'urgency': 'flexible',
+            'is_time_block': False,
+        })
+
+    # Step 6: Split into phase buckets
     phase_groups = {
         'now': [g for g in result_groups
                 if g['urgency'] in ('overdue', 'now')],
@@ -646,6 +659,8 @@ def build_grouped_action_center(execution_items, current_time, summaries=None):
                      if g['urgency'] == 'next'],
         'later': [g for g in result_groups
                   if g['urgency'] == 'upcoming'],
+        'flexible': [g for g in result_groups
+                     if g['urgency'] == 'flexible'],
     }
 
     total = sum(g['total'] for g in result_groups)

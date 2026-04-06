@@ -2106,6 +2106,17 @@ a.v2-action-title:hover {
     background: rgba(107, 114, 128, 0.08);
 }
 
+.v2-phase-flexible {
+    color: var(--color-text-secondary, #6b7280);
+    background: rgba(107, 114, 128, 0.05);
+    font-style: italic;
+}
+
+.v2-ac-group-time-icon {
+    font-size: 0.9rem;
+    margin-right: var(--space-1, 4px);
+}
+
 /* ── Action Groups ──────────────────────────────────────────────── */
 
 .v2-ac-group {

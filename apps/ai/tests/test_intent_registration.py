@@ -39,7 +39,7 @@ from apps.ai.intents import ALL_INTENT_TOOLS, INTENT_HANDLERS
 from apps.ai.action_handlers import ActionHandler
 from apps.core.ai_orchestrator.intent_engine import (
     HEALTH_INTENTS,
-    MEDICINE_INTENTS,
+    INTAKE_INTENTS,
     FASTING_INTENTS,
     JOURNAL_INTENTS,
     FAITH_INTENTS,
@@ -75,7 +75,7 @@ def _get_all_engine_intents():
     """Get the union of all intent category sets in intent_engine.py."""
     return (
         HEALTH_INTENTS
-        | MEDICINE_INTENTS
+        | INTAKE_INTENTS
         | FASTING_INTENTS
         | JOURNAL_INTENTS
         | FAITH_INTENTS
@@ -145,7 +145,7 @@ NON_TIME_INTENTS = {
     'undo_last_action',        # Undoes last action, no date component
     'edit_last_entry',         # Edits most recent, no date component
     'check_budget',            # Read-only query
-    'email_medicine_list',     # Sends email, no date/time component
+    'email_intake_list',       # Sends email, no date/time component
     'generate_report',         # Generates report, no recorded_at
     'query_event_history',     # Read-only event query, no recorded_at
 }

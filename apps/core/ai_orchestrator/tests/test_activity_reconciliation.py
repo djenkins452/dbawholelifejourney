@@ -119,7 +119,7 @@ class ReconciliationRegistryTests(TestCase):
             'create_goal', 'set_intention', 'log_prayer',
             'log_workout', 'log_weight', 'log_blood_pressure',
             'log_heart_rate', 'log_glucose', 'log_blood_oxygen',
-            'log_body_measurement', 'take_medicine', 'log_habit',
+            'log_body_measurement', 'take_medication', 'log_habit',
             'create_journal_entry', 'add_reminder',
         ]
         for intent in expected:
@@ -294,7 +294,7 @@ class MedicineReconciliationTests(TestCase):
 
     def test_no_med_name_returns_create(self):
         enriched = MagicMock()
-        enriched.intent_type = 'take_medicine'
+        enriched.intent_type = 'take_medication'
         enriched.parameters = {}
 
         from apps.core.ai_orchestrator.activity_reconciliation import _reconcile_medicine

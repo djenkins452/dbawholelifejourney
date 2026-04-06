@@ -102,7 +102,7 @@ INTENT_ICONS: Dict[str, str] = {
     "start_fast": "timer",
     "end_fast": "timer",
     "log_transaction": "wallet",
-    "take_medicine": "pill",
+    "take_medication": "pill",
 }
 
 

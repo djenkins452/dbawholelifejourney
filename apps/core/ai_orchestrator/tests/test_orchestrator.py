@@ -72,7 +72,7 @@ class IntentEngineTests(TestCase):
     def test_time_aware_intents(self):
         self.assertTrue(is_time_aware("log_weight"))
         self.assertTrue(is_time_aware("log_heart_rate"))
-        self.assertTrue(is_time_aware("take_medicine"))
+        self.assertTrue(is_time_aware("take_medication"))
         self.assertFalse(is_time_aware("create_task"))
         self.assertFalse(is_time_aware("create_event"))
 

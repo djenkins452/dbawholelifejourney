@@ -477,22 +477,22 @@ class ActionHandlerTests(TestCase):
         self.assertFalse(result.success)
         self.assertIn("don't have an active fast", result.message)
 
-    def test_handle_take_medicine_not_found(self):
-        """Test taking medicine that doesn't exist."""
+    def test_handle_take_medication_not_found(self):
+        """Test taking medication that doesn't exist."""
         from apps.ai.action_handlers import ActionHandler
 
         handler = ActionHandler(self.user)
-        result = handler.handle_take_medicine(medicine_name='nonexistent')
+        result = handler.handle_take_medication(medicine_name='nonexistent')
 
         self.assertFalse(result.success)
         self.assertIn("couldn't find", result.message)
 
-    def test_handle_take_medicine_single_match(self):
-        """Test taking medicine with single match."""
+    def test_handle_take_medication_single_match(self):
+        """Test taking medication with single match."""
         from apps.ai.action_handlers import ActionHandler
         from apps.health.models import Intake, IntakeLog
 
-        # Create a medicine
+        # Create a medication
         medicine = Intake.objects.create(
             user=self.user,
             name='Metformin',
@@ -503,22 +503,22 @@ class ActionHandlerTests(TestCase):
         )
 
         handler = ActionHandler(self.user)
-        result = handler.handle_take_medicine(medicine_name='metformin')
+        result = handler.handle_take_medication(medicine_name='metformin')
 
         self.assertTrue(result.success)
         self.assertIn('Metformin', result.message)
-        self.assertEqual(result.action_type, 'take_medicine')
+        self.assertEqual(result.action_type, 'take_medication')
 
         # Verify log was created
         log = IntakeLog.objects.get(user=self.user, intake=medicine)
         self.assertIsNotNone(log.taken_at)
 
-    def test_handle_take_medicine_multiple_matches(self):
-        """Test taking medicine with multiple matches."""
+    def test_handle_take_medication_multiple_matches(self):
+        """Test taking medication with multiple matches."""
         from apps.ai.action_handlers import ActionHandler
         from apps.health.models import Intake
 
-        # Create multiple matching medicines
+        # Create multiple matching medications
         Intake.objects.create(
             user=self.user,
             name='Metformin 500mg',
@@ -535,10 +535,10 @@ class ActionHandlerTests(TestCase):
         )
 
         handler = ActionHandler(self.user)
-        result = handler.handle_take_medicine(medicine_name='metformin')
+        result = handler.handle_take_medication(medicine_name='metformin')
 
         self.assertFalse(result.success)
-        self.assertIn('found 2 medicines', result.message.lower())
+        self.assertIn('found 2 medications', result.message.lower())
 
 
 class IntentToolDefinitionTests(TestCase):
@@ -557,7 +557,7 @@ class IntentToolDefinitionTests(TestCase):
 
         self.assertIn('log_heart_rate', INTENT_HANDLERS)
         self.assertIn('log_blood_pressure', INTENT_HANDLERS)
-        self.assertIn('take_medicine', INTENT_HANDLERS)
+        self.assertIn('take_medication', INTENT_HANDLERS)
         self.assertIn('start_fast', INTENT_HANDLERS)
 
     def test_health_intent_tools_structure(self):

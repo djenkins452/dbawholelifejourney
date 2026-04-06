@@ -25,11 +25,11 @@ HEALTH_INTENTS = {
     "log_body_measurement",
 }
 
-MEDICINE_INTENTS = {
-    "take_medicine",
+INTAKE_INTENTS = {
+    "take_medication",
     "take_supplement",
-    "take_medicines_by_time",
-    "email_medicine_list",
+    "take_intake_by_time",
+    "email_intake_list",
 }
 
 FASTING_INTENTS = {
@@ -127,7 +127,7 @@ QUERY_INTENTS = {
 # test_intent_registration.py will FAIL if you forget.
 TIME_AWARE_INTENTS = (
     HEALTH_INTENTS
-    | MEDICINE_INTENTS
+    | INTAKE_INTENTS
     | FASTING_INTENTS
     | JOURNAL_INTENTS
     | FAITH_INTENTS
@@ -158,7 +158,7 @@ def get_intent_module(intent_type):
     """
     if intent_type in HEALTH_INTENTS:
         return "health"
-    if intent_type in MEDICINE_INTENTS:
+    if intent_type in INTAKE_INTENTS:
         return "health"
     if intent_type in FASTING_INTENTS:
         return "health"

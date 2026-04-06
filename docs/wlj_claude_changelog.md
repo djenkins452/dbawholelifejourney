@@ -97,6 +97,26 @@ She'd list multiple options instead of choosing, report state instead of driving
 
 ---
 
+## 2026-04-05 — Refactor: Phase IV Medicine-to-Intake AI layer rename
+
+**Root cause:** Phase I-III renamed models/URLs/views from "Medicine" to "Intake". The AI layer still used old intent names (`take_medicine`, `take_medicines_by_time`, `email_medicine_list`, `MEDICINE_INTENTS`, etc.), creating naming inconsistency.
+
+**Changes:**
+- Renamed `medicine_intents.py` to `intake_intents.py`, constant `MEDICINE_INTENT_TOOLS` to `INTAKE_INTENT_TOOLS`
+- Renamed intents: `take_medicine` to `take_medication`, `take_medicines_by_time` to `take_intake_by_time`, `email_medicine_list` to `email_intake_list`
+- Updated INTENT_HANDLERS category from `'medicine'` to `'intake'`
+- Updated `MEDICINE_INTENTS` set to `INTAKE_INTENTS` in intent_engine.py
+- Updated action_policy.py, crud_confirmation.py, action_contracts.py, url_resolver.py
+- Renamed handler methods: `handle_take_medicine` to `handle_take_medication`, `handle_take_medicines_by_time` to `handle_take_intake_by_time`, `handle_email_medicine_list` to `handle_email_intake_list`, `_log_medicine_taken` to `_log_intake_taken`
+- Updated entity_resolver.py: `take_medicine` to `take_medication`, `_resolve_medicine` to `_resolve_intake`
+- Updated semantic_parser.py, deterministic_router domain keywords, medical/capabilities.py
+- Updated system prompt examples and domain hint mappings in intent_service.py
+- Updated all test files referencing old intent names
+
+**Files modified:** apps/ai/intents/intake_intents.py (renamed), apps/ai/intents/__init__.py, apps/ai/intent_service.py, apps/ai/action_handlers.py, apps/ai/personal_assistant.py, apps/ai/tests/test_intent_service.py, apps/ai/tests/test_intent_registration.py, apps/ai/tests/test_affirmation_detector.py (no change needed), apps/core/ai_orchestrator/intent_engine.py, apps/core/ai_orchestrator/action_policy.py, apps/core/ai_orchestrator/entity_resolver.py, apps/core/ai_orchestrator/activity_reconciliation.py, apps/core/ai_orchestrator/action_contracts.py, apps/core/ai_orchestrator/crud_confirmation.py, apps/core/ai_orchestrator/url_resolver.py, apps/core/ai_semantics/semantic_parser.py, apps/core/ai_semantics/tests.py, apps/core/ai_orchestrator/tests/test_orchestrator.py, apps/core/ai_orchestrator/tests/test_entity_resolver.py, apps/core/ai_orchestrator/tests/test_crud_confirmation.py, apps/core/ai_orchestrator/tests/test_activity_reconciliation.py, apps/medical/capabilities.py
+
+---
+
 ## 2026-04-05 — Feature: Unified Intake System (Medications + Supplements)
 
 **Root cause:** Supplements (creatine) were logged via the hydration UI as volume-based drink entries, violating signal integrity, domain clarity, and CoS reasoning.

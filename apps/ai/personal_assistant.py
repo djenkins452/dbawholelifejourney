@@ -6411,7 +6411,7 @@ Rules for this response:
                 return  # Neutral page — nothing to compare
 
             # Extract the primary domain word from page_domain
-            # e.g. "medicine/health (take_medicine, ...)" → "medicine", "health"
+            # e.g. "intake/health (take_medication, ...)" → "intake", "health"
             page_domain_lower = page_domain.lower()
 
             for ir in actionable_intents:

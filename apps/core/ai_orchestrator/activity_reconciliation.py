@@ -556,7 +556,7 @@ def _reconcile_health_log(user, enriched_action) -> ReconciliationResult:
 
 
 def _reconcile_medicine(user, enriched_action) -> ReconciliationResult:
-    """Reconcile take_medicine against same-day medication logs."""
+    """Reconcile take_medication against same-day medication logs."""
     intent = enriched_action.intent_type
     params = enriched_action.parameters
     med_name = params.get('medication_name', params.get('name', ''))
@@ -902,8 +902,8 @@ ACTIVITY_RECONCILERS: Dict[str, Callable] = {
     'log_glucose': _reconcile_health_log,
     'log_blood_oxygen': _reconcile_health_log,
     'log_body_measurement': _reconcile_health_log,
-    # Medicine
-    'take_medicine': _reconcile_medicine,
+    # Intake (Medications)
+    'take_medication': _reconcile_medicine,
     # Habits
     'log_habit': _reconcile_habit,
     # Journal

@@ -75,7 +75,7 @@
     </div>
     {% endif %}
 
-    <form method="post" class="form-container">
+    <form method="post" class="form-container" id="intakeForm">
         {% csrf_token %}
 
         {% if form.errors %}
@@ -94,6 +94,33 @@
         </div>
         {% endif %}
 
+        <!-- STEP 1: Intake Type Selector -->
+        <div class="form-section type-selector-section">
+            <h2 class="form-section-title">What are you adding?</h2>
+            <div class="type-selector" id="typeSelector">
+                <label class="type-option">
+                    <input type="radio" name="intake_type" value="medication"
+                           {% if form.instance.intake_type == 'medication' or not form.instance.pk %}checked{% endif %}>
+                    <div class="type-card">
+                        <span class="type-icon">💊</span>
+                        <span class="type-label">Medication</span>
+                        <span class="type-desc">Prescription or OTC drugs</span>
+                    </div>
+                </label>
+                <label class="type-option">
+                    <input type="radio" name="intake_type" value="supplement"
+                           {% if form.instance.intake_type == 'supplement' %}checked{% endif %}>
+                    <div class="type-card">
+                        <span class="type-icon">🧬</span>
+                        <span class="type-label">Supplement</span>
+                        <span class="type-desc">Vitamins, minerals, performance</span>
+                    </div>
+                </label>
+            </div>
+            {{ form.priority }}
+        </div>
+
+        <!-- Basic Information (always shown) -->
         <div class="form-section">
             <h2 class="form-section-title">Basic Information</h2>
 
@@ -105,18 +132,31 @@
 
             <div class="form-row">
                 <div class="form-group">
-                    <label for="id_dose">Dose *</label>
+                    <label for="id_dose">Dosage *</label>
                     {{ form.dose }}
-                    <p class="form-help">e.g., 10mg, 500mg, 1 tablet, 2 puffs</p>
+                    <p class="form-help">e.g., 10mg, 500mg, 1 tablet, 5g</p>
                 </div>
                 <div class="form-group">
-                    <label for="id_purpose">Purpose</label>
-                    {{ form.purpose }}
-                    <p class="form-help">What is this for?</p>
+                    <label for="id_dosage_unit">Unit</label>
+                    {{ form.dosage_unit }}
                 </div>
+            </div>
+
+            <div class="form-group">
+                <label for="id_purpose">Purpose</label>
+                {{ form.purpose }}
+                <p class="form-help">What is this for?</p>
+            </div>
+
+            <!-- Category (shown for supplements, hidden for medications) -->
+            <div class="form-group" data-intake-section="supplement" id="categoryGroup">
+                <label for="id_category">Category</label>
+                {{ form.category }}
+                <p class="form-help">Helps organize your supplements</p>
             </div>
         </div>
 
+        <!-- Schedule (always shown) -->
         <div class="form-section">
             <h2 class="form-section-title">Schedule</h2>
 
@@ -125,7 +165,7 @@
                     <label for="id_frequency">Frequency *</label>
                     {{ form.frequency }}
                 </div>
-                <div class="form-group checkbox-group">
+                <div class="form-group checkbox-group" data-intake-section="medication">
                     <label class="checkbox-label">
                         {{ form.is_prn }}
                         <span>Take as needed (PRN)</span>
@@ -146,14 +186,15 @@
                 </div>
             </div>
 
-            <div class="form-group">
+            <div class="form-group" data-intake-section="medication">
                 <label for="id_grace_period_minutes">Grace Period (minutes)</label>
                 {{ form.grace_period_minutes }}
                 <p class="form-help">Minutes after scheduled time before marking as overdue</p>
             </div>
         </div>
 
-        <div class="form-section">
+        <!-- Refill Tracking (medication only) -->
+        <div class="form-section" data-intake-section="medication" id="refillSection">
             <h2 class="form-section-title">Refill Tracking</h2>
 
             <div class="form-row">
@@ -170,8 +211,9 @@
             </div>
         </div>
 
-        <div class="form-section collapsible">
-            <h2 class="form-section-title">Prescription Details (Optional)</h2>
+        <!-- Prescription Details (medication only) -->
+        <div class="form-section" data-intake-section="medication" id="prescriptionSection">
+            <h2 class="form-section-title">Prescription Details</h2>
 
             <div class="form-row">
                 <div class="form-group">
@@ -190,13 +232,14 @@
             </div>
         </div>
 
+        <!-- Notes (always shown) -->
         <div class="form-section">
             <h2 class="form-section-title">Notes</h2>
 
             <div class="form-group">
                 <label for="id_instructions">Special Instructions</label>
                 {{ form.instructions }}
-                <p class="form-help">e.g., take with food, avoid grapefruit</p>
+                <p class="form-help">e.g., take with food, mix with water</p>
             </div>
 
             <div class="form-group">
@@ -292,9 +335,73 @@
     padding-top: var(--space-4);
 }
 
+/* Intake Type Selector */
+.type-selector {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+}
+
+.type-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.type-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.type-option input[type="radio"]:checked + .type-card {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+    box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.type-card:hover {
+    border-color: var(--color-accent);
+}
+
+.type-icon {
+    font-size: 2rem;
+}
+
+.type-label {
+    font-weight: 600;
+    font-size: var(--font-size-lg);
+}
+
+.type-desc {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.type-selector-section .form-select {
+    display: none;
+}
+
+/* Hidden sections */
+[data-intake-section].hidden-section {
+    display: none;
+}
+
 @media (max-width: 640px) {
     .form-row {
         grid-template-columns: 1fr;
+    }
+
+    .type-selector {
+        grid-template-columns: 1fr 1fr;
     }
 }
 
@@ -750,4 +857,59 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endif %}
+
+<!-- Dynamic form behavior: show/hide sections based on intake type -->
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    const typeRadios = document.querySelectorAll('input[name="intake_type"]');
+    const medSections = document.querySelectorAll('[data-intake-section="medication"]');
+    const suppSections = document.querySelectorAll('[data-intake-section="supplement"]');
+    const priorityField = document.getElementById('id_priority');
+
+    function updateFormForType(intakeType) {
+        // Toggle medication-only sections
+        medSections.forEach(function(el) {
+            if (intakeType === 'medication') {
+                el.classList.remove('hidden-section');
+            } else {
+                el.classList.add('hidden-section');
+            }
+        });
+
+        // Toggle supplement-only sections
+        suppSections.forEach(function(el) {
+            if (intakeType === 'supplement') {
+                el.classList.remove('hidden-section');
+            } else {
+                el.classList.add('hidden-section');
+            }
+        });
+
+        // Auto-set priority default based on type
+        if (priorityField && !priorityField.dataset.userChanged) {
+            priorityField.value = (intakeType === 'medication') ? 'critical' : 'optimization';
+        }
+    }
+
+    // Track if user manually changed priority
+    if (priorityField) {
+        priorityField.addEventListener('change', function() {
+            this.dataset.userChanged = 'true';
+        });
+    }
+
+    // Listen for type changes
+    typeRadios.forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            updateFormForType(this.value);
+        });
+    });
+
+    // Set initial state
+    var checked = document.querySelector('input[name="intake_type"]:checked');
+    if (checked) {
+        updateFormForType(checked.value);
+    }
+});
+</script>
 {% endblock %}

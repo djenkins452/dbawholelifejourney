@@ -489,12 +489,14 @@ class MedicineForm(forms.ModelForm):
         model = Intake
         fields = [
             "intake_type",
+            "category",
+            "priority",
             "name",
             "purpose",
             "dose",
+            "dosage_unit",
             "frequency",
             "is_prn",
-            "priority",
             "start_date",
             "end_date",
             "current_supply",
@@ -513,6 +515,14 @@ class MedicineForm(forms.ModelForm):
             }),
             "priority": forms.Select(attrs={
                 "class": "form-select",
+            }),
+            "category": forms.Select(attrs={
+                "class": "form-select",
+                "id": "id_category",
+            }),
+            "dosage_unit": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "e.g., mg, g, IU, mcg, ml",
             }),
             "name": forms.TextInput(attrs={
                 "class": "form-input",
@@ -584,6 +594,8 @@ class MedicineForm(forms.ModelForm):
         self.user = user
 
         # Set optional fields
+        self.fields["category"].required = False
+        self.fields["dosage_unit"].required = False
         self.fields["purpose"].required = False
         self.fields["end_date"].required = False
         self.fields["current_supply"].required = False

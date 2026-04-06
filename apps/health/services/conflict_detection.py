@@ -76,12 +76,18 @@ def _detect(user, signals, trend, outcome):
         })
 
     # ── 2. Creatine Weight Gain Masking ──
-    # Check both the signal flag (consistent usage) and recent start
+    # Check both the signal flag (consistent usage) and recent start.
+    # CRITICAL: Only fire when weight is ACTUALLY trending up or flat.
+    # If weight is clearly dropping, creatine masking is irrelevant — the
+    # cut is working and showing "Weight up" would be a contradiction.
     creatine_flag = signals.get("creatine_active", False)
+    weight_trend = trend.get("weight_trend") or 0
+    weight_actually_up_or_flat = weight_trend >= -0.3  # not clearly dropping
     if (
         (creatine_flag or _started_creatine_recently(user, days=21))
         and trend.get("fat_loss_status") in ("not_confirmed", "reversed")
         and _waist_not_gaining(trend)
+        and weight_actually_up_or_flat
     ):
         found.append({
             "type": "creatine_weight_gain",

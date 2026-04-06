@@ -6,6 +6,22 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-06 — Physical Intelligence: Fix creatine banner contradiction + confidence badge
+
+**What:** Fixed two contradictions visible on the dashboard:
+1. "Weight up but waist stable" creatine banner showing when weight is clearly DOWN (-1.9 lb/wk)
+2. "Progress Unclear" + "HIGH CONFIDENCE" labels showing simultaneously
+
+**Root causes:**
+1. `conflict_detection.py` creatine detector never checked weight direction — it fired whenever `fat_loss_status` was "not_confirmed" regardless of whether weight was actually going up
+2. PI template showed the body-comp confidence badge inside the "Progress Unclear" block — these refer to different things and contradict each other
+
+**Changes:**
+- `apps/health/services/conflict_detection.py` — Creatine conflict now requires `weight_trend >= -0.3` (weight not clearly dropping). If weight is down, creatine masking is irrelevant and "Weight up" would be false.
+- `templates/dashboard_v2/sections/physical_intelligence.html` — Removed confidence badge from the "Progress Unclear" block. When the system can't determine progress (due to vitals alerts, data gaps, etc.), showing "HIGH CONFIDENCE" alongside "Progress Unclear" is contradictory.
+
+---
+
 ## 2026-04-06 — Dashboard: Fix medication/supplement misclassification as Flexible
 
 **What:** Fixed medications and supplements with `scheduled_time` being incorrectly placed in the "Flexible" bucket on the dashboard instead of their correct time block groups.

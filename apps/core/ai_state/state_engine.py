@@ -161,11 +161,17 @@ def get_state_value(user, path, default=None):
 
 
 def _canonical_module(module):
-    """Map module aliases to canonical keys."""
+    """Map module aliases to canonical keys.
+
+    CRITICAL: 'medical' and 'labs' must NOT alias to 'health'.
+    Medical state (labs, conditions, providers) is a separate module
+    from health state (weight, sleep, vitals). The alias was causing
+    get_module_state('medical') to return health data, making all
+    lab data invisible to CoS.
+    """
     aliases = {
         "purpose": "goals",
-        "medical": "health",
-        "labs": "health",
+        "labs": "medical",       # labs is part of medical module
         "food": "nutrition",
         "workout": "fitness",
         "workouts": "fitness",

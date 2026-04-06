@@ -1886,59 +1886,180 @@ def _build_capture_context(user):
 
 
 def _build_medical_context(user):
-    """Build medical context — from SAE state + recent lab values."""
-    result = {}
+    """
+    Build medical intelligence context — structured, decision-ready.
+
+    ALWAYS returns a dict with at minimum {'labs_available': bool}.
+    CoS uses this to answer lab questions directly. If labs exist,
+    the response includes structured values. If not, CoS states
+    "No lab data is currently available in your records."
+
+    Never returns empty dict — that causes "I don't have access."
+    """
+    result = {
+        'labs_available': False,
+        'last_lab_date': None,
+        'total_lab_results': 0,
+    }
+
     try:
+        # ── SAE medical state (alerts, panels, summary) ──
         from apps.core.ai_state.state_engine import get_module_state
         med = get_module_state(user, 'medical') or {}
         contract = med.get('_contract', {})
 
         alerts = contract.get('alerts', {})
         if alerts.get('abnormal_results'):
-            result['medical_alerts'] = alerts['abnormal_results']
+            result['abnormal_flags'] = alerts['abnormal_results']
 
         detail = contract.get('detail', {})
         if detail.get('recent_panels'):
-            result['recent_lab_panels'] = detail['recent_panels']
+            result['recent_panels'] = detail['recent_panels']
 
         summary = contract.get('summary', {})
         if summary.get('total_lab_results', 0) > 0:
-            result['medical_summary'] = {
-                'total_results': summary.get('total_lab_results', 0),
-                'recent_abnormal': summary.get('recent_abnormal_count', 0),
-                'provider_count': summary.get('provider_count', 0),
-            }
-
-        # Enrich with individual lab values for CoS data access
-        try:
-            from apps.medical.models import LabResult
-            recent_labs = LabResult.objects.filter(
-                user=user,
-                result_status='final',
-            ).order_by('-collected_at')[:10]
-
-            if recent_labs.exists():
-                lab_values = []
-                for lab in recent_labs:
-                    entry = {
-                        'test_name': lab.raw_test_name,
-                        'value': lab.value_text,
-                        'unit': lab.unit or '',
-                        'date': lab.collected_at.strftime('%Y-%m-%d'),
-                    }
-                    if lab.range_text:
-                        entry['reference_range'] = lab.range_text
-                    elif lab.range_low is not None and lab.range_high is not None:
-                        entry['reference_range'] = f"{lab.range_low}-{lab.range_high}"
-                    if lab.abnormal_flag:
-                        entry['abnormal'] = lab.abnormal_flag
-                    lab_values.append(entry)
-                result['recent_lab_values'] = lab_values
-        except ImportError:
-            pass  # medical app not installed
-
+            result['total_lab_results'] = summary['total_lab_results']
+            result['recent_abnormal_count'] = summary.get(
+                'recent_abnormal_count', 0
+            )
+            result['provider_count'] = summary.get('provider_count', 0)
     except Exception as e:
-        logger.debug("CoS context: medical unavailable: %s", e)
+        logger.debug("CoS medical: SAE state unavailable: %s", e)
+
+    # ── Direct lab values (deterministic, always fresh) ──
+    try:
+        from apps.medical.models import LabResult
+
+        recent_labs = LabResult.objects.filter(
+            user=user,
+        ).exclude(
+            result_status='pending_review',
+        ).order_by('-collected_at')[:10]
+
+        if recent_labs.exists():
+            result['labs_available'] = True
+
+            lab_values = []
+            abnormal_values = []
+            key_metrics = {}
+            seen_tests = set()
+
+            for lab in recent_labs:
+                entry = {
+                    'test_name': lab.raw_test_name,
+                    'value': lab.value_text,
+                    'unit': lab.unit or '',
+                    'date': lab.collected_at.strftime('%Y-%m-%d'),
+                }
+                if lab.range_text:
+                    entry['reference_range'] = lab.range_text
+                elif lab.range_low is not None and lab.range_high is not None:
+                    entry['reference_range'] = (
+                        f"{float(lab.range_low)}-{float(lab.range_high)}"
+                    )
+                if lab.abnormal_flag:
+                    entry['abnormal'] = lab.get_abnormal_flag_display()
+                    abnormal_values.append(entry)
+
+                lab_values.append(entry)
+
+                # Track last lab date
+                if not result['last_lab_date']:
+                    result['last_lab_date'] = entry['date']
+
+                # Extract key metrics (most recent value per test)
+                test_lower = lab.raw_test_name.lower().strip()
+                if test_lower not in seen_tests:
+                    seen_tests.add(test_lower)
+                    _key_tests = {
+                        'a1c': 'A1C',
+                        'hemoglobin a1c': 'A1C',
+                        'hba1c': 'A1C',
+                        'glucose': 'Glucose',
+                        'fasting glucose': 'Glucose',
+                        'total cholesterol': 'Total Cholesterol',
+                        'cholesterol': 'Total Cholesterol',
+                        'ldl': 'LDL',
+                        'ldl cholesterol': 'LDL',
+                        'hdl': 'HDL',
+                        'hdl cholesterol': 'HDL',
+                        'triglycerides': 'Triglycerides',
+                        'tsh': 'TSH',
+                        'vitamin d': 'Vitamin D',
+                        '25-hydroxy vitamin d': 'Vitamin D',
+                        'testosterone': 'Testosterone',
+                        'creatinine': 'Creatinine',
+                        'egfr': 'eGFR',
+                    }
+                    metric_key = _key_tests.get(test_lower)
+                    if metric_key:
+                        key_metrics[metric_key] = {
+                            'value': lab.value_text,
+                            'unit': lab.unit or '',
+                            'date': entry['date'],
+                        }
+                        if lab.abnormal_flag:
+                            key_metrics[metric_key]['abnormal'] = (
+                                lab.get_abnormal_flag_display()
+                            )
+
+            result['latest_labs'] = lab_values
+            if abnormal_values:
+                result['abnormal_values'] = abnormal_values
+            if key_metrics:
+                result['key_metrics'] = key_metrics
+
+            # Trend detection: find tests with 2+ results
+            from collections import Counter
+            test_counts = Counter(
+                lab.raw_test_name.lower().strip()
+                for lab in LabResult.objects.filter(
+                    user=user,
+                ).exclude(
+                    result_status='pending_review',
+                ).values_list('raw_test_name', flat=True)
+            )
+            trending_tests = [t for t, c in test_counts.items() if c >= 2]
+            if trending_tests:
+                trends = []
+                for test_name in trending_tests[:5]:
+                    values = list(
+                        LabResult.objects.filter(
+                            user=user,
+                            raw_test_name__iexact=test_name,
+                            value_numeric__isnull=False,
+                        ).exclude(
+                            result_status='pending_review',
+                        ).order_by('collected_at').values_list(
+                            'value_numeric', 'collected_at',
+                        )[:5]
+                    )
+                    if len(values) >= 2:
+                        first_val = float(values[0][0])
+                        last_val = float(values[-1][0])
+                        if first_val > 0:
+                            pct_change = ((last_val - first_val) / first_val) * 100
+                            direction = (
+                                'improving' if abs(pct_change) < 5
+                                else 'rising' if pct_change > 0
+                                else 'declining'
+                            )
+                            trends.append({
+                                'test': test_name.title(),
+                                'direction': direction,
+                                'first': str(values[0][0]),
+                                'latest': str(values[-1][0]),
+                                'first_date': values[0][1].strftime('%Y-%m-%d'),
+                                'latest_date': values[-1][1].strftime('%Y-%m-%d'),
+                            })
+                if trends:
+                    result['trends'] = trends
+
+    except ImportError:
+        pass  # medical app not installed
+    except Exception as e:
+        logger.warning("CoS medical: lab query failed: %s", e, exc_info=True)
+
     return result
 
 

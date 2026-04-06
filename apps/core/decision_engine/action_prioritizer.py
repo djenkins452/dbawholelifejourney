@@ -207,11 +207,11 @@ def build_action_priorities(
             "time_display": "",
         })
 
-    # ── Sort: urgency first, then foundational, then alphabetical ──
-    # Urgency is the PRIMARY key — an overdue non-foundational item
-    # outranks a foundational item that's hours away.
+    # ── Sort: urgency first, then by time, then foundational, then title ──
+    # Time-first ordering ensures "what to do next" is clear regardless of type.
     actions.sort(key=lambda a: (
         URGENCY_ORDER.get(a["urgency"], 9),
+        _parse_time(a.get("time_display")) or datetime.time(23, 59),
         not a["is_foundational"],
         a["title"],
     ))
@@ -611,19 +611,30 @@ def build_grouped_action_center(execution_items, current_time, summaries=None):
             'urgency': item['urgency'],
         })
 
-    # Step 4: Sort groups — within each phase, pending first then completed
-    # All groups (routines AND medication windows) use canonical WINDOW_ORDER
-    # for chronological ordering. Both group types use time_of_day values
-    # ('morning', 'evening', 'nightly') as group_id, so they sort together
-    # by time of day instead of alphabetically by title.
-    from apps.core.time_windows import WINDOW_ORDER
-    _window_rank = {w: i for i, w in enumerate(WINDOW_ORDER)}
+    # Step 4: Sort groups by EXECUTION TIME — time-first ordering
+    #
+    # The primary sort axis is the earliest scheduled_time of items in the
+    # group, not the group type. This ensures that items at the same time
+    # (e.g., 6:00 PM Medications + 6:00 PM Routine) appear together,
+    # rather than all medications, then all routines.
+    #
+    # Sort key:
+    #   1. urgency phase (overdue → now → next → upcoming)
+    #   2. completion state (pending before completed)
+    #   3. earliest scheduled_time within the group (chronological)
+    #   4. foundational items before non-foundational at same time
+    #   5. title as stable tie-breaker
+
+    def _group_earliest_time(g):
+        """Return the earliest scheduled_time from items in a group, or 23:59."""
+        times = [i['scheduled_time'] for i in g.get('items', []) if i.get('scheduled_time')]
+        return min(times) if times else datetime.time(23, 59)
 
     result_groups.sort(key=lambda g: (
         URGENCY_ORDER.get(g['urgency'], 9),
-        g['all_complete'],  # Completed groups after pending within same phase
+        g['all_complete'],
+        _group_earliest_time(g),
         not g['is_foundational'],
-        _window_rank.get(g['group_id'], 99),
         g['title'],
     ))
 

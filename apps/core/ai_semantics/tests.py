@@ -116,7 +116,7 @@ class SemanticParserTest(TestCase):
 
         result = parse("I took my medicine this morning")
         self.assertIsNotNone(result.primary_intent)
-        self.assertEqual(result.primary_intent.intent_type, "take_medicine")
+        self.assertEqual(result.primary_intent.intent_type, "take_medication")
 
     def test_parse_fasting_start(self):
         from apps.core.ai_semantics.semantic_parser import parse

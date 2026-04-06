@@ -424,8 +424,8 @@ HEALTH LOGGING:
 - Glucose: Extract value and unit (default 'mg/dL' if not specified)
 - Blood oxygen: Extract SpO2 percentage value
 - Food: Extract food name and quantity (default 1)
-- Medicine: Extract medicine name and optional dose label
-- Email medicine list: Extract recipient email address; default to user's own email if not specified
+- Medication: Extract medication name and optional dose label
+- Email intake list: Extract recipient email address; default to user's own email if not specified
 - Fasting: Determine start or end intent, and fasting type if starting
 
 FAITH ACTIONS:
@@ -471,21 +471,21 @@ HEALTH:
 - "oxygen is 98%" → log_blood_oxygen(spo2=98)
 - "I ate a banana" → log_food(food_name="banana", quantity=1)
 - "I had eggs and toast for breakfast" → log_food(food_name="eggs and toast", quantity=1, meal_type="breakfast")
-- "took my metformin" → take_medicine(medicine_name="metformin")
-- "I took my 8am meds at 10am" → take_medicine(medicine_name="8am meds")
+- "took my metformin" → take_medication(medicine_name="metformin")
+- "I took my 8am meds at 10am" → take_medication(medicine_name="8am meds")
 - "took my creatine" → take_supplement(supplement_name="creatine")
 - "I took my vitamin D" → take_supplement(supplement_name="vitamin D")
 - "took my fish oil" → take_supplement(supplement_name="fish oil")
-- "took my evening meds" → take_medicines_by_time(time_of_day="evening")
-- "mark morning medicines taken" → take_medicines_by_time(time_of_day="morning")
-- "took all my nightly pills" → take_medicines_by_time(time_of_day="nightly")
-- "took my morning supplements" → take_medicines_by_time(time_of_day="morning")
-- "I took my two evening medicines, mark them took at scheduled time" → take_medicines_by_time(time_of_day="evening", use_scheduled_time=true)
-- "email me my list of medicines" → email_medicine_list()
-- "send my medicine list to dannyjenkins71@gmail.com" → email_medicine_list(recipient_email="dannyjenkins71@gmail.com")
-- "email my medications to my doctor at doc@example.com" → email_medicine_list(recipient_email="doc@example.com")
-- "I need a list of my medicines emailed to me" → email_medicine_list()
-- "send me my medication list" → email_medicine_list()
+- "took my evening meds" → take_intake_by_time(time_of_day="evening")
+- "mark morning medicines taken" → take_intake_by_time(time_of_day="morning")
+- "took all my nightly pills" → take_intake_by_time(time_of_day="nightly")
+- "took my morning supplements" → take_intake_by_time(time_of_day="morning")
+- "I took my two evening medicines, mark them took at scheduled time" → take_intake_by_time(time_of_day="evening", use_scheduled_time=true)
+- "email me my list of medicines" → email_intake_list()
+- "send my medicine list to dannyjenkins71@gmail.com" → email_intake_list(recipient_email="dannyjenkins71@gmail.com")
+- "email my medications to my doctor at doc@example.com" → email_intake_list(recipient_email="doc@example.com")
+- "I need a list of my medicines emailed to me" → email_intake_list()
+- "send me my medication list" → email_intake_list()
 - "starting a fast" → start_fast(fasting_type="16:8")
 - "ending my fast" → end_fast()
 
@@ -771,8 +771,8 @@ DOMAIN PREFERENCE RULE: When the user's message contains ambiguous references
 (pronouns like 'those', 'them', 'the two', 'still pending', 'mark those'),
 PREFER interpreting the action in the context of the ACTIVE DOMAIN above.
 
-- On Medications page: "those two still pending" → take_medicine (NOT complete_task)
-- On Tasks page: "mark those done" → complete_task (NOT take_medicine)
+- On Medications page: "those two still pending" → take_medication (NOT complete_task)
+- On Tasks page: "mark those done" → complete_task (NOT take_medication)
 - On Fitness page: "log that" → log_workout (NOT log_food)
 
 This rule only applies when the reference is AMBIGUOUS. If the user explicitly
@@ -801,10 +801,10 @@ the Medications page), honor the explicit domain.
         if help_id:
             HELP_ID_DOMAIN_MAP = {
                 # Health / Medicine
-                'HEALTH_MEDICINE_HOME': 'medicine/health (take_medicine, take_medicines_by_time)',
-                'HEALTH_MEDICINE_DETAIL': 'medicine/health (take_medicine)',
-                'HEALTH_MEDICINE_ADD': 'medicine/health',
-                'HEALTH_MEDICINE_SCHEDULE': 'medicine/health (take_medicine, take_medicines_by_time)',
+                'HEALTH_MEDICINE_HOME': 'intake/health (take_medication, take_intake_by_time)',
+                'HEALTH_MEDICINE_DETAIL': 'intake/health (take_medication)',
+                'HEALTH_MEDICINE_ADD': 'intake/health',
+                'HEALTH_MEDICINE_SCHEDULE': 'intake/health (take_medication, take_intake_by_time)',
                 # Health / Fitness
                 'HEALTH_FITNESS': 'fitness (log_workout, log_exercise_set, log_cardio)',
                 'HEALTH_FITNESS_LOG': 'fitness (log_workout, log_exercise_set)',
@@ -847,7 +847,7 @@ the Medications page), honor the explicit domain.
                 'purpose': 'purpose (create_goal, set_intention)',
                 'life': 'life/tasks (create_task, complete_task)',
                 'dashboard': 'dashboard (general)',
-                'medical': 'medicine/health',
+                'medical': 'intake/health',
                 'finance': 'finance',
                 'brain_training': 'brain training',
                 'capture': 'capture',
@@ -860,7 +860,7 @@ the Medications page), honor the explicit domain.
         url = (page_context.get('url') or '').lower()
         if url:
             URL_PATTERNS = [
-                ('/medication', 'medicine/health (take_medicine, take_medicines_by_time)'),
+                ('/medication', 'intake/health (take_medication, take_intake_by_time)'),
                 ('/fitness', 'fitness (log_workout, log_exercise_set, log_cardio)'),
                 ('/vitals', 'health vitals'),
                 ('/food', 'health nutrition (log_food)'),
@@ -1295,19 +1295,19 @@ the Medications page), honor the explicit domain.
             quantity = parameters.get('quantity', 1)
             return f"Logging {quantity} serving(s) of {food}."
 
-        elif intent_type == 'take_medicine':
-            medicine = parameters.get('medicine_name', 'medicine')
+        elif intent_type == 'take_medication':
+            medicine = parameters.get('medicine_name', 'medication')
             return f"Marking {medicine} as taken."
 
         elif intent_type == 'take_supplement':
             supplement = parameters.get('supplement_name', 'supplement')
             return f"Logging {supplement} as taken."
 
-        elif intent_type == 'take_medicines_by_time':
+        elif intent_type == 'take_intake_by_time':
             tod = parameters.get('time_of_day', 'scheduled')
             scheduled = parameters.get('use_scheduled_time', False)
             time_note = " at their scheduled times" if scheduled else ""
-            return f"Marking all {tod} medicines as taken{time_note}."
+            return f"Marking all {tod} intakes as taken{time_note}."
 
         elif intent_type == 'start_fast':
             fasting_type = parameters.get('fasting_type', '16:8')
@@ -1446,17 +1446,17 @@ the Medications page), honor the explicit domain.
             elif intent_type == 'log_food':
                 return handler.handle_log_food(**parameters)
 
-            elif intent_type == 'take_medicine':
-                return handler.handle_take_medicine(**parameters)
+            elif intent_type == 'take_medication':
+                return handler.handle_take_medication(**parameters)
 
             elif intent_type == 'take_supplement':
                 return handler.handle_take_supplement(**parameters)
 
-            elif intent_type == 'take_medicines_by_time':
-                return handler.handle_take_medicines_by_time(**parameters)
+            elif intent_type == 'take_intake_by_time':
+                return handler.handle_take_intake_by_time(**parameters)
 
-            elif intent_type == 'email_medicine_list':
-                return handler.handle_email_medicine_list(**parameters)
+            elif intent_type == 'email_intake_list':
+                return handler.handle_email_intake_list(**parameters)
 
             elif intent_type == 'start_fast':
                 return handler.handle_start_fast(**parameters)

@@ -47,9 +47,9 @@ INTENT_PATTERNS = [
     (r"\b(?:log|record|track)\b.*\b(?:food|meal|ate|eaten|breakfast|lunch|dinner|snack)\b", "log_food", "health", 0.85),
     (r"\b(?:i (?:ate|had|eaten))\b", "log_food", "health", 0.70),
 
-    # Medicine
-    (r"\b(?:take|took|taken)\b.*\b(?:medicine|medication|meds?|pill|vitamin|supplement)\b", "take_medicine", "health", 0.85),
-    (r"\b(?:log|record)\b.*\b(?:medicine|medication|meds?)\b", "take_medicine", "health", 0.80),
+    # Medication
+    (r"\b(?:take|took|taken)\b.*\b(?:medicine|medication|meds?|pill|vitamin|supplement)\b", "take_medication", "health", 0.85),
+    (r"\b(?:log|record)\b.*\b(?:medicine|medication|meds?)\b", "take_medication", "health", 0.80),
 
     # Fasting
     (r"\b(?:start|begin)\b.*\b(?:fast|fasting)\b", "start_fast", "health", 0.85),

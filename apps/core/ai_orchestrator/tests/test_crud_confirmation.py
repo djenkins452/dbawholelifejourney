@@ -81,9 +81,9 @@ class RequiresConfirmationTests(TestCase):
         """All write intents should require confirmation."""
         write_intents = [
             'create_task', 'create_event', 'log_weight', 'mutate_task',
-            'take_medicine', 'log_prayer', 'create_goal', 'log_habit',
+            'take_medication', 'log_prayer', 'create_goal', 'log_habit',
             'log_workout', 'complete_task', 'skip_task',
-            'undo_last_action', 'email_medicine_list',
+            'undo_last_action', 'email_intake_list',
         ]
         for intent in write_intents:
             self.assertTrue(

@@ -244,16 +244,16 @@ class MedicineResolutionTests(EntityResolverTestMixin, TestCase):
             start_date=timezone.now().date(),
         )
 
-    def test_medicine_resolves_by_name(self):
-        enriched = self._make_enriched('take_medicine', {'medicine_name': 'lisinopril'})
+    def test_intake_resolves_by_name(self):
+        enriched = self._make_enriched('take_medication', {'medicine_name': 'lisinopril'})
         resolve_entities(self.user, enriched)
-        self.assertEqual(enriched.parameters['_resolved_medicine_id'], self.medicine.id)
+        self.assertEqual(enriched.parameters['_resolved_intake_id'], self.medicine.id)
         self.assertEqual(enriched.parameters['resolved_name'], 'Lisinopril')
 
-    def test_medicine_resolves_by_purpose(self):
-        enriched = self._make_enriched('take_medicine', {'medicine_name': 'blood pressure'})
+    def test_intake_resolves_by_purpose(self):
+        enriched = self._make_enriched('take_medication', {'medicine_name': 'blood pressure'})
         resolve_entities(self.user, enriched)
-        self.assertEqual(enriched.parameters['_resolved_medicine_id'], self.medicine.id)
+        self.assertEqual(enriched.parameters['_resolved_intake_id'], self.medicine.id)
 
 
 class NonResolvableIntentTests(EntityResolverTestMixin, TestCase):

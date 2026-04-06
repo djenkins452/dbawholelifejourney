@@ -259,8 +259,8 @@ INTENT_LABELS = {
     'log_sleep': 'Logging sleep',
     'log_water': 'Logging water intake',
     'log_steps': 'Logging steps',
-    'take_medicine': 'Marking medicine as taken',
-    'take_medicines_by_time': 'Marking medicines as taken',
+    'take_medication': 'Marking medication as taken',
+    'take_intake_by_time': 'Marking intakes as taken',
     'start_fast': 'Starting a fast',
     'end_fast': 'Ending your fast',
     'log_prayer': 'Adding a prayer',
@@ -274,7 +274,7 @@ INTENT_LABELS = {
     # System
     'undo_last_action': 'Undoing last action',
     'edit_last_entry': 'Editing last entry',
-    'email_medicine_list': 'Emailing medicine list',
+    'email_intake_list': 'Emailing intake list',
 }
 
 

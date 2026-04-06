@@ -36,8 +36,8 @@ INTENT_URL_MAP: Dict[str, dict] = {
     "log_water": {"url": "/health/hydration/", "label": "View hydration"},
     "log_steps": {"url": "/health/steps/", "label": "View step tracker"},
     "log_body_measurement": {"url": "/health/body-measurements/", "label": "View measurements"},
-    # Medicine
-    "take_medicine": {"url": "/medical/medicines/", "label": "View medicines"},
+    # Intake (Medications)
+    "take_medication": {"url": "/medical/medicines/", "label": "View medicines"},
     # Fasting
     "start_fast": {"url": "/health/fasting/", "label": "View fasting tracker"},
     "end_fast": {"url": "/health/fasting/", "label": "View fasting tracker"},

@@ -15,7 +15,7 @@ Each intent defines a structured action the user can take through natural langua
 Supported Intent Categories:
 - Health: log_heart_rate, log_blood_pressure, log_weight, log_glucose, log_blood_oxygen,
           log_food, log_sleep, log_water, log_steps, log_body_measurement
-- Medicine: take_medicine, take_medicines_by_time, email_medicine_list
+- Intake: take_medication, take_intake_by_time, email_intake_list
 - Fasting: start_fast, end_fast
 - Journal: create_journal_entry, add_gratitude
 - Faith: log_prayer, mark_prayer_answered, save_verse, add_faith_milestone
@@ -27,7 +27,7 @@ Supported Intent Categories:
 """
 
 from .health_intents import HEALTH_INTENT_TOOLS
-from .medicine_intents import MEDICINE_INTENT_TOOLS
+from .intake_intents import INTAKE_INTENT_TOOLS
 from .fasting_intents import FASTING_INTENT_TOOLS
 from .journal_intents import JOURNAL_INTENT_TOOLS
 from .faith_intents import FAITH_INTENT_TOOLS
@@ -45,7 +45,7 @@ from .query_intents import QUERY_INTENT_TOOLS
 # Combine all intent tools for the OpenAI API
 ALL_INTENT_TOOLS = (
     HEALTH_INTENT_TOOLS +
-    MEDICINE_INTENT_TOOLS +
+    INTAKE_INTENT_TOOLS +
     FASTING_INTENT_TOOLS +
     JOURNAL_INTENT_TOOLS +
     FAITH_INTENT_TOOLS +
@@ -74,11 +74,11 @@ INTENT_HANDLERS = {
     'log_water': 'health',
     'log_steps': 'health',
     'log_body_measurement': 'health',
-    # Medicine & Supplements
-    'take_medicine': 'medicine',
-    'take_supplement': 'medicine',
-    'take_medicines_by_time': 'medicine',
-    'email_medicine_list': 'medicine',
+    # Intake (Medications & Supplements)
+    'take_medication': 'intake',
+    'take_supplement': 'intake',
+    'take_intake_by_time': 'intake',
+    'email_intake_list': 'intake',
     # Fasting
     'start_fast': 'fasting',
     'end_fast': 'fasting',
@@ -156,7 +156,7 @@ CORE_INTENT_TOOLS = (
 
 DOMAIN_INTENT_TOOLS = {
     'health': (
-        HEALTH_INTENT_TOOLS + MEDICINE_INTENT_TOOLS +
+        HEALTH_INTENT_TOOLS + INTAKE_INTENT_TOOLS +
         FASTING_INTENT_TOOLS + FITNESS_INTENT_TOOLS +
         # Include LIFE tools for health domain because routine items
         # (workout, prayer) cross health/life boundaries. Without this,
@@ -204,7 +204,7 @@ __all__ = [
     'DOMAIN_INTENT_TOOLS',
     'get_scoped_intent_tools',
     'HEALTH_INTENT_TOOLS',
-    'MEDICINE_INTENT_TOOLS',
+    'INTAKE_INTENT_TOOLS',
     'FASTING_INTENT_TOOLS',
     'JOURNAL_INTENT_TOOLS',
     'FAITH_INTENT_TOOLS',

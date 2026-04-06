@@ -16,7 +16,7 @@ Supported entity types:
     - Tasks (complete_task, skip_task, mutate_task, read_task)
     - Goals (update_goal_progress)
     - Habits (log_habit)
-    - Intakes (take_medicine)
+    - Intakes (take_medication)
 """
 
 import logging
@@ -40,8 +40,8 @@ ENTITY_INTENT_MAP = {
     'update_goal_progress': ('goal_keyword', '_resolved_goal_id', 'resolved_name', '_resolve_goal'),
     # Habits
     'log_habit': ('habit_keyword', '_resolved_habit_id', 'resolved_name', '_resolve_habit'),
-    # Medicines
-    'take_medicine': ('medicine_name', '_resolved_medicine_id', 'resolved_name', '_resolve_medicine'),
+    # Intakes (Medications)
+    'take_medication': ('medicine_name', '_resolved_intake_id', 'resolved_name', '_resolve_intake'),
 }
 
 
@@ -205,8 +205,8 @@ def _resolve_habit(user, keyword: str) -> Optional[dict]:
     return None
 
 
-def _resolve_medicine(user, keyword: str) -> Optional[dict]:
-    """Resolve a medicine keyword to a single Intake."""
+def _resolve_intake(user, keyword: str) -> Optional[dict]:
+    """Resolve an intake keyword to a single Intake."""
     from apps.health.models import Intake
 
     base_qs = Intake.objects.filter(
@@ -233,5 +233,5 @@ _RESOLVERS = {
     '_resolve_task': _resolve_task,
     '_resolve_goal': _resolve_goal,
     '_resolve_habit': _resolve_habit,
-    '_resolve_medicine': _resolve_medicine,
+    '_resolve_intake': _resolve_intake,
 }

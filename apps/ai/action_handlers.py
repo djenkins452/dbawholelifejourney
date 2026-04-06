@@ -1829,14 +1829,14 @@ class ActionHandler:
         }
 
     # =========================================================================
-    # MEDICINE HANDLERS
+    # INTAKE HANDLERS (Medications & Supplements)
     # =========================================================================
 
     def handle_take_supplement(self, supplement_name: str, notes: str = "",
                                **kwargs) -> ActionResult:
         """
         Log that user took a supplement.
-        Same logic as handle_take_medicine but filtered to intake_type='supplement'.
+        Same logic as handle_take_medication but filtered to intake_type='supplement'.
         """
         from apps.health.models import Intake
 
@@ -1858,7 +1858,7 @@ class ActionHandler:
                 )
             elif count == 1:
                 supplement = supplements.first()
-                return self._log_medicine_taken(supplement, None, notes)
+                return self._log_intake_taken(supplement, None, notes)
             else:
                 names = [f"• {s.name} ({s.dose})" for s in supplements[:5]]
                 return ActionResult(
@@ -1877,14 +1877,14 @@ class ActionHandler:
                 error='internal_error'
             )
 
-    def handle_take_medicine(self, medicine_name: str, dose_label: str = None,
-                             notes: str = "", **kwargs) -> ActionResult:
+    def handle_take_medication(self, medicine_name: str, dose_label: str = None,
+                               notes: str = "", **kwargs) -> ActionResult:
         """
         Log that user took a medication.
         Filtered to intake_type='medication' to prevent cross-matching supplements.
 
         Args:
-            medicine_name: Name of the medicine
+            medicine_name: Name of the medication
             dose_label: Optional dose label (morning, evening, etc.)
             notes: Optional notes
         """
@@ -1920,14 +1920,14 @@ class ActionHandler:
 
             elif count == 1:
                 medicine = medicines.first()
-                return self._log_medicine_taken(medicine, dose_label, notes)
+                return self._log_intake_taken(medicine, dose_label, notes)
 
             else:
                 # Multiple matches - list them
                 names = [f"• {m.name} ({m.dose})" for m in medicines[:5]]
                 return ActionResult(
                     success=False,
-                    message=f"I found {count} medicines matching '{medicine_name}':\n" + "\n".join(names) + "\nWhich one did you take?",
+                    message=f"I found {count} medications matching '{medicine_name}':\n" + "\n".join(names) + "\nWhich one did you take?",
                     error='multiple_matches',
                     created_object={
                         'matches': [{'id': m.id, 'name': m.name, 'dose': m.dose} for m in medicines[:5]]
@@ -1942,9 +1942,9 @@ class ActionHandler:
                 error='internal_error'
             )
 
-    def _log_medicine_taken(self, medicine, dose_label: str = None,
-                            notes: str = "") -> ActionResult:
-        """Internal method to log a specific medicine as taken."""
+    def _log_intake_taken(self, medicine, dose_label: str = None,
+                           notes: str = "") -> ActionResult:
+        """Internal method to log a specific intake (medication/supplement) as taken."""
         from apps.health.models import IntakeLog
 
         now = self._get_user_now()
@@ -2026,14 +2026,14 @@ class ActionHandler:
                 'dose': medicine.dose,
                 'taken_at': log.taken_at.isoformat() if log.taken_at else None
             },
-            action_type='take_medicine',
+            action_type='take_medication',
             confirmation_detail=self._build_confirmation(
                 what=f"{medicine.name} ({medicine.dose})",
-                where="Health > Medicine",
+                where="Health > Intake",
             )
         )
 
-    def handle_take_medicines_by_time(self, time_of_day: str,
+    def handle_take_intake_by_time(self, time_of_day: str,
                                       use_scheduled_time: bool = False,
                                       notes: str = "", **kwargs) -> ActionResult:
         """
@@ -2141,10 +2141,10 @@ class ActionHandler:
                     'time_of_day': time_of_day,
                     'medicines': taken_names,
                 },
-                action_type='take_medicines_by_time',
+                action_type='take_intake_by_time',
                 confirmation_detail=self._build_confirmation(
-                    what=f"{taken_count} {time_display.lower()} medicines",
-                    where="Health > Medicine",
+                    what=f"{taken_count} {time_display.lower()} intakes",
+                    where="Health > Intake",
                 )
             )
 
@@ -2156,7 +2156,7 @@ class ActionHandler:
                 error='internal_error'
             )
 
-    def handle_email_medicine_list(self, recipient_email: str = "",
+    def handle_email_intake_list(self, recipient_email: str = "",
                                     include_adherence: bool = True,
                                     include_inactive: bool = False,
                                     **kwargs) -> ActionResult:
@@ -2297,10 +2297,10 @@ class ActionHandler:
                     f"✓ Emailed your medicine list ({med_count} medicine{'s' if med_count != 1 else ''}) "
                     f"to {email_addr}.{adherence_note}"
                 ),
-                action_type='email_medicine_list',
+                action_type='email_intake_list',
                 confirmation_detail=self._build_confirmation(
-                    what=f"{med_count} medicines emailed",
-                    where="Health > Medicine",
+                    what=f"{med_count} intakes emailed",
+                    where="Health > Intake",
                 )
             )
 

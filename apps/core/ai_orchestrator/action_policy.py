@@ -141,12 +141,12 @@ _r('log_water', ActionCategory.LOG, RiskLevel.LOW, AuthorityLevel.CONFIRM,
    label='Log water intake')
 _r('log_steps', ActionCategory.LOG, RiskLevel.LOW, AuthorityLevel.CONFIRM,
    label='Log steps')
-_r('take_medicine', ActionCategory.LOG, RiskLevel.LOW, AuthorityLevel.CONFIRM,
-   label='Mark medicine taken')
+_r('take_medication', ActionCategory.LOG, RiskLevel.LOW, AuthorityLevel.CONFIRM,
+   label='Mark medication taken')
 _r('take_supplement', ActionCategory.LOG, RiskLevel.LOW, AuthorityLevel.CONFIRM,
    label='Mark supplement taken')
-_r('take_medicines_by_time', ActionCategory.LOG, RiskLevel.LOW, AuthorityLevel.CONFIRM,
-   label='Mark medicines taken')
+_r('take_intake_by_time', ActionCategory.LOG, RiskLevel.LOW, AuthorityLevel.CONFIRM,
+   label='Mark intakes taken')
 _r('start_fast', ActionCategory.LOG, RiskLevel.LOW, AuthorityLevel.CONFIRM,
    label='Start fast')
 _r('end_fast', ActionCategory.LOG, RiskLevel.LOW, AuthorityLevel.CONFIRM,
@@ -214,8 +214,8 @@ _r('reschedule_routine_item', ActionCategory.MUTATE, RiskLevel.MEDIUM, Authority
 
 _r('set_cos_name', ActionCategory.MUTATE, RiskLevel.MEDIUM, AuthorityLevel.CONFIRM,
    label='Change assistant name')
-_r('email_medicine_list', ActionCategory.MUTATE, RiskLevel.MEDIUM, AuthorityLevel.CONFIRM,
-   label='Email medicine list')
+_r('email_intake_list', ActionCategory.MUTATE, RiskLevel.MEDIUM, AuthorityLevel.CONFIRM,
+   label='Email intake list')
 
 # ── System (high risk, confirm) ───────────────────────────────────────
 

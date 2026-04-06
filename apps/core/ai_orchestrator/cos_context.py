@@ -5595,7 +5595,7 @@ def format_cos_system_injection(context, user_message=None):
                     "DO NOT describe 'behavioral signals', 'momentum', or 'trajectory'. "
                     "DO NOT say things like 'sets a solid tone' or 'keep the momentum'. "
                     "DO NOT infer or fabricate completion status — use ONLY the locked facts. "
-                    "End with exactly ONE clear next action: 'Start with: [item].' "
+                    "End with exactly ONE clear next action from the NEXT ACTION in locked facts. "
                     "After this message, switch to a lighter conversational mode."
                 ),
                 CoSSituationState.MODE_MIDDAY_CHECKPOINT: (

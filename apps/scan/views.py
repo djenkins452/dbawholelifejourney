@@ -754,16 +754,16 @@ class ProductLookupView(LoginRequiredMixin, View):
         return prefs.ai_enabled and prefs.ai_data_consent
 
 
-class MedicineLookupView(LoginRequiredMixin, View):
+class IntakeLookupView(LoginRequiredMixin, View):
     """
-    API endpoint to look up a medicine barcode and return medicine information.
+    API endpoint to look up an intake product barcode and return product information.
 
     Accepts POST with JSON body containing barcode string.
-    Returns JSON with medicine information for medicine form pre-fill.
+    Returns JSON with product information for intake form pre-fill.
     """
 
     def post(self, request):
-        """Look up a medicine barcode."""
+        """Look up an intake product barcode."""
         from .services import medicine_lookup_service
         from urllib.parse import quote
 
@@ -794,9 +794,9 @@ class MedicineLookupView(LoginRequiredMixin, View):
             use_ai=has_ai_consent
         )
 
-        # Build URL for medicine creation if found
+        # Build URL for intake creation if found
         if result.found:
-            # Build query params for medicine form
+            # Build query params for intake form
             url_params = []
             if result.medicine_name:
                 url_params.append(f'name={quote(result.medicine_name)}')
@@ -811,21 +811,21 @@ class MedicineLookupView(LoginRequiredMixin, View):
             url_params.append('source=barcode_scan')
             url_params.append(f'barcode={quote(barcode)}')
 
-            # Build the medicine creation URL
-            medicine_url = reverse('health:intake_create')
+            # Build the intake creation URL
+            intake_url = reverse('health:intake_create')
             if url_params:
-                medicine_url += '?' + '&'.join(url_params)
+                intake_url += '?' + '&'.join(url_params)
 
             response_data = result.to_dict()
             response_data['request_id'] = request_id
-            response_data['medicine_url'] = medicine_url
+            response_data['intake_url'] = intake_url
 
-            # Log the medicine scan
+            # Log the intake scan
             ScanLog.objects.create(
                 user=user,
                 request_id=request_id,
                 status=ScanLog.STATUS_SUCCESS,
-                category='medicine',
+                category='intake',
                 confidence=result.confidence,
                 items_json=[{
                     'label': result.medicine_name,
@@ -842,7 +842,7 @@ class MedicineLookupView(LoginRequiredMixin, View):
                 user=user,
                 request_id=request_id,
                 status=ScanLog.STATUS_SUCCESS,
-                category='medicine',
+                category='intake',
                 confidence=0.0,
                 items_json=[{
                     'barcode': barcode,
@@ -854,7 +854,7 @@ class MedicineLookupView(LoginRequiredMixin, View):
                 'found': False,
                 'barcode': barcode,
                 'request_id': request_id,
-                'message': 'Medicine not found. You can add it manually.'
+                'message': 'Product not found. You can add it manually.'
             })
 
     def _check_ai_consent(self, user) -> bool:

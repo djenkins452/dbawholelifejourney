@@ -320,15 +320,15 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         if sleep_with_mindful.exists():
             context["has_mindful_minutes_data"] = True
 
-        # Medicine summary
+        # Intake summary
         today = get_user_today(user)
-        active_medicines = Intake.objects.filter(
+        active_intakes = Intake.objects.filter(
             user=user,
             intake_status=Intake.STATUS_ACTIVE,
         )
-        context["medicine_count"] = active_medicines.count()
+        context["intake_count"] = active_intakes.count()
 
-        if active_medicines.exists():
+        if active_intakes.exists():
             # Count today's scheduled doses + group by time_of_day window
             # Single pass: computes totals AND window breakdown together
             from collections import OrderedDict
@@ -348,8 +348,8 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             now_local = now.astimezone(user_tz)
             now_local_naive = now_local.replace(tzinfo=None)
 
-            for medicine in active_medicines.filter(is_prn=False):
-                for schedule in medicine.schedules.filter(is_active=True):
+            for intake_item in active_intakes.filter(is_prn=False):
+                for schedule in intake_item.schedules.filter(is_active=True):
                     if schedule.applies_to_day(today.weekday()):
                         total_scheduled += 1
 
@@ -371,7 +371,7 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                                 windows[tod]["latest_time"] = schedule.scheduled_time
 
                         log = IntakeLog.objects.filter(
-                            intake=medicine,
+                            intake=intake_item,
                             schedule=schedule,
                             scheduled_date=today,
                         ).first()
@@ -391,14 +391,14 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                             scheduled_dt = dt_cls.combine(
                                 today, schedule.scheduled_time
                             )
-                            grace_minutes = medicine.grace_period_minutes
+                            grace_minutes = intake_item.grace_period_minutes
                             deadline = scheduled_dt + td(minutes=grace_minutes)
                             if now_local_naive > deadline:
                                 overdue_count += 1
 
-            context["medicine_scheduled_today"] = total_scheduled
-            context["medicine_taken_today"] = taken_count
-            context["medicine_overdue"] = overdue_count
+            context["intake_scheduled_today"] = total_scheduled
+            context["intake_taken_today"] = taken_count
+            context["intake_overdue"] = overdue_count
 
             # Build window status list
             for w in windows.values():
@@ -413,11 +413,11 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                         w["status"] = "missed"
                     else:
                         w["status"] = "pending"
-            context["medicine_windows"] = list(windows.values())
+            context["intake_windows"] = list(windows.values())
 
             # Check for low supply
-            low_supply = [m for m in active_medicines if m.needs_refill]
-            context["medicine_low_supply"] = len(low_supply)
+            low_supply = [m for m in active_intakes if m.needs_refill]
+            context["intake_low_supply"] = len(low_supply)
 
         # Nutrition summary for today
         from django.db.models import Sum
@@ -615,11 +615,11 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
         # Card emphasis flags — signals control emphasis, NOT visibility
         card_emphasis = {}
-        if context.get("medicine_overdue", 0) > 0:
-            card_emphasis["medicine"] = "high"
-        elif context.get("medicine_windows"):
-            if any(w["status"] == "missed" for w in context["medicine_windows"]):
-                card_emphasis["medicine"] = "medium"
+        if context.get("intake_overdue", 0) > 0:
+            card_emphasis["intake"] = "high"
+        elif context.get("intake_windows"):
+            if any(w["status"] == "missed" for w in context["intake_windows"]):
+                card_emphasis["intake"] = "medium"
 
         if (
             not context.get("workout_today_completed")
@@ -3157,13 +3157,13 @@ def get_workout_state_ajax(request, workout_id):
 
 
 # =============================================================================
-# Medicine Views
+# Intake Views
 # =============================================================================
 
 
 class IntakeHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     """
-    Medicine module home - daily tracker and overview.
+    Intake module home - daily tracker and overview.
     """
 
     template_name = "health/intake/home.html"
@@ -3177,48 +3177,48 @@ class IntakeHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         today = get_user_today(user)
         now = timezone.now()
 
-        # Get active medicines
-        active_medicines = Intake.objects.filter(
+        # Get active intakes
+        active_intakes = Intake.objects.filter(
             user=user,
             intake_status=Intake.STATUS_ACTIVE,
         )
-        context["active_medicines"] = active_medicines
-        context["active_count"] = active_medicines.count()
+        context["active_intakes"] = active_intakes
+        context["active_count"] = active_intakes.count()
 
         # Get today's scheduled doses — batch-load logs to avoid N+1 queries.
-        # Previously queried MedicineLog per schedule; now 1 query for all logs.
-        scheduled_medicines = list(
-            active_medicines.filter(is_prn=False).prefetch_related(
+        # Previously queried IntakeLog per schedule; now 1 query for all logs.
+        scheduled_intakes = list(
+            active_intakes.filter(is_prn=False).prefetch_related(
                 Prefetch(
                     'schedules',
                     queryset=IntakeSchedule.objects.filter(is_active=True),
                 )
             )
         )
-        # Batch-load all today's logs for this user's medicines in one query
+        # Batch-load all today's logs for this user's intakes in one query
         today_logs = {
             (log.intake_id, log.schedule_id): log
             for log in IntakeLog.objects.filter(
                 user=user,
-                intake__in=scheduled_medicines,
+                intake__in=scheduled_intakes,
                 scheduled_date=today,
             ).select_related('intake', 'schedule')
         }
 
         today_schedules = []
-        for medicine in scheduled_medicines:
-            for schedule in medicine.schedules.all():
+        for intake_item in scheduled_intakes:
+            for schedule in intake_item.schedules.all():
                 if schedule.applies_to_day(today.weekday()):
-                    log = today_logs.get((medicine.pk, schedule.pk))
+                    log = today_logs.get((intake_item.pk, schedule.pk))
                     today_schedules.append({
-                        "medicine": medicine,
+                        "intake": intake_item,
                         "schedule": schedule,
                         "log": log,
                         "is_taken": log and log.log_status in [
                             IntakeLog.STATUS_TAKEN,
                             IntakeLog.STATUS_LATE,
                         ],
-                        "is_overdue": self._is_overdue(schedule, log, now, today, medicine),
+                        "is_overdue": self._is_overdue(schedule, log, now, today, intake_item),
                     })
 
         # Sort by time_of_day order, then by scheduled_time
@@ -3266,14 +3266,14 @@ class IntakeHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         context["overdue_doses"] = overdue
         context["has_overdue"] = len(overdue) > 0
 
-        # Check for low supply medicines (needs refill but not yet requested)
-        low_supply = [m for m in active_medicines if m.needs_refill]
-        context["low_supply_medicines"] = low_supply
+        # Check for low supply intakes (needs refill but not yet requested)
+        low_supply = [m for m in active_intakes if m.needs_refill]
+        context["low_supply_intakes"] = low_supply
         context["has_low_supply"] = len(low_supply) > 0
 
-        # Check for medicines with refill already requested
-        refill_requested = [m for m in active_medicines if m.refill_requested]
-        context["refill_requested_medicines"] = refill_requested
+        # Check for intakes with refill already requested
+        refill_requested = [m for m in active_intakes if m.refill_requested]
+        context["refill_requested_intakes"] = refill_requested
         context["has_refill_requested"] = len(refill_requested) > 0
 
         # PRN medicines taken today
@@ -3294,7 +3294,7 @@ class IntakeHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
         return context
 
-    def _is_overdue(self, schedule, log, now, today, medicine):
+    def _is_overdue(self, schedule, log, now, today, intake_item):
         """Check if a scheduled dose is overdue."""
         if log and log.log_status in [
             IntakeLog.STATUS_TAKEN,
@@ -3318,7 +3318,7 @@ class IntakeHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
         # Create local datetime for the scheduled time
         scheduled_dt = datetime.combine(today, schedule.scheduled_time)
-        grace_minutes = medicine.grace_period_minutes
+        grace_minutes = intake_item.grace_period_minutes
         deadline = scheduled_dt + timedelta(minutes=grace_minutes)
 
         # Compare local times (both naive, both in user's local time)
@@ -3328,12 +3328,12 @@ class IntakeHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
 class IntakeListView(LoginRequiredMixin, ListView):
     """
-    List all medicines.
+    List all intakes.
     """
 
     model = Intake
     template_name = "health/intake/intake_list.html"
-    context_object_name = "medicines"
+    context_object_name = "intakes"
     paginate_by = 20
 
     def get_queryset(self):
@@ -3356,14 +3356,14 @@ class IntakeListView(LoginRequiredMixin, ListView):
         context["current_status"] = self.request.GET.get("status", "active")
 
         # Counts for each status
-        all_medicines = Intake.objects.filter(user=self.request.user)
-        context["active_count"] = all_medicines.filter(
+        all_intakes = Intake.objects.filter(user=self.request.user)
+        context["active_count"] = all_intakes.filter(
             intake_status=Intake.STATUS_ACTIVE
         ).count()
-        context["paused_count"] = all_medicines.filter(
+        context["paused_count"] = all_intakes.filter(
             intake_status=Intake.STATUS_PAUSED
         ).count()
-        context["completed_count"] = all_medicines.filter(
+        context["completed_count"] = all_intakes.filter(
             intake_status=Intake.STATUS_COMPLETED
         ).count()
 
@@ -3372,23 +3372,23 @@ class IntakeListView(LoginRequiredMixin, ListView):
 
 class IntakeDetailView(LoginRequiredMixin, TemplateView):
     """
-    View medicine details and history.
+    View intake details and history.
     """
 
     template_name = "health/intake/intake_detail.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        medicine = get_object_or_404(
+        intake_obj = get_object_or_404(
             Intake.objects.filter(user=self.request.user),
             pk=self.kwargs["pk"],
         )
-        context["medicine"] = medicine
-        context["schedules"] = medicine.schedules.all()
+        context["intake"] = intake_obj
+        context["schedules"] = intake_obj.schedules.all()
 
         # Recent logs
         context["recent_logs"] = IntakeLog.objects.filter(
-            intake=medicine
+            intake=intake_obj
         ).order_by("-scheduled_date", "-scheduled_time")[:30]
 
         # Adherence stats for last 7 days (schedule-based, not logs-only)
@@ -3396,7 +3396,7 @@ class IntakeDetailView(LoginRequiredMixin, TemplateView):
         week_ago = today - timedelta(days=7)
         from apps.health.medicine_utils import calculate_single_medicine_adherence
         adh_result = calculate_single_medicine_adherence(
-            self.request.user, medicine, week_ago, today
+            self.request.user, intake_obj, week_ago, today
         )
         context["week_taken"] = adh_result["taken_doses"]
         context["week_total"] = adh_result["expected_doses"]
@@ -3407,7 +3407,7 @@ class IntakeDetailView(LoginRequiredMixin, TemplateView):
 
 class IntakeCreateView(LoginRequiredMixin, CreateView):
     """
-    Add a new medicine.
+    Add a new intake.
     """
 
     model = Intake
@@ -3476,7 +3476,7 @@ class IntakeCreateView(LoginRequiredMixin, CreateView):
             from apps.core.models import UserOwnedModel
             form.instance.created_via = UserOwnedModel.CREATED_VIA_AI_CAMERA  # Reuse same constant
 
-        messages.success(self.request, f"Added {form.instance.name} to your medicines.")
+        messages.success(self.request, f"Added {form.instance.name} to your intakes.")
         return super().form_valid(form)
 
     def get_success_url(self):
@@ -3485,7 +3485,7 @@ class IntakeCreateView(LoginRequiredMixin, CreateView):
 
 class IntakeUpdateView(LoginRequiredMixin, UpdateView):
     """
-    Edit a medicine.
+    Edit an intake.
     """
 
     model = Intake
@@ -3510,13 +3510,13 @@ class IntakeUpdateView(LoginRequiredMixin, UpdateView):
 
 class IntakeDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
     """
-    Delete a medicine.
+    Delete an intake.
     Supports undo via toast notification for AJAX requests.
     """
 
     model = Intake
     item_type = 'health.intake'
-    item_name = 'medicine'
+    item_name = 'intake'
     success_url = 'health:intake_list'
 
     def get_object(self):
@@ -3528,83 +3528,83 @@ class IntakeDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
 
 class IntakePauseView(LoginRequiredMixin, View):
     """
-    Pause a medicine temporarily.
+    Pause an intake temporarily.
     """
 
     def post(self, request, pk):
-        medicine = get_object_or_404(
+        intake_obj = get_object_or_404(
             Intake.objects.filter(user=request.user),
             pk=pk,
         )
         reason = request.POST.get("reason", "")
-        medicine.pause(reason)
+        intake_obj.pause(reason)
         messages.success(
             request,
-            f"Paused {medicine.name}. You can resume it anytime."
+            f"Paused {intake_obj.name}. You can resume it anytime."
         )
         return redirect("health:intake_detail", pk=pk)
 
 
 class IntakeResumeView(LoginRequiredMixin, View):
     """
-    Resume a paused medicine.
+    Resume a paused intake.
     """
 
     def post(self, request, pk):
-        medicine = get_object_or_404(
+        intake_obj = get_object_or_404(
             Intake.objects.filter(user=request.user),
             pk=pk,
         )
-        medicine.resume()
-        messages.success(request, f"Resumed {medicine.name}.")
+        intake_obj.resume()
+        messages.success(request, f"Resumed {intake_obj.name}.")
         return redirect("health:intake_detail", pk=pk)
 
 
 class IntakeCompleteView(LoginRequiredMixin, View):
     """
-    Mark a medicine course as completed.
+    Mark an intake course as completed.
     """
 
     def post(self, request, pk):
-        medicine = get_object_or_404(
+        intake_obj = get_object_or_404(
             Intake.objects.filter(user=request.user),
             pk=pk,
         )
-        medicine.complete()
+        intake_obj.complete()
         messages.success(
             request,
-            f"Marked {medicine.name} as completed. Great job!"
+            f"Marked {intake_obj.name} as completed. Great job!"
         )
         return redirect("health:intake_list")
 
 
 class IntakeSchedulesView(LoginRequiredMixin, TemplateView):
     """
-    Manage schedules for a medicine.
+    Manage schedules for an intake.
     """
 
     template_name = "health/intake/intake_schedules.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        medicine = get_object_or_404(
+        intake_obj = get_object_or_404(
             Intake.objects.filter(user=self.request.user),
             pk=self.kwargs["pk"],
         )
-        context["medicine"] = medicine
-        context["schedules"] = medicine.schedules.all()
+        context["intake"] = intake_obj
+        context["schedules"] = intake_obj.schedules.all()
         context["form"] = MedicineScheduleForm()
         return context
 
     def post(self, request, pk):
-        medicine = get_object_or_404(
+        intake_obj = get_object_or_404(
             Intake.objects.filter(user=request.user),
             pk=pk,
         )
         form = MedicineScheduleForm(request.POST)
         if form.is_valid():
             schedule = form.save(commit=False)
-            schedule.intake = medicine
+            schedule.intake = intake_obj
             schedule.save()
             messages.success(request, "Added schedule.")
         else:
@@ -3614,16 +3614,16 @@ class IntakeSchedulesView(LoginRequiredMixin, TemplateView):
 
 class IntakeScheduleDeleteView(LoginRequiredMixin, View):
     """
-    Delete a medicine schedule.
+    Delete an intake schedule.
     """
 
     def post(self, request, medicine_pk, schedule_pk):
-        medicine = get_object_or_404(
+        intake_obj = get_object_or_404(
             Intake.objects.filter(user=request.user),
             pk=medicine_pk,
         )
         schedule = get_object_or_404(
-            medicine.schedules.all(),
+            intake_obj.schedules.all(),
             pk=schedule_pk,
         )
         schedule.delete()
@@ -3637,12 +3637,12 @@ class IntakeScheduleActivateView(LoginRequiredMixin, View):
     """
 
     def post(self, request, medicine_pk, schedule_pk):
-        medicine = get_object_or_404(
+        intake_obj = get_object_or_404(
             Intake.objects.filter(user=request.user),
             pk=medicine_pk,
         )
         schedule = get_object_or_404(
-            medicine.schedules.all(),
+            intake_obj.schedules.all(),
             pk=schedule_pk,
         )
         schedule.is_active = True
@@ -3660,12 +3660,12 @@ class IntakeTakeView(LoginRequiredMixin, View):
         import time as _time
         _t0 = _time.perf_counter()
 
-        medicine = get_object_or_404(
+        intake_obj = get_object_or_404(
             Intake.objects.filter(user=request.user),
             pk=pk,
         )
         schedule = get_object_or_404(
-            medicine.schedules.all(),
+            intake_obj.schedules.all(),
             pk=schedule_pk,
         )
         today = get_user_today(request.user)
@@ -3673,7 +3673,7 @@ class IntakeTakeView(LoginRequiredMixin, View):
         # Get or create the log entry
         log, created = IntakeLog.objects.get_or_create(
             user=request.user,
-            intake=medicine,
+            intake=intake_obj,
             schedule=schedule,
             scheduled_date=today,
             defaults={
@@ -3706,7 +3706,7 @@ class IntakeTakeView(LoginRequiredMixin, View):
             from apps.core.tasks import deferred_routine_auto_complete
             deferred_routine_auto_complete.delay(
                 request.user.id, ["Medicine", "Medication"],
-                source="medicine_take_view",
+                source="intake_take_view",
             )
         except ImportError:
             # Celery not available — sync fallback
@@ -3727,19 +3727,19 @@ class IntakeTakeView(LoginRequiredMixin, View):
         _t3 = _time.perf_counter()
 
         # Decrease supply if tracked
-        if medicine.current_supply is not None and medicine.current_supply > 0:
-            medicine.current_supply -= 1
-            medicine.save(update_fields=["current_supply", "updated_at"])
+        if intake_obj.current_supply is not None and intake_obj.current_supply > 0:
+            intake_obj.current_supply -= 1
+            intake_obj.save(update_fields=["current_supply", "updated_at"])
 
-        messages.success(request, f"Marked {medicine.name} as taken.")
+        messages.success(request, f"Marked {intake_obj.name} as taken.")
         safe_emit_event(EventTypes.HEALTH_MEDICATION_TAKEN, request.user, {
-            "log_id": log.id, "medicine_name": medicine.name, "source": "web_view",
+            "log_id": log.id, "medicine_name": intake_obj.name, "source": "web_view",
         })
         _t4 = _time.perf_counter()
 
         # === PERF TRACE (temporary — remove after diagnosis) ===
         logger.warning(
-            "PERF_TRACE MedicineTakeView: total=%dms | "
+            "PERF_TRACE IntakeTakeView: total=%dms | "
             "get_or_create=%dms | mark_taken=%dms | auto_complete=%dms | rest=%dms",
             round((_t4-_t0)*1000), round((_t1-_t0)*1000),
             round((_t2-_t1)*1000), round((_t3-_t2)*1000),
@@ -3757,12 +3757,12 @@ class IntakeSkipView(LoginRequiredMixin, View):
     """
 
     def post(self, request, pk, schedule_pk):
-        medicine = get_object_or_404(
+        intake_obj = get_object_or_404(
             Intake.objects.filter(user=request.user),
             pk=pk,
         )
         schedule = get_object_or_404(
-            medicine.schedules.all(),
+            intake_obj.schedules.all(),
             pk=schedule_pk,
         )
         today = get_user_today(request.user)
@@ -3771,7 +3771,7 @@ class IntakeSkipView(LoginRequiredMixin, View):
         # Get or create the log entry
         log, created = IntakeLog.objects.get_or_create(
             user=request.user,
-            intake=medicine,
+            intake=intake_obj,
             schedule=schedule,
             scheduled_date=today,
             defaults={
@@ -3783,7 +3783,7 @@ class IntakeSkipView(LoginRequiredMixin, View):
         # Mark as skipped
         log.mark_skipped(reason)
 
-        messages.info(request, f"Skipped {medicine.name} for today.")
+        messages.info(request, f"Skipped {intake_obj.name} for today.")
         next_url = request.POST.get("next", reverse_lazy("health:intake_home"))
         return redirect(next_url)
 
@@ -3794,19 +3794,19 @@ class IntakeUndoView(LoginRequiredMixin, View):
     """
 
     def post(self, request, pk, schedule_pk):
-        medicine = get_object_or_404(
+        intake_obj = get_object_or_404(
             Intake.objects.filter(user=request.user),
             pk=pk,
         )
         schedule = get_object_or_404(
-            medicine.schedules.all(),
+            intake_obj.schedules.all(),
             pk=schedule_pk,
         )
         today = get_user_today(request.user)
 
         log = get_object_or_404(
             IntakeLog.objects.filter(
-                intake=medicine,
+                intake=intake_obj,
                 schedule=schedule,
                 scheduled_date=today,
             )
@@ -3814,14 +3814,14 @@ class IntakeUndoView(LoginRequiredMixin, View):
 
         # If it was taken, restore supply
         if log.log_status in [IntakeLog.STATUS_TAKEN, IntakeLog.STATUS_LATE]:
-            if medicine.current_supply is not None:
-                medicine.current_supply += 1
-                medicine.save(update_fields=["current_supply", "updated_at"])
+            if intake_obj.current_supply is not None:
+                intake_obj.current_supply += 1
+                intake_obj.save(update_fields=["current_supply", "updated_at"])
 
         # Delete the log entry to reset
         log.delete()
 
-        messages.info(request, f"Undid {medicine.name} for today.")
+        messages.info(request, f"Undid {intake_obj.name} for today.")
         next_url = request.POST.get("next", reverse_lazy("health:intake_home"))
         return redirect(next_url)
 
@@ -3838,8 +3838,8 @@ class IntakeBulkTakeView(LoginRequiredMixin, View):
         user = request.user
         today = get_user_today(user)
 
-        # Get all active medicines with schedules in this time_of_day
-        active_medicines = Intake.objects.filter(
+        # Get all active intakes with schedules in this time_of_day
+        active_intakes = Intake.objects.filter(
             user=user,
             intake_status=Intake.STATUS_ACTIVE,
             is_prn=False,
@@ -3851,8 +3851,8 @@ class IntakeBulkTakeView(LoginRequiredMixin, View):
         # Check if user wants to use scheduled time or current time
         use_scheduled_time = request.POST.get("taken_at_scheduled") == "1"
 
-        for medicine in active_medicines:
-            for schedule in medicine.schedules.filter(
+        for intake_item in active_intakes:
+            for schedule in intake_item.schedules.filter(
                 is_active=True,
                 time_of_day=time_of_day,
             ):
@@ -3861,7 +3861,7 @@ class IntakeBulkTakeView(LoginRequiredMixin, View):
 
                 # Check if already logged
                 existing_log = IntakeLog.objects.filter(
-                    intake=medicine,
+                    intake=intake_item,
                     schedule=schedule,
                     scheduled_date=today,
                 ).first()
@@ -3876,7 +3876,7 @@ class IntakeBulkTakeView(LoginRequiredMixin, View):
                 # Create or update log
                 log, created = IntakeLog.objects.get_or_create(
                     user=user,
-                    intake=medicine,
+                    intake=intake_item,
                     schedule=schedule,
                     scheduled_date=today,
                     defaults={
@@ -3897,9 +3897,9 @@ class IntakeBulkTakeView(LoginRequiredMixin, View):
                 taken_count += 1
 
                 # Decrease supply if tracked
-                if medicine.current_supply is not None and medicine.current_supply > 0:
-                    medicine.current_supply -= 1
-                    medicine.save(update_fields=["current_supply", "updated_at"])
+                if intake_item.current_supply is not None and intake_item.current_supply > 0:
+                    intake_item.current_supply -= 1
+                    intake_item.save(update_fields=["current_supply", "updated_at"])
 
         time_display = dict(IntakeSchedule.TIME_OF_DAY_CHOICES).get(time_of_day, time_of_day)
         messages.success(request, f"Marked {taken_count} {time_display} dose{'s' if taken_count != 1 else ''} as taken.")
@@ -3921,8 +3921,8 @@ class IntakeBulkSkipView(LoginRequiredMixin, View):
         user = request.user
         today = get_user_today(user)
 
-        # Get all active medicines with schedules in this time_of_day
-        active_medicines = Intake.objects.filter(
+        # Get all active intakes with schedules in this time_of_day
+        active_intakes = Intake.objects.filter(
             user=user,
             intake_status=Intake.STATUS_ACTIVE,
             is_prn=False,
@@ -3931,8 +3931,8 @@ class IntakeBulkSkipView(LoginRequiredMixin, View):
         skipped_count = 0
         reason = request.POST.get("reason", "")
 
-        for medicine in active_medicines:
-            for schedule in medicine.schedules.filter(
+        for intake_item in active_intakes:
+            for schedule in intake_item.schedules.filter(
                 is_active=True,
                 time_of_day=time_of_day,
             ):
@@ -3941,7 +3941,7 @@ class IntakeBulkSkipView(LoginRequiredMixin, View):
 
                 # Check if already logged
                 existing_log = IntakeLog.objects.filter(
-                    intake=medicine,
+                    intake=intake_item,
                     schedule=schedule,
                     scheduled_date=today,
                 ).first()
@@ -3956,7 +3956,7 @@ class IntakeBulkSkipView(LoginRequiredMixin, View):
                 # Create or update log
                 log, created = IntakeLog.objects.get_or_create(
                     user=user,
-                    intake=medicine,
+                    intake=intake_item,
                     schedule=schedule,
                     scheduled_date=today,
                     defaults={
@@ -3990,13 +3990,13 @@ class PRNLogView(LoginRequiredMixin, TemplateView):
     def post(self, request, *args, **kwargs):
         form = PRNDoseForm(request.POST, user=request.user)
         if form.is_valid():
-            medicine = form.cleaned_data["medicine"]
+            intake_obj = form.cleaned_data["medicine"]
             today = get_user_today(request.user)
 
             # Create the log
             log = IntakeLog.objects.create(
                 user=request.user,
-                intake=medicine,
+                intake=intake_obj,
                 scheduled_date=today,
                 taken_at=timezone.now(),
                 log_status=IntakeLog.STATUS_TAKEN,
@@ -4006,13 +4006,13 @@ class PRNLogView(LoginRequiredMixin, TemplateView):
             )
 
             # Decrease supply if tracked
-            if medicine.current_supply is not None and medicine.current_supply > 0:
-                medicine.current_supply -= 1
-                medicine.save(update_fields=["current_supply", "updated_at"])
+            if intake_obj.current_supply is not None and intake_obj.current_supply > 0:
+                intake_obj.current_supply -= 1
+                intake_obj.save(update_fields=["current_supply", "updated_at"])
 
-            messages.success(request, f"Logged PRN dose of {medicine.name}.")
+            messages.success(request, f"Logged PRN dose of {intake_obj.name}.")
             safe_emit_event(EventTypes.HEALTH_MEDICATION_TAKEN, request.user, {
-                "log_id": log.id, "medicine_name": medicine.name, "is_prn": True,
+                "log_id": log.id, "medicine_name": intake_obj.name, "is_prn": True,
                 "source": "web_view",
             })
             return redirect("health:intake_home")
@@ -4024,7 +4024,7 @@ class PRNLogView(LoginRequiredMixin, TemplateView):
 
 class IntakeHistoryView(LoginRequiredMixin, TemplateView):
     """
-    View medicine history including all scheduled doses (logged and unlogged).
+    View intake history including all scheduled doses (logged and unlogged).
 
     Shows complete history of scheduled doses with ability to retroactively
     mark missed doses as taken or skipped.
@@ -4073,8 +4073,8 @@ class IntakeHistoryView(LoginRequiredMixin, TemplateView):
             doses_by_date[date].append(dose)
 
         context["doses_by_date"] = doses_by_date
-        context["medicines"] = Intake.objects.filter(user=user)
-        context["selected_medicine"] = medicine_id
+        context["intakes"] = Intake.objects.filter(user=user)
+        context["selected_intake"] = medicine_id
         context["start_date"] = start_date
         context["end_date"] = end_date
 
@@ -4089,15 +4089,15 @@ class IntakeHistoryView(LoginRequiredMixin, TemplateView):
     def _get_all_doses_for_range(self, user, start_date, end_date, medicine_id=None):
         """
         Generate list of all expected doses in date range, combining:
-        - Actual logged doses (from MedicineLog)
-        - Expected but unlogged doses (from MedicineSchedule)
+        - Actual logged doses (from IntakeLog)
+        - Expected but unlogged doses (from IntakeSchedule)
         """
         from datetime import timedelta
 
-        # Get medicines to process
-        medicines_qs = Intake.objects.filter(user=user)
+        # Get intakes to process
+        intakes_qs = Intake.objects.filter(user=user)
         if medicine_id:
-            medicines_qs = medicines_qs.filter(pk=medicine_id)
+            intakes_qs = intakes_qs.filter(pk=medicine_id)
 
         # Get all logs in range
         logs_qs = IntakeLog.objects.filter(
@@ -4109,7 +4109,7 @@ class IntakeHistoryView(LoginRequiredMixin, TemplateView):
         if medicine_id:
             logs_qs = logs_qs.filter(intake_id=medicine_id)
 
-        # Index logs by (medicine_id, schedule_id, date) for quick lookup
+        # Index logs by (intake_id, schedule_id, date) for quick lookup
         logged_doses = {}
         for log in logs_qs:
             key = (log.intake_id, log.schedule_id, log.scheduled_date)
@@ -4122,30 +4122,30 @@ class IntakeHistoryView(LoginRequiredMixin, TemplateView):
         while current_date >= start_date:
             day_of_week = current_date.weekday()
 
-            # Check each medicine's schedules
-            for medicine in medicines_qs.prefetch_related("schedules"):
-                # Skip PRN-only medicines
-                if medicine.is_prn:
+            # Check each intake's schedules
+            for intake_item in intakes_qs.prefetch_related("schedules"):
+                # Skip PRN-only intakes
+                if intake_item.is_prn:
                     continue
 
-                # Check if medicine was active on this date
-                if medicine.start_date and current_date < medicine.start_date:
+                # Check if intake was active on this date
+                if intake_item.start_date and current_date < intake_item.start_date:
                     continue
-                if medicine.end_date and current_date > medicine.end_date:
+                if intake_item.end_date and current_date > intake_item.end_date:
                     continue
 
-                for schedule in medicine.schedules.filter(is_active=True):
+                for schedule in intake_item.schedules.filter(is_active=True):
                     # Check if schedule applies to this day of week
                     if not schedule.applies_to_day(day_of_week):
                         continue
 
-                    key = (medicine.pk, schedule.pk, current_date)
+                    key = (intake_item.pk, schedule.pk, current_date)
                     log = logged_doses.get(key)
 
                     dose_info = {
                         "scheduled_date": current_date,
                         "scheduled_time": schedule.scheduled_time,
-                        "medicine": medicine,
+                        "intake": intake_item,
                         "schedule": schedule,
                         "log": log,
                         "log_status": log.log_status if log else "pending",
@@ -4160,7 +4160,7 @@ class IntakeHistoryView(LoginRequiredMixin, TemplateView):
                 dose_info = {
                     "scheduled_date": current_date,
                     "scheduled_time": log.scheduled_time,
-                    "medicine": log.medicine,
+                    "intake": log.intake,
                     "schedule": log.schedule,
                     "log": log,
                     "log_status": log.log_status,
@@ -4184,10 +4184,10 @@ class IntakeHistoryView(LoginRequiredMixin, TemplateView):
 
 class IntakeLogEditView(LoginRequiredMixin, UpdateView):
     """
-    Edit the taken_at time of a medicine log entry.
+    Edit the taken_at time of an intake log entry.
 
     Allows users to correct the time when they actually took a dose,
-    which is important when they took the medicine on time but forgot
+    which is important when they took the dose on time but forgot
     to log it immediately.
     """
 
@@ -4207,11 +4207,11 @@ class IntakeLogEditView(LoginRequiredMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["log"] = self.object
-        context["medicine"] = self.object.medicine
+        context["intake"] = self.object.intake
         return context
 
     def get_success_url(self):
-        """Return to the referring page or medicine history."""
+        """Return to the referring page or intake history."""
         next_url = self.request.POST.get("next") or self.request.GET.get("next")
         if next_url:
             return next_url
@@ -4235,12 +4235,12 @@ class IntakeHistoryTakeView(LoginRequiredMixin, View):
     def post(self, request, pk, schedule_pk):
         import pytz
 
-        medicine = get_object_or_404(
+        intake_obj = get_object_or_404(
             Intake.objects.filter(user=request.user),
             pk=pk,
         )
         schedule = get_object_or_404(
-            medicine.schedules.all(),
+            intake_obj.schedules.all(),
             pk=schedule_pk,
         )
 
@@ -4259,7 +4259,7 @@ class IntakeHistoryTakeView(LoginRequiredMixin, View):
         # Get or create the log entry for this specific date
         log, created = IntakeLog.objects.get_or_create(
             user=request.user,
-            intake=medicine,
+            intake=intake_obj,
             schedule=schedule,
             scheduled_date=dose_date,
             defaults={
@@ -4290,11 +4290,11 @@ class IntakeHistoryTakeView(LoginRequiredMixin, View):
         log.mark_taken(taken_at=taken_at)
 
         # Decrease supply if tracked (only if newly created)
-        if created and medicine.current_supply is not None and medicine.current_supply > 0:
-            medicine.current_supply -= 1
-            medicine.save(update_fields=["current_supply", "updated_at"])
+        if created and intake_obj.current_supply is not None and intake_obj.current_supply > 0:
+            intake_obj.current_supply -= 1
+            intake_obj.save(update_fields=["current_supply", "updated_at"])
 
-        messages.success(request, f"Marked {medicine.name} as taken for {dose_date.strftime('%b %d')}.")
+        messages.success(request, f"Marked {intake_obj.name} as taken for {dose_date.strftime('%b %d')}.")
 
         next_url = request.POST.get("next", reverse_lazy("health:intake_history"))
         return redirect(next_url)
@@ -4308,12 +4308,12 @@ class IntakeHistorySkipView(LoginRequiredMixin, View):
     """
 
     def post(self, request, pk, schedule_pk):
-        medicine = get_object_or_404(
+        intake_obj = get_object_or_404(
             Intake.objects.filter(user=request.user),
             pk=pk,
         )
         schedule = get_object_or_404(
-            medicine.schedules.all(),
+            intake_obj.schedules.all(),
             pk=schedule_pk,
         )
 
@@ -4334,7 +4334,7 @@ class IntakeHistorySkipView(LoginRequiredMixin, View):
         # Get or create the log entry for this specific date
         log, created = IntakeLog.objects.get_or_create(
             user=request.user,
-            intake=medicine,
+            intake=intake_obj,
             schedule=schedule,
             scheduled_date=dose_date,
             defaults={
@@ -4346,7 +4346,7 @@ class IntakeHistorySkipView(LoginRequiredMixin, View):
         # Mark as skipped
         log.mark_skipped(reason)
 
-        messages.info(request, f"Marked {medicine.name} as skipped for {dose_date.strftime('%b %d')}.")
+        messages.info(request, f"Marked {intake_obj.name} as skipped for {dose_date.strftime('%b %d')}.")
 
         next_url = request.POST.get("next", reverse_lazy("health:intake_history"))
         return redirect(next_url)
@@ -4402,22 +4402,22 @@ class IntakeAdherenceView(LoginRequiredMixin, TemplateView):
         context["late_count"] = late
         context["adherence_rate"] = adh_result["adherence_rate"] or 0
 
-        # Per-medicine breakdown (schedule-based)
-        medicines = Intake.objects.filter(user=user)
-        medicine_stats = []
-        for medicine in medicines:
+        # Per-intake breakdown (schedule-based)
+        all_intakes = Intake.objects.filter(user=user)
+        intake_stats = []
+        for intake_item in all_intakes:
             med_adh = calculate_single_medicine_adherence(
-                user, medicine, start_date, today
+                user, intake_item, start_date, today
             )
             if med_adh["expected_doses"] > 0:
-                medicine_stats.append({
-                    "medicine": medicine,
+                intake_stats.append({
+                    "intake": intake_item,
                     "total": med_adh["expected_doses"],
                     "taken": med_adh["taken_doses"],
                     "rate": med_adh["adherence_rate"] or 0,
                 })
-        context["medicine_stats"] = sorted(
-            medicine_stats, key=lambda x: x["rate"]
+        context["intake_stats"] = sorted(
+            intake_stats, key=lambda x: x["rate"]
         )
 
         # Daily breakdown for chart
@@ -4443,25 +4443,25 @@ class IntakeAdherenceView(LoginRequiredMixin, TemplateView):
 
 class IntakeUpdateSupplyView(LoginRequiredMixin, View):
     """
-    Quick update of medicine supply count.
+    Quick update of intake supply count.
     """
 
     def post(self, request, pk):
-        medicine = get_object_or_404(
+        intake_obj = get_object_or_404(
             Intake.objects.filter(user=request.user),
             pk=pk,
         )
         form = UpdateSupplyForm(request.POST)
         if form.is_valid():
-            medicine.current_supply = form.cleaned_data["current_supply"]
-            medicine.save(update_fields=["current_supply", "updated_at"])
-            messages.success(request, f"Updated supply for {medicine.name}.")
+            intake_obj.current_supply = form.cleaned_data["current_supply"]
+            intake_obj.save(update_fields=["current_supply", "updated_at"])
+            messages.success(request, f"Updated supply for {intake_obj.name}.")
         return redirect("health:intake_detail", pk=pk)
 
 
 class IntakeQuickLookView(LoginRequiredMixin, TemplateView):
     """
-    Quick look view - condensed medicine summary for screenshots/sharing.
+    Quick look view - condensed intake summary for screenshots/sharing.
     """
 
     template_name = "health/intake/quick_look.html"
@@ -4470,13 +4470,13 @@ class IntakeQuickLookView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         user = self.request.user
 
-        # Get active medicines only
-        medicines = Intake.objects.filter(
+        # Get active intakes only
+        active_intakes = Intake.objects.filter(
             user=user,
             intake_status=Intake.STATUS_ACTIVE,
         ).prefetch_related("schedules")
 
-        context["medicines"] = medicines
+        context["intakes"] = active_intakes
         context["generated_at"] = timezone.now()
         return context
 
@@ -6008,23 +6008,23 @@ class BloodOxygenDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
 
 
 # =============================================================================
-# Medicine Refill Request Views
+# Intake Refill Request Views
 # =============================================================================
 
 
 class IntakeRequestRefillView(LoginRequiredMixin, View):
     """
-    Mark a medicine as having a refill requested.
+    Mark an intake as having a refill requested.
     """
 
     def post(self, request, pk):
-        medicine = get_object_or_404(
+        intake_obj = get_object_or_404(
             Intake.objects.filter(user=request.user),
             pk=pk
         )
-        medicine.request_refill()
-        messages.success(request, f"Refill requested for {medicine.name}.")
-        return redirect("health:intake_detail", pk=medicine.pk)
+        intake_obj.request_refill()
+        messages.success(request, f"Refill requested for {intake_obj.name}.")
+        return redirect("health:intake_detail", pk=intake_obj.pk)
 
 
 class IntakeClearRefillView(LoginRequiredMixin, View):
@@ -6033,13 +6033,13 @@ class IntakeClearRefillView(LoginRequiredMixin, View):
     """
 
     def post(self, request, pk):
-        medicine = get_object_or_404(
+        intake_obj = get_object_or_404(
             Intake.objects.filter(user=request.user),
             pk=pk
         )
-        medicine.clear_refill_request()
-        messages.success(request, f"Refill request cleared for {medicine.name}.")
-        return redirect("health:intake_detail", pk=medicine.pk)
+        intake_obj.clear_refill_request()
+        messages.success(request, f"Refill request cleared for {intake_obj.name}.")
+        return redirect("health:intake_detail", pk=intake_obj.pk)
 
 
 # =============================================================================

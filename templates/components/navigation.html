@@ -323,7 +323,7 @@
                                 {% if cycle_tracking_enabled %}<a href="{% url 'health:cycle_dashboard' %}" class="nav-dropdown-item">Cycle Tracking</a>{% endif %}
                             </div>
                             <!-- Intake Column -->
-                            {% if features.health.medicine %}
+                            {% if features.health.intake %}
                             <div class="nav-mega-column">
                                 <div class="nav-mega-heading">Intake</div>
                                 <a href="{% url 'health:intake_home' %}" class="nav-dropdown-item">Today's Intake</a>

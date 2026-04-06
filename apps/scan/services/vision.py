@@ -2,7 +2,7 @@
 # File: vision.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: OpenAI Vision API integration for camera scan feature.
-#              Analyzes images to identify food, medicine, supplements, etc.
+#              Analyzes images to identify food, medications, supplements, etc.
 #              and routes to appropriate app modules with pre-filled data.
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-15
@@ -678,12 +678,12 @@ class VisionService:
                 url_params.append(f'purpose={quote(details["purpose"])}')
 
             actions.append({
-                'module': 'Health.Medicine',
-                'question': 'Would you like to add this medicine?',
+                'module': 'Health.Intake',
+                'question': 'Would you like to add this to your intake?',
                 'actions': [
                     {
-                        'id': 'add_medicine',
-                        'label': 'Add to My Medicines',
+                        'id': 'add_intake',
+                        'label': 'Add to My Intake',
                         'url': self._add_source_param(
                             reverse('health:intake_create') + '?' + '&'.join(url_params)
                         ),
@@ -718,7 +718,7 @@ class VisionService:
                 url_params.append(f'purpose={quote(details["purpose"])}')
 
             actions.append({
-                'module': 'Health.Medicine',
+                'module': 'Health.Intake',
                 'question': 'Would you like to add this supplement?',
                 'actions': [
                     {

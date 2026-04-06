@@ -1,11 +1,11 @@
 {% extends "billing/email/base_email.html" %}
 
-{% block title %}Your Medicine List — Whole Life Journey{% endblock %}
+{% block title %}Your Intake List — Whole Life Journey{% endblock %}
 
 {% block content %}
-<h2>Your Medicine List</h2>
+<h2>Your Intake List</h2>
 <p>Hi {{ user_name }},</p>
-<p>Here is your current medicine list as of <strong>{{ report_date|date:"F j, Y" }}</strong>.</p>
+<p>Here is your current intake list as of <strong>{{ report_date|date:"F j, Y" }}</strong>.</p>
 
 {% if include_adherence and overall_adherence is not None %}
 <div class="highlight">
@@ -94,6 +94,6 @@
 
 <p style="color: #6b7280; font-size: 13px; margin-top: 24px;">
     This list was generated from your Whole Life Journey account. For the most up-to-date information, visit your
-    <a href="https://wholelifejourney.com/health/medicine/" style="color: #6366f1;">medicine dashboard</a>.
+    <a href="https://wholelifejourney.com/health/physical/intake/" style="color: #6366f1;">intake dashboard</a>.
 </p>
 {% endblock %}

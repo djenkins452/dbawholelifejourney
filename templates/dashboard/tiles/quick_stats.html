@@ -22,10 +22,10 @@ Shows at-a-glance metrics in the header area
         <span class="stat-value">{{ quick_stats.active_prayers }}</span>
     </a>
     {% endif %}
-    {% if health_enabled and features.health.medicine and quick_stats.medicine_doses_today > 0 %}
-    <a href="{% url 'health:intake_home' %}" class="quick-stat quick-stat-link" title="Medicines: {{ quick_stats.medicine_doses_taken }}/{{ quick_stats.medicine_doses_today }} taken - Click to open tracker">
+    {% if health_enabled and features.health.intake and quick_stats.intake_doses_today > 0 %}
+    <a href="{% url 'health:intake_home' %}" class="quick-stat quick-stat-link" title="Medicines: {{ quick_stats.intake_doses_taken }}/{{ quick_stats.intake_doses_today }} taken - Click to open tracker">
         <span class="stat-icon">💊</span>
-        <span class="stat-value">{{ quick_stats.medicine_doses_taken }}/{{ quick_stats.medicine_doses_today }}</span>
+        <span class="stat-value">{{ quick_stats.intake_doses_taken }}/{{ quick_stats.intake_doses_today }}</span>
     </a>
     {% endif %}
     {% if health_enabled and features.health.workouts and quick_stats.workouts_week > 0 %}

@@ -430,7 +430,7 @@ class UserPreferences(models.Model):
         'blood_pressure': {'label': 'Blood Pressure', 'default': True, 'icon': '🩺'},
         'blood_oxygen': {'label': 'Blood Oxygen', 'default': True, 'icon': '💨'},
         'glucose': {'label': 'Glucose', 'default': True, 'icon': '🩸'},
-        'medicine': {'label': 'Medicine Tracker', 'default': True, 'icon': '💊'},
+        'intake': {'label': 'Intake Tracker', 'default': True, 'icon': '💊'},
         'workouts': {'label': 'Workouts & Fitness', 'default': True, 'icon': '🏋️'},
         'steps': {'label': 'Steps Tracking', 'default': True, 'icon': '👟'},
         'sleep': {'label': 'Sleep Tracking', 'default': True, 'icon': '😴'},

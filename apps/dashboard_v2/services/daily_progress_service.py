@@ -160,14 +160,14 @@ class DailyProgressService:
             result = calculate_medicine_adherence(self.user, self.today, self.today)
             rate = result.get("adherence_rate")
             if rate is None:
-                return 100, {"medicine_done": 0, "medicine_total": 0}
+                return 100, {"intake_done": 0, "intake_total": 0}
             return round(rate), {
-                "medicine_done": result.get("taken_doses", 0),
-                "medicine_total": result.get("expected_doses", 0),
+                "intake_done": result.get("taken_doses", 0),
+                "intake_total": result.get("expected_doses", 0),
             }
         except Exception:
             logger.error("Medicine computation failed", exc_info=True)
-            return 0, {"medicine_done": 0, "medicine_total": 0}
+            return 0, {"intake_done": 0, "intake_total": 0}
 
     def _compute_tasks(self):
         """Non-routine task completion for today."""

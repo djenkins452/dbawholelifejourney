@@ -291,7 +291,7 @@ def _compute_fastest_path(user, today, current_score, total_expected, total_comp
             'action': str — action title,
             'impact': int — percentage points gained,
             'projected_score': int — new score after completion,
-            'source': str — 'routine', 'task', 'medicine', etc.
+            'source': str — 'routine', 'task', 'intake', etc.
         }
         or None if no actionable items
     """
@@ -336,7 +336,7 @@ def _compute_fastest_path(user, today, current_score, total_expected, total_comp
                 routine_groups[parent] = {
                     'title': parent,
                     'count': 0,
-                    'source': 'medicine',
+                    'source': 'intake',
                 }
             routine_groups[parent]['count'] += 1
         else:

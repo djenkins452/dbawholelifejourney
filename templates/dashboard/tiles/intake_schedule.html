@@ -1,23 +1,23 @@
 {% comment %}
-Dashboard Tile: Today's Medicine Schedule
+Dashboard Tile: Today's Intake Schedule
 Shows medication schedule with status tracking
 {% endcomment %}
 
-{% if health_enabled and features.health.medicine and user_data.todays_medicine_schedule %}
-<section class="medicine-schedule-section tile-size-{{ tile.size|default:'medium' }}" data-tile-id="medicine_schedule">
+{% if health_enabled and features.health.intake and user_data.todays_intake_schedule %}
+<section class="intake-schedule-section tile-size-{{ tile.size|default:'medium' }}" data-tile-id="intake_schedule">
     <div class="section-header">
-        <h2 class="section-title">Today's Medicines</h2>
+        <h2 class="section-title">Today's Intake</h2>
         <a href="{% url 'health:intake_home' %}" class="section-link">Open Tracker</a>
     </div>
-    <div class="medicine-schedule-list">
-        {% for item in user_data.todays_medicine_schedule %}
-        <div class="medicine-schedule-item {% if item.taken %}taken{% elif item.missed %}missed{% elif item.skipped %}skipped{% endif %}">
-            <div class="medicine-time">{{ item.schedule.scheduled_time|time:"g:i A" }}</div>
-            <div class="medicine-info">
-                <span class="medicine-name">{{ item.medicine.name }}</span>
-                <span class="medicine-dose">{{ item.medicine.dose }}</span>
+    <div class="intake-schedule-list">
+        {% for item in user_data.todays_intake_schedule %}
+        <div class="intake-schedule-item {% if item.taken %}taken{% elif item.missed %}missed{% elif item.skipped %}skipped{% endif %}">
+            <div class="intake-time">{{ item.schedule.scheduled_time|time:"g:i A" }}</div>
+            <div class="intake-info">
+                <span class="intake-name">{{ item.intake.name }}</span>
+                <span class="intake-dose">{{ item.intake.dose }}</span>
             </div>
-            <div class="medicine-status">
+            <div class="intake-status">
                 {% if item.taken %}
                 <span class="status-badge status-taken">✓ Taken</span>
                 {% elif item.missed %}

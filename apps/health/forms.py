@@ -476,13 +476,13 @@ class BloodOxygenEntryForm(forms.ModelForm):
 
 
 # =============================================================================
-# Medicine Forms
+# Intake Forms
 # =============================================================================
 
 
 class MedicineForm(forms.ModelForm):
     """
-    Form for adding/editing a medicine.
+    Form for adding/editing an intake item (medication, supplement, etc.).
     """
 
     class Meta:
@@ -593,7 +593,7 @@ class MedicineForm(forms.ModelForm):
         self.fields["instructions"].required = False
         self.fields["notes"].required = False
 
-        # Set default start date for new medicines (use user's local date)
+        # Set default start date for new intakes (use user's local date)
         if not self.instance.pk:
             self.initial["start_date"] = get_user_today(user) if user else timezone.now().date()
             self.initial["refill_threshold"] = 7
@@ -602,7 +602,7 @@ class MedicineForm(forms.ModelForm):
 
 class MedicineScheduleForm(forms.ModelForm):
     """
-    Form for adding/editing a medicine schedule.
+    Form for adding/editing an intake schedule.
     """
 
     DAYS_CHOICES = [
@@ -678,7 +678,7 @@ class MedicineScheduleForm(forms.ModelForm):
 
 class MedicineLogForm(forms.ModelForm):
     """
-    Form for logging a medicine dose.
+    Form for logging an intake dose.
     """
 
     class Meta:
@@ -690,7 +690,7 @@ class MedicineLogForm(forms.ModelForm):
             }),
             "prn_reason": forms.TextInput(attrs={
                 "class": "form-input",
-                "placeholder": "Reason for taking (for PRN medicines)",
+                "placeholder": "Reason for taking (for PRN intakes)",
             }),
             "notes": forms.Textarea(attrs={
                 "class": "form-textarea",
@@ -707,7 +707,7 @@ class MedicineLogForm(forms.ModelForm):
 
 class MedicineLogEditForm(forms.ModelForm):
     """
-    Form for editing the taken_at time of a medicine log.
+    Form for editing the taken_at time of an intake log.
     Allows users to correct the time when a dose was actually taken.
     """
 
@@ -805,7 +805,7 @@ class PRNDoseForm(forms.Form):
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         if user:
-            # Only show PRN medicines that are active
+            # Only show PRN intakes that are active
             self.fields["medicine"].queryset = Intake.objects.filter(
                 user=user,
                 is_prn=True,
@@ -815,7 +815,7 @@ class PRNDoseForm(forms.Form):
 
 class UpdateSupplyForm(forms.Form):
     """
-    Quick form for updating medicine supply count.
+    Quick form for updating intake supply count.
     """
 
     current_supply = forms.IntegerField(

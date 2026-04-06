@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="container" data-testid="health-home">
-    {% include "components/intro_banner.html" with module="health" title="Welcome to Physical Health" message="Track vitals, medicines, fitness, and nutrition at your own pace. Log what matters to you and see trends over time. No judgment, just awareness." icon="❤️" %}
+    {% include "components/intro_banner.html" with module="health" title="Welcome to Physical Health" message="Track vitals, intake, fitness, and nutrition at your own pace. Log what matters to you and see trends over time. No judgment, just awareness." icon="❤️" %}
 
     <!-- Breadcrumb -->
     <nav class="breadcrumb" aria-label="Breadcrumb">
@@ -56,22 +56,22 @@
             {% endif %}
 
             {# ── Medication Status ── #}
-            {% if features.health.medicine and medicine_count %}
-            <div class="today-item {% if medicine_overdue > 0 %}today-alert{% elif medicine_taken_today >= medicine_scheduled_today and medicine_scheduled_today > 0 %}today-complete{% else %}today-incomplete{% endif %}">
-                <span class="today-icon" aria-hidden="true">{% if medicine_overdue > 0 %}&#9888;{% elif medicine_taken_today >= medicine_scheduled_today and medicine_scheduled_today > 0 %}&#10003;{% else %}&#9675;{% endif %}</span>
+            {% if features.health.intake and intake_count %}
+            <div class="today-item {% if intake_overdue > 0 %}today-alert{% elif intake_taken_today >= intake_scheduled_today and intake_scheduled_today > 0 %}today-complete{% else %}today-incomplete{% endif %}">
+                <span class="today-icon" aria-hidden="true">{% if intake_overdue > 0 %}&#9888;{% elif intake_taken_today >= intake_scheduled_today and intake_scheduled_today > 0 %}&#10003;{% else %}&#9675;{% endif %}</span>
                 <div class="today-content">
                     <span class="today-label">Medication</span>
-                    {% if medicine_windows %}
+                    {% if intake_windows %}
                     <div class="today-windows">
-                        {% for window in medicine_windows %}
+                        {% for window in intake_windows %}
                         <span class="today-window tw-{{ window.status }}">{{ window.label }}: {{ window.taken }}/{{ window.total }}{% if window.status == "complete" %} &#10003;{% elif window.status == "missed" %} &#10007;{% endif %}</span>
                         {% endfor %}
                     </div>
-                    {% if medicine_overdue > 0 %}
-                        <span class="today-nudge nudge-alert">&#8594; {{ medicine_overdue }} dose{{ medicine_overdue|pluralize }} overdue</span>
+                    {% if intake_overdue > 0 %}
+                        <span class="today-nudge nudge-alert">&#8594; {{ intake_overdue }} dose{{ intake_overdue|pluralize }} overdue</span>
                     {% endif %}
                     {% else %}
-                        <span class="today-value">{{ medicine_taken_today|default:0 }}/{{ medicine_scheduled_today|default:0 }} taken</span>
+                        <span class="today-value">{{ intake_taken_today|default:0 }}/{{ intake_scheduled_today|default:0 }} taken</span>
                     {% endif %}
                 </div>
             </div>
@@ -160,52 +160,52 @@
     {# ════════════════════════════════════════════════════════════════════ #}
 
     {# ── NEEDS ATTENTION SECTION ── #}
-    {% if card_emphasis.medicine or card_emphasis.fitness or card_emphasis.glucose %}
+    {% if card_emphasis.intake or card_emphasis.fitness or card_emphasis.glucose %}
     <div class="card-section" data-testid="needs-attention">
         <h2 class="card-section-title section-attention">Needs Attention</h2>
         <div class="health-grid">
 
         {# Medicine (if needs attention) #}
-        {% if features.health.medicine and card_emphasis.medicine %}
-        <div class="health-card medicine-card card-emphasis-{{ card_emphasis.medicine }}">
+        {% if features.health.intake and card_emphasis.intake %}
+        <div class="health-card intake-card card-emphasis-{{ card_emphasis.intake }}">
             <div class="card-header">
                 <h2>
-                    <span class="card-status-icon status-{{ card_emphasis.medicine }}" aria-hidden="true">{% if card_emphasis.medicine == "high" %}&#9888;{% else %}&#9679;{% endif %}</span>
-                    Medicines
+                    <span class="card-status-icon status-{{ card_emphasis.intake }}" aria-hidden="true">{% if card_emphasis.intake == "high" %}&#9888;{% else %}&#9679;{% endif %}</span>
+                    Intake
                 </h2>
                 <a href="{% url 'health:intake_home' %}" class="btn btn-primary btn-sm">View</a>
             </div>
 
-            {% if medicine_count %}
-                {% if medicine_overdue > 0 %}
-                    <div class="medicine-alert alert-overdue">
+            {% if intake_count %}
+                {% if intake_overdue > 0 %}
+                    <div class="intake-alert alert-overdue">
                         <span class="alert-icon">!</span>
-                        {{ medicine_overdue }} overdue dose{{ medicine_overdue|pluralize }}
+                        {{ intake_overdue }} overdue dose{{ intake_overdue|pluralize }}
                     </div>
                 {% endif %}
 
-                {% if medicine_low_supply > 0 %}
-                    <div class="medicine-alert alert-refill">
+                {% if intake_low_supply > 0 %}
+                    <div class="intake-alert alert-refill">
                         <span class="alert-icon">!</span>
-                        {{ medicine_low_supply }} medicine{{ medicine_low_supply|pluralize }} need{{ medicine_low_supply|pluralize:"s," }} refill
+                        {{ intake_low_supply }} intake item{{ intake_low_supply|pluralize }} need{{ intake_low_supply|pluralize:"s," }} refill
                     </div>
                 {% endif %}
 
-                <div class="medicine-stats">
+                <div class="intake-stats">
                     <div class="stat">
-                        <span class="stat-value">{{ medicine_taken_today|default:0 }}/{{ medicine_scheduled_today|default:0 }}</span>
+                        <span class="stat-value">{{ intake_taken_today|default:0 }}/{{ intake_scheduled_today|default:0 }}</span>
                         <span class="stat-label">taken today</span>
                     </div>
                     <div class="stat">
-                        <span class="stat-value">{{ medicine_count }}</span>
-                        <span class="stat-label">active medicine{{ medicine_count|pluralize }}</span>
+                        <span class="stat-value">{{ intake_count }}</span>
+                        <span class="stat-label">active intake item{{ intake_count|pluralize }}</span>
                     </div>
                 </div>
 
-                {% if medicine_windows %}
-                <div class="medicine-windows">
-                    {% for window in medicine_windows %}
-                    <div class="medicine-window window-{{ window.status }}">
+                {% if intake_windows %}
+                <div class="intake-windows">
+                    {% for window in intake_windows %}
+                    <div class="intake-window window-{{ window.status }}">
                         <span class="window-label">{% if window.status == "complete" %}&#10003;{% elif window.status == "missed" %}&#10007;{% else %}&#9679;{% endif %} {{ window.label }}</span>
                         <span class="window-status">{{ window.taken }}/{{ window.total }}</span>
                     </div>
@@ -213,11 +213,11 @@
                 </div>
                 {% endif %}
             {% else %}
-                <p class="text-muted">No medicines being tracked.</p>
-                <a href="{% url 'health:intake_create' %}" class="btn btn-secondary btn-sm mt-4">Add a medicine</a>
+                <p class="text-muted">No intake items being tracked.</p>
+                <a href="{% url 'health:intake_create' %}" class="btn btn-secondary btn-sm mt-4">Add an intake item</a>
             {% endif %}
 
-            <a href="{% url 'health:intake_home' %}" class="card-link">Go to Medicines</a>
+            <a href="{% url 'health:intake_home' %}" class="card-link">Go to Intake</a>
         </div>
         {% endif %}
 
@@ -878,38 +878,38 @@
         </div>
     </div>
 
-    {# ── GROUP 6: Medicine & Medical ── #}
+    {# ── GROUP 6: Intake Medicine & Medical Medical ── #}
     <div class="health-group">
-        <h2 class="group-title">Medicine & Medical</h2>
+        <h2 class="group-title">Intake Medicine & Medical Medical</h2>
         <div class="health-grid">
 
         {# ── Medicine Card (if NOT in attention section) ── #}
-        {% if features.health.medicine %}
-        <div class="health-card medicine-card card-ok">
+        {% if features.health.intake %}
+        <div class="health-card intake-card card-ok">
             <div class="card-header">
                 <h2>
                     <span class="card-status-icon status-ok" aria-hidden="true">&#10003;</span>
-                    Medicines
+                    Intake
                 </h2>
                 <a href="{% url 'health:intake_home' %}" class="btn btn-primary btn-sm">View</a>
             </div>
 
-            {% if medicine_count %}
-                <div class="medicine-stats">
+            {% if intake_count %}
+                <div class="intake-stats">
                     <div class="stat">
-                        <span class="stat-value">{{ medicine_taken_today|default:0 }}/{{ medicine_scheduled_today|default:0 }}</span>
+                        <span class="stat-value">{{ intake_taken_today|default:0 }}/{{ intake_scheduled_today|default:0 }}</span>
                         <span class="stat-label">taken today</span>
                     </div>
                     <div class="stat">
-                        <span class="stat-value">{{ medicine_count }}</span>
-                        <span class="stat-label">active medicine{{ medicine_count|pluralize }}</span>
+                        <span class="stat-value">{{ intake_count }}</span>
+                        <span class="stat-label">active intake item{{ intake_count|pluralize }}</span>
                     </div>
                 </div>
 
-                {% if medicine_windows %}
-                <div class="medicine-windows">
-                    {% for window in medicine_windows %}
-                    <div class="medicine-window window-{{ window.status }}">
+                {% if intake_windows %}
+                <div class="intake-windows">
+                    {% for window in intake_windows %}
+                    <div class="intake-window window-{{ window.status }}">
                         <span class="window-label">{% if window.status == "complete" %}&#10003;{% elif window.status == "missed" %}&#10007;{% else %}&#9679;{% endif %} {{ window.label }}</span>
                         <span class="window-status">{{ window.taken }}/{{ window.total }}</span>
                     </div>
@@ -917,11 +917,11 @@
                 </div>
                 {% endif %}
             {% else %}
-                <p class="text-muted">No medicines being tracked.</p>
-                <a href="{% url 'health:intake_create' %}" class="btn btn-secondary btn-sm mt-4">Add a medicine</a>
+                <p class="text-muted">No intake items being tracked.</p>
+                <a href="{% url 'health:intake_create' %}" class="btn btn-secondary btn-sm mt-4">Add an intake item</a>
             {% endif %}
 
-            <a href="{% url 'health:intake_home' %}" class="card-link">Go to Medicines</a>
+            <a href="{% url 'health:intake_home' %}" class="card-link">Go to Intake</a>
         </div>
         {% endif %}
 
@@ -1449,19 +1449,19 @@
 .change-up { color: var(--color-text-muted); }
 .metric-avg { font-size: var(--font-size-sm); color: var(--color-text-muted); background: var(--color-surface); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); margin-bottom: var(--space-3); }
 
-.fasting-stats, .medicine-stats, .nutrition-stats, .fitness-stats, .provider-stats, .labs-stats, .cycle-stats {
+.fasting-stats, .intake-stats, .nutrition-stats, .fitness-stats, .provider-stats, .labs-stats, .cycle-stats {
     display: flex;
     gap: var(--space-6);
     margin-bottom: var(--space-4);
 }
 
-.fasting-stats .stat, .medicine-stats .stat, .nutrition-stats .stat,
+.fasting-stats .stat, .intake-stats .stat, .nutrition-stats .stat,
 .fitness-stats .stat, .provider-stats .stat, .labs-stats .stat, .cycle-stats .stat {
     display: flex;
     flex-direction: column;
 }
 
-.fasting-stats .stat-value, .medicine-stats .stat-value,
+.fasting-stats .stat-value, .intake-stats .stat-value,
 .fitness-stats .stat-value, .provider-stats .stat-value,
 .labs-stats .stat-value, .cycle-stats .stat-value {
     font-size: var(--font-size-2xl);
@@ -1474,7 +1474,7 @@
     color: var(--color-accent);
 }
 
-.fasting-stats .stat-label, .medicine-stats .stat-label,
+.fasting-stats .stat-label, .intake-stats .stat-label,
 .nutrition-stats .stat-label, .fitness-stats .stat-label,
 .provider-stats .stat-label, .labs-stats .stat-label, .cycle-stats .stat-label {
     font-size: var(--font-size-xs);
@@ -1488,7 +1488,7 @@
 
 .card-link { display: block; font-size: var(--font-size-sm); margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--color-border); }
 
-.medicine-alert { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); font-size: var(--font-size-sm); margin-bottom: var(--space-3); font-weight: 600; }
+.intake-alert { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); font-size: var(--font-size-sm); margin-bottom: var(--space-3); font-weight: 600; }
 .alert-overdue { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
 .alert-refill { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
 .alert-icon { display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; font-size: var(--font-size-xs); font-weight: 700; background: currentColor; color: white; border-radius: var(--radius-full); }
@@ -1538,8 +1538,8 @@
 .metric-link-arrow { font-size: var(--font-size-lg); color: var(--color-text-muted); }
 
 /* ── Medicine Windows ── */
-.medicine-windows { display: flex; flex-direction: column; gap: 0.375rem; margin-top: 0.5rem; }
-.medicine-window { display: flex; justify-content: space-between; align-items: center; padding: 0.375rem 0.625rem; border-radius: var(--radius-sm, 0.25rem); font-size: var(--font-size-sm, 0.875rem); font-weight: 500; }
+.intake-windows { display: flex; flex-direction: column; gap: 0.375rem; margin-top: 0.5rem; }
+.intake-window { display: flex; justify-content: space-between; align-items: center; padding: 0.375rem 0.625rem; border-radius: var(--radius-sm, 0.25rem); font-size: var(--font-size-sm, 0.875rem); font-weight: 500; }
 .window-complete { background: #f0fdf4; color: #16a34a; }
 .window-partial { background: #fffbeb; color: #d97706; }
 .window-missed { background: #fef2f2; color: #dc2626; }

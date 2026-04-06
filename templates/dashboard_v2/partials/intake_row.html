@@ -10,7 +10,7 @@
         {% endif %}
     </button>
     <div class="v2-action-content">
-        <span class="v2-action-title {% if item.taken %}v2-strikethrough{% endif %}">{{ item.medicine.name }}</span>
+        <span class="v2-action-title {% if item.taken %}v2-strikethrough{% endif %}">{{ item.intake.name }}</span>
         <span class="v2-action-detail">{{ item.schedule.time_of_day|default:item.schedule.scheduled_time|time:"g:i A" }}</span>
         {% if item.goal_name %}
             <span class="v2-goal-tag">{{ item.goal_name }}</span>

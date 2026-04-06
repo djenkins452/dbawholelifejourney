@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Schedules - {{ medicine.name }} - Whole Life Journey{% endblock %}
+{% block title %}Schedules - {{ intake.name }} - Whole Life Journey{% endblock %}
 
 {% block content %}
 <div class="container">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}">Health</a>
         <span>/</span>
-        <a href="{% url 'health:intake_home' %}">Medicines</a>
+        <a href="{% url 'health:intake_home' %}">Intake</a>
         <span>/</span>
-        <a href="{% url 'health:intake_detail' pk=medicine.pk %}">{{ medicine.name }}</a>
+        <a href="{% url 'health:intake_detail' pk=intake.pk %}">{{ intake.name }}</a>
         <span>/</span>
         <span>Schedules</span>
     </nav>
@@ -18,14 +18,14 @@
     <div class="page-header">
         <div>
             <h1 class="page-title">Manage Schedules</h1>
-            <p class="page-subtitle">{{ medicine.name }} - {{ medicine.dose }}</p>
+            <p class="page-subtitle">{{ intake.name }} - {{ intake.dose }}</p>
         </div>
-        <a href="{% url 'health:intake_detail' pk=medicine.pk %}" class="btn btn-secondary">Back to Details</a>
+        <a href="{% url 'health:intake_detail' pk=intake.pk %}" class="btn btn-secondary">Back to Details</a>
     </div>
 
-    {% if medicine.is_prn %}
+    {% if intake.is_prn %}
     <div class="prn-notice mb-6">
-        <p>This is an as-needed (PRN) medicine. Schedules are optional for PRN medicines.</p>
+        <p>This is an as-needed (PRN) intake item. Schedules are optional for PRN intake items.</p>
     </div>
     {% endif %}
 
@@ -59,12 +59,12 @@
                 </div>
                 <div class="schedule-actions">
                     {% if not schedule.is_active %}
-                    <form method="post" action="{% url 'health:intake_schedule_activate' medicine_pk=medicine.pk schedule_pk=schedule.pk %}" class="inline-form">
+                    <form method="post" action="{% url 'health:intake_schedule_activate' medicine_pk=intake.pk schedule_pk=schedule.pk %}" class="inline-form">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-primary btn-sm">Activate</button>
                     </form>
                     {% endif %}
-                    <form method="post" action="{% url 'health:intake_schedule_delete' medicine_pk=medicine.pk schedule_pk=schedule.pk %}" class="delete-form" data-confirm="Remove this schedule?">
+                    <form method="post" action="{% url 'health:intake_schedule_delete' medicine_pk=intake.pk schedule_pk=schedule.pk %}" class="delete-form" data-confirm="Remove this schedule?">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-danger btn-sm">Remove</button>
                     </form>

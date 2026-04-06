@@ -2002,6 +2002,13 @@ def _build_medical_context(user):
                         'testosterone': 'Testosterone',
                         'creatinine': 'Creatinine',
                         'egfr': 'eGFR',
+                        'gfr': 'eGFR',
+                        'gfr ckd epi': 'eGFR',
+                        'estimated gfr': 'eGFR',
+                        'alt': 'ALT',
+                        'ast': 'AST',
+                        'bun': 'BUN',
+                        'blood urea nitrogen': 'BUN',
                     }
                     metric_key = _key_tests.get(test_lower)
                     if metric_key:

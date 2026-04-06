@@ -6,6 +6,66 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-06 — System Integrity: Signal Integrity, CoS Context Completeness, Write Trust, Intervention Tiers
+
+**Multi-layer system integrity upgrade addressing 7 problem areas.**
+
+### Phase 1: Signal Integrity — Zero-fill Elimination
+- **Removed** zero-fill loop from `apps/core/ai_eae/signal_aggregation.py` (lines 146-176)
+- Signals now ONLY created when real user data exists (NULL ≠ 0)
+- Updated `apps/core/ai_eae/signal_confidence.py` docstrings for clarity
+- Rewrote `apps/core/ai_eae/tests/test_signal_state.py`: removed zero-fill tests, added signal integrity tests
+- Fixed `Medicine` → `Intake` model references in tests (post-rename alignment)
+- **Guarantee:** No signal without real data; no false patterns from phantom signals
+
+### Phase 2: CoS Context Completeness
+- **Added** `_build_nutrition_tracking_context()` to `apps/core/ai_orchestrator/cos_context.py`
+  - CoS now has: daily calories, macros, targets, compliance %, 7d averages, entry count
+- **Enriched** `_build_medical_context()` with individual lab values (up to 10 recent)
+  - Now includes: test name, value, unit, reference range, abnormal flag, date
+- **Added** `_build_cross_domain_insights()` for CDCE correlations in CoS context
+- **Refined** NEVER rules: nutrition rule removed when user has nutrition data
+- **Guarantee:** CoS can answer calorie, macro, lab, and trend questions with real data
+
+### Phase 3: Write Path Trust Guarantee
+- **Added** post-write verification in `handle_log_food()` (`apps/ai/action_handlers.py`)
+  - Queries back using same filter as UI after create
+  - Returns failure if verification fails
+- **Added** explicit `invalidate_cos_context()` after food write
+- **Guarantee:** If CoS confirms a write, entry is retrievable by UI
+
+### Phase 4: CoS Hard Contract
+- **Added** DATA ACCESS CONTRACT directive to system prompt injection
+- Forbidden phrases: "I don't have access", "check your app", "contact support", "check your internet"
+- System issue response: "I'm not seeing that data right now — this looks like a system issue."
+- **Guarantee:** No generic chatbot responses; all answers grounded in system data
+
+### Phase 5: Intervention Engine v3 — Tiered Output
+- **Enhanced** `decide_intervention()` in `apps/core/ai_arbitration/intervention_engine.py`
+- New tiered output: `interventions_now`, `interventions_upcoming`, `interventions_watch`
+- Critical health gates → now; directive/accountability → upcoming; trends/drift → watch
+- **Guarantee:** Deterministic priority classification for CoS response shaping
+
+### Phase 6: CoS Integration — Tiered Narrative
+- **Added** `_build_tiered_intervention_block()` to `apps/core/ai_arbitration/narrative_engine.py`
+- Narrative now includes PRIORITY ACTIONS / TODAY'S AGENDA / WATCH LIST sections
+- Updated instructions: lead with highest priority, one action per intervention, watch list only when asked
+- **Guarantee:** CoS leads with what matters most
+
+### Phase 7: Context Freshness — Domain Events on All Health Writes
+- **Added** `_emit_domain_event()` calls to: heart rate, blood oxygen, water, steps, body measurement handlers
+- All health writes now fire `health.*` events → triggers CoS cache invalidation via existing subscriber
+- **Guarantee:** CoS context always reflects latest state after any health write
+
+**Files modified:** `apps/core/ai_eae/signal_aggregation.py`, `apps/core/ai_eae/signal_confidence.py`,
+`apps/core/ai_eae/tests/test_signal_state.py`, `apps/core/ai_orchestrator/cos_context.py`,
+`apps/ai/action_handlers.py`, `apps/core/ai_arbitration/intervention_engine.py`,
+`apps/core/ai_arbitration/narrative_engine.py`
+
+**Tests:** 118 tests pass (signal state + arbitration suites)
+
+---
+
 ## 2026-04-05 — Enforcement: CoS Naming Boundary — No "Beth" in global content
 
 **Problem:** The hardcoded persona name "Beth" was leaking into global content (release notes,

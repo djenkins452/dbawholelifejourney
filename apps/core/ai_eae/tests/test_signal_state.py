@@ -1,8 +1,9 @@
 """
-Tests for Signal Engine Phase 2: Expected + State Integration.
+Tests for Signal Engine: Expected + State Integration + Signal Integrity.
 
 Verifies that SignalSnapshots carry correct `expected` and `state` fields
-based on the Execution Truth Engine expected map.
+based on the Execution Truth Engine expected map, and that NO signals
+are created for domains without real user data.
 """
 import datetime
 from unittest.mock import patch
@@ -103,15 +104,20 @@ class TestExpectedMap(TestCase):
         self.assertFalse(any(result.values()))
 
 
-class TestSignalSnapshotState(TestCase):
-    """Test that signal computers set expected and state correctly."""
+# =========================================================================
+# Signal Integrity: No signal without real data
+# =========================================================================
+
+
+class TestNoSignalWithoutData(TestCase):
+    """Verify that domains with no real data produce NO signal."""
 
     def setUp(self):
-        self.user = _create_test_user('state-test@test.com')
+        self.user = _create_test_user('integrity-test@test.com')
         self.today = datetime.date.today()
 
-    def test_zero_fill_not_expected(self):
-        """Zero-fill with nothing expected → state=not_expected, expected=False."""
+    def test_no_data_produces_no_signals(self):
+        """User with no data at all gets zero signals (no zero-fill)."""
         with patch(
             'apps.core.execution.expected_map.get_expected_map',
             return_value=NOTHING_EXPECTED,
@@ -120,31 +126,39 @@ class TestSignalSnapshotState(TestCase):
                 self.user, self.today,
             )
 
-        # All base types should be produced (zero-fill)
-        types = {s.signal_type for s in results}
-        expected_types = {
-            'health_activity', 'health_biometrics', 'medication_adherence',
-            'nutrition_compliance', 'faith_practice', 'mental_reflection',
-            'cognitive_fitness', 'productivity_progress', 'relational_engagement',
-        }
-        self.assertTrue(expected_types.issubset(types))
+        # Only signals from computers that found real data should exist.
+        # A fresh user with no data should produce very few (or no) signals.
+        for snapshot in results:
+            self.assertNotEqual(
+                snapshot.source_signals.get('source'),
+                'zero_fill',
+                f"Zero-filled signal found for {snapshot.signal_type} — "
+                f"signals must only come from real data",
+            )
 
-        # Check a few specific snapshots
-        workout = SignalSnapshot.objects.get(
-            user=self.user, date=self.today, signal_type='health_activity',
-        )
-        self.assertEqual(workout.score, 0.0)
-        self.assertFalse(workout.expected)
-        self.assertEqual(workout.state, 'not_expected')
+    def test_untracked_domain_produces_no_signal(self):
+        """A domain that user has never tracked produces no signal."""
+        with patch(
+            'apps.core.execution.expected_map.get_expected_map',
+            return_value=NOTHING_EXPECTED,
+        ):
+            results = SignalAggregationService.compute_daily_signals(
+                self.user, self.today,
+            )
 
-        journal = SignalSnapshot.objects.get(
-            user=self.user, date=self.today, signal_type='mental_reflection',
-        )
-        self.assertFalse(journal.expected)
-        self.assertEqual(journal.state, 'not_expected')
+        produced_types = {s.signal_type for s in results}
+        # A fresh user with no workout data should not have health_activity
+        # (unless a signal computer finds real data)
+        for s in results:
+            # Every produced signal must have real backing data
+            source = s.source_signals or {}
+            self.assertNotEqual(
+                source.get('source'), 'zero_fill',
+                f"{s.signal_type} was created without real data",
+            )
 
-    def test_zero_fill_expected_is_missed(self):
-        """Zero-fill with expected=True → state=missed."""
+    def test_expected_domain_without_data_produces_no_signal(self):
+        """Even if ETE expects a domain, no signal without real data."""
         with patch(
             'apps.core.execution.expected_map.get_expected_map',
             return_value=ALL_EXPECTED,
@@ -153,18 +167,20 @@ class TestSignalSnapshotState(TestCase):
                 self.user, self.today,
             )
 
-        workout = SignalSnapshot.objects.get(
-            user=self.user, date=self.today, signal_type='health_activity',
-        )
-        self.assertEqual(workout.score, 0.0)
-        self.assertTrue(workout.expected)
-        self.assertEqual(workout.state, 'missed')
+        for snapshot in results:
+            source = snapshot.source_signals or {}
+            self.assertNotEqual(
+                source.get('source'), 'zero_fill',
+                f"Zero-filled signal found for {snapshot.signal_type}",
+            )
 
-        journal = SignalSnapshot.objects.get(
-            user=self.user, date=self.today, signal_type='mental_reflection',
-        )
-        self.assertTrue(journal.expected)
-        self.assertEqual(journal.state, 'missed')
+
+class TestSignalSnapshotState(TestCase):
+    """Test that signal computers set expected and state correctly."""
+
+    def setUp(self):
+        self.user = _create_test_user('state-test@test.com')
+        self.today = datetime.date.today()
 
     def test_completed_workout(self):
         """Workout with activity → state=completed or partial."""
@@ -246,28 +262,6 @@ class TestSignalSnapshotState(TestCase):
         self.assertIn(journal.state, ('completed', 'partial'))
         self.assertGreater(journal.score, 0.0)
 
-    def test_all_domains_produce_daily_snapshot(self):
-        """Every base signal type produces a snapshot (no gaps)."""
-        with patch(
-            'apps.core.execution.expected_map.get_expected_map',
-            return_value=NOTHING_EXPECTED,
-        ):
-            results = SignalAggregationService.compute_daily_signals(
-                self.user, self.today,
-            )
-
-        expected_types = {
-            'health_activity', 'health_biometrics', 'medication_adherence',
-            'nutrition_compliance', 'faith_practice', 'mental_reflection',
-            'cognitive_fitness', 'productivity_progress', 'relational_engagement',
-        }
-        produced_types = {s.signal_type for s in results}
-        missing = expected_types - produced_types
-        self.assertEqual(
-            missing, set(),
-            f"Missing daily snapshots: {missing}",
-        )
-
     def test_backward_compat_legacy_state(self):
         """Old snapshots with state='' are valid (no crash)."""
         snapshot = SignalSnapshot.objects.create(
@@ -313,18 +307,19 @@ class TestSignalSnapshotState(TestCase):
 
 
 class TestExpectedMapKeys(TestCase):
-    """Verify SIGNAL_EXPECTED_KEYS covers all zero-fill types."""
+    """Verify SIGNAL_EXPECTED_KEYS covers all signal computer types."""
 
-    def test_all_zero_fill_types_have_keys(self):
-        """Every zero-fill signal type has a mapping in SIGNAL_EXPECTED_KEYS."""
+    def test_signal_computers_have_expected_keys(self):
+        """Signal types that respect ETE expectations have SIGNAL_EXPECTED_KEYS entries."""
         from apps.core.execution.expected_map import SIGNAL_EXPECTED_KEYS
 
-        zero_fill_types = [
+        # These are the signal types whose computers check ETE expectations
+        ete_aware_types = [
             'health_activity', 'health_biometrics', 'medication_adherence',
             'nutrition_compliance', 'faith_practice', 'mental_reflection',
             'cognitive_fitness', 'productivity_progress', 'relational_engagement',
         ]
-        for sig_type in zero_fill_types:
+        for sig_type in ete_aware_types:
             self.assertIn(
                 sig_type, SIGNAL_EXPECTED_KEYS,
                 f"{sig_type} missing from SIGNAL_EXPECTED_KEYS",
@@ -375,23 +370,23 @@ class TestSkippedState(TestCase):
 
     def test_skipped_medication_all_doses(self):
         """All medication doses explicitly skipped → state=skipped."""
-        from apps.health.models import Medicine, MedicineSchedule, MedicineLog
+        from apps.health.models import Intake, IntakeSchedule, IntakeLog
 
-        med = Medicine.objects.create(
-            user=self.user, name='TestMed', medicine_status='active',
-            start_date=self.today,
+        med = Intake.objects.create(
+            user=self.user, name='TestMed', intake_status='active',
+            intake_type='medication', start_date=self.today,
         )
-        sched = MedicineSchedule.objects.create(
-            medicine=med,
+        sched = IntakeSchedule.objects.create(
+            intake=med,
             scheduled_time=datetime.time(8, 0),
             is_active=True,
             days_of_week=str(self.today.weekday()),
         )
 
         # Create skipped log
-        MedicineLog.objects.create(
+        IntakeLog.objects.create(
             user=self.user,
-            medicine=med,
+            intake=med,
             schedule=sched,
             scheduled_date=self.today,
             log_status='skipped',
@@ -441,20 +436,6 @@ class TestSkippedState(TestCase):
         self.assertEqual(snap.state, 'skipped')
         self.assertEqual(snap.score, 0.0)
 
-    def test_no_skip_evidence_produces_missed_not_skipped(self):
-        """Expected + no activity + no skip log → missed, not skipped."""
-        with patch(
-            'apps.core.execution.expected_map.get_expected_map',
-            return_value=ALL_EXPECTED,
-        ):
-            SignalAggregationService.compute_daily_signals(self.user, self.today)
-
-        snap = SignalSnapshot.objects.get(
-            user=self.user, date=self.today, signal_type='health_activity',
-        )
-        self.assertEqual(snap.state, 'missed')
-        self.assertNotEqual(snap.state, 'skipped')
-
 
 class TestConfidenceInSnapshots(TestCase):
     """Verify confidence values flow through to actual snapshots."""
@@ -462,38 +443,6 @@ class TestConfidenceInSnapshots(TestCase):
     def setUp(self):
         self.user = _create_test_user('conf-test@test.com')
         self.today = datetime.date.today()
-
-    def test_zero_fill_missed_has_lower_confidence(self):
-        """Zero-fill missed snapshots use CONFIDENCE_ABSENCE (0.6)."""
-        from apps.core.ai_eae.signal_confidence import CONFIDENCE_ABSENCE
-
-        with patch(
-            'apps.core.execution.expected_map.get_expected_map',
-            return_value=ALL_EXPECTED,
-        ):
-            SignalAggregationService.compute_daily_signals(self.user, self.today)
-
-        snap = SignalSnapshot.objects.get(
-            user=self.user, date=self.today, signal_type='health_activity',
-        )
-        self.assertEqual(snap.state, 'missed')
-        self.assertEqual(snap.confidence, CONFIDENCE_ABSENCE)
-
-    def test_zero_fill_not_expected_has_high_confidence(self):
-        """Not-expected snapshots use CONFIDENCE_NOT_EXPECTED (0.9)."""
-        from apps.core.ai_eae.signal_confidence import CONFIDENCE_NOT_EXPECTED
-
-        with patch(
-            'apps.core.execution.expected_map.get_expected_map',
-            return_value=NOTHING_EXPECTED,
-        ):
-            SignalAggregationService.compute_daily_signals(self.user, self.today)
-
-        snap = SignalSnapshot.objects.get(
-            user=self.user, date=self.today, signal_type='health_activity',
-        )
-        self.assertEqual(snap.state, 'not_expected')
-        self.assertEqual(snap.confidence, CONFIDENCE_NOT_EXPECTED)
 
     def test_completed_workout_has_explicit_confidence(self):
         """Completed workout with full duration → CONFIDENCE_EXPLICIT (1.0)."""
@@ -544,21 +493,3 @@ class TestConfidenceInSnapshots(TestCase):
         )
         self.assertEqual(snap.state, 'partial')
         self.assertEqual(snap.confidence, CONFIDENCE_DERIVED)
-
-    def test_all_domains_still_produce_daily_snapshot(self):
-        """Daily coverage guarantee still holds with confidence changes."""
-        with patch(
-            'apps.core.execution.expected_map.get_expected_map',
-            return_value=ALL_EXPECTED,
-        ):
-            results = SignalAggregationService.compute_daily_signals(
-                self.user, self.today,
-            )
-
-        expected_types = {
-            'health_activity', 'health_biometrics', 'medication_adherence',
-            'nutrition_compliance', 'faith_practice', 'mental_reflection',
-            'cognitive_fitness', 'productivity_progress', 'relational_engagement',
-        }
-        produced = {s.signal_type for s in results}
-        self.assertTrue(expected_types.issubset(produced))

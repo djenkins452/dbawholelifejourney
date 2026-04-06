@@ -118,7 +118,10 @@
                 <div class="meal-title-row">
                     <h2>Breakfast</h2>
                     {% if breakfast_entries %}
-                    <span class="meal-subtotal"><span class="macro-cal">{{ breakfast_totals.calories|floatformat:0 }} cal</span> <span class="macro-sep">&middot;</span> P: {{ breakfast_totals.protein|floatformat:0 }}g <span class="macro-sep">&middot;</span> C: {{ breakfast_totals.carbs|floatformat:0 }}g <span class="macro-sep">&middot;</span> F: {{ breakfast_totals.fat|floatformat:0 }}g</span>
+                    <span class="meal-subtotal"><span class="macro-cal">{{ breakfast_totals.calories|floatformat:0 }} cal</span> <span class="macro-sep">&middot;</span> P: {{ breakfast_totals.protein_g|floatformat:0 }}g <span class="macro-sep">&middot;</span> C: {{ breakfast_totals.carbs_g|floatformat:0 }}g <span class="macro-sep">&middot;</span> F: {{ breakfast_totals.fat_g|floatformat:0 }}g</span>
+                    {% for sig in meal_signals_display.breakfast %}
+                    <span class="meal-signal meal-signal-{{ sig.tone }}">{{ sig.icon }} {{ sig.label }}</span>
+                    {% endfor %}
                     {% endif %}
                 </div>
                 <div class="meal-actions">
@@ -155,7 +158,10 @@
                 <div class="meal-title-row">
                     <h2>Lunch</h2>
                     {% if lunch_entries %}
-                    <span class="meal-subtotal"><span class="macro-cal">{{ lunch_totals.calories|floatformat:0 }} cal</span> <span class="macro-sep">&middot;</span> P: {{ lunch_totals.protein|floatformat:0 }}g <span class="macro-sep">&middot;</span> C: {{ lunch_totals.carbs|floatformat:0 }}g <span class="macro-sep">&middot;</span> F: {{ lunch_totals.fat|floatformat:0 }}g</span>
+                    <span class="meal-subtotal"><span class="macro-cal">{{ lunch_totals.calories|floatformat:0 }} cal</span> <span class="macro-sep">&middot;</span> P: {{ lunch_totals.protein_g|floatformat:0 }}g <span class="macro-sep">&middot;</span> C: {{ lunch_totals.carbs_g|floatformat:0 }}g <span class="macro-sep">&middot;</span> F: {{ lunch_totals.fat_g|floatformat:0 }}g</span>
+                    {% for sig in meal_signals_display.lunch %}
+                    <span class="meal-signal meal-signal-{{ sig.tone }}">{{ sig.icon }} {{ sig.label }}</span>
+                    {% endfor %}
                     {% endif %}
                 </div>
                 <div class="meal-actions">
@@ -192,7 +198,10 @@
                 <div class="meal-title-row">
                     <h2>Dinner</h2>
                     {% if dinner_entries %}
-                    <span class="meal-subtotal"><span class="macro-cal">{{ dinner_totals.calories|floatformat:0 }} cal</span> <span class="macro-sep">&middot;</span> P: {{ dinner_totals.protein|floatformat:0 }}g <span class="macro-sep">&middot;</span> C: {{ dinner_totals.carbs|floatformat:0 }}g <span class="macro-sep">&middot;</span> F: {{ dinner_totals.fat|floatformat:0 }}g</span>
+                    <span class="meal-subtotal"><span class="macro-cal">{{ dinner_totals.calories|floatformat:0 }} cal</span> <span class="macro-sep">&middot;</span> P: {{ dinner_totals.protein_g|floatformat:0 }}g <span class="macro-sep">&middot;</span> C: {{ dinner_totals.carbs_g|floatformat:0 }}g <span class="macro-sep">&middot;</span> F: {{ dinner_totals.fat_g|floatformat:0 }}g</span>
+                    {% for sig in meal_signals_display.dinner %}
+                    <span class="meal-signal meal-signal-{{ sig.tone }}">{{ sig.icon }} {{ sig.label }}</span>
+                    {% endfor %}
                     {% endif %}
                 </div>
                 <div class="meal-actions">
@@ -229,7 +238,10 @@
                 <div class="meal-title-row">
                     <h2>Snacks</h2>
                     {% if snack_entries %}
-                    <span class="meal-subtotal"><span class="macro-cal">{{ snack_totals.calories|floatformat:0 }} cal</span> <span class="macro-sep">&middot;</span> P: {{ snack_totals.protein|floatformat:0 }}g <span class="macro-sep">&middot;</span> C: {{ snack_totals.carbs|floatformat:0 }}g <span class="macro-sep">&middot;</span> F: {{ snack_totals.fat|floatformat:0 }}g</span>
+                    <span class="meal-subtotal"><span class="macro-cal">{{ snack_totals.calories|floatformat:0 }} cal</span> <span class="macro-sep">&middot;</span> P: {{ snack_totals.protein_g|floatformat:0 }}g <span class="macro-sep">&middot;</span> C: {{ snack_totals.carbs_g|floatformat:0 }}g <span class="macro-sep">&middot;</span> F: {{ snack_totals.fat_g|floatformat:0 }}g</span>
+                    {% for sig in meal_signals_display.snack %}
+                    <span class="meal-signal meal-signal-{{ sig.tone }}">{{ sig.icon }} {{ sig.label }}</span>
+                    {% endfor %}
                     {% endif %}
                 </div>
                 <div class="meal-actions">
@@ -598,6 +610,24 @@
 .meal-subtotal .macro-cal {
     font-weight: 600;
     color: var(--color-text);
+}
+.meal-signal {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    margin-left: var(--space-2);
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.meal-signal-warn {
+    color: var(--color-warning, #d97706);
+    background: var(--color-warning-bg, #fef3c7);
+}
+.meal-signal-good {
+    color: var(--color-success, #16a34a);
+    background: var(--color-success-bg, #dcfce7);
 }
 .meal-actions {
     display: flex;

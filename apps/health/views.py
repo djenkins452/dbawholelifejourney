@@ -4519,12 +4519,15 @@ class NutritionHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         context["next_date"] = view_date + datetime.timedelta(days=1)
         context["user_today"] = user_today
 
-        # Today's food entries
-        today_entries = FoodEntry.objects.filter(
-            user=user,
-            logged_date=view_date,
-        ).order_by('logged_time', 'created_at')
+        # Canonical queries & signals
+        from apps.health.services.nutrition_queries import (
+            NutritionQueries, build_meal_signals, SIGNAL_DISPLAY,
+        )
 
+        # Today's food entries (for display / grouping)
+        today_entries = NutritionQueries.entries_on_date(user, view_date).order_by(
+            'logged_time', 'created_at',
+        )
         context["today_entries"] = today_entries
 
         # Group entries by meal type
@@ -4538,44 +4541,36 @@ class NutritionHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         context["dinner_entries"] = dinner_entries
         context["snack_entries"] = snack_entries
 
-        # Calculate subtotals for each meal type
-        from django.db.models import Sum
+        # --- Canonical meal-level totals (single source of truth) ---
+        meal_totals = NutritionQueries.get_meal_totals(user, view_date)
+        context["meal_totals"] = meal_totals
 
-        def get_meal_subtotals(entries):
-            totals = entries.aggregate(
-                calories=Sum('total_calories'),
-                protein=Sum('total_protein_g'),
-                carbs=Sum('total_carbohydrates_g'),
-                fat=Sum('total_fat_g'),
-            )
-            return {
-                'calories': totals['calories'] or 0,
-                'protein': totals['protein'] or 0,
-                'carbs': totals['carbs'] or 0,
-                'fat': totals['fat'] or 0,
-            }
+        # Backward-compat context keys used by template
+        context["breakfast_totals"] = meal_totals["breakfast"]
+        context["lunch_totals"] = meal_totals["lunch"]
+        context["dinner_totals"] = meal_totals["dinner"]
+        context["snack_totals"] = meal_totals["snack"]
 
-        context["breakfast_totals"] = get_meal_subtotals(breakfast_entries)
-        context["lunch_totals"] = get_meal_subtotals(lunch_entries)
-        context["dinner_totals"] = get_meal_subtotals(dinner_entries)
-        context["snack_totals"] = get_meal_subtotals(snack_entries)
+        # --- Deterministic meal signals ---
+        meal_signals = build_meal_signals(meal_totals)
+        context["meal_signals"] = meal_signals
 
-        # Calculate today's totals
-        totals = today_entries.aggregate(
-            calories=Sum('total_calories'),
-            protein=Sum('total_protein_g'),
-            carbs=Sum('total_carbohydrates_g'),
-            fat=Sum('total_fat_g'),
-            fiber=Sum('total_fiber_g'),
-            sugar=Sum('total_sugar_g'),
-        )
+        # Pre-resolve signal display for template (avoids dict-key lookups)
+        meal_signals_display = {}
+        for mt, sigs in meal_signals.items():
+            meal_signals_display[mt] = [
+                SIGNAL_DISPLAY[s] for s in sigs if s in SIGNAL_DISPLAY
+            ]
+        context["meal_signals_display"] = meal_signals_display
 
-        context["total_calories"] = totals['calories'] or 0
-        context["total_protein"] = totals['protein'] or 0
-        context["total_carbs"] = totals['carbs'] or 0
-        context["total_fat"] = totals['fat'] or 0
-        context["total_fiber"] = totals['fiber'] or 0
-        context["total_sugar"] = totals['sugar'] or 0
+        # --- Daily totals (canonical) ---
+        daily = NutritionQueries.get_daily_totals(user, view_date)
+        context["total_calories"] = daily["calories"]
+        context["total_protein"] = daily["protein_g"]
+        context["total_carbs"] = daily["carbs_g"]
+        context["total_fat"] = daily["fat_g"]
+        context["total_fiber"] = daily["fiber_g"]
+        context["total_sugar"] = daily["sugar_g"]
 
         # Get user's nutrition goals
         goals = NutritionGoals.objects.filter(

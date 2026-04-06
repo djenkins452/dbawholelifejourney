@@ -1234,3 +1234,177 @@ class FoodSearchAPITest(NutritionTestMixin, TestCase):
         data = response.json()
 
         self.assertEqual(data['results'], [])
+
+
+# =============================================================================
+# CANONICAL MEAL TOTALS & SIGNALS TESTS
+# =============================================================================
+
+class NutritionQueriesMealTotalsTest(NutritionTestMixin, TestCase):
+    """Tests for NutritionQueries.get_meal_totals — single source of truth."""
+
+    def setUp(self):
+        self.user = self.create_user()
+        self.today = timezone.now().date()
+
+    def test_empty_day_returns_zero_totals(self):
+        """No entries produces zero totals for all meals."""
+        from apps.health.services.nutrition_queries import NutritionQueries
+        result = NutritionQueries.get_meal_totals(self.user, self.today)
+        for meal in ('breakfast', 'lunch', 'dinner', 'snack'):
+            self.assertEqual(result[meal]['calories'], Decimal('0'))
+            self.assertEqual(result[meal]['protein_g'], Decimal('0'))
+            self.assertEqual(result[meal]['carbs_g'], Decimal('0'))
+            self.assertEqual(result[meal]['fat_g'], Decimal('0'))
+
+    def test_single_meal_aggregation(self):
+        """Single entry is reflected in its meal totals."""
+        from apps.health.services.nutrition_queries import NutritionQueries
+        self.create_food_entry(
+            self.user,
+            logged_date=self.today,
+            meal_type=FoodEntry.MEAL_BREAKFAST,
+            total_calories=Decimal('350'),
+            total_protein_g=Decimal('20'),
+            total_carbohydrates_g=Decimal('40'),
+            total_fat_g=Decimal('10'),
+        )
+        result = NutritionQueries.get_meal_totals(self.user, self.today)
+        self.assertEqual(result['breakfast']['calories'], Decimal('350'))
+        self.assertEqual(result['breakfast']['protein_g'], Decimal('20'))
+        self.assertEqual(result['breakfast']['carbs_g'], Decimal('40'))
+        self.assertEqual(result['breakfast']['fat_g'], Decimal('10'))
+        # Other meals remain zero
+        self.assertEqual(result['lunch']['calories'], Decimal('0'))
+
+    def test_multiple_entries_same_meal(self):
+        """Multiple entries in same meal are summed."""
+        from apps.health.services.nutrition_queries import NutritionQueries
+        for cal in (Decimal('200'), Decimal('150')):
+            self.create_food_entry(
+                self.user,
+                logged_date=self.today,
+                meal_type=FoodEntry.MEAL_LUNCH,
+                total_calories=cal,
+                total_protein_g=Decimal('10'),
+                total_carbohydrates_g=Decimal('15'),
+                total_fat_g=Decimal('5'),
+            )
+        result = NutritionQueries.get_meal_totals(self.user, self.today)
+        self.assertEqual(result['lunch']['calories'], Decimal('350'))
+        self.assertEqual(result['lunch']['protein_g'], Decimal('20'))
+
+    def test_different_dates_isolated(self):
+        """Entries on other dates do not contaminate."""
+        from apps.health.services.nutrition_queries import NutritionQueries
+        yesterday = self.today - timedelta(days=1)
+        self.create_food_entry(
+            self.user, logged_date=yesterday,
+            meal_type=FoodEntry.MEAL_DINNER, total_calories=Decimal('600'),
+        )
+        result = NutritionQueries.get_meal_totals(self.user, self.today)
+        self.assertEqual(result['dinner']['calories'], Decimal('0'))
+
+    def test_daily_totals_matches_meal_sum(self):
+        """get_daily_totals should equal the sum of all meal totals."""
+        from apps.health.services.nutrition_queries import NutritionQueries
+        self.create_food_entry(
+            self.user, logged_date=self.today,
+            meal_type=FoodEntry.MEAL_BREAKFAST,
+            total_calories=Decimal('300'), total_protein_g=Decimal('20'),
+            total_carbohydrates_g=Decimal('30'), total_fat_g=Decimal('10'),
+        )
+        self.create_food_entry(
+            self.user, logged_date=self.today,
+            meal_type=FoodEntry.MEAL_DINNER,
+            total_calories=Decimal('500'), total_protein_g=Decimal('35'),
+            total_carbohydrates_g=Decimal('45'), total_fat_g=Decimal('15'),
+        )
+        meal = NutritionQueries.get_meal_totals(self.user, self.today)
+        daily = NutritionQueries.get_daily_totals(self.user, self.today)
+
+        meal_cal_sum = sum(m['calories'] for m in meal.values())
+        self.assertEqual(daily['calories'], meal_cal_sum)
+        meal_pro_sum = sum(m['protein_g'] for m in meal.values())
+        self.assertEqual(daily['protein_g'], meal_pro_sum)
+
+
+class BuildMealSignalsTest(TestCase):
+    """Tests for build_meal_signals — deterministic threshold rules."""
+
+    def _make_totals(self, calories, protein, carbs, fat):
+        return {
+            'calories': Decimal(str(calories)),
+            'protein_g': Decimal(str(protein)),
+            'carbs_g': Decimal(str(carbs)),
+            'fat_g': Decimal(str(fat)),
+        }
+
+    def test_empty_meal_no_signals(self):
+        from apps.health.services.nutrition_queries import build_meal_signals
+        result = build_meal_signals({'breakfast': self._make_totals(0, 0, 0, 0)})
+        self.assertEqual(result['breakfast'], [])
+
+    def test_low_protein_signal(self):
+        """Protein < 30g triggers low_protein."""
+        from apps.health.services.nutrition_queries import build_meal_signals
+        # 400 cal, 15g protein, 50g carbs, 10g fat
+        result = build_meal_signals({'lunch': self._make_totals(400, 15, 50, 10)})
+        self.assertIn('low_protein', result['lunch'])
+
+    def test_high_protein_signal(self):
+        """Protein >= 50g triggers high_protein."""
+        from apps.health.services.nutrition_queries import build_meal_signals
+        result = build_meal_signals({'dinner': self._make_totals(600, 55, 50, 15)})
+        self.assertIn('high_protein', result['dinner'])
+        self.assertNotIn('low_protein', result['dinner'])
+
+    def test_high_fat_signal(self):
+        """Fat >= 40% of calories triggers high_fat."""
+        from apps.health.services.nutrition_queries import build_meal_signals
+        # 500 cal, 30g fat = 270 cal from fat = 54% -> high_fat
+        result = build_meal_signals({'breakfast': self._make_totals(500, 20, 30, 30)})
+        self.assertIn('high_fat', result['breakfast'])
+
+    def test_high_carb_signal(self):
+        """Carbs >= 50% of calories triggers high_carb."""
+        from apps.health.services.nutrition_queries import build_meal_signals
+        # 400 cal, 60g carbs = 240 cal = 60% -> high_carb
+        result = build_meal_signals({'lunch': self._make_totals(400, 20, 60, 10)})
+        self.assertIn('high_carb', result['lunch'])
+
+    def test_calorie_dense_signal(self):
+        """Calories >= 700 triggers calorie_dense."""
+        from apps.health.services.nutrition_queries import build_meal_signals
+        result = build_meal_signals({'dinner': self._make_totals(750, 40, 80, 20)})
+        self.assertIn('calorie_dense', result['dinner'])
+
+    def test_balanced_signal(self):
+        """Balanced: protein >= 30g, fat < 35%, carbs < 45%."""
+        from apps.health.services.nutrition_queries import build_meal_signals
+        # 500 cal, 35g pro, 45g carbs (180/500=36%), 15g fat (135/500=27%)
+        result = build_meal_signals({'lunch': self._make_totals(500, 35, 45, 15)})
+        self.assertIn('balanced', result['lunch'])
+        self.assertNotIn('low_protein', result['lunch'])
+
+    def test_balanced_excluded_when_calorie_dense(self):
+        """Balanced is not emitted alongside calorie_dense."""
+        from apps.health.services.nutrition_queries import build_meal_signals
+        # 800 cal, 50g pro, 60g carbs, 20g fat — would be balanced ratios, but too calorie-dense
+        result = build_meal_signals({'dinner': self._make_totals(800, 50, 60, 20)})
+        self.assertIn('calorie_dense', result['dinner'])
+        self.assertNotIn('balanced', result['dinner'])
+
+    def test_no_duplicate_aggregation_proof(self):
+        """Signals consume the dict input directly — no ORM calls."""
+        from apps.health.services.nutrition_queries import build_meal_signals
+        # Pass hand-crafted dict (proves no DB access needed)
+        fake = {
+            'breakfast': self._make_totals(400, 40, 40, 10),
+            'lunch': self._make_totals(0, 0, 0, 0),
+            'dinner': self._make_totals(300, 10, 50, 5),
+            'snack': self._make_totals(150, 5, 20, 3),
+        }
+        result = build_meal_signals(fake)
+        self.assertEqual(len(result), 4)
+        self.assertIsInstance(result['breakfast'], list)

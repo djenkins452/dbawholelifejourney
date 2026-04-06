@@ -6,6 +6,24 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-06 — Nutrition: Canonical meal totals + deterministic meal signals
+
+**What:** Moved meal-level macro aggregation from inline view code to `NutritionQueries.get_meal_totals()` as the single source of truth. Added `build_meal_signals()` for deterministic meal-level nutrition signals (low_protein, high_fat, high_carb, calorie_dense, balanced, high_protein). Signals display as subtle badges next to meal subtotals in the UI.
+
+**Why:** Meal subtotals were computed inline in the view with no reusable path. Future CoS and signal consumers would have needed to duplicate the aggregation. This establishes one canonical aggregation consumed by the view, signals, and (future) CoS.
+
+**Changes:**
+- `apps/health/services/nutrition_queries.py` — Added `get_meal_totals()`, `get_daily_totals()`, `build_meal_signals()` with strict threshold constants and `SIGNAL_DISPLAY` metadata
+- `apps/health/views.py` — `NutritionHomeView` now calls canonical functions; removed inline `get_meal_subtotals()` and inline `Sum()` aggregation
+- `templates/health/nutrition/home.html` — Updated template key names (`protein_g`, `carbs_g`, `fat_g`); added signal badge rendering with `.meal-signal-warn` / `.meal-signal-good` CSS
+- `apps/health/tests/test_nutrition.py` — Added `NutritionQueriesMealTotalsTest` (5 tests) and `BuildMealSignalsTest` (9 tests)
+
+**Signal thresholds:** low_protein (<30g), high_protein (>=50g), high_fat (>=40% cal), high_carb (>=50% cal), calorie_dense (>=700 cal), balanced (pro>=30g + fat<35% + carb<45%)
+
+**Architecture:** No new models, no new engines, no async. Signals are pure functions consuming `meal_totals` dict — zero ORM re-queries. Ready for CoS integration via the standard Insight pipeline when needed.
+
+---
+
 ## 2026-04-06 — Nutrition: Make meal subtotals visually prominent
 
 **What:** Upgraded meal subtotal styling so per-meal calories and macros are clearly visible beneath each meal section heading (Breakfast, Lunch, Dinner, Snacks).

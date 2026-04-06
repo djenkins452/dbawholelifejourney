@@ -6,6 +6,36 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-06 — Decision Engine: Priority accuracy + time-window filtering + duplicate prefix fix
+
+### Priority Engine Correction
+- **Root cause:** Sort order was `foundational > urgency`, meaning a foundational "upcoming" item
+  (Evening Medications, 8 PM) ranked above a non-foundational "next" item (task due in 2 hours).
+- **Fix:** Changed sort in `action_prioritizer.py` to `urgency > foundational`. Overdue items always
+  come first regardless of foundational status. An item due NOW beats a foundational item hours away.
+
+### Time-Window Filtering
+- **Root cause:** `build_locked_next_action()` selected the top priority regardless of time relevance.
+  "Evening Medications" at 5 AM was selected because it was the only foundational pending item.
+- **Fix:** Added time-window filter in `cos_fact_statements.py`. Only `overdue`, `now`, and `next`
+  urgencies are actionable. `upcoming` items (hours away) are excluded from next-action recommendation.
+- **New "no action" state:** When no items are within the action window, returns
+  "You're clear right now. Next up is [item] at [time]." instead of forcing a premature action.
+
+### Duplicate "Start with" Prefix Fix
+- **Root cause:** `cos_context.py` line 5598 instructed LLM to output "Start with: [item]" but the
+  locked facts block already contained "NEXT ACTION: Start with [item]." → LLM produced
+  "Start with Start with X."
+- **Fix:** Changed instruction to "End with exactly ONE clear next action from the NEXT ACTION in
+  locked facts." — LLM uses the pre-built label instead of double-prefixing.
+
+**Files:** `apps/core/decision_engine/action_prioritizer.py`, `apps/ai/cos_fact_statements.py`,
+`apps/core/ai_orchestrator/cos_context.py`
+
+**Tests:** 26 pass (completion service + workout truth)
+
+---
+
 ## 2026-04-06 — System Enforcement: Centralized Completion Service + Invariant Protection
 
 **Eliminates the entire class of false-completion bugs permanently.**

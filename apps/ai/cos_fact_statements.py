@@ -452,12 +452,32 @@ def build_locked_next_action(user) -> str:
         if not priorities:
             return "All items are complete — nothing pending."
 
-        top = priorities[0]['title']
+        # Time-window filter: only recommend items that are actionable NOW.
+        # overdue/now = act immediately, next = within ~2 hours.
+        # "upcoming" items (hours away) are NOT actionable — don't force them.
+        actionable_urgencies = {'overdue', 'now', 'next'}
+        actionable = [
+            p for p in priorities
+            if p.get('urgency') in actionable_urgencies
+        ]
+
+        if not actionable:
+            # Nothing within the action window — user is clear
+            # Find next upcoming item for context
+            upcoming = [p for p in priorities if p.get('urgency') == 'upcoming']
+            if upcoming:
+                next_title = upcoming[0]['title']
+                next_time = upcoming[0].get('time_display', '')
+                time_note = f" at {next_time}" if next_time else ""
+                return f"You're clear right now. Next up is {next_title}{time_note}."
+            return "You're clear right now — nothing pending in the near term."
+
+        top = actionable[0]['title']
         result = f"Start with {top}."
 
         logger.info(
-            "[CoS LOCKED NEXT ACTION] user=%s top=%s total_pending=%d",
-            user.id, top, len(priorities),
+            "[CoS LOCKED NEXT ACTION] user=%s top=%s actionable=%d total=%d",
+            user.id, top, len(actionable), len(priorities),
         )
         return result
 

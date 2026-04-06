@@ -207,10 +207,12 @@ def build_action_priorities(
             "time_display": "",
         })
 
-    # ── Sort: foundational first, then by urgency, then alphabetical ──
+    # ── Sort: urgency first, then foundational, then alphabetical ──
+    # Urgency is the PRIMARY key — an overdue non-foundational item
+    # outranks a foundational item that's hours away.
     actions.sort(key=lambda a: (
-        not a["is_foundational"],
         URGENCY_ORDER.get(a["urgency"], 9),
+        not a["is_foundational"],
         a["title"],
     ))
 

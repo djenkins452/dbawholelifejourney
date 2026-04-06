@@ -277,3 +277,36 @@ class TestScheduledItemsNeverInFlexible(SimpleTestCase):
         self.assertEqual(len(time_groups), 2)
         self.assertEqual(time_groups[0]['time_block_key'], '08:00')
         self.assertEqual(time_groups[1]['time_block_key'], '18:00')
+
+    def test_completed_past_items_in_done_phase(self):
+        """Completed items from hours ago should be in 'done' phase, not NOW."""
+        from apps.core.decision_engine.action_prioritizer import build_grouped_action_center
+        # 5 AM item, completed — viewed at 5 PM
+        items = [
+            self._make_exec_item('medication_dose', 1, 'Morning Med', '05:00', completed=True),
+            self._make_exec_item('medication_dose', 2, 'Evening Med', '18:00'),
+        ]
+        result = build_grouped_action_center(items, datetime.time(17, 0))
+        done_groups = result['phase_groups'].get('done', [])
+        now_groups = result['phase_groups'].get('now', [])
+        upcoming_groups = result['phase_groups'].get('upcoming', [])
+        # Morning med should be in done, NOT in now or upcoming
+        done_titles = [i['title'] for g in done_groups for i in g['items']]
+        now_titles = [i['title'] for g in now_groups for i in g['items']]
+        upcoming_titles = [i['title'] for g in upcoming_groups for i in g['items']]
+        self.assertIn('Morning Med', done_titles)
+        self.assertNotIn('Morning Med', now_titles)
+        self.assertNotIn('Morning Med', upcoming_titles)
+
+    def test_incomplete_past_items_are_overdue(self):
+        """Incomplete items well past scheduled time should be overdue."""
+        from apps.core.decision_engine.action_prioritizer import build_grouped_action_center
+        # 9 AM item, NOT completed — viewed at 5 PM
+        items = [
+            self._make_exec_item('routine_item', 5, 'Morning Workout', '09:00'),
+        ]
+        result = build_grouped_action_center(items, datetime.time(17, 0))
+        now_groups = result['phase_groups'].get('now', [])
+        # Should be in now (overdue)
+        now_titles = [i['title'] for g in now_groups for i in g['items']]
+        self.assertIn('Morning Workout', now_titles)

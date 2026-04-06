@@ -6,6 +6,22 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-06 — Action Center: Fix phase labels — completed past items no longer show as NOW/UPCOMING
+
+**What:** Fixed Action Center showing completed morning items under "NOW" and "UPCOMING" at 5 PM. Added a "Completed Earlier" phase for items done hours ago.
+
+**Root cause:** `build_grouped_action_center()` classified urgency using `classify_urgency()` which only considers the delta from now. Completed items with `delta < -5` fell through to "upcoming" (the default). Routine items with `delta < -45` were hardcoded to "now". Neither accounted for items being both completed AND in the past.
+
+**Changes:**
+- `apps/core/decision_engine/action_prioritizer.py` — New urgency classification: completed items with scheduled_time > 5 min in the past get `urgency="done"`. Incomplete items > 30 min past get `urgency="overdue"`. Added "done" to `URGENCY_ORDER` and `phase_groups`. Routine items no longer hardcode past items to "now".
+- `templates/dashboard_v2/partials/action_center.html` — Added "Completed Earlier" section rendering `ac.phase_groups.done`.
+- `static/css/dashboard_v2.css` — Added `.v2-phase-done` (green label) and `.v2-ac-phase-done` (slightly dimmed).
+- `apps/core/decision_engine/tests/test_action_prioritizer.py` — Added 2 tests: completed past items in "done" phase, incomplete past items as "overdue".
+
+**Result:** At 5 PM, completed 5:00 AM items appear under "Completed Earlier" (dimmed, at bottom). Incomplete past items appear under "Now" as overdue. Future items appear under correct phase labels.
+
+---
+
 ## 2026-04-06 — Physical Intelligence: Fix creatine banner contradiction + confidence badge
 
 **What:** Fixed two contradictions visible on the dashboard:

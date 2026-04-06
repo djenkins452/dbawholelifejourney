@@ -23,7 +23,7 @@ Foundational precedence per item:
 import datetime
 
 # Canonical urgency ordering — lower = higher priority
-URGENCY_ORDER = {"overdue": 0, "now": 1, "next": 2, "upcoming": 3}
+URGENCY_ORDER = {"overdue": 0, "now": 1, "next": 2, "upcoming": 3, "done": 4}
 
 
 def time_diff_minutes(now_time, target_time):
@@ -449,15 +449,22 @@ def build_grouped_action_center(execution_items, current_time, summaries=None):
         is_overdue = item.get('time_status') == 'overdue'
         completed = item.get('completed_today', False)
 
-        # Classify urgency for positioning (even completed items get urgency
-        # so they appear in the correct time group)
-        if item['source_type'] == 'routine_item':
-            if sched_time and not is_overdue:
-                delta = time_diff_minutes(now_time, sched_time)
+        # Classify urgency for positioning.
+        # Completed items in the past get "done" so they sort into a
+        # chronological "Earlier" section — NOT into NOW or UPCOMING.
+        # Incomplete items in the past are genuinely overdue.
+        if sched_time:
+            delta = time_diff_minutes(now_time, sched_time)
+            if completed and delta < -5:
+                # Completed and scheduled time is in the past → "done"
+                urgency = "done"
+            elif not completed and delta < -30:
+                # Incomplete and well past scheduled time → overdue
+                urgency = "overdue"
+            elif item['source_type'] == 'routine_item':
+                # Routine items: wider "now" window (45 min past)
                 if -45 <= delta <= 30:
                     urgency = "now"
-                elif delta < -45:
-                    urgency = "now"  # Past — show in NOW as completed/overdue
                 elif delta <= 120:
                     urgency = "next"
                 else:
@@ -697,6 +704,8 @@ def build_grouped_action_center(execution_items, current_time, summaries=None):
                      if g['urgency'] == 'next'],
         'later': [g for g in result_groups
                   if g['urgency'] == 'upcoming'],
+        'done': [g for g in result_groups
+                 if g['urgency'] == 'done'],
         'flexible': [g for g in result_groups
                      if g['urgency'] == 'flexible'],
     }

@@ -2112,6 +2112,15 @@ a.v2-action-title:hover {
     font-style: italic;
 }
 
+.v2-phase-done {
+    color: var(--color-success, #16a34a);
+    background: rgba(22, 163, 74, 0.06);
+}
+
+.v2-ac-phase-done {
+    opacity: 0.65;
+}
+
 .v2-ac-group-time-icon {
     font-size: 0.9rem;
     margin-right: var(--space-1, 4px);

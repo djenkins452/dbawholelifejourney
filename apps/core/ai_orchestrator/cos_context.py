@@ -1628,6 +1628,101 @@ def _build_meals_context(user):
         return {}
 
 
+def _build_nutrition_tracking_context(user):
+    """
+    Build nutrition tracking context from SAE nutrition state.
+
+    This covers food logging, calorie/macro tracking, targets, and compliance.
+    Separate from _build_meals_context() which covers meal planning/pantry.
+    """
+    try:
+        from apps.core.ai_state.state_engine import get_state_value
+
+        ctx = {}
+        daily_cal = get_state_value(user, 'nutrition.daily_calories')
+        if daily_cal is not None:
+            ctx['daily_calories'] = daily_cal
+            ctx['daily_protein_g'] = get_state_value(user, 'nutrition.daily_protein_g', 0)
+            ctx['daily_carbs_g'] = get_state_value(user, 'nutrition.daily_carbs_g', 0)
+            ctx['daily_fat_g'] = get_state_value(user, 'nutrition.daily_fat_g', 0)
+
+        cal_target = get_state_value(user, 'nutrition.calorie_target')
+        if cal_target is not None:
+            ctx['calorie_target'] = cal_target
+        protein_target = get_state_value(user, 'nutrition.protein_target')
+        if protein_target is not None:
+            ctx['protein_target'] = protein_target
+        carb_target = get_state_value(user, 'nutrition.carb_target')
+        if carb_target is not None:
+            ctx['carb_target'] = carb_target
+        fat_target = get_state_value(user, 'nutrition.fat_target')
+        if fat_target is not None:
+            ctx['fat_target'] = fat_target
+
+        cal_compliance = get_state_value(user, 'nutrition.calorie_compliance_pct')
+        if cal_compliance is not None:
+            ctx['calorie_compliance_pct'] = cal_compliance
+        protein_compliance = get_state_value(user, 'nutrition.protein_compliance_pct')
+        if protein_compliance is not None:
+            ctx['protein_compliance_pct'] = protein_compliance
+
+        avg_cal = get_state_value(user, 'nutrition.rolling_7d_calories_avg')
+        if avg_cal is not None:
+            ctx['rolling_7d_calories_avg'] = avg_cal
+        avg_protein = get_state_value(user, 'nutrition.rolling_7d_protein_avg')
+        if avg_protein is not None:
+            ctx['rolling_7d_protein_avg'] = avg_protein
+
+        entries = get_state_value(user, 'nutrition.food_entries_today')
+        if entries is not None:
+            ctx['food_entries_today'] = entries
+
+        if ctx:
+            return {'nutrition_tracking': ctx}
+        return {}
+    except Exception as e:
+        logger.debug("CoS context: nutrition tracking unavailable: %s", e)
+        return {}
+
+
+def _build_cross_domain_insights(user):
+    """
+    Inject active CDCE cross-domain correlations into CoS context.
+
+    Enables CoS to reference discovered relationships between domains
+    (e.g., sleep ↔ mood, nutrition ↔ transformation) in real-time.
+    """
+    try:
+        from apps.core.ai_cross_domain.models import DomainCorrelation
+        from datetime import timedelta
+
+        cutoff = timezone.now() - timedelta(days=14)
+        correlations = DomainCorrelation.objects.filter(
+            user=user,
+            status='active',
+            strength__in=['strong', 'moderate'],
+            detected_at__gte=cutoff,
+        ).order_by('-strength_score')[:5]
+
+        if not correlations:
+            return {}
+
+        insights = []
+        for c in correlations:
+            insights.append({
+                'domains': f"{c.domain_a} ↔ {c.domain_b}",
+                'type': c.correlation_type,
+                'strength': c.strength,
+                'direction': c.direction,
+                'narrative': c.narrative,
+            })
+
+        return {'cross_domain_insights': insights}
+    except Exception as e:
+        logger.debug("CoS context: cross-domain insights unavailable: %s", e)
+        return {}
+
+
 def _build_faith_context(user):
     """Build faith module context — from SAE truth layer."""
     try:
@@ -1771,7 +1866,7 @@ def _build_capture_context(user):
 
 
 def _build_medical_context(user):
-    """Build medical context — from SAE state (CoS purity enforced)."""
+    """Build medical context — from SAE state + recent lab values."""
     result = {}
     try:
         from apps.core.ai_state.state_engine import get_module_state
@@ -1793,6 +1888,34 @@ def _build_medical_context(user):
                 'recent_abnormal': summary.get('recent_abnormal_count', 0),
                 'provider_count': summary.get('provider_count', 0),
             }
+
+        # Enrich with individual lab values for CoS data access
+        try:
+            from apps.medical.models import LabResult
+            recent_labs = LabResult.objects.filter(
+                user=user,
+                result_status='final',
+            ).order_by('-collected_at')[:10]
+
+            if recent_labs.exists():
+                lab_values = []
+                for lab in recent_labs:
+                    entry = {
+                        'test_name': lab.raw_test_name,
+                        'value': lab.value_text,
+                        'unit': lab.unit or '',
+                        'date': lab.collected_at.strftime('%Y-%m-%d'),
+                    }
+                    if lab.range_text:
+                        entry['reference_range'] = lab.range_text
+                    elif lab.range_low is not None and lab.range_high is not None:
+                        entry['reference_range'] = f"{lab.range_low}-{lab.range_high}"
+                    if lab.abnormal_flag:
+                        entry['abnormal'] = lab.abnormal_flag
+                    lab_values.append(entry)
+                result['recent_lab_values'] = lab_values
+        except ImportError:
+            pass  # medical app not installed
 
     except Exception as e:
         logger.debug("CoS context: medical unavailable: %s", e)
@@ -2308,6 +2431,7 @@ _TAGGED_BUILDERS = [
 
     # ── Domain builders (filtered by module enablement) ──
     ('health', lambda user, prefs: _build_health_and_vitals(user), 'health'),
+    ('nutrition_tracking', lambda user, prefs: _build_nutrition_tracking_context(user), 'health'),
     ('brain_training', lambda user, prefs: _build_brain_training_context(user), 'brain_training'),
     ('medical', lambda user, prefs: _build_medical_context(user), 'medical'),
     ('faith', lambda user, prefs: _build_faith_context(user), 'faith'),
@@ -2317,6 +2441,7 @@ _TAGGED_BUILDERS = [
     ('relationships', lambda user, prefs: _build_people_and_mood(user), 'relationships'),
     ('routine', lambda user, prefs: _build_routine_context(user), None),
     ('sports', lambda user, prefs: _build_sports_context(user), 'sports'),
+    ('cross_domain', lambda user, prefs: _build_cross_domain_insights(user), None),
 ]
 
 # Backward-compatible flat list (used by telemetry and tests)
@@ -3577,7 +3702,7 @@ def _build_data_state_snapshot(user) -> str:
             'active_medications': "NEVER say 'medication is due' or 'make sure to take your meds'",
             'weight_entries': "NEVER mention a specific weight value or weight trend",
             'sleep_entries': "NEVER cite sleep hours or quality scores",
-            'nutrition_entries': "NEVER reference meals, calories, or macros logged",
+            'nutrition_entries': "NEVER reference meals, calories, or macros logged. You MAY suggest the user start tracking nutrition.",
             'blood_pressure_entries': "NEVER cite blood pressure readings",
             'workout_sessions': "NEVER reference specific workout sessions completed",
             'goals_defined': "NEVER reference goals by name or count",
@@ -3586,6 +3711,10 @@ def _build_data_state_snapshot(user) -> str:
             'completed_tasks_today': "NEVER claim tasks were completed today if count is 0",
             'foundational_skip_streaks': "User has no active foundational skip streaks",
         }
+        # If nutrition tracking data IS present in context, remove the NEVER rule.
+        # The nutrition_tracking builder provides real data — CoS must use it.
+        if counts.get('nutrition_entries', 0) > 0:
+            domain_examples.pop('nutrition_entries', None)
         for domain in zero_domains:
             example = domain_examples.get(domain, f"NEVER reference specific {domain}")
             lines.append(f"  • {domain} = 0 → {example}")
@@ -5198,6 +5327,18 @@ def format_cos_system_injection(context, user_message=None):
         "data right now' — NEVER guess, estimate, or echo back a number the user "
         "mentioned as if you looked it up. Wrong data destroys trust. "
         "Saying 'I don't have that' is ALWAYS better than making something up."
+    )
+    lines.append("")
+    lines.append(
+        "DATA ACCESS CONTRACT: If nutrition, health, journal, medical, or any "
+        "domain data appears in your context, you MUST reference it when answering "
+        "related questions. Use the EXACT values provided. "
+        "You MUST NEVER say: 'I don't have access', 'check your app', "
+        "'contact support', 'check your internet', or 'I can't see that data'. "
+        "These phrases are FORBIDDEN — they are not WLJ responses. "
+        "If you expected data to be present but it is not in your context, say: "
+        "'I'm not seeing that data in your system right now — this looks like a "
+        "system issue. Let me flag it.'"
     )
     lines.append("")
     lines.append(

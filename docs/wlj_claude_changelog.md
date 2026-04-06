@@ -6,27 +6,73 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-06 — System Integrity: Signal Integrity, CoS Context Completeness, Write Trust, Intervention Tiers
+
+**Multi-layer system integrity upgrade addressing 7 problem areas.**
+
+### Phase 1: Signal Integrity — Zero-fill Elimination
+- **Removed** zero-fill loop from `apps/core/ai_eae/signal_aggregation.py` (lines 146-176)
+- Signals now ONLY created when real user data exists (NULL ≠ 0)
+- Updated `apps/core/ai_eae/signal_confidence.py` docstrings for clarity
+- Rewrote `apps/core/ai_eae/tests/test_signal_state.py`: removed zero-fill tests, added signal integrity tests
+- Fixed `Medicine` → `Intake` model references in tests (post-rename alignment)
+- **Guarantee:** No signal without real data; no false patterns from phantom signals
+
+### Phase 2: CoS Context Completeness
+- **Added** `_build_nutrition_tracking_context()` to `apps/core/ai_orchestrator/cos_context.py`
+  - CoS now has: daily calories, macros, targets, compliance %, 7d averages, entry count
+- **Enriched** `_build_medical_context()` with individual lab values (up to 10 recent)
+  - Now includes: test name, value, unit, reference range, abnormal flag, date
+- **Added** `_build_cross_domain_insights()` for CDCE correlations in CoS context
+- **Refined** NEVER rules: nutrition rule removed when user has nutrition data
+- **Guarantee:** CoS can answer calorie, macro, lab, and trend questions with real data
+
+### Phase 3: Write Path Trust Guarantee
+- **Added** post-write verification in `handle_log_food()` (`apps/ai/action_handlers.py`)
+  - Queries back using same filter as UI after create
+  - Returns failure if verification fails
+- **Added** explicit `invalidate_cos_context()` after food write
+- **Guarantee:** If CoS confirms a write, entry is retrievable by UI
+
+### Phase 4: CoS Hard Contract
+- **Added** DATA ACCESS CONTRACT directive to system prompt injection
+- Forbidden phrases: "I don't have access", "check your app", "contact support", "check your internet"
+- System issue response: "I'm not seeing that data right now — this looks like a system issue."
+- **Guarantee:** No generic chatbot responses; all answers grounded in system data
+
+### Phase 5: Intervention Engine v3 — Tiered Output
+- **Enhanced** `decide_intervention()` in `apps/core/ai_arbitration/intervention_engine.py`
+- New tiered output: `interventions_now`, `interventions_upcoming`, `interventions_watch`
+- Critical health gates → now; directive/accountability → upcoming; trends/drift → watch
+- **Guarantee:** Deterministic priority classification for CoS response shaping
+
+### Phase 6: CoS Integration — Tiered Narrative
+- **Added** `_build_tiered_intervention_block()` to `apps/core/ai_arbitration/narrative_engine.py`
+- Narrative now includes PRIORITY ACTIONS / TODAY'S AGENDA / WATCH LIST sections
+- Updated instructions: lead with highest priority, one action per intervention, watch list only when asked
+- **Guarantee:** CoS leads with what matters most
+
+### Phase 7: Context Freshness — Domain Events on All Health Writes
+- **Added** `_emit_domain_event()` calls to: heart rate, blood oxygen, water, steps, body measurement handlers
+- All health writes now fire `health.*` events → triggers CoS cache invalidation via existing subscriber
+- **Guarantee:** CoS context always reflects latest state after any health write
+
+**Files modified:** `apps/core/ai_eae/signal_aggregation.py`, `apps/core/ai_eae/signal_confidence.py`,
+`apps/core/ai_eae/tests/test_signal_state.py`, `apps/core/ai_orchestrator/cos_context.py`,
+`apps/ai/action_handlers.py`, `apps/core/ai_arbitration/intervention_engine.py`,
+`apps/core/ai_arbitration/narrative_engine.py`
+
+**Tests:** 118 tests pass (signal state + arbitration suites)
+
+---
+
 ## 2026-04-05 — Refactor: Phase V Medicine-to-Intake finalization — remove backward compat aliases
 
-**Root cause:** Phases I-IV renamed models, URLs, views, templates, and AI intents from "Medicine" to "Intake". Backward compatibility aliases (`Medicine = Intake`, `MedicineSchedule = IntakeSchedule`, `MedicineLog = IntakeLog`) and compat properties (`medicine_status`, `is_active_medicine`, `.medicine` on schedule/log) were left in place to prevent breakage during the transition. Now that all code paths are updated, these aliases must be removed to complete the rename.
+**Root cause:** Phases I-IV renamed models, URLs, views, templates, and AI intents from "Medicine" to "Intake". Backward compatibility aliases and compat properties were left in place during the transition. Now that all code paths are updated, these aliases are removed.
 
-**Changes:**
-- Removed backward compatibility aliases from `apps/health/models.py` (Medicine, MedicineSchedule, MedicineLog)
-- Removed compat properties: `medicine_status` (getter+setter), `is_active_medicine` on Intake; `.medicine` on IntakeSchedule; `.medicine`, `.medicine_id` on IntakeLog
-- Updated 13 test files to import `Intake`/`IntakeSchedule`/`IntakeLog` instead of old names
-- Updated all FK kwargs from `medicine=` to `intake=` in test files and production code
-- Updated ORM lookups from `medicine__` to `intake__` and `medicine_status=` to `intake_status=`
-- Updated `select_related('medicine')` to `select_related('intake')` in state_builder.py and views.py
-- Fixed template references: `medicine_form.html` to `intake_form.html`, `medicine_list.html` to `intake_list.html`, `medicine_detail.html` to `intake_detail.html`, `medicine_schedules.html` to `intake_schedules.html`
-- Fixed URL name references in test files from `health:medicine_*` to `health:intake_*`
-- Fixed `scan:medicine_lookup` to `scan:intake_lookup` in intake_form.html template
-- Fixed `Medicine.DoesNotExist` / `MedicineSchedule.DoesNotExist` in correction_service.py
-- Updated `apps/users/models.py` and `apps/users/views.py` to import Intake instead of Medicine
-- Updated `apps/health/tests/test_health_intelligence.py` imports
-- Updated `apps/core/behavior/tests.py` model references
-- Updated `model = Medicine` / `model = MedicineLog` class attributes in views.py
+**Changes:** Removed backward compatibility aliases from models.py, updated 13 test files, updated all FK/ORM lookups, fixed template and URL name references.
 
-**Files modified:** apps/health/models.py, apps/health/views.py, apps/health/tests/test_medicine.py, apps/health/tests/test_medicine_adherence.py, apps/health/tests/test_health_intelligence.py, apps/core/ai_events/tests/test_medication_adapter.py, apps/core/ai_events/tests/test_router_integration.py, apps/core/ai_events/tests/test_followup.py, apps/core/ai_events/tests/test_resolver.py, apps/core/tests/test_core_comprehensive.py, apps/core/tests/test_quarter_hour_normalization.py, apps/core/ai_eae/tests/test_signal_state.py, apps/core/signals/tests/test_execution_quality.py, apps/core/ai_orchestrator/tests/test_entity_resolver.py, apps/sms/tests/test_sms_comprehensive.py, apps/cos/tests/test_cos_cx.py, apps/core/ai_state/state_builder.py, apps/core/behavior/correction_service.py, apps/core/behavior/tests.py, apps/users/models.py, apps/users/views.py, templates/health/intake/intake_form.html
+**Files modified:** apps/health/models.py, apps/health/views.py, 13 test files, apps/core/ai_state/state_builder.py, apps/core/behavior/correction_service.py, apps/users/models.py, apps/users/views.py, templates/health/intake/
 
 ---
 

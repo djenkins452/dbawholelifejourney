@@ -638,6 +638,10 @@ class ActionHandler:
             except Exception:
                 pass
 
+            _emit_domain_event("health.heartrate.logged", self.user, {
+                "entry_id": entry.id, "bpm": bpm, "context": context,
+            })
+
             return ActionResult(
                 success=True,
                 message=f"{_pick_opener(_SUCCESS_OPENERS, 'hr')} \u2014 {bpm} BPM ({context}) at {time_str} is logged.",
@@ -888,6 +892,10 @@ class ActionHandler:
                 recorded_at=self._get_recorded_at(kwargs)
             )
 
+            _emit_domain_event("health.spo2.logged", self.user, {
+                "entry_id": entry.id, "spo2": spo2,
+            })
+
             time_str = entry.recorded_at.strftime("%I:%M %p")
             pulse_str = f", pulse {pulse}" if pulse else ""
 
@@ -1042,6 +1050,29 @@ class ActionHandler:
                 entry_source='voice',
                 notes=notes or ""
             )
+
+            # Post-write verification: confirm entry is retrievable via
+            # the same query the UI uses. Guarantees write trust.
+            if not FoodEntry.objects.filter(
+                user=self.user, logged_date=today, pk=entry.pk,
+            ).exists():
+                logger.error(
+                    "Write verification FAILED: FoodEntry pk=%s not found "
+                    "for user=%s on date=%s",
+                    entry.pk, self.user.pk, today,
+                )
+                return ActionResult(
+                    success=False,
+                    message=f"{_pick_opener(_ERROR_OPENERS, 'food')} — the entry didn't save correctly. Please try again.",
+                    error='write_verification_failed',
+                )
+
+            # Invalidate CoS context so nutrition data refreshes immediately
+            try:
+                from apps.ai.readiness_cache import invalidate_cos_context
+                invalidate_cos_context(self.user)
+            except Exception:
+                pass  # Best-effort — never block write confirmation
 
             _emit_domain_event("health.nutrition.logged", self.user, {
                 "entry_id": entry.id, "food_name": matched_name,
@@ -1253,6 +1284,10 @@ class ActionHandler:
                 recorded_at=recorded_at,
             )
 
+            _emit_domain_event("health.water.logged", self.user, {
+                "entry_id": entry.id, "amount": float(amount), "unit": unit,
+            })
+
             # Trend: daily total
             trend = None
             try:
@@ -1322,6 +1357,10 @@ class ActionHandler:
                 create_kwargs['calories_burned'] = calories
 
             entry = StepsEntry.objects.create(**create_kwargs)
+
+            _emit_domain_event("health.steps.logged", self.user, {
+                "entry_id": entry.id, "count": count,
+            })
 
             # Trend: 7-day average
             trend = None
@@ -1404,6 +1443,10 @@ class ActionHandler:
                 notes=notes or "",
                 source="manual",
             )
+
+            _emit_domain_event("health.body_measurement.logged", self.user, {
+                "entry_id": entry.id, "metric": metric, "value": float(value),
+            })
 
             # Trend: compare to last measurement
             trend = None

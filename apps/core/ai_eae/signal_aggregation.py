@@ -103,7 +103,8 @@ class SignalAggregationService:
         Compute all signal types for a user for a date.
 
         Returns list of upserted SignalSnapshot records.
-        Every base signal type produces a daily snapshot (zero-fill for no activity).
+        Only domains with real user data produce signals. Untracked
+        or data-less domains produce no signal (NULL ≠ 0).
         Each snapshot includes expected (bool) and state (enum) from the ETE.
         """
         from apps.core.execution.expected_map import (
@@ -143,37 +144,12 @@ class SignalAggregationService:
                     exc_info=True,
                 )
 
-        # Zero-fill: guarantee daily coverage for all base signal types.
-        # Uses expected_map to set correct state (missed vs not_expected).
-        produced_types = {s.signal_type for s in results}
-        _ZERO_FILL_TYPES = [
-            'health_activity', 'training_load', 'health_biometrics',
-            'medication_adherence', 'supplement_adherence',
-            'nutrition_compliance', 'faith_practice',
-            'mental_reflection', 'cognitive_fitness', 'productivity_progress',
-            'relational_engagement',
-        ]
-        for sig_type in _ZERO_FILL_TYPES:
-            if sig_type not in produced_types:
-                try:
-                    expected_key = SIGNAL_EXPECTED_KEYS.get(sig_type, '')
-                    is_expected = expected_map.get(expected_key, False)
-                    state = 'missed' if is_expected else 'not_expected'
-                    snapshot = SignalAggregationService._upsert_snapshot(
-                        user, date, sig_type,
-                        score=0.0,
-                        confidence=confidence_for_state(state),
-                        signal_class='verified_action',
-                        source_signals={'source': 'zero_fill', 'reason': 'no_activity'},
-                        expected=is_expected,
-                        state=state,
-                    )
-                    results.append(snapshot)
-                except Exception as e:
-                    logger.debug(
-                        "Zero-fill snapshot %s failed for user %s: %s",
-                        sig_type, user.pk, e,
-                    )
+        # Signal integrity: no zero-fill. If a signal computer returned
+        # None (no real data), no snapshot is created for that domain.
+        # This ensures signals represent REAL user data only.
+        # NULL ≠ 0: an untracked domain produces no signal, not a
+        # zero-score signal. Downstream systems (pattern engine, CoS
+        # context, check-in renderer) handle missing signals via .get().
 
         # Phase 7: Blend journal-inferred signals into existing snapshots
         try:

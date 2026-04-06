@@ -10,6 +10,9 @@ max surfaced items. Pattern hints adjust intensity.
 
 v2.1: Capacity-based style bias. Fatigue-aware surfacing.
 Pattern Tier 2 overrides. Nudge collision penalty.
+
+v3: Tiered intervention output (interventions_now / upcoming / watch).
+Supplements classified via signal data; critical health gates escalate to now.
 """
 import logging
 
@@ -170,6 +173,30 @@ def decide_intervention(
     capacity_state = capacity.get("capacity_state", "NORMAL") if capacity else "NORMAL"
     style_bias = CAPACITY_STYLE_BIAS.get(capacity_state, "normal")
 
+    # Classify surfaced items into intervention tiers for CoS
+    interventions_now = []
+    interventions_upcoming = []
+    interventions_watch = []
+
+    for item in surfaced:
+        cat = item.get("category", "")
+        priority = item.get("priority", 0)
+
+        if cat in ("HEALTH_GATE",) or priority >= 85:
+            # Critical health gates and high-priority items → act now
+            interventions_now.append(item)
+        elif cat in ("DIRECTIVE", "ACCOUNTABILITY") or priority >= 60:
+            # Time-sensitive and accountability items → today
+            interventions_upcoming.append(item)
+        else:
+            # Trend warnings, drift, strategic items → watch
+            interventions_watch.append(item)
+
+    # Suppressed items with moderate strength become watch items
+    for item in suppressed:
+        if item.get("signal_strength", 0) >= 0.4:
+            interventions_watch.append(item)
+
     return {
         "intervention_style": style,
         "style_description": INTERVENTION_DESCRIPTIONS.get(style, ""),
@@ -179,6 +206,10 @@ def decide_intervention(
         "style_bias": style_bias,
         "fatigue_bias_applied": fatigue_bias_applied,
         "pattern_tier2_active": pattern_tier2_active,
+        # v3: Tiered intervention output for CoS
+        "interventions_now": interventions_now,
+        "interventions_upcoming": interventions_upcoming,
+        "interventions_watch": interventions_watch,
     }
 
 

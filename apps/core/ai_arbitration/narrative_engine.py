@@ -119,8 +119,17 @@ def build_narrative(
         parts.append("")
         parts.append(suppress_block)
 
+    # v3: Tiered intervention priorities for CoS response shaping
+    tier_block = _build_tiered_intervention_block(intervention)
+    if tier_block:
+        parts.append("")
+        parts.append(tier_block)
+
     parts.append("")
     parts.append("INSTRUCTIONS: Unify your response around the narrative frame above.")
+    parts.append("Lead with the highest-priority item from PRIORITY ACTIONS if any exist.")
+    parts.append("Provide ONE clear action per intervention. Do NOT dump all signals at once.")
+    parts.append("Watch list items surface ONLY when the user asks 'what should I be aware of?'")
     parts.append("Do NOT list separate reminders for each signal. Weave them into ONE cohesive message.")
     parts.append("If the user asks about something outside the dominant scenario, answer directly — don't force the frame.")
     parts.append("")
@@ -143,6 +152,40 @@ def _build_confidence_note(confidence_level: str) -> str:
             "Full framing and direct surfacing appropriate."
         )
     return ""  # MODERATE = normal, no extra note
+
+
+def _build_tiered_intervention_block(intervention: dict) -> str:
+    """
+    Build tiered intervention block for CoS response shaping.
+
+    Classifies surfaced items into now/upcoming/watch tiers so CoS
+    can prioritize its response appropriately.
+    """
+    now = intervention.get("interventions_now", [])
+    upcoming = intervention.get("interventions_upcoming", [])
+    watch = intervention.get("interventions_watch", [])
+
+    if not now and not upcoming and not watch:
+        return ""
+
+    lines = ["INTERVENTION PRIORITIES:"]
+
+    if now:
+        lines.append("  PRIORITY ACTIONS (act now):")
+        for item in now:
+            lines.append(f"    - {item['label']}: {item.get('detail', '')}")
+
+    if upcoming:
+        lines.append("  TODAY'S AGENDA:")
+        for item in upcoming:
+            lines.append(f"    - {item['label']}: {item.get('detail', '')}")
+
+    if watch:
+        lines.append("  WATCH LIST (mention only if asked):")
+        for item in watch:
+            lines.append(f"    - {item['label']}: {item.get('detail', '')}")
+
+    return "\n".join(lines)
 
 
 def _build_capacity_note(capacity: dict) -> str:

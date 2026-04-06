@@ -242,6 +242,32 @@ def _collect_routine_items(user, user_now, user_today):
     return items, routine_summaries
 
 
+def _normalize_time_to_24h(time_str):
+    """Normalize a time string to HH:MM 24-hour format.
+
+    Handles:
+    - '8:00 AM', '12:30 PM' (12-hour with AM/PM from state_builder)
+    - '08:00', '14:30' (24-hour, already correct)
+    - datetime.time objects (passthrough via strftime)
+
+    Returns HH:MM string or None if unparseable.
+    """
+    if not time_str:
+        return None
+    # If it's already a time object, format directly
+    if hasattr(time_str, 'strftime'):
+        return time_str.strftime('%H:%M')
+    time_str = str(time_str).strip()
+    from datetime import datetime as _dt
+    # Try 12-hour format first (most common from state_builder)
+    for fmt in ('%I:%M %p', '%H:%M'):
+        try:
+            return _dt.strptime(time_str, fmt).strftime('%H:%M')
+        except ValueError:
+            continue
+    return None
+
+
 def _collect_medication_items(user, user_now, user_today):
     """Collect today's medication dose instances as ExecutionItems + window summaries."""
     from apps.core.ai_state.state_builder import build_medicine_state
@@ -324,6 +350,12 @@ def _collect_medication_items(user, user_now, user_today):
             except Exception:
                 pass
 
+        # Normalize scheduled_time to HH:MM 24-hour format.
+        # state_builder produces '8:00 AM' format; the action prioritizer
+        # and grouped action center require 'HH:MM'. Without this, _parse_time
+        # returns None and the item falls into the flexible bucket incorrectly.
+        normalized_time = _normalize_time_to_24h(entry.get('scheduled_time'))
+
         items.append({
             'source_type': 'medication_dose' if not is_supplement else 'supplement_dose',
             'source_id': schedule_id or hash(f"{entry.get('medicine_name')}_{window}_{entry.get('scheduled_time')}"),
@@ -331,7 +363,7 @@ def _collect_medication_items(user, user_now, user_today):
             'domain': 'health',
             'importance': importance,
             'time_status': exec_status if exec_status in ('upcoming', 'overdue') else 'upcoming',
-            'scheduled_time': entry.get('scheduled_time'),
+            'scheduled_time': normalized_time,
             'grace_minutes': 0,
             'completion_status': exec_status,
             'completed_today': completed,

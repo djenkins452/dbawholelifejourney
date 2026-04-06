@@ -8,9 +8,9 @@
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}">Health</a>
         <span>/</span>
-        <a href="{% url 'health:medicine_home' %}">Medicines</a>
+        <a href="{% url 'health:intake_home' %}">Medicines</a>
         <span>/</span>
-        <a href="{% url 'health:medicine_history' %}">History</a>
+        <a href="{% url 'health:intake_history' %}">History</a>
         <span>/</span>
         <span>Edit Log</span>
     </nav>
@@ -72,7 +72,7 @@
 
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">Save Changes</button>
-            <a href="{% if request.GET.next %}{{ request.GET.next }}{% else %}{% url 'health:medicine_history' %}{% endif %}" class="btn btn-secondary">Cancel</a>
+            <a href="{% if request.GET.next %}{{ request.GET.next }}{% else %}{% url 'health:intake_history' %}{% endif %}" class="btn btn-secondary">Cancel</a>
         </div>
     </form>
 </div>

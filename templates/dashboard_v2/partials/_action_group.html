@@ -21,7 +21,7 @@
             </button>
             {% elif group.group_type == "medication_window" %}
             <button class="v2-ac-group-toggle{% if group.all_complete %} v2-completed{% endif %}"
-                    hx-post="{% url 'dashboard_v2:medicine_group_log' time_of_day=group.group_id %}"
+                    hx-post="{% url 'dashboard_v2:intake_group_log' time_of_day=group.group_id %}"
                     hx-target="#action-center-panel"
                     hx-swap="outerHTML">
                 {% if group.all_complete %}

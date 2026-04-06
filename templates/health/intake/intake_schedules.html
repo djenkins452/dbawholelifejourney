@@ -8,9 +8,9 @@
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}">Health</a>
         <span>/</span>
-        <a href="{% url 'health:medicine_home' %}">Medicines</a>
+        <a href="{% url 'health:intake_home' %}">Medicines</a>
         <span>/</span>
-        <a href="{% url 'health:medicine_detail' pk=medicine.pk %}">{{ medicine.name }}</a>
+        <a href="{% url 'health:intake_detail' pk=medicine.pk %}">{{ medicine.name }}</a>
         <span>/</span>
         <span>Schedules</span>
     </nav>
@@ -20,7 +20,7 @@
             <h1 class="page-title">Manage Schedules</h1>
             <p class="page-subtitle">{{ medicine.name }} - {{ medicine.dose }}</p>
         </div>
-        <a href="{% url 'health:medicine_detail' pk=medicine.pk %}" class="btn btn-secondary">Back to Details</a>
+        <a href="{% url 'health:intake_detail' pk=medicine.pk %}" class="btn btn-secondary">Back to Details</a>
     </div>
 
     {% if medicine.is_prn %}
@@ -59,12 +59,12 @@
                 </div>
                 <div class="schedule-actions">
                     {% if not schedule.is_active %}
-                    <form method="post" action="{% url 'health:medicine_schedule_activate' medicine_pk=medicine.pk schedule_pk=schedule.pk %}" class="inline-form">
+                    <form method="post" action="{% url 'health:intake_schedule_activate' medicine_pk=medicine.pk schedule_pk=schedule.pk %}" class="inline-form">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-primary btn-sm">Activate</button>
                     </form>
                     {% endif %}
-                    <form method="post" action="{% url 'health:medicine_schedule_delete' medicine_pk=medicine.pk schedule_pk=schedule.pk %}" class="delete-form" data-confirm="Remove this schedule?">
+                    <form method="post" action="{% url 'health:intake_schedule_delete' medicine_pk=medicine.pk schedule_pk=schedule.pk %}" class="delete-form" data-confirm="Remove this schedule?">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-danger btn-sm">Remove</button>
                     </form>

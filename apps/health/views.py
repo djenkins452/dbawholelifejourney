@@ -3161,12 +3161,12 @@ def get_workout_state_ajax(request, workout_id):
 # =============================================================================
 
 
-class MedicineHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+class IntakeHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     """
     Medicine module home - daily tracker and overview.
     """
 
-    template_name = "health/medicine/home.html"
+    template_name = "health/intake/home.html"
     help_context_id = "HEALTH_MEDICINE_HOME"
 
     def get_context_data(self, **kwargs):
@@ -3326,13 +3326,13 @@ class MedicineHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         return now_local_naive > deadline
 
 
-class MedicineListView(LoginRequiredMixin, ListView):
+class IntakeListView(LoginRequiredMixin, ListView):
     """
     List all medicines.
     """
 
     model = Medicine
-    template_name = "health/medicine/medicine_list.html"
+    template_name = "health/intake/medicine_list.html"
     context_object_name = "medicines"
     paginate_by = 20
 
@@ -3370,12 +3370,12 @@ class MedicineListView(LoginRequiredMixin, ListView):
         return context
 
 
-class MedicineDetailView(LoginRequiredMixin, TemplateView):
+class IntakeDetailView(LoginRequiredMixin, TemplateView):
     """
     View medicine details and history.
     """
 
-    template_name = "health/medicine/medicine_detail.html"
+    template_name = "health/intake/medicine_detail.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -3405,14 +3405,14 @@ class MedicineDetailView(LoginRequiredMixin, TemplateView):
         return context
 
 
-class MedicineCreateView(LoginRequiredMixin, CreateView):
+class IntakeCreateView(LoginRequiredMixin, CreateView):
     """
     Add a new medicine.
     """
 
     model = Medicine
     form_class = MedicineForm
-    template_name = "health/medicine/medicine_form.html"
+    template_name = "health/intake/medicine_form.html"
 
     def get_initial(self):
         """Pre-populate form from query parameters (for AI Camera scan and barcode scan)."""
@@ -3480,17 +3480,17 @@ class MedicineCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
     def get_success_url(self):
-        return reverse_lazy("health:medicine_schedules", kwargs={"pk": self.object.pk})
+        return reverse_lazy("health:intake_schedules", kwargs={"pk": self.object.pk})
 
 
-class MedicineUpdateView(LoginRequiredMixin, UpdateView):
+class IntakeUpdateView(LoginRequiredMixin, UpdateView):
     """
     Edit a medicine.
     """
 
     model = Medicine
     form_class = MedicineForm
-    template_name = "health/medicine/medicine_form.html"
+    template_name = "health/intake/medicine_form.html"
 
     def get_queryset(self):
         return Medicine.objects.filter(user=self.request.user)
@@ -3505,10 +3505,10 @@ class MedicineUpdateView(LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
     def get_success_url(self):
-        return reverse_lazy("health:medicine_detail", kwargs={"pk": self.object.pk})
+        return reverse_lazy("health:intake_detail", kwargs={"pk": self.object.pk})
 
 
-class MedicineDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
+class IntakeDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
     """
     Delete a medicine.
     Supports undo via toast notification for AJAX requests.
@@ -3517,7 +3517,7 @@ class MedicineDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
     model = Medicine
     item_type = 'health.medicine'
     item_name = 'medicine'
-    success_url = 'health:medicine_list'
+    success_url = 'health:intake_list'
 
     def get_object(self):
         return get_object_or_404(
@@ -3526,7 +3526,7 @@ class MedicineDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
         )
 
 
-class MedicinePauseView(LoginRequiredMixin, View):
+class IntakePauseView(LoginRequiredMixin, View):
     """
     Pause a medicine temporarily.
     """
@@ -3542,10 +3542,10 @@ class MedicinePauseView(LoginRequiredMixin, View):
             request,
             f"Paused {medicine.name}. You can resume it anytime."
         )
-        return redirect("health:medicine_detail", pk=pk)
+        return redirect("health:intake_detail", pk=pk)
 
 
-class MedicineResumeView(LoginRequiredMixin, View):
+class IntakeResumeView(LoginRequiredMixin, View):
     """
     Resume a paused medicine.
     """
@@ -3557,10 +3557,10 @@ class MedicineResumeView(LoginRequiredMixin, View):
         )
         medicine.resume()
         messages.success(request, f"Resumed {medicine.name}.")
-        return redirect("health:medicine_detail", pk=pk)
+        return redirect("health:intake_detail", pk=pk)
 
 
-class MedicineCompleteView(LoginRequiredMixin, View):
+class IntakeCompleteView(LoginRequiredMixin, View):
     """
     Mark a medicine course as completed.
     """
@@ -3575,15 +3575,15 @@ class MedicineCompleteView(LoginRequiredMixin, View):
             request,
             f"Marked {medicine.name} as completed. Great job!"
         )
-        return redirect("health:medicine_list")
+        return redirect("health:intake_list")
 
 
-class MedicineSchedulesView(LoginRequiredMixin, TemplateView):
+class IntakeSchedulesView(LoginRequiredMixin, TemplateView):
     """
     Manage schedules for a medicine.
     """
 
-    template_name = "health/medicine/medicine_schedules.html"
+    template_name = "health/intake/medicine_schedules.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -3609,10 +3609,10 @@ class MedicineSchedulesView(LoginRequiredMixin, TemplateView):
             messages.success(request, "Added schedule.")
         else:
             messages.error(request, "Please fix the errors below.")
-        return redirect("health:medicine_schedules", pk=pk)
+        return redirect("health:intake_schedules", pk=pk)
 
 
-class MedicineScheduleDeleteView(LoginRequiredMixin, View):
+class IntakeScheduleDeleteView(LoginRequiredMixin, View):
     """
     Delete a medicine schedule.
     """
@@ -3628,10 +3628,10 @@ class MedicineScheduleDeleteView(LoginRequiredMixin, View):
         )
         schedule.delete()
         messages.success(request, "Removed schedule.")
-        return redirect("health:medicine_schedules", pk=medicine_pk)
+        return redirect("health:intake_schedules", pk=medicine_pk)
 
 
-class MedicineScheduleActivateView(LoginRequiredMixin, View):
+class IntakeScheduleActivateView(LoginRequiredMixin, View):
     """
     Activate an inactive schedule.
     """
@@ -3648,10 +3648,10 @@ class MedicineScheduleActivateView(LoginRequiredMixin, View):
         schedule.is_active = True
         schedule.save()
         messages.success(request, "Schedule activated.")
-        return redirect("health:medicine_schedules", pk=medicine_pk)
+        return redirect("health:intake_schedules", pk=medicine_pk)
 
 
-class MedicineTakeView(LoginRequiredMixin, View):
+class IntakeTakeView(LoginRequiredMixin, View):
     """
     Mark a scheduled dose as taken.
     """
@@ -3747,11 +3747,11 @@ class MedicineTakeView(LoginRequiredMixin, View):
         )
 
         # Return to referring page or home
-        next_url = request.POST.get("next", reverse_lazy("health:medicine_home"))
+        next_url = request.POST.get("next", reverse_lazy("health:intake_home"))
         return redirect(next_url)
 
 
-class MedicineSkipView(LoginRequiredMixin, View):
+class IntakeSkipView(LoginRequiredMixin, View):
     """
     Mark a scheduled dose as skipped.
     """
@@ -3784,11 +3784,11 @@ class MedicineSkipView(LoginRequiredMixin, View):
         log.mark_skipped(reason)
 
         messages.info(request, f"Skipped {medicine.name} for today.")
-        next_url = request.POST.get("next", reverse_lazy("health:medicine_home"))
+        next_url = request.POST.get("next", reverse_lazy("health:intake_home"))
         return redirect(next_url)
 
 
-class MedicineUndoView(LoginRequiredMixin, View):
+class IntakeUndoView(LoginRequiredMixin, View):
     """
     Undo a taken/skipped dose (set back to pending).
     """
@@ -3822,11 +3822,11 @@ class MedicineUndoView(LoginRequiredMixin, View):
         log.delete()
 
         messages.info(request, f"Undid {medicine.name} for today.")
-        next_url = request.POST.get("next", reverse_lazy("health:medicine_home"))
+        next_url = request.POST.get("next", reverse_lazy("health:intake_home"))
         return redirect(next_url)
 
 
-class MedicineBulkTakeView(LoginRequiredMixin, View):
+class IntakeBulkTakeView(LoginRequiredMixin, View):
     """
     Mark all pending doses in a time_of_day group as taken.
     """
@@ -3908,11 +3908,11 @@ class MedicineBulkTakeView(LoginRequiredMixin, View):
                 "count": taken_count, "time_of_day": time_of_day, "source": "web_view_bulk",
             })
 
-        next_url = request.POST.get("next", reverse_lazy("health:medicine_home"))
+        next_url = request.POST.get("next", reverse_lazy("health:intake_home"))
         return redirect(next_url)
 
 
-class MedicineBulkSkipView(LoginRequiredMixin, View):
+class IntakeBulkSkipView(LoginRequiredMixin, View):
     """
     Mark all pending doses in a time_of_day group as skipped.
     """
@@ -3971,7 +3971,7 @@ class MedicineBulkSkipView(LoginRequiredMixin, View):
         time_display = dict(MedicineSchedule.TIME_OF_DAY_CHOICES).get(time_of_day, time_of_day)
         messages.info(request, f"Skipped {skipped_count} {time_display} dose{'s' if skipped_count != 1 else ''}.")
 
-        next_url = request.POST.get("next", reverse_lazy("health:medicine_home"))
+        next_url = request.POST.get("next", reverse_lazy("health:intake_home"))
         return redirect(next_url)
 
 
@@ -3980,7 +3980,7 @@ class PRNLogView(LoginRequiredMixin, TemplateView):
     Log a PRN (as-needed) dose.
     """
 
-    template_name = "health/medicine/prn_log.html"
+    template_name = "health/intake/prn_log.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -4015,14 +4015,14 @@ class PRNLogView(LoginRequiredMixin, TemplateView):
                 "log_id": log.id, "medicine_name": medicine.name, "is_prn": True,
                 "source": "web_view",
             })
-            return redirect("health:medicine_home")
+            return redirect("health:intake_home")
 
         context = self.get_context_data()
         context["form"] = form
         return self.render_to_response(context)
 
 
-class MedicineHistoryView(LoginRequiredMixin, TemplateView):
+class IntakeHistoryView(LoginRequiredMixin, TemplateView):
     """
     View medicine history including all scheduled doses (logged and unlogged).
 
@@ -4030,7 +4030,7 @@ class MedicineHistoryView(LoginRequiredMixin, TemplateView):
     mark missed doses as taken or skipped.
     """
 
-    template_name = "health/medicine/history.html"
+    template_name = "health/intake/history.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -4182,7 +4182,7 @@ class MedicineHistoryView(LoginRequiredMixin, TemplateView):
         return all_doses
 
 
-class MedicineLogEditView(LoginRequiredMixin, UpdateView):
+class IntakeLogEditView(LoginRequiredMixin, UpdateView):
     """
     Edit the taken_at time of a medicine log entry.
 
@@ -4193,7 +4193,7 @@ class MedicineLogEditView(LoginRequiredMixin, UpdateView):
 
     model = MedicineLog
     form_class = MedicineLogEditForm
-    template_name = "health/medicine/log_edit.html"
+    template_name = "health/intake/log_edit.html"
 
     def get_queryset(self):
         """Only allow editing the user's own logs."""
@@ -4215,7 +4215,7 @@ class MedicineLogEditView(LoginRequiredMixin, UpdateView):
         next_url = self.request.POST.get("next") or self.request.GET.get("next")
         if next_url:
             return next_url
-        return reverse_lazy("health:medicine_history")
+        return reverse_lazy("health:intake_history")
 
     def form_valid(self, form):
         messages.success(
@@ -4225,7 +4225,7 @@ class MedicineLogEditView(LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class MedicineHistoryTakeView(LoginRequiredMixin, View):
+class IntakeHistoryTakeView(LoginRequiredMixin, View):
     """
     Mark a past scheduled dose as taken from the history page.
 
@@ -4248,13 +4248,13 @@ class MedicineHistoryTakeView(LoginRequiredMixin, View):
         date_str = request.POST.get("date")
         if not date_str:
             messages.error(request, "Date is required.")
-            return redirect(request.POST.get("next", reverse_lazy("health:medicine_history")))
+            return redirect(request.POST.get("next", reverse_lazy("health:intake_history")))
 
         try:
             dose_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         except ValueError:
             messages.error(request, "Invalid date format.")
-            return redirect(request.POST.get("next", reverse_lazy("health:medicine_history")))
+            return redirect(request.POST.get("next", reverse_lazy("health:intake_history")))
 
         # Get or create the log entry for this specific date
         log, created = MedicineLog.objects.get_or_create(
@@ -4296,11 +4296,11 @@ class MedicineHistoryTakeView(LoginRequiredMixin, View):
 
         messages.success(request, f"Marked {medicine.name} as taken for {dose_date.strftime('%b %d')}.")
 
-        next_url = request.POST.get("next", reverse_lazy("health:medicine_history"))
+        next_url = request.POST.get("next", reverse_lazy("health:intake_history"))
         return redirect(next_url)
 
 
-class MedicineHistorySkipView(LoginRequiredMixin, View):
+class IntakeHistorySkipView(LoginRequiredMixin, View):
     """
     Mark a past scheduled dose as skipped from the history page.
 
@@ -4321,13 +4321,13 @@ class MedicineHistorySkipView(LoginRequiredMixin, View):
         date_str = request.POST.get("date")
         if not date_str:
             messages.error(request, "Date is required.")
-            return redirect(request.POST.get("next", reverse_lazy("health:medicine_history")))
+            return redirect(request.POST.get("next", reverse_lazy("health:intake_history")))
 
         try:
             dose_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         except ValueError:
             messages.error(request, "Invalid date format.")
-            return redirect(request.POST.get("next", reverse_lazy("health:medicine_history")))
+            return redirect(request.POST.get("next", reverse_lazy("health:intake_history")))
 
         reason = request.POST.get("reason", "")
 
@@ -4348,16 +4348,16 @@ class MedicineHistorySkipView(LoginRequiredMixin, View):
 
         messages.info(request, f"Marked {medicine.name} as skipped for {dose_date.strftime('%b %d')}.")
 
-        next_url = request.POST.get("next", reverse_lazy("health:medicine_history"))
+        next_url = request.POST.get("next", reverse_lazy("health:intake_history"))
         return redirect(next_url)
 
 
-class MedicineAdherenceView(LoginRequiredMixin, TemplateView):
+class IntakeAdherenceView(LoginRequiredMixin, TemplateView):
     """
     View adherence statistics and trends.
     """
 
-    template_name = "health/medicine/adherence.html"
+    template_name = "health/intake/adherence.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -4441,7 +4441,7 @@ class MedicineAdherenceView(LoginRequiredMixin, TemplateView):
         return context
 
 
-class MedicineUpdateSupplyView(LoginRequiredMixin, View):
+class IntakeUpdateSupplyView(LoginRequiredMixin, View):
     """
     Quick update of medicine supply count.
     """
@@ -4456,15 +4456,15 @@ class MedicineUpdateSupplyView(LoginRequiredMixin, View):
             medicine.current_supply = form.cleaned_data["current_supply"]
             medicine.save(update_fields=["current_supply", "updated_at"])
             messages.success(request, f"Updated supply for {medicine.name}.")
-        return redirect("health:medicine_detail", pk=pk)
+        return redirect("health:intake_detail", pk=pk)
 
 
-class MedicineQuickLookView(LoginRequiredMixin, TemplateView):
+class IntakeQuickLookView(LoginRequiredMixin, TemplateView):
     """
     Quick look view - condensed medicine summary for screenshots/sharing.
     """
 
-    template_name = "health/medicine/quick_look.html"
+    template_name = "health/intake/quick_look.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -6012,7 +6012,7 @@ class BloodOxygenDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
 # =============================================================================
 
 
-class MedicineRequestRefillView(LoginRequiredMixin, View):
+class IntakeRequestRefillView(LoginRequiredMixin, View):
     """
     Mark a medicine as having a refill requested.
     """
@@ -6024,10 +6024,10 @@ class MedicineRequestRefillView(LoginRequiredMixin, View):
         )
         medicine.request_refill()
         messages.success(request, f"Refill requested for {medicine.name}.")
-        return redirect("health:medicine_detail", pk=medicine.pk)
+        return redirect("health:intake_detail", pk=medicine.pk)
 
 
-class MedicineClearRefillView(LoginRequiredMixin, View):
+class IntakeClearRefillView(LoginRequiredMixin, View):
     """
     Clear the refill request (e.g., when refill is received).
     """
@@ -6039,7 +6039,7 @@ class MedicineClearRefillView(LoginRequiredMixin, View):
         )
         medicine.clear_refill_request()
         messages.success(request, f"Refill request cleared for {medicine.name}.")
-        return redirect("health:medicine_detail", pk=medicine.pk)
+        return redirect("health:intake_detail", pk=medicine.pk)
 
 
 # =============================================================================

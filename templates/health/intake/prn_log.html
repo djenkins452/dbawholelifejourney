@@ -8,7 +8,7 @@
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}">Health</a>
         <span>/</span>
-        <a href="{% url 'health:medicine_home' %}">Medicines</a>
+        <a href="{% url 'health:intake_home' %}">Medicines</a>
         <span>/</span>
         <span>Log PRN Dose</span>
     </nav>
@@ -26,7 +26,7 @@
                 <label for="id_medicine">Medicine *</label>
                 {{ form.medicine }}
                 {% if not form.medicine.field.queryset.exists %}
-                <p class="form-help">No PRN medicines found. <a href="{% url 'health:medicine_create' %}">Add a medicine</a> and mark it as "As Needed (PRN)".</p>
+                <p class="form-help">No PRN medicines found. <a href="{% url 'health:intake_create' %}">Add a medicine</a> and mark it as "As Needed (PRN)".</p>
                 {% endif %}
             </div>
 
@@ -45,7 +45,7 @@
 
         <div class="form-actions">
             <button type="submit" class="btn btn-primary" {% if not form.medicine.field.queryset.exists %}disabled{% endif %}>Log Dose</button>
-            <a href="{% url 'health:medicine_home' %}" class="btn btn-secondary">Cancel</a>
+            <a href="{% url 'health:intake_home' %}" class="btn btn-secondary">Cancel</a>
         </div>
     </form>
 </div>

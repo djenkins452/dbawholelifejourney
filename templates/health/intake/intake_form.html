@@ -8,7 +8,7 @@
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}">Health</a>
         <span>/</span>
-        <a href="{% url 'health:medicine_home' %}">Medicines</a>
+        <a href="{% url 'health:intake_home' %}">Medicines</a>
         <span>/</span>
         <span>{% if form.instance.pk %}Edit{% else %}Add{% endif %} Medicine</span>
     </nav>
@@ -209,7 +209,7 @@
             <button type="submit" class="btn btn-primary">
                 {% if form.instance.pk %}Save Changes{% else %}Add Medicine{% endif %}
             </button>
-            <a href="{% if form.instance.pk %}{% url 'health:medicine_detail' pk=form.instance.pk %}{% else %}{% url 'health:medicine_list' %}{% endif %}" class="btn btn-secondary">Cancel</a>
+            <a href="{% if form.instance.pk %}{% url 'health:intake_detail' pk=form.instance.pk %}{% else %}{% url 'health:intake_list' %}{% endif %}" class="btn btn-secondary">Cancel</a>
         </div>
     </form>
 </div>

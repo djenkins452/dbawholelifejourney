@@ -639,10 +639,10 @@ class TaskToggleAction(LoginRequiredMixin, View):
         return _render_action_center(request)
 
 
-class MedicineLogAction(LoginRequiredMixin, View):
+class IntakeLogAction(LoginRequiredMixin, View):
     """HTMX POST endpoint to log medicine dose from dashboard.
 
-    Matches canonical MedicineTakeView behavior:
+    Matches canonical IntakeTakeView behavior:
     - Sets scheduled_time on log
     - Uses mark_taken() for late/on-time classification
     - Decrements supply if tracked
@@ -774,10 +774,10 @@ class RoutineCompleteToggleAction(LoginRequiredMixin, View):
         return _render_action_center(request)
 
 
-class MedicineGroupLogAction(LoginRequiredMixin, View):
+class IntakeGroupLogAction(LoginRequiredMixin, View):
     """HTMX POST endpoint to log/unlog all medicines in a time_of_day group.
 
-    Matches canonical MedicineBulkTakeView behavior:
+    Matches canonical IntakeBulkTakeView behavior:
     - Filters by days_of_week (only schedules applicable today)
     - Sets scheduled_time on each log
     - Uses mark_taken() for late/on-time classification

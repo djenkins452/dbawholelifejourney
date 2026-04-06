@@ -322,14 +322,14 @@
                                 {% if features.health.blood_oxygen %}<a href="{% url 'health:blood_oxygen_list' %}" class="nav-dropdown-item">Blood Oxygen</a>{% endif %}
                                 {% if cycle_tracking_enabled %}<a href="{% url 'health:cycle_dashboard' %}" class="nav-dropdown-item">Cycle Tracking</a>{% endif %}
                             </div>
-                            <!-- Medicine Column -->
+                            <!-- Intake Column -->
                             {% if features.health.medicine %}
                             <div class="nav-mega-column">
-                                <div class="nav-mega-heading">Medicine</div>
-                                <a href="{% url 'health:medicine_home' %}" class="nav-dropdown-item">Today's Medicines</a>
-                                <a href="{% url 'health:medicine_list' %}" class="nav-dropdown-item">All Medicines</a>
-                                <a href="{% url 'health:medicine_history' %}" class="nav-dropdown-item">History</a>
-                                <a href="{% url 'health:medicine_adherence' %}" class="nav-dropdown-item">Adherence</a>
+                                <div class="nav-mega-heading">Intake</div>
+                                <a href="{% url 'health:intake_home' %}" class="nav-dropdown-item">Today's Intake</a>
+                                <a href="{% url 'health:intake_list' %}" class="nav-dropdown-item">All Intake</a>
+                                <a href="{% url 'health:intake_history' %}" class="nav-dropdown-item">History</a>
+                                <a href="{% url 'health:intake_adherence' %}" class="nav-dropdown-item">Adherence</a>
                             </div>
                             {% endif %}
                             <!-- Fitness Column -->

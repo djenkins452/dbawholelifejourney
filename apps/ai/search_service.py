@@ -473,7 +473,7 @@ class SearchService:
                 title=f"Medicine: {log.intake.name} ({log.log_status})",
                 snippet=log.notes or "",
                 date_value=log.scheduled_date,
-                url=reverse('health:medicine_list'),
+                url=reverse('health:intake_list'),
                 metadata={"metric_type": "medicine", "status": log.log_status}
             ))
         return results

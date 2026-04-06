@@ -8,7 +8,7 @@
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}">Health</a>
         <span>/</span>
-        <a href="{% url 'health:medicine_home' %}">Medicines</a>
+        <a href="{% url 'health:intake_home' %}">Medicines</a>
         <span>/</span>
         <span>All Medicines</span>
     </nav>
@@ -18,7 +18,7 @@
             <h1 class="page-title">My Medicines</h1>
             <p class="page-subtitle">Manage your medication list</p>
         </div>
-        <a href="{% url 'health:medicine_create' %}" class="btn btn-primary">Add Medicine</a>
+        <a href="{% url 'health:intake_create' %}" class="btn btn-primary">Add Medicine</a>
     </div>
 
     <!-- Status Filter Tabs -->
@@ -43,7 +43,7 @@
         <div class="medicine-card">
             <div class="medicine-header">
                 <div class="medicine-title">
-                    <a href="{% url 'health:medicine_detail' pk=medicine.pk %}">{{ medicine.name }}</a>
+                    <a href="{% url 'health:intake_detail' pk=medicine.pk %}">{{ medicine.name }}</a>
                     {% if medicine.is_prn %}
                     <span class="badge badge-prn">PRN</span>
                     {% endif %}
@@ -71,9 +71,9 @@
             {% endif %}
 
             <div class="medicine-actions">
-                <a href="{% url 'health:medicine_detail' pk=medicine.pk %}" class="btn btn-secondary btn-sm">View</a>
-                <a href="{% url 'health:medicine_update' pk=medicine.pk %}" class="btn btn-secondary btn-sm">Edit</a>
-                <a href="{% url 'health:medicine_schedules' pk=medicine.pk %}" class="btn btn-secondary btn-sm">Schedules</a>
+                <a href="{% url 'health:intake_detail' pk=medicine.pk %}" class="btn btn-secondary btn-sm">View</a>
+                <a href="{% url 'health:intake_update' pk=medicine.pk %}" class="btn btn-secondary btn-sm">Edit</a>
+                <a href="{% url 'health:intake_schedules' pk=medicine.pk %}" class="btn btn-secondary btn-sm">Schedules</a>
             </div>
         </div>
         {% endfor %}
@@ -103,7 +103,7 @@
         {% else %}
         <p class="text-muted">Start by adding a medicine.</p>
         {% endif %}
-        <a href="{% url 'health:medicine_create' %}" class="btn btn-primary mt-4">Add Medicine</a>
+        <a href="{% url 'health:intake_create' %}" class="btn btn-primary mt-4">Add Medicine</a>
     </div>
     {% endif %}
 </div>

@@ -307,7 +307,7 @@ def _collect_medication_items(user, user_now, user_today):
         if schedule_id:
             try:
                 toggle_url = reverse(
-                    'dashboard_v2:medicine_log',
+                    'dashboard_v2:intake_log',
                     kwargs={'schedule_id': schedule_id},
                 )
             except Exception:
@@ -318,7 +318,7 @@ def _collect_medication_items(user, user_now, user_today):
         if medicine_id:
             try:
                 detail_url = reverse(
-                    'health:medicine_detail',
+                    'health:intake_detail',
                     kwargs={'pk': medicine_id},
                 )
             except Exception:

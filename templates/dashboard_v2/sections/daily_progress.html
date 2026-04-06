@@ -39,7 +39,7 @@
         {% if daily_progress.medicine.total > 0 %}
         <div class="v2-progress-item{% if daily_progress.medicine.score < 100 %} v2-progress-incomplete{% endif %}">
             {% if daily_progress.medicine.score < 100 %}
-            <a href="{% url 'health:medicine_list' %}" class="v2-progress-item-link">
+            <a href="{% url 'health:intake_list' %}" class="v2-progress-item-link">
                 <span class="v2-progress-item-label">Medicine</span>
                 <span class="v2-progress-item-value">{{ daily_progress.medicine.done }}/{{ daily_progress.medicine.total }}</span>
             </a>

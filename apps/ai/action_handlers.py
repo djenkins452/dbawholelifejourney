@@ -2271,7 +2271,7 @@ class ActionHandler:
             }
 
             html_content = render_to_string(
-                'health/email/medicine_list.html', context
+                'health/email/intake_list.html', context
             )
             text_content = strip_tags(html_content)
 

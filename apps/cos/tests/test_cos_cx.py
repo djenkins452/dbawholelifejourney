@@ -131,16 +131,16 @@ class SpecificityBlockTests(TestCase):
     def test_shows_outstanding_meds(self):
         """Shows outstanding medications by name."""
         from apps.cos.context.specificity_block import build_specificity_block
-        from apps.health.models import Medicine, MedicineSchedule
+        from apps.health.models import Intake, IntakeSchedule
 
-        med = Medicine.objects.create(
+        med = Intake.objects.create(
             user=self.user,
             name="Valsartan",
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
             start_date=self.now.date(),
         )
-        MedicineSchedule.objects.create(
-            medicine=med,
+        IntakeSchedule.objects.create(
+            intake=med,
             scheduled_time=dt.time(8, 0),
         )
         result = build_specificity_block(self.user, self.now)
@@ -206,17 +206,17 @@ class LeadSignalPrioritizerTests(TestCase):
     def test_overdue_meds_signal(self):
         """Overdue medications generate signal."""
         from apps.cos.context.signal_prioritizer import compute_lead_signal
-        from apps.health.models import Medicine, MedicineSchedule
+        from apps.health.models import Intake, IntakeSchedule
 
-        med = Medicine.objects.create(
+        med = Intake.objects.create(
             user=self.user,
             name="Lisinopril",
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
             start_date=self.now.date(),
         )
         # Schedule for early morning (guaranteed past)
-        MedicineSchedule.objects.create(
-            medicine=med,
+        IntakeSchedule.objects.create(
+            intake=med,
             scheduled_time=dt.time(6, 0),
         )
         result = compute_lead_signal(self.user, "", self.now)

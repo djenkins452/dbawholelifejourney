@@ -11,7 +11,7 @@ from django.conf import settings
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+from apps.health.models import Intake, IntakeLog, IntakeSchedule
 from apps.users.models import User, TermsAcceptance
 
 
@@ -31,16 +31,16 @@ class EventRouterIntegrationTestBase(TestCase):
         self.user.preferences.save()
 
         # Create medicine with a missed dose
-        self.medicine = Medicine.objects.create(
+        self.medicine = Intake.objects.create(
             user=self.user,
             name='Lantus SoloStar',
             dose='10 units',
             frequency='daily',
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
             start_date=date.today() - timedelta(days=30),
         )
-        self.schedule = MedicineSchedule.objects.create(
-            medicine=self.medicine,
+        self.schedule = IntakeSchedule.objects.create(
+            intake=self.medicine,
             scheduled_time=time(9, 0),
             time_of_day='morning',
             is_active=True,
@@ -56,13 +56,13 @@ class EventMissedRouteTest(EventRouterIntegrationTestBase):
 
         # Create a missed dose 3 days ago
         missed_date = date.today() - timedelta(days=3)
-        MedicineLog.objects.create(
+        IntakeLog.objects.create(
             user=self.user,
-            medicine=self.medicine,
+            intake=self.medicine,
             schedule=self.schedule,
             scheduled_date=missed_date,
             scheduled_time=time(9, 0),
-            log_status=MedicineLog.STATUS_MISSED,
+            log_status=IntakeLog.STATUS_MISSED,
         )
 
         result = classify_and_route("What did I miss?", self.user)
@@ -78,13 +78,13 @@ class EventMissedRouteTest(EventRouterIntegrationTestBase):
         from apps.ai.deterministic_router import classify_and_route
 
         missed_date = date.today() - timedelta(days=2)
-        MedicineLog.objects.create(
+        IntakeLog.objects.create(
             user=self.user,
-            medicine=self.medicine,
+            intake=self.medicine,
             schedule=self.schedule,
             scheduled_date=missed_date,
             scheduled_time=time(9, 0),
-            log_status=MedicineLog.STATUS_MISSED,
+            log_status=IntakeLog.STATUS_MISSED,
         )
 
         result = classify_and_route("Which medication did I miss?", self.user)
@@ -95,13 +95,13 @@ class EventMissedRouteTest(EventRouterIntegrationTestBase):
         from apps.ai.deterministic_router import classify_and_route
 
         # No missed doses — only taken
-        MedicineLog.objects.create(
+        IntakeLog.objects.create(
             user=self.user,
-            medicine=self.medicine,
+            intake=self.medicine,
             schedule=self.schedule,
             scheduled_date=date.today(),
             scheduled_time=time(9, 0),
-            log_status=MedicineLog.STATUS_TAKEN,
+            log_status=IntakeLog.STATUS_TAKEN,
             taken_at=timezone.now(),
         )
 
@@ -117,13 +117,13 @@ class EventTimelineRouteTest(EventRouterIntegrationTestBase):
         from apps.ai.deterministic_router import classify_and_route
 
         yesterday = date.today() - timedelta(days=1)
-        MedicineLog.objects.create(
+        IntakeLog.objects.create(
             user=self.user,
-            medicine=self.medicine,
+            intake=self.medicine,
             schedule=self.schedule,
             scheduled_date=yesterday,
             scheduled_time=time(9, 0),
-            log_status=MedicineLog.STATUS_TAKEN,
+            log_status=IntakeLog.STATUS_TAKEN,
             taken_at=timezone.now() - timedelta(days=1),
         )
 

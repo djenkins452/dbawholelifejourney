@@ -236,11 +236,11 @@ class MedicineResolutionTests(EntityResolverTestMixin, TestCase):
 
     def setUp(self):
         super().setUp()
-        from apps.health.models import Medicine
+        from apps.health.models import Intake
 
-        self.medicine = Medicine.objects.create(
+        self.medicine = Intake.objects.create(
             user=self.user, name='Lisinopril', purpose='blood pressure',
-            medicine_status='active',
+            intake_status='active',
             start_date=timezone.now().date(),
         )
 

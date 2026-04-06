@@ -6,6 +6,30 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-05 — Refactor: Phase V Medicine-to-Intake finalization — remove backward compat aliases
+
+**Root cause:** Phases I-IV renamed models, URLs, views, templates, and AI intents from "Medicine" to "Intake". Backward compatibility aliases (`Medicine = Intake`, `MedicineSchedule = IntakeSchedule`, `MedicineLog = IntakeLog`) and compat properties (`medicine_status`, `is_active_medicine`, `.medicine` on schedule/log) were left in place to prevent breakage during the transition. Now that all code paths are updated, these aliases must be removed to complete the rename.
+
+**Changes:**
+- Removed backward compatibility aliases from `apps/health/models.py` (Medicine, MedicineSchedule, MedicineLog)
+- Removed compat properties: `medicine_status` (getter+setter), `is_active_medicine` on Intake; `.medicine` on IntakeSchedule; `.medicine`, `.medicine_id` on IntakeLog
+- Updated 13 test files to import `Intake`/`IntakeSchedule`/`IntakeLog` instead of old names
+- Updated all FK kwargs from `medicine=` to `intake=` in test files and production code
+- Updated ORM lookups from `medicine__` to `intake__` and `medicine_status=` to `intake_status=`
+- Updated `select_related('medicine')` to `select_related('intake')` in state_builder.py and views.py
+- Fixed template references: `medicine_form.html` to `intake_form.html`, `medicine_list.html` to `intake_list.html`, `medicine_detail.html` to `intake_detail.html`, `medicine_schedules.html` to `intake_schedules.html`
+- Fixed URL name references in test files from `health:medicine_*` to `health:intake_*`
+- Fixed `scan:medicine_lookup` to `scan:intake_lookup` in intake_form.html template
+- Fixed `Medicine.DoesNotExist` / `MedicineSchedule.DoesNotExist` in correction_service.py
+- Updated `apps/users/models.py` and `apps/users/views.py` to import Intake instead of Medicine
+- Updated `apps/health/tests/test_health_intelligence.py` imports
+- Updated `apps/core/behavior/tests.py` model references
+- Updated `model = Medicine` / `model = MedicineLog` class attributes in views.py
+
+**Files modified:** apps/health/models.py, apps/health/views.py, apps/health/tests/test_medicine.py, apps/health/tests/test_medicine_adherence.py, apps/health/tests/test_health_intelligence.py, apps/core/ai_events/tests/test_medication_adapter.py, apps/core/ai_events/tests/test_router_integration.py, apps/core/ai_events/tests/test_followup.py, apps/core/ai_events/tests/test_resolver.py, apps/core/tests/test_core_comprehensive.py, apps/core/tests/test_quarter_hour_normalization.py, apps/core/ai_eae/tests/test_signal_state.py, apps/core/signals/tests/test_execution_quality.py, apps/core/ai_orchestrator/tests/test_entity_resolver.py, apps/sms/tests/test_sms_comprehensive.py, apps/cos/tests/test_cos_cx.py, apps/core/ai_state/state_builder.py, apps/core/behavior/correction_service.py, apps/core/behavior/tests.py, apps/users/models.py, apps/users/views.py, templates/health/intake/intake_form.html
+
+---
+
 ## 2026-04-05 — Refactor: Phase IV Medicine-to-Intake AI layer rename
 
 **Root cause:** Phase I-III renamed models/URLs/views from "Medicine" to "Intake". The AI layer still used old intent names (`take_medicine`, `take_medicines_by_time`, `email_medicine_list`, `MEDICINE_INTENTS`, etc.), creating naming inconsistency.

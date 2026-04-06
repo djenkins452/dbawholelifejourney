@@ -2272,7 +2272,7 @@ def build_medicine_state(user):
         today_logs = IntakeLog.objects.filter(
             intake__user=user,
             scheduled_date=user_today,
-        ).select_related('medicine', 'schedule')
+        ).select_related('intake', 'schedule')
         state['today_taken'] = today_logs.filter(
             log_status__in=['taken', 'late'],
         ).count()

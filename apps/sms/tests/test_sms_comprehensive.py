@@ -783,19 +783,19 @@ class RealTimeSignalTests(SMSTestMixin, TestCase):
     @override_settings(TWILIO_TEST_MODE=True)
     def test_medicine_schedule_save_triggers_sms_scheduling(self):
         """Saving a medicine schedule should trigger SMS scheduling for today."""
-        from apps.health.models import Medicine, MedicineSchedule
+        from apps.health.models import Intake, IntakeSchedule
         from apps.core.utils import get_user_today
 
         get_user_today(self.user)
 
         # Create medicine
-        medicine = Medicine.objects.create(
+        medicine = Intake.objects.create(
             user=self.user,
             name='Test Med',
             dose='10mg',
             frequency='daily',
             start_date=date.today(),
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
         )
 
         # Get count before
@@ -809,8 +809,8 @@ class RealTimeSignalTests(SMSTestMixin, TestCase):
         now_local = timezone.now().astimezone(user_tz)
         future_time = (now_local + timedelta(hours=2)).time()
 
-        MedicineSchedule.objects.create(
-            medicine=medicine,
+        IntakeSchedule.objects.create(
+            intake=medicine,
             scheduled_time=future_time,
             is_active=True,
         )

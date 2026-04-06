@@ -157,12 +157,12 @@ class MedicationDomainTest(TestCase):
         from apps.health.models import Intake, IntakeSchedule, IntakeLog
         from apps.core.behavior.domain_medication import calculate_medicine_behavior_output
 
-        med = Medicine.objects.create(
-            user=self.user, name="Test Med", medicine_status="active",
+        med = Intake.objects.create(
+            user=self.user, name="Test Med", intake_status="active",
             grace_period_minutes=30, start_date=date.today() - timedelta(days=30),
         )
-        schedule = MedicineSchedule.objects.create(
-            medicine=med, scheduled_time=time(8, 0),
+        schedule = IntakeSchedule.objects.create(
+            intake=med, scheduled_time=time(8, 0),
             time_of_day="morning", days_of_week="0,1,2,3,4,5,6",
         )
 
@@ -171,18 +171,18 @@ class MedicationDomainTest(TestCase):
 
         # Log 5 taken, 1 late, 1 skipped over the 7-day window
         for i in range(5):
-            MedicineLog.objects.create(
-                user=self.user, medicine=med, schedule=schedule,
+            IntakeLog.objects.create(
+                user=self.user, intake=med, schedule=schedule,
                 scheduled_date=start + timedelta(days=i),
                 log_status="taken",
             )
-        MedicineLog.objects.create(
-            user=self.user, medicine=med, schedule=schedule,
+        IntakeLog.objects.create(
+            user=self.user, intake=med, schedule=schedule,
             scheduled_date=start + timedelta(days=5),
             log_status="late",
         )
-        MedicineLog.objects.create(
-            user=self.user, medicine=med, schedule=schedule,
+        IntakeLog.objects.create(
+            user=self.user, intake=med, schedule=schedule,
             scheduled_date=start + timedelta(days=6),
             log_status="skipped",
         )

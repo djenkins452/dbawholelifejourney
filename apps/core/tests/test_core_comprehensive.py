@@ -690,8 +690,8 @@ class AISourceTrackingModelTests(CoreTestMixin, TestCase):
 
     def test_medicine_created_via_field(self):
         """Medicine model has created_via field."""
-        from apps.health.models import Medicine
-        medicine = Medicine.objects.create(
+        from apps.health.models import Intake
+        medicine = Intake.objects.create(
             user=self.user,
             name='Test Medicine',
             dose='10mg',

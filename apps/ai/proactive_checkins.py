@@ -1451,7 +1451,7 @@ def generate_medicine_check_ins_for_user(user, dose_time: str = None):
         user: User to generate check-ins for
         dose_time: Optional specific dose time
     """
-    from apps.health.models import Medicine, MedicineSchedule, MedicineLog
+    from apps.health.models import Intake, IntakeSchedule, IntakeLog
     from apps.core.utils import get_user_today, get_user_now
     from collections import defaultdict
 
@@ -1471,19 +1471,19 @@ def generate_medicine_check_ins_for_user(user, dose_time: str = None):
     current_time = user_now.time()
 
     # Get active medicines with prefetch_related to avoid N+1 on schedules
-    medicines = Medicine.objects.filter(
-        user=user, medicine_status='active',
-    ).prefetch_related('medicineschedule_set')
+    medicines = Intake.objects.filter(
+        user=user, intake_status='active',
+    ).prefetch_related('intakeschedule_set')
 
     # Batch-load today's logs in a single query (eliminates N+1 per schedule)
     medicine_ids = [m.id for m in medicines]
     logged_keys = set()
     if medicine_ids:
-        logs = MedicineLog.objects.filter(
-            medicine_id__in=medicine_ids,
+        logs = IntakeLog.objects.filter(
+            intake_id__in=medicine_ids,
             scheduled_date=today,
             log_status__in=['taken', 'skipped'],
-        ).values_list('medicine_id', 'scheduled_time')
+        ).values_list('intake_id', 'scheduled_time')
         logged_keys = {(mid, st) for mid, st in logs}
 
     # Collect un-logged medicines grouped by time_of_day
@@ -1494,7 +1494,7 @@ def generate_medicine_check_ins_for_user(user, dose_time: str = None):
 
     for medicine in medicines:
         # Use prefetched schedules (no additional query)
-        schedules = [s for s in medicine.medicineschedule_set.all() if s.is_active]
+        schedules = [s for s in medicine.intakeschedule_set.all() if s.is_active]
 
         for schedule in schedules:
             if not schedule.applies_to_day(today.weekday()):
@@ -1534,8 +1534,8 @@ def generate_medicine_check_ins_for_user(user, dose_time: str = None):
         # (user may have logged since PGS started this cycle)
         still_pending = False
         for med, sched in med_schedules:
-            fresh_log = MedicineLog.objects.filter(
-                medicine=med,
+            fresh_log = IntakeLog.objects.filter(
+                intake=med,
                 scheduled_date=today,
                 scheduled_time=sched.scheduled_time,
                 log_status__in=['taken', 'skipped'],

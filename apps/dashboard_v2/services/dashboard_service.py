@@ -219,23 +219,23 @@ class DashboardV2Service:
 
         # Medicine schedule — grouped by time_of_day
         try:
-            from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+            from apps.health.models import Intake, IntakeLog, IntakeSchedule
 
             active_medicines = list(
-                Medicine.objects.filter(
+                Intake.objects.filter(
                     user=self.user,
-                    medicine_status=Medicine.STATUS_ACTIVE,
+                    intake_status=Intake.STATUS_ACTIVE,
                 )
                 .prefetch_related("schedules")
             )
 
             # Get today's logs for quick lookup
             today_logs = set(
-                MedicineLog.objects.filter(
+                IntakeLog.objects.filter(
                     user=self.user,
                     scheduled_date=self.today,
                     log_status__in=["taken", "late"],
-                ).values_list("medicine_id", "schedule_id")
+                ).values_list("intake_id", "schedule_id")
             )
 
             # Group by time_of_day
@@ -254,7 +254,7 @@ class DashboardV2Service:
                         groups[tod] = {
                             "time_of_day": tod,
                             "label": f"{display} Stack",
-                            "order": MedicineSchedule.TIME_OF_DAY_ORDER.get(
+                            "order": IntakeSchedule.TIME_OF_DAY_ORDER.get(
                                 tod, 99
                             ),
                             "items": [],

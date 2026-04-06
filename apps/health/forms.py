@@ -29,9 +29,9 @@ from .models import (
     HealthProfile,
     HeartRateEntry,
     MedicalProvider,
-    Medicine,
-    MedicineLog,
-    MedicineSchedule,
+    Intake,
+    IntakeLog,
+    IntakeSchedule,
     NutritionGoals,
     ProviderStaff,
     SleepEntry,
@@ -486,7 +486,7 @@ class MedicineForm(forms.ModelForm):
     """
 
     class Meta:
-        model = Medicine
+        model = Intake
         fields = [
             "intake_type",
             "name",
@@ -625,7 +625,7 @@ class MedicineScheduleForm(forms.ModelForm):
     )
 
     class Meta:
-        model = MedicineSchedule
+        model = IntakeSchedule
         fields = ["scheduled_time", "time_of_day", "label", "is_active"]
         widgets = {
             "scheduled_time": forms.TimeInput(attrs={
@@ -682,7 +682,7 @@ class MedicineLogForm(forms.ModelForm):
     """
 
     class Meta:
-        model = MedicineLog
+        model = IntakeLog
         fields = ["log_status", "prn_reason", "notes"]
         widgets = {
             "log_status": forms.Select(attrs={
@@ -712,7 +712,7 @@ class MedicineLogEditForm(forms.ModelForm):
     """
 
     class Meta:
-        model = MedicineLog
+        model = IntakeLog
         fields = ["taken_at", "notes"]
         widgets = {
             "taken_at": forms.DateTimeInput(attrs={
@@ -765,9 +765,9 @@ class MedicineLogEditForm(forms.ModelForm):
             latest_ok = scheduled_local + timedelta(minutes=grace_minutes)
 
             if taken_local > latest_ok:
-                instance.log_status = MedicineLog.STATUS_LATE
+                instance.log_status = IntakeLog.STATUS_LATE
             else:
-                instance.log_status = MedicineLog.STATUS_TAKEN
+                instance.log_status = IntakeLog.STATUS_TAKEN
 
         if commit:
             instance.save()
@@ -780,7 +780,7 @@ class PRNDoseForm(forms.Form):
     """
 
     medicine = forms.ModelChoiceField(
-        queryset=Medicine.objects.none(),
+        queryset=Intake.objects.none(),
         widget=forms.Select(attrs={
             "class": "form-select",
         }),
@@ -806,10 +806,10 @@ class PRNDoseForm(forms.Form):
         super().__init__(*args, **kwargs)
         if user:
             # Only show PRN medicines that are active
-            self.fields["medicine"].queryset = Medicine.objects.filter(
+            self.fields["medicine"].queryset = Intake.objects.filter(
                 user=user,
                 is_prn=True,
-                medicine_status=Medicine.STATUS_ACTIVE,
+                intake_status=Intake.STATUS_ACTIVE,
             )
 
 

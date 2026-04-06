@@ -490,15 +490,15 @@ class ActionHandlerTests(TestCase):
     def test_handle_take_medicine_single_match(self):
         """Test taking medicine with single match."""
         from apps.ai.action_handlers import ActionHandler
-        from apps.health.models import Medicine, MedicineLog
+        from apps.health.models import Intake, IntakeLog
 
         # Create a medicine
-        medicine = Medicine.objects.create(
+        medicine = Intake.objects.create(
             user=self.user,
             name='Metformin',
             dose='500mg',
             is_prn=True,
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
             start_date=date.today()
         )
 
@@ -510,27 +510,27 @@ class ActionHandlerTests(TestCase):
         self.assertEqual(result.action_type, 'take_medicine')
 
         # Verify log was created
-        log = MedicineLog.objects.get(user=self.user, medicine=medicine)
+        log = IntakeLog.objects.get(user=self.user, intake=medicine)
         self.assertIsNotNone(log.taken_at)
 
     def test_handle_take_medicine_multiple_matches(self):
         """Test taking medicine with multiple matches."""
         from apps.ai.action_handlers import ActionHandler
-        from apps.health.models import Medicine
+        from apps.health.models import Intake
 
         # Create multiple matching medicines
-        Medicine.objects.create(
+        Intake.objects.create(
             user=self.user,
             name='Metformin 500mg',
             dose='500mg',
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
             start_date=date.today()
         )
-        Medicine.objects.create(
+        Intake.objects.create(
             user=self.user,
             name='Metformin 1000mg',
             dose='1000mg',
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
             start_date=date.today()
         )
 

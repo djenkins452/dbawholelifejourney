@@ -54,9 +54,9 @@ def _connect_health_signals():
         from apps.health.models import (
             GlucoseEntry,
             HeartRateEntry,
-            Medicine,
-            MedicineLog,
-            MedicineSchedule,
+            Intake,
+            IntakeLog,
+            IntakeSchedule,
             PersonalRecord,
             WeightEntry,
             WorkoutSession,
@@ -64,7 +64,7 @@ def _connect_health_signals():
 
         for model in [
             WeightEntry, HeartRateEntry, GlucoseEntry,
-            Medicine, MedicineLog, MedicineSchedule,
+            Intake, IntakeLog, IntakeSchedule,
             WorkoutSession, PersonalRecord,
         ]:
             post_save.connect(_health_signal_handler, sender=model, weak=False)

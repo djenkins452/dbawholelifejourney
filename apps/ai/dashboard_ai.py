@@ -520,11 +520,11 @@ class DashboardAI:
 
             # Health - Medicine Tracking
             try:
-                from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+                from apps.health.models import Intake, IntakeLog, IntakeSchedule
 
-                active_medicines = Medicine.objects.filter(
+                active_medicines = Intake.objects.filter(
                     user=self.user,
-                    medicine_status=Medicine.STATUS_ACTIVE
+                    intake_status=Intake.STATUS_ACTIVE
                 )
                 data['active_medicines_count'] = active_medicines.count()
 
@@ -541,9 +541,9 @@ class DashboardAI:
                         if schedule.applies_to_day(day_of_week):
                             expected_doses_today += 1
                             # Check if this dose was taken
-                            log = MedicineLog.objects.filter(
+                            log = IntakeLog.objects.filter(
                                 user=self.user,
-                                medicine=medicine,
+                                intake=medicine,
                                 schedule=schedule,
                                 scheduled_date=today
                             ).first()

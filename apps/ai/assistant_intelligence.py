@@ -574,10 +574,10 @@ class ScheduleAnalyzer:
         ).count()
 
         # Count scheduled medicine doses
-        from apps.health.models import MedicineSchedule
-        medicine_count = MedicineSchedule.objects.filter(
-            medicine__user=self.user,
-            medicine__is_active=True,
+        from apps.health.models import IntakeSchedule
+        medicine_count = IntakeSchedule.objects.filter(
+            intake__user=self.user,
+            intake__is_active=True,
             is_active=True,
         ).count()
 
@@ -666,7 +666,7 @@ class IntelligentCheckInService:
 
     def _check_missed_medications(self) -> List[dict]:
         """Check for medications that are past their scheduled time."""
-        from apps.health.models import Medicine, MedicineSchedule, MedicineLog
+        from apps.health.models import Intake, IntakeSchedule, IntakeLog
         from apps.core.utils import get_user_today
 
         check_ins = []
@@ -674,11 +674,11 @@ class IntelligentCheckInService:
         now = timezone.now()
         current_time = now.time()
 
-        medicines = Medicine.objects.filter(user=self.user, is_active=True)
+        medicines = Intake.objects.filter(user=self.user, is_active=True)
 
         for medicine in medicines:
-            schedules = MedicineSchedule.objects.filter(
-                medicine=medicine,
+            schedules = IntakeSchedule.objects.filter(
+                intake=medicine,
                 is_active=True
             )
 
@@ -692,8 +692,8 @@ class IntelligentCheckInService:
                     continue  # Not time yet
 
                 # Check if already logged
-                log = MedicineLog.objects.filter(
-                    medicine=medicine,
+                log = IntakeLog.objects.filter(
+                    intake=medicine,
                     scheduled_date=today,
                     scheduled_time=scheduled_time,
                 ).first()

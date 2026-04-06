@@ -35,12 +35,12 @@ def calculate_medicine_behavior_output(user, start_date, end_date):
         dict matching behavior output contract, or None if no medicines
     """
     from apps.core.utils import get_user_now, get_user_today
-    from apps.health.models import Medicine, MedicineLog
+    from apps.health.models import Intake, IntakeLog
 
-    active_medicines = Medicine.objects.filter(
+    active_medicines = Intake.objects.filter(
         user=user,
-        medicine_status=Medicine.STATUS_ACTIVE,
-        intake_type=Medicine.INTAKE_TYPE_MEDICATION,
+        intake_status=Intake.STATUS_ACTIVE,
+        intake_type=Intake.INTAKE_TYPE_MEDICATION,
     ).prefetch_related("schedules")
 
     if not active_medicines.exists():
@@ -72,9 +72,9 @@ def calculate_medicine_behavior_output(user, start_date, end_date):
     # Count actual logs — split taken from late
     # Filter to active medicines only so logs from discontinued medicines
     # don't inflate the taken count beyond expected.
-    logs = MedicineLog.objects.filter(
+    logs = IntakeLog.objects.filter(
         user=user,
-        medicine__in=active_medicines,
+        intake__in=active_medicines,
         scheduled_date__gte=start_date,
         scheduled_date__lte=end_date,
     )

@@ -1136,7 +1136,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
         # Items logged via scan (entries created via AI camera this week)
         from apps.journal.models import JournalEntry
-        from apps.health.models import Medicine, WorkoutSession
+        from apps.health.models import Intake, WorkoutSession
 
         ai_camera_entries = JournalEntry.objects.filter(
             user=user,
@@ -1144,7 +1144,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             created_at__gte=week_ago
         ).count()
 
-        ai_camera_medicines = Medicine.objects.filter(
+        ai_camera_medicines = Intake.objects.filter(
             user=user,
             created_via='ai_camera',
             created_at__gte=week_ago

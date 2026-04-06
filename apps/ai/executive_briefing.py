@@ -952,11 +952,11 @@ def _build_health_gate_section(user, today) -> str:
     # Medication check
     try:
         from django.utils import timezone
-        from apps.health.models import Medicine, MedicineLog
+        from apps.health.models import Intake, IntakeLog
         from apps.core.utils import get_user_now
         user_now = get_user_now(user)
-        active_meds = Medicine.objects.filter(
-            user=user, medicine_status=Medicine.STATUS_ACTIVE,
+        active_meds = Intake.objects.filter(
+            user=user, intake_status=Intake.STATUS_ACTIVE,
         ).exclude(status='deleted')
 
         if active_meds.exists():
@@ -976,8 +976,8 @@ def _build_health_gate_section(user, today) -> str:
                     if not sched.applies_to_day(day_of_week):
                         continue
                     total_scheduled += 1
-                    taken = MedicineLog.objects.filter(
-                        medicine=med,
+                    taken = IntakeLog.objects.filter(
+                        intake=med,
                         schedule=sched,
                         scheduled_date=today,
                         log_status__in=['taken', 'late'],
@@ -1501,9 +1501,9 @@ def _build_gap_context_section(user, gap_hours, today) -> str:
 
         # Medication gaps during absence
         try:
-            from apps.health.models import MedicineLog
-            missed_days = MedicineLog.objects.filter(
-                medicine__user=user,
+            from apps.health.models import IntakeLog
+            missed_days = IntakeLog.objects.filter(
+                intake__user=user,
                 scheduled_date__gte=since_date,
                 scheduled_date__lt=today,
                 log_status='missed',

@@ -38,26 +38,26 @@ def evaluate_medication(user, start_date, end_date):
     One event per expected dose (medicine + schedule + date).
     """
     try:
-        from apps.health.models import Medicine, MedicineLog
+        from apps.health.models import Intake, IntakeLog
 
-        active_medicines = Medicine.objects.filter(
+        active_medicines = Intake.objects.filter(
             user=user,
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
         ).prefetch_related("schedules")
 
         if not active_medicines.exists():
             return []
 
         # Build lookup of logs: (medicine_id, schedule_id, date) → log
-        logs = MedicineLog.objects.filter(
+        logs = IntakeLog.objects.filter(
             user=user,
             scheduled_date__gte=start_date,
             scheduled_date__lte=end_date,
-        ).select_related("medicine", "schedule")
+        ).select_related("intake", "schedule")
 
         log_map = {}
         for log in logs:
-            key = (log.medicine_id, log.schedule_id, log.scheduled_date)
+            key = (log.intake_id, log.schedule_id, log.scheduled_date)
             log_map[key] = log
 
         events = []

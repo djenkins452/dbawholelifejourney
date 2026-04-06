@@ -147,14 +147,14 @@ class DailyActivityService:
     @staticmethod
     def _collect_medicine_logs(user, date):
         """Medicine doses taken today."""
-        from apps.health.models import MedicineLog
+        from apps.health.models import IntakeLog
 
-        logs = MedicineLog.objects.filter(
+        logs = IntakeLog.objects.filter(
             user=user,
             scheduled_date=date,
             status='taken',
-        ).select_related('medicine').only(
-            'pk', 'taken_at', 'medicine__name',
+        ).select_related('intake').only(
+            'pk', 'taken_at', 'intake__name',
         )
 
         return [
@@ -163,7 +163,7 @@ class DailyActivityService:
                     dt.datetime.combine(date, dt.time(12, 0)),
                     tz_utils.get_current_timezone(),
                 ),
-                'title': f"Took {log.medicine.name}",
+                'title': f"Took {log.intake.name}",
                 'domain': 'health',
                 'source_type': 'medicine_log',
                 'source_id': str(log.pk),

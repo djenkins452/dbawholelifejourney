@@ -150,7 +150,7 @@ class TrendTracker:
         from apps.journal.models import JournalEntry
         from apps.life.models import Task
         from apps.purpose.models import LifeGoal
-        from apps.health.models import WorkoutSession, MedicineLog
+        from apps.health.models import WorkoutSession, IntakeLog
 
         data = {}
 

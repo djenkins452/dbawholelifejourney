@@ -222,17 +222,17 @@ class TestHealthGate(ExecutiveBriefingTestMixin, TestCase):
         today = date.today()
 
         # Create a medicine with schedule
-        from apps.health.models import Medicine, MedicineSchedule
+        from apps.health.models import Intake, IntakeSchedule
         from datetime import time
-        med = Medicine.objects.create(
+        med = Intake.objects.create(
             user=user,
             name="Test Medicine",
             dose="10mg",
-            medicine_status='active',
+            intake_status='active',
             start_date=today - timedelta(days=30),
         )
-        MedicineSchedule.objects.create(
-            medicine=med,
+        IntakeSchedule.objects.create(
+            intake=med,
             scheduled_time=time(8, 0),
             time_of_day='morning',
         )
@@ -254,23 +254,23 @@ class TestHealthGate(ExecutiveBriefingTestMixin, TestCase):
         user = self.create_user(email='medtaken@example.com')
         today = date.today()
 
-        from apps.health.models import Medicine, MedicineSchedule, MedicineLog
+        from apps.health.models import Intake, IntakeSchedule, IntakeLog
         from datetime import time
-        med = Medicine.objects.create(
+        med = Intake.objects.create(
             user=user,
             name="Test Medicine",
             dose="10mg",
-            medicine_status='active',
+            intake_status='active',
             start_date=today - timedelta(days=30),
         )
-        schedule = MedicineSchedule.objects.create(
-            medicine=med,
+        schedule = IntakeSchedule.objects.create(
+            intake=med,
             scheduled_time=time(8, 0),
             time_of_day='morning',
         )
-        MedicineLog.objects.create(
+        IntakeLog.objects.create(
             user=user,
-            medicine=med,
+            intake=med,
             schedule=schedule,
             scheduled_date=today,
             log_status='taken',

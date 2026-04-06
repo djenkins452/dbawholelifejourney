@@ -104,7 +104,7 @@ def invalidate_on_medicine_log_change(sender, instance, **kwargs):
 @receiver(post_delete, sender='health.IntakeSchedule')
 def invalidate_on_medicine_schedule_change(sender, instance, **kwargs):
     """Invalidate health cache when medicine schedule changes."""
-    _invalidate_health(instance.medicine.user)
+    _invalidate_health(instance.intake.user)
 
 
 @receiver(post_save, sender='health.WorkoutSession')

@@ -563,8 +563,8 @@ def refresh_sae_on_medicine_change(sender, instance, **kwargs):
 @receiver(post_delete, sender='health.IntakeSchedule')
 def refresh_sae_on_medicine_schedule_change(sender, instance, **kwargs):
     """Refresh SAE health + medicine state when schedule changes."""
-    _refresh_sae_module(instance.medicine.user, 'health')
-    _refresh_sae_module(instance.medicine.user, 'medicine')
+    _refresh_sae_module(instance.intake.user, 'health')
+    _refresh_sae_module(instance.intake.user, 'medicine')
 
 
 @receiver(post_save, sender='health.PersonalRecord')

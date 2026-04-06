@@ -107,19 +107,19 @@ class MedicationAdapterTest(TestCase):
         self.assertEqual(result, [])
 
     def test_active_medicine_with_log(self):
-        from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+        from apps.health.models import Intake, IntakeLog, IntakeSchedule
 
-        med = Medicine.objects.create(
+        med = Intake.objects.create(
             user=self.user, name="TestMed", dose="10mg",
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
             start_date=self.today,
         )
-        schedule = MedicineSchedule.objects.create(
-            medicine=med, scheduled_time=time(8, 0),
+        schedule = IntakeSchedule.objects.create(
+            intake=med, scheduled_time=time(8, 0),
             days_of_week="0,1,2,3,4,5,6", is_active=True,
         )
-        MedicineLog.objects.create(
-            user=self.user, medicine=med, schedule=schedule,
+        IntakeLog.objects.create(
+            user=self.user, intake=med, schedule=schedule,
             scheduled_date=self.today, scheduled_time=time(8, 0),
             log_status="taken",
         )
@@ -132,15 +132,15 @@ class MedicationAdapterTest(TestCase):
         self.assertEqual(events[0]["reason_code"], "on_time")
 
     def test_missed_dose_no_log(self):
-        from apps.health.models import Medicine, MedicineSchedule
+        from apps.health.models import Intake, IntakeSchedule
 
-        med = Medicine.objects.create(
+        med = Intake.objects.create(
             user=self.user, name="TestMed2", dose="5mg",
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
             start_date=self.today,
         )
-        MedicineSchedule.objects.create(
-            medicine=med, scheduled_time=time(9, 0),
+        IntakeSchedule.objects.create(
+            intake=med, scheduled_time=time(9, 0),
             days_of_week="0,1,2,3,4,5,6", is_active=True,
         )
 
@@ -152,19 +152,19 @@ class MedicationAdapterTest(TestCase):
         self.assertEqual(events[0]["reason_code"], "no_log")
 
     def test_late_dose(self):
-        from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+        from apps.health.models import Intake, IntakeLog, IntakeSchedule
 
-        med = Medicine.objects.create(
+        med = Intake.objects.create(
             user=self.user, name="LateMed", dose="10mg",
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
             start_date=self.today,
         )
-        schedule = MedicineSchedule.objects.create(
-            medicine=med, scheduled_time=time(8, 0),
+        schedule = IntakeSchedule.objects.create(
+            intake=med, scheduled_time=time(8, 0),
             days_of_week="0,1,2,3,4,5,6", is_active=True,
         )
-        MedicineLog.objects.create(
-            user=self.user, medicine=med, schedule=schedule,
+        IntakeLog.objects.create(
+            user=self.user, intake=med, schedule=schedule,
             scheduled_date=self.today, scheduled_time=time(8, 0),
             log_status="late",
         )
@@ -175,19 +175,19 @@ class MedicationAdapterTest(TestCase):
         self.assertEqual(events[0]["final_status"], FINAL_COMPLETED_LATE)
 
     def test_skipped_dose(self):
-        from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+        from apps.health.models import Intake, IntakeLog, IntakeSchedule
 
-        med = Medicine.objects.create(
+        med = Intake.objects.create(
             user=self.user, name="SkipMed", dose="10mg",
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
             start_date=self.today,
         )
-        schedule = MedicineSchedule.objects.create(
-            medicine=med, scheduled_time=time(8, 0),
+        schedule = IntakeSchedule.objects.create(
+            intake=med, scheduled_time=time(8, 0),
             days_of_week="0,1,2,3,4,5,6", is_active=True,
         )
-        MedicineLog.objects.create(
-            user=self.user, medicine=med, schedule=schedule,
+        IntakeLog.objects.create(
+            user=self.user, intake=med, schedule=schedule,
             scheduled_date=self.today, scheduled_time=time(8, 0),
             log_status="skipped",
         )

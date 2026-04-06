@@ -3486,7 +3486,7 @@ def _build_data_state_snapshot(user) -> str:
     _completed_titles = []  # v9: populated from SAE task state
     try:
         from apps.health.models import (
-            WeightEntry, SleepEntry, MedicineLog, Medicine,
+            WeightEntry, SleepEntry, IntakeLog, Intake,
             FoodEntry, BloodPressureEntry, WorkoutSession,
         )
         from apps.purpose.models import LifeGoal
@@ -3498,7 +3498,7 @@ def _build_data_state_snapshot(user) -> str:
 
         counts['weight_entries'] = WeightEntry.objects.filter(user=user).count()
         counts['sleep_entries'] = SleepEntry.objects.filter(user=user).count()
-        counts['active_medications'] = Medicine.objects.filter(user=user).count()
+        counts['active_medications'] = Intake.objects.filter(user=user).count()
         counts['nutrition_entries'] = FoodEntry.objects.filter(user=user).count()
         counts['blood_pressure_entries'] = BloodPressureEntry.objects.filter(user=user).count()
         counts['workout_sessions'] = WorkoutSession.objects.filter(user=user).count()
@@ -9357,9 +9357,9 @@ def build_learning_mode_context(user):
 
     # Medication + fasting (actionable awareness)
     try:
-        from apps.health.models import MedicineSchedule
+        from apps.health.models import IntakeSchedule
         today = timezone.localdate()
-        schedules = MedicineSchedule.objects.filter(user=user, is_active=True)
+        schedules = IntakeSchedule.objects.filter(user=user, is_active=True)
         total = schedules.count()
         if total > 0:
             taken = sum(

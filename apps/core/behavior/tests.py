@@ -154,7 +154,7 @@ class MedicationDomainTest(TestCase):
         self.assertIsNone(result)
 
     def test_with_medicines(self):
-        from apps.health.models import Medicine, MedicineSchedule, MedicineLog
+        from apps.health.models import Intake, IntakeSchedule, IntakeLog
         from apps.core.behavior.domain_medication import calculate_medicine_behavior_output
 
         med = Medicine.objects.create(

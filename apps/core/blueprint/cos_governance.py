@@ -927,8 +927,8 @@ def _gather_user_snapshot(user):
 
     # Medicines (Medicine model, not MedicineSchedule — schedules have no user FK)
     try:
-        from apps.health.models import Medicine
-        med_count = Medicine.objects.filter(
+        from apps.health.models import Intake
+        med_count = Intake.objects.filter(
             user=user, is_active=True).count()
         if med_count:
             snapshot['health']['medicine_count'] = med_count

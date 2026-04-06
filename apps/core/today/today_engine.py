@@ -315,17 +315,17 @@ def _collect_medication_items(user, user_now) -> list:
     """
     items = []
     try:
-        from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+        from apps.health.models import Intake, IntakeLog, IntakeSchedule
 
         today = user_now.date() if hasattr(user_now, "date") else user_now
         day_of_week = today.weekday()  # 0=Monday, 6=Sunday
 
         # Get all active schedules for active medicines
         schedules = (
-            MedicineSchedule.objects
+            IntakeSchedule.objects
             .filter(
-                medicine__user=user,
-                medicine__medicine_status=Medicine.STATUS_ACTIVE,
+                intake__user=user,
+                intake__intake_status=Intake.STATUS_ACTIVE,
                 is_active=True,
             )
             .select_related("medicine")
@@ -340,7 +340,7 @@ def _collect_medication_items(user, user_now) -> list:
         # Batch-fetch logs for today to determine completion
         schedule_ids = [s.id for s in today_schedules]
         taken_schedule_ids = set(
-            MedicineLog.objects
+            IntakeLog.objects
             .filter(
                 user=user,
                 schedule_id__in=schedule_ids,
@@ -357,7 +357,7 @@ def _collect_medication_items(user, user_now) -> list:
                 second=0, microsecond=0,
             )
             time_str = schedule.scheduled_time.strftime("%I:%M %p").lstrip("0")
-            med_name = schedule.medicine.name
+            med_name = schedule.intake.name
             is_taken = schedule.id in taken_schedule_ids
 
             items.append({

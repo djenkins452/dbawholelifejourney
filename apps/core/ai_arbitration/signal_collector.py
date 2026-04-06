@@ -140,14 +140,14 @@ def _collect_health_signals(user, now):
 
     # Medication
     try:
-        from apps.health.models import MedicineLog, Medicine
+        from apps.health.models import IntakeLog, Intake
         today = now.date()
-        active_meds = Medicine.objects.filter(
-            user=user, medicine_status="active"
+        active_meds = Intake.objects.filter(
+            user=user, intake_status="active"
         ).exclude(is_prn=True)
 
-        scheduled_today = MedicineLog.objects.filter(
-            medicine__in=active_meds,
+        scheduled_today = IntakeLog.objects.filter(
+            intake__in=active_meds,
             scheduled_date=today,
         )
         signals["medications_scheduled"] = scheduled_today.count()

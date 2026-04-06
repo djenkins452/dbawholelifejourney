@@ -345,13 +345,28 @@ def prioritize_execution_items(execution_items, current_time, summaries=None):
 
 
 def _parse_time(time_str):
-    """Parse HH:MM string to datetime.time, or None."""
+    """Parse time string to datetime.time, or None.
+
+    Accepts:
+    - 'HH:MM' (24-hour, canonical)
+    - 'h:MM AM/PM' or 'HH:MM AM/PM' (12-hour, from state_builder)
+    - datetime.time objects (passthrough)
+    """
     if not time_str:
         return None
+    if isinstance(time_str, datetime.time):
+        return time_str
     try:
         from datetime import datetime as _dt
-        return _dt.strptime(time_str, '%H:%M').time()
-    except (ValueError, TypeError):
+        # Try 24-hour first (canonical format from execution contract)
+        return _dt.strptime(time_str.strip(), '%H:%M').time()
+    except (ValueError, TypeError, AttributeError):
+        pass
+    try:
+        from datetime import datetime as _dt
+        # Fallback: 12-hour format (defense-in-depth for any unNormalized path)
+        return _dt.strptime(time_str.strip(), '%I:%M %p').time()
+    except (ValueError, TypeError, AttributeError):
         return None
 
 
@@ -633,6 +648,29 @@ def build_grouped_action_center(execution_items, current_time, summaries=None):
             'urgency': block_urgency,
             'is_time_block': True,
         })
+
+    # ── HARD GUARD: no scheduled item may appear in flexible ──
+    # If an item has a scheduled_time string but _parse_time returned None
+    # (format mismatch), it would land here incorrectly. Catch and log.
+    scheduled_ids = {i['source_id'] for bk_items in time_blocks.values() for i in bk_items}
+    guarded_flexible = []
+    for item in flexible_items:
+        if item['source_id'] in scheduled_ids:
+            continue  # Already in a time block — skip duplicate
+        # If the raw item had a scheduled_time from an upstream source but it
+        # wasn't parsed, that's a bug. Log it so we can fix the format upstream.
+        raw_time = item.get('time_display') or ''
+        if raw_time and item['scheduled_time'] is None:
+            import logging as _log
+            _log.getLogger(__name__).error(
+                "HARD GUARD: item '%s' (source_type=%s, source_id=%s) has "
+                "time_display='%s' but scheduled_time=None — time format not parsed. "
+                "Fix the upstream time normalization.",
+                item.get('title'), item.get('source_type'),
+                item.get('source_id'), raw_time,
+            )
+        guarded_flexible.append(item)
+    flexible_items = guarded_flexible
 
     # Add flexible/unscheduled section (distinct from scheduled timeline)
     if flexible_items:

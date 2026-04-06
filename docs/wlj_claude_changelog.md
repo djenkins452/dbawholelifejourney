@@ -6,6 +6,21 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-06 — Dashboard: Fix medication/supplement misclassification as Flexible
+
+**What:** Fixed medications and supplements with `scheduled_time` being incorrectly placed in the "Flexible" bucket on the dashboard instead of their correct time block groups.
+
+**Root cause:** `build_medicine_state()` formats `scheduled_time` as `'8:00 AM'` (12-hour). The action prioritizer's `_parse_time()` only accepted `'HH:MM'` (24-hour) → returned `None` → `build_grouped_action_center()` classified items with `None` scheduled_time as flexible. Tasks and routines used `'HH:MM'` format and were unaffected.
+
+**Changes:**
+- `apps/core/execution/today_execution.py` — Added `_normalize_time_to_24h()` that converts any time format (12h, 24h, time objects) to `'HH:MM'`. All medication/supplement items now pass through this normalizer before entering the execution contract.
+- `apps/core/decision_engine/action_prioritizer.py` — Made `_parse_time()` robust (accepts `'HH:MM'`, `'h:MM AM/PM'`, and `datetime.time` objects) as defense-in-depth. Added hard guard in `build_grouped_action_center()` that logs an error if any item with a time_display string but `scheduled_time=None` enters the flexible bucket.
+- `apps/core/decision_engine/tests/test_action_prioritizer.py` — Added 14 tests: `TestParseTime` (5), `TestNormalizeTimeTo24h` (4), `TestScheduledItemsNeverInFlexible` (5 — covers time block classification, flexible isolation, no duplicates, 12h format defense, ordering).
+
+**Architecture:** Fix is at the service layer (single source of truth). No template changes. No UI-side classification. Intake `scheduled_time` now flows through unchanged to time block grouping.
+
+---
+
 ## 2026-04-06 — Physical Intelligence: Data sufficiency, weighted confidence, conflict resolution
 
 **What:** Fixed false "fat gaining" conclusions from insufficient data in the Physical Intelligence body composition signal pipeline. Added three new layers: (1) data sufficiency gate that requires minimum weight/waist points before analysis, (2) weighted confidence voting where body fat scale data gets 0.3 confidence vs 0.85 for consistent weight trends, and (3) deterministic conflict resolution with 5 rules preventing contradictory output.

@@ -1242,6 +1242,21 @@ class ProactiveCheckInService:
             except Exception:
                 pass  # Suppression check must never block check-ins
 
+        # Conversation mode suppression: don't inject unrelated nudges
+        # when user is in a focused conversation. Medication bypasses this.
+        if check_in_type:
+            try:
+                from apps.core.blueprint.conversation_mode import should_suppress_proactive
+                if should_suppress_proactive(self.user, check_in_type):
+                    logger.info(
+                        "PROACTIVE_SUPPRESSED_MODE user=%s type=%s — "
+                        "conversation mode lock active",
+                        self.user.id, check_in_type,
+                    )
+                    return None
+            except Exception:
+                pass  # Mode check must never block check-ins
+
         message = AssistantMessage.objects.create(
             conversation=conversation,
             role='assistant',

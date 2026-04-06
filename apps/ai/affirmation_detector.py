@@ -463,7 +463,7 @@ def _try_auto_complete(user, activity_type: str, message: str) -> Optional[dict]
 
         today = get_user_today(user)
 
-        # Find active schedules whose task_name matches the activity
+        # Find active schedules whose name matches the activity
         schedules = RoutineSchedule.objects.filter(
             routine__user=user,
             routine__is_active=True,
@@ -471,19 +471,19 @@ def _try_auto_complete(user, activity_type: str, message: str) -> Optional[dict]
         ).select_related('routine')
 
         for schedule in schedules:
-            task_lower = (schedule.task_name or '').lower()
-            if any(kw in task_lower for kw in keywords):
+            item_name = (schedule.name or '').lower()
+            if any(kw in item_name for kw in keywords):
                 # Check if already completed today
                 existing_log = RoutineLog.objects.filter(
                     user=user,
-                    routine_schedule=schedule,
-                    date=today,
-                    status__in=['completed', 'completed_late'],
+                    schedule=schedule,
+                    scheduled_date=today,
+                    log_status__in=['completed', 'completed_late'],
                 ).first()
                 if existing_log:
                     return {
                         'already_done': True,
-                        'item_name': schedule.task_name,
+                        'item_name': schedule.name,
                     }
 
                 # Mark complete using existing pathway
@@ -491,11 +491,11 @@ def _try_auto_complete(user, activity_type: str, message: str) -> Optional[dict]
 
                 logger.info(
                     "AFFIRM_AUTO_COMPLETE user=%s item=%s schedule=%s",
-                    user.id, schedule.task_name, schedule.id,
+                    user.id, schedule.name, schedule.id,
                 )
                 return {
                     'completed': True,
-                    'item_name': schedule.task_name,
+                    'item_name': schedule.name,
                 }
 
         return None

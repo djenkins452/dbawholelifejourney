@@ -214,12 +214,12 @@ def _check_health_behavior(user, priority, since) -> Optional[PriorityConflict]:
                 )
 
         if sub in ('health.medications', 'health.physical.medications', ''):
-            from apps.health.models import Medicine
-            active_meds = Medicine.objects.filter(user=user, is_active=True).count()
+            from apps.health.models import Intake
+            active_meds = Intake.objects.filter(user=user, is_active=True).count()
             if active_meds > 0:
                 # Check recent adherence via medicine logs
-                from apps.health.models import MedicineLog
-                log_count = MedicineLog.objects.filter(
+                from apps.health.models import IntakeLog
+                log_count = IntakeLog.objects.filter(
                     user=user, taken_at__gte=since
                 ).count()
                 expected = active_meds * 7  # rough expected

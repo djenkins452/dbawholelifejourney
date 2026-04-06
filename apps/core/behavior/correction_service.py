@@ -46,16 +46,16 @@ def correct_medication_log(user, medicine_id, schedule_id, scheduled_date, new_s
     if new_status not in VALID_CORRECTION_STATUSES['medication']:
         return {'success': False, 'error': f'Invalid status: {new_status}'}
 
-    from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+    from apps.health.models import Intake, IntakeLog, IntakeSchedule
 
     try:
-        medicine = Medicine.objects.get(pk=medicine_id, user=user)
-        schedule = MedicineSchedule.objects.get(pk=schedule_id, medicine=medicine)
+        medicine = Intake.objects.get(pk=medicine_id, user=user)
+        schedule = IntakeSchedule.objects.get(pk=schedule_id, medicine=medicine)
     except (Medicine.DoesNotExist, MedicineSchedule.DoesNotExist):
         return {'success': False, 'error': 'Medicine or schedule not found'}
 
     # Create or update — unique on (medicine, schedule, scheduled_date)
-    log, created = MedicineLog.objects.update_or_create(
+    log, created = IntakeLog.objects.update_or_create(
         user=user,
         medicine=medicine,
         schedule=schedule,
@@ -212,16 +212,16 @@ def get_scheduled_items_for_date(user, target_date):
 
     # ── Medication ──
     try:
-        from apps.health.models import Medicine, MedicineLog
+        from apps.health.models import Intake, IntakeLog
 
-        active_meds = Medicine.objects.filter(
-            user=user, medicine_status='active',
+        active_meds = Intake.objects.filter(
+            user=user, intake_status='active',
         ).prefetch_related('schedules')
 
         for med in active_meds:
             for sched in med.schedules.filter(is_active=True):
                 if sched.applies_to_day(day_of_week):
-                    log = MedicineLog.objects.filter(
+                    log = IntakeLog.objects.filter(
                         user=user, medicine=med, schedule=sched,
                         scheduled_date=target_date,
                     ).first()

@@ -6,6 +6,51 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-06 — System Enforcement: Centralized Completion Service + Invariant Protection
+
+**Eliminates the entire class of false-completion bugs permanently.**
+
+### Centralized Completion Service (NEW)
+- **New file:** `apps/core/execution/completion_service.py`
+- Single source of truth API for ALL domain completion checks:
+  - `is_workout_complete(user, date)` — requires completed_at, exercises, or duration
+  - `is_journal_complete(user, date)` — requires JournalEntry exists
+  - `is_bible_reading_complete(user, date)` — requires UserReadingProgress.is_completed
+  - `is_prayer_complete(user, date)` — requires faith domain truth
+  - `is_medication_complete(user, date)` — requires all scheduled doses taken
+  - `is_nutrition_logged(user, date)` — requires FoodEntry exists
+  - `is_task_complete(task)` — requires completion_status='completed'
+  - `is_routine_item_complete(user, schedule_id, date)` — requires RoutineLog
+- `validate_completion_invariants(user, date)` — runtime detection of impossible states
+
+### State Builder Fix
+- Replaced direct `JournalEntry.objects.filter().exists()` with `is_journal_complete()` in `state_builder.py`
+- Eliminated last documented exception to canonical completion contract
+
+### CI Regression Tests (19 tests)
+- **New file:** `apps/core/execution/tests/test_completion_service.py`
+- Tests that make regression IMPOSSIBLE:
+  - No workout log → NOT complete
+  - Started-but-not-finished workout → NOT complete
+  - completed_at set → complete
+  - duration_minutes set → complete
+  - Soft-deleted session → NOT complete
+  - Time passing → no change to completion
+  - Routine 'Workout' item complete → workout domain NOT complete (no cascade)
+  - Task 'Workout' complete → workout domain NOT complete (no cascade)
+  - No journal entry → NOT complete
+  - No food entry → NOT logged
+  - Pending task → NOT complete
+  - Skipped task → NOT complete
+  - Clean state → no invariant violations
+
+**Files:** `apps/core/execution/completion_service.py` (new), `apps/core/execution/tests/test_completion_service.py` (new),
+`apps/core/ai_state/state_builder.py`
+
+**Tests:** 19 pass
+
+---
+
 ## 2026-04-06 — Execution Truth Fix + Behavioral Intelligence (Conversation Mode, Time Intelligence, Check-in Validation)
 
 **CRITICAL FIX: False workout completion in 3 locations.**

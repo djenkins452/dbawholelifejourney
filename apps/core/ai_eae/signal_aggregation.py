@@ -510,14 +510,14 @@ class SignalAggregationService:
         Shared adherence computation for medications and supplements.
         Filters by intake_type to produce separate signals.
         """
-        from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+        from apps.health.models import Intake, IntakeLog, IntakeSchedule
 
         is_expected = expected_map.get(expected_key, expected_map.get('medication', False))
 
         # Get active schedules filtered by intake_type
-        active_schedules = MedicineSchedule.objects.filter(
-            medicine__user=user,
-            medicine__intake_type=intake_type,
+        active_schedules = IntakeSchedule.objects.filter(
+            intake__user=user,
+            intake__intake_type=intake_type,
             is_active=True,
         )
 
@@ -530,10 +530,10 @@ class SignalAggregationService:
             return None  # Zero-fill will handle
 
         # Count taken logs — filter to matching intake_type
-        logs = MedicineLog.objects.filter(
+        logs = IntakeLog.objects.filter(
             user=user,
             scheduled_date=date,
-            medicine__intake_type=intake_type,
+            intake__intake_type=intake_type,
         )
         taken = logs.filter(log_status='taken').count()
         late = logs.filter(log_status='late').count()

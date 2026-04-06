@@ -652,24 +652,24 @@ class MedicineLogAction(LoginRequiredMixin, View):
     def post(self, request, schedule_id):
         from apps.core.events.domain_events import EventTypes, safe_emit_event
         from apps.core.utils import get_user_today
-        from apps.health.models import MedicineLog, MedicineSchedule
+        from apps.health.models import IntakeLog, IntakeSchedule
 
         schedule = get_object_or_404(
-            MedicineSchedule.objects.select_related("medicine"),
+            IntakeSchedule.objects.select_related("intake"),
             pk=schedule_id,
-            medicine__user=request.user,
+            intake__user=request.user,
         )
         today = get_user_today(request.user)
-        medicine = schedule.medicine
+        medicine = schedule.intake
 
         # Validate schedule applies to today
         if not schedule.applies_to_day(today.weekday()):
             return _render_action_center(request)
 
         # Check if already logged
-        existing = MedicineLog.objects.filter(
+        existing = IntakeLog.objects.filter(
             user=request.user,
-            medicine=medicine,
+            intake=medicine,
             schedule=schedule,
             scheduled_date=today,
             log_status__in=["taken", "late"],
@@ -683,9 +683,9 @@ class MedicineLogAction(LoginRequiredMixin, View):
                 medicine.save(update_fields=["current_supply", "updated_at"])
         else:
             # Create log with canonical fields
-            log, _created = MedicineLog.objects.get_or_create(
+            log, _created = IntakeLog.objects.get_or_create(
                 user=request.user,
-                medicine=medicine,
+                intake=medicine,
                 schedule=schedule,
                 scheduled_date=today,
                 defaults={
@@ -787,16 +787,16 @@ class MedicineGroupLogAction(LoginRequiredMixin, View):
 
     def post(self, request, time_of_day):
         from apps.core.events.domain_events import EventTypes, safe_emit_event
-        from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+        from apps.health.models import Intake, IntakeLog, IntakeSchedule
 
         today = get_user_today(request.user)
 
         # Get all active, non-PRN schedules for this time_of_day
         schedules = list(
-            MedicineSchedule.objects.filter(
-                medicine__user=request.user,
-                medicine__medicine_status=Medicine.STATUS_ACTIVE,
-                medicine__is_prn=False,
+            IntakeSchedule.objects.filter(
+                intake__user=request.user,
+                intake__intake_status=Intake.STATUS_ACTIVE,
+                intake__is_prn=False,
                 is_active=True,
                 time_of_day=time_of_day,
             ).select_related("medicine")
@@ -812,7 +812,7 @@ class MedicineGroupLogAction(LoginRequiredMixin, View):
 
         # Check if ALL applicable are already logged
         today_logs = set(
-            MedicineLog.objects.filter(
+            IntakeLog.objects.filter(
                 user=request.user,
                 scheduled_date=today,
                 log_status__in=["taken", "late"],
@@ -823,16 +823,16 @@ class MedicineGroupLogAction(LoginRequiredMixin, View):
 
         if all_taken:
             # Undo: delete logs and restore supply
-            logs_to_delete = MedicineLog.objects.filter(
+            logs_to_delete = IntakeLog.objects.filter(
                 user=request.user,
                 scheduled_date=today,
                 log_status__in=["taken", "late"],
                 schedule_id__in=applicable_pks,
-            ).select_related("medicine")
+            ).select_related("intake")
 
             # Restore supply per medicine before deleting
             for log in logs_to_delete:
-                med = log.medicine
+                med = log.intake
                 if med.current_supply is not None:
                     med.current_supply += 1
                     med.save(update_fields=["current_supply", "updated_at"])
@@ -846,23 +846,23 @@ class MedicineGroupLogAction(LoginRequiredMixin, View):
                     continue  # Already handled
 
                 # Check for any existing log (taken/late/skipped/missed)
-                existing_log = MedicineLog.objects.filter(
-                    medicine=schedule.medicine,
+                existing_log = IntakeLog.objects.filter(
+                    intake=schedule.intake,
                     schedule=schedule,
                     scheduled_date=today,
                 ).first()
 
                 if existing_log and existing_log.log_status in [
-                    MedicineLog.STATUS_TAKEN,
-                    MedicineLog.STATUS_LATE,
-                    MedicineLog.STATUS_SKIPPED,
+                    IntakeLog.STATUS_TAKEN,
+                    IntakeLog.STATUS_LATE,
+                    IntakeLog.STATUS_SKIPPED,
                 ]:
                     continue  # Already handled (skipped counts as handled)
 
                 # Create or update log with canonical fields
-                log, _created = MedicineLog.objects.get_or_create(
+                log, _created = IntakeLog.objects.get_or_create(
                     user=request.user,
-                    medicine=schedule.medicine,
+                    intake=schedule.intake,
                     schedule=schedule,
                     scheduled_date=today,
                     defaults={
@@ -875,7 +875,7 @@ class MedicineGroupLogAction(LoginRequiredMixin, View):
                 taken_count += 1
 
                 # Decrement supply if tracked
-                med = schedule.medicine
+                med = schedule.intake
                 if med.current_supply is not None and med.current_supply > 0:
                     med.current_supply -= 1
                     med.save(update_fields=["current_supply", "updated_at"])

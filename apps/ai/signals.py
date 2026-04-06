@@ -391,7 +391,7 @@ def invalidate_cache_on_reading_plan_delete(sender, instance, **kwargs):
 # MEDICATION SIGNALS
 # =============================================================================
 
-@receiver(post_save, sender='health.MedicineLog')
+@receiver(post_save, sender='health.IntakeLog')
 def invalidate_cache_on_medicine_log_save(sender, instance, created, **kwargs):
     """Invalidate personal data cache when a medicine log is saved."""
     invalidate_personal_data_cache(instance.user, 'medication')
@@ -403,7 +403,7 @@ def invalidate_cache_on_medicine_log_save(sender, instance, created, **kwargs):
     _refresh_sae_module(instance.user, 'medicine')
 
 
-@receiver(post_delete, sender='health.MedicineLog')
+@receiver(post_delete, sender='health.IntakeLog')
 def invalidate_cache_on_medicine_log_delete(sender, instance, **kwargs):
     """Invalidate personal data cache when a medicine log is deleted."""
     invalidate_personal_data_cache(instance.user, 'medication')
@@ -551,20 +551,20 @@ def refresh_sae_on_heart_rate_change(sender, instance, **kwargs):
     _refresh_sae_module(instance.user, 'health')
 
 
-@receiver(post_save, sender='health.Medicine')
-@receiver(post_delete, sender='health.Medicine')
+@receiver(post_save, sender='health.Intake')
+@receiver(post_delete, sender='health.Intake')
 def refresh_sae_on_medicine_change(sender, instance, **kwargs):
     """Refresh SAE health + medicine state when medicine model changes."""
     _refresh_sae_module(instance.user, 'health')
     _refresh_sae_module(instance.user, 'medicine')
 
 
-@receiver(post_save, sender='health.MedicineSchedule')
-@receiver(post_delete, sender='health.MedicineSchedule')
+@receiver(post_save, sender='health.IntakeSchedule')
+@receiver(post_delete, sender='health.IntakeSchedule')
 def refresh_sae_on_medicine_schedule_change(sender, instance, **kwargs):
     """Refresh SAE health + medicine state when schedule changes."""
-    _refresh_sae_module(instance.medicine.user, 'health')
-    _refresh_sae_module(instance.medicine.user, 'medicine')
+    _refresh_sae_module(instance.intake.user, 'health')
+    _refresh_sae_module(instance.intake.user, 'medicine')
 
 
 @receiver(post_save, sender='health.PersonalRecord')

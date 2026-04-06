@@ -219,13 +219,13 @@ def _started_creatine_recently(user, days=21):
     Uses start_date on the Medicine entry as the authoritative answer.
     """
     try:
-        from apps.health.models import Medicine
+        from apps.health.models import Intake
 
-        creatine = Medicine.objects.filter(
+        creatine = Intake.objects.filter(
             user=user,
-            intake_type=Medicine.INTAKE_TYPE_SUPPLEMENT,
+            intake_type=Intake.INTAKE_TYPE_SUPPLEMENT,
             name__icontains="creatine",
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
         ).first()
         if creatine and creatine.start_date:
             return (date.today() - creatine.start_date).days <= days

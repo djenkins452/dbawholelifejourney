@@ -2279,15 +2279,17 @@ class TemplateExerciseSet(models.Model):
 # =============================================================================
 
 
-class Medicine(UserOwnedModel):
+class Intake(UserOwnedModel):
     """
-    A tracked intake item — either a medication or a supplement.
+    A tracked intake item — medication, supplement, or performance substance.
 
-    Use intake_type to distinguish: 'medication' for prescribed/medical items,
-    'supplement' for health optimization items (creatine, vitamins, etc.).
-    Despite the model name, this is the unified intake system.
+    This is the unified intake system. All dosage-based substances are tracked
+    here with intake_type for behavioral classification and category for
+    fine-grained grouping.
 
-    Supports both scheduled items and PRN (as-needed) items.
+    intake_type: 'medication' (prescribed/medical) vs 'supplement' (optimization)
+    category: finer classification (prescription, vitamin, amino_acid, etc.)
+    priority: 'critical' (health consequence if missed) vs 'optimization' (goal support)
     """
 
     # ── Intake classification ──
@@ -2303,6 +2305,19 @@ class Medicine(UserOwnedModel):
     PRIORITY_CHOICES = [
         (PRIORITY_CRITICAL, "Critical"),
         (PRIORITY_OPTIMIZATION, "Optimization"),
+    ]
+
+    CATEGORY_CHOICES = [
+        ("prescription", "Prescription"),
+        ("otc", "Over-the-Counter"),
+        ("vitamin", "Vitamin"),
+        ("mineral", "Mineral"),
+        ("amino_acid", "Amino Acid"),
+        ("performance", "Performance"),
+        ("hormonal", "Hormonal"),
+        ("herbal", "Herbal"),
+        ("probiotic", "Probiotic"),
+        ("other", "Other"),
     ]
 
     FREQUENCY_CHOICES = [
@@ -2365,23 +2380,32 @@ class Medicine(UserOwnedModel):
         help_text="Expected end date (optional)",
     )
 
-    # Medicine status (separate from soft-delete status)
-    medicine_status = models.CharField(
+    # Intake status (separate from soft-delete status)
+    intake_status = models.CharField(
         max_length=20,
         choices=MEDICINE_STATUS_CHOICES,
         default=STATUS_ACTIVE,
-        help_text="Current status of this medicine regimen",
+        help_text="Current status of this intake regimen",
     )
     paused_at = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="When this medicine was paused",
+        help_text="When this intake was paused",
     )
     paused_reason = models.CharField(
         max_length=500,
         blank=True,
-        help_text="Reason for pausing this medicine",
+        help_text="Reason for pausing this intake",
     )
+
+    @property
+    def medicine_status(self):
+        """Backward compat — remove after Phase II refactor."""
+        return self.intake_status
+
+    @medicine_status.setter
+    def medicine_status(self, value):
+        self.intake_status = value
 
     # Refill Tracking
     current_supply = models.PositiveIntegerField(
@@ -2440,6 +2464,18 @@ class Medicine(UserOwnedModel):
         default=PRIORITY_CRITICAL,
         help_text="Critical (health consequence if missed) vs optimization (goal support)",
     )
+    category = models.CharField(
+        max_length=20,
+        choices=CATEGORY_CHOICES,
+        default="other",
+        help_text="Finer classification (prescription, vitamin, amino_acid, etc.)",
+    )
+    dosage_unit = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        help_text="Unit of measurement (mg, g, IU, mcg, ml)",
+    )
 
     # Refill Request Tracking
     refill_requested = models.BooleanField(
@@ -2454,21 +2490,26 @@ class Medicine(UserOwnedModel):
 
     class Meta:
         ordering = ["name"]
-        verbose_name = "medicine"
-        verbose_name_plural = "medicines"
+        verbose_name = "intake"
+        verbose_name_plural = "intake items"
 
     def __str__(self):
         return f"{self.name} ({self.dose})"
 
     @property
+    def is_active(self):
+        """Check if this intake item is actively being taken."""
+        return self.intake_status == self.STATUS_ACTIVE
+
+    @property
     def is_active_medicine(self):
-        """Check if this medicine is actively being taken."""
-        return self.medicine_status == self.STATUS_ACTIVE
+        """Backward compat — remove after Phase II."""
+        return self.is_active
 
     @property
     def is_paused(self):
-        """Check if this medicine is temporarily paused."""
-        return self.medicine_status == self.STATUS_PAUSED
+        """Check if this intake is temporarily paused."""
+        return self.intake_status == self.STATUS_PAUSED
 
     @property
     def needs_refill(self):
@@ -2515,25 +2556,25 @@ class Medicine(UserOwnedModel):
         return int(self.current_supply / self.doses_per_day)
 
     def pause(self, reason=""):
-        """Pause this medicine temporarily."""
-        self.medicine_status = self.STATUS_PAUSED
+        """Pause this intake temporarily."""
+        self.intake_status = self.STATUS_PAUSED
         self.paused_at = timezone.now()
         self.paused_reason = reason
-        self.save(update_fields=["medicine_status", "paused_at", "paused_reason", "updated_at"])
+        self.save(update_fields=["intake_status", "paused_at", "paused_reason", "updated_at"])
 
     def resume(self):
-        """Resume a paused medicine."""
-        self.medicine_status = self.STATUS_ACTIVE
+        """Resume a paused intake."""
+        self.intake_status = self.STATUS_ACTIVE
         self.paused_at = None
         self.paused_reason = ""
-        self.save(update_fields=["medicine_status", "paused_at", "paused_reason", "updated_at"])
+        self.save(update_fields=["intake_status", "paused_at", "paused_reason", "updated_at"])
 
     def complete(self):
-        """Mark this medicine course as completed."""
-        self.medicine_status = self.STATUS_COMPLETED
+        """Mark this intake course as completed."""
+        self.intake_status = self.STATUS_COMPLETED
         user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
         self.end_date = user_today
-        self.save(update_fields=["medicine_status", "end_date", "updated_at"])
+        self.save(update_fields=["intake_status", "end_date", "updated_at"])
 
     def request_refill(self):
         """Mark that a refill has been requested."""
@@ -2548,11 +2589,11 @@ class Medicine(UserOwnedModel):
         self.save(update_fields=["refill_requested", "refill_requested_at", "updated_at"])
 
 
-class MedicineSchedule(models.Model):
+class IntakeSchedule(models.Model):
     """
-    Scheduled times for taking a medicine.
+    Scheduled times for taking an intake item (medication or supplement).
 
-    A medicine can have multiple scheduled times per day.
+    An intake item can have multiple scheduled times per day.
     For example, "twice daily" might be 8 AM and 8 PM.
     """
 
@@ -2583,8 +2624,8 @@ class MedicineSchedule(models.Model):
         TIME_NIGHTLY: 5,
     }
 
-    medicine = models.ForeignKey(
-        Medicine,
+    intake = models.ForeignKey(
+        Intake,
         on_delete=models.CASCADE,
         related_name="schedules",
     )
@@ -2622,8 +2663,13 @@ class MedicineSchedule(models.Model):
 
     class Meta:
         ordering = ["scheduled_time"]
-        verbose_name = "medicine schedule"
-        verbose_name_plural = "medicine schedules"
+        verbose_name = "intake schedule"
+        verbose_name_plural = "intake schedules"
+
+    @property
+    def medicine(self):
+        """Backward compat — remove after Phase II."""
+        return self.intake
 
     def save(self, *args, **kwargs):
         """
@@ -2642,8 +2688,8 @@ class MedicineSchedule(models.Model):
     def __str__(self):
         time_str = self.scheduled_time.strftime("%I:%M %p")
         if self.label:
-            return f"{self.medicine.name} at {time_str} ({self.label})"
-        return f"{self.medicine.name} at {time_str}"
+            return f"{self.intake.name} at {time_str} ({self.label})"
+        return f"{self.intake.name} at {time_str}"
 
     @property
     def days_list(self):
@@ -2671,9 +2717,9 @@ class MedicineSchedule(models.Model):
         return 99
 
 
-class MedicineLog(UserOwnedModel):
+class IntakeLog(UserOwnedModel):
     """
-    Log of when a medication or supplement was actually taken.
+    Log of when an intake item (medication or supplement) was actually taken.
 
     Records both scheduled doses and PRN (as-needed) doses.
     """
@@ -2700,20 +2746,30 @@ class MedicineLog(UserOwnedModel):
         (SOURCE_ROUTINE, "Routine"),
     ]
 
-    medicine = models.ForeignKey(
-        Medicine,
+    intake = models.ForeignKey(
+        Intake,
         on_delete=models.CASCADE,
         related_name="logs",
     )
 
     schedule = models.ForeignKey(
-        MedicineSchedule,
+        IntakeSchedule,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="logs",
         help_text="Which scheduled dose this log is for",
     )
+
+    @property
+    def medicine(self):
+        """Backward compat — remove after Phase II."""
+        return self.intake
+
+    @property
+    def medicine_id(self):
+        """Backward compat — remove after Phase II."""
+        return self.intake_id
 
     # When the dose was due
     scheduled_date = models.DateField(
@@ -2769,12 +2825,12 @@ class MedicineLog(UserOwnedModel):
 
     class Meta:
         ordering = ["-scheduled_date", "-scheduled_time"]
-        verbose_name = "medicine log"
-        verbose_name_plural = "medicine logs"
+        verbose_name = "intake log"
+        verbose_name_plural = "intake logs"
 
     def __str__(self):
         status = self.get_log_status_display()
-        return f"{self.medicine.name} on {self.scheduled_date} - {status}"
+        return f"{self.intake.name} on {self.scheduled_date} - {status}"
 
     @property
     def was_on_time(self):
@@ -2797,7 +2853,7 @@ class MedicineLog(UserOwnedModel):
         scheduled_dt = datetime.combine(self.scheduled_date, self.scheduled_time)
         scheduled_local = user_tz.localize(scheduled_dt)
 
-        grace_minutes = self.medicine.grace_period_minutes
+        grace_minutes = self.intake.grace_period_minutes
         latest_ok = scheduled_local + timedelta(minutes=grace_minutes)
 
         return taken_local <= latest_ok
@@ -2845,7 +2901,7 @@ class MedicineLog(UserOwnedModel):
             scheduled_dt = datetime.combine(self.scheduled_date, self.scheduled_time)
             scheduled_local = user_tz.localize(scheduled_dt)
 
-            grace_minutes = self.medicine.grace_period_minutes
+            grace_minutes = self.intake.grace_period_minutes
             latest_ok = scheduled_local + timedelta(minutes=grace_minutes)
 
             if taken_local > latest_ok:
@@ -2868,6 +2924,14 @@ class MedicineLog(UserOwnedModel):
         """Mark this dose as missed (not taken or skipped)."""
         self.log_status = self.STATUS_MISSED
         self.save(update_fields=["log_status", "updated_at"])
+
+
+# ── Backward compatibility aliases (Phase I) ──
+# These allow existing code to continue using the old names until Phase II
+# refactors all imports. Remove these after Phase II is complete.
+Medicine = Intake
+MedicineSchedule = IntakeSchedule
+MedicineLog = IntakeLog
 
 
 # =============================================================================

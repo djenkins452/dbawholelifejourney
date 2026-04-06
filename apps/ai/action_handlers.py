@@ -1838,13 +1838,13 @@ class ActionHandler:
         Log that user took a supplement.
         Same logic as handle_take_medicine but filtered to intake_type='supplement'.
         """
-        from apps.health.models import Medicine
+        from apps.health.models import Intake
 
         try:
-            supplements = Medicine.objects.filter(
+            supplements = Intake.objects.filter(
                 user=self.user,
-                medicine_status=Medicine.STATUS_ACTIVE,
-                intake_type=Medicine.INTAKE_TYPE_SUPPLEMENT,
+                intake_status=Intake.STATUS_ACTIVE,
+                intake_type=Intake.INTAKE_TYPE_SUPPLEMENT,
                 status='active',
             ).filter(Q(name__icontains=supplement_name))
 
@@ -1888,14 +1888,14 @@ class ActionHandler:
             dose_label: Optional dose label (morning, evening, etc.)
             notes: Optional notes
         """
-        from apps.health.models import Medicine
+        from apps.health.models import Intake
 
         try:
             # Search for matching active medications only
-            medicines = Medicine.objects.filter(
+            medicines = Intake.objects.filter(
                 user=self.user,
-                medicine_status=Medicine.STATUS_ACTIVE,
-                intake_type=Medicine.INTAKE_TYPE_MEDICATION,
+                intake_status=Intake.STATUS_ACTIVE,
+                intake_type=Intake.INTAKE_TYPE_MEDICATION,
                 status='active'  # UserOwnedModel soft delete
             ).filter(
                 Q(name__icontains=medicine_name)
@@ -1903,9 +1903,9 @@ class ActionHandler:
             # Fallback: if no medication match, try all active items (user may
             # not know the distinction)
             if not medicines.exists():
-                medicines = Medicine.objects.filter(
+                medicines = Intake.objects.filter(
                     user=self.user,
-                    medicine_status=Medicine.STATUS_ACTIVE,
+                    intake_status=Intake.STATUS_ACTIVE,
                     status='active',
                 ).filter(Q(name__icontains=medicine_name))
 
@@ -1945,7 +1945,7 @@ class ActionHandler:
     def _log_medicine_taken(self, medicine, dose_label: str = None,
                             notes: str = "") -> ActionResult:
         """Internal method to log a specific medicine as taken."""
-        from apps.health.models import MedicineLog
+        from apps.health.models import IntakeLog
 
         now = self._get_user_now()
         today = self._get_user_today()
@@ -1953,12 +1953,12 @@ class ActionHandler:
         # Find the appropriate schedule/dose to log
         if medicine.is_prn:
             # PRN medicine - create a PRN dose log
-            log = MedicineLog.objects.create(
+            log = IntakeLog.objects.create(
                 user=self.user,
-                medicine=medicine,
+                intake=medicine,
                 scheduled_date=today,
                 taken_at=now,
-                log_status=MedicineLog.STATUS_TAKEN,
+                log_status=IntakeLog.STATUS_TAKEN,
                 is_prn_dose=True,
                 prn_reason=notes or "",
                 notes=notes or ""
@@ -1974,21 +1974,21 @@ class ActionHandler:
                 # Find the most recent scheduled dose that hasn't been logged
                 schedule = None
                 for sched in schedules:
-                    existing = MedicineLog.objects.filter(
+                    existing = IntakeLog.objects.filter(
                         user=self.user,
-                        medicine=medicine,
+                        intake=medicine,
                         schedule=sched,
                         scheduled_date=today
                     ).first()
-                    if not existing or existing.log_status not in [MedicineLog.STATUS_TAKEN, MedicineLog.STATUS_LATE]:
+                    if not existing or existing.log_status not in [IntakeLog.STATUS_TAKEN, IntakeLog.STATUS_LATE]:
                         schedule = sched
                         break
 
             if schedule:
                 # Update or create log for this schedule
-                log, created = MedicineLog.objects.get_or_create(
+                log, created = IntakeLog.objects.get_or_create(
                     user=self.user,
-                    medicine=medicine,
+                    intake=medicine,
                     schedule=schedule,
                     scheduled_date=today,
                     defaults={
@@ -1999,12 +1999,12 @@ class ActionHandler:
                 log.mark_taken(taken_at=now)
             else:
                 # No matching schedule found, create a general log
-                log = MedicineLog.objects.create(
+                log = IntakeLog.objects.create(
                     user=self.user,
-                    medicine=medicine,
+                    intake=medicine,
                     scheduled_date=today,
                     taken_at=now,
-                    log_status=MedicineLog.STATUS_TAKEN,
+                    log_status=IntakeLog.STATUS_TAKEN,
                     notes=notes or ""
                 )
 
@@ -2046,7 +2046,7 @@ class ActionHandler:
             use_scheduled_time: If True, log with scheduled time instead of now
             notes: Optional notes
         """
-        from apps.health.models import Medicine, MedicineSchedule, MedicineLog
+        from apps.health.models import Intake, IntakeSchedule, IntakeLog
         from datetime import datetime as dt
         import pytz
 
@@ -2055,9 +2055,9 @@ class ActionHandler:
             now = self._get_user_now()
 
             # Get all active scheduled (non-PRN) medicines
-            active_medicines = Medicine.objects.filter(
+            active_medicines = Intake.objects.filter(
                 user=self.user,
-                medicine_status=Medicine.STATUS_ACTIVE,
+                intake_status=Intake.STATUS_ACTIVE,
                 status='active',
                 is_prn=False,
             )
@@ -2074,23 +2074,23 @@ class ActionHandler:
                         continue
 
                     # Check if already logged
-                    existing_log = MedicineLog.objects.filter(
-                        medicine=medicine,
+                    existing_log = IntakeLog.objects.filter(
+                        intake=medicine,
                         schedule=schedule,
                         scheduled_date=today,
                     ).first()
 
                     if existing_log and existing_log.log_status in [
-                        MedicineLog.STATUS_TAKEN,
-                        MedicineLog.STATUS_LATE,
-                        MedicineLog.STATUS_SKIPPED,
+                        IntakeLog.STATUS_TAKEN,
+                        IntakeLog.STATUS_LATE,
+                        IntakeLog.STATUS_SKIPPED,
                     ]:
                         continue  # Already handled
 
                     # Create or update log
-                    log, created = MedicineLog.objects.get_or_create(
+                    log, created = IntakeLog.objects.get_or_create(
                         user=self.user,
-                        medicine=medicine,
+                        intake=medicine,
                         schedule=schedule,
                         scheduled_date=today,
                         defaults={
@@ -2117,7 +2117,7 @@ class ActionHandler:
                         medicine.save(update_fields=["current_supply", "updated_at"])
 
             if taken_count == 0:
-                time_display = dict(MedicineSchedule.TIME_OF_DAY_CHOICES).get(
+                time_display = dict(IntakeSchedule.TIME_OF_DAY_CHOICES).get(
                     time_of_day, time_of_day
                 )
                 return ActionResult(
@@ -2126,7 +2126,7 @@ class ActionHandler:
                     error='no_pending_medicines'
                 )
 
-            time_display = dict(MedicineSchedule.TIME_OF_DAY_CHOICES).get(
+            time_display = dict(IntakeSchedule.TIME_OF_DAY_CHOICES).get(
                 time_of_day, time_of_day
             )
             time_note = " at their scheduled times" if use_scheduled_time else ""
@@ -2173,7 +2173,7 @@ class ActionHandler:
         from django.core.exceptions import ValidationError
         from django.template.loader import render_to_string
         from django.utils.html import strip_tags
-        from apps.health.models import Medicine
+        from apps.health.models import Intake
         from apps.health.medicine_utils import (
             calculate_medicine_adherence,
             calculate_single_medicine_adherence,
@@ -2201,9 +2201,9 @@ class ActionHandler:
             if include_inactive:
                 status_filter.extend(['paused', 'completed'])
 
-            medicines = Medicine.objects.filter(
+            medicines = Intake.objects.filter(
                 user=self.user,
-                medicine_status__in=status_filter,
+                intake_status__in=status_filter,
                 status='active',  # soft delete filter
             ).prefetch_related('schedules').order_by('name')
 
@@ -2242,7 +2242,7 @@ class ActionHandler:
                     'purpose': med.purpose or '',
                     'frequency': med.get_frequency_display(),
                     'is_prn': med.is_prn,
-                    'status': med.medicine_status,
+                    'status': med.intake_status,
                     'prescribing_doctor': med.prescribing_doctor or '',
                     'pharmacy': med.pharmacy or '',
                     'instructions': med.instructions or '',

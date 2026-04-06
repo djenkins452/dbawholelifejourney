@@ -1190,12 +1190,12 @@ def _gather_signals(user, as_of_date, today_summary):
 
         # Creatine awareness — adjust goal and flag status
         # Source: Medicine model (intake_type='supplement') since Unified Intake System
-        from apps.health.models import Medicine
-        creatine_active = Medicine.objects.filter(
+        from apps.health.models import Intake
+        creatine_active = Intake.objects.filter(
             user=user,
-            intake_type=Medicine.INTAKE_TYPE_SUPPLEMENT,
+            intake_type=Intake.INTAKE_TYPE_SUPPLEMENT,
             name__icontains='creatine',
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
         ).exists()
         signals["creatine_active"] = creatine_active
         signals["hydration_adjustment_reason"] = None

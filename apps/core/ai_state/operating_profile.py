@@ -581,8 +581,8 @@ def _count_active_domains(user, start, end):
         pass
 
     try:
-        from apps.health.models import MedicineLog
-        if MedicineLog.objects.filter(
+        from apps.health.models import IntakeLog
+        if IntakeLog.objects.filter(
             user=user, logged_datetime__gte=start, logged_datetime__lte=end,
         ).exists():
             domains.add('health')

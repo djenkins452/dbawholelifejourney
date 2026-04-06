@@ -16,7 +16,7 @@ Supported entity types:
     - Tasks (complete_task, skip_task, mutate_task, read_task)
     - Goals (update_goal_progress)
     - Habits (log_habit)
-    - Medicines (take_medicine)
+    - Intakes (take_medicine)
 """
 
 import logging
@@ -206,11 +206,11 @@ def _resolve_habit(user, keyword: str) -> Optional[dict]:
 
 
 def _resolve_medicine(user, keyword: str) -> Optional[dict]:
-    """Resolve a medicine keyword to a single Medicine."""
-    from apps.health.models import Medicine
+    """Resolve a medicine keyword to a single Intake."""
+    from apps.health.models import Intake
 
-    base_qs = Medicine.objects.filter(
-        user=user, status='active', medicine_status='active',
+    base_qs = Intake.objects.filter(
+        user=user, status='active', intake_status='active',
     )
 
     exact = list(base_qs.filter(name__iexact=keyword))

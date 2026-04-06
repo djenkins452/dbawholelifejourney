@@ -21,7 +21,7 @@ from django.dispatch import receiver
 logger = logging.getLogger(__name__)
 
 
-@receiver(post_save, sender='health.MedicineSchedule')
+@receiver(post_save, sender='health.IntakeSchedule')
 def handle_medicine_schedule_saved(sender, instance, **kwargs):
     """
     When a MedicineSchedule is saved, project it to the calendar engine.
@@ -39,7 +39,7 @@ def handle_medicine_schedule_saved(sender, instance, **kwargs):
         )
 
 
-@receiver(post_delete, sender='health.MedicineSchedule')
+@receiver(post_delete, sender='health.IntakeSchedule')
 def handle_medicine_schedule_deleted(sender, instance, **kwargs):
     """When a MedicineSchedule is deleted, remove its calendar events."""
     try:

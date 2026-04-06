@@ -2250,7 +2250,7 @@ def build_medicine_state(user):
 
     try:
         from apps.core.utils import get_user_now, get_user_today
-        from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+        from apps.health.models import Intake, IntakeLog, IntakeSchedule
         from apps.health.medicine_utils import calculate_medicine_adherence_rate
 
         user_today = get_user_today(user)
@@ -2262,8 +2262,8 @@ def build_medicine_state(user):
         # contract exists yet. Uses prefetch_related for schedule walking.
         # Do not reuse for general truth evaluation
         # Active medicines summary — split by intake_type
-        active_meds = Medicine.objects.filter(
-            user=user, medicine_status='active',
+        active_meds = Intake.objects.filter(
+            user=user, intake_status='active',
         ).prefetch_related('schedules')
         state['active_count'] = active_meds.count()
         state['active_medicines'] = list(
@@ -2271,8 +2271,8 @@ def build_medicine_state(user):
         )
 
         # Split by intake_type for semantic consumers
-        active_medications = active_meds.filter(intake_type=Medicine.INTAKE_TYPE_MEDICATION)
-        active_supplements = active_meds.filter(intake_type=Medicine.INTAKE_TYPE_SUPPLEMENT)
+        active_medications = active_meds.filter(intake_type=Intake.INTAKE_TYPE_MEDICATION)
+        active_supplements = active_meds.filter(intake_type=Intake.INTAKE_TYPE_SUPPLEMENT)
         state['active_medications'] = list(active_medications.values_list('name', flat=True)[:15])
         state['active_supplements'] = list(active_supplements.values_list('name', flat=True)[:15])
         state['medication_count'] = active_medications.count()
@@ -2286,13 +2286,11 @@ def build_medicine_state(user):
         if needs_refill:
             state['needs_refill'] = needs_refill
 
-        # EXCEPTION: intentional direct query (not domain truth)
-        # Reason: batch log fetch for per-schedule status detail — no MedicineQueries contract
-        # Do not reuse for general truth evaluation
-        today_logs = MedicineLog.objects.filter(
-            medicine__user=user,
+        # Today's logs — batch fetch for per-schedule detail
+        today_logs = IntakeLog.objects.filter(
+            intake__user=user,
             scheduled_date=user_today,
-        ).select_related('medicine', 'schedule')
+        ).select_related('intake', 'schedule')
         state['today_taken'] = today_logs.filter(
             log_status__in=['taken', 'late'],
         ).count()
@@ -2304,10 +2302,10 @@ def build_medicine_state(user):
         ).count() if today_logs.filter(log_status='pending').exists() else 0
 
         # Build per-schedule operational detail for today
-        # Index today's logs by (medicine_id, schedule_id) for O(1) lookup
+        # Index today's logs by (intake_id, schedule_id) for O(1) lookup
         log_index = {}
         for log in today_logs:
-            key = (log.medicine_id, log.schedule_id)
+            key = (log.intake_id, log.schedule_id)
             log_index[key] = log
 
         weekday = user_today.weekday()  # 0=Monday
@@ -2369,7 +2367,7 @@ def build_medicine_state(user):
 
         # 7-day supplement adherence (same utility, filtered)
         supplement_adherence = calculate_medicine_adherence_rate(
-            user, days=7, intake_type=Medicine.INTAKE_TYPE_SUPPLEMENT,
+            user, days=7, intake_type=Intake.INTAKE_TYPE_SUPPLEMENT,
         )
         if supplement_adherence is not None:
             state['supplement_adherence_7d'] = supplement_adherence

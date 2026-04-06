@@ -142,7 +142,7 @@ class DashboardCacheService:
         """
         from apps.health.models import (
             WeightEntry, HeartRateEntry, GlucoseEntry,
-            Medicine, MedicineLog, MedicineSchedule,
+            Intake, IntakeLog, IntakeSchedule,
             WorkoutSession, PersonalRecord
         )
 
@@ -160,26 +160,26 @@ class DashboardCacheService:
         # Medicine Tracking (OPTIMIZED - was N+1)
         # =====================
         # Step 1: Get active medicines with schedules prefetched (ONE query with JOIN)
-        active_medicines = list(Medicine.objects.filter(
+        active_medicines = list(Intake.objects.filter(
             user=user,
-            medicine_status=Medicine.STATUS_ACTIVE
+            intake_status=Intake.STATUS_ACTIVE
         ).prefetch_related(
             Prefetch(
                 'schedules',
-                queryset=MedicineSchedule.objects.filter(is_active=True),
+                queryset=IntakeSchedule.objects.filter(is_active=True),
                 to_attr='active_schedules'
             )
         ))
 
         # Step 2: Get ALL medicine logs for today in ONE query
-        today_logs = MedicineLog.objects.filter(
+        today_logs = IntakeLog.objects.filter(
             user=user,
             scheduled_date=today
-        ).select_related('medicine', 'schedule')
+        ).select_related('intake', 'schedule')
 
-        # Build lookup dict: (medicine_id, schedule_id) -> log
+        # Build lookup dict: (intake_id, schedule_id) -> log
         log_lookup = {
-            (log.medicine_id, log.schedule_id): log
+            (log.intake_id, log.schedule_id): log
             for log in today_logs
         }
 

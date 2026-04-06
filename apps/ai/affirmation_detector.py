@@ -512,14 +512,14 @@ def _try_auto_complete(user, activity_type: str, message: str) -> Optional[dict]
 def _try_auto_complete_medicine(user, message: str) -> Optional[dict]:
     """Mark medicine as taken using existing MedicineLog pathway."""
     try:
-        from apps.health.models import Medicine, MedicineLog
+        from apps.health.models import Intake, IntakeLog
 
         today = timezone.now().date()
 
         # Find active medicines
-        active_meds = Medicine.objects.filter(
+        active_meds = Intake.objects.filter(
             user=user,
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
         )
 
         if active_meds.count() == 0:
@@ -542,8 +542,8 @@ def _try_auto_complete_medicine(user, message: str) -> Optional[dict]:
                 return None
 
         # Check if already logged today
-        existing = MedicineLog.objects.filter(
-            medicine=med,
+        existing = IntakeLog.objects.filter(
+            intake=med,
             date=today,
             status='taken',
         ).first()
@@ -554,8 +554,8 @@ def _try_auto_complete_medicine(user, message: str) -> Optional[dict]:
             }
 
         # Log using existing model pathway
-        MedicineLog.objects.create(
-            medicine=med,
+        IntakeLog.objects.create(
+            intake=med,
             date=today,
             time=timezone.now().strftime('%H:%M'),
             status='taken',

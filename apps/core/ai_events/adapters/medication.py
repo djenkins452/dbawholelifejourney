@@ -39,16 +39,16 @@ def get_events(user, start_date, end_date):
     """
     _enforce_bounds(start_date, end_date)
 
-    from apps.health.models import MedicineLog
+    from apps.health.models import IntakeLog
 
     logs = (
-        MedicineLog.objects
+        IntakeLog.objects
         .filter(
             user=user,
             scheduled_date__gte=start_date,
             scheduled_date__lte=end_date,
         )
-        .select_related('medicine', 'schedule')
+        .select_related('intake', 'schedule')
         .order_by('scheduled_date', 'scheduled_time')
     )
 
@@ -78,18 +78,18 @@ def get_missed_events(user, start_date, end_date):
     """
     _enforce_bounds(start_date, end_date)
 
-    from apps.health.models import MedicineLog
+    from apps.health.models import IntakeLog
 
     # 1. Explicitly logged misses
     logs = (
-        MedicineLog.objects
+        IntakeLog.objects
         .filter(
             user=user,
             scheduled_date__gte=start_date,
             scheduled_date__lte=end_date,
-            log_status=MedicineLog.STATUS_MISSED,
+            log_status=IntakeLog.STATUS_MISSED,
         )
-        .select_related('medicine', 'schedule')
+        .select_related('intake', 'schedule')
         .order_by('scheduled_date', 'scheduled_time')
     )
     events = [_log_to_event(log) for log in logs]
@@ -107,17 +107,17 @@ def get_skipped_events(user, start_date, end_date):
     """Get only skipped medication events in date range."""
     _enforce_bounds(start_date, end_date)
 
-    from apps.health.models import MedicineLog
+    from apps.health.models import IntakeLog
 
     logs = (
-        MedicineLog.objects
+        IntakeLog.objects
         .filter(
             user=user,
             scheduled_date__gte=start_date,
             scheduled_date__lte=end_date,
-            log_status=MedicineLog.STATUS_SKIPPED,
+            log_status=IntakeLog.STATUS_SKIPPED,
         )
-        .select_related('medicine', 'schedule')
+        .select_related('intake', 'schedule')
         .order_by('scheduled_date', 'scheduled_time')
     )
 
@@ -128,17 +128,17 @@ def get_late_events(user, start_date, end_date):
     """Get doses taken late in date range."""
     _enforce_bounds(start_date, end_date)
 
-    from apps.health.models import MedicineLog
+    from apps.health.models import IntakeLog
 
     logs = (
-        MedicineLog.objects
+        IntakeLog.objects
         .filter(
             user=user,
             scheduled_date__gte=start_date,
             scheduled_date__lte=end_date,
-            log_status=MedicineLog.STATUS_LATE,
+            log_status=IntakeLog.STATUS_LATE,
         )
-        .select_related('medicine', 'schedule')
+        .select_related('intake', 'schedule')
         .order_by('scheduled_date', 'scheduled_time')
     )
 
@@ -161,24 +161,24 @@ def _find_unlogged_doses(user, start_date, end_date):
     Returns list[EventRecord] for each unlogged dose.
     """
     from apps.core.utils import get_user_now, get_user_today
-    from apps.health.models import Medicine, MedicineLog
+    from apps.health.models import Intake, IntakeLog
 
     user_today = get_user_today(user)
     user_now = get_user_now(user)
     current_time = user_now.time()
 
-    active_medicines = Medicine.objects.filter(
+    active_medicines = Intake.objects.filter(
         user=user,
-        medicine_status=Medicine.STATUS_ACTIVE,
+        intake_status=Intake.STATUS_ACTIVE,
     ).prefetch_related("schedules")
 
-    # Build set of (medicine_id, scheduled_date) pairs that have log entries
+    # Build set of (intake_id, scheduled_date) pairs that have log entries
     existing_logs = set(
-        MedicineLog.objects.filter(
+        IntakeLog.objects.filter(
             user=user,
             scheduled_date__gte=start_date,
             scheduled_date__lte=end_date,
-        ).values_list('medicine_id', 'schedule_id', 'scheduled_date')
+        ).values_list('intake_id', 'schedule_id', 'scheduled_date')
     )
 
     events = []
@@ -256,8 +256,8 @@ def _log_to_event(log):
 
     # Build human-readable label
     time_str = log.scheduled_time.strftime("%-I:%M %p") if log.scheduled_time else "unscheduled"
-    med_name = log.medicine.name if log.medicine_id else "Unknown"
-    dose_str = log.medicine.dose if log.medicine_id and log.medicine.dose else ""
+    med_name = log.intake.name if log.intake_id else "Unknown"
+    dose_str = log.intake.dose if log.intake_id and log.intake.dose else ""
     label = f"{med_name}"
     if dose_str:
         label += f" ({dose_str})"
@@ -292,8 +292,8 @@ def _log_to_event(log):
         'scheduled_date': str(log.scheduled_date),
         'scheduled_time': str(log.scheduled_time) if log.scheduled_time else None,
         'log_status': log.log_status,
-        'intake_type': log.medicine.intake_type if log.medicine_id else 'medication',
-        'priority': log.medicine.priority if log.medicine_id else 'critical',
+        'intake_type': log.intake.intake_type if log.intake_id else 'medication',
+        'priority': log.intake.priority if log.intake_id else 'critical',
     }
     if log.taken_at:
         detail['taken_at'] = log.taken_at.isoformat()

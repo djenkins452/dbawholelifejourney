@@ -80,7 +80,7 @@ def handle_quick_reply(user, action: str, params: dict) -> dict:
 
 def handle_mark_medicine_taken(user, params: dict) -> dict:
     """Mark a medicine dose as taken."""
-    from apps.health.models import Medicine, MedicineLog
+    from apps.health.models import Intake, IntakeLog
 
     medicine_id = params.get('medicine_id')
     schedule_id = params.get('schedule_id')
@@ -93,15 +93,15 @@ def handle_mark_medicine_taken(user, params: dict) -> dict:
         }
 
     try:
-        medicine = Medicine.objects.get(id=medicine_id, user=user)
+        medicine = Intake.objects.get(id=medicine_id, user=user)
 
         # Create medicine log entry
         log_date = date.today()
         log_time = dose_time or timezone.now().strftime('%H:%M')
 
         # Check if already logged
-        existing = MedicineLog.objects.filter(
-            medicine=medicine,
+        existing = IntakeLog.objects.filter(
+            intake=medicine,
             date=log_date,
             time=log_time,
         ).first()
@@ -117,8 +117,8 @@ def handle_mark_medicine_taken(user, params: dict) -> dict:
             existing.status = 'taken'
             existing.save()
         else:
-            MedicineLog.objects.create(
-                medicine=medicine,
+            IntakeLog.objects.create(
+                intake=medicine,
                 date=log_date,
                 time=log_time,
                 status='taken',
@@ -131,7 +131,7 @@ def handle_mark_medicine_taken(user, params: dict) -> dict:
             'data': {'medicine_name': medicine.name},
         }
 
-    except Medicine.DoesNotExist:
+    except Intake.DoesNotExist:
         return {
             'success': False,
             'message': "I couldn't find that medicine in your list.",
@@ -140,7 +140,7 @@ def handle_mark_medicine_taken(user, params: dict) -> dict:
 
 def handle_skip_medicine(user, params: dict) -> dict:
     """Mark a medicine dose as skipped."""
-    from apps.health.models import Medicine, MedicineLog
+    from apps.health.models import Intake, IntakeLog
 
     medicine_id = params.get('medicine_id')
     schedule_id = params.get('schedule_id')
@@ -154,14 +154,14 @@ def handle_skip_medicine(user, params: dict) -> dict:
         }
 
     try:
-        medicine = Medicine.objects.get(id=medicine_id, user=user)
+        medicine = Intake.objects.get(id=medicine_id, user=user)
 
         log_date = date.today()
         log_time = dose_time or timezone.now().strftime('%H:%M')
 
         # Create skip log
-        MedicineLog.objects.update_or_create(
-            medicine=medicine,
+        IntakeLog.objects.update_or_create(
+            intake=medicine,
             date=log_date,
             time=log_time,
             defaults={
@@ -175,7 +175,7 @@ def handle_skip_medicine(user, params: dict) -> dict:
             'message': f"Okay, I've noted that you skipped {medicine.name}. Want me to remind you later?",
         }
 
-    except Medicine.DoesNotExist:
+    except Intake.DoesNotExist:
         return {
             'success': False,
             'message': "I couldn't find that medicine in your list.",
@@ -184,7 +184,7 @@ def handle_skip_medicine(user, params: dict) -> dict:
 
 def handle_mark_medicine_group_taken(user, params: dict) -> dict:
     """Mark ALL medicines in a time-of-day group as taken."""
-    from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+    from apps.health.models import Intake, IntakeLog, IntakeSchedule
     from apps.core.utils import get_user_today
 
     time_of_day = params.get('time_of_day')
@@ -203,10 +203,10 @@ def handle_mark_medicine_group_taken(user, params: dict) -> dict:
 
     for med_id in medicine_ids:
         try:
-            medicine = Medicine.objects.get(id=med_id, user=user)
+            medicine = Intake.objects.get(id=med_id, user=user)
             # Find the schedule for this medicine and time_of_day
-            schedule = MedicineSchedule.objects.filter(
-                medicine=medicine,
+            schedule = IntakeSchedule.objects.filter(
+                intake=medicine,
                 is_active=True,
                 time_of_day=time_of_day,
             ).first()
@@ -214,8 +214,8 @@ def handle_mark_medicine_group_taken(user, params: dict) -> dict:
             log_time = schedule.scheduled_time.strftime('%H:%M') if schedule else (dose_time or '09:00')
 
             # Create or update log
-            MedicineLog.objects.update_or_create(
-                medicine=medicine,
+            IntakeLog.objects.update_or_create(
+                intake=medicine,
                 date=today,
                 time=log_time,
                 defaults={
@@ -225,7 +225,7 @@ def handle_mark_medicine_group_taken(user, params: dict) -> dict:
             )
             marked_count += 1
             med_names.append(medicine.name)
-        except Medicine.DoesNotExist:
+        except Intake.DoesNotExist:
             continue
 
     if marked_count == 0:
@@ -244,7 +244,7 @@ def handle_mark_medicine_group_taken(user, params: dict) -> dict:
 
 def handle_skip_medicine_group(user, params: dict) -> dict:
     """Skip ALL medicines in a time-of-day group."""
-    from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+    from apps.health.models import Intake, IntakeLog, IntakeSchedule
     from apps.core.utils import get_user_today
 
     time_of_day = params.get('time_of_day')
@@ -262,17 +262,17 @@ def handle_skip_medicine_group(user, params: dict) -> dict:
 
     for med_id in medicine_ids:
         try:
-            medicine = Medicine.objects.get(id=med_id, user=user)
-            schedule = MedicineSchedule.objects.filter(
-                medicine=medicine,
+            medicine = Intake.objects.get(id=med_id, user=user)
+            schedule = IntakeSchedule.objects.filter(
+                intake=medicine,
                 is_active=True,
                 time_of_day=time_of_day,
             ).first()
 
             log_time = schedule.scheduled_time.strftime('%H:%M') if schedule else (dose_time or '09:00')
 
-            MedicineLog.objects.update_or_create(
-                medicine=medicine,
+            IntakeLog.objects.update_or_create(
+                intake=medicine,
                 date=today,
                 time=log_time,
                 defaults={
@@ -281,7 +281,7 @@ def handle_skip_medicine_group(user, params: dict) -> dict:
                 }
             )
             skipped_count += 1
-        except Medicine.DoesNotExist:
+        except Intake.DoesNotExist:
             continue
 
     group_display = (time_of_day or 'morning').replace('_', ' ')

@@ -450,12 +450,12 @@ class SearchService:
         limit: int
     ) -> List[Dict]:
         """Search medicine logs."""
-        from apps.health.models import MedicineLog
+        from apps.health.models import IntakeLog
 
-        logs = MedicineLog.objects.filter(user=self.user).select_related('medicine')
+        logs = IntakeLog.objects.filter(user=self.user).select_related('intake')
 
         if keywords:
-            keyword_q = self._build_keyword_filter(keywords, ['notes', 'medicine__name'])
+            keyword_q = self._build_keyword_filter(keywords, ['notes', 'intake__name'])
             logs = logs.filter(keyword_q)
 
         start_date, end_date = self._parse_date_range(date_range)
@@ -470,7 +470,7 @@ class SearchService:
         for log in logs:
             results.append(self._create_result(
                 id=log.pk,
-                title=f"Medicine: {log.medicine.name} ({log.log_status})",
+                title=f"Medicine: {log.intake.name} ({log.log_status})",
                 snippet=log.notes or "",
                 date_value=log.scheduled_date,
                 url=reverse('health:medicine_list'),

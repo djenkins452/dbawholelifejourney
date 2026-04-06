@@ -37,11 +37,11 @@ def calculate_medicine_adherence(user, start_date, end_date, intake_type=None):
     This is the CORRECT formula — it counts unlogged doses as not taken.
     """
     from apps.core.utils import get_user_now, get_user_today
-    from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+    from apps.health.models import Intake, IntakeLog, IntakeSchedule
 
-    qs = Medicine.objects.filter(
+    qs = Intake.objects.filter(
         user=user,
-        medicine_status=Medicine.STATUS_ACTIVE,
+        intake_status=Intake.STATUS_ACTIVE,
     )
     if intake_type:
         qs = qs.filter(intake_type=intake_type)
@@ -83,9 +83,9 @@ def calculate_medicine_adherence(user, start_date, end_date, intake_type=None):
     # Count actual logs in the period
     # Filter to active medicines only so logs from discontinued medicines
     # don't inflate the taken count beyond expected.
-    logs = MedicineLog.objects.filter(
+    logs = IntakeLog.objects.filter(
         user=user,
-        medicine__in=active_medicines,
+        intake__in=active_medicines,
         scheduled_date__gte=start_date,
         scheduled_date__lte=end_date,
     )
@@ -129,7 +129,7 @@ def calculate_single_medicine_adherence(user, medicine, start_date, end_date):
         - adherence_rate: percentage (0-100) or None if no expected doses
     """
     from apps.core.utils import get_user_now, get_user_today
-    from apps.health.models import MedicineLog
+    from apps.health.models import IntakeLog
 
     user_today = get_user_today(user)
     user_now = get_user_now(user)
@@ -159,9 +159,9 @@ def calculate_single_medicine_adherence(user, medicine, start_date, end_date):
         }
 
     # Count actual taken/late logs
-    logs = MedicineLog.objects.filter(
+    logs = IntakeLog.objects.filter(
         user=user,
-        medicine=medicine,
+        intake=medicine,
         scheduled_date__gte=start_date,
         scheduled_date__lte=end_date,
     )

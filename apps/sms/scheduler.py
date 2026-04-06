@@ -150,15 +150,15 @@ class SMSScheduler:
         Returns:
             Number of notifications scheduled
         """
-        from apps.health.models import Medicine
+        from apps.health.models import Intake
 
         count = 0
 
         # Get active medicines with schedules
-        medicines = Medicine.objects.filter(
+        medicines = Intake.objects.filter(
             user=user,
             status='active',
-            medicine_status=Medicine.STATUS_ACTIVE
+            intake_status=Intake.STATUS_ACTIVE
         ).prefetch_related('schedules')
 
         for medicine in medicines:
@@ -197,15 +197,15 @@ class SMSScheduler:
         Returns:
             Number of notifications scheduled
         """
-        from apps.health.models import Medicine
+        from apps.health.models import Intake
 
         count = 0
 
         # Get active medicines with supply tracking
-        medicines = Medicine.objects.filter(
+        medicines = Intake.objects.filter(
             user=user,
             status='active',
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
             current_supply__isnull=False,
         )
 

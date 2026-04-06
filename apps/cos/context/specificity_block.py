@@ -159,19 +159,19 @@ def _build_event_lines(user, now, today):
 def _build_med_lines(user, today):
     """Outstanding medications by name with scheduled time."""
     try:
-        from apps.health.models import Medicine, MedicineLog
+        from apps.health.models import Intake, IntakeLog
 
-        active_meds = Medicine.objects.filter(
+        active_meds = Intake.objects.filter(
             user=user,
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
         ).prefetch_related('schedules')
 
         lines = []
         for med in active_meds:
             schedules = med.schedules.all()
             for sched in schedules:
-                taken = MedicineLog.objects.filter(
-                    medicine=med,
+                taken = IntakeLog.objects.filter(
+                    intake=med,
                     scheduled_date=today,
                     schedule=sched,
                     log_status__in=['taken', 'late'],

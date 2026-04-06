@@ -143,14 +143,14 @@ def get_todays_routine_items(user):
 
     if 'medicine' in _source_ids_by_type:
         try:
-            from apps.health.models import MedicineLog
-            for ml in MedicineLog.objects.filter(
+            from apps.health.models import IntakeLog
+            for ml in IntakeLog.objects.filter(
                 pk__in=_source_ids_by_type['medicine']
-            ).select_related('medicine').only(
-                'id', 'taken_at', 'medicine__name',
+            ).select_related('intake').only(
+                'id', 'taken_at', 'intake__name',
             ):
                 _source_objects[('medicine', ml.pk)] = {
-                    'name': ml.medicine.name if ml.medicine else 'Medicine',
+                    'name': ml.intake.name if ml.intake else 'Medicine',
                     'time': ml.taken_at,
                 }
         except Exception:

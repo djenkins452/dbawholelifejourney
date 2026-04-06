@@ -5790,6 +5790,14 @@ def format_cos_system_injection(context, user_message=None):
 
             if _situation_mode and _situation_mode in _SESSION_MODE_INSTRUCTIONS:
                 lines.append(_SESSION_MODE_INSTRUCTIONS[_situation_mode])
+                lines.append(
+                    "CRITICAL OVERRIDE: If the user asks a DIRECT QUESTION "
+                    "(about labs, health, calories, goals, faith, or any specific "
+                    "topic), ANSWER THEIR QUESTION using your context data. "
+                    "Do NOT substitute a status briefing for a direct answer. "
+                    "Session mode framing is for greetings and open-ended "
+                    "messages only — never override a specific user question."
+                )
             elif _legacy_mode == 'daily_brief':
                 lines.append(
                     "SESSION MODE: DAILY ORIENTATION. "
@@ -5801,7 +5809,10 @@ def format_cos_system_injection(context, user_message=None):
                     "3) State the NEXT ACTION from the locked facts. "
                     "DO NOT describe 'behavioral signals', 'momentum', or 'trajectory'. "
                     "DO NOT fabricate completion status — use ONLY the locked facts. "
-                    "After this message, switch to LIGHT mode for the rest of the session."
+                    "After this message, switch to LIGHT mode for the rest of the session. "
+                    "CRITICAL OVERRIDE: If the user's message is a DIRECT QUESTION "
+                    "(not a greeting), ANSWER THEIR QUESTION instead of delivering "
+                    "the daily brief. Briefing is for open-ended first messages only."
                 )
             else:
                 lines.append(

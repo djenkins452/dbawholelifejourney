@@ -6,6 +6,28 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-06 — Physical Intelligence: Data sufficiency, weighted confidence, conflict resolution
+
+**What:** Fixed false "fat gaining" conclusions from insufficient data in the Physical Intelligence body composition signal pipeline. Added three new layers: (1) data sufficiency gate that requires minimum weight/waist points before analysis, (2) weighted confidence voting where body fat scale data gets 0.3 confidence vs 0.85 for consistent weight trends, and (3) deterministic conflict resolution with 5 rules preventing contradictory output.
+
+**Why:** The voting system in `body_composition_signal.py` had no data sufficiency gate, no per-source confidence weighting, and no conflict resolution. A single body fat scale reading or sparse waist data could produce a confident "fat gaining" conclusion that contradicted stronger weight signals. This destroys system credibility.
+
+**Changes:**
+- `apps/health/services/body_composition_signal.py` — Added `_compute_sufficiency()` (hard gate: <3 weight + <2 waist → insufficient), `_resolve_conflicts()` (5 rules: weight dominates, waist required for gain, insufficient active sources downgrade, scale cannot override consensus, creatine suppression), weighted voting in `_assess_fat_loss()` and `_assess_muscle()`. New output keys: `fat_confidence`, `muscle_confidence`, `sufficiency`, `conflict_adjustments`.
+- `apps/health/services/body_composition_insight_builder.py` — Added confidence gate (<0.5 → "insufficient data"), contradiction detection (`_has_contradictory_signals()`), REBOUND_RISK downgrade without waist confirmation. Extracted `_build_details()`, `_insufficient_data_insight()`, `_mixed_signals_insight()`.
+- `apps/health/tests/test_body_comp_signal.py` (NEW) — 17 tests: sufficiency gate, single waist, weight-down blocks reversed, scale low confidence, creatine suppression, all 5 conflict resolution rules, insight builder confidence gating.
+
+**Conflict resolution rules:**
+1. Weight down + waist not up → fat cannot be "reversed"
+2. <2 waist points in 14d → fat cannot be "reversed"
+3. <2 active voting sources → confidence capped at 0.35
+4. Scale vote conflicting with weight+waist consensus → scale overridden
+5. Creatine within 21 days → suppress "reversed", add water_retention evidence
+
+**Architecture:** No new models, no new engines, no new DB tables. All changes in existing signal pipeline. Backward-compatible output dict (new keys additive). Both display paths protected (signal → physical_decision AND DHS → insight_builder).
+
+---
+
 ## 2026-04-06 — Nutrition: Canonical meal totals + deterministic meal signals
 
 **What:** Moved meal-level macro aggregation from inline view code to `NutritionQueries.get_meal_totals()` as the single source of truth. Added `build_meal_signals()` for deterministic meal-level nutrition signals (low_protein, high_fat, high_carb, calorie_dense, balanced, high_protein). Signals display as subtle badges next to meal subtotals in the UI.

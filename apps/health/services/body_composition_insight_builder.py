@@ -8,6 +8,8 @@ Architecture:
     - Pure function: reads pre-computed SAE state, no DB queries
     - Called in HealthHomeView (request path — fast, no computation)
     - Produces structured output for template rendering
+    - NEVER shows contradictory signals
+    - Degrades gracefully to "insufficient data" when confidence is low
 
 Usage:
     from apps.health.services.body_composition_insight_builder import build_body_comp_insight
@@ -17,6 +19,9 @@ Usage:
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Minimum confidence to show a definitive conclusion
+MIN_CONFIDENCE_FOR_VERDICT = 0.5
 
 
 def build_body_comp_insight(health_state):
@@ -54,6 +59,15 @@ def build_body_comp_insight(health_state):
     # Need at least one intelligence field to produce an insight
     if not fat_loss_quality or fat_loss_quality == "INSUFFICIENT_DATA":
         return None
+
+    # ── Confidence gate (from body_comp_signal via physical_decision) ──
+    fat_confidence = health_state.get("fat_confidence")
+    if fat_confidence is not None and fat_confidence < MIN_CONFIDENCE_FOR_VERDICT:
+        return _insufficient_data_insight(health_state)
+
+    # ── Contradiction check ──
+    if _has_contradictory_signals(health_state):
+        return _mixed_signals_insight(health_state)
 
     # ── Determine severity and headline ──
     severity = "green"
@@ -101,13 +115,132 @@ def build_body_comp_insight(health_state):
         severity = "green"
         headline = "Fat loss is steady and sustainable."
     elif phase == "REBOUND_RISK":
-        severity = "red"
-        headline = "Rebound risk detected — weight trend is reversing."
+        # Only show rebound risk if we have sufficient waist data confirming it
+        # Otherwise downgrade to mixed signals
+        if _has_waist_confirmation(health_state):
+            severity = "red"
+            headline = "Rebound risk detected — weight trend is reversing."
+        else:
+            severity = "yellow"
+            headline = (
+                "Weight trend may be reversing — more measurements needed to confirm."
+            )
     else:
         severity = "green"
         headline = "Body composition is progressing steadily."
 
     # ── Build supporting details ──
+    details = _build_details(
+        fat_loss_quality, speed_label, speed_pct,
+        muscle_preservation, phase, plateau_risk,
+    )
+
+    return {
+        "headline": headline,
+        "severity": severity,
+        "details": details,
+    }
+
+
+def _has_contradictory_signals(health_state):
+    """Detect mutually exclusive signal combinations.
+
+    Returns True if the data contains contradictions that should prevent
+    a confident display. Specific contradictions:
+    - speed_label == "GAINING" but fat_loss_quality in ("GOOD", "EXCELLENT")
+    - phase == "REBOUND_RISK" but fat_loss_quality in ("GOOD", "EXCELLENT")
+    """
+    speed = health_state.get("fat_loss_speed_label")
+    quality = health_state.get("fat_loss_quality_label")
+    phase = health_state.get("fat_loss_phase")
+
+    # Weight gaining but fat loss quality says good → contradiction
+    if speed == "GAINING" and quality in ("GOOD", "EXCELLENT"):
+        return True
+
+    # Rebound risk but fat loss quality says good → contradiction
+    if phase == "REBOUND_RISK" and quality in ("GOOD", "EXCELLENT"):
+        return True
+
+    return False
+
+
+def _has_waist_confirmation(health_state):
+    """Check if health state suggests waist data is available and confirming."""
+    # If waist_trend is present and positive (increasing), it confirms rebound
+    # If waist_trend is None or negative, rebound is unconfirmed
+    waist_trend = health_state.get("waist_trend")
+    return waist_trend is not None and waist_trend > 0.1
+
+
+def _insufficient_data_insight(health_state):
+    """Return a safe insight when confidence is too low for a verdict."""
+    details = []
+
+    # Explain what's missing
+    reasons = []
+    sufficiency = health_state.get("sufficiency")
+    if sufficiency:
+        if sufficiency.get("weight_points_7d", 0) < 3:
+            reasons.append("Fewer than 3 weight entries this week")
+        if sufficiency.get("waist_points_14d", 0) < 2:
+            reasons.append("Fewer than 2 waist measurements in 14 days")
+        if sufficiency.get("body_fat_source") == "scale":
+            reasons.append("Body fat data from scale only (low accuracy)")
+    else:
+        reasons.append("Limited measurement data available")
+
+    if reasons:
+        details.append({
+            "label": "Why",
+            "value": "; ".join(reasons),
+            "trend": None,
+        })
+
+    return {
+        "headline": (
+            "Not enough data to assess body composition changes. "
+            "Log weight regularly and take waist measurements for accurate tracking."
+        ),
+        "severity": "yellow",
+        "details": details,
+    }
+
+
+def _mixed_signals_insight(health_state):
+    """Return a safe insight when signals contradict each other."""
+    details = []
+
+    conflict_adjustments = health_state.get("conflict_adjustments", [])
+    if conflict_adjustments:
+        details.append({
+            "label": "Note",
+            "value": "Some measurements disagree — more data needed",
+            "trend": None,
+        })
+
+    # Still show whatever quality/speed data is available
+    fat_loss_quality = health_state.get("fat_loss_quality_label")
+    if fat_loss_quality and fat_loss_quality != "INSUFFICIENT_DATA":
+        details.append({
+            "label": "Fat Loss Quality",
+            "value": _humanize_label(fat_loss_quality),
+            "trend": None,
+        })
+
+    return {
+        "headline": (
+            "Body composition signals are mixed — some indicators conflict. "
+            "Continue tracking for a clearer picture."
+        ),
+        "severity": "yellow",
+        "details": details,
+    }
+
+
+def _build_details(fat_loss_quality, speed_label, speed_pct,
+                   muscle_preservation, phase, plateau_risk):
+    """Build the supporting details list."""
     details = []
 
     if fat_loss_quality and fat_loss_quality != "INSUFFICIENT_DATA":
@@ -151,11 +284,7 @@ def build_body_comp_insight(health_state):
             "trend": "up" if plateau_risk == "RISING" else None,
         })
 
-    return {
-        "headline": headline,
-        "severity": severity,
-        "details": details,
-    }
+    return details
 
 
 def _humanize_label(label):

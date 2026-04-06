@@ -6,6 +6,40 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-06 — Medical Intelligence: Fix alias bug + structured lab context for CoS
+
+### CRITICAL BUG: SAE state_engine alias mapped 'medical' → 'health'
+- **Root cause:** `_canonical_module()` in `state_engine.py` line 167 mapped `"medical": "health"`.
+  Every call to `get_module_state(user, 'medical')` returned the HEALTH state (weight, sleep, vitals)
+  instead of the MEDICAL state (labs, conditions, providers). Lab data was built by SAE but never
+  reached CoS context — causing "I don't have access" responses.
+- **Fix:** Removed `"medical": "health"` alias. Added `"labs": "medical"` alias (labs is part of medical).
+  `get_module_state(user, 'medical')` now correctly returns medical state with lab data.
+- **File:** `apps/core/ai_state/state_engine.py`
+
+### Medical Intelligence Layer (Rebuilt)
+- **Rebuilt** `_build_medical_context()` in `cos_context.py` with structured, decision-ready output:
+  - `labs_available` (bool) — ALWAYS present, eliminates "I don't have access"
+  - `latest_labs` — up to 10 most recent lab results with test name, value, unit, date, reference range
+  - `abnormal_values` — highlighted abnormal results with flag descriptions
+  - `key_metrics` — extracted common tests: A1C, Glucose, Cholesterol, LDL, HDL, Triglycerides, TSH,
+    Vitamin D, Testosterone, Creatinine, eGFR
+  - `trends` — direction (rising/declining/improving) for tests with 2+ historical values
+  - `last_lab_date` — most recent lab collection date
+  - `total_lab_results` — total count
+- **Guarantee:** Function ALWAYS returns structured dict (never empty). CoS can always determine
+  whether labs exist or not.
+
+### CoS Response Contract
+- If labs exist → CoS summarizes them directly
+- If no labs → CoS says: "No lab data is currently available in your records."
+- NEVER says: "I don't have access", "check the app", "contact support"
+
+**Files:** `apps/core/ai_state/state_engine.py`, `apps/core/ai_orchestrator/cos_context.py`
+**Tests:** 73 pass (completion service + medical suite)
+
+---
+
 ## 2026-04-06 — Decision Engine: Priority accuracy + time-window filtering + duplicate prefix fix
 
 ### Priority Engine Correction

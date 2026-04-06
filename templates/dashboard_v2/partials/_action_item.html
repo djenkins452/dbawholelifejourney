@@ -11,10 +11,10 @@
                     hx-swap="outerHTML">
                 <span class="v2-check-empty">&#9675;</span>
             </button>
-            {% elif action.source == "medicine" %}
+            {% elif action.source == "intake" %}
             <button class="v2-action-toggle"
                     hx-post="{% url 'dashboard_v2:intake_group_log' time_of_day=action.time_of_day %}"
-                    hx-target="#medicine-card"
+                    hx-target="#intake-card"
                     hx-swap="outerHTML">
                 <span class="v2-check-empty">&#9675;</span>
             </button>

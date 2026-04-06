@@ -1,24 +1,24 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Medicines - Health - Whole Life Journey{% endblock %}
+{% block title %}Intake - Health - Whole Life Journey{% endblock %}
 
 {% block content %}
 <div class="container">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}">Health</a>
         <span>/</span>
-        <span>Medicines</span>
+        <span>Intake</span>
     </nav>
 
     <div class="page-header">
         <div>
-            <h1 class="page-title">Daily Medicines {% include "components/favorite_toggle.html" with page_title="Medicines" %}</h1>
+            <h1 class="page-title">Daily Intake {% include "components/favorite_toggle.html" with page_title="Intake" %}</h1>
             <p class="page-subtitle">Track your medications, one dose at a time</p>
         </div>
         <div class="page-actions">
             <a href="{% url 'health:intake_quick_look' %}" class="btn btn-secondary btn-sm">Quick Look</a>
-            <a href="{% url 'health:intake_create' %}" class="btn btn-primary">Add Medicine</a>
+            <a href="{% url 'health:intake_create' %}" class="btn btn-primary">Add Intake</a>
         </div>
     </div>
 
@@ -35,10 +35,10 @@
         <div class="alert alert-success">
             <span class="alert-icon">&#128203;</span>
             <div class="alert-content">
-                <span>Refill requested for {{ refill_requested_medicines|length }} medicine{{ refill_requested_medicines|length|pluralize }}:</span>
-                <span class="alert-medicines">
-                    {% for medicine in refill_requested_medicines %}
-                    <a href="{% url 'health:intake_detail' pk=medicine.pk %}" class="medicine-link">{{ medicine.name }}</a>{% if not forloop.last %}, {% endif %}
+                <span>Refill requested for {{ refill_requested_intakes|length }} intake item{{ refill_requested_intakes|length|pluralize }}:</span>
+                <span class="alert-intakes">
+                    {% for item in refill_requested_intakes %}
+                    <a href="{% url 'health:intake_detail' pk=item.pk %}" class="intake-link">{{ item.name }}</a>{% if not forloop.last %}, {% endif %}
                     {% endfor %}
                 </span>
             </div>
@@ -48,10 +48,10 @@
         <div class="alert alert-info">
             <span class="alert-icon">&#128138;</span>
             <div class="alert-content">
-                <span>{{ low_supply_medicines|length }} medicine{{ low_supply_medicines|length|pluralize }} need{{ low_supply_medicines|length|pluralize:"s," }} a refill:</span>
-                <span class="alert-medicines">
-                    {% for medicine in low_supply_medicines %}
-                    <a href="{% url 'health:intake_detail' pk=medicine.pk %}" class="medicine-link">{{ medicine.name }}</a>{% if not forloop.last %}, {% endif %}
+                <span>{{ low_supply_intakes|length }} intake item{{ low_supply_intakes|length|pluralize }} need{{ low_supply_intakes|length|pluralize:"s," }} a refill:</span>
+                <span class="alert-intakes">
+                    {% for item in low_supply_intakes %}
+                    <a href="{% url 'health:intake_detail' pk=item.pk %}" class="intake-link">{{ item.name }}</a>{% if not forloop.last %}, {% endif %}
                     {% endfor %}
                 </span>
             </div>
@@ -72,7 +72,7 @@
         </div>
         <div class="stat-item">
             <span class="stat-value">{{ active_count }}</span>
-            <span class="stat-label">Active medicines</span>
+            <span class="stat-label">Active intake items</span>
         </div>
     </div>
 
@@ -125,10 +125,10 @@
                         {% endif %}
                     </div>
                     <div class="dose-info">
-                        <span class="dose-name">{{ item.medicine.name }}</span>
-                        <span class="dose-amount">{{ item.medicine.dose }}</span>
-                        {% if item.medicine.purpose %}
-                        <span class="dose-purpose">{{ item.medicine.purpose }}</span>
+                        <span class="dose-name">{{ item.intake.name }}</span>
+                        <span class="dose-amount">{{ item.intake.dose }}</span>
+                        {% if item.intake.purpose %}
+                        <span class="dose-purpose">{{ item.intake.purpose }}</span>
                         {% endif %}
                     </div>
                     <div class="dose-actions">
@@ -137,25 +137,25 @@
                         {% if item.log %}
                         <a href="{% url 'health:intake_log_edit' pk=item.log.pk %}?next={% url 'health:intake_home' %}" class="btn btn-text btn-sm" title="Edit taken time">Edit</a>
                         {% endif %}
-                        <form method="post" action="{% url 'health:intake_undo' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                        <form method="post" action="{% url 'health:intake_undo' pk=item.intake.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                             {% csrf_token %}
                             <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                             <button type="submit" class="btn btn-text btn-sm">Undo</button>
                         </form>
                         {% elif item.log and item.log.log_status == 'skipped' %}
                         <span class="dose-status skipped-status">Skipped</span>
-                        <form method="post" action="{% url 'health:intake_undo' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                        <form method="post" action="{% url 'health:intake_undo' pk=item.intake.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                             {% csrf_token %}
                             <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                             <button type="submit" class="btn btn-text btn-sm">Undo</button>
                         </form>
                         {% else %}
-                        <form method="post" action="{% url 'health:intake_take' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                        <form method="post" action="{% url 'health:intake_take' pk=item.intake.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                             {% csrf_token %}
                             <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                             <button type="submit" class="btn btn-primary btn-sm">Take</button>
                         </form>
-                        <form method="post" action="{% url 'health:intake_skip' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                        <form method="post" action="{% url 'health:intake_skip' pk=item.intake.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                             {% csrf_token %}
                             <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                             <button type="submit" class="btn btn-secondary btn-sm">Skip</button>
@@ -180,10 +180,10 @@
                 {% endif %}
             </div>
             <div class="dose-info">
-                <span class="dose-name">{{ item.medicine.name }}</span>
-                <span class="dose-amount">{{ item.medicine.dose }}</span>
-                {% if item.medicine.purpose %}
-                <span class="dose-purpose">{{ item.medicine.purpose }}</span>
+                <span class="dose-name">{{ item.intake.name }}</span>
+                <span class="dose-amount">{{ item.intake.dose }}</span>
+                {% if item.intake.purpose %}
+                <span class="dose-purpose">{{ item.intake.purpose }}</span>
                 {% endif %}
             </div>
             <div class="dose-actions">
@@ -192,31 +192,31 @@
                 {% if item.log %}
                 <a href="{% url 'health:intake_log_edit' pk=item.log.pk %}?next={% url 'health:intake_home' %}" class="btn btn-text btn-sm" title="Edit taken time">Edit</a>
                 {% endif %}
-                <form method="post" action="{% url 'health:intake_undo' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                <form method="post" action="{% url 'health:intake_undo' pk=item.intake.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                     <button type="submit" class="btn btn-text btn-sm">Undo</button>
                 </form>
                 {% elif item.log and item.log.log_status == 'skipped' %}
                 <span class="dose-status skipped-status">Skipped</span>
-                <form method="post" action="{% url 'health:intake_undo' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                <form method="post" action="{% url 'health:intake_undo' pk=item.intake.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                     <button type="submit" class="btn btn-text btn-sm">Undo</button>
                 </form>
                 {% else %}
-                <form method="post" action="{% url 'health:intake_take' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                <form method="post" action="{% url 'health:intake_take' pk=item.intake.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                     <button type="submit" class="btn btn-primary btn-sm">Take Now</button>
                 </form>
-                <form method="post" action="{% url 'health:intake_take' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                <form method="post" action="{% url 'health:intake_take' pk=item.intake.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                     <input type="hidden" name="taken_at_scheduled" value="1">
                     <button type="submit" class="btn btn-outline btn-sm">Taken at {{ item.schedule.scheduled_time|time:"g:i A" }}</button>
                 </form>
-                <form method="post" action="{% url 'health:intake_skip' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                <form method="post" action="{% url 'health:intake_skip' pk=item.intake.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                     <button type="submit" class="btn btn-secondary btn-sm">Skip</button>
@@ -230,8 +230,8 @@
     <div class="empty-state">
         <p class="text-muted">No scheduled doses for today.</p>
         {% if active_count > 0 %}
-        <p class="text-muted mt-2">Your medicines may not have schedules set, or none are scheduled for today.</p>
-        <a href="{% url 'health:intake_list' %}" class="btn btn-secondary mt-4">Manage Medicines</a>
+        <p class="text-muted mt-2">Your intake items may not have schedules set, or none are scheduled for today.</p>
+        <a href="{% url 'health:intake_list' %}" class="btn btn-secondary mt-4">Manage Intake</a>
         {% endif %}
     </div>
     {% endif %}
@@ -244,7 +244,7 @@
         </a>
         <a href="{% url 'health:intake_list' %}" class="action-card">
             <span class="action-icon">&#128203;</span>
-            <span class="action-text">All Medicines</span>
+            <span class="action-text">All Intake</span>
         </a>
         <a href="{% url 'health:intake_history' %}" class="action-card">
             <span class="action-icon">&#128197;</span>
@@ -312,16 +312,16 @@
     gap: var(--space-1);
 }
 
-.alert-medicines {
+.alert-intakes {
     font-size: var(--font-size-sm);
 }
 
-.medicine-link {
+.intake-link {
     color: var(--color-accent);
     text-decoration: underline;
 }
 
-.medicine-link:hover {
+.intake-link:hover {
     color: var(--color-accent-hover, var(--color-accent));
 }
 
@@ -583,5 +583,5 @@
 }
 </style>
 
-{% include "components/scroll_preserve.html" with scroll_key="medicine" form_selector="form.inline-form" %}
+{% include "components/scroll_preserve.html" with scroll_key="intake" form_selector="form.inline-form" %}
 {% endblock %}

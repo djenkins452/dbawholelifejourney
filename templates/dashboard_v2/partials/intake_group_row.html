@@ -1,7 +1,7 @@
 <div class="v2-action-row" id="med-group-{{ group.time_of_day }}">
     <button class="v2-action-toggle {% if group.all_taken %}v2-completed{% endif %}"
             hx-post="{% url 'dashboard_v2:intake_group_log' time_of_day=group.time_of_day %}"
-            hx-target="#medicine-card"
+            hx-target="#intake-card"
             hx-swap="outerHTML">
         {% if group.all_taken %}
             <span class="v2-check">&#10003;</span>

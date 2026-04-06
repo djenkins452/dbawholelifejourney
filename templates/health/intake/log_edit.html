@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Edit Taken Time - {{ medicine.name }} - Whole Life Journey{% endblock %}
+{% block title %}Edit Taken Time - {{ intake.name }} - Whole Life Journey{% endblock %}
 
 {% block content %}
 <div class="container">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}">Health</a>
         <span>/</span>
-        <a href="{% url 'health:intake_home' %}">Medicines</a>
+        <a href="{% url 'health:intake_home' %}">Intake</a>
         <span>/</span>
         <a href="{% url 'health:intake_history' %}">History</a>
         <span>/</span>
@@ -20,15 +20,15 @@
         <p class="page-subtitle">Correct when you actually took this dose</p>
     </div>
 
-    <!-- Medicine Info Card -->
+    <!-- Intake Info Card -->
     <div class="info-card mb-6">
         <div class="info-row">
-            <span class="info-label">Medicine</span>
-            <span class="info-value">{{ medicine.name }}</span>
+            <span class="info-label">Intake</span>
+            <span class="info-value">{{ intake.name }}</span>
         </div>
         <div class="info-row">
             <span class="info-label">Dose</span>
-            <span class="info-value">{{ medicine.dose }}</span>
+            <span class="info-value">{{ intake.dose }}</span>
         </div>
         <div class="info-row">
             <span class="info-label">Scheduled Date</span>
@@ -59,7 +59,7 @@
             {% if form.taken_at.errors %}
             <span class="form-error">{{ form.taken_at.errors.0 }}</span>
             {% endif %}
-            <p class="form-help">Enter the actual time you took this medicine. The status (Taken/Taken Late) will be recalculated based on this time.</p>
+            <p class="form-help">Enter the actual time you took this dose. The status (Taken/Taken Late) will be recalculated based on this time.</p>
         </div>
 
         <div class="form-group">

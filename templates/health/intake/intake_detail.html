@@ -2,47 +2,47 @@
 {% load static %}
 {% load tz %}
 
-{% block title %}{{ medicine.name }} - Medicines - Whole Life Journey{% endblock %}
+{% block title %}{{ intake.name }} - Intake - Whole Life Journey{% endblock %}
 
 {% block content %}
 <div class="container">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}">Health</a>
         <span>/</span>
-        <a href="{% url 'health:intake_home' %}">Medicines</a>
+        <a href="{% url 'health:intake_home' %}">Intake</a>
         <span>/</span>
-        <span>{{ medicine.name }}</span>
+        <span>{{ intake.name }}</span>
     </nav>
 
     <div class="page-header">
         <div>
-            <h1 class="page-title">{{ medicine.name }}</h1>
-            <p class="page-subtitle">{{ medicine.dose }}{% if medicine.purpose %} - {{ medicine.purpose }}{% endif %}</p>
+            <h1 class="page-title">{{ intake.name }}</h1>
+            <p class="page-subtitle">{{ intake.dose }}{% if intake.purpose %} - {{ intake.purpose }}{% endif %}</p>
         </div>
         <div class="page-actions">
-            <a href="{% url 'health:intake_update' pk=medicine.pk %}" class="btn btn-secondary">Edit</a>
-            <a href="{% url 'health:intake_schedules' pk=medicine.pk %}" class="btn btn-secondary">Schedules</a>
+            <a href="{% url 'health:intake_update' pk=intake.pk %}" class="btn btn-secondary">Edit</a>
+            <a href="{% url 'health:intake_schedules' pk=intake.pk %}" class="btn btn-secondary">Schedules</a>
         </div>
     </div>
 
     <!-- Status and Alerts -->
     <div class="status-section mb-6">
-        <div class="status-badge status-{{ medicine.medicine_status }}">
-            {{ medicine.get_medicine_status_display }}
+        <div class="status-badge status-{{ intake.medicine_status }}">
+            {{ intake.get_medicine_status_display }}
         </div>
-        {% if medicine.is_prn %}
+        {% if intake.is_prn %}
         <span class="badge badge-prn">As Needed (PRN)</span>
         {% endif %}
-        {% if medicine.was_created_by_ai %}
+        {% if intake.was_created_by_ai %}
         <span class="ai-camera-badge" title="Added via AI Camera Scan">📷 AI Camera</span>
         {% endif %}
-        {% if medicine.refill_requested %}
+        {% if intake.refill_requested %}
         <div class="refill-requested">
-            Refill Requested{% if medicine.refill_requested_at %} on {{ medicine.refill_requested_at|date:"M j" }}{% endif %}
+            Refill Requested{% if intake.refill_requested_at %} on {{ intake.refill_requested_at|date:"M j" }}{% endif %}
         </div>
-        {% elif medicine.needs_refill %}
+        {% elif intake.needs_refill %}
         <div class="refill-warning">
-            Low supply: {{ medicine.current_supply }} doses remaining
+            Low supply: {{ intake.current_supply }} doses remaining
         </div>
         {% endif %}
     </div>
@@ -56,12 +56,12 @@
         </div>
         <div class="stat-card">
             <span class="stat-label">Supply</span>
-            <span class="stat-value">{% if medicine.current_supply is not None %}{{ medicine.current_supply }}{% else %}--{% endif %}</span>
+            <span class="stat-value">{% if intake.current_supply is not None %}{{ intake.current_supply }}{% else %}--{% endif %}</span>
             <span class="stat-detail">doses remaining</span>
         </div>
         <div class="stat-card">
             <span class="stat-label">Frequency</span>
-            <span class="stat-value">{{ medicine.get_frequency_display }}</span>
+            <span class="stat-value">{{ intake.get_frequency_display }}</span>
             <span class="stat-detail">{{ schedules|length }} schedule{{ schedules|length|pluralize }}</span>
         </div>
     </div>
@@ -91,47 +91,47 @@
                 {% endfor %}
             </div>
             {% else %}
-            <p class="text-muted">No schedules set. <a href="{% url 'health:intake_schedules' pk=medicine.pk %}">Add schedule</a></p>
+            <p class="text-muted">No schedules set. <a href="{% url 'health:intake_schedules' pk=intake.pk %}">Add schedule</a></p>
             {% endif %}
         </div>
 
-        {% if medicine.instructions %}
+        {% if intake.instructions %}
         <div class="detail-section">
             <h2>Instructions</h2>
-            <p>{{ medicine.instructions }}</p>
+            <p>{{ intake.instructions }}</p>
         </div>
         {% endif %}
 
-        {% if medicine.prescribing_doctor or medicine.pharmacy or medicine.rx_number %}
+        {% if intake.prescribing_doctor or medicine.pharmacy or medicine.rx_number %}
         <div class="detail-section">
             <h2>Prescription Details</h2>
             <dl class="detail-list">
-                {% if medicine.prescribing_doctor %}
+                {% if intake.prescribing_doctor %}
                 <div class="detail-item">
                     <dt>Doctor</dt>
-                    <dd>{{ medicine.prescribing_doctor }}</dd>
+                    <dd>{{ intake.prescribing_doctor }}</dd>
                 </div>
                 {% endif %}
-                {% if medicine.pharmacy %}
+                {% if intake.pharmacy %}
                 <div class="detail-item">
                     <dt>Pharmacy</dt>
-                    <dd>{{ medicine.pharmacy }}</dd>
+                    <dd>{{ intake.pharmacy }}</dd>
                 </div>
                 {% endif %}
-                {% if medicine.rx_number %}
+                {% if intake.rx_number %}
                 <div class="detail-item">
                     <dt>Rx Number</dt>
-                    <dd>{{ medicine.rx_number }}</dd>
+                    <dd>{{ intake.rx_number }}</dd>
                 </div>
                 {% endif %}
             </dl>
         </div>
         {% endif %}
 
-        {% if medicine.notes %}
+        {% if intake.notes %}
         <div class="detail-section">
             <h2>Notes</h2>
-            <p>{{ medicine.notes }}</p>
+            <p>{{ intake.notes }}</p>
         </div>
         {% endif %}
 
@@ -140,18 +140,18 @@
             <dl class="detail-list">
                 <div class="detail-item">
                     <dt>Started</dt>
-                    <dd>{{ medicine.start_date|date:"M j, Y" }}</dd>
+                    <dd>{{ intake.start_date|date:"M j, Y" }}</dd>
                 </div>
-                {% if medicine.end_date %}
+                {% if intake.end_date %}
                 <div class="detail-item">
                     <dt>End Date</dt>
-                    <dd>{{ medicine.end_date|date:"M j, Y" }}</dd>
+                    <dd>{{ intake.end_date|date:"M j, Y" }}</dd>
                 </div>
                 {% endif %}
-                {% if medicine.paused_at %}
+                {% if intake.paused_at %}
                 <div class="detail-item">
                     <dt>Paused</dt>
-                    <dd>{{ medicine.paused_at|date:"M j, Y" }}{% if medicine.paused_reason %} - {{ medicine.paused_reason }}{% endif %}</dd>
+                    <dd>{{ intake.paused_at|date:"M j, Y" }}{% if intake.paused_reason %} - {{ intake.paused_reason }}{% endif %}</dd>
                 </div>
                 {% endif %}
             </dl>
@@ -161,29 +161,29 @@
     <!-- Update Supply -->
     <div class="update-supply-section mb-6">
         <h3>Update Supply</h3>
-        <form method="post" action="{% url 'health:intake_update_supply' pk=medicine.pk %}" class="supply-form">
+        <form method="post" action="{% url 'health:intake_update_supply' pk=intake.pk %}" class="supply-form">
             {% csrf_token %}
-            <input type="number" inputmode="numeric" pattern="[0-9]*" name="current_supply" value="{{ medicine.current_supply|default:0 }}" min="0" class="form-input">
+            <input type="number" inputmode="numeric" pattern="[0-9]*" name="current_supply" value="{{ intake.current_supply|default:0 }}" min="0" class="form-input">
             <button type="submit" class="btn btn-secondary btn-sm">Update</button>
         </form>
 
         <!-- Refill Request Actions -->
-        {% if medicine.refill_requested %}
+        {% if intake.refill_requested %}
         <div class="refill-actions mt-4">
             <p class="text-sm text-muted mb-2">
-                Refill was requested{% if medicine.refill_requested_at %} on {{ medicine.refill_requested_at|date:"M j, Y" }}{% endif %}.
+                Refill was requested{% if intake.refill_requested_at %} on {{ intake.refill_requested_at|date:"M j, Y" }}{% endif %}.
             </p>
-            <form method="post" action="{% url 'health:intake_clear_refill' pk=medicine.pk %}" class="inline-form">
+            <form method="post" action="{% url 'health:intake_clear_refill' pk=intake.pk %}" class="inline-form">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-primary btn-sm">Refill Received</button>
             </form>
         </div>
-        {% elif medicine.refill_status == 'needed' %}
+        {% elif intake.refill_status == 'needed' %}
         <div class="refill-actions mt-4">
             <p class="text-sm text-warning mb-2">
-                Supply is low ({{ medicine.current_supply }} remaining).
+                Supply is low ({{ intake.current_supply }} remaining).
             </p>
-            <form method="post" action="{% url 'health:intake_request_refill' pk=medicine.pk %}" class="inline-form">
+            <form method="post" action="{% url 'health:intake_request_refill' pk=intake.pk %}" class="inline-form">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-warning btn-sm">Request Refill</button>
             </form>
@@ -195,7 +195,7 @@
     <div class="history-section">
         <div class="section-header">
             <h2>Recent History</h2>
-            <a href="{% url 'health:intake_history' %}?medicine={{ medicine.pk }}" class="btn btn-text btn-sm">View All</a>
+            <a href="{% url 'health:intake_history' %}?medicine={{ intake.pk }}" class="btn btn-text btn-sm">View All</a>
         </div>
         {% if recent_logs %}
         <div class="log-list">
@@ -217,22 +217,22 @@
 
     <!-- Actions -->
     <div class="medicine-actions mt-6">
-        {% if medicine.is_active_medicine %}
-        <form method="post" action="{% url 'health:intake_pause' pk=medicine.pk %}" class="inline-form">
+        {% if intake.is_active_medicine %}
+        <form method="post" action="{% url 'health:intake_pause' pk=intake.pk %}" class="inline-form">
             {% csrf_token %}
-            <button type="submit" class="btn btn-secondary">Pause Medicine</button>
+            <button type="submit" class="btn btn-secondary">Pause Intake</button>
         </form>
-        <form method="post" action="{% url 'health:intake_complete' pk=medicine.pk %}" class="inline-form">
+        <form method="post" action="{% url 'health:intake_complete' pk=intake.pk %}" class="inline-form">
             {% csrf_token %}
             <button type="submit" class="btn btn-secondary">Mark Complete</button>
         </form>
-        {% elif medicine.is_paused %}
-        <form method="post" action="{% url 'health:intake_resume' pk=medicine.pk %}" class="inline-form">
+        {% elif intake.is_paused %}
+        <form method="post" action="{% url 'health:intake_resume' pk=intake.pk %}" class="inline-form">
             {% csrf_token %}
-            <button type="submit" class="btn btn-primary">Resume Medicine</button>
+            <button type="submit" class="btn btn-primary">Resume Intake</button>
         </form>
         {% endif %}
-        <form method="post" action="{% url 'health:intake_delete' pk=medicine.pk %}" class="inline-form" data-confirm="Are you sure you want to delete {{ medicine.name }}?">
+        <form method="post" action="{% url 'health:intake_delete' pk=intake.pk %}" class="inline-form" data-confirm="Are you sure you want to delete {{ intake.name }}?">
             {% csrf_token %}
             <button type="submit" class="btn btn-danger">Delete</button>
         </form>
@@ -536,7 +536,7 @@
     color: var(--color-text-muted);
 }
 
-.medicine-actions {
+.intake-actions {
     display: flex;
     gap: var(--space-3);
     flex-wrap: wrap;

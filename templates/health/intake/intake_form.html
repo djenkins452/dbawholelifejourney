@@ -1,30 +1,30 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}{% if form.instance.pk %}Edit{% else %}Add{% endif %} Medicine - Health - Whole Life Journey{% endblock %}
+{% block title %}{% if form.instance.pk %}Edit{% else %}Add{% endif %} Intake - Health - Whole Life Journey{% endblock %}
 
 {% block content %}
 <div class="container">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}">Health</a>
         <span>/</span>
-        <a href="{% url 'health:intake_home' %}">Medicines</a>
+        <a href="{% url 'health:intake_home' %}">Intake</a>
         <span>/</span>
-        <span>{% if form.instance.pk %}Edit{% else %}Add{% endif %} Medicine</span>
+        <span>{% if form.instance.pk %}Edit{% else %}Add{% endif %} Intake</span>
     </nav>
 
     <div class="page-header">
-        <h1 class="page-title">{% if form.instance.pk %}Edit {{ form.instance.name }}{% else %}Add Medicine{% endif %}</h1>
+        <h1 class="page-title">{% if form.instance.pk %}Edit {{ form.instance.name }}{% else %}Add Intake{% endif %}</h1>
     </div>
 
     {% if not form.instance.pk %}
-    <!-- Barcode Scanner Section (only for new medicines) -->
+    <!-- Barcode Scanner Section (only for new intake items) -->
     <div class="scan-section">
         <div class="scan-header">
             <span class="scan-icon">💊</span>
             <div class="scan-info">
-                <strong>Scan Medicine Barcode</strong>
-                <span class="scan-hint">Quickly fill in medicine details by scanning the barcode on OTC products</span>
+                <strong>Scan Product</strong>
+                <span class="scan-hint">Quickly fill in product details by scanning the barcode on OTC products</span>
             </div>
         </div>
         <button type="button" id="startBarcodeScanner" class="btn btn-outline">
@@ -43,7 +43,7 @@
     <div id="barcodeScannerModal" class="scanner-modal" style="display: none;">
         <div class="scanner-modal-content">
             <div class="scanner-header">
-                <h3>Scan Medicine Barcode</h3>
+                <h3>Scan Product</h3>
                 <button type="button" id="closeBarcodeScanner" class="close-btn">&times;</button>
             </div>
             <div class="scanner-body">
@@ -54,7 +54,7 @@
                     </div>
                 </div>
                 <div id="scannerStatus" class="scanner-status">
-                    Point your camera at a medicine barcode
+                    Point your camera at a product barcode
                 </div>
                 <div id="scannerResult" class="scanner-result" style="display: none;">
                     <div class="result-content">
@@ -62,13 +62,13 @@
                         <span id="detectedBarcode" class="result-barcode"></span>
                     </div>
                     <div class="result-actions">
-                        <button type="button" id="lookupBarcode" class="btn btn-primary btn-sm">Look Up Medicine</button>
+                        <button type="button" id="lookupBarcode" class="btn btn-primary btn-sm">Look Up Product</button>
                         <button type="button" id="rescanBarcode" class="btn btn-outline btn-sm">Scan Again</button>
                     </div>
                 </div>
                 <div id="lookupProgress" class="lookup-progress" style="display: none;">
                     <div class="spinner"></div>
-                    <span>Looking up medicine...</span>
+                    <span>Looking up product...</span>
                 </div>
             </div>
         </div>
@@ -98,7 +98,7 @@
             <h2 class="form-section-title">Basic Information</h2>
 
             <div class="form-group">
-                <label for="id_name">Medicine Name *</label>
+                <label for="id_name">Name *</label>
                 {{ form.name }}
                 <p class="form-help">Brand name or generic name</p>
             </div>
@@ -112,7 +112,7 @@
                 <div class="form-group">
                     <label for="id_purpose">Purpose</label>
                     {{ form.purpose }}
-                    <p class="form-help">What is this medicine for?</p>
+                    <p class="form-help">What is this for?</p>
                 </div>
             </div>
         </div>
@@ -207,7 +207,7 @@
 
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">
-                {% if form.instance.pk %}Save Changes{% else %}Add Medicine{% endif %}
+                {% if form.instance.pk %}Save Changes{% else %}Add Intake{% endif %}
             </button>
             <a href="{% if form.instance.pk %}{% url 'health:intake_detail' pk=form.instance.pk %}{% else %}{% url 'health:intake_list' %}{% endif %}" class="btn btn-secondary">Cancel</a>
         </div>
@@ -526,7 +526,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     startBtn.addEventListener('click', openScanner);
     closeBtn.addEventListener('click', closeScanner);
-    lookupBtn.addEventListener('click', lookupMedicine);
+    lookupBtn.addEventListener('click', lookupProduct);
     rescanBtn.addEventListener('click', resetScanner);
 
     // Close modal when clicking outside
@@ -566,7 +566,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Check if ZXing is available
             const reader = getZXingReader();
             if (reader) {
-                statusEl.textContent = 'Point your camera at a medicine barcode';
+                statusEl.textContent = 'Point your camera at a product barcode';
                 // Wait for video to be ready then start detection
                 setTimeout(startDetection, 500);
             } else {
@@ -674,7 +674,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function resetScanner() {
         resultEl.style.display = 'none';
         statusEl.style.display = 'block';
-        statusEl.textContent = 'Point your camera at a medicine barcode';
+        statusEl.textContent = 'Point your camera at a product barcode';
         detectedBarcode = '';
         startDetection();
     }
@@ -698,7 +698,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('submitManualBarcode').addEventListener('click', function() {
             detectedBarcode = document.getElementById('manualBarcode').value;
             if (detectedBarcode) {
-                lookupMedicine();
+                lookupProduct();
             }
         });
 
@@ -707,13 +707,13 @@ document.addEventListener('DOMContentLoaded', function() {
             if (e.key === 'Enter') {
                 detectedBarcode = this.value;
                 if (detectedBarcode) {
-                    lookupMedicine();
+                    lookupProduct();
                 }
             }
         });
     }
 
-    async function lookupMedicine() {
+    async function lookupProduct() {
         if (!detectedBarcode) return;
 
         resultEl.style.display = 'none';
@@ -731,19 +731,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const data = await response.json();
 
-            if (data.found && data.medicine_url) {
+            if (data.found && data.intake_url) {
                 // Redirect to pre-filled form
-                window.location.href = data.medicine_url;
+                window.location.href = data.intake_url;
             } else {
                 // Show not found message
                 progressEl.style.display = 'none';
-                alert('Medicine not found in database. You can still fill in the details manually.');
+                alert('Product not found in database. You can still fill in the details manually.');
                 closeScanner();
             }
         } catch (err) {
             console.error('Lookup error:', err);
             progressEl.style.display = 'none';
-            alert('Error looking up medicine. Please try again.');
+            alert('Error looking up product. Please try again.');
             resetScanner();
         }
     }

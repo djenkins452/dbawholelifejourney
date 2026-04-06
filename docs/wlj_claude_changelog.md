@@ -6,6 +6,27 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-06 — UI: Phase VI — rename all visible "Medicine" text to "Intake" across templates
+
+**Root cause:** After the backend rename (Phases I-V), all user-visible text in templates still displayed "Medicine"/"Medicines" as the domain label. This phase completes the UI rename so users see "Intake" consistently.
+
+**Changes:**
+- Renamed visible text in 16+ templates: page titles, breadcrumbs, headings, buttons, empty states, alerts
+- Scan flow: "Scan Medicine Barcode" -> "Scan Product", "Look Up Medicine" -> "Look Up Product"
+- Marketing/billing text: "food and medicine" -> "food and medications"
+- Renamed CSS classes from `.medicine-*` to `.intake-*` across all templates
+- Renamed template context variables: `medicine` -> `intake`, `medicines` -> `intakes`, `medicine_count` -> `intake_count`, etc.
+- Updated view context keys in apps/health/views.py to pass `intake` instead of `medicine`
+- Updated dashboard service context keys: `medicine_done` -> `intake_done`, `visible_medicine_groups` -> `visible_intake_groups`, etc.
+- Updated dashboard cache dict key from `'medicine'` to `'intake'` in apps/dashboard/cache.py
+- Updated action source from `"medicine"` to `"intake"` in action_prioritizer.py and behavior_score_engine.py
+- Renamed HEALTH_FEATURES key from `'medicine'` to `'intake'` in UserPreferences model
+- Added data migration (0083) to rename existing users' `health_features` JSON key
+- Updated feature flag references in templates from `features.health.medicine` to `features.health.intake`
+- Updated navigation.html, assistant_panel.html, scan_page.html, privacy.html, ux_design.html
+
+**Files modified:** templates/health/intake/*.html (10 files), templates/health/email/intake_list.html, templates/health/home.html, templates/dashboard/tiles/intake_schedule.html, templates/dashboard/tiles/quick_stats.html, templates/dashboard_v2/partials/intake_card.html, templates/dashboard_v2/partials/intake_row.html, templates/dashboard_v2/partials/intake_group_row.html, templates/dashboard_v2/partials/_action_item.html, templates/dashboard_v2/partials/next_action.html, templates/components/navigation.html, templates/components/assistant_panel.html, templates/scan/scan_page.html, templates/core/privacy.html, templates/core/ux_design.html, templates/billing/trial_expired.html, templates/billing/select_plan.html, templates/billing/faith_only_upgrade.html, apps/health/views.py, apps/dashboard/views.py, apps/dashboard/cache.py, apps/dashboard_v2/services/dashboard_service.py, apps/dashboard_v2/services/daily_progress_service.py, apps/core/decision_engine/action_prioritizer.py, apps/core/behavior/behavior_score_engine.py, apps/users/models.py, apps/users/migrations/0083_rename_medicine_to_intake_feature.py
+
 ## 2026-04-05 — Refactor: Phase V Medicine-to-Intake finalization — remove backward compat aliases
 
 **Root cause:** Phases I-IV renamed models, URLs, views, templates, and AI intents from "Medicine" to "Intake". Backward compatibility aliases (`Medicine = Intake`, `MedicineSchedule = IntakeSchedule`, `MedicineLog = IntakeLog`) and compat properties (`medicine_status`, `is_active_medicine`, `.medicine` on schedule/log) were left in place to prevent breakage during the transition. Now that all code paths are updated, these aliases must be removed to complete the rename.

@@ -573,7 +573,7 @@
 <div class="scan-container">
     <div class="scan-header">
         <h1>Scan with Camera</h1>
-        <p id="scan-mode-description">Point your camera at food, medicine, supplements, or documents</p>
+        <p id="scan-mode-description">Point your camera at food, medications, supplements, or documents</p>
     </div>
 
     <!-- Scan Mode Toggle -->
@@ -929,7 +929,7 @@
     // Category icons mapping
     const categoryIcons = {
         food: '&#x1F35D;',
-        medicine: '&#x1F48A;',
+        medication: 'medicine: '&#x1F48A;'#x1F48A;',
         supplement: '&#x1F48A;',
         receipt: '&#x1F9FE;',
         document: '&#x1F4C4;',
@@ -1295,7 +1295,7 @@
         if (scanModeDescription) {
             scanModeDescription.textContent = mode === 'barcode'
                 ? 'Scan food product barcodes for instant nutrition info'
-                : 'Point your camera at food, medicine, supplements, or documents';
+                : 'Point your camera at food, medications, supplements, or documents';
         }
 
         // Toggle barcode overlay
@@ -1656,7 +1656,7 @@
     function formatCategory(category) {
         const names = {
             food: 'Food',
-            medicine: 'Medicine',
+            medication: 'Medication',
             supplement: 'Supplement',
             receipt: 'Receipt',
             document: 'Document',

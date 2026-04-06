@@ -174,7 +174,7 @@ def build_action_priorities(
             _med_time = _parse_time(g.get("scheduled_time"))
             med_urgency = classify_urgency(_med_time, False, now_time)
         actions.append({
-            "source": "medicine",
+            "source": "intake",
             "urgency": med_urgency,
             "type": "medicine_group",
             "pk": None,

@@ -194,7 +194,7 @@ class DashboardCacheService:
                 if schedule.applies_to_day(today_weekday):
                     log = log_lookup.get((medicine.id, schedule.id))
                     todays_schedules.append({
-                        'medicine': medicine,
+                        'intake': medicine,
                         'schedule': schedule,
                         'log': log,
                         'taken': log is not None and log.log_status in ['taken', 'late'],

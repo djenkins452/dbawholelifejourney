@@ -263,7 +263,7 @@ class DashboardV2Service:
                             "total_count": 0,
                         }
                     groups[tod]["items"].append(
-                        {"medicine": med, "schedule": schedule, "taken": taken}
+                        {"intake": med, "schedule": schedule, "taken": taken}
                     )
                     groups[tod]["schedule_ids"].append(schedule.pk)
                     groups[tod]["total_count"] += 1
@@ -280,8 +280,8 @@ class DashboardV2Service:
                 g["goal_name"] = health_goal.get("title", "") if isinstance(health_goal, dict) else ""
                 g["is_foundational"] = health_goal.get("is_foundational", False) if isinstance(health_goal, dict) else False
 
-            context["medicine_groups"] = medicine_groups
-            context["medicine_items"] = medicine_items
+            context["intake_groups"] = medicine_groups
+            context["intake_items"] = medicine_items
 
             # Filter by canonical time windows — only show relevant stacks
             current_hour = self._get_user_now().hour
@@ -293,14 +293,14 @@ class DashboardV2Service:
                     visible_groups.append(g)
                 else:
                     future_groups.append(g)
-            context["visible_medicine_groups"] = visible_groups
-            context["future_medicine_groups"] = future_groups
+            context["visible_intake_groups"] = visible_groups
+            context["future_intake_groups"] = future_groups
         except Exception:
             logger.error("Failed to load medicines", exc_info=True)
-            context["medicine_groups"] = []
-            context["medicine_items"] = []
-            context["visible_medicine_groups"] = []
-            context["future_medicine_groups"] = []
+            context["intake_groups"] = []
+            context["intake_items"] = []
+            context["visible_intake_groups"] = []
+            context["future_intake_groups"] = []
 
         # Calendar events (from CalendarEvent, not LifeEvent)
         try:
@@ -357,9 +357,9 @@ class DashboardV2Service:
         )
         context["routine_total"] = len(_rg)
         # Count only visible (due) medicine groups — don't penalize for future stacks
-        visible_med = context.get("visible_medicine_groups", [])
-        context["medicine_done"] = sum(g.get("taken_count", 0) for g in visible_med)
-        context["medicine_total"] = sum(g.get("total_count", 0) for g in visible_med)
+        visible_med = context.get("visible_intake_groups", [])
+        context["intake_done"] = sum(g.get("taken_count", 0) for g in visible_med)
+        context["intake_total"] = sum(g.get("total_count", 0) for g in visible_med)
 
         # Time phase for section ordering
         context["time_phase"] = self.get_time_phase()
@@ -409,7 +409,7 @@ class DashboardV2Service:
             context["next_upcoming"] = find_next_upcoming(
                 action_center,
                 future_medicine_groups=self._normalize_medicine_groups(
-                    context.get("future_medicine_groups", [])
+                    context.get("future_intake_groups", [])
                 ),
                 schedule_later=context.get("schedule_later", []),
             )

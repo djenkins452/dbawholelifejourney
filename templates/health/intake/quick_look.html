@@ -1,41 +1,41 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Quick Look - Medicines - Whole Life Journey{% endblock %}
+{% block title %}Quick Look - Intake - Whole Life Journey{% endblock %}
 
 {% block content %}
 <div class="container quick-look-container">
     <div class="quick-look-header">
-        <h1>My Medicines</h1>
+        <h1>My Intake</h1>
         <p class="generated-date">{{ generated_at|date:"F j, Y" }}</p>
     </div>
 
-    {% if medicines %}
+    {% if intakes %}
     <div class="quick-look-list">
-        {% for medicine in medicines %}
+        {% for intake in intakes %}
         <div class="quick-look-card">
-            <div class="medicine-name">{{ medicine.name }}</div>
-            <div class="medicine-dose">{{ medicine.dose }}</div>
-            <div class="medicine-frequency">{{ medicine.get_frequency_display }}</div>
-            {% if medicine.schedules.all %}
+            <div class="medicine-name">{{ intake.name }}</div>
+            <div class="medicine-dose">{{ intake.dose }}</div>
+            <div class="medicine-frequency">{{ intake.get_frequency_display }}</div>
+            {% if intake.schedules.all %}
             <div class="medicine-times">
-                {% for schedule in medicine.schedules.all %}
+                {% for schedule in intake.schedules.all %}
                 {{ schedule.scheduled_time|time:"g:i A" }}{% if not forloop.last %}, {% endif %}
                 {% endfor %}
             </div>
             {% endif %}
-            {% if medicine.purpose %}
-            <div class="medicine-purpose">{{ medicine.purpose }}</div>
+            {% if intake.purpose %}
+            <div class="medicine-purpose">{{ intake.purpose }}</div>
             {% endif %}
         </div>
         {% endfor %}
     </div>
     {% else %}
-    <p class="text-center text-muted">No active medicines</p>
+    <p class="text-center text-muted">No active intake items</p>
     {% endif %}
 
     <div class="quick-look-footer">
-        <a href="{% url 'health:intake_home' %}" class="btn btn-secondary">Back to Medicines</a>
+        <a href="{% url 'health:intake_home' %}" class="btn btn-secondary">Back to Intake</a>
         <button type="button" id="print-btn" class="btn btn-primary">Print / Screenshot</button>
     </div>
 </div>
@@ -77,31 +77,31 @@
     border-radius: var(--radius-lg);
 }
 
-.medicine-name {
+.intake-name {
     font-size: var(--font-size-lg);
     font-weight: 600;
     margin-bottom: var(--space-1);
 }
 
-.medicine-dose {
+.intake-dose {
     font-size: var(--font-size-xl);
     font-weight: 700;
     color: var(--color-accent);
     margin-bottom: var(--space-2);
 }
 
-.medicine-frequency {
+.intake-frequency {
     font-weight: 500;
     margin-bottom: var(--space-1);
 }
 
-.medicine-times {
+.intake-times {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
     margin-bottom: var(--space-2);
 }
 
-.medicine-purpose {
+.intake-purpose {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
     font-style: italic;

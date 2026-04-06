@@ -2,32 +2,32 @@
 {% load static %}
 {% load tz %}
 
-{% block title %}Medicine History - Whole Life Journey{% endblock %}
+{% block title %}Intake History - Whole Life Journey{% endblock %}
 
 {% block content %}
 <div class="container">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}">Health</a>
         <span>/</span>
-        <a href="{% url 'health:intake_home' %}">Medicines</a>
+        <a href="{% url 'health:intake_home' %}">Intake</a>
         <span>/</span>
         <span>History</span>
     </nav>
 
     <div class="page-header">
-        <h1 class="page-title">Medicine History</h1>
+        <h1 class="page-title">Intake History</h1>
     </div>
 
     <!-- Filters -->
     <form method="get" class="filters-form mb-6">
         <div class="filter-row">
             <div class="filter-group">
-                <label for="medicine">Medicine</label>
+                <label for="medicine">Intake item</label>
                 <select name="medicine" id="medicine" class="form-select">
-                    <option value="">All Medicines</option>
-                    {% for medicine in medicines %}
-                    <option value="{{ medicine.pk }}" {% if selected_medicine == medicine.pk|stringformat:"s" %}selected{% endif %}>
-                        {{ medicine.name }}
+                    <option value="">All Intake</option>
+                    {% for item in intakes %}
+                    <option value="{{ item.pk }}" {% if selected_intake == item.pk|stringformat:"s" %}selected{% endif %}>
+                        {{ item.name }}
                     </option>
                     {% endfor %}
                 </select>
@@ -55,9 +55,9 @@
             <div class="log-items">
                 {% for dose in doses %}
                 <div class="log-item log-{{ dose.log_status }}">
-                    <div class="log-medicine">
-                        <a href="{% url 'health:intake_detail' pk=dose.medicine.pk %}">{{ dose.medicine.name }}</a>
-                        <span class="log-dose">{{ dose.medicine.dose }}</span>
+                    <div class="log-intake">
+                        <a href="{% url 'health:intake_detail' pk=dose.intake.pk %}">{{ dose.intake.name }}</a>
+                        <span class="log-dose">{{ dose.intake.dose }}</span>
                     </div>
                     <div class="log-time">
                         {% if dose.scheduled_time %}
@@ -90,7 +90,7 @@
                         {% if dose.log_status == "pending" and dose.schedule %}
                         <!-- Pending dose - show take/skip actions -->
                         <div class="dose-actions">
-                            <form method="post" action="{% url 'health:intake_history_take' pk=dose.medicine.pk schedule_pk=dose.schedule.pk %}" class="inline-form">
+                            <form method="post" action="{% url 'health:intake_history_take' pk=dose.intake.pk schedule_pk=dose.schedule.pk %}" class="inline-form">
                                 {% csrf_token %}
                                 <input type="hidden" name="date" value="{{ dose.scheduled_date|date:'Y-m-d' }}">
                                 <input type="hidden" name="taken_at_scheduled" value="1">
@@ -98,12 +98,12 @@
                                 <button type="submit" class="btn btn-text btn-sm btn-success-text" title="Mark as taken at scheduled time">Taken</button>
                             </form>
                             <button type="button" class="btn btn-text btn-sm btn-take-time"
-                                    data-medicine-id="{{ dose.medicine.pk }}"
+                                    data-intake-id="{{ dose.intake.pk }}"
                                     data-schedule-id="{{ dose.schedule.pk }}"
                                     data-date="{{ dose.scheduled_date|date:'Y-m-d' }}"
-                                    data-medicine-name="{{ dose.medicine.name }}"
+                                    data-intake-name="{{ dose.intake.name }}"
                                     title="Specify taken time">at...</button>
-                            <form method="post" action="{% url 'health:intake_history_skip' pk=dose.medicine.pk schedule_pk=dose.schedule.pk %}" class="inline-form">
+                            <form method="post" action="{% url 'health:intake_history_skip' pk=dose.intake.pk schedule_pk=dose.schedule.pk %}" class="inline-form">
                                 {% csrf_token %}
                                 <input type="hidden" name="date" value="{{ dose.scheduled_date|date:'Y-m-d' }}">
                                 <input type="hidden" name="next" value="{{ request.get_full_path }}">
@@ -129,7 +129,7 @@
     </div>
     {% else %}
     <div class="empty-state">
-        <p class="text-muted">No scheduled doses found{% if selected_medicine or request.GET.start or request.GET.end %} matching your filters{% endif %}.</p>
+        <p class="text-muted">No scheduled doses found{% if selected_intake or request.GET.start or request.GET.end %} matching your filters{% endif %}.</p>
     </div>
     {% endif %}
 </div>
@@ -147,7 +147,7 @@
             <input type="hidden" name="date" id="modalDate" value="">
             <input type="hidden" name="next" value="{{ request.get_full_path }}">
             <div class="modal-body">
-                <p id="modalMedicineName" class="mb-4"></p>
+                <p id="modalIntakeName" class="mb-4"></p>
                 <div class="form-group">
                     <label for="taken_at_time">Time taken:</label>
                     <input type="time" name="taken_at_time" id="taken_at_time" class="form-input" step="900" required>
@@ -251,13 +251,13 @@
     border: 1px dashed var(--color-border);
 }
 
-.log-medicine {
+.log-intake {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
 }
 
-.log-medicine a {
+.log-intake a {
     font-weight: 500;
 }
 
@@ -432,7 +432,7 @@
 <script nonce="{{ csp_nonce }}">
 // Save scroll position before form submission, restore after page load
 (function() {
-    const SCROLL_KEY = 'medicine_history_scroll';
+    const SCROLL_KEY = 'intake_history_scroll';
 
     // Restore scroll position on page load
     const savedScroll = sessionStorage.getItem(SCROLL_KEY);
@@ -460,9 +460,9 @@ document.addEventListener('click', function(e) {
     if (btn) {
         var modal = document.getElementById('takeTimeModal');
         var form = document.getElementById('takeTimeForm');
-        form.action = '/health/physical/intake/' + btn.dataset.medicineId + '/history-take/' + btn.dataset.scheduleId + '/';
+        form.action = '/health/physical/intake/' + btn.dataset.intakeId + '/history-take/' + btn.dataset.scheduleId + '/';
         document.getElementById('modalDate').value = btn.dataset.date;
-        document.getElementById('modalMedicineName').textContent = btn.dataset.medicineName + ' - ' + btn.dataset.date;
+        document.getElementById('modalIntakeName').textContent = btn.dataset.intakeName + ' - ' + btn.dataset.date;
         modal.style.display = 'flex';
         return;
     }

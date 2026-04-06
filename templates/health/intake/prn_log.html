@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Log PRN Dose - Medicines - Whole Life Journey{% endblock %}
+{% block title %}Log PRN Dose - Intake - Whole Life Journey{% endblock %}
 
 {% block content %}
 <div class="container">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}">Health</a>
         <span>/</span>
-        <a href="{% url 'health:intake_home' %}">Medicines</a>
+        <a href="{% url 'health:intake_home' %}">Intake</a>
         <span>/</span>
         <span>Log PRN Dose</span>
     </nav>
@@ -23,10 +23,10 @@
 
         <div class="form-section">
             <div class="form-group">
-                <label for="id_medicine">Medicine *</label>
+                <label for="id_medicine">Intake item *</label>
                 {{ form.medicine }}
                 {% if not form.medicine.field.queryset.exists %}
-                <p class="form-help">No PRN medicines found. <a href="{% url 'health:intake_create' %}">Add a medicine</a> and mark it as "As Needed (PRN)".</p>
+                <p class="form-help">No PRN intake items found. <a href="{% url 'health:intake_create' %}">Add an intake item</a> and mark it as "As Needed (PRN)".</p>
                 {% endif %}
             </div>
 

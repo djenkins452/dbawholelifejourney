@@ -1019,7 +1019,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "latest_glucose": cached.get('latest_glucose'),
             # Medicine data (from cache - optimized queries)
             "active_medicines": len(cached.get('active_medicines', [])),
-            "todays_medicine_schedule": todays_schedules,
+            "todays_intake_schedule": todays_schedules,
             "medicine_doses_today": len(todays_schedules),
             "medicine_doses_taken_today": sum(1 for s in todays_schedules if s['taken']),
             "medicine_doses_overdue_today": sum(

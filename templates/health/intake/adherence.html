@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Medicine Adherence - Whole Life Journey{% endblock %}
+{% block title %}Intake Adherence - Whole Life Journey{% endblock %}
 
 {% block content %}
 <div class="container">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}">Health</a>
         <span>/</span>
-        <a href="{% url 'health:intake_home' %}">Medicines</a>
+        <a href="{% url 'health:intake_home' %}">Intake</a>
         <span>/</span>
         <span>Adherence</span>
     </nav>
@@ -55,21 +55,21 @@
         </div>
     </div>
 
-    <!-- Per-Medicine Breakdown -->
-    {% if medicine_stats %}
+    <!-- Per-Intake Breakdown -->
+    {% if intake_stats %}
     <div class="section mb-6">
-        <h2>By Medicine</h2>
-        <div class="medicine-stats-list">
-            {% for stat in medicine_stats %}
-            <div class="medicine-stat-item">
-                <div class="medicine-stat-info">
-                    <a href="{% url 'health:intake_detail' pk=stat.medicine.pk %}">{{ stat.medicine.name }}</a>
-                    <span class="medicine-stat-detail">{{ stat.taken }}/{{ stat.total }} doses</span>
+        <h2>By Intake Item</h2>
+        <div class="intake-stats-list">
+            {% for stat in intake_stats %}
+            <div class="intake-stat-item">
+                <div class="intake-stat-info">
+                    <a href="{% url 'health:intake_detail' pk=stat.intake.pk %}">{{ stat.intake.name }}</a>
+                    <span class="intake-stat-detail">{{ stat.taken }}/{{ stat.total }} doses</span>
                 </div>
-                <div class="medicine-stat-bar">
+                <div class="intake-stat-bar">
                     <div class="bar-fill" style="width: {{ stat.rate }}%"></div>
                 </div>
-                <span class="medicine-stat-rate">{{ stat.rate }}%</span>
+                <span class="intake-stat-rate">{{ stat.rate }}%</span>
             </div>
             {% endfor %}
         </div>
@@ -217,35 +217,35 @@
     margin-bottom: var(--space-4);
 }
 
-.medicine-stats-list {
+.intake-stats-list {
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
 }
 
-.medicine-stat-item {
+.intake-stat-item {
     display: grid;
     grid-template-columns: 1fr 200px 60px;
     gap: var(--space-4);
     align-items: center;
 }
 
-.medicine-stat-info {
+.intake-stat-info {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
 }
 
-.medicine-stat-info a {
+.intake-stat-info a {
     font-weight: 500;
 }
 
-.medicine-stat-detail {
+.intake-stat-detail {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
 }
 
-.medicine-stat-bar {
+.intake-stat-bar {
     height: 8px;
     background: var(--color-surface);
     border-radius: var(--radius-full);
@@ -259,7 +259,7 @@
     transition: width 0.5s ease;
 }
 
-.medicine-stat-rate {
+.intake-stat-rate {
     font-weight: 600;
     text-align: right;
 }
@@ -313,12 +313,12 @@
         grid-template-columns: repeat(2, 1fr);
     }
 
-    .medicine-stat-item {
+    .intake-stat-item {
         grid-template-columns: 1fr;
         gap: var(--space-2);
     }
 
-    .medicine-stat-bar {
+    .intake-stat-bar {
         width: 100%;
     }
 

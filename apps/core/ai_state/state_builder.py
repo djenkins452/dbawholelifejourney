@@ -2743,14 +2743,9 @@ def build_daily_execution_status(user):
         state['completed_routine_item_ids'] = []
 
     try:
-        # EXCEPTION: intentional direct query (not domain truth)
-        # Reason: execution status boolean — JournalQueries.has_entry_on() does
-        # the same thing but this predates contract adoption. Kept for isolation.
-        # Do not reuse for general truth evaluation
-        from apps.journal.models import JournalEntry
-        state['journal_completed'] = JournalEntry.objects.filter(
-            user=user, entry_date=user_today,
-        ).exists()
+        # Canonical contract: completion_service is the single source of truth.
+        from apps.core.execution.completion_service import is_journal_complete
+        state['journal_completed'] = is_journal_complete(user, user_today)
     except Exception:
         state['journal_completed'] = False
 

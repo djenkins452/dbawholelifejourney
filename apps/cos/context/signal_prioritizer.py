@@ -116,22 +116,22 @@ def _score_imminent_events(candidates, user, now):
 def _score_overdue_meds(candidates, user, now):
     """Overdue medications score high — health is non-negotiable."""
     try:
-        from apps.health.models import Medicine, MedicineLog
+        from apps.health.models import Intake, IntakeLog
 
         today = now.date()
         current_time = now.time()
 
-        active_meds = Medicine.objects.filter(
+        active_meds = Intake.objects.filter(
             user=user,
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
         ).prefetch_related('schedules')
 
         overdue_names = []
         for med in active_meds:
             for sched in med.schedules.all():
                 if sched.scheduled_time and sched.scheduled_time < current_time:
-                    taken = MedicineLog.objects.filter(
-                        medicine=med,
+                    taken = IntakeLog.objects.filter(
+                        intake=med,
                         scheduled_date=today,
                         schedule=sched,
                         log_status__in=['taken', 'late'],

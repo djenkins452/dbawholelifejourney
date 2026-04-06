@@ -708,15 +708,15 @@ class SMSNotificationService:
             return "Medicine taken (no log created - missing reference)"
 
         try:
-            from apps.health.models import Medicine, MedicineLog
+            from apps.health.models import Intake, IntakeLog
 
-            medicine = Medicine.objects.get(pk=notification.object_id)
-            MedicineLog.objects.create(
+            medicine = Intake.objects.get(pk=notification.object_id)
+            IntakeLog.objects.create(
                 user=notification.user,
-                medicine=medicine,
+                intake=medicine,
                 scheduled_date=timezone.now().date(),
                 taken_at=timezone.now(),
-                status=MedicineLog.STATUS_TAKEN,
+                status=IntakeLog.STATUS_TAKEN,
             )
             return f"Logged {medicine.name} as taken"
         except Exception as e:
@@ -729,14 +729,14 @@ class SMSNotificationService:
             return "Medicine skipped (no log created - missing reference)"
 
         try:
-            from apps.health.models import Medicine, MedicineLog
+            from apps.health.models import Intake, IntakeLog
 
-            medicine = Medicine.objects.get(pk=notification.object_id)
-            MedicineLog.objects.create(
+            medicine = Intake.objects.get(pk=notification.object_id)
+            IntakeLog.objects.create(
                 user=notification.user,
-                medicine=medicine,
+                intake=medicine,
                 scheduled_date=timezone.now().date(),
-                status=MedicineLog.STATUS_SKIPPED,
+                status=IntakeLog.STATUS_SKIPPED,
             )
             return f"Logged {medicine.name} as skipped"
         except Exception as e:

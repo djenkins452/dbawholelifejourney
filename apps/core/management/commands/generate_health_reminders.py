@@ -162,13 +162,13 @@ class Command(BaseCommand):
         return User.objects.filter(
             preferences__health_enabled=True,
             preferences__notifications_enabled=True,
-            medicines__medicine_status='active',
+            medicines__intake_status='active',
         ).distinct().count()
 
     def _create_medicine_reminders(self, time_period: str) -> int:
         """Create medicine reminder notifications."""
         from django.contrib.auth import get_user_model
-        from apps.health.models import Medicine, MedicineLog
+        from apps.health.models import Intake, IntakeLog
         from apps.core.services.notification_service import notification_service
         from apps.core.utils import get_user_today, get_user_now
 
@@ -179,7 +179,7 @@ class Command(BaseCommand):
         users = User.objects.filter(
             preferences__health_enabled=True,
             preferences__notifications_enabled=True,
-            medicines__medicine_status='active',
+            medicines__intake_status='active',
         ).distinct().select_related('preferences').prefetch_related('medicines')
 
         for user in users:
@@ -190,13 +190,13 @@ class Command(BaseCommand):
                 # Count overdue doses for today (only past scheduled time)
                 current_time = get_user_now(user).time()
                 pending_count = 0
-                for medicine in user.medicines.filter(medicine_status='active'):
+                for medicine in user.medicines.filter(intake_status='active'):
                     for schedule in medicine.schedules.filter(is_active=True):
                         if schedule.applies_to_day(day_of_week) and schedule.scheduled_time <= current_time:
                             # Check if dose already logged
-                            log = MedicineLog.objects.filter(
+                            log = IntakeLog.objects.filter(
                                 user=user,
-                                medicine=medicine,
+                                intake=medicine,
                                 schedule=schedule,
                                 scheduled_date=today
                             ).first()

@@ -64,8 +64,8 @@ class DataExportService:
         ('health', 'MealFoodItem', 'Meal Items'),
         ('health', 'Exercise', 'Exercise Entries'),
         ('health', 'SleepEntry', 'Sleep Entries'),
-        ('health', 'Medicine', 'Medications'),
-        ('health', 'MedicineLog', 'Medication Logs'),
+        ('health', 'Intake', 'Medications'),
+        ('health', 'IntakeLog', 'Medication Logs'),
         ('health', 'GlucoseReading', 'Glucose Readings'),
 
         # Faith

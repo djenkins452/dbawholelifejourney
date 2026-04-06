@@ -3197,7 +3197,7 @@ class IntakeHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         )
         # Batch-load all today's logs for this user's medicines in one query
         today_logs = {
-            (log.medicine_id, log.schedule_id): log
+            (log.intake_id, log.schedule_id): log
             for log in IntakeLog.objects.filter(
                 user=user,
                 intake__in=scheduled_medicines,
@@ -3282,7 +3282,7 @@ class IntakeHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             scheduled_date=today,
             is_prn_dose=True,
             log_status__in=[IntakeLog.STATUS_TAKEN, IntakeLog.STATUS_LATE],
-        ).select_related("medicine")
+        ).select_related("intake")
         context["prn_doses_today"] = prn_today
 
         # PERF TRACE (temporary — remove after diagnosis)
@@ -3515,7 +3515,7 @@ class IntakeDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
     """
 
     model = Intake
-    item_type = 'health.medicine'
+    item_type = 'health.intake'
     item_name = 'medicine'
     success_url = 'health:intake_list'
 
@@ -3604,7 +3604,7 @@ class IntakeSchedulesView(LoginRequiredMixin, TemplateView):
         form = MedicineScheduleForm(request.POST)
         if form.is_valid():
             schedule = form.save(commit=False)
-            schedule.medicine = medicine
+            schedule.intake = medicine
             schedule.save()
             messages.success(request, "Added schedule.")
         else:
@@ -4104,15 +4104,15 @@ class IntakeHistoryView(LoginRequiredMixin, TemplateView):
             user=user,
             scheduled_date__gte=start_date,
             scheduled_date__lte=end_date,
-        ).select_related("medicine", "schedule")
+        ).select_related("intake", "schedule")
 
         if medicine_id:
-            logs_qs = logs_qs.filter(medicine_id=medicine_id)
+            logs_qs = logs_qs.filter(intake_id=medicine_id)
 
         # Index logs by (medicine_id, schedule_id, date) for quick lookup
         logged_doses = {}
         for log in logs_qs:
-            key = (log.medicine_id, log.schedule_id, log.scheduled_date)
+            key = (log.intake_id, log.schedule_id, log.scheduled_date)
             logged_doses[key] = log
 
         all_doses = []
@@ -4220,7 +4220,7 @@ class IntakeLogEditView(LoginRequiredMixin, UpdateView):
     def form_valid(self, form):
         messages.success(
             self.request,
-            f"Updated taken time for {self.object.medicine.name}."
+            f"Updated taken time for {self.object.intake.name}."
         )
         return super().form_valid(form)
 

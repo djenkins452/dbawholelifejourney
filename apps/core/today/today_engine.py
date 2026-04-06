@@ -328,7 +328,7 @@ def _collect_medication_items(user, user_now) -> list:
                 intake__intake_status=Intake.STATUS_ACTIVE,
                 is_active=True,
             )
-            .select_related("medicine")
+            .select_related("intake")
         )
 
         # Filter to schedules that apply today

@@ -761,7 +761,7 @@ class MedicineLogEditForm(forms.ModelForm):
             scheduled_dt = datetime.combine(instance.scheduled_date, instance.scheduled_time)
             scheduled_local = user_tz.localize(scheduled_dt)
 
-            grace_minutes = instance.medicine.grace_period_minutes
+            grace_minutes = instance.intake.grace_period_minutes
             latest_ok = scheduled_local + timedelta(minutes=grace_minutes)
 
             if taken_local > latest_ok:

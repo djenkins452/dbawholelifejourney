@@ -118,7 +118,7 @@
                 <div class="meal-title-row">
                     <h2>Breakfast</h2>
                     {% if breakfast_entries %}
-                    <span class="meal-subtotal">{{ breakfast_totals.calories|floatformat:0 }} cal &middot; P: {{ breakfast_totals.protein|floatformat:0 }}g &middot; C: {{ breakfast_totals.carbs|floatformat:0 }}g &middot; F: {{ breakfast_totals.fat|floatformat:0 }}g</span>
+                    <span class="meal-subtotal"><span class="macro-cal">{{ breakfast_totals.calories|floatformat:0 }} cal</span> <span class="macro-sep">&middot;</span> P: {{ breakfast_totals.protein|floatformat:0 }}g <span class="macro-sep">&middot;</span> C: {{ breakfast_totals.carbs|floatformat:0 }}g <span class="macro-sep">&middot;</span> F: {{ breakfast_totals.fat|floatformat:0 }}g</span>
                     {% endif %}
                 </div>
                 <div class="meal-actions">
@@ -155,7 +155,7 @@
                 <div class="meal-title-row">
                     <h2>Lunch</h2>
                     {% if lunch_entries %}
-                    <span class="meal-subtotal">{{ lunch_totals.calories|floatformat:0 }} cal &middot; P: {{ lunch_totals.protein|floatformat:0 }}g &middot; C: {{ lunch_totals.carbs|floatformat:0 }}g &middot; F: {{ lunch_totals.fat|floatformat:0 }}g</span>
+                    <span class="meal-subtotal"><span class="macro-cal">{{ lunch_totals.calories|floatformat:0 }} cal</span> <span class="macro-sep">&middot;</span> P: {{ lunch_totals.protein|floatformat:0 }}g <span class="macro-sep">&middot;</span> C: {{ lunch_totals.carbs|floatformat:0 }}g <span class="macro-sep">&middot;</span> F: {{ lunch_totals.fat|floatformat:0 }}g</span>
                     {% endif %}
                 </div>
                 <div class="meal-actions">
@@ -192,7 +192,7 @@
                 <div class="meal-title-row">
                     <h2>Dinner</h2>
                     {% if dinner_entries %}
-                    <span class="meal-subtotal">{{ dinner_totals.calories|floatformat:0 }} cal &middot; P: {{ dinner_totals.protein|floatformat:0 }}g &middot; C: {{ dinner_totals.carbs|floatformat:0 }}g &middot; F: {{ dinner_totals.fat|floatformat:0 }}g</span>
+                    <span class="meal-subtotal"><span class="macro-cal">{{ dinner_totals.calories|floatformat:0 }} cal</span> <span class="macro-sep">&middot;</span> P: {{ dinner_totals.protein|floatformat:0 }}g <span class="macro-sep">&middot;</span> C: {{ dinner_totals.carbs|floatformat:0 }}g <span class="macro-sep">&middot;</span> F: {{ dinner_totals.fat|floatformat:0 }}g</span>
                     {% endif %}
                 </div>
                 <div class="meal-actions">
@@ -229,7 +229,7 @@
                 <div class="meal-title-row">
                     <h2>Snacks</h2>
                     {% if snack_entries %}
-                    <span class="meal-subtotal">{{ snack_totals.calories|floatformat:0 }} cal &middot; P: {{ snack_totals.protein|floatformat:0 }}g &middot; C: {{ snack_totals.carbs|floatformat:0 }}g &middot; F: {{ snack_totals.fat|floatformat:0 }}g</span>
+                    <span class="meal-subtotal"><span class="macro-cal">{{ snack_totals.calories|floatformat:0 }} cal</span> <span class="macro-sep">&middot;</span> P: {{ snack_totals.protein|floatformat:0 }}g <span class="macro-sep">&middot;</span> C: {{ snack_totals.carbs|floatformat:0 }}g <span class="macro-sep">&middot;</span> F: {{ snack_totals.fat|floatformat:0 }}g</span>
                     {% endif %}
                 </div>
                 <div class="meal-actions">
@@ -586,9 +586,18 @@
     font-size: var(--font-size-lg);
 }
 .meal-subtotal {
-    font-size: var(--font-size-xs);
-    color: var(--color-text-muted);
-    font-weight: 400;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary, var(--color-text-muted));
+    font-weight: 500;
+    letter-spacing: 0.01em;
+}
+.meal-subtotal .macro-sep {
+    color: var(--color-border);
+    margin: 0 2px;
+}
+.meal-subtotal .macro-cal {
+    font-weight: 600;
+    color: var(--color-text);
 }
 .meal-actions {
     display: flex;

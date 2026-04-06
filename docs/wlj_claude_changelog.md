@@ -6,6 +6,19 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-06 — Nutrition: Make meal subtotals visually prominent
+
+**What:** Upgraded meal subtotal styling so per-meal calories and macros are clearly visible beneath each meal section heading (Breakfast, Lunch, Dinner, Snacks).
+
+**Why:** Subtotals existed but were styled as tiny muted text (`font-size-xs`, weight 400) — effectively invisible. Users need per-meal totals to be first-class decision units.
+
+**Changes:**
+- `templates/health/nutrition/home.html` — CSS: bumped `.meal-subtotal` to `font-size-sm`, `font-weight: 500`; added `.macro-cal` (bold calorie emphasis) and `.macro-sep` (subtle separator). HTML: wrapped calorie values and separators in styled spans for visual hierarchy.
+
+**Architecture note:** No backend changes. Meal subtotals were already computed canonically in `NutritionHomeView.get_meal_subtotals()` (view lines 4544-4561) and passed to the template. This was purely a CSS visibility fix. The same aggregation path is future-safe for deterministic meal-level nutrition signals.
+
+---
+
 ## 2026-04-06 — Decision Engine: Priority accuracy + time-window filtering + duplicate prefix fix
 
 ### Priority Engine Correction

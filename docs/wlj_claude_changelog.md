@@ -73,6 +73,26 @@
 **Architecture note:** No backend changes. Meal subtotals were already computed canonically in `NutritionHomeView.get_meal_subtotals()` (view lines 4544-4561) and passed to the template. This was purely a CSS visibility fix. The same aggregation path is future-safe for deterministic meal-level nutrition signals.
 ---
 
+---
+
+## 2026-04-06 — Medical: Fix SECOND alias bug in state_updater + CoS guidance for no-data state
+
+### state_updater.py had duplicate broken alias
+- `state_updater.py` line 85 had `"medical": "health"` — same bug that was fixed in `state_engine.py`.
+  This meant `update_user_state(user, 'medical')` would run the health builder, not medical builder.
+- Fixed: removed `"medical": "health"`, added `"labs": "medical"` to match state_engine.py.
+- **File:** `apps/core/ai_state/state_updater.py`
+
+### Root cause of "I don't have access": No lab data exists
+- Verified: user has 0 LabResult records in database. Medical state builder runs correctly but finds nothing.
+- Problem: CoS received `labs_available: False` but no guidance on what to say → LLM fell back to "I don't have access".
+- **Fix:** Added `cos_guidance` field to medical context output. Explicit response instructions:
+  - No labs: "No lab results are in your records yet. You can upload them at Health > Medical > Labs."
+  - Labs exist: "Reference the values in latest_labs and key_metrics. Highlight abnormals."
+- **File:** `apps/core/ai_orchestrator/cos_context.py`
+
+---
+
 ## 2026-04-06 — Medical Intelligence: Fix alias bug + structured lab context for CoS
 
 ### CRITICAL BUG: SAE state_engine alias mapped 'medical' → 'health'

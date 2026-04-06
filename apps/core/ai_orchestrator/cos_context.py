@@ -1900,6 +1900,13 @@ def _build_medical_context(user):
         'labs_available': False,
         'last_lab_date': None,
         'total_lab_results': 0,
+        # Explicit CoS response guidance — prevents "I don't have access"
+        'cos_guidance': (
+            "No lab data has been uploaded to the system yet. "
+            "If the user asks about labs, say: 'No lab results are in your "
+            "records yet. You can upload them at Health > Medical > Labs.' "
+            "Do NOT say 'I don't have access' or 'check the app'."
+        ),
     }
 
     try:
@@ -1938,6 +1945,11 @@ def _build_medical_context(user):
 
         if recent_labs.exists():
             result['labs_available'] = True
+            result['cos_guidance'] = (
+                "Lab data is available. When the user asks about labs, "
+                "reference the values in latest_labs and key_metrics below. "
+                "Highlight any abnormal values. Mention trends if available."
+            )
 
             lab_values = []
             abnormal_values = []

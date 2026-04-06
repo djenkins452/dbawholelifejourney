@@ -20,7 +20,7 @@ from apps.health.medicine_utils import (
     calculate_medicine_adherence,
     calculate_medicine_adherence_rate,
 )
-from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+from apps.health.models import Intake, IntakeLog, IntakeSchedule
 from apps.users.models import TermsAcceptance
 
 User = get_user_model()
@@ -46,16 +46,16 @@ class AdherenceTestMixin:
             "dose": "10mg",
             "frequency": "daily",
             "start_date": date(2026, 1, 1),
-            "medicine_status": Medicine.STATUS_ACTIVE,
+            "medicine_status": Intake.STATUS_ACTIVE,
         }
         defaults.update(kwargs)
-        return Medicine.objects.create(**defaults)
+        return Intake.objects.create(**defaults)
 
     def create_schedule(self, medicine, scheduled_time=None, days="0,1,2,3,4,5,6", **kwargs):
         if scheduled_time is None:
             scheduled_time = time(8, 0)
-        return MedicineSchedule.objects.create(
-            medicine=medicine,
+        return IntakeSchedule.objects.create(
+            intake=medicine,
             scheduled_time=scheduled_time,
             days_of_week=days,
             is_active=True,
@@ -63,9 +63,9 @@ class AdherenceTestMixin:
         )
 
     def create_log(self, user, medicine, scheduled_date, status="taken", **kwargs):
-        return MedicineLog.objects.create(
+        return IntakeLog.objects.create(
             user=user,
-            medicine=medicine,
+            intake=medicine,
             scheduled_date=scheduled_date,
             log_status=status,
             **kwargs,
@@ -352,7 +352,7 @@ class TestAdherenceWeekdayOnly(AdherenceTestMixin, TestCase):
 # =============================================================================
 
 
-class TestAdherenceInactiveMedicine(AdherenceTestMixin, TestCase):
+class TestAdherenceInactiveIntake(AdherenceTestMixin, TestCase):
     """Only active medicines count."""
 
     def setUp(self):
@@ -360,7 +360,7 @@ class TestAdherenceInactiveMedicine(AdherenceTestMixin, TestCase):
         self.active_med = self.create_medicine(self.user, name="Active Med")
         self.paused_med = self.create_medicine(
             self.user, name="Paused Med",
-            medicine_status=Medicine.STATUS_PAUSED,
+            intake_status=Intake.STATUS_PAUSED,
         )
         self.create_schedule(self.active_med)
         self.create_schedule(self.paused_med)
@@ -379,8 +379,8 @@ class TestAdherenceInactiveSchedule(AdherenceTestMixin, TestCase):
         self.user = self.create_user()
         self.med = self.create_medicine(self.user)
         self.active_schedule = self.create_schedule(self.med, time(8, 0))
-        self.inactive_schedule = MedicineSchedule.objects.create(
-            medicine=self.med,
+        self.inactive_schedule = IntakeSchedule.objects.create(
+            intake=self.med,
             scheduled_time=time(20, 0),
             days_of_week="0,1,2,3,4,5,6",
             is_active=False,
@@ -415,7 +415,7 @@ class TestAdherenceRateWrapper(AdherenceTestMixin, TestCase):
 
     def test_returns_none_when_no_expected(self):
         """No active medicines → None."""
-        self.med.medicine_status = Medicine.STATUS_COMPLETED
+        self.med.intake_status = Intake.STATUS_COMPLETED
         self.med.save()
         result = calculate_medicine_adherence_rate(self.user, days=7)
         self.assertIsNone(result)
@@ -520,7 +520,7 @@ class TestViewsUseMedicineUtils(AdherenceTestMixin, TestCase):
         self.create_log(self.user, self.med, today, "taken")
 
         response = self.client.get(
-            reverse("health:medicine_detail", kwargs={"pk": self.med.pk}),
+            reverse("health:intake_detail", kwargs={"pk": self.med.pk}),
         )
         self.assertEqual(response.status_code, 200)
         # week_adherence must be <= 20% (1 of ~7 expected), NOT 100%
@@ -543,7 +543,7 @@ class TestViewsUseMedicineUtils(AdherenceTestMixin, TestCase):
         # Only log 1 of 7 expected doses
         self.create_log(self.user, self.med, today, "taken")
 
-        response = self.client.get(reverse("health:medicine_adherence"))
+        response = self.client.get(reverse("health:intake_adherence"))
         self.assertEqual(response.status_code, 200)
         adherence_rate = response.context.get("adherence_rate", 0)
         self.assertLessEqual(

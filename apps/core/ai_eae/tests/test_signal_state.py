@@ -375,23 +375,23 @@ class TestSkippedState(TestCase):
 
     def test_skipped_medication_all_doses(self):
         """All medication doses explicitly skipped → state=skipped."""
-        from apps.health.models import Medicine, MedicineSchedule, MedicineLog
+        from apps.health.models import Intake, IntakeSchedule, IntakeLog
 
-        med = Medicine.objects.create(
-            user=self.user, name='TestMed', medicine_status='active',
+        med = Intake.objects.create(
+            user=self.user, name='TestMed', intake_status='active',
             start_date=self.today,
         )
-        sched = MedicineSchedule.objects.create(
-            medicine=med,
+        sched = IntakeSchedule.objects.create(
+            intake=med,
             scheduled_time=datetime.time(8, 0),
             is_active=True,
             days_of_week=str(self.today.weekday()),
         )
 
         # Create skipped log
-        MedicineLog.objects.create(
+        IntakeLog.objects.create(
             user=self.user,
-            medicine=med,
+            intake=med,
             schedule=sched,
             scheduled_date=self.today,
             log_status='skipped',

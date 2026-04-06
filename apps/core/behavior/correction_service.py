@@ -50,14 +50,14 @@ def correct_medication_log(user, medicine_id, schedule_id, scheduled_date, new_s
 
     try:
         medicine = Intake.objects.get(pk=medicine_id, user=user)
-        schedule = IntakeSchedule.objects.get(pk=schedule_id, medicine=medicine)
-    except (Medicine.DoesNotExist, MedicineSchedule.DoesNotExist):
+        schedule = IntakeSchedule.objects.get(pk=schedule_id, intake=medicine)
+    except (Intake.DoesNotExist, IntakeSchedule.DoesNotExist):
         return {'success': False, 'error': 'Medicine or schedule not found'}
 
     # Create or update — unique on (medicine, schedule, scheduled_date)
     log, created = IntakeLog.objects.update_or_create(
         user=user,
-        medicine=medicine,
+        intake=medicine,
         schedule=schedule,
         scheduled_date=scheduled_date,
         defaults={
@@ -222,7 +222,7 @@ def get_scheduled_items_for_date(user, target_date):
             for sched in med.schedules.filter(is_active=True):
                 if sched.applies_to_day(day_of_week):
                     log = IntakeLog.objects.filter(
-                        user=user, medicine=med, schedule=sched,
+                        user=user, intake=med, schedule=sched,
                         scheduled_date=target_date,
                     ).first()
                     items.append({

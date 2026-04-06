@@ -20,7 +20,7 @@ from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from apps.health.models import Medicine, MedicineSchedule, MedicineLog
+from apps.health.models import Intake, IntakeSchedule, IntakeLog
 
 User = get_user_model()
 
@@ -65,14 +65,14 @@ class MedicineTestMixin:
             'start_date': timezone.now().date(),
         }
         defaults.update(kwargs)
-        return Medicine.objects.create(**defaults)
+        return Intake.objects.create(**defaults)
 
     def create_schedule(self, medicine, scheduled_time=None, **kwargs):
         """Helper to create a medicine schedule."""
         if scheduled_time is None:
             scheduled_time = time(8, 0)  # 8:00 AM default
-        return MedicineSchedule.objects.create(
-            medicine=medicine,
+        return IntakeSchedule.objects.create(
+            intake=medicine,
             scheduled_time=scheduled_time,
             **kwargs
         )
@@ -81,15 +81,15 @@ class MedicineTestMixin:
         """Helper to create a medicine log."""
         defaults = {
             'user': user,
-            'medicine': medicine,
+            'intake': medicine,
             'scheduled_date': timezone.now().date(),
-            'log_status': MedicineLog.STATUS_TAKEN,
+            'log_status': IntakeLog.STATUS_TAKEN,
         }
         if schedule:
             defaults['schedule'] = schedule
             defaults['scheduled_time'] = schedule.scheduled_time
         defaults.update(kwargs)
-        return MedicineLog.objects.create(**defaults)
+        return IntakeLog.objects.create(**defaults)
 
 
 # =============================================================================
@@ -116,23 +116,23 @@ class MedicineModelTest(MedicineTestMixin, TestCase):
     def test_medicine_default_status(self):
         """Medicine defaults to active status."""
         medicine = self.create_medicine(self.user)
-        self.assertEqual(medicine.medicine_status, Medicine.STATUS_ACTIVE)
+        self.assertEqual(medicine.intake_status, Intake.STATUS_ACTIVE)
 
     def test_medicine_is_active_property(self):
         """is_active_medicine property works correctly."""
         medicine = self.create_medicine(self.user)
-        self.assertTrue(medicine.is_active_medicine)
+        self.assertTrue(medicine.is_active)
 
-        medicine.medicine_status = Medicine.STATUS_PAUSED
+        medicine.intake_status = Intake.STATUS_PAUSED
         medicine.save()
-        self.assertFalse(medicine.is_active_medicine)
+        self.assertFalse(medicine.is_active)
 
     def test_medicine_pause(self):
         """Medicine can be paused."""
         medicine = self.create_medicine(self.user)
         medicine.pause('Side effects')
 
-        self.assertEqual(medicine.medicine_status, Medicine.STATUS_PAUSED)
+        self.assertEqual(medicine.intake_status, Intake.STATUS_PAUSED)
         self.assertEqual(medicine.paused_reason, 'Side effects')
         self.assertIsNotNone(medicine.paused_at)
 
@@ -142,7 +142,7 @@ class MedicineModelTest(MedicineTestMixin, TestCase):
         medicine.pause('Test')
         medicine.resume()
 
-        self.assertEqual(medicine.medicine_status, Medicine.STATUS_ACTIVE)
+        self.assertEqual(medicine.intake_status, Intake.STATUS_ACTIVE)
         self.assertIsNone(medicine.paused_at)
         self.assertEqual(medicine.paused_reason, '')
 
@@ -151,7 +151,7 @@ class MedicineModelTest(MedicineTestMixin, TestCase):
         medicine = self.create_medicine(self.user)
         medicine.complete()
 
-        self.assertEqual(medicine.medicine_status, Medicine.STATUS_COMPLETED)
+        self.assertEqual(medicine.intake_status, Intake.STATUS_COMPLETED)
 
     def test_medicine_needs_refill(self):
         """needs_refill property works correctly."""
@@ -208,7 +208,7 @@ class MedicineModelTest(MedicineTestMixin, TestCase):
         self.create_medicine(self.user, name='Alpha')
         self.create_medicine(self.user, name='Beta')
 
-        medicines = Medicine.objects.filter(user=self.user)
+        medicines = Intake.objects.filter(user=self.user)
         self.assertEqual(medicines[0].name, 'Alpha')
         self.assertEqual(medicines[1].name, 'Beta')
         self.assertEqual(medicines[2].name, 'Zebra')
@@ -278,7 +278,7 @@ class MedicineScheduleModelTest(MedicineTestMixin, TestCase):
         self.create_schedule(self.medicine, time(8, 0))
         self.create_schedule(self.medicine, time(14, 0))
 
-        schedules = MedicineSchedule.objects.filter(medicine=self.medicine)
+        schedules = IntakeSchedule.objects.filter(intake=self.medicine)
         self.assertEqual(schedules[0].scheduled_time, time(8, 0))
         self.assertEqual(schedules[1].scheduled_time, time(14, 0))
         self.assertEqual(schedules[2].scheduled_time, time(20, 0))
@@ -299,13 +299,13 @@ class MedicineLogModelTest(MedicineTestMixin, TestCase):
     def test_create_log(self):
         """Log can be created."""
         log = self.create_log(self.user, self.medicine, self.schedule)
-        self.assertEqual(log.log_status, MedicineLog.STATUS_TAKEN)
+        self.assertEqual(log.log_status, IntakeLog.STATUS_TAKEN)
 
     def test_log_mark_taken(self):
         """Log can be marked as taken."""
-        log = MedicineLog.objects.create(
+        log = IntakeLog.objects.create(
             user=self.user,
-            medicine=self.medicine,
+            intake=self.medicine,
             schedule=self.schedule,
             scheduled_date=timezone.now().date(),
             scheduled_time=self.schedule.scheduled_time,
@@ -316,45 +316,45 @@ class MedicineLogModelTest(MedicineTestMixin, TestCase):
         )
         log.mark_taken(taken_at=taken_at)
 
-        self.assertEqual(log.log_status, MedicineLog.STATUS_TAKEN)
+        self.assertEqual(log.log_status, IntakeLog.STATUS_TAKEN)
         self.assertIsNotNone(log.taken_at)
 
     def test_log_mark_skipped(self):
         """Log can be marked as skipped."""
-        log = MedicineLog.objects.create(
+        log = IntakeLog.objects.create(
             user=self.user,
-            medicine=self.medicine,
+            intake=self.medicine,
             schedule=self.schedule,
             scheduled_date=timezone.now().date(),
             scheduled_time=self.schedule.scheduled_time,
         )
         log.mark_skipped('Ran out')
 
-        self.assertEqual(log.log_status, MedicineLog.STATUS_SKIPPED)
+        self.assertEqual(log.log_status, IntakeLog.STATUS_SKIPPED)
         self.assertIn('Ran out', log.notes)
 
     def test_log_mark_missed(self):
         """Log can be marked as missed."""
-        log = MedicineLog.objects.create(
+        log = IntakeLog.objects.create(
             user=self.user,
-            medicine=self.medicine,
+            intake=self.medicine,
             schedule=self.schedule,
             scheduled_date=timezone.now().date(),
             scheduled_time=self.schedule.scheduled_time,
         )
         log.mark_missed()
 
-        self.assertEqual(log.log_status, MedicineLog.STATUS_MISSED)
+        self.assertEqual(log.log_status, IntakeLog.STATUS_MISSED)
 
     def test_log_prn_dose(self):
         """PRN dose can be logged."""
-        log = MedicineLog.objects.create(
+        log = IntakeLog.objects.create(
             user=self.user,
-            medicine=self.medicine,
+            intake=self.medicine,
             scheduled_date=timezone.now().date(),
             is_prn_dose=True,
             prn_reason='Headache',
-            log_status=MedicineLog.STATUS_TAKEN,
+            log_status=IntakeLog.STATUS_TAKEN,
             taken_at=timezone.now(),
         )
 
@@ -379,7 +379,7 @@ class MedicineLogModelTest(MedicineTestMixin, TestCase):
         self.create_log(self.user, self.medicine, scheduled_date=yesterday)
         self.create_log(self.user, self.medicine, scheduled_date=today)
 
-        logs = MedicineLog.objects.filter(user=self.user)
+        logs = IntakeLog.objects.filter(user=self.user)
         self.assertEqual(logs[0].scheduled_date, today)
 
 
@@ -398,17 +398,17 @@ class MedicineViewBasicTest(MedicineTestMixin, TestCase):
 
     def test_medicine_home_requires_login(self):
         """Medicine home redirects anonymous users."""
-        response = self.client.get(reverse('health:medicine_home'))
+        response = self.client.get(reverse('health:intake_home'))
         self.assertEqual(response.status_code, 302)
 
     def test_medicine_list_requires_login(self):
         """Medicine list requires authentication."""
-        response = self.client.get(reverse('health:medicine_list'))
+        response = self.client.get(reverse('health:intake_list'))
         self.assertEqual(response.status_code, 302)
 
     def test_medicine_create_requires_login(self):
         """Medicine create requires authentication."""
-        response = self.client.get(reverse('health:medicine_create'))
+        response = self.client.get(reverse('health:intake_create'))
         self.assertEqual(response.status_code, 302)
 
     # --- Authenticated Access ---
@@ -416,19 +416,19 @@ class MedicineViewBasicTest(MedicineTestMixin, TestCase):
     def test_medicine_home_loads(self):
         """Medicine home loads for authenticated user."""
         self.login_user()
-        response = self.client.get(reverse('health:medicine_home'))
+        response = self.client.get(reverse('health:intake_home'))
         self.assertEqual(response.status_code, 200)
 
     def test_medicine_list_loads(self):
         """Medicine list page loads."""
         self.login_user()
-        response = self.client.get(reverse('health:medicine_list'))
+        response = self.client.get(reverse('health:intake_list'))
         self.assertEqual(response.status_code, 200)
 
     def test_medicine_create_loads(self):
         """Medicine create page loads."""
         self.login_user()
-        response = self.client.get(reverse('health:medicine_create'))
+        response = self.client.get(reverse('health:intake_create'))
         self.assertEqual(response.status_code, 200)
 
     def test_medicine_detail_loads(self):
@@ -436,7 +436,7 @@ class MedicineViewBasicTest(MedicineTestMixin, TestCase):
         self.login_user()
         medicine = self.create_medicine(self.user)
         response = self.client.get(
-            reverse('health:medicine_detail', kwargs={'pk': medicine.pk})
+            reverse('health:intake_detail', kwargs={'pk': medicine.pk})
         )
         self.assertEqual(response.status_code, 200)
 
@@ -445,32 +445,32 @@ class MedicineViewBasicTest(MedicineTestMixin, TestCase):
         self.login_user()
         medicine = self.create_medicine(self.user)
         response = self.client.get(
-            reverse('health:medicine_schedules', kwargs={'pk': medicine.pk})
+            reverse('health:intake_schedules', kwargs={'pk': medicine.pk})
         )
         self.assertEqual(response.status_code, 200)
 
     def test_medicine_history_loads(self):
         """Medicine history page loads."""
         self.login_user()
-        response = self.client.get(reverse('health:medicine_history'))
+        response = self.client.get(reverse('health:intake_history'))
         self.assertEqual(response.status_code, 200)
 
     def test_medicine_adherence_loads(self):
         """Medicine adherence page loads."""
         self.login_user()
-        response = self.client.get(reverse('health:medicine_adherence'))
+        response = self.client.get(reverse('health:intake_adherence'))
         self.assertEqual(response.status_code, 200)
 
     def test_medicine_quick_look_loads(self):
         """Medicine quick look page loads."""
         self.login_user()
-        response = self.client.get(reverse('health:medicine_quick_look'))
+        response = self.client.get(reverse('health:intake_quick_look'))
         self.assertEqual(response.status_code, 200)
 
     def test_prn_log_loads(self):
         """PRN log page loads."""
         self.login_user()
-        response = self.client.get(reverse('health:medicine_prn_log'))
+        response = self.client.get(reverse('health:intake_prn_log'))
         self.assertEqual(response.status_code, 200)
 
 
@@ -488,7 +488,7 @@ class MedicineCRUDTest(MedicineTestMixin, TestCase):
 
     def test_create_medicine_post(self):
         """Medicine can be created via POST."""
-        response = self.client.post(reverse('health:medicine_create'), {
+        response = self.client.post(reverse('health:intake_create'), {
             'name': 'New Medicine',
             'dose': '25mg',
             'frequency': 'daily',
@@ -499,14 +499,14 @@ class MedicineCRUDTest(MedicineTestMixin, TestCase):
 
         self.assertEqual(response.status_code, 302)  # Redirects on success
         self.assertTrue(
-            Medicine.objects.filter(name='New Medicine').exists()
+            Intake.objects.filter(name='New Medicine').exists()
         )
 
     def test_update_medicine(self):
         """Medicine can be updated."""
         medicine = self.create_medicine(self.user)
         response = self.client.post(
-            reverse('health:medicine_update', kwargs={'pk': medicine.pk}),
+            reverse('health:intake_update', kwargs={'pk': medicine.pk}),
             {
                 'name': 'Updated Medicine',
                 'dose': '50mg',
@@ -526,7 +526,7 @@ class MedicineCRUDTest(MedicineTestMixin, TestCase):
         """Medicine can be deleted (soft delete)."""
         medicine = self.create_medicine(self.user)
         response = self.client.post(
-            reverse('health:medicine_delete', kwargs={'pk': medicine.pk})
+            reverse('health:intake_delete', kwargs={'pk': medicine.pk})
         )
 
         self.assertEqual(response.status_code, 302)
@@ -537,13 +537,13 @@ class MedicineCRUDTest(MedicineTestMixin, TestCase):
         """Medicine can be paused."""
         medicine = self.create_medicine(self.user)
         response = self.client.post(
-            reverse('health:medicine_pause', kwargs={'pk': medicine.pk}),
+            reverse('health:intake_pause', kwargs={'pk': medicine.pk}),
             {'reason': 'Side effects'}
         )
 
         self.assertEqual(response.status_code, 302)
         medicine.refresh_from_db()
-        self.assertEqual(medicine.medicine_status, Medicine.STATUS_PAUSED)
+        self.assertEqual(medicine.intake_status, Intake.STATUS_PAUSED)
 
     def test_resume_medicine(self):
         """Medicine can be resumed."""
@@ -551,23 +551,23 @@ class MedicineCRUDTest(MedicineTestMixin, TestCase):
         medicine.pause('Test')
 
         response = self.client.post(
-            reverse('health:medicine_resume', kwargs={'pk': medicine.pk})
+            reverse('health:intake_resume', kwargs={'pk': medicine.pk})
         )
 
         self.assertEqual(response.status_code, 302)
         medicine.refresh_from_db()
-        self.assertEqual(medicine.medicine_status, Medicine.STATUS_ACTIVE)
+        self.assertEqual(medicine.intake_status, Intake.STATUS_ACTIVE)
 
     def test_complete_medicine(self):
         """Medicine can be marked as completed."""
         medicine = self.create_medicine(self.user)
         response = self.client.post(
-            reverse('health:medicine_complete', kwargs={'pk': medicine.pk})
+            reverse('health:intake_complete', kwargs={'pk': medicine.pk})
         )
 
         self.assertEqual(response.status_code, 302)
         medicine.refresh_from_db()
-        self.assertEqual(medicine.medicine_status, Medicine.STATUS_COMPLETED)
+        self.assertEqual(medicine.intake_status, Intake.STATUS_COMPLETED)
 
 
 # =============================================================================
@@ -585,7 +585,7 @@ class MedicineAICameraPrefillTest(MedicineTestMixin, TestCase):
     def test_medicine_create_prefills_name_from_query_param(self):
         """Medicine create form prefills name from query parameter."""
         response = self.client.get(
-            reverse('health:medicine_create') + '?name=Lisinopril%2010mg'
+            reverse('health:intake_create') + '?name=Lisinopril%2010mg'
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Lisinopril 10mg')
@@ -593,7 +593,7 @@ class MedicineAICameraPrefillTest(MedicineTestMixin, TestCase):
     def test_medicine_create_prefills_dose_from_query_param(self):
         """Medicine create form prefills dose from query parameter."""
         response = self.client.get(
-            reverse('health:medicine_create') + '?name=Metformin&dose=500mg'
+            reverse('health:intake_create') + '?name=Metformin&dose=500mg'
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '500mg')
@@ -601,7 +601,7 @@ class MedicineAICameraPrefillTest(MedicineTestMixin, TestCase):
     def test_medicine_create_prefills_directions_as_notes(self):
         """Medicine create form prefills directions into notes field."""
         response = self.client.get(
-            reverse('health:medicine_create') + '?name=Aspirin&directions=Take%20with%20food'
+            reverse('health:intake_create') + '?name=Aspirin&directions=Take%20with%20food'
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Take with food')
@@ -609,7 +609,7 @@ class MedicineAICameraPrefillTest(MedicineTestMixin, TestCase):
     def test_medicine_create_prefills_quantity_as_supply(self):
         """Medicine create form extracts quantity into current_supply."""
         response = self.client.get(
-            reverse('health:medicine_create') + '?name=Vitamin%20D&quantity=30%20tablets'
+            reverse('health:intake_create') + '?name=Vitamin%20D&quantity=30%20tablets'
         )
         self.assertEqual(response.status_code, 200)
         # Check the form initial data
@@ -620,7 +620,7 @@ class MedicineAICameraPrefillTest(MedicineTestMixin, TestCase):
     def test_medicine_create_prefills_all_fields_from_scan(self):
         """Medicine create form prefills all fields from AI Camera scan."""
         url = (
-            reverse('health:medicine_create') +
+            reverse('health:intake_create') +
             '?name=Lisinopril&dose=10mg&directions=Take%20once%20daily'
             '&quantity=90%20tablets&source=ai_camera'
         )
@@ -639,7 +639,7 @@ class MedicineAICameraPrefillTest(MedicineTestMixin, TestCase):
         from apps.core.models import UserOwnedModel
 
         response = self.client.post(
-            reverse('health:medicine_create') + '?source=ai_camera',
+            reverse('health:intake_create') + '?source=ai_camera',
             {
                 'name': 'AI Scanned Medicine',
                 'dose': '50mg',
@@ -653,7 +653,7 @@ class MedicineAICameraPrefillTest(MedicineTestMixin, TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
-        medicine = Medicine.objects.get(name='AI Scanned Medicine')
+        medicine = Intake.objects.get(name='AI Scanned Medicine')
         self.assertEqual(medicine.created_via, UserOwnedModel.CREATED_VIA_AI_CAMERA)
 
     def test_medicine_create_without_source_defaults_to_manual(self):
@@ -661,7 +661,7 @@ class MedicineAICameraPrefillTest(MedicineTestMixin, TestCase):
         from apps.core.models import UserOwnedModel
 
         response = self.client.post(
-            reverse('health:medicine_create'),
+            reverse('health:intake_create'),
             {
                 'name': 'Manual Medicine',
                 'dose': '25mg',
@@ -675,13 +675,13 @@ class MedicineAICameraPrefillTest(MedicineTestMixin, TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
-        medicine = Medicine.objects.get(name='Manual Medicine')
+        medicine = Intake.objects.get(name='Manual Medicine')
         self.assertEqual(medicine.created_via, UserOwnedModel.CREATED_VIA_MANUAL)
 
     def test_medicine_create_prefills_purpose_from_query_param(self):
         """Medicine create form prefills purpose from query parameter."""
         response = self.client.get(
-            reverse('health:medicine_create') + '?name=Lisinopril&purpose=Blood%20pressure%20control'
+            reverse('health:intake_create') + '?name=Lisinopril&purpose=Blood%20pressure%20control'
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Blood pressure control')
@@ -692,7 +692,7 @@ class MedicineAICameraPrefillTest(MedicineTestMixin, TestCase):
     def test_medicine_create_prefills_all_fields_including_purpose(self):
         """Medicine create form prefills all fields including purpose from AI Camera scan."""
         url = (
-            reverse('health:medicine_create') +
+            reverse('health:intake_create') +
             '?name=Metformin&dose=500mg&directions=Take%20twice%20daily%20with%20meals'
             '&quantity=60%20tablets&purpose=Diabetes%20management&source=ai_camera'
         )
@@ -725,25 +725,25 @@ class MedicineDailyTrackerTest(MedicineTestMixin, TestCase):
     def test_take_dose(self):
         """Dose can be marked as taken."""
         response = self.client.post(
-            reverse('health:medicine_take', kwargs={
+            reverse('health:intake_take', kwargs={
                 'pk': self.medicine.pk,
                 'schedule_pk': self.schedule.pk
             })
         )
 
         self.assertEqual(response.status_code, 302)
-        log = MedicineLog.objects.filter(
-            medicine=self.medicine,
+        log = IntakeLog.objects.filter(
+            intake=self.medicine,
             schedule=self.schedule,
             scheduled_date=timezone.now().date(),
         ).first()
         self.assertIsNotNone(log)
-        self.assertIn(log.log_status, [MedicineLog.STATUS_TAKEN, MedicineLog.STATUS_LATE])
+        self.assertIn(log.log_status, [IntakeLog.STATUS_TAKEN, IntakeLog.STATUS_LATE])
 
     def test_take_dose_at_scheduled_time(self):
         """Dose can be marked as taken at the scheduled time."""
         response = self.client.post(
-            reverse('health:medicine_take', kwargs={
+            reverse('health:intake_take', kwargs={
                 'pk': self.medicine.pk,
                 'schedule_pk': self.schedule.pk
             }),
@@ -751,14 +751,14 @@ class MedicineDailyTrackerTest(MedicineTestMixin, TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
-        log = MedicineLog.objects.filter(
-            medicine=self.medicine,
+        log = IntakeLog.objects.filter(
+            intake=self.medicine,
             schedule=self.schedule,
             scheduled_date=timezone.now().date(),
         ).first()
         self.assertIsNotNone(log)
         # When taken at scheduled time, it should always be "taken" not "late"
-        self.assertEqual(log.log_status, MedicineLog.STATUS_TAKEN)
+        self.assertEqual(log.log_status, IntakeLog.STATUS_TAKEN)
         # Verify the taken_at time matches the scheduled time
         self.assertEqual(log.taken_at.time().hour, self.schedule.scheduled_time.hour)
         self.assertEqual(log.taken_at.time().minute, self.schedule.scheduled_time.minute)
@@ -766,7 +766,7 @@ class MedicineDailyTrackerTest(MedicineTestMixin, TestCase):
     def test_skip_dose(self):
         """Dose can be marked as skipped."""
         response = self.client.post(
-            reverse('health:medicine_skip', kwargs={
+            reverse('health:intake_skip', kwargs={
                 'pk': self.medicine.pk,
                 'schedule_pk': self.schedule.pk
             }),
@@ -774,17 +774,17 @@ class MedicineDailyTrackerTest(MedicineTestMixin, TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
-        log = MedicineLog.objects.filter(
-            medicine=self.medicine,
+        log = IntakeLog.objects.filter(
+            intake=self.medicine,
             schedule=self.schedule,
         ).first()
-        self.assertEqual(log.log_status, MedicineLog.STATUS_SKIPPED)
+        self.assertEqual(log.log_status, IntakeLog.STATUS_SKIPPED)
 
     def test_undo_dose(self):
         """Taken dose can be undone."""
         # First take the dose
         self.client.post(
-            reverse('health:medicine_take', kwargs={
+            reverse('health:intake_take', kwargs={
                 'pk': self.medicine.pk,
                 'schedule_pk': self.schedule.pk
             })
@@ -792,7 +792,7 @@ class MedicineDailyTrackerTest(MedicineTestMixin, TestCase):
 
         # Then undo
         response = self.client.post(
-            reverse('health:medicine_undo', kwargs={
+            reverse('health:intake_undo', kwargs={
                 'pk': self.medicine.pk,
                 'schedule_pk': self.schedule.pk
             })
@@ -800,8 +800,8 @@ class MedicineDailyTrackerTest(MedicineTestMixin, TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertFalse(
-            MedicineLog.objects.filter(
-                medicine=self.medicine,
+            IntakeLog.objects.filter(
+                intake=self.medicine,
                 schedule=self.schedule,
                 scheduled_date=timezone.now().date(),
             ).exists()
@@ -813,7 +813,7 @@ class MedicineDailyTrackerTest(MedicineTestMixin, TestCase):
         self.medicine.save()
 
         self.client.post(
-            reverse('health:medicine_take', kwargs={
+            reverse('health:intake_take', kwargs={
                 'pk': self.medicine.pk,
                 'schedule_pk': self.schedule.pk
             })
@@ -829,7 +829,7 @@ class MedicineDailyTrackerTest(MedicineTestMixin, TestCase):
 
         # Take dose
         self.client.post(
-            reverse('health:medicine_take', kwargs={
+            reverse('health:intake_take', kwargs={
                 'pk': self.medicine.pk,
                 'schedule_pk': self.schedule.pk
             })
@@ -837,7 +837,7 @@ class MedicineDailyTrackerTest(MedicineTestMixin, TestCase):
 
         # Undo dose
         self.client.post(
-            reverse('health:medicine_undo', kwargs={
+            reverse('health:intake_undo', kwargs={
                 'pk': self.medicine.pk,
                 'schedule_pk': self.schedule.pk
             })
@@ -867,20 +867,20 @@ class MedicinePRNTest(MedicineTestMixin, TestCase):
 
     def test_prn_medicine_in_form_choices(self):
         """PRN medicine appears in PRN log form."""
-        response = self.client.get(reverse('health:medicine_prn_log'))
+        response = self.client.get(reverse('health:intake_prn_log'))
         self.assertContains(response, 'Ibuprofen')
 
     def test_log_prn_dose(self):
         """PRN dose can be logged."""
-        response = self.client.post(reverse('health:medicine_prn_log'), {
+        response = self.client.post(reverse('health:intake_prn_log'), {
             'medicine': self.prn_medicine.pk,
             'reason': 'Headache',
             'notes': 'Took after lunch',
         })
 
         self.assertEqual(response.status_code, 302)
-        log = MedicineLog.objects.filter(
-            medicine=self.prn_medicine,
+        log = IntakeLog.objects.filter(
+            intake=self.prn_medicine,
             is_prn_dose=True,
         ).first()
         self.assertIsNotNone(log)
@@ -905,7 +905,7 @@ class MedicineDataIsolationTest(MedicineTestMixin, TestCase):
     def test_user_sees_only_own_medicines(self):
         """User only sees their own medicines."""
         self.client.login(email='usera@example.com', password='testpass123')
-        response = self.client.get(reverse('health:medicine_list'))
+        response = self.client.get(reverse('health:intake_list'))
 
         self.assertContains(response, 'Medicine A')
         self.assertNotContains(response, 'Medicine B')
@@ -914,7 +914,7 @@ class MedicineDataIsolationTest(MedicineTestMixin, TestCase):
         """User cannot view another user's medicine detail."""
         self.client.login(email='usera@example.com', password='testpass123')
         response = self.client.get(
-            reverse('health:medicine_detail', kwargs={'pk': self.medicine_b.pk})
+            reverse('health:intake_detail', kwargs={'pk': self.medicine_b.pk})
         )
         self.assertEqual(response.status_code, 404)
 
@@ -922,12 +922,12 @@ class MedicineDataIsolationTest(MedicineTestMixin, TestCase):
         """User cannot delete another user's medicine."""
         self.client.login(email='usera@example.com', password='testpass123')
         response = self.client.post(
-            reverse('health:medicine_delete', kwargs={'pk': self.medicine_b.pk})
+            reverse('health:intake_delete', kwargs={'pk': self.medicine_b.pk})
         )
         self.assertEqual(response.status_code, 404)
         # Medicine should still exist
         self.assertTrue(
-            Medicine.objects.filter(pk=self.medicine_b.pk).exists()
+            Intake.objects.filter(pk=self.medicine_b.pk).exists()
         )
 
     def test_user_cannot_take_other_users_medicine(self):
@@ -936,7 +936,7 @@ class MedicineDataIsolationTest(MedicineTestMixin, TestCase):
 
         self.client.login(email='usera@example.com', password='testpass123')
         response = self.client.post(
-            reverse('health:medicine_take', kwargs={
+            reverse('health:intake_take', kwargs={
                 'pk': self.medicine_b.pk,
                 'schedule_pk': schedule_b.pk
             })
@@ -960,7 +960,7 @@ class MedicineScheduleManagementTest(MedicineTestMixin, TestCase):
     def test_add_schedule(self):
         """Schedule can be added to medicine."""
         response = self.client.post(
-            reverse('health:medicine_schedules', kwargs={'pk': self.medicine.pk}),
+            reverse('health:intake_schedules', kwargs={'pk': self.medicine.pk}),
             {
                 'scheduled_time': '09:00',
                 'label': 'Morning',
@@ -971,14 +971,14 @@ class MedicineScheduleManagementTest(MedicineTestMixin, TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertTrue(
-            MedicineSchedule.objects.filter(medicine=self.medicine).exists()
+            IntakeSchedule.objects.filter(intake=self.medicine).exists()
         )
 
     def test_delete_schedule(self):
         """Schedule can be deleted."""
         schedule = self.create_schedule(self.medicine)
         response = self.client.post(
-            reverse('health:medicine_schedule_delete', kwargs={
+            reverse('health:intake_schedule_delete', kwargs={
                 'medicine_pk': self.medicine.pk,
                 'schedule_pk': schedule.pk
             })
@@ -986,7 +986,7 @@ class MedicineScheduleManagementTest(MedicineTestMixin, TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertFalse(
-            MedicineSchedule.objects.filter(pk=schedule.pk).exists()
+            IntakeSchedule.objects.filter(pk=schedule.pk).exists()
         )
 
 
@@ -1009,16 +1009,16 @@ class MedicineAdherenceTest(MedicineTestMixin, TestCase):
         # Create some logs
         for i in range(7):
             date = timezone.now().date() - timedelta(days=i)
-            MedicineLog.objects.create(
+            IntakeLog.objects.create(
                 user=self.user,
-                medicine=self.medicine,
+                intake=self.medicine,
                 schedule=self.schedule,
                 scheduled_date=date,
                 scheduled_time=self.schedule.scheduled_time,
-                log_status=MedicineLog.STATUS_TAKEN if i < 5 else MedicineLog.STATUS_MISSED,
+                log_status=IntakeLog.STATUS_TAKEN if i < 5 else IntakeLog.STATUS_MISSED,
             )
 
-        response = self.client.get(reverse('health:medicine_adherence'))
+        response = self.client.get(reverse('health:intake_adherence'))
         self.assertEqual(response.status_code, 200)
         self.assertIn('adherence_rate', response.context)
 
@@ -1027,17 +1027,17 @@ class MedicineAdherenceTest(MedicineTestMixin, TestCase):
         # Create logs for the week
         for i in range(7):
             date = timezone.now().date() - timedelta(days=i)
-            MedicineLog.objects.create(
+            IntakeLog.objects.create(
                 user=self.user,
-                medicine=self.medicine,
+                intake=self.medicine,
                 schedule=self.schedule,
                 scheduled_date=date,
                 scheduled_time=self.schedule.scheduled_time,
-                log_status=MedicineLog.STATUS_TAKEN,
+                log_status=IntakeLog.STATUS_TAKEN,
             )
 
         response = self.client.get(
-            reverse('health:medicine_detail', kwargs={'pk': self.medicine.pk})
+            reverse('health:intake_detail', kwargs={'pk': self.medicine.pk})
         )
         self.assertEqual(response.status_code, 200)
         self.assertIn('week_adherence', response.context)
@@ -1060,7 +1060,7 @@ class MedicineSupplyTest(MedicineTestMixin, TestCase):
         medicine = self.create_medicine(self.user, current_supply=10)
 
         response = self.client.post(
-            reverse('health:medicine_update_supply', kwargs={'pk': medicine.pk}),
+            reverse('health:intake_update_supply', kwargs={'pk': medicine.pk}),
             {'current_supply': 30}
         )
 
@@ -1076,7 +1076,7 @@ class MedicineSupplyTest(MedicineTestMixin, TestCase):
             refill_threshold=7
         )
 
-        response = self.client.get(reverse('health:medicine_home'))
+        response = self.client.get(reverse('health:intake_home'))
         self.assertContains(response, 'low')
 
 
@@ -1094,19 +1094,19 @@ class MedicineEdgeCaseTest(MedicineTestMixin, TestCase):
 
     def test_medicine_list_empty(self):
         """Medicine list loads with no medicines."""
-        response = self.client.get(reverse('health:medicine_list'))
+        response = self.client.get(reverse('health:intake_list'))
         self.assertEqual(response.status_code, 200)
 
     def test_medicine_home_empty(self):
         """Medicine home loads with no medicines."""
-        response = self.client.get(reverse('health:medicine_home'))
+        response = self.client.get(reverse('health:intake_home'))
         self.assertEqual(response.status_code, 200)
 
     def test_medicine_no_schedules(self):
         """Medicine detail works without schedules."""
         medicine = self.create_medicine(self.user)
         response = self.client.get(
-            reverse('health:medicine_detail', kwargs={'pk': medicine.pk})
+            reverse('health:intake_detail', kwargs={'pk': medicine.pk})
         )
         self.assertEqual(response.status_code, 200)
 
@@ -1116,7 +1116,7 @@ class MedicineEdgeCaseTest(MedicineTestMixin, TestCase):
             med = self.create_medicine(self.user, name=f'Medicine {i}')
             self.create_schedule(med, time(8 + i, 0))
 
-        response = self.client.get(reverse('health:medicine_quick_look'))
+        response = self.client.get(reverse('health:intake_quick_look'))
         self.assertEqual(response.status_code, 200)
 
     def test_history_with_date_filter(self):
@@ -1126,7 +1126,7 @@ class MedicineEdgeCaseTest(MedicineTestMixin, TestCase):
         end_date = timezone.now().date().isoformat()
 
         response = self.client.get(
-            reverse('health:medicine_history'),
+            reverse('health:intake_history'),
             {'start': start_date, 'end': end_date}
         )
         self.assertEqual(response.status_code, 200)
@@ -1135,7 +1135,7 @@ class MedicineEdgeCaseTest(MedicineTestMixin, TestCase):
         """History can be filtered by medicine."""
         medicine = self.create_medicine(self.user)
         response = self.client.get(
-            reverse('health:medicine_history'),
+            reverse('health:intake_history'),
             {'medicine': medicine.pk}
         )
         self.assertEqual(response.status_code, 200)
@@ -1156,7 +1156,7 @@ class MedicineContextTest(MedicineTestMixin, TestCase):
     def test_medicine_home_has_active_medicines(self):
         """Medicine home includes active medicines in context."""
         self.create_medicine(self.user)
-        response = self.client.get(reverse('health:medicine_home'))
+        response = self.client.get(reverse('health:intake_home'))
         self.assertIn('active_medicines', response.context)
 
     def test_medicine_home_has_today_schedules(self):
@@ -1164,13 +1164,13 @@ class MedicineContextTest(MedicineTestMixin, TestCase):
         medicine = self.create_medicine(self.user)
         self.create_schedule(medicine)
 
-        response = self.client.get(reverse('health:medicine_home'))
+        response = self.client.get(reverse('health:intake_home'))
         self.assertIn('today_schedules', response.context)
 
     def test_medicine_list_has_status_counts(self):
         """Medicine list includes status counts."""
         self.create_medicine(self.user)
-        response = self.client.get(reverse('health:medicine_list'))
+        response = self.client.get(reverse('health:intake_list'))
 
         self.assertIn('active_count', response.context)
         self.assertIn('paused_count', response.context)
@@ -1183,16 +1183,16 @@ class MedicineContextTest(MedicineTestMixin, TestCase):
 
         # Create some logs
         for i in range(7):
-            MedicineLog.objects.create(
+            IntakeLog.objects.create(
                 user=self.user,
-                medicine=medicine,
+                intake=medicine,
                 schedule=schedule,
                 scheduled_date=timezone.now().date() - timedelta(days=i),
                 scheduled_time=schedule.scheduled_time,
-                log_status=MedicineLog.STATUS_TAKEN,
+                log_status=IntakeLog.STATUS_TAKEN,
             )
 
-        response = self.client.get(reverse('health:medicine_adherence'))
+        response = self.client.get(reverse('health:intake_adherence'))
         self.assertIn('daily_data', response.context)
 
 
@@ -1261,7 +1261,7 @@ class MedicineLogEditTest(MedicineTestMixin, TestCase):
         )
         self.client.logout()
         response = self.client.get(
-            reverse('health:medicine_log_edit', kwargs={'pk': log.pk})
+            reverse('health:intake_log_edit', kwargs={'pk': log.pk})
         )
         self.assertEqual(response.status_code, 302)
 
@@ -1272,7 +1272,7 @@ class MedicineLogEditTest(MedicineTestMixin, TestCase):
             taken_at=timezone.now()
         )
         response = self.client.get(
-            reverse('health:medicine_log_edit', kwargs={'pk': log.pk})
+            reverse('health:intake_log_edit', kwargs={'pk': log.pk})
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Edit Taken Time')
@@ -1284,7 +1284,7 @@ class MedicineLogEditTest(MedicineTestMixin, TestCase):
             taken_at=timezone.now()
         )
         response = self.client.get(
-            reverse('health:medicine_log_edit', kwargs={'pk': log.pk})
+            reverse('health:intake_log_edit', kwargs={'pk': log.pk})
         )
         self.assertContains(response, self.medicine.name)
         self.assertContains(response, self.medicine.dose)
@@ -1301,7 +1301,7 @@ class MedicineLogEditTest(MedicineTestMixin, TestCase):
         new_taken_at = log.scheduled_date.isoformat() + 'T08:00'
 
         response = self.client.post(
-            reverse('health:medicine_log_edit', kwargs={'pk': log.pk}),
+            reverse('health:intake_log_edit', kwargs={'pk': log.pk}),
             {'taken_at': new_taken_at}
         )
 
@@ -1312,13 +1312,13 @@ class MedicineLogEditTest(MedicineTestMixin, TestCase):
     def test_log_edit_recalculates_status_to_taken(self):
         """Editing taken_at to on-time recalculates status to 'taken'."""
         # Create a log that was marked late
-        log = MedicineLog.objects.create(
+        log = IntakeLog.objects.create(
             user=self.user,
-            medicine=self.medicine,
+            intake=self.medicine,
             schedule=self.schedule,
             scheduled_date=timezone.now().date(),
             scheduled_time=time(8, 0),
-            log_status=MedicineLog.STATUS_LATE,
+            log_status=IntakeLog.STATUS_LATE,
             taken_at=timezone.now(),
         )
 
@@ -1326,24 +1326,24 @@ class MedicineLogEditTest(MedicineTestMixin, TestCase):
         new_taken_at = log.scheduled_date.isoformat() + 'T08:30'
 
         response = self.client.post(
-            reverse('health:medicine_log_edit', kwargs={'pk': log.pk}),
+            reverse('health:intake_log_edit', kwargs={'pk': log.pk}),
             {'taken_at': new_taken_at}
         )
 
         self.assertEqual(response.status_code, 302)
         log.refresh_from_db()
-        self.assertEqual(log.log_status, MedicineLog.STATUS_TAKEN)
+        self.assertEqual(log.log_status, IntakeLog.STATUS_TAKEN)
 
     def test_log_edit_recalculates_status_to_late(self):
         """Editing taken_at to late time recalculates status to 'late'."""
         # Create a log that was marked taken on time
-        log = MedicineLog.objects.create(
+        log = IntakeLog.objects.create(
             user=self.user,
-            medicine=self.medicine,
+            intake=self.medicine,
             schedule=self.schedule,
             scheduled_date=timezone.now().date(),
             scheduled_time=time(8, 0),
-            log_status=MedicineLog.STATUS_TAKEN,
+            log_status=IntakeLog.STATUS_TAKEN,
             taken_at=timezone.now(),
         )
 
@@ -1351,13 +1351,13 @@ class MedicineLogEditTest(MedicineTestMixin, TestCase):
         new_taken_at = log.scheduled_date.isoformat() + 'T10:30'
 
         response = self.client.post(
-            reverse('health:medicine_log_edit', kwargs={'pk': log.pk}),
+            reverse('health:intake_log_edit', kwargs={'pk': log.pk}),
             {'taken_at': new_taken_at}
         )
 
         self.assertEqual(response.status_code, 302)
         log.refresh_from_db()
-        self.assertEqual(log.log_status, MedicineLog.STATUS_LATE)
+        self.assertEqual(log.log_status, IntakeLog.STATUS_LATE)
 
     def test_log_edit_can_add_notes(self):
         """Notes can be added when editing log."""
@@ -1370,7 +1370,7 @@ class MedicineLogEditTest(MedicineTestMixin, TestCase):
         new_taken_at = log.scheduled_date.isoformat() + 'T08:00'
 
         response = self.client.post(
-            reverse('health:medicine_log_edit', kwargs={'pk': log.pk}),
+            reverse('health:intake_log_edit', kwargs={'pk': log.pk}),
             {
                 'taken_at': new_taken_at,
                 'notes': 'Forgot to log earlier'
@@ -1390,10 +1390,10 @@ class MedicineLogEditTest(MedicineTestMixin, TestCase):
         )
 
         new_taken_at = log.scheduled_date.isoformat() + 'T08:00'
-        next_url = reverse('health:medicine_home')
+        next_url = reverse('health:intake_home')
 
         response = self.client.post(
-            reverse('health:medicine_log_edit', kwargs={'pk': log.pk}) + f'?next={next_url}',
+            reverse('health:intake_log_edit', kwargs={'pk': log.pk}) + f'?next={next_url}',
             {'taken_at': new_taken_at}
         )
 
@@ -1410,11 +1410,11 @@ class MedicineLogEditTest(MedicineTestMixin, TestCase):
         new_taken_at = log.scheduled_date.isoformat() + 'T08:00'
 
         response = self.client.post(
-            reverse('health:medicine_log_edit', kwargs={'pk': log.pk}),
+            reverse('health:intake_log_edit', kwargs={'pk': log.pk}),
             {'taken_at': new_taken_at}
         )
 
-        self.assertRedirects(response, reverse('health:medicine_history'))
+        self.assertRedirects(response, reverse('health:intake_history'))
 
     def test_user_cannot_edit_other_users_log(self):
         """User cannot edit another user's log entry."""
@@ -1427,24 +1427,24 @@ class MedicineLogEditTest(MedicineTestMixin, TestCase):
         )
 
         response = self.client.get(
-            reverse('health:medicine_log_edit', kwargs={'pk': other_log.pk})
+            reverse('health:intake_log_edit', kwargs={'pk': other_log.pk})
         )
         self.assertEqual(response.status_code, 404)
 
     def test_log_edit_shows_current_status(self):
         """Log edit page shows current status badge."""
-        log = MedicineLog.objects.create(
+        log = IntakeLog.objects.create(
             user=self.user,
-            medicine=self.medicine,
+            intake=self.medicine,
             schedule=self.schedule,
             scheduled_date=timezone.now().date(),
             scheduled_time=time(8, 0),
-            log_status=MedicineLog.STATUS_LATE,
+            log_status=IntakeLog.STATUS_LATE,
             taken_at=timezone.now(),
         )
 
         response = self.client.get(
-            reverse('health:medicine_log_edit', kwargs={'pk': log.pk})
+            reverse('health:intake_log_edit', kwargs={'pk': log.pk})
         )
         self.assertContains(response, 'Taken Late')
 
@@ -1455,22 +1455,22 @@ class MedicineLogEditTest(MedicineTestMixin, TestCase):
             taken_at=timezone.now()
         )
 
-        response = self.client.get(reverse('health:medicine_history'))
+        response = self.client.get(reverse('health:intake_history'))
         self.assertContains(response, f'/health/physical/medicine/log/{log.pk}/edit/')
 
     def test_medicine_home_shows_edit_link_for_taken_doses(self):
         """Medicine home shows edit link for taken doses."""
         # Create a log for today's schedule
         today = timezone.now().date()
-        log = MedicineLog.objects.create(
+        log = IntakeLog.objects.create(
             user=self.user,
-            medicine=self.medicine,
+            intake=self.medicine,
             schedule=self.schedule,
             scheduled_date=today,
             scheduled_time=self.schedule.scheduled_time,
-            log_status=MedicineLog.STATUS_TAKEN,
+            log_status=IntakeLog.STATUS_TAKEN,
             taken_at=timezone.now(),
         )
 
-        response = self.client.get(reverse('health:medicine_home'))
+        response = self.client.get(reverse('health:intake_home'))
         self.assertContains(response, f'/health/physical/medicine/log/{log.pk}/edit/')

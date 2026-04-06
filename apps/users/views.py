@@ -2334,7 +2334,7 @@ class ExportAccountDataView(LoginRequiredMixin, View):
         try:
             from apps.health.models import (
                 WeightEntry, StepsEntry, WaterEntry, SleepEntry,
-                FastingWindow, Medicine, WorkoutSession,
+                FastingWindow, Intake, WorkoutSession,
                 GlucoseEntry, BloodPressureEntry, FoodEntry
             )
 
@@ -2353,7 +2353,7 @@ class ExportAccountDataView(LoginRequiredMixin, View):
             data['fasting'] = list(FastingWindow.all_objects.filter(user=user).values(
                 'id', 'start_time', 'end_time', 'fasting_type', 'notes', 'created_at'
             ))
-            data['medicines'] = list(Medicine.all_objects.filter(user=user).values(
+            data['medicines'] = list(Intake.all_objects.filter(user=user).values(
                 'id', 'name', 'dosage', 'frequency', 'notes', 'created_at'
             ))
             data['workouts'] = list(WorkoutSession.all_objects.filter(user=user).values(

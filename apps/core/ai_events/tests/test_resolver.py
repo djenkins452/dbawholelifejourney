@@ -11,7 +11,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.core.ai_events.resolver import EventResolver
-from apps.health.models import Medicine, MedicineLog, MedicineSchedule, WorkoutSession
+from apps.health.models import Intake, IntakeLog, IntakeSchedule, WorkoutSession
 from apps.users.models import User, TermsAcceptance
 
 
@@ -38,16 +38,16 @@ class ResolverMedicationTest(EventResolverTestBase):
 
     def setUp(self):
         super().setUp()
-        self.medicine = Medicine.objects.create(
+        self.medicine = Intake.objects.create(
             user=self.user,
             name='Metformin',
             dose='500mg',
             frequency='daily',
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
             start_date=date.today() - timedelta(days=30),
         )
-        self.schedule = MedicineSchedule.objects.create(
-            medicine=self.medicine,
+        self.schedule = IntakeSchedule.objects.create(
+            intake=self.medicine,
             scheduled_time=time(12, 0),
             time_of_day='lunch',
             is_active=True,
@@ -55,13 +55,13 @@ class ResolverMedicationTest(EventResolverTestBase):
 
     def test_get_missed_events_medication(self):
         yesterday = date.today() - timedelta(days=1)
-        MedicineLog.objects.create(
+        IntakeLog.objects.create(
             user=self.user,
-            medicine=self.medicine,
+            intake=self.medicine,
             schedule=self.schedule,
             scheduled_date=yesterday,
             scheduled_time=time(12, 0),
-            log_status=MedicineLog.STATUS_MISSED,
+            log_status=IntakeLog.STATUS_MISSED,
         )
         missed = self.resolver.get_missed_events(
             self.user, 'medication',
@@ -77,16 +77,16 @@ class ResolverCrossDomainTest(EventResolverTestBase):
 
     def setUp(self):
         super().setUp()
-        self.medicine = Medicine.objects.create(
+        self.medicine = Intake.objects.create(
             user=self.user,
             name='Aspirin',
             dose='81mg',
             frequency='daily',
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
             start_date=date.today() - timedelta(days=30),
         )
-        self.schedule = MedicineSchedule.objects.create(
-            medicine=self.medicine,
+        self.schedule = IntakeSchedule.objects.create(
+            intake=self.medicine,
             scheduled_time=time(8, 0),
             time_of_day='morning',
             is_active=True,
@@ -94,13 +94,13 @@ class ResolverCrossDomainTest(EventResolverTestBase):
 
     def test_get_all_missed_includes_medication(self):
         yesterday = date.today() - timedelta(days=1)
-        MedicineLog.objects.create(
+        IntakeLog.objects.create(
             user=self.user,
-            medicine=self.medicine,
+            intake=self.medicine,
             schedule=self.schedule,
             scheduled_date=yesterday,
             scheduled_time=time(8, 0),
-            log_status=MedicineLog.STATUS_MISSED,
+            log_status=IntakeLog.STATUS_MISSED,
         )
         missed = self.resolver.get_all_missed(
             self.user,
@@ -113,13 +113,13 @@ class ResolverCrossDomainTest(EventResolverTestBase):
         today = date.today()
 
         # Medication event
-        MedicineLog.objects.create(
+        IntakeLog.objects.create(
             user=self.user,
-            medicine=self.medicine,
+            intake=self.medicine,
             schedule=self.schedule,
             scheduled_date=today,
             scheduled_time=time(8, 0),
-            log_status=MedicineLog.STATUS_TAKEN,
+            log_status=IntakeLog.STATUS_TAKEN,
             taken_at=timezone.now(),
         )
 
@@ -141,13 +141,13 @@ class ResolverCrossDomainTest(EventResolverTestBase):
         today = date.today()
 
         # Morning med
-        MedicineLog.objects.create(
+        IntakeLog.objects.create(
             user=self.user,
-            medicine=self.medicine,
+            intake=self.medicine,
             schedule=self.schedule,
             scheduled_date=today,
             scheduled_time=time(8, 0),
-            log_status=MedicineLog.STATUS_TAKEN,
+            log_status=IntakeLog.STATUS_TAKEN,
             taken_at=timezone.now().replace(hour=8),
         )
 

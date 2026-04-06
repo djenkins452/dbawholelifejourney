@@ -2342,7 +2342,7 @@ class AccountDeletionAudit(models.Model):
         try:
             from apps.health.models import (
                 WeightEntry, StepsEntry, WaterEntry, SleepEntry,
-                FastingWindow, Medicine, MedicineLog, WorkoutSession,
+                FastingWindow, Intake, IntakeLog, WorkoutSession,
                 GlucoseEntry, BloodPressureEntry, FoodEntry
             )
             counts['weight_entries'] = WeightEntry.all_objects.filter(user=user).count()
@@ -2350,8 +2350,8 @@ class AccountDeletionAudit(models.Model):
             counts['water_entries'] = WaterEntry.all_objects.filter(user=user).count()
             counts['sleep_entries'] = SleepEntry.all_objects.filter(user=user).count()
             counts['fasting_windows'] = FastingWindow.all_objects.filter(user=user).count()
-            counts['medicines'] = Medicine.all_objects.filter(user=user).count()
-            counts['medicine_logs'] = MedicineLog.all_objects.filter(user=user).count()
+            counts['medicines'] = Intake.all_objects.filter(user=user).count()
+            counts['medicine_logs'] = IntakeLog.all_objects.filter(user=user).count()
             counts['workout_sessions'] = WorkoutSession.all_objects.filter(user=user).count()
             counts['glucose_entries'] = GlucoseEntry.all_objects.filter(user=user).count()
             counts['blood_pressure_entries'] = BloodPressureEntry.all_objects.filter(user=user).count()

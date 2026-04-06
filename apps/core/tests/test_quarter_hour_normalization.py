@@ -219,14 +219,14 @@ class MedicineScheduleTimeNormalizationTests(TestCase):
         self.user.preferences.save()
 
     def test_medicine_schedule_normalizes_time(self):
-        from apps.health.models import Medicine, MedicineSchedule
-        medicine = Medicine.objects.create(
+        from apps.health.models import Intake, IntakeSchedule
+        medicine = Intake.objects.create(
             user=self.user,
             name='Test Med',
             start_date=datetime.date.today(),
         )
-        schedule = MedicineSchedule.objects.create(
-            medicine=medicine,
+        schedule = IntakeSchedule.objects.create(
+            intake=medicine,
             scheduled_time=datetime.time(8, 7),
         )
         schedule.refresh_from_db()

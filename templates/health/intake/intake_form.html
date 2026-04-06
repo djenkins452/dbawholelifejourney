@@ -720,7 +720,7 @@ document.addEventListener('DOMContentLoaded', function() {
         progressEl.style.display = 'flex';
 
         try {
-            const response = await fetch('{% url "scan:medicine_lookup" %}', {
+            const response = await fetch('{% url "scan:intake_lookup" %}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

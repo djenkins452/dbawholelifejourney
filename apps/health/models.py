@@ -2398,15 +2398,6 @@ class Intake(UserOwnedModel):
         help_text="Reason for pausing this intake",
     )
 
-    @property
-    def medicine_status(self):
-        """Backward compat — remove after Phase II refactor."""
-        return self.intake_status
-
-    @medicine_status.setter
-    def medicine_status(self, value):
-        self.intake_status = value
-
     # Refill Tracking
     current_supply = models.PositiveIntegerField(
         null=True,
@@ -2500,11 +2491,6 @@ class Intake(UserOwnedModel):
     def is_active(self):
         """Check if this intake item is actively being taken."""
         return self.intake_status == self.STATUS_ACTIVE
-
-    @property
-    def is_active_medicine(self):
-        """Backward compat — remove after Phase II."""
-        return self.is_active
 
     @property
     def is_paused(self):
@@ -2666,11 +2652,6 @@ class IntakeSchedule(models.Model):
         verbose_name = "intake schedule"
         verbose_name_plural = "intake schedules"
 
-    @property
-    def medicine(self):
-        """Backward compat — remove after Phase II."""
-        return self.intake
-
     def save(self, *args, **kwargs):
         """
         Normalize scheduled_time to 15-minute increments, then
@@ -2760,16 +2741,6 @@ class IntakeLog(UserOwnedModel):
         related_name="logs",
         help_text="Which scheduled dose this log is for",
     )
-
-    @property
-    def medicine(self):
-        """Backward compat — remove after Phase II."""
-        return self.intake
-
-    @property
-    def medicine_id(self):
-        """Backward compat — remove after Phase II."""
-        return self.intake_id
 
     # When the dose was due
     scheduled_date = models.DateField(
@@ -2924,14 +2895,6 @@ class IntakeLog(UserOwnedModel):
         """Mark this dose as missed (not taken or skipped)."""
         self.log_status = self.STATUS_MISSED
         self.save(update_fields=["log_status", "updated_at"])
-
-
-# ── Backward compatibility aliases (Phase I) ──
-# These allow existing code to continue using the old names until Phase II
-# refactors all imports. Remove these after Phase II is complete.
-Medicine = Intake
-MedicineSchedule = IntakeSchedule
-MedicineLog = IntakeLog
 
 
 # =============================================================================

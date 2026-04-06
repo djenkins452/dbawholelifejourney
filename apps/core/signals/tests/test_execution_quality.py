@@ -302,16 +302,16 @@ class TestRecordSignalFromRoutineLog(TestCase):
         self.assertIsNone(result)
 
 
-class TestRecordSignalFromMedicineLog(TestCase):
+class TestRecordSignalFromIntakeLog(TestCase):
     """Test signal generation from MedicineLog objects."""
 
     def setUp(self):
         self.user = _create_test_user(email="medicine@example.com")
 
     def test_generates_signal_from_medicine_log(self):
-        from apps.health.models import Medicine, MedicineLog
+        from apps.health.models import Intake, IntakeLog
 
-        med = Medicine.objects.create(
+        med = Intake.objects.create(
             user=self.user, name="Lisinopril", dose="10mg",
             start_date=date(2026, 1, 1),
         )
@@ -321,9 +321,9 @@ class TestRecordSignalFromMedicineLog(TestCase):
             timezone.get_current_timezone(),
         )
 
-        log = MedicineLog(
+        log = IntakeLog(
             user=self.user,
-            medicine=med,
+            intake=med,
             scheduled_date=today,
             scheduled_time=time(8, 0),
             taken_at=taken_at,
@@ -337,15 +337,15 @@ class TestRecordSignalFromMedicineLog(TestCase):
         self.assertEqual(signal.execution_quality, ExecutionSignal.ON_TARGET)
 
     def test_skips_without_taken_at(self):
-        from apps.health.models import Medicine, MedicineLog
+        from apps.health.models import Intake, IntakeLog
 
-        med = Medicine.objects.create(
+        med = Intake.objects.create(
             user=self.user, name="Lisinopril", dose="10mg",
             start_date=date(2026, 1, 1),
         )
-        log = MedicineLog(
+        log = IntakeLog(
             user=self.user,
-            medicine=med,
+            intake=med,
             scheduled_date=date(2026, 3, 23),
             scheduled_time=time(8, 0),
             taken_at=None,
@@ -354,15 +354,15 @@ class TestRecordSignalFromMedicineLog(TestCase):
         self.assertIsNone(result)
 
     def test_skips_without_scheduled_time(self):
-        from apps.health.models import Medicine, MedicineLog
+        from apps.health.models import Intake, IntakeLog
 
-        med = Medicine.objects.create(
+        med = Intake.objects.create(
             user=self.user, name="Lisinopril", dose="10mg",
             start_date=date(2026, 1, 1),
         )
-        log = MedicineLog(
+        log = IntakeLog(
             user=self.user,
-            medicine=med,
+            intake=med,
             scheduled_date=date(2026, 3, 23),
             scheduled_time=None,
             taken_at=timezone.now(),

@@ -284,31 +284,31 @@ class FollowUpRouterIntegrationTest(TestCase):
     def test_followup_with_stored_context(self):
         """Full multi-turn scenario: event query → follow-up."""
         from apps.ai.deterministic_router import classify_and_route
-        from apps.health.models import Medicine, MedicineLog, MedicineSchedule
+        from apps.health.models import Intake, IntakeLog, IntakeSchedule
 
         # Create missed dose
-        medicine = Medicine.objects.create(
+        medicine = Intake.objects.create(
             user=self.user,
             name='Lantus SoloStar',
             dose='10 units',
             frequency='daily',
-            medicine_status=Medicine.STATUS_ACTIVE,
+            intake_status=Intake.STATUS_ACTIVE,
             start_date=date.today() - timedelta(days=30),
         )
-        schedule = MedicineSchedule.objects.create(
-            medicine=medicine,
+        schedule = IntakeSchedule.objects.create(
+            intake=medicine,
             scheduled_time=time(9, 0),
             time_of_day='morning',
             is_active=True,
         )
         missed_date = date.today() - timedelta(days=3)
-        MedicineLog.objects.create(
+        IntakeLog.objects.create(
             user=self.user,
-            medicine=medicine,
+            intake=medicine,
             schedule=schedule,
             scheduled_date=missed_date,
             scheduled_time=time(9, 0),
-            log_status=MedicineLog.STATUS_MISSED,
+            log_status=IntakeLog.STATUS_MISSED,
         )
 
         # Turn 1: "What did I miss?"

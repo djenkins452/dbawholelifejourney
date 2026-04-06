@@ -173,7 +173,7 @@
                     <span class="card-status-icon status-{{ card_emphasis.medicine }}" aria-hidden="true">{% if card_emphasis.medicine == "high" %}&#9888;{% else %}&#9679;{% endif %}</span>
                     Medicines
                 </h2>
-                <a href="{% url 'health:medicine_home' %}" class="btn btn-primary btn-sm">View</a>
+                <a href="{% url 'health:intake_home' %}" class="btn btn-primary btn-sm">View</a>
             </div>
 
             {% if medicine_count %}
@@ -214,10 +214,10 @@
                 {% endif %}
             {% else %}
                 <p class="text-muted">No medicines being tracked.</p>
-                <a href="{% url 'health:medicine_create' %}" class="btn btn-secondary btn-sm mt-4">Add a medicine</a>
+                <a href="{% url 'health:intake_create' %}" class="btn btn-secondary btn-sm mt-4">Add a medicine</a>
             {% endif %}
 
-            <a href="{% url 'health:medicine_home' %}" class="card-link">Go to Medicines</a>
+            <a href="{% url 'health:intake_home' %}" class="card-link">Go to Medicines</a>
         </div>
         {% endif %}
 
@@ -891,7 +891,7 @@
                     <span class="card-status-icon status-ok" aria-hidden="true">&#10003;</span>
                     Medicines
                 </h2>
-                <a href="{% url 'health:medicine_home' %}" class="btn btn-primary btn-sm">View</a>
+                <a href="{% url 'health:intake_home' %}" class="btn btn-primary btn-sm">View</a>
             </div>
 
             {% if medicine_count %}
@@ -918,10 +918,10 @@
                 {% endif %}
             {% else %}
                 <p class="text-muted">No medicines being tracked.</p>
-                <a href="{% url 'health:medicine_create' %}" class="btn btn-secondary btn-sm mt-4">Add a medicine</a>
+                <a href="{% url 'health:intake_create' %}" class="btn btn-secondary btn-sm mt-4">Add a medicine</a>
             {% endif %}
 
-            <a href="{% url 'health:medicine_home' %}" class="card-link">Go to Medicines</a>
+            <a href="{% url 'health:intake_home' %}" class="card-link">Go to Medicines</a>
         </div>
         {% endif %}
 

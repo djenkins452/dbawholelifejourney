@@ -685,7 +685,7 @@ class VisionService:
                         'id': 'add_medicine',
                         'label': 'Add to My Medicines',
                         'url': self._add_source_param(
-                            reverse('health:medicine_create') + '?' + '&'.join(url_params)
+                            reverse('health:intake_create') + '?' + '&'.join(url_params)
                         ),
                         'payload_template': {
                             'name': med_name,
@@ -725,7 +725,7 @@ class VisionService:
                         'id': 'add_supplement',
                         'label': 'Add to My Supplements',
                         'url': self._add_source_param(
-                            reverse('health:medicine_create') + '?' + '&'.join(url_params)
+                            reverse('health:intake_create') + '?' + '&'.join(url_params)
                         ),
                         'payload_template': {
                             'name': supp_name,

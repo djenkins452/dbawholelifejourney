@@ -9,7 +9,7 @@
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}">Health</a>
         <span>/</span>
-        <a href="{% url 'health:medicine_home' %}">Medicines</a>
+        <a href="{% url 'health:intake_home' %}">Medicines</a>
         <span>/</span>
         <span>{{ medicine.name }}</span>
     </nav>
@@ -20,8 +20,8 @@
             <p class="page-subtitle">{{ medicine.dose }}{% if medicine.purpose %} - {{ medicine.purpose }}{% endif %}</p>
         </div>
         <div class="page-actions">
-            <a href="{% url 'health:medicine_update' pk=medicine.pk %}" class="btn btn-secondary">Edit</a>
-            <a href="{% url 'health:medicine_schedules' pk=medicine.pk %}" class="btn btn-secondary">Schedules</a>
+            <a href="{% url 'health:intake_update' pk=medicine.pk %}" class="btn btn-secondary">Edit</a>
+            <a href="{% url 'health:intake_schedules' pk=medicine.pk %}" class="btn btn-secondary">Schedules</a>
         </div>
     </div>
 
@@ -91,7 +91,7 @@
                 {% endfor %}
             </div>
             {% else %}
-            <p class="text-muted">No schedules set. <a href="{% url 'health:medicine_schedules' pk=medicine.pk %}">Add schedule</a></p>
+            <p class="text-muted">No schedules set. <a href="{% url 'health:intake_schedules' pk=medicine.pk %}">Add schedule</a></p>
             {% endif %}
         </div>
 
@@ -161,7 +161,7 @@
     <!-- Update Supply -->
     <div class="update-supply-section mb-6">
         <h3>Update Supply</h3>
-        <form method="post" action="{% url 'health:medicine_update_supply' pk=medicine.pk %}" class="supply-form">
+        <form method="post" action="{% url 'health:intake_update_supply' pk=medicine.pk %}" class="supply-form">
             {% csrf_token %}
             <input type="number" inputmode="numeric" pattern="[0-9]*" name="current_supply" value="{{ medicine.current_supply|default:0 }}" min="0" class="form-input">
             <button type="submit" class="btn btn-secondary btn-sm">Update</button>
@@ -173,7 +173,7 @@
             <p class="text-sm text-muted mb-2">
                 Refill was requested{% if medicine.refill_requested_at %} on {{ medicine.refill_requested_at|date:"M j, Y" }}{% endif %}.
             </p>
-            <form method="post" action="{% url 'health:medicine_clear_refill' pk=medicine.pk %}" class="inline-form">
+            <form method="post" action="{% url 'health:intake_clear_refill' pk=medicine.pk %}" class="inline-form">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-primary btn-sm">Refill Received</button>
             </form>
@@ -183,7 +183,7 @@
             <p class="text-sm text-warning mb-2">
                 Supply is low ({{ medicine.current_supply }} remaining).
             </p>
-            <form method="post" action="{% url 'health:medicine_request_refill' pk=medicine.pk %}" class="inline-form">
+            <form method="post" action="{% url 'health:intake_request_refill' pk=medicine.pk %}" class="inline-form">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-warning btn-sm">Request Refill</button>
             </form>
@@ -195,7 +195,7 @@
     <div class="history-section">
         <div class="section-header">
             <h2>Recent History</h2>
-            <a href="{% url 'health:medicine_history' %}?medicine={{ medicine.pk }}" class="btn btn-text btn-sm">View All</a>
+            <a href="{% url 'health:intake_history' %}?medicine={{ medicine.pk }}" class="btn btn-text btn-sm">View All</a>
         </div>
         {% if recent_logs %}
         <div class="log-list">
@@ -218,21 +218,21 @@
     <!-- Actions -->
     <div class="medicine-actions mt-6">
         {% if medicine.is_active_medicine %}
-        <form method="post" action="{% url 'health:medicine_pause' pk=medicine.pk %}" class="inline-form">
+        <form method="post" action="{% url 'health:intake_pause' pk=medicine.pk %}" class="inline-form">
             {% csrf_token %}
             <button type="submit" class="btn btn-secondary">Pause Medicine</button>
         </form>
-        <form method="post" action="{% url 'health:medicine_complete' pk=medicine.pk %}" class="inline-form">
+        <form method="post" action="{% url 'health:intake_complete' pk=medicine.pk %}" class="inline-form">
             {% csrf_token %}
             <button type="submit" class="btn btn-secondary">Mark Complete</button>
         </form>
         {% elif medicine.is_paused %}
-        <form method="post" action="{% url 'health:medicine_resume' pk=medicine.pk %}" class="inline-form">
+        <form method="post" action="{% url 'health:intake_resume' pk=medicine.pk %}" class="inline-form">
             {% csrf_token %}
             <button type="submit" class="btn btn-primary">Resume Medicine</button>
         </form>
         {% endif %}
-        <form method="post" action="{% url 'health:medicine_delete' pk=medicine.pk %}" class="inline-form" data-confirm="Are you sure you want to delete {{ medicine.name }}?">
+        <form method="post" action="{% url 'health:intake_delete' pk=medicine.pk %}" class="inline-form" data-confirm="Are you sure you want to delete {{ medicine.name }}?">
             {% csrf_token %}
             <button type="submit" class="btn btn-danger">Delete</button>
         </form>

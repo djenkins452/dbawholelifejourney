@@ -12,7 +12,7 @@ Shows achievements, streaks, and milestones across all areas
         {% elif celebration.type == 'tasks' %}
         <a href="{% url 'life:task_list' %}" class="celebration-card celebration-link celebration-{{ celebration.type }}" title="Click to view tasks">
         {% elif celebration.type == 'medicine' %}
-        <a href="{% url 'health:medicine_home' %}" class="celebration-card celebration-link celebration-{{ celebration.type }}" title="Click to view medicines">
+        <a href="{% url 'health:intake_home' %}" class="celebration-card celebration-link celebration-{{ celebration.type }}" title="Click to view medicines">
         {% elif celebration.type == 'workout' %}
         <a href="{% url 'health:workout_list' %}" class="celebration-card celebration-link celebration-{{ celebration.type }}" title="Click to view workouts">
         {% elif celebration.type == 'faith' %}

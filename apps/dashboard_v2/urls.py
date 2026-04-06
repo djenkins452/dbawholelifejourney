@@ -81,14 +81,14 @@ urlpatterns = [
         name="task_toggle",
     ),
     path(
-        "actions/medicine/<int:schedule_id>/log/",
-        views.MedicineLogAction.as_view(),
-        name="medicine_log",
+        "actions/intake/<int:schedule_id>/log/",
+        views.IntakeLogAction.as_view(),
+        name="intake_log",
     ),
     path(
-        "actions/medicine/group/<str:time_of_day>/log/",
-        views.MedicineGroupLogAction.as_view(),
-        name="medicine_group_log",
+        "actions/intake/group/<str:time_of_day>/log/",
+        views.IntakeGroupLogAction.as_view(),
+        name="intake_group_log",
     ),
     path(
         "actions/routine/<int:pk>/complete/",

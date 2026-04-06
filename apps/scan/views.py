@@ -812,7 +812,7 @@ class MedicineLookupView(LoginRequiredMixin, View):
             url_params.append(f'barcode={quote(barcode)}')
 
             # Build the medicine creation URL
-            medicine_url = reverse('health:medicine_create')
+            medicine_url = reverse('health:intake_create')
             if url_params:
                 medicine_url += '?' + '&'.join(url_params)
 

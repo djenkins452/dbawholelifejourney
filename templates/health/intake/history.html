@@ -9,7 +9,7 @@
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}">Health</a>
         <span>/</span>
-        <a href="{% url 'health:medicine_home' %}">Medicines</a>
+        <a href="{% url 'health:intake_home' %}">Medicines</a>
         <span>/</span>
         <span>History</span>
     </nav>
@@ -42,7 +42,7 @@
             </div>
             <div class="filter-actions">
                 <button type="submit" class="btn btn-primary btn-sm">Filter</button>
-                <a href="{% url 'health:medicine_history' %}" class="btn btn-secondary btn-sm">Clear</a>
+                <a href="{% url 'health:intake_history' %}" class="btn btn-secondary btn-sm">Clear</a>
             </div>
         </div>
     </form>
@@ -56,7 +56,7 @@
                 {% for dose in doses %}
                 <div class="log-item log-{{ dose.log_status }}">
                     <div class="log-medicine">
-                        <a href="{% url 'health:medicine_detail' pk=dose.medicine.pk %}">{{ dose.medicine.name }}</a>
+                        <a href="{% url 'health:intake_detail' pk=dose.medicine.pk %}">{{ dose.medicine.name }}</a>
                         <span class="log-dose">{{ dose.medicine.dose }}</span>
                     </div>
                     <div class="log-time">
@@ -90,7 +90,7 @@
                         {% if dose.log_status == "pending" and dose.schedule %}
                         <!-- Pending dose - show take/skip actions -->
                         <div class="dose-actions">
-                            <form method="post" action="{% url 'health:medicine_history_take' pk=dose.medicine.pk schedule_pk=dose.schedule.pk %}" class="inline-form">
+                            <form method="post" action="{% url 'health:intake_history_take' pk=dose.medicine.pk schedule_pk=dose.schedule.pk %}" class="inline-form">
                                 {% csrf_token %}
                                 <input type="hidden" name="date" value="{{ dose.scheduled_date|date:'Y-m-d' }}">
                                 <input type="hidden" name="taken_at_scheduled" value="1">
@@ -103,7 +103,7 @@
                                     data-date="{{ dose.scheduled_date|date:'Y-m-d' }}"
                                     data-medicine-name="{{ dose.medicine.name }}"
                                     title="Specify taken time">at...</button>
-                            <form method="post" action="{% url 'health:medicine_history_skip' pk=dose.medicine.pk schedule_pk=dose.schedule.pk %}" class="inline-form">
+                            <form method="post" action="{% url 'health:intake_history_skip' pk=dose.medicine.pk schedule_pk=dose.schedule.pk %}" class="inline-form">
                                 {% csrf_token %}
                                 <input type="hidden" name="date" value="{{ dose.scheduled_date|date:'Y-m-d' }}">
                                 <input type="hidden" name="next" value="{{ request.get_full_path }}">
@@ -112,7 +112,7 @@
                         </div>
                         {% elif dose.log and dose.taken_at %}
                         <!-- Has a log with taken_at - show edit -->
-                        <a href="{% url 'health:medicine_log_edit' pk=dose.log.pk %}?next={{ request.get_full_path|urlencode }}" class="btn btn-text btn-sm" title="Edit taken time">Edit</a>
+                        <a href="{% url 'health:intake_log_edit' pk=dose.log.pk %}?next={{ request.get_full_path|urlencode }}" class="btn btn-text btn-sm" title="Edit taken time">Edit</a>
                         {% endif %}
                     </div>
                     {% if dose.is_prn_dose and dose.prn_reason %}
@@ -460,7 +460,7 @@ document.addEventListener('click', function(e) {
     if (btn) {
         var modal = document.getElementById('takeTimeModal');
         var form = document.getElementById('takeTimeForm');
-        form.action = '/health/physical/medicine/' + btn.dataset.medicineId + '/history-take/' + btn.dataset.scheduleId + '/';
+        form.action = '/health/physical/intake/' + btn.dataset.medicineId + '/history-take/' + btn.dataset.scheduleId + '/';
         document.getElementById('modalDate').value = btn.dataset.date;
         document.getElementById('modalMedicineName').textContent = btn.dataset.medicineName + ' - ' + btn.dataset.date;
         modal.style.display = 'flex';

@@ -17,8 +17,8 @@
             <p class="page-subtitle">Track your medications, one dose at a time</p>
         </div>
         <div class="page-actions">
-            <a href="{% url 'health:medicine_quick_look' %}" class="btn btn-secondary btn-sm">Quick Look</a>
-            <a href="{% url 'health:medicine_create' %}" class="btn btn-primary">Add Medicine</a>
+            <a href="{% url 'health:intake_quick_look' %}" class="btn btn-secondary btn-sm">Quick Look</a>
+            <a href="{% url 'health:intake_create' %}" class="btn btn-primary">Add Medicine</a>
         </div>
     </div>
 
@@ -38,7 +38,7 @@
                 <span>Refill requested for {{ refill_requested_medicines|length }} medicine{{ refill_requested_medicines|length|pluralize }}:</span>
                 <span class="alert-medicines">
                     {% for medicine in refill_requested_medicines %}
-                    <a href="{% url 'health:medicine_detail' pk=medicine.pk %}" class="medicine-link">{{ medicine.name }}</a>{% if not forloop.last %}, {% endif %}
+                    <a href="{% url 'health:intake_detail' pk=medicine.pk %}" class="medicine-link">{{ medicine.name }}</a>{% if not forloop.last %}, {% endif %}
                     {% endfor %}
                 </span>
             </div>
@@ -51,7 +51,7 @@
                 <span>{{ low_supply_medicines|length }} medicine{{ low_supply_medicines|length|pluralize }} need{{ low_supply_medicines|length|pluralize:"s," }} a refill:</span>
                 <span class="alert-medicines">
                     {% for medicine in low_supply_medicines %}
-                    <a href="{% url 'health:medicine_detail' pk=medicine.pk %}" class="medicine-link">{{ medicine.name }}</a>{% if not forloop.last %}, {% endif %}
+                    <a href="{% url 'health:intake_detail' pk=medicine.pk %}" class="medicine-link">{{ medicine.name }}</a>{% if not forloop.last %}, {% endif %}
                     {% endfor %}
                 </span>
             </div>
@@ -92,20 +92,20 @@
                 <h3 class="time-group-title">{{ group.display_name }}</h3>
                 <div class="time-group-actions">
                     {% if group.has_pending %}
-                    <form method="post" action="{% url 'health:medicine_bulk_take' time_of_day=group.time_of_day %}" class="inline-form">
+                    <form method="post" action="{% url 'health:intake_bulk_take' time_of_day=group.time_of_day %}" class="inline-form">
                         {% csrf_token %}
-                        <input type="hidden" name="next" value="{% url 'health:medicine_home' %}">
+                        <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                         <button type="submit" class="btn btn-primary btn-sm">Take All {{ group.display_name }}</button>
                     </form>
-                    <form method="post" action="{% url 'health:medicine_bulk_take' time_of_day=group.time_of_day %}" class="inline-form">
+                    <form method="post" action="{% url 'health:intake_bulk_take' time_of_day=group.time_of_day %}" class="inline-form">
                         {% csrf_token %}
-                        <input type="hidden" name="next" value="{% url 'health:medicine_home' %}">
+                        <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                         <input type="hidden" name="taken_at_scheduled" value="1">
                         <button type="submit" class="btn btn-outline btn-sm">Took at Scheduled Time</button>
                     </form>
-                    <form method="post" action="{% url 'health:medicine_bulk_skip' time_of_day=group.time_of_day %}" class="inline-form">
+                    <form method="post" action="{% url 'health:intake_bulk_skip' time_of_day=group.time_of_day %}" class="inline-form">
                         {% csrf_token %}
-                        <input type="hidden" name="next" value="{% url 'health:medicine_home' %}">
+                        <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                         <button type="submit" class="btn btn-secondary btn-sm">Skip All</button>
                     </form>
                     {% elif group.all_taken %}
@@ -135,29 +135,29 @@
                         {% if item.is_taken %}
                         <span class="dose-status taken-status">Taken</span>
                         {% if item.log %}
-                        <a href="{% url 'health:medicine_log_edit' pk=item.log.pk %}?next={% url 'health:medicine_home' %}" class="btn btn-text btn-sm" title="Edit taken time">Edit</a>
+                        <a href="{% url 'health:intake_log_edit' pk=item.log.pk %}?next={% url 'health:intake_home' %}" class="btn btn-text btn-sm" title="Edit taken time">Edit</a>
                         {% endif %}
-                        <form method="post" action="{% url 'health:medicine_undo' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                        <form method="post" action="{% url 'health:intake_undo' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                             {% csrf_token %}
-                            <input type="hidden" name="next" value="{% url 'health:medicine_home' %}">
+                            <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                             <button type="submit" class="btn btn-text btn-sm">Undo</button>
                         </form>
                         {% elif item.log and item.log.log_status == 'skipped' %}
                         <span class="dose-status skipped-status">Skipped</span>
-                        <form method="post" action="{% url 'health:medicine_undo' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                        <form method="post" action="{% url 'health:intake_undo' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                             {% csrf_token %}
-                            <input type="hidden" name="next" value="{% url 'health:medicine_home' %}">
+                            <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                             <button type="submit" class="btn btn-text btn-sm">Undo</button>
                         </form>
                         {% else %}
-                        <form method="post" action="{% url 'health:medicine_take' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                        <form method="post" action="{% url 'health:intake_take' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                             {% csrf_token %}
-                            <input type="hidden" name="next" value="{% url 'health:medicine_home' %}">
+                            <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                             <button type="submit" class="btn btn-primary btn-sm">Take</button>
                         </form>
-                        <form method="post" action="{% url 'health:medicine_skip' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                        <form method="post" action="{% url 'health:intake_skip' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                             {% csrf_token %}
-                            <input type="hidden" name="next" value="{% url 'health:medicine_home' %}">
+                            <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                             <button type="submit" class="btn btn-secondary btn-sm">Skip</button>
                         </form>
                         {% endif %}
@@ -190,35 +190,35 @@
                 {% if item.is_taken %}
                 <span class="dose-status taken-status">Taken</span>
                 {% if item.log %}
-                <a href="{% url 'health:medicine_log_edit' pk=item.log.pk %}?next={% url 'health:medicine_home' %}" class="btn btn-text btn-sm" title="Edit taken time">Edit</a>
+                <a href="{% url 'health:intake_log_edit' pk=item.log.pk %}?next={% url 'health:intake_home' %}" class="btn btn-text btn-sm" title="Edit taken time">Edit</a>
                 {% endif %}
-                <form method="post" action="{% url 'health:medicine_undo' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                <form method="post" action="{% url 'health:intake_undo' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                     {% csrf_token %}
-                    <input type="hidden" name="next" value="{% url 'health:medicine_home' %}">
+                    <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                     <button type="submit" class="btn btn-text btn-sm">Undo</button>
                 </form>
                 {% elif item.log and item.log.log_status == 'skipped' %}
                 <span class="dose-status skipped-status">Skipped</span>
-                <form method="post" action="{% url 'health:medicine_undo' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                <form method="post" action="{% url 'health:intake_undo' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                     {% csrf_token %}
-                    <input type="hidden" name="next" value="{% url 'health:medicine_home' %}">
+                    <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                     <button type="submit" class="btn btn-text btn-sm">Undo</button>
                 </form>
                 {% else %}
-                <form method="post" action="{% url 'health:medicine_take' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                <form method="post" action="{% url 'health:intake_take' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                     {% csrf_token %}
-                    <input type="hidden" name="next" value="{% url 'health:medicine_home' %}">
+                    <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                     <button type="submit" class="btn btn-primary btn-sm">Take Now</button>
                 </form>
-                <form method="post" action="{% url 'health:medicine_take' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                <form method="post" action="{% url 'health:intake_take' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                     {% csrf_token %}
-                    <input type="hidden" name="next" value="{% url 'health:medicine_home' %}">
+                    <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                     <input type="hidden" name="taken_at_scheduled" value="1">
                     <button type="submit" class="btn btn-outline btn-sm">Taken at {{ item.schedule.scheduled_time|time:"g:i A" }}</button>
                 </form>
-                <form method="post" action="{% url 'health:medicine_skip' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
+                <form method="post" action="{% url 'health:intake_skip' pk=item.medicine.pk schedule_pk=item.schedule.pk %}" class="inline-form">
                     {% csrf_token %}
-                    <input type="hidden" name="next" value="{% url 'health:medicine_home' %}">
+                    <input type="hidden" name="next" value="{% url 'health:intake_home' %}">
                     <button type="submit" class="btn btn-secondary btn-sm">Skip</button>
                 </form>
                 {% endif %}
@@ -231,26 +231,26 @@
         <p class="text-muted">No scheduled doses for today.</p>
         {% if active_count > 0 %}
         <p class="text-muted mt-2">Your medicines may not have schedules set, or none are scheduled for today.</p>
-        <a href="{% url 'health:medicine_list' %}" class="btn btn-secondary mt-4">Manage Medicines</a>
+        <a href="{% url 'health:intake_list' %}" class="btn btn-secondary mt-4">Manage Medicines</a>
         {% endif %}
     </div>
     {% endif %}
 
     <!-- Quick Actions -->
     <div class="quick-actions mt-8">
-        <a href="{% url 'health:medicine_prn_log' %}" class="action-card">
+        <a href="{% url 'health:intake_prn_log' %}" class="action-card">
             <span class="action-icon">&#128138;</span>
             <span class="action-text">Log PRN Dose</span>
         </a>
-        <a href="{% url 'health:medicine_list' %}" class="action-card">
+        <a href="{% url 'health:intake_list' %}" class="action-card">
             <span class="action-icon">&#128203;</span>
             <span class="action-text">All Medicines</span>
         </a>
-        <a href="{% url 'health:medicine_history' %}" class="action-card">
+        <a href="{% url 'health:intake_history' %}" class="action-card">
             <span class="action-icon">&#128197;</span>
             <span class="action-text">History</span>
         </a>
-        <a href="{% url 'health:medicine_adherence' %}" class="action-card">
+        <a href="{% url 'health:intake_adherence' %}" class="action-card">
             <span class="action-icon">&#128200;</span>
             <span class="action-text">Adherence</span>
         </a>

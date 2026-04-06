@@ -8,7 +8,7 @@
     <nav class="breadcrumb mb-4">
         <a href="{% url 'health:home' %}">Health</a>
         <span>/</span>
-        <a href="{% url 'health:medicine_home' %}">Medicines</a>
+        <a href="{% url 'health:intake_home' %}">Medicines</a>
         <span>/</span>
         <span>Adherence</span>
     </nav>
@@ -63,7 +63,7 @@
             {% for stat in medicine_stats %}
             <div class="medicine-stat-item">
                 <div class="medicine-stat-info">
-                    <a href="{% url 'health:medicine_detail' pk=stat.medicine.pk %}">{{ stat.medicine.name }}</a>
+                    <a href="{% url 'health:intake_detail' pk=stat.medicine.pk %}">{{ stat.medicine.name }}</a>
                     <span class="medicine-stat-detail">{{ stat.taken }}/{{ stat.total }} doses</span>
                 </div>
                 <div class="medicine-stat-bar">

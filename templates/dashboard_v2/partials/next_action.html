@@ -25,7 +25,7 @@
         </button>
         {% elif next_action.source == "medicine" %}
         <button class="v2-action-toggle"
-                hx-post="{% url 'dashboard_v2:medicine_group_log' time_of_day=next_action.time_of_day %}"
+                hx-post="{% url 'dashboard_v2:intake_group_log' time_of_day=next_action.time_of_day %}"
                 hx-target="#medicine-card"
                 hx-swap="outerHTML">
             <span class="v2-check-empty">&#9675;</span>

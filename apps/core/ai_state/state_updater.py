@@ -79,10 +79,13 @@ def update_user_state(user, module, record_id=None):
 
 
 def _canonical_module(module):
-    """Map module aliases to canonical state keys."""
+    """Map module aliases to canonical state keys.
+
+    Must match state_engine._canonical_module() aliases exactly.
+    'medical' is its OWN module — NOT aliased to 'health'.
+    """
     aliases = {
         "purpose": "goals",
-        "medical": "health",
-        "labs": "health",
+        "labs": "medical",
     }
     return aliases.get(module, module)

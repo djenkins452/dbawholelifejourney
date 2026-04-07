@@ -6,6 +6,187 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-07 — Phase 2.5 state visibility audit: close CoS blind spots
+
+**What:** Diagnostic + targeted correction phase. Phase 2 unified how
+truth is computed; Phase 2.5 guarantees the truth actually *reaches* CoS.
+Traced every critical domain's DB → SAE → CoS path and found a systemic
+pattern: SAE was computing 15–25 fields per domain, but CoS context
+builders were cherry-picking 3–7 of them and silently dropping the rest.
+This phase fixes every gap found without introducing new systems.
+
+**Root cause pattern:**
+Every domain showed the same shape — the state builder populates a rich
+state dict, but the CoS context builder only reads a subset, so CoS can
+see "weight" but not "weight trend 7d", or "workouts_7d" but not
+"workout_adherence_score". Combined with `except Exception: pass` blocks
+that swallowed data-read failures, the LLM ended up reasoning about a
+partial view of the user's life while being unable to tell the difference
+between "no data" and "data was dropped in transit".
+
+**Diagnostic findings (visibility map):**
+
+| Domain | SAE fields | CoS fields (before) | Dropped |
+|---|---|---|---|
+| Fitness | 25 | 6 | 19 — adherence, consistency, strength trend, volume, PRs, training load |
+| Medication | 17 | 14 | 3 — behavior-derived 7d breakdown (adherence_score, completed, expected, missed) |
+| Nutrition | 18 | 13 | 5 — fiber, carb compliance, macro_compliance_score, food_entries_7d, last_food_entry |
+| Fasting | 8 (+gate) | 3 | 5 — compliance score, rolling stats, last fast metadata; + broken field name |
+| Journal | 15 | 7 | 8 — last entry, days_since_entry, entry_frequency, 30d count, mood_distribution |
+| Faith | 9 | 7 | 2 — active_reading_plans, last_scripture_read, days_since_reading |
+| Body composition | 5 raw + 11 intelligence | via separate cos_health_context (unreliable) | visible only when nightly batch had run |
+
+**Body composition — critical case resolved:**
+Body composition fields (body_fat_current, lean_mass_current,
+fat_mass_current, bmi_current, bmr_current) *were* in SAE state —
+populated by `build_health_state` from `BodyCompositionEntry`. But
+`_build_health_and_vitals` never read them. Instead, body composition
+reached CoS only through a secondary path (`build_cos_health_intelligence`
+→ `DailyHealthSummary.today`). That secondary path relied on the nightly
+batch having already run, so between midnight and the batch completion,
+CoS had no body composition visibility even though the user had just
+logged a fresh measurement.
+
+Phase 2.5 wires the canonical SAE fields (and the 11 pre-computed
+intelligence fields) directly into `health_signals`. The secondary path
+is preserved — it still populates the richer `health_intelligence` block
+— but CoS is no longer dependent on the nightly batch for basic
+visibility.
+
+**Fasting field-name mismatch (bug) fixed:**
+`_build_health_and_vitals` read `fasting_state.get('current_fast_started')`
+and `fasting_state.get('current_fast_target_hours')` — but
+`build_fasting_state` never populated those keys. Both returned empty
+strings. CoS told the LLM a user's active fast had no start time and no
+target. Phase 2.5 adds both fields to SAE (sourced from
+`active_fast.started_at` and `active_fast.target_hours`) and wires the
+read correctly.
+
+**Changes:**
+
+- `apps/core/ai_state/state_builder.py::build_fasting_state` — Added
+  `current_fast_started` (ISO timestamp) and `current_fast_target_hours`
+  to SAE output when there is an active fast.
+
+- `apps/core/ai_orchestrator/cos_context.py::_build_health_and_vitals`:
+  - **Fasting:** Replaced the single `active_fast_status` block with a
+    comprehensive `fasting_status` that exposes `enabled`,
+    `current_fast_active`, `current_fast` detail, `last_fast_duration`,
+    `last_fast_end`, `fasts_7d`, `rolling_7d_fasting_hours`,
+    `rolling_7d_avg_fast_duration`, and the canonical
+    `fasting_compliance_score`. Explicit `{enabled: False}` signal
+    preserved for disabled users. `active_fast_status` kept for back-compat.
+  - **Medication:** Added `adherence_score_7d`, `completed_7d`,
+    `expected_7d`, `missed_7d` to `medication_adherence_state` so the
+    LLM sees the 7-day behavior breakdown, not just today's numbers.
+  - **Fitness:** Added `workout_adherence_score`, `workout_completed_7d`,
+    `workout_expected_7d`, `workout_missed_7d`, `workout_consistency_score`,
+    `strength_trend_score`, `total_volume_7d`, `total_sets_7d`,
+    `movement_work_7d`, `weekly_training_load`, `today_training_load`,
+    `prs_30d`, `avg_workout_duration`, `last_workout_date` to
+    `health_signals`.
+  - **Water (Phase 2 state surfacing):** Added `water_today_oz`,
+    `water_goal_oz`, `water_today_pct`, `water_goal_met`,
+    `water_behind_goal`, `water_avg_oz_7d`, `water_consistency_score`
+    to `health_signals`. CoS can now warn "you're behind on water today".
+  - **Glucose variability level:** Added `glucose_variability`,
+    `glucose_variability_level`, `glucose_variability_label` from SAE.
+  - **Body composition (raw):** Added `body_fat_current`,
+    `lean_mass_current`, `fat_mass_current`, `bmi_current`, `bmr_current`
+    plus `last_*_entry` timestamps from SAE.
+  - **Body composition (intelligence):** Added 11 pre-computed fields
+    (`fat_loss_phase`, `fat_loss_quality_label`, `fat_loss_speed_label`,
+    `fat_loss_speed_pct_per_week`, `muscle_loss_risk_level`,
+    `muscle_loss_risk_score`, `muscle_preservation_status`,
+    `plateau_status`, `plateau_risk_label`, `plateau_risk_score`,
+    `recomposition_flag_14d`) from SAE state.
+
+- `apps/core/ai_orchestrator/cos_context.py::_build_nutrition_tracking_context`:
+  - Added `daily_fiber_g`, `carb_compliance_pct`, `macro_compliance_score`,
+    `food_entries_7d`, `last_food_entry`.
+  - **Supplement bridge:** Reads supplement adherence from medicine state
+    and injects a `supplements` sub-dict into the nutrition context so
+    the LLM sees supplements and macros together instead of treating them
+    as siloed medicine data.
+
+- `apps/core/ai_orchestrator/cos_context.py::_build_people_and_mood`:
+  - Added `last_entry`, `last_mood`, `days_since_entry`, `entry_frequency`,
+    `entries_30d`, and the 30-day `mood_distribution_30d` to `mood_status`.
+    CoS can now say "you haven't journaled in 5 days" or "your mood has
+    been mostly 'good' this month".
+
+- `apps/core/ai_orchestrator/cos_context.py::_build_faith_context`:
+  - Added `active_reading_plans`, `last_scripture_read`, `days_since_reading`
+    to `bible_reading`. CoS can now say "4 days since your last reading".
+
+- **Silent-failure removal:** Replaced `except Exception: pass` in
+  `_build_health_and_vitals`, `_build_nutrition_tracking_context`,
+  `_build_people_and_mood`, and `_build_faith_context` with explicit
+  `logger.warning(..., exc_info=True)` calls. Biblical-calendar lookup
+  split into `ImportError` (silent, optional module) and `Exception`
+  (logged). No data-read failure in these builders is silent anymore.
+
+**Before vs after (example CoS responses):**
+
+| Question | Before | After |
+|---|---|---|
+| "What's my body fat %?" | "I don't have that data." (when nightly batch hadn't run) | "Your latest body fat is 24.3% from Apr 5." |
+| "How's my workout consistency this week?" | "You've done 3 workouts this week." | "You've done 3 of 5 planned workouts (60% adherence), consistency 78/100, strength trending up." |
+| "How's my fasting going?" | "You're currently fasting (12h elapsed)." | "You're currently fasting (12h, started 8:00 PM Apr 6, target 16h). 7-day compliance 82%. You've done 6 fasts this week." |
+| "Am I behind on water today?" | "I don't know your water status." | "Yes — you've had 32 oz, 50% of your 64 oz goal, and it's past noon." |
+| "Have I been journaling?" | "Your mood trend is stable." | "You journaled 4 times in the last 7 days, mood trend stable. Last entry was yesterday (mood: good). Mostly 'good' and 'okay' across the last 30 days." |
+| "How long since I read scripture?" | "Your reading streak is 0." | "4 days since your last scripture reading on Apr 3. You have 1 active reading plan (ESV One Year Bible)." |
+| "Did I take my meds on time this week?" | "Today you've taken 3 of 4." | "Today 3 of 4. This week: 26 expected, 25 completed, 1 missed (96% adherence)." |
+
+**Global visibility check answer:**
+*"Is there any data in WLJ that exists in DB but is not guaranteed to
+appear in SAE state?"* — After Phase 2.5, **no critical domain has a DB
+→ SAE gap**. Every domain the audit traced now has its key fields both
+built by the state builder AND consumed by the CoS context. The audit
+did surface minor fields in peripheral domains (e.g. specific
+`WorkoutSession.session_mode` or `FoodEntry.meal_type`) that are not
+currently in SAE — these are optional detail fields rather than critical
+signals, and they belong to Phase 3's Trust Contract work (where
+sufficiency metadata will let surfaces decide which detail fields to
+expose).
+
+**Standardized domain mapping:**
+The audit flagged potential confusion between "health" / "body
+composition" / "physical". All three now resolve to a single SAE
+module (`health`) whose state dict includes both raw vitals and
+pre-computed body composition intelligence. Consumers (CoS, dashboards,
+domain pages) read via `get_state_value(user, 'health.*')` or
+`get_module_state(user, 'health')`. No domain-name aliasing confusion
+remains.
+
+**Verification:**
+- `python3 manage.py check` → no issues
+- `python3 manage.py makemigrations --check --dry-run` → no model changes
+- `apps.core.ai_cross_domain` → 33/33 pass
+- `apps.core.ai_insights` → 140/140 pass
+- Import smoke test — all edited builders import and resolve cleanly
+- Manual trace: `build_fasting_state` → `_build_health_and_vitals` →
+  verified every new `fasting_status` field flows through
+
+**Regression risks / watch list:**
+- **CoS prompts will be larger.** The LLM now sees ~60 additional health
+  signal fields per user. The existing `COS_INJECTION_TRUNCATED` +
+  `COS_PROMPT_BUDGET` logic already trims to 8000 soft-limit tokens; it
+  will simply have more to choose from. No new truncation logic added.
+- **Prompt token budget warnings may increase.** Already observed in test
+  logs — not new, but volume may rise slightly.
+- **Back-compat preserved.** `active_fast_status` key retained alongside
+  the new `fasting_status` so any downstream consumer still reading the
+  old key keeps working.
+- **`mood_distribution_30d` is a new key.** Previously CoS exposed nothing
+  under that name (mood_distribution was SAE-only). Downstream code
+  reading mood_status dict may see the new key; any iterator should
+  tolerate unknown keys.
+- **The previously-broken field-name reads on fasting** (`current_fast_started`
+  / `current_fast_target_hours`) now actually return data. If any code
+  downstream was relying on them returning empty strings as a signal,
+  it will break. Grep shows no such dependency.
+
 ## 2026-04-07 — Phase 2 system hardening: unify truth paths
 
 **What:** Second phase of the WLJ system coherence remediation plan. Where

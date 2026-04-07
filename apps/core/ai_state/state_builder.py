@@ -1050,6 +1050,13 @@ def build_fasting_state(user):
     if active_fast:
         elapsed = (now - active_fast.started_at).total_seconds() / 3600
         state["current_fast_hours"] = round(elapsed, 1)
+        # Phase 2.5: expose start time and target so CoS can say
+        # "you started at 8pm targeting 16h". CoS previously read
+        # `current_fast_started` and `current_fast_target_hours` but
+        # SAE never populated them, so the read returned empty strings.
+        state["current_fast_started"] = active_fast.started_at.isoformat()
+        if active_fast.target_hours is not None:
+            state["current_fast_target_hours"] = float(active_fast.target_hours)
 
     # ── Last completed fast (canonical contract) ───────────────
     last_fast = FastingQueries.last_completed(user)

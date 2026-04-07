@@ -282,22 +282,55 @@ def _build_health_and_vitals(user):
             'weight_trend': get_state_value(user, 'health.weight_trend'),
             'active_goals': get_state_value(user, 'goals.active_goal_count', 0),
         }
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("CoS context: transformation_metrics unavailable: %s", e)
 
-    # Active fast status — from SAE (CoS purity: no raw DB)
+    # Fasting status — Phase 2.5: expose full fasting state to CoS so the
+    # LLM sees current fast, rolling 7d stats, compliance score, and the
+    # explicit disabled signal. Previously only the "active fast" subset
+    # reached CoS and fasting_compliance_score (the key metric) was dropped.
     try:
         from apps.core.ai_state.state_engine import get_module_state
         fasting_state = get_module_state(user, 'fasting') or {}
-        if fasting_state.get('current_fast_active'):
-            result['active_fast_status'] = {
-                'active': True,
-                'started_at': fasting_state.get('current_fast_started', ''),
-                'target_hours': fasting_state.get('current_fast_target_hours', 0),
-                'elapsed_hours': fasting_state.get('current_fast_hours', 0),
+        # Phase 1 contract: disabled domains return {'enabled': False} and
+        # nothing else. Surface that fact so the LLM knows fasting is off.
+        if fasting_state.get('enabled') is False:
+            result['fasting_status'] = {'enabled': False}
+        elif fasting_state:
+            fs = {
+                'enabled': True,
+                'current_fast_active': bool(fasting_state.get('current_fast_active')),
             }
-    except Exception:
-        pass
+            if fasting_state.get('current_fast_active'):
+                fs['current_fast'] = {
+                    'started_at': fasting_state.get('current_fast_started', ''),
+                    'target_hours': fasting_state.get('current_fast_target_hours'),
+                    'elapsed_hours': fasting_state.get('current_fast_hours', 0),
+                }
+                # Back-compat: legacy consumers still read active_fast_status
+                result['active_fast_status'] = {
+                    'active': True,
+                    'started_at': fasting_state.get('current_fast_started', ''),
+                    'target_hours': fasting_state.get('current_fast_target_hours', 0),
+                    'elapsed_hours': fasting_state.get('current_fast_hours', 0),
+                }
+            if fasting_state.get('last_fast_duration') is not None:
+                fs['last_fast_duration'] = fasting_state.get('last_fast_duration')
+                fs['last_fast_end'] = fasting_state.get('last_fast_end')
+            # Rolling 7d engagement stats
+            fs['fasts_7d'] = fasting_state.get('fasts_7d', 0)
+            if fasting_state.get('rolling_7d_fasting_hours') is not None:
+                fs['rolling_7d_fasting_hours'] = fasting_state.get('rolling_7d_fasting_hours')
+            if fasting_state.get('rolling_7d_avg_fast_duration') is not None:
+                fs['rolling_7d_avg_fast_duration'] = fasting_state.get('rolling_7d_avg_fast_duration')
+            # Canonical compliance score (may be None — insufficient data).
+            # Phase 1 rule: never coerce None → 0 here.
+            compliance = fasting_state.get('fasting_compliance_score')
+            if compliance is not None:
+                fs['fasting_compliance_score'] = compliance
+            result['fasting_status'] = fs
+    except Exception as e:
+        logger.warning("CoS context: fasting status unavailable: %s", e)
 
     # Medication adherence — from SAE (CoS purity: no live computation)
     try:
@@ -305,11 +338,24 @@ def _build_health_and_vitals(user):
         med_state = get_module_state(user, 'medicine') or {}
         if med_state.get('active_count', 0) > 0:
             adherence_7d = med_state.get('adherence_7d')
-            result['medication_adherence_state'] = {
+            med_adherence = {
                 'total_scheduled': med_state.get('expected_today', 0),
                 'taken_today': med_state.get('today_taken', 0),
                 'adherence_pct': round(adherence_7d * 100, 1) if adherence_7d is not None else None,
             }
+            # Phase 2.5: expose the 7-day behavior breakdown (previously
+            # computed in SAE and silently dropped by CoS). The LLM can
+            # now see how many doses were expected, taken, and missed
+            # across the last week — not just today's numbers.
+            if med_state.get('adherence_score_7d') is not None:
+                med_adherence['adherence_score_7d'] = med_state.get('adherence_score_7d')
+            if med_state.get('completed_7d') is not None:
+                med_adherence['completed_7d'] = med_state.get('completed_7d')
+            if med_state.get('expected_7d') is not None:
+                med_adherence['expected_7d'] = med_state.get('expected_7d')
+            if med_state.get('missed_7d') is not None:
+                med_adherence['missed_7d'] = med_state.get('missed_7d')
+            result['medication_adherence_state'] = med_adherence
             # Supplement adherence (separate from medication)
             supp_adherence_7d = med_state.get('supplement_adherence_7d')
             if supp_adherence_7d is not None or med_state.get('supplement_count', 0) > 0:
@@ -411,8 +457,8 @@ def _build_health_and_vitals(user):
                 if wg_remaining is not None:
                     health_signals['weight_goal_remaining'] = wg_remaining
                     health_signals['weight_goal_on_track'] = get_state_value(user, 'health.weight_goal_on_track')
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("CoS context: weight signals failed: %s", e)
 
         # Vitals and workout signals — from SAE truth layer
         try:
@@ -443,7 +489,9 @@ def _build_health_and_vitals(user):
                 if sleep_min:
                     health_signals['sleep_avg_7d'] = round(float(sleep_min) / 60, 1)
 
-            # Fitness signals from SAE
+            # Fitness signals from SAE — Phase 2.5: expose adherence,
+            # consistency, strength trend, and volume metrics that used
+            # to be computed in SAE and silently dropped by CoS.
             from apps.core.ai_state.state_engine import get_module_state
             fitness = get_module_state(user, 'fitness') or {}
             workout_count = fitness.get('workouts_7d', 0)
@@ -459,6 +507,38 @@ def _build_health_and_vitals(user):
                     health_signals['workout_distance_7d'] = fitness['workout_distance_7d']
                 if fitness.get('recent_workouts'):
                     health_signals['recent_workouts'] = fitness['recent_workouts']
+                # Phase 2.5: behavior-derived adherence metrics
+                if fitness.get('workout_adherence_score') is not None:
+                    health_signals['workout_adherence_score'] = fitness['workout_adherence_score']
+                if fitness.get('workout_completed_7d') is not None:
+                    health_signals['workout_completed_7d'] = fitness['workout_completed_7d']
+                if fitness.get('workout_expected_7d') is not None:
+                    health_signals['workout_expected_7d'] = fitness['workout_expected_7d']
+                if fitness.get('workout_missed_7d') is not None:
+                    health_signals['workout_missed_7d'] = fitness['workout_missed_7d']
+                # Consistency + strength trend
+                if fitness.get('workout_consistency_score') is not None:
+                    health_signals['workout_consistency_score'] = fitness['workout_consistency_score']
+                if fitness.get('strength_trend_score') is not None:
+                    health_signals['strength_trend_score'] = fitness['strength_trend_score']
+                # Volume breakdown (sets, volume, movement work)
+                if fitness.get('total_volume_7d') is not None:
+                    health_signals['total_volume_7d'] = fitness['total_volume_7d']
+                if fitness.get('total_sets_7d') is not None:
+                    health_signals['total_sets_7d'] = fitness['total_sets_7d']
+                if fitness.get('movement_work_7d') is not None:
+                    health_signals['movement_work_7d'] = fitness['movement_work_7d']
+                # Training load + PRs
+                if fitness.get('weekly_training_load') is not None:
+                    health_signals['weekly_training_load'] = fitness['weekly_training_load']
+                if fitness.get('today_training_load') is not None:
+                    health_signals['today_training_load'] = fitness['today_training_load']
+                if fitness.get('prs_30d'):
+                    health_signals['prs_30d'] = fitness['prs_30d']
+                if fitness.get('avg_workout_duration') is not None:
+                    health_signals['avg_workout_duration'] = fitness['avg_workout_duration']
+                if fitness.get('last_workout_date'):
+                    health_signals['last_workout_date'] = fitness['last_workout_date']
 
             # Per-exercise progress (plateau detection, e1RM trends)
             exercise_progress = fitness.get('exercise_progress', [])
@@ -469,11 +549,88 @@ def _build_health_and_vitals(user):
             if hr_events and hr_events > 0:
                 health_signals['heart_rate_events_7d'] = hr_events
 
-        except Exception:
-            pass
+            # Water — Phase 2 canonical state. Previously CoS only saw
+            # 7-day consistency; today's totals and the time-aware behind
+            # flag lived only in the health view. Phase 2 moved them into
+            # SAE; Phase 2.5 now exposes them to CoS.
+            water_today_oz = get_state_value(user, 'health.water_today_oz')
+            if water_today_oz is not None:
+                health_signals['water_today_oz'] = water_today_oz
+                health_signals['water_goal_oz'] = get_state_value(user, 'health.water_goal_oz')
+                health_signals['water_today_pct'] = get_state_value(user, 'health.water_today_pct')
+                health_signals['water_goal_met'] = bool(get_state_value(user, 'health.water_goal_met'))
+                if get_state_value(user, 'health.water_behind_goal'):
+                    health_signals['water_behind_goal'] = True
+            water_avg_7d = get_state_value(user, 'health.water_avg_oz_7d')
+            if water_avg_7d is not None:
+                health_signals['water_avg_oz_7d'] = water_avg_7d
+                health_signals['water_consistency_score'] = get_state_value(
+                    user, 'health.water_consistency_score',
+                )
+
+            # Glucose variability — Phase 2 canonical classification.
+            gv_level = get_state_value(user, 'health.glucose_variability_level')
+            if gv_level:
+                health_signals['glucose_variability'] = get_state_value(
+                    user, 'health.glucose_variability',
+                )
+                health_signals['glucose_variability_level'] = gv_level
+                health_signals['glucose_variability_label'] = get_state_value(
+                    user, 'health.glucose_variability_label',
+                )
+
+            # Body composition — Phase 2.5. These fields exist on SAE
+            # state (populated by build_health_state from BodyCompositionEntry
+            # + DailyHealthSummary) but CoS never read them. The
+            # health_intelligence path via cos_health_context reads from
+            # DailyHealthSummary.today which is only populated after the
+            # nightly batch runs, so when the batch hasn't caught up CoS
+            # sees no body composition data at all. Reading canonical SAE
+            # fields here gives CoS immediate visibility and matches what
+            # the user sees on the body composition page.
+            body_fat = get_state_value(user, 'health.body_fat_current')
+            if body_fat is not None:
+                health_signals['body_fat_current'] = body_fat
+                health_signals['last_body_fat_entry'] = get_state_value(
+                    user, 'health.last_body_fat_entry',
+                )
+            lean_mass = get_state_value(user, 'health.lean_mass_current')
+            if lean_mass is not None:
+                health_signals['lean_mass_current'] = lean_mass
+                health_signals['last_lean_mass_entry'] = get_state_value(
+                    user, 'health.last_lean_mass_entry',
+                )
+            fat_mass = get_state_value(user, 'health.fat_mass_current')
+            if fat_mass is not None:
+                health_signals['fat_mass_current'] = fat_mass
+                health_signals['last_fat_mass_entry'] = get_state_value(
+                    user, 'health.last_fat_mass_entry',
+                )
+            bmi = get_state_value(user, 'health.bmi_current')
+            if bmi is not None:
+                health_signals['bmi_current'] = bmi
+            bmr = get_state_value(user, 'health.bmr_current')
+            if bmr is not None:
+                health_signals['bmr_current'] = bmr
+            # Pre-computed body composition intelligence (from DailyHealthSummary)
+            for fld in (
+                'fat_loss_phase', 'fat_loss_quality_label',
+                'fat_loss_speed_label', 'fat_loss_speed_pct_per_week',
+                'muscle_loss_risk_level', 'muscle_loss_risk_score',
+                'muscle_preservation_status', 'plateau_status',
+                'plateau_risk_label', 'plateau_risk_score',
+                'recomposition_flag_14d',
+            ):
+                val = get_state_value(user, f'health.{fld}')
+                if val is not None:
+                    health_signals[fld] = val
+
+        except Exception as e:
+            logger.warning("CoS context: fitness/body-comp signals failed: %s", e)
 
         result['health_signals'] = health_signals
-    except Exception:
+    except Exception as e:
+        logger.warning("CoS context: health_signals block failed: %s", e)
         result['health_signals'] = {}
 
     # Health Intelligence Engine — multi-week trends, scores, patterns
@@ -1425,14 +1582,42 @@ def _build_people_and_mood(user):
         logger.warning("CoS context: relationship state unavailable: %s", e)
         result['relationship_signals'] = []
 
-    # Mood from SAE journal state (already clean — no raw DB)
+    # Mood from SAE journal state (already clean — no raw DB).
+    # Phase 2.5: previously CoS only read mood_trend / mood_avg_7d /
+    # entries_7d. Activity metrics (last_entry, days_since_entry,
+    # entry_frequency, entries_30d) and the 30-day mood_distribution
+    # were all computed in SAE and silently dropped — so the LLM could
+    # not say "you haven't journaled in 5 days" or "your mood has been
+    # mostly 'good' this month".
     try:
         from apps.core.ai_state.state_engine import get_state_value
-        result['mood_status'] = {
+        mood_status = {
             'trend': get_state_value(user, 'journal.mood_trend', 'stable'),
             'avg_7d': get_state_value(user, 'journal.mood_avg_7d'),
             'entries_7d': get_state_value(user, 'journal.entries_7d', 0),
         }
+        # Activity / recency
+        last_entry = get_state_value(user, 'journal.last_entry')
+        if last_entry:
+            mood_status['last_entry'] = last_entry
+        last_mood = get_state_value(user, 'journal.last_mood')
+        if last_mood:
+            mood_status['last_mood'] = last_mood
+        days_since = get_state_value(user, 'journal.days_since_entry')
+        if days_since is not None:
+            mood_status['days_since_entry'] = days_since
+        entry_freq = get_state_value(user, 'journal.entry_frequency')
+        if entry_freq is not None:
+            mood_status['entry_frequency'] = entry_freq
+        entries_30d = get_state_value(user, 'journal.entries_30d')
+        if entries_30d is not None:
+            mood_status['entries_30d'] = entries_30d
+        # 30-day mood distribution (was dropped — only 7d was visible)
+        mood_dist = get_state_value(user, 'journal.mood_distribution', {})
+        if mood_dist:
+            mood_status['mood_distribution_30d'] = mood_dist
+        result['mood_status'] = mood_status
+
         # Emotion awareness (structured emotion selections from journal)
         emotion_counts = get_state_value(user, 'journal.emotion_counts_7d', {})
         if emotion_counts:
@@ -1457,7 +1642,8 @@ def _build_people_and_mood(user):
         stress_score = get_state_value(user, 'journal.stress_score')
         if stress_score:
             result['stress_score'] = stress_score
-    except Exception:
+    except Exception as e:
+        logger.warning("CoS context: mood/journal signals failed: %s", e)
         result['mood_status'] = {}
 
     return result
@@ -1634,9 +1820,16 @@ def _build_nutrition_tracking_context(user):
 
     This covers food logging, calorie/macro tracking, targets, and compliance.
     Separate from _build_meals_context() which covers meal planning/pantry.
+
+    Phase 2.5: previously CoS cherry-picked ~7 of 15 nutrition fields from
+    SAE state. Fiber, carb compliance, the composite macro_compliance_score,
+    food_entries_7d, and last_food_entry were all computed in SAE and then
+    silently dropped. This builder now reads every canonical nutrition field
+    and also bridges supplement adherence from the medicine domain so the
+    LLM sees supplements and macros together.
     """
     try:
-        from apps.core.ai_state.state_engine import get_state_value
+        from apps.core.ai_state.state_engine import get_state_value, get_module_state
 
         ctx = {}
         daily_cal = get_state_value(user, 'nutrition.daily_calories')
@@ -1645,6 +1838,10 @@ def _build_nutrition_tracking_context(user):
             ctx['daily_protein_g'] = get_state_value(user, 'nutrition.daily_protein_g', 0)
             ctx['daily_carbs_g'] = get_state_value(user, 'nutrition.daily_carbs_g', 0)
             ctx['daily_fat_g'] = get_state_value(user, 'nutrition.daily_fat_g', 0)
+            # Phase 2.5: fiber (was computed in SAE, dropped in CoS)
+            daily_fiber = get_state_value(user, 'nutrition.daily_fiber_g')
+            if daily_fiber is not None:
+                ctx['daily_fiber_g'] = daily_fiber
 
         cal_target = get_state_value(user, 'nutrition.calorie_target')
         if cal_target is not None:
@@ -1665,6 +1862,13 @@ def _build_nutrition_tracking_context(user):
         protein_compliance = get_state_value(user, 'nutrition.protein_compliance_pct')
         if protein_compliance is not None:
             ctx['protein_compliance_pct'] = protein_compliance
+        # Phase 2.5: carb compliance + composite macro score (previously dropped)
+        carb_compliance = get_state_value(user, 'nutrition.carb_compliance_pct')
+        if carb_compliance is not None:
+            ctx['carb_compliance_pct'] = carb_compliance
+        macro_score = get_state_value(user, 'nutrition.macro_compliance_score')
+        if macro_score is not None:
+            ctx['macro_compliance_score'] = macro_score
 
         avg_cal = get_state_value(user, 'nutrition.rolling_7d_calories_avg')
         if avg_cal is not None:
@@ -1676,12 +1880,41 @@ def _build_nutrition_tracking_context(user):
         entries = get_state_value(user, 'nutrition.food_entries_today')
         if entries is not None:
             ctx['food_entries_today'] = entries
+        # Phase 2.5: weekly engagement + recency
+        entries_7d = get_state_value(user, 'nutrition.food_entries_7d')
+        if entries_7d is not None:
+            ctx['food_entries_7d'] = entries_7d
+        last_entry = get_state_value(user, 'nutrition.last_food_entry')
+        if last_entry:
+            ctx['last_food_entry'] = last_entry
+
+        # Phase 2.5: supplement adherence bridge. Supplements live in the
+        # medicine module (Intake.intake_type='supplement') but users and
+        # the LLM think of them as part of nutrition. Surface a compact
+        # summary here so the LLM can relate supplements to macro intake.
+        try:
+            med_state = get_module_state(user, 'medicine') or {}
+            supp_adherence = med_state.get('supplement_adherence_7d')
+            if supp_adherence is not None or med_state.get('supplement_count', 0) > 0:
+                ctx['supplements'] = {
+                    'supplement_count': med_state.get('supplement_count', 0),
+                    'adherence_pct_7d': (
+                        round(supp_adherence * 100, 1)
+                        if supp_adherence is not None else None
+                    ),
+                    'active_supplements': med_state.get('active_supplements', [])[:10],
+                }
+        except Exception as e:
+            logger.warning(
+                "CoS context: supplement bridge failed for user %s: %s",
+                getattr(user, 'pk', '?'), e,
+            )
 
         if ctx:
             return {'nutrition_tracking': ctx}
         return {}
     except Exception as e:
-        logger.debug("CoS context: nutrition tracking unavailable: %s", e)
+        logger.warning("CoS context: nutrition tracking unavailable: %s", e)
         return {}
 
 
@@ -1744,7 +1977,13 @@ def _build_time_intelligence(user):
 
 
 def _build_faith_context(user):
-    """Build faith module context — from SAE truth layer."""
+    """Build faith module context — from SAE truth layer.
+
+    Phase 2.5: previously CoS read streak + prayer counts but dropped
+    `active_reading_plans`, `last_scripture_read`, and `days_since_reading`
+    — so the LLM could not say "it's been 4 days since you last read
+    scripture" or "you have 2 active reading plans". These are exposed now.
+    """
     try:
         from apps.core.ai_state.state_engine import get_state_value
 
@@ -1755,23 +1994,33 @@ def _build_faith_context(user):
         recent_prayers = faith.get('recent_prayer_titles', [])
         urgent_count = faith.get('urgent_prayers', 0)
 
-        result = {
-            'faith_summary': {
-                'active_prayers': active_prayers,
-                'answered_prayers': answered_prayers,
-                'urgent_prayers': urgent_count,
-                'recent_prayer_titles': recent_prayers,
-            }
+        faith_summary = {
+            'active_prayers': active_prayers,
+            'answered_prayers': answered_prayers,
+            'urgent_prayers': urgent_count,
+            'recent_prayer_titles': recent_prayers,
         }
 
         # Bible reading progress
         reading_streak = faith.get('reading_streak', 0)
         bible_plan = faith.get('bible_plan_name', '')
-        if reading_streak or bible_plan:
-            result['faith_summary']['bible_reading'] = {
+        active_plans = faith.get('active_reading_plans')
+        last_read = faith.get('last_scripture_read')
+        days_since = faith.get('days_since_reading')
+        if reading_streak or bible_plan or active_plans or last_read:
+            bible_reading = {
                 'plan': bible_plan,
                 'streak_days': reading_streak,
             }
+            if active_plans is not None:
+                bible_reading['active_reading_plans'] = active_plans
+            if last_read:
+                bible_reading['last_scripture_read'] = last_read
+            if days_since is not None:
+                bible_reading['days_since_reading'] = days_since
+            faith_summary['bible_reading'] = bible_reading
+
+        result = {'faith_summary': faith_summary}
 
         # Biblical calendar day — deterministic date-derived signal
         try:
@@ -1780,13 +2029,19 @@ def _build_faith_context(user):
             biblical_day = get_biblical_day(get_user_today(user))
             if biblical_day:
                 result['faith_summary']['biblical_day'] = biblical_day
-        except Exception:
-            pass  # Non-critical — fail silently if calendar unavailable
+        except ImportError:
+            # Optional module — expected when calendar isn't deployed.
+            pass
+        except Exception as e:
+            logger.warning(
+                "CoS context: biblical calendar lookup failed for user %s: %s",
+                getattr(user, 'pk', '?'), e,
+            )
 
         return result
 
     except Exception as e:
-        logger.debug("CoS context: faith unavailable: %s", e)
+        logger.warning("CoS context: faith context build failed: %s", e)
         return {}
 
 

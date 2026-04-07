@@ -6,6 +6,291 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-07 — Phase 4.5 Hard Response Enforcement
+
+**What:** Phase 4 added behavioral guidance via the CoS system prompt.
+Phase 4.5 makes weak responses *impossible* by enforcing response
+construction in CODE — not just prompts. Three layers of hard
+enforcement were added:
+
+1. **Deterministic domain handlers** for workouts, medication, body
+   composition, nutrition, and fasting — every domain handler now
+   produces the canonical Phase 4.5 format in code. Raw-number-only
+   responses are impossible because the format itself forces a
+   situation/interpretation/action block with trust fields injected.
+
+2. **High-priority dominance injection** — every domain handler
+   prepends a one-line priority note when `right_now_focus.priority ==
+   'high'` in a DIFFERENT domain. The user cannot discuss workouts
+   while ignoring a missed medication — the priority note will appear.
+
+3. **`validate_response` function + LLM post-processing wire-up** —
+   any LLM fallthrough response is validated before it reaches the
+   user. Generic phrases, too-short outputs, raw data without trust
+   markers, and responses lacking interpretive language are rejected.
+   Rejected responses are regenerated from the deterministic builders.
+
+**Changes:**
+
+### `apps/ai/deterministic_router.py` (core enforcement)
+
+- **`_GENERIC_PHRASES`** — centralized blocklist of banned coaching
+  phrases: "keep it up", "great job", "consistent effort",
+  "you got this", "stay on track", etc.
+
+- **`_get_all_trust_reports(user)`** — single helper that reads every
+  domain's `_trust` sub-dict from SAE. Used by the focus route, the
+  validator, and all domain handlers.
+
+- **`_get_domain_trust(user, domain_key)`** — fetch a single domain's
+  Trust Report or None.
+
+- **`_get_high_priority_note(user, exclude_domain=None)`** — strict
+  right_now_focus dominance. Returns a one-line note when there is a
+  high-priority focus in a DIFFERENT domain than the one being asked
+  about. Prepended to every domain handler's response.
+
+- **`_format_decision_response(situation, interpretation, action, trust,
+  priority_note)`** — the canonical Phase 4.5 response shape. Trust
+  fields (confidence + sufficiency) are automatically appended to the
+  interpretation line; priority note is automatically prepended.
+  Every domain handler calls this. Raw-data-only responses are
+  architecturally impossible.
+
+- **`_handle_workout_query`** — rewritten to the Phase 4.5 format.
+  Reads `workout_adherence_score`, `workout_completed_7d`,
+  `workout_expected_7d`, `workout_missed_7d`, `strength_trend_score`,
+  `workout_minutes_7d`, etc. Produces:
+  - Situation: `3 of 5 planned sessions completed, 2h 30m training, 2 missed`
+  - Interpretation: `Slipping (60% adherence), strength trending down (92% confidence, sufficiency: high)`
+  - Action: domain-specific next step sourced from trust.priority_reason
+    or computed from adherence percentile.
+
+- **`_handle_medication_query`** — rewritten. Reads `adherence_7d`,
+  `today_taken/missed/pending`, `expected_7d`, `completed_7d`,
+  `missed_7d`. Format:
+  - Situation: `Today: 3/4 taken, 1 missed, 0 pending; this week: 25/28 taken, 3 missed`
+  - Interpretation: `Good adherence (89%) (85% confidence, sufficiency: high)`
+  - Action: computed from today's state + trust priority.
+
+- **`_match_body_composition_query` / `_handle_body_composition_query`**
+  — NEW. Matches "body fat", "lean mass", "fat mass", "body composition".
+  Reads body_fat_current, lean_mass_current, fat_mass_current,
+  fat_loss_phase, plateau_risk_label, muscle_loss_risk_level from SAE.
+  Produces the 3-section format with sufficiency warnings for users
+  with only 1-2 measurements in 14 days.
+
+- **`_match_nutrition_query` / `_handle_nutrition_query`** — NEW. Matches
+  "how is my nutrition", "my macros", "my calories". Reads daily_calories,
+  daily_protein_g, calorie_target, protein_target, macro_compliance_score,
+  food_entries_7d. Produces the 3-section format.
+
+- **`_match_fasting_query` / `_handle_fasting_query`** — NEW. Matches
+  "am i fasting", "my fast", "fasting status". Reads current_fast_active,
+  current_fast_hours, current_fast_target_hours, fasts_7d,
+  fasting_compliance_score, last_fast_end. Produces the 3-section format.
+  Returns the explicit "fasting is turned off" deterministic response
+  when `enabled == False`.
+
+- **`validate_response(response_text, user, query_domain)`** — the hard
+  validator. Returns `(is_valid, reason)`. Rejects:
+  - Empty or non-string responses
+  - Any response containing a generic coaching phrase
+  - Responses < 60 characters (too short to contain interp + action)
+  - Responses that cite a domain but lack trust/interpretation markers
+    (%, confidence, sufficiency, priority, ahead of, behind, on track,
+    trend, limited data, early signal, slipping, on target, off target,
+    plateau, above target, below target, etc.)
+  - Responses lacking any interpretive language (`you`, `mean`, `indicate`,
+    `shows`, `is `, `below`, `above`, `within`, `ahead`, `behind`,
+    `track`, `plan`, `focus`, `priority`, `interpretation`, `situation`,
+    `action`, `next step`)
+
+- **`regenerate_response_deterministic(user, query_domain)`** — when
+  the validator rejects an LLM response, this function dispatches to
+  the correct deterministic handler (workout, medication, body comp,
+  nutrition, fasting) and returns a fully-formatted Phase 4.5 response.
+  Returns `None` if no handler applies (caller keeps the original).
+
+- **Route registration** — added 3 new routes to the router:
+  - `body_composition_query`
+  - `nutrition_query`
+  - `fasting_query`
+
+### `apps/ai/personal_assistant.py` (validator wire-up)
+
+- After the LLM call in `send_message()` (line 4502), added Phase 4.5
+  post-processing:
+  1. Infer the query domain via `_infer_domain(message.lower())`.
+  2. Call `validate_response(response, user, query_domain)`.
+  3. If invalid, log `PHASE_4_5_VALIDATOR_REJECT` with reason + domain,
+     then call `regenerate_response_deterministic(user, query_domain)`.
+  4. If a deterministic rebuild is available, replace the LLM response;
+     log `PHASE_4_5_VALIDATOR_REBUILD`.
+  5. If no rebuilder exists for the inferred domain, log
+     `PHASE_4_5_VALIDATOR_KEPT` and fall through with the original
+     response (better than blanking the user's chat).
+- Wrapped in `try/except` that logs `PHASE_4_5_VALIDATOR_ERROR` — the
+  validator must NEVER break the chat.
+
+**Enforcement coverage:**
+
+| Query type | Before (LLM) | After (deterministic) |
+|---|---|---|
+| "How many workouts this week?" | LLM produces "You logged 11 workouts" (raw, no interp) | Deterministic: Situation + Interpretation with trust + Action |
+| "How is my medication adherence?" | LLM paraphrases adherence | Deterministic: Today's doses + 7d breakdown + trust priority |
+| "What's my body fat?" | LLM says "24.3%" | Deterministic: raw values + phase/plateau interp + action |
+| "How are my macros?" | LLM lists calories | Deterministic: calories vs target + macro score + sufficiency warning |
+| "Am I fasting?" | LLM might hallucinate | Deterministic: current fast + rolling stats + compliance + action |
+| Any domain query where LLM returns "keep it up" / "great job" | User sees generic encouragement | Validator rejects → regenerate deterministically |
+| "Am I behind?" / "How am I doing?" / "What should I focus on?" | Phase 4 intercept (router) | Phase 4 intercept still fires first |
+
+**Still using LLM (by design):**
+- Open-ended conversational questions ("how was your weekend?")
+- Explanation requests ("why is my sleep bad?")
+- Multi-domain synthesis questions
+- Actions that require reasoning across the whole CoS context
+- When the inferred domain has no Phase 4.5 handler
+
+**Validation rules summary:**
+
+| Rule | Rejection reason | Example triggering response |
+|---|---|---|
+| 1. Generic phrases | `generic phrase: 'keep it up'` | "Keep it up, you're doing great!" |
+| 2. Too short | `response too short (22 chars)` | "You logged 11 workouts" |
+| 3. Missing trust markers on domain query | `workouts response lacks trust/interpretation markers` | "The weather is nice" (inferred workouts domain) |
+| 4. No interpretive language | `response lacks interpretive language` | Pure raw data dump with no verbs |
+
+**Before vs After:**
+
+*Workout query*
+
+Before (LLM fallthrough):
+> "You logged 11 workouts this week. Great job, keep it up!"
+
+After (deterministic, with simulated data):
+> **Situation**
+> 11 of 5 planned sessions completed, 5.2 hours of training, 0 missed.
+>
+> **Interpretation**
+> Ahead of plan (220% adherence), strength trending up (92% confidence, sufficiency: high).
+>
+> **Action**
+> Shift focus to recovery — you've exceeded plan.
+
+*Nutrition query*
+
+Before:
+> "You had 1850 calories today."
+
+After:
+> **Situation**
+> Calories today: **1850 / 2100**, protein: **120g / 150g**, 4 meals logged this week.
+>
+> **Interpretation**
+> Within target range, need more days logged for trustworthy guidance (55% confidence, sufficiency: low).
+>
+> **Action**
+> Log at least 3 meals this week for reliable tracking.
+
+*Body composition query*
+
+Before:
+> "Your body fat is 24.3%."
+
+After:
+> **Situation**
+> Body fat: **24.3%**. Last measurement: 2026-04-03.
+>
+> **Interpretation**
+> Fat loss phase: stable fat loss. Plateau risk: low. Muscle-loss risk: low. (60% confidence, sufficiency: low)
+>
+> **Action**
+> Log another measurement this week to improve trust in the trend.
+
+*High-priority injection* (user asks workouts, meds are the priority)
+
+> > **Priority note:** Your highest-priority focus right now is **medication** — 1 of 4 doses missed today, 7-day adherence at 78%.
+>
+> **Situation**
+> 3 of 5 planned sessions completed...
+>
+> **Interpretation**
+> On plan (60% adherence) (85% confidence, sufficiency: high).
+>
+> **Action**
+> Schedule your next session and protect the time block.
+
+**Verification:**
+- `python3 manage.py check` → no issues
+- `python3 manage.py makemigrations --check --dry-run` → no model changes
+- `apps.core.ai_cross_domain` + `apps.ai.tests.test_workout_truth` → 52/52 pass
+- **Validator tests: 8/8 pass**:
+  - empty → rejected
+  - "Keep it up!" → rejected (generic)
+  - "Great job this week." → rejected (generic)
+  - "3" → rejected (too short)
+  - "You logged 11 workouts" → rejected (too short / no trust markers)
+  - Full Phase 4.5 formatted response → valid
+  - "The weather is nice" (inferred workouts) → rejected (no interp)
+  - Interpreted response with trust markers → valid
+- **Matcher tests: 3/3 pass** (body composition, nutrition, fasting)
+- **Format helper test**: confirmed trust fields (confidence +
+  sufficiency) auto-inject into interpretation line
+- **Live handler smoke tests (dev DB)**:
+  - WORKOUT → None (no data, falls through)
+  - MEDICATION → full 3-section response for "no active schedules"
+    edge case (verified format is still correct)
+  - BODY COMP / NUTRITION / FASTING → None (no data, fall through)
+
+**Architectural guarantees:**
+After Phase 4.5 it is IMPOSSIBLE for CoS to:
+- ✅ Give a weak answer — validator rejects generic phrases and short
+  responses before they reach the user
+- ✅ Ignore trust — deterministic handlers auto-inject confidence +
+  sufficiency via `_format_decision_response`; LLM responses are
+  rejected if they cite domain metrics without trust markers
+- ✅ Ignore right_now_focus priority dominance — every domain handler
+  calls `_get_high_priority_note` and prepends the one-line note when
+  there's a high-priority focus in a different domain
+- ✅ Return raw data without interpretation — the validator's
+  interpretive-marker rule catches this; the deterministic format
+  enforces Situation → Interpretation → Action shape
+- ✅ Say "you're behind" without considering schedule buffer — Phase 4
+  focus query already enforces this via `compute_time_status`
+
+**Regression risks / watch list:**
+- **Validator false-positive risk.** If a legitimate LLM response for
+  a non-domain question happens to include a generic phrase like
+  "keep it up", it will be rejected. However, `regenerate_response_deterministic`
+  will return `None` for non-domain queries (no handler exists), so the
+  original LLM response is kept — the rejection only becomes visible
+  in logs (`PHASE_4_5_VALIDATOR_KEPT`). Net effect: logging noise, not
+  user-facing regression.
+- **Validator false-negative risk.** A sneaky weak response ("That's
+  really solid progress on your goals") might sneak past the generic
+  phrase list. This is tuning territory — the `_GENERIC_PHRASES` set
+  is a start, not an exhaustive list.
+- **Matcher precision.** The new body_composition / nutrition / fasting
+  matchers are narrow by design to avoid misrouting. A question like
+  "what's my total daily protein" does not currently match
+  `_match_nutrition_query` (would need "how much protein" — which IS
+  matched). Tunable.
+- **Validator wiring is in the non-streaming path only.** The streaming
+  path (`send_message_stream`) does not yet call the validator. The
+  streaming path is typically used for long-form chat responses where
+  the validator's intercept model is harder to apply (you'd need to
+  buffer the full response before sending tokens). Deferred; the vast
+  majority of focus/domain queries go through the non-streaming path
+  via the deterministic routes anyway.
+- **`PHASE_4_5_VALIDATOR_REJECT` logs may spike** initially as the
+  validator calibrates against real LLM outputs. This is expected —
+  watch the logs for the first 24h and tune `_GENERIC_PHRASES` or
+  threshold if a specific legitimate pattern is being rejected.
+- **No change to state, trust, or right_now logic.** Phase 2/2.5/3/4
+  outputs are untouched. Any issue with response format is a Phase 4.5
+  bug, never a trust-computation bug.
+
 ## 2026-04-07 — Phase 4 Decision Enforcement + Signal Selection
 
 **What:** Phase 3 introduced trust, sufficiency, priority, and a

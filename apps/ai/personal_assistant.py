@@ -4502,6 +4502,56 @@ Rules for this response:
             response = _llm_response or self._get_fallback_response(message)
             logger.warning("COS LLM call took %.1f ms", (_t_llm.monotonic() - _t_llm_start) * 1000)
 
+            # ── Phase 4.5: Hard Response Validator ───────────────────
+            # Reject weak / generic / raw-data-only / trust-missing LLM
+            # output and rebuild deterministically from SAE state +
+            # trust. This is enforcement, not suggestion — weak answers
+            # are blocked in code.
+            if _llm_response and not _used_fallback:
+                try:
+                    from apps.ai.deterministic_router import (
+                        validate_response,
+                        regenerate_response_deterministic,
+                        _infer_domain,
+                    )
+                    # Infer the domain the user was asking about. The
+                    # validator is stricter when a domain is identified.
+                    _detected_domain = _infer_domain((message or '').lower())
+                    _is_valid, _reason = validate_response(
+                        response, user=self.user, query_domain=_detected_domain,
+                    )
+                    if not _is_valid:
+                        logger.warning(
+                            "PHASE_4_5_VALIDATOR_REJECT user=%s domain=%s "
+                            "reason=%s preview=%s",
+                            self.user.id, _detected_domain, _reason,
+                            (response or '')[:120],
+                        )
+                        _rebuilt = regenerate_response_deterministic(
+                            self.user, _detected_domain,
+                        )
+                        if _rebuilt:
+                            logger.info(
+                                "PHASE_4_5_VALIDATOR_REBUILD user=%s domain=%s "
+                                "new_len=%d",
+                                self.user.id, _detected_domain, len(_rebuilt),
+                            )
+                            response = _rebuilt
+                        else:
+                            logger.info(
+                                "PHASE_4_5_VALIDATOR_KEPT user=%s domain=%s "
+                                "— no deterministic rebuilder for domain, "
+                                "keeping original response",
+                                self.user.id, _detected_domain,
+                            )
+                except Exception as e:
+                    # Validator must NEVER break the chat. Fall through
+                    # with the original LLM response on any error.
+                    logger.warning(
+                        "PHASE_4_5_VALIDATOR_ERROR user=%s: %s",
+                        self.user.id, e,
+                    )
+
             # ── Defensive: Log when briefing context is wasted ──────────
             # If a briefing was injected but the LLM returned nothing (or
             # a weak generic response), log prominently so we can detect

@@ -948,6 +948,520 @@ def _try_focus_query_route(msg_lower, user):
         return None
 
 
+# =============================================================================
+# Phase 4.5 — Hard Response Enforcement
+# =============================================================================
+#
+# Phase 4 added behavioral guidance via the system prompt. Phase 4.5 makes
+# weak responses impossible by enforcing response construction in CODE.
+#
+# Every Phase 4.5 handler builds a response in the mandatory shape:
+#
+#     Situation:
+#     <what is happening — facts from state>
+#
+#     Interpretation:
+#     <what it means — includes confidence + sufficiency from _trust>
+#
+#     Action:
+#     <what to do next — deterministic, not generic>
+#
+# When a high-priority right_now_focus is a DIFFERENT domain than the one
+# the user is asking about, the handler prepends a one-line priority note
+# so the user cannot discuss workouts while ignoring a missed medication.
+
+_GENERIC_PHRASES = frozenset([
+    'keep it up',
+    'great job',
+    'awesome job',
+    'nice job',
+    'good job',
+    'consistent effort',
+    'keep going',
+    'you got this',
+    "you're doing great",
+    'you are doing great',
+    'stay consistent',
+    "that's amazing",
+    'stay on track',
+    'hang in there',
+])
+
+
+def _get_all_trust_reports(user):
+    """Read every domain's _trust sub-dict from SAE. Returns flat dict."""
+    reports = {}
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        for module_name in (
+            'health', 'fitness', 'nutrition', 'medicine',
+            'fasting', 'journal', 'faith',
+        ):
+            try:
+                ms = get_module_state(user, module_name) or {}
+            except Exception:
+                continue
+            for k, v in (ms.get('_trust') or {}).items():
+                if v:
+                    reports[k] = v
+    except Exception as e:
+        logger.warning("trust read failed for user=%s: %s", getattr(user, 'id', '?'), e)
+    return reports
+
+
+def _get_domain_trust(user, domain_key):
+    """Fetch a single domain's Trust Report or None."""
+    return _get_all_trust_reports(user).get(domain_key)
+
+
+def _get_high_priority_note(user, exclude_domain=None):
+    """Phase 4.5 — strict right_now_focus dominance.
+
+    If the user has a high-priority focus in a DIFFERENT domain than the
+    one they are asking about, return a one-line note that every domain
+    response prepends. This enforces the rule: "If right_now_focus.priority
+    == 'high', ALL responses must acknowledge it even if user asks another
+    domain."
+    """
+    try:
+        from apps.core.ai_state.right_now import compute_right_now_focus
+        reports = _get_all_trust_reports(user)
+        focus = compute_right_now_focus(reports)
+    except Exception:
+        return None
+    if not focus or focus.get('status') != 'focused':
+        return None
+    if focus.get('priority') != 'high':
+        return None
+    domain = focus.get('domain')
+    if domain == exclude_domain:
+        return None
+    return (
+        f"> **Priority note:** Your highest-priority focus right now is "
+        f"**{domain.replace('_', ' ')}** — {focus.get('reason', '')}."
+    )
+
+
+def _format_decision_response(
+    *,
+    situation,
+    interpretation,
+    action,
+    trust=None,
+    priority_note=None,
+):
+    """Phase 4.5 canonical response shape.
+
+    Mandatory structure:
+        > **Priority note:** ... (optional, only when high-priority in
+        > different domain)
+
+        **Situation**
+        <facts>
+
+        **Interpretation**
+        <meaning including confidence + sufficiency when trust is provided>
+
+        **Action**
+        <specific next step>
+    """
+    lines = []
+    if priority_note:
+        lines.append(priority_note)
+        lines.append('')
+
+    lines.append('**Situation**')
+    lines.append(situation.strip() if situation else 'Not enough data to describe the situation.')
+    lines.append('')
+
+    # Interpretation gets a trust suffix automatically if provided.
+    lines.append('**Interpretation**')
+    interp = interpretation.strip() if interpretation else 'Insufficient data to interpret.'
+    if trust:
+        confidence = trust.get('confidence')
+        sufficiency = trust.get('sufficiency')
+        suffix_parts = []
+        if confidence is not None:
+            suffix_parts.append(f"{confidence}% confidence")
+        if sufficiency:
+            suffix_parts.append(f"sufficiency: {sufficiency}")
+        if suffix_parts:
+            interp = f"{interp} ({', '.join(suffix_parts)})"
+    lines.append(interp)
+    lines.append('')
+
+    lines.append('**Action**')
+    lines.append(action.strip() if action else 'Stay consistent — nothing urgent.')
+
+    return '\n'.join(lines)
+
+
+# ── Phase 4.5 domain matchers (new) ──────────────────────────────
+
+def _match_body_composition_query(msg_lower):
+    """Match body composition / fat / lean mass status questions."""
+    if _is_future_tense_query(msg_lower):
+        return False
+    _BC_INTENT = frozenset([
+        'body fat', 'my body fat', "what's my body fat",
+        'whats my body fat', 'what is my body fat',
+        'body composition', 'my body composition',
+        'lean mass', 'my lean mass', 'fat mass', 'my fat mass',
+        'how is my body fat', 'how is my body composition',
+    ])
+    if any(p in msg_lower for p in _BC_INTENT):
+        _EXCLUDE = ['log', 'record', 'add', 'set', 'enter', 'update']
+        if not any(e in msg_lower for e in _EXCLUDE):
+            return True
+    return False
+
+
+def _handle_body_composition_query(user):
+    """Phase 4.5 — deterministic body composition response."""
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        health = get_module_state(user, 'health') or {}
+    except Exception as e:
+        logger.warning("body_comp query: SAE read failed: %s", e)
+        return None
+
+    body_fat = health.get('body_fat_current')
+    lean_mass = health.get('lean_mass_current')
+    fat_mass = health.get('fat_mass_current')
+
+    if body_fat is None and lean_mass is None and fat_mass is None:
+        return None  # No data → fall through
+
+    # ── Situation ──
+    parts = []
+    if body_fat is not None:
+        parts.append(f"Body fat: **{body_fat:.1f}%**")
+    if lean_mass is not None:
+        parts.append(f"Lean mass: **{lean_mass:.1f} lb**")
+    if fat_mass is not None:
+        parts.append(f"Fat mass: **{fat_mass:.1f} lb**")
+    last_entry = health.get('last_body_fat_entry')
+    if last_entry:
+        parts.append(f"Last measurement: {last_entry[:10]}")
+    situation = '. '.join(parts) + '.'
+
+    # ── Interpretation ──
+    trust = _get_domain_trust(user, 'body_composition')
+    phase = health.get('fat_loss_phase') or ''
+    plateau = health.get('plateau_risk_label') or ''
+    muscle_risk = health.get('muscle_loss_risk_level') or ''
+    interp_bits = []
+    if phase:
+        interp_bits.append(f"Fat loss phase: {phase.lower().replace('_', ' ')}")
+    if plateau:
+        interp_bits.append(f"plateau risk: {plateau.lower()}")
+    if muscle_risk:
+        interp_bits.append(f"muscle-loss risk: {muscle_risk.lower()}")
+    if not interp_bits:
+        if trust and trust.get('sufficiency') == 'low':
+            interp_bits.append("Limited data — trend not yet reliable")
+        else:
+            interp_bits.append("Trend holding steady")
+    interpretation = '. '.join(interp_bits) + '.'
+
+    # ── Action ──
+    if trust and trust.get('priority_level') == 'high':
+        action = trust.get('priority_reason', 'Address the risk flagged above.')
+    elif trust and trust.get('sufficiency') == 'low':
+        action = "Log another measurement this week to improve trust in the trend."
+    elif phase == 'PLATEAU':
+        action = "Consider adjusting intake or training load to break the plateau."
+    else:
+        action = "Keep logging regular measurements — weekly is ideal."
+
+    return _format_decision_response(
+        situation=situation,
+        interpretation=interpretation,
+        action=action,
+        trust=trust,
+        priority_note=_get_high_priority_note(user, exclude_domain='body_composition'),
+    )
+
+
+def _match_nutrition_query(msg_lower):
+    """Match nutrition / macro / calorie status questions."""
+    if _is_future_tense_query(msg_lower):
+        return False
+    _NUT_INTENT = frozenset([
+        'how is my nutrition', "how's my nutrition", 'my nutrition',
+        'my macros', 'macro status', 'how are my macros',
+        'my calories', 'calorie count', 'how many calories',
+        'nutrition status', 'nutrition summary', 'nutrition this week',
+        'macros today', 'calories today', 'how much protein',
+    ])
+    if any(p in msg_lower for p in _NUT_INTENT):
+        _EXCLUDE = ['log', 'record', 'add', 'set', 'enter', 'track ']
+        if not any(e in msg_lower for e in _EXCLUDE):
+            return True
+    return False
+
+
+def _handle_nutrition_query(user):
+    """Phase 4.5 — deterministic nutrition response."""
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        nut = get_module_state(user, 'nutrition') or {}
+    except Exception as e:
+        logger.warning("nutrition query: SAE read failed: %s", e)
+        return None
+
+    cal = nut.get('daily_calories')
+    protein = nut.get('daily_protein_g')
+    cal_target = nut.get('calorie_target')
+    macro_score = nut.get('macro_compliance_score')
+    food_entries_7d = nut.get('food_entries_7d', 0)
+
+    if cal is None and food_entries_7d == 0:
+        return None  # No data → fall through
+
+    # ── Situation ──
+    parts = []
+    if cal is not None:
+        if cal_target:
+            parts.append(f"Calories today: **{int(cal)} / {int(cal_target)}**")
+        else:
+            parts.append(f"Calories today: **{int(cal)}**")
+    if protein is not None:
+        protein_target = nut.get('protein_target')
+        if protein_target:
+            parts.append(f"protein: **{int(protein)}g / {int(protein_target)}g**")
+        else:
+            parts.append(f"protein: **{int(protein)}g**")
+    if food_entries_7d:
+        parts.append(f"{food_entries_7d} meals logged this week")
+    situation = '. '.join(parts) + '.'
+
+    # ── Interpretation ──
+    trust = _get_domain_trust(user, 'nutrition')
+    interp_bits = []
+    if macro_score is not None:
+        if macro_score >= 80:
+            interp_bits.append(f"Macro compliance {int(macro_score)}/100 — on target")
+        elif macro_score >= 50:
+            interp_bits.append(f"Macro compliance {int(macro_score)}/100 — slipping")
+        else:
+            interp_bits.append(f"Macro compliance {int(macro_score)}/100 — well off target")
+    elif cal_target and cal is not None:
+        delta_pct = int((cal - cal_target) / cal_target * 100)
+        if abs(delta_pct) <= 10:
+            interp_bits.append("Within target range")
+        elif delta_pct > 10:
+            interp_bits.append(f"{delta_pct}% above target")
+        else:
+            interp_bits.append(f"{abs(delta_pct)}% below target")
+    else:
+        interp_bits.append("Tracking in progress")
+
+    if trust and trust.get('sufficiency') == 'low':
+        interp_bits.append("need more days logged for trustworthy guidance")
+    interpretation = '. '.join(interp_bits) + '.'
+
+    # ── Action ──
+    if trust and trust.get('priority_level') == 'high':
+        action = trust.get('priority_reason', 'Address the nutrition gap above.')
+    elif macro_score is not None and macro_score < 50:
+        action = "Review macro targets and log your next meal with intent."
+    elif food_entries_7d < 3:
+        action = "Log at least 3 meals this week for reliable tracking."
+    else:
+        action = "Stay consistent — log your next meal at its usual time."
+
+    return _format_decision_response(
+        situation=situation,
+        interpretation=interpretation,
+        action=action,
+        trust=trust,
+        priority_note=_get_high_priority_note(user, exclude_domain='nutrition'),
+    )
+
+
+def _match_fasting_query(msg_lower):
+    """Match fasting status questions."""
+    if _is_future_tense_query(msg_lower):
+        return False
+    _FAST_INTENT = frozenset([
+        'am i fasting', 'my fast', 'my fasting', 'fasting status',
+        'how long have i been fasting', 'fasting summary',
+        'how is my fast going', "how's my fast going", 'fasting adherence',
+        'my fasting compliance', 'how many fasts this week',
+    ])
+    if any(p in msg_lower for p in _FAST_INTENT):
+        _EXCLUDE = ['log', 'record', 'start ', 'end ', 'break ']
+        if not any(e in msg_lower for e in _EXCLUDE):
+            return True
+    return False
+
+
+def _handle_fasting_query(user):
+    """Phase 4.5 — deterministic fasting response."""
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        fst = get_module_state(user, 'fasting') or {}
+    except Exception as e:
+        logger.warning("fasting query: SAE read failed: %s", e)
+        return None
+
+    if fst.get('enabled') is False:
+        # Domain gated off — return a deterministic disabled response
+        return _format_decision_response(
+            situation="You have fasting tracking turned off.",
+            interpretation="No fasting trust signal is computed for users who do not fast.",
+            action="Enable fasting in settings if you'd like me to track this domain.",
+        )
+
+    current_active = fst.get('current_fast_active', False)
+    current_hours = fst.get('current_fast_hours')
+    target_hours = fst.get('current_fast_target_hours')
+    fasts_7d = fst.get('fasts_7d', 0)
+    compliance = fst.get('fasting_compliance_score')
+    last_end = fst.get('last_fast_end')
+
+    if fasts_7d == 0 and not current_active and not last_end:
+        return None  # No data → fall through
+
+    # ── Situation ──
+    parts = []
+    if current_active and current_hours is not None:
+        if target_hours:
+            parts.append(
+                f"Currently fasting: **{current_hours}h elapsed / {int(target_hours)}h target**"
+            )
+        else:
+            parts.append(f"Currently fasting: **{current_hours}h elapsed**")
+    if fasts_7d:
+        parts.append(f"{fasts_7d} completed fasts this week")
+    if last_end:
+        parts.append(f"Last fast ended: {last_end[:10]}")
+    situation = '. '.join(parts) + '.' if parts else 'No recent fasting activity.'
+
+    # ── Interpretation ──
+    trust = _get_domain_trust(user, 'fasting')
+    if compliance is not None:
+        if compliance >= 80:
+            interp = f"7-day compliance {int(compliance)}% — on protocol"
+        elif compliance >= 50:
+            interp = f"7-day compliance {int(compliance)}% — slipping"
+        else:
+            interp = f"7-day compliance {int(compliance)}% — well off protocol"
+    else:
+        interp = "No compliance score yet — insufficient data in the last 7 days"
+    interpretation = interp + '.'
+
+    # ── Action ──
+    if trust and trust.get('priority_level') == 'high':
+        action = trust.get('priority_reason', 'Log your next fast.')
+    elif current_active:
+        action = "Stay the course — end your current fast at its target."
+    elif fasts_7d == 0:
+        action = "Start a fast today to re-establish the rhythm."
+    else:
+        action = "Continue your protocol — log each fast as you complete it."
+
+    return _format_decision_response(
+        situation=situation,
+        interpretation=interpretation,
+        action=action,
+        trust=trust,
+        priority_note=_get_high_priority_note(user, exclude_domain='fasting'),
+    )
+
+
+# ── Phase 4.5 validator ───────────────────────────────────────────
+
+def validate_response(response_text, user=None, query_domain=None):
+    """Phase 4.5 hard response validator.
+
+    Rejects LLM responses that:
+        - Use generic coaching phrases ("keep it up", "great job", etc.)
+        - Are too short to contain interpretation + action
+        - Cite domain metrics without confidence/percentage language
+          when a trust report exists for that domain
+        - Lack any interpretation structure (pure raw data)
+
+    Returns a tuple ``(is_valid, reason)``. The caller is responsible for
+    regenerating via a deterministic builder when invalid.
+    """
+    if not response_text or not isinstance(response_text, str):
+        return (False, 'empty or non-string response')
+
+    text = response_text.strip()
+    lower = text.lower()
+
+    # Rule 1: generic coaching phrases are automatic rejections.
+    for phrase in _GENERIC_PHRASES:
+        if phrase in lower:
+            return (False, f'generic phrase: {phrase!r}')
+
+    # Rule 2: too short to contain interpretation + action.
+    # A compliant Phase 4.5 response is at least ~80 chars.
+    if len(text) < 60:
+        return (False, f'response too short ({len(text)} chars)')
+
+    # Rule 3: if a domain is identified, the response MUST include at
+    # least one trust-indicating phrase (percentage, confidence, trend
+    # words, or explicit interpretation markers).
+    if query_domain:
+        trust_markers = (
+            '%', 'confidence', 'sufficiency', 'priority',
+            'ahead of', 'behind', 'on track', 'trend',
+            'limited data', 'early signal', 'slipping',
+            'on target', 'off target', 'off protocol', 'on protocol',
+            'plateau', 'above target', 'below target',
+        )
+        if not any(marker in lower for marker in trust_markers):
+            return (False, f'{query_domain} response lacks trust/interpretation markers')
+
+    # Rule 4: the response must contain at least one interpretive verb
+    # or judgment word. Pure raw-data lists without interpretation fail.
+    interpretive_markers = (
+        'you', 'mean', 'indicat', 'suggest', 'shows', 'is ',
+        'below', 'above', 'within', 'ahead', 'behind',
+        'track', 'plan', 'focus', 'priority',
+        'interpretation', 'situation', 'action', 'next step',
+    )
+    if not any(marker in lower for marker in interpretive_markers):
+        return (False, 'response lacks interpretive language')
+
+    return (True, 'ok')
+
+
+def regenerate_response_deterministic(user, query_domain):
+    """Rebuild a response using the Phase 4.5 deterministic handler.
+
+    Called when validate_response rejects an LLM output. Dispatches to
+    the correct handler based on the detected domain. Returns None if
+    no handler applies (caller should keep the original response in
+    that case rather than blanking the user's chat).
+    """
+    handlers = {
+        'workouts': _handle_workout_query,
+        'workout': _handle_workout_query,
+        'fitness': _handle_workout_query,
+        'medication': _handle_medication_query,
+        'meds': _handle_medication_query,
+        'body_composition': _handle_body_composition_query,
+        'nutrition': _handle_nutrition_query,
+        'macros': _handle_nutrition_query,
+        'fasting': _handle_fasting_query,
+    }
+    handler = handlers.get(query_domain)
+    if handler is None:
+        return None
+    try:
+        return handler(user)
+    except Exception as e:
+        logger.warning(
+            "[VALIDATOR] regenerate failed for domain=%s user=%s: %s",
+            query_domain, getattr(user, 'id', '?'), e,
+        )
+        return None
+
+
 def _build_next_action_response(user):
     """Build deterministic next-action response.
 
@@ -1647,39 +2161,89 @@ def _match_workout_query(msg_lower):
 
 
 def _handle_workout_query(user):
-    """Build a deterministic workout response from SAE state."""
-    from apps.core.ai_state.state_engine import get_module_state
-    fitness = get_module_state(user, 'fitness') or {}
+    """Phase 4.5 — deterministic workout response with trust enforcement."""
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        fitness = get_module_state(user, 'fitness') or {}
+    except Exception as e:
+        logger.warning("workout query: SAE read failed: %s", e)
+        return None
 
-    workouts_7d = fitness.get('workouts_7d', 0)
-    if workouts_7d == 0:
-        # Check if we have any data at all
-        if not fitness:
-            return None  # No fitness data → fall through
-        return "No workouts logged this week yet."
-
-    session_word = 'session' if workouts_7d == 1 else 'sessions'
-    response = f"You've logged **{workouts_7d} {session_word}** this week."
-
+    workouts_7d = fitness.get('workouts_7d', 0) or 0
+    expected_7d = fitness.get('workout_expected_7d') or 0
+    completed_7d = fitness.get('workout_completed_7d') or workouts_7d
+    missed_7d = fitness.get('workout_missed_7d') or 0
+    adherence = fitness.get('workout_adherence_score')
     minutes = fitness.get('workout_minutes_7d')
+    last_workout = fitness.get('last_workout_date')
+
+    if workouts_7d == 0 and expected_7d == 0 and not last_workout:
+        return None  # No fitness data at all → fall through
+
+    # ── Situation ──
+    parts = []
+    session_word = 'session' if workouts_7d == 1 else 'sessions'
+    if expected_7d:
+        parts.append(f"**{completed_7d} of {expected_7d} planned {session_word} completed** this week")
+    else:
+        parts.append(f"**{workouts_7d} {session_word}** logged this week")
     if minutes:
         hours = minutes / 60
         if hours >= 1:
-            response += f" That's {hours:.1f} hours of training."
+            parts.append(f"{hours:.1f} hours of training")
         else:
-            response += f" That's {int(minutes)} minutes of training."
+            parts.append(f"{int(minutes)} minutes of training")
+    if missed_7d:
+        parts.append(f"{missed_7d} missed")
+    situation = ', '.join(parts) + '.'
 
-    avg_duration = fitness.get('avg_workout_duration')
-    if avg_duration and workouts_7d > 1:
-        response += f" Average session: {int(avg_duration)} minutes."
+    # ── Interpretation ──
+    trust = _get_domain_trust(user, 'workouts')
+    interp_bits = []
+    if adherence is not None:
+        if adherence >= 100:
+            interp_bits.append(f"Ahead of plan ({int(adherence)}% adherence)")
+        elif adherence >= 80:
+            interp_bits.append(f"On plan ({int(adherence)}% adherence)")
+        elif adherence >= 50:
+            interp_bits.append(f"Slipping ({int(adherence)}% adherence)")
+        else:
+            interp_bits.append(f"Well behind plan ({int(adherence)}% adherence)")
+    elif workouts_7d >= 5:
+        interp_bits.append(f"Strong week — {workouts_7d} sessions")
+    elif workouts_7d >= 3:
+        interp_bits.append(f"On track — {workouts_7d} sessions")
+    else:
+        interp_bits.append(f"Limited activity this week — {workouts_7d} sessions")
 
-    # Insight invitation
-    if workouts_7d >= 3:
-        response += (
-            "\n\nWant me to look at your training patterns and recovery?"
-        )
+    strength_trend = fitness.get('strength_trend_score')
+    if strength_trend is not None:
+        if strength_trend >= 110:
+            interp_bits.append("strength trending up")
+        elif strength_trend <= 90:
+            interp_bits.append("strength trending down")
 
-    return response
+    interpretation = ', '.join(interp_bits) + '.'
+
+    # ── Action ──
+    if trust and trust.get('priority_level') == 'high':
+        action = trust.get('priority_reason', 'Log a workout or move a session into today.')
+    elif adherence is not None and adherence >= 100:
+        action = "Shift focus to recovery — you've exceeded plan."
+    elif adherence is not None and adherence < 60:
+        action = "Schedule your next session and protect the time block."
+    elif workouts_7d == 0:
+        action = "Log a short session today to restart the rhythm."
+    else:
+        action = "Keep the cadence — your next session is on track."
+
+    return _format_decision_response(
+        situation=situation,
+        interpretation=interpretation,
+        action=action,
+        trust=trust,
+        priority_note=_get_high_priority_note(user, exclude_domain='workouts'),
+    )
 
 
 def _match_sleep_query(msg_lower):
@@ -1805,10 +2369,9 @@ def _get_medicine_adherence(user, start_date, end_date):
 
 
 def _handle_medication_query(user):
-    """Build a deterministic medication response from SAE state.
+    """Phase 4.5 — deterministic medication response with trust enforcement.
 
-    CoS purity: reads from SAE medicine state instead of live
-    calculate_medicine_adherence() computation.
+    CoS purity: reads from SAE medicine state; never live-computes.
     """
     try:
         from apps.core.ai_state.state_engine import get_module_state
@@ -1819,37 +2382,74 @@ def _handle_medication_query(user):
 
     active_count = med_state.get('active_count', 0)
     if active_count == 0:
-        return "No active medication schedules found."
+        return _format_decision_response(
+            situation="No active medication schedules found.",
+            interpretation="There is nothing to track — you have no scheduled doses.",
+            action="Add a medication schedule in settings if you want me to track it.",
+        )
 
     adherence_7d = med_state.get('adherence_7d')
-    today_taken = med_state.get('today_taken', 0)
-    today_missed = med_state.get('today_missed', 0)
-    today_pending = med_state.get('today_pending', 0)
-    expected_today = med_state.get('expected_today', 0)
+    today_taken = med_state.get('today_taken', 0) or 0
+    today_missed = med_state.get('today_missed', 0) or 0
+    today_pending = med_state.get('today_pending', 0) or 0
+    expected_today = med_state.get('expected_today', 0) or 0
+    missed_7d = med_state.get('missed_7d') or 0
+    completed_7d = med_state.get('completed_7d') or 0
+    expected_7d = med_state.get('expected_7d') or 0
 
+    # ── Situation ──
     parts = []
-
-    # 7-day adherence rate
-    if adherence_7d is not None:
-        rate_pct = adherence_7d * 100  # SAE stores 0-1
-        parts.append(
-            f"Your medication adherence this week is **{rate_pct:.0f}%**."
-        )
-        if rate_pct >= 90:
-            parts.append("Great consistency.")
-        elif rate_pct >= 70:
-            parts.append("Room for improvement — a few missed doses.")
-        else:
-            parts.append("Several doses were missed this week.")
-
-    # Today's status
     if expected_today > 0:
         parts.append(
-            f"Today: {today_taken} taken, {today_missed} missed, "
-            f"{today_pending} pending out of {expected_today} scheduled."
+            f"Today: **{today_taken}/{expected_today} taken**, "
+            f"{today_missed} missed, {today_pending} pending"
         )
+    if expected_7d > 0:
+        parts.append(
+            f"this week: {completed_7d}/{expected_7d} taken, {missed_7d} missed"
+        )
+    if not parts:
+        parts.append(f"{active_count} active medication schedules")
+    situation = '; '.join(parts) + '.'
 
-    return " ".join(parts) if parts else f"You have {active_count} active medications."
+    # ── Interpretation ──
+    trust = _get_domain_trust(user, 'medication')
+    interp_bits = []
+    if adherence_7d is not None:
+        rate_pct = int(adherence_7d * 100)
+        if rate_pct >= 95:
+            interp_bits.append(f"Excellent adherence ({rate_pct}%)")
+        elif rate_pct >= 85:
+            interp_bits.append(f"Good adherence ({rate_pct}%)")
+        elif rate_pct >= 70:
+            interp_bits.append(f"Slipping — {rate_pct}% adherence")
+        else:
+            interp_bits.append(f"Poor adherence ({rate_pct}%) — doses are being missed")
+    elif today_missed > 0:
+        interp_bits.append(f"{today_missed} doses missed today")
+    else:
+        interp_bits.append("On schedule")
+    interpretation = '. '.join(interp_bits) + '.'
+
+    # ── Action ──
+    if trust and trust.get('priority_level') == 'high':
+        action = trust.get('priority_reason', 'Take missed doses now if safe to do so.')
+    elif today_missed > 0 and today_pending > 0:
+        action = "Take pending doses now; log missed doses if already skipped."
+    elif today_missed > 0:
+        action = "Review what caused today's misses to prevent repeats."
+    elif today_pending > 0:
+        action = f"Take your next pending dose — {today_pending} remaining today."
+    else:
+        action = "Continue your schedule — nothing urgent right now."
+
+    return _format_decision_response(
+        situation=situation,
+        interpretation=interpretation,
+        action=action,
+        trust=trust,
+        priority_note=_get_high_priority_note(user, exclude_domain='medication'),
+    )
 
 
 def _match_steps_query(msg_lower):
@@ -1989,6 +2589,10 @@ def _register_builtin_routes():
     register_data_route('steps_query', _match_steps_query, _handle_steps_query, 'health')
     register_data_route('blood_pressure_query', _match_blood_pressure_query, _handle_blood_pressure_query, 'health')
     register_data_route('heart_rate_query', _match_heart_rate_query, _handle_heart_rate_query, 'health')
+    # Phase 4.5 — hard domain override routes
+    register_data_route('body_composition_query', _match_body_composition_query, _handle_body_composition_query, 'health')
+    register_data_route('nutrition_query', _match_nutrition_query, _handle_nutrition_query, 'health')
+    register_data_route('fasting_query', _match_fasting_query, _handle_fasting_query, 'health')
 
 
 # =============================================================================

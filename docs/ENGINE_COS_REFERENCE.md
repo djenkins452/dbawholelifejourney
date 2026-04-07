@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-04-05 (Domain Truth Contracts: all SAE builders refactored to use canonical query contracts; execution truth engine uses FaithQueries + JournalQueries + WorkoutQueries; see docs/DOMAIN_TRUTH_CONTRACTS.md for full inventory)
+**Last updated:** 2026-04-07 (CDCE: domain gating added to `detect_fasting_fitness` + `build_fasting_state`; `workout_consistency_score` now uses canonical schedule-based adherence; data migration 0123 purges stale fasting_fitness correlations for users with fasting disabled)
 
 ---
 
@@ -601,6 +601,23 @@ Auto-discovered at startup via `CoreConfig.ready()` → `autodiscover()`. Each d
 ---
 
 ## Known Bugs & Gap Analysis
+
+### BUG 0: CDCE Surfaces False Fasting/Workout Correlation for Disabled Domain — FIXED (2026-04-07)
+
+**Severity:** High — CoS told a user "Both fasting (0%) and workout consistency (43%) have dropped" when fasting was not enabled and workout adherence was actually high. False insights are worse than no insights.
+
+**Root cause:** Two colluding bugs.
+1. `apps/core/ai_state/state_builder.py::build_fasting_state()` ran for every user regardless of preferences and skipped writing `fasting_compliance_score` when `fasts_7d == 0`. `apps/core/ai_cross_domain/cdce_engine.py::detect_fasting_fitness()` then read it back with `.get('fasting_compliance_score', 0)` — silently defaulting "no data" to "0% adherence" — and emitted a correlation against an inactive domain. The CoS context filter at `cos_context.py:1343-1346` only gates by parent module ("health"), so a disabled sub-feature like fasting still leaked through.
+2. `build_fitness_state()` computed `workout_consistency_score` as `workouts_7d ÷ (workouts_30d ÷ 4)`, which under-reports highly adherent users whose 30d window is depressed by a vacation/rest week. The canonical `workout_adherence_score` (schedule-based, from `calculate_workout_behavior_output`) was already set in state but ignored.
+
+**Fix:**
+- `build_fasting_state()` returns `{"enabled": False}` (no other keys) when `health_features['fasting']` is off OR `default_fasting_type == 'none'`. When enabled with no fasts, `fasting_compliance_score` is now explicit `None` (sentinel), never absent or 0.
+- `detect_fasting_fitness()` short-circuits if `fasting.enabled` is False or if either compliance/consistency score is `None`. Both `fasts_7d` and `workouts_7d` must be > 0 to emit a correlation.
+- `build_fitness_state()` now sets `workout_consistency_score = workout_adherence_score` when available (per CLAUDE.md "calculation reuse rule"). The trailing-30d ratio is only used as a fallback when no active workout plan exists. Score is `None`, never 0, when neither source has data.
+- Data migration `apps/core/migrations/0123_purge_stale_fasting_correlations.py` deletes existing `fasting_fitness` `DomainCorrelation` rows for users with fasting disabled.
+- Regression suite `apps/core/ai_cross_domain/tests.py::FastingFitnessGatingTests` (7 tests) covers all four gating paths.
+
+**Watch-list:** The `signals.get(key, 0)` anti-pattern that caused this lives in other CDCE detectors too — same audit recommended for `detect_nutrition_energy`, `detect_habit_goal_alignment`, etc., before adding new domains.
 
 ### BUG 1: Medicine Names Not Passed to CoS — FIXED (2026-03-06)
 

@@ -559,19 +559,29 @@ def detect_fasting_fitness(user, signals):
     Detect: Fasting compliance and workout consistency co-vary.
 
     When fasting adherence drops, workout consistency often follows.
+
+    Domain gate: this detector is silently a no-op when fasting is not enabled
+    for the user OR fasting compliance is unknown (None). Defaulting missing
+    fasting scores to 0 caused false "fasting 0% / workout 43% have dropped"
+    correlations for users who never fasted.
     """
     fasting = signals.get('fasting', {})
     fitness = signals.get('fitness', {})
 
-    fasting_score = fasting.get('fasting_compliance_score', 0)
-    workout_score = fitness.get('workout_consistency_score', 0)
+    # Hard gate: skip entirely if fasting is disabled for this user.
+    if not fasting.get('enabled', False):
+        return []
+
+    fasting_score = fasting.get('fasting_compliance_score')  # may be None
+    workout_score = fitness.get('workout_consistency_score')  # may be None
     workouts_7d = fitness.get('workouts_7d', 0)
     fasts_7d = fasting.get('fasts_7d', 0)
 
-    # Need both domains active
-    if fasts_7d == 0 and workouts_7d == 0:
+    # Both signals must be present (not None) AND have actual activity behind
+    # them to be eligible for correlation. None means "unknown" — never "0%".
+    if fasting_score is None or workout_score is None:
         return []
-    if fasting_score == 0 and workout_score == 0:
+    if fasts_7d == 0 or workouts_7d == 0:
         return []
 
     # Both high — positive correlation
@@ -606,8 +616,9 @@ def detect_fasting_fitness(user, signals):
             'window_label': '7d',
         }]
 
-    # Both dropping — warning correlation
-    if fasting_score < 40 and workout_score < 50 and (fasts_7d > 0 or workouts_7d > 0):
+    # Both dropping — warning correlation. Both fasts_7d and workouts_7d are
+    # already guaranteed > 0 above, so the previous OR-clause is removed.
+    if fasting_score < 40 and workout_score < 50:
         score = 1.0 - (max(fasting_score, workout_score) / 100)
         strength = _classify_strength(score)
         if not strength:

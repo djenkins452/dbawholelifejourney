@@ -6,6 +6,36 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-07 — CDCE: Suppress false "fasting 0% / workout 43% have dropped" correlation
+
+**What:** Beth surfaced a cross-domain pattern claiming "Both fasting (0%) and workout consistency (43%) have dropped" for a user who does NOT fast and whose workout adherence is actually high. Two real bugs were colluding.
+
+**Root cause:**
+1. **No domain gating in CDCE.** `build_fasting_state()` ran for every user regardless of preferences and left `fasting_compliance_score` unset when there were no fasts. `detect_fasting_fitness()` then read it back with `.get('fasting_compliance_score', 0)` — silently defaulting "no data" to "0% adherence" — and emitted a correlation against an inactive domain. Architecture violation: signals from disabled domains must never reach CoS.
+2. **`workout_consistency_score` used a misleading trailing-ratio.** It computed `workouts_7d ÷ (workouts_30d ÷ 4)`, which under-reports highly adherent users whose 30d window is depressed by a vacation/rest week. The canonical schedule-based adherence (`workout_adherence_score` from `calculate_workout_behavior_output`) was already populated but ignored.
+
+**Changes:**
+- `apps/core/ai_state/state_builder.py`
+  - New `_fasting_enabled_for(user)` helper. `build_fasting_state()` returns `{"enabled": False}` and nothing else when `health_features['fasting']` is off OR `default_fasting_type == 'none'`.
+  - When fasting IS enabled but there are zero fasts in 7d, `fasting_compliance_score` is now explicitly `None` (sentinel for "unknown") instead of being absent (which defaulted to 0 downstream).
+  - `build_fitness_state()` sets `workout_consistency_score` from canonical `workout_adherence_score` when available (per CLAUDE.md "calculation reuse rule"); the trailing-ratio is only used as a fallback when no active workout plan exists. Score is `None`, never 0, when neither source has data.
+- `apps/core/ai_cross_domain/cdce_engine.py`
+  - `detect_fasting_fitness()` short-circuits if `fasting.enabled` is False or if either compliance/consistency score is `None`. Both `fasts_7d` and `workouts_7d` must be > 0 to emit a correlation.
+- `apps/core/migrations/0123_purge_stale_fasting_correlations.py` — Data migration that deletes existing `DomainCorrelation` rows of type `fasting_fitness` for users with fasting disabled, so post-deploy CoS does not surface stale entries left by the buggy detector.
+- `apps/core/ai_cross_domain/tests.py`
+  - New `FastingFitnessGatingTests` (7 tests): detector gated by enabled flag, detector skips on None scores, detector requires both domains active, detector still emits when both are legitimately low, fasting state returns `{enabled: False}` when `default_fasting_type='none'`, fasting state returns `{enabled: False}` when sub-feature off, compliance score is `None` (not 0) when enabled with no fasts.
+  - Updated existing `test_detect_fasting_fitness_both_strong` to set `enabled: True`.
+
+**Why:** Incorrect insights are worse than no insights. CoS trust depends on never claiming a metric for an inactive domain. The default-zero anti-pattern (`signals.get(key, 0)`) made "disabled" indistinguishable from "0%" and is the underlying class of bug to watch for in the other CDCE detectors.
+
+**Verification:**
+- `python3 manage.py test apps.core.ai_cross_domain.tests.CDCEEngineTests apps.core.ai_cross_domain.tests.FastingFitnessGatingTests --keepdb` → 20 passed
+- `python3 manage.py test apps.core.ai_cross_domain.tests apps.core.ai_orchestrator.tests.test_orchestrator --keepdb` → 68 passed
+- `python3 manage.py makemigrations --check --dry-run` → No changes detected
+- `python3 manage.py check` → no issues
+
+---
+
 ## 2026-04-06 — Action Center: Fix phase labels — completed past items no longer show as NOW/UPCOMING
 
 **What:** Fixed Action Center showing completed morning items under "NOW" and "UPCOMING" at 5 PM. Added a "Completed Earlier" phase for items done hours ago.

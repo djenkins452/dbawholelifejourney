@@ -4,7 +4,7 @@
     "pk": 182,
     "fields": {
       "title": "More accurate cross-domain insights",
-      "description": "Beth no longer claims that fasting or workouts have 'dropped' for areas you don't actually track. Cross-domain pattern detection now respects your enabled modules, so a disabled domain (like fasting) can never be correlated against an active one. Workout consistency also now uses your scheduled-plan adherence as the source of truth instead of a 30-day rolling ratio that under-reported highly consistent users after a vacation or rest week.",
+      "description": "Your Chief of Staff no longer claims that fasting or workouts have 'dropped' for areas you don't actually track. Cross-domain pattern detection now respects your enabled modules, so a disabled domain (like fasting) can never be correlated against an active one. Workout consistency also now uses your scheduled-plan adherence as the source of truth instead of a 30-day rolling ratio that under-reported highly consistent users after a vacation or rest week.",
       "entry_type": "fix",
       "version": "",
       "release_date": "2026-04-07",

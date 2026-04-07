@@ -1240,10 +1240,33 @@ class UserReleaseNoteView(models.Model):
 
     @classmethod
     def mark_viewed(cls, user):
-        """Mark that the user has viewed all current release notes."""
-        obj, created = cls.objects.update_or_create(
+        """Mark that the user has viewed all current release notes.
+
+        last_viewed_at is set to max(now, latest published note's created_at +
+        1 microsecond). The clamp protects against fixture timestamp mistakes:
+        if a fixture sets a future created_at (e.g. noon UTC) and a user
+        dismisses earlier in the UTC day, ReleaseNote.get_unseen_for_user()
+        would otherwise re-show the note on every refresh because the
+        same-day-late-addition clause (`created_at > last_viewed_at`) keeps
+        evaluating True. The clamp guarantees dismissal sticks regardless of
+        what the fixture wrote.
+        """
+        from datetime import timedelta
+
+        from django.db.models import Max
+
+        now = timezone.now()
+        latest_created = (
+            ReleaseNote.get_published()
+            .aggregate(latest=Max("created_at"))["latest"]
+        )
+        viewed_at = now
+        if latest_created and latest_created >= viewed_at:
+            viewed_at = latest_created + timedelta(microseconds=1)
+
+        obj, _ = cls.objects.update_or_create(
             user=user,
-            defaults={'last_viewed_at': timezone.now()}
+            defaults={"last_viewed_at": viewed_at},
         )
         return obj
 

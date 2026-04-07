@@ -880,6 +880,38 @@ class UserReleaseNoteViewModelTest(CoreTestMixin, TestCase):
         view = self.UserReleaseNoteView.mark_viewed(self.user)
         self.assertIn(self.user.email, str(view))
 
+    def test_mark_viewed_clamps_past_future_created_at(self):
+        """Regression: mark_viewed must hide a note even when its fixture
+        created_at is in the future (e.g. noon UTC) relative to dismissal time.
+
+        Reproduces the 2026-04-07 'What's New popup keeps reappearing' bug
+        where PK 182 had created_at='2026-04-07T12:00:00Z' and any user
+        dismissing earlier in the UTC day saw the popup re-appear on every
+        refresh because the same-day-late-addition clause kept evaluating True.
+        """
+        from django.utils import timezone as dj_timezone
+
+        from apps.core.models import ReleaseNote
+
+        # Note with created_at far in the future relative to "now"
+        future_created = dj_timezone.now() + timedelta(hours=12)
+        note = ReleaseNote.objects.create(
+            title="Future-stamped note",
+            description="Has fixture-style future created_at",
+            release_date=dj_timezone.now().date(),
+            is_published=True,
+            created_at=future_created,
+            updated_at=future_created,
+        )
+
+        view = self.UserReleaseNoteView.mark_viewed(self.user)
+
+        # last_viewed_at must be strictly greater than the note's created_at
+        # so the same-day-late-addition clause evaluates False on refresh.
+        self.assertGreater(view.last_viewed_at, note.created_at)
+        unseen = list(ReleaseNote.get_unseen_for_user(self.user))
+        self.assertNotIn(note, unseen)
+
 
 class ReleaseNoteUnseenTest(CoreTestMixin, TestCase):
     """Tests for getting unseen release notes for a user."""

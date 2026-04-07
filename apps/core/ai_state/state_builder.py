@@ -250,7 +250,11 @@ def build_health_state(user):
         state["steps_avg_7d"] = round(float(avg_steps)) if avg_steps else None
         state["steps_entries_7d"] = steps_count
 
-    # ── Water / Hydration (last 7 days) ──────────────────────────
+    # ── Water / Hydration (canonical truth, Phase 2) ─────────────
+    # SAE is the single source of truth for water. Views and templates MUST
+    # read these fields rather than computing their own totals from
+    # WaterEntry. This includes the time-aware "behind goal" flag, which
+    # used to live in apps/health/views.py and was not visible to CoS.
     try:
         from apps.health.models import WaterEntry
 
@@ -259,16 +263,56 @@ def build_health_state(user):
             prefs = user.preferences
             if hasattr(prefs, 'water_goal_oz') and prefs.water_goal_oz:
                 water_goal = float(prefs.water_goal_oz)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "SAE: water_goal_oz lookup failed for user %s: %s",
+                getattr(user, 'pk', '?'), exc,
+            )
 
         state["water_goal_oz"] = water_goal
+
+        # ── Today's hydration (was computed live in health views) ──
+        today_date = now.date()
+        try:
+            today_total = WaterEntry.get_daily_total(user, today_date) or 0
+        except Exception as exc:
+            logger.error(
+                "SAE: WaterEntry.get_daily_total failed for user %s: %s",
+                getattr(user, 'pk', '?'), exc, exc_info=True,
+            )
+            today_total = 0
+
+        today_oz = float(today_total)
+        state["water_today_oz"] = round(today_oz, 1)
+        if water_goal > 0:
+            today_pct = round((today_oz / water_goal) * 100)
+        else:
+            today_pct = 0
+        state["water_today_pct"] = today_pct
+        state["water_goal_met"] = today_oz >= water_goal
+
+        # Time-aware "behind goal" flag — was previously computed in
+        # apps/health/views.py and never reached CoS or other surfaces.
+        # Behind = before noon: pct < 50, after noon: pct < 50, after 6pm:
+        # pct < 75. Anchored to the user's local now via get_user_now.
+        try:
+            from apps.core.utils import get_user_now
+            user_now = get_user_now(user)
+            hour = user_now.hour
+        except Exception:
+            hour = now.hour
+        behind = False
+        if not state["water_goal_met"]:
+            if (hour >= 18 and today_pct < 75) or (hour >= 12 and today_pct < 50):
+                behind = True
+        state["water_behind_goal"] = behind
+
+        # ── 7-day rolling stats (already canonical) ───────────────
         tracked_days = 0
         good_days = 0
         total_oz = 0.0
 
         day = cutoff_7d.date() + timedelta(days=1)  # 7 days back from today
-        today_date = now.date()
         while day <= today_date:
             daily_total = WaterEntry.get_daily_total(user, day)
             if daily_total and daily_total > 0:
@@ -284,7 +328,7 @@ def build_health_state(user):
             state["water_tracked_days_7d"] = tracked_days
             state["water_consistency_score"] = round((good_days / 7) * 100)
     except Exception:
-        logger.debug("Water state build failed", exc_info=True)
+        logger.error("SAE: water state build failed", exc_info=True)
 
     # ── Blood Pressure (latest) ──────────────────────────────
     latest_bp = (
@@ -321,10 +365,10 @@ def build_health_state(user):
     except Exception:
         pass
 
-    # ── Glucose (7-day avg + latest) ──────────────────────────
+    # ── Glucose (7-day avg + latest + canonical variability level) ─
     try:
         from django.db.models import Avg
-        from apps.health.models import GlucoseEntry
+        from apps.health.models import DailyHealthSummary, GlucoseEntry
 
         glucose_avg = GlucoseEntry.objects.filter(
             user=user, recorded_at__gte=cutoff_7d
@@ -342,8 +386,31 @@ def build_health_state(user):
             state["latest_glucose"] = float(latest_glucose[0])
             state["latest_glucose_unit"] = latest_glucose[1]
             state["last_glucose_entry"] = latest_glucose[2].isoformat()
+
+        # Phase 2: glucose variability classification used to live in
+        # apps/health/views.py — moved into SAE so the cv→level/label
+        # thresholds are defined exactly once. View and templates now
+        # read these fields instead of computing them.
+        recent_summary = (
+            DailyHealthSummary.objects
+            .filter(user=user, glucose_variability__isnull=False)
+            .order_by("-summary_date")
+            .first()
+        )
+        if recent_summary and recent_summary.glucose_variability is not None:
+            cv = float(recent_summary.glucose_variability)
+            state["glucose_variability"] = round(cv, 1)
+            if cv > 50:
+                state["glucose_variability_level"] = "high"
+                state["glucose_variability_label"] = "High variability"
+            elif cv > 36:
+                state["glucose_variability_level"] = "moderate"
+                state["glucose_variability_label"] = "Moderate variability"
+            else:
+                state["glucose_variability_level"] = "stable"
+                state["glucose_variability_label"] = "Stable"
     except Exception:
-        pass
+        logger.error("SAE: glucose state build failed", exc_info=True)
 
     # ── Blood Oxygen (7-day avg + latest) ─────────────────────
     try:
@@ -968,9 +1035,6 @@ def build_fasting_state(user):
         compliance (compliance_score is None when there are no fasts in 7d, NOT
         0). When disabled: {'enabled': False}.
     """
-    from django.db.models import Avg, Sum
-
-    from apps.health.models import FastingWindow
     from apps.health.services.fasting_queries import FastingQueries
 
     if not _fasting_enabled_for(user):
@@ -1009,41 +1073,14 @@ def build_fasting_state(user):
         state["rolling_7d_fasting_hours"] = round(total_hours, 1)
         state["rolling_7d_avg_fast_duration"] = round(total_hours / fasts_7d_count, 1)
 
-    # ── Fasting compliance score (target vs actual) ──────────────
-    # If user has a target_hours, measure compliance as actual/target
-    # Otherwise, consistency-based: fasts this week / 7
-    #
-    # IMPORTANT: When there are no fasts in the 7d window, compliance_score is
-    # explicitly set to None — NOT 0. A None sentinel signals "insufficient
-    # data" and lets downstream detectors short-circuit, preventing false
-    # 'fasting 0%' correlations.
-    state["fasting_compliance_score"] = None
-    if fasts_7d_count > 0:
-        # EXCEPTION: intentional direct query (not domain truth)
-        # Reason: retrieves user's fasting protocol target_hours for compliance scoring
-        # Do not reuse for general truth evaluation
-        recent_with_target = (
-            FastingWindow.objects.filter(
-                user=user,
-                target_hours__isnull=False,
-                status="active",
-            )
-            .order_by("-started_at")
-            .values_list("target_hours", flat=True)
-            .first()
-        )
-        if recent_with_target and recent_with_target > 0:
-            avg_duration = state.get("rolling_7d_avg_fast_duration", 0)
-            # Score: how close avg duration is to target (0-100)
-            ratio = min(avg_duration / recent_with_target, 1.5)
-            state["fasting_compliance_score"] = round(
-                max(0, 100 - abs(100 - ratio * 100)), 1
-            )
-        else:
-            # Consistency-based: daily fasting frequency
-            state["fasting_compliance_score"] = round(
-                min(fasts_7d_count / 7 * 100, 100), 1
-            )
+    # ── Fasting compliance score (Phase 2 canonical) ─────────────
+    # SINGLE source of truth — both this state builder and the EAE signal
+    # aggregation pipeline call FastingQueries.compliance_score_7d. They
+    # used to compute the score independently with subtly different
+    # algorithms (continuous ratio vs. binary target-met), so the same user
+    # on the same day got different fasting compliance numbers in CoS vs.
+    # signal pipeline. Phase 2 collapses both to one helper.
+    state["fasting_compliance_score"] = FastingQueries.compliance_score_7d(user, now)
 
     return state
 

@@ -266,9 +266,22 @@ class BaseDomainScorer:
 
 
 class FaithDomainScorer(BaseDomainScorer):
-    """Faith scoring: Bible reading + prayer consistency, 8-day window."""
+    """Faith scoring: Bible reading + prayer consistency, 8-day window.
+
+    Phase 2 (truth path unification): the 8-day completion-frequency score
+    is intentionally distinct from the consecutive ``reading_streak`` metric
+    (which measures unbroken-day discipline, not weekly volume). The streak
+    is owned by SAE (``build_faith_state._calculate_reading_streak``) and
+    flows from the canonical ``FaithQueries.reading_completion_dates``
+    helper. This scorer now publishes the SAE-sourced streak alongside its
+    own scoring drivers so the cockpit, CoS, and CDCE all see the same
+    streak number — eliminating the prior split where the cockpit panel
+    derived its own count from a separate query path.
+    """
 
     def _score(self):
+        from apps.core.ai_state.state_engine import get_state_value
+
         window_days = 8
         full_start = self.today - timedelta(days=15)
         bible_dates, prayer_dates = self._faith_completion_dates(full_start, self.today)
@@ -280,11 +293,16 @@ class FaithDomainScorer(BaseDomainScorer):
         prayer_days = current['prayer_days']
         score = round((bible_days / window_days * 50) + (prayer_days / window_days * 50))
 
+        # Phase 2: pull the canonical streak from SAE so the cockpit, CoS,
+        # and CDCE all read the same number.
+        reading_streak = get_state_value(self.user, 'faith.reading_streak', 0)
+
         return score, {
             'bible_days': bible_days,
             'prayer_days': prayer_days,
             'bible_daily': current['bible_daily'],
             'prayer_daily': current['prayer_daily'],
+            'reading_streak': reading_streak,
         }
 
     def _trend(self, current_score):

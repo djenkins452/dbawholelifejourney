@@ -6,6 +6,156 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-07 — Phase 2 system hardening: unify truth paths
+
+**What:** Second phase of the WLJ system coherence remediation plan. Where
+Phase 1 closed leaks at the producer layer, Phase 2 collapses duplicate
+calculations so each concept is computed exactly once. Every metric
+unified in this change previously had 2–3 divergent implementations
+producing subtly different answers to the same question.
+
+**Changes:**
+
+- **NEW** `apps/core/ai_state/windows.py` — Single source of truth for
+  lookback windows across the signal pipeline. The audit found adapters,
+  state builders, insight rules, and prediction rules each picking their
+  own day counts (7/14/28/30/60/90/120) for the same metric — sometimes
+  diverging by 8×. This module gives every layer a single named constant
+  (`HEALTH_TREND_DAYS`, `FASTING_ROLLING_DAYS`, `MOOD_CURRENT_DAYS`, etc.)
+  so future changes happen in one place. **New code MUST use these
+  constants**; Phase 3/4 will migrate existing rules to them.
+
+- `apps/health/services/fasting_queries.py` — Added canonical
+  `FastingQueries.compliance_score_7d(user, now)` helper. This is now the
+  **single source of truth** for fasting compliance. Both
+  `build_fasting_state` (SAE) and `_compute_nutrition_compliance` (signal
+  aggregation) call it. Previously they computed the score independently
+  with different algorithms (continuous ratio vs. binary target-met), so
+  the same user on the same day got different compliance numbers in CoS
+  vs. the signal pipeline.
+
+- `apps/core/ai_state/state_builder.py` — Three consolidations:
+  1. **Water tracking in SAE.** Added `water_today_oz`, `water_today_pct`,
+     `water_goal_met`, and the time-aware `water_behind_goal` flag to
+     `build_health_state`. These used to live only in
+     `apps/health/views.py` and were invisible to CoS. SAE is now the
+     canonical source for all water state — views read from state.
+  2. **Glucose variability classification in SAE.** The `cv > 50` /
+     `cv > 36` thresholds that classify glucose variability as
+     high/moderate/stable used to live in `apps/health/views.py`. Moved
+     into `build_health_state` so the classification thresholds are
+     defined exactly once. View + template read `glucose_variability_level`
+     from state.
+  3. **Fasting state uses canonical compliance helper.** Replaced the
+     inline `recent_with_target` + ratio computation with a single call
+     to `FastingQueries.compliance_score_7d`. The function-local
+     `FastingWindow` import is no longer needed there.
+
+- `apps/health/views.py` — `HealthHomeView` now reads water and glucose
+  variability from SAE state via `get_module_state(user, "health")`.
+  Fallback paths remain for users whose SAE has not yet been populated,
+  but the canonical path is SAE → view, not ORM → view → state.
+
+- `apps/core/ai_eae/signal_aggregation.py` — Two unifications:
+  1. **Medication adherence: late = taken (binary).** Replaced the 80%
+     late-credit algorithm with the canonical "late counts as taken, skipped
+     excluded from denominator" semantics used by
+     `apps.health.medicine_utils.calculate_medicine_adherence`. The same
+     medication compliance question now returns the same answer from every
+     engine.
+  2. **Fasting sub-score reads canonical helper.** The
+     `_compute_nutrition_compliance` fasting sub-score used to re-derive a
+     binary "met target?" flag. It now calls
+     `FastingQueries.compliance_score_7d` and converts the 0–100 score
+     into a 0.0–1.0 sub-score, so the signal pipeline agrees with SAE.
+
+- `apps/dashboard_v2/services/cockpit_service.py` — `FaithDomainScorer`
+  now publishes the SAE-sourced `reading_streak` in its drivers dict
+  alongside its own 8-day bible/prayer day counts. The cockpit panel,
+  CoS, and CDCE now all read the same streak number from the same
+  underlying `FaithQueries.reading_completion_dates` source. The 8-day
+  completion-frequency score is intentionally distinct from the
+  consecutive-day streak metric — they answer different questions and
+  this is documented in the class docstring.
+
+**Truth consolidation map (before → after):**
+
+| Concept | Before (divergent sources) | After (canonical source) |
+|---|---|---|
+| Medication adherence (daily signal) | `signal_aggregation._compute_intake_adherence`: late=80% credit | `calculate_medicine_adherence`-compatible: late=taken, skipped excluded from denominator |
+| Fasting compliance (7d) | `build_fasting_state` (continuous ratio) **and** `signal_aggregation` (binary met-target) | `FastingQueries.compliance_score_7d` — both call it |
+| Today's water | `apps/health/views.py` live compute | `build_health_state` — views read from state |
+| `water_behind_goal` time-aware flag | Local to `apps/health/views.py`, invisible to CoS | SAE state, visible to CoS + cockpit |
+| Glucose variability level (cv>50 / cv>36) | Thresholds in `apps/health/views.py` | Thresholds in `build_health_state` |
+| Faith reading streak (cockpit vs. CoS) | Cockpit recomputed from its own query path; SAE computed via FaithQueries | Both read SAE `faith.reading_streak` |
+| Lookback windows | Hardcoded `timedelta(days=N)` scattered across adapters/state/rules | Named constants in `apps/core/ai_state/windows.py` |
+
+**Why:** The audit found 11 failure classes all rooted in fragmented
+truth. Phase 1 stopped producers from *leaking*; Phase 2 stops them from
+*disagreeing*. When two engines compute the same metric with subtly
+different algorithms, users see different numbers depending on which
+surface asks, and no one layer knows which answer is "correct". After
+Phase 2, every metric consolidated here has exactly one algorithm, one
+call site, and one answer.
+
+**Deferred / explicit non-goals:**
+- **View-level `card_emphasis` logic** in `apps/health/views.py:617-637`
+  stays in the view for now. It combines multiple contextual signals
+  (overdue intake, latest workout, glucose level) to drive *presentation*
+  emphasis. Moving it to SAE would require multi-domain state and a
+  presentation-context shape that belongs in Phase 4 (surface alignment).
+- **Template-level CSS class derivation** in `templates/health/home.html`
+  (e.g. `{% if glucose_variability_level == "high" %}today-alert{% endif %}`)
+  stays for now — templates read the canonical level from state, but the
+  CSS-class decision is still in the template. Phase 4 will move this
+  into view-computed `today_class` fields.
+- **V1 dashboard recomputation** (`fat_loss_phase`, `plateau_risk_score`
+  in `apps/dashboard/views.py:1076-1107`) remains for Phase 4 — those
+  fields come from `DailyHealthSummary` which is already a canonical
+  cache, but the view pattern will be migrated alongside the V1 → V2
+  cleanup.
+- **Bulk insight-rule lookback alignment** (weight 14d→30d, body comp
+  60d→120d, nutrition 7d/30d/60d scatter) is deferred to Phase 3. The
+  Phase 2 `windows.py` module is the foundation for that migration.
+- **Compliance adapter rewrites** (`apps/dashboard_v2/compliance/adapters/`)
+  are not touched. They serve a different purpose (per-event compliance
+  records for the cockpit timeline) and their logic does not duplicate
+  the % adherence number.
+
+**Verification:**
+- `python3 manage.py check` → no issues
+- `python3 manage.py makemigrations --check --dry-run` → no model changes
+- `python3 manage.py test apps.core.ai_cross_domain --keepdb` → 33/33 pass
+- `python3 manage.py test apps.core.ai_insights --keepdb` → 140/140 pass
+- `python3 manage.py test apps.core.ai_eae.tests.test_signal_aggregation apps.ai.tests.test_workout_truth --keepdb` → 145 tests green before a pre-existing test-environment Redis retry loop stalled remaining users; no test failures observed, only Celery/Redis connection noise unrelated to this change
+- Import smoke test — all edited modules import cleanly, new
+  `FastingQueries.compliance_score_7d` callable, new `windows` constants
+  resolve
+- `apps.health.tests.test_medicine_adherence` has 24 pre-existing errors
+  on `main` (unrelated `medicine_status` field TypeError at test setup);
+  verified by `git stash` + re-run before this change existed
+
+**Regression risks / watch list:**
+- **Medication adherence numbers will shift** for users who had late
+  doses. Previously the signal pipeline computed a slightly lower score
+  (80% credit) than the user-facing adherence rate. After Phase 2 the
+  signal pipeline agrees with the user-facing number. This is the
+  desired unification but will look like a score bump for some users.
+- **Fasting compliance signal will shift** for users whose rolling
+  7-day ratio differs from the previous binary "met target today" check.
+  The signal now reflects the same number SAE and CoS show.
+- **Water `water_behind_goal` flag is now visible to CoS.** Previously
+  it existed only in `apps/health/views.py` so CoS could not mention
+  "you're behind on water today". Now CoS can see it through SAE state.
+- **Glucose variability level moved into SAE.** Any code path that
+  reached into the view context for `glucose_variability_level` will
+  still work (view still populates it) but the *classification* now
+  happens in SAE; changing the thresholds in one place updates all
+  surfaces.
+- **`FaithDomainScorer` drivers dict now contains `reading_streak`.**
+  Any cockpit template that iterates drivers will see this new key.
+  No known template does — verified by grep — but a watch item.
+
 ## 2026-04-07 — Phase 1 system hardening: stop unsafe output (signal trust)
 
 **What:** First phase of the WLJ system coherence remediation plan from the

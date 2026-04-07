@@ -484,7 +484,15 @@ class SignalAggregationService:
     def _compute_intake_adherence(user, date, expected_map, *, intake_type, signal_type, expected_key):
         """
         Shared adherence computation for medications and supplements.
-        Filters by intake_type to produce separate signals.
+
+        Phase 2 (truth path unification): late doses count as TAKEN, matching
+        the canonical multi-day calculator at
+        ``apps.health.medicine_utils.calculate_medicine_adherence``. Previously
+        signal aggregation gave late doses 80% credit while the canonical
+        utility treated them as full takes — the same medication compliance
+        question returned different answers depending on which engine asked.
+        Phase 2 collapses both to the canonical "late = taken" semantics so
+        the daily signal score and the user-facing adherence rate agree.
         """
         from apps.health.models import Intake, IntakeLog, IntakeSchedule
 
@@ -515,9 +523,11 @@ class SignalAggregationService:
         late = logs.filter(log_status='late').count()
         skipped = logs.filter(log_status='skipped').count()
 
-        # Late doses count at 80% credit
-        effective_taken = taken + (late * 0.8)
-        score = min(1.0, effective_taken / scheduled_count)
+        # Phase 2: late = taken (binary), matching calculate_medicine_adherence.
+        # Skipped doses are excluded from the denominator (intentional non-dose).
+        denominator = max(scheduled_count - skipped, 1)
+        effective_taken = taken + late
+        score = min(1.0, effective_taken / denominator)
 
         # Determine state — skipped beats missed when ALL doses are skipped
         if score >= 1.0:
@@ -811,10 +821,11 @@ class SignalAggregationService:
     def _compute_nutrition_compliance(user, date, expected_map):
         """
         Dietary adherence and tracking compliance.
-        Sources: FoodEntry, WaterEntry, FastingWindow.
+        Sources: FoodEntry, WaterEntry, FastingQueries (canonical 7d
+        compliance — Phase 2).
         Normalization: average of available sub-scores.
         """
-        from apps.health.models import FoodEntry, WaterEntry, FastingWindow
+        from apps.health.models import FoodEntry, WaterEntry
 
         is_expected = expected_map.get('nutrition', False)
         sub_scores = []
@@ -866,24 +877,19 @@ class SignalAggregationService:
                 sub_scores.append(0.1)
             source_data['water_oz'] = round(total_oz, 1)
 
-        # Fasting compliance sub-score
-        fasting_windows = FastingWindow.objects.filter(
-            user=user, started_at__date=date,
-        )
-        if fasting_windows.exists():
-            # Check if any fasting window met its target
-            completed = [
-                fw for fw in fasting_windows
-                if fw.ended_at and fw.target_hours
-                and fw.duration_hours and fw.duration_hours >= fw.target_hours
-            ]
-            if completed:
-                sub_scores.append(1.0)
-                source_data['fasting_met_target'] = True
-            else:
-                # Started but didn't complete — partial credit
-                sub_scores.append(0.5)
-                source_data['fasting_met_target'] = False
+        # Fasting compliance sub-score — Phase 2: read from canonical
+        # FastingQueries.compliance_score_7d so this matches the SAE
+        # state and the cockpit/CoS view of fasting. Previously this
+        # block computed its own binary "met target?" flag while
+        # build_fasting_state used a continuous 7-day ratio, and the two
+        # values disagreed for the same user on the same day.
+        from apps.health.services.fasting_queries import FastingQueries
+        from django.utils import timezone as _tz
+        fasting_score_pct = FastingQueries.compliance_score_7d(user, _tz.now())
+        if fasting_score_pct is not None:
+            # 0–100 → 0.0–1.0 sub-score
+            sub_scores.append(round(fasting_score_pct / 100.0, 3))
+            source_data['fasting_compliance_pct_7d'] = fasting_score_pct
 
         if not sub_scores:
             return None  # No real data — no signal created

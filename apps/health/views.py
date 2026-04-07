@@ -205,22 +205,32 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                     else:
                         context["avg_sleep_quality"] = "Terrible"
 
-        # Water/Hydration summary
+        # Water/Hydration summary — Phase 2: read canonical SAE state
+        # instead of computing live. SAE owns water_today_oz, water_goal_oz,
+        # water_today_pct, water_goal_met, and the time-aware
+        # water_behind_goal flag. Falling back to a live read only if SAE
+        # has not yet been built for this user.
         today = get_user_today(user)
-        water_progress = WaterEntry.get_daily_goal_progress(user, today)
-        context["water_today_oz"] = water_progress["total_oz"]
-        context["water_goal_oz"] = water_progress["goal_oz"]
-        context["water_today_percentage"] = water_progress["percentage"]
-        context["water_goal_met"] = water_progress["goal_met"]
+        try:
+            from apps.core.ai_state.state_engine import get_module_state
+            health_state = get_module_state(user, "health") or {}
+        except Exception:
+            health_state = {}
 
-        # Water behind-goal flag (time-aware)
-        from apps.core.utils import get_user_now
-        user_now = get_user_now(user)
-        pct = water_progress["percentage"]
-        hour = user_now.hour
-        if not water_progress["goal_met"]:
-            if (hour >= 18 and pct < 75) or (hour >= 12 and pct < 50):
+        if "water_today_oz" in health_state:
+            context["water_today_oz"] = health_state.get("water_today_oz")
+            context["water_goal_oz"] = health_state.get("water_goal_oz")
+            context["water_today_percentage"] = health_state.get("water_today_pct")
+            context["water_goal_met"] = bool(health_state.get("water_goal_met"))
+            if health_state.get("water_behind_goal"):
                 context["water_behind_goal"] = True
+        else:
+            # SAE not yet populated — last-resort live read.
+            water_progress = WaterEntry.get_daily_goal_progress(user, today)
+            context["water_today_oz"] = water_progress["total_oz"]
+            context["water_goal_oz"] = water_progress["goal_oz"]
+            context["water_today_percentage"] = water_progress["percentage"]
+            context["water_goal_met"] = water_progress["goal_met"]
 
         water_entries = WaterEntry.objects.filter(user=user)
         if water_entries.exists():
@@ -248,22 +258,32 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 avg = fasting_glucose.aggregate(avg=Avg("value"))["avg"]
                 context["avg_fasting_glucose"] = round(avg, 1)
 
-        # Glucose variability from DailyHealthSummary (pre-computed by builder)
-        recent_summary = DailyHealthSummary.objects.filter(
-            user=user, glucose_variability__isnull=False
-        ).order_by("-summary_date").first()
-        if recent_summary and recent_summary.glucose_variability is not None:
-            cv = float(recent_summary.glucose_variability)
-            context["glucose_variability"] = round(cv, 1)
-            if cv > 50:
-                context["glucose_variability_label"] = "High variability"
-                context["glucose_variability_level"] = "high"
-            elif cv > 36:
-                context["glucose_variability_label"] = "Moderate variability"
-                context["glucose_variability_level"] = "moderate"
-            else:
-                context["glucose_variability_label"] = "Stable"
-                context["glucose_variability_level"] = "stable"
+        # Glucose variability — Phase 2: read canonical level/label from
+        # SAE state. The classification thresholds (cv>50, cv>36) used to
+        # live here in the view; they are now defined exactly once in
+        # apps/core/ai_state/state_builder.py::build_health_state.
+        if "glucose_variability_level" in health_state:
+            context["glucose_variability"] = health_state.get("glucose_variability")
+            context["glucose_variability_level"] = health_state.get("glucose_variability_level")
+            context["glucose_variability_label"] = health_state.get("glucose_variability_label")
+        else:
+            # SAE not yet populated — fall back to a live read of the same
+            # source the SAE itself uses, with the SAME thresholds.
+            recent_summary = DailyHealthSummary.objects.filter(
+                user=user, glucose_variability__isnull=False
+            ).order_by("-summary_date").first()
+            if recent_summary and recent_summary.glucose_variability is not None:
+                cv = float(recent_summary.glucose_variability)
+                context["glucose_variability"] = round(cv, 1)
+                if cv > 50:
+                    context["glucose_variability_label"] = "High variability"
+                    context["glucose_variability_level"] = "high"
+                elif cv > 36:
+                    context["glucose_variability_label"] = "Moderate variability"
+                    context["glucose_variability_level"] = "moderate"
+                else:
+                    context["glucose_variability_label"] = "Stable"
+                    context["glucose_variability_level"] = "stable"
 
         # Blood Pressure summary
         bp_entries = BloodPressureEntry.objects.filter(user=user)

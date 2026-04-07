@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-04-05 (Domain Truth Contracts: all SAE builders refactored to use canonical query contracts; execution truth engine uses FaithQueries + JournalQueries + WorkoutQueries; see docs/DOMAIN_TRUTH_CONTRACTS.md for full inventory)
+**Last updated:** 2026-04-07 (Workout-Tomorrow Hardening: workout event adapter is now date-aware — past/today → `WorkoutSession`, future → `WorkoutSchedule`; deterministic empty-state contract in `handle_query_event_history` structurally bypasses the LLM for empty/future queries via `ar.message` direct return; new generic `_is_future_tense_query` gate applied to every per-domain summary matcher in `deterministic_router.py` — generalizes future-tense protection across all domains, replacing brittle string-exclude lists)
 
 ---
 

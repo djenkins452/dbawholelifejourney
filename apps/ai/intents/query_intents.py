@@ -27,16 +27,20 @@ QUERY_INTENT_TOOLS = [
             "name": "query_event_history",
             "description": (
                 "Query the user's data to look up specific values, find what happened, "
-                "what was missed, or when something occurred. Use when the user asks "
-                "about past events, specific data points, missed items, or execution "
-                "history across ANY domain. "
+                "what is scheduled, what was missed, or when something occurred. Use "
+                "when the user asks about events (past OR future), specific data "
+                "points, scheduled/planned items, missed items, or execution history "
+                "across ANY domain. "
                 "Covers: medication, sleep, weight, glucose, blood pressure, heart rate, "
                 "steps, water, nutrition/food, fasting, workouts, routines, journal, "
                 "faith/prayer, habits, and finance. "
-                "Examples: 'how did I sleep last night?', 'what was my blood pressure?', "
-                "'what did I miss this week?', 'what did I eat yesterday?', "
-                "'how many steps did I get?', 'what did I spend today?', "
-                "'how was my glucose after lunch?', 'did I journal yesterday?'. "
+                "Examples (past): 'how did I sleep last night?', 'what was my blood "
+                "pressure?', 'what did I miss this week?', 'what did I eat yesterday?', "
+                "'how many steps did I get?', 'how was my glucose after lunch?', "
+                "'did I journal yesterday?'. "
+                "Examples (future/scheduled): 'what is my workout tomorrow?', "
+                "'what's my next workout?', 'what's planned for tomorrow?', "
+                "'do I have a workout scheduled tomorrow?'. "
                 "Do NOT use for action requests (logging, creating, marking complete) — "
                 "this is read-only data lookup."
             ),
@@ -99,8 +103,10 @@ QUERY_INTENT_TOOLS = [
                         "type": "string",
                         "description": (
                             "Specific date for timeline or lookup queries. "
-                            "Use 'today', 'yesterday', 'last night', "
-                            "a day name like 'monday', or YYYY-MM-DD."
+                            "Accepts past, present, or future dates: "
+                            "'today', 'yesterday', 'tomorrow', 'last night', "
+                            "a day name like 'monday' or 'next monday', "
+                            "or a YYYY-MM-DD date (past OR future)."
                         ),
                     },
                     "count": {

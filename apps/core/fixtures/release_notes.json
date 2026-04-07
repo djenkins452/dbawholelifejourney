@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 182,
+    "fields": {
+      "title": "Ask 'What's my workout tomorrow?' and get a real answer",
+      "description": "Your Chief of Staff can now answer forward-looking questions about your scheduled workouts. Ask 'What is my workout tomorrow?', 'What's my next workout?', or 'What's planned for tomorrow?' and get a deterministic answer pulled directly from your active workout plan and weekly schedule — never a guess. If nothing is scheduled, it tells you so plainly instead of inventing a workout name. The same protection applies across every other domain (sleep, steps, weight, etc.) — forward-looking questions now route through the deterministic event pipeline instead of historical summaries.",
+      "entry_type": "fix",
+      "version": "",
+      "release_date": "2026-04-07",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-04-07T12:00:00Z",
+      "updated_at": "2026-04-07T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 181,
     "fields": {
       "title": "Supplement Tracking",

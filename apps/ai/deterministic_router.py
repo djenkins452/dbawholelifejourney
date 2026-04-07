@@ -1239,8 +1239,35 @@ def _log_route_decision(result, user, message):
 # Built-in Deterministic Data Routes
 # =============================================================================
 
+# Generic future-tense detector. Used as a one-line gate at the top of each
+# per-domain "current state / historical summary" matcher to prevent the
+# deterministic router from hijacking forward-looking questions like
+# "what is my workout tomorrow?". Future-tense messages fall through to the
+# intent classifier, which routes them to query_event_history → the
+# date-aware adapter → deterministic empty-state contract. This is the
+# generalization of the bug fix: every summary matcher gets the same
+# protection from a single helper, with no domain-specific string lists.
+_FUTURE_TOKENS = frozenset([
+    'tomorrow', 'next ', 'upcoming', 'scheduled', 'planned', 'plan for',
+    "what's my next", 'what is my next', 'going to',
+])
+_FUTURE_VERB_HINTS = (' will ', " i'll ", ' am i going ', ' do i have ')
+
+
+def _is_future_tense_query(msg_lower: str) -> bool:
+    """Return True if the message is forward-looking. Generic, not domain-tied."""
+    if any(tok in msg_lower for tok in _FUTURE_TOKENS):
+        return True
+    padded = f' {msg_lower} '
+    if any(hint in padded for hint in _FUTURE_VERB_HINTS):
+        return True
+    return False
+
+
 def _match_weight_query(msg_lower):
     """Match direct weight status questions."""
+    if _is_future_tense_query(msg_lower):
+        return False
     _WEIGHT_INTENT_PHRASES = frozenset([
         "what's my weight", 'whats my weight', 'what is my weight',
         'how much do i weigh', 'current weight', 'my weight',
@@ -1360,6 +1387,8 @@ def _handle_routine_time_query(user, item_keyword=None):
 
 def _match_workout_query(msg_lower):
     """Match direct workout status questions."""
+    if _is_future_tense_query(msg_lower):
+        return False
     _WORKOUT_INTENT = frozenset([
         'how many workouts', 'workout count', 'workouts this week',
         'workout summary', 'my workouts', 'show my workouts',
@@ -1412,6 +1441,8 @@ def _handle_workout_query(user):
 
 def _match_sleep_query(msg_lower):
     """Match direct sleep status questions."""
+    if _is_future_tense_query(msg_lower):
+        return False
     _SLEEP_INTENT = frozenset([
         'how did i sleep', "how's my sleep", 'how is my sleep',
         'my sleep', 'sleep average', 'sleep this week',
@@ -1457,6 +1488,8 @@ def _handle_sleep_query(user):
 
 def _match_glucose_query(msg_lower):
     """Match direct glucose/blood sugar status questions."""
+    if _is_future_tense_query(msg_lower):
+        return False
     _GLUCOSE_INTENT = frozenset([
         "what's my glucose", 'whats my glucose', 'what is my glucose',
         'my glucose', 'glucose level', 'blood sugar',
@@ -1494,6 +1527,8 @@ def _handle_glucose_query(user):
 
 def _match_medication_query(msg_lower):
     """Match direct medication status questions."""
+    if _is_future_tense_query(msg_lower):
+        return False
     # Query patterns — asking about medication status
     _MED_QUERY = frozenset([
         'did i take my meds', 'did i take my medicine',
@@ -1576,6 +1611,8 @@ def _handle_medication_query(user):
 
 def _match_steps_query(msg_lower):
     """Match direct steps status questions."""
+    if _is_future_tense_query(msg_lower):
+        return False
     _STEPS_INTENT = frozenset([
         'how many steps', 'my steps', 'step count',
         'steps today', 'steps this week', 'daily steps',
@@ -1611,6 +1648,8 @@ def _handle_steps_query(user):
 
 def _match_blood_pressure_query(msg_lower):
     """Match direct blood pressure questions."""
+    if _is_future_tense_query(msg_lower):
+        return False
     _BP_INTENT = frozenset([
         'blood pressure', 'my bp', "what's my bp",
         'whats my bp', 'what is my bp', 'bp reading',
@@ -1649,6 +1688,8 @@ def _handle_blood_pressure_query(user):
 
 def _match_heart_rate_query(msg_lower):
     """Match direct heart rate questions."""
+    if _is_future_tense_query(msg_lower):
+        return False
     _HR_INTENT = frozenset([
         'heart rate', 'my heart rate', "what's my heart rate",
         'whats my heart rate', 'what is my heart rate',

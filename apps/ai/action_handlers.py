@@ -6559,13 +6559,36 @@ class ActionHandler:
                         action_type='query_event_history',
                     )
 
-                # If target_date specified, get events for that date
+                # If target_date specified, get events for that date.
+                # The adapter is date-aware: past/today → logged truth,
+                # future → planned truth. Handler stays domain-agnostic.
                 if target_date:
                     resolved_date = self._resolve_target_date(target_date)
                     if resolved_date:
                         events = resolver.get_events(
                             self.user, domain, resolved_date, resolved_date,
                         )
+
+                        # Deterministic empty-state contract — NO LLM narration.
+                        # personal_assistant.py uses ar.message directly when an
+                        # action handler returns success, so this string IS the
+                        # response. The LLM is structurally bypassed; template
+                        # names cannot leak into a hallucinated answer.
+                        if not events:
+                            tense = (
+                                "scheduled" if resolved_date > today
+                                else "logged"
+                            )
+                            domain_label = domain.replace('_', ' ')
+                            return ActionResult(
+                                success=True,
+                                message=(
+                                    f"You have no {domain_label} {tense} for "
+                                    f"{resolved_date.strftime('%A, %b %d')}."
+                                ),
+                                action_type='query_event_history',
+                            )
+
                         response = format_lookup_events(events, domain)
                         from apps.ai.deterministic_router import _stash_resolved_events
                         _stash_resolved_events(events)
@@ -6669,7 +6692,15 @@ class ActionHandler:
             )
 
     def _resolve_target_date(self, target_date_str):
-        """Resolve a target date string to a date object."""
+        """Resolve a target date string to a date object.
+
+        Handles past, present, and future tokens:
+        - 'today', 'yesterday', 'tomorrow'
+        - 'last night' (treated as yesterday for lookup purposes)
+        - bare weekday names → most recent past occurrence
+        - 'next <weekday>' → next future occurrence
+        - ISO YYYY-MM-DD (past or future)
+        """
         from datetime import date, timedelta
 
         if not target_date_str:
@@ -6680,14 +6711,27 @@ class ActionHandler:
 
         if target_lower == 'today':
             return today
-        if target_lower == 'yesterday':
+        if target_lower in ('yesterday', 'last night'):
             return today - timedelta(days=1)
+        if target_lower == 'tomorrow':
+            return today + timedelta(days=1)
 
         # Day name matching
         _DAYS = {
             'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3,
             'friday': 4, 'saturday': 5, 'sunday': 6,
         }
+
+        # "next <weekday>" → next future occurrence
+        if target_lower.startswith('next '):
+            wd = target_lower[5:].strip()
+            if wd in _DAYS:
+                day_num = _DAYS[wd]
+                days_forward = (day_num - today.weekday()) % 7
+                if days_forward == 0:
+                    days_forward = 7
+                return today + timedelta(days=days_forward)
+
         if target_lower in _DAYS:
             day_num = _DAYS[target_lower]
             days_back = (today.weekday() - day_num) % 7
@@ -6695,7 +6739,7 @@ class ActionHandler:
                 days_back = 7
             return today - timedelta(days=days_back)
 
-        # ISO date format
+        # ISO date format (past or future)
         try:
             return date.fromisoformat(target_date_str)
         except (ValueError, TypeError):

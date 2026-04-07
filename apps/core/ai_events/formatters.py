@@ -317,6 +317,19 @@ def _format_single_lookup(event):
         resp = f"**{name}** — {'completed ✓' if completed else 'not completed'} ({date_str})."
         return resp
 
+    elif domain == 'workout':
+        # Logged session: defer to label.
+        # Scheduled (future) session: render deterministically from
+        # the WorkoutSchedule snapshot in detail{}. No LLM, no inference.
+        if event.status == 'scheduled':
+            day_name = detail.get('day_of_week') or _format_date(detail.get('date'))
+            msg = f"**{day_name} ({date_str})** — {event.label}"
+            pref = detail.get('preferred_time')
+            if pref:
+                msg += f" at {pref[:5]}"
+            return msg
+        return f"{event.label} ({date_str})."
+
     elif domain == 'finance':
         amount = detail.get('amount', 0)
         desc = detail.get('description', '')

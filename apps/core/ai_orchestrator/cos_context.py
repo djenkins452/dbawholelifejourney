@@ -3478,6 +3478,44 @@ def build_cos_context(user, scoped_builders=None):
     except Exception:
         logger.debug("CoS context: cross-domain signals unavailable", exc_info=True)
 
+    # ── Phase 3: Signal Trust Contract + Right Now Focus ──────────
+    # Aggregate the per-domain _trust dicts that the state builders
+    # attached, then compute a single deterministic right_now_focus.
+    # CoS consumes these — it never recomputes trust or focus.
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        from apps.core.ai_state.right_now import compute_right_now_focus
+
+        trust_reports = {}
+        # Collect trust reports from each domain. Each build_*_state may
+        # have attached a `_trust` sub-dict keyed by domain name.
+        for module_name in (
+            'health', 'fitness', 'nutrition', 'medicine',
+            'fasting', 'journal', 'faith',
+        ):
+            try:
+                mod_state = get_module_state(user, module_name) or {}
+            except Exception as e:
+                logger.warning(
+                    "CoS context: trust read for %s failed: %s",
+                    module_name, e,
+                )
+                continue
+            mod_trust = mod_state.get('_trust') or {}
+            for domain_key, report in mod_trust.items():
+                if report:
+                    trust_reports[domain_key] = report
+
+        if trust_reports:
+            context['trust_reports'] = trust_reports
+            context['right_now_focus'] = compute_right_now_focus(trust_reports)
+        else:
+            # Surface the steady state explicitly so CoS / LLM know
+            # the focus resolver was reached but found nothing urgent.
+            context['right_now_focus'] = compute_right_now_focus({})
+    except Exception as e:
+        logger.warning("CoS context: trust + right_now build failed: %s", e)
+
     elapsed_ms = (_time.monotonic() - start) * 1000
     try:
         from apps.ai.readiness_telemetry import log_parallel_build

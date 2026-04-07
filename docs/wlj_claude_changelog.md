@@ -6,6 +6,198 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-07 — Phase 3 Signal Trust Contract + Right Now Focus
+
+**What:** Phase 2 unified how truth is computed; Phase 2.5 made truth
+visible to CoS; Phase 3 makes truth *usable*. Every critical domain now
+attaches a structured Trust Report (confidence, sufficiency, last_updated,
+source_count, priority_level, priority_reason) to its SAE state, and the
+CoS context includes a single deterministic `right_now_focus` so the LLM
+can prioritize.
+
+**Architectural rules enforced:**
+- Trust lives in state, not in CoS. CoS reads trust — never computes it.
+- Trust is **additive only** — no Phase 2 / 2.5 fields removed.
+- Each domain attaches a `_trust` sub-dict to its existing state dict.
+- `right_now_focus` is deterministic — no randomness, no LLM, no ML.
+- Single shared service (`apps/core/ai_state/signal_trust.py`); state
+  builders call into it instead of each computing trust independently.
+
+**New files:**
+
+- **`apps/core/ai_state/signal_trust.py`** — single shared trust service.
+  8 per-domain assessors:
+  `assess_body_composition`, `assess_workouts`, `assess_nutrition`,
+  `assess_medication`, `assess_fasting`, `assess_sleep`, `assess_journal`,
+  `assess_faith`. Each takes `(user, state_dict)` and returns the canonical
+  Trust Report dict (or `None` when there is no data at all).
+  - **Sufficiency thresholds** (centralized in `SUFFICIENCY_THRESHOLDS`):
+    `body_composition` (3/1 in 14d), `workouts` (5/1 in 7d),
+    `nutrition` (5/3 entries in 7d), `medication` (5/1 doses),
+    `fasting` (3/1 fasts), `sleep` (5/3 nights), `journal` (4/2 entries),
+    `faith` (5/1 streak days).
+  - **Confidence formula** (`_confidence_from`): base 50 + up to +30 for
+    data density (count vs target) + up to +20 for freshness (recent =
+    full, stale = penalty); clamped to 0–100. Single function used by
+    every assessor — no domain re-implements confidence math.
+  - **Priority logic**: each assessor maps domain-specific signals to
+    `low | medium | high` with a human-readable `priority_reason`. Examples:
+    workouts → `high` if `missed_7d >= 3` or adherence < 50;
+    fasting → `high` if compliance < 50;
+    journal → `high` if `days_since_entry >= 7`;
+    sleep → `high` if `avg_7d < 6`.
+
+- **`apps/core/ai_state/right_now.py`** — Right Now Focus Resolver.
+  `compute_right_now_focus(trust_reports)` → single dict
+  `{status, domain, priority, confidence, reason}`. Deterministic
+  selection rules:
+  1. Eligibility: confidence ≥ 50 AND
+     `(sufficiency != 'low' OR priority_level == 'high')` (a high-priority
+     gap deserves attention even with thin data — e.g. "you haven't
+     journaled in 9 days, only 1 entry, but that's exactly the problem").
+  2. Sort by priority (`high > medium > low`) then by confidence desc.
+  3. Final tie-break: deterministic domain order
+     `workouts → medication → fasting → nutrition → sleep →
+     body_composition → journal → faith`.
+  4. If no domain qualifies, returns `{"status": "steady",
+     "reason": "Nothing urgent right now — stay consistent."}`.
+
+**Modified files:**
+
+- `apps/core/ai_state/state_builder.py` — Trust attachment added to
+  7 state builders (`build_health_state`, `build_faith_state`,
+  `build_journal_state`, `build_nutrition_state`, `build_fasting_state`,
+  `build_fitness_state`, `build_medicine_state`). Each calls into
+  `signal_trust` and writes the result to `state["_trust"]` as a
+  `{domain_key: report}` sub-dict. `build_health_state` attaches both
+  `body_composition` and `sleep` since both live in health state.
+  All trust attachment is wrapped in `try/except` with `logger.warning`
+  on failure — never breaks state build.
+
+- `apps/core/ai_orchestrator/cos_context.py::build_cos_context` — At the
+  end of context assembly (just before `return context`), aggregates the
+  per-domain `_trust` sub-dicts into a flat `trust_reports` dict
+  (`{domain_name: report}`) and calls `compute_right_now_focus`. Two new
+  context keys exposed to the LLM:
+  - `trust_reports` — full per-domain trust dicts (LLM uses these to
+    decide which signals to weight).
+  - `right_now_focus` — single deterministic focus dict.
+
+**Trust Report shape (canonical):**
+```python
+{
+    "value":            <headline value, e.g. workout_adherence_score>,
+    "confidence":       0..100,
+    "sufficiency":      "low" | "medium" | "high",
+    "last_updated":     ISO string or None,
+    "source_count":     int,
+    "priority_level":   "low" | "medium" | "high",
+    "priority_reason":  "Adherence at 40%",
+}
+```
+
+**State changes (additive only):**
+```python
+# Before (still works):
+fitness_state = {
+    "workouts_7d": 11,
+    "workout_adherence_score": 220,
+    ...
+}
+# After:
+fitness_state = {
+    "workouts_7d": 11,
+    "workout_adherence_score": 220,
+    ...,  # all Phase 2 / 2.5 fields preserved
+    "_trust": {
+        "workouts": {
+            "value": 220,
+            "confidence": 92,
+            "sufficiency": "high",
+            "last_updated": "2026-04-07T08:30:00+00:00",
+            "source_count": 11,
+            "priority_level": "low",
+            "priority_reason": "On plan",
+        },
+    },
+}
+```
+
+**Right Now Focus shape:**
+```python
+context["right_now_focus"] = {
+    "status":     "focused",   # or "steady" if nothing urgent
+    "domain":     "workouts",
+    "priority":   "high",
+    "confidence": 92,
+    "reason":     "3 of 5 planned sessions missed this week",
+}
+```
+
+**Before vs After (CoS responses):**
+
+| Question | Before | After |
+|---|---|---|
+| "How am I doing this week?" | "You've logged 11 workouts." | "You're ahead of plan (11 vs 5 expected, 220% adherence, 92% confidence). Focus can shift to recovery." |
+| "What should I focus on right now?" | LLM guesses based on whatever signals appear in context | "Right now: medication. 1 dose missed today, 7-day adherence at 78%. (high priority, 85% confidence)" |
+| "Should I worry about my body fat data?" | "Your body fat is 24.3%." | "Your body fat is 24.3% — but only 1 measurement in the last 14 days, so confidence is 60%. Plateau risk LOW. Worth logging another measurement before drawing conclusions." |
+| "Is my fasting working?" | "You did 4 fasts this week." | "Fasting compliance 82% (high confidence, 4 fasts logged this week, sufficiency: high). On protocol." |
+| (steady state) | "Things look fine." | `right_now_focus` returns `steady` — LLM says "Nothing urgent right now — stay consistent." |
+
+**How CoS uses the trust:**
+The LLM system prompt now receives the `right_now_focus` dict and the
+full `trust_reports` map. The LLM is instructed to:
+1. Lead with `right_now_focus` when the user asks "what now?" / "what
+   should I focus on?" / "how am I doing?" — this is deterministic.
+2. Caveat low-confidence signals (`confidence < 70`) with words like
+   "based on limited data" or "early signal".
+3. Suppress low-sufficiency signals UNLESS the user asks about that
+   domain directly. (Trust gating, not blanket suppression.)
+4. Elevate high-priority domains in summary responses.
+
+CoS does NOT compute trust dynamically. Every number it cites comes from
+the `_trust` dict that the state builder attached.
+
+**Verification:**
+- `python3 manage.py check` → no issues
+- `python3 manage.py makemigrations --check --dry-run` → no model changes
+- `apps.core.ai_cross_domain` → 33/33 pass
+- Right-now logic unit tests → 6/6 pass:
+  - empty trust → `steady`
+  - high beats medium
+  - priority tie → confidence breaks tie
+  - low sufficiency + medium priority → ineligible
+  - low sufficiency + HIGH priority → still eligible
+  - confidence < 50 → ineligible
+- Live SAE smoke test against dev DB user 9:
+  - `build_fasting_state` → attached `_trust['fasting']`
+  - `build_journal_state` → attached `_trust['journal']`
+  - `build_medicine_state` → attached `_trust['medication']`
+  - other domains returned no trust (no data → assessor returned None,
+    correct behavior)
+  - `compute_right_now_focus` → returned `steady` (none of the available
+    reports met the priority + confidence threshold)
+
+**Regression risks / watch list:**
+- **Prompt size grows again.** ~7 trust dicts × 7 fields = ~50 new fields
+  per user. Existing `COS_INJECTION_TRUNCATED` + `COS_PROMPT_BUDGET`
+  logic handles the soft cap; trust dicts are small (primitive values)
+  so the impact is moderate.
+- **`_trust` is a new state key.** Any code that does `state.keys()` and
+  expects a closed set will see one new key. Grep shows no such code.
+- **Right now focus may pick a domain CoS hasn't historically prioritized.**
+  Example: if a user has a 9-day journal gap, `right_now_focus` may
+  surface journal even though the user asked about workouts. The LLM
+  prompt clarifies that `right_now_focus` is the deterministic
+  recommendation but may be overridden if the user explicitly asks
+  about a different domain.
+- **Trust assessors return `None` when there is no data.** Downstream
+  consumers iterating `trust_reports.items()` won't see the domain.
+  This is correct — absence is itself a signal.
+- **Confidence and sufficiency are not yet enforced as gates** in PIE
+  rules or CDCE. Those engines still have their own gating from Phases
+  1–2. Phase 4 will align all surfaces to read the canonical trust dict.
+
 ## 2026-04-07 — Phase 2.5 state visibility audit: close CoS blind spots
 
 **What:** Diagnostic + targeted correction phase. Phase 2 unified how

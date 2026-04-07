@@ -529,6 +529,26 @@ def build_health_state(user):
     except Exception:
         logger.warning("Physical Intelligence V2 failed in SAE", exc_info=True)
 
+    # Phase 3 — Signal Trust Contract: attach trust reports for body
+    # composition and sleep (both live in health state). Additive only;
+    # never removes existing fields.
+    try:
+        from apps.core.ai_state.signal_trust import (
+            assess_body_composition,
+            assess_sleep,
+        )
+        trust = {}
+        bc = assess_body_composition(user, state)
+        if bc:
+            trust["body_composition"] = bc
+        sleep = assess_sleep(user, state)
+        if sleep:
+            trust["sleep"] = sleep
+        if trust:
+            state["_trust"] = trust
+    except Exception as e:
+        logger.warning("SAE: health trust attach failed: %s", e)
+
     return state
 
 
@@ -689,6 +709,15 @@ def build_faith_state(user):
     active_plan = active_plans.first()
     if active_plan and hasattr(active_plan, "plan"):
         state["bible_plan_name"] = str(active_plan.plan)
+
+    # Phase 3 — Signal Trust Contract
+    try:
+        from apps.core.ai_state.signal_trust import assess_faith
+        report = assess_faith(user, state)
+        if report:
+            state["_trust"] = {"faith": report}
+    except Exception as e:
+        logger.warning("SAE: faith trust attach failed: %s", e)
 
     return state
 
@@ -872,6 +901,15 @@ def build_journal_state(user):
     except Exception:
         pass  # stress_score remains None — no harm
 
+    # Phase 3 — Signal Trust Contract
+    try:
+        from apps.core.ai_state.signal_trust import assess_journal
+        report = assess_journal(user, state)
+        if report:
+            state["_trust"] = {"journal": report}
+    except Exception as e:
+        logger.warning("SAE: journal trust attach failed: %s", e)
+
     return state
 
 
@@ -990,6 +1028,15 @@ def build_nutrition_state(user):
         user, cutoff_7d, today,
     ).count()
 
+    # Phase 3 — Signal Trust Contract
+    try:
+        from apps.core.ai_state.signal_trust import assess_nutrition
+        report = assess_nutrition(user, state)
+        if report:
+            state["_trust"] = {"nutrition": report}
+    except Exception as e:
+        logger.warning("SAE: nutrition trust attach failed: %s", e)
+
     return state
 
 
@@ -1088,6 +1135,15 @@ def build_fasting_state(user):
     # on the same day got different fasting compliance numbers in CoS vs.
     # signal pipeline. Phase 2 collapses both to one helper.
     state["fasting_compliance_score"] = FastingQueries.compliance_score_7d(user, now)
+
+    # Phase 3 — Signal Trust Contract
+    try:
+        from apps.core.ai_state.signal_trust import assess_fasting
+        report = assess_fasting(user, state)
+        if report:
+            state["_trust"] = {"fasting": report}
+    except Exception as e:
+        logger.warning("SAE: fasting trust attach failed: %s", e)
 
     return state
 
@@ -1304,6 +1360,15 @@ def build_fitness_state(user):
 
     # ── Per-exercise progress analysis ─────────────────────────
     state["exercise_progress"] = _build_exercise_progress(user, cutoff_30d)
+
+    # Phase 3 — Signal Trust Contract
+    try:
+        from apps.core.ai_state.signal_trust import assess_workouts
+        report = assess_workouts(user, state)
+        if report:
+            state["_trust"] = {"workouts": report}
+    except Exception as e:
+        logger.warning("SAE: fitness trust attach failed: %s", e)
 
     return state
 
@@ -2537,6 +2602,16 @@ def build_medicine_state(user):
         completeness='full',
         confidence='high',
     )
+
+    # Phase 3 — Signal Trust Contract
+    try:
+        from apps.core.ai_state.signal_trust import assess_medication
+        report = assess_medication(user, state)
+        if report:
+            state["_trust"] = {"medication": report}
+    except Exception as e:
+        logger.warning("SAE: medicine trust attach failed: %s", e)
+
     return state
 
 

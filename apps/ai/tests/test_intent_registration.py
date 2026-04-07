@@ -53,6 +53,7 @@ from apps.core.ai_orchestrator.intent_engine import (
     EXPORT_INTENTS,
     FINANCE_INTENTS,
     SYSTEM_INTENTS,
+    QUERY_INTENTS,
     TIME_AWARE_INTENTS,
     get_intent_module,
 )
@@ -89,6 +90,7 @@ def _get_all_engine_intents():
         | EXPORT_INTENTS
         | FINANCE_INTENTS
         | SYSTEM_INTENTS
+        | QUERY_INTENTS
     )
 
 

@@ -36,6 +36,32 @@
 
 ---
 
+## 2026-04-07 — CoS: Fix "What is my workout tomorrow?" hallucination + generalize future-tense protection
+
+**What:** "What is my workout tomorrow?" returned a hallucinated workout name (e.g. "Lower Body Strength") and, after correction, switched domains entirely to a historical weekly summary ("You've logged 10 sessions this week"). This violated CoS Integrity (domain switching mid-response) and the Raw Data → State → CoS → LLM contract (the LLM authored a state claim from `WorkoutTemplate` names visible in context).
+
+**Root cause (three compounding defects):**
+1. The workout event adapter only queried `WorkoutSession` (past). For any future date `EventResolver.get_events('workout', tomorrow, tomorrow)` returned `[]`, and the response builder fell through to LLM narration which hallucinated a template name from the CoS context.
+2. `_resolve_target_date` did not understand `"tomorrow"` (or `"next monday"` / `"last night"`), so the handler couldn't even reach the future branch.
+3. The deterministic router's `_match_workout_query` was untensed — follow-up phrasings hit `_handle_workout_query` which returned a weekly SAE summary, switching domains.
+
+**Hardening (no new engines, no new services, no new abstractions):**
+- `apps/core/ai_events/adapters/workout.py` — Adapter is now date-aware: past/today → `WorkoutSession`; future days → active `WorkoutSchedule` → `WorkoutTemplate`. Mixed ranges return the union. New helpers `_scheduled_events`, `_schedule_to_event`. New `MAX_FORWARD_DAYS=14` symmetric forward cap. The handler stays domain-agnostic — no `if domain == 'workout'` anywhere.
+- `apps/ai/action_handlers.py` — `handle_query_event_history` now returns a deterministic empty-state `ActionResult.message` ("You have no workout scheduled for Tuesday, Apr 8") whenever the resolver returns `[]`. Because `personal_assistant.py:1623-1630` consumes `ar.message` directly when an action handler returns success, the LLM is **structurally** bypassed — template names cannot leak into a hallucinated answer. `_resolve_target_date` now understands `tomorrow`, `next <weekday>`, and `last night`.
+- `apps/ai/deterministic_router.py` — New module-level `_is_future_tense_query()` helper (single source of truth for tense detection). Applied as a one-line gate at the top of every per-domain summary matcher: `_match_weight_query`, `_match_workout_query`, `_match_sleep_query`, `_match_glucose_query`, `_match_medication_query`, `_match_steps_query`, `_match_blood_pressure_query`, `_match_heart_rate_query`. Future-tense messages now uniformly fall through to intent classification across **all** domains — generalizes the fix instead of patching workout alone. Replaces the brittle string-exclude approach.
+- `apps/ai/intents/query_intents.py` — `query_event_history` description now explicitly names "tomorrow", "next monday", and future ISO dates and includes future-tense examples. Description-only edit; no schema change.
+- `apps/core/ai_events/formatters.py` — Added a `domain == 'workout'` branch to `_format_single_lookup` so a scheduled workout renders deterministically as `**Tuesday (Apr 8)** — Lower Body Strength at 17:00`.
+- `apps/ai/tests/test_workout_truth.py` — Added 12 scoped tests covering: adapter past/today/future branches, rest-day handling, deterministic empty-state contract (no LLM mock — proves no LLM call), router future-tense gate (workout + 6 other summary matchers), historical-phrase regression guard, and the `_is_future_tense_query` helper itself.
+- `apps/ai/tests/test_intent_registration.py` (auto-fix) — Pre-existing failure: `query_event_history` was registered in `QUERY_INTENTS` but `_get_all_engine_intents()` did not union `QUERY_INTENTS`. Added the import and the union member so the registration gate test passes.
+
+**Verification:** `apps.ai.tests.test_workout_truth` 19/19 pass (12 new), `test_intent_registration` 2/2 pass, `test_deterministic_router` and `test_cos_truth_enforcement` all green (212 tests in combined run). `python3 manage.py check` clean. `makemigrations --check --dry-run` clean.
+
+**Architectural conformance:** Raw Data → State → CoS → LLM preserved. CoS Integrity (no domain switching, no hallucinated future plans) restored. No new models, services, engines, or abstractions. The fix is a **pattern**: every summary matcher gets the same future-tense protection from one helper, and any other domain whose adapter learns to answer future dates will work via the same domain-agnostic handler with zero handler changes.
+
+**Why this matters:** This defends against an entire class of bugs ("LLM hallucinates a future state claim from CoS context fields") not just the workout case.
+
+---
+
 ## 2026-04-06 — Action Center: Fix phase labels — completed past items no longer show as NOW/UPCOMING
 
 **What:** Fixed Action Center showing completed morning items under "NOW" and "UPCOMING" at 5 PM. Added a "Completed Earlier" phase for items done hours ago.

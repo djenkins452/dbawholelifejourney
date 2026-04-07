@@ -6,6 +6,196 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-07 — Phase 4 Decision Enforcement + Signal Selection
+
+**What:** Phase 3 introduced trust, sufficiency, priority, and a
+deterministic `right_now_focus`. Phase 4 *enforces* that CoS responses
+are driven by those signals — not raw data, not routine lists, not
+generic encouragement. No new engines, no new state; this phase only
+adds enforcement inside the deterministic router, the CoS context
+assembly, and the system-prompt formatter.
+
+**Architectural rules enforced:**
+- Trust logic remains untouched. `_trust`, `right_now_focus`, and the
+  state builders are not modified.
+- LLM does NOT decide priority. The deterministic router answers
+  focus/behind/status queries BEFORE the LLM sees them. When the LLM
+  does respond, its system prompt carries the hard contract.
+- No new engines. Everything lives in `apps/ai/deterministic_router.py`
+  and `apps/core/ai_orchestrator/cos_context.py`.
+
+**Changes:**
+
+- **`apps/ai/deterministic_router.py`** — Phase 4 focus query route:
+  - New `_FOCUS_QUERY_PHRASES` matcher for "am I behind", "how am I
+    doing", "am I on track", "how am I tracking", "where do I stand",
+    "what's my focus", "what matters most", and similar variants.
+  - New `_is_focus_query(msg_lower)` helper.
+  - New `_build_focus_query_response(user)` — the hard-enforced
+    deterministic response:
+    1. Aggregates per-domain `_trust` dicts from every SAE module.
+    2. Calls `compute_right_now_focus` (Phase 3 resolver).
+    3. Calls `compute_time_status` (Phase 2 time intelligence) for
+       schedule-aware "behind" semantics.
+    4. Returns a single formatted response in the required Phase 4
+       shape: **Right Now Focus** → **Reason** → **Schedule overlay**
+       → **Next step**. The schedule overlay accounts for slack
+       buffer so CoS says "you have 12 min slack remaining" instead
+       of a panicked "you're behind" the instant the clock passes
+       a scheduled time.
+  - New `_try_focus_query_route(msg_lower, user)` that wraps the
+    handler in a `RouteResult` and returns a terminal route — the
+    LLM never sees the message.
+  - Wired into `classify_and_route` **before** `_try_next_action_route`,
+    so focus queries get the trust-aware answer before the routine
+    engine can steal them.
+  - **Trust override in `_build_next_action_response`**: when the user
+    asks "what should I focus on" / "whats next", the function now
+    FIRST checks if there is a high-priority `right_now_focus`. If
+    yes, it returns `Focus on **{Domain}** — {reason}.` and logs
+    `TRUST_OVERRIDE`. Otherwise it falls through to the existing
+    Today Engine routine priority (overdue → coming up → later →
+    foundation). Medium/low priority does NOT override — only high.
+    This is the "override routine fallback when trust exists" rule.
+
+- **`apps/core/ai_orchestrator/cos_context.py::build_cos_context`** —
+  Phase 4 signal selection + decision rules:
+  - New `featured_signals` key: a filtered dict of `trust_reports`
+    containing only entries where `priority_level == 'high'` OR
+    `confidence >= 70`. Everything else is hidden from the default
+    LLM summary. The LLM is instructed to discuss only featured
+    signals unless the user explicitly asks about another domain.
+  - New `decision_rules` key: a flat dict of explicit LLM instructions
+    (`lead_with_focus`, `must_include_trust_for_domains`,
+    `forbid_raw_data_only`, `response_structure`, `signal_selection`,
+    `low_confidence_caveat`, `override_routine_when_focused`).
+
+- **`apps/core/ai_orchestrator/cos_context.py::format_cos_system_injection`** —
+  New SECTION 0 prepended to the system prompt when trust / focus /
+  decision rules are present. This section is the hard contract the
+  LLM must obey:
+  1. Declares the required response structure
+     (situation → interpretation → action).
+  2. Renders the deterministic `RIGHT NOW FOCUS` line with domain,
+     priority, confidence, and reason.
+  3. Explicitly instructs: "When the user asks 'what should I focus
+     on', 'how am I doing', 'am I behind', or 'what's left', you MUST
+     lead the response with this focus — not with a routine list, not
+     with a schedule item, not with generic encouragement."
+  4. Renders `FEATURED SIGNALS` list with the trust fields of each
+     qualifying domain; instructs the LLM to discuss ONLY these
+     unless the user asks about another.
+  5. Lists the TRUST RULES: always include interpretation, caveat
+     confidence < 70 ("based on limited data"), suppress low
+     sufficiency unless priority is high, forbid raw-number-only
+     responses.
+
+**Updated flow:**
+```
+User Query
+   │
+   ▼
+Intent / message
+   │
+   ├─► classify_and_route
+   │       │
+   │       ├─ Daily briefing gate
+   │       ├─ Event follow-up
+   │       ├─ Status query
+   │       ├─ Qualified status
+   │       ├─ **Focus query (Phase 4 hard override)**
+   │       │      → _build_focus_query_response
+   │       │      → right_now_focus + time_intelligence
+   │       │      → deterministic response → TERMINAL
+   │       ├─ Next action (Phase 4 trust override)
+   │       │      → if high-priority trust: "Focus on X — reason"
+   │       │      → else: Today Engine routine priority
+   │       ├─ Day agenda / data routes / etc.
+   │       └─ Fallthrough → LLM
+   │
+   └─► LLM path (fallthrough)
+          │
+          ▼
+       build_cos_context
+          │
+          ├─ Existing 60+ context builders (Phase 1/2/2.5/3)
+          ├─ trust_reports (Phase 3)
+          ├─ right_now_focus (Phase 3)
+          ├─ **featured_signals (Phase 4)**
+          ├─ **decision_rules (Phase 4)**
+          │
+          ▼
+       format_cos_system_injection
+          │
+          ├─ **SECTION 0: DECISION CONTRACT (Phase 4)**
+          │      lead_with_focus rule
+          │      featured signals list
+          │      trust rules
+          │
+          └─ existing sections → LLM
+```
+
+**Before vs After:**
+
+| User asks | Before | After |
+|---|---|---|
+| "Am I behind?" | "You have a workout at 6pm." | *Deterministic:* "**Right now: steady.** Nothing urgent.\n\nSchedule: on track. Next is **Workout** at 6:00 PM (in 25 min).\n\nNext step: Stay consistent — nothing urgent." |
+| "Am I behind?" (with focus) | "You're behind." | *Deterministic:* "**Right now, focus on: Workouts**\n\nReason: 3 of 5 planned sessions missed this week\nPriority: high (88% confidence)\n\nSchedule: using buffer — 12 min slack remaining. Next is **Workout** at 6:00 PM.\n\nNext step: Log a workout or move a session into today." |
+| "What should I focus on?" | Start {first overdue routine item}. | When a high-priority trust exists: "Focus on **Workouts** — 3 of 5 planned sessions missed this week." (trust override). When no high-priority trust: falls through to Today Engine routine priority. |
+| "How am I doing?" | LLM picks from whatever signals appear in context | LLM sees DECISION CONTRACT section telling it to lead with right_now_focus + trust rules; discusses only featured_signals |
+| "You logged 11 workouts" | (LLM paraphrases raw numbers) | LLM is instructed: "A response that lists values without interpreting them is a failure" + "For any metric you cite, include its interpretation" |
+| Low confidence body comp question | "Your body fat is 24.3%." | LLM is instructed to prefix with "based on limited data" or "early signal" when confidence < 70. |
+
+**Enforcement boundaries:**
+
+| Rule | Where enforced | How |
+|---|---|---|
+| Lead with right_now_focus on focus queries | Deterministic router | `_try_focus_query_route` bypasses LLM entirely |
+| Lead with right_now_focus on "what should I focus" | Deterministic router | `_build_next_action_response` checks trust before Today Engine fallback |
+| Include interpretation in domain responses | System prompt (SECTION 0 TRUST RULES) | Explicit instruction + example |
+| Signal selection (no data dump) | CoS context + system prompt | `featured_signals` filter + instruction to discuss only those |
+| Confidence caveat for < 70 | System prompt (SECTION 0) | Explicit instruction |
+| Response structure (situation → interpretation → action) | System prompt (SECTION 0) | Explicit instruction at top of contract block |
+| Time-aware "behind" (schedule buffer) | `_build_focus_query_response` | Calls `compute_time_status`, renders USING_BUFFER / LATE / ON_TRACK |
+| Override routine fallback when trust exists | `_build_next_action_response` | Checks `right_now_focus.priority == 'high'` before routine priority |
+
+**Verification:**
+- `python3 manage.py check` → no issues
+- `python3 manage.py makemigrations --check --dry-run` → no model changes
+- Regression suite: `apps.core.ai_cross_domain` + `apps.ai.tests.test_workout_truth` → 52/52 pass
+- Live smoke test (dev DB user 9, steady state):
+  - `_is_focus_query('am i behind?')` → True
+  - `_build_focus_query_response` → renders "Right now: steady. Next step: Stay consistent."
+  - `_try_focus_query_route` → returns terminal RouteResult with name='focus_query'
+  - `_build_next_action_response` → falls through to Today Engine ("Start [PERF TEST] Creatine...") because user has no high-priority focus
+- Simulated focused scenario (mocked `compute_right_now_focus` and
+  `compute_time_status`):
+  - `_build_focus_query_response` → full 4-section Phase 4 format:
+    `**Right now, focus on: Workouts**` + reason + priority +
+    schedule buffer overlay + domain-specific next step
+  - `_build_next_action_response` → `Focus on **Workouts** — 3 of 5
+    planned sessions missed this week.` + `TRUST_OVERRIDE` log line
+
+**Regression risks / watch list:**
+- **Prompt size grows again**. The new SECTION 0 adds ~30 lines to the
+  system prompt when trust+focus are present. Existing truncation logic
+  already handles the 8000-token soft cap. One-time check: the new
+  content is high-density instructions so the token cost is moderate.
+- **`_try_focus_query_route` may intercept queries that previously
+  fell through to LLM**. The matcher phrases are intentionally narrow
+  ("am I behind", "how am I doing") to avoid over-matching. If a user
+  asks something like "how am I doing with my weight?", the matcher
+  will fire and give a general focus response — which may feel less
+  specific than an LLM answer. Acceptable tradeoff: deterministic
+  accuracy over LLM interpretation for this class of query.
+- **`_build_next_action_response` trust override only fires on
+  priority='high'**. Medium-priority trust still defers to the routine
+  engine. This is intentional — we don't want trust to over-dominate
+  the routine flow for lukewarm signals.
+- **No change to state builders or trust logic** — Phase 2/2.5/3
+  outputs are untouched. Any issue with focus display is a Phase 4
+  formatting bug, never a trust-computation bug.
+
 ## 2026-04-07 — Phase 3 Signal Trust Contract + Right Now Focus
 
 **What:** Phase 2 unified how truth is computed; Phase 2.5 made truth

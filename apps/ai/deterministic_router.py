@@ -615,6 +615,17 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
                 e, exc_info=True,
             )
 
+    # ── Phase 4: Focus / behind / status query — HARD OVERRIDE ───
+    # If the user asks "am I behind" / "how am I doing" / "what should
+    # I focus on", CoS MUST lead with the deterministic right_now_focus
+    # from Phase 3. This bypasses the LLM and the Today Engine routine
+    # fallback. Runs BEFORE _try_next_action_route so trust beats routine.
+    result = _try_focus_query_route(msg_lower, user)
+    if result is not None:
+        result.elapsed_ms = (time.monotonic() - t_start) * 1000
+        _log_route_decision(result, user, message)
+        return result
+
     # ── Phase 0b: Locked next-action (bypasses LLM entirely) ──────
     result = _try_next_action_route(msg_lower, user)
     if result is not None:
@@ -751,18 +762,250 @@ def _is_next_action_query(msg_lower):
     return any(phrase in msg_lower for phrase in _NEXT_ACTION_PHRASES)
 
 
-def _build_next_action_response(user):
-    """Build deterministic next-action response from Today Engine.
+# =============================================================================
+# Phase 4 — Decision Enforcement: Focus Query Hard Override
+# =============================================================================
+#
+# When the user asks "am I behind?" / "how am I doing?" / "what should I focus
+# on?" / "what's left?", CoS MUST lead with the deterministic right_now_focus
+# computed by the Phase 3 trust contract — never with a routine list, never
+# with a generic encouragement, never with raw data.
+#
+# This matcher fires BEFORE the existing _NEXT_ACTION_PHRASES route and uses
+# the same priority. The handler reads right_now_focus from the SAE state and
+# layers in time intelligence (compute_time_status) to answer "am I behind"
+# correctly — accounting for schedule buffers instead of saying "yes" the
+# instant the clock passes a scheduled time.
 
-    STRICT priority — evaluated in order, returns IMMEDIATELY on first match:
-    1. Overdue now → earliest by time
-    2. Coming up next → earliest by time
-    3. Later today → earliest by time
-    4. Incomplete foundational (not in time buckets) → earliest by time
-    5. Empty → "You're clear right now."
+_FOCUS_QUERY_PHRASES = (
+    'am i behind',
+    "i'm behind",
+    'am i on track',
+    "am i ok",
+    'how am i doing',
+    "how's my day",
+    'hows my day',
+    'how is my day',
+    'how am i tracking',
+    'how am i looking',
+    'how am i progressing',
+    'where am i at',
+    'where do i stand',
+    'whats my focus',
+    "what's my focus",
+    'what is my focus',
+    'whats most important',
+    "what's most important",
+    'what matters most',
+    'what should i prioritize right now',
+)
+
+
+def _is_focus_query(msg_lower):
+    """Phase 4 — match the explicit focus / status / behind queries."""
+    return any(phrase in msg_lower for phrase in _FOCUS_QUERY_PHRASES)
+
+
+def _build_focus_query_response(user):
+    """
+    Phase 4 — deterministic focus / behind / status response.
+
+    Reads:
+        1. right_now_focus from SAE (computed by Phase 3 trust resolver)
+        2. compute_time_status() for schedule-aware "behind" semantics
+
+    Format follows the Phase 4 response structure rule:
+        Situation → Interpretation → Action
+
+    Returns a single string. Never falls through to LLM.
+    """
+    try:
+        from apps.core.ai_state.right_now import compute_right_now_focus
+        from apps.core.ai_state.state_engine import get_module_state
+
+        # Aggregate trust reports from each module's _trust sub-dict
+        trust_reports = {}
+        for module_name in (
+            'health', 'fitness', 'nutrition', 'medicine',
+            'fasting', 'journal', 'faith',
+        ):
+            try:
+                ms = get_module_state(user, module_name) or {}
+            except Exception:
+                continue
+            for k, v in (ms.get('_trust') or {}).items():
+                if v:
+                    trust_reports[k] = v
+
+        focus = compute_right_now_focus(trust_reports)
+    except Exception as e:
+        logger.warning(
+            "[FOCUS_QUERY] right_now_focus build failed for user=%s: %s",
+            getattr(user, 'id', '?'), e,
+        )
+        focus = {'status': 'steady'}
+
+    # Time-aware "are they actually behind?" check
+    time_status = None
+    try:
+        from apps.core.ai_state.time_intelligence import compute_time_status
+        time_status = compute_time_status(user)
+    except Exception as e:
+        logger.warning(
+            "[FOCUS_QUERY] time_intelligence failed for user=%s: %s",
+            getattr(user, 'id', '?'), e,
+        )
+
+    lines = []
+
+    # ── Situation + Interpretation: focus or steady ──────────────
+    if focus and focus.get('status') == 'focused':
+        domain = focus.get('domain', 'unknown')
+        priority = focus.get('priority', 'medium')
+        confidence = focus.get('confidence')
+        reason = focus.get('reason', '')
+        confidence_str = f" ({confidence}% confidence)" if confidence is not None else ''
+        lines.append(f"**Right now, focus on: {domain.replace('_', ' ').title()}**")
+        lines.append('')
+        lines.append(f"Reason: {reason}")
+        lines.append(f"Priority: {priority}{confidence_str}")
+    else:
+        lines.append("**Right now: steady.** Nothing urgent in any tracked domain.")
+
+    # ── Time-aware "behind" overlay ──────────────────────────────
+    if time_status and time_status.get('next_item'):
+        ts_status = time_status.get('status', 'ON_TRACK')
+        next_item = time_status.get('next_item')
+        next_time = time_status.get('next_item_time', '')
+        slack = time_status.get('total_slack_minutes', 0) or 0
+        minutes_until = time_status.get('minutes_until_next')
+
+        lines.append('')
+        if ts_status == 'ON_TRACK':
+            if minutes_until is not None and minutes_until > 0:
+                lines.append(
+                    f"Schedule: on track. Next is **{next_item}** at "
+                    f"{next_time} (in {minutes_until} min)."
+                )
+            else:
+                lines.append(f"Schedule: on track. Next is **{next_item}** at {next_time}.")
+        elif ts_status == 'USING_BUFFER':
+            lines.append(
+                f"Schedule: using buffer — {slack} min slack remaining. "
+                f"Next is **{next_item}** at {next_time}."
+            )
+        elif ts_status == 'LATE':
+            lines.append(
+                f"Schedule: behind. Next is **{next_item}** at {next_time}. "
+                f"Buffer exhausted — adjustments needed."
+            )
+
+    # ── Action: clear next step from focus or schedule ───────────
+    lines.append('')
+    if focus and focus.get('status') == 'focused':
+        domain = focus.get('domain', '')
+        # Domain-specific action hints (deterministic)
+        action_hints = {
+            'workouts': 'Log a workout or move a session into today.',
+            'medication': 'Take any missed dose now if it\'s safe to do so.',
+            'fasting': 'Log your current fast or start the next one.',
+            'nutrition': 'Log a meal or check your macro targets.',
+            'sleep': 'Plan an earlier wind-down tonight.',
+            'body_composition': 'Add a measurement to improve trust in the trend.',
+            'journal': 'Write a short entry — even one sentence.',
+            'faith': 'Open your reading plan and complete today\'s passage.',
+        }
+        action = action_hints.get(domain, f"Address {domain.replace('_', ' ')}.")
+        lines.append(f"Next step: {action}")
+    elif time_status and time_status.get('next_item'):
+        lines.append(f"Next step: Start {time_status['next_item']}.")
+    else:
+        lines.append("Next step: Stay consistent — nothing urgent.")
+
+    return "\n".join(lines)
+
+
+def _try_focus_query_route(msg_lower, user):
+    """Phase 4 — focus query hard override. Returns RouteResult or None."""
+    if user is None or not _is_focus_query(msg_lower):
+        return None
+    try:
+        response = _build_focus_query_response(user)
+        if not response:
+            return None
+        return RouteResult(
+            category=RouteCategory.DETERMINISTIC_DATA,
+            response=response,
+            route_name='focus_query',
+            domain='execution',
+            is_terminal=True,
+        )
+    except Exception as e:
+        logger.warning(
+            "[FOCUS_QUERY] route failed for user=%s: %s",
+            getattr(user, 'id', '?'), e,
+        )
+        return None
+
+
+def _build_next_action_response(user):
+    """Build deterministic next-action response.
+
+    Phase 4 (decision enforcement): if a Phase 3 right_now_focus exists with
+    a HIGH priority, it OVERRIDES the routine fallback. Trust beats schedule.
+    The user gets steered to the most important domain regardless of which
+    routine item happens to be next on the clock.
+
+    Otherwise (no high-priority focus, or trust unavailable), falls through
+    to the Today Engine priority order:
+        1. Overdue now → earliest by time
+        2. Coming up next → earliest by time
+        3. Later today → earliest by time
+        4. Incomplete foundational (not in time buckets) → earliest by time
+        5. Empty → "You're clear right now."
 
     Returns EXACTLY ONE item. No plans, no lists, no sequencing.
     """
+    # ── Phase 4: trust override ──────────────────────────────────
+    # A high-priority right_now_focus pre-empts the routine fallback.
+    # Medium / low priority do NOT override — those defer to schedule.
+    try:
+        from apps.core.ai_state.right_now import compute_right_now_focus
+        from apps.core.ai_state.state_engine import get_module_state
+
+        trust_reports = {}
+        for module_name in (
+            'health', 'fitness', 'nutrition', 'medicine',
+            'fasting', 'journal', 'faith',
+        ):
+            try:
+                ms = get_module_state(user, module_name) or {}
+            except Exception:
+                continue
+            for k, v in (ms.get('_trust') or {}).items():
+                if v:
+                    trust_reports[k] = v
+
+        focus = compute_right_now_focus(trust_reports)
+        if (
+            focus
+            and focus.get('status') == 'focused'
+            and focus.get('priority') == 'high'
+        ):
+            domain = focus.get('domain', 'unknown').replace('_', ' ').title()
+            reason = focus.get('reason', '')
+            logger.info(
+                "[NEXT ACTION] user=%s TRUST_OVERRIDE focus=%s priority=high",
+                user.id, focus.get('domain'),
+            )
+            return f"Focus on **{domain}** — {reason}."
+    except Exception as e:
+        logger.warning(
+            "[NEXT ACTION] trust override check failed for user=%s: %s",
+            getattr(user, 'id', '?'), e,
+        )
+        # Fall through to routine fallback below
+
     try:
         from apps.core.today.today_engine import get_today_context
 

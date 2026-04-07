@@ -3513,6 +3513,45 @@ def build_cos_context(user, scoped_builders=None):
             # Surface the steady state explicitly so CoS / LLM know
             # the focus resolver was reached but found nothing urgent.
             context['right_now_focus'] = compute_right_now_focus({})
+
+        # ── Phase 4: featured_signals (signal selection filter) ──
+        # The LLM is instructed (via system prompt) to discuss only the
+        # signals in `featured_signals` unless the user explicitly asks
+        # about a different domain. This prevents data-dump responses.
+        # Filter rule: include if priority == 'high' OR confidence >= 70.
+        featured = {
+            domain: report
+            for domain, report in trust_reports.items()
+            if (
+                report.get('priority_level') == 'high'
+                or (report.get('confidence', 0) or 0) >= 70
+            )
+        }
+        context['featured_signals'] = featured
+
+        # ── Phase 4: decision_rules — explicit instructions to LLM ──
+        # These are not flexible suggestions; they are the contract the
+        # LLM must follow. The system prompt formatter renders these
+        # verbatim into the prompt so the LLM cannot ignore them.
+        context['decision_rules'] = {
+            'lead_with_focus': True,
+            'must_include_trust_for_domains': True,
+            'forbid_raw_data_only': True,
+            'response_structure': 'situation → interpretation → action',
+            'signal_selection': (
+                'Discuss only signals in featured_signals unless the user '
+                'explicitly asks about another domain.'
+            ),
+            'low_confidence_caveat': (
+                'When citing a signal with confidence < 70, prefix with '
+                '"based on limited data" or "early signal".'
+            ),
+            'override_routine_when_focused': (
+                'When right_now_focus.status == "focused" and priority == '
+                '"high", lead the response with that focus — never with '
+                'a routine list, schedule item, or generic encouragement.'
+            ),
+        }
     except Exception as e:
         logger.warning("CoS context: trust + right_now build failed: %s", e)
 
@@ -5619,6 +5658,105 @@ def format_cos_system_injection(context, user_message=None):
             pass  # Guard must never break formatting
 
     lines = []
+
+    # ══════════════════════════════════════════════════════════════
+    # SECTION 0: PHASE 4 DECISION RULES (HARD CONTRACT)
+    # These instructions govern HOW the LLM constructs every response.
+    # They are not preferences. They are not guidance. They are the
+    # contract. The LLM must obey them on every turn.
+    # ══════════════════════════════════════════════════════════════
+    _right_now = context.get('right_now_focus') or {}
+    _featured = context.get('featured_signals') or {}
+    _trust_reports = context.get('trust_reports') or {}
+    _decision_rules = context.get('decision_rules') or {}
+
+    if _right_now or _featured or _decision_rules:
+        lines.append("## DECISION CONTRACT (Phase 4 — must obey)")
+        lines.append("")
+        lines.append(
+            "Every response you produce must follow this structure: "
+            "**Situation → Interpretation → Action**. "
+            "You are a decision-maker, not a list generator."
+        )
+        lines.append("")
+
+        # Right Now Focus — the deterministic priority signal
+        if _right_now.get('status') == 'focused':
+            domain = _right_now.get('domain', 'unknown')
+            priority = _right_now.get('priority', 'medium')
+            confidence = _right_now.get('confidence')
+            reason = _right_now.get('reason', '')
+            conf_str = f", {confidence}% confidence" if confidence is not None else ''
+            lines.append(
+                f"**RIGHT NOW FOCUS (deterministic)**: {domain} "
+                f"[priority={priority}{conf_str}]. Reason: {reason}"
+            )
+            lines.append("")
+            lines.append(
+                "When the user asks 'what should I focus on', 'how am I "
+                "doing', 'am I behind', or 'what's left', you MUST lead "
+                "the response with this focus — not with a routine list, "
+                "not with a schedule item, not with generic encouragement. "
+                "The deterministic router will normally answer these "
+                "questions before you see them; if it routed to you, the "
+                "user is asking a follow-up — answer using this focus."
+            )
+            lines.append("")
+        elif _right_now.get('status') == 'steady':
+            lines.append(
+                "**RIGHT NOW FOCUS**: steady — no urgent items in any "
+                "tracked domain. If the user asks 'how am I doing' you "
+                "may say 'on track, nothing urgent right now.'"
+            )
+            lines.append("")
+
+        # Featured signals — the only domains you may discuss without prompting
+        if _featured:
+            lines.append("**FEATURED SIGNALS** (high priority OR confidence ≥ 70):")
+            for dom, rep in _featured.items():
+                conf = rep.get('confidence')
+                pri = rep.get('priority_level', 'medium')
+                suff = rep.get('sufficiency', 'medium')
+                reason = rep.get('priority_reason', '')
+                lines.append(
+                    f"- {dom}: priority={pri}, confidence={conf}, "
+                    f"sufficiency={suff}. {reason}"
+                )
+            lines.append("")
+            lines.append(
+                "Discuss only domains in FEATURED SIGNALS unless the user "
+                "explicitly asks about a different domain. Do NOT data-dump "
+                "every metric you have access to."
+            )
+            lines.append("")
+
+        # Trust gate rules
+        lines.append("**TRUST RULES**:")
+        lines.append(
+            "- For any metric you cite, include its interpretation. "
+            "Never say 'You logged 11 workouts' without saying what that means."
+        )
+        lines.append(
+            "- When confidence < 70, prefix the claim with 'based on limited "
+            "data' or 'early signal'."
+        )
+        lines.append(
+            "- When sufficiency == 'low', do NOT make recommendations from "
+            "that signal unless its priority is 'high'."
+        )
+        lines.append(
+            "- When right_now_focus.status == 'focused' and priority == "
+            "'high', that domain MUST be the lead of any general 'how am I "
+            "doing' response."
+        )
+        lines.append(
+            "- Do NOT return raw numbers without the situation→interpretation"
+            "→action structure. A response that lists values without "
+            "interpreting them is a failure."
+        )
+        lines.append("")
+        lines.append("---")
+        lines.append("")
 
     # ══════════════════════════════════════════════════════════════
     # SECTION 1: LOCKED FACT STATEMENTS (SYSTEM-GENERATED)

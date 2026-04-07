@@ -8,6 +8,14 @@ models — never writes to them.
 Signals collected:
     PIE Insights, PRIE Predictions, PGE Guidance, CDCE Correlations,
     ECC Commitments, UAL Arbitration, Drift/Pressure state, Protective alerts
+
+Phase 1 (System Hardening) rules enforced here:
+    1. None ≠ 0. A missing/unknown value MUST NOT be coerced to 0 or to a
+       fabricated default confidence (e.g. ``score or 0.5``). When a producer
+       has not provided confidence, the signal is dropped — never invented.
+    2. Producer exceptions are logged with severity, never silently swallowed.
+       ``ImportError`` (optional dependencies) is the only exception we treat
+       as expected and silent.
 """
 import logging
 from dataclasses import dataclass, field
@@ -76,9 +84,16 @@ class RawSignalSet:
 
 
 def _collect_pie_insights(user) -> List[RawSignal]:
-    """Collect active PIE insights (not dismissed)."""
+    """Collect active PIE insights (not dismissed).
+
+    Phase 1: insights without an explicit confidence_score are skipped, not
+    fabricated with a 0.5 default. ``None`` means "unknown" — never "medium".
+    """
     try:
         from apps.core.ai_insights.models import Insight
+    except ImportError:
+        return []
+    try:
         from apps.core.ai_eae.constants import SEVERITY_WEIGHTS
 
         insights = Insight.objects.filter(
@@ -88,8 +103,11 @@ def _collect_pie_insights(user) -> List[RawSignal]:
 
         signals = []
         for ins in insights:
+            # Phase 1: refuse to fabricate confidence. Drop unconfident signals.
+            if ins.confidence_score is None:
+                continue
             severity_score = SEVERITY_WEIGHTS.get(ins.severity, 10)
-            local_score = severity_score * (ins.confidence_score or 0.5)
+            local_score = severity_score * ins.confidence_score
             signals.append(RawSignal(
                 engine='PIE',
                 signal_type=ins.insight_type,
@@ -97,7 +115,7 @@ def _collect_pie_insights(user) -> List[RawSignal]:
                 title=ins.title or '',
                 message=ins.message or '',
                 local_score=local_score,
-                confidence=ins.confidence_score or 0.5,
+                confidence=ins.confidence_score,
                 severity=ins.severity or 'info',
                 object_type='Insight',
                 object_id=ins.pk,
@@ -107,14 +125,20 @@ def _collect_pie_insights(user) -> List[RawSignal]:
             ))
         return signals
     except Exception as e:
-        logger.warning("EAE: Failed to collect PIE insights: %s", e)
+        logger.error("EAE: Failed to collect PIE insights: %s", e, exc_info=True)
         return []
 
 
 def _collect_prie_predictions(user) -> List[RawSignal]:
-    """Collect active PRIE predictions (not expired/superseded)."""
+    """Collect active PRIE predictions (not expired/superseded).
+
+    Phase 1: predictions without an explicit confidence_score are skipped.
+    """
     try:
         from apps.core.ai_predictions.models import Prediction
+    except ImportError:
+        return []
+    try:
         from apps.core.ai_eae.constants import HORIZON_URGENCY
 
         now = timezone.now()
@@ -125,6 +149,10 @@ def _collect_prie_predictions(user) -> List[RawSignal]:
 
         signals = []
         for pred in predictions:
+            # Phase 1: refuse to fabricate confidence.
+            if pred.confidence_score is None:
+                continue
+
             # Calculate horizon urgency
             if pred.predicted_date:
                 days_out = max(0, (pred.predicted_date - now).days)
@@ -136,10 +164,12 @@ def _collect_prie_predictions(user) -> List[RawSignal]:
                 else:
                     urgency = 0.3  # Beyond 90 days
             else:
-                urgency = 0.5
-                days_out = 30
+                # No predicted_date is itself an "unknown horizon" signal —
+                # treat as low urgency rather than inventing a 30-day default.
+                urgency = 0.3
+                days_out = None
 
-            local_score = (pred.confidence_score or 0.5) * 100 * urgency
+            local_score = pred.confidence_score * 100 * urgency
             signals.append(RawSignal(
                 engine='PRIE',
                 signal_type=pred.prediction_type,
@@ -147,7 +177,7 @@ def _collect_prie_predictions(user) -> List[RawSignal]:
                 title=f"Prediction: {pred.prediction_type}",
                 message=pred.explanation or '',
                 local_score=local_score,
-                confidence=pred.confidence_score or 0.5,
+                confidence=pred.confidence_score,
                 severity='warning' if urgency >= 0.7 else 'info',
                 object_type='Prediction',
                 object_id=pred.pk,
@@ -158,14 +188,21 @@ def _collect_prie_predictions(user) -> List[RawSignal]:
             ))
         return signals
     except Exception as e:
-        logger.warning("EAE: Failed to collect PRIE predictions: %s", e)
+        logger.error("EAE: Failed to collect PRIE predictions: %s", e, exc_info=True)
         return []
 
 
 def _collect_pge_guidance(user) -> List[RawSignal]:
-    """Collect active PGE guidance items (not dismissed/snoozed)."""
+    """Collect active PGE guidance items (not dismissed/snoozed).
+
+    Phase 1: guidance items without an explicit confidence_score are skipped,
+    not fabricated with a 0.6 default.
+    """
     try:
         from apps.core.ai_guidance.models import GuidanceItem
+    except ImportError:
+        return []
+    try:
         from apps.core.ai_eae.constants import PRIORITY_WEIGHTS
 
         now = timezone.now()
@@ -179,8 +216,11 @@ def _collect_pge_guidance(user) -> List[RawSignal]:
 
         signals = []
         for gi in items:
+            # Phase 1: refuse to fabricate confidence.
+            if gi.confidence_score is None:
+                continue
             priority_score = PRIORITY_WEIGHTS.get(gi.priority, 25)
-            confidence = gi.confidence_score if gi.confidence_score is not None else 0.6
+            confidence = gi.confidence_score
             local_score = priority_score * confidence
 
             # Map priority to severity
@@ -205,15 +245,20 @@ def _collect_pge_guidance(user) -> List[RawSignal]:
             ))
         return signals
     except Exception as e:
-        logger.warning("EAE: Failed to collect PGE guidance: %s", e)
+        logger.error("EAE: Failed to collect PGE guidance: %s", e, exc_info=True)
         return []
 
 
 def _collect_cdce_correlations(user) -> List[RawSignal]:
-    """Collect active cross-domain correlations (strong/moderate only)."""
+    """Collect active cross-domain correlations (strong/moderate only).
+
+    Phase 1: correlations without an explicit strength_score are skipped.
+    """
     try:
         from apps.core.ai_cross_domain.models import DomainCorrelation
-
+    except ImportError:
+        return []
+    try:
         correlations = DomainCorrelation.objects.filter(
             user=user,
             status='active',
@@ -222,7 +267,10 @@ def _collect_cdce_correlations(user) -> List[RawSignal]:
 
         signals = []
         for corr in correlations:
-            local_score = (corr.strength_score or 0.5) * 100
+            # Phase 1: refuse to fabricate strength.
+            if corr.strength_score is None:
+                continue
+            local_score = corr.strength_score * 100
             signals.append(RawSignal(
                 engine='CDCE',
                 signal_type=corr.correlation_type or '',
@@ -230,7 +278,7 @@ def _collect_cdce_correlations(user) -> List[RawSignal]:
                 title=f"{corr.domain_a} ↔ {corr.domain_b}: {corr.correlation_type}",
                 message=corr.narrative or '',
                 local_score=local_score,
-                confidence=corr.strength_score or 0.5,
+                confidence=corr.strength_score,
                 severity='warning' if corr.strength == 'strong' else 'info',
                 object_type='DomainCorrelation',
                 object_id=corr.pk,
@@ -240,7 +288,7 @@ def _collect_cdce_correlations(user) -> List[RawSignal]:
             ))
         return signals
     except Exception as e:
-        logger.warning("EAE: Failed to collect CDCE correlations: %s", e)
+        logger.error("EAE: Failed to collect CDCE correlations: %s", e, exc_info=True)
         return []
 
 
@@ -248,39 +296,62 @@ def _collect_drift_state(user) -> tuple:
     """
     Collect drift risk severity and instability score.
     Returns (drift_risk_severity, signals_list).
+
+    Phase 1: distinguishes "no instability data" (None → 0.0 severity, no
+    signal) from "measured zero" (0 → 0.0 severity, no signal). For per-module
+    drift, only modules with an explicit numeric drift_score above the
+    threshold contribute a signal. ``None`` is never coerced to 0.
     """
     drift_severity = 0.0
     signals = []
     try:
         from apps.core.ai_state.models import UserState
+    except ImportError:
+        return drift_severity, signals
+    try:
         state = UserState.objects.filter(user=user).first()
         if state:
-            instability = getattr(state, 'schedule_instability_score', 0) or 0
-            # Normalize instability to 0-100 scale (8 = threshold from drift engine)
-            drift_severity = min(100.0, (instability / 8.0) * 50)
+            instability = getattr(state, 'schedule_instability_score', None)
+            if instability is None:
+                # Unknown instability → no severity, no signal.
+                drift_severity = 0.0
+            else:
+                # Normalize known instability to 0-100 scale
+                # (8 = threshold from drift engine).
+                drift_severity = min(100.0, (instability / 8.0) * 50)
 
-            # Also pull per-module drift from state_data if available
+            # Per-module drift from state_data
             state_data = state.state_data or {}
             for module_key, module_data in state_data.items():
-                if isinstance(module_data, dict):
-                    module_drift = module_data.get('drift_score', 0)
-                    if module_drift and module_drift > 20:
-                        signals.append(RawSignal(
-                            engine='DRIFT',
-                            signal_type='module_drift',
-                            module=module_key,
-                            title=f"Drift in {module_key}",
-                            message=f"Drift score: {module_drift:.0f}",
-                            local_score=float(module_drift),
-                            confidence=0.8,
-                            severity='warning' if module_drift >= 40 else 'info',
-                            object_type='UserState',
-                            object_id=state.pk,
-                            created_at=state.last_updated,
-                            bundle_key=f"DRIFT:{module_key}",
-                        ))
+                if not isinstance(module_data, dict):
+                    continue
+                module_drift = module_data.get('drift_score')
+                # Phase 1: skip unknown (None) or non-numeric values; do not
+                # coerce missing data to 0 to avoid silent "no drift" signals
+                # when the truth is "we don't know yet".
+                if module_drift is None:
+                    continue
+                try:
+                    module_drift = float(module_drift)
+                except (TypeError, ValueError):
+                    continue
+                if module_drift > 20:
+                    signals.append(RawSignal(
+                        engine='DRIFT',
+                        signal_type='module_drift',
+                        module=module_key,
+                        title=f"Drift in {module_key}",
+                        message=f"Drift score: {module_drift:.0f}",
+                        local_score=module_drift,
+                        confidence=0.8,
+                        severity='warning' if module_drift >= 40 else 'info',
+                        object_type='UserState',
+                        object_id=state.pk,
+                        created_at=state.last_updated,
+                        bundle_key=f"DRIFT:{module_key}",
+                    ))
     except Exception as e:
-        logger.warning("EAE: Failed to collect drift state: %s", e)
+        logger.error("EAE: Failed to collect drift state: %s", e, exc_info=True)
 
     return drift_severity, signals
 
@@ -289,19 +360,25 @@ def _collect_pressure_state(user) -> tuple:
     """
     Collect capacity/pressure state.
     Returns (capacity_score, capacity_state, signals_list).
+
+    Phase 1: a missing pressure_index (None) is treated as "unknown" — we
+    return the conservative NORMAL default and emit no signal. Only an
+    explicit numeric value drives state classification.
     """
     capacity_score = 0.5
     capacity_state = 'NORMAL'
     signals = []
     try:
         from apps.core.blueprint.pressure_models import PressureSnapshot
-
+    except ImportError:
+        return capacity_score, capacity_state, signals
+    try:
         snapshot = PressureSnapshot.objects.filter(
             user=user,
         ).order_by('-computed_at').first()
 
-        if snapshot:
-            cpi = snapshot.pressure_index or 0
+        if snapshot and snapshot.pressure_index is not None:
+            cpi = snapshot.pressure_index
             capacity_score = max(0.0, 1.0 - (cpi / 100.0))
 
             if capacity_score < 0.2:
@@ -327,7 +404,7 @@ def _collect_pressure_state(user) -> tuple:
                     bundle_key='PROTECTIVE:pressure',
                 ))
     except Exception as e:
-        logger.warning("EAE: Failed to collect pressure state: %s", e)
+        logger.error("EAE: Failed to collect pressure state: %s", e, exc_info=True)
 
     return capacity_score, capacity_state, signals
 
@@ -339,7 +416,9 @@ def _collect_recent_deliveries(user, hours=4) -> List[Dict]:
     """
     try:
         from apps.core.ai_delivery.models import DeliveredNotification
-
+    except ImportError:
+        return []
+    try:
         cutoff = timezone.now() - timedelta(hours=hours)
         deliveries = DeliveredNotification.objects.filter(
             user=user,
@@ -349,7 +428,7 @@ def _collect_recent_deliveries(user, hours=4) -> List[Dict]:
 
         return list(deliveries)
     except Exception as e:
-        logger.warning("EAE: Failed to collect recent deliveries: %s", e)
+        logger.error("EAE: Failed to collect recent deliveries: %s", e, exc_info=True)
         return []
 
 

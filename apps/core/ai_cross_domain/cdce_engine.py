@@ -26,6 +26,7 @@ from apps.core.ai_observability.instrumentation import (
     log_engine_run as _instrument_engine_run,
     log_engine_span,
 )
+from apps.core.ai_state.domain_gating import is_domain_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,21 @@ MIN_DATA_POINTS = 7
 MIN_WEAK_THRESHOLD = 0.30
 MIN_MODERATE_THRESHOLD = 0.50
 MIN_STRONG_THRESHOLD = 0.70
+
+# Phase 1: SAE staleness threshold. CDCE runs on a 6-hour cadence; if the SAE
+# snapshot it would correlate against has not been refreshed in this many
+# hours, we skip correlation entirely rather than report patterns built on
+# stale state.
+SAE_STALENESS_HOURS = 6
+
+
+def _domains_enabled(user, *domains: str) -> bool:
+    """Phase 1 helper: True iff every named domain is enabled for the user.
+
+    Used by detectors before reading any cross-domain signals so that
+    correlations are never built on data from a disabled module.
+    """
+    return all(is_domain_enabled(user, d) for d in domains)
 
 
 def _classify_strength(score):
@@ -98,17 +114,54 @@ def _collect_domain_signals(user):
     """
     Collect cross-domain signals from SAE state + direct queries.
 
-    Returns a dict of domain data or None if insufficient data exists.
+    Returns a dict of domain data or None if insufficient/stale data exists.
+
+    Phase 1 hardening:
+        - SAE staleness gate: if the user's UserState row is older than
+          SAE_STALENESS_HOURS, return None and skip CDCE entirely. This
+          prevents correlations being built on outdated state when the
+          post-execution pipeline has fallen behind.
+        - ImportError is treated as expected (missing optional module).
+          Any other exception is logged at error severity.
     """
     try:
         from apps.core.ai_state.state_engine import get_user_state
+    except ImportError:
+        return None
+
+    try:
         state = get_user_state(user)
     except Exception as e:
-        logger.warning("CDCE: SAE state unavailable for user %s: %s", user.id, e)
+        logger.error(
+            "CDCE: SAE state read failed for user %s: %s",
+            getattr(user, 'id', '?'), e, exc_info=True,
+        )
         return None
 
     if not state:
         return None
+
+    # Phase 1: staleness check on the underlying UserState row.
+    try:
+        from apps.core.ai_state.models import UserState
+        state_row = UserState.objects.filter(user=user).only('last_updated').first()
+        if state_row and state_row.last_updated is not None:
+            age = timezone.now() - state_row.last_updated
+            if age.total_seconds() > SAE_STALENESS_HOURS * 3600:
+                logger.info(
+                    "CDCE: SAE state is stale for user %s (%.1fh old) — skipping",
+                    getattr(user, 'id', '?'),
+                    age.total_seconds() / 3600,
+                )
+                return None
+    except ImportError:
+        pass
+    except Exception as e:
+        # Staleness is a guard, not a hard requirement — log and continue.
+        logger.warning(
+            "CDCE: SAE staleness check failed for user %s: %s",
+            getattr(user, 'id', '?'), e,
+        )
 
     # Enrich with historical series that SAE doesn't carry
     signals = {
@@ -259,7 +312,12 @@ def detect_sleep_mood(user, signals):
     Detect: Low sleep → negative mood the next day.
 
     Uses time-lagged alignment (sleep day N → mood day N+1).
+
+    Phase 1: gated on both health (for sleep) and journal (for mood) being
+    enabled. A user who has either domain off must never see this correlation.
     """
+    if not _domains_enabled(user, 'health', 'journal'):
+        return []
     series = signals.get('_sleep_mood_series', [])
     if len(series) < MIN_DATA_POINTS:
         return []
@@ -317,7 +375,11 @@ def detect_exercise_mood(user, signals):
     Detect: Exercise → improved mood the next day.
 
     Compares mood scores after exercise days vs rest days.
+
+    Phase 1: gated on health (for workouts) and journal (for mood) enabled.
     """
+    if not _domains_enabled(user, 'health', 'journal'):
+        return []
     series = signals.get('_exercise_mood_series', [])
     if len(series) < MIN_DATA_POINTS:
         return []
@@ -372,17 +434,26 @@ def detect_habit_goal_alignment(user, signals):
     Detect: High habit consistency → better goal completion rate.
 
     Compares habit completion rate to goal milestone completion rate.
+
+    Phase 1: gated on life (habits) and purpose/goals enabled. None values
+    on rates are treated as "unknown" and skip the detector entirely instead
+    of being silently coerced to 0.
     """
+    if not _domains_enabled(user, 'life', 'purpose'):
+        return []
     habits = signals.get('habits', {})
     goals = signals.get('goals', {})
 
-    habit_rate = habits.get('avg_completion_rate', 0)
-    goal_rate = goals.get('completion_rate', 0)
+    habit_rate = habits.get('avg_completion_rate')
+    goal_rate = goals.get('completion_rate')
     active_goals = goals.get('active_goal_count', 0)
     active_habits = habits.get('active_habit_count', 0)
 
     # Need both domains to have meaningful data
     if active_habits < 1 or active_goals < 1:
+        return []
+    # Phase 1: refuse to correlate on unknown rates. None ≠ 0.
+    if habit_rate is None or goal_rate is None:
         return []
     if habit_rate == 0 and goal_rate == 0:
         return []
@@ -460,13 +531,21 @@ def detect_faith_consistency(user, signals):
     Detect: Faith practice consistency correlates with journaling mood.
 
     When faith reading streak is high, mood distribution tends positive.
+
+    Phase 1: gated on faith and journal both enabled. None reading_streak
+    is treated as "unknown" rather than coerced to 0.
     """
+    if not _domains_enabled(user, 'faith', 'journal'):
+        return []
     faith = signals.get('faith', {})
     journal = signals.get('journal', {})
 
-    reading_streak = faith.get('reading_streak', 0)
+    reading_streak = faith.get('reading_streak')
     mood_dist = journal.get('mood_distribution', {})
 
+    # Phase 1: refuse to correlate when streak is unknown.
+    if reading_streak is None:
+        return []
     if reading_streak < 3 and not mood_dist:
         return []
 
@@ -657,15 +736,23 @@ def detect_nutrition_energy(user, signals):
     Detect: Nutrition compliance correlates with transformation momentum.
 
     When macro compliance drops, overall transformation score follows.
+
+    Phase 1: gated on health enabled (nutrition is a sub-domain of health).
+    None scores are treated as "unknown" rather than coerced to 0.
     """
+    if not _domains_enabled(user, 'health'):
+        return []
     nutrition = signals.get('nutrition', {})
     transformation = signals.get('transformation', {})
 
-    macro_score = nutrition.get('macro_compliance_score', 0)
-    transform_score = transformation.get('transformation_score', 0)
+    macro_score = nutrition.get('macro_compliance_score')
+    transform_score = transformation.get('transformation_score')
     food_entries_7d = nutrition.get('food_entries_7d', 0)
 
     if food_entries_7d < 3:
+        return []
+    # Phase 1: refuse to correlate on unknown scores.
+    if macro_score is None or transform_score is None:
         return []
     if macro_score == 0 and transform_score == 0:
         return []
@@ -739,14 +826,22 @@ def detect_momentum_engagement(user, signals):
     Detect: Multi-domain engagement (momentum) correlates with mood.
 
     When the user is active across many domains, mood tends positive.
+
+    Phase 1: gated on health (transformation/momentum) and journal (mood).
+    None momentum is treated as "unknown" rather than coerced to 0.
     """
+    if not _domains_enabled(user, 'health', 'journal'):
+        return []
     transformation = signals.get('transformation', {})
     journal = signals.get('journal', {})
 
-    momentum = transformation.get('momentum_score', 0)
+    momentum = transformation.get('momentum_score')
     mood_dist = journal.get('mood_distribution', {})
     total_moods = sum(mood_dist.values()) if mood_dist else 0
 
+    # Phase 1: refuse to correlate on unknown momentum.
+    if momentum is None:
+        return []
     if momentum == 0 or total_moods < 3:
         return []
 
@@ -898,8 +993,18 @@ def _store_correlation(user, corr_data):
             try:
                 from apps.core.ai_delivery.delivery_engine import deliver_single
                 deliver_single(user, "CDCE", obj)
-            except Exception:
-                pass  # Non-fatal — delivery is best-effort
+            except ImportError:
+                # Delivery module is optional in some test environments.
+                pass
+            except Exception as e:
+                # Delivery is best-effort but Phase 1 forbids silent swallow.
+                logger.warning(
+                    "CDCE: delivery_engine failed to push correlation %s "
+                    "for user %s: %s",
+                    corr_data['correlation_type'],
+                    getattr(user, 'id', '?'),
+                    e,
+                )
 
         return obj
 

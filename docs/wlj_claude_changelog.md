@@ -6,6 +6,101 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-07 — Phase 1 system hardening: stop unsafe output (signal trust)
+
+**What:** First phase of the WLJ system coherence remediation plan from the
+full-system audit. This phase eliminates the *bug class* behind several recent
+production issues — fasting surfacing when disabled, "0%" rendered when data
+is missing, hardcoded confidence scores, silent producer failures, CDCE
+correlations on stale state. No new architecture; surgical leak-closing only.
+
+**Changes:**
+
+- **NEW** `apps/core/ai_state/domain_gating.py` — Single source of truth for
+  `is_domain_enabled(user, domain, feature=None)`. Fail-closed: any error
+  resolving preferences treats the domain as disabled. Used by signal
+  collectors, CDCE detectors, and PIE rules so the enabled check lives in
+  ONE place instead of being re-implemented at every consumer.
+
+- `apps/core/ai_eae/signal_collector.py` — Phase 1 None ≠ 0 enforcement:
+  - PIE/PRIE/PGE/CDCE collectors now SKIP signals whose `confidence_score` /
+    `strength_score` is `None` instead of fabricating a `0.5` / `0.6` default.
+    A signal without confidence is not a signal.
+  - `_collect_drift_state()` distinguishes "no instability data" (None →
+    no signal) from "measured zero" (0). Per-module drift values that are
+    None or non-numeric are skipped, never coerced.
+  - `_collect_pressure_state()` only classifies capacity when
+    `pressure_index` is an explicit number; None leaves the conservative
+    NORMAL default.
+  - All `except Exception` blocks split into `except ImportError: ...` for
+    optional modules + `except Exception: logger.error(..., exc_info=True)`
+    for real failures. No more silent producer failures.
+
+- `apps/core/ai_insights/rules_body_composition.py` — Trust-contract upgrade:
+  - Removed hardcoded `confidence_score = 0.8`. Confidence is now derived
+    from gap length (`MissingBodyCompRule`) or sample size + days span
+    (`BodyFatChangeRule`).
+  - Added domain gating via `is_domain_enabled(user, "health")` in
+    `applies()` so disabled-health users never see body composition
+    insights, even if the underlying entries exist.
+  - Sufficiency floor: `BodyFatChangeRule` now requires at least 3
+    measurements spanning at least 14 days. Two-point trends are no longer
+    surfaced.
+
+- `apps/core/ai_cross_domain/cdce_engine.py` — Cross-domain leak closure:
+  - Added a 6-hour SAE staleness gate in `_collect_domain_signals()`.
+    If `UserState.last_updated` is older than `SAE_STALENESS_HOURS`, CDCE
+    skips correlation entirely rather than build patterns on stale state.
+  - Added `_domains_enabled(user, *domains)` helper. Every detector now
+    gates on the domains it correlates BEFORE reading any signal. Previously
+    only `detect_fasting_fitness` checked enabled — now the same gate
+    protects sleep_mood, exercise_mood, habit_goal_alignment,
+    faith_consistency, nutrition_energy, and momentum_engagement.
+  - Detector signals that were silently coerced from None to 0
+    (`reading_streak`, `momentum_score`, `macro_score`, `transform_score`,
+    `habit_rate`, `goal_rate`) now short-circuit when None instead of
+    fabricating a "0% / weak correlation" claim.
+  - Replaced `except Exception: pass` in the delivery push branch with
+    explicit `except ImportError` + warning logging.
+
+**Why:** The audit identified eleven failure classes (FM1–FM11) all rooted in
+the same architectural gap: producers had no signal-trust contract, so
+consumers (CoS, dashboards, CDCE, briefings) inherited untrusted data and
+passed it on as confident output. Phase 1 stops the leaks at the producer
+layer without redesigning anything. Phases 2–4 (truth path unification, full
+trust contract, surface alignment) follow.
+
+**Behavior — before vs after:**
+
+| Scenario | Before | After |
+|---|---|---|
+| User disables fasting; CDCE runs | "Fasting 0% / workout 43% — both dropped" | Detector short-circuits, no signal |
+| Body composition rule fires with 2 entries 3 days apart | `confidence=0.8` "Body fat decreased" | Sufficiency floor: no insight |
+| `Insight.confidence_score` is NULL in DB | Signal emitted with `confidence=0.5` | Signal skipped |
+| `schedule_instability_score` is None | "Instability 0%" appears in EAE state | No drift signal |
+| SAE state is 12 hours stale | CDCE runs against stale data | CDCE skips correlation entirely |
+| Signal collector hits a DB error | `logger.warning` + `[]` (looks like "no insights") | `logger.error` with stack trace |
+
+**Verification:**
+- `python3 manage.py check` → no issues
+- `python3 manage.py test apps.core.ai_eae apps.core.ai_cross_domain apps.core.ai_insights --keepdb -v 1` → 138/139 pass; the single failure (`test_pattern_domains_resolve_to_registry`) is pre-existing on `main` and unrelated to this change (KeyError on `supplement_consistency_pattern` in the pattern taxonomy registry)
+- `python3 manage.py test apps.ai.tests.test_workout_truth --keepdb -v 1` → 19/19 pass (verifies future-tense gating in deterministic router still functioning)
+- `python3 manage.py makemigrations --check --dry-run` → no model changes
+
+**Risks & deferred work:**
+- State builders for non-fasting domains (faith, journal, fitness, nutrition,
+  sleep, habits) still produce rich state regardless of enabled flags.
+  Producer-level gating there will be picked up in **Phase 2/3** (truth path
+  unification + Trust Contract); the current consumer-side gating in CDCE/PIE
+  is sufficient to stop the bug class without bulk-modifying state builders
+  (which carries higher regression risk).
+- `dashboard_ai.py` LLM-generated daily insight, V1 dashboard view-level
+  recomputation, and `templates/health/home.html` template-level
+  interpretation are explicitly **Phase 4** (surface alignment).
+- `cos_context.py` (9948 lines) still has many `except Exception` blocks;
+  systematic cleanup is deferred to Phase 2 to avoid touching every domain
+  context builder in a single change.
+
 ## 2026-04-07 — What's New popup re-appears on every page nav (PK 182 fixture timestamp)
 
 **What:** After deploying the cross-domain insights fix, the "What's New" popup for PK 182 kept re-appearing on every page nav and refresh, even after clicking "Got it". The dismiss POST was succeeding — the unseen-notes query was lying.

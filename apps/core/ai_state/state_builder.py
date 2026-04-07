@@ -929,21 +929,56 @@ def build_nutrition_state(user):
 # ── Fasting State ───────────────────────────────────────────────
 
 
+def _fasting_enabled_for(user):
+    """
+    True iff the user has the fasting domain enabled.
+
+    Disabled when EITHER:
+      - The 'fasting' sub-feature toggle under Health is off, OR
+      - default_fasting_type == 'none' (user explicitly does not fast).
+    """
+    prefs = getattr(user, "preferences", None)
+    if prefs is None:
+        return False
+    try:
+        if not prefs.is_feature_enabled("health", "fasting"):
+            return False
+    except Exception:
+        # Be conservative: if preference resolution fails, treat as disabled
+        # rather than fabricating signals.
+        return False
+    if getattr(prefs, "default_fasting_type", "none") == "none":
+        return False
+    return True
+
+
 def build_fasting_state(user):
     """
     Build fasting state from actual database records.
 
+    Domain gating: if the user has fasting disabled (Health sub-feature off OR
+    default_fasting_type == 'none'), this returns {'enabled': False} and NO
+    other keys. Downstream consumers (CDCE detectors, CoS context) MUST gate on
+    `enabled` before reading any compliance/count fields. Defaulting missing
+    values to 0 caused false 'fasting 0%' correlations for users who never
+    fasted.
+
     Returns:
-        dict with current fast status, durations, rolling averages, compliance.
+        dict — when enabled: current fast status, durations, rolling averages,
+        compliance (compliance_score is None when there are no fasts in 7d, NOT
+        0). When disabled: {'enabled': False}.
     """
     from django.db.models import Avg, Sum
 
     from apps.health.models import FastingWindow
     from apps.health.services.fasting_queries import FastingQueries
 
+    if not _fasting_enabled_for(user):
+        return {"enabled": False}
+
     now = get_current_time()
     today = now.date()
-    state = {}
+    state = {"enabled": True}
 
     # ── Current fast (canonical contract) ────────────────────────
     active_fast = FastingQueries.current_active(user)
@@ -977,6 +1012,12 @@ def build_fasting_state(user):
     # ── Fasting compliance score (target vs actual) ──────────────
     # If user has a target_hours, measure compliance as actual/target
     # Otherwise, consistency-based: fasts this week / 7
+    #
+    # IMPORTANT: When there are no fasts in the 7d window, compliance_score is
+    # explicitly set to None — NOT 0. A None sentinel signals "insufficient
+    # data" and lets downstream detectors short-circuit, preventing false
+    # 'fasting 0%' correlations.
+    state["fasting_compliance_score"] = None
     if fasts_7d_count > 0:
         # EXCEPTION: intentional direct query (not domain truth)
         # Reason: retrieves user's fasting protocol target_hours for compliance scoring
@@ -1191,11 +1232,31 @@ def build_fitness_state(user):
         state["strength_trend_score"] = "insufficient_data"
 
     # ── Workout consistency score ────────────────────────────────
-    # Ratio of this week's workouts to last 4-week average
-    weekly_avg_30d = state["workouts_30d"] / 4.0 if state["workouts_30d"] > 0 else 0
-    if weekly_avg_30d > 0:
-        consistency = min(state["workouts_7d"] / weekly_avg_30d, 1.5)
-        state["workout_consistency_score"] = round(consistency * 100, 1)
+    # Canonical: schedule-based adherence from calculate_workout_behavior_output
+    # (workout_adherence_score), which counts WorkoutScheduleLog,
+    # WorkoutSession, and RoutineLog completions against expected schedule
+    # entries. Per CLAUDE.md "calculation reuse rule" we never re-derive
+    # adherence inline.
+    #
+    # Fallback: 7d/(30d/4) trailing ratio is only used when there is no active
+    # workout plan (so no schedule-based adherence is available). The previous
+    # implementation always used the trailing ratio, which under-reports highly
+    # adherent users whose 30d window is depressed by a vacation or rest week
+    # (the "workout consistency 43%" case).
+    #
+    # When no workouts and no plan exist, the score is left as None
+    # (insufficient data) — never defaulted to 0.
+    state["workout_consistency_score"] = None
+    adherence = state.get("workout_adherence_score")
+    if adherence is not None:
+        state["workout_consistency_score"] = round(float(adherence), 1)
+    else:
+        weekly_avg_30d = (
+            state["workouts_30d"] / 4.0 if state["workouts_30d"] > 0 else 0
+        )
+        if weekly_avg_30d > 0:
+            consistency = min(state["workouts_7d"] / weekly_avg_30d, 1.5)
+            state["workout_consistency_score"] = round(consistency * 100, 1)
 
     # ── Per-exercise progress analysis ─────────────────────────
     state["exercise_progress"] = _build_exercise_progress(user, cutoff_30d)

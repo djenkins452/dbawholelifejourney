@@ -1001,6 +1001,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes to fix "Beth" → "Chief of Staff" in all entries
         self._reset_cos_naming_boundary_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for CDCE fasting/workout false-correlation fix (PK 182)
+        self._reset_cdce_fasting_gating_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -6297,6 +6300,37 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset supplement tracking fixtures FAILED: {e}'))
+
+    def _reset_cdce_fasting_gating_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes with the CDCE fasting/workout
+        false-correlation fix entry (PK 182).
+        """
+        reset_tracker_name = 'reset_cdce_fasting_gating_2026_04_07'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for CDCE fasting gating fix')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for CDCE fasting gating fix',
+                'command',
+                'One-time reset: added PK 182 for cross-domain insights gating',
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset CDCE fasting gating fixtures FAILED: {e}'))
 
     def _reset_cos_naming_boundary_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """

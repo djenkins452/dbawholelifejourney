@@ -304,6 +304,7 @@ class CDCEEngineTests(TestCase):
 
         signals = {
             'fasting': {
+                'enabled': True,
                 'fasting_compliance_score': 85,
                 'fasts_7d': 5,
             },
@@ -582,3 +583,122 @@ class CDCEContextInjectionTests(TransactionTestCase):
         context = build_cos_context(self.user)
         injection = format_cos_system_injection(context)
         self.assertNotIn("CROSS-DOMAIN PATTERNS (CDCE):", injection)
+
+
+class FastingFitnessGatingTests(TestCase):
+    """
+    Regression tests for the false 'Both fasting (0%) and workout consistency
+    (43%) have dropped' correlation that surfaced for users with fasting
+    disabled. The detector and state builder must gate on the fasting domain
+    being enabled and on signals being non-None.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="cdce_gate@test.com", password="testpass123",
+        )
+
+    def test_detect_fasting_fitness_gated_by_enabled_flag(self):
+        from apps.core.ai_cross_domain.cdce_engine import detect_fasting_fitness
+
+        signals = {
+            "fasting": {
+                "enabled": False,  # disabled domain — must short-circuit
+                "fasting_compliance_score": 0,  # would have triggered old bug
+                "fasts_7d": 0,
+            },
+            "fitness": {
+                "workout_consistency_score": 43,
+                "workouts_7d": 8,
+            },
+        }
+        self.assertEqual(detect_fasting_fitness(self.user, signals), [])
+
+    def test_detect_fasting_fitness_skips_when_score_is_none(self):
+        from apps.core.ai_cross_domain.cdce_engine import detect_fasting_fitness
+
+        signals = {
+            "fasting": {
+                "enabled": True,
+                "fasting_compliance_score": None,  # unknown != 0%
+                "fasts_7d": 0,
+            },
+            "fitness": {
+                "workout_consistency_score": 43,
+                "workouts_7d": 8,
+            },
+        }
+        self.assertEqual(detect_fasting_fitness(self.user, signals), [])
+
+    def test_detect_fasting_fitness_requires_both_domains_active(self):
+        from apps.core.ai_cross_domain.cdce_engine import detect_fasting_fitness
+
+        # Enabled and scored, but no actual fasts in window
+        signals = {
+            "fasting": {
+                "enabled": True,
+                "fasting_compliance_score": 25,
+                "fasts_7d": 0,
+            },
+            "fitness": {
+                "workout_consistency_score": 30,
+                "workouts_7d": 5,
+            },
+        }
+        self.assertEqual(detect_fasting_fitness(self.user, signals), [])
+
+    def test_detect_fasting_fitness_emits_when_both_legitimately_low(self):
+        from apps.core.ai_cross_domain.cdce_engine import detect_fasting_fitness
+
+        signals = {
+            "fasting": {
+                "enabled": True,
+                "fasting_compliance_score": 30,
+                "fasts_7d": 2,
+            },
+            "fitness": {
+                "workout_consistency_score": 40,
+                "workouts_7d": 2,
+            },
+        }
+        results = detect_fasting_fitness(self.user, signals)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["correlation_type"], "fasting_fitness")
+        self.assertIn("have dropped", results[0]["narrative"])
+
+    def test_build_fasting_state_returns_disabled_when_pref_none(self):
+        from apps.core.ai_state.state_builder import build_fasting_state
+
+        # Default UserPreferences has default_fasting_type='none'
+        self.user.preferences.default_fasting_type = "none"
+        self.user.preferences.save()
+
+        state = build_fasting_state(self.user)
+        self.assertEqual(state, {"enabled": False})
+        self.assertNotIn("fasting_compliance_score", state)
+        self.assertNotIn("fasts_7d", state)
+
+    def test_build_fasting_state_returns_disabled_when_subfeature_off(self):
+        from apps.core.ai_state.state_builder import build_fasting_state
+
+        prefs = self.user.preferences
+        prefs.default_fasting_type = "16:8"  # type set
+        prefs.health_features = {"fasting": False}  # but sub-feature off
+        prefs.save()
+
+        state = build_fasting_state(self.user)
+        self.assertEqual(state, {"enabled": False})
+
+    def test_build_fasting_state_compliance_score_is_none_with_no_fasts(self):
+        """Enabled fasting + zero fasts → compliance_score is None, NOT 0."""
+        from apps.core.ai_state.state_builder import build_fasting_state
+
+        prefs = self.user.preferences
+        prefs.default_fasting_type = "16:8"
+        prefs.health_features = {"fasting": True}
+        prefs.save()
+
+        state = build_fasting_state(self.user)
+        self.assertTrue(state["enabled"])
+        self.assertIsNone(state["fasting_compliance_score"])
+        self.assertEqual(state["fasts_7d"], 0)

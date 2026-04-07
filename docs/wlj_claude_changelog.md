@@ -6,6 +6,31 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-07 — What's New popup re-appears on every page nav (PK 182 fixture timestamp)
+
+**What:** After deploying the cross-domain insights fix, the "What's New" popup for PK 182 kept re-appearing on every page nav and refresh, even after clicking "Got it". The dismiss POST was succeeding — the unseen-notes query was lying.
+
+**Root cause:** `ReleaseNote.get_unseen_for_user()` (`apps/core/models.py:1196-1200`) has a same-day-late-addition clause:
+```python
+Q(release_date=last_seen_date, created_at__gt=last_seen.last_viewed_at)
+```
+I had set PK 182's fixture `created_at` to `"2026-04-07T12:00:00Z"` — an arbitrary noon UTC value. Any user dismissing the popup before noon UTC on 2026-04-07 ended up with `last_viewed_at < created_at`, so the clause kept evaluating True and the popup re-appeared on every refresh until their wall-clock UTC passed noon.
+
+**Fix:**
+- `apps/core/fixtures/release_notes.json` — PK 182 `created_at` and `updated_at` moved from `2026-04-07T12:00:00Z` to `2026-04-07T00:00:00Z` (midnight UTC of release date), so any same-day dismissal is strictly after.
+- `apps/core/models.py` — `UserReleaseNoteView.mark_viewed()` now defensively clamps `last_viewed_at` to `max(now, latest_published_note.created_at + 1µs)`. This guarantees future fixture timestamp mistakes can never trigger the same loop again — dismissal always sticks regardless of what the fixture wrote.
+- `apps/core/management/commands/load_initial_data.py` — Added `_reset_whats_new_timestamp_fix_fixtures()` with a fresh tracker (`reset_whats_new_timestamp_fix_2026_04_07`) so the corrected fixture re-loads on the next deploy. The previous reset (`reset_cdce_fasting_gating_2026_04_07`) is already marked complete and would not re-fire.
+- `apps/core/tests/test_core_comprehensive.py` — New regression test `test_mark_viewed_clamps_past_future_created_at` reproduces the fixture-future-timestamp scenario and asserts the clamp hides the note.
+
+**Why:** The defensive clamp matters more than the fixture value. The bug class — fixture timestamps that don't match wall-clock time, combined with a strict-greater-than comparison — will keep happening as long as humans hand-write fixture timestamps. The clamp removes the foot-gun.
+
+**Verification:**
+- `python3 manage.py test apps.core.tests.test_core_comprehensive.UserReleaseNoteViewModelTest apps.core.tests.test_core_comprehensive.ReleaseNoteModelTest apps.core.tests.test_core_comprehensive.ReleaseNoteUnseenTest --keepdb` → 17 passed
+- `python3 manage.py makemigrations --check --dry-run` → No changes
+- `python3 manage.py check` → no issues
+
+---
+
 ## 2026-04-07 — CDCE: Suppress false "fasting 0% / workout 43% have dropped" correlation
 
 **What:** Beth surfaced a cross-domain pattern claiming "Both fasting (0%) and workout consistency (43%) have dropped" for a user who does NOT fast and whose workout adherence is actually high. Two real bugs were colluding.

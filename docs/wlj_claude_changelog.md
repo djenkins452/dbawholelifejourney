@@ -6,6 +6,67 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-08 — Phase 6 Fix 3: GDPR export view — fix field names, add missing domains
+
+**What:** `ExportAccountDataView` was silently returning
+`health: {}`, `faith: {}`, `life: {}`, etc. for every user because
+its `.values(...)` calls referenced field names that no longer exist
+on the underlying models (e.g. `WeightEntry.weight` — actual field
+is `.value`; `FastingWindow.start_time` — actual is `.started_at`;
+`FoodEntry.calories` — actual is `.total_calories`; Intake.`dosage`
+— actual is `.dose`; etc.). Every failure was wrapped in
+`except Exception: pass`, so the user got an empty dict with no
+error message and nothing in the logs.
+
+**Verification on Danny (user 1, post-fix):**
+- `weight: 0 → N entries`, `body_composition: 79`, `sleep: 42`
+- `fasting: 62` (was 0), `intakes: 13`, `intake_schedules: 15`
+- `intake_logs: 632`, `workouts: 76`, `food: 169`
+- `nutrition_goals: 1`, `daily_health_summary: 118`
+- `medical.lab_panels: 3`, `lab_results: 25`, `medical_documents: 1`
+- `finance.accounts: 2`, `goals: 1`, `metric_snapshots: 1`
+- `life.tasks: 308`, `events: 110`, `projects: 3`
+- `purpose.life_goals: 4`, `reflections: 1`
+- `faith.prayers: 17`, `saved_verses: 6`, `bible_notes: 1`
+- `ai_conversations.conversations: 13`, `favorites: 10`
+
+**Domains added** (previously entirely missing from export):
+- `medical` — LabPanel, LabResult, MedicalDocument, ImportBatch
+- `finance` — FinancialAccount, FinancialGoal, FinancialMetricSnapshot,
+  Budget, Payee (access tokens / IPs / Plaid cursors deliberately
+  excluded for privacy)
+- `capture` — CaptureEntry, CaptureSignal
+- `health.body_composition` — BodyCompositionEntry rows
+- `health.intake_schedules`, `health.intake_logs` — medication schedule
+  and adherence history
+- `health.nutrition_goals` — user macro targets
+- `health.daily_health_summary`, `health.daily_nutrition_summary` —
+  pre-aggregated daily rows
+- `preferences.*_features` JSONs + `default_fasting_type` — full
+  feature flag state
+
+**Exception handling:**
+- Every `except Exception: pass` replaced with `logger.exception(...)`
+  so failures show up in logs.
+- `try/except ImportError` used for optional-module imports (so a
+  missing app gracefully skips that section), then an inner
+  `try/except Exception: logger.exception(...)` around each
+  `.values()` call so a single broken queryset does not nuke the
+  rest of the export.
+
+**Bumped `export_format_version` from 1.0 to 2.0.**
+
+**Files:**
+- `apps/users/views.py:2250 ExportAccountDataView` — full rewrite of
+  `_export_health`, `_export_faith`, `_export_life`, `_export_purpose`,
+  `_export_ai`, `_export_preferences`, `_export_favorites`; added
+  `_export_medical`, `_export_finance`, `_export_capture`.
+
+**Scope:** Bug fix + new domains in existing endpoint. No schema
+changes, no migration. Phase 6 system normalization pass.
+
+---
+
 ## 2026-04-08 — Phase 6 Fix 2: reconcile medication adherence calculators
 
 **What:** `state.adherence_7d` was being populated by

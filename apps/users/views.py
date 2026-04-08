@@ -2271,11 +2271,14 @@ class ExportAccountDataView(LoginRequiredMixin, View):
         user = request.user
         export_data = {
             'export_date': timezone.now().isoformat(),
-            'export_format_version': '1.0',
+            'export_format_version': '2.0',
             'user': self._export_user_profile(user),
             'preferences': self._export_preferences(user),
             'journal': self._export_journal(user),
             'health': self._export_health(user),
+            'medical': self._export_medical(user),
+            'finance': self._export_finance(user),
+            'capture': self._export_capture(user),
             'faith': self._export_faith(user),
             'life': self._export_life(user),
             'purpose': self._export_purpose(user),
@@ -2305,151 +2308,419 @@ class ExportAccountDataView(LoginRequiredMixin, View):
     def _export_preferences(self, user):
         try:
             prefs = user.preferences
-            return {
-                'theme': prefs.theme,
-                'timezone': prefs.timezone,
-                'gender': prefs.gender,
-                'faith_enabled': prefs.faith_enabled,
-                'health_enabled': prefs.health_enabled,
-                'journal_enabled': prefs.journal_enabled,
-                'life_enabled': prefs.life_enabled,
-                'purpose_enabled': prefs.purpose_enabled,
-                'ai_enabled': prefs.ai_enabled,
-            }
         except Exception:
+            logger.exception("ExportAccountDataView: _export_preferences failed for user %s", user.pk)
             return {}
+        return {
+            'theme': getattr(prefs, 'theme', None),
+            'timezone': getattr(prefs, 'timezone', None),
+            'gender': getattr(prefs, 'gender', None),
+            'faith_enabled': getattr(prefs, 'faith_enabled', None),
+            'health_enabled': getattr(prefs, 'health_enabled', None),
+            'journal_enabled': getattr(prefs, 'journal_enabled', None),
+            'life_enabled': getattr(prefs, 'life_enabled', None),
+            'purpose_enabled': getattr(prefs, 'purpose_enabled', None),
+            'ai_enabled': getattr(prefs, 'ai_enabled', None),
+            'health_features': getattr(prefs, 'health_features', {}),
+            'organize_features': getattr(prefs, 'organize_features', {}),
+            'goals_features': getattr(prefs, 'goals_features', {}),
+            'faith_features': getattr(prefs, 'faith_features', {}),
+            'journal_features': getattr(prefs, 'journal_features', {}),
+            'default_fasting_type': getattr(prefs, 'default_fasting_type', None),
+        }
 
     def _export_journal(self, user):
         try:
             from apps.journal.models import JournalEntry
-            entries = JournalEntry.all_objects.filter(user=user).values(
+        except ImportError:
+            return []
+        try:
+            return list(JournalEntry.all_objects.filter(user=user).values(
                 'id', 'title', 'content', 'mood', 'entry_date', 'created_at', 'is_private'
-            )
-            return list(entries)
+            ))
         except Exception:
+            logger.exception("ExportAccountDataView: _export_journal failed for user %s", user.pk)
             return []
 
     def _export_health(self, user):
+        """Export all health-domain data.
+
+        Phase 6 audit fix (2026-04-08): previously silently returned {}
+        for every user because field names were stale (WeightEntry.weight
+        doesn't exist, it's .value; FastingWindow.start_time is actually
+        .started_at; etc). Wrapped in broad except: pass. Now uses real
+        field names, adds body composition / nutrition goals / daily
+        summaries, and logs errors rather than swallowing them.
+        """
+        data = {}
+        from apps.health.models import (
+            WeightEntry, StepsEntry, WaterEntry, SleepEntry,
+            FastingWindow, Intake, IntakeSchedule, IntakeLog,
+            WorkoutSession, GlucoseEntry, BloodPressureEntry,
+            FoodEntry, BodyCompositionEntry, NutritionGoals,
+            DailyHealthSummary, DailyNutritionSummary,
+        )
+
+        def _collect(label, qs_factory):
+            try:
+                data[label] = list(qs_factory())
+            except Exception:
+                logger.exception(
+                    "ExportAccountDataView: _export_health[%s] failed for user %s",
+                    label, user.pk,
+                )
+                data[label] = []
+
+        _collect('weight', lambda: WeightEntry.all_objects.filter(user=user).values(
+            'id', 'value', 'unit', 'body_fat_percentage', 'lean_body_mass',
+            'recorded_at', 'source', 'notes', 'created_at',
+        ))
+        _collect('body_composition', lambda: BodyCompositionEntry.all_objects.filter(user=user).values(
+            'id', 'metric_name', 'value', 'unit', 'measurement_date',
+            'source', 'notes', 'created_at',
+        ))
+        _collect('steps', lambda: StepsEntry.all_objects.filter(user=user).values(
+            'id', 'count', 'distance_miles', 'calories_burned',
+            'exercise_minutes', 'flights_climbed', 'stand_hours',
+            'goal', 'logged_date', 'recorded_at', 'source', 'notes', 'created_at',
+        ))
+        _collect('water', lambda: WaterEntry.all_objects.filter(user=user).values(
+            'id', 'amount', 'unit', 'drink_type', 'container',
+            'logged_date', 'recorded_at', 'source', 'notes', 'created_at',
+        ))
+        _collect('sleep', lambda: SleepEntry.all_objects.filter(user=user).values(
+            'id', 'bedtime', 'wake_time', 'sleep_date',
+            'total_duration_minutes', 'asleep_duration_minutes',
+            'quality_rating', 'quality_score', 'sleep_efficiency',
+            'interruption_count', 'stage_awake_minutes', 'stage_deep_minutes',
+            'stage_light_minutes', 'stage_rem_minutes',
+            'heart_rate_avg', 'heart_rate_min', 'heart_rate_max',
+            'hrv_value', 'respiratory_rate', 'vo2_max',
+            'factors', 'notes', 'source', 'created_at',
+        ))
+        _collect('fasting', lambda: FastingWindow.all_objects.filter(user=user).values(
+            'id', 'started_at', 'ended_at', 'target_hours', 'fasting_type',
+            'status', 'notes', 'created_at',
+        ))
+        _collect('intakes', lambda: Intake.all_objects.filter(user=user).values(
+            'id', 'name', 'intake_type', 'intake_status', 'category',
+            'dose', 'dosage_unit', 'frequency', 'purpose', 'instructions',
+            'prescribing_doctor', 'pharmacy', 'rx_number',
+            'current_supply', 'refill_threshold', 'start_date', 'end_date',
+            'priority', 'is_prn', 'notes', 'created_at',
+        ))
+        _collect('intake_schedules', lambda: IntakeSchedule.objects.filter(
+            intake__user=user,
+        ).values(
+            'id', 'intake_id', 'scheduled_time', 'days_of_week',
+            'is_active', 'time_of_day',
+        ))
+        _collect('intake_logs', lambda: IntakeLog.all_objects.filter(user=user).values(
+            'id', 'intake_id', 'scheduled_date', 'log_status',
+            'taken_at', 'notes', 'created_at',
+        ))
+        _collect('workouts', lambda: WorkoutSession.all_objects.filter(user=user).values(
+            'id', 'name', 'workout_type', 'date', 'started_at', 'completed_at',
+            'duration_minutes', 'distance_miles', 'calories_burned',
+            'avg_heart_rate', 'intensity', 'session_mode', 'source',
+            'notes', 'created_at',
+        ))
+        _collect('glucose', lambda: GlucoseEntry.all_objects.filter(user=user).values(
+            'id', 'value', 'unit', 'context', 'trend', 'trend_rate',
+            'recorded_at', 'source', 'notes', 'created_at',
+        ))
+        _collect('blood_pressure', lambda: BloodPressureEntry.all_objects.filter(user=user).values(
+            'id', 'systolic', 'diastolic', 'pulse', 'arm', 'position',
+            'context', 'recorded_at', 'source', 'notes', 'created_at',
+        ))
+        _collect('food', lambda: FoodEntry.all_objects.filter(user=user).values(
+            'id', 'food_name', 'food_brand', 'meal_type',
+            'logged_date', 'logged_time', 'quantity', 'serving_size',
+            'serving_unit', 'total_calories', 'total_protein_g',
+            'total_carbohydrates_g', 'total_fat_g', 'total_fiber_g',
+            'total_sugar_g', 'total_saturated_fat_g', 'total_sodium_mg',
+            'total_cholesterol_mg', 'total_potassium_mg',
+            'hunger_level_before', 'fullness_level_after',
+            'mood_tags', 'location', 'notes', 'data_source_used',
+            'confidence_score', 'created_at',
+        ))
+        _collect('nutrition_goals', lambda: NutritionGoals.all_objects.filter(user=user).values(
+            'id', 'daily_calorie_target', 'daily_protein_target_g',
+            'daily_carb_target_g', 'daily_fat_target_g', 'daily_fiber_target_g',
+            'daily_sodium_limit_mg', 'daily_sugar_limit_g',
+            'dietary_preferences', 'allergies',
+            'effective_from', 'effective_until', 'notes', 'created_at',
+        ))
+        _collect('daily_health_summary', lambda: DailyHealthSummary.all_objects.filter(user=user).values())
+        _collect('daily_nutrition_summary', lambda: DailyNutritionSummary.all_objects.filter(user=user).values())
+        return data
+
+    def _export_medical(self, user):
+        """Export medical-domain data (labs, documents, providers).
+
+        Added by Phase 6 audit fix (2026-04-08) — this domain was
+        entirely missing from the GDPR export.
+        """
         data = {}
         try:
-            from apps.health.models import (
-                WeightEntry, StepsEntry, WaterEntry, SleepEntry,
-                FastingWindow, Intake, WorkoutSession,
-                GlucoseEntry, BloodPressureEntry, FoodEntry
+            from apps.medical.models import (
+                LabPanel, LabResult, MedicalDocument, ImportBatch,
             )
+        except ImportError:
+            return data
 
-            data['weight'] = list(WeightEntry.all_objects.filter(user=user).values(
-                'id', 'weight', 'unit', 'date', 'notes', 'created_at'
+        def _collect(label, qs_factory):
+            try:
+                data[label] = list(qs_factory())
+            except Exception:
+                logger.exception(
+                    "ExportAccountDataView: _export_medical[%s] failed for user %s",
+                    label, user.pk,
+                )
+                data[label] = []
+
+        _collect('lab_panels', lambda: LabPanel.all_objects.filter(user=user).values(
+            'id', 'name', 'panel_type', 'collected_at', 'provider', 'notes', 'created_at',
+        ))
+        _collect('lab_results', lambda: LabResult.all_objects.filter(user=user).values(
+            'id', 'panel_id', 'raw_test_name', 'canonical_test_id',
+            'value_numeric', 'value_text', 'unit', 'range_low', 'range_high',
+            'range_text', 'abnormal_flag', 'result_status', 'collected_at',
+            'reported_at', 'notes', 'created_at',
+        ))
+        _collect('medical_documents', lambda: MedicalDocument.all_objects.filter(user=user).values(
+            'id', 'original_filename', 'file_hash', 'page_count',
+            'extraction_method', 'notes', 'created_at',
+        ))
+        _collect('import_batches', lambda: ImportBatch.objects.filter(user=user).values(
+            'id', 'status', 'started_at', 'completed_at',
+            'total_rows_found', 'rows_imported', 'rows_failed',
+            'rows_skipped_duplicate', 'error_summary', 'created_at',
+        ))
+        return data
+
+    def _export_finance(self, user):
+        """Export finance-domain data.
+
+        Added by Phase 6 audit fix (2026-04-08). Note: access tokens,
+        IP addresses, and Plaid-specific cursor fields are deliberately
+        excluded for privacy/security.
+        """
+        data = {}
+        try:
+            from apps.finance.models import (
+                FinancialAccount, FinancialGoal, FinancialMetricSnapshot,
+                Budget, Payee,
+            )
+        except ImportError:
+            return data
+
+        def _collect(label, qs_factory):
+            try:
+                data[label] = list(qs_factory())
+            except Exception:
+                logger.exception(
+                    "ExportAccountDataView: _export_finance[%s] failed for user %s",
+                    label, user.pk,
+                )
+                data[label] = []
+
+        _collect('accounts', lambda: FinancialAccount.all_objects.filter(user=user).values(
+            'id', 'name', 'account_type', 'institution',
+            'account_number_last4', 'currency', 'current_balance',
+            'balance_updated_at', 'include_in_net_worth', 'is_hidden',
+            'is_synced', 'notes', 'created_at',
+        ))
+        _collect('goals', lambda: FinancialGoal.all_objects.filter(user=user).values(
+            'id', 'name', 'description', 'goal_type', 'goal_status',
+            'target_amount', 'current_amount', 'target_date', 'started_at',
+            'completed_at', 'notes', 'created_at',
+        ))
+        _collect('metric_snapshots', lambda: FinancialMetricSnapshot.all_objects.filter(user=user).values(
+            'id', 'snapshot_date', 'net_worth', 'total_assets',
+            'total_liabilities', 'liquid_assets', 'monthly_income',
+            'monthly_expenses', 'monthly_cash_flow', 'savings_rate',
+            'emergency_fund_months', 'debt_to_income_ratio', 'created_at',
+        ))
+        _collect('budgets', lambda: Budget.all_objects.filter(user=user).values(
+            'id', 'category', 'month', 'budgeted_amount', 'rollover_enabled',
+            'rollover_amount', 'notes', 'created_at',
+        ))
+        _collect('payees', lambda: Payee.all_objects.filter(user=user).values(
+            'id', 'name', 'default_category', 'use_count', 'last_used_at', 'created_at',
+        ))
+        return data
+
+    def _export_capture(self, user):
+        """Export capture-domain data (voice notes, signals).
+
+        Added by Phase 6 audit fix (2026-04-08).
+        """
+        data = {}
+        try:
+            from apps.capture.models import CaptureEntry, CaptureSignal
+        except ImportError:
+            return data
+        try:
+            data['entries'] = list(CaptureEntry.objects.filter(user=user).values(
+                'id', 'title', 'category', 'subcategory', 'status',
+                'duration_seconds', 'transcript', 'summary',
+                'created_at', 'updated_at',
             ))
-            data['steps'] = list(StepsEntry.all_objects.filter(user=user).values(
-                'id', 'steps', 'date', 'created_at'
-            ))
-            data['water'] = list(WaterEntry.all_objects.filter(user=user).values(
-                'id', 'amount_ml', 'logged_at', 'created_at'
-            ))
-            data['sleep'] = list(SleepEntry.all_objects.filter(user=user).values(
-                'id', 'bedtime', 'wake_time', 'quality', 'notes', 'date', 'created_at'
-            ))
-            data['fasting'] = list(FastingWindow.all_objects.filter(user=user).values(
-                'id', 'start_time', 'end_time', 'fasting_type', 'notes', 'created_at'
-            ))
-            data['medicines'] = list(Intake.all_objects.filter(user=user).values(
-                'id', 'name', 'dosage', 'frequency', 'notes', 'created_at'
-            ))
-            data['workouts'] = list(WorkoutSession.all_objects.filter(user=user).values(
-                'id', 'workout_type', 'started_at', 'ended_at', 'notes', 'calories', 'created_at'
-            ))
-            data['glucose'] = list(GlucoseEntry.all_objects.filter(user=user).values(
-                'id', 'value', 'unit', 'reading_type', 'logged_at', 'notes', 'created_at'
-            ))
-            data['blood_pressure'] = list(BloodPressureEntry.all_objects.filter(user=user).values(
-                'id', 'systolic', 'diastolic', 'pulse', 'logged_at', 'notes', 'created_at'
-            ))
-            data['food'] = list(FoodEntry.all_objects.filter(user=user).values(
-                'id', 'food_name', 'calories', 'protein', 'carbs', 'fat', 'meal_type', 'logged_at', 'created_at'
+            data['signals'] = list(CaptureSignal.objects.filter(entry__user=user).values(
+                'id', 'entry_id', 'signal_type', 'domain', 'direction',
+                'confidence', 'extracted_text', 'extractor_type', 'created_at',
             ))
         except Exception:
-            pass
+            logger.exception("ExportAccountDataView: _export_capture failed for user %s", user.pk)
         return data
 
     def _export_faith(self, user):
         data = {}
         try:
             from apps.faith.models import PrayerRequest, SavedVerse, BibleStudyNote
-            data['prayers'] = list(PrayerRequest.all_objects.filter(user=user).values(
-                'id', 'title', 'description', 'status', 'is_private', 'created_at', 'answered_at'
-            ))
-            data['saved_verses'] = list(SavedVerse.all_objects.filter(user=user).values(
-                'id', 'reference', 'text', 'translation', 'notes', 'created_at'
-            ))
-            data['bible_notes'] = list(BibleStudyNote.all_objects.filter(user=user).values(
-                'id', 'reference', 'note', 'created_at'
-            ))
-        except Exception:
-            pass
+        except ImportError:
+            return data
+
+        def _collect(label, qs_factory):
+            try:
+                data[label] = list(qs_factory())
+            except Exception:
+                logger.exception(
+                    "ExportAccountDataView: _export_faith[%s] failed for user %s",
+                    label, user.pk,
+                )
+                data[label] = []
+
+        _collect('prayers', lambda: PrayerRequest.all_objects.filter(user=user).values(
+            'id', 'title', 'description', 'person_or_situation',
+            'is_personal', 'is_answered', 'answered_at', 'answer_notes',
+            'priority', 'remind_daily', 'created_at',
+        ))
+        _collect('saved_verses', lambda: SavedVerse.all_objects.filter(user=user).values(
+            'id', 'reference', 'book_name', 'chapter', 'verse_start',
+            'verse_end', 'text', 'translation', 'is_memory_verse',
+            'themes', 'notes', 'created_at',
+        ))
+        _collect('bible_notes', lambda: BibleStudyNote.all_objects.filter(user=user).values(
+            'id', 'title', 'reference', 'book_name', 'chapter',
+            'verse_start', 'verse_end', 'content', 'translation',
+            'tags', 'created_at',
+        ))
         return data
 
     def _export_life(self, user):
         data = {}
         try:
             from apps.life.models import Task, LifeEvent, Project
-            data['tasks'] = list(Task.all_objects.filter(user=user).values(
-                'id', 'title', 'description', 'due_date', 'completion_status', 'priority', 'created_at'
-            ))
-            data['events'] = list(LifeEvent.all_objects.filter(user=user).values(
-                'id', 'title', 'description', 'start_datetime', 'end_datetime', 'location', 'created_at'
-            ))
-            data['projects'] = list(Project.all_objects.filter(user=user).values(
-                'id', 'name', 'description', 'status', 'created_at'
-            ))
-        except Exception:
-            pass
+        except ImportError:
+            return data
+
+        def _collect(label, qs_factory):
+            try:
+                data[label] = list(qs_factory())
+            except Exception:
+                logger.exception(
+                    "ExportAccountDataView: _export_life[%s] failed for user %s",
+                    label, user.pk,
+                )
+                data[label] = []
+
+        _collect('tasks', lambda: Task.all_objects.filter(user=user).values(
+            'id', 'title', 'notes', 'module', 'start_date', 'end_date',
+            'due_date', 'scheduled_time', 'scheduled_end_time',
+            'completion_status', 'progress_state', 'progress_percentage',
+            'priority', 'commitment_level', 'effort',
+            'is_foundational', 'is_recurring', 'is_routine',
+            'recurrence_pattern', 'completed_at', 'project_id', 'created_at',
+        ))
+        _collect('events', lambda: LifeEvent.all_objects.filter(user=user).values(
+            'id', 'title', 'description', 'event_type', 'location',
+            'start_date', 'start_time', 'end_date', 'end_time',
+            'is_all_day', 'is_recurring', 'recurrence_pattern',
+            'recurrence_end_date', 'reminder_minutes', 'project_id', 'created_at',
+        ))
+        _collect('projects', lambda: Project.all_objects.filter(user=user).values(
+            'id', 'title', 'description', 'category', 'purpose',
+            'priority', 'status', 'start_date', 'target_date',
+            'completed_date', 'tags', 'reflection', 'created_at',
+        ))
         return data
 
     def _export_purpose(self, user):
         data = {}
         try:
             from apps.purpose.models import LifeGoal, HabitGoal, Reflection
-            data['life_goals'] = list(LifeGoal.all_objects.filter(user=user).values(
-                'id', 'title', 'description', 'target_date', 'status', 'created_at'
-            ))
-            data['habit_goals'] = list(HabitGoal.all_objects.filter(user=user).values(
-                'id', 'name', 'description', 'frequency', 'created_at'
-            ))
-            data['reflections'] = list(Reflection.all_objects.filter(user=user).values(
-                'id', 'title', 'content', 'reflection_type', 'created_at'
-            ))
-        except Exception:
-            pass
+        except ImportError:
+            return data
+
+        def _collect(label, qs_factory):
+            try:
+                data[label] = list(qs_factory())
+            except Exception:
+                logger.exception(
+                    "ExportAccountDataView: _export_purpose[%s] failed for user %s",
+                    label, user.pk,
+                )
+                data[label] = []
+
+        _collect('life_goals', lambda: LifeGoal.all_objects.filter(user=user).values(
+            'id', 'title', 'description', 'domain', 'timeframe',
+            'target_date', 'completed_date', 'commitment_level',
+            'is_foundational', 'success_looks_like', 'why_it_matters',
+            'annual_direction', 'reflection', 'sort_order', 'created_at',
+        ))
+        _collect('habit_goals', lambda: HabitGoal.all_objects.filter(user=user).values(
+            'id', 'name', 'description', 'category', 'domain', 'purpose',
+            'frequency_type', 'sessions_per_week', 'habit_required',
+            'measurement_type', 'target_value', 'target_unit',
+            'success_criteria', 'commitment_level', 'is_foundational',
+            'annual_direction', 'start_date', 'end_date', 'created_at',
+        ))
+        _collect('reflections', lambda: Reflection.all_objects.filter(user=user).values(
+            'id', 'title', 'reflection_type', 'quarter', 'year',
+            'ai_summary', 'is_complete', 'completed_at', 'created_at',
+        ))
         return data
 
     def _export_ai(self, user):
         data = {}
         try:
             from apps.ai.models import AssistantConversation, AssistantMessage
+        except ImportError:
+            return data
+        try:
             conversations = AssistantConversation.objects.filter(user=user)
             data['conversations'] = []
             for conv in conversations:
-                conv_data = {
+                data['conversations'].append({
                     'id': conv.id,
                     'title': conv.title,
-                    'created_at': conv.created_at.isoformat(),
+                    'session_type': conv.session_type,
+                    'is_active': conv.is_active,
+                    'context_summary': conv.context_summary,
+                    'created_at': conv.created_at.isoformat() if conv.created_at else None,
                     'messages': list(AssistantMessage.objects.filter(conversation=conv).values(
-                        'id', 'role', 'content', 'created_at'
-                    ))
-                }
-                data['conversations'].append(conv_data)
+                        'id', 'role', 'content', 'message_type',
+                        'is_proactive', 'quick_replies', 'was_helpful',
+                        'is_flagged_inappropriate', 'created_at',
+                    )),
+                })
         except Exception:
-            pass
+            logger.exception("ExportAccountDataView: _export_ai failed for user %s", user.pk)
         return data
 
     def _export_favorites(self, user):
         try:
             from apps.core.models import FavoritePage
+        except ImportError:
+            return []
+        try:
             return list(FavoritePage.objects.filter(user=user).values(
-                'id', 'url', 'title', 'created_at'
+                'id', 'url', 'title', 'created_at',
             ))
         except Exception:
+            logger.exception("ExportAccountDataView: _export_favorites failed for user %s", user.pk)
             return []
 
 

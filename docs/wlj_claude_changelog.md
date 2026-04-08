@@ -6,6 +6,59 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-08 — Phase 6 Fix 4: un-gate nutrition 7d averages + compliance on zero-entry days
+
+**What:** `build_nutrition_state` wrapped both today's totals and the
+compliance calculations in `if today_count > 0:`. Users who had not
+yet logged food today got a state with only `calorie_target`,
+`protein_target`, `food_entries_today`, `food_entries_7d`, and
+`last_food_entry` — no `daily_calories`, no compliance percentages,
+and no `macro_compliance_score`. CoS's nutrition tracking context
+and every insight rule reading these keys silently received `None`.
+
+The rolling 7-day averages were additionally broken in a separate
+way: they were fetched exclusively from `DailyNutritionSummary`,
+which for Danny (and likely many users) is empty despite the
+underlying FoodEntry rows existing. So `rolling_7d_calories_avg`
+and `rolling_7d_protein_avg` were never populated.
+
+**Live Danny (user 1, 2026-04-08, post-fix):**
+- `daily_calories: 0.0` (was missing)
+- `daily_protein_g: 0.0` (was missing)
+- `calorie_compliance_pct: 0.0` (was missing)
+- `protein_compliance_pct: 0.0` (was missing)
+- `macro_compliance_score: 0.0` (was missing)
+- `rolling_7d_calories_avg: 1993.5` (was missing)
+- `rolling_7d_protein_avg: 176.9` (was missing)
+
+**Changes:**
+1. Daily totals block now runs unconditionally. A zero-entry day
+   populates `daily_calories=0.0`, `daily_protein_g=0.0`, etc. This
+   is meaningful state ("haven't logged yet today") rather than an
+   absence.
+2. Compliance block runs when `goal` exists (regardless of
+   today_count). A zero-entry day shows 0% compliance.
+3. Rolling 7-day averages now fall back to direct FoodEntry
+   aggregation when `DailyNutritionSummary` is empty. The average
+   is over distinct logged days (matching DNS semantics of "average
+   of days you logged").
+
+**Known user-data issue (not code):** Danny's NutritionGoals row
+has `protein_target_g=40` while he averages 177g/day. The fixed
+compliance math correctly computes `protein_compliance_pct ≈ 440%`
+on days he logs, and the macro_compliance_score formula
+(`max(0, 100 - abs(100 - 440))`) collapses to 0. This is a stale
+goal-data problem, not a calculation bug. User will need to update
+their protein target in the UI.
+
+**Files:**
+- `apps/core/ai_state/state_builder.py:935-1050 build_nutrition_state`
+
+**Scope:** Bug fix only. No schema changes, no migration. Phase 6
+system normalization pass.
+
+---
+
 ## 2026-04-08 — Phase 6 Fix 3: GDPR export view — fix field names, add missing domains
 
 **What:** `ExportAccountDataView` was silently returning

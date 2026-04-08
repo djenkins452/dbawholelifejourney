@@ -1019,6 +1019,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Phase 3 Signal Completion (PK 187)
         self._reset_phase_3_signal_completion_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Phase 4 Unit Consistency (PK 188)
+        self._reset_phase_4_unit_consistency_fixtures(DataLoadConfig, force, verbosity)
+
         # One-time: Reset release_notes to fix PK 182 timestamp causing infinite popup loop
         self._reset_whats_new_timestamp_fix_fixtures(DataLoadConfig, force, verbosity)
 
@@ -6420,6 +6423,38 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset workout tomorrow fixtures FAILED: {e}'))
+
+    def _reset_phase_4_unit_consistency_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes with Phase 4 Unit
+        Consistency entry (PK 188). Surfaces the adherence-scaling
+        fixes and the reconnected dead insight rules.
+        """
+        reset_tracker_name = 'reset_phase_4_unit_consistency_2026_04_08'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for Phase 4 Unit Consistency')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Phase 4 Unit Consistency',
+                'command',
+                'One-time reset: added PK 188 for Phase 4 unit consistency'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Phase 4 unit consistency fixtures FAILED: {e}'))
 
     def _reset_phase_3_signal_completion_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """

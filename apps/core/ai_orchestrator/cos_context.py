@@ -341,7 +341,11 @@ def _build_health_and_vitals(user):
             med_adherence = {
                 'total_scheduled': med_state.get('expected_today', 0),
                 'taken_today': med_state.get('today_taken', 0),
-                'adherence_pct': round(adherence_7d * 100, 1) if adherence_7d is not None else None,
+                # Phase 4: adherence_7d is already 0-100 from
+                # calculate_medicine_adherence_rate() (health/medicine_utils.py
+                # line 105). Multiplying by 100 again produced bogus
+                # 10000% values seen by the LLM. DO NOT re-scale.
+                'adherence_pct': round(adherence_7d, 1) if adherence_7d is not None else None,
             }
             # Phase 2.5: expose the 7-day behavior breakdown (previously
             # computed in SAE and silently dropped by CoS). The LLM can
@@ -362,7 +366,9 @@ def _build_health_and_vitals(user):
                 result['supplement_adherence_state'] = {
                     'supplement_count': med_state.get('supplement_count', 0),
                     'active_supplements': med_state.get('active_supplements', []),
-                    'adherence_pct': round(supp_adherence_7d * 100, 1) if supp_adherence_7d is not None else None,
+                    # Phase 4: supplement_adherence_7d is already 0-100
+                    # from calculate_medicine_adherence_rate. No re-scale.
+                    'adherence_pct': round(supp_adherence_7d, 1) if supp_adherence_7d is not None else None,
                 }
     except Exception:
         logger.error("CoS context: medication adherence failed", exc_info=True)
@@ -1898,8 +1904,9 @@ def _build_nutrition_tracking_context(user):
             if supp_adherence is not None or med_state.get('supplement_count', 0) > 0:
                 ctx['supplements'] = {
                     'supplement_count': med_state.get('supplement_count', 0),
+                    # Phase 4: supp_adherence is already 0-100. No re-scale.
                     'adherence_pct_7d': (
-                        round(supp_adherence * 100, 1)
+                        round(supp_adherence, 1)
                         if supp_adherence is not None else None
                     ),
                     'active_supplements': med_state.get('active_supplements', [])[:10],

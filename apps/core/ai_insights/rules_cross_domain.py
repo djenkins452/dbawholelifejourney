@@ -390,11 +390,21 @@ class ComplianceRiskRule(CrossDomainRule):
     def evaluate(self, user, event):
         state = self._get_state(user, event)
         health = state.get("health", {})
+        medicine = state.get("medicine", {})
 
         weight_trend = health.get("weight_trend", "stable")
-        med_adherence = health.get("medication_adherence_pct", 100)
+        # Phase 4: medication adherence lives under the `medicine` module
+        # key `adherence_7d` (0-100). The old read of
+        # `health.medication_adherence_pct` was a dead branch — that key
+        # is never written to the state builder; only cos_context.py
+        # constructs it as a derived view. Result: the rule always got
+        # the default 100 and never fired.
+        med_adherence = medicine.get("adherence_7d", 100)
+        if med_adherence is None:
+            med_adherence = 100
 
-        if weight_trend not in ("increasing", "up"):
+        # Phase 4: state_builder only emits "increasing" (never "up").
+        if weight_trend != "increasing":
             return []
         if med_adherence >= 80:
             return []

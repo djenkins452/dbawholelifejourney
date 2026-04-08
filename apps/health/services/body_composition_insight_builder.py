@@ -166,11 +166,18 @@ def _has_contradictory_signals(health_state):
 
 
 def _has_waist_confirmation(health_state):
-    """Check if health state suggests waist data is available and confirming."""
-    # If waist_trend is present and positive (increasing), it confirms rebound
-    # If waist_trend is None or negative, rebound is unconfirmed
+    """Check if health state suggests waist data is available and confirming.
+
+    Phase 4: `waist_trend` in the AI state is a STRING ("increasing" /
+    "decreasing" / "stable" / "insufficient_data") produced by
+    build_health_state() as of Phase 3. Previously this reader did
+    `waist_trend > 0.1`, assuming a numeric delta — that raised
+    TypeError against the string value and was silently swallowed by
+    the caller's except block, so "waist confirmation" was effectively
+    never available. A rebound is confirmed when the waist is growing.
+    """
     waist_trend = health_state.get("waist_trend")
-    return waist_trend is not None and waist_trend > 0.1
+    return waist_trend == "increasing"
 
 
 def _insufficient_data_insight(health_state):

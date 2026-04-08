@@ -43,7 +43,17 @@ def build_health_state(user):
 
     Returns:
         dict with weight, body fat, sleep, steps, vitals summaries.
+
+    Phase 5: Gated on `health_enabled`. When disabled we return
+    {"enabled": False} immediately, skipping ~69 DB queries and
+    preventing ghost signals (sleep_trend, body_fat_trend, weight
+    trends) from reaching insight rules that would fire false
+    positives on defaulted values.
     """
+    from apps.core.ai_state.domain_gating import is_domain_enabled
+    if not is_domain_enabled(user, "health"):
+        return {"enabled": False}
+
     from apps.health.models import (
         BloodPressureEntry,
         BodyCompositionEntry,
@@ -53,7 +63,7 @@ def build_health_state(user):
     )
 
     now = get_current_time()
-    state = {}
+    state = {"enabled": True}
 
     # ── Weight ──────────────────────────────────────────────
     latest_weight = (
@@ -1101,17 +1111,19 @@ def build_nutrition_state(user):
     Returns:
         dict with daily intake, targets, compliance, rolling averages.
         If the user has nutrition disabled (parent or sub-feature),
-        returns {"enabled": False} and nothing else. This prevents
-        disabled-domain leakage into insight rules and CoS context.
+        returns {"enabled": False} and nothing else so readers (CoS
+        context, insight rules) can bail without fabricating zero
+        values that look like "user ate nothing today".
+
+    Phase 5 feature gating enforcement (2026-04-08) — mirrors the
+    existing fasting gate in build_fasting_state via the
+    _nutrition_enabled_for helper above.
     """
     from django.db.models import Avg, Sum
 
     from apps.health.models import DailyNutritionSummary, FoodEntry, NutritionGoals
     from apps.health.services.nutrition_queries import NutritionQueries
 
-    # Phase 5 feature gating: if nutrition is disabled at the user's
-    # preference level, return minimal state. This mirrors the
-    # existing fasting gate in build_fasting_state.
     if not _nutrition_enabled_for(user):
         return {"enabled": False}
 
@@ -3263,8 +3275,17 @@ def build_finance_state(user):
 
     _contract is primary. Flat keys minimal.
     See docs/SAE_STATE_CONTRACT.md.
+
+    Phase 5: Gated on `finances_enabled` (UserPreferences field —
+    note the plural). When disabled we return {"enabled": False}
+    immediately so the cache reflects the disabled state and
+    insight rules don't default to "zero spend".
     """
-    state = {}
+    prefs = getattr(user, 'preferences', None)
+    if prefs is None or not getattr(prefs, 'finances_enabled', False):
+        return {"enabled": False}
+
+    state = {"enabled": True}
     try:
         from apps.core.utils import get_user_today
         from apps.finance.models import (

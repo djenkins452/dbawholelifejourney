@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 189,
+    "fields": {
+      "title": "Disabled modules stay quiet",
+      "description": "If you've turned off a module (nutrition, health, or finance) your Chief of Staff will no longer fabricate insights about it. Previously a handful of insight rules used default values like '100% goal progress' or 'perfect medication adherence' whenever a domain was disabled — which meant users with a module off could still receive false-positive 'great job!' or 'watch out!' insights about things they don't even track. Five rules (motivation drift, overtraining risk, compliance risk, workout consistency, fasting consistency) now cleanly bail when their underlying domain is disabled. The nutrition and health summary views also respect the disabled state instead of showing empty data tiles.",
+      "entry_type": "fix",
+      "version": "",
+      "release_date": "2026-04-08",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-04-08T20:00:00Z",
+      "updated_at": "2026-04-08T20:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 188,
     "fields": {
       "title": "More accurate medication and adherence numbers",

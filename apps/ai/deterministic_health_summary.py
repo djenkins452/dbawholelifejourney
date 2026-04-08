@@ -150,6 +150,18 @@ def build_health_summary_response(user) -> str:
         health = get_module_state(user, 'health') or {}
         fitness = get_module_state(user, 'fitness') or {}
 
+        # Phase 5: explicit reader gate. If the health builder returned
+        # {"enabled": False}, the dict is technically truthy (one key)
+        # so the legacy `if not health and not fitness` check would let
+        # it through and produce a summary full of "None" sections.
+        # Bail cleanly with a friendly message instead.
+        if health.get('enabled') is False:
+            return (
+                "Health tracking is turned off right now, so I don't have "
+                "a summary to show. Flip it back on in Settings if you'd "
+                "like one."
+            )
+
         # Bail if we have no health data at all
         if not health and not fitness:
             return None

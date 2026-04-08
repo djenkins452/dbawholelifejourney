@@ -481,6 +481,113 @@ of Phase 6 system normalization pass (unit consistency audit).
 
 ---
 
+## 2026-04-08 — Phase 6.7 Execution Isolation + Input Persistence
+
+**What:** Fixed four system-reliability issues where CoS requests
+could be silently interrupted, lost, or drift into unrelated flows
+when users navigated, switched tabs, or experienced network blips.
+
+**Why:** Prior behavior:
+1. Client disconnect mid-stream killed the generator before the
+   assistant message was saved — the request was effectively lost.
+2. User input was cleared the instant Send was pressed, before the
+   server acknowledged receipt — a failed fetch lost the typed text.
+3. Context-dependent queries ("save this", "add this to…") had no
+   classification; navigating away silently resolved them against
+   whatever page was current after navigation.
+4. Retries after a disconnect could fall into ECC closure / proactive
+   check-in branches instead of the original intent path.
+
+**Changes:**
+
+1. **Context-required intent classification** —
+   `apps/core/ai_orchestrator/action_policy.py` adds
+   `CONTEXT_REQUIRED_INTENTS` and helper `requires_page_context()`.
+   `enrich_and_execute` guards against executing any such intent if
+   the submit-time `page_context` is empty, returning
+   *"I lost the context when you navigated away. Can you bring that
+   back?"* instead of silently resolving against the wrong page.
+   `OrchestratorResult` now carries `page_context` forward from
+   `process_user_input`.
+
+2. **In-flight idempotency marker** —
+   `apps/ai/idempotency.py` adds `mark_in_flight / is_in_flight /
+   clear_in_flight` (3 min TTL). The streaming path uses these to
+   suppress duplicate retries while the original request is still
+   running; retries return a "still working on it" note + the
+   original `request_id` + `status=processing`.
+
+3. **Guaranteed persistence on client disconnect** —
+   `send_message_stream` wraps its body in
+   `try/except GeneratorExit/except Exception/finally`. The finally
+   unconditionally writes `assistant_msg.metadata` with
+   `{request_id, status, stream_interrupted, intent_locked}` and
+   `content` + `quick_replies`. Even if the client disconnects, the
+   row reflects the best computed state and is retrievable via
+   history polling. On GeneratorExit, the exception is re-raised
+   per Python's generator protocol — but only after the save runs.
+
+4. **Hard intent lock** — once an actionable intent is detected,
+   `_intent_locked = True` is recorded and persisted to metadata.
+   The in-flight marker prevents any retry during this window from
+   entering ECC closure or proactive check-in branches.
+
+5. **Request lifecycle metadata** — every assistant message now
+   carries `metadata = {request_id, status, stream_interrupted,
+   intent_locked, page_context_captured}`. Statuses:
+   `processing → completed | failed`. `ConversationHistoryView`
+   surfaces these as `msg_data.lifecycle` so the frontend can
+   recover interrupted requests on page load. `send_message` and
+   `send_message_stream` both return `request_id`.
+
+6. **Frontend — draft persistence + pending recovery** —
+   `templates/components/chat_widget.html`:
+   - `saveDraft/restoreDraft/clearDraft` via `sessionStorage` key
+     `wlj_chat_draft`. Debounced 150 ms on input, synchronously
+     saved on `beforeunload`.
+   - `markPendingRequest/getPendingRequest/clearPendingRequest`
+     store `{message, page_context, submitted_at}` under
+     `wlj_chat_pending` immediately on submit.
+   - `sendMessage()` captures `page_context` **synchronously**
+     before any `await`, annotates it with `captured_at` + `url`,
+     marks the request pending, then fetches.
+   - Input text is **no longer cleared on Send** — only after the
+     server acknowledges receipt via `onRequestAcknowledged()`
+     (first SSE token, non-streaming JSON success, or error-fallback
+     JSON success). Failed sends preserve the typed text.
+   - `loadHistory()` checks for a pending marker and recovers
+     interrupted requests whose reply already landed in the DB.
+   - `restoreDraft()` runs on script init so slow history fetches
+     never leave the box empty.
+
+7. **Intentionally NO worker-thread refactor** — the generator runs
+   in the Django request thread where the framework handles DB
+   connection cleanup automatically. A full thread-decoupling of
+   the ~900-line `send_message_stream` body would be high-risk and
+   unnecessary: try/finally + lifecycle metadata + history recovery
+   achieve the same reliability semantics. Documented inline.
+
+**Files:**
+- `apps/core/ai_orchestrator/action_policy.py`
+- `apps/core/ai_orchestrator/orchestrator.py`
+- `apps/ai/idempotency.py`
+- `apps/ai/personal_assistant.py`
+- `apps/ai/views.py`
+- `templates/components/chat_widget.html`
+- `apps/ai/tests/test_chat_execution_isolation.py` (new, 13 tests)
+
+**Verification:**
+- 13 new tests pass including explicit `GeneratorExit` simulation
+  for stream disconnect persistence, context-required guard,
+  in-flight duplicate suppression, and lifecycle metadata.
+- 123 scoped tests pass across `test_chat_execution_isolation`,
+  `test_crud_confirmation`, `test_confirmation_escape`,
+  `test_orchestrator`.
+- `python manage.py check` and `makemigrations --check --dry-run`
+  both clean.
+
+---
+
 ## 2026-04-08 — Phase 6.6 Confirmation UX + Action Safety
 
 **What:** Rebuilt CRUD confirmation UX so the Chief of Staff never

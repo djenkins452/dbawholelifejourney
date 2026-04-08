@@ -238,6 +238,38 @@ PASSTHROUGH_INTENTS = frozenset(
 )
 
 
+# ── Context-Required Intents ──────────────────────────────────────────
+# Intents that depend on the user's current page context (visible entity,
+# module, or page_content payload) to resolve their target. If the user
+# navigates away before the request completes, the context is lost and
+# we MUST return a "context lost" message instead of guessing.
+#
+# Phase 6.7 — Execution Isolation:
+# Any intent in this set requires a non-empty page_context at submit time.
+
+CONTEXT_REQUIRED_INTENTS = frozenset({
+    # "save this", "add this to my list", "what is this?" — all need the
+    # visible entity or the page_content payload to resolve.
+    'add_to_list',
+    'save_note',
+    'save_verse',
+    'log_shopping_item',
+    'add_gratitude',
+    'create_journal_entry',
+    # Quick-add forms that depend on "this page's module"
+    'log_food',
+    'log_water',
+    # Page-scoped questions: "is this the latest?", "explain this chart"
+    'explain_visible',
+    'describe_page',
+})
+
+
+def requires_page_context(intent_type: str) -> bool:
+    """Return True if this intent needs a live page_context to execute."""
+    return intent_type in CONTEXT_REQUIRED_INTENTS
+
+
 # ── Policy Lookup Functions ───────────────────────────────────────────
 
 # Safe default for unknown intents: treat as high-risk mutation requiring confirmation.

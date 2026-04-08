@@ -1583,6 +1583,48 @@
             loadingEl.style.display = 'none';
             isLoaded = true;
 
+            // Phase 6.7: Recovery path for interrupted requests.
+            // If sessionStorage has a pending marker, look for the
+            // assistant reply in history. If the backend finished the
+            // request while the client was away, the reply is already
+            // saved — we just need to render it and clear the marker.
+            try {
+                var _pending = getPendingRequest();
+                if (_pending && _pending.message && data.messages) {
+                    var _pendingText = (_pending.message || '').trim();
+                    // Find the user message matching the pending text,
+                    // then check if the next assistant message has content.
+                    var _recovered = false;
+                    for (var _i = data.messages.length - 1; _i >= 0; _i--) {
+                        var _m = data.messages[_i];
+                        if (_m.role === 'user'
+                            && (_m.content || '').trim() === _pendingText) {
+                            // Is there an assistant reply after this user msg?
+                            var _next = data.messages[_i + 1];
+                            if (_next && _next.role === 'assistant'
+                                && (_next.content || '').trim()) {
+                                _recovered = true;
+                                var _lc = _next.lifecycle || {};
+                                if (_lc.stream_interrupted) {
+                                    console.log(
+                                        '[CoS] Recovered interrupted '
+                                        + 'stream request: ' + _lc.request_id
+                                    );
+                                }
+                            }
+                            break;
+                        }
+                    }
+                    if (_recovered) {
+                        clearPendingRequest();
+                    }
+                    // If not recovered, leave the marker — recovery can
+                    // also happen via a later refreshHistory() poll.
+                }
+            } catch (_recoverErr) {
+                console.debug('Pending recovery check failed:', _recoverErr);
+            }
+
             if (data.success && data.messages && data.messages.length > 0) {
                 let renderedCount = 0;
                 const totalCount = data.messages.length;
@@ -2130,6 +2172,78 @@
     // Send message — streaming for text, non-streaming fallback for images
     // ==========================================================================
 
+    // ── Phase 6.7: Draft persistence + execution isolation ─────────
+    // Draft text is saved on every keystroke to sessionStorage so
+    // navigation / tab close doesn't lose in-progress typing. The
+    // draft is ONLY cleared after the server acknowledges receipt
+    // (not when fetch starts) — per the execution isolation spec,
+    // input must never be lost on network or navigation failures.
+    var CHAT_DRAFT_KEY = 'wlj_chat_draft';
+    var CHAT_PENDING_KEY = 'wlj_chat_pending';
+
+    function saveDraft() {
+        try {
+            var val = input.value || '';
+            if (val) {
+                sessionStorage.setItem(CHAT_DRAFT_KEY, val);
+            } else {
+                sessionStorage.removeItem(CHAT_DRAFT_KEY);
+            }
+        } catch (e) { /* storage unavailable */ }
+    }
+
+    function restoreDraft() {
+        try {
+            var saved = sessionStorage.getItem(CHAT_DRAFT_KEY) || '';
+            if (saved && !input.value) {
+                input.value = saved;
+                sendBtn.disabled = false;
+            }
+        } catch (e) { /* storage unavailable */ }
+    }
+
+    function clearDraft() {
+        try { sessionStorage.removeItem(CHAT_DRAFT_KEY); }
+        catch (e) { /* storage unavailable */ }
+    }
+
+    function markPendingRequest(msg, ctx) {
+        try {
+            sessionStorage.setItem(CHAT_PENDING_KEY, JSON.stringify({
+                message: msg,
+                page_context: ctx || null,
+                submitted_at: Date.now(),
+            }));
+        } catch (e) { /* storage unavailable */ }
+    }
+
+    function clearPendingRequest() {
+        try { sessionStorage.removeItem(CHAT_PENDING_KEY); }
+        catch (e) { /* storage unavailable */ }
+    }
+
+    function getPendingRequest() {
+        try {
+            var raw = sessionStorage.getItem(CHAT_PENDING_KEY);
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) { return null; }
+    }
+
+    // Debounced input-change handler — persist draft on every keystroke
+    var _draftSaveTimer = null;
+    input.addEventListener('input', function() {
+        if (_draftSaveTimer) clearTimeout(_draftSaveTimer);
+        _draftSaveTimer = setTimeout(saveDraft, 150);
+    });
+
+    // Safety net: save draft synchronously on page unload
+    window.addEventListener('beforeunload', saveDraft);
+
+    // Phase 6.7: Restore any in-progress draft on script load. The
+    // input element is already in the DOM by the time this runs, and
+    // all helper functions + CHAT_DRAFT_KEY are now defined above.
+    restoreDraft();
+
     async function sendMessage() {
         var message = input.value.trim();
         if (!message && attachedImages.length === 0) return;
@@ -2140,29 +2254,40 @@
         // Save message for restoration on failure
         var savedMessage = message;
 
+        // Phase 6.7: SYNCHRONOUS context snapshot at submit time.
+        // Must happen BEFORE any await / fetch so the page_context
+        // reflects the page the user was on when they hit Send,
+        // regardless of subsequent navigation.
+        if (!currentPageContext) {
+            currentPageContext = getPageContext();
+        }
+        var sendContext = Object.assign({}, currentPageContext || {});
+        sendContext.captured_at = Date.now();
+        sendContext.url = window.location.pathname;
+        if (lastInputWasVoice) {
+            sendContext.voice_input = true;
+            lastInputWasVoice = false;
+        }
+
+        // Phase 6.7: mark the request as pending in sessionStorage so
+        // we can recover it after navigation / disconnect by polling
+        // history for the assistant's reply.
+        markPendingRequest(savedMessage, sendContext);
+
         // Build image data URLs for display
         var imageDataUrls = attachedImages.map(function(img) { return img.dataUrl; });
 
         // Add user message to chat (with image previews if attached)
         addMessage(message || '(Images attached)', true, true, imageDataUrls.length > 0 ? imageDataUrls : null);
-        input.value = '';
+        // Phase 6.7: do NOT clear input yet. Disable the send button
+        // to prevent double-submit, but preserve input.value until the
+        // server acknowledges receipt. The clear happens in
+        // onRequestAcknowledged() / handleSendSuccess().
         sendBtn.disabled = true;
 
         // Save and clear attachment UI
         var sentImages = attachedImages.slice();
         clearAttachment();
-
-        // Use page context captured on input focus (or drawer open as fallback)
-        if (!currentPageContext) {
-            currentPageContext = getPageContext();
-        }
-
-        // Tag voice input so AI responds conversationally
-        var sendContext = Object.assign({}, currentPageContext || {});
-        if (lastInputWasVoice) {
-            sendContext.voice_input = true;
-            lastInputWasVoice = false;
-        }
 
         // Image messages use non-streaming endpoint
         if (sentImages.length > 0) {
@@ -2174,6 +2299,14 @@
         // Text messages use streaming endpoint
         showTyping();
         await sendMessageStreaming(message, sendContext, savedMessage);
+    }
+
+    // Phase 6.7: called when the server acknowledges receipt of a
+    // message. Clears the input, draft, and pending marker.
+    function onRequestAcknowledged() {
+        input.value = '';
+        clearDraft();
+        clearPendingRequest();
     }
 
     // Streaming path — SSE via fetch + ReadableStream
@@ -2214,6 +2347,7 @@
                 var data = await response.json();
                 hideTyping();
                 if (data.success) {
+                    onRequestAcknowledged();
                     addMessage(data.response, false);
                     if (data.options && data.options.length) {
                         renderOptions(data.options);
@@ -2267,6 +2401,9 @@
                         if (firstToken) {
                             hideTyping();
                             firstToken = false;
+                            // Phase 6.7: first token = server acknowledged
+                            // receipt. Safe to clear input + draft now.
+                            onRequestAcknowledged();
                         }
                         fullText += evt.content;
                         console.log("STREAM TOKEN:", evt.content);
@@ -2376,6 +2513,9 @@
                 var data = await response.json();
 
                 if (data.success) {
+                    // Phase 6.7: server acknowledged — safe to clear
+                    // input + draft + pending marker.
+                    onRequestAcknowledged();
                     addMessage(data.response, false);
                     // Render structured options (A/B/C chips)
                     if (data.options && data.options.length) {

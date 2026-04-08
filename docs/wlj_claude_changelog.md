@@ -267,6 +267,96 @@ of Phase 6 system normalization pass (unit consistency audit).
 
 ---
 
+## 2026-04-08 — Phase 6.6 Confirmation UX + Action Safety
+
+**What:** Rebuilt CRUD confirmation UX so the Chief of Staff never
+commits a write without an explicit, unambiguous summary and a clearly
+styled pill-button decision prompt.
+
+**Why:** Prior confirmations were vague ("Updating your calendar event"),
+didn't show before/after for updates, relied on plain-text "CONFIRM /
+CANCEL / EDIT" instructions, and could silently render when required
+fields were missing — creating real risk of wrong or unintended
+mutations.
+
+**Changes:**
+
+1. **Explicit Action / Details / Impact format** (mandatory)
+   — `apps/core/ai_orchestrator/crud_confirmation.py` message builder
+   rewritten. Every confirmation now shows an `Action:` line, a
+   field-by-field `Details:` block (or `Before:` / `After:` for updates),
+   and a specific `Impact:` line with magnitude (e.g. "Moves this task
+   1 hour later", "Adds a new weekly entry to your calendar", "Removes
+   the entire recurring event series — this cannot be undone").
+
+2. **Before / After for updates** — update/mutate flows now render both
+   the old and new value side-by-side, never only the new value.
+
+3. **Task-class awareness** — CRITICAL items append "⚠ Time-sensitive",
+   FOUNDATIONAL items append "Must complete today". Derived from
+   `commitment_level` / `importance` on the params or resolved entity.
+
+4. **Hard block on incomplete confirmations** — new
+   `IncompleteConfirmationError` raised by `build_structured_confirmation`
+   when required fields (title, value, target entity, content) are
+   missing. `orchestrator.enrich_and_execute` catches it and returns a
+   clarification request instead of silently rendering a vague prompt.
+
+5. **Always-present quick_replies pills** — CRUD confirmations always
+   populate `AssistantMessage.quick_replies` with three pills
+   (A·Confirm / B·Edit / C·Cancel, styles: primary/secondary/danger).
+   Both the non-streaming and streaming paths in
+   `apps/ai/personal_assistant.py` now track `_pending_quick_replies`
+   and persist it onto the saved message. No more plain-text fallbacks.
+
+6. **Extended response vocabulary** — `parse_confirmation_response` now
+   handles natural language: `yes/yep/ok/sure/sounds good → confirm`,
+   `edit/change/modify/update/fix/adjust → edit`,
+   `no/nope/stop/never mind/abort → cancel`.
+
+7. **Frontend pills (pill-primary/secondary/danger)** —
+   `templates/components/chat_widget.html` gets spec-exact pill CSS
+   (`#2563eb` / `#e5e7eb` / `#ef4444`, `border-radius: 999px`,
+   `padding: 10px 18px`, `min-height: 44px`, full-width on mobile
+   ≤480px) and `renderOptions()` maps `opt.style` → class. Labels
+   render as `A · Confirm`. CSP-compliant (`addEventListener`, no
+   inline handlers). Unresolved confirmations re-render their pills
+   after a page reload via `loadHistory` reading `msg.quick_replies`.
+
+**Files:**
+- `apps/core/ai_orchestrator/crud_confirmation.py` — full rewrite of
+  the message builder, new `IncompleteConfirmationError`, extended
+  `parse_confirmation_response` vocabulary, Before/After field lines,
+  task-class warnings, specific impact lines.
+- `apps/core/ai_orchestrator/orchestrator.py` — catches
+  `IncompleteConfirmationError`, emits clarification result; passes
+  `quick_replies` through `confirmation_detail`; adds
+  `_friendly_missing_fields` helper.
+- `apps/ai/personal_assistant.py` — `_pending_quick_replies` tracking
+  in `send_message` + `send_message_stream`; `_extract_quick_replies`
+  helper; `AssistantMessage.objects.create` now persists
+  `quick_replies`; re-show path no longer emits plain-text fallback.
+- `templates/components/chat_widget.html` — new pill CSS block,
+  `renderOptions` style mapping, mobile-full-width pills, post-reload
+  pill re-render.
+- `apps/core/ai_orchestrator/tests/test_crud_confirmation.py` —
+  updated existing assertions to the new format, added coverage for
+  natural-language vocabulary, explicit Action/Details/Impact,
+  Before/After update format, task-class warnings, delete warnings,
+  hard-block `IncompleteConfirmationError`, and Phase 6.6 pill layout
+  (`A·Confirm primary / B·Edit secondary / C·Cancel danger`).
+- `apps/core/ai_orchestrator/tests/test_confirmation_escape.py` —
+  switched resolved-name tests from removed `_build_standard_message`
+  to the public `build_crud_confirmation_message` entrypoint.
+
+**Verification:** 155 scoped tests pass
+(`apps.ai.tests.test_intent_service`,
+`apps.core.ai_orchestrator.tests.test_orchestrator`,
+`test_crud_confirmation`, `test_confirmation_escape`).
+`python manage.py check` and `makemigrations --check --dry-run` clean.
+
+---
+
 ## 2026-04-07 — Phase 4.5 Hard Response Enforcement
 
 **What:** Phase 4 added behavioral guidance via the CoS system prompt.

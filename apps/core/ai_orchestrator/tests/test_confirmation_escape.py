@@ -118,45 +118,38 @@ class ConfirmationEscapeTests(TestCase):
 class ConfirmationMessageWithResolvedNameTests(TestCase):
     """Tests that resolved entity names appear in confirmation messages."""
 
-    def test_resolved_name_in_standard_message(self):
+    def _build(self, intent_type, params):
+        from unittest.mock import MagicMock
         from apps.core.ai_orchestrator.crud_confirmation import (
-            _build_standard_message,
+            build_crud_confirmation_message,
         )
+        enriched = MagicMock()
+        enriched.intent_type = intent_type
+        enriched.parameters = params
+        return build_crud_confirmation_message(enriched)
 
+    def test_resolved_name_in_standard_message(self):
         params = {
             'task_keyword': 'journal',
             'resolved_name': 'Morning Journal',
         }
-        msg = _build_standard_message('complete_task', 'Complete task', params)
+        msg = self._build('complete_task', params)
         self.assertIn('Morning Journal', msg)
 
     def test_fallback_to_task_keyword_without_resolved_name(self):
-        from apps.core.ai_orchestrator.crud_confirmation import (
-            _build_standard_message,
-        )
-
         params = {'task_keyword': 'journal'}
-        msg = _build_standard_message('complete_task', 'Complete task', params)
+        msg = self._build('complete_task', params)
         self.assertIn('journal', msg)
 
     def test_title_takes_precedence_over_keyword(self):
-        from apps.core.ai_orchestrator.crud_confirmation import (
-            _build_standard_message,
-        )
-
         params = {'title': 'Buy Groceries', 'task_keyword': 'groceries'}
-        msg = _build_standard_message('create_task', 'Create task', params)
+        msg = self._build('create_task', params)
         self.assertIn('Buy Groceries', msg)
-        # resolved_name not set, so title wins
 
     def test_resolved_name_takes_precedence_over_title(self):
-        from apps.core.ai_orchestrator.crud_confirmation import (
-            _build_standard_message,
-        )
-
         params = {
             'title': 'Buy stuff',
             'resolved_name': 'Buy Groceries From Store',
         }
-        msg = _build_standard_message('mutate_task', 'Update task', params)
+        msg = self._build('mutate_task', params)
         self.assertIn('Buy Groceries From Store', msg)

@@ -1007,6 +1007,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Workout-Tomorrow Hardening (PK 183)
         self._reset_workout_tomorrow_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Phase 6.6 Confirmation UX (PK 184)
+        self._reset_phase_6_6_confirmation_ux_fixtures(DataLoadConfig, force, verbosity)
+
         # One-time: Reset release_notes to fix PK 182 timestamp causing infinite popup loop
         self._reset_whats_new_timestamp_fix_fixtures(DataLoadConfig, force, verbosity)
 
@@ -6408,6 +6411,39 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset workout tomorrow fixtures FAILED: {e}'))
+
+    def _reset_phase_6_6_confirmation_ux_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes with Phase 6.6 Confirmation UX
+        entry (PK 184). Adds the user-facing announcement for the rebuilt
+        CRUD confirmation flow (Action/Details/Impact, Before/After for
+        updates, always-present A/B/C pills, task-class warnings).
+        """
+        reset_tracker_name = 'reset_phase_6_6_confirmation_ux_2026_04_08'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for Phase 6.6 Confirmation UX')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Phase 6.6 Confirmation UX',
+                'command',
+                'One-time reset: added PK 184 for Phase 6.6 confirmation UX rebuild'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Phase 6.6 confirmation UX fixtures FAILED: {e}'))
 
     def _reset_cos_naming_boundary_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """

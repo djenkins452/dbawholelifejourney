@@ -481,6 +481,136 @@ of Phase 6 system normalization pass (unit consistency audit).
 
 ---
 
+## 2026-04-08 — Phase 4 Unit Consistency & Signal Integrity
+
+**What:** Fixes four categories of signal-integrity bugs identified
+in the Phase 4 audit. None of these were cosmetic — every fix
+affects what numbers the LLM actually sees when reasoning about the
+user.
+
+**Why:** The explorer found that Danny's live CoS context was
+showing `medication_adherence_state.adherence_pct = 10000` and
+`supplement_adherence_state.adherence_pct = 3000` because three
+call sites in `cos_context.py` multiplied the already-0-100
+`adherence_7d` value by 100 again. A separate bug in
+`body_composition_insight_builder._has_waist_confirmation` would
+crash with `TypeError` the moment my Phase 3 string `waist_trend`
+reached it. And two insight/summary readers were pointed at state
+keys that no writer ever produces, making them silently dead.
+
+Phase 6 Fix 1 (announced in an earlier changelog entry) was
+supposed to have caught the adherence double-scaling bug, but —
+same pattern as Phase 6 Fix 5's sleep_trend writer — the code
+change was never actually committed. This phase re-fixes it and
+adds regression guards to the test suite.
+
+**Bugs fixed:**
+
+1. **`cos_context.py:344` medication `adherence_pct` double-scaled**
+   — `round(adherence_7d * 100, 1)` against a value already stored
+   0-100 by `calculate_medicine_adherence_rate()`. Fixed to
+   `round(adherence_7d, 1)`. Danny's live value changed from
+   `10000` to `100`.
+
+2. **`cos_context.py:365` supplement `adherence_pct` double-scaled**
+   — identical bug on the supplement adherence site. Danny's live
+   value changed from `3000` to `30`.
+
+3. **`cos_context.py:1902` supplement bridge `adherence_pct_7d`
+   double-scaled** — third site with the same bug, inside the
+   nutrition bridge block. Same fix.
+
+4. **`body_composition_insight_builder.py:173` TypeError on string
+   `waist_trend`** — Phase 3 added `waist_trend` as a STRING
+   (`"increasing" / "decreasing" / "stable" / "insufficient_data"`)
+   to `build_health_state`. This reader did `waist_trend > 0.1`
+   expecting a numeric delta and would raise TypeError the moment
+   Danny's waist data produced a non-None value. Fixed to
+   `waist_trend == "increasing"` which matches the rebound-
+   confirmation semantics the old comment described.
+
+5. **`rules_cross_domain.py:395` dead read** of
+   `health.medication_adherence_pct` — a key that no state builder
+   writes. The rule always got the default `100` and never fired.
+   Fixed to read `medicine.adherence_7d` (the canonical state key)
+   and guard against `None`.
+
+6. **`rules_cross_domain.py:397` dead `"up"` vocabulary branch** —
+   `if weight_trend not in ("increasing", "up")`. `state_builder`
+   only produces `"increasing"`, never `"up"`. Removed the dead
+   alternative so the test suite can lock the vocabulary in.
+
+7. **`deterministic_health_summary.py:237` wrong module name + key**
+   — read `get_module_state(user, 'medication')` but the module is
+   registered as `'medicine'`, and the key was `adherence_pct_7d`
+   but the actual key is `adherence_7d`. The entire medication-
+   adherence line was dead in the deterministic health summary.
+   Fixed both.
+
+**Explicitly NOT fixed (out of scope per "no large refactors"):**
+- `mood_trend` uses non-standard `"declining"/"improving"/"stable"`
+  vocabulary, but every reader was written around it consistently.
+  Changing it would require touching 5+ files with no behavior
+  change. Deferred.
+- The `supplements.adherence_pct_7d` second bridge appearing as
+  `None` in Danny's live context is a separate code-path issue
+  (nutrition block not reached for his user) unrelated to scaling.
+- All Phase 3 signals, Phase 6.x code, orchestrator/CRUD
+  confirmation pipeline, and any signal marked OK in the audit
+  (all other `_pct`/`_score`/`_adherence` keys were verified
+  consistent).
+
+**Files:**
+- `apps/core/ai_orchestrator/cos_context.py` — 3 scaling fixes
+  (lines 344, 365, ~1902)
+- `apps/health/services/body_composition_insight_builder.py` —
+  `_has_waist_confirmation` rewritten for string input
+- `apps/core/ai_insights/rules_cross_domain.py` —
+  `ComplianceRiskRule.evaluate()` fixed to read the medicine
+  module; dead `"up"` alias removed
+- `apps/ai/deterministic_health_summary.py` — medication block
+  fixed to query `'medicine'` / `'adherence_7d'`
+- `apps/core/ai_orchestrator/tests/test_unit_consistency.py` —
+  NEW, 18 tests covering all four bug classes including source-
+  level contract guards against scaling regressions
+
+**Validation (Danny's live dev data, before → after):**
+```
+raw adherence_7d                                  = 100
+raw supplement_adherence_7d                       = 30
+
+BEFORE:
+cos adherence_pct                                 = 10000   (bug)
+cos supp adherence_pct                            =  3000   (bug)
+
+AFTER:
+medication_adherence_state.adherence_pct          =   100   ✓
+supplement_adherence_state.adherence_pct          =    30   ✓
+```
+
+**Verification:**
+- 18 scoped tests pass in
+  `apps/core/ai_orchestrator/tests/test_unit_consistency.py`
+- 112 broader scoped tests pass across
+  `test_unit_consistency`, `tests_signal_completion`,
+  `test_crud_confirmation`, `test_confirmation_escape`
+- `python manage.py check` clean
+- `python manage.py makemigrations --check --dry-run` → no changes
+
+**Scope discipline held:**
+- ✅ No architecture rewrite
+- ✅ No new signal system
+- ✅ No large refactors
+- ✅ Scoped tests only
+- ✅ Fixes at the read site (where the bug was) — state builder
+  untouched
+- ✅ Coherent interpretation preserved: `weight_trend="increasing"`
+  + `med_adherence<80` now fires the ComplianceRiskRule;
+  `waist_trend="increasing"` correctly confirms rebound in the
+  body-comp insight builder
+
+---
+
 ## 2026-04-08 — Phase 3 Signal Completion (sleep/body/workout trends)
 
 **What:** Completes the signal layer so that meaningful raw data

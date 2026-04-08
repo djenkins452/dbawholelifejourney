@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 188,
+    "fields": {
+      "title": "More accurate medication and adherence numbers",
+      "description": "A behind-the-scenes math bug was causing your Chief of Staff to see medication and supplement adherence at 100 times their real value — so a true 80% medication adherence was being reported to the AI as 8000% and a real 30% supplement rate looked like 3000%. That's been fixed everywhere your adherence numbers flow, which means insights, summaries, and recommendations about your medications and supplements will now reflect reality. A few other silently-dead insight rules (weight gain + missed medication correlation, body-fat rebound confirmation, medication line in the health summary) have also been reconnected to the right data so they actually fire when they should.",
+      "entry_type": "fix",
+      "version": "",
+      "release_date": "2026-04-08",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-04-08T19:30:00Z",
+      "updated_at": "2026-04-08T19:30:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 187,
     "fields": {
       "title": "Sharper trend detection across sleep, body comp, and workouts",

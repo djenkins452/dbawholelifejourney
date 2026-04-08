@@ -234,8 +234,13 @@ def build_health_summary_response(user) -> str:
         # ── Medication Adherence ────────────────────────────────
         try:
             from apps.core.ai_state.state_engine import get_module_state as _gms
-            med_state = _gms(user, 'medication') or {}
-            adherence = med_state.get('adherence_pct_7d')
+            # Phase 4: the correct state module is `medicine` (not
+            # `medication`) and the correct key is `adherence_7d` (not
+            # `adherence_pct_7d`). Before the fix this block was dead —
+            # it always got {} from the wrong module and the medication
+            # adherence line never appeared in the deterministic summary.
+            med_state = _gms(user, 'medicine') or {}
+            adherence = med_state.get('adherence_7d')
             if adherence is not None:
                 sections.append(f"**Medication Adherence:** {adherence:.0f}%")
         except Exception:

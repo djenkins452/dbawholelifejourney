@@ -397,17 +397,20 @@ class ComplianceRiskRule(CrossDomainRule):
         medicine = state.get("medicine", {})
 
         weight_trend = health.get("weight_trend", "stable")
-        # Phase 7 Fix: medication_adherence_pct does not exist on health
-        # state. The canonical medication adherence lives on medicine
-        # state as adherence_7d (0-100 int, meds-only after Phase 6
-        # Fix 2). Read from the correct domain. If adherence is None
-        # (user has no medications), do not fire a compliance-risk
-        # insight. (Audit 2026-04-08.)
+        # Phase 4 / Phase 7: medication adherence lives under the
+        # `medicine` module key `adherence_7d` (0-100). The old read
+        # of `health.medication_adherence_pct` was a dead branch —
+        # that key is never written to the state builder; only
+        # cos_context.py constructs it as a derived view. Result: the
+        # rule always got the default 100 and never fired. If
+        # adherence is None (user has no medications) we do not fire
+        # a compliance-risk insight.
         med_adherence = medicine.get("adherence_7d")
         if med_adherence is None:
             return []
 
-        if weight_trend not in ("increasing", "up"):
+        # Phase 4: state_builder only emits "increasing" (never "up").
+        if weight_trend != "increasing":
             return []
         if med_adherence >= 80:
             return []

@@ -845,6 +845,93 @@
     color: var(--color-success, #22c55e);
 }
 
+/* ── Phase 6.6 Confirmation Pills (pill-primary/secondary/danger) ─── */
+/* Large, color-coded pills for CRUD confirmations (Confirm/Edit/Cancel).
+   Mobile-friendly: ≥44px touch target, rounded-full, high-contrast. */
+.assistant-option-chip.pill-primary {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #ffffff;
+    border-radius: 999px;
+    padding: 10px 18px;
+    font-weight: 600;
+    min-height: 44px;
+}
+.assistant-option-chip.pill-primary .chip-key {
+    background: #ffffff;
+    color: #2563eb;
+}
+.assistant-option-chip.pill-primary:hover {
+    background: #1d4ed8;
+    border-color: #1d4ed8;
+    color: #ffffff;
+}
+.assistant-option-chip.pill-primary:hover .chip-key {
+    background: #ffffff;
+    color: #1d4ed8;
+}
+
+.assistant-option-chip.pill-secondary {
+    background: #e5e7eb;
+    border-color: #e5e7eb;
+    color: #111827;
+    border-radius: 999px;
+    padding: 10px 18px;
+    font-weight: 600;
+    min-height: 44px;
+}
+.assistant-option-chip.pill-secondary .chip-key {
+    background: #111827;
+    color: #ffffff;
+}
+.assistant-option-chip.pill-secondary:hover {
+    background: #d1d5db;
+    border-color: #d1d5db;
+    color: #111827;
+}
+.assistant-option-chip.pill-secondary:hover .chip-key {
+    background: #111827;
+    color: #ffffff;
+}
+
+.assistant-option-chip.pill-danger {
+    background: #ef4444;
+    border-color: #ef4444;
+    color: #ffffff;
+    border-radius: 999px;
+    padding: 10px 18px;
+    font-weight: 600;
+    min-height: 44px;
+}
+.assistant-option-chip.pill-danger .chip-key {
+    background: #ffffff;
+    color: #ef4444;
+}
+.assistant-option-chip.pill-danger:hover {
+    background: #dc2626;
+    border-color: #dc2626;
+    color: #ffffff;
+}
+.assistant-option-chip.pill-danger:hover .chip-key {
+    background: #ffffff;
+    color: #dc2626;
+}
+
+@media (max-width: 480px) {
+    .assistant-options {
+        gap: 10px;
+        padding: 12px;
+    }
+    .assistant-option-chip.pill-primary,
+    .assistant-option-chip.pill-secondary,
+    .assistant-option-chip.pill-danger {
+        /* Full-width pills on small screens so thumbs always hit */
+        flex: 1 1 auto;
+        min-width: 88px;
+        justify-content: center;
+    }
+}
+
 .assistant-nav-link {
     display: inline-flex;
     align-items: center;
@@ -1499,6 +1586,7 @@
             if (data.success && data.messages && data.messages.length > 0) {
                 let renderedCount = 0;
                 const totalCount = data.messages.length;
+                let lastLoadedQuickReplies = null;
                 data.messages.forEach(msg => {
                     // Skip empty placeholder messages (created before streaming, not yet populated)
                     if (!msg.content || !msg.content.trim()) return;
@@ -1506,8 +1594,19 @@
                     const isUser = msg.role === 'user';
                     const imageDataUrls = msg.image_data_urls || (msg.image_data_url ? [msg.image_data_url] : null);
                     addMessage(msg.content, isUser, false, imageDataUrls);
+                    // Phase 6.6: remember quick_replies from the most recent
+                    // assistant message so unresolved confirmation pills
+                    // re-appear after a page reload.
+                    if (!isUser && msg.quick_replies && msg.quick_replies.length) {
+                        lastLoadedQuickReplies = msg.quick_replies;
+                    } else if (!isUser) {
+                        lastLoadedQuickReplies = null;
+                    }
                     renderedCount++;
                 });
+                if (lastLoadedQuickReplies) {
+                    renderOptions(lastLoadedQuickReplies);
+                }
                 hasMessages = renderedCount > 0;
                 if (!hasMessages) showEmptyState();
 
@@ -1736,10 +1835,20 @@
         for (var i = 0; i < options.length; i++) {
             var opt = options[i];
             var chip = document.createElement('button');
-            chip.className = 'assistant-option-chip' + (opt.is_suggested ? ' suggested' : '');
+            // Phase 6.6: map backend style → pill class.
+            // Falls back to the generic chip style if no style is set.
+            var styleClass = '';
+            if (opt.style === 'primary') styleClass = ' pill-primary';
+            else if (opt.style === 'secondary') styleClass = ' pill-secondary';
+            else if (opt.style === 'danger') styleClass = ' pill-danger';
+            chip.className = 'assistant-option-chip'
+                + styleClass
+                + (opt.is_suggested ? ' suggested' : '');
             chip.setAttribute('data-key', opt.key);
             chip.setAttribute('data-action', opt.action || '');
+            chip.setAttribute('data-choice', opt.key);
             chip.setAttribute('type', 'button');
+            chip.setAttribute('aria-label', (opt.label || '') + ' option ' + opt.key);
 
             var keySpan = document.createElement('span');
             keySpan.className = 'chip-key';
@@ -1747,7 +1856,8 @@
             chip.appendChild(keySpan);
 
             var labelSpan = document.createElement('span');
-            labelSpan.textContent = opt.label + (opt.is_suggested ? ' ★' : '');
+            // Phase 6.6: render as "· Label" for clarity (e.g. "A · Confirm")
+            labelSpan.textContent = '· ' + opt.label + (opt.is_suggested ? ' ★' : '');
             chip.appendChild(labelSpan);
 
             container.appendChild(chip);

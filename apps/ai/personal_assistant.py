@@ -969,6 +969,11 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
 
         response = ""
         actions_taken = []
+        # Phase 6.6: Quick reply pills for CRUD confirmations. Populated from
+        # action_result.confirmation_detail when the CRUD gate is tripped.
+        # Saved onto the AssistantMessage so the chat widget can render
+        # pill-primary/secondary/danger buttons.
+        _pending_quick_replies = []
 
         # Conversation mode persistence — detect and lock mode from message
         try:
@@ -1295,22 +1300,13 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                                 self._build_action_taken(crud_result)
                             )
                     else:
-                        # Unrecognized response — re-show confirmation with options
+                        # Unrecognized response — re-show confirmation with
+                        # the same A/B/C pills via quick_replies (no plain-text
+                        # fallback instructions per Phase 6.6).
                         _crud_options = pending_crud.get('options', [])
+                        response = pending_crud['confirmation_message']
                         if _crud_options:
-                            _opts_text = "  ".join(
-                                f"[{o['key']}] {o['label']}"
-                                for o in _crud_options
-                            )
-                            response = (
-                                f"{pending_crud['confirmation_message']}\n\n"
-                                f"{_opts_text}"
-                            )
-                        else:
-                            response = (
-                                f"{pending_crud['confirmation_message']}\n\n"
-                                "Please reply with: CONFIRM, CANCEL, or EDIT"
-                            )
+                            _pending_quick_replies = list(_crud_options)
                 except Exception as crud_err:
                     logger.error(
                         "[CRUD_GATE] Confirmation handling failed: %s",
@@ -1629,6 +1625,13 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                                         response_parts.append(ar.message + self._format_confirmation_detail(ar))
                                     response = " ".join(response_parts)
 
+                                # Phase 6.6: Capture CRUD confirmation pills
+                                # from any blocked action so they render as
+                                # A/B/C buttons in the chat widget.
+                                _qr = self._extract_quick_replies(orch_actions)
+                                if _qr:
+                                    _pending_quick_replies = _qr
+
                                 # Invalidate in-request CoS context cache after
                                 # mutations so downstream code (validators, etc.)
                                 # doesn't use stale schedule data.
@@ -1882,7 +1885,9 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
             conversation=conversation,
             role='assistant',
             content=response,
-            message_type=msg_type
+            message_type=msg_type,
+            # Phase 6.6: structured A/B/C pills for CRUD confirmations.
+            quick_replies=_pending_quick_replies or [],
         )
 
         # Update conversation
@@ -1985,12 +1990,12 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
             result['actions_taken'] = actions_taken
 
         # Include structured options for CRUD confirmations (A/B/C chips)
-        _resp_options = self._extract_options_from_actions(actions_taken)
-        if _resp_options:
+        # Phase 6.6: _pending_quick_replies is the canonical source; it is
+        # populated on both initial CRUD gate trips and re-shown confirmations.
+        if _pending_quick_replies:
+            result['options'] = _pending_quick_replies
+        elif (_resp_options := self._extract_options_from_actions(actions_taken)):
             result['options'] = _resp_options
-        # Also check pending_crud for re-shown confirmations
-        elif 'pending_crud' in dir() and pending_crud and pending_crud.get('options'):
-            result['options'] = pending_crud['options']
         else:
             # Parse A/B/C patterns from LLM text for general responses
             _cleaned, _text_options = self._extract_options_from_text(response)
@@ -2114,6 +2119,29 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
         if getattr(action_result, 'confirmation_detail', None):
             result['confirmation_detail'] = action_result.confirmation_detail
         return result
+
+    def _extract_quick_replies(self, action_results) -> list:
+        """
+        Extract quick_replies pills from any ActionResult in a list that
+        was blocked by the CRUD confirmation gate.
+
+        Phase 6.6: CRUD confirmations MUST always carry their A/B/C pill
+        options through to the saved AssistantMessage. Never fall back to
+        plain-text instructions.
+        """
+        if not action_results:
+            return []
+        try:
+            for ar in action_results:
+                if getattr(ar, 'error', None) != 'crud_confirmation_required':
+                    continue
+                detail = getattr(ar, 'confirmation_detail', None) or {}
+                options = detail.get('quick_replies') or detail.get('options')
+                if options:
+                    return list(options)
+        except Exception:
+            pass
+        return []
 
     def _format_confirmation_detail(self, action_result) -> str:
         """
@@ -5364,6 +5392,8 @@ Rules for this response:
 
         response_text = ""
         actions_taken = []
+        # Phase 6.6: CRUD confirmation pills for streaming path.
+        _pending_quick_replies = []
 
         try:
             # Check AI availability
@@ -5517,23 +5547,13 @@ Rules for this response:
                                             )
                                         )
                             else:
-                                # Unrecognized — re-show with options
+                                # Unrecognized — re-show the confirmation
+                                # with its A/B/C pills (no plain-text fallback
+                                # per Phase 6.6).
                                 _crud_opts = _pending_crud.get('options', [])
+                                _direct_response = _pending_crud['confirmation_message']
                                 if _crud_opts:
-                                    _opts_text = "  ".join(
-                                        f"[{o['key']}] {o['label']}"
-                                        for o in _crud_opts
-                                    )
-                                    _direct_response = (
-                                        f"{_pending_crud['confirmation_message']}"
-                                        f"\n\n{_opts_text}"
-                                    )
-                                else:
-                                    _direct_response = (
-                                        f"{_pending_crud['confirmation_message']}"
-                                        "\n\nPlease reply with: "
-                                        "CONFIRM, CANCEL, or EDIT"
-                                    )
+                                    _pending_quick_replies = list(_crud_opts)
                     except Exception as crud_err:
                         logger.warning(
                             "Streaming CRUD confirmation check failed: %s",
@@ -5789,6 +5809,13 @@ Rules for this response:
                                     )
                                 _direct_response = ' '.join(parts)
 
+                                # Phase 6.6: Capture CRUD confirmation pills
+                                # for streaming path so the final saved
+                                # assistant message carries quick_replies.
+                                _qr = self._extract_quick_replies(orch_actions)
+                                if _qr:
+                                    _pending_quick_replies = _qr
+
                                 # Store clarification state for multiple_matches
                                 for ar in orch_actions:
                                     if (ar.error == 'multiple_matches'
@@ -5837,10 +5864,23 @@ Rules for this response:
                     assistant_msg.message_type = (
                         'action' if actions_taken else 'text'
                     )
-                    assistant_msg.save(
-                        update_fields=['content', 'message_type']
-                    )
+                    # Phase 6.6: Persist A/B/C pills onto the assistant
+                    # message so the chat widget renders them as buttons.
+                    if _pending_quick_replies:
+                        assistant_msg.quick_replies = _pending_quick_replies
+                        assistant_msg.save(
+                            update_fields=['content', 'message_type', 'quick_replies']
+                        )
+                    else:
+                        assistant_msg.save(
+                            update_fields=['content', 'message_type']
+                        )
                     yield {'type': 'token', 'content': response_text}
+                    if _pending_quick_replies:
+                        yield {
+                            'type': 'quick_replies',
+                            'quick_replies': _pending_quick_replies,
+                        }
                 else:
                     # Stream from LLM (conversational — no action executed)
                     chunks = []

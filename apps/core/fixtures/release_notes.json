@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 184,
+    "fields": {
+      "title": "Clearer, safer confirmations before any change",
+      "description": "Before your Chief of Staff creates, updates, or deletes anything, you now see an explicit summary that spells out exactly what's about to happen. Every confirmation shows the action, a field-by-field breakdown of the details (Title, Day, Time, Repeats…), and a specific impact line with the magnitude of the change (for example, 'Moves this task 1 hour later' or 'Adds a new weekly entry to your calendar'). Updates now show both Before and After side-by-side so you can see exactly what's changing. Critical and Foundational items get a time-sensitivity warning. Instead of typing CONFIRM/CANCEL/EDIT, you now see three clearly colored pill buttons — Confirm (blue), Edit (gray), and Cancel (red) — that you can tap on mobile, click on desktop, or answer with plain words like 'yes', 'edit', or 'cancel'. If your Chief of Staff is missing information it needs, it now asks a clarifying question instead of rendering a vague confirmation.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-04-08",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-04-08T12:00:00Z",
+      "updated_at": "2026-04-08T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 183,
     "fields": {
       "title": "Ask 'What's my workout tomorrow?' and get a real answer",

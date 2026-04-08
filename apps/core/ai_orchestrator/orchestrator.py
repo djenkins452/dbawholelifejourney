@@ -30,6 +30,31 @@ from apps.core.ai_orchestrator.time_pipeline import (
 logger = logging.getLogger(__name__)
 
 
+_MISSING_FIELD_LABELS = {
+    '_target': 'which item you meant',
+    '_value': 'the value',
+    '_content': 'what to write',
+    'title': 'title',
+    'weight': 'weight',
+    'bpm': 'heart rate',
+    'glucose': 'glucose reading',
+    'systolic': 'systolic reading',
+    'diastolic': 'diastolic reading',
+    'scheduled_time': 'time',
+    'due_date': 'date',
+}
+
+
+def _friendly_missing_fields(missing):
+    """Translate REQUIRED_FIELDS keys to user-facing words."""
+    friendly = [_MISSING_FIELD_LABELS.get(f, f.replace('_', ' ')) for f in missing]
+    if len(friendly) == 1:
+        return friendly[0]
+    if len(friendly) == 2:
+        return f"{friendly[0]} and {friendly[1]}"
+    return ', '.join(friendly[:-1]) + f", and {friendly[-1]}"
+
+
 class OrchestratorResult:
     """Complete result from the orchestrator pipeline."""
 
@@ -341,6 +366,7 @@ def enrich_and_execute(user, intent_results, orchestrator_result):
             from apps.core.ai_orchestrator.crud_confirmation import (
                 requires_confirmation,
                 build_structured_confirmation,
+                IncompleteConfirmationError,
             )
             if requires_confirmation(enriched.intent_type):
                 from apps.ai.intent_service import ActionResult
@@ -366,9 +392,30 @@ def enrich_and_execute(user, intent_results, orchestrator_result):
                         exc_info=True,
                     )
 
-                msg, options = build_structured_confirmation(
-                    enriched, recon_result, decision_suggestion,
-                )
+                # Phase 6.6: Hard block on incomplete confirmations.
+                # Never render a vague confirmation — fall back to clarification.
+                try:
+                    msg, options = build_structured_confirmation(
+                        enriched, recon_result, decision_suggestion,
+                    )
+                except IncompleteConfirmationError as incomplete:
+                    logger.info(
+                        "[CRUD_GATE] Blocked incomplete confirmation: %s missing=%s",
+                        incomplete.intent_type, incomplete.missing_fields,
+                    )
+                    friendly = _friendly_missing_fields(incomplete.missing_fields)
+                    result = ActionResult(
+                        success=False,
+                        message=(
+                            "I need a bit more detail before I can do that. "
+                            f"Could you tell me the {friendly}?"
+                        ),
+                        error='clarification_required',
+                        action_type=enriched.intent_type,
+                    )
+                    action_results.append(result)
+                    continue
+
                 intent_service.store_pending_crud_action(user, {
                     'intent_type': enriched.intent_type,
                     'parameters': enriched.parameters,
@@ -396,6 +443,9 @@ def enrich_and_execute(user, intent_results, orchestrator_result):
                     action_type=enriched.intent_type,
                     confirmation_detail={
                         'options': options,
+                        # Phase 6.6: frontend reads quick_replies from this
+                        # to render pill-primary/secondary/danger buttons.
+                        'quick_replies': options,
                     },
                 )
                 action_results.append(result)

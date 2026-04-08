@@ -11,7 +11,9 @@ from django.test import TestCase, override_settings
 
 from apps.core.ai_orchestrator.crud_confirmation import (
     PASSTHROUGH_INTENTS,
+    IncompleteConfirmationError,
     build_crud_confirmation_message,
+    build_structured_confirmation,
     parse_confirmation_response,
     requires_confirmation,
 )
@@ -19,6 +21,21 @@ from apps.core.ai_orchestrator.crud_confirmation import (
 
 class ParseConfirmationTests(TestCase):
     """Tests for deterministic confirmation response parsing."""
+
+    def test_natural_language_edit_word(self):
+        self.assertEqual(parse_confirmation_response('edit'), 'edit')
+
+    def test_natural_language_change_word(self):
+        self.assertEqual(parse_confirmation_response('change'), 'edit')
+
+    def test_natural_language_stop_word(self):
+        self.assertEqual(parse_confirmation_response('stop'), 'cancel')
+
+    def test_natural_language_nope_word(self):
+        self.assertEqual(parse_confirmation_response('nope'), 'cancel')
+
+    def test_natural_language_sounds_good(self):
+        self.assertEqual(parse_confirmation_response('sounds good'), 'confirm')
 
     def test_confirm_keyword(self):
         self.assertEqual(parse_confirmation_response('CONFIRM'), 'confirm')
@@ -108,17 +125,23 @@ class RequiresConfirmationTests(TestCase):
 
 
 class ConfirmationMessageBuilderTests(TestCase):
-    """Tests for the confirmation message builder."""
+    """Tests for the Phase 6.6 Action/Details/Impact confirmation builder."""
 
-    def test_standard_create_task_message(self):
+    def test_standard_create_task_message_uses_explicit_format(self):
         enriched = MagicMock()
         enriched.intent_type = 'create_task'
         enriched.parameters = {'title': 'Grocery Run', 'scheduled_time': '15:00'}
 
         msg = build_crud_confirmation_message(enriched)
+        # Phase 6.6: explicit Action / Details / Impact structure.
+        self.assertIn('Action:', msg)
+        self.assertIn('Details:', msg)
+        self.assertIn('Impact:', msg)
         self.assertIn('Grocery Run', msg)
-        self.assertIn('CONFIRM', msg)
-        self.assertIn('CANCEL', msg)
+        self.assertIn('Time → 3:00 PM', msg)
+        # Phase 6.6: no legacy "Reply with" instructions.
+        self.assertNotIn('Reply with', msg)
+        self.assertNotIn('CONFIRM, CANCEL, or EDIT', msg)
 
     def test_log_weight_message(self):
         enriched = MagicMock()
@@ -126,10 +149,28 @@ class ConfirmationMessageBuilderTests(TestCase):
         enriched.parameters = {'weight': '185'}
 
         msg = build_crud_confirmation_message(enriched)
+        self.assertIn('Action:', msg)
         self.assertIn('185', msg)
-        self.assertIn('CONFIRM', msg)
+        self.assertIn('Impact:', msg)
 
-    def test_reschedule_message_includes_from_to(self):
+    def test_create_recurring_event_shows_repeats_and_magnitude(self):
+        enriched = MagicMock()
+        enriched.intent_type = 'create_event'
+        enriched.parameters = {
+            'title': 'Church',
+            'start_date': 'Sunday',
+            'start_time': '10:00',
+            'is_recurring': True,
+            'recurrence': 'weekly',
+        }
+        msg = build_crud_confirmation_message(enriched)
+        self.assertIn('Title → Church', msg)
+        self.assertIn('Day → Sunday', msg)
+        self.assertIn('Time → 10:00 AM', msg)
+        self.assertIn('Repeats → weekly', msg)
+        self.assertIn('weekly', msg.lower())
+
+    def test_reschedule_message_uses_before_after(self):
         from apps.core.ai_orchestrator.activity_reconciliation import (
             ReconciliationDecision,
             ReconciliationResult,
@@ -142,14 +183,48 @@ class ConfirmationMessageBuilderTests(TestCase):
         recon = ReconciliationResult(
             decision=ReconciliationDecision.RESCHEDULE,
             original_intent='create_task',
-            matched_object={'model': 'Task', 'id': 42, 'title': 'Workout', 'time': '06:15:00'},
+            matched_object={
+                'model': 'Task', 'id': 42,
+                'title': 'Workout', 'time': '06:15',
+            },
         )
 
         msg = build_crud_confirmation_message(enriched, recon)
         self.assertIn('Workout', msg)
-        self.assertIn('from', msg.lower())
-        self.assertIn('to', msg.lower())
-        self.assertIn('CONFIRM', msg)
+        self.assertIn('Before:', msg)
+        self.assertIn('After:', msg)
+        self.assertIn('6:15 AM', msg)
+        self.assertIn('1:30 PM', msg)
+        # Magnitude in impact line
+        self.assertIn('Impact:', msg)
+        self.assertIn('later', msg)  # 06:15 → 13:30 is "later"
+
+    def test_update_task_update_shows_before_after_not_just_new(self):
+        """Update actions must display both Before and After, never only After."""
+        from apps.core.ai_orchestrator.activity_reconciliation import (
+            ReconciliationDecision,
+            ReconciliationResult,
+        )
+        enriched = MagicMock()
+        enriched.intent_type = 'mutate_task'
+        enriched.parameters = {'scheduled_time': '14:00'}
+        recon = ReconciliationResult(
+            decision=ReconciliationDecision.RESCHEDULE,
+            original_intent='mutate_task',
+            matched_object={
+                'model': 'Task', 'id': 1,
+                'title': 'Call Mom', 'time': '12:00',
+            },
+        )
+        msg = build_crud_confirmation_message(enriched, recon)
+        self.assertIn('Before:', msg)
+        self.assertIn('After:', msg)
+        # Before must include the old time
+        before_section = msg.split('Before:')[1].split('After:')[0]
+        self.assertIn('12:00 PM', before_section)
+        # After must include the new time
+        after_section = msg.split('After:')[1]
+        self.assertIn('2:00 PM', after_section)
 
     def test_skip_message(self):
         from apps.core.ai_orchestrator.activity_reconciliation import (
@@ -159,17 +234,18 @@ class ConfirmationMessageBuilderTests(TestCase):
 
         enriched = MagicMock()
         enriched.intent_type = 'create_task'
-        enriched.parameters = {}
+        enriched.parameters = {'title': 'Workout'}
 
         recon = ReconciliationResult(
             decision=ReconciliationDecision.SKIP,
             original_intent='create_task',
             skip_message='You already have "Workout" scheduled at 6:15 AM.',
+            matched_object={'title': 'Workout', 'time': '06:15'},
         )
 
         msg = build_crud_confirmation_message(enriched, recon)
         self.assertIn('already have', msg)
-        self.assertIn('CONFIRM', msg)
+        self.assertIn('Impact:', msg)
 
     def test_confirm_ambiguous_message(self):
         from apps.core.ai_orchestrator.activity_reconciliation import (
@@ -179,7 +255,7 @@ class ConfirmationMessageBuilderTests(TestCase):
 
         enriched = MagicMock()
         enriched.intent_type = 'create_task'
-        enriched.parameters = {}
+        enriched.parameters = {'title': 'Workout'}
 
         recon = ReconciliationResult(
             decision=ReconciliationDecision.CONFIRM,
@@ -194,7 +270,81 @@ class ConfirmationMessageBuilderTests(TestCase):
         msg = build_crud_confirmation_message(enriched, recon)
         self.assertIn('Morning Workout', msg)
         self.assertIn('Evening Workout', msg)
-        self.assertIn('CONFIRM', msg)
+        self.assertIn('Action:', msg)
+
+    def test_critical_task_class_warning(self):
+        enriched = MagicMock()
+        enriched.intent_type = 'create_task'
+        enriched.parameters = {
+            'title': 'Pick up medication',
+            'due_date': 'today',
+            'commitment_level': 'critical',
+        }
+        msg = build_crud_confirmation_message(enriched)
+        self.assertIn('CRITICAL', msg)
+        self.assertIn('Time-sensitive', msg)
+
+    def test_foundational_task_class_warning(self):
+        enriched = MagicMock()
+        enriched.intent_type = 'create_task'
+        enriched.parameters = {
+            'title': 'Prayer time',
+            'commitment_level': 'foundational',
+        }
+        msg = build_crud_confirmation_message(enriched)
+        self.assertIn('FOUNDATIONAL', msg)
+        self.assertIn('today', msg.lower())
+
+    def test_flexible_task_class_no_warning(self):
+        enriched = MagicMock()
+        enriched.intent_type = 'create_task'
+        enriched.parameters = {
+            'title': 'Organize bookshelf',
+            'commitment_level': 'flexible',
+        }
+        msg = build_crud_confirmation_message(enriched)
+        self.assertNotIn('CRITICAL', msg)
+        self.assertNotIn('FOUNDATIONAL', msg)
+
+    def test_delete_event_includes_undone_warning_for_series(self):
+        enriched = MagicMock()
+        enriched.intent_type = 'mutate_calendar_event'
+        enriched.parameters = {
+            'title': 'Gym',
+            'action': 'delete',
+            'delete_series': True,
+        }
+        msg = build_crud_confirmation_message(enriched)
+        self.assertIn('Action: Delete event', msg)
+        self.assertIn('recurring', msg.lower())
+        self.assertIn('cannot be undone', msg)
+
+
+class IncompleteConfirmationTests(TestCase):
+    """Phase 6.6: hard block on incomplete confirmations."""
+
+    def test_create_task_without_title_raises(self):
+        enriched = MagicMock()
+        enriched.intent_type = 'create_task'
+        enriched.parameters = {'scheduled_time': '15:00'}  # no title
+        with self.assertRaises(IncompleteConfirmationError) as ctx:
+            build_structured_confirmation(enriched)
+        self.assertIn('title', ctx.exception.missing_fields)
+
+    def test_log_weight_without_value_raises(self):
+        enriched = MagicMock()
+        enriched.intent_type = 'log_weight'
+        enriched.parameters = {}  # no weight
+        with self.assertRaises(IncompleteConfirmationError):
+            build_structured_confirmation(enriched)
+
+    def test_create_task_with_title_passes(self):
+        enriched = MagicMock()
+        enriched.intent_type = 'create_task'
+        enriched.parameters = {'title': 'Ok'}
+        msg, opts = build_structured_confirmation(enriched)
+        self.assertIn('Action:', msg)
+        self.assertEqual(len(opts), 3)
 
 
 class HandleCrudConfirmationTests(TestCase):
@@ -314,23 +464,24 @@ class ParseOptionResponseTests(TestCase):
     """Tests for A/B/C option key parsing in confirmations."""
 
     def setUp(self):
+        # Phase 6.6 canonical layout: A=Confirm, B=Edit, C=Cancel
         self.options = [
-            {'key': 'A', 'label': 'Sounds good', 'action': 'confirm'},
-            {'key': 'B', 'label': 'Never mind', 'action': 'cancel'},
-            {'key': 'C', 'label': 'Change something', 'action': 'edit'},
+            {'key': 'A', 'label': 'Confirm', 'action': 'confirm', 'style': 'primary'},
+            {'key': 'B', 'label': 'Edit', 'action': 'edit', 'style': 'secondary'},
+            {'key': 'C', 'label': 'Cancel', 'action': 'cancel', 'style': 'danger'},
         ]
 
     def test_letter_a_maps_to_confirm(self):
         result = parse_confirmation_response('A', options=self.options)
         self.assertEqual(result, 'confirm')
 
-    def test_letter_b_maps_to_cancel(self):
+    def test_letter_b_maps_to_edit(self):
         result = parse_confirmation_response('B', options=self.options)
-        self.assertEqual(result, 'cancel')
-
-    def test_letter_c_maps_to_edit(self):
-        result = parse_confirmation_response('C', options=self.options)
         self.assertEqual(result, 'edit')
+
+    def test_letter_c_maps_to_cancel(self):
+        result = parse_confirmation_response('C', options=self.options)
+        self.assertEqual(result, 'cancel')
 
     def test_lowercase_letter(self):
         result = parse_confirmation_response('a', options=self.options)
@@ -338,7 +489,7 @@ class ParseOptionResponseTests(TestCase):
 
     def test_letter_with_whitespace(self):
         result = parse_confirmation_response('  b  ', options=self.options)
-        self.assertEqual(result, 'cancel')
+        self.assertEqual(result, 'edit')
 
     def test_legacy_confirm_still_works_with_options(self):
         """CONFIRM keyword should still work even when options are present."""
@@ -369,9 +520,6 @@ class StructuredConfirmationBuilderTests(TestCase):
     """Tests for the build_structured_confirmation function."""
 
     def test_returns_tuple_of_text_and_options(self):
-        from apps.core.ai_orchestrator.crud_confirmation import (
-            build_structured_confirmation,
-        )
         enriched = MagicMock()
         enriched.intent_type = 'create_task'
         enriched.parameters = {'title': 'Workout'}
@@ -381,10 +529,7 @@ class StructuredConfirmationBuilderTests(TestCase):
         self.assertIsInstance(options, list)
         self.assertGreater(len(options), 0)
 
-    def test_options_have_required_keys(self):
-        from apps.core.ai_orchestrator.crud_confirmation import (
-            build_structured_confirmation,
-        )
+    def test_options_have_required_keys_and_styles(self):
         enriched = MagicMock()
         enriched.intent_type = 'log_weight'
         enriched.parameters = {'weight': '185'}
@@ -394,11 +539,26 @@ class StructuredConfirmationBuilderTests(TestCase):
             self.assertIn('key', opt)
             self.assertIn('label', opt)
             self.assertIn('action', opt)
+            self.assertIn('style', opt)
+
+    def test_options_match_phase66_layout(self):
+        """A·Confirm (primary) / B·Edit (secondary) / C·Cancel (danger)."""
+        enriched = MagicMock()
+        enriched.intent_type = 'create_task'
+        enriched.parameters = {'title': 'Ok'}
+        _, options = build_structured_confirmation(enriched)
+        self.assertEqual(len(options), 3)
+        self.assertEqual(options[0]['key'], 'A')
+        self.assertEqual(options[0]['action'], 'confirm')
+        self.assertEqual(options[0]['style'], 'primary')
+        self.assertEqual(options[1]['key'], 'B')
+        self.assertEqual(options[1]['action'], 'edit')
+        self.assertEqual(options[1]['style'], 'secondary')
+        self.assertEqual(options[2]['key'], 'C')
+        self.assertEqual(options[2]['action'], 'cancel')
+        self.assertEqual(options[2]['style'], 'danger')
 
     def test_suggestion_marks_is_suggested(self):
-        from apps.core.ai_orchestrator.crud_confirmation import (
-            build_structured_confirmation,
-        )
         enriched = MagicMock()
         enriched.intent_type = 'log_heart_rate'
         enriched.parameters = {'bpm': 72}

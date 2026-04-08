@@ -6,6 +6,57 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-08 — Phase 6 Fix 5: add sleep_trend + sleep_quality_avg_7d writers
+
+**What:** Two sleep state keys were read by 5 production sites but
+never written by any state builder. Every reader fell back to a
+default (`'stable'` for `sleep_trend`, `None` for
+`sleep_quality_avg_7d`), silently masking real sleep degradation.
+
+**Read sites (all confirmed orphan before fix):**
+- `apps/core/ai_orchestrator/cos_context.py:427`
+- `apps/core/ai_insights/rules_cross_domain.py:188` (OvertrainingRisk)
+- `apps/core/ai_insights/rules_cross_domain.py:532` (Recovery)
+- `apps/ai/deterministic_router.py:2276`
+- `apps/ai/services.py:1480` (AI context builder)
+- `apps/ai/deterministic_health_summary.py:202`
+
+**Vocabulary:** chosen to match existing consumers. `rules_cross_domain.py:191`
+checks `if sleep_trend != "decreasing":`, `services.py:204` checks
+`if trend and trend != 'insufficient_data':`. So the writer emits:
+`"increasing"`, `"decreasing"`, `"stable"`, or `"insufficient_data"`.
+
+**Algorithm:**
+- `sleep_quality_avg_7d`: average of `SleepEntry.quality_score`
+  (0-100) over 7-day window; falls back to `quality_rating` (1-5)
+  rescaled to 0-100 when quality_score is missing.
+- `sleep_trend`: compares first-half vs second-half of the 7-day
+  window by average `total_duration_minutes`. Threshold ±15 minutes
+  to call a direction (prevents flapping on day-to-day variance).
+  Requires at least 4 entries in the window; otherwise returns
+  `"insufficient_data"`.
+
+**Live Danny (user 1, 2026-04-08, post-fix):**
+- `sleep_avg_hours_7d: 6.7`
+- `sleep_consistency_score: 43`
+- `sleep_entries_7d: 7`
+- `sleep_good_nights_7d: 3`
+- `sleep_quality_avg_7d: 85.7` (was missing)
+- `sleep_trend: 'decreasing'` (was missing, defaulted to 'stable')
+
+Danny's sleep is genuinely trending down (6.7h average, 3/7 good
+nights). The OvertrainingRisk insight rule at
+`rules_cross_domain.py:191` will now fire for him when workouts ≥ 5,
+which was the intended behavior all along.
+
+**Files:**
+- `apps/core/ai_state/state_builder.py:229` (inside build_health_state)
+
+**Scope:** Bug fix only. No schema changes, no migration. Phase 6
+system normalization pass — final fix in the series.
+
+---
+
 ## 2026-04-08 — Phase 6 Fix 4: un-gate nutrition 7d averages + compliance on zero-entry days
 
 **What:** `build_nutrition_state` wrapped both today's totals and the

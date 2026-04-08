@@ -969,21 +969,56 @@ def build_journal_state(user):
 # ── Nutrition State ──────────────────────────────────────────────
 
 
+def _nutrition_enabled_for(user):
+    """
+    True iff the user has the nutrition sub-feature enabled.
+
+    Disabled when EITHER:
+      - The parent Health module is off, OR
+      - The 'nutrition' sub-feature toggle under Health is off.
+
+    Phase 5 feature gating enforcement (2026-04-08). Mirrors the
+    existing _fasting_enabled_for pattern.
+    """
+    prefs = getattr(user, "preferences", None)
+    if prefs is None:
+        return False
+    if not getattr(prefs, "health_enabled", True):
+        return False
+    try:
+        return prefs.is_feature_enabled("health", "nutrition")
+    except Exception:
+        logger.warning(
+            "Nutrition feature-flag check failed for user %s", user.pk,
+            exc_info=True,
+        )
+        return True  # fail-open
+
+
 def build_nutrition_state(user):
     """
     Build nutrition state from actual database records.
 
     Returns:
         dict with daily intake, targets, compliance, rolling averages.
+        If the user has nutrition disabled (parent or sub-feature),
+        returns {"enabled": False} and nothing else. This prevents
+        disabled-domain leakage into insight rules and CoS context.
     """
     from django.db.models import Avg, Sum
 
     from apps.health.models import DailyNutritionSummary, FoodEntry, NutritionGoals
     from apps.health.services.nutrition_queries import NutritionQueries
 
+    # Phase 5 feature gating: if nutrition is disabled at the user's
+    # preference level, return minimal state. This mirrors the
+    # existing fasting gate in build_fasting_state.
+    if not _nutrition_enabled_for(user):
+        return {"enabled": False}
+
     now = get_current_time()
     today = now.date()
-    state = {}
+    state = {"enabled": True}
 
     # ── Today's intake (canonical contract) ──────────────────────
     # Phase 6 audit fix (2026-04-08): always populate daily_* keys

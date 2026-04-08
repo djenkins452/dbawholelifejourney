@@ -281,8 +281,10 @@ class StreamDisconnectPersistenceTests(TestCase):
 
 
 class DuplicateRequestSuppressionTests(TestCase):
-    """Phase 6.7: a second in-flight request for the same (user, message)
-    must return a processing note instead of starting a second execution."""
+    """Phase 6.7 + 6.8: a second in-flight request for the same
+    (user, message) must return a STRUCTURED duplicate payload (not a
+    plain "still working on it" string) so the frontend can render a
+    dedicated card with the original message + a recovery action."""
 
     def setUp(self):
         cache.clear()
@@ -308,7 +310,6 @@ class DuplicateRequestSuppressionTests(TestCase):
             )
             events = list(gen)
 
-        # The suppression path yields a token + done with status=processing
         done_events = [
             e for e in events
             if isinstance(e, dict) and e.get('type') == 'done'
@@ -320,3 +321,181 @@ class DuplicateRequestSuppressionTests(TestCase):
         self.assertEqual(
             done_events[0]['data'].get('request_id'), 'old-request-id',
         )
+
+    def test_duplicate_payload_is_structured(self):
+        """Phase 6.8: the duplicate-suppression event must be a
+        'duplicate_pending' type carrying original_message, request_id,
+        status, and pending_seconds_ago."""
+        from apps.ai.personal_assistant import PersonalAssistant
+
+        mark_in_flight(self.user.id, 'check the diff', 'inflight-xyz')
+
+        assistant = PersonalAssistant(self.user)
+        conversation = assistant.get_or_create_conversation()
+
+        with patch('apps.ai.personal_assistant.ai_service') as mock_ai:
+            mock_ai.is_available = False
+            events = list(assistant.send_message_stream(
+                message='check the diff',
+                conversation=conversation,
+            ))
+
+        dup_events = [
+            e for e in events
+            if isinstance(e, dict) and e.get('type') == 'duplicate_pending'
+        ]
+        self.assertEqual(len(dup_events), 1)
+        payload = dup_events[0]['data']
+        self.assertTrue(payload.get('duplicate_suppressed'))
+        self.assertEqual(payload.get('status'), 'processing')
+        self.assertEqual(payload.get('request_id'), 'inflight-xyz')
+        self.assertEqual(payload.get('original_message'), 'check the diff')
+        self.assertIn('pending_seconds_ago', payload)
+        self.assertIsInstance(payload['pending_seconds_ago'], int)
+        self.assertGreaterEqual(payload['pending_seconds_ago'], 0)
+        self.assertIn('submitted_at_ms', payload)
+
+    def test_no_vague_text_fallback_in_duplicate_path(self):
+        """Phase 6.8: the duplicate path must NOT yield a free-text
+        token event with the old vague 'Still working on it' message."""
+        from apps.ai.personal_assistant import PersonalAssistant
+
+        mark_in_flight(self.user.id, 'no vague text', 'inflight-1')
+        assistant = PersonalAssistant(self.user)
+        conversation = assistant.get_or_create_conversation()
+
+        with patch('apps.ai.personal_assistant.ai_service') as mock_ai:
+            mock_ai.is_available = False
+            events = list(assistant.send_message_stream(
+                message='no vague text',
+                conversation=conversation,
+            ))
+
+        token_events = [
+            e for e in events
+            if isinstance(e, dict) and e.get('type') == 'token'
+        ]
+        # The duplicate-suppression branch must NOT emit any token
+        # events — only duplicate_pending + done.
+        for tok in token_events:
+            self.assertNotIn(
+                'Still working',
+                tok.get('content', ''),
+            )
+        # Affirmatively: there should be zero token events.
+        self.assertEqual(
+            len(token_events), 0,
+            'Duplicate path emitted token events instead of '
+            'a structured duplicate_pending event',
+        )
+
+
+class InFlightMarkerSchemaTests(TestCase):
+    """Phase 6.8: the in-flight marker carries original_message and
+    submitted_at_ms so the duplicate-pending card can echo the request
+    text and render 'submitted Xs ago'."""
+
+    def setUp(self):
+        cache.clear()
+
+    def test_marker_carries_original_message(self):
+        mark_in_flight(11, 'log my workout', 'req-workout')
+        marker = is_in_flight(11, 'log my workout')
+        self.assertEqual(marker['original_message'], 'log my workout')
+
+    def test_marker_carries_submitted_at_ms(self):
+        import time
+        before = int(time.time() * 1000)
+        mark_in_flight(12, 'add a task', 'req-task')
+        after = int(time.time() * 1000)
+        marker = is_in_flight(12, 'add a task')
+        self.assertIn('submitted_at_ms', marker)
+        self.assertGreaterEqual(marker['submitted_at_ms'], before)
+        self.assertLessEqual(marker['submitted_at_ms'], after)
+
+    def test_rapid_resubmissions_overwrite_marker(self):
+        """Multiple rapid submissions for the same (user, message)
+        should converge on the most recent marker — not stack or
+        deadlock — so the duplicate card always shows the latest
+        submitted_at."""
+        import time
+        mark_in_flight(13, 'rapid send', 'req-1')
+        first = is_in_flight(13, 'rapid send')
+        time.sleep(0.01)
+        mark_in_flight(13, 'rapid send', 'req-2')
+        time.sleep(0.01)
+        mark_in_flight(13, 'rapid send', 'req-3')
+        latest = is_in_flight(13, 'rapid send')
+        self.assertEqual(latest['request_id'], 'req-3')
+        self.assertGreaterEqual(
+            latest['submitted_at_ms'], first['submitted_at_ms'],
+        )
+
+
+class LifecycleHistorySurfaceTests(TestCase):
+    """Phase 6.8: the history endpoint must surface the lifecycle
+    metadata (request_id, status, stream_interrupted) so the frontend
+    can render the correct status badge for every assistant message."""
+
+    def setUp(self):
+        self.user = _make_user('lifecycle_history@test.com')
+
+    def test_history_payload_includes_lifecycle_for_assistant_msgs(self):
+        from django.test import Client
+        conv = AssistantConversation.objects.create(user=self.user)
+        AssistantMessage.objects.create(
+            conversation=conv, role='user', content='hi',
+            message_type='text',
+        )
+        AssistantMessage.objects.create(
+            conversation=conv, role='assistant',
+            content='Hello back.',
+            message_type='text',
+            metadata={
+                'request_id': 'lifecycle-req-1',
+                'status': 'completed',
+                'stream_interrupted': True,
+                'intent_locked': False,
+            },
+        )
+
+        client = Client()
+        client.force_login(self.user)
+        resp = client.get('/assistant/api/history/')
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.json()
+        self.assertTrue(payload.get('success'))
+        # Find the assistant message and verify the lifecycle dict
+        assistant_msgs = [
+            m for m in payload['messages'] if m['role'] == 'assistant'
+        ]
+        self.assertGreater(len(assistant_msgs), 0)
+        target = next(
+            (m for m in assistant_msgs
+             if (m.get('lifecycle') or {}).get('request_id') == 'lifecycle-req-1'),
+            None,
+        )
+        self.assertIsNotNone(
+            target,
+            'Assistant message lifecycle metadata not surfaced in history',
+        )
+        lc = target['lifecycle']
+        self.assertEqual(lc['status'], 'completed')
+        self.assertTrue(lc['stream_interrupted'])
+
+    def test_history_payload_omits_lifecycle_for_user_msgs(self):
+        """User messages should not carry a lifecycle dict (it's an
+        assistant-only concept)."""
+        from django.test import Client
+        conv = AssistantConversation.objects.create(user=self.user)
+        AssistantMessage.objects.create(
+            conversation=conv, role='user', content='another',
+            message_type='text',
+        )
+        client = Client()
+        client.force_login(self.user)
+        resp = client.get('/assistant/api/history/')
+        payload = resp.json()
+        for m in payload['messages']:
+            if m['role'] == 'user':
+                self.assertNotIn('lifecycle', m)

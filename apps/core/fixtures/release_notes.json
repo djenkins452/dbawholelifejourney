@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 186,
+    "fields": {
+      "title": "You'll always know what happened to your last request",
+      "description": "Every assistant reply now shows a clear status badge so you never have to wonder. Replies that completed in the background while you were on another tab show 'Completed while you were away' with a subtle amber border so they stand out from fresh responses. Failed requests show 'Couldn't finish — try again'. If you accidentally hit Send twice while your last request is still working, instead of a vague message you'll see a dedicated card showing exactly what you asked, how long ago you submitted it, and a 'View latest result' button you can tap to grab the answer the moment it's ready.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-04-08",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-04-08T16:00:00Z",
+      "updated_at": "2026-04-08T16:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 185,
     "fields": {
       "title": "Your request keeps working even when you navigate away",

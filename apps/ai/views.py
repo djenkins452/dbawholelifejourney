@@ -1028,6 +1028,15 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
                                 f"event: correction\n"
                                 f"data: {json.dumps({'content': event['content']})}\n\n"
                             )
+                        elif event['type'] == 'duplicate_pending':
+                            # Phase 6.8: structured duplicate-suppression
+                            # payload — frontend renders a dedicated card
+                            # echoing the original message with a "View
+                            # latest result" button.
+                            yield (
+                                f"event: duplicate_pending\n"
+                                f"data: {json.dumps(event['data'])}\n\n"
+                            )
                         elif event['type'] == 'error':
                             yield (
                                 f"event: error\n"

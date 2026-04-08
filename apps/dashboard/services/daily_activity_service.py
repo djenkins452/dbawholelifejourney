@@ -229,18 +229,23 @@ class DailyActivityService:
         """Bible reading completions today."""
         from apps.faith.models import UserReadingProgress
 
+        # Phase 7 Fix: ReadingPlanTemplate has no `name` field; the
+        # actual field is `title`. Also removed `plan_day` from
+        # select_related — it wasn't being used in the output and
+        # its interaction with .only() raised "cannot be both
+        # deferred and traversed". (Audit 2026-04-08.)
         readings = UserReadingProgress.objects.filter(
             user=user,
             is_completed=True,
             completed_at__date=date,
-        ).select_related('user_plan__template', 'plan_day').only(
-            'pk', 'completed_at', 'user_plan__template__name',
+        ).select_related('user_plan__template').only(
+            'pk', 'completed_at', 'user_plan__template__title',
         )
 
         return [
             {
                 'timestamp': reading.completed_at,
-                'title': f"Bible Reading: {reading.user_plan.template.name}",
+                'title': f"Bible Reading: {reading.user_plan.template.title}",
                 'domain': 'faith',
                 'source_type': 'reading_progress',
                 'source_id': str(reading.pk),
@@ -342,10 +347,13 @@ class DailyActivityService:
         """Sleep records for today (sleep_date = last night's sleep)."""
         from apps.health.models import SleepEntry
 
+        # Phase 7 Fix: SleepEntry has no `total_minutes` field; the
+        # actual field is `total_duration_minutes`. This was raising
+        # FieldError at every dashboard load. (Audit 2026-04-08.)
         entries = SleepEntry.objects.filter(
             user=user,
             sleep_date=date,
-        ).only('pk', 'recorded_at', 'total_minutes')
+        ).only('pk', 'recorded_at', 'total_duration_minutes')
 
         return [
             {
@@ -353,7 +361,10 @@ class DailyActivityService:
                     dt.datetime.combine(date, dt.time(7, 0)),
                     tz_utils.get_current_timezone(),
                 ),
-                'title': f"Sleep: {entry.total_minutes // 60}h {entry.total_minutes % 60}m" if entry.total_minutes else "Sleep logged",
+                'title': (
+                    f"Sleep: {entry.total_duration_minutes // 60}h "
+                    f"{entry.total_duration_minutes % 60}m"
+                ) if entry.total_duration_minutes else "Sleep logged",
                 'domain': 'health',
                 'source_type': 'sleep_entry',
                 'source_id': str(entry.pk),

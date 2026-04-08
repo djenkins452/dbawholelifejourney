@@ -304,6 +304,7 @@ def _build_health_section(state):
     """Section 5: Health considerations."""
     parts = []
     health = state.get("health", {})
+    medicine = state.get("medicine", {})
 
     weight_trend = health.get("weight_trend")
     if weight_trend and weight_trend != "stable":
@@ -313,7 +314,9 @@ def _build_health_section(state):
     if sleep and sleep < 6.5:
         parts.append(f"Sleep averaging {sleep:.1f}h — below optimal.")
 
-    med = health.get("medication_adherence_pct")
+    # Phase 7 Fix: medication adherence lives on medicine state, not
+    # health state. Reading from the correct domain. (Audit 2026-04-08.)
+    med = medicine.get("adherence_7d")
     if med is not None and med < 80:
         parts.append(f"Medication adherence at {med}% — needs attention.")
 

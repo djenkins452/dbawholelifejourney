@@ -132,20 +132,25 @@ def _get_scheduled_items(user, today) -> List[dict]:
             days_of_week__contains=dow,
         ).select_related('routine').order_by('scheduled_time')
 
+        # Phase 7 Fix: RoutineSchedule has no `duration_minutes` field
+        # (it has grace_period_minutes, which is a different semantic
+        # — how long after scheduled_time you have before the task is
+        # considered late). Fall back to DEFAULT_ITEM_DURATION for all
+        # routine items. (Audit 2026-04-08.)
         items = []
         for s in schedules:
             if s.scheduled_time:
                 items.append({
                     'name': s.name,
                     'scheduled_time': s.scheduled_time,
-                    'duration_minutes': s.duration_minutes or DEFAULT_ITEM_DURATION,
+                    'duration_minutes': DEFAULT_ITEM_DURATION,
                     'domain': s.activity_type or 'routine',
                     'schedule_id': s.id,
                 })
 
         return items
-    except Exception as e:
-        logger.debug("Failed to get scheduled items: %s", e)
+    except Exception:
+        logger.warning("Failed to get scheduled items", exc_info=True)
         return []
 
 

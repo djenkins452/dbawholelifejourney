@@ -182,9 +182,13 @@ class OvertrainingRiskRule(CrossDomainRule):
     def evaluate(self, user, event):
         state = self._get_state(user, event)
         health = state.get("health", {})
+        fitness = state.get("fitness", {})
 
         sleep_avg = health.get("sleep_avg_hours_7d", 8)
-        workout_count_7d = health.get("workout_count_7d", 0)
+        # Phase 7 Fix: workout_count_7d does not exist on health state.
+        # The canonical workout count lives on fitness state as
+        # workouts_7d. Read from the correct domain (audit 2026-04-08).
+        workout_count_7d = fitness.get("workouts_7d", 0)
         sleep_trend = health.get("sleep_trend", "stable")
 
         # Need declining sleep and high workout frequency
@@ -390,9 +394,18 @@ class ComplianceRiskRule(CrossDomainRule):
     def evaluate(self, user, event):
         state = self._get_state(user, event)
         health = state.get("health", {})
+        medicine = state.get("medicine", {})
 
         weight_trend = health.get("weight_trend", "stable")
-        med_adherence = health.get("medication_adherence_pct", 100)
+        # Phase 7 Fix: medication_adherence_pct does not exist on health
+        # state. The canonical medication adherence lives on medicine
+        # state as adherence_7d (0-100 int, meds-only after Phase 6
+        # Fix 2). Read from the correct domain. If adherence is None
+        # (user has no medications), do not fire a compliance-risk
+        # insight. (Audit 2026-04-08.)
+        med_adherence = medicine.get("adherence_7d")
+        if med_adherence is None:
+            return []
 
         if weight_trend not in ("increasing", "up"):
             return []

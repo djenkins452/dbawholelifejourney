@@ -119,9 +119,24 @@ class MotivationDriftRule(CrossDomainRule):
         journal = state.get("journal", {})
         goals = state.get("goals", {})
 
+        # Phase 5: guard against fabricating insights from defaulted
+        # signals. If either the journal or goals module is disabled,
+        # state builders return {"enabled": False} and every .get()
+        # below would fall back to a "perfect" default (1.0 / 0 / stable),
+        # silently firing a motivation_drift insight against a user
+        # who never even uses goals or journaling.
+        if journal.get("enabled") is False or goals.get("enabled") is False:
+            return []
+
         mood_trend = journal.get("mood_trend", "stable")
-        goal_progress = goals.get("avg_completion_rate", 1.0)
+        goal_progress = goals.get("avg_completion_rate")
         overdue = goals.get("overdue_goal_count", 0)
+
+        # If we don't have actual goal progress data, we can't
+        # conclude "progress is falling". Bail rather than defaulting
+        # to 1.0 which hides missing data as perfect.
+        if goal_progress is None:
+            return []
 
         if mood_trend not in ("declining", "decreasing"):
             return []
@@ -183,9 +198,22 @@ class OvertrainingRiskRule(CrossDomainRule):
         state = self._get_state(user, event)
         health = state.get("health", {})
 
-        sleep_avg = health.get("sleep_avg_hours_7d", 8)
-        workout_count_7d = health.get("workout_count_7d", 0)
-        sleep_trend = health.get("sleep_trend", "stable")
+        # Phase 5: bail if the health module is disabled. Without this
+        # guard, the defaults below (sleep_avg=8, workout_count=0,
+        # sleep_trend="stable") make the rule look like a perfectly
+        # rested user — which is fine — but still exercises the whole
+        # evaluation path for disabled users.
+        if health.get("enabled") is False:
+            return []
+
+        sleep_avg = health.get("sleep_avg_hours_7d")
+        workout_count_7d = health.get("workout_count_7d")
+        sleep_trend = health.get("sleep_trend")
+
+        # Require actual data for every input. If any is missing we
+        # can't honestly conclude overtraining risk.
+        if sleep_avg is None or workout_count_7d is None or sleep_trend is None:
+            return []
 
         # Need declining sleep and high workout frequency
         if sleep_avg >= 6.5 and sleep_trend != "decreasing":
@@ -391,6 +419,12 @@ class ComplianceRiskRule(CrossDomainRule):
         state = self._get_state(user, event)
         health = state.get("health", {})
         medicine = state.get("medicine", {})
+
+        # Phase 5: bail early if either domain is disabled. Without
+        # this, the old default pattern (weight_trend="stable",
+        # adherence_7d=None) would still exercise the full rule path.
+        if health.get("enabled") is False or medicine.get("enabled") is False:
+            return []
 
         weight_trend = health.get("weight_trend", "stable")
         # Phase 4: medication adherence lives under the `medicine` module

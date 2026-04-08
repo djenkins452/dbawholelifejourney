@@ -43,7 +43,17 @@ def build_health_state(user):
 
     Returns:
         dict with weight, body fat, sleep, steps, vitals summaries.
+
+    Phase 5: Gated on `health_enabled`. When disabled we return
+    {"enabled": False} immediately, skipping ~69 DB queries and
+    preventing ghost signals (sleep_trend, body_fat_trend, weight
+    trends) from reaching insight rules that would fire false
+    positives on defaulted values.
     """
+    from apps.core.ai_state.domain_gating import is_domain_enabled
+    if not is_domain_enabled(user, "health"):
+        return {"enabled": False}
+
     from apps.health.models import (
         BloodPressureEntry,
         BodyCompositionEntry,
@@ -53,7 +63,7 @@ def build_health_state(user):
     )
 
     now = get_current_time()
-    state = {}
+    state = {"enabled": True}
 
     # ── Weight ──────────────────────────────────────────────
     latest_weight = (
@@ -1021,7 +1031,18 @@ def build_nutrition_state(user):
 
     Returns:
         dict with daily intake, targets, compliance, rolling averages.
+
+    Phase 5: Gated on the `features.health.nutrition` sub-feature.
+    When disabled we return {"enabled": False} immediately so readers
+    (cos_context, insight rules) can bail without fabricating zero
+    values that look like "user ate nothing today". This closes the
+    Phase 5 gate that was announced in an earlier changelog but never
+    committed (same phantom-fix pattern as Phase 6 Fix 5 sleep_trend).
     """
+    from apps.core.ai_state.domain_gating import is_domain_enabled
+    if not is_domain_enabled(user, "health", feature="nutrition"):
+        return {"enabled": False}
+
     from django.db.models import Avg, Sum
 
     from apps.health.models import DailyNutritionSummary, FoodEntry, NutritionGoals
@@ -1029,7 +1050,7 @@ def build_nutrition_state(user):
 
     now = get_current_time()
     today = now.date()
-    state = {}
+    state = {"enabled": True}
 
     # ── Today's intake (canonical contract) ──────────────────────
     today_entries = NutritionQueries.entries_on_date(user, today)
@@ -3127,8 +3148,17 @@ def build_finance_state(user):
 
     _contract is primary. Flat keys minimal.
     See docs/SAE_STATE_CONTRACT.md.
+
+    Phase 5: Gated on `finances_enabled` (UserPreferences field —
+    note the plural). When disabled we return {"enabled": False}
+    immediately so the cache reflects the disabled state and
+    insight rules don't default to "zero spend".
     """
-    state = {}
+    prefs = getattr(user, 'preferences', None)
+    if prefs is None or not getattr(prefs, 'finances_enabled', False):
+        return {"enabled": False}
+
+    state = {"enabled": True}
     try:
         from apps.core.utils import get_user_today
         from apps.finance.models import (

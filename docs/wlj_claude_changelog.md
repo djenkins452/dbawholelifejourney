@@ -6,6 +6,143 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-08 — Phase 5 Feature Gating & Domain Integrity
+
+**What:** Closes the feature-gating gaps identified in the Phase 5
+audit. Three state builders (nutrition, health, finance) now return
+`{"enabled": False}` when their module or sub-feature flag is off,
+and five insight rules now bail early instead of fabricating
+"perfect" insights from defaulted values when a domain is disabled.
+
+**Why:** A previous changelog entry ("Phase 5 — Feature gating
+enforcement") claimed to have gated nutrition on
+`features.health.nutrition`, but the code change was never
+committed — same phantom-fix pattern we hit with Phase 6 Fix 1
+(adherence double-scale) and Phase 6 Fix 5 (sleep_trend writer).
+Meanwhile, several insight rules used `.get(key, <safe_default>)`
+patterns that silently fabricated "100% goal progress", "perfect
+medication adherence", or "zero overtraining risk" whenever a
+domain was disabled — firing false positive insights for users who
+had intentionally turned off a module.
+
+**Builders gated:**
+
+1. **`build_nutrition_state`** — `is_domain_enabled(user, "health",
+   feature="nutrition")`. This closes the announced-but-never-
+   committed Phase 5 gate.
+
+2. **`build_health_state`** — `is_domain_enabled(user, "health")`.
+   Skips ~69 DB queries when disabled and prevents Phase 3's new
+   sleep_trend / body_fat_trend / weight_trend / waist_trend
+   signals from leaking into insight rules as defaulted values.
+
+3. **`build_finance_state`** — checks `prefs.finances_enabled`
+   directly (finance isn't in the health-family domain_gating map).
+
+All three now write `{"enabled": True/False}` as the first key in
+their return dict, matching the contract established by
+`build_fasting_state`.
+
+**Insight rules hardened** (no more `get(key, <default>)` patterns
+that mask disabled domains):
+
+4. **`rules_cross_domain.py:MotivationDriftRule`** — bails on
+   disabled `goals` or `journal`. Also removes the `1.0` default
+   for `avg_completion_rate` — missing goal data now cleanly bails
+   instead of being treated as "100% perfect progress".
+
+5. **`rules_cross_domain.py:OvertrainingRiskRule`** — bails on
+   disabled `health`. Requires explicit `sleep_avg`,
+   `workout_count_7d`, and `sleep_trend` values (no more
+   `sleep_avg=8 / workouts=0 / trend="stable"` defaults that
+   fabricated a perfectly-rested baseline).
+
+6. **`rules_cross_domain.py:ComplianceRiskRule`** — bails on
+   disabled `health` or `medicine`. Complements the Phase 4 fix
+   that re-pointed this rule at the correct `medicine.adherence_7d`
+   key.
+
+7. **`rules_transformation.py:FastingConsistencyRule`** — bails on
+   disabled `fasting` (explicit guard, even though the builder
+   already handles it — defensive).
+
+8. **`rules_transformation.py:WorkoutConsistencyRule`** — bails
+   on disabled `health` (fitness data flows from the health
+   module, so health=off means any `fitness.workouts_7d` default
+   is fake).
+
+**Reader gates added:**
+
+9. **`cos_context.py`** `_build_nutrition_tracking_context` now
+   checks `nutrition_state.get("enabled") is False` and returns
+   an empty dict — prevents leaking empty macro targets and
+   supplement bridges when nutrition tracking is off.
+
+10. **`deterministic_health_summary.py`** — returns a clear
+    "Health tracking is turned off" message when the builder
+    reports disabled, instead of producing an empty summary.
+
+**Explicitly NOT touched** (hygiene, not bugs):
+- `build_faith_state`, `build_journal_state`, `build_goal_state`,
+  `build_habit_state`, `build_fitness_state` — all still ungated.
+  Adding gates here would be prophylactic; none are causing current
+  production bugs and Danny has all of them enabled. Deferred.
+- UI templates / tile builders — no evidence of ghost tiles
+  surfaced in this audit; the signal pipeline is the fix surface.
+- Rule defaults for non-gating signals (e.g. `mood_trend="stable"`
+  as a safe neutral baseline when data genuinely exists but is
+  mixed) — left alone.
+
+**Files:**
+- `apps/core/ai_state/state_builder.py` — 3 builder gates
+  (nutrition, health, finance) using the existing
+  `is_domain_enabled` helper + direct `prefs.finances_enabled`
+  check for finance (not in the health-family map).
+- `apps/core/ai_insights/rules_cross_domain.py` — 3 rule guards
+- `apps/core/ai_insights/rules_transformation.py` — 2 rule guards
+- `apps/core/ai_orchestrator/cos_context.py` — nutrition reader gate
+- `apps/ai/deterministic_health_summary.py` — health reader gate
+- `apps/core/ai_state/tests_feature_gating.py` — NEW (16 tests
+  covering all 3 builder gates + all 5 rule guards)
+
+**Validation (Danny's live dev data):**
+```
+FLAGS: health_enabled=True  finances_enabled=False  nutrition=True
+
+build_health_state:
+  enabled=True   keys=77   sleep_trend=increasing   weight=298.3  ✓ unchanged
+build_nutrition_state:
+  enabled=True   keys=9    daily_calories=None               ✓ unchanged
+build_finance_state:
+  enabled=False  keys=1                                       ✓ gated
+```
+
+Toggling `features.health.nutrition` to `False` now makes
+`build_nutrition_state` return `{"enabled": False}` instead of
+running the full query suite — a backend cleanup with no effect
+on Danny's own config.
+
+**Verification:**
+- 16 scoped tests pass in
+  `apps/core/ai_state/tests_feature_gating.py`
+- 128 broader scoped tests pass across
+  `tests_feature_gating`, `tests_signal_completion`,
+  `test_unit_consistency`, `test_crud_confirmation`,
+  `test_confirmation_escape`
+- `python manage.py check` clean
+- `python manage.py makemigrations --check --dry-run` → no changes
+
+**Scope discipline held:**
+- ✅ No architecture rewrite (`domain_gating.py` reused as-is)
+- ✅ No new signal system
+- ✅ No large refactors (all fixes ≤10 lines per site)
+- ✅ Scoped tests only
+- ✅ State writers and rule evaluators touched at the top only;
+  no downstream code changes
+- ✅ `build_fasting_state` (already gated) left untouched
+
+---
+
 ## 2026-04-08 — Phase 4 Unit Consistency & Signal Integrity
 
 **What:** Fixes four categories of signal-integrity bugs identified

@@ -265,6 +265,12 @@ class FastingConsistencyRule(BaseInsightRule):
         user_state = event.get("user_state", {})
         fasting = user_state.get("fasting", {})
 
+        # Phase 5: the fasting builder already returns {"enabled": False}
+        # for users without fasting — bail early so we don't exercise
+        # the rest of the rule.
+        if fasting.get("enabled") is False:
+            return []
+
         fasts_7d = fasting.get("fasts_7d", 0)
         compliance = fasting.get("fasting_compliance_score")
 
@@ -352,6 +358,15 @@ class WorkoutConsistencyRule(BaseInsightRule):
     def evaluate(self, user, event):
         user_state = event.get("user_state", {})
         fitness = user_state.get("fitness", {})
+        health = user_state.get("health", {})
+
+        # Phase 5: bail if the health module is disabled. `fitness`
+        # data flows from the health module, so if health is off the
+        # fitness dict will be a defaulted zero — firing a false
+        # "zero workouts" signal for users who have fitness off
+        # intentionally.
+        if health.get("enabled") is False:
+            return []
 
         workouts_7d = fitness.get("workouts_7d", 0)
         workouts_30d = fitness.get("workouts_30d", 0)

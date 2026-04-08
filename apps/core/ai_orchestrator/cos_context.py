@@ -1837,6 +1837,15 @@ def _build_nutrition_tracking_context(user):
     try:
         from apps.core.ai_state.state_engine import get_state_value, get_module_state
 
+        # Phase 5: reader gate. If the nutrition builder returned
+        # {"enabled": False} (because features.health.nutrition is off),
+        # don't expose any nutrition fields — not even empty defaults
+        # — so the LLM can't hallucinate macro coaching for a user who
+        # has nutrition tracking turned off.
+        nutrition_state = get_module_state(user, 'nutrition') or {}
+        if nutrition_state.get('enabled') is False:
+            return {}
+
         ctx = {}
         daily_cal = get_state_value(user, 'nutrition.daily_calories')
         if daily_cal is not None:

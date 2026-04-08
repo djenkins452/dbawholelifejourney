@@ -6,6 +6,101 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-08 — Phase 7 hardening: orphan signals + stale field names
+
+**What:** Second hardening pass. Fixed issues surfaced during Phase 6
+verification plus new orphan signals found in a systematic audit.
+
+### Orphan signal reads (Phase 3)
+
+Two keys were read from the wrong state domain, silently defaulting:
+
+- `rules_cross_domain.py:187 OvertrainingRiskRule` read
+  `health.get("workout_count_7d", 0)` — but workout counts live on
+  `fitness` state, not `health`. The rule never fired. Changed to
+  `fitness.get("workouts_7d", 0)`.
+- `rules_cross_domain.py:395 ComplianceRiskRule` read
+  `health.get("medication_adherence_pct", 100)` — but medication
+  adherence lives on `medicine` state. The rule always defaulted to
+  100% and never flagged non-compliance. Changed to
+  `medicine.get("adherence_7d")` with explicit None check.
+- `briefing_engine.py:316` had the same bug — changed to
+  `medicine.get("adherence_7d")`.
+
+### Unit consistency (Phase 4)
+
+- `cos_context.py:1054` tier-2 delivery-mode computed
+  `confidence * 100 >= 70`, which is mathematically the same as
+  `confidence >= 0.70` but inconsistent with tiers 3, 5, 6 which use
+  0-1 thresholds directly. Unified to `conf >= 0.70`.
+
+### Stale field names (Phase 7)
+
+Five field-name bugs that were silently swallowed by broad
+`except Exception` wrappers and only surfaced during CoS log
+inspection:
+
+1. `cos_context.py:2297` — lab trend detection iterated
+   `LabResult.objects.values_list('raw_test_name', flat=True)` (yields
+   strings) and called `lab.raw_test_name` on each string. Now
+   iterates over `name` directly with a None-guard.
+2. `cos_context.py:2384` — purpose context used `g.name` for
+   LifeGoal; the actual field is `g.title`. The entire life goals
+   block was silently dropped for every user.
+3. `cos_context.py:1949` — `DomainCorrelation.objects.filter(
+   detected_at__gte=cutoff)` — no such field. Changed to
+   `created_at__gte=cutoff`. The entire cross-domain correlations
+   block was silently dropped.
+4. `dashboard/services/daily_activity_service.py:348` — SleepEntry
+   `total_minutes` does not exist; actual field is
+   `total_duration_minutes`. Dashboard sleep collector was raising
+   FieldError on every load.
+5. `dashboard/services/daily_activity_service.py:237` — faith
+   progress collector referenced `ReadingPlanTemplate.name`; actual
+   field is `title`. Also fixed a secondary `.only()` +
+   `.select_related('plan_day')` conflict.
+6. `ai_state/time_intelligence.py:141` — `RoutineSchedule.duration_minutes`
+   does not exist. Fell back to `DEFAULT_ITEM_DURATION` for all
+   routine items; also upgraded the `except Exception: logger.debug`
+   to `logger.warning(exc_info=True)` so future field drift shows
+   up in logs.
+
+### Live Danny verification (all domains, post-hardening)
+
+```
+medicine.adherence_7d: 100         (was 68, mixed → 100 meds-only)
+medicine.supplement_adherence_7d: 30
+fitness.workouts_7d: 10
+fitness.workout_adherence_score: 100
+health.sleep_trend: decreasing     (was orphan → decreasing)
+health.sleep_quality_avg_7d: 85.7  (was orphan → 85.7)
+health.body_fat_current: 39.2
+nutrition.daily_calories: 0.0      (was missing → 0.0)
+nutrition.rolling_7d_calories_avg: 1993.5  (was missing → 1993.5)
+CoS.medication_adherence_state.adherence_pct: 100.0
+CoS.latest_labs: 10 entries        (was crashing on raw_test_name)
+CoS.life_goals: 4 entries          (was crashing on g.name)
+```
+
+Every previously-noisy WARNING log line ("ReadingPlanTemplate has
+no field", "LifeGoal object has no attribute 'name'", "SleepEntry
+has no field 'total_minutes'", "detected_at cannot be resolved",
+"RoutineSchedule has no attribute 'duration_minutes'") is gone.
+
+**Files:**
+- `apps/core/ai_insights/rules_cross_domain.py` (orphan reads)
+- `apps/core/ai_briefing/briefing_engine.py` (orphan read)
+- `apps/core/ai_orchestrator/cos_context.py` (raw_test_name,
+  g.name, detected_at, tier-2 confidence scaling)
+- `apps/dashboard/services/daily_activity_service.py`
+  (total_minutes, ReadingPlanTemplate.name, plan_day select_related)
+- `apps/core/ai_state/time_intelligence.py`
+  (RoutineSchedule.duration_minutes)
+
+**Scope:** Bug fixes only. No schema changes, no migration.
+
+---
+
 ## 2026-04-08 — Phase 6 Fix 5: add sleep_trend + sleep_quality_avg_7d writers
 
 **What:** Two sleep state keys were read by 5 production sites but

@@ -1051,8 +1051,12 @@ def _compute_delivery_mode(tier, signal):
     if tier == 1:
         return 'interrupt'
     elif tier == 2:
-        drift_score = signal.get('confidence', 0) * 100
-        return 'interrupt' if drift_score >= 70 else 'lead'
+        # Phase 7 Fix: was `confidence * 100 >= 70`, which is the same
+        # as `confidence >= 0.70` but inconsistent with every other
+        # tier (all use 0-1 thresholds like 0.80, 0.60). Unified to
+        # 0-1 threshold for clarity. (Audit 2026-04-08.)
+        conf = signal.get('confidence', 0)
+        return 'interrupt' if conf >= 0.70 else 'lead'
     elif tier == 3:
         score = signal.get('confidence', 0)
         return 'lead' if score >= 0.80 else 'support'
@@ -1937,12 +1941,15 @@ def _build_cross_domain_insights(user):
         from apps.core.ai_cross_domain.models import DomainCorrelation
         from datetime import timedelta
 
+        # Phase 7 Fix: DomainCorrelation has no `detected_at` field;
+        # use `created_at` which serves the same purpose. (Audit
+        # 2026-04-08.)
         cutoff = timezone.now() - timedelta(days=14)
         correlations = DomainCorrelation.objects.filter(
             user=user,
             status='active',
             strength__in=['strong', 'moderate'],
-            detected_at__gte=cutoff,
+            created_at__gte=cutoff,
         ).order_by('-strength_score')[:5]
 
         if not correlations:
@@ -2291,15 +2298,20 @@ def _build_medical_context(user):
             if key_metrics:
                 result['key_metrics'] = key_metrics
 
-            # Trend detection: find tests with 2+ results
+            # Trend detection: find tests with 2+ results.
+            # Phase 7 Fix: values_list('raw_test_name', flat=True)
+            # yields the raw string, not a LabResult instance, so
+            # `lab.raw_test_name` was calling .raw_test_name on a str.
+            # (Audit 2026-04-08, surfaced during Phase 6 verification.)
             from collections import Counter
             test_counts = Counter(
-                lab.raw_test_name.lower().strip()
-                for lab in LabResult.objects.filter(
+                (name or '').lower().strip()
+                for name in LabResult.objects.filter(
                     user=user,
                 ).exclude(
                     result_status='pending_review',
                 ).values_list('raw_test_name', flat=True)
+                if name
             )
             trending_tests = [t for t, c in test_counts.items() if c >= 2]
             if trending_tests:
@@ -2370,9 +2382,13 @@ def _build_purpose_context(user):
         ).order_by('target_date')[:5]
 
         if life_goals:
+            # Phase 7 Fix: LifeGoal has no `name` attribute; the
+            # actual field is `title`. This was silently broken by
+            # `except Exception: logger.debug(...)` at the outer
+            # scope. (Audit 2026-04-08.)
             result['life_goals'] = [
                 {
-                    'name': g.name,
+                    'name': g.title,
                     'target_date': g.target_date.strftime('%b %d')
                     if g.target_date else None,
                     'days_until': (g.target_date - today).days

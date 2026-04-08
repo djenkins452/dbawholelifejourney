@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 187,
+    "fields": {
+      "title": "Sharper trend detection across sleep, body comp, and workouts",
+      "description": "Your Chief of Staff can now see trends in data it was previously blind to. Sleep trends (increasing / decreasing / stable) are computed from your last 14 nights instead of always defaulting to 'stable' — meaning a run of short nights will actually surface in overtraining warnings and cross-domain insights. Body fat and waist measurements now show whether you're trending up or down over the last 30+ days. Workout recency is surfaced as 'days since last workout' so your Chief of Staff can spot gaps. Nothing changed in the UI directly — these are signals that flow into smarter insights and more accurate answers whenever you ask your Chief of Staff about recovery, fat loss, or training consistency.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-04-08",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-04-08T18:00:00Z",
+      "updated_at": "2026-04-08T18:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 186,
     "fields": {
       "title": "You'll always know what happened to your last request",

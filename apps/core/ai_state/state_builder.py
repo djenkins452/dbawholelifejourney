@@ -106,6 +106,66 @@ def build_health_state(user):
         state["body_fat_current"] = float(latest_bf[0])
         state["last_body_fat_entry"] = latest_bf[1].isoformat()
 
+        # Phase 3: body_fat_trend — compare latest to entry ≥ 30 days old.
+        # Uses a 0.5 percentage-point threshold to ignore measurement noise
+        # typical of smart scales and gym scans.
+        older_bf = (
+            BodyCompositionEntry.objects.filter(
+                user=user,
+                metric_name="body_fat_pct",
+                measurement_date__lte=(now - timedelta(days=30)).date(),
+            )
+            .order_by("-measurement_date")
+            .values_list("value", flat=True)
+            .first()
+        )
+        if older_bf is not None:
+            bf_diff = float(latest_bf[0]) - float(older_bf)
+            if abs(bf_diff) < 0.5:
+                state["body_fat_trend"] = "stable"
+            elif bf_diff > 0:
+                state["body_fat_trend"] = "increasing"
+            else:
+                state["body_fat_trend"] = "decreasing"
+        else:
+            state["body_fat_trend"] = "insufficient_data"
+
+    # Waist measurement — same BodyCompositionEntry table, metric_name="waist"
+    latest_waist = (
+        BodyCompositionEntry.objects.filter(
+            user=user, metric_name="waist"
+        )
+        .order_by("-measurement_date")
+        .values_list("value", "measurement_date")
+        .first()
+    )
+    if latest_waist:
+        state["waist_current"] = float(latest_waist[0])
+        state["last_waist_entry"] = latest_waist[1].isoformat()
+
+        # Phase 3: waist_trend — compare latest to entry ≥ 30 days old.
+        # 0.25 inch threshold keeps measurement-tape noise out of the signal.
+        older_waist = (
+            BodyCompositionEntry.objects.filter(
+                user=user,
+                metric_name="waist",
+                measurement_date__lte=(now - timedelta(days=30)).date(),
+            )
+            .order_by("-measurement_date")
+            .values_list("value", flat=True)
+            .first()
+        )
+        if older_waist is not None:
+            waist_diff = float(latest_waist[0]) - float(older_waist)
+            if abs(waist_diff) < 0.25:
+                state["waist_trend"] = "stable"
+            elif waist_diff > 0:
+                state["waist_trend"] = "increasing"
+            else:
+                state["waist_trend"] = "decreasing"
+        else:
+            state["waist_trend"] = "insufficient_data"
+
     latest_lm = (
         BodyCompositionEntry.objects.filter(
             user=user, metric_name="lean_mass"
@@ -196,6 +256,45 @@ def build_health_state(user):
         )["avg"]
         state["sleep_avg_duration_7d"] = round(float(avg_duration), 1) if avg_duration else None
         state["sleep_entries_7d"] = sleep_count
+
+        # Phase 3 (Fix): sleep_quality_avg_7d — aggregate quality_score
+        # across the last 7 days. Returns None when no entries have a
+        # score (e.g. Apple Health imports without quality data).
+        avg_quality = recent_sleep.aggregate(
+            avg=Avg("quality_score")
+        )["avg"]
+        state["sleep_quality_avg_7d"] = (
+            round(float(avg_quality), 1) if avg_quality is not None else None
+        )
+
+        # Phase 3 (Fix): sleep_trend — compare last 7 days vs prior 7.
+        # Vocabulary matches the readers in rules_cross_domain.py and
+        # ai/services.py: "increasing" / "decreasing" / "stable" /
+        # "insufficient_data". 15-min threshold avoids flagging normal
+        # night-to-night variance.
+        cutoff_14d = now - timedelta(days=14)
+        prior_sleep = SleepEntry.objects.filter(
+            user=user,
+            sleep_date__gte=cutoff_14d.date(),
+            sleep_date__lt=cutoff_7d.date(),
+        )
+        prior_count = prior_sleep.count()
+        if sleep_count >= 3 and prior_count >= 3 and avg_duration:
+            prior_avg = prior_sleep.aggregate(
+                avg=Avg("total_duration_minutes")
+            )["avg"]
+            if prior_avg is not None:
+                delta_min = float(avg_duration) - float(prior_avg)
+                if abs(delta_min) < 15:
+                    state["sleep_trend"] = "stable"
+                elif delta_min > 0:
+                    state["sleep_trend"] = "increasing"
+                else:
+                    state["sleep_trend"] = "decreasing"
+            else:
+                state["sleep_trend"] = "insufficient_data"
+        else:
+            state["sleep_trend"] = "insufficient_data"
 
         # Dashboard cockpit fields: consistency score + avg hours
         if avg_duration:
@@ -1417,6 +1516,10 @@ def build_fitness_state(user):
     )
     if last_workout:
         state["last_workout_date"] = last_workout.isoformat()
+        # Phase 3: last_workout_days_ago — surfaced directly so CoS
+        # doesn't have to re-parse the ISO string. 0 = today, 1 =
+        # yesterday, etc.
+        state["last_workout_days_ago"] = (now.date() - last_workout).days
 
     # ── Personal records (30d) ───────────────────────────────────
     state["prs_30d"] = PersonalRecord.objects.filter(

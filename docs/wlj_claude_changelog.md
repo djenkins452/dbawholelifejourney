@@ -481,6 +481,105 @@ of Phase 6 system normalization pass (unit consistency audit).
 
 ---
 
+## 2026-04-08 — Phase 3 Signal Completion (sleep/body/workout trends)
+
+**What:** Completes the signal layer so that meaningful raw data
+always produces a usable signal. Fixes the critical `sleep_trend` /
+`sleep_quality_avg_7d` orphans (Phase 6 Fix 5 was announced in an
+earlier changelog but the code was never committed) and adds four
+more low-effort/high-value trend signals.
+
+**Why:** `sleep_trend` is read in 4 places (`cos_context.py:427`,
+`rules_cross_domain.py:188`, `deterministic_router.py:2276`,
+`deterministic_health_summary.py:202`) but no state builder ever
+wrote it — every reader fell back to the default `"stable"`,
+silently masking real sleep degradation. `sleep_quality_avg_7d`
+is read by the stress-sleep cross-domain rule with a `None` fallback
+that suppresses the correlation. Several other trends
+(`body_fat_trend`, `waist_trend`, `last_workout_days_ago`) had raw
+data available but no surfaced signal.
+
+**Signals added** (all in `apps/core/ai_state/state_builder.py`):
+
+1. **`sleep_trend`** (critical fix) — in `build_health_state()`.
+   Compares the last 7 days avg `total_duration_minutes` against
+   the prior 7 days. Emits `"increasing" / "decreasing" / "stable"
+   / "insufficient_data"` matching the vocabulary the readers
+   already use. Thresholds: ≥3 entries in each window (else
+   insufficient_data), 15-minute change (else stable).
+
+2. **`sleep_quality_avg_7d`** — in `build_health_state()`. Averages
+   `SleepEntry.quality_score` across the last 7 days. `None` when no
+   entry has a score (HealthKit imports often lack it).
+
+3. **`body_fat_trend`** — in `build_health_state()`. Compares the
+   most recent `BodyCompositionEntry(metric_name='body_fat_pct')`
+   to one at least 30 days old. 0.5 percentage-point threshold.
+
+4. **`waist_trend`** (+ `waist_current`, `last_waist_entry`) — new
+   query against `BodyCompositionEntry(metric_name='waist')`.
+   0.25-inch threshold for stable.
+
+5. **`last_workout_days_ago`** — in `build_fitness_state()`, paired
+   with the existing `last_workout_date`. Integer days since the
+   most recent completed `WorkoutSession`.
+
+**Signals explicitly skipped** (would have required new architecture
+or speculative features — out of scope):
+- `volume_trend`, `strength_trend` (already written as
+  `strength_trend_score`), `overtraining_risk` (computed on-demand
+  by rules), `today_steps`, `fast_streak`, `longest_fast_7d`,
+  `missed_today`, `next_dose_in_minutes`, `progress_pct_avg`,
+  `at_risk_count`, `budget_utilization`, `prayer_streak`,
+  `stress_trend` — defer until consumers actually need them.
+
+**Files:**
+- `apps/core/ai_state/state_builder.py` — 5 new signal writers
+  (~75 lines total) in `build_health_state()` and
+  `build_fitness_state()`
+- `apps/core/ai_state/tests_signal_completion.py` — NEW (19 tests
+  covering trend classification, insufficient-data paths, quality
+  aggregation, and workout recency)
+- `docs/wlj_claude_changelog.md` — this entry
+- `apps/core/fixtures/release_notes.json` — PK 187 user-facing entry
+- `apps/core/management/commands/load_initial_data.py` —
+  `_reset_phase_3_signal_completion_fixtures` one-time loader reset
+
+**Validation (Danny's live dev data):**
+```
+sleep_trend            = increasing  (was always "stable")
+sleep_quality_avg_7d   = 85.7        (was None)
+sleep_avg_hours_7d     = 6.7
+sleep_entries_7d       = 7
+weight_trend           = decreasing  (already working)
+weight_current         = 298.3
+body_fat_current       = 39.2
+body_fat_trend         = increasing  (NEW)
+waist_current          = 55.0        (NEW)
+waist_trend            = insufficient_data  (NEW; only 1 entry)
+last_workout_days_ago  = 1           (NEW)
+last_workout_date      = 2026-04-07
+workouts_7d            = 10
+```
+CoS context (`sleep_trend` in `cos_context.health_signals`) also
+confirmed flowing through end-to-end — `sleep_quality_avg_7d = 85.7`
+appears in Danny's cached `UserState.state_data.health`, proving the
+new writer reaches the consumers that previously saw `None`.
+
+**Verification:**
+- 19 scoped tests pass in
+  `apps/core/ai_state/tests_signal_completion.py`
+- `python manage.py check` clean
+- `python manage.py makemigrations --check --dry-run` → *No changes
+  detected* (no schema changes — all new signals are dict-keyed)
+
+**Scope discipline:** No new architecture. No signal-contract
+rewrite. Pure additive writes to existing state dicts. No consumer
+code touched — the readers were already correct; they were just
+being starved.
+
+---
+
 ## 2026-04-08 — Phase 6.8 Lifecycle Visibility + Duplicate UX
 
 **What:** Surfaces the lifecycle metadata stored in Phase 6.7 in the

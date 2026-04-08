@@ -338,10 +338,14 @@ def _build_health_and_vitals(user):
         med_state = get_module_state(user, 'medicine') or {}
         if med_state.get('active_count', 0) > 0:
             adherence_7d = med_state.get('adherence_7d')
+            # SAE state.adherence_7d is already 0-100 (int) from
+            # medicine_utils.calculate_medicine_adherence_rate. Do NOT
+            # multiply by 100 — that produced adherence_pct values of
+            # 0-10000 in CoS context (Phase 6 audit, 2026-04-08).
             med_adherence = {
                 'total_scheduled': med_state.get('expected_today', 0),
                 'taken_today': med_state.get('today_taken', 0),
-                'adherence_pct': round(adherence_7d * 100, 1) if adherence_7d is not None else None,
+                'adherence_pct': round(float(adherence_7d), 1) if adherence_7d is not None else None,
             }
             # Phase 2.5: expose the 7-day behavior breakdown (previously
             # computed in SAE and silently dropped by CoS). The LLM can
@@ -362,7 +366,9 @@ def _build_health_and_vitals(user):
                 result['supplement_adherence_state'] = {
                     'supplement_count': med_state.get('supplement_count', 0),
                     'active_supplements': med_state.get('active_supplements', []),
-                    'adherence_pct': round(supp_adherence_7d * 100, 1) if supp_adherence_7d is not None else None,
+                    # supplement_adherence_7d is already 0-100 — do not
+                    # multiply. (Phase 6 audit fix, 2026-04-08.)
+                    'adherence_pct': round(float(supp_adherence_7d), 1) if supp_adherence_7d is not None else None,
                 }
     except Exception:
         logger.error("CoS context: medication adherence failed", exc_info=True)
@@ -1898,8 +1904,10 @@ def _build_nutrition_tracking_context(user):
             if supp_adherence is not None or med_state.get('supplement_count', 0) > 0:
                 ctx['supplements'] = {
                     'supplement_count': med_state.get('supplement_count', 0),
+                    # supplement_adherence_7d is already 0-100 from SAE —
+                    # do not multiply. (Phase 6 audit fix, 2026-04-08.)
                     'adherence_pct_7d': (
-                        round(supp_adherence * 100, 1)
+                        round(float(supp_adherence), 1)
                         if supp_adherence is not None else None
                     ),
                     'active_supplements': med_state.get('active_supplements', [])[:10],

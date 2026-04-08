@@ -541,11 +541,21 @@ class DailyHealthSummaryBuilder:
         return None
 
     def _collect_medication(self, user, target_date):
-        """Collect medication adherence for the day."""
+        """Collect medication adherence for the day.
+
+        Scoped to medications only (not supplements) so that
+        DailyHealthSummary.medication_adherence_pct reflects drug
+        compliance rather than a mixed med+supplement rate. Phase 6
+        audit fix, 2026-04-08.
+        """
         from apps.health.medicine_utils import calculate_medicine_adherence
+        from apps.health.models import Intake
 
         try:
-            result = calculate_medicine_adherence(user, target_date, target_date)
+            result = calculate_medicine_adherence(
+                user, target_date, target_date,
+                intake_type=Intake.INTAKE_TYPE_MEDICATION,
+            )
             if result and result.get("expected_doses", 0) > 0:
                 return {
                     "medication_adherence_pct": Decimal(

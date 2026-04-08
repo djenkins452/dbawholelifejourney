@@ -6,6 +6,66 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-08 — Phase 6 Fix 2: reconcile medication adherence calculators
+
+**What:** `state.adherence_7d` was being populated by
+`calculate_medicine_adherence_rate(user, days=7)` with no `intake_type`
+filter, so supplements were mixed into the medication adherence
+number. Meanwhile `adherence_score_7d` was correctly scoped to
+INTAKE_TYPE_MEDICATION via the behavior engine. Two different
+populations, two different numbers, both written to the same state
+dict, both read by downstream consumers.
+
+Live Danny (user 1, 2026-04-08, before fix):
+- `adherence_7d = 68` (mixed meds + supplements)
+- `adherence_score_7d = 100` (meds only, weighted)
+- CoS `expected_7d = 57, completed_7d = 57` (mixed)
+
+After fix:
+- `adherence_7d = 100` (meds only, capped)
+- `adherence_score_7d = 100` (meds only, weighted)
+- CoS `expected_7d = 50, completed_7d = 50` (meds only)
+- `supplement_adherence_7d = 30` (unchanged, already scoped)
+
+**Also:** `calculate_medicine_adherence` returned values >100 when
+logged doses exceeded schedule-derived expected (e.g. "as-needed"
+entries, mid-window schedule changes). Capped at 100 to match the
+behavior engine semantics.
+
+**Also:** `daily_summary_builder._collect_medication` and
+`situational_awareness._get_medication_adherence` were calling
+`calculate_medicine_adherence*` without the meds-only filter, so
+`DailyHealthSummary.medication_adherence_pct` and SA context were
+also polluted by supplement data. Both scoped to
+`INTAKE_TYPE_MEDICATION`.
+
+**Design decision — 3 calculators retained:**
+The audit flagged 3 adherence calculation sites
+(`medicine_utils.calculate_medicine_adherence`,
+`behavior.domain_medication.calculate_medicine_behavior_output`,
+`ai_eae.signal_aggregation._compute_intake_adherence`). These remain
+because they serve 3 distinct intents:
+1. Simple taken/expected rate (late = taken). State: `adherence_7d`.
+2. Weighted accountability score (late = 0.7). State: `adherence_score_7d`.
+3. Per-day signal snapshot (0.0–1.0 float). SAE signal layer only.
+
+All three now scope to INTAKE_TYPE_MEDICATION for medications. Docstring
+added to `build_medicine_state` explaining the two numbers' semantics.
+
+**Files:**
+- `apps/core/ai_state/state_builder.py:2533` — scope `adherence_7d` to
+  meds, add explanatory docstring
+- `apps/health/medicine_utils.py:105` — cap `adherence_rate` at 100
+- `apps/health/services/daily_summary_builder.py:543` — scope
+  `_collect_medication` to meds
+- `apps/ai/situational_awareness.py:393` — scope
+  `_get_medication_adherence` to meds
+
+**Scope:** Bug fix only. No schema changes, no migration. Phase 6
+system normalization pass.
+
+---
+
 ## 2026-04-08 — Phase 6 Fix 1: CoS medication adherence unit bug (×100)
 
 **What:** CoS context was multiplying medication and supplement adherence

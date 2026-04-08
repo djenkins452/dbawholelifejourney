@@ -481,6 +481,108 @@ of Phase 6 system normalization pass (unit consistency audit).
 
 ---
 
+## 2026-04-08 — Phase 6.8 Lifecycle Visibility + Duplicate UX
+
+**What:** Surfaces the lifecycle metadata stored in Phase 6.7 in the
+chat UI so users always know what happened to their request, and
+replaces the vague "still working on it" duplicate-suppression note
+with a structured card that echoes the original message and offers a
+"View latest result" action.
+
+**Why:** Phase 6.7 captured `request_id / status / stream_interrupted`
+on every assistant message but the UI never rendered any of it. Users
+who switched tabs mid-stream had no way to tell whether the result
+was complete, recovered, or still pending. Duplicate retries got a
+bare text token with no context.
+
+**Changes:**
+
+1. **Structured duplicate-suppression payload** —
+   `apps/ai/personal_assistant.py` `send_message_stream` no longer
+   yields a free-text "Still working on your last request" token.
+   Instead it yields a new SSE event type `duplicate_pending` carrying
+   `{original_message, request_id, status: 'processing',
+   submitted_at_ms, pending_seconds_ago, duplicate_suppressed: true}`.
+   The matching `done` event mirrors the same payload so existing
+   client logic still terminates cleanly.
+   `apps/ai/idempotency.py` `mark_in_flight()` now stores
+   `original_message` and `submitted_at_ms` in the cache marker so
+   the duplicate payload can echo what the user typed.
+   `apps/ai/views.py` SSE encoder adds an `event: duplicate_pending`
+   case for the new event type.
+
+2. **Lifecycle status badges** — `templates/components/chat_widget.html`
+   adds three CSS classes:
+   - `.assistant-msg-status.status-processing` (blue, pulsing dot,
+     "Working on this…")
+   - `.assistant-msg-status.status-interrupted` (amber,
+     "Completed while you were away")
+   - `.assistant-msg-status.status-failed` (red,
+     "Couldn't finish — try again")
+   New JS helper `applyLifecycleBadge(msgEl, lifecycle)` reads
+   `{status, stream_interrupted}` and renders the appropriate badge —
+   or no badge for normal completed responses. Wired into:
+   - `loadHistory()` for every assistant message that carries a
+     `lifecycle` dict from the API
+   - The streaming SSE `done` handler so freshly streamed responses
+     get tagged at finalization time
+
+3. **Recovered-message visual treatment** —
+   `.assistant-message.recovered` adds a 3px amber left border + a
+   subtle "Recovered from earlier" label above the content. Applied
+   in `loadHistory()` to the assistant message that matches the
+   sessionStorage pending marker — distinct from a normal fresh
+   reply, so users immediately see the request completed in the
+   background while they were away. New helper
+   `markMessageAsRecovered(msgEl)`.
+
+4. **Duplicate-pending card** — new
+   `.assistant-duplicate-card` CSS block (rounded blue card with
+   pulsing dot, italic original-message echo, "submitted Xs ago"
+   meta line, and a "View latest result" pill button). New JS helper
+   `renderDuplicatePending(data)` constructs the card from the
+   `duplicate_pending` SSE event. The button calls `refreshHistory()`
+   one-shot — no polling. The streaming SSE handler removes the
+   empty placeholder, hides the typing indicator, and clears the
+   input/draft via `onRequestAcknowledged()` (the server already
+   has the message, so no point keeping the user's text around).
+
+5. **addMessage() now returns the created element** —
+   minor refactor so callers in `loadHistory()` can attach lifecycle
+   badges and recovered styling to specific messages.
+
+6. **clearActionUI() clears duplicate cards** — fresh sends remove
+   any prior duplicate-pending card so the chat history stays clean.
+
+**Files:**
+- `apps/ai/idempotency.py` — `mark_in_flight` schema extended with
+  `original_message` + `submitted_at_ms`
+- `apps/ai/personal_assistant.py` — duplicate suppression yields
+  structured `duplicate_pending` event
+- `apps/ai/views.py` — SSE encoder handles `duplicate_pending` event
+  type
+- `templates/components/chat_widget.html` — lifecycle badge CSS +
+  recovered-message styling + duplicate-card CSS + JS helpers
+  `applyLifecycleBadge`, `markMessageAsRecovered`,
+  `renderDuplicatePending`; `loadHistory` + streaming `done` handler
+  wired
+- `apps/ai/tests/test_chat_execution_isolation.py` — extended from
+  13 → 20 tests adding `test_duplicate_payload_is_structured`,
+  `test_no_vague_text_fallback_in_duplicate_path`,
+  `InFlightMarkerSchemaTests` (3 tests including rapid resubmission),
+  `LifecycleHistorySurfaceTests` (2 tests for the
+  `/api/history/` lifecycle dict surface)
+
+**Verification:**
+- 20 scoped tests pass in `test_chat_execution_isolation.py`
+- 130 broader scoped tests pass across `test_chat_execution_isolation`,
+  `test_crud_confirmation`, `test_confirmation_escape`,
+  `test_orchestrator`
+- `python manage.py check` and `makemigrations --check --dry-run`
+  both clean
+
+---
+
 ## 2026-04-08 — Phase 6.7 Execution Isolation + Input Persistence
 
 **What:** Fixed four system-reliability issues where CoS requests

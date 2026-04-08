@@ -1013,6 +1013,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Phase 6.7 Execution Isolation (PK 185)
         self._reset_phase_6_7_execution_isolation_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Phase 6.8 Lifecycle Visibility (PK 186)
+        self._reset_phase_6_8_lifecycle_visibility_fixtures(DataLoadConfig, force, verbosity)
+
         # One-time: Reset release_notes to fix PK 182 timestamp causing infinite popup loop
         self._reset_whats_new_timestamp_fix_fixtures(DataLoadConfig, force, verbosity)
 
@@ -6414,6 +6417,39 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset workout tomorrow fixtures FAILED: {e}'))
+
+    def _reset_phase_6_8_lifecycle_visibility_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes with Phase 6.8 Lifecycle
+        Visibility + Duplicate UX entry (PK 186). Adds the user-facing
+        announcement for status badges, recovered-message styling, and
+        the dedicated duplicate-request card.
+        """
+        reset_tracker_name = 'reset_phase_6_8_lifecycle_visibility_2026_04_08'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for Phase 6.8 Lifecycle Visibility')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Phase 6.8 Lifecycle Visibility',
+                'command',
+                'One-time reset: added PK 186 for Phase 6.8 lifecycle visibility + duplicate UX'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Phase 6.8 lifecycle visibility fixtures FAILED: {e}'))
 
     def _reset_phase_6_7_execution_isolation_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """

@@ -959,6 +959,155 @@
     height: 14px;
     flex-shrink: 0;
 }
+
+/* ── Phase 6.8 Lifecycle Badges ──────────────────────────────────── */
+/* Small inline pills attached below an assistant message communicating
+   request lifecycle state surfaced from AssistantMessage.metadata. */
+
+.assistant-msg-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.assistant-msg-status::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.assistant-msg-status.status-processing {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+.assistant-msg-status.status-processing::before {
+    background: #2563eb;
+    animation: wlj-pulse 1.4s ease-in-out infinite;
+}
+
+.assistant-msg-status.status-interrupted {
+    background: #fef3c7;
+    color: #92400e;
+}
+.assistant-msg-status.status-interrupted::before {
+    background: #f59e0b;
+}
+
+.assistant-msg-status.status-failed {
+    background: #fee2e2;
+    color: #991b1b;
+}
+.assistant-msg-status.status-failed::before {
+    background: #ef4444;
+}
+
+@keyframes wlj-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.35; }
+}
+
+/* Recovered message — assistant reply that completed while the user
+   was away. Subtle amber left border + a "Recovered from earlier"
+   chip above the content so it's visually distinct from a fresh reply. */
+
+.assistant-message.recovered {
+    border-left: 3px solid #f59e0b;
+    padding-left: 12px;
+    background: #fffbeb;
+}
+
+.assistant-recovered-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 6px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+/* Duplicate-suppression card — rendered when the user re-sends a
+   message while the original is still in flight. Echoes the original
+   text and offers a "View latest result" button that triggers
+   refreshHistory(). */
+
+.assistant-duplicate-card {
+    margin: 10px 0;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1e3a8a;
+    font-size: 14px;
+}
+
+.assistant-duplicate-card .dup-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #1d4ed8;
+    margin-bottom: 8px;
+}
+.assistant-duplicate-card .dup-label::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #2563eb;
+    animation: wlj-pulse 1.4s ease-in-out infinite;
+}
+
+.assistant-duplicate-card .dup-original {
+    display: block;
+    font-style: italic;
+    color: #1e3a8a;
+    margin-bottom: 6px;
+    word-break: break-word;
+}
+
+.assistant-duplicate-card .dup-meta {
+    display: block;
+    font-size: 12px;
+    color: #475569;
+    margin-bottom: 12px;
+}
+
+.assistant-duplicate-card .dup-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: #2563eb;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    min-height: 36px;
+    transition: background 0.15s;
+}
+.assistant-duplicate-card .dup-action:hover {
+    background: #1d4ed8;
+}
 </style>
 
 <!-- Assistant Drawer JavaScript -->
@@ -1583,34 +1732,34 @@
             loadingEl.style.display = 'none';
             isLoaded = true;
 
-            // Phase 6.7: Recovery path for interrupted requests.
+            // Phase 6.7 + 6.8: Recovery path for interrupted requests.
             // If sessionStorage has a pending marker, look for the
             // assistant reply in history. If the backend finished the
             // request while the client was away, the reply is already
-            // saved — we just need to render it and clear the marker.
+            // saved — we render it AND visually mark it as recovered
+            // so the user knows it was completed in the background.
+            var _recoveredAssistantMsgId = null;
             try {
                 var _pending = getPendingRequest();
                 if (_pending && _pending.message && data.messages) {
                     var _pendingText = (_pending.message || '').trim();
-                    // Find the user message matching the pending text,
-                    // then check if the next assistant message has content.
                     var _recovered = false;
                     for (var _i = data.messages.length - 1; _i >= 0; _i--) {
                         var _m = data.messages[_i];
                         if (_m.role === 'user'
                             && (_m.content || '').trim() === _pendingText) {
-                            // Is there an assistant reply after this user msg?
                             var _next = data.messages[_i + 1];
                             if (_next && _next.role === 'assistant'
                                 && (_next.content || '').trim()) {
                                 _recovered = true;
+                                _recoveredAssistantMsgId = _next.id;
                                 var _lc = _next.lifecycle || {};
-                                if (_lc.stream_interrupted) {
-                                    console.log(
-                                        '[CoS] Recovered interrupted '
-                                        + 'stream request: ' + _lc.request_id
-                                    );
-                                }
+                                console.log(
+                                    '[CoS] Recovered request: '
+                                    + (_lc.request_id || 'unknown')
+                                    + ' interrupted='
+                                    + !!_lc.stream_interrupted
+                                );
                             }
                             break;
                         }
@@ -1618,8 +1767,6 @@
                     if (_recovered) {
                         clearPendingRequest();
                     }
-                    // If not recovered, leave the marker — recovery can
-                    // also happen via a later refreshHistory() poll.
                 }
             } catch (_recoverErr) {
                 console.debug('Pending recovery check failed:', _recoverErr);
@@ -1635,7 +1782,7 @@
                     console.log("LOADED MESSAGE:", msg.id, msg.content.length);
                     const isUser = msg.role === 'user';
                     const imageDataUrls = msg.image_data_urls || (msg.image_data_url ? [msg.image_data_url] : null);
-                    addMessage(msg.content, isUser, false, imageDataUrls);
+                    var _msgEl = addMessage(msg.content, isUser, false, imageDataUrls);
                     // Phase 6.6: remember quick_replies from the most recent
                     // assistant message so unresolved confirmation pills
                     // re-appear after a page reload.
@@ -1643,6 +1790,19 @@
                         lastLoadedQuickReplies = msg.quick_replies;
                     } else if (!isUser) {
                         lastLoadedQuickReplies = null;
+                    }
+                    // Phase 6.8: surface lifecycle state on every
+                    // assistant message that carries it (history-loaded
+                    // messages already have lifecycle from the API).
+                    if (!isUser && msg.lifecycle) {
+                        applyLifecycleBadge(_msgEl, msg.lifecycle);
+                    }
+                    // Phase 6.8: mark the recovered assistant message
+                    // distinctly so the user knows it completed in the
+                    // background while they were away.
+                    if (!isUser && _recoveredAssistantMsgId
+                        && msg.id === _recoveredAssistantMsgId) {
+                        markMessageAsRecovered(_msgEl);
                     }
                     renderedCount++;
                 });
@@ -1852,6 +2012,9 @@
         }
 
         hasMessages = true;
+        // Phase 6.8: return the created element so callers can attach
+        // lifecycle badges or recovered-message styling to it.
+        return msg;
     }
 
     // =========================================================================
@@ -1975,6 +2138,124 @@
         if (opts) opts.remove();
         var nav = messagesContainer.querySelector('.assistant-nav-link');
         if (nav) nav.remove();
+        // Phase 6.8: also remove any duplicate-pending card and any
+        // status badge attached to the most recent assistant message
+        // (a fresh send replaces them).
+        var dup = messagesContainer.querySelector('.assistant-duplicate-card');
+        if (dup) dup.remove();
+    }
+
+    // =========================================================================
+    // Phase 6.8 — Lifecycle State Visibility
+    // =========================================================================
+
+    /**
+     * Apply a lifecycle status badge below an assistant message based
+     * on the metadata stored on AssistantMessage.metadata.
+     *
+     * @param {HTMLElement} msgEl   the .assistant-message element
+     * @param {Object}      lifecycle  {status, stream_interrupted, ...}
+     */
+    function applyLifecycleBadge(msgEl, lifecycle) {
+        if (!msgEl || !lifecycle) return;
+        // Remove any existing badge so re-applies don't stack
+        var existing = msgEl.querySelector('.assistant-msg-status');
+        if (existing) existing.remove();
+
+        var status = lifecycle.status;
+        var interrupted = !!lifecycle.stream_interrupted;
+        var label = null;
+        var cls = null;
+
+        if (status === 'processing') {
+            label = 'Working on this\u2026';
+            cls = 'status-processing';
+        } else if (status === 'failed') {
+            label = "Couldn't finish \u2014 try again";
+            cls = 'status-failed';
+        } else if (status === 'completed' && interrupted) {
+            label = 'Completed while you were away';
+            cls = 'status-interrupted';
+        }
+        if (!label) return;
+
+        var badge = document.createElement('span');
+        badge.className = 'assistant-msg-status ' + cls;
+        badge.textContent = label;
+        msgEl.appendChild(badge);
+    }
+
+    /**
+     * Mark an assistant message element as a recovered reply (request
+     * completed while the user was away). Adds a 'recovered' class +
+     * a small "Recovered from earlier" label above the content.
+     *
+     * @param {HTMLElement} msgEl the .assistant-message element
+     */
+    function markMessageAsRecovered(msgEl) {
+        if (!msgEl) return;
+        if (msgEl.classList.contains('recovered')) return;
+        msgEl.classList.add('recovered');
+        var label = document.createElement('div');
+        label.className = 'assistant-recovered-label';
+        label.textContent = 'Recovered from earlier';
+        msgEl.insertBefore(label, msgEl.firstChild);
+    }
+
+    /**
+     * Render a duplicate-suppression card below the input area when
+     * the server reports the user re-sent a message that's still in
+     * flight. Echoes the original text + "submitted Xs ago" + a
+     * "View latest result" button that triggers refreshHistory().
+     *
+     * @param {Object} data {original_message, request_id,
+     *                       pending_seconds_ago, status}
+     */
+    function renderDuplicatePending(data) {
+        if (!data) return;
+        // Remove any prior card
+        var prior = messagesContainer.querySelector('.assistant-duplicate-card');
+        if (prior) prior.remove();
+
+        var card = document.createElement('div');
+        card.className = 'assistant-duplicate-card';
+        card.setAttribute('data-request-id', data.request_id || '');
+
+        var labelEl = document.createElement('div');
+        labelEl.className = 'dup-label';
+        labelEl.textContent = 'Already in progress';
+        card.appendChild(labelEl);
+
+        var origEl = document.createElement('div');
+        origEl.className = 'dup-original';
+        var origText = data.original_message || '';
+        if (origText.length > 280) origText = origText.slice(0, 277) + '\u2026';
+        origEl.textContent = '\u201C' + origText + '\u201D';
+        card.appendChild(origEl);
+
+        var metaEl = document.createElement('div');
+        metaEl.className = 'dup-meta';
+        var secs = data.pending_seconds_ago || 0;
+        var ago;
+        if (secs < 60) ago = secs + 's ago';
+        else if (secs < 3600) ago = Math.round(secs / 60) + 'm ago';
+        else ago = Math.round(secs / 3600) + 'h ago';
+        metaEl.textContent = 'Submitted ' + ago + ' \u2014 still working on it.';
+        card.appendChild(metaEl);
+
+        var btn = document.createElement('button');
+        btn.className = 'dup-action';
+        btn.type = 'button';
+        btn.textContent = 'View latest result';
+        btn.addEventListener('click', function() {
+            card.remove();
+            try { refreshHistory(); }
+            catch (e) { console.warn('refreshHistory failed:', e); }
+        });
+        card.appendChild(btn);
+
+        messagesContainer.appendChild(card);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
     // =========================================================================
@@ -2411,6 +2692,18 @@
                         // CRITICAL: use textContent for immediate render (no HTML parsing overhead)
                         msgEl.textContent = fullText;
                         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                    } else if (eventType === 'duplicate_pending') {
+                        // Phase 6.8: server detected the user re-sent
+                        // a message that's still in flight. Drop the
+                        // empty streaming placeholder and render a
+                        // dedicated card with the original text + a
+                        // "View latest result" button.
+                        if (msgEl && msgEl.parentNode) msgEl.remove();
+                        hideTyping();
+                        renderDuplicatePending(evt);
+                        // Server already acknowledged receipt of the
+                        // (duplicate) request — clear input + draft.
+                        onRequestAcknowledged();
                     } else if (eventType === 'done') {
                         finalizeStreamingMessage(msgEl, fullText);
                         // Render structured options from done event
@@ -2420,6 +2713,19 @@
                         // Render navigation link from done event
                         if (evt.navigation && evt.navigation.url) {
                             renderNavigation(evt.navigation);
+                        }
+                        // Phase 6.8: surface lifecycle badge for the
+                        // freshly streamed assistant message. The done
+                        // event payload from send_message_stream carries
+                        // request_id; for the streaming success path
+                        // status is implicitly 'completed'. Failed/
+                        // interrupted states arrive via history-load.
+                        if (evt.request_id) {
+                            applyLifecycleBadge(msgEl, {
+                                request_id: evt.request_id,
+                                status: 'completed',
+                                stream_interrupted: false,
+                            });
                         }
                     } else if (eventType === 'error') {
                         if (fullText) {

@@ -101,11 +101,23 @@ def mark_in_flight(user_id: int, message: str, request_id: str):
     Mark a request as currently processing. Called at the start of
     send_message / send_message_stream. Retries during this window will
     see a 'processing' marker via is_in_flight().
+
+    Phase 6.8 — the marker now also carries:
+        original_message: the exact text the user submitted (so the
+            duplicate-suppression card can echo it back)
+        submitted_at_ms: epoch milliseconds, used by the frontend to
+            render "submitted Xs ago — still working on it"
     """
     try:
+        import time as _time
         cache.set(
             _in_flight_key(user_id, message),
-            {'request_id': request_id, 'status': 'processing'},
+            {
+                'request_id': request_id,
+                'status': 'processing',
+                'original_message': message,
+                'submitted_at_ms': int(_time.time() * 1000),
+            },
             IN_FLIGHT_TTL,
         )
     except Exception:

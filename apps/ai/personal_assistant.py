@@ -5379,34 +5379,48 @@ Rules for this response:
         if not conversation:
             conversation = self.get_or_create_conversation()
 
-        # Phase 6.7: duplicate-retry guard. If the same (user, message)
-        # is already being processed (e.g., client retried after a
-        # network blip), return a short "still working on it" note
-        # instead of starting a second execution that could fall into
-        # check-in / ECC / fallback branches.
+        # Phase 6.7 + 6.8: duplicate-retry guard. If the same
+        # (user, message) is already being processed (e.g., client
+        # retried after a network blip), return a STRUCTURED payload
+        # echoing the original message + submitted_at + request_id so
+        # the frontend can render a dedicated "still working on it"
+        # card with a "View latest result" button. No vague text
+        # fallback per Phase 6.8.
         try:
             from apps.ai.idempotency import is_in_flight
             _existing = is_in_flight(self.user.id, message)
             if _existing:
+                import time as _time
                 logger.info(
                     "STREAM_DUPLICATE_SUPPRESSED user=%s request_id=%s — "
-                    "in-flight marker detected, returning processing note",
+                    "in-flight marker detected, returning structured "
+                    "duplicate payload",
                     self.user.id, _existing.get('request_id'),
                 )
-                yield {
-                    'type': 'token',
-                    'content': (
-                        "Still working on your last request — "
-                        "I'll post the result in a moment."
+                _submitted_ms = _existing.get('submitted_at_ms') or 0
+                _now_ms = int(_time.time() * 1000)
+                _pending_seconds_ago = (
+                    max(0, (_now_ms - _submitted_ms) // 1000)
+                    if _submitted_ms else 0
+                )
+                _duplicate_payload = {
+                    'conversation_id': conversation.id,
+                    'request_id': _existing.get('request_id'),
+                    'status': 'processing',
+                    'duplicate_suppressed': True,
+                    'original_message': (
+                        _existing.get('original_message') or message
                     ),
+                    'submitted_at_ms': _submitted_ms,
+                    'pending_seconds_ago': _pending_seconds_ago,
+                }
+                yield {
+                    'type': 'duplicate_pending',
+                    'data': _duplicate_payload,
                 }
                 yield {
                     'type': 'done',
-                    'data': {
-                        'conversation_id': conversation.id,
-                        'request_id': _existing.get('request_id'),
-                        'status': 'processing',
-                    },
+                    'data': _duplicate_payload,
                 }
                 return
         except Exception:

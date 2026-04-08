@@ -72,6 +72,9 @@ class OrchestratorResult:
         "error",
         "options",
         "navigation",
+        # Phase 6.7: page_context snapshot captured at submit time,
+        # used by the context-required guard in enrich_and_execute.
+        "page_context",
         "_time_result",
         "_context_result",
         "_semantic_result",
@@ -91,6 +94,9 @@ class OrchestratorResult:
         self.error = kwargs.get("error")
         self.options = kwargs.get("options")       # Structured A/B/C options list
         self.navigation = kwargs.get("navigation") # Navigation hint dict
+        # Phase 6.7: page_context passed through enrich_and_execute for
+        # the context-required guard.
+        self.page_context = kwargs.get("page_context")
         self._time_result = None
         self._context_result = None
         self._semantic_result = None
@@ -194,6 +200,9 @@ def process_user_input(user, user_input, page_context=None):
                 context_result and context_result.resolved
             ),
             original_input=user_input,
+            # Phase 6.7: carry the submit-time page_context forward to the
+            # context-required guard in enrich_and_execute.
+            page_context=page_context,
         )
 
         # Store results for use by enrich_and_execute
@@ -237,12 +246,60 @@ def enrich_and_execute(user, intent_results, orchestrator_result):
     learning_mode_blocked = False
     LEARNING_MODE_CONTROL_INTENTS = {'enter_learning_mode', 'exit_learning_mode'}
 
+    # Phase 6.7: snapshot the page_context captured at submit time.
+    # A context-required intent MUST have a live context to execute —
+    # if the user navigated away before processing reached this point,
+    # the orchestrator refuses the action with a friendly "context lost"
+    # message instead of guessing against whatever page is current now.
+    submitted_page_context = getattr(
+        orchestrator_result, 'page_context', None,
+    )
+
     for intent_result in intent_results:
         # If Learning Mode blocked a domain action, skip remaining domain
         # actions — but always allow control-plane intents through.
         if learning_mode_blocked:
             if intent_result.intent_type not in LEARNING_MODE_CONTROL_INTENTS:
                 continue
+
+        # ── Phase 6.7: Context-Required Guard ────────────────────
+        # For intents in CONTEXT_REQUIRED_INTENTS, verify that a
+        # page_context was captured at submit time. If not, return
+        # the "context lost" message instead of executing.
+        try:
+            from apps.core.ai_orchestrator.action_policy import (
+                requires_page_context,
+            )
+            if requires_page_context(intent_result.intent_type):
+                ctx_captured = bool(
+                    submitted_page_context
+                    and (
+                        submitted_page_context.get('module')
+                        or submitted_page_context.get('page_content')
+                        or submitted_page_context.get('help_context_id')
+                        or submitted_page_context.get('url')
+                    )
+                )
+                if not ctx_captured:
+                    from apps.ai.intent_service import ActionResult
+                    logger.info(
+                        "[CONTEXT_GUARD] Blocked %s user=%s — "
+                        "no page_context at submit time",
+                        intent_result.intent_type, user.id,
+                    )
+                    result = ActionResult(
+                        success=False,
+                        message=(
+                            "I lost the context when you navigated away. "
+                            "Can you bring that back?"
+                        ),
+                        error='context_required',
+                        action_type=intent_result.intent_type,
+                    )
+                    action_results.append(result)
+                    continue
+        except ImportError:
+            pass
 
         # Route and enrich
         enriched = route_action(

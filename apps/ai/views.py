@@ -900,6 +900,11 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                 # Include image info if present in user message
                 if result.get('user_message_has_image'):
                     response_data['user_message_has_image'] = True
+                # Phase 6.7: surface request_id so the frontend can clear
+                # its sessionStorage pending marker and correlate the
+                # reply with the submitted message.
+                if result.get('request_id'):
+                    response_data['request_id'] = result['request_id']
             else:
                 # Backwards compatibility for string response
                 response_data = {
@@ -1138,6 +1143,20 @@ class ConversationHistoryView(LoginRequiredMixin, AssistantMixin, View):
                     msg_data['quick_replies'] = msg.quick_replies
                 elif msg.quick_reply_used:
                     msg_data['quick_reply_used'] = msg.quick_reply_used
+                # Phase 6.7: surface lifecycle metadata (request_id,
+                # status, stream_interrupted) so the client can recover
+                # interrupted requests after navigation or disconnect.
+                if msg.role == 'assistant' and msg.metadata:
+                    _lifecycle = {
+                        k: msg.metadata.get(k)
+                        for k in (
+                            'request_id', 'status',
+                            'stream_interrupted', 'intent_locked',
+                        )
+                        if k in msg.metadata
+                    }
+                    if _lifecycle:
+                        msg_data['lifecycle'] = _lifecycle
                 messages_list.append(msg_data)
 
             # Add calibration state for chat auto-start

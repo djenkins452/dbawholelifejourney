@@ -79,3 +79,54 @@ def store_result(user_id: int, message: str, result: dict):
     except Exception:
         # Cache failures must never block the pipeline
         pass
+
+
+# ── Phase 6.7: In-flight marker ───────────────────────────────────────
+# Tracks requests that are currently being processed so a retry from
+# the client (e.g., after a network blip) returns a "processing" marker
+# instead of starting a second execution.
+
+IN_FLIGHT_PREFIX = "cos_idem_inflight:v1"
+IN_FLIGHT_TTL = 180  # 3 minutes — generous cap for long LLM responses
+
+
+def _in_flight_key(user_id: int, message: str) -> str:
+    normalized = (message or '').strip().lower()
+    digest = hashlib.sha256(f"{user_id}:{normalized}".encode()).hexdigest()[:16]
+    return f"{IN_FLIGHT_PREFIX}:{user_id}:{digest}"
+
+
+def mark_in_flight(user_id: int, message: str, request_id: str):
+    """
+    Mark a request as currently processing. Called at the start of
+    send_message / send_message_stream. Retries during this window will
+    see a 'processing' marker via is_in_flight().
+    """
+    try:
+        cache.set(
+            _in_flight_key(user_id, message),
+            {'request_id': request_id, 'status': 'processing'},
+            IN_FLIGHT_TTL,
+        )
+    except Exception:
+        pass
+
+
+def is_in_flight(user_id: int, message: str):
+    """
+    Return the in-flight marker dict if a request is currently processing,
+    or None if not. Callers use this to avoid duplicate execution on
+    network retries.
+    """
+    try:
+        return cache.get(_in_flight_key(user_id, message))
+    except Exception:
+        return None
+
+
+def clear_in_flight(user_id: int, message: str):
+    """Clear the in-flight marker once processing completes (or fails)."""
+    try:
+        cache.delete(_in_flight_key(user_id, message))
+    except Exception:
+        pass

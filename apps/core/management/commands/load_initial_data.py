@@ -1010,6 +1010,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Phase 6.6 Confirmation UX (PK 184)
         self._reset_phase_6_6_confirmation_ux_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Phase 6.7 Execution Isolation (PK 185)
+        self._reset_phase_6_7_execution_isolation_fixtures(DataLoadConfig, force, verbosity)
+
         # One-time: Reset release_notes to fix PK 182 timestamp causing infinite popup loop
         self._reset_whats_new_timestamp_fix_fixtures(DataLoadConfig, force, verbosity)
 
@@ -6411,6 +6414,39 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset workout tomorrow fixtures FAILED: {e}'))
+
+    def _reset_phase_6_7_execution_isolation_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes with Phase 6.7 Execution
+        Isolation + Input Persistence entry (PK 185). Announces the
+        user-facing fix for request interruption, draft persistence, and
+        context-aware queries.
+        """
+        reset_tracker_name = 'reset_phase_6_7_execution_isolation_2026_04_08'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for Phase 6.7 Execution Isolation')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Phase 6.7 Execution Isolation',
+                'command',
+                'One-time reset: added PK 185 for Phase 6.7 execution isolation + input persistence'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Phase 6.7 execution isolation fixtures FAILED: {e}'))
 
     def _reset_phase_6_6_confirmation_ux_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """

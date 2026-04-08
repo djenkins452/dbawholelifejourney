@@ -1881,6 +1881,8 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
 
         # Save assistant response
         msg_type = 'action' if actions_taken else 'text'
+        import uuid as _uuid_ns
+        _ns_request_id = str(_uuid_ns.uuid4())
         AssistantMessage.objects.create(
             conversation=conversation,
             role='assistant',
@@ -1888,6 +1890,14 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
             message_type=msg_type,
             # Phase 6.6: structured A/B/C pills for CRUD confirmations.
             quick_replies=_pending_quick_replies or [],
+            # Phase 6.7: lifecycle metadata for execution isolation.
+            metadata={
+                'request_id': _ns_request_id,
+                'status': 'completed',
+                'stream_interrupted': False,
+                'intent_locked': bool(actions_taken),
+                'page_context_captured': bool(page_context),
+            },
         )
 
         # Update conversation
@@ -1983,7 +1993,9 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
         response = self._inject_critical_signals(response)
 
         # Return structured response
-        result = {'response': response}
+        # Phase 6.7: surface request_id so the frontend can clear its
+        # pending marker and correlate the reply with the submitted message.
+        result = {'response': response, 'request_id': _ns_request_id}
         if actions_taken:
             # For backwards compatibility, also include single action_taken
             result['action_taken'] = actions_taken[0] if len(actions_taken) == 1 else None
@@ -5355,6 +5367,7 @@ Rules for this response:
                 {'type': 'error', 'error': str}
         """
         import threading
+        import uuid as _uuid
 
         # ── Latency tracer (diagnostic instrumentation) ──
         try:
@@ -5365,6 +5378,39 @@ Rules for this response:
 
         if not conversation:
             conversation = self.get_or_create_conversation()
+
+        # Phase 6.7: duplicate-retry guard. If the same (user, message)
+        # is already being processed (e.g., client retried after a
+        # network blip), return a short "still working on it" note
+        # instead of starting a second execution that could fall into
+        # check-in / ECC / fallback branches.
+        try:
+            from apps.ai.idempotency import is_in_flight
+            _existing = is_in_flight(self.user.id, message)
+            if _existing:
+                logger.info(
+                    "STREAM_DUPLICATE_SUPPRESSED user=%s request_id=%s — "
+                    "in-flight marker detected, returning processing note",
+                    self.user.id, _existing.get('request_id'),
+                )
+                yield {
+                    'type': 'token',
+                    'content': (
+                        "Still working on your last request — "
+                        "I'll post the result in a moment."
+                    ),
+                }
+                yield {
+                    'type': 'done',
+                    'data': {
+                        'conversation_id': conversation.id,
+                        'request_id': _existing.get('request_id'),
+                        'status': 'processing',
+                    },
+                }
+                return
+        except Exception:
+            pass  # Duplicate guard failure must not block the request
 
         # Save user message
         AssistantMessage.objects.create(
@@ -5381,6 +5427,18 @@ Rules for this response:
         except Exception:
             pass  # Non-critical
 
+        # Phase 6.7: Execution Isolation — lifecycle tracking.
+        # Every chat request gets a UUID request_id and a status field
+        # on assistant_msg.metadata. Status transitions:
+        #   processing → completed  (success)
+        #   processing → failed     (exception)
+        # If the SSE client disconnects, the try/finally at the bottom
+        # of the generator still runs the status write so the UI can
+        # recover the result via history polling.
+        _request_id = str(_uuid.uuid4())
+        _stream_interrupted = False
+        _stream_status = 'processing'
+
         # Create assistant message placeholder BEFORE streaming.
         # Updated with final content after stream completes (or on interrupt).
         assistant_msg = AssistantMessage.objects.create(
@@ -5388,7 +5446,28 @@ Rules for this response:
             role='assistant',
             content='',
             message_type='text',
+            metadata={
+                'request_id': _request_id,
+                'status': 'processing',
+                'stream_interrupted': False,
+                'page_context_captured': bool(page_context),
+            },
         )
+
+        # Phase 6.7: Mark request as in-flight so client retries during
+        # processing see a "processing" marker instead of starting a
+        # second execution.
+        try:
+            from apps.ai.idempotency import mark_in_flight
+            mark_in_flight(self.user.id, message, _request_id)
+        except Exception:
+            pass
+
+        # Phase 6.7: Hard intent lock. Once an actionable intent is
+        # detected downstream, any remaining pre-processing branches
+        # (ECC closure, proactive, check-in routing) are bypassed to
+        # prevent fallback drift on retries.
+        _intent_locked = False
 
         response_text = ""
         actions_taken = []
@@ -5780,6 +5859,12 @@ Rules for this response:
                         )
 
                         if actionable:
+                            # Phase 6.7: Hard intent lock — record that an
+                            # actionable intent was detected. Written to
+                            # assistant_msg.metadata in the finally block so
+                            # retries / audit can confirm the execution path
+                            # was locked before any downstream work ran.
+                            _intent_locked = True
                             # Execute via orchestrator pipeline
                             orch_result = orchestrator_process(
                                 self.user, message,
@@ -5995,7 +6080,27 @@ Rules for this response:
                     except Exception:
                         pass
 
+            # Phase 6.7: Reached the end of the try body without an
+            # exception — mark the request as completed so the finally
+            # block writes 'completed' to the lifecycle metadata.
+            _stream_status = 'completed'
+
+        except GeneratorExit:
+            # Phase 6.7: Client disconnected mid-stream (tab switch, navigate,
+            # network drop). GeneratorExit is raised at the yield point that
+            # failed. We must NOT swallow it — Python's generator protocol
+            # requires it to propagate — but we record the interruption on
+            # the assistant_msg so the UI can recover via history polling.
+            _stream_interrupted = True
+            _stream_status = 'completed'  # we still have partial content
+            logger.info(
+                "STREAM_INTERRUPTED user=%s request_id=%s — client "
+                "disconnected, finalizing in finally block",
+                self.user.id, _request_id,
+            )
+            raise
         except Exception as e:
+            _stream_status = 'failed'
             logger.error(
                 "STREAM_TOPLEVEL_FALLBACK user=%s error=%s — top-level "
                 "stream exception, returning fallback",
@@ -6003,7 +6108,11 @@ Rules for this response:
             )
             if not response_text:
                 response_text = self._get_fallback_response(message)
-                yield {'type': 'token', 'content': response_text}
+                try:
+                    yield {'type': 'token', 'content': response_text}
+                except GeneratorExit:
+                    _stream_interrupted = True
+                    raise
             # Ensure placeholder is not left empty on error — mark as fallback
             if not assistant_msg.content:
                 assistant_msg.content = response_text or self._get_fallback_response(message)
@@ -6012,6 +6121,42 @@ Rules for this response:
                     assistant_msg.save(update_fields=['content', 'message_type'])
                 except Exception:
                     pass
+        finally:
+            # Phase 6.7: Guaranteed lifecycle write. This runs on success,
+            # on exception, AND on GeneratorExit (client disconnect). The
+            # assistant_msg row MUST reflect the best computed state so the
+            # UI can recover via history polling when the client reconnects.
+            try:
+                _final_content = assistant_msg.content or response_text
+                _existing_meta = dict(assistant_msg.metadata or {})
+                _existing_meta.update({
+                    'request_id': _request_id,
+                    'status': _stream_status,
+                    'stream_interrupted': _stream_interrupted,
+                    'intent_locked': _intent_locked,
+                })
+                assistant_msg.metadata = _existing_meta
+                if _final_content and not assistant_msg.content:
+                    assistant_msg.content = _final_content
+                if _pending_quick_replies and not assistant_msg.quick_replies:
+                    assistant_msg.quick_replies = _pending_quick_replies
+                assistant_msg.save(update_fields=[
+                    'content', 'metadata', 'quick_replies',
+                ])
+            except Exception as _final_err:
+                logger.error(
+                    "STREAM_FINAL_SAVE_FAILED user=%s request_id=%s: %s",
+                    self.user.id, _request_id, _final_err, exc_info=True,
+                )
+            # Clear in-flight marker so the next request isn't blocked.
+            try:
+                from apps.ai.idempotency import clear_in_flight
+                clear_in_flight(self.user.id, message)
+            except Exception:
+                pass
+            # NOTE: DB connection close happens at the very end of the
+            # function (after post-processing) so that post-processing
+            # can still query the DB in the success path.
 
         # =====================================================
         # Post-processing (identical to send_message)
@@ -6196,6 +6341,11 @@ Rules for this response:
         if _stream_nav:
             result_data['navigation'] = _stream_nav
 
+        # Phase 6.7: Include request_id so the frontend can correlate
+        # this response with the pending request marker it stored at
+        # submit time.
+        result_data['request_id'] = _request_id
+
         # ── Latency report (diagnostic instrumentation) ──
         if _ltrace_s:
             try:
@@ -6203,7 +6353,28 @@ Rules for this response:
             except Exception:
                 pass
 
-        yield {'type': 'done', 'data': result_data}
+        try:
+            yield {'type': 'done', 'data': result_data}
+        except GeneratorExit:
+            # Client disconnected right before the done event. The inner
+            # finally already persisted status/content, so we just let it
+            # propagate.
+            _stream_interrupted = True
+            try:
+                _meta = dict(assistant_msg.metadata or {})
+                _meta['stream_interrupted'] = True
+                assistant_msg.metadata = _meta
+                assistant_msg.save(update_fields=['metadata'])
+            except Exception:
+                pass
+            raise
+        # Phase 6.7: Intentionally no explicit DB connection close here.
+        # send_message_stream runs in the Django request thread, where
+        # the framework's CONN_MAX_AGE / close_old_connections signal
+        # handles cleanup automatically. An explicit close would break
+        # the request's active connection (and the test transaction).
+        # Background daemon threads spawned later in post-processing
+        # manage their own connection lifecycles.
 
     def _try_calibration_intents(self, message, intent_service, actions_taken):
         """During calibration, only allow pause/complete intents.

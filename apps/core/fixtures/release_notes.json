@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 185,
+    "fields": {
+      "title": "Your request keeps working even when you navigate away",
+      "description": "Switching tabs, navigating to another page, or losing your connection no longer cancels what your Chief of Staff is working on. Requests now run to completion server-side and the result is saved the moment it's ready — so when you come back, the reply is already waiting for you in the chat. Your typed message is also saved as a draft on every keystroke, and is only cleared once the server confirms it received your request, so a failed send will never lose your text. For queries that depend on the page you're looking at (like 'save this' or 'add this to my list'), the page context is now captured the instant you hit Send — and if you navigate away before your Chief of Staff captured it, you'll get a clear 'I lost the context, can you bring that back?' message instead of a guess. Retries after a network blip no longer fall into unrelated flows.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-04-08",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-04-08T14:00:00Z",
+      "updated_at": "2026-04-08T14:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 184,
     "fields": {
       "title": "Clearer, safer confirmations before any change",

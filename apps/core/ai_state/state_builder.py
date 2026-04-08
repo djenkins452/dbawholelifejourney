@@ -238,6 +238,59 @@ def build_health_state(user):
             if latest_sleep_vitals[4] is not None:
                 state["latest_mindful_minutes"] = latest_sleep_vitals[4]
 
+        # ── sleep_trend + sleep_quality_avg_7d (Phase 6 Fix 5) ──
+        # These keys are read by cos_context, rules_cross_domain,
+        # deterministic_router, services, and deterministic_health_summary
+        # (5 production call sites) but were never written by any state
+        # builder. Every reader defaulted to 'stable' or None, silently
+        # masking real sleep degradation. Phase 6 audit, 2026-04-08.
+        #
+        # Vocabulary is chosen to match existing consumers:
+        #   rules_cross_domain.py:191 `if sleep_trend != "decreasing":`
+        #   services.py:204 `if trend and trend != 'insufficient_data':`
+        # → values: "increasing", "decreasing", "stable", "insufficient_data"
+        from django.db.models import Avg as _Avg
+
+        # sleep_quality_avg_7d: average of quality_score (0-100 scale)
+        # if present; else quality_rating (1-5) rescaled to 0-100.
+        qscore_avg = recent_sleep.aggregate(
+            avg=_Avg("quality_score")
+        )["avg"]
+        if qscore_avg is not None:
+            state["sleep_quality_avg_7d"] = round(float(qscore_avg), 1)
+        else:
+            qrating_avg = recent_sleep.aggregate(
+                avg=_Avg("quality_rating")
+            )["avg"]
+            if qrating_avg is not None:
+                # 1-5 → 0-100
+                state["sleep_quality_avg_7d"] = round(float(qrating_avg) * 20, 1)
+
+        # sleep_trend: compare first-half vs second-half of the 7-day
+        # window. Threshold: 15-minute difference in average sleep
+        # duration is the minimum to call a direction (prevents
+        # oscillation on trivial day-to-day variance).
+        if sleep_count >= 4:
+            window_midpoint = (now - timedelta(days=3)).date()
+            first_half = recent_sleep.filter(
+                sleep_date__lt=window_midpoint
+            ).aggregate(avg=_Avg("total_duration_minutes"))["avg"]
+            second_half = recent_sleep.filter(
+                sleep_date__gte=window_midpoint
+            ).aggregate(avg=_Avg("total_duration_minutes"))["avg"]
+            if first_half is not None and second_half is not None:
+                delta_min = float(second_half) - float(first_half)
+                if delta_min >= 15:
+                    state["sleep_trend"] = "increasing"
+                elif delta_min <= -15:
+                    state["sleep_trend"] = "decreasing"
+                else:
+                    state["sleep_trend"] = "stable"
+            else:
+                state["sleep_trend"] = "insufficient_data"
+        else:
+            state["sleep_trend"] = "insufficient_data"
+
     # ── Steps (last 7 days) ───────────────────────────────────
     recent_steps = StepsEntry.objects.filter(
         user=user, logged_date__gte=cutoff_7d.date()

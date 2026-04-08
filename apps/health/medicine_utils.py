@@ -99,10 +99,14 @@ def calculate_medicine_adherence(user, start_date, end_date, intake_type=None):
     unlogged_count = max(0, expected_doses - logged_count)
 
     # Adherence = taken / (expected - skipped)
-    # Skipped doses are intentional non-takes, so we exclude them from the denominator
+    # Skipped doses are intentional non-takes, so we exclude them from the denominator.
+    # Cap at 100: an adherence rate above 100% is nonsensical and happens
+    # when log entries exceed the schedule-derived expected count (e.g.,
+    # "as-needed" logs or mid-window schedule changes). Phase 6 audit
+    # fix, 2026-04-08.
     effective_expected = expected_doses - skipped_count
     if effective_expected > 0:
-        adherence_rate = round((taken_count / effective_expected) * 100)
+        adherence_rate = min(100, round((taken_count / effective_expected) * 100))
     else:
         adherence_rate = None
 

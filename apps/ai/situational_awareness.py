@@ -391,10 +391,17 @@ def _get_mood_trend(user, today):
 
 
 def _get_medication_adherence(user):
-    """Get medication adherence rate using existing utility."""
+    """Get medication adherence rate using existing utility.
+
+    Scoped to INTAKE_TYPE_MEDICATION so supplements don't pollute
+    the number. Phase 6 audit fix, 2026-04-08.
+    """
     try:
         from apps.health.medicine_utils import calculate_medicine_adherence_rate
-        rate = calculate_medicine_adherence_rate(user, days=7)
+        from apps.health.models import Intake
+        rate = calculate_medicine_adherence_rate(
+            user, days=7, intake_type=Intake.INTAKE_TYPE_MEDICATION,
+        )
         if rate is None:
             return None  # No active medications or insufficient data
         return {

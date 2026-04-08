@@ -2530,8 +2530,23 @@ def build_medicine_state(user):
         state['expected_today'] = expected_today
         state['schedule_status_today'] = schedule_status
 
-        # 7-day adherence rate (reuse existing utility)
-        adherence = calculate_medicine_adherence_rate(user, days=7)
+        # 7-day MEDICATION adherence rate (reuse existing utility).
+        #
+        # Two adherence numbers are emitted for medications by design:
+        #   - adherence_7d       — simple taken/(expected-skipped) ratio
+        #                          (late counts as taken). 0-100 int.
+        #                          Semantic: "did you take them at all?"
+        #   - adherence_score_7d — strict accountability score
+        #                          (late counts as 0.7). 0-100 int.
+        #                          Semantic: "did you take them on time?"
+        #
+        # Both MUST be scoped to INTAKE_TYPE_MEDICATION so they do not
+        # mix with supplements. Phase 6 audit (2026-04-08) found that
+        # adherence_7d was called with no type filter, causing supplements
+        # to pollute the medication adherence number.
+        adherence = calculate_medicine_adherence_rate(
+            user, days=7, intake_type=Intake.INTAKE_TYPE_MEDICATION,
+        )
         if adherence is not None:
             state['adherence_7d'] = adherence
 

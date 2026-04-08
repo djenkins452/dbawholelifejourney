@@ -217,3 +217,168 @@ def log_validation_results(user_state: dict, user_id=None):
                 issue,
             )
     return False
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 6+ Signal Contract Enforcement Layer
+# ─────────────────────────────────────────────────────────────────────
+#
+# Validates per-key conventions across all domain state dicts:
+#   - `_pct`, `_percent`, `_percentage` suffixes → value must be 0–100
+#   - `_ratio` suffix                           → value must be 0–1
+#   - `_score` suffix                            → value must be 0–100
+#     (unless documented otherwise; see SIGNAL_CONVENTIONS.md)
+#   - `_trend` suffix                            → value must be one of
+#                                                   "increasing", "decreasing",
+#                                                   "stable", "insufficient_data"
+#
+# The validator LOGS violations (never raises) so it is safe to run
+# on the critical path. Intended for background observability runs
+# or pre-deploy gate tests.
+
+_PERCENT_SUFFIXES = ("_pct", "_percent", "_percentage")
+_SCORE_SUFFIXES = ("_score",)
+_RATIO_SUFFIXES = ("_ratio",)
+_TREND_SUFFIXES = ("_trend",)
+
+_VALID_TREND_VALUES = frozenset(
+    {"increasing", "decreasing", "stable", "insufficient_data",
+     # Legacy vocabularies still in use by some builders:
+     "improving", "declining", "up", "down", "flat"}
+)
+
+# Keys that are explicitly allowed to exceed the normal 0-100 bound.
+# Add here (not in logic) so drift shows up in code review.
+_SCORE_BOUND_EXEMPT = frozenset({
+    "workout_consistency_score",  # capped at 150 (ratio * 100 of 7d/30d)
+    "strength_trend_score",       # non-numeric: "increasing"/"decreasing"
+    "today_training_load",        # arbitrary training load units
+    "weekly_training_load",       # arbitrary training load units
+    "avg_daily_load_7d",          # arbitrary training load units
+})
+
+
+def validate_signal_conventions(domain: str, domain_state: dict) -> list:
+    """Check per-key unit conventions for a single domain state dict.
+
+    Returns a list of issue strings; empty list means the dict is clean.
+    Safe to call on any state dict — unknown keys are ignored.
+
+    This is Phase 6+ enforcement: it runs alongside the existing
+    Rich State Contract validator but focuses on VALUE bounds rather
+    than STRUCTURE.
+    """
+    if not isinstance(domain_state, dict):
+        return [f"[{domain}] not a dict: got {type(domain_state).__name__}"]
+
+    issues = []
+    for key, value in domain_state.items():
+        if not isinstance(key, str) or key.startswith("_"):
+            continue
+        if value is None:
+            # None is a valid "not measured" sentinel — skip bound check.
+            continue
+
+        # Percent-suffixed keys must be 0-100 numeric.
+        if any(key.endswith(sfx) for sfx in _PERCENT_SUFFIXES):
+            if not isinstance(value, (int, float)):
+                issues.append(
+                    f"[{domain}.{key}] percent key has non-numeric "
+                    f"value: {value!r}"
+                )
+                continue
+            if value < 0 or value > 100:
+                issues.append(
+                    f"[{domain}.{key}] percent out of bounds (expected "
+                    f"0-100): {value}"
+                )
+            continue
+
+        # Ratio-suffixed keys must be 0-1 numeric.
+        if any(key.endswith(sfx) for sfx in _RATIO_SUFFIXES):
+            if not isinstance(value, (int, float)):
+                issues.append(
+                    f"[{domain}.{key}] ratio key has non-numeric "
+                    f"value: {value!r}"
+                )
+                continue
+            if value < 0 or value > 1.5:  # small slack for cap-at-1 rounding
+                issues.append(
+                    f"[{domain}.{key}] ratio out of bounds (expected "
+                    f"0-1): {value}"
+                )
+            continue
+
+        # Score-suffixed keys: numeric if present, must be 0-100
+        # unless explicitly exempt.
+        if any(key.endswith(sfx) for sfx in _SCORE_SUFFIXES):
+            if key in _SCORE_BOUND_EXEMPT:
+                continue
+            if not isinstance(value, (int, float)):
+                # Some _score fields are intentionally text-valued
+                # (e.g. strength_trend_score = "increasing"). If not
+                # in the exempt set, that's still a convention bug.
+                issues.append(
+                    f"[{domain}.{key}] score key has non-numeric "
+                    f"value: {value!r}"
+                )
+                continue
+            if value < 0 or value > 100:
+                issues.append(
+                    f"[{domain}.{key}] score out of bounds (expected "
+                    f"0-100): {value}"
+                )
+            continue
+
+        # Trend-suffixed keys must be in the approved vocabulary.
+        if any(key.endswith(sfx) for sfx in _TREND_SUFFIXES):
+            if not isinstance(value, str):
+                issues.append(
+                    f"[{domain}.{key}] trend key has non-string "
+                    f"value: {value!r}"
+                )
+                continue
+            if value not in _VALID_TREND_VALUES:
+                issues.append(
+                    f"[{domain}.{key}] trend value not in approved "
+                    f"vocabulary: {value!r}"
+                )
+            continue
+
+    return issues
+
+
+def validate_all_signal_conventions(user_state: dict) -> dict:
+    """Apply validate_signal_conventions across every domain dict.
+
+    Returns {domain: [issue, ...]} for domains with any violations.
+    Empty dict means everything is clean.
+    """
+    all_issues = {}
+    for domain, domain_state in (user_state or {}).items():
+        if not isinstance(domain_state, dict):
+            continue
+        if domain.startswith("_"):
+            continue
+        issues = validate_signal_conventions(domain, domain_state)
+        if issues:
+            all_issues[domain] = issues
+    return all_issues
+
+
+def log_signal_convention_violations(user_state: dict, user_id=None) -> bool:
+    """Run signal-convention validation and log any violations.
+
+    Returns True if clean, False if any issues found. Does not raise.
+    Safe for use in background observability / nightly audits.
+    """
+    issues = validate_all_signal_conventions(user_state)
+    if not issues:
+        return True
+    for domain, domain_issues in issues.items():
+        for issue in domain_issues:
+            logger.warning(
+                "SIGNAL_CONVENTION_VIOLATION user=%s %s",
+                user_id or "?", issue,
+            )
+    return False

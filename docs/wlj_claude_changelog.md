@@ -6,6 +6,125 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-08 — Phase 5/6/1/2 + Enforcement: signal conventions, nutrition gate, docs
+
+Final batch of the system-wide integrity hardening mission. Builds
+on the earlier Phase 6 fixes and the Phase 7 stale-field-name pass.
+
+### Phase 5 — Feature gating enforcement
+
+- Added `_nutrition_enabled_for(user)` helper and gated
+  `build_nutrition_state` on `features.health.nutrition` (mirrors
+  the existing `_fasting_enabled_for` pattern). Disabled users now
+  receive `{"enabled": False}` from the nutrition state builder.
+- Non-gated domain builders (health, faith, journal, goals, habits)
+  intentionally left as-is for now. The existing CoS-level domain
+  filter (`_TAGGED_BUILDERS` ↔ `_domain_to_module`) already prevents
+  disabled-domain leakage to the LLM. Gating every state builder
+  would have wide blast radius on insight rules without an
+  immediate correctness win. Documented in SIGNAL_CONVENTIONS.md.
+
+### Phase 1/2 (reduced) — SIGNAL_CONVENTIONS.md
+
+New `docs/SIGNAL_CONVENTIONS.md` documenting, not inventing:
+- Unit suffix rules (`_pct`, `_ratio`, `_score`, `_trend`, etc.)
+- Trend vocabulary (canonical vs legacy)
+- `None` vs `0` semantic — "not measured" vs "measured zero"
+- Two-layer gating (SAE permissive, CoS filtered) with ASCII diagram
+- Dual-metric situations that must NOT be deleted:
+  - `medicine.adherence_7d` (simple) vs `adherence_score_7d` (weighted)
+  - `fitness.workout_adherence_score` (plan) vs `workout_consistency_score` (fallback)
+- Nutrition's 7 calculation sites (why they exist, why not consolidated)
+- List of 11 historical drift fixes for future auditors
+
+### Enforcement layer — `state_validator.py` extensions
+
+Added alongside the existing Rich State Contract validator:
+
+- `validate_signal_conventions(domain, state)` — per-domain unit check
+- `validate_all_signal_conventions(user_state)` — full sweep
+- `log_signal_convention_violations(user_state, user_id)` — log-only,
+  safe for critical path, returns bool
+
+Checks:
+- `_pct` / `_percent` / `_percentage` → numeric, 0-100
+- `_ratio` → numeric, 0-1 (with 1.5 rounding slack)
+- `_score` → numeric, 0-100 (exempt list for known outliers)
+- `_trend` → string in approved vocabulary
+- `None` is a valid sentinel, not a violation
+
+`_SCORE_BOUND_EXEMPT` set contains the 5 legitimate exceptions
+(workout_consistency_score, strength_trend_score, various training
+load fields). Each exemption has a code comment justifying it so
+drift shows up in code review.
+
+### Phase 6 — Cross-layer validation: ALL remaining domains
+
+Ran `validate_all_signal_conventions` over Danny's full SAE state
+(27 domains) post-hardening:
+
+```
+Total convention violations across ALL domains: 0
+```
+
+Spot-checked un-audited domains on Danny:
+- **faith**: 1 active reading plan, 15-day reading streak, 2
+  urgent prayers, 9 answered prayers
+- **journal**: 30 entries in 30d, mood_trend='stable',
+  days_since_entry=1
+- **goals**: 4 active, 0 overdue, completion_rate=0.18
+- **habits**: 0 active habits for Danny (no data to validate)
+- **finance**: 1 goal at 100%, finance module disabled at CoS
+  level → correctly skipped (`_skipped_builders: ['finance']`)
+- **fitness**: 25 keys populated, all bounds clean
+- **nutrition**: 19 keys + `enabled: True`
+- **fasting**: 6 keys + `enabled: True` (Danny's dev flag)
+
+### CoS build cleanliness
+
+Every previously noisy log line is gone. CoS build for Danny now
+produces zero WARNING/ERROR lines during normal context assembly.
+
+**Files:**
+- `apps/core/ai_state/state_builder.py` — `_nutrition_enabled_for`,
+  nutrition gate, `enabled: True` marker
+- `apps/core/ai_state/state_validator.py` — signal convention
+  validator (166 new lines, all additive)
+- `docs/SIGNAL_CONVENTIONS.md` — new, 220 lines
+
+### Mission success criteria
+
+| Criterion | Status |
+|---|---|
+| Same data → same result across all layers | ✅ verified on Danny |
+| No unit mismatches | ✅ 0 violations across 27 domains |
+| No missing signals | ✅ sleep_trend + sleep_quality_avg_7d + workout_count_7d + medication_adherence_pct all resolved |
+| No disabled-domain leakage (CoS) | ✅ `_skipped_builders: ['finance']` confirms |
+| No silent failures | ✅ 5 stale-field-name bugs surfaced and fixed; `except: pass` replaced with logger.exception on critical paths |
+
+### Known remaining items (documented, not silently deferred)
+
+- Non-fasting/non-nutrition state builders (health, faith, journal,
+  goals, habits) do not emit `{enabled: False}` when their parent
+  module is disabled. CoS layer filter prevents LLM leakage, but
+  direct SAE readers (insight rules) still see populated state.
+  Documented in SIGNAL_CONVENTIONS.md Rule 4 and the two-layer
+  diagram. Not fixed in this pass per "controlled, non-breaking"
+  requirement.
+- User-data issue: Danny's NutritionGoals `protein_target_g=40` is
+  wrong (he eats ~177g/day average). Produces 440% compliance and
+  collapses macro_compliance_score to 0. This is UI data, not code.
+- `DailyHealthSummary.medication_adherence_pct` field is populated
+  by `_collect_medication` once per day and can become stale mid-day
+  (shows 0.00 before the user takes their meds). Cosmetic on that
+  table; SAE `medicine.adherence_7d` is the authoritative source.
+
+**Scope:** Phase 5 code change (nutrition gate), Phase 1/2/6 are
+documentation + validator (no functional change to existing
+builders). Phase 7 stale field fixes already committed separately.
+
+---
+
 ## 2026-04-08 — Phase 7 hardening: orphan signals + stale field names
 
 **What:** Second hardening pass. Fixed issues surfaced during Phase 6

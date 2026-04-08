@@ -1016,6 +1016,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Phase 6.8 Lifecycle Visibility (PK 186)
         self._reset_phase_6_8_lifecycle_visibility_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Phase 3 Signal Completion (PK 187)
+        self._reset_phase_3_signal_completion_fixtures(DataLoadConfig, force, verbosity)
+
         # One-time: Reset release_notes to fix PK 182 timestamp causing infinite popup loop
         self._reset_whats_new_timestamp_fix_fixtures(DataLoadConfig, force, verbosity)
 
@@ -6417,6 +6420,39 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset workout tomorrow fixtures FAILED: {e}'))
+
+    def _reset_phase_3_signal_completion_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes with Phase 3 Signal
+        Completion entry (PK 187). Adds user-facing announcement for
+        sleep_trend / body_fat_trend / waist_trend /
+        last_workout_days_ago signals.
+        """
+        reset_tracker_name = 'reset_phase_3_signal_completion_2026_04_08'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for Phase 3 Signal Completion')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Phase 3 Signal Completion',
+                'command',
+                'One-time reset: added PK 187 for Phase 3 signal completion'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Phase 3 signal completion fixtures FAILED: {e}'))
 
     def _reset_phase_6_8_lifecycle_visibility_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """

@@ -933,21 +933,25 @@ def build_nutrition_state(user):
     state = {}
 
     # ── Today's intake (canonical contract) ──────────────────────
+    # Phase 6 audit fix (2026-04-08): always populate daily_* keys
+    # even when today_count is 0. A zero-entry day is meaningful
+    # state ("hasn't logged yet") and downstream consumers (CoS,
+    # compliance, insight rules) need the keys to exist rather than
+    # silently receive None.
     today_entries = NutritionQueries.entries_on_date(user, today)
     today_count = today_entries.count()
-    if today_count > 0:
-        totals = today_entries.aggregate(
-            calories=Sum("total_calories"),
-            protein=Sum("total_protein_g"),
-            carbs=Sum("total_carbohydrates_g"),
-            fat=Sum("total_fat_g"),
-            fiber=Sum("total_fiber_g"),
-        )
-        state["daily_calories"] = round(float(totals["calories"] or 0), 1)
-        state["daily_protein_g"] = round(float(totals["protein"] or 0), 1)
-        state["daily_carbs_g"] = round(float(totals["carbs"] or 0), 1)
-        state["daily_fat_g"] = round(float(totals["fat"] or 0), 1)
-        state["daily_fiber_g"] = round(float(totals["fiber"] or 0), 1)
+    totals = today_entries.aggregate(
+        calories=Sum("total_calories"),
+        protein=Sum("total_protein_g"),
+        carbs=Sum("total_carbohydrates_g"),
+        fat=Sum("total_fat_g"),
+        fiber=Sum("total_fiber_g"),
+    )
+    state["daily_calories"] = round(float(totals["calories"] or 0), 1)
+    state["daily_protein_g"] = round(float(totals["protein"] or 0), 1)
+    state["daily_carbs_g"] = round(float(totals["carbs"] or 0), 1)
+    state["daily_fat_g"] = round(float(totals["fat"] or 0), 1)
+    state["daily_fiber_g"] = round(float(totals["fiber"] or 0), 1)
     state["food_entries_today"] = today_count
 
     # ── Active nutrition goals ───────────────────────────────────
@@ -978,7 +982,10 @@ def build_nutrition_state(user):
             state["fat_target"] = float(goal.daily_fat_target_g)
 
     # ── Compliance (today vs targets) ────────────────────────────
-    if today_count > 0 and goal:
+    # Phase 6 audit fix (2026-04-08): no longer gated on today_count.
+    # On a zero-entry day, compliance is meaningfully 0% — downstream
+    # rules want to see that rather than a missing key.
+    if goal:
         if goal.daily_calorie_target and goal.daily_calorie_target > 0:
             state["calorie_compliance_pct"] = round(
                 state["daily_calories"] / goal.daily_calorie_target * 100, 1
@@ -1004,7 +1011,11 @@ def build_nutrition_state(user):
                 sum(compliance_values) / len(compliance_values), 1
             )
 
-    # ── Rolling 7-day averages (from DailyNutritionSummary) ──────
+    # ── Rolling 7-day averages ───────────────────────────────────
+    # Phase 6 audit fix (2026-04-08): fall back to FoodEntry
+    # aggregation when DailyNutritionSummary is empty. Danny's DNS
+    # table was empty despite 57 FoodEntry rows in the last 7 days,
+    # so rolling averages were never populated and CoS received None.
     cutoff_7d = today - timedelta(days=7)
     summaries_7d = DailyNutritionSummary.objects.filter(
         user=user, summary_date__gte=cutoff_7d, summary_date__lt=today
@@ -1017,6 +1028,28 @@ def build_nutrition_state(user):
         )
         state["rolling_7d_calories_avg"] = round(float(avgs["avg_cal"] or 0), 1)
         state["rolling_7d_protein_avg"] = round(float(avgs["avg_protein"] or 0), 1)
+    else:
+        # Fallback: aggregate directly from FoodEntry. Average is per
+        # day-with-data (distinct logged_date count), matching the DNS
+        # semantic of "average of days you logged".
+        fe_7d = FoodEntry.objects.filter(
+            user=user,
+            logged_date__gte=cutoff_7d,
+            logged_date__lt=today,
+            status="active",
+        )
+        days_with_data = fe_7d.values_list("logged_date", flat=True).distinct().count()
+        if days_with_data > 0:
+            fe_totals = fe_7d.aggregate(
+                total_cal=Sum("total_calories"),
+                total_protein=Sum("total_protein_g"),
+            )
+            state["rolling_7d_calories_avg"] = round(
+                float(fe_totals["total_cal"] or 0) / days_with_data, 1
+            )
+            state["rolling_7d_protein_avg"] = round(
+                float(fe_totals["total_protein"] or 0) / days_with_data, 1
+            )
 
     # ── Last food entry (canonical contract) ────────────────────
     _last_food = NutritionQueries.last_entry(user)

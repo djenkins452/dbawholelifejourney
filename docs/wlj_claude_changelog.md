@@ -6,6 +6,42 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-08 — Phase 6 Fix 1: CoS medication adherence unit bug (×100)
+
+**What:** CoS context was multiplying medication and supplement adherence
+values by 100 before exposing them to downstream consumers. But
+`state.adherence_7d` and `state.supplement_adherence_7d` are already
+stored as 0–100 integers from `medicine_utils.calculate_medicine_adherence_rate`.
+Result: every LLM prompt, every dashboard tile, and every insight rule
+reading `medication_adherence_state.adherence_pct` received values in
+the 0–10000 range. Live verification on Danny (user 1) showed
+`adherence_pct=6800` for meds and `2700` for supplements.
+
+**Why:** The `×100` dated from an earlier era when SAE state stored
+adherence as 0–1 floats. When the state format was standardized to
+0–100 in medicine_utils but the CoS multiplier was not removed, the
+unit drifted by two orders of magnitude. Downstream risk rules
+(`cos_context.py:4025 if adherence_pct < 70`) never fired because no
+real value could ever be <70 in a 0–10000 range.
+
+**Files:**
+- `apps/core/ai_orchestrator/cos_context.py:344` — remove `* 100`
+  from `medication_adherence_state.adherence_pct`
+- `apps/core/ai_orchestrator/cos_context.py:371` — remove `* 100`
+  from `supplement_adherence_state.adherence_pct`
+- `apps/core/ai_orchestrator/cos_context.py:1908` — remove `* 100`
+  from `ctx['supplements'].adherence_pct_7d` (nutrition supplement bridge)
+
+**Verification:** Live CoS context for Danny now reports
+`medication_adherence_state.adherence_pct=68.0` and
+`supplement_adherence_state.adherence_pct=27.0`. Risk-flag threshold
+at line 4025 (`< 70`) now functions correctly.
+
+**Scope:** Bug fix only. No model/schema changes, no migration. Part
+of Phase 6 system normalization pass (unit consistency audit).
+
+---
+
 ## 2026-04-07 — Phase 4.5 Hard Response Enforcement
 
 **What:** Phase 4 added behavioral guidance via the CoS system prompt.

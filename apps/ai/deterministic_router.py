@@ -934,6 +934,250 @@ def _is_decision_query(msg_lower):
     return False
 
 
+# ─────────────────────────────────────────────────────────────────────
+# Phase 11 — Decision Intent Classification
+# ─────────────────────────────────────────────────────────────────────
+#
+# Different decision questions require different selection logic:
+#   EXECUTION_NOW: "what should I do right now?" → overdue/upcoming task
+#   BIGGEST_RISK:  "what is my biggest risk?"    → health/adherence risk
+#   FIX_FIRST:     "what should I fix first?"    → hybrid (risk OR exec)
+#
+# The classifier is deterministic, rule-based, and fast. It maps the
+# user's INTENT to one of three modes that route to different handlers.
+
+# Phrase anchors for each intent.
+_RISK_PHRASES = (
+    'biggest risk', 'biggest concern', 'biggest problem',
+    'biggest issue', 'biggest threat', 'biggest gap',
+    'biggest worry', "what's my risk", 'whats my risk',
+    'what is my risk', "what's at risk", 'health risk',
+    'what am i risking', 'where am i most at risk',
+    'not working', "isn't working", 'isnt working',
+    "what's broken", 'whats broken', 'what is broken',
+)
+
+_FIX_PHRASES = (
+    'fix first', 'fix next', 'what should i fix',
+    'what do i fix', 'what to fix', 'what needs fixing',
+    'what needs attention', 'what needs work',
+    'help me decide', 'help me pick', 'help me choose',
+    'help me prioritize', 'decide for me', 'make the call',
+)
+
+
+def _classify_decision_intent(msg_lower):
+    """Phase 11 — classify a decision query into one of three modes.
+
+    Returns:
+        'BIGGEST_RISK'   — user is asking about risk / what's broken
+        'FIX_FIRST'      — user is asking what to fix / help decide
+        'EXECUTION_NOW'  — user is asking what to do (default)
+
+    EXECUTION_NOW is the default for any decision query that doesn't
+    match the more specific RISK or FIX patterns.
+    """
+    if not msg_lower:
+        return 'EXECUTION_NOW'
+
+    for phrase in _RISK_PHRASES:
+        if phrase in msg_lower:
+            return 'BIGGEST_RISK'
+
+    for phrase in _FIX_PHRASES:
+        if phrase in msg_lower:
+            return 'FIX_FIRST'
+
+    return 'EXECUTION_NOW'
+
+
+def _build_biggest_risk_response(user):
+    """Phase 11 — deterministic BIGGEST_RISK response.
+
+    Evaluates signals and health data to find the single highest-risk
+    issue. Priority order:
+
+    1. Medication adherence crisis (0 doses taken today + low 7d rate)
+    2. Health intelligence risk flags (from trend_analyzer)
+    3. Cross-domain correlation signals (from CDCE)
+    4. Overdue critical commitments (foundational items missed)
+    5. Signal-based focus (from trust contract)
+
+    Always returns an Action-First string. Never None.
+    """
+    try:
+        from apps.core.ai_orchestrator.cos_context import _fresh_module_state
+
+        # ── 1. Medication adherence crisis ──────────────────────
+        med = _fresh_module_state(user, 'medicine')
+        expected = med.get('expected_today', 0) or 0
+        taken = med.get('today_taken', 0) or 0
+        adherence_7d = med.get('adherence_7d')
+
+        if expected > 0 and taken == 0 and adherence_7d is not None:
+            if adherence_7d < 80:
+                action = "Take your overdue medications now."
+                reason = (
+                    f"Medication adherence is at {adherence_7d}% this "
+                    f"week and you have 0 of {expected} doses taken "
+                    f"today. Missed doses compound — this is your "
+                    f"highest-impact risk right now."
+                )
+                return (
+                    f"Do this next: {action}\n\n"
+                    f"Reason:\n{reason}\n"
+                    f"Priority: health risk"
+                )
+
+        # ── 2. Health intelligence risk flags ───────────────────
+        health = _fresh_module_state(user, 'health')
+        hi = None
+        try:
+            from apps.health.services.cos_health_context import (
+                build_health_intelligence,
+            )
+            hi = build_health_intelligence(user)
+        except Exception:
+            pass
+
+        if hi:
+            top_rec = hi.get('top_recommendation', '')
+            risk_flags = hi.get('risk_flags') or []
+
+            if risk_flags:
+                # Pick the first risk flag (trend_analyzer ranks by severity)
+                if isinstance(risk_flags[0], dict):
+                    flag_text = risk_flags[0].get('message', str(risk_flags[0]))
+                else:
+                    flag_text = str(risk_flags[0])
+
+                # Build an actionable response from the risk
+                action = _risk_to_action(flag_text, med, health)
+                reason = (
+                    f"Health intelligence flagged: {flag_text}. "
+                    f"{top_rec}" if top_rec else
+                    f"Health intelligence flagged: {flag_text}."
+                )
+                return (
+                    f"Do this next: {action}\n\n"
+                    f"Reason:\n{reason}\n"
+                    f"Priority: health risk"
+                )
+
+        # ── 3. Cross-domain signals ─────────────────────────────
+        # These come from the CDCE (correlation detection engine).
+        # Use them if no health-intelligence risk flags fired.
+        try:
+            from apps.core.ai_orchestrator.cos_context import build_cos_context
+            ctx = build_cos_context(user)
+            xd_signals = ctx.get('cross_domain_signals') or []
+            # Prefer high-severity first
+            high_sev = [s for s in xd_signals if s.get('severity') == 'high']
+            med_sev = [s for s in xd_signals if s.get('severity') == 'medium']
+            best_signal = (high_sev or med_sev or [None])[0]
+            if best_signal:
+                action = best_signal.get('recommended_action', '')
+                summary = best_signal.get('summary', '')
+                if action:
+                    return (
+                        f"Do this next: {action}\n\n"
+                        f"Reason:\n"
+                        f"Cross-domain pattern detected: {summary}\n"
+                        f"Priority: risk pattern"
+                    )
+        except Exception:
+            pass
+
+    except Exception as e:
+        logger.warning(
+            "[BIGGEST_RISK] risk evaluation failed for user=%s: %s",
+            getattr(user, 'id', '?'), e,
+        )
+
+    # ── Fallback: no specific risk found → delegate to execution ──
+    return _build_focus_query_response(user)
+
+
+def _risk_to_action(flag_text, med_state, health_state):
+    """Convert a risk flag string into a concrete action."""
+    flag_lower = flag_text.lower()
+    if 'medication' in flag_lower or 'adherence' in flag_lower:
+        return "Take your overdue medications now."
+    if 'sleep' in flag_lower:
+        return "Address your sleep debt — commit to 7+ hours tonight."
+    if 'protein' in flag_lower:
+        return "Increase your protein intake at your next meal."
+    if 'glucose' in flag_lower or 'blood sugar' in flag_lower:
+        return "Check your glucose level and adjust your next meal."
+    if 'weight' in flag_lower:
+        return "Review your nutrition plan for today."
+    # Generic: make it active
+    return f"Address this: {flag_text}"
+
+
+def _build_fix_first_response(user):
+    """Phase 11 — deterministic FIX_FIRST response (hybrid).
+
+    Combines risk evaluation with execution state:
+    - If a CRITICAL risk exists (medication crisis, high-severity
+      health flag), it overrides execution and the risk action leads.
+    - Otherwise, falls through to execution-first (Phase 10 logic).
+
+    This means "What should I fix first?" and "What should I do?"
+    WILL produce the same answer when there's no critical risk —
+    because the fix IS the next execution item. They only diverge
+    when a critical risk exists that execution-first would miss.
+    """
+    try:
+        from apps.core.ai_orchestrator.cos_context import _fresh_module_state
+
+        # Check for medication crisis (0 taken + low adherence = critical)
+        med = _fresh_module_state(user, 'medicine')
+        expected = med.get('expected_today', 0) or 0
+        taken = med.get('today_taken', 0) or 0
+        adherence_7d = med.get('adherence_7d')
+
+        if expected > 0 and taken == 0 and adherence_7d is not None:
+            if adherence_7d < 70:  # stricter threshold for "fix first"
+                return (
+                    "Do this next: Take your overdue medications now.\n\n"
+                    "Reason:\n"
+                    f"Medication adherence is at {adherence_7d}% this "
+                    f"week with 0 of {expected} doses taken today. "
+                    "This is a critical gap that compounds daily.\n"
+                    "Priority: critical fix"
+                )
+
+        # Check for high-severity cross-domain signals
+        try:
+            from apps.core.ai_orchestrator.cos_context import build_cos_context
+            ctx = build_cos_context(user)
+            xd_signals = ctx.get('cross_domain_signals') or []
+            high_sev = [s for s in xd_signals if s.get('severity') == 'high']
+            if high_sev:
+                sig = high_sev[0]
+                action = sig.get('recommended_action', '')
+                summary = sig.get('summary', '')
+                if action:
+                    return (
+                        f"Do this next: {action}\n\n"
+                        f"Reason:\n"
+                        f"Critical pattern detected: {summary}\n"
+                        f"Priority: critical fix"
+                    )
+        except Exception:
+            pass
+
+    except Exception as e:
+        logger.warning(
+            "[FIX_FIRST] risk check failed for user=%s: %s",
+            getattr(user, 'id', '?'), e,
+        )
+
+    # No critical risk → fall through to execution-first
+    return _build_focus_query_response(user)
+
+
 def _build_focus_query_response(user):
     """
     Phase 4 / Phase 8 — deterministic focus / decision-query response.
@@ -1261,59 +1505,57 @@ def _try_focus_query_route(msg_lower, user):
 
 
 def _try_decision_query_route(msg_lower, user):
-    """Phase 8 — decision-query hard override with never-None guarantee.
+    """Phase 8 / 11 — decision-query hard override with never-None
+    guarantee and intent-aware routing.
+
+    Phase 11 addition: classifies the decision intent and routes to
+    the appropriate handler:
+        EXECUTION_NOW → _build_focus_query_response (Phase 10)
+        BIGGEST_RISK  → _build_biggest_risk_response (Phase 11)
+        FIX_FIRST     → _build_fix_first_response (Phase 11)
 
     For any message that classifies as a decision query, this ALWAYS
     returns a valid RouteResult with an Action-First response. It
-    never returns None and never falls through to the LLM, even when:
-
-        - the user has no trust reports
-        - no focus surfaces
-        - the signal pipeline is empty
-        - an upstream error was raised
-
-    The _build_focus_query_response function itself has a safe
-    foundational fallback, so the only way this route fails is if
-    _build_focus_query_response raises — in which case we still emit
-    a hardcoded safe fallback RouteResult rather than propagate.
+    never returns None and never falls through to the LLM.
 
     Returns RouteResult or None (only if not a decision query).
     """
     if user is None or not _is_decision_query(msg_lower):
         return None
 
+    # Phase 11: classify the intent and pick the right handler.
+    intent = _classify_decision_intent(msg_lower)
+    _SAFE_FALLBACK = (
+        "Do this next: Complete your highest priority "
+        "foundational task.\n\n"
+        "Reason:\n"
+        "Decision-query fallback — no concrete focus surfaced. "
+        "Lead with the highest-priority foundational habit "
+        "(prayer, sleep, movement)."
+    )
+
     try:
-        response = _build_focus_query_response(user)
+        if intent == 'BIGGEST_RISK':
+            response = _build_biggest_risk_response(user)
+        elif intent == 'FIX_FIRST':
+            response = _build_fix_first_response(user)
+        else:
+            response = _build_focus_query_response(user)
+
         if not response or 'Do this next:' not in response:
-            # Safety net — _build_focus_query_response should always
-            # start with "Do this next:". If it didn't, wrap it.
-            response = (
-                "Do this next: Complete your highest priority "
-                "foundational task.\n\n"
-                "Reason:\n"
-                "Decision-query fallback — no concrete focus surfaced. "
-                "Lead with the highest-priority foundational habit "
-                "(prayer, sleep, movement)."
-            )
+            response = _SAFE_FALLBACK
     except Exception as e:
         logger.warning(
-            "[DECISION_QUERY] handler raised for user=%s: %s — "
-            "emitting hardcoded fallback",
-            getattr(user, 'id', '?'), e,
+            "[DECISION_QUERY] intent=%s handler raised for user=%s: "
+            "%s — emitting safe fallback",
+            intent, getattr(user, 'id', '?'), e,
         )
-        response = (
-            "Do this next: Complete your highest priority "
-            "foundational task.\n\n"
-            "Reason:\n"
-            "Decision-query fallback — signal pipeline error. "
-            "Lead with the highest-priority foundational habit "
-            "(prayer, sleep, movement)."
-        )
+        response = _SAFE_FALLBACK
 
     return RouteResult(
         category=RouteCategory.DETERMINISTIC_DATA,
         response=response,
-        route_name='decision_query',
+        route_name=f'decision_query_{intent.lower()}',
         domain='execution',
         is_terminal=True,
     )

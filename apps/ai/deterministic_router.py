@@ -988,28 +988,72 @@ def _build_focus_query_response(user):
             exec_state = exec_builder(user) or {}
             exec_items = exec_state.get('items', [])
 
-            # Sort: overdue first, then upcoming, then by scheduled_time.
-            # Within each tier, foundational beats important beats flexible.
-            _imp_order = {'foundational': 0, 'important': 1, 'flexible': 2}
-            overdue = [
+            all_overdue = [
                 i for i in exec_items
                 if i.get('time_status') == 'overdue'
                 and not i.get('completed_today')
             ]
-            overdue.sort(key=lambda x: (
-                _imp_order.get(x.get('importance', 'flexible'), 2),
-                x.get('scheduled_time', '99:99'),
-            ))
-
             upcoming = [
                 i for i in exec_items
                 if i.get('time_status') in ('upcoming', 'in_progress')
                 and not i.get('completed_today')
             ]
-            upcoming.sort(key=lambda x: (
-                _imp_order.get(x.get('importance', 'flexible'), 2),
-                x.get('scheduled_time', '99:99'),
-            ))
+
+            # ── Phase 10: intelligent item selection ──────────────
+            # Raw bucket sort is not enough. The system must behave
+            # like a disciplined human operator, not a sorted-list
+            # processor. Selection rules, in order:
+            #
+            # 1. Filter out non-actionable items (status-toggle
+            #    routine items like "Wake up" / "Go to bed" that
+            #    are implied-done when the user is interacting).
+            # 2. Separate TASKS (explicit commitments) from
+            #    ROUTINE_ITEMS (daily maintenance toggles). Tasks
+            #    are anchor activities; routines are supporting.
+            # 3. Within each group: foundational → important →
+            #    flexible, then earliest scheduled_time as
+            #    tiebreaker only.
+            # 4. Tasks always selected before routine_items.
+
+            # Status-toggle routine items that are never the right
+            # answer for "what should I do right now?". These are
+            # implied by the user being awake/interacting.
+            _IMPLIED_DONE_TITLES = frozenset({
+                'wake up', 'go to bed', 'go to sleep',
+                'lights out', 'get up', 'get out of bed',
+            })
+
+            def _is_actionable(item):
+                """Phase 10: an item is actionable if it's not
+                a status-toggle that's implied-done."""
+                if item.get('completed_today'):
+                    return False
+                title_lower = (item.get('title') or '').strip().lower()
+                if title_lower in _IMPLIED_DONE_TITLES:
+                    return False
+                return True
+
+            _imp_order = {
+                'foundational': 0, 'important': 1, 'flexible': 2,
+            }
+
+            def _rank_key(item):
+                """Phase 10: sort key that puts tasks before routine
+                items, foundational before flexible, earliest time
+                as tiebreaker."""
+                # Tasks (explicit commitments) before routine_items
+                is_task = 0 if item.get('source_type') == 'task' else 1
+                imp = _imp_order.get(
+                    item.get('importance', 'flexible'), 2,
+                )
+                sched = item.get('scheduled_time', '99:99')
+                return (is_task, imp, sched)
+
+            # Apply filter + rank
+            overdue = sorted(
+                [i for i in all_overdue if _is_actionable(i)],
+                key=_rank_key,
+            )
 
             # Priority 1: overdue items
             if overdue:
@@ -1035,27 +1079,33 @@ def _build_focus_query_response(user):
 
             # Priority 2: upcoming items (nothing overdue)
             elif upcoming:
-                top = upcoming[0]
-                sched = top.get('scheduled_time', '')
-                action = f"Start {top['title']}."
-                reason = (
-                    f"Nothing is overdue. {top['title']} is your "
-                    f"next item (scheduled at {sched})."
+                upcoming_filtered = sorted(
+                    [i for i in upcoming if _is_actionable(i)],
+                    key=_rank_key,
                 )
-                priority_label = 'upcoming'
+                if upcoming_filtered:
+                    top = upcoming_filtered[0]
+                    sched = top.get('scheduled_time', '')
+                    action = f"Start {top['title']}."
+                    reason = (
+                        f"Nothing is overdue. {top['title']} is "
+                        f"your next item (scheduled at {sched})."
+                    )
+                    priority_label = 'upcoming'
 
             # Priority 3: foundational execution gaps (no overdue,
             # no upcoming, but some required items are not done)
-            elif exec_items:
-                incomplete = [
-                    i for i in exec_items
-                    if not i.get('completed_today')
-                    and i.get('importance') in ('foundational', 'important')
-                ]
-                incomplete.sort(key=lambda x: (
-                    _imp_order.get(x.get('importance', 'flexible'), 2),
-                    x.get('scheduled_time', '99:99'),
-                ))
+            if not action and exec_items:
+                incomplete = sorted(
+                    [
+                        i for i in exec_items
+                        if _is_actionable(i)
+                        and i.get('importance') in (
+                            'foundational', 'important',
+                        )
+                    ],
+                    key=_rank_key,
+                )
                 if incomplete:
                     top = incomplete[0]
                     action = f"Complete {top['title']}."

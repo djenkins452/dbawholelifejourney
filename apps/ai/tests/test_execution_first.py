@@ -75,8 +75,9 @@ class OverdueOverridesSignalTests(TestCase):
         self.user = _make_user("overdue_wins@test.com")
 
     def test_overdue_task_selected_over_high_confidence_signal(self):
-        """sleep_trend at 97% confidence must NOT override an overdue
-        'Wake up' task. This is the exact bug Phase 9 fixes."""
+        """An overdue execution item must beat a 97% confidence signal.
+        Phase 10 refinement: 'Wake up' is an implied-done status toggle
+        so 'Prayer Time' (the next actionable item) is selected."""
         from apps.ai.deterministic_router import _build_focus_query_response
         from apps.core.ai_state import state_builder
 
@@ -92,7 +93,9 @@ class OverdueOverridesSignalTests(TestCase):
         ):
             resp = _build_focus_query_response(self.user)
 
-        self.assertIn("Wake up", resp)
+        # Phase 10: "Wake up" is filtered out (implied-done); the
+        # next valid overdue item (Prayer Time) is selected.
+        self.assertIn("Prayer Time", resp)
         self.assertTrue(resp.startswith("Do this next:"))
         self.assertIn("overdue", resp.lower())
         # Must NOT contain signal-layer actions like "Log a meal"
@@ -121,6 +124,8 @@ class OverdueOverridesSignalTests(TestCase):
         self.assertIn("Prayer Time", resp)
 
     def test_multiple_overdue_shows_count_in_reason(self):
+        """Phase 10: 'Wake up' is filtered (implied-done), so only
+        Prayer + Bible remain. The reason block should show '1 more'."""
         from apps.ai.deterministic_router import _build_focus_query_response
         from apps.core.ai_state import state_builder
 
@@ -136,8 +141,9 @@ class OverdueOverridesSignalTests(TestCase):
         ):
             resp = _build_focus_query_response(self.user)
 
-        self.assertIn("2 more", resp)
+        # Phase 10: Wake up filtered → Prayer selected → 1 more (Bible)
         self.assertIn("Prayer", resp)
+        self.assertIn("1 more", resp)
         self.assertIn("Bible", resp)
 
 

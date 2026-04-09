@@ -481,6 +481,85 @@ of Phase 6 system normalization pass (unit consistency audit).
 
 ---
 
+## 2026-04-09 — Phase 10 Action Selection (no ambiguity)
+
+**What:** Fixes which specific item is selected inside a priority
+bucket. Phase 9 correctly chose the OVERDUE bucket, but then
+picked "Wake up" (a routine status toggle) instead of "Work on
+WLJ" (the actual anchor task). Phase 10 adds intelligent filtering
+and anchor-task prioritization so the system selects like a
+disciplined human operator, not a sorted-list processor.
+
+**Root cause:** Phase 9's sort was `(importance, scheduled_time)`.
+"Wake up" (foundational, 05:00) sorted before "Work on WLJ"
+(foundational, 05:15) because it had an earlier scheduled_time.
+But "Wake up" is a binary routine-status toggle — if the user is
+asking "what should I do?", they're already awake. It's not real
+work.
+
+**Changes:**
+
+1. **Implied-done status toggle filter** — items whose title
+   matches `_IMPLIED_DONE_TITLES` ("wake up", "go to bed", "go
+   to sleep", "lights out", "get up", "get out of bed") are
+   filtered out before any ranking. These are status markers, not
+   actionable work.
+
+2. **Tasks over routine_items ranking** — items with
+   `source_type == 'task'` (explicit commitments the user
+   scheduled) are ranked ABOVE items with
+   `source_type == 'routine_item'` (daily maintenance toggles).
+   Within each group: foundational → important → flexible, then
+   `scheduled_time` as tiebreaker only.
+
+3. **Sort key: `(is_task, importance, scheduled_time)`** — the
+   three-field tuple puts anchor tasks (task + foundational) at
+   rank 0, routine items (routine_item + foundational) at rank 1,
+   and flexible items last. This is the "sequence order" the task
+   spec requires.
+
+4. **Filter applied to ALL priority buckets** — overdue, upcoming,
+   and foundational-gap selections all use the same
+   `_is_actionable` filter and `_rank_key` sort.
+
+**Validation (Danny's exact scenario):**
+
+Phase 9 output:
+```
+Do this next: Start Wake up.
+Reason: Wake up (scheduled at 05:00) is overdue...
+```
+
+Phase 10 output:
+```
+Do this next: Start Work on WLJ.
+Reason: Work on WLJ (scheduled at 05:15) is overdue and 4 more
+item(s) are also behind: Church Bible Study, Prayer Time,
+Bible Reading.
+Priority: overdue
+```
+
+**Files:**
+- `apps/ai/deterministic_router.py` — added `_IMPLIED_DONE_TITLES`,
+  `_is_actionable`, `_rank_key` inside `_build_focus_query_response`.
+  All three priority buckets (overdue, upcoming, foundational-gap)
+  now use filtered+ranked selection.
+- `apps/ai/tests/test_action_selection.py` — NEW, 12 tests:
+  completed-excluded (2), anchor-task-selected (2),
+  status-toggle-filtered (2), sequence-order (1),
+  real-morning-scenario (2), regression-guards (3).
+- `apps/ai/tests/test_execution_first.py` — 2 Phase 9 tests
+  updated to reflect the correct Phase 10 behavior (Wake up
+  filtered → Prayer Time selected).
+
+**Verification:**
+- 12 scoped tests pass in `test_action_selection.py`
+- 29 combined Phase 9+10 tests pass
+- `python manage.py check` clean
+- `makemigrations --check --dry-run` → no changes
+
+---
+
 ## 2026-04-09 — Phase 9 Execution-First Decision Selection
 
 **What:** The decision selector now operates in execution-first mode.

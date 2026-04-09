@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 193,
+    "fields": {
+      "title": "Your Chief of Staff now thinks about your day, not just your data",
+      "description": "Ask 'What should I do right now?' and your Chief of Staff will look at what's overdue, what's coming up in the next 90 minutes, and what daily commitments you haven't completed — in that order, before ever looking at trends or insights. Previously it might have said 'Plan an earlier wind-down tonight' while you had 5 overdue morning items. Now it says 'Start Wake up' and lists what else is behind. Signals and trends (sleep declining, nutrition low) only surface when there's nothing actionable on your schedule. The system now behaves like a disciplined operator managing your current day, not a strategist optimizing long-term numbers.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-04-09",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-04-09T04:00:00Z",
+      "updated_at": "2026-04-09T04:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 192,
     "fields": {
       "title": "Decisive next step, guaranteed",

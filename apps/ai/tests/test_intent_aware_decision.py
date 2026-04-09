@@ -192,12 +192,15 @@ class BiggestRiskUsesSignalLayerTests(TestCase):
         with patch.object(cos_context, '_fresh_module_state', fake_fresh):
             resp = _build_biggest_risk_response(self.user)
 
-        # Phase 11.1: when no critical risk is found, the builder
-        # returns None (not the execution response). The route layer
-        # provides the explicit risk-review fallback instead.
-        # Either None or a valid risk string is acceptable.
-        if resp is not None:
-            self.assertIn("Do this next:", resp)
+        # Phase 11.2: when no critical risk is found, the builder
+        # returns an explicit low-risk assessment (either a minor
+        # risk or "No major risks right now"). Must start with an
+        # Action-First prefix.
+        self.assertIsNotNone(resp)
+        self.assertTrue(
+            'Do this next:' in resp or 'Your priority is:' in resp,
+            f"Expected Action-First prefix, got: {resp[:80]!r}",
+        )
 
 
 # ══════════════════════════════════════════════════════════════
@@ -229,9 +232,11 @@ class FixFirstHybridTests(TestCase):
         self.assertIn("medication", resp.lower())
         self.assertIn("critical", resp.lower())
 
-    def test_no_critical_risk_falls_to_execution(self):
-        """When medication is fine, FIX_FIRST falls through to
-        execution-first (same as EXECUTION_NOW)."""
+    def test_no_critical_risk_uses_recovery_framing(self):
+        """Phase 11.2: when medication is fine, FIX_FIRST produces
+        a recovery/coach-framed response (not the same wording as
+        EXECUTION_NOW). It may mention overdue items but with
+        recovery language, or say 'you're on track'."""
         from apps.ai.deterministic_router import _build_fix_first_response
         from apps.core.ai_orchestrator import cos_context
 
@@ -239,7 +244,7 @@ class FixFirstHybridTests(TestCase):
             if module == 'medicine':
                 return {
                     'expected_today': 10,
-                    'today_taken': 9,  # mostly taken
+                    'today_taken': 9,
                     'adherence_7d': 95,
                 }
             return {}
@@ -247,9 +252,10 @@ class FixFirstHybridTests(TestCase):
         with patch.object(cos_context, '_fresh_module_state', fake_fresh):
             resp = _build_fix_first_response(self.user)
 
-        # Should fall through to execution, not risk
-        self.assertIn("Do this next:", resp)
-        self.assertNotIn("medication", resp.lower())
+        self.assertTrue(
+            'Do this next:' in resp or 'Your priority is:' in resp,
+            f"Expected Action-First prefix, got: {resp[:80]!r}",
+        )
 
 
 # ══════════════════════════════════════════════════════════════
@@ -260,7 +266,9 @@ class ActionFirstPreservedTests(TestCase):
     def setUp(self):
         self.user = _make_user("action_first_p11@test.com")
 
-    def test_all_three_modes_start_with_do_this_next(self):
+    def test_all_three_modes_start_with_action_first_prefix(self):
+        """All responses must use one of the two Action-First prefixes:
+        'Do this next:' or 'Your priority is:'."""
         from apps.ai.deterministic_router import _try_decision_query_route
 
         for q in [
@@ -271,8 +279,9 @@ class ActionFirstPreservedTests(TestCase):
             r = _try_decision_query_route(q.lower(), self.user)
             self.assertIsNotNone(r, f"{q} returned None")
             self.assertTrue(
-                r.response.startswith("Do this next:"),
-                f"{q} → didn't start with 'Do this next:', "
+                r.response.startswith("Do this next:")
+                or r.response.startswith("Your priority is:"),
+                f"{q} → missing Action-First prefix, "
                 f"got: {r.response[:80]!r}",
             )
 

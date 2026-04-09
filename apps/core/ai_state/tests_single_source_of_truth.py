@@ -205,3 +205,125 @@ class HealthPriorityServiceReadsStatusTests(TestCase):
         )
         # Must reference the canonical status
         self.assertIn('sleep_status', source)
+
+
+# ══════════════════════════════════════════════════════════════
+# HARD ENFORCEMENT: no model-object health references in template
+# ══════════════════════════════════════════════════════════════
+
+class TemplateNoModelObjectReferencesTests(TestCase):
+    """The health dashboard template must NOT reference raw model
+    objects for health domain display. Every health value must come
+    from hs.* (SAE state) or ms.* (medicine state)."""
+
+    def _get_template_source(self):
+        import os
+        here = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.normpath(os.path.join(
+            here, '..', '..', '..', 'templates', 'health', 'home.html',
+        ))
+        with open(path, 'r', encoding='utf-8') as fh:
+            return fh.read()
+
+    def test_no_latest_sleep_model_access(self):
+        src = self._get_template_source()
+        self.assertNotIn(
+            'latest_sleep.total_hours',
+            src,
+            "Template still reads latest_sleep.total_hours (raw model)",
+        )
+        self.assertNotIn(
+            'latest_sleep.quality_display',
+            src,
+            "Template still reads latest_sleep.quality_display (model property)",
+        )
+        self.assertNotIn(
+            'latest_sleep.quality_score',
+            src,
+            "Template still reads latest_sleep.quality_score (raw model field)",
+        )
+
+    def test_no_latest_glucose_model_access(self):
+        src = self._get_template_source()
+        self.assertNotIn(
+            'latest_glucose.value',
+            src,
+            "Template still reads latest_glucose.value (raw model)",
+        )
+        self.assertNotIn(
+            'latest_glucose.get_context_display',
+            src,
+            "Template still reads latest_glucose.get_context_display (model method)",
+        )
+
+    def test_no_latest_heart_rate_model_access(self):
+        src = self._get_template_source()
+        self.assertNotIn(
+            'latest_heart_rate.bpm',
+            src,
+            "Template still reads latest_heart_rate.bpm (raw model)",
+        )
+        self.assertNotIn(
+            'latest_heart_rate.get_context_display',
+            src,
+            "Template still reads latest_heart_rate.get_context_display",
+        )
+
+    def test_no_latest_blood_pressure_model_access(self):
+        src = self._get_template_source()
+        self.assertNotIn(
+            'latest_blood_pressure.reading',
+            src,
+            "Template still reads latest_blood_pressure.reading (raw model)",
+        )
+        self.assertNotIn(
+            'latest_blood_pressure.category_display',
+            src,
+            "Template still reads latest_blood_pressure.category_display (model method)",
+        )
+
+    def test_no_latest_blood_oxygen_model_access(self):
+        src = self._get_template_source()
+        self.assertNotIn(
+            'latest_blood_oxygen.spo2',
+            src,
+            "Template still reads latest_blood_oxygen.spo2 (raw model)",
+        )
+        self.assertNotIn(
+            'latest_blood_oxygen.category_display',
+            src,
+            "Template still reads latest_blood_oxygen.category_display",
+        )
+
+    def test_no_latest_weight_model_access_for_display(self):
+        src = self._get_template_source()
+        self.assertNotIn(
+            'latest_weight.value',
+            src,
+            "Template still reads latest_weight.value (raw model)",
+        )
+
+    def test_no_view_computed_averages(self):
+        """View-computed averages must not appear in the template —
+        they must come from SAE state."""
+        src = self._get_template_source()
+        self.assertNotIn(
+            'avg_resting_hr',
+            src,
+            "Template still uses view-computed avg_resting_hr",
+        )
+        self.assertNotIn(
+            'avg_fasting_glucose',
+            src,
+            "Template still uses view-computed avg_fasting_glucose",
+        )
+        self.assertNotIn(
+            'avg_systolic',
+            src,
+            "Template still uses view-computed avg_systolic",
+        )
+        self.assertNotIn(
+            'avg_spo2',
+            src,
+            "Template still uses view-computed avg_spo2",
+        )

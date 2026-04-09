@@ -77,15 +77,15 @@
             </div>
             {% endif %}
 
-            {# ── Glucose Status ── #}
-            {% if features.health.glucose and latest_glucose %}
-            <div class="today-item {% if glucose_variability_level == 'high' %}today-alert{% elif glucose_variability_level == 'moderate' %}today-caution{% else %}today-complete{% endif %}">
-                <span class="today-icon" aria-hidden="true">{% if glucose_variability_level == "high" %}&#9888;{% elif glucose_variability_level == "moderate" %}&#9679;{% else %}&#10003;{% endif %}</span>
+            {# ── Glucose Status (Phase 17: SAE) ── #}
+            {% if features.health.glucose and hs.glucose_status and hs.glucose_status != "no_data" %}
+            <div class="today-item {% if hs.glucose_status == 'poor' %}today-alert{% elif hs.glucose_status == 'fair' %}today-caution{% else %}today-complete{% endif %}">
+                <span class="today-icon" aria-hidden="true">{% if hs.glucose_status == 'poor' %}&#9888;{% elif hs.glucose_status == 'fair' %}&#9679;{% else %}&#10003;{% endif %}</span>
                 <div class="today-content">
                     <span class="today-label">Blood Glucose</span>
-                    <span class="today-value">{{ latest_glucose.value }} {{ latest_glucose.unit }}{% if latest_glucose.trend_arrow_display %} {{ latest_glucose.trend_arrow_display }}{% endif %}</span>
-                    {% if glucose_variability_label %}
-                    <span class="today-signal ts-{{ glucose_variability_level }}">{{ glucose_variability_label }}</span>
+                    <span class="today-value">{{ hs.latest_glucose }} {{ hs.latest_glucose_unit }}</span>
+                    {% if hs.glucose_context %}
+                    <span class="today-signal">{{ hs.glucose_context }}</span>
                     {% endif %}
                 </div>
             </div>
@@ -275,19 +275,17 @@
                 <a href="{% url 'health:glucose_create' %}" class="btn btn-primary btn-sm">Log</a>
             </div>
 
-            {% if latest_glucose %}
+            {# Phase 17: glucose card from SAE #}
+            {% if hs.glucose_status and hs.glucose_status != "no_data" %}
                 <div class="metric-display">
-                    <span class="metric-value">{{ latest_glucose.value }}</span>
-                    <span class="metric-unit">{{ latest_glucose.unit }}</span>
-                    {% if latest_glucose.trend_arrow_display %}
-                        <span class="trend-arrow">{{ latest_glucose.trend_arrow_display }}</span>
-                    {% endif %}
+                    <span class="metric-value">{{ hs.latest_glucose }}</span>
+                    <span class="metric-unit">{{ hs.latest_glucose_unit }}</span>
                 </div>
-                <p class="metric-context">{{ latest_glucose.get_context_display }}</p>
-                <p class="metric-date">{{ latest_glucose.recorded_at|date:"M j" }}</p>
+                <p class="metric-context">{{ hs.glucose_context }}</p>
+                <p class="metric-date">{{ hs.glucose_status_reason }}</p>
 
-                {% if avg_fasting_glucose %}
-                    <p class="metric-avg">Avg fasting: {{ avg_fasting_glucose }} {{ latest_glucose.unit }}</p>
+                {% if hs.glucose_avg_7d %}
+                    <p class="metric-avg">7-day avg: {{ hs.glucose_avg_7d }} {{ hs.latest_glucose_unit }}</p>
                 {% endif %}
 
                 {% if glucose_variability_label %}
@@ -314,7 +312,7 @@
     {# ════════════════════════════════════════════════════════════════════ #}
 
     {# ── GROUP 1: Body Composition ── #}
-    {% if has_body_comp_data or latest_weight %}
+    {% if has_body_comp_data or hs.weight_status and hs.weight_status != "no_data" %}
     <div class="health-group">
         <div class="group-header">
             <h2 class="group-title">Body Composition</h2>
@@ -356,17 +354,18 @@
                     <a href="{% url 'health:weight_create' %}" class="btn btn-primary btn-sm">Log</a>
                 </div>
 
-                {% if latest_weight %}
+                {# Phase 17: weight card from SAE #}
+                {% if hs.weight_status and hs.weight_status != "no_data" %}
                     <div class="metric-display">
-                        <span class="metric-value">{{ latest_weight.value }}</span>
-                        <span class="metric-unit">{{ latest_weight.unit }}</span>
+                        <span class="metric-value">{{ hs.weight_current }}</span>
+                        <span class="metric-unit">{{ hs.weight_unit }}</span>
                     </div>
-                    <p class="metric-date">{{ latest_weight.recorded_at|date:"M j" }}</p>
+                    <p class="metric-date">{{ hs.weight_status_reason }}</p>
 
-                    {% if weight_change_30d is not None %}
-                        <p class="metric-change {% if weight_change_30d < 0 %}change-down{% elif weight_change_30d > 0 %}change-up{% endif %}">
-                            {% if weight_trend_direction == "down" %}<span class="trend-arrow trend-down" aria-label="trending down">&#8595;</span>{% elif weight_trend_direction == "up" %}<span class="trend-arrow trend-up" aria-label="trending up">&#8593;</span>{% elif weight_trend_direction == "stable" %}<span class="trend-arrow trend-stable" aria-label="stable">&#8594;</span>{% endif %}
-                            {% if weight_change_30d > 0 %}+{% endif %}{{ weight_change_30d }} lb in 30 days
+                    {% if hs.weight_change_30d is not None %}
+                        <p class="metric-change {% if hs.weight_change_30d < 0 %}change-down{% elif hs.weight_change_30d > 0 %}change-up{% endif %}">
+                            {% if hs.weight_trend == "decreasing" %}<span class="trend-arrow trend-down" aria-label="trending down">&#8595;</span>{% elif hs.weight_trend == "increasing" %}<span class="trend-arrow trend-up" aria-label="trending up">&#8593;</span>{% elif hs.weight_trend == "stable" %}<span class="trend-arrow trend-stable" aria-label="stable">&#8594;</span>{% endif %}
+                            {% if hs.weight_change_30d > 0 %}+{% endif %}{{ hs.weight_change_30d }} lb in 30 days
                         </p>
                     {% endif %}
 
@@ -414,16 +413,17 @@
                 <a href="{% url 'health:heartrate_create' %}" class="btn btn-primary btn-sm">Log</a>
             </div>
 
-            {% if latest_heart_rate %}
+            {# Phase 17: heart rate card from SAE #}
+            {% if hs.hr_status and hs.hr_status != "no_data" %}
                 <div class="metric-display">
-                    <span class="metric-value">{{ latest_heart_rate.bpm }}</span>
+                    <span class="metric-value">{{ hs.latest_heart_rate }}</span>
                     <span class="metric-unit">BPM</span>
                 </div>
-                <p class="metric-context">{{ latest_heart_rate.get_context_display }}</p>
-                <p class="metric-date">{{ latest_heart_rate.recorded_at|date:"M j" }}</p>
+                <p class="metric-context">{{ hs.hr_context }}</p>
+                <p class="metric-date">{{ hs.hr_status_reason }}</p>
 
-                {% if avg_resting_hr %}
-                    <p class="metric-avg">Avg resting: {{ avg_resting_hr }} BPM</p>
+                {% if hs.heart_rate_avg_7d %}
+                    <p class="metric-avg">Avg resting: {{ hs.heart_rate_avg_7d }} BPM</p>
                 {% endif %}
 
                 <div class="card-actions">
@@ -450,21 +450,16 @@
                 <a href="{% url 'health:blood_pressure_create' %}" class="btn btn-primary btn-sm">Log</a>
             </div>
 
-            {% if latest_blood_pressure %}
+            {# Phase 17: BP card from SAE #}
+            {% if hs.bp_status and hs.bp_status != "no_data" %}
                 <div class="metric-display">
-                    <span class="metric-value">{{ latest_blood_pressure.reading }}</span>
+                    <span class="metric-value">{{ hs.bp_reading }}</span>
                     <span class="metric-unit">mmHg</span>
                 </div>
                 <p class="metric-context">
-                    <span class="category-badge category-{{ latest_blood_pressure.category }}">
-                        {{ latest_blood_pressure.category_display }}
-                    </span>
+                    <span class="category-badge">{{ hs.bp_category }}</span>
                 </p>
-                <p class="metric-date">{{ latest_blood_pressure.recorded_at|date:"M j" }}</p>
-
-                {% if avg_systolic %}
-                    <p class="metric-avg">Avg: {{ avg_systolic }}/{{ avg_diastolic }} mmHg</p>
-                {% endif %}
+                <p class="metric-date">{{ hs.bp_status_reason }}</p>
 
                 <div class="card-actions">
                     <a href="{% url 'health:blood_pressure_list' %}" class="card-link">View history</a>
@@ -491,20 +486,19 @@
                 <a href="{% url 'health:blood_oxygen_create' %}" class="btn btn-primary btn-sm">Log</a>
             </div>
 
-            {% if latest_blood_oxygen %}
+            {# Phase 17: SpO2 card from SAE #}
+            {% if hs.spo2_status and hs.spo2_status != "no_data" %}
                 <div class="metric-display">
-                    <span class="metric-value">{{ latest_blood_oxygen.spo2 }}</span>
+                    <span class="metric-value">{{ hs.latest_blood_oxygen }}</span>
                     <span class="metric-unit">% SpO2</span>
                 </div>
                 <p class="metric-context">
-                    <span class="category-badge category-{{ latest_blood_oxygen.category }}">
-                        {{ latest_blood_oxygen.category_display }}
-                    </span>
+                    <span class="category-badge">{{ hs.spo2_context }}</span>
                 </p>
-                <p class="metric-date">{{ latest_blood_oxygen.recorded_at|date:"M j" }}</p>
+                <p class="metric-date">{{ hs.spo2_status_reason }}</p>
 
-                {% if avg_spo2 %}
-                    <p class="metric-avg">Avg: {{ avg_spo2 }}%</p>
+                {% if hs.blood_oxygen_avg_7d %}
+                    <p class="metric-avg">Avg: {{ hs.blood_oxygen_avg_7d }}%</p>
                 {% endif %}
 
                 <div class="card-actions">
@@ -777,19 +771,17 @@
                 <a href="{% url 'health:glucose_create' %}" class="btn btn-primary btn-sm">Log</a>
             </div>
 
-            {% if latest_glucose %}
+            {# Phase 17: glucose card from SAE #}
+            {% if hs.glucose_status and hs.glucose_status != "no_data" %}
                 <div class="metric-display">
-                    <span class="metric-value">{{ latest_glucose.value }}</span>
-                    <span class="metric-unit">{{ latest_glucose.unit }}</span>
-                    {% if latest_glucose.trend_arrow_display %}
-                        <span class="trend-arrow">{{ latest_glucose.trend_arrow_display }}</span>
-                    {% endif %}
+                    <span class="metric-value">{{ hs.latest_glucose }}</span>
+                    <span class="metric-unit">{{ hs.latest_glucose_unit }}</span>
                 </div>
-                <p class="metric-context">{{ latest_glucose.get_context_display }}</p>
-                <p class="metric-date">{{ latest_glucose.recorded_at|date:"M j" }}</p>
+                <p class="metric-context">{{ hs.glucose_context }}</p>
+                <p class="metric-date">{{ hs.glucose_status_reason }}</p>
 
-                {% if avg_fasting_glucose %}
-                    <p class="metric-avg">Avg fasting: {{ avg_fasting_glucose }} {{ latest_glucose.unit }}</p>
+                {% if hs.glucose_avg_7d %}
+                    <p class="metric-avg">7-day avg: {{ hs.glucose_avg_7d }} {{ hs.latest_glucose_unit }}</p>
                 {% endif %}
 
                 {% if glucose_variability_label %}

@@ -88,6 +88,8 @@ def build_health_state(user):
         )
         if older_weight is not None:
             diff = float(val) - float(older_weight)
+            # Phase 17: weight_change_30d for template display
+            state["weight_change_30d"] = round(diff, 1)
             if abs(diff) < 0.5:
                 state["weight_trend"] = "stable"
             elif diff > 0:
@@ -450,6 +452,8 @@ def build_health_state(user):
         state["bp_systolic"] = latest_bp[0]
         state["bp_diastolic"] = latest_bp[1]
         state["last_bp_entry"] = latest_bp[2].isoformat()
+        # Phase 17: pre-formatted reading string for template
+        state["bp_reading"] = f"{latest_bp[0]}/{latest_bp[1]}"
 
     # ── Heart Rate (7-day avg + latest) ─────────────────────────
     try:
@@ -471,6 +475,14 @@ def build_health_state(user):
         if latest_hr:
             state["latest_heart_rate"] = latest_hr[0]
             state["last_heart_rate_entry"] = latest_hr[1].isoformat()
+            # Phase 17: context label for template display
+            bpm = latest_hr[0]
+            if bpm < 60:
+                state["hr_context"] = "Low"
+            elif bpm <= 100:
+                state["hr_context"] = "Normal"
+            else:
+                state["hr_context"] = "Elevated"
     except Exception:
         pass
 
@@ -492,9 +504,23 @@ def build_health_state(user):
             .first()
         )
         if latest_glucose:
-            state["latest_glucose"] = float(latest_glucose[0])
-            state["latest_glucose_unit"] = latest_glucose[1]
+            g_val = float(latest_glucose[0])
+            g_unit = latest_glucose[1]
+            state["latest_glucose"] = g_val
+            state["latest_glucose_unit"] = g_unit
             state["last_glucose_entry"] = latest_glucose[2].isoformat()
+            # Phase 17: glucose context label for template
+            if g_unit == 'mg/dL':
+                if g_val <= 70:
+                    state["glucose_context"] = "Low"
+                elif g_val <= 100:
+                    state["glucose_context"] = "Normal"
+                elif g_val <= 125:
+                    state["glucose_context"] = "Pre-diabetic"
+                else:
+                    state["glucose_context"] = "Elevated"
+            else:
+                state["glucose_context"] = "Stable"
 
         # Phase 2: glucose variability classification used to live in
         # apps/health/views.py — moved into SAE so the cv→level/label
@@ -539,8 +565,16 @@ def build_health_state(user):
             .first()
         )
         if latest_spo2:
-            state["latest_blood_oxygen"] = float(latest_spo2[0])
+            spo2_val = float(latest_spo2[0])
+            state["latest_blood_oxygen"] = spo2_val
             state["last_blood_oxygen_entry"] = latest_spo2[1].isoformat()
+            # Phase 17: context label for template
+            if spo2_val >= 95:
+                state["spo2_context"] = "Normal"
+            elif spo2_val >= 90:
+                state["spo2_context"] = "Low"
+            else:
+                state["spo2_context"] = "Critical"
     except Exception:
         pass
 

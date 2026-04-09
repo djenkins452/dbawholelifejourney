@@ -157,6 +157,14 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 _windows[w_label]["total"] += 1
                 if dose.get("status") in ("taken", "late"):
                     _windows[w_label]["taken"] += 1
+            # Add status field to each window (needed by downstream template logic)
+            for w in _windows.values():
+                if w["taken"] >= w["total"] and w["total"] > 0:
+                    w["status"] = "complete"
+                elif w["taken"] > 0:
+                    w["status"] = "partial"
+                else:
+                    w["status"] = "pending"
             context["intake_windows"] = list(_windows.values()) if _windows else []
         except Exception:
             context["ms"] = {}

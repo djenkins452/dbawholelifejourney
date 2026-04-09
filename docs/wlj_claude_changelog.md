@@ -6,6 +6,64 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-09 — Phase 11 Intent-Aware Decision Modes
+
+**What:** Different decision questions now produce different answers.
+Previously "What should I do?", "What is my biggest risk?", and
+"What should I fix first?" all returned the same response. Now
+they route to three distinct handlers based on classified intent.
+
+**Changes:**
+
+1. **`_classify_decision_intent(query)`** — deterministic rule-based
+   classifier that returns EXECUTION_NOW / BIGGEST_RISK / FIX_FIRST.
+
+2. **`_build_biggest_risk_response(user)`** — evaluates risks from
+   the signal layer: medication adherence crisis (0 doses taken +
+   low 7d rate) → health intelligence risk flags → cross-domain
+   correlation signals. Always returns health/adherence-based action.
+
+3. **`_build_fix_first_response(user)`** — hybrid: checks for
+   critical risk (med crisis at <70% adherence) first; if none,
+   falls through to execution-first (Phase 10). Only diverges
+   from EXECUTION_NOW when a critical risk exists.
+
+4. **`_try_decision_query_route` updated** to classify intent and
+   dispatch to the matching handler. Route names now reflect the
+   intent: `decision_query_execution_now`, `decision_query_biggest_risk`,
+   `decision_query_fix_first`.
+
+**Validation (Danny's real data):**
+```
+"What should I do right now?"
+→ EXECUTION_NOW
+→ Do this next: Start Work on WLJ.
+  (overdue task, foundational, scheduled at 05:15)
+
+"What is my biggest risk?"
+→ BIGGEST_RISK
+→ Do this next: Take your overdue medications now.
+  (adherence at 61%, 0 of 15 doses taken today)
+
+"What should I fix first?"
+→ FIX_FIRST
+→ Do this next: Take your overdue medications now.
+  (critical fix — adherence crisis compounds daily)
+```
+
+**Files:**
+- `apps/ai/deterministic_router.py` — added `_classify_decision_intent`,
+  `_build_biggest_risk_response`, `_build_fix_first_response`,
+  `_risk_to_action` helper. Updated `_try_decision_query_route`.
+- `apps/ai/tests/test_intent_aware_decision.py` — NEW, 19 tests
+- `docs/wlj_claude_changelog.md` — this entry
+- `apps/core/fixtures/release_notes.json` — PK 195
+- `apps/core/management/commands/load_initial_data.py` — reset
+
+**Verification:** 19 scoped tests pass. check + makemigrations clean.
+
+---
+
 ## 2026-04-09 — Phase 10 Action Selection (no ambiguity)
 
 **What:** Fixes which specific item is selected inside a priority

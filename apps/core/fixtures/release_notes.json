@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 195,
+    "fields": {
+      "title": "Your Chief of Staff now understands what you're asking",
+      "description": "Ask 'What should I do right now?' and you get your next overdue task. Ask 'What is my biggest risk?' and you get the health or adherence issue most likely to compound. Ask 'What should I fix first?' and you get the most critical gap. Previously all three questions returned the exact same answer — now they route to three distinct decision handlers. 'What should I do' focuses on execution (overdue tasks and schedule). 'Biggest risk' evaluates medication adherence, health trends, and cross-domain patterns. 'Fix first' is a hybrid — critical risks override execution, but if nothing is critical, it falls back to the task list. Your Chief of Staff now thinks about the question, not just the data.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-04-09",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-04-09T06:00:00Z",
+      "updated_at": "2026-04-09T06:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 194,
     "fields": {
       "title": "Smarter next-action selection",

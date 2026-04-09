@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 190,
+    "fields": {
+      "title": "Accurate adherence, sleep, and workout numbers — no more drift",
+      "description": "Your Chief of Staff was occasionally showing stale adherence percentages, sleep trends, and workout counts because the cached state only refreshed when you logged something new. On a quiet day, yesterday's numbers would linger. Now the medication, supplement, sleep, and workout rolling metrics are re-computed fresh on every chat turn, so the panel you see and the narrative your Chief of Staff reads will always agree. The labs trend-detection panel was also silently broken by a refactor — it's fixed and now shows your abnormal-lab history again.",
+      "entry_type": "fix",
+      "version": "",
+      "release_date": "2026-04-08",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-04-08T22:00:00Z",
+      "updated_at": "2026-04-08T22:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 189,
     "fields": {
       "title": "Disabled modules stay quiet",

@@ -76,7 +76,19 @@ class AdherencePctNotDoubleScaledTests(TestCase):
 
     def _call_cos(self):
         from apps.core.ai_orchestrator import cos_context
-        with patch(
+        from apps.core.ai_state import state_builder
+
+        # Phase 6: cos_context now calls the builder directly via
+        # _fresh_module_state to avoid stale-cache drift on rolling
+        # signals. Patch the MODULE_BUILDERS entry for medicine so
+        # our fake state flows through the fresh-read path.
+        def fake_medicine_builder(_user):
+            return self._medicine_state
+
+        with patch.dict(
+            state_builder.MODULE_BUILDERS,
+            {"medicine": fake_medicine_builder},
+        ), patch(
             'apps.core.ai_state.state_engine.get_module_state',
             side_effect=self._fake_get_module_state,
         ), patch(

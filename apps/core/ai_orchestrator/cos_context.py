@@ -49,6 +49,60 @@ logger = logging.getLogger(__name__)
 _PARALLEL_MAX_WORKERS = 6
 
 
+def _fresh_module_state(user, module):
+    """
+    Phase 6: build a fresh module state, bypassing the UserState cache.
+
+    Required for ROLLING-WINDOW signals that change as time passes
+    without any new data being written:
+
+        medicine.adherence_7d          (expected_doses grows daily)
+        medicine.supplement_adherence_7d
+        health.sleep_avg_hours_7d      (last-7-day window slides)
+        health.sleep_trend             (last-7 vs prior-7 comparison)
+        health.sleep_quality_avg_7d
+        fitness.workouts_7d            (last-7-day window slides)
+        fitness.workouts_30d
+        fitness.workout_consistency_score
+        fitness.workout_adherence_score
+
+    The SAE cache only invalidates on post_save signals from domain
+    models (IntakeLog, WeightEntry, etc.). Rolling metrics drift
+    between those events — so on days when a user doesn't log
+    anything, the cache reports yesterday's adherence / last-week's
+    sleep average. `calculate_medicine_adherence_rate` runs fresh
+    each call and was producing different numbers than the cached
+    state, which the LLM then narrated as contradictory (e.g.
+    "adherence_pct=100" alongside "Low medication adherence (62%)").
+
+    This helper is the single entry point for callers that need
+    guaranteed-fresh state. Non-rolling signals (weight_current,
+    body_fat_current, etc.) should keep using get_module_state /
+    get_state_value — they're correctly invalidated on writes.
+
+    Fails closed: on any builder error we fall back to the cached
+    value so the context build can't be broken by a flaky builder.
+    """
+    try:
+        from apps.core.ai_state.state_builder import MODULE_BUILDERS
+        builder = MODULE_BUILDERS.get(module)
+        if builder is not None:
+            fresh = builder(user)
+            if fresh is not None:
+                return fresh
+    except Exception as e:
+        logger.warning(
+            "_fresh_module_state(%s) builder failed for user=%s: %s — "
+            "falling back to cached state",
+            module, getattr(user, 'pk', '?'), e,
+        )
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        return get_module_state(user, module) or {}
+    except Exception:
+        return {}
+
+
 # =========================================================================
 # Context Builder Functions (each runs independently in its own thread)
 # =========================================================================
@@ -335,7 +389,13 @@ def _build_health_and_vitals(user):
     # Medication adherence — from SAE (CoS purity: no live computation)
     try:
         from apps.core.ai_state.state_engine import get_module_state
-        med_state = get_module_state(user, 'medicine') or {}
+        # Phase 6: rolling-window adherence metrics must be read fresh.
+        # The SAE cache only invalidates on IntakeLog saves, so on days
+        # when the user doesn't log anything the cached adherence_7d
+        # stays frozen at whatever it was yesterday while the canonical
+        # calculate_medicine_adherence_rate reflects the true rolling
+        # window. Bypass the cache here.
+        med_state = _fresh_module_state(user, 'medicine')
         if med_state.get('active_count', 0) > 0:
             adherence_7d = med_state.get('adherence_7d')
             med_adherence = {
@@ -376,8 +436,10 @@ def _build_health_and_vitals(user):
     # Pending medication detail — from SAE per-schedule status (CoS purity enforced)
     # SAE build_medicine_state now computes schedule_status_today with per-dose detail.
     try:
-        from apps.core.ai_state.state_engine import get_module_state
-        med_state = get_module_state(user, 'medicine') or {}
+        # Phase 6: today's schedule status (today_taken / today_missed /
+        # today_pending) is also rolling — expected_today grows as
+        # scheduled_time thresholds pass. Read fresh.
+        med_state = _fresh_module_state(user, 'medicine')
         active_names = med_state.get('active_medicines', [])
         if active_names:
             result['pending_medications_summary'] = {
@@ -428,11 +490,23 @@ def _build_health_and_vitals(user):
     # Health signals
     try:
         from apps.core.ai_state.state_engine import get_state_value
+
+        # Phase 6: pre-build fresh health + fitness state once so the
+        # rolling signals at the top of health_signals reflect the
+        # current 7-day window rather than whatever was cached on the
+        # last post_save event. Non-rolling fields (weight_current,
+        # bmi_current, body_fat_current, vitals) can still use the
+        # cached get_state_value path below — they only change on
+        # writes, which already trigger cache invalidation.
+        fresh_health = _fresh_module_state(user, 'health')
+        fresh_fitness = _fresh_module_state(user, 'fitness')
+
         health_signals = {
-            'sleep_avg_7d': get_state_value(user, 'health.sleep_avg_hours_7d'),
-            'sleep_trend': get_state_value(user, 'health.sleep_trend', 'stable'),
-            'workout_count_7d': get_state_value(user, 'fitness.workouts_7d', 0),
-            'steps_avg_7d': get_state_value(user, 'health.steps_avg_7d'),
+            'sleep_avg_7d': fresh_health.get('sleep_avg_hours_7d'),
+            'sleep_trend': fresh_health.get('sleep_trend') or 'stable',
+            'sleep_quality_avg_7d': fresh_health.get('sleep_quality_avg_7d'),
+            'workout_count_7d': fresh_fitness.get('workouts_7d', 0),
+            'steps_avg_7d': fresh_health.get('steps_avg_7d'),
         }
 
         from datetime import timedelta
@@ -486,20 +560,29 @@ def _build_health_and_vitals(user):
                 health_signals['blood_oxygen_avg_7d'] = round(float(spo2_avg), 1)
 
             if not health_signals.get('steps_avg_7d'):
-                steps = get_state_value(user, 'health.steps_avg_7d')
+                steps = fresh_health.get('steps_avg_7d')
                 if steps:
                     health_signals['steps_avg_7d'] = int(steps)
 
             if not health_signals.get('sleep_avg_7d'):
-                sleep_min = get_state_value(user, 'health.sleep_avg_duration_7d')
+                # Phase 6: fall-back from sleep_avg_duration_7d
+                # (minutes) → sleep_avg_7d (hours). Pull from the
+                # already-fresh health dict, not the cache.
+                sleep_min = fresh_health.get('sleep_avg_duration_7d')
                 if sleep_min:
                     health_signals['sleep_avg_7d'] = round(float(sleep_min) / 60, 1)
 
             # Fitness signals from SAE — Phase 2.5: expose adherence,
             # consistency, strength trend, and volume metrics that used
             # to be computed in SAE and silently dropped by CoS.
-            from apps.core.ai_state.state_engine import get_module_state
-            fitness = get_module_state(user, 'fitness') or {}
+            #
+            # Phase 6: reuse the fresh_fitness dict built above. All of
+            # these signals (workouts_7d, workouts_30d,
+            # workout_adherence_score, workout_consistency_score,
+            # strength_trend_score, weekly_training_load,
+            # last_workout_days_ago) are rolling-window — they drift
+            # forward each day without any new write event.
+            fitness = fresh_fitness
             workout_count = fitness.get('workouts_7d', 0)
             if workout_count > 0:
                 health_signals['workout_count_7d'] = workout_count
@@ -764,8 +847,14 @@ def _build_health_and_vitals(user):
             apply_time_awareness,
         )
 
-        h_state = get_module_state(user, 'health') or {}
-        m_state = get_module_state(user, 'medicine') or {}
+        # Phase 6: build_health_signals consumes sleep_trend /
+        # sleep_avg_hours_7d / adherence_7d — all rolling metrics
+        # that drift on days without new log events. Read both
+        # modules fresh so the health-intelligence summary never
+        # narrates a different number than the medication-adherence
+        # panel sitting two keys away in the same CoS context dict.
+        h_state = _fresh_module_state(user, 'health')
+        m_state = _fresh_module_state(user, 'medicine')
         user_now = get_user_now(user)
         h_signals = build_health_signals(h_state, m_state, user_now)
         h_summary = build_health_priority_summary(
@@ -1908,7 +1997,9 @@ def _build_nutrition_tracking_context(user):
         # the LLM think of them as part of nutrition. Surface a compact
         # summary here so the LLM can relate supplements to macro intake.
         try:
-            med_state = get_module_state(user, 'medicine') or {}
+            # Phase 6: supplement_adherence_7d is rolling — read fresh
+            # so this bridge matches the main supplement panel.
+            med_state = _fresh_module_state(user, 'medicine')
             supp_adherence = med_state.get('supplement_adherence_7d')
             if supp_adherence is not None or med_state.get('supplement_count', 0) > 0:
                 ctx['supplements'] = {
@@ -2299,15 +2390,21 @@ def _build_medical_context(user):
             if key_metrics:
                 result['key_metrics'] = key_metrics
 
-            # Trend detection: find tests with 2+ results
+            # Trend detection: find tests with 2+ results.
+            # Phase 6 fix: values_list('raw_test_name', flat=True)
+            # returns STRINGS, not LabResult instances — the old code
+            # did `lab.raw_test_name.lower()` against each string which
+            # raised AttributeError("'str' object has no attribute
+            # 'raw_test_name'") and silently killed the labs section.
             from collections import Counter
             test_counts = Counter(
-                lab.raw_test_name.lower().strip()
-                for lab in LabResult.objects.filter(
+                (name or '').lower().strip()
+                for name in LabResult.objects.filter(
                     user=user,
                 ).exclude(
                     result_status='pending_review',
                 ).values_list('raw_test_name', flat=True)
+                if name
             )
             trending_tests = [t for t, c in test_counts.items() if c >= 2]
             if trending_tests:

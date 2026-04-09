@@ -1025,6 +1025,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Phase 5 Feature Gating (PK 189)
         self._reset_phase_5_feature_gating_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Phase 6 Cross-Layer Truth (PK 190)
+        self._reset_phase_6_cross_layer_truth_fixtures(DataLoadConfig, force, verbosity)
+
         # One-time: Reset release_notes to fix PK 182 timestamp causing infinite popup loop
         self._reset_whats_new_timestamp_fix_fixtures(DataLoadConfig, force, verbosity)
 
@@ -6426,6 +6429,39 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset workout tomorrow fixtures FAILED: {e}'))
+
+    def _reset_phase_6_cross_layer_truth_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes with Phase 6 Cross-Layer
+        Truth Validation entry (PK 190). Surfaces the adherence /
+        sleep / workout rolling-signal fresh-read fix and the labs
+        AttributeError repair.
+        """
+        reset_tracker_name = 'reset_phase_6_cross_layer_truth_2026_04_08'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for Phase 6 Cross-Layer Truth')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Phase 6 Cross-Layer Truth',
+                'command',
+                'One-time reset: added PK 190 for Phase 6 cross-layer truth validation'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Phase 6 cross-layer truth fixtures FAILED: {e}'))
 
     def _reset_phase_5_feature_gating_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """

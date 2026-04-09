@@ -626,6 +626,21 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
         _log_route_decision(result, user, message)
         return result
 
+    # ── Phase 8: Decision query — HARD OVERRIDE with never-None ──
+    # Broader matcher than the Phase 4 focus query. Catches:
+    #     "what is the biggest risk"
+    #     "what's not working"
+    #     "help me decide"
+    #     "what should I fix"
+    # and semantic paraphrases thereof. This route NEVER returns
+    # None for a matched decision query — it always emits an
+    # Action-First response with a safe foundational fallback.
+    result = _try_decision_query_route(msg_lower, user)
+    if result is not None:
+        result.elapsed_ms = (time.monotonic() - t_start) * 1000
+        _log_route_decision(result, user, message)
+        return result
+
     # ── Phase 0b: Locked next-action (bypasses LLM entirely) ──────
     result = _try_next_action_route(msg_lower, user)
     if result is not None:
@@ -806,19 +821,145 @@ def _is_focus_query(msg_lower):
     return any(phrase in msg_lower for phrase in _FOCUS_QUERY_PHRASES)
 
 
+# ─────────────────────────────────────────────────────────────────────
+# Phase 8 — Decision Query Classification (semantic + phrase-based)
+# ─────────────────────────────────────────────────────────────────────
+#
+# Superset of the focus matcher. Covers the task spec's 5 categories:
+#     "what should I do"
+#     "what is the biggest risk"
+#     "what is not working"
+#     "help me decide"
+#     "what should I fix first"
+#
+# Rule-based (no ML, no LLM). Uses word-level substring checks so we
+# catch mild paraphrases like "whats not working" / "help me pick".
+
+# Exact phrase anchors — broader than _FOCUS_QUERY_PHRASES.
+_DECISION_QUERY_EXACT_PHRASES = (
+    # Biggest risk / problem / concern
+    'biggest risk',
+    "what's my biggest",
+    'whats my biggest',
+    'what is my biggest',
+    'biggest problem',
+    'biggest concern',
+    'biggest issue',
+    'biggest threat',
+    # Not working
+    'not working',
+    "isn't working",
+    'isnt working',
+    "what's broken",
+    'whats broken',
+    'what is broken',
+    # Help me decide
+    'help me decide',
+    'help me pick',
+    'help me choose',
+    'decide for me',
+    'make the call',
+    'make the decision',
+    "i can't decide",
+    'i cannot decide',
+    # Fix queries
+    'what should i fix',
+    'what do i fix',
+    'what to fix',
+    'fix first',
+)
+
+
+def _is_decision_query(msg_lower):
+    """Phase 8 — deterministic decision-query classifier.
+
+    Returns True if the message is asking for a decisive next action.
+    Combines:
+
+    1. The existing _FOCUS_QUERY_PHRASES anchors (Phase 4)
+    2. The _NEXT_ACTION_PHRASES anchors
+    3. The new _DECISION_QUERY_EXACT_PHRASES
+    4. Semantic patterns that catch paraphrased forms:
+        - "what" + ("do" or "fix" or "focus" or "should")
+        - "biggest" + ("risk" / "problem" / "concern" / "issue")
+        - "help" + "decide"/"pick"/"choose"
+
+    This MUST be rule-based and fast — it gates every user message
+    in the deterministic routing layer.
+    """
+    if not msg_lower or not isinstance(msg_lower, str):
+        return False
+
+    # Fast path: exact-phrase hits via the three established lists.
+    if _is_focus_query(msg_lower):
+        return True
+    if _is_next_action_query(msg_lower):
+        return True
+    for phrase in _DECISION_QUERY_EXACT_PHRASES:
+        if phrase in msg_lower:
+            return True
+
+    # Semantic pattern path — catches mild paraphrases.
+    has_what = 'what' in msg_lower
+    has_should = 'should' in msg_lower
+    has_help = 'help' in msg_lower
+
+    # "what should I X" where X implies action
+    if has_what and has_should:
+        for verb in ('do', 'fix', 'focus', 'tackle', 'start',
+                     'prioritize', 'handle', 'address'):
+            if verb in msg_lower:
+                return True
+
+    # "what do I X" where X implies action
+    if has_what and ('do i' in msg_lower or 'i do' in msg_lower):
+        for verb in ('fix', 'focus', 'tackle', 'start', 'prioritize'):
+            if verb in msg_lower:
+                return True
+
+    # "biggest <concern>"
+    if 'biggest' in msg_lower:
+        for noun in ('risk', 'problem', 'concern', 'issue',
+                     'threat', 'gap', 'worry'):
+            if noun in msg_lower:
+                return True
+
+    # "help me <decide>"
+    if has_help:
+        for verb in ('decide', 'pick', 'choose', 'figure out',
+                     'prioritize'):
+            if verb in msg_lower:
+                return True
+
+    return False
+
+
 def _build_focus_query_response(user):
     """
-    Phase 4 — deterministic focus / behind / status response.
+    Phase 4 / Phase 8 — deterministic focus / decision-query response.
 
     Reads:
         1. right_now_focus from SAE (computed by Phase 3 trust resolver)
         2. compute_time_status() for schedule-aware "behind" semantics
 
-    Format follows the Phase 4 response structure rule:
-        Situation → Interpretation → Action
+    Phase 8 Action-First format (strictly enforced):
 
-    Returns a single string. Never falls through to LLM.
+        Do this next: <specific action>
+
+        Reason:
+        <why, based on signals>
+
+        Schedule: <optional time-status overlay>
+
+    Phase 8 never-None guarantee: even when no focus exists, no
+    trust reports load, or the signal pipeline is empty, this
+    function returns a valid Action-First response. Decision
+    queries must never fall through to the LLM.
+
+    Returns a single string. Never None. Never empty. Always
+    starts with "Do this next: ".
     """
+    focus = None
     try:
         from apps.core.ai_state.right_now import compute_right_now_focus
         from apps.core.ai_state.state_engine import get_module_state
@@ -843,7 +984,6 @@ def _build_focus_query_response(user):
             "[FOCUS_QUERY] right_now_focus build failed for user=%s: %s",
             getattr(user, 'id', '?'), e,
         )
-        focus = {'status': 'steady'}
 
     # Time-aware "are they actually behind?" check
     time_status = None
@@ -856,23 +996,66 @@ def _build_focus_query_response(user):
             getattr(user, 'id', '?'), e,
         )
 
-    lines = []
+    # ── Determine the SINGLE primary action (Phase 8 rule) ──
+    # Priority: focused domain → time-status next item → safe
+    # foundational fallback. We must ALWAYS emit exactly one action.
+    action_hints = {
+        'workouts': 'Log a workout or move a session into today.',
+        'medication': "Take any missed dose now if it's safe to do so.",
+        'medicine': "Take any missed dose now if it's safe to do so.",
+        'fasting': 'Log your current fast or start the next one.',
+        'nutrition': 'Log a meal or check your macro targets.',
+        'sleep': 'Plan an earlier wind-down tonight.',
+        'body_composition': 'Add a measurement to improve trust in the trend.',
+        'journal': 'Write a short entry — even one sentence.',
+        'faith': "Open your reading plan and complete today's passage.",
+    }
 
-    # ── Situation + Interpretation: focus or steady ──────────────
+    action = None
+    reason = None
+    priority_label = None
+    confidence = None
+
     if focus and focus.get('status') == 'focused':
-        domain = focus.get('domain', 'unknown')
-        priority = focus.get('priority', 'medium')
+        domain = focus.get('domain', '') or ''
+        action = action_hints.get(domain)
+        if not action:
+            clean = domain.replace('_', ' ').strip()
+            action = f"Address {clean}." if clean else None
+        reason = focus.get('reason', '') or ''
+        priority_label = focus.get('priority', 'medium')
         confidence = focus.get('confidence')
-        reason = focus.get('reason', '')
-        confidence_str = f" ({confidence}% confidence)" if confidence is not None else ''
-        lines.append(f"**Right now, focus on: {domain.replace('_', ' ').title()}**")
-        lines.append('')
-        lines.append(f"Reason: {reason}")
-        lines.append(f"Priority: {priority}{confidence_str}")
-    else:
-        lines.append("**Right now: steady.** Nothing urgent in any tracked domain.")
 
-    # ── Time-aware "behind" overlay ──────────────────────────────
+    # Phase 8 never-None fallback: if focus couldn't produce an action,
+    # try the schedule-next-item, then a safe foundational default.
+    if not action:
+        if time_status and time_status.get('next_item'):
+            next_item = time_status['next_item']
+            action = f"Start {next_item}."
+            reason = reason or (
+                f"Your schedule says {next_item} is the next "
+                "foundational item."
+            )
+        else:
+            action = "Complete your highest priority foundational task."
+            reason = reason or (
+                "No high-priority focus surfaced from SAE and no "
+                "scheduled next item. Default to the highest-priority "
+                "foundational habit (prayer, sleep, movement)."
+            )
+
+    # ── Assemble Action-First response (Phase 8 mandatory shape) ──
+    lines = [f"Do this next: {action}", "", "Reason:"]
+    if reason:
+        lines.append(reason)
+    if priority_label and confidence is not None:
+        lines.append(
+            f"Priority: {priority_label} ({confidence}% confidence)"
+        )
+    elif priority_label:
+        lines.append(f"Priority: {priority_label}")
+
+    # ── Time-aware schedule overlay (optional secondary context) ──
     if time_status and time_status.get('next_item'):
         ts_status = time_status.get('status', 'ON_TRACK')
         next_item = time_status.get('next_item')
@@ -888,7 +1071,10 @@ def _build_focus_query_response(user):
                     f"{next_time} (in {minutes_until} min)."
                 )
             else:
-                lines.append(f"Schedule: on track. Next is **{next_item}** at {next_time}.")
+                lines.append(
+                    f"Schedule: on track. Next is **{next_item}** at "
+                    f"{next_time}."
+                )
         elif ts_status == 'USING_BUFFER':
             lines.append(
                 f"Schedule: using buffer — {slack} min slack remaining. "
@@ -896,31 +1082,9 @@ def _build_focus_query_response(user):
             )
         elif ts_status == 'LATE':
             lines.append(
-                f"Schedule: behind. Next is **{next_item}** at {next_time}. "
-                f"Buffer exhausted — adjustments needed."
+                f"Schedule: behind. Next is **{next_item}** at "
+                f"{next_time}. Buffer exhausted — adjustments needed."
             )
-
-    # ── Action: clear next step from focus or schedule ───────────
-    lines.append('')
-    if focus and focus.get('status') == 'focused':
-        domain = focus.get('domain', '')
-        # Domain-specific action hints (deterministic)
-        action_hints = {
-            'workouts': 'Log a workout or move a session into today.',
-            'medication': 'Take any missed dose now if it\'s safe to do so.',
-            'fasting': 'Log your current fast or start the next one.',
-            'nutrition': 'Log a meal or check your macro targets.',
-            'sleep': 'Plan an earlier wind-down tonight.',
-            'body_composition': 'Add a measurement to improve trust in the trend.',
-            'journal': 'Write a short entry — even one sentence.',
-            'faith': 'Open your reading plan and complete today\'s passage.',
-        }
-        action = action_hints.get(domain, f"Address {domain.replace('_', ' ')}.")
-        lines.append(f"Next step: {action}")
-    elif time_status and time_status.get('next_item'):
-        lines.append(f"Next step: Start {time_status['next_item']}.")
-    else:
-        lines.append("Next step: Stay consistent — nothing urgent.")
 
     return "\n".join(lines)
 
@@ -946,6 +1110,65 @@ def _try_focus_query_route(msg_lower, user):
             getattr(user, 'id', '?'), e,
         )
         return None
+
+
+def _try_decision_query_route(msg_lower, user):
+    """Phase 8 — decision-query hard override with never-None guarantee.
+
+    For any message that classifies as a decision query, this ALWAYS
+    returns a valid RouteResult with an Action-First response. It
+    never returns None and never falls through to the LLM, even when:
+
+        - the user has no trust reports
+        - no focus surfaces
+        - the signal pipeline is empty
+        - an upstream error was raised
+
+    The _build_focus_query_response function itself has a safe
+    foundational fallback, so the only way this route fails is if
+    _build_focus_query_response raises — in which case we still emit
+    a hardcoded safe fallback RouteResult rather than propagate.
+
+    Returns RouteResult or None (only if not a decision query).
+    """
+    if user is None or not _is_decision_query(msg_lower):
+        return None
+
+    try:
+        response = _build_focus_query_response(user)
+        if not response or 'Do this next:' not in response:
+            # Safety net — _build_focus_query_response should always
+            # start with "Do this next:". If it didn't, wrap it.
+            response = (
+                "Do this next: Complete your highest priority "
+                "foundational task.\n\n"
+                "Reason:\n"
+                "Decision-query fallback — no concrete focus surfaced. "
+                "Lead with the highest-priority foundational habit "
+                "(prayer, sleep, movement)."
+            )
+    except Exception as e:
+        logger.warning(
+            "[DECISION_QUERY] handler raised for user=%s: %s — "
+            "emitting hardcoded fallback",
+            getattr(user, 'id', '?'), e,
+        )
+        response = (
+            "Do this next: Complete your highest priority "
+            "foundational task.\n\n"
+            "Reason:\n"
+            "Decision-query fallback — signal pipeline error. "
+            "Lead with the highest-priority foundational habit "
+            "(prayer, sleep, movement)."
+        )
+
+    return RouteResult(
+        category=RouteCategory.DETERMINISTIC_DATA,
+        response=response,
+        route_name='decision_query',
+        domain='execution',
+        is_terminal=True,
+    )
 
 
 # =============================================================================
@@ -1008,13 +1231,48 @@ _WEASEL_PHRASES = frozenset([
     'maybe try',
 ])
 
-# Note: the "ONE primary action" rule is enforced in the system
-# prompt (format_cos_system_injection Decision Contract) rather than
-# in this validator. A validator-level "must contain Do this next"
-# check would false-positive on short factual queries like
-# "what's my heart rate trend?". The prompt-level enforcement + the
-# existing Phase 4.5 interpretive-marker check catch the important
-# cases without the false-positive risk.
+# Phase 8 — passive-action phrases. Responses that tell the user to
+# "keep logging" or "continue tracking" or "monitor this" are
+# non-actionable on decision queries. They're accepted only when the
+# user explicitly asked about logging/tracking/monitoring.
+_PASSIVE_PHRASES = frozenset([
+    'keep logging',
+    'continue logging',
+    'keep tracking',
+    'continue tracking',
+    'monitor this',
+    'monitor your',
+    'keep an eye on',
+    'keep watching',
+    'stay the course',
+    'maintain your current',
+    'keep doing what you',
+])
+
+# Phase 8 — forbidden response starters. If ANY of these appear as
+# the first non-empty line, the response fails the Action-First
+# contract for decision queries. Summary-first responses are
+# explicitly banned for "what should I do" / "biggest risk" queries.
+_FORBIDDEN_STARTERS = (
+    'end of day',
+    "here's what happened",
+    'heres what happened',
+    'here is what happened',
+    'today you',
+    'you completed',
+    'summary',
+    'your day so far',
+    'let me summarize',
+    'let me recap',
+    'so far today',
+)
+
+# Phase 8 — required action-first prefixes. The first non-empty line
+# of a decision-query response MUST start with one of these.
+_ACTION_FIRST_PREFIXES = (
+    'do this next:',
+    'your priority is:',
+)
 
 
 def _get_all_trust_reports(user):
@@ -1402,26 +1660,107 @@ def _handle_fasting_query(user):
 
 # ── Phase 4.5 validator ───────────────────────────────────────────
 
-def validate_response(response_text, user=None, query_domain=None):
-    """Phase 4.5 hard response validator (extended in Phase 7).
+def _first_non_empty_line(text):
+    """Return the first stripped non-empty line, or empty string."""
+    for raw in text.splitlines():
+        stripped = raw.strip()
+        if stripped:
+            return stripped
+    return ''
+
+
+def _count_action_first_lines(text):
+    """Count lines that start with one of the Action-First prefixes.
+
+    Used by the single-action validator rule. A compliant
+    decision-query response has EXACTLY ONE such line.
+    """
+    count = 0
+    for raw in text.splitlines():
+        stripped_lower = raw.strip().lower()
+        for prefix in _ACTION_FIRST_PREFIXES:
+            if stripped_lower.startswith(prefix):
+                count += 1
+                break
+    return count
+
+
+def validate_response(
+    response_text, user=None, query_domain=None, is_decision_query=False,
+):
+    """Phase 4.5 hard response validator (extended in Phase 7 and Phase 8).
 
     Rejects LLM responses that:
-        - Use generic coaching phrases ("keep it up", "great job", etc.)
-        - Use Phase 7 forbidden softening language ("consider",
-          "you might", "it could help")
-        - Are too short to contain interpretation + action
-        - Cite domain metrics without confidence/percentage language
-          when a trust report exists for that domain
-        - Lack any interpretation structure (pure raw data)
+        - Phase 8 Rule 0: when is_decision_query=True, first
+          non-empty line must start with "Do this next:" or
+          "Your priority is:", and there must be exactly ONE such
+          line (no multi-action menus, no buried actions)
+        - Phase 8 Rule 0-b: when is_decision_query=True, first
+          non-empty line must NOT start with any summary-first
+          forbidden starter ("End of day", "Today you", etc.)
+        - Phase 8 Rule 1c: passive-action phrases ("keep logging",
+          "continue tracking", "monitor this", etc.) are rejected
+          on decision queries AND on responses where the user did
+          not explicitly ask to log/track/monitor
+        - Phase 4.5 Rule 1: generic coaching phrases
+        - Phase 7 Rule 1b: forbidden softening / weasel language
+        - Phase 4.5 Rule 2: too short to contain interp + action
+        - Phase 4.5 Rule 3: domain response without trust markers
+        - Phase 4.5 Rule 4: missing interpretive language
 
-    Returns a tuple ``(is_valid, reason)``. The caller is responsible for
-    regenerating via a deterministic builder when invalid.
+    Returns ``(is_valid, reason)``. The caller regenerates via a
+    deterministic builder when invalid.
     """
     if not response_text or not isinstance(response_text, str):
         return (False, 'empty or non-string response')
 
     text = response_text.strip()
     lower = text.lower()
+
+    # ─────────────────────────────────────────────────────────
+    # Phase 8 Rule 0 — ACTION-FIRST STRUCTURAL ENFORCEMENT
+    # Runs BEFORE every other rule. For decision queries, the
+    # response structure is non-negotiable.
+    # ─────────────────────────────────────────────────────────
+    if is_decision_query:
+        first_line = _first_non_empty_line(text)
+        first_lower = first_line.lower()
+
+        # Rule 0-b: forbidden summary-first starters.
+        for starter in _FORBIDDEN_STARTERS:
+            if first_lower.startswith(starter):
+                return (
+                    False,
+                    f'decision query rejected: summary-first starter '
+                    f'{starter!r}',
+                )
+
+        # Rule 0: first non-empty line must start with an
+        # Action-First prefix.
+        if not any(
+            first_lower.startswith(prefix)
+            for prefix in _ACTION_FIRST_PREFIXES
+        ):
+            return (
+                False,
+                "decision query rejected: first line does not start "
+                "with 'Do this next:' or 'Your priority is:'",
+            )
+
+        # Rule 0-c: exactly ONE Action-First line. Multiple means
+        # the LLM produced a menu; buried action means summary-first.
+        action_count = _count_action_first_lines(text)
+        if action_count == 0:
+            return (
+                False,
+                'decision query rejected: no Action-First line found',
+            )
+        if action_count > 1:
+            return (
+                False,
+                f'decision query rejected: {action_count} action '
+                f'lines (expected exactly 1)',
+            )
 
     # Rule 1: generic coaching phrases are automatic rejections.
     for phrase in _GENERIC_PHRASES:
@@ -1433,6 +1772,17 @@ def validate_response(response_text, user=None, query_domain=None):
     for phrase in _WEASEL_PHRASES:
         if phrase in lower:
             return (False, f'weasel phrase: {phrase!r}')
+
+    # Rule 1c (Phase 8): passive-action phrases. Responses that tell
+    # the user to "keep logging" / "continue tracking" / "monitor this"
+    # are non-actionable filler. Always rejected — the task spec
+    # allows a carve-out when the user explicitly asked to log/track,
+    # but without access to the original query string at this layer
+    # we take the stricter path. Deterministic handlers that emit
+    # legitimate tracking guidance use different phrasing.
+    for phrase in _PASSIVE_PHRASES:
+        if phrase in lower:
+            return (False, f'passive phrase: {phrase!r}')
 
     # Rule 2: too short to contain interpretation + action.
     # A compliant Phase 4.5 response is at least ~80 chars.

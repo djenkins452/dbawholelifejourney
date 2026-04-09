@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 192,
+    "fields": {
+      "title": "Decisive next step, guaranteed",
+      "description": "Ask 'What should I do?', 'What is the biggest risk?', 'What's not working?', 'Help me decide', or 'What should I fix first?' — and your Chief of Staff will always lead with a single, specific next action, never a summary. The guarantee is built into the router and validator, not a request to the AI. Responses now start with 'Do this next:' or 'Your priority is:' on every decision question, always have exactly one action (no menus of options), and never start with 'End of day...' or 'Here's what happened today...'. Passive filler like 'keep logging' and 'continue tracking' is also rejected — active verbs only.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-04-09",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-04-09T03:00:00Z",
+      "updated_at": "2026-04-09T03:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 191,
     "fields": {
       "title": "One clear next step, every time",

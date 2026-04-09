@@ -1031,6 +1031,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Phase 7 Decision Intelligence (PK 191)
         self._reset_phase_7_decision_intelligence_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Phase 8 Decision Hard Lock (PK 192)
+        self._reset_phase_8_decision_hard_lock_fixtures(DataLoadConfig, force, verbosity)
+
         # One-time: Reset release_notes to fix PK 182 timestamp causing infinite popup loop
         self._reset_whats_new_timestamp_fix_fixtures(DataLoadConfig, force, verbosity)
 
@@ -6432,6 +6435,38 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset workout tomorrow fixtures FAILED: {e}'))
+
+    def _reset_phase_8_decision_hard_lock_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes with Phase 8 Decision
+        Hard Lock entry (PK 192). Surfaces the structural guarantee
+        that decision queries always produce Action-First responses.
+        """
+        reset_tracker_name = 'reset_phase_8_decision_hard_lock_2026_04_09'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for Phase 8 Decision Hard Lock')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Phase 8 Decision Hard Lock',
+                'command',
+                'One-time reset: added PK 192 for Phase 8 decision hard lock'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Phase 8 decision hard lock fixtures FAILED: {e}'))
 
     def _reset_phase_7_decision_intelligence_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """

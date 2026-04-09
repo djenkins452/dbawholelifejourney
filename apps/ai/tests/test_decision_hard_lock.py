@@ -211,17 +211,17 @@ class DecisionQueryRouteTests(TestCase):
             r.route_name.startswith("decision_query"),
             f"expected decision_query prefix, got {r.route_name!r}",
         )
-        self.assertIn("Do this next:", r.response)
+        self.assertTrue("Do this next:" in r.response or "Your priority is:" in r.response, f"Missing Action-First prefix: {r.response[:80]!r}")
 
     def test_not_working_returns_route_result(self):
         r = self._route("what's not working")
         self.assertIsNotNone(r)
-        self.assertIn("Do this next:", r.response)
+        self.assertTrue("Do this next:" in r.response or "Your priority is:" in r.response, f"Missing Action-First prefix: {r.response[:80]!r}")
 
     def test_help_me_decide_returns_route_result(self):
         r = self._route("help me decide")
         self.assertIsNotNone(r)
-        self.assertIn("Do this next:", r.response)
+        self.assertTrue("Do this next:" in r.response or "Your priority is:" in r.response, f"Missing Action-First prefix: {r.response[:80]!r}")
 
     def test_non_decision_query_returns_none(self):
         r = self._route("log my weight at 180")
@@ -242,7 +242,7 @@ class DecisionQueryRouteTests(TestCase):
                 "what is my biggest risk", self.user,
             )
         self.assertIsNotNone(r)
-        self.assertIn("Do this next:", r.response)
+        self.assertTrue("Do this next:" in r.response or "Your priority is:" in r.response, f"Missing Action-First prefix: {r.response[:80]!r}")
 
 
 # ══════════════════════════════════════════════════════════════

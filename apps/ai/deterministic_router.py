@@ -1098,11 +1098,61 @@ def _build_biggest_risk_response(user):
             getattr(user, 'id', '?'), e,
         )
 
-    # ── Fallback: no specific risk found ──
-    # Phase 11.1: do NOT silently fall back to execution handler.
-    # Return an explicit "no critical risk" message instead — the
-    # caller (_try_decision_query_route) logs and handles this.
-    return None
+    # ── Fallback: no critical risk, but look for minor issues ──
+    # Phase 11.2: never return generic "review signals" or None.
+    # Instead, produce an explicit low-risk assessment with the
+    # most relevant minor issue (consistency, routine slipping, etc.)
+    try:
+        # Check routine status
+        from apps.core.ai_state.state_builder import MODULE_BUILDERS
+        exec_builder = MODULE_BUILDERS.get('execution')
+        if exec_builder:
+            exec_state = exec_builder(user) or {}
+            exec_items = exec_state.get('items', [])
+            overdue_count = sum(
+                1 for i in exec_items
+                if i.get('time_status') == 'overdue'
+                and not i.get('completed_today')
+            )
+            incomplete_foundational = sum(
+                1 for i in exec_items
+                if not i.get('completed_today')
+                and i.get('importance') == 'foundational'
+            )
+            if overdue_count > 0:
+                return (
+                    f"Do this next: Address your {overdue_count} "
+                    f"overdue item(s) — falling behind on your "
+                    f"schedule is your biggest risk today.\n\n"
+                    f"Reason:\n"
+                    f"No critical health risks detected, but "
+                    f"{overdue_count} items are overdue. Letting "
+                    f"them accumulate erodes consistency.\n"
+                    f"Priority: consistency risk"
+                )
+            if incomplete_foundational > 0:
+                return (
+                    f"Do this next: Complete your remaining "
+                    f"{incomplete_foundational} foundational "
+                    f"item(s) for the day.\n\n"
+                    f"Reason:\n"
+                    f"No critical health risks detected. Your "
+                    f"biggest risk right now is skipping "
+                    f"foundational commitments.\n"
+                    f"Priority: consistency risk"
+                )
+    except Exception:
+        pass
+
+    # Truly no risks — explicit low-risk state
+    return (
+        "Your priority is: No major risks right now.\n\n"
+        "Reason:\n"
+        "Medication adherence is acceptable, no health flags "
+        "surfaced, and no critical patterns detected. Stay "
+        "on your current plan.\n"
+        "Priority: low risk"
+    )
 
 
 def _risk_to_action(flag_text, med_state, health_state):
@@ -1123,66 +1173,140 @@ def _risk_to_action(flag_text, med_state, health_state):
 
 
 def _build_fix_first_response(user):
-    """Phase 11 — deterministic FIX_FIRST response (hybrid).
+    """Phase 11 / 11.2 — deterministic FIX_FIRST response (coach mode).
 
-    Combines risk evaluation with execution state:
-    - If a CRITICAL risk exists (medication crisis, high-severity
-      health flag), it overrides execution and the risk action leads.
-    - Otherwise, falls through to execution-first (Phase 10 logic).
+    Answers: "What will get me back on track fastest?"
 
-    This means "What should I fix first?" and "What should I do?"
-    WILL produce the same answer when there's no critical risk —
-    because the fix IS the next execution item. They only diverge
-    when a critical risk exists that execution-first would miss.
+    Unlike EXECUTION_NOW (operator — "do this next") and BIGGEST_RISK
+    (analyst — "this is your risk"), FIX_FIRST speaks as a COACH:
+    - Acknowledges drift when the user is behind
+    - Frames the action as a recovery step, not just the next item
+    - Uses corrective language ("get back on track", "close this gap")
+
+    Priority order:
+    1. Critical medication crisis → urgent recovery action
+    2. Overdue execution items → recovery-framed version of top item
+    3. Foundational execution gaps → gap-closure framing
+    4. No gaps → "you're on track" acknowledgment
     """
     try:
         from apps.core.ai_orchestrator.cos_context import _fresh_module_state
+        from apps.core.ai_state.state_builder import MODULE_BUILDERS
 
-        # Check for medication crisis (0 taken + low adherence = critical)
+        # ── 1. Critical medication crisis ───────────────────────
         med = _fresh_module_state(user, 'medicine')
         expected = med.get('expected_today', 0) or 0
         taken = med.get('today_taken', 0) or 0
         adherence_7d = med.get('adherence_7d')
 
         if expected > 0 and taken == 0 and adherence_7d is not None:
-            if adherence_7d < 70:  # stricter threshold for "fix first"
+            if adherence_7d < 70:
                 return (
-                    "Do this next: Take your overdue medications now.\n\n"
+                    "Do this next: Take your overdue medications "
+                    "now — this is the fastest way to close your "
+                    "biggest gap today.\n\n"
                     "Reason:\n"
-                    f"Medication adherence is at {adherence_7d}% this "
-                    f"week with 0 of {expected} doses taken today. "
-                    "This is a critical gap that compounds daily.\n"
-                    "Priority: critical fix"
+                    f"You've drifted on medication consistency "
+                    f"({adherence_7d}% this week, 0 of {expected} "
+                    f"doses today). Every missed dose compounds. "
+                    f"Taking them now is the single highest-impact "
+                    f"correction you can make right now.\n"
+                    f"Priority: critical recovery"
                 )
 
-        # Check for high-severity cross-domain signals
-        try:
-            from apps.core.ai_orchestrator.cos_context import build_cos_context
-            ctx = build_cos_context(user)
-            xd_signals = ctx.get('cross_domain_signals') or []
-            high_sev = [s for s in xd_signals if s.get('severity') == 'high']
-            if high_sev:
-                sig = high_sev[0]
-                action = sig.get('recommended_action', '')
-                summary = sig.get('summary', '')
-                if action:
-                    return (
-                        f"Do this next: {action}\n\n"
-                        f"Reason:\n"
-                        f"Critical pattern detected: {summary}\n"
-                        f"Priority: critical fix"
+        # ── 2. Overdue execution items → recovery framing ───────
+        exec_builder = MODULE_BUILDERS.get('execution')
+        if exec_builder:
+            exec_state = exec_builder(user) or {}
+            exec_items = exec_state.get('items', [])
+
+            _IMPLIED_DONE = frozenset({
+                'wake up', 'go to bed', 'go to sleep',
+                'lights out', 'get up', 'get out of bed',
+            })
+
+            overdue = [
+                i for i in exec_items
+                if i.get('time_status') == 'overdue'
+                and not i.get('completed_today')
+                and (i.get('title') or '').strip().lower()
+                    not in _IMPLIED_DONE
+            ]
+            # Tasks before routine items, foundational first
+            _imp_order = {
+                'foundational': 0, 'important': 1, 'flexible': 2,
+            }
+            overdue.sort(key=lambda x: (
+                0 if x.get('source_type') == 'task' else 1,
+                _imp_order.get(x.get('importance', 'flexible'), 2),
+                x.get('scheduled_time', '99:99'),
+            ))
+
+            if overdue:
+                top = overdue[0]
+                n = len(overdue)
+                title = top['title']
+                if n > 1:
+                    others = ', '.join(
+                        i['title'] for i in overdue[1:4]
                     )
-        except Exception:
-            pass
+                    drift_note = (
+                        f"You're behind on {n} items ({others}). "
+                    )
+                else:
+                    drift_note = "You've fallen behind. "
+                return (
+                    f"Do this next: Get back on track by starting "
+                    f"{title} now.\n\n"
+                    f"Reason:\n"
+                    f"{drift_note}"
+                    f"{title} is the fastest way to regain momentum "
+                    f"— it's overdue and unblocks your day.\n"
+                    f"Priority: recovery"
+                )
+
+            # ── 3. Foundational gaps → gap-closure framing ──────
+            incomplete = [
+                i for i in exec_items
+                if not i.get('completed_today')
+                and i.get('importance') in ('foundational', 'important')
+                and (i.get('title') or '').strip().lower()
+                    not in _IMPLIED_DONE
+            ]
+            incomplete.sort(key=lambda x: (
+                0 if x.get('source_type') == 'task' else 1,
+                _imp_order.get(x.get('importance', 'flexible'), 2),
+                x.get('scheduled_time', '99:99'),
+            ))
+            if incomplete:
+                top = incomplete[0]
+                return (
+                    f"Do this next: Close this gap — complete "
+                    f"{top['title']}.\n\n"
+                    f"Reason:\n"
+                    f"No urgent overdue items, but {top['title']} "
+                    f"is a {top.get('importance', 'required')} "
+                    f"commitment that's still open. Completing it "
+                    f"now keeps your day on track.\n"
+                    f"Priority: gap closure"
+                )
 
     except Exception as e:
         logger.warning(
-            "[FIX_FIRST] risk check failed for user=%s: %s",
+            "[FIX_FIRST] evaluation failed for user=%s: %s",
             getattr(user, 'id', '?'), e,
         )
 
-    # No critical risk → fall through to execution-first
-    return _build_focus_query_response(user)
+    # ── 4. Nothing to fix — you're on track ─────────────────
+    return (
+        "Your priority is: You're on track — no critical gaps "
+        "to fix right now.\n\n"
+        "Reason:\n"
+        "No overdue items, no critical health risks, and your "
+        "foundational commitments are accounted for. Stay on "
+        "your current plan.\n"
+        "Priority: on track"
+    )
 
 
 def _build_focus_query_response(user):
@@ -1555,23 +1679,16 @@ def _try_decision_query_route(msg_lower, user):
         # different handler.
         if intent == 'BIGGEST_RISK':
             response = _build_biggest_risk_response(user)
-            if not response or 'Do this next:' not in response:
+            if not response or (
+                'Do this next:' not in response
+                and 'Your priority is:' not in response
+            ):
                 logger.warning(
                     "DECISION_INTENT_FALLBACK: BIGGEST_RISK handler "
-                    "returned empty for user=%s — using safe fallback "
-                    "(NOT execution handler)",
+                    "returned empty for user=%s",
                     getattr(user, 'id', '?'),
                 )
-                response = (
-                    "Do this next: Review your health signals — no "
-                    "specific risk surfaced from the data, but "
-                    "medication and sleep should be checked.\n\n"
-                    "Reason:\n"
-                    "The risk evaluation pipeline found no critical "
-                    "signal to act on. Check medication adherence and "
-                    "sleep consistency.\n"
-                    "Priority: risk review"
-                )
+                response = _SAFE_FALLBACK
         elif intent == 'FIX_FIRST':
             response = _build_fix_first_response(user)
             if not response or 'Do this next:' not in response:

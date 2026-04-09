@@ -1214,12 +1214,56 @@ def _build_fix_first_response(user):
                     f"Priority: critical recovery"
                 )
 
-        # ── 2. Overdue execution items → recovery framing ───────
+        # ── 2. Quick-action override (Phase 16) ──────────────────
+        # Same logic as EXECUTION_NOW: overdue meds/supps first.
         exec_builder = MODULE_BUILDERS.get('execution')
         if exec_builder:
             exec_state = exec_builder(user) or {}
             exec_items = exec_state.get('items', [])
 
+            _QUICK_TYPES_FF = frozenset({
+                'medication_dose', 'supplement_dose',
+            })
+            quick_ff = [
+                i for i in exec_items
+                if i.get('source_type') in _QUICK_TYPES_FF
+                and i.get('time_status') in ('overdue', 'in_progress')
+                and not i.get('completed_today')
+            ]
+            if quick_ff:
+                _qa_imp_ff = {
+                    'foundational': 0, 'important': 1,
+                    'standard': 1, 'flexible': 2,
+                }
+                quick_ff.sort(key=lambda x: (
+                    0 if x.get('source_type') == 'medication_dose' else 1,
+                    _qa_imp_ff.get(x.get('importance', 'flexible'), 2),
+                    x.get('scheduled_time', '99:99'),
+                ))
+                top = quick_ff[0]
+                n = len(quick_ff)
+                title = top['title']
+                if n > 1:
+                    others = ', '.join(i['title'] for i in quick_ff[1:4])
+                    note = (
+                        f"{title} is overdue and takes under a "
+                        f"minute. {n - 1} more quick action(s) "
+                        f"pending: {others}."
+                    )
+                else:
+                    note = (
+                        f"{title} is overdue and takes under a "
+                        f"minute — clearing it now keeps your "
+                        f"routine intact."
+                    )
+                return (
+                    f"Do this next: Take {title} — quick win "
+                    f"before your next task.\n\n"
+                    f"Reason:\n{note}\n"
+                    f"Priority: quick recovery"
+                )
+
+            # ── 3. Overdue execution items → recovery framing ───
             _IMPLIED_DONE = frozenset({
                 'wake up', 'go to bed', 'go to sleep',
                 'lights out', 'get up', 'get out of bed',
@@ -1409,6 +1453,58 @@ def _build_focus_query_response(user):
         if exec_builder:
             exec_state = exec_builder(user) or {}
             exec_items = exec_state.get('items', [])
+
+            # ── Phase 16: Quick-action priority override ─────────
+            # Medications and supplements that are overdue or due now
+            # take ≤2 minutes. Knock them out before any larger task
+            # or routine item. This pre-selection fires BEFORE the
+            # normal overdue/upcoming ranking.
+            _QUICK_SOURCE_TYPES = frozenset({
+                'medication_dose', 'supplement_dose',
+            })
+            quick_actions = [
+                i for i in exec_items
+                if i.get('source_type') in _QUICK_SOURCE_TYPES
+                and i.get('time_status') in ('overdue', 'in_progress')
+                and not i.get('completed_today')
+            ]
+            if quick_actions:
+                # Meds before supps, foundational before standard
+                _qa_imp = {
+                    'foundational': 0, 'important': 1,
+                    'standard': 1, 'flexible': 2,
+                }
+                quick_actions.sort(key=lambda x: (
+                    0 if x.get('source_type') == 'medication_dose' else 1,
+                    _qa_imp.get(x.get('importance', 'flexible'), 2),
+                    x.get('scheduled_time', '99:99'),
+                ))
+                top = quick_actions[0]
+                n_quick = len(quick_actions)
+                verb = "Take" if top.get('source_type') == 'medication_dose' else "Take"
+                action = f"{verb} {top['title']}."
+                if n_quick > 1:
+                    others = ', '.join(
+                        i['title'] for i in quick_actions[1:4]
+                    )
+                    reason = (
+                        f"{top['title']} is a quick health action "
+                        f"that takes under a minute and is overdue. "
+                        f"{n_quick - 1} more quick action(s) are "
+                        f"also pending: {others}."
+                    )
+                else:
+                    reason = (
+                        f"{top['title']} is a quick health action "
+                        f"that takes under a minute and is overdue "
+                        f"— clearing it now keeps your routine intact."
+                    )
+                priority_label = 'quick action'
+
+                lines = [f"Do this next: {action}", "", "Reason:"]
+                lines.append(reason)
+                lines.append(f"Priority: {priority_label}")
+                return "\n".join(lines)
 
             all_overdue = [
                 i for i in exec_items

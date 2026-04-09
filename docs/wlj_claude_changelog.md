@@ -481,6 +481,153 @@ of Phase 6 system normalization pass (unit consistency audit).
 
 ---
 
+## 2026-04-08 — Phase 6 Cross-Layer Truth Validation
+
+**What:** Eliminates stale-state drift in CoS context by making
+every rolling-window signal bypass the SAE cache and read directly
+from the builder. Also fixes a long-standing AttributeError in the
+labs trend-detection block that silently killed the labs panel on
+every CoS context build.
+
+**Why:** A full trace of Danny's live data across state → CoS →
+health_intelligence_summary revealed a critical contradiction: the
+same CoS context dict simultaneously reported
+`medication_adherence_state.adherence_pct = 100` (stale cache) AND
+`top_recommendation = "Low medication adherence (62%)..."` (fresh
+calculator). The LLM was being handed two different adherence
+numbers for the same user on the same turn.
+
+Root cause: `UserState.state_data` is invalidated only on
+`post_save` signals from domain models (IntakeLog, WeightEntry,
+etc.). Rolling-window signals drift between those events — on any
+day when a user doesn't log anything, the cached `adherence_7d`
+stays frozen at yesterday's value while the live rolling window
+keeps moving. The same class of bug existed for
+`sleep_avg_hours_7d`, `sleep_trend`, `sleep_quality_avg_7d`,
+`workouts_7d`, `workout_consistency_score`, and
+`workout_adherence_score`.
+
+**Rolling-window signals identified and fixed:**
+
+| Domain | Signal(s) | Why it's rolling |
+|---|---|---|
+| medicine | `adherence_7d`, `supplement_adherence_7d`, `adherence_score_7d`, `today_taken`, `today_missed`, `today_pending` | Expected doses grow each day as scheduled_time thresholds pass |
+| health | `sleep_avg_hours_7d`, `sleep_trend`, `sleep_quality_avg_7d`, `sleep_avg_duration_7d`, `steps_avg_7d` | Rolling 7d / 14d windows slide daily |
+| fitness | `workouts_7d`, `workouts_30d`, `workout_consistency_score`, `workout_adherence_score`, `last_workout_days_ago`, `strength_trend_score`, `weekly_training_load` | Rolling windows, and counts like `last_workout_days_ago` grow every day of inactivity |
+
+**Fix: single `_fresh_module_state(user, module)` helper** added
+to `apps/core/ai_orchestrator/cos_context.py`. Calls
+`MODULE_BUILDERS.get(module)(user)` directly, bypassing the
+UserState cache. Fails-closed to the cached read if the builder
+raises. Used at all rolling-signal reader sites:
+
+1. **Medication adherence panel** (~line 338) — was
+   `get_module_state(user, 'medicine')`, now
+   `_fresh_module_state(user, 'medicine')`.
+2. **Pending medications summary** (~line 440) — same change.
+3. **Supplement adherence bridge** in the nutrition tracking
+   context (~line 1971) — same change.
+4. **Health intelligence summary builder** (~line 829) — reads
+   `h_state` AND `m_state` fresh so the "Low medication adherence"
+   narration and the `medication_adherence_state.adherence_pct`
+   panel can't diverge.
+5. **Health signals dict** in `_build_health_signals` — pre-builds
+   `fresh_health` and `fresh_fitness` once and reads sleep / steps
+   / workout rolling signals from those dicts instead of the
+   cached `get_state_value` path. Static signals (weight_current,
+   bmi_current, body_fat_current, vitals — anything that only
+   changes on write events) still use the cached path because
+   they're correctly invalidated on post_save.
+
+**Bug 2 — labs AttributeError** (`cos_context.py:~2396`):
+`values_list('raw_test_name', flat=True)` returns a flat iterable
+of STRINGS, but the Counter comprehension was calling
+`lab.raw_test_name.lower().strip()` on each element as if it were
+a LabResult instance. This raised
+`AttributeError: 'str' object has no attribute 'raw_test_name'`
+on every CoS context build, and was silently swallowed by the
+section's `except Exception` handler — meaning the labs trend
+detection block NEVER ran. Fixed to
+`(name or '').lower().strip() for name in ...values_list(...)`.
+
+**Files:**
+- `apps/core/ai_orchestrator/cos_context.py` — `_fresh_module_state`
+  helper + 5 reader call-site updates + labs Counter fix
+- `apps/core/ai_orchestrator/tests/test_cross_layer_consistency.py`
+  — NEW, 8 tests:
+    - Helper delegates to MODULE_BUILDERS correctly
+    - Helper fails closed to cache on builder exception
+    - Helper returns `{}` for unknown module
+    - Medication adherence bypasses poisoned cache (999 → 55)
+    - Health sleep signals bypass poisoned cache
+    - Fitness workout signals bypass poisoned cache
+    - Labs Counter contract guard (source-level regex)
+    - Labs Counter handles strings + None + empty
+- `apps/core/ai_orchestrator/tests/test_unit_consistency.py` —
+  updated the Phase 4 `_call_cos` helper to ALSO patch
+  `MODULE_BUILDERS['medicine']` so its mock state flows through
+  the new fresh-read path (was patching only
+  `get_module_state` which cos_context no longer consults on
+  the medicine code path)
+
+**Validation (Danny's live dev data, before → after):**
+```
+Canonical (calculate_medicine_adherence_rate):       62
+Stale SAE cache:                                    100
+
+BEFORE Phase 6:
+  medication_adherence_state.adherence_pct          100  ← STALE
+  supplement_adherence_state.adherence_pct           30  ← STALE
+  health_intelligence_summary: "Low medication adherence (100%)"
+  health_intelligence_summary: ALSO "Low adherence (62%)"
+  Labs panel: SILENTLY MISSING (AttributeError swallowed)
+
+AFTER Phase 6:
+  medication_adherence_state.adherence_pct           62  ✓ FRESH
+  supplement_adherence_state.adherence_pct           27  ✓ FRESH
+  health_signals.sleep_avg_7d                       6.5  ✓ FRESH
+  health_signals.sleep_trend                 increasing  ✓ FRESH
+  health_signals.sleep_quality_avg_7d              85.2  ✓ FRESH
+  health_signals.workout_count_7d                     9  ✓ FRESH
+  health_signals.workout_adherence_score             86  ✓ FRESH
+  health_signals.workout_consistency_score         86.0  ✓ FRESH
+  health_signals.last_workout_date          2026-04-07  ✓ FRESH
+  health_intelligence_summary: "Low medication adherence (62%)"
+  health_intelligence_summary: no longer contains "100%"
+  Labs panel: 4 key_metrics, 10 latest_labs         ✓ VISIBLE
+```
+
+Every layer now serves the SAME adherence number (62) and CoS has
+a single coherent narrative instead of two contradictory ones.
+
+**Explicitly NOT done** (deferred per spec):
+- No cache TTL system
+- No Celery jobs for scheduled rebuilds
+- No architecture changes to `UserState` or `state_engine.py`
+- No `trend_analyzer` refactor (its "5 workout days" vs "9 session
+  count" narration quirk is semantic, not factual)
+- No changes to non-rolling readers (`weight_current`,
+  `body_fat_current`, `bmi_current`, glucose/HR/BP vitals) — those
+  invalidate correctly on data writes.
+
+**Verification:**
+- 8 scoped tests pass in `test_cross_layer_consistency.py`
+- 18 Phase 4 tests in `test_unit_consistency.py` still pass after
+  the mock update
+- `python manage.py check` clean
+- `python manage.py makemigrations --check --dry-run` → no changes
+- Danny's live data: rolling signals + labs panel all correct
+
+**Scope discipline held:**
+- ✅ No architecture changes
+- ✅ No new signal system
+- ✅ No feature expansion
+- ✅ Only alignment fixes at the reader layer
+- ✅ State builders untouched
+- ✅ Insight rules untouched
+
+---
+
 ## 2026-04-08 — Phase 5 Feature Gating & Domain Integrity
 
 **What:** Closes the feature-gating gaps identified in the Phase 5

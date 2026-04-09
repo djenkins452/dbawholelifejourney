@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 191,
+    "fields": {
+      "title": "One clear next step, every time",
+      "description": "Your Chief of Staff now produces exactly ONE primary action per response, with a direct prefix like 'Do this next:' or 'Your priority is:'. No more menus of options, no more 'you might consider' language. When multiple signals compete for attention, a strict priority order decides: Health risk beats foundational habits, which beats time-sensitive items, which beats optimization. And cross-domain patterns your Chief of Staff notices (sleep declining + workout intensity rising → recovery risk, for example) are now surfaced explicitly as reasoning — not buried inside individual signals. Direct, decisive, and always prioritized.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-04-09",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-04-09T02:00:00Z",
+      "updated_at": "2026-04-09T02:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 190,
     "fields": {
       "title": "Accurate adherence, sleep, and workout numbers — no more drift",

@@ -6,6 +6,136 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-09 — Phase 7 CoS Decision Intelligence
+
+**What:** Upgrades the Chief of Staff decision contract so every
+response produces exactly ONE primary action with direct language
+and explicit priority reasoning. Extends the existing Phase 4
+Decision Contract section in `format_cos_system_injection` with
+four new blocks and extends the Phase 4.5 response validator with
+a weasel-phrase rejection rule.
+
+**Why:** Phase 4 built the Decision Contract (RIGHT NOW FOCUS,
+FEATURED SIGNALS, TRUST RULES) and Phase 4.5 built the response
+validator. Both are working and protected. Three gaps remained:
+
+1. **Cross-domain signals were computed but never surfaced** to the
+   LLM as reasoning starters. `ctx['cross_domain_signals']` holds
+   patterns like `routine_breakdown` (5/10 routines missed) and
+   `medication_adherence_risk` (2 overdue doses) — these existed
+   in the context dict but the LLM only saw the individual domain
+   signals, never the pattern connecting them.
+
+2. **No explicit "ONE primary action" instruction.** The prompt
+   said "situation → interpretation → action" but didn't say
+   "produce exactly ONE action, not a list". LLMs without this
+   instruction tend to output menus.
+
+3. **No explicit priority hierarchy.** Phase 4 had trust rules
+   but not an enumerated priority order. When signals competed,
+   the LLM had no framework for deciding which wins.
+
+4. **Softening language was allowed.** Phrases like "consider",
+   "you might", "it could help", "perhaps", "maybe" turned every
+   decisive action into an ignorable suggestion.
+
+**Changes:**
+
+1. **ACTION DISCIPLINE block** (new in `format_cos_system_injection`)
+   — mandates exactly ONE primary action, prefixed with
+   `Do this next:` or `Your priority is:`. Optional secondary
+   guidance allowed but must be tagged `Secondary:`. Lists the 6
+   forbidden weasel phrases explicitly with their direct-language
+   replacements.
+
+2. **PRIORITY ORDER block** (new) — enumerates the four tiers:
+   Health risk → Foundational habits → Time-sensitive commitments
+   → Optimization. Includes the rule: "A lower-priority signal
+   never outranks a higher-priority one, even if its confidence
+   is higher."
+
+3. **CROSS-DOMAIN PATTERNS block** (new) — surfaces
+   `ctx['cross_domain_signals']` as explicit reasoning starters.
+   Capped at 6 signals. Includes the canonical example: "sleep
+   declining + workout intensity rising → recovery risk → reduce
+   intensity or improve sleep". Only emitted when non-empty.
+
+4. **TOP-RANKED SIGNAL fallback block** (new) — when
+   `right_now_focus.status != "focused"` AND
+   `ranked_signals.top_signal` exists, surfaces the top-ranked
+   insight as fallback lead so steady-state days don't degrade
+   to generic encouragement. Suppressed when focus is active.
+
+5. **Phase 4.5 validator extension**
+   (`deterministic_router.validate_response`) — new
+   `_WEASEL_PHRASES` frozenset checked right after the existing
+   `_GENERIC_PHRASES` check. Rejects: "you might want to", "you
+   might consider", "you may want to", "you could consider", "it
+   could help", "it might help", "consider doing", "consider
+   taking", "consider trying", "perhaps you", "maybe you should",
+   "maybe try". Rejection triggers existing deterministic
+   regeneration path.
+
+**Explicitly protected (unchanged):**
+- Phase 4 RIGHT NOW FOCUS / FEATURED SIGNALS / TRUST RULES blocks
+- Phase 4.5 generic-phrase, interpretive-marker, trust-marker,
+  and too-short validator rules
+- LOCKED FACT STATEMENTS block
+- CoS SITUATION MODE block
+- Pre-existing signal arbitration `TOP SIGNAL [TIER_LABEL]` block
+  at cos_context.py:~6614 (Phase 3 arbitration, independent of
+  Phase 7 TOP-RANKED SIGNAL fallback)
+- All Phase 3 signal writers, Phase 5 feature gates, Phase 6
+  fresh-read rolling-signal reads
+- `COS_PROACTIVE_INTELLIGENCE_PROMPT` hardcoded operating model
+- `cos_fact_statements` locked facts pipeline
+- `personal_assistant.py` — untouched; the prompt injection is
+  already called by the existing pipeline
+
+**Files:**
+- `apps/core/ai_orchestrator/cos_context.py` — extended
+  `format_cos_system_injection` Decision Contract with 4 new
+  blocks (~80 lines added, no existing lines removed)
+- `apps/ai/deterministic_router.py` — added `_WEASEL_PHRASES`
+  frozenset and new Rule 1b in `validate_response`
+- `apps/core/ai_orchestrator/tests/test_decision_contract.py` —
+  NEW, 25 tests covering all 4 new blocks, the validator
+  extension, and regression guards for Phase 4 blocks
+- `docs/wlj_claude_changelog.md` — this entry
+- `apps/core/fixtures/release_notes.json` — PK 190
+- `apps/core/management/commands/load_initial_data.py` — reset
+  loader
+
+**Validation (Danny's live dev data):**
+The Decision Contract against Danny's real state now emits all
+four new blocks alongside the preserved Phase 4 blocks. The
+CROSS-DOMAIN PATTERNS block surfaces his actual
+`routine_breakdown` (5 of 10 routine items missed) and
+`medication_adherence_risk` (2 overdue doses) patterns with their
+recommended actions. TOP-RANKED SIGNAL block correctly suppresses
+because `right_now_focus.status == "focused"` on nutrition.
+
+**Verification:**
+- 25 scoped tests pass in `test_decision_contract.py`
+- 161 broader scoped tests pass across 7 modules
+  (test_decision_contract, test_cross_layer_consistency,
+  test_unit_consistency, tests_feature_gating,
+  tests_signal_completion, test_crud_confirmation,
+  test_confirmation_escape)
+- `python manage.py check` clean
+- `makemigrations --check --dry-run` → no changes
+
+**Scope discipline held:**
+- ✅ No changes to signal builders (`state_builder.py` untouched)
+- ✅ No changes to `signal_trust.py` / `right_now.py` /
+  `rules_cross_domain.py` / `rules_transformation.py`
+- ✅ No infrastructure changes
+- ✅ No `personal_assistant.py` changes
+- ✅ All prior-phase test suites run green post-change
+- ✅ Additive-only Decision Contract changes
+
+---
+
 ## 2026-04-08 — Phase 6 Cross-Layer Truth Validation
 
 **What:** Eliminates stale-state drift in CoS context by making

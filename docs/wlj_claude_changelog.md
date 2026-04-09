@@ -6,6 +6,113 @@
 # Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
 # ================================================================# WLJ Change History
 
+## 2026-04-09 — Phase 9 Execution-First Decision Selection
+
+**What:** The decision selector now operates in execution-first mode.
+Instead of picking the highest-confidence signal (which produced
+"Plan an earlier wind-down tonight" when Danny had 5 overdue
+morning items), it follows a strict priority stack:
+
+1. **OVERDUE items (always win)** — any overdue task, routine, or
+   calendar event. Sorted by importance (foundational → important
+   → flexible), then by scheduled_time.
+2. **UPCOMING items (0-90 min)** — next item on the schedule.
+3. **FOUNDATIONAL execution gaps** — required daily actions not
+   completed yet (even if no schedule pressure).
+4. **ONLY THEN → signal-based focus** — sleep trends, health
+   risks, nutrition targets, behavioral patterns.
+
+The signal layer from `compute_right_now_focus` (Phase 3 trust
+contract) only fires when all execution items are completed or
+the execution engine returns an empty list.
+
+**Root cause of the bug:** `_build_focus_query_response` called
+`compute_right_now_focus(trust_reports)` which ranked by signal
+confidence/priority. Danny's nutrition signal at 97% confidence
+outranked his 5 overdue morning items because the execution
+context (overdue tasks, pending routines, missed medications) was
+never even consulted. The decision selector was a strategist
+optimizing long-term signals instead of an operator managing the
+current day.
+
+**Changes:**
+
+1. **`_build_focus_query_response` rewritten** to use the
+   `execution` module builder from `MODULE_BUILDERS['execution']`
+   as the primary data source. The execution builder returns a
+   list of all today's items with `time_status` (overdue/
+   upcoming/in_progress/past) and `completed_today` boolean.
+   The selector evaluates overdue → upcoming → foundational-gap
+   → signal-focus in strict order. The signal layer's
+   `compute_right_now_focus` is now Priority 4 — only fires
+   when no execution items exist.
+
+2. **Reason block improved** to reflect time + urgency context:
+   Before: "Nutrition is your highest priority (97% confidence).
+            Macro compliance at 0.0/100."
+   After:  "Wake up (scheduled at 05:00) is overdue and 4 more
+            item(s) are also behind: Work on WLJ, Prayer Time,
+            Bible Reading."
+
+3. **Time-horizon validator (Rule 0-d)** added to
+   `validate_response`. If the first action line of a
+   decision-query response references future-tense words
+   ("tonight", "tomorrow", "wind-down", "next week"), reject.
+   This catches any LLM responses that slip through the router
+   and choose a trend signal over an overdue task.
+
+**Explicitly protected:**
+- Phase 8 Action-First format enforcement (never-None, `Do this
+  next:` first line, exactly ONE action, forbidden starters,
+  passive phrases, weasel phrases)
+- Phase 8 `_is_decision_query` classifier
+- Phase 8 `_try_decision_query_route` never-None route
+- Phase 7 Decision Contract prompt blocks (ACTION DISCIPLINE,
+  PRIORITY ORDER, CROSS-DOMAIN PATTERNS, TOP-RANKED SIGNAL)
+- Phase 4/4.5 validator rules (generic phrases, interpretive
+  markers, trust markers)
+- Phase 3-6 signal pipeline, state builders, feature gates,
+  fresh-read rolling signals
+
+**Files:**
+- `apps/ai/deterministic_router.py` — rewrote the decision
+  selection logic inside `_build_focus_query_response` to
+  execution-first priority stack. Added `_FUTURE_ACTION_PHRASES`
+  frozenset and Rule 0-d in `validate_response`.
+- `apps/ai/tests/test_execution_first.py` — NEW, 17 tests:
+  overdue-overrides-signal (3), upcoming-when-no-overdue (1),
+  foundational-gap (1), signal-only-when-empty (2),
+  time-horizon-validator (5), regression guards (5)
+
+**Validation (Danny's real scenario):**
+
+Before (Phase 8):
+```
+Do this next: Log a meal or check your macro targets.
+
+Reason:
+Nutrition is your highest priority (97% confidence).
+Macro compliance at 0.0/100.
+```
+
+After (Phase 9):
+```
+Do this next: Start Wake up.
+
+Reason:
+Wake up (scheduled at 05:00) is overdue and 4 more item(s) are
+also behind: Work on WLJ, Prayer Time, Bible Reading.
+Priority: overdue
+```
+
+**Verification:**
+- 17 scoped tests pass in `test_execution_first.py`
+- 229 broader scoped tests pass across 9 modules (Phases 3-9)
+- `python manage.py check` clean
+- `makemigrations --check --dry-run` → no changes
+
+---
+
 ## 2026-04-09 — Phase 8 Decision Hard Lock (structural enforcement)
 
 **What:** Upgrades the Chief of Staff so decision queries produce

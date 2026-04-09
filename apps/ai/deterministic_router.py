@@ -959,33 +959,179 @@ def _build_focus_query_response(user):
     Returns a single string. Never None. Never empty. Always
     starts with "Do this next: ".
     """
-    focus = None
+    # ══════════════════════════════════════════════════════════
+    # Phase 9 — EXECUTION-FIRST decision selection.
+    #
+    # Priority stack (STRICT ORDER):
+    #   1. OVERDUE items (always win — time relevance > signal priority)
+    #   2. UPCOMING items (0-90 minutes out)
+    #   3. FOUNDATIONAL execution gaps (required daily actions not done)
+    #   4. SIGNAL-BASED focus (sleep trends, health risks, patterns)
+    #
+    # The signal layer (compute_right_now_focus / trust reports) only
+    # fires if NO execution items exist. A lower-priority task
+    # happening NOW always beats a higher-priority trend happening
+    # LATER. The system operates as a disciplined operator managing
+    # the current day, not a strategist optimizing long-term signals.
+    # ══════════════════════════════════════════════════════════
+
+    action = None
+    reason = None
+    priority_label = None
+    confidence = None
+
+    # ── Priority 1 + 2: overdue + upcoming from execution engine ─
     try:
-        from apps.core.ai_state.right_now import compute_right_now_focus
-        from apps.core.ai_state.state_engine import get_module_state
+        from apps.core.ai_state.state_builder import MODULE_BUILDERS
+        exec_builder = MODULE_BUILDERS.get('execution')
+        if exec_builder:
+            exec_state = exec_builder(user) or {}
+            exec_items = exec_state.get('items', [])
 
-        # Aggregate trust reports from each module's _trust sub-dict
-        trust_reports = {}
-        for module_name in (
-            'health', 'fitness', 'nutrition', 'medicine',
-            'fasting', 'journal', 'faith',
-        ):
-            try:
-                ms = get_module_state(user, module_name) or {}
-            except Exception:
-                continue
-            for k, v in (ms.get('_trust') or {}).items():
-                if v:
-                    trust_reports[k] = v
+            # Sort: overdue first, then upcoming, then by scheduled_time.
+            # Within each tier, foundational beats important beats flexible.
+            _imp_order = {'foundational': 0, 'important': 1, 'flexible': 2}
+            overdue = [
+                i for i in exec_items
+                if i.get('time_status') == 'overdue'
+                and not i.get('completed_today')
+            ]
+            overdue.sort(key=lambda x: (
+                _imp_order.get(x.get('importance', 'flexible'), 2),
+                x.get('scheduled_time', '99:99'),
+            ))
 
-        focus = compute_right_now_focus(trust_reports)
+            upcoming = [
+                i for i in exec_items
+                if i.get('time_status') in ('upcoming', 'in_progress')
+                and not i.get('completed_today')
+            ]
+            upcoming.sort(key=lambda x: (
+                _imp_order.get(x.get('importance', 'flexible'), 2),
+                x.get('scheduled_time', '99:99'),
+            ))
+
+            # Priority 1: overdue items
+            if overdue:
+                top = overdue[0]
+                action = f"Start {top['title']}."
+                n_overdue = len(overdue)
+                sched = top.get('scheduled_time', '')
+                sched_str = f" (scheduled at {sched})" if sched else ''
+                if n_overdue > 1:
+                    others = ', '.join(
+                        i['title'] for i in overdue[1:4]
+                    )
+                    reason = (
+                        f"{top['title']}{sched_str} is overdue "
+                        f"and {n_overdue - 1} more item(s) are "
+                        f"also behind: {others}."
+                    )
+                else:
+                    reason = (
+                        f"{top['title']}{sched_str} is overdue."
+                    )
+                priority_label = 'overdue'
+
+            # Priority 2: upcoming items (nothing overdue)
+            elif upcoming:
+                top = upcoming[0]
+                sched = top.get('scheduled_time', '')
+                action = f"Start {top['title']}."
+                reason = (
+                    f"Nothing is overdue. {top['title']} is your "
+                    f"next item (scheduled at {sched})."
+                )
+                priority_label = 'upcoming'
+
+            # Priority 3: foundational execution gaps (no overdue,
+            # no upcoming, but some required items are not done)
+            elif exec_items:
+                incomplete = [
+                    i for i in exec_items
+                    if not i.get('completed_today')
+                    and i.get('importance') in ('foundational', 'important')
+                ]
+                incomplete.sort(key=lambda x: (
+                    _imp_order.get(x.get('importance', 'flexible'), 2),
+                    x.get('scheduled_time', '99:99'),
+                ))
+                if incomplete:
+                    top = incomplete[0]
+                    action = f"Complete {top['title']}."
+                    reason = (
+                        f"No schedule pressure right now, but "
+                        f"{top['title']} is a "
+                        f"{top.get('importance', 'required')} item "
+                        f"that hasn't been completed today."
+                    )
+                    priority_label = 'foundational_gap'
     except Exception as e:
         logger.warning(
-            "[FOCUS_QUERY] right_now_focus build failed for user=%s: %s",
+            "[FOCUS_QUERY] execution-first lookup failed for user=%s: "
+            "%s — falling through to signal layer",
             getattr(user, 'id', '?'), e,
         )
 
-    # Time-aware "are they actually behind?" check
+    # ── Priority 4: signal-based focus (ONLY if no execution items) ──
+    if not action:
+        focus = None
+        try:
+            from apps.core.ai_state.right_now import compute_right_now_focus
+            from apps.core.ai_state.state_engine import get_module_state
+
+            trust_reports = {}
+            for module_name in (
+                'health', 'fitness', 'nutrition', 'medicine',
+                'fasting', 'journal', 'faith',
+            ):
+                try:
+                    ms = get_module_state(user, module_name) or {}
+                except Exception:
+                    continue
+                for k, v in (ms.get('_trust') or {}).items():
+                    if v:
+                        trust_reports[k] = v
+
+            focus = compute_right_now_focus(trust_reports)
+        except Exception as e:
+            logger.warning(
+                "[FOCUS_QUERY] right_now_focus failed for user=%s: %s",
+                getattr(user, 'id', '?'), e,
+            )
+
+        action_hints = {
+            'workouts': 'Log a workout or move a session into today.',
+            'medication': "Take any missed dose now if it's safe to do so.",
+            'medicine': "Take any missed dose now if it's safe to do so.",
+            'fasting': 'Log your current fast or start the next one.',
+            'nutrition': 'Log a meal or check your macro targets.',
+            'sleep': 'Plan an earlier wind-down tonight.',
+            'body_composition': 'Add a measurement.',
+            'journal': 'Write a short entry — even one sentence.',
+            'faith': "Open your reading plan and complete today's passage.",
+        }
+
+        if focus and focus.get('status') == 'focused':
+            domain = focus.get('domain', '') or ''
+            action = action_hints.get(domain)
+            if not action:
+                clean = domain.replace('_', ' ').strip()
+                action = f"Address {clean}." if clean else None
+            reason = focus.get('reason', '') or ''
+            priority_label = focus.get('priority', 'medium')
+            confidence = focus.get('confidence')
+
+    # Phase 8 never-None fallback
+    if not action:
+        action = "Complete your highest priority foundational task."
+        reason = reason or (
+            "No overdue items, no upcoming schedule pressure, and no "
+            "high-priority focus surfaced. Default to the highest-"
+            "priority foundational habit (prayer, sleep, movement)."
+        )
+
+    # Time-aware context (optional overlay, NOT the lead)
     time_status = None
     try:
         from apps.core.ai_state.time_intelligence import compute_time_status
@@ -995,54 +1141,6 @@ def _build_focus_query_response(user):
             "[FOCUS_QUERY] time_intelligence failed for user=%s: %s",
             getattr(user, 'id', '?'), e,
         )
-
-    # ── Determine the SINGLE primary action (Phase 8 rule) ──
-    # Priority: focused domain → time-status next item → safe
-    # foundational fallback. We must ALWAYS emit exactly one action.
-    action_hints = {
-        'workouts': 'Log a workout or move a session into today.',
-        'medication': "Take any missed dose now if it's safe to do so.",
-        'medicine': "Take any missed dose now if it's safe to do so.",
-        'fasting': 'Log your current fast or start the next one.',
-        'nutrition': 'Log a meal or check your macro targets.',
-        'sleep': 'Plan an earlier wind-down tonight.',
-        'body_composition': 'Add a measurement to improve trust in the trend.',
-        'journal': 'Write a short entry — even one sentence.',
-        'faith': "Open your reading plan and complete today's passage.",
-    }
-
-    action = None
-    reason = None
-    priority_label = None
-    confidence = None
-
-    if focus and focus.get('status') == 'focused':
-        domain = focus.get('domain', '') or ''
-        action = action_hints.get(domain)
-        if not action:
-            clean = domain.replace('_', ' ').strip()
-            action = f"Address {clean}." if clean else None
-        reason = focus.get('reason', '') or ''
-        priority_label = focus.get('priority', 'medium')
-        confidence = focus.get('confidence')
-
-    # Phase 8 never-None fallback: if focus couldn't produce an action,
-    # try the schedule-next-item, then a safe foundational default.
-    if not action:
-        if time_status and time_status.get('next_item'):
-            next_item = time_status['next_item']
-            action = f"Start {next_item}."
-            reason = reason or (
-                f"Your schedule says {next_item} is the next "
-                "foundational item."
-            )
-        else:
-            action = "Complete your highest priority foundational task."
-            reason = reason or (
-                "No high-priority focus surfaced from SAE and no "
-                "scheduled next item. Default to the highest-priority "
-                "foundational habit (prayer, sleep, movement)."
-            )
 
     # ── Assemble Action-First response (Phase 8 mandatory shape) ──
     lines = [f"Do this next: {action}", "", "Reason:"]
@@ -1247,6 +1345,24 @@ _PASSIVE_PHRASES = frozenset([
     'stay the course',
     'maintain your current',
     'keep doing what you',
+])
+
+# Phase 9 — future-tense action words. These are time-horizon
+# violations when there are overdue / today items remaining.
+# A response telling the user to "plan tonight" or "try tomorrow"
+# when they have 5 overdue items right now is a wrong decision.
+_FUTURE_ACTION_PHRASES = frozenset([
+    'tonight',
+    'tomorrow',
+    'this evening',
+    'later today',
+    'this week',
+    'next week',
+    'going forward',
+    'in the future',
+    'over the coming days',
+    'wind-down',
+    'wind down',
 ])
 
 # Phase 8 — forbidden response starters. If ANY of these appear as
@@ -1761,6 +1877,23 @@ def validate_response(
                 f'decision query rejected: {action_count} action '
                 f'lines (expected exactly 1)',
             )
+
+        # Rule 0-d (Phase 9): time-horizon validation. If the
+        # response's action line mentions future-tense words
+        # ("tonight", "tomorrow", "wind-down"), reject — the
+        # deterministic handler should already have picked an
+        # execution-first item. This catches LLM responses that
+        # slipped through the router and chose a trend signal
+        # over an overdue task.
+        first_action_lower = first_lower  # first non-empty line
+        for future_word in _FUTURE_ACTION_PHRASES:
+            if future_word in first_action_lower:
+                return (
+                    False,
+                    f'decision query rejected: time-horizon '
+                    f'violation — first action references '
+                    f'{future_word!r} (must be a NOW action)',
+                )
 
     # Rule 1: generic coaching phrases are automatic rejections.
     for phrase in _GENERIC_PHRASES:

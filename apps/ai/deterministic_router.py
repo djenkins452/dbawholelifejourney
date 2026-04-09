@@ -1232,11 +1232,17 @@ def _build_fix_first_response(user):
                 and (i.get('title') or '').strip().lower()
                     not in _IMPLIED_DONE
             ]
-            # Phase 12: filter blocked items in fix-first path too
+            # Phase 12 + 15: filter blocked items in fix-first path.
+            # Only enforce sequence for routine groups (not medication/
+            # supplement windows which are parallel).
+            _SEQUENTIAL_FF = frozenset({'routine'})
             _group_gates_ff = {}
             for i in exec_items:
                 gid = i.get('execution_group_id')
                 if gid is None or i.get('completed_today'):
+                    continue
+                gtype = i.get('execution_group_type', '')
+                if gtype not in _SEQUENTIAL_FF:
                     continue
                 tl = (i.get('title') or '').strip().lower()
                 if tl in _IMPLIED_DONE:
@@ -1250,14 +1256,18 @@ def _build_fix_first_response(user):
                 gid = item.get('execution_group_id')
                 if gid is None:
                     overdue.append(item)
-                else:
-                    gate = _group_gates_ff.get(gid)
-                    if gate is None or item.get('scheduled_time', '99:99') <= gate:
-                        overdue.append(item)
+                    continue
+                gtype = item.get('execution_group_type', '')
+                if gtype not in _SEQUENTIAL_FF:
+                    overdue.append(item)
+                    continue
+                gate = _group_gates_ff.get(gid)
+                if gate is None or item.get('scheduled_time', '99:99') <= gate:
+                    overdue.append(item)
 
             # Tasks before routine items, foundational first
             _imp_order = {
-                'foundational': 0, 'important': 1, 'flexible': 2,
+                'foundational': 0, 'important': 1, 'standard': 1, 'flexible': 2,
             }
             overdue.sort(key=lambda x: (
                 0 if x.get('source_type') == 'task' else 1,
@@ -1296,16 +1306,20 @@ def _build_fix_first_response(user):
                 and (i.get('title') or '').strip().lower()
                     not in _IMPLIED_DONE
             ]
-            # Phase 12: filter blocked items
+            # Phase 12 + 15: filter blocked items (routine only)
             incomplete = []
             for item in incomplete_raw:
                 gid = item.get('execution_group_id')
                 if gid is None:
                     incomplete.append(item)
-                else:
-                    gate = _group_gates_ff.get(gid)
-                    if gate is None or item.get('scheduled_time', '99:99') <= gate:
-                        incomplete.append(item)
+                    continue
+                gtype = item.get('execution_group_type', '')
+                if gtype not in _SEQUENTIAL_FF:
+                    incomplete.append(item)
+                    continue
+                gate = _group_gates_ff.get(gid)
+                if gate is None or item.get('scheduled_time', '99:99') <= gate:
+                    incomplete.append(item)
             incomplete.sort(key=lambda x: (
                 0 if x.get('source_type') == 'task' else 1,
                 _imp_order.get(x.get('importance', 'flexible'), 2),
@@ -1451,23 +1465,43 @@ def _build_focus_query_response(user):
             # Standalone tasks (execution_group_type='standalone')
             # are never blocked — they have no predecessor.
 
+            # Phase 15: group types where sequence matters vs not.
+            # Routine groups (Morning Routine, Nightly Routine) have
+            # a strict implied sequence: Wake up → Prayer → Workout
+            # → Shower. Later items are blocked by earlier incomplete
+            # items.
+            #
+            # Medication/supplement windows are PARALLEL — you don't
+            # need to take Perfect Amino before THORNE Creatine. All
+            # items in the window are independently actionable.
+            _SEQUENTIAL_GROUP_TYPES = frozenset({
+                'routine',
+            })
+
             def _filter_blocked(items, all_items):
                 """Remove items that are blocked by an incomplete
                 predecessor in their routine group.
 
                 Returns only items that are either:
                 - standalone (no group)
-                - the FIRST incomplete item in their group
+                - in a non-sequential group (medication/supplement
+                  window — all items are independently actionable)
+                - the FIRST incomplete item in a sequential group
                 """
                 if not items:
                     return items
 
                 # Build a map: group_id → earliest incomplete
-                # scheduled_time (the "gate" for that group)
+                # scheduled_time (the "gate"), but ONLY for groups
+                # that have sequential dependencies (routines).
                 _group_gates = {}
                 for i in all_items:
                     gid = i.get('execution_group_id')
                     if gid is None:
+                        continue
+                    # Phase 15: only enforce sequence for routine groups
+                    gtype = i.get('execution_group_type', '')
+                    if gtype not in _SEQUENTIAL_GROUP_TYPES:
                         continue
                     if i.get('completed_today'):
                         continue
@@ -1485,18 +1519,22 @@ def _build_focus_query_response(user):
                     if gid is None:
                         result.append(item)
                         continue
-                    # Routine items: only selectable if they ARE the
-                    # earliest incomplete item in their group (the gate)
+                    # Non-sequential groups: always selectable
+                    gtype = item.get('execution_group_type', '')
+                    if gtype not in _SEQUENTIAL_GROUP_TYPES:
+                        result.append(item)
+                        continue
+                    # Sequential routine items: only selectable if
+                    # they ARE the earliest incomplete item (the gate)
                     gate_time = _group_gates.get(gid)
                     item_time = item.get('scheduled_time', '99:99')
                     if gate_time is None or item_time <= gate_time:
                         result.append(item)
-                    # else: blocked — a predecessor in the same group
-                    # hasn't been completed yet
+                    # else: blocked
                 return result
 
             _imp_order = {
-                'foundational': 0, 'important': 1, 'flexible': 2,
+                'foundational': 0, 'important': 1, 'standard': 1, 'flexible': 2,
             }
 
             def _rank_key(item):

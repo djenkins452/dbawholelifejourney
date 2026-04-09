@@ -91,13 +91,13 @@
             </div>
             {% endif %}
 
-            {# ── Sleep Status ── #}
-            {% if features.health.sleep and latest_sleep %}
-            <div class="today-item {% if latest_sleep.quality_score and latest_sleep.quality_score >= 70 %}today-complete{% elif latest_sleep.quality_score and latest_sleep.quality_score < 50 %}today-caution{% else %}today-neutral{% endif %}">
-                <span class="today-icon" aria-hidden="true">{% if latest_sleep.quality_score and latest_sleep.quality_score >= 70 %}&#10003;{% elif latest_sleep.quality_score and latest_sleep.quality_score < 50 %}&#9679;{% else %}&#9675;{% endif %}</span>
+            {# ── Sleep Status (Phase 17: reads from SAE canonical state) ── #}
+            {% if features.health.sleep and hs.sleep_status and hs.sleep_status != "no_data" %}
+            <div class="today-item {% if hs.sleep_status == 'excellent' %}today-complete{% elif hs.sleep_status == 'fair' or hs.sleep_status == 'poor' %}today-caution{% else %}today-neutral{% endif %}">
+                <span class="today-icon" aria-hidden="true">{% if hs.sleep_status == 'excellent' or hs.sleep_status == 'good' %}&#10003;{% elif hs.sleep_status == 'fair' or hs.sleep_status == 'poor' %}&#9888;{% else %}&#9675;{% endif %}</span>
                 <div class="today-content">
                     <span class="today-label">Sleep</span>
-                    <span class="today-value">{{ latest_sleep.total_hours }}h{% if latest_sleep.quality_display %} &middot; {{ latest_sleep.quality_display }}{% endif %}</span>
+                    <span class="today-value">{% if hs.sleep_last_night_hours %}{{ hs.sleep_last_night_hours }}h &middot; {% endif %}{{ hs.sleep_status|title }}</span>
                 </div>
             </div>
             {% endif %}
@@ -827,21 +827,24 @@
                 <a href="{% url 'health:sleep_quick' %}" class="btn btn-primary btn-sm">Log</a>
             </div>
 
-            {% if latest_sleep %}
+            {# Phase 17: sleep card reads from SAE canonical state #}
+            {% if hs.sleep_status and hs.sleep_status != "no_data" %}
                 <div class="metric-display">
-                    <span class="metric-value">{{ latest_sleep.total_hours }}</span>
+                    <span class="metric-value">{{ hs.sleep_last_night_hours|default:"—" }}</span>
                     <span class="metric-unit">hours</span>
                 </div>
-                <p class="metric-context">{{ latest_sleep.quality_display }}</p>
-                <p class="metric-date">{{ latest_sleep.sleep_date|date:"M j" }}</p>
-
-                {% if avg_sleep_hours %}
-                    <p class="metric-avg">7-day avg: {{ avg_sleep_hours }}h</p>
+                <p class="metric-context">{{ hs.sleep_status|title }}</p>
+                {% if hs.sleep_status_reason %}
+                <p class="metric-date">{{ hs.sleep_status_reason }}</p>
                 {% endif %}
 
-                {% if latest_sleep.quality_score %}
-                    <p class="metric-score {% if latest_sleep.quality_score >= 70 %}score-good{% elif latest_sleep.quality_score < 50 %}score-poor{% endif %}">
-                        Quality: {{ latest_sleep.quality_score }}
+                {% if hs.sleep_avg_hours_7d %}
+                    <p class="metric-avg">7-day avg: {{ hs.sleep_avg_hours_7d }}h</p>
+                {% endif %}
+
+                {% if hs.sleep_last_night_quality %}
+                    <p class="metric-score {% if hs.sleep_last_night_quality >= 70 %}score-good{% elif hs.sleep_last_night_quality < 50 %}score-poor{% endif %}">
+                        Quality: {{ hs.sleep_last_night_quality }}
                     </p>
                 {% endif %}
 

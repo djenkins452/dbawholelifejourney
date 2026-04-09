@@ -162,27 +162,34 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             context["ms"] = {}
             # Fall through — the view's existing computation will fill these
 
-        # Weight summary
-        weight_entries = WeightEntry.objects.filter(user=user)
-        if weight_entries.exists():
-            latest_weight = weight_entries.first()
-            context["latest_weight"] = latest_weight
-            context["weight_count"] = weight_entries.count()
-            
-            # Weight change in last 30 days
-            month_weights = weight_entries.filter(recorded_at__gte=month_ago)
-            if month_weights.count() >= 2:
-                oldest = month_weights.last()
-                newest = month_weights.first()
-                change = float(newest.value_in_lb) - float(oldest.value_in_lb)
-                context["weight_change_30d"] = round(change, 1)
-                # Weight trend direction (derived from change)
-                if change < -0.5:
-                    context["weight_trend_direction"] = "down"
-                elif change > 0.5:
-                    context["weight_trend_direction"] = "up"
-                else:
-                    context["weight_trend_direction"] = "stable"
+        # Phase 17: Weight, HR, BP, SpO2, Glucose raw queries are
+        # SKIPPED when SAE is available (hs carries all these values).
+        # The template reads from hs.*, not from these context vars.
+        # Only run these as a fallback if SAE failed to load.
+        _sae_loaded = bool(context.get("hs"))
+
+        if not _sae_loaded:
+            # Weight summary (fallback only)
+            weight_entries = WeightEntry.objects.filter(user=user)
+            if weight_entries.exists():
+                latest_weight = weight_entries.first()
+                context["latest_weight"] = latest_weight
+                context["weight_count"] = weight_entries.count()
+                month_weights = weight_entries.filter(recorded_at__gte=month_ago)
+                if month_weights.count() >= 2:
+                    oldest = month_weights.last()
+                    newest = month_weights.first()
+                    change = float(newest.value_in_lb) - float(oldest.value_in_lb)
+                    context["weight_change_30d"] = round(change, 1)
+                    if change < -0.5:
+                        context["weight_trend_direction"] = "down"
+                    elif change > 0.5:
+                        context["weight_trend_direction"] = "up"
+                    else:
+                        context["weight_trend_direction"] = "stable"
+        else:
+            # SAE loaded — weight_count still needed for "View history (N)" link
+            context["weight_count"] = WeightEntry.objects.filter(user=user).count()
 
         # Active fasting window
         context["active_fast"] = FastingWindow.objects.filter(
@@ -201,54 +208,38 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             avg_duration = sum(f.duration_hours for f in recent_fasts) / recent_fasts.count()
             context["avg_fast_duration"] = round(avg_duration, 1)
         
-        # Heart rate summary
-        hr_entries = HeartRateEntry.objects.filter(user=user)
-        if hr_entries.exists():
-            context["latest_heart_rate"] = hr_entries.first()
-            resting_hr = hr_entries.filter(context__in=["resting", "morning"])
-            if resting_hr.exists():
-                avg = resting_hr.aggregate(avg=Avg("bpm"))["avg"]
-                context["avg_resting_hr"] = round(avg)
+        if not _sae_loaded:
+            # Heart rate summary (fallback only)
+            hr_entries = HeartRateEntry.objects.filter(user=user)
+            if hr_entries.exists():
+                context["latest_heart_rate"] = hr_entries.first()
+                resting_hr = hr_entries.filter(context__in=["resting", "morning"])
+                if resting_hr.exists():
+                    avg = resting_hr.aggregate(avg=Avg("bpm"))["avg"]
+                    context["avg_resting_hr"] = round(avg)
 
-        # Steps summary
-        steps_entries = StepsEntry.objects.filter(user=user)
-        if steps_entries.exists():
-            context["latest_steps"] = steps_entries.first()
-            # 7-day average
-            week_ago = now - timedelta(days=7)
-            week_steps = steps_entries.filter(logged_date__gte=week_ago.date())
-            if week_steps.exists():
-                avg = week_steps.aggregate(avg=Avg("count"))["avg"]
-                context["avg_steps"] = round(avg) if avg else None
+            # Steps summary (fallback only)
+            steps_entries = StepsEntry.objects.filter(user=user)
+            if steps_entries.exists():
+                context["latest_steps"] = steps_entries.first()
+                week_steps = steps_entries.filter(logged_date__gte=week_ago.date())
+                if week_steps.exists():
+                    avg = week_steps.aggregate(avg=Avg("count"))["avg"]
+                    context["avg_steps"] = round(avg) if avg else None
 
-        # Sleep summary
-        sleep_entries = SleepEntry.objects.filter(user=user)
-        if sleep_entries.exists():
-            context["latest_sleep"] = sleep_entries.first()
-            context["sleep_count"] = sleep_entries.count()
-            # 7-day average
-            week_sleep = sleep_entries.filter(sleep_date__gte=week_ago.date())
-            if week_sleep.exists():
-                total_minutes = sum(e.total_duration_minutes or 0 for e in week_sleep)
-                avg_hours = total_minutes / week_sleep.count() / 60
-                context["avg_sleep_hours"] = round(avg_hours, 1)
-
-                # Average sleep quality (for entries that have it)
-                quality_map = {'excellent': 5, 'good': 4, 'fair': 3, 'poor': 2, 'terrible': 1}
-                entries_with_quality = [e for e in week_sleep if e.quality_rating]
-                if entries_with_quality:
-                    avg_score = sum(quality_map.get(e.quality_rating, 3) for e in entries_with_quality) / len(entries_with_quality)
-                    # Map back to label
-                    if avg_score >= 4.5:
-                        context["avg_sleep_quality"] = "Excellent"
-                    elif avg_score >= 3.5:
-                        context["avg_sleep_quality"] = "Good"
-                    elif avg_score >= 2.5:
-                        context["avg_sleep_quality"] = "Fair"
-                    elif avg_score >= 1.5:
-                        context["avg_sleep_quality"] = "Poor"
-                    else:
-                        context["avg_sleep_quality"] = "Terrible"
+            # Sleep summary (fallback only)
+            sleep_entries = SleepEntry.objects.filter(user=user)
+            if sleep_entries.exists():
+                context["latest_sleep"] = sleep_entries.first()
+                context["sleep_count"] = sleep_entries.count()
+                week_sleep = sleep_entries.filter(sleep_date__gte=week_ago.date())
+                if week_sleep.exists():
+                    total_minutes = sum(e.total_duration_minutes or 0 for e in week_sleep)
+                    avg_hours = total_minutes / week_sleep.count() / 60
+                    context["avg_sleep_hours"] = round(avg_hours, 1)
+        else:
+            # SAE loaded — still need sleep_count for "View history (N)"
+            context["sleep_count"] = SleepEntry.objects.filter(user=user).count()
 
         # Water/Hydration summary — Phase 2: read canonical SAE state
         # instead of computing live. SAE owns water_today_oz, water_goal_oz,
@@ -294,62 +285,58 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 if daily_totals:
                     context["avg_water_oz"] = round(sum(daily_totals.values()) / len(daily_totals), 1)
 
-        # Glucose summary
-        glucose_entries = GlucoseEntry.objects.filter(user=user)
-        if glucose_entries.exists():
-            context["latest_glucose"] = glucose_entries.first()
-            fasting_glucose = glucose_entries.filter(context="fasting")
-            if fasting_glucose.exists():
-                avg = fasting_glucose.aggregate(avg=Avg("value"))["avg"]
-                context["avg_fasting_glucose"] = round(avg, 1)
+        if not _sae_loaded:
+            # Glucose summary (fallback only)
+            glucose_entries = GlucoseEntry.objects.filter(user=user)
+            if glucose_entries.exists():
+                context["latest_glucose"] = glucose_entries.first()
+                fasting_glucose = glucose_entries.filter(context="fasting")
+                if fasting_glucose.exists():
+                    avg = fasting_glucose.aggregate(avg=Avg("value"))["avg"]
+                    context["avg_fasting_glucose"] = round(avg, 1)
 
-        # Glucose variability — Phase 2: read canonical level/label from
-        # SAE state. The classification thresholds (cv>50, cv>36) used to
-        # live here in the view; they are now defined exactly once in
-        # apps/core/ai_state/state_builder.py::build_health_state.
-        if "glucose_variability_level" in health_state:
-            context["glucose_variability"] = health_state.get("glucose_variability")
-            context["glucose_variability_level"] = health_state.get("glucose_variability_level")
-            context["glucose_variability_label"] = health_state.get("glucose_variability_label")
-        else:
-            # SAE not yet populated — fall back to a live read of the same
-            # source the SAE itself uses, with the SAME thresholds.
-            recent_summary = DailyHealthSummary.objects.filter(
-                user=user, glucose_variability__isnull=False
-            ).order_by("-summary_date").first()
-            if recent_summary and recent_summary.glucose_variability is not None:
-                cv = float(recent_summary.glucose_variability)
-                context["glucose_variability"] = round(cv, 1)
-                if cv > 50:
-                    context["glucose_variability_label"] = "High variability"
-                    context["glucose_variability_level"] = "high"
-                elif cv > 36:
-                    context["glucose_variability_label"] = "Moderate variability"
-                    context["glucose_variability_level"] = "moderate"
-                else:
-                    context["glucose_variability_label"] = "Stable"
-                    context["glucose_variability_level"] = "stable"
+            # Glucose variability (fallback only)
+            if "glucose_variability_level" in health_state:
+                context["glucose_variability"] = health_state.get("glucose_variability")
+                context["glucose_variability_level"] = health_state.get("glucose_variability_level")
+                context["glucose_variability_label"] = health_state.get("glucose_variability_label")
+            else:
+                recent_summary = DailyHealthSummary.objects.filter(
+                    user=user, glucose_variability__isnull=False
+                ).order_by("-summary_date").first()
+                if recent_summary and recent_summary.glucose_variability is not None:
+                    cv = float(recent_summary.glucose_variability)
+                    context["glucose_variability"] = round(cv, 1)
+                    if cv > 50:
+                        context["glucose_variability_label"] = "High variability"
+                        context["glucose_variability_level"] = "high"
+                    elif cv > 36:
+                        context["glucose_variability_label"] = "Moderate variability"
+                        context["glucose_variability_level"] = "moderate"
+                    else:
+                        context["glucose_variability_label"] = "Stable"
+                        context["glucose_variability_level"] = "stable"
 
-        # Blood Pressure summary
-        bp_entries = BloodPressureEntry.objects.filter(user=user)
-        if bp_entries.exists():
-            context["latest_blood_pressure"] = bp_entries.first()
-            stats = bp_entries.aggregate(
-                avg_systolic=Avg("systolic"),
-                avg_diastolic=Avg("diastolic"),
-            )
-            if stats["avg_systolic"]:
-                context["avg_systolic"] = round(stats["avg_systolic"])
-            if stats["avg_diastolic"]:
-                context["avg_diastolic"] = round(stats["avg_diastolic"])
+            # Blood Pressure summary (fallback only)
+            bp_entries = BloodPressureEntry.objects.filter(user=user)
+            if bp_entries.exists():
+                context["latest_blood_pressure"] = bp_entries.first()
+                stats = bp_entries.aggregate(
+                    avg_systolic=Avg("systolic"),
+                    avg_diastolic=Avg("diastolic"),
+                )
+                if stats["avg_systolic"]:
+                    context["avg_systolic"] = round(stats["avg_systolic"])
+                if stats["avg_diastolic"]:
+                    context["avg_diastolic"] = round(stats["avg_diastolic"])
 
-        # Blood Oxygen summary
-        bo_entries = BloodOxygenEntry.objects.filter(user=user)
-        if bo_entries.exists():
-            context["latest_blood_oxygen"] = bo_entries.first()
-            avg_spo2 = bo_entries.aggregate(avg=Avg("spo2"))["avg"]
-            if avg_spo2:
-                context["avg_spo2"] = round(avg_spo2)
+            # Blood Oxygen summary (fallback only)
+            bo_entries = BloodOxygenEntry.objects.filter(user=user)
+            if bo_entries.exists():
+                context["latest_blood_oxygen"] = bo_entries.first()
+                avg_spo2 = bo_entries.aggregate(avg=Avg("spo2"))["avg"]
+                if avg_spo2:
+                    context["avg_spo2"] = round(avg_spo2)
 
         # Body Temperature summary
         temp_entries = BodyTemperatureEntry.objects.filter(user=user)
@@ -386,14 +373,22 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             context["has_mindful_minutes_data"] = True
 
         # Intake summary
+        # Phase 17: SAE medicine_state already provides intake_count,
+        # intake_taken_today, intake_scheduled_today, intake_overdue,
+        # and intake_windows (injected above from ms). Only run the
+        # legacy 51-line DB computation if the SAE injection failed.
         today = get_user_today(user)
-        active_intakes = Intake.objects.filter(
-            user=user,
-            intake_status=Intake.STATUS_ACTIVE,
-        )
-        context["intake_count"] = active_intakes.count()
+        if not context.get("ms"):
+            # SAE unavailable — fall back to direct DB queries
+            active_intakes = Intake.objects.filter(
+                user=user,
+                intake_status=Intake.STATUS_ACTIVE,
+            )
+            context["intake_count"] = active_intakes.count()
+        else:
+            active_intakes = None
 
-        if active_intakes.exists():
+        if active_intakes and active_intakes.exists():
             # Count today's scheduled doses + group by time_of_day window
             # Single pass: computes totals AND window breakdown together
             from collections import OrderedDict

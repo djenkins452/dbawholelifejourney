@@ -481,6 +481,151 @@ of Phase 6 system normalization pass (unit consistency audit).
 
 ---
 
+## 2026-04-09 — Phase 8 Decision Hard Lock (structural enforcement)
+
+**What:** Upgrades the Chief of Staff so decision queries produce
+exactly ONE Action-First response with structural guarantees that
+don't depend on LLM prompt compliance. Extends the Phase 4
+deterministic router, the Phase 4.5/7 validator, and the Phase 7
+Decision Contract prompt block — all additive.
+
+**Why:** Phase 7 added ACTION DISCIPLINE prose to the system prompt
+asking the LLM to lead with "Do this next:". Prose alone isn't
+enough. Three gaps remained:
+
+1. **LLM could still summary-first.** Prompt said "produce ONE
+   action", but nothing in code validated the response *shape*.
+2. **Three decision-query categories had no phrase matcher.**
+   "What is the biggest risk", "What's not working", "Help me
+   decide" fell through to the LLM.
+3. **Focus handler could return a passive fallback** — "Stay
+   consistent — nothing urgent" — which bypassed every Phase 7
+   discipline rule.
+
+**Changes:**
+
+1. **`_build_focus_query_response` rewritten** (`deterministic_router.py`)
+   to Action-First format. Every response now leads with
+   `Do this next: <action>`, followed by `Reason:` + signal-based
+   explanation, optionally followed by a schedule overlay. **Never
+   None**: when no focus surfaces and no scheduled next item
+   exists, falls back to "Do this next: Complete your highest
+   priority foundational task."
+
+2. **`_is_decision_query` classifier added** — rule-based semantic
+   detection covering all 5 task categories:
+   - "What should I do/fix/focus/tackle" (+ semantic paraphrases)
+   - "What is the biggest risk/problem/concern/issue/threat"
+   - "What is not working" / "what's broken"
+   - "Help me decide/pick/choose/figure out"
+   - "Am I behind" / "How am I doing" (existing Phase 4 anchors)
+
+   No ML, no LLM classification — fast substring + word-pair rules.
+   Superset of `_FOCUS_QUERY_PHRASES` and `_NEXT_ACTION_PHRASES`.
+
+3. **`_try_decision_query_route` added** with **never-None
+   guarantee**. Wired into `classify_and_route` after the Phase 4
+   focus query route. For ANY message matching `_is_decision_query`,
+   always returns a valid `RouteResult` with Action-First content —
+   even when the underlying builder raises. A hardcoded safe
+   fallback handles pipeline errors.
+
+4. **Phase 4.5 validator extended** (`validate_response`) with
+   four new rules, applied before existing Phase 4.5/7 rules:
+
+   - **Rule 0 (Action-First structural enforcement)**: if
+     `is_decision_query=True`, the first non-empty line MUST
+     start with `Do this next:` or `Your priority is:`.
+   - **Rule 0-b (forbidden summary-first starters)**: rejects
+     responses starting with `End of day`, `Here's what
+     happened`, `Today you`, `You completed`, `Summary`, `Your
+     day so far`, `Let me summarize`, `Let me recap`, `So far
+     today`.
+   - **Rule 0-c (single action enforcement)**: exactly ONE
+     Action-First line. Zero → reject. More than one → reject.
+   - **Rule 1c (passive-action phrases)**: rejects `keep logging`,
+     `continue logging`, `keep tracking`, `continue tracking`,
+     `monitor this`, `monitor your`, `keep an eye on`,
+     `keep watching`, `stay the course`, `maintain your current`,
+     `keep doing what you`.
+
+5. **`is_decision_query` flag wired** from `personal_assistant.py`
+   to `validate_response`. When validator rejects a decision-query
+   response, the rebuilder jumps directly to
+   `_build_focus_query_response` (the never-None Action-First
+   builder) instead of the domain regenerator.
+
+6. **Phase 7 Decision Contract prompt extended** with an
+   **ACTION-FIRST ORDERING** block that names the 5 decision
+   categories, lists forbidden summary-first starters, lists
+   forbidden passive phrases, and reinforces that the FIRST
+   non-empty line MUST be `Do this next:` or `Your priority is:`.
+
+**Explicitly protected:**
+- Phase 3 signals (all writers)
+- Phase 4 RIGHT NOW FOCUS, FEATURED SIGNALS, TRUST RULES
+- Phase 4 `_FOCUS_QUERY_PHRASES` matching (now a subset of
+  `_is_decision_query`)
+- Phase 4.5 generic-phrase, interpretive-marker, trust-marker,
+  and too-short validator rules
+- Phase 5 feature gates
+- Phase 6 fresh-read rolling-signal reads
+- Phase 7 ACTION DISCIPLINE, PRIORITY ORDER, CROSS-DOMAIN
+  PATTERNS, TOP-RANKED SIGNAL fallback prompt blocks
+- Phase 7 weasel-phrase validator rule
+- LOCKED FACT STATEMENTS block
+- `state_builder.py`, `signal_trust.py`, `right_now.py`,
+  `rules_cross_domain.py`, `rules_transformation.py` — untouched
+
+**Files:**
+- `apps/ai/deterministic_router.py` — rewrote
+  `_build_focus_query_response`, added `_is_decision_query`,
+  `_try_decision_query_route`, `_PASSIVE_PHRASES`,
+  `_FORBIDDEN_STARTERS`, `_ACTION_FIRST_PREFIXES`, validator
+  Rules 0, 0-b, 0-c, 1c. Wired new route into dispatcher.
+- `apps/ai/personal_assistant.py` — wired `is_decision_query`
+  through to validator; rebuild decision queries via focus
+  handler on rejection.
+- `apps/core/ai_orchestrator/cos_context.py` — extended ACTION
+  DISCIPLINE block with ACTION-FIRST ORDERING rule.
+- `apps/ai/tests/test_decision_hard_lock.py` — NEW, 51 tests
+  covering classifier (23), focus handler (6), route (5),
+  validator (17), prompt (4), regression guards (7 across
+  Phase 4-7).
+
+**Validation (Danny's live dev data):**
+- `_build_focus_query_response` first line for Danny:
+  `Do this next: Log a meal or check your macro targets.` ✓
+- All 5 decision query categories + semantic paraphrases match ✓
+- Validator rejects `End of day: ...` for decision queries ✓
+- Validator accepts `Do this next: Log a meal.\n\nReason:\n...` ✓
+- Validator rejects `... Keep logging to track patterns.` ✓
+
+**Verification:**
+- 51 scoped tests pass in `test_decision_hard_lock.py`
+- 212 broader scoped tests pass across 8 modules (Phase 3-8)
+- `python manage.py check` clean
+- `makemigrations --check --dry-run` → no changes
+
+**Scope discipline held:**
+- ✅ No architecture rewrite — enforcement lives in routing /
+  response assembly / validation layers, NOT in prompts alone
+- ✅ No LLM-generated truth — structurally guaranteed
+- ✅ No duplicate logic — supersets of existing matchers
+- ✅ No new signals, no new state builders, no infrastructure
+- ✅ All prior-phase test suites run green post-change
+
+**Success criteria achieved:**
+For ANY input like "What should I do?", "What is the biggest
+risk?", "What is not working?", "Help me decide", "What should
+I fix first?", the system now structurally guarantees:
+1. Response starts with `Do this next:` or `Your priority is:`
+2. Exactly ONE action (no menus)
+3. Never starts with a summary
+4. Never falls back to LLM-only response
+
+---
+
 ## 2026-04-09 — Phase 7 CoS Decision Intelligence
 
 **What:** Upgrades the Chief of Staff decision contract so every

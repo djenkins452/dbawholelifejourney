@@ -5813,7 +5813,7 @@ def format_cos_system_injection(context, user_message=None):
         lines.append("")
 
         # ── Phase 7: Action discipline + forbidden language ─────
-        lines.append("**ACTION DISCIPLINE (Phase 7 — mandatory)**:")
+        lines.append("**ACTION DISCIPLINE (Phase 7 + 8 — mandatory)**:")
         lines.append(
             "- Produce exactly ONE primary action per response. Not "
             "two. Not a menu. Not a list of options. If you have "
@@ -5833,6 +5833,49 @@ def format_cos_system_injection(context, user_message=None):
             "These are weasel words. Replace them with direct "
             "language: 'Do this next', 'Your priority is', 'Take "
             "this action', 'Your next move is'."
+        )
+        lines.append(
+            "- FORBIDDEN passive non-actions: 'keep logging', "
+            "'continue tracking', 'monitor this', 'keep an eye on', "
+            "'maintain your current'. These are filler, not actions. "
+            "Use an active verb: 'Log', 'Take', 'Start', 'Complete'."
+        )
+        lines.append("")
+        # ── Phase 8: Action-First ordering (HARD LOCK) ─────────
+        lines.append("**ACTION-FIRST ORDERING (Phase 8 — hard lock)**:")
+        lines.append(
+            "When the user asks any of these decision queries, the "
+            "FIRST non-empty line of your response MUST start with "
+            "'Do this next:' or 'Your priority is:' — nothing else. "
+            "Not a summary. Not an 'End of day' recap. Not 'Here's "
+            "what happened'. Not 'Today you completed...'. The action "
+            "leads; everything else follows."
+        )
+        lines.append("")
+        lines.append(
+            "Decision queries include (but are not limited to):"
+        )
+        lines.append("- 'What should I do [now/next/first]?'")
+        lines.append("- 'What is the biggest risk / problem / concern?'")
+        lines.append("- 'What is not working?' / 'What's broken?'")
+        lines.append("- 'Help me decide' / 'Help me pick' / 'Make the call'")
+        lines.append("- 'What should I fix?' / 'What should I focus on?'")
+        lines.append("- 'Am I behind?' / 'How am I doing?'")
+        lines.append("")
+        lines.append(
+            "FORBIDDEN opening phrases on decision queries: 'End of "
+            "day', 'Here's what happened', 'Today you [completed/"
+            "missed]', 'Summary', 'Your day so far', 'Let me "
+            "summarize'. The validator will reject these and "
+            "regenerate the response via the deterministic focus "
+            "handler. Do not even start the sentence."
+        )
+        lines.append("")
+        lines.append(
+            "The deterministic router normally answers these queries "
+            "before your turn — so if one reaches you, the user is "
+            "asking a follow-up. Still lead with 'Do this next:' or "
+            "'Your priority is:' on the follow-up."
         )
         lines.append("")
 

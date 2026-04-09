@@ -4553,28 +4553,49 @@ Rules for this response:
                         validate_response,
                         regenerate_response_deterministic,
                         _infer_domain,
+                        _is_decision_query,
+                        _build_focus_query_response,
                     )
                     # Infer the domain the user was asking about. The
                     # validator is stricter when a domain is identified.
-                    _detected_domain = _infer_domain((message or '').lower())
+                    _msg_lower = (message or '').lower()
+                    _detected_domain = _infer_domain(_msg_lower)
+                    # Phase 8: decision queries trigger Rule 0 (action-first
+                    # structural enforcement) inside validate_response.
+                    _is_decision = _is_decision_query(_msg_lower)
                     _is_valid, _reason = validate_response(
-                        response, user=self.user, query_domain=_detected_domain,
+                        response, user=self.user,
+                        query_domain=_detected_domain,
+                        is_decision_query=_is_decision,
                     )
                     if not _is_valid:
                         logger.warning(
                             "PHASE_4_5_VALIDATOR_REJECT user=%s domain=%s "
-                            "reason=%s preview=%s",
-                            self.user.id, _detected_domain, _reason,
-                            (response or '')[:120],
+                            "is_decision=%s reason=%s preview=%s",
+                            self.user.id, _detected_domain, _is_decision,
+                            _reason, (response or '')[:120],
                         )
-                        _rebuilt = regenerate_response_deterministic(
-                            self.user, _detected_domain,
-                        )
+                        # Phase 8: for decision queries, skip the
+                        # domain rebuilder and jump straight to the
+                        # never-None focus handler. It always produces
+                        # a valid Action-First response.
+                        if _is_decision:
+                            try:
+                                _rebuilt = _build_focus_query_response(
+                                    self.user,
+                                )
+                            except Exception:
+                                _rebuilt = None
+                        else:
+                            _rebuilt = regenerate_response_deterministic(
+                                self.user, _detected_domain,
+                            )
                         if _rebuilt:
                             logger.info(
                                 "PHASE_4_5_VALIDATOR_REBUILD user=%s domain=%s "
-                                "new_len=%d",
-                                self.user.id, _detected_domain, len(_rebuilt),
+                                "is_decision=%s new_len=%d",
+                                self.user.id, _detected_domain,
+                                _is_decision, len(_rebuilt),
                             )
                             response = _rebuilt
                         else:

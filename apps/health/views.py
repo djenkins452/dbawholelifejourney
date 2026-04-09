@@ -133,6 +133,35 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         except Exception:
             context["hs"] = {}
 
+        # Phase 17: medicine state for medication/intake tiles
+        try:
+            from apps.core.ai_orchestrator.cos_context import (
+                _fresh_module_state as _fms,
+            )
+            ms = _fms(user, 'medicine')
+            context["ms"] = ms
+            # Map medicine_state keys to the template's expected names
+            # so the template reads from SAE, not from the 51-line
+            # view-level intake computation.
+            context["intake_count"] = ms.get("active_count", 0)
+            context["intake_taken_today"] = ms.get("today_taken", 0)
+            context["intake_scheduled_today"] = ms.get("expected_today", 0)
+            context["intake_overdue"] = ms.get("today_overdue", 0) or 0
+            # Build intake_windows from schedule_status_today if available
+            sched_status = ms.get("schedule_status_today") or []
+            _windows = {}
+            for dose in sched_status:
+                w_label = dose.get("window_label") or dose.get("time_of_day", "Other")
+                if w_label not in _windows:
+                    _windows[w_label] = {"label": w_label, "taken": 0, "total": 0}
+                _windows[w_label]["total"] += 1
+                if dose.get("status") in ("taken", "late"):
+                    _windows[w_label]["taken"] += 1
+            context["intake_windows"] = list(_windows.values()) if _windows else []
+        except Exception:
+            context["ms"] = {}
+            # Fall through — the view's existing computation will fill these
+
         # Weight summary
         weight_entries = WeightEntry.objects.filter(user=user)
         if weight_entries.exists():

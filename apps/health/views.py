@@ -116,7 +116,23 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         now = timezone.now()
         week_ago = now - timedelta(days=7)
         month_ago = now - timedelta(days=30)
-        
+
+        # ══════════════════════════════════════════════════════
+        # Phase 17: SAE as single source of truth.
+        # Load the canonical health state ONCE and inject it into
+        # the template context as `hs` (health state). The template
+        # reads _status / _status_reason / canonical values from
+        # this dict. All resolved domain verdicts come from the SAE
+        # resolution layer — no template-side interpretation.
+        # ══════════════════════════════════════════════════════
+        try:
+            from apps.core.ai_orchestrator.cos_context import (
+                _fresh_module_state,
+            )
+            context["hs"] = _fresh_module_state(user, 'health')
+        except Exception:
+            context["hs"] = {}
+
         # Weight summary
         weight_entries = WeightEntry.objects.filter(user=user)
         if weight_entries.exists():

@@ -711,6 +711,250 @@ def build_health_state(user):
     except Exception as e:
         logger.warning("SAE: health trust attach failed: %s", e)
 
+    # ══════════════════════════════════════════════════════════
+    # Phase 17 — CANONICAL STATUS RESOLUTION LAYER
+    #
+    # Every domain gets exactly ONE resolved _status + _status_reason.
+    # No UI, service, or CoS component may compute its own verdict.
+    # This is the SINGLE SOURCE OF TRUTH for "how am I doing in X?"
+    #
+    # Rules:
+    #   - _status is one of: excellent / good / fair / poor / no_data
+    #   - _status_reason is a human-readable single sentence
+    #   - Both the tile AND the attention section read from these
+    #   - No conflicting interpretations are possible
+    # ══════════════════════════════════════════════════════════
+
+    # ── Sleep Status ─────────────────────────────────────────
+    # Also add last-night-specific keys so the tile can show the
+    # most recent entry without querying the model directly.
+    try:
+        last_sleep = (
+            SleepEntry.objects.filter(user=user)
+            .order_by('-sleep_date')
+            .values_list('total_duration_minutes', 'quality_score', 'sleep_date')
+            .first()
+        )
+        if last_sleep and last_sleep[0]:
+            state["sleep_last_night_hours"] = round(float(last_sleep[0]) / 60, 1)
+            state["sleep_last_night_quality"] = last_sleep[1]
+            state["sleep_last_night_date"] = last_sleep[2].isoformat() if last_sleep[2] else None
+    except Exception:
+        pass
+
+    avg_dur = state.get("sleep_avg_duration_7d")
+    last_hrs = state.get("sleep_last_night_hours")
+    last_qual = state.get("sleep_last_night_quality")
+
+    if avg_dur is None and last_hrs is None:
+        state["sleep_status"] = "no_data"
+        state["sleep_status_reason"] = "No sleep data logged recently."
+    elif avg_dur is not None and avg_dur >= 420:
+        state["sleep_status"] = "excellent"
+        state["sleep_status_reason"] = (
+            f"Averaging {round(avg_dur / 60, 1)}h this week — on target."
+        )
+    elif avg_dur is not None and avg_dur >= 360:
+        state["sleep_status"] = "good"
+        state["sleep_status_reason"] = (
+            f"Averaging {round(avg_dur / 60, 1)}h this week — acceptable "
+            f"but below the 7h target."
+        )
+    elif avg_dur is not None and avg_dur < 360:
+        qual_note = ""
+        if last_qual is not None and last_qual >= 85:
+            qual_note = " Quality has been good, but duration is the concern."
+        state["sleep_status"] = "fair"
+        state["sleep_status_reason"] = (
+            f"Averaging {round(avg_dur / 60, 1)}h this week — sleep has "
+            f"been short.{qual_note}"
+        )
+    else:
+        state["sleep_status"] = "good"
+        state["sleep_status_reason"] = "Sleep data is limited."
+
+    # ── Weight Status ────────────────────────────────────────
+    wt = state.get("weight_current")
+    wt_trend = state.get("weight_trend", "insufficient_data")
+    wt_goal = state.get("weight_goal")
+
+    if wt is None:
+        state["weight_status"] = "no_data"
+        state["weight_status_reason"] = "No weight data logged recently."
+    elif wt_goal and state.get("weight_goal_on_track"):
+        state["weight_status"] = "excellent"
+        state["weight_status_reason"] = (
+            f"{wt} {state.get('weight_unit', 'lb')} — on track toward "
+            f"your {wt_goal} goal."
+        )
+    elif wt_trend == "decreasing" and wt_goal:
+        state["weight_status"] = "good"
+        state["weight_status_reason"] = (
+            f"{wt} {state.get('weight_unit', 'lb')} — trending down."
+        )
+    elif wt_trend == "stable":
+        state["weight_status"] = "good"
+        state["weight_status_reason"] = (
+            f"{wt} {state.get('weight_unit', 'lb')} — stable."
+        )
+    elif wt_trend == "increasing" and wt_goal:
+        state["weight_status"] = "fair"
+        state["weight_status_reason"] = (
+            f"{wt} {state.get('weight_unit', 'lb')} — trending up, "
+            f"away from your {wt_goal} goal."
+        )
+    else:
+        state["weight_status"] = "good"
+        state["weight_status_reason"] = (
+            f"{wt} {state.get('weight_unit', 'lb')}."
+        )
+
+    # ── Blood Pressure Status ────────────────────────────────
+    sys_bp = state.get("bp_systolic")
+    dia_bp = state.get("bp_diastolic")
+
+    if sys_bp is None:
+        state["bp_status"] = "no_data"
+        state["bp_status_reason"] = "No blood pressure data logged recently."
+    elif sys_bp < 120 and dia_bp < 80:
+        state["bp_status"] = "excellent"
+        state["bp_status_reason"] = f"{sys_bp}/{dia_bp} — normal range."
+        state["bp_category"] = "Normal"
+    elif sys_bp < 130 and dia_bp < 80:
+        state["bp_status"] = "good"
+        state["bp_status_reason"] = f"{sys_bp}/{dia_bp} — elevated."
+        state["bp_category"] = "Elevated"
+    elif sys_bp < 140 or dia_bp < 90:
+        state["bp_status"] = "fair"
+        state["bp_status_reason"] = (
+            f"{sys_bp}/{dia_bp} — Stage 1 hypertension range."
+        )
+        state["bp_category"] = "Stage 1"
+    else:
+        state["bp_status"] = "poor"
+        state["bp_status_reason"] = (
+            f"{sys_bp}/{dia_bp} — Stage 2 hypertension range."
+        )
+        state["bp_category"] = "Stage 2"
+
+    # ── Heart Rate Status ────────────────────────────────────
+    hr = state.get("latest_heart_rate")
+    hr_avg = state.get("heart_rate_avg_7d")
+
+    if hr is None:
+        state["hr_status"] = "no_data"
+        state["hr_status_reason"] = "No heart rate data logged recently."
+    elif hr_avg and hr_avg <= 80:
+        state["hr_status"] = "excellent"
+        state["hr_status_reason"] = (
+            f"{hr} bpm (avg {hr_avg} bpm this week) — healthy range."
+        )
+    elif hr_avg and hr_avg <= 100:
+        state["hr_status"] = "good"
+        state["hr_status_reason"] = (
+            f"{hr} bpm (avg {hr_avg} bpm this week)."
+        )
+    else:
+        state["hr_status"] = "fair"
+        state["hr_status_reason"] = (
+            f"{hr} bpm — elevated resting heart rate."
+        )
+
+    # ── Blood Oxygen Status ──────────────────────────────────
+    spo2 = state.get("latest_blood_oxygen")
+
+    if spo2 is None:
+        state["spo2_status"] = "no_data"
+        state["spo2_status_reason"] = "No SpO2 data logged recently."
+    elif spo2 >= 95:
+        state["spo2_status"] = "excellent"
+        state["spo2_status_reason"] = f"{spo2}% — normal range."
+    elif spo2 >= 90:
+        state["spo2_status"] = "fair"
+        state["spo2_status_reason"] = f"{spo2}% — below normal range."
+    else:
+        state["spo2_status"] = "poor"
+        state["spo2_status_reason"] = f"{spo2}% — critically low."
+
+    # ── Glucose Status ───────────────────────────────────────
+    gluc = state.get("latest_glucose")
+    gluc_unit = state.get("latest_glucose_unit", "mg/dL")
+    gluc_var = state.get("glucose_variability_level")
+
+    if gluc is None:
+        state["glucose_status"] = "no_data"
+        state["glucose_status_reason"] = "No glucose data logged recently."
+    elif gluc_unit == "mg/dL" and gluc <= 100:
+        state["glucose_status"] = "excellent"
+        state["glucose_status_reason"] = (
+            f"{gluc} {gluc_unit} — healthy range."
+        )
+    elif gluc_unit == "mg/dL" and gluc <= 125:
+        state["glucose_status"] = "good"
+        state["glucose_status_reason"] = (
+            f"{gluc} {gluc_unit} — pre-diabetic range."
+        )
+    else:
+        state["glucose_status"] = "fair"
+        state["glucose_status_reason"] = (
+            f"{gluc} {gluc_unit} — elevated."
+        )
+    if gluc_var == "high" and state.get("glucose_status") != "no_data":
+        state["glucose_status_reason"] += " High variability detected."
+
+    # ── Steps Status ─────────────────────────────────────────
+    steps_avg = state.get("steps_avg_7d")
+
+    if steps_avg is None:
+        state["steps_status"] = "no_data"
+        state["steps_status_reason"] = "No step data logged recently."
+    elif steps_avg >= 10000:
+        state["steps_status"] = "excellent"
+        state["steps_status_reason"] = (
+            f"Averaging {int(steps_avg):,} steps/day — excellent."
+        )
+    elif steps_avg >= 7000:
+        state["steps_status"] = "good"
+        state["steps_status_reason"] = (
+            f"Averaging {int(steps_avg):,} steps/day — good."
+        )
+    elif steps_avg >= 4000:
+        state["steps_status"] = "fair"
+        state["steps_status_reason"] = (
+            f"Averaging {int(steps_avg):,} steps/day — below target."
+        )
+    else:
+        state["steps_status"] = "poor"
+        state["steps_status_reason"] = (
+            f"Averaging {int(steps_avg):,} steps/day — low activity."
+        )
+
+    # ── Water Status ─────────────────────────────────────────
+    water_pct = state.get("water_today_pct")
+    water_met = state.get("water_goal_met")
+    water_behind = state.get("water_behind_goal")
+
+    if water_pct is None:
+        state["water_status"] = "no_data"
+        state["water_status_reason"] = "No water data logged today."
+    elif water_met:
+        state["water_status"] = "excellent"
+        state["water_status_reason"] = (
+            f"{state.get('water_today_oz', 0)} oz — goal met."
+        )
+    elif water_behind:
+        state["water_status"] = "fair"
+        state["water_status_reason"] = (
+            f"{state.get('water_today_oz', 0)} of "
+            f"{state.get('water_goal_oz', 64)} oz — behind goal."
+        )
+    else:
+        state["water_status"] = "good"
+        state["water_status_reason"] = (
+            f"{state.get('water_today_oz', 0)} of "
+            f"{state.get('water_goal_oz', 64)} oz — on pace."
+        )
+
     return state
 
 

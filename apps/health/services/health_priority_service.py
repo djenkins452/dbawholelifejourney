@@ -182,23 +182,24 @@ def _eval_blood_pressure(health_state, current_dt):
 
 
 def _eval_sleep(health_state, current_dt):
-    """Evaluate sleep. Freshness-gated."""
+    """Evaluate sleep. Phase 17: reads the canonical sleep_status
+    resolved in SAE — no independent threshold computation."""
     if not _is_fresh("last_sleep_entry", health_state, current_dt, "sleep"):
         return []
 
-    avg = health_state.get("sleep_avg_duration_7d")
-    if avg is None:
-        return []
+    status = health_state.get("sleep_status")
+    reason = health_state.get("sleep_status_reason", "")
 
-    if avg < 360:  # < 6 hours
+    if status in ("poor", "fair"):
         return [_item("sleep_short", MEDIUM, "recovery",
-                       "Sleep has been short lately", "moon")]
+                       reason or "Sleep has been short lately", "moon")]
 
-    if avg >= 420:  # >= 7 hours
+    if status == "excellent":
         return [_item("sleep_strong", LOW, "recovery",
-                       "Sleep has been strong", "moon")]
+                       reason or "Sleep has been strong", "moon")]
 
-    return []  # 6-7 hours — acceptable, no item
+    # "good" or "no_data" — acceptable, no item
+    return []
 
 
 def _eval_steps(health_state, current_dt):

@@ -987,6 +987,35 @@ _GENERIC_PHRASES = frozenset([
     'hang in there',
 ])
 
+# Phase 7 — forbidden softening language. The Decision Contract says
+# CoS must use direct language ("Do this next", "Your priority is").
+# These softeners dilute every action into a suggestion the user can
+# ignore, and they're explicitly prohibited by the task spec. Checked
+# with whole-word / phrase boundaries to avoid false positives on
+# substrings inside legitimate words (e.g. "maybe" inside "maybeline").
+_WEASEL_PHRASES = frozenset([
+    'you might want to',
+    'you might consider',
+    'you may want to',
+    'you could consider',
+    'it could help',
+    'it might help',
+    'consider doing',
+    'consider taking',
+    'consider trying',
+    'perhaps you',
+    'maybe you should',
+    'maybe try',
+])
+
+# Note: the "ONE primary action" rule is enforced in the system
+# prompt (format_cos_system_injection Decision Contract) rather than
+# in this validator. A validator-level "must contain Do this next"
+# check would false-positive on short factual queries like
+# "what's my heart rate trend?". The prompt-level enforcement + the
+# existing Phase 4.5 interpretive-marker check catch the important
+# cases without the false-positive risk.
+
 
 def _get_all_trust_reports(user):
     """Read every domain's _trust sub-dict from SAE. Returns flat dict."""
@@ -1374,10 +1403,12 @@ def _handle_fasting_query(user):
 # ── Phase 4.5 validator ───────────────────────────────────────────
 
 def validate_response(response_text, user=None, query_domain=None):
-    """Phase 4.5 hard response validator.
+    """Phase 4.5 hard response validator (extended in Phase 7).
 
     Rejects LLM responses that:
         - Use generic coaching phrases ("keep it up", "great job", etc.)
+        - Use Phase 7 forbidden softening language ("consider",
+          "you might", "it could help")
         - Are too short to contain interpretation + action
         - Cite domain metrics without confidence/percentage language
           when a trust report exists for that domain
@@ -1396,6 +1427,12 @@ def validate_response(response_text, user=None, query_domain=None):
     for phrase in _GENERIC_PHRASES:
         if phrase in lower:
             return (False, f'generic phrase: {phrase!r}')
+
+    # Rule 1b (Phase 7): forbidden softening language. The CoS must
+    # produce decisive actions — not suggestions the user can ignore.
+    for phrase in _WEASEL_PHRASES:
+        if phrase in lower:
+            return (False, f'weasel phrase: {phrase!r}')
 
     # Rule 2: too short to contain interpretation + action.
     # A compliant Phase 4.5 response is at least ~80 chars.

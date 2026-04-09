@@ -5798,6 +5798,9 @@ def format_cos_system_injection(context, user_message=None):
     _featured = context.get('featured_signals') or {}
     _trust_reports = context.get('trust_reports') or {}
     _decision_rules = context.get('decision_rules') or {}
+    # Phase 7: cross-domain patterns + ranked fallback
+    _cross_domain_signals = context.get('cross_domain_signals') or []
+    _ranked_signals = context.get('ranked_signals') or {}
 
     if _right_now or _featured or _decision_rules:
         lines.append("## DECISION CONTRACT (Phase 4 — must obey)")
@@ -5806,6 +5809,56 @@ def format_cos_system_injection(context, user_message=None):
             "Every response you produce must follow this structure: "
             "**Situation → Interpretation → Action**. "
             "You are a decision-maker, not a list generator."
+        )
+        lines.append("")
+
+        # ── Phase 7: Action discipline + forbidden language ─────
+        lines.append("**ACTION DISCIPLINE (Phase 7 — mandatory)**:")
+        lines.append(
+            "- Produce exactly ONE primary action per response. Not "
+            "two. Not a menu. Not a list of options. If you have "
+            "multiple candidate actions, pick the single most "
+            "impactful one."
+        )
+        lines.append(
+            "- The primary action MUST be on its own line, prefixed "
+            "with 'Do this next:' or 'Your priority is:'. Optional "
+            "secondary guidance may follow, but only AFTER the "
+            "primary action, and it must be clearly marked as "
+            "secondary (e.g. 'Also worth knowing:' or 'Secondary:')."
+        )
+        lines.append(
+            "- FORBIDDEN softening language: 'consider', 'you might', "
+            "'it could help', 'perhaps', 'maybe', 'you may want to'. "
+            "These are weasel words. Replace them with direct "
+            "language: 'Do this next', 'Your priority is', 'Take "
+            "this action', 'Your next move is'."
+        )
+        lines.append("")
+
+        # ── Phase 7: Priority hierarchy for competing signals ────
+        lines.append("**PRIORITY ORDER (Phase 7 — use when signals compete)**:")
+        lines.append(
+            "1. **Health risk** — medication, vitals, safety. Always "
+            "leads. A health-risk signal beats everything else."
+        )
+        lines.append(
+            "2. **Foundational habits** — prayer, sleep, movement. "
+            "Daily non-negotiables. Beat time-sensitive items that "
+            "aren't health-risk."
+        )
+        lines.append(
+            "3. **Time-sensitive commitments** — deadlines, "
+            "appointments, scheduled events. Beat optimization."
+        )
+        lines.append(
+            "4. **Optimization** — nutrition tuning, strength "
+            "progression, habit refinement. Lowest priority."
+        )
+        lines.append("")
+        lines.append(
+            "A lower-priority signal never outranks a higher-priority "
+            "one, even if its confidence is higher."
         )
         lines.append("")
 
@@ -5856,6 +5909,72 @@ def format_cos_system_injection(context, user_message=None):
                 "Discuss only domains in FEATURED SIGNALS unless the user "
                 "explicitly asks about a different domain. Do NOT data-dump "
                 "every metric you have access to."
+            )
+            lines.append("")
+
+        # ── Phase 7: Cross-domain patterns (correlation-based reasoning) ──
+        # These come from _build_cross_domain_signals in cos_context. They
+        # connect two or more signals into a single pattern the LLM can
+        # reason about (sleep ↓ + workouts ↑ → recovery issue). Without
+        # surfacing them explicitly, the LLM sees the individual signals
+        # but has no framework for connecting them.
+        if _cross_domain_signals:
+            lines.append(
+                "**CROSS-DOMAIN PATTERNS (Phase 7 — reasoning starters)**:"
+            )
+            for sig in _cross_domain_signals[:6]:  # cap at 6 for prompt size
+                code = sig.get('signal_code', 'unknown')
+                sev = sig.get('severity', 'medium')
+                summary = sig.get('summary', '')
+                action = sig.get('recommended_action', '')
+                lines.append(
+                    f"- {code} [{sev}]: {summary}"
+                )
+                if action:
+                    lines.append(f"  → Recommended: {action}")
+            lines.append("")
+            lines.append(
+                "These patterns connect multiple signals into a single "
+                "reasoning frame. Example: 'sleep declining + workout "
+                "intensity rising → recovery risk → reduce intensity or "
+                "improve sleep'. When a pattern's severity is high and "
+                "RIGHT NOW FOCUS is steady, lead with the pattern. "
+                "When RIGHT NOW FOCUS is focused, patterns provide "
+                "supporting context but do not override the focus."
+            )
+            lines.append("")
+
+        # ── Phase 7: Top-ranked signal fallback ──────────────────
+        # When right_now_focus is steady (no high-priority focus), fall
+        # back to the top-ranked insight from the signal arbitration
+        # layer. This prevents "nothing to say" responses when there's
+        # still a Tier 1-3 insight worth surfacing.
+        _top_signal = _ranked_signals.get('top_signal') or {}
+        if (
+            _right_now.get('status') != 'focused'
+            and _top_signal
+            and _top_signal.get('title')
+        ):
+            _ts_title = _top_signal.get('title', '')
+            _ts_tier = _top_signal.get('tier', '?')
+            _ts_conf = _top_signal.get('confidence', '?')
+            _ts_module = _top_signal.get('module', '')
+            _ts_reason = _ranked_signals.get('selection_reason', '')
+            lines.append(
+                "**TOP-RANKED SIGNAL (Phase 7 — fallback lead "
+                "when no focus)**:"
+            )
+            lines.append(
+                f"- {_ts_title} [tier {_ts_tier}, confidence {_ts_conf}]"
+            )
+            if _ts_module:
+                lines.append(f"  module: {_ts_module}")
+            if _ts_reason:
+                lines.append(f"  selection: {_ts_reason}")
+            lines.append("")
+            lines.append(
+                "When RIGHT NOW FOCUS is steady, lead with this "
+                "insight instead of generic encouragement."
             )
             lines.append("")
 

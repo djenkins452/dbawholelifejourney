@@ -1225,13 +1225,36 @@ def _build_fix_first_response(user):
                 'lights out', 'get up', 'get out of bed',
             })
 
-            overdue = [
+            overdue_raw = [
                 i for i in exec_items
                 if i.get('time_status') == 'overdue'
                 and not i.get('completed_today')
                 and (i.get('title') or '').strip().lower()
                     not in _IMPLIED_DONE
             ]
+            # Phase 12: filter blocked items in fix-first path too
+            _group_gates_ff = {}
+            for i in exec_items:
+                gid = i.get('execution_group_id')
+                if gid is None or i.get('completed_today'):
+                    continue
+                tl = (i.get('title') or '').strip().lower()
+                if tl in _IMPLIED_DONE:
+                    continue
+                st = i.get('scheduled_time', '99:99')
+                if gid not in _group_gates_ff or st < _group_gates_ff[gid]:
+                    _group_gates_ff[gid] = st
+
+            overdue = []
+            for item in overdue_raw:
+                gid = item.get('execution_group_id')
+                if gid is None:
+                    overdue.append(item)
+                else:
+                    gate = _group_gates_ff.get(gid)
+                    if gate is None or item.get('scheduled_time', '99:99') <= gate:
+                        overdue.append(item)
+
             # Tasks before routine items, foundational first
             _imp_order = {
                 'foundational': 0, 'important': 1, 'flexible': 2,
@@ -1266,13 +1289,23 @@ def _build_fix_first_response(user):
                 )
 
             # ── 3. Foundational gaps → gap-closure framing ──────
-            incomplete = [
+            incomplete_raw = [
                 i for i in exec_items
                 if not i.get('completed_today')
                 and i.get('importance') in ('foundational', 'important')
                 and (i.get('title') or '').strip().lower()
                     not in _IMPLIED_DONE
             ]
+            # Phase 12: filter blocked items
+            incomplete = []
+            for item in incomplete_raw:
+                gid = item.get('execution_group_id')
+                if gid is None:
+                    incomplete.append(item)
+                else:
+                    gate = _group_gates_ff.get(gid)
+                    if gate is None or item.get('scheduled_time', '99:99') <= gate:
+                        incomplete.append(item)
             incomplete.sort(key=lambda x: (
                 0 if x.get('source_type') == 'task' else 1,
                 _imp_order.get(x.get('importance', 'flexible'), 2),
@@ -1408,6 +1441,60 @@ def _build_focus_query_response(user):
                     return False
                 return True
 
+            # ── Phase 12: dependency-aware blocked filter ────────
+            # Within a routine group (execution_group_id), items
+            # have an implied sequence defined by scheduled_time.
+            # An item is BLOCKED if any earlier item in the same
+            # group is still incomplete. Example: Shower (07:00)
+            # is blocked if Workout (06:15) hasn't been done yet.
+            #
+            # Standalone tasks (execution_group_type='standalone')
+            # are never blocked — they have no predecessor.
+
+            def _filter_blocked(items, all_items):
+                """Remove items that are blocked by an incomplete
+                predecessor in their routine group.
+
+                Returns only items that are either:
+                - standalone (no group)
+                - the FIRST incomplete item in their group
+                """
+                if not items:
+                    return items
+
+                # Build a map: group_id → earliest incomplete
+                # scheduled_time (the "gate" for that group)
+                _group_gates = {}
+                for i in all_items:
+                    gid = i.get('execution_group_id')
+                    if gid is None:
+                        continue
+                    if i.get('completed_today'):
+                        continue
+                    title_lower = (i.get('title') or '').strip().lower()
+                    if title_lower in _IMPLIED_DONE_TITLES:
+                        continue
+                    sched = i.get('scheduled_time', '99:99')
+                    if gid not in _group_gates or sched < _group_gates[gid]:
+                        _group_gates[gid] = sched
+
+                result = []
+                for item in items:
+                    gid = item.get('execution_group_id')
+                    # Standalone items are never blocked
+                    if gid is None:
+                        result.append(item)
+                        continue
+                    # Routine items: only selectable if they ARE the
+                    # earliest incomplete item in their group (the gate)
+                    gate_time = _group_gates.get(gid)
+                    item_time = item.get('scheduled_time', '99:99')
+                    if gate_time is None or item_time <= gate_time:
+                        result.append(item)
+                    # else: blocked — a predecessor in the same group
+                    # hasn't been completed yet
+                return result
+
             _imp_order = {
                 'foundational': 0, 'important': 1, 'flexible': 2,
             }
@@ -1416,7 +1503,6 @@ def _build_focus_query_response(user):
                 """Phase 10: sort key that puts tasks before routine
                 items, foundational before flexible, earliest time
                 as tiebreaker."""
-                # Tasks (explicit commitments) before routine_items
                 is_task = 0 if item.get('source_type') == 'task' else 1
                 imp = _imp_order.get(
                     item.get('importance', 'flexible'), 2,
@@ -1424,9 +1510,12 @@ def _build_focus_query_response(user):
                 sched = item.get('scheduled_time', '99:99')
                 return (is_task, imp, sched)
 
-            # Apply filter + rank
+            # Apply filter + dependency check + rank
             overdue = sorted(
-                [i for i in all_overdue if _is_actionable(i)],
+                _filter_blocked(
+                    [i for i in all_overdue if _is_actionable(i)],
+                    exec_items,
+                ),
                 key=_rank_key,
             )
 
@@ -1455,7 +1544,10 @@ def _build_focus_query_response(user):
             # Priority 2: upcoming items (nothing overdue)
             elif upcoming:
                 upcoming_filtered = sorted(
-                    [i for i in upcoming if _is_actionable(i)],
+                    _filter_blocked(
+                        [i for i in upcoming if _is_actionable(i)],
+                        exec_items,
+                    ),
                     key=_rank_key,
                 )
                 if upcoming_filtered:
@@ -1472,13 +1564,16 @@ def _build_focus_query_response(user):
             # no upcoming, but some required items are not done)
             if not action and exec_items:
                 incomplete = sorted(
-                    [
-                        i for i in exec_items
-                        if _is_actionable(i)
-                        and i.get('importance') in (
-                            'foundational', 'important',
-                        )
-                    ],
+                    _filter_blocked(
+                        [
+                            i for i in exec_items
+                            if _is_actionable(i)
+                            and i.get('importance') in (
+                                'foundational', 'important',
+                            )
+                        ],
+                        exec_items,
+                    ),
                     key=_rank_key,
                 )
                 if incomplete:

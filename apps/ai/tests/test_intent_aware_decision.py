@@ -171,8 +171,10 @@ class BiggestRiskUsesSignalLayerTests(TestCase):
         self.assertNotIn("Work on WLJ", resp)
 
     def test_risk_response_when_no_med_crisis(self):
-        """When medication is fine, fall through to health flags
-        or cross-domain signals."""
+        """When medication is fine, _build_biggest_risk_response may
+        return None (Phase 11.1: no silent fallback to execution).
+        The caller (_try_decision_query_route) handles the None case
+        with an explicit risk-review message."""
         from apps.ai.deterministic_router import _build_biggest_risk_response
         from apps.core.ai_orchestrator import cos_context
 
@@ -190,8 +192,12 @@ class BiggestRiskUsesSignalLayerTests(TestCase):
         with patch.object(cos_context, '_fresh_module_state', fake_fresh):
             resp = _build_biggest_risk_response(self.user)
 
-        # Should fall through to health intelligence or execution
-        self.assertIn("Do this next:", resp)
+        # Phase 11.1: when no critical risk is found, the builder
+        # returns None (not the execution response). The route layer
+        # provides the explicit risk-review fallback instead.
+        # Either None or a valid risk string is acceptable.
+        if resp is not None:
+            self.assertIn("Do this next:", resp)
 
 
 # ══════════════════════════════════════════════════════════════

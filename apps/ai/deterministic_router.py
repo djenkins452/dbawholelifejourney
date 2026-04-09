@@ -615,27 +615,28 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
                 e, exc_info=True,
             )
 
-    # ── Phase 4: Focus / behind / status query — HARD OVERRIDE ───
-    # If the user asks "am I behind" / "how am I doing" / "what should
-    # I focus on", CoS MUST lead with the deterministic right_now_focus
-    # from Phase 3. This bypasses the LLM and the Today Engine routine
-    # fallback. Runs BEFORE _try_next_action_route so trust beats routine.
-    result = _try_focus_query_route(msg_lower, user)
+    # ── Phase 11.1: Decision query — RUNS FIRST (before focus query)
+    # _is_decision_query is a SUPERSET of _is_focus_query. If we let
+    # the Phase 4 focus route fire first, it catches "biggest risk"
+    # and "fix first" queries and routes them ALL to the same
+    # _build_focus_query_response — bypassing the Phase 11 intent
+    # classification entirely. Moving the decision route FIRST
+    # ensures every decision query gets classified by intent and
+    # dispatched to the correct handler (EXECUTION_NOW / BIGGEST_RISK
+    # / FIX_FIRST). Non-decision queries fall through to the focus
+    # route below, which still handles "am I behind" etc.
+    result = _try_decision_query_route(msg_lower, user)
     if result is not None:
         result.elapsed_ms = (time.monotonic() - t_start) * 1000
         _log_route_decision(result, user, message)
         return result
 
-    # ── Phase 8: Decision query — HARD OVERRIDE with never-None ──
-    # Broader matcher than the Phase 4 focus query. Catches:
-    #     "what is the biggest risk"
-    #     "what's not working"
-    #     "help me decide"
-    #     "what should I fix"
-    # and semantic paraphrases thereof. This route NEVER returns
-    # None for a matched decision query — it always emits an
-    # Action-First response with a safe foundational fallback.
-    result = _try_decision_query_route(msg_lower, user)
+    # ── Phase 4: Focus / behind / status query — HARD OVERRIDE ───
+    # Now runs AFTER Phase 11 decision routing. Only fires for
+    # queries that _is_decision_query did NOT match (which is rare
+    # since _is_decision_query is a superset, but kept for backward
+    # compatibility with any edge-case phrase).
+    result = _try_focus_query_route(msg_lower, user)
     if result is not None:
         result.elapsed_ms = (time.monotonic() - t_start) * 1000
         _log_route_decision(result, user, message)
@@ -955,6 +956,9 @@ _RISK_PHRASES = (
     'what am i risking', 'where am i most at risk',
     'not working', "isn't working", 'isnt working',
     "what's broken", 'whats broken', 'what is broken',
+    # Phase 11.1: additional phrases from task spec
+    'risk right now', 'what is wrong', "what's wrong",
+    'whats wrong', 'what went wrong',
 )
 
 _FIX_PHRASES = (
@@ -1094,8 +1098,11 @@ def _build_biggest_risk_response(user):
             getattr(user, 'id', '?'), e,
         )
 
-    # ── Fallback: no specific risk found → delegate to execution ──
-    return _build_focus_query_response(user)
+    # ── Fallback: no specific risk found ──
+    # Phase 11.1: do NOT silently fall back to execution handler.
+    # Return an explicit "no critical risk" message instead — the
+    # caller (_try_decision_query_route) logs and handles this.
+    return None
 
 
 def _risk_to_action(flag_text, med_state, health_state):
@@ -1523,8 +1530,14 @@ def _try_decision_query_route(msg_lower, user):
     if user is None or not _is_decision_query(msg_lower):
         return None
 
-    # Phase 11: classify the intent and pick the right handler.
+    # Phase 11 / 11.1: classify the intent and pick the right handler.
     intent = _classify_decision_intent(msg_lower)
+    logger.info(
+        "DECISION_INTENT: %s | query=%r | user=%s",
+        intent, msg_lower[:120],
+        getattr(user, 'id', '?'),
+    )
+
     _SAFE_FALLBACK = (
         "Do this next: Complete your highest priority "
         "foundational task.\n\n"
@@ -1535,15 +1548,53 @@ def _try_decision_query_route(msg_lower, user):
     )
 
     try:
+        # Phase 11.1: HARD ENFORCE routing. No silent fallback
+        # allowed that overrides intent. Each handler MUST produce
+        # its own Action-First response. If a handler returns empty,
+        # log the failure explicitly — do NOT silently swap to a
+        # different handler.
         if intent == 'BIGGEST_RISK':
             response = _build_biggest_risk_response(user)
+            if not response or 'Do this next:' not in response:
+                logger.warning(
+                    "DECISION_INTENT_FALLBACK: BIGGEST_RISK handler "
+                    "returned empty for user=%s — using safe fallback "
+                    "(NOT execution handler)",
+                    getattr(user, 'id', '?'),
+                )
+                response = (
+                    "Do this next: Review your health signals — no "
+                    "specific risk surfaced from the data, but "
+                    "medication and sleep should be checked.\n\n"
+                    "Reason:\n"
+                    "The risk evaluation pipeline found no critical "
+                    "signal to act on. Check medication adherence and "
+                    "sleep consistency.\n"
+                    "Priority: risk review"
+                )
         elif intent == 'FIX_FIRST':
             response = _build_fix_first_response(user)
-        else:
+            if not response or 'Do this next:' not in response:
+                logger.warning(
+                    "DECISION_INTENT_FALLBACK: FIX_FIRST handler "
+                    "returned empty for user=%s — using safe fallback "
+                    "(NOT execution handler)",
+                    getattr(user, 'id', '?'),
+                )
+                response = _SAFE_FALLBACK
+        else:  # EXECUTION_NOW
             response = _build_focus_query_response(user)
+            if not response or 'Do this next:' not in response:
+                response = _SAFE_FALLBACK
 
-        if not response or 'Do this next:' not in response:
-            response = _SAFE_FALLBACK
+        logger.info(
+            "DECISION_ROUTED: intent=%s route=decision_query_%s "
+            "action=%r user=%s",
+            intent, intent.lower(),
+            (response or '')[:80],
+            getattr(user, 'id', '?'),
+        )
+
     except Exception as e:
         logger.warning(
             "[DECISION_QUERY] intent=%s handler raised for user=%s: "

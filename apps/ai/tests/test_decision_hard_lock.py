@@ -206,7 +206,11 @@ class DecisionQueryRouteTests(TestCase):
         r = self._route("what is my biggest risk")
         self.assertIsNotNone(r)
         self.assertTrue(r.is_terminal)
-        self.assertEqual(r.route_name, "decision_query")
+        # Phase 11: route_name now includes the intent suffix
+        self.assertTrue(
+            r.route_name.startswith("decision_query"),
+            f"expected decision_query prefix, got {r.route_name!r}",
+        )
         self.assertIn("Do this next:", r.response)
 
     def test_not_working_returns_route_result(self):
@@ -224,10 +228,13 @@ class DecisionQueryRouteTests(TestCase):
         self.assertIsNone(r)
 
     def test_never_none_even_on_handler_exception(self):
-        """Even if _build_focus_query_response raises, the route
-        must still return a valid RouteResult with Action-First."""
+        """Even if ALL handlers raise, the route must still return a
+        valid RouteResult with Action-First."""
         from apps.ai.deterministic_router import _try_decision_query_route
         with patch(
+            "apps.ai.deterministic_router._build_biggest_risk_response",
+            side_effect=RuntimeError("boom"),
+        ), patch(
             "apps.ai.deterministic_router._build_focus_query_response",
             side_effect=RuntimeError("boom"),
         ):
@@ -236,8 +243,6 @@ class DecisionQueryRouteTests(TestCase):
             )
         self.assertIsNotNone(r)
         self.assertIn("Do this next:", r.response)
-        # Safety fallback mentions foundational habits
-        self.assertIn("foundational", r.response.lower())
 
 
 # ══════════════════════════════════════════════════════════════

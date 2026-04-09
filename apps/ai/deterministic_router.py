@@ -1344,20 +1344,20 @@ def _build_fix_first_response(user):
 
 def _build_focus_query_response(user):
     """
-    Phase 4 / Phase 8 — deterministic focus / decision-query response.
+    Phase 4 / Phase 8 / Phase 14 — deterministic EXECUTION_NOW response.
 
-    Reads:
-        1. right_now_focus from SAE (computed by Phase 3 trust resolver)
-        2. compute_time_status() for schedule-aware "behind" semantics
+    Phase 9: execution-first priority stack (overdue → upcoming →
+    foundational-gap → signal-focus).
+    Phase 10: intelligent item selection (tasks over toggles).
+    Phase 12: dependency-aware filtering (blocked items excluded).
+    Phase 14: output sanitization (no internal schedule data shown).
 
-    Phase 8 Action-First format (strictly enforced):
+    Output format:
 
         Do this next: <specific action>
 
         Reason:
-        <why, based on signals>
-
-        Schedule: <optional time-status overlay>
+        <why, based on execution state>
 
     Phase 8 never-None guarantee: even when no focus exists, no
     trust reports load, or the signal pipeline is empty, this
@@ -1651,18 +1651,19 @@ def _build_focus_query_response(user):
             "priority foundational habit (prayer, sleep, movement)."
         )
 
-    # Time-aware context (optional overlay, NOT the lead)
-    time_status = None
-    try:
-        from apps.core.ai_state.time_intelligence import compute_time_status
-        time_status = compute_time_status(user)
-    except Exception as e:
-        logger.warning(
-            "[FOCUS_QUERY] time_intelligence failed for user=%s: %s",
-            getattr(user, 'id', '?'), e,
-        )
-
     # ── Assemble Action-First response (Phase 8 mandatory shape) ──
+    #
+    # Phase 14: output sanitization. The response contains ONLY:
+    #   - action line (Do this next: ...)
+    #   - reason block (why, based on execution state)
+    #   - priority label (optional)
+    #
+    # Removed: time-status schedule overlay (slack minutes, buffer
+    # calculations, "Next is <item> at <time>"). These exposed
+    # internal scheduling diagnostics to the user (e.g. "582 min
+    # slack remaining", "Next is Wake up at 5:00 AM" when Wake up
+    # was already done). If it doesn't help the user act, it should
+    # not be shown.
     lines = [f"Do this next: {action}", "", "Reason:"]
     if reason:
         lines.append(reason)
@@ -1672,37 +1673,6 @@ def _build_focus_query_response(user):
         )
     elif priority_label:
         lines.append(f"Priority: {priority_label}")
-
-    # ── Time-aware schedule overlay (optional secondary context) ──
-    if time_status and time_status.get('next_item'):
-        ts_status = time_status.get('status', 'ON_TRACK')
-        next_item = time_status.get('next_item')
-        next_time = time_status.get('next_item_time', '')
-        slack = time_status.get('total_slack_minutes', 0) or 0
-        minutes_until = time_status.get('minutes_until_next')
-
-        lines.append('')
-        if ts_status == 'ON_TRACK':
-            if minutes_until is not None and minutes_until > 0:
-                lines.append(
-                    f"Schedule: on track. Next is **{next_item}** at "
-                    f"{next_time} (in {minutes_until} min)."
-                )
-            else:
-                lines.append(
-                    f"Schedule: on track. Next is **{next_item}** at "
-                    f"{next_time}."
-                )
-        elif ts_status == 'USING_BUFFER':
-            lines.append(
-                f"Schedule: using buffer — {slack} min slack remaining. "
-                f"Next is **{next_item}** at {next_time}."
-            )
-        elif ts_status == 'LATE':
-            lines.append(
-                f"Schedule: behind. Next is **{next_item}** at "
-                f"{next_time}. Buffer exhausted — adjustments needed."
-            )
 
     return "\n".join(lines)
 

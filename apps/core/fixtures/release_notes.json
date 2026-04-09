@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 194,
+    "fields": {
+      "title": "Smarter next-action selection",
+      "description": "When you ask 'What should I do right now?', your Chief of Staff now picks the right specific action — not just the right category. Previously it would select 'Wake up' (an implied-done routine toggle) over 'Work on WLJ' (your actual anchor task) simply because Wake up had an earlier timestamp. Now it filters out status-toggle items you've obviously already done (like waking up, if you're interacting with the system), prioritizes explicit task commitments over routine maintenance toggles, and selects foundational items before flexible ones. The result: the single most impactful actionable item, every time.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-04-09",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-04-09T05:00:00Z",
+      "updated_at": "2026-04-09T05:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 193,
     "fields": {
       "title": "Your Chief of Staff now thinks about your day, not just your data",

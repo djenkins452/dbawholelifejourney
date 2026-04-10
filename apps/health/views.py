@@ -129,8 +129,18 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             from apps.core.ai_orchestrator.cos_context import (
                 _fresh_module_state,
             )
-            context["hs"] = _fresh_module_state(user, 'health')
+            hs = _fresh_module_state(user, 'health')
+            # Phase 18: defensive contract validation. If the builder
+            # returned an incomplete dict, fill missing keys with safe
+            # defaults so the template never crashes.
+            from apps.core.ai_state.state_builder import (
+                _validate_health_contract,
+            )
+            _validate_health_contract(hs, user)
+            context["hs"] = hs
         except Exception:
+            # Total SAE failure — provide empty dict; template guards
+            # on hs.X_status != "no_data" will hide all cards.
             context["hs"] = {}
 
         # Phase 17: medicine state for medication/intake tiles

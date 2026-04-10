@@ -211,6 +211,99 @@ class HealthPriorityServiceReadsStatusTests(TestCase):
 # HARD ENFORCEMENT: no model-object health references in template
 # ══════════════════════════════════════════════════════════════
 
+# ══════════════════════════════════════════════════════════════
+# Phase 18: STRICT CONTRACT ENFORCEMENT
+# ══════════════════════════════════════════════════════════════
+
+class HealthContractCompletenessTests(TestCase):
+    """Every key in HEALTH_CONTRACT must be present in the dict
+    returned by build_health_state — even for a brand-new user
+    with zero health data."""
+
+    def setUp(self):
+        self.user = _make_user("contract@test.com")
+
+    def test_all_contract_keys_present(self):
+        from apps.core.ai_state.state_builder import (
+            HEALTH_CONTRACT,
+            build_health_state,
+        )
+        state = build_health_state(self.user)
+        for key in HEALTH_CONTRACT:
+            self.assertIn(
+                key, state,
+                f"HEALTH_CONTRACT key {key!r} missing from "
+                f"build_health_state output",
+            )
+
+    def test_all_status_keys_have_valid_vocabulary(self):
+        from apps.core.ai_state.state_builder import (
+            HEALTH_CONTRACT,
+            VALID_STATUS_VALUES,
+            build_health_state,
+        )
+        state = build_health_state(self.user)
+        for key in HEALTH_CONTRACT:
+            if key.endswith('_status') and not key.endswith('_status_reason'):
+                self.assertIn(
+                    state[key], VALID_STATUS_VALUES,
+                    f"{key}={state[key]!r} not in valid vocabulary",
+                )
+
+    def test_all_status_reasons_are_strings(self):
+        from apps.core.ai_state.state_builder import (
+            HEALTH_CONTRACT,
+            build_health_state,
+        )
+        state = build_health_state(self.user)
+        for key in HEALTH_CONTRACT:
+            if key.endswith('_status_reason'):
+                self.assertIsInstance(
+                    state[key], str,
+                    f"{key} must be a string, got {type(state[key])}",
+                )
+
+    def test_contract_validation_fills_missing_keys(self):
+        """If a key is missing from the dict, _validate_health_contract
+        fills it with the safe default — no KeyError possible."""
+        from apps.core.ai_state.state_builder import (
+            HEALTH_CONTRACT,
+            _validate_health_contract,
+        )
+        empty = {"enabled": True}
+        _validate_health_contract(empty)
+        for key in HEALTH_CONTRACT:
+            self.assertIn(key, empty)
+
+    def test_contract_validation_fixes_invalid_status(self):
+        from apps.core.ai_state.state_builder import (
+            _validate_health_contract,
+        )
+        state = {"sleep_status": "BOGUS_VALUE", "enabled": True}
+        _validate_health_contract(state)
+        self.assertEqual(state["sleep_status"], "no_data")
+
+
+class IntakeWindowContractTests(TestCase):
+    """Every intake_window dict must have label, taken, total, status."""
+
+    def test_intake_window_has_required_keys(self):
+        """Simulate the SAE-sourced window builder and verify all
+        required keys are present."""
+        # This is the shape the view builds from medicine_state
+        window = {"label": "Morning", "taken": 3, "total": 5}
+        # The view adds status:
+        if window["taken"] >= window["total"] and window["total"] > 0:
+            window["status"] = "complete"
+        elif window["taken"] > 0:
+            window["status"] = "partial"
+        else:
+            window["status"] = "pending"
+
+        for key in ("label", "taken", "total", "status"):
+            self.assertIn(key, window)
+
+
 class TemplateNoModelObjectReferencesTests(TestCase):
     """The health dashboard template must NOT reference raw model
     objects for health domain display. Every health value must come

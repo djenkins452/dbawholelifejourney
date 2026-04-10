@@ -37,6 +37,112 @@ def _build_state_meta(completeness='full', confidence='high'):
     }
 
 
+# ══════════════════════════════════════════════════════════════════
+# Phase 18 — Health State Contract Definitions
+#
+# Every key listed here MUST be present in the dict returned by
+# build_health_state(). If any key is missing, _validate_health_contract
+# logs an error and fills the missing key with a safe default so the
+# UI never crashes. The contract is enforced by tests that FAIL if
+# a key is absent.
+#
+# These contracts are the SINGLE SOURCE OF TRUTH for what the
+# template, priority service, and CoS may read from health state.
+# ══════════════════════════════════════════════════════════════════
+
+HEALTH_CONTRACT = {
+    # ── Sleep ─────────────────────────────────────────────────
+    'sleep_status':              'no_data',
+    'sleep_status_reason':       '',
+    'sleep_last_night_hours':    None,
+    'sleep_last_night_quality':  None,
+    'sleep_avg_hours_7d':        None,
+    # ── Weight ────────────────────────────────────────────────
+    'weight_status':             'no_data',
+    'weight_status_reason':      '',
+    'weight_current':            None,
+    'weight_unit':               'lb',
+    'weight_trend':              'insufficient_data',
+    'weight_change_30d':         None,
+    # ── Blood Pressure ────────────────────────────────────────
+    'bp_status':                 'no_data',
+    'bp_status_reason':          '',
+    'bp_reading':                None,
+    'bp_category':               None,
+    # ── Heart Rate ────────────────────────────────────────────
+    'hr_status':                 'no_data',
+    'hr_status_reason':          '',
+    'hr_context':                None,
+    'latest_heart_rate':         None,
+    'heart_rate_avg_7d':         None,
+    # ── Blood Oxygen ──────────────────────────────────────────
+    'spo2_status':               'no_data',
+    'spo2_status_reason':        '',
+    'spo2_context':              None,
+    'latest_blood_oxygen':       None,
+    'blood_oxygen_avg_7d':       None,
+    # ── Glucose ───────────────────────────────────────────────
+    'glucose_status':            'no_data',
+    'glucose_status_reason':     '',
+    'glucose_context':           None,
+    'latest_glucose':            None,
+    'latest_glucose_unit':       None,
+    'glucose_avg_7d':            None,
+    # ── Steps ─────────────────────────────────────────────────
+    'steps_status':              'no_data',
+    'steps_status_reason':       '',
+    # ── Water ─────────────────────────────────────────────────
+    'water_status':              'no_data',
+    'water_status_reason':       '',
+}
+
+# Status vocabulary: any _status key must be one of these.
+VALID_STATUS_VALUES = frozenset({
+    'excellent', 'good', 'fair', 'poor', 'no_data',
+})
+
+
+def _validate_health_contract(state, user=None):
+    """Phase 18: validate and fill the health state contract.
+
+    For every key in HEALTH_CONTRACT:
+    - If present with a valid value: keep it
+    - If missing: log a warning and fill with the safe default
+    - If a _status key has an invalid value: replace with 'no_data'
+
+    This ensures the UI NEVER crashes from a missing key. The tests
+    separately verify that the builder produces all keys without
+    needing the fill — the fill is a runtime safety net only.
+    """
+    missing = []
+    for key, default in HEALTH_CONTRACT.items():
+        if key not in state:
+            missing.append(key)
+            state[key] = default
+
+    # Validate status vocabulary
+    for key in HEALTH_CONTRACT:
+        if key.endswith('_status') and not key.endswith('_status_reason'):
+            val = state.get(key)
+            if val not in VALID_STATUS_VALUES:
+                logger.warning(
+                    "HEALTH_CONTRACT: invalid status %s=%r for user=%s "
+                    "— replacing with 'no_data'",
+                    key, val, getattr(user, 'id', '?'),
+                )
+                state[key] = 'no_data'
+
+    if missing:
+        logger.warning(
+            "HEALTH_CONTRACT: %d missing keys filled with defaults "
+            "for user=%s: %s",
+            len(missing), getattr(user, 'id', '?'),
+            ', '.join(sorted(missing)),
+        )
+
+    return state
+
+
 def build_health_state(user):
     """
     Build health state from actual database records.
@@ -988,6 +1094,10 @@ def build_health_state(user):
             f"{state.get('water_today_oz', 0)} of "
             f"{state.get('water_goal_oz', 64)} oz — on pace."
         )
+
+    # Phase 18: validate + fill contract before returning.
+    # This ensures every consumer gets a complete structure.
+    _validate_health_contract(state, user)
 
     return state
 

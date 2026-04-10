@@ -43,14 +43,14 @@ class ReflectiveNeverReturnsExecutionTests(TestCase):
 
     def test_faith_question_yields_to_llm(self):
         """A faith question must NOT be intercepted by the
-        execution router. The route must be 'reflective_mode_yield'."""
+        execution router. The route must be 'governor_reflective'."""
         from apps.ai.deterministic_router import classify_and_route
         result = classify_and_route(
             "What does the Bible say about idols?", self.user,
         )
         self.assertIn(
             result.route_name,
-            ('reflective_mode_yield', 'no_route'),
+            ('governor_reflective', 'no_route'),
             f"Faith question was intercepted by execution route: "
             f"{result.route_name}",
         )
@@ -69,7 +69,7 @@ class ReflectiveNeverReturnsExecutionTests(TestCase):
         )
         self.assertIn(
             result.route_name,
-            ('reflective_mode_yield', 'no_route'),
+            ('governor_reflective', 'no_route'),
             f"Faith question intercepted: {result.route_name}",
         )
         if result.response:
@@ -84,7 +84,7 @@ class ReflectiveNeverReturnsExecutionTests(TestCase):
         )
         self.assertIn(
             result.route_name,
-            ('reflective_mode_yield', 'no_route'),
+            ('governor_reflective', 'no_route'),
         )
 
     def test_journal_reflection_yields_to_llm(self):
@@ -95,7 +95,7 @@ class ReflectiveNeverReturnsExecutionTests(TestCase):
         )
         self.assertIn(
             result.route_name,
-            ('reflective_mode_yield', 'no_route'),
+            ('governor_reflective', 'no_route'),
         )
 
 

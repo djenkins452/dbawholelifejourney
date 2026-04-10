@@ -564,38 +564,34 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
     msg_lower = message.lower()
 
     # ══════════════════════════════════════════════════════════
-    # Phase 18.4: REFLECTIVE MODE CHECK — ABSOLUTE TOP
-    # This MUST run before EVERYTHING: daily briefing, event
-    # follow-up, decision queries, status queries, check-ins.
-    # When the user is in a reflective mode, NO deterministic
-    # route may fire. The message goes straight to the LLM.
+    # RESPONSE GOVERNOR — SINGLE RESPONSE AUTHORITY
+    # This is the ABSOLUTE FIRST gate. No route, no briefing, no
+    # pre-processing may fire before the governor approves it.
+    # The governor determines exactly ONE response type per turn.
     # ══════════════════════════════════════════════════════════
-    _REFLECTIVE_MODES = frozenset({'faith', 'journal'})
+    _governor_type = None
     try:
-        from apps.core.blueprint.conversation_mode import (
-            get_active_mode,
-            detect_conversation_mode,
+        from apps.ai.response_governor import (
+            resolve_response_type,
+            ResponseType,
         )
-        _active_mode = get_active_mode(user) if user else 'general'
-        _message_mode = detect_conversation_mode(message or '')
+        _governor_type = resolve_response_type(user, message)
 
-        if (_active_mode in _REFLECTIVE_MODES
-                or _message_mode in _REFLECTIVE_MODES):
-            logger.info(
-                "REFLECTIVE_HARD_LOCK: active=%s detected=%s "
-                "user=%s — ALL routes blocked (including briefing)",
-                _active_mode, _message_mode,
-                getattr(user, 'id', '?'),
-            )
+        if _governor_type == ResponseType.REFLECTIVE:
             result = RouteResult(
-                route_name='reflective_mode_yield',
+                route_name='governor_reflective',
                 skip_intent=True,
             )
             result.elapsed_ms = (time.monotonic() - t_start) * 1000
             _log_route_decision(result, user, message)
             return result
-    except Exception:
+    except ImportError:
         pass
+    except Exception as gov_err:
+        logger.warning(
+            "RESPONSE_GOVERNOR failed: %s — proceeding (fail-open)",
+            gov_err,
+        )
 
     # ── Phase -2: DAILY BRIEFING — first-of-day hard override ─────
     # If this is the user's first interaction today, render a full

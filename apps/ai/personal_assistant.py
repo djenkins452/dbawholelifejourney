@@ -5549,21 +5549,19 @@ Rules for this response:
                 _direct_response = None
                 _is_checkin_stream = False
 
-                # ── Phase 18.3 hardening: reflective mode flag ─────
-                # Set once before any pre-processing. Used to gate the
-                # intent recognition layer below so faith/journal
-                # messages go straight to the LLM.
+                # ── RESPONSE GOVERNOR — central authority ───────────
+                # Determines the single approved response type BEFORE
+                # any pre-processing runs. When REFLECTIVE, all ECC,
+                # proactive, affirmation, and intent layers are blocked.
                 _reflective_mode_active = False
                 try:
-                    from apps.core.blueprint.conversation_mode import (
-                        get_active_mode as _gam_s,
-                        detect_conversation_mode as _dcm_s,
+                    from apps.ai.response_governor import (
+                        resolve_response_type as _resolve_rt,
+                        ResponseType as _RT,
                     )
-                    _s_active = _gam_s(self.user) if self.user else 'general'
-                    _s_detected = _dcm_s(message or '')
+                    _gov_type = _resolve_rt(self.user, message)
                     _reflective_mode_active = (
-                        _s_active in ('faith', 'journal')
-                        or _s_detected in ('faith', 'journal')
+                        _gov_type == _RT.REFLECTIVE
                     )
                 except Exception:
                     pass

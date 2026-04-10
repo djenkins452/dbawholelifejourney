@@ -5533,6 +5533,25 @@ Rules for this response:
                 _direct_response = None
                 _is_checkin_stream = False
 
+                # ── Phase 18.3 hardening: reflective mode flag ─────
+                # Set once before any pre-processing. Used to gate the
+                # intent recognition layer below so faith/journal
+                # messages go straight to the LLM.
+                _reflective_mode_active = False
+                try:
+                    from apps.core.blueprint.conversation_mode import (
+                        get_active_mode as _gam_s,
+                        detect_conversation_mode as _dcm_s,
+                    )
+                    _s_active = _gam_s(self.user) if self.user else 'general'
+                    _s_detected = _dcm_s(message or '')
+                    _reflective_mode_active = (
+                        _s_active in ('faith', 'journal')
+                        or _s_detected in ('faith', 'journal')
+                    )
+                except Exception:
+                    pass
+
                 # Build cos_context (same as send_message ECC section)
                 try:
                     from apps.ai.readiness_cache import (
@@ -5849,7 +5868,9 @@ Rules for this response:
                     )
                     if _ltrace_s:
                         _ltrace_s.set_governance_decision('intent_bypassed')
-                if not _direct_response and not _is_checkin_stream and not _skip_intent_stream:
+                if (not _direct_response and not _is_checkin_stream
+                        and not _skip_intent_stream
+                        and not _reflective_mode_active):
                     try:
                         from apps.ai.intent_service import intent_service
                         from apps.core.ai_orchestrator.orchestrator import (

@@ -623,12 +623,15 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
                 getattr(user, 'id', '?'), (message or '')[:80],
             )
             # Return a non-terminal RouteResult that tells the caller
-            # "I didn't handle this — let the LLM take it." The skip
-            # flag signals the router yielded intentionally, not
-            # because it failed to match.
+            # "I didn't handle this — let the LLM take it." CRITICAL:
+            # skip_intent MUST be True so the intent recognition layer
+            # (OpenAI call) does NOT run on the reflective message.
+            # Without this, the intent service can classify a faith
+            # question as an actionable intent and trigger the
+            # orchestrator pipeline, producing an execution response.
             result = RouteResult(
                 route_name='reflective_mode_yield',
-                skip_intent=False,  # LLM should still process
+                skip_intent=True,  # SKIP intent recognition for reflective
             )
             result.elapsed_ms = (time.monotonic() - t_start) * 1000
             _log_route_decision(result, user, message)

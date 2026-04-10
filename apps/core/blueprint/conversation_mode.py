@@ -46,6 +46,10 @@ _MODE_SIGNALS = {
         'salvation', 'grace', 'forgiveness', 'repentance', 'gospel',
         'heaven', 'eternal', 'disciple', 'parable', 'sermon on the mount',
         'covenant', 'blessing', 'temptation', 'wisdom',
+        # Phase 18.3 hardening: reflective question patterns
+        'my priority', 'god my priority', 'give up', 'sacrifice',
+        'obedience', 'obey', 'surrender', 'kingdom', 'calling',
+        'purpose in life', 'will of god',
     ],
     'health': [
         'workout', 'exercise', 'calories', 'weight', 'macros',

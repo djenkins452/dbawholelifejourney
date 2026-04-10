@@ -59,6 +59,24 @@ class ReflectiveNeverReturnsExecutionTests(TestCase):
             self.assertNotIn("Do this next:", result.response)
             self.assertNotIn("Start ", result.response)
 
+    def test_comfort_priority_faith_question_yields(self):
+        """The exact failure case: 'Do I have to give up comfort to
+        make God my priority?' must NOT produce an execution response."""
+        from apps.ai.deterministic_router import classify_and_route
+        result = classify_and_route(
+            "Do I have to give up comfort to make God my priority?",
+            self.user,
+        )
+        self.assertIn(
+            result.route_name,
+            ('reflective_mode_yield', 'no_route'),
+            f"Faith question intercepted: {result.route_name}",
+        )
+        if result.response:
+            self.assertNotIn("Do this next:", result.response)
+            self.assertNotIn("Start ", result.response)
+            self.assertNotIn("Las Vegas", result.response)
+
     def test_prayer_reflection_yields_to_llm(self):
         from apps.ai.deterministic_router import classify_and_route
         result = classify_and_route(

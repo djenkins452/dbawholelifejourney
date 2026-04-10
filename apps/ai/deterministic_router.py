@@ -563,6 +563,40 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
     t_start = time.monotonic()
     msg_lower = message.lower()
 
+    # ══════════════════════════════════════════════════════════
+    # Phase 18.4: REFLECTIVE MODE CHECK — ABSOLUTE TOP
+    # This MUST run before EVERYTHING: daily briefing, event
+    # follow-up, decision queries, status queries, check-ins.
+    # When the user is in a reflective mode, NO deterministic
+    # route may fire. The message goes straight to the LLM.
+    # ══════════════════════════════════════════════════════════
+    _REFLECTIVE_MODES = frozenset({'faith', 'journal'})
+    try:
+        from apps.core.blueprint.conversation_mode import (
+            get_active_mode,
+            detect_conversation_mode,
+        )
+        _active_mode = get_active_mode(user) if user else 'general'
+        _message_mode = detect_conversation_mode(message or '')
+
+        if (_active_mode in _REFLECTIVE_MODES
+                or _message_mode in _REFLECTIVE_MODES):
+            logger.info(
+                "REFLECTIVE_HARD_LOCK: active=%s detected=%s "
+                "user=%s — ALL routes blocked (including briefing)",
+                _active_mode, _message_mode,
+                getattr(user, 'id', '?'),
+            )
+            result = RouteResult(
+                route_name='reflective_mode_yield',
+                skip_intent=True,
+            )
+            result.elapsed_ms = (time.monotonic() - t_start) * 1000
+            _log_route_decision(result, user, message)
+            return result
+    except Exception:
+        pass
+
     # ── Phase -2: DAILY BRIEFING — first-of-day hard override ─────
     # If this is the user's first interaction today, render a full
     # Daily Briefing BEFORE any other routing. This is non-negotiable:
@@ -575,9 +609,6 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
             return result
 
     # ── Phase -1: Event follow-up detection ────────────────────────
-    # If a previous turn resolved an event query and the user is now
-    # asking a follow-up ("what date was that?"), resolve deterministically
-    # from the stored context. No re-query, no LLM.
     if conversation is not None:
         result = _try_event_followup(msg_lower, conversation)
         if result is not None:
@@ -585,7 +616,8 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
             _log_route_decision(result, user, message)
             return result
 
-    # ── Phase 18.3: Conversation Mode Governance ────────────────
+    # ── Phase 18.3: (moved to ABSOLUTE TOP — the block below is
+    # now a no-op but kept as documentation) ───────────────────────
     # If the user is in a reflective mode (faith, journal), ALL
     # execution routes (decision queries, status queries, next-
     # action, check-ins) are SUPPRESSED. The message falls through

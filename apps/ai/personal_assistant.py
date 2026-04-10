@@ -5613,14 +5613,14 @@ Rules for this response:
                     _ecc_tier = _ecc_determine_tier(_ecc_traj, message)
 
                     _ecc_pending = list(get_pending_commitments(self.user))
-                    if _ecc_pending:
+                    if _ecc_pending and not _reflective_mode_active:
                         closure_result = process_ecc_closure(
                             self.user, message, _ecc_pending, _ecc_tier,
                         )
                         if closure_result:
                             _direct_response = closure_result
 
-                    if not _direct_response:
+                    if not _direct_response and not _reflective_mode_active:
                         detection_result = process_ecc_detection(
                             self.user, message, _ecc_tier,
                         )
@@ -5633,7 +5633,8 @@ Rules for this response:
                 # that should go to LLM (not intent service)
                 # User-affirmed completion check — runs before proactive
                 # confirmation to suppress reminders without CRUD execution.
-                if not _direct_response:
+                # Phase 18.4: skip in reflective mode
+                if not _direct_response and not _reflective_mode_active:
                     try:
                         from .affirmation_detector import handle_affirmed_completion
                         _affirm_result = handle_affirmed_completion(
@@ -5647,7 +5648,8 @@ Rules for this response:
                             exc_info=True,
                         )
 
-                if not _direct_response:
+                # Phase 18.4: skip proactive check-in in reflective mode
+                if not _direct_response and not _reflective_mode_active:
                     try:
                         from .confirmation_detector import handle_proactive_confirmation
                         confirm_resp = handle_proactive_confirmation(

@@ -1634,15 +1634,20 @@ def _build_focus_query_response(user):
             }
 
             def _rank_key(item):
-                """Phase 10: sort key that puts tasks before routine
-                items, foundational before flexible, earliest time
-                as tiebreaker."""
-                is_task = 0 if item.get('source_type') == 'task' else 1
+                """Phase 10 + 18.2: sort key with governance tier as
+                PRIMARY. Faith (tier 0) always outranks health (tier 1)
+                which outranks work (tier 2), regardless of source_type.
+                Within the same tier, earliest scheduled_time wins
+                (most overdue first), then importance, then task vs
+                routine as final tiebreaker."""
+                from apps.ai.decision_governor import _infer_tier
+                tier = _infer_tier(item)
+                sched = item.get('scheduled_time', '99:99')
                 imp = _imp_order.get(
                     item.get('importance', 'flexible'), 2,
                 )
-                sched = item.get('scheduled_time', '99:99')
-                return (is_task, imp, sched)
+                is_task = 0 if item.get('source_type') == 'task' else 1
+                return (tier, sched, imp, is_task)
 
             # Apply filter + dependency check + rank
             overdue = sorted(
@@ -1902,6 +1907,50 @@ def _try_decision_query_route(msg_lower, user):
             response = _build_focus_query_response(user)
             if not response or 'Do this next:' not in response:
                 response = _SAFE_FALLBACK
+
+        # ── Phase 18.2: Decision Governance Gate ────────────────
+        # Every recommendation passes through validate_decision()
+        # before reaching the user. If it violates reality
+        # constraints, priority hierarchy, or logical consistency,
+        # it is rejected and recomputed.
+        try:
+            from apps.ai.decision_governor import (
+                validate_decision,
+                GovernanceViolation,
+            )
+            # Load execution items for governance checks
+            _gov_items = None
+            try:
+                from apps.core.ai_state.state_builder import MODULE_BUILDERS
+                _exec_builder = MODULE_BUILDERS.get('execution')
+                if _exec_builder:
+                    _gov_items = (_exec_builder(user) or {}).get('items', [])
+            except Exception:
+                pass
+
+            try:
+                response = validate_decision(
+                    response, exec_items=_gov_items, user=user,
+                )
+            except GovernanceViolation as gv:
+                logger.warning(
+                    "GOVERNANCE_REJECTED: rule=%s intent=%s "
+                    "reason=%s user=%s — recomputing",
+                    gv.rule, intent, gv.reason,
+                    getattr(user, 'id', '?'),
+                )
+                # Recompute: the governor identified a specific
+                # violation. Use the safe fallback rather than
+                # trusting the original handler's output.
+                response = _SAFE_FALLBACK
+        except ImportError:
+            pass  # Governor not yet deployed
+        except Exception as gov_err:
+            logger.warning(
+                "GOVERNANCE_ERROR: %s — passing through (fail-open "
+                "on governance errors to avoid blocking chat)",
+                gov_err,
+            )
 
         logger.info(
             "DECISION_ROUTED: intent=%s route=decision_query_%s "

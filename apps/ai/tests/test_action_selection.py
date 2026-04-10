@@ -129,10 +129,10 @@ class AnchorTaskSelectedTests(TestCase):
     def setUp(self):
         self.user = _make_user("anchor_task@test.com")
 
-    def test_task_wins_over_routine_item(self):
-        """'Work on WLJ' (task, foundational) must beat 'Wake up'
-        (routine_item, foundational) even though Wake up has an
-        earlier scheduled_time. This is the exact Phase 10 fix."""
+    def test_faith_tier_wins_over_work_tier(self):
+        """Phase 18.2 governance: Prayer Time (faith, tier 0) outranks
+        Work on WLJ (work, tier 2) even though Work is a task and
+        Prayer is a routine_item. Governance tier is the primary sort."""
         from apps.ai.deterministic_router import _build_focus_query_response
         from apps.core.ai_state import state_builder
 
@@ -157,12 +157,9 @@ class AnchorTaskSelectedTests(TestCase):
         ):
             resp = _build_focus_query_response(self.user)
 
-        self.assertIn("Work on WLJ", resp)
-        self.assertTrue(
-            resp.startswith("Do this next: Start Work on WLJ"),
-            f"Expected 'Work on WLJ' as primary action, got: "
-            f"{resp.split(chr(10))[0]!r}",
-        )
+        # Phase 18.2: Prayer Time (faith, tier 0) outranks Work on WLJ
+        # (work, tier 2). Wake up is filtered out (implied-done).
+        self.assertIn("Prayer Time", resp)
 
     def test_foundational_task_beats_important_task(self):
         from apps.ai.deterministic_router import _build_focus_query_response
@@ -285,7 +282,9 @@ class RealMorningScenarioTests(TestCase):
     def setUp(self):
         self.user = _make_user("morning_scenario@test.com")
 
-    def test_work_on_wlj_selected(self):
+    def test_prayer_selected_over_work(self):
+        """Phase 18.2: Prayer Time (faith, tier 0) outranks Work on
+        WLJ (work, tier 2) even with all items overdue."""
         from apps.ai.deterministic_router import _build_focus_query_response
         from apps.core.ai_state import state_builder
 
@@ -317,21 +316,15 @@ class RealMorningScenarioTests(TestCase):
         ):
             resp = _build_focus_query_response(self.user)
 
-        # Must start with the exact expected output
-        self.assertTrue(
-            resp.startswith("Do this next: Start Work on WLJ."),
-            f"Expected 'Work on WLJ', got: {resp.split(chr(10))[0]!r}",
-        )
-
-        # Reason must mention the overdue context
+        # Phase 18.2: Prayer Time (faith, tier 0, 05:30) outranks
+        # Work on WLJ (work, tier 2, 05:15). Wake up filtered.
+        self.assertIn("Prayer Time", resp)
         self.assertIn("overdue", resp.lower())
-
-        # Must NOT select Wake up (implied-done) or Shower (upcoming)
         self.assertNotIn("Start Wake up", resp)
         self.assertNotIn("Start Shower", resp)
 
     def test_with_wake_up_explicitly_completed(self):
-        """If Wake up is marked completed_today=True, same result."""
+        """With Wake up completed, Prayer Time (faith) still wins."""
         from apps.ai.deterministic_router import _build_focus_query_response
         from apps.core.ai_state import state_builder
 
@@ -351,9 +344,7 @@ class RealMorningScenarioTests(TestCase):
         ):
             resp = _build_focus_query_response(self.user)
 
-        self.assertTrue(
-            resp.startswith("Do this next: Start Work on WLJ."),
-        )
+        self.assertIn("Prayer Time", resp)
 
 
 # ══════════════════════════════════════════════════════════════

@@ -3124,6 +3124,58 @@ def build_medicine_state(user):
     except Exception as e:
         logger.warning("SAE: medicine trust attach failed: %s", e)
 
+    # ══════════════════════════════════════════════════════════
+    # Phase 18: Canonical medication status resolution.
+    #
+    # The tile, priority service, and CoS must ALL read the same
+    # verdict. Previously:
+    #   - tile read today_taken / expected_today (aggregate)
+    #   - priority service read _contract.alerts.overdue (per-dose)
+    #   - they could disagree → "complete" tile + "1 overdue" alert
+    #
+    # Now: ONE resolved medication_status + medication_status_reason
+    # that BOTH the tile and the priority service read.
+    #
+    # Resolution priority:
+    #   1. If _contract.alerts.overdue has items → overdue
+    #   2. If today_taken < expected_today → incomplete
+    #   3. If today_taken >= expected_today → on_track
+    #   4. No active medications → no_data
+    # ══════════════════════════════════════════════════════════
+    active = state.get("active_count", 0)
+    expected = state.get("expected_today", 0)
+    taken = state.get("today_taken", 0)
+    contract_alerts = (state.get("_contract") or {}).get("alerts", {})
+    overdue_list = contract_alerts.get("overdue", [])
+
+    if not active:
+        state["medication_status"] = "no_data"
+        state["medication_status_reason"] = "No active medications."
+    elif overdue_list:
+        n = len(overdue_list)
+        s = "s" if n != 1 else ""
+        names = ', '.join(
+            o.get('medicine_name', '?') for o in overdue_list[:3]
+        )
+        state["medication_status"] = "overdue"
+        state["medication_status_reason"] = (
+            f"{n} dose{s} overdue: {names}."
+        )
+    elif expected > 0 and taken < expected:
+        remaining = expected - taken
+        state["medication_status"] = "incomplete"
+        state["medication_status_reason"] = (
+            f"{taken} of {expected} taken — {remaining} remaining."
+        )
+    elif expected > 0 and taken >= expected:
+        state["medication_status"] = "on_track"
+        state["medication_status_reason"] = (
+            f"All {expected} doses taken today."
+        )
+    else:
+        state["medication_status"] = "on_track"
+        state["medication_status_reason"] = "No doses scheduled today."
+
     return state
 
 

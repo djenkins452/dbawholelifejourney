@@ -38,6 +38,14 @@ _MODE_SIGNALS = {
         'bible', 'scripture', 'proverbs', 'psalm', 'verse', 'prayer',
         'pray', 'devotion', 'faith', 'god', 'jesus', 'church',
         'worship', 'spiritual', 'sermon', 'reading plan',
+        # Phase 18.3: reflective faith keywords that must trigger
+        # faith mode so the router doesn't hijack them with
+        # execution responses.
+        'idol', 'idols', 'righteousness', 'sin', 'commandment',
+        'what does god say', 'what does the bible say', 'holy spirit',
+        'salvation', 'grace', 'forgiveness', 'repentance', 'gospel',
+        'heaven', 'eternal', 'disciple', 'parable', 'sermon on the mount',
+        'covenant', 'blessing', 'temptation', 'wisdom',
     ],
     'health': [
         'workout', 'exercise', 'calories', 'weight', 'macros',
@@ -48,6 +56,10 @@ _MODE_SIGNALS = {
     'journal': [
         'journal', 'journaling', 'reflect', 'reflection', 'mood',
         'feeling', 'gratitude', 'write about', 'dear diary',
+        # Phase 18.3: reflective/emotional keywords
+        'what does it mean', 'how do i know if', 'struggling with',
+        'afraid', 'anxious', 'worried', 'thankful', 'grateful',
+        'identity', 'purpose', 'meaning', 'why do i', 'who am i',
     ],
     'coaching': [
         'goal', 'habit', 'accountability', 'streak', 'discipline',
@@ -74,7 +86,11 @@ def detect_conversation_mode(message: str) -> str:
     """
     Detect conversation mode from message content.
 
-    Returns mode string or 'general' if no specific mode detected.
+    Returns:
+        Mode string if keywords matched, 'general' ONLY if a mode-break
+        phrase was detected. Returns 'undetected' if no keywords matched
+        and no break phrase found — callers use this to preserve the
+        existing mode (persistence).
     """
     msg_lower = message.lower().strip()
 
@@ -83,7 +99,7 @@ def detect_conversation_mode(message: str) -> str:
         return 'general'
 
     # Score each mode by keyword matches
-    best_mode = 'general'
+    best_mode = 'undetected'
     best_score = 0
 
     for mode, keywords in _MODE_SIGNALS.items():
@@ -172,22 +188,26 @@ def update_mode_from_message(user, message: str) -> str:
     current_mode = get_active_mode(user)
     detected_mode = detect_conversation_mode(message)
 
-    if detected_mode == 'general' and current_mode != 'general':
-        # Mode-break phrase detected — clear lock
+    if detected_mode == 'general':
+        # Explicit mode-break phrase — clear lock
         clear_conversation_mode(user)
         return 'general'
 
-    if detected_mode != 'general':
-        if detected_mode != current_mode:
-            # New mode detected — lock it
-            set_conversation_mode(user, detected_mode)
-        else:
-            # Same mode — refresh the timeout
-            set_conversation_mode(user, detected_mode)
-        return detected_mode
+    if detected_mode == 'undetected':
+        # Phase 18.3: no keywords matched AND no break phrase.
+        # PRESERVE the current mode (persistence). This is the key
+        # fix — previously "undetected" was conflated with "general"
+        # and cleared the mode lock on follow-up questions like
+        # "How do I apply that to my life?"
+        return current_mode
 
-    # No specific mode detected — keep current
-    return current_mode
+    if detected_mode != current_mode:
+        # New mode detected — lock it
+        set_conversation_mode(user, detected_mode)
+    else:
+        # Same mode — refresh the timeout
+        set_conversation_mode(user, detected_mode)
+    return detected_mode
 
 
 def should_suppress_proactive(user, proactive_domain: str) -> bool:

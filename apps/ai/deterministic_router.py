@@ -585,6 +585,57 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
             _log_route_decision(result, user, message)
             return result
 
+    # ── Phase 18.3: Conversation Mode Governance ────────────────
+    # If the user is in a reflective mode (faith, journal), ALL
+    # execution routes (decision queries, status queries, next-
+    # action, check-ins) are SUPPRESSED. The message falls through
+    # to the LLM which has the conversation context and can give a
+    # proper reflective response. This prevents the system from
+    # hijacking "What does the Bible say about idols?" with
+    # "Start Prayer Time."
+    #
+    # Exception: explicit mode-break phrases ("what's next",
+    # "check in") break the mode lock and re-enable execution
+    # routes — this is already handled by detect_conversation_mode
+    # returning 'general' for those phrases.
+    _REFLECTIVE_MODES = frozenset({'faith', 'journal'})
+    _active_mode = 'general'
+    try:
+        from apps.core.blueprint.conversation_mode import (
+            get_active_mode,
+            detect_conversation_mode,
+        )
+        # Check what mode the user is currently in AND what this
+        # specific message would be classified as.
+        _active_mode = get_active_mode(user) if user else 'general'
+        _message_mode = detect_conversation_mode(message or '')
+
+        # If either the active session mode OR this specific message
+        # is reflective, suppress execution routes. 'undetected'
+        # means no keywords matched — check if the persisted mode
+        # is reflective (the user is in a multi-turn thread).
+        if (_active_mode in _REFLECTIVE_MODES
+                or _message_mode in _REFLECTIVE_MODES):
+            logger.info(
+                "MODE_GOVERNANCE: reflective mode active=%s msg=%s "
+                "— suppressing execution routes for user=%s query=%r",
+                _active_mode, _message_mode,
+                getattr(user, 'id', '?'), (message or '')[:80],
+            )
+            # Return a non-terminal RouteResult that tells the caller
+            # "I didn't handle this — let the LLM take it." The skip
+            # flag signals the router yielded intentionally, not
+            # because it failed to match.
+            result = RouteResult(
+                route_name='reflective_mode_yield',
+                skip_intent=False,  # LLM should still process
+            )
+            result.elapsed_ms = (time.monotonic() - t_start) * 1000
+            _log_route_decision(result, user, message)
+            return result
+    except Exception:
+        pass  # Mode governance failure must never block the router
+
     # ── Phase 0a: Today status query (bypasses LLM entirely) ──────
     result = _try_status_query_route(msg_lower, user)
     if result is not None:

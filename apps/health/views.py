@@ -156,7 +156,14 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             context["intake_count"] = ms.get("active_count", 0)
             context["intake_taken_today"] = ms.get("today_taken", 0)
             context["intake_scheduled_today"] = ms.get("expected_today", 0)
-            context["intake_overdue"] = ms.get("today_overdue", 0) or 0
+            # Phase 18: derive intake_overdue from canonical medication_status
+            # so the tile and priority service always agree.
+            med_status = ms.get("medication_status", "no_data")
+            if med_status == "overdue":
+                overdue_list = (ms.get("_contract") or {}).get("alerts", {}).get("overdue", [])
+                context["intake_overdue"] = len(overdue_list)
+            else:
+                context["intake_overdue"] = 0
             # Build intake_windows from schedule_status_today if available
             sched_status = ms.get("schedule_status_today") or []
             _windows = {}

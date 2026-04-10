@@ -114,39 +114,41 @@ def _item(key, priority, category, message, icon):
 # ── Item evaluators ─────────────────────────────────────────────────────────
 
 def _eval_medications(medicine_state):
-    """Evaluate medication status. Always current (today's schedule)."""
-    items = []
-    contract = medicine_state.get("_contract", {})
-    overdue = contract.get("alerts", {}).get("overdue", [])
-    active_count = medicine_state.get("active_count", 0)
+    """Evaluate medication status.
 
-    if not active_count:
+    Phase 18: reads the canonical medication_status resolved in
+    build_medicine_state — no independent logic, no _contract
+    traversal, no raw today_taken/expected_today checks. The same
+    verdict powers the tile, this priority service, and CoS.
+    """
+    items = []
+    status = medicine_state.get("medication_status")
+    reason = medicine_state.get("medication_status_reason", "")
+
+    if status == "no_data":
         return items
 
-    if overdue:
-        n = len(overdue)
-        s = "s" if n != 1 else ""
+    if status == "overdue":
         items.append(_item(
             "medications_overdue", HIGH, "medical",
-            f"{n} medication{s} overdue", "pill",
-        ))
-        return items  # Don't also show adherence if overdue
-
-    adherence = medicine_state.get("adherence_7d")
-    if adherence is not None and adherence < 70:
-        items.append(_item(
-            "medication_adherence_low", MEDIUM, "medical",
-            "Medication adherence is low", "pill",
+            reason or "Medications overdue", "pill",
         ))
         return items
 
-    # Reassurance: all taken, none overdue
-    expected = medicine_state.get("expected_today", 0)
-    taken = medicine_state.get("today_taken", 0)
-    if expected > 0 and taken >= expected:
+    if status == "incomplete":
+        # Check adherence trend for additional context
+        adherence = medicine_state.get("adherence_7d")
+        if adherence is not None and adherence < 70:
+            items.append(_item(
+                "medication_adherence_low", MEDIUM, "medical",
+                reason or "Medication adherence is low", "pill",
+            ))
+            return items
+
+    if status == "on_track":
         items.append(_item(
             "medications_on_track", LOW, "medical",
-            "Medications are on track", "pill",
+            reason or "Medications are on track", "pill",
         ))
 
     return items

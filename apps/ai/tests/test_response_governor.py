@@ -154,7 +154,10 @@ class HealthExceptionTests(TestCase):
             from apps.core.blueprint.models import PersonalOperatingBlueprint
             PersonalOperatingBlueprint.objects.create(user=self.user)
 
-    def test_medication_crisis_overrides_faith(self):
+    def test_medication_crisis_does_not_override_faith(self):
+        """During a faith conversation, medication status is available
+        in CoS context but does NOT hijack the response type. The user
+        asked a faith question — they deserve a faith answer."""
         from apps.core.blueprint.conversation_mode import (
             set_conversation_mode,
         )
@@ -175,6 +178,29 @@ class HealthExceptionTests(TestCase):
             rt = resolve_response_type(
                 self.user, "Tell me about forgiveness",
                 active_mode='faith',
+            )
+
+        # Stays REFLECTIVE — medication status available but doesn't hijack
+        self.assertEqual(rt, ResponseType.REFLECTIVE)
+
+    def test_medication_crisis_alerts_in_general_mode(self):
+        """When NOT in a reflective conversation, medication crisis
+        produces ALERT to ensure the user is notified."""
+        from apps.core.ai_orchestrator import cos_context
+
+        def fake_fresh(user, module):
+            if module == 'medicine':
+                return {
+                    'medication_status': 'overdue',
+                    'expected_today': 10,
+                    'today_taken': 0,
+                }
+            return {}
+
+        with patch.object(cos_context, '_fresh_module_state', fake_fresh):
+            rt = resolve_response_type(
+                self.user, "How am I doing?",
+                active_mode='general',
             )
 
         self.assertEqual(rt, ResponseType.ALERT)

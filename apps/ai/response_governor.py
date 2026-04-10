@@ -90,25 +90,35 @@ def resolve_response_type(user, message, active_mode=None):
         pass
 
     # ── Step 3: Check for health-critical ALERT ──────────────
-    # Medication alerts bypass ALL modes. But ONLY actual alerts —
-    # not routine medication references.
-    try:
-        from apps.core.ai_orchestrator.cos_context import _fresh_module_state
-        ms = _fresh_module_state(user, 'medicine')
-        med_status = ms.get('medication_status', 'no_data')
-        if med_status == 'overdue':
-            expected = ms.get('expected_today', 0) or 0
-            taken = ms.get('today_taken', 0) or 0
-            # Only alert if ZERO doses taken (true crisis)
-            if expected > 0 and taken == 0:
-                logger.info(
-                    "RESPONSE_GOVERNOR: ALERT — medication crisis "
-                    "(0/%d taken) overrides mode=%s user=%s",
-                    expected, active_mode, getattr(user, 'id', '?'),
-                )
-                return ResponseType.ALERT
-    except Exception:
-        pass
+    # ALERT only fires in GENERAL/EXECUTION mode. During a
+    # REFLECTIVE conversation (faith/journal), the medication
+    # status is available in the CoS context for the LLM to
+    # reference, but does NOT hijack the response. The user
+    # asked a faith question — they deserve a faith answer.
+    #
+    # The ALERT path is reserved for when the user has NO active
+    # conversational mode and hasn't taken any medications.
+    _in_reflective_mode = (
+        active_mode in _REFLECTIVE_MODES
+        or detected_mode in _REFLECTIVE_MODES
+    )
+    if not _in_reflective_mode:
+        try:
+            from apps.core.ai_orchestrator.cos_context import _fresh_module_state
+            ms = _fresh_module_state(user, 'medicine')
+            med_status = ms.get('medication_status', 'no_data')
+            if med_status == 'overdue':
+                expected = ms.get('expected_today', 0) or 0
+                taken = ms.get('today_taken', 0) or 0
+                if expected > 0 and taken == 0:
+                    logger.info(
+                        "RESPONSE_GOVERNOR: ALERT — medication crisis "
+                        "(0/%d taken) mode=%s user=%s",
+                        expected, active_mode, getattr(user, 'id', '?'),
+                    )
+                    return ResponseType.ALERT
+        except Exception:
+            pass
 
     # ── Step 4: Check for explicit break phrase ──────────────
     is_break = any(phrase in msg_lower for phrase in _BREAK_PHRASES)

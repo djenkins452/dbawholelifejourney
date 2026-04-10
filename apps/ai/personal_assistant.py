@@ -5509,6 +5509,22 @@ Rules for this response:
         # Phase 6.6: CRUD confirmation pills for streaming path.
         _pending_quick_replies = []
 
+        # Phase 18.4: CRITICAL — update conversation mode from the
+        # streaming path. Previously update_mode_from_message was
+        # ONLY called in send_message (non-streaming). Since the
+        # streaming path handles all production text messages, the
+        # mode was NEVER persisted — causing reflective mode to be
+        # lost between turns. This is why turn 3 of a faith thread
+        # ("What does this mean for how I should live?") reverted
+        # to execution ("Start Shower").
+        try:
+            from apps.core.blueprint.conversation_mode import (
+                update_mode_from_message as _update_mode_stream,
+            )
+            _update_mode_stream(self.user, message)
+        except Exception:
+            pass
+
         try:
             # Check AI availability
             if not ai_service.is_available or not AIService.check_user_consent(self.user):

@@ -136,9 +136,9 @@ class ModePersistenceTests(TestCase):
             from apps.core.blueprint.models import PersonalOperatingBlueprint
             PersonalOperatingBlueprint.objects.create(user=self.user)
 
-    def test_faith_mode_persists(self):
-        """After a faith question sets the mode, a follow-up
-        question (even ambiguous) should stay in faith mode."""
+    def test_faith_mode_persists_across_followups(self):
+        """After a faith question sets the mode, follow-up questions
+        (even with no faith keywords) must stay in faith mode."""
         from apps.core.blueprint.conversation_mode import (
             update_mode_from_message,
             get_active_mode,
@@ -150,8 +150,47 @@ class ModePersistenceTests(TestCase):
 
         # Second message: ambiguous follow-up
         update_mode_from_message(self.user, "How do I apply that to my life?")
-        # Mode should persist (no mode-break detected)
         self.assertEqual(get_active_mode(self.user), 'faith')
+
+    def test_exact_failure_three_turn_thread(self):
+        """The exact production failure: a 3-turn faith thread where
+        turn 3 ("What does this mean for how I should live?") has
+        no faith keywords and dropped out of faith mode → execution.
+
+        With Phase 18.4 hard lock, this must NEVER happen."""
+        from apps.core.blueprint.conversation_mode import (
+            update_mode_from_message,
+            get_active_mode,
+        )
+
+        # Turn 1: explicit faith
+        m1 = update_mode_from_message(
+            self.user,
+            "Do I have to give up comfort to make God my priority?",
+        )
+        self.assertEqual(m1, 'faith')
+
+        # Turn 2: still faith keywords
+        m2 = update_mode_from_message(
+            self.user, "Am I idolizing comfort?",
+        )
+        self.assertEqual(m2, 'faith')
+
+        # Turn 3: NO faith keywords — but mode MUST persist
+        m3 = update_mode_from_message(
+            self.user,
+            "What does this mean for how I should live?",
+        )
+        self.assertEqual(
+            m3, 'faith',
+            "Turn 3 dropped out of faith mode — hard lock failed",
+        )
+
+        # Turn 4: explicit break → mode clears
+        m4 = update_mode_from_message(
+            self.user, "What's next on my schedule?",
+        )
+        self.assertEqual(m4, 'general')
 
     def test_mode_breaks_on_explicit_phrase(self):
         from apps.core.blueprint.conversation_mode import (

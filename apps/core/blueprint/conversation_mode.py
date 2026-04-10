@@ -75,11 +75,16 @@ _MODE_SIGNALS = {
     ],
 }
 
-# Phrases that break mode lock (return to general)
+# Phrases that break mode lock (return to general).
+# ONLY these phrases can exit a locked reflective mode.
+# Reflective follow-ups ("what does this mean", "how should I
+# live", "help me apply this") must NOT break the lock.
 _MODE_BREAK_PHRASES = [
     "what's next", "whats next", "what else",
     "anything else", "change topic", "never mind",
     "show me my day", "check in", "daily briefing",
+    "what should i do", "show my tasks", "what is left",
+    "what's left", "whats left",
 ]
 
 # Mode silence timeout (minutes)
@@ -187,10 +192,31 @@ def update_mode_from_message(user, message: str) -> str:
     """
     Update conversation mode based on the user's message.
 
+    Phase 18.4: HARD MODE LOCK. When the current mode is reflective
+    (faith/journal), ONLY explicit break phrases can clear it.
+    Detection results are IGNORED — the mode persists across all
+    follow-up messages regardless of keyword matches. This prevents
+    "What does this mean for how I should live?" from dropping out
+    of faith mode.
+
     Called on each user message. Returns the active mode after update.
     """
     current_mode = get_active_mode(user)
     detected_mode = detect_conversation_mode(message)
+
+    # Phase 18.4: HARD MODE LOCK for reflective modes.
+    # When in faith/journal, ONLY explicit break phrases exit.
+    # ALL other detection results are IGNORED.
+    _LOCKED_MODES = frozenset({'faith', 'journal'})
+    if current_mode in _LOCKED_MODES:
+        if detected_mode == 'general':
+            # Explicit break phrase — clear the lock
+            clear_conversation_mode(user)
+            return 'general'
+        # EVERYTHING ELSE (including 'undetected' and other modes)
+        # preserves the lock. Refresh the timeout.
+        set_conversation_mode(user, current_mode)
+        return current_mode
 
     if detected_mode == 'general':
         # Explicit mode-break phrase — clear lock

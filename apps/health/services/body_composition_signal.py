@@ -330,7 +330,7 @@ def _assess_fat_loss(today, summaries, user, as_of_date, sufficiency):
         mid = len(weights) // 2
         first_half = sum(weights[:mid]) / mid
         second_half = sum(weights[mid:]) / (len(weights) - mid)
-        delta = second_half - first_half
+        delta = first_half - second_half  # recent - older: negative = losing
 
         wt_conf = (
             CONFIDENCE_WEIGHT_DENSE

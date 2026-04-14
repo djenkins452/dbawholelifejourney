@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-14 — Fix: Fat loss voting inversion in body composition signal
+
+**Root cause:** `_assess_fat_loss()` in `body_composition_signal.py` computed
+`delta = second_half - first_half` (OLDER - RECENT), which is the opposite sign
+convention from `_compute_weight_trend()` (RECENT - OLDER). When weight was
+dropping, the fat loss voter incorrectly classified it as "weight_up" and voted
+against fat loss, causing the dashboard to show "Flat" instead of "Likely Losing"
+or "Confirmed".
+
+**Fix:** Changed delta computation to `first_half - second_half` (RECENT - OLDER)
+so negative delta = weight loss = votes "weight_down" (+1 fat loss direction).
+
+**Files changed:**
+- `apps/health/services/body_composition_signal.py` — line 333: inverted delta
+
+---
+
 ## 2026-04-08 — Phase 5/6/1/2 + Enforcement: signal conventions, nutrition gate, docs
 
 Final batch of the system-wide integrity hardening mission. Builds

@@ -60,7 +60,7 @@ MAX_SUGGESTIONS = 2
 # have no canonical tracking target (no model, no completion record).
 # The signal engine may still detect them, but presenting them to the user
 # creates a dead-end UX — clicking Yes/No has no meaningful effect.
-UNSURFACEABLE_ITEMS = frozenset({"church"})
+UNSURFACEABLE_ITEMS = frozenset({"church", "walking"})
 
 # Priority order: lower number = higher priority
 SIGNAL_TYPE_PRIORITY = {

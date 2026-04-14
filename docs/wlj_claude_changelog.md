@@ -7,6 +7,18 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-14 — Suppress walking Quick Confirmation
+
+Added "walking" to `UNSURFACEABLE_ITEMS` in `apps/core/signals/signal_presenter.py`.
+The signal engine was detecting the word "walk" in journal entries and surfacing
+a Quick Confirmation ("Did you complete your walk today?") even though walking
+is not a planned exercise activity. Walking is now permanently excluded from
+Quick Confirmations, same as church attendance.
+
+**Files changed:** `apps/core/signals/signal_presenter.py`
+
+---
+
 ## 2026-04-08 — Phase 5/6/1/2 + Enforcement: signal conventions, nutrition gate, docs
 
 Final batch of the system-wide integrity hardening mission. Builds

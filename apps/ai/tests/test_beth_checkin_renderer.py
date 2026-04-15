@@ -488,9 +488,9 @@ class TestDailyBriefing(SimpleTestCase):
         }
         user = self._make_user()
         output = render_daily_briefing(user)
-        # Should mention being behind and buffer
+        # With 2 overdue items (~30 min drift), escalation fires at
+        # PRESSING level. The directive mentions being behind.
         self.assertIn("behind", output.lower())
-        self.assertIn("buffer", output.lower())
 
 
 # ==============================================================================

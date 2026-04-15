@@ -172,20 +172,26 @@ def _build_structured_from_truth(user) -> dict:
     coming_up = ctx.get('coming_up', [])
     completed = ctx.get('completed', [])
     later = ctx.get('later', [])
+    all_items = ctx.get('all_items', [])
 
     state, state_text = _assess_situation_structured(
         overdue, completed, coming_up, user_now,
     )
 
-    # 4. Triage
+    # 4. Escalation
+    schedule = build_schedule_signals(all_items, completed, user_now)
+    escalation = compute_escalation_level(schedule, all_items, user_now)
+
+    # 5. Triage (with escalation)
     triage = _build_triage_structured(
         ctx, user_now, overdue, coming_up, later,
+        escalation_level=escalation['level'],
     )
 
-    # 5. Completed names
+    # 6. Completed names
     completed_names = [e['label'] for e in completed]
 
-    # 6. Render text (reuse existing renderers)
+    # 7. Render text (reuse existing renderers)
     if phase == 'morning':
         rendered_text = _render_morning(ctx, user, user_now)
     elif phase == 'midday':
@@ -211,6 +217,7 @@ def _build_structured_from_truth(user) -> dict:
         'completed': completed_names,
         'phase': phase,
         'rendered_text': rendered_text,
+        'escalation': escalation,
     }
 
     # Include day significance in structured output if present
@@ -255,8 +262,38 @@ _DEFAULT_DURATIONS = {
     'journal': 10,
     'journaling': 10,
     'meditation': 10,
+    # Supplements & medications — quick intake actions, not activities
+    'amino': 2,
+    'perfect amino': 2,
+    'creatine': 2,
+    'protein shake': 3,
+    'shake': 3,
+    'vitamin': 2,
+    'supplement': 2,
+    'medication': 2,
+    'metformin': 2,
+    'atorvastatin': 2,
+    'lantus': 3,
+    'mounjaro': 3,
+    'ozempic': 3,
+    'fish oil': 2,
+    'magnesium': 2,
+    'probiotic': 2,
+    'zinc': 2,
+    'ashwagandha': 2,
+    'multivitamin': 2,
+    'collagen': 2,
+    'coq10': 2,
+    'turmeric': 2,
 }
-_DEFAULT_DURATION_FALLBACK = 15  # minutes
+# Fallback for items not matching any keyword. 5 minutes is safer than 15 —
+# supplements and quick actions dominated the false-overflow problem at 15.
+_DEFAULT_DURATION_FALLBACK = 5  # minutes
+
+# Trivial completion threshold (minutes) — items at or below this duration
+# can be completed before transitioning to an anchor, provided it doesn't
+# risk the anchor. Used by the triage feasibility split.
+TRIVIAL_DURATION_THRESHOLD = 3  # minutes
 
 
 def _estimate_duration(item_name: str) -> int:
@@ -543,6 +580,194 @@ def build_schedule_signals(all_items, completed, user_now):
     }
 
 
+# ---------------------------------------------------------------------------
+# Execution Escalation Engine
+# ---------------------------------------------------------------------------
+# Deterministic escalation levels for assertive execution coaching.
+# Computes a single escalation level (0-3) from schedule signals and
+# anchor proximity. No LLM, no heuristics — pure arithmetic.
+#
+# Levels:
+#   0 = ON_TRACK      — calm, clear next step
+#   1 = NUDGE         — gentle urgency, plan preserved
+#   2 = PRESSING      — firmer direction, drift worsening
+#   3 = CRITICAL      — explicit redirect, key item at risk
+#
+# Consumed by all renderers (morning, midday, daily briefing) to
+# control tone, move_later gating, and directive strength.
+
+ESCALATION_ON_TRACK = 0
+ESCALATION_NUDGE = 1
+ESCALATION_PRESSING = 2
+ESCALATION_CRITICAL = 3
+
+# Thresholds (minutes)
+_ANCHOR_CRITICAL_MINUTES = 10   # < 10 min to anchor = critical
+_ANCHOR_PRESSING_MINUTES = 25   # < 25 min to anchor = pressing
+_DRIFT_PRESSING_MINUTES = 20    # 20+ min drift = pressing
+_DRIFT_CRITICAL_MINUTES = 40    # 40+ min drift = critical
+
+
+def compute_escalation_level(schedule_signals, all_items, user_now):
+    """Compute deterministic escalation level from schedule signals.
+
+    Args:
+        schedule_signals: dict from build_schedule_signals() with keys:
+            drift_minutes, buffer_minutes_available, can_recover,
+            schedule_status, next_anchor, expected_item
+        all_items: list of Today Engine item dicts (for anchor proximity)
+        user_now: user's current datetime (timezone-aware)
+
+    Returns:
+        dict with:
+            level: int (0-3, ESCALATION_ON_TRACK through ESCALATION_CRITICAL)
+            label: str ('on_track' | 'nudge' | 'pressing' | 'critical')
+            reason: str (human-readable explanation of why this level)
+            at_risk_item: str | None (item name in jeopardy, if any)
+            minutes_to_anchor: int | None (minutes until next anchor)
+            directive: str (assertive coaching text for this level)
+    """
+    drift_min = schedule_signals.get('drift_minutes', 0)
+    buffer_min = schedule_signals.get('buffer_minutes_available', 0)
+    can_recover = schedule_signals.get('can_recover', True)
+    status = schedule_signals.get('schedule_status', 'on_track')
+    next_anchor_name = schedule_signals.get('next_anchor')
+
+    # Find minutes until next anchor
+    minutes_to_anchor = _find_minutes_to_anchor(all_items, user_now)
+    at_risk_item = next_anchor_name
+
+    # --- Level determination (highest match wins) ---
+    level = ESCALATION_ON_TRACK
+    reason = "On schedule."
+
+    # Level 1 — NUDGE: any drift detected but recoverable
+    if drift_min > DRIFT_ON_TRACK_THRESHOLD and can_recover:
+        level = ESCALATION_NUDGE
+        reason = (
+            f"{drift_min} min behind with {buffer_min} min buffer — "
+            f"recoverable if you tighten pace."
+        )
+
+    # Level 2 — PRESSING: drift significant OR approaching anchor tight
+    if drift_min >= _DRIFT_PRESSING_MINUTES:
+        level = max(level, ESCALATION_PRESSING)
+        reason = f"{drift_min} min behind — drift is significant."
+    if (minutes_to_anchor is not None
+            and minutes_to_anchor <= _ANCHOR_PRESSING_MINUTES
+            and drift_min > DRIFT_ON_TRACK_THRESHOLD):
+        level = max(level, ESCALATION_PRESSING)
+        reason = (
+            f"{at_risk_item or 'Next anchor'} is in {minutes_to_anchor} min "
+            f"and you're {drift_min} min behind."
+        )
+
+    # Level 2 also if not recoverable but drift is moderate
+    if not can_recover and drift_min > DRIFT_ON_TRACK_THRESHOLD:
+        level = max(level, ESCALATION_PRESSING)
+        reason = (
+            f"{drift_min} min behind with only {buffer_min} min buffer — "
+            f"recovery is tight."
+        )
+
+    # Level 3 — CRITICAL: anchor imminent with drift, or massive drift
+    if drift_min >= _DRIFT_CRITICAL_MINUTES:
+        level = max(level, ESCALATION_CRITICAL)
+        reason = f"{drift_min} min behind — plan is at serious risk."
+    if (minutes_to_anchor is not None
+            and minutes_to_anchor <= _ANCHOR_CRITICAL_MINUTES
+            and drift_min > DRIFT_ON_TRACK_THRESHOLD):
+        level = max(level, ESCALATION_CRITICAL)
+        reason = (
+            f"{at_risk_item or 'Next anchor'} is in {minutes_to_anchor} min — "
+            f"start now or you'll miss it."
+        )
+
+    # --- Build label and directive ---
+    label = _ESCALATION_LABELS[level]
+    directive = _build_escalation_directive(
+        level, drift_min, buffer_min, can_recover,
+        at_risk_item, minutes_to_anchor,
+    )
+
+    return {
+        'level': level,
+        'label': label,
+        'reason': reason,
+        'at_risk_item': at_risk_item if level >= ESCALATION_PRESSING else None,
+        'minutes_to_anchor': minutes_to_anchor,
+        'directive': directive,
+    }
+
+
+_ESCALATION_LABELS = {
+    ESCALATION_ON_TRACK: 'on_track',
+    ESCALATION_NUDGE: 'nudge',
+    ESCALATION_PRESSING: 'pressing',
+    ESCALATION_CRITICAL: 'critical',
+}
+
+
+def _find_minutes_to_anchor(all_items, user_now):
+    """Find minutes until the next anchor item from all_items.
+
+    Anchors are identified by source type (medication) or name keywords.
+    Returns int or None if no future anchor found.
+    """
+    anchor_keywords = (
+        'medication', 'medicine', 'mounjaro', 'shower', 'meeting',
+        'appointment', 'call', 'class', 'workout',
+    )
+    best = None
+    for item in all_items:
+        if item.get('completed'):
+            continue
+        sched = item.get('scheduled_time')
+        if not sched or sched <= user_now:
+            continue
+        name = (item.get('name') or '').lower()
+        source = item.get('source', '')
+        if source == 'medication' or any(k in name for k in anchor_keywords):
+            delta_min = int((sched - user_now).total_seconds() / 60)
+            if best is None or delta_min < best:
+                best = delta_min
+    return best
+
+
+def _build_escalation_directive(level, drift_min, buffer_min, can_recover,
+                                at_risk_item, minutes_to_anchor):
+    """Build assertive coaching directive for escalation level."""
+    if level == ESCALATION_ON_TRACK:
+        return ""
+
+    if level == ESCALATION_NUDGE:
+        if can_recover and buffer_min > drift_min:
+            return (
+                f"Running {drift_min} min behind, but still recoverable. "
+                f"Tighten pace."
+            )
+        return f"Running {drift_min} min behind — pick up the pace."
+
+    if level == ESCALATION_PRESSING:
+        if at_risk_item and minutes_to_anchor is not None:
+            return (
+                f"You're slipping further behind. "
+                f"{at_risk_item} is at risk if you don't start within "
+                f"{minutes_to_anchor} min."
+            )
+        return (
+            f"Drift is growing — {drift_min} min behind now. "
+            f"Focus on what's next."
+        )
+
+    # CRITICAL
+    if at_risk_item:
+        if minutes_to_anchor is not None and minutes_to_anchor <= 5:
+            return f"Go to {at_risk_item} now."
+        return f"Drop this and go to {at_risk_item} now."
+    return "You need to act now — plan is at serious risk."
+
+
 def _render_checkin_from_truth(user, phase: str = "morning") -> str:
     """Core renderer — builds Chief of Staff briefing from Today Engine."""
     from apps.core.today.today_engine import get_today_context
@@ -607,23 +832,38 @@ def _render_morning(ctx, user, user_now) -> str:
     coming_up = ctx.get("coming_up", [])
     completed = ctx.get("completed", [])
     later = ctx.get("later", [])
+    all_items = ctx.get("all_items", [])
 
     _state, situation = _assess_situation_structured(
         overdue, completed, coming_up, user_now,
     )
 
+    # ── Schedule signals + escalation (deterministic) ──
+    schedule = build_schedule_signals(all_items, completed, user_now)
+    escalation = compute_escalation_level(schedule, all_items, user_now)
+
+    # Use escalation-aware situation text at PRESSING/CRITICAL levels
+    if escalation['level'] >= ESCALATION_PRESSING and escalation['directive']:
+        situation_text = escalation['directive']
+    else:
+        situation_text = situation
+
     # highlighted → weave significance into the situation line
     if day_sig and day_sig['level'] == 'highlighted':
         lines.append("")
-        lines.append(_build_highlighted_day_situation(day_sig, situation))
+        lines.append(_build_highlighted_day_situation(day_sig, situation_text))
     else:
         lines.append("")
-        lines.append(situation)
+        lines.append(situation_text)
 
     # ── B. Immediate Plan: next actions + anchor ──
+    # Pass escalation level so triage can gate move_later suggestions.
+    # At NUDGE level, triage preserves plan (no move_later language).
+    # At PRESSING/CRITICAL, triage defers to the escalation directive.
     triage = _build_morning_triage(
         ctx, user_now, overdue, coming_up, later,
         situation_state=_state,
+        escalation_level=escalation['level'],
     )
     if triage:
         lines.append("")
@@ -645,8 +885,12 @@ def _render_morning(ctx, user, user_now) -> str:
         lines.append(day_view)
 
     # ── D. Closing: directional ──
+    # At CRITICAL escalation, the directive IS the closing — no filler.
     # defining → theme-connected directive replaces rotating closer
-    if day_sig and day_sig['level'] == 'defining':
+    if escalation['level'] == ESCALATION_CRITICAL and escalation['directive']:
+        lines.append("")
+        lines.append(escalation['directive'])
+    elif day_sig and day_sig['level'] == 'defining':
         lines.append("")
         lines.append(_build_defining_day_closing(day_sig))
     else:
@@ -729,7 +973,7 @@ def _morning_closing(state, completed, overdue, later, user_now=None) -> str:
 
     if state == 'ahead':
         return _rotating_phrase(_CLOSING_PHRASES_AHEAD, now)
-    if state == 'behind':
+    if state in ('behind', 'nudge'):
         return _rotating_phrase(_CLOSING_PHRASES_BEHIND, now)
     if completed and len(completed) >= 2:
         return _rotating_phrase(_CLOSING_PHRASES_GOOD_START, now)
@@ -989,16 +1233,17 @@ _CLOSING_PHRASES_GOOD_START = (
 def _assess_situation_structured(overdue, completed, coming_up, user_now):
     """Determine situational state with graduated tone.
 
-    Three tiers for overdue items based on severity:
+    Four states for overdue items based on severity:
     - orientation: items past schedule but user likely just starting day
-      (no completions, items < 90 min overdue)
-    - nudge: moderate lateness or some activity already
-    - behind: clearly late (items 2+ hours overdue or many overdue)
+      (no completions, items < 90 min overdue) → 'on_track'
+    - nudge: moderate lateness or some activity already → 'nudge'
+      (distinct from 'behind' — nudge preserves plan, behind allows adjustment)
+    - behind: clearly late (items 2+ hours overdue or many overdue) → 'behind'
 
     Phrases rotate by day-of-year for natural variety.
 
     Returns:
-        (state, text) where state is 'behind' | 'on_track' | 'ahead'
+        (state, text) where state is 'nudge' | 'behind' | 'on_track' | 'ahead'
     """
     has_overdue = len(overdue) > 0
     has_completed = len(completed) > 0
@@ -1021,9 +1266,11 @@ def _assess_situation_structured(overdue, completed, coming_up, user_now):
             return ('on_track', _rotating_phrase(_ORIENTATION_PHRASES, user_now))
 
         # Tier 2: Gentle nudge — moderate lateness or user has been
-        # active but falling behind
+        # active but falling behind.  Returns 'nudge' (not 'behind')
+        # so triage preserves the plan and increases urgency rather
+        # than suggesting rescheduling.
         if max_overdue_min < 120 or len(overdue) <= 2:
-            return ('behind', _rotating_phrase(_NUDGE_PHRASES, user_now))
+            return ('nudge', _rotating_phrase(_NUDGE_PHRASES, user_now))
 
         # Tier 3: Clearly behind — significant overdue items
         return ('behind', _rotating_phrase(_BEHIND_PHRASES, user_now))
@@ -1040,6 +1287,7 @@ def _assess_situation_structured(overdue, completed, coming_up, user_now):
 def _build_morning_triage(
     ctx, user_now, overdue, coming_up, later,
     situation_state='on_track',
+    escalation_level=ESCALATION_ON_TRACK,
 ) -> str:
     """Time-aware feasibility triage (text-only wrapper).
 
@@ -1048,6 +1296,7 @@ def _build_morning_triage(
     result = _build_triage_structured(
         ctx, user_now, overdue, coming_up, later,
         situation_state=situation_state,
+        escalation_level=escalation_level,
     )
     return result['text']
 
@@ -1055,6 +1304,7 @@ def _build_morning_triage(
 def _build_triage_structured(
     ctx, user_now, overdue, coming_up, later,
     situation_state='on_track',
+    escalation_level=ESCALATION_ON_TRACK,
 ) -> dict:
     """Time-aware feasibility triage returning structured data + text.
 
@@ -1145,6 +1395,7 @@ def _build_triage_structured(
 
     do_now = []
     move_later = []
+    trivial_before_anchor = []  # Trivial items squeezed in before anchor
     time_used = 0
 
     def _sort_key(item):
@@ -1165,6 +1416,29 @@ def _build_triage_structured(
         else:
             move_later.append(name)
 
+    # ── Trivial Completion Rule ──
+    # Items that overflowed to move_later but are trivially short
+    # (≤ TRIVIAL_DURATION_THRESHOLD) can be rescued IF completing them
+    # all won't risk the anchor. This prevents premature deferral of
+    # 30-second supplement intake before a workout.
+    if move_later:
+        rescued = []
+        trivial_total = 0
+        for name in move_later:
+            dur = _estimate_duration(name)
+            if dur <= TRIVIAL_DURATION_THRESHOLD:
+                trivial_total += dur
+                rescued.append(name)
+        # Only rescue if combined trivial time + current usage still fits
+        # with a safety margin (keep at least 2 min before anchor)
+        safety_margin = 2
+        if rescued and (time_used + trivial_total + safety_margin) <= available_minutes:
+            for name in rescued:
+                move_later.remove(name)
+                trivial_before_anchor.append(name)
+                do_now.append(name)
+                time_used += _estimate_duration(name)
+
     # Populate structured data
     result['do_now'] = [
         {'name': n, 'duration_est': _estimate_duration(n)} for n in do_now
@@ -1172,6 +1446,10 @@ def _build_triage_structured(
     result['move_later'] = [
         {'name': n, 'reason': f"won't fit before {hard_deadline_name}"}
         for n in move_later
+    ]
+    result['trivial_before_anchor'] = [
+        {'name': n, 'duration_est': _estimate_duration(n)}
+        for n in trivial_before_anchor
     ]
     result['sequence'] = do_now + [hard_deadline_name] + move_later
     if move_later:
@@ -1190,11 +1468,33 @@ def _build_triage_structured(
         parts.append(f"Start with {do_now[0]}.")
         if len(do_now) > 1:
             rest = do_now[1:]
-            rest_str = ', then '.join(rest)
-            parts.append(
-                f"Then {rest_str} — all before "
-                f"{hard_deadline_name} at {deadline_time_str}."
-            )
+            # Identify trivial-duration items in the rest list (whether
+            # rescued or normally packed). These get "take X quickly"
+            # language so the user knows they're fast actions, not blocks.
+            trivial_in_rest = [
+                n for n in rest
+                if _estimate_duration(n) <= TRIVIAL_DURATION_THRESHOLD
+            ]
+            if trivial_in_rest:
+                regular = [n for n in rest if n not in trivial_in_rest]
+                sub_parts = []
+                if regular:
+                    sub_parts.append(', then '.join(regular))
+                trivial_str = ' and '.join(trivial_in_rest) if len(trivial_in_rest) <= 2 else (
+                    ', '.join(trivial_in_rest[:-1]) + ', and ' + trivial_in_rest[-1]
+                )
+                sub_parts.append(f"take {trivial_str} quickly")
+                rest_str = ', then '.join(sub_parts)
+                parts.append(
+                    f"Then {rest_str} — all before "
+                    f"{hard_deadline_name} at {deadline_time_str}."
+                )
+            else:
+                rest_str = ', then '.join(rest)
+                parts.append(
+                    f"Then {rest_str} — all before "
+                    f"{hard_deadline_name} at {deadline_time_str}."
+                )
         else:
             parts.append(
                 f"{hard_deadline_name} is at {deadline_time_str}."
@@ -1204,10 +1504,22 @@ def _build_triage_structured(
         if next_action:
             parts.append(f"Start with {next_action}.")
 
-    # Only suggest rescheduling when user is behind — in orientation
-    # or on-track states, premature reschedule suggestions feel
-    # like pressure before the user has started.
-    if move_later and situation_state == 'behind':
+    # Only suggest rescheduling when clearly behind AND escalation warrants it.
+    #
+    # Gate logic:
+    #   - 'nudge' state: NEVER suggest rescheduling — preserve plan, increase pace
+    #   - 'behind' state + escalation PRESSING or higher: allow rescheduling
+    #   - 'behind' state + escalation NUDGE or ON_TRACK: still don't suggest
+    #     (escalation engine says recovery is possible)
+    #
+    # This prevents the premature "X can move to later today" when user is
+    # only slightly behind and recovery is still feasible.
+    should_suggest_reschedule = (
+        move_later
+        and situation_state == 'behind'
+        and escalation_level >= ESCALATION_PRESSING
+    )
+    if should_suggest_reschedule:
         if len(move_later) == 1:
             parts.append(
                 f"{move_later[0]} can move to later today."
@@ -1262,8 +1574,15 @@ def _render_midday(ctx, user, user_now) -> str:
     total = len(all_items)
     done = len(completed)
 
+    # ── Escalation check (system-wide, not morning-only) ──
+    schedule = build_schedule_signals(all_items, completed, user_now)
+    escalation = compute_escalation_level(schedule, all_items, user_now)
+
     lines.append("")
-    if total > 0:
+    # At PRESSING/CRITICAL, lead with escalation directive
+    if escalation['level'] >= ESCALATION_PRESSING and escalation['directive']:
+        lines.append(escalation['directive'])
+    elif total > 0:
         if done == 0:
             lines.append("Nothing completed yet today.")
         elif done == total:
@@ -1281,8 +1600,8 @@ def _render_midday(ctx, user, user_now) -> str:
                 f"Slow start — {done} of {total} done so far."
             )
 
-    # Slipping items
-    if overdue:
+    # Slipping items (suppress at CRITICAL — directive already covers it)
+    if overdue and escalation['level'] < ESCALATION_CRITICAL:
         lines.append("")
         if len(overdue) == 1:
             lines.append(
@@ -1646,6 +1965,7 @@ def _render_daily_briefing_from_truth(user) -> str:
 
     # Schedule drift + buffer signals (deterministic)
     schedule = build_schedule_signals(all_items, completed, user_now)
+    escalation = compute_escalation_level(schedule, all_items, user_now)
 
     # Greeting + state in one block
     if first_name:
@@ -1659,9 +1979,12 @@ def _render_daily_briefing_from_truth(user) -> str:
         lines.append(f"Today is {day_sig['name']}.")
 
     lines.append("")
-    # Use schedule-aware guidance when drift data is meaningful,
+    # Use escalation directive when at PRESSING/CRITICAL levels,
+    # schedule-aware guidance when drift data is meaningful,
     # otherwise fall back to the standard situation text
-    if schedule['drift_minutes'] > 0 or schedule['buffer_minutes_available'] > 15:
+    if escalation['level'] >= ESCALATION_PRESSING and escalation['directive']:
+        lines.append(escalation['directive'])
+    elif schedule['drift_minutes'] > 0 or schedule['buffer_minutes_available'] > 15:
         lines.append(schedule['guidance'])
     else:
         lines.append(state_text)
@@ -1670,6 +1993,7 @@ def _render_daily_briefing_from_truth(user) -> str:
     triage = _build_triage_structured(
         ctx, user_now, overdue, coming_up, later,
         situation_state=state,
+        escalation_level=escalation['level'],
     )
 
     do_now = triage.get('do_now', [])

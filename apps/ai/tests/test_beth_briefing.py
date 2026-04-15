@@ -75,7 +75,7 @@ class TestDurationEstimation(TestCase):
         self.assertEqual(_estimate_duration('Shower'), 15)
 
     def test_unknown_default(self):
-        self.assertEqual(_estimate_duration('Random Task'), 15)
+        self.assertEqual(_estimate_duration('Random Task'), 5)
 
 
 class TestSituationalAwareness(TestCase):
@@ -110,7 +110,7 @@ class TestSituationalAwareness(TestCase):
         self.assertIn(text, _BEHIND_PHRASES)
 
     def test_moderate_overdue_with_activity_means_nudge(self):
-        """Overdue items when user has some completions → nudge."""
+        """Overdue items when user has some completions → nudge (distinct from behind)."""
         user_now = timezone.now().replace(hour=7, minute=30)
         sched = user_now.replace(hour=6, minute=30)  # 60 min ago
         state, text = _assess_situation_structured(
@@ -119,7 +119,7 @@ class TestSituationalAwareness(TestCase):
             coming_up=[],
             user_now=user_now,
         )
-        self.assertEqual(state, 'behind')
+        self.assertEqual(state, 'nudge')
         self.assertIn(text, _NUDGE_PHRASES)
 
     def test_completed_no_upcoming_means_ahead(self):
@@ -321,7 +321,41 @@ class TestMiddayOutput(TestCase):
     """Test midday alignment output."""
 
     def test_midday_progress_narrative(self):
-        """Midday should show progress as narrative, not status dump."""
+        """Midday should show progress as narrative, not status dump.
+
+        When all items are on track (no overdue), midday shows progress.
+        When items are massively overdue (e.g., workout 6h late), the
+        escalation engine fires and replaces the progress narrative with
+        a directive — that behavior is tested in test_escalation_engine.
+        """
+        user = MagicMock()
+        user.first_name = 'Danny'
+        user_now = timezone.now().replace(hour=12, minute=0)
+
+        done1 = _make_item('Bible Reading', '5:00 AM', 5, 0, completed=True)
+        done2 = _make_item('Prayer', '5:15 AM', 5, 15, completed=True)
+        # Pending item is scheduled for the afternoon — NOT overdue
+        pending = _make_item('Journal', '8:00 PM', 20, 0)
+
+        ctx = {
+            'all_items': [done1, done2, pending],
+            'foundation': [],
+            'overdue': [],
+            'coming_up': [],
+            'later': [_make_entry(pending)],
+            'completed': [_make_entry(done1), _make_entry(done2)],
+            'next': 'Journal',
+        }
+
+        output = _render_midday(ctx, user, user_now)
+
+        # Should mention progress
+        self.assertIn('2 of 3', output)
+        # Pending item should be in "Still ahead"
+        self.assertIn('Journal', output)
+
+    def test_midday_overdue_shows_escalation(self):
+        """When items are massively overdue at midday, escalation fires."""
         user = MagicMock()
         user.first_name = 'Danny'
         user_now = timezone.now().replace(hour=12, minute=0)
@@ -342,11 +376,8 @@ class TestMiddayOutput(TestCase):
 
         output = _render_midday(ctx, user, user_now)
 
-        # Should mention progress
-        self.assertIn('2 of 3', output)
-        # Should mention slipping item
+        # At CRITICAL escalation, directive should fire
         self.assertIn('Workout', output)
-        self.assertIn('slipped', output.lower())
 
 
 class TestEveningOutput(TestCase):

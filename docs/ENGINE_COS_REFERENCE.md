@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-04-07 (Workout-Tomorrow Hardening: workout event adapter is now date-aware — past/today → `WorkoutSession`, future → `WorkoutSchedule`; deterministic empty-state contract in `handle_query_event_history` structurally bypasses the LLM for empty/future queries via `ar.message` direct return; new generic `_is_future_tense_query` gate applied to every per-domain summary matcher in `deterministic_router.py` — generalizes future-tense protection across all domains. Earlier the same day: CDCE domain gating added to `detect_fasting_fitness` + `build_fasting_state`; `workout_consistency_score` now uses canonical schedule-based adherence; data migration 0123 purges stale fasting_fitness correlations for users with fasting disabled.)
+**Last updated:** 2026-04-15 (Execution Escalation Engine: 4-level deterministic escalation in beth_checkin_renderer.py, trivial completion rule, duration estimate fixes, nudge state, move_later gating. Previous: 2026-04-07 Workout-Tomorrow Hardening: workout event adapter is now date-aware — past/today → `WorkoutSession`, future → `WorkoutSchedule`; deterministic empty-state contract in `handle_query_event_history` structurally bypasses the LLM for empty/future queries via `ar.message` direct return; new generic `_is_future_tense_query` gate applied to every per-domain summary matcher in `deterministic_router.py` — generalizes future-tense protection across all domains. Earlier the same day: CDCE domain gating added to `detect_fasting_fitness` + `build_fasting_state`; `workout_consistency_score` now uses canonical schedule-based adherence; data migration 0123 purges stale fasting_fitness correlations for users with fasting disabled.)
 
 ---
 
@@ -818,6 +818,7 @@ When the user asks a health intelligence question with a brevity keyword ("keep 
 | `apps/ai/deterministic_router.py` | LLM-last shared routing layer (8 data routes, domain scoping, memory gating, feature flags) | ~470 |
 | `apps/ai/deterministic_health_summary.py` | Health summary fast path (lexical detection + SAE formatting) | ~287 |
 | `apps/ai/views.py` | Chat API endpoints | ~1,661 |
+| `apps/ai/beth_checkin_renderer.py` | Deterministic check-in renderer (morning/midday/evening briefings, schedule drift, execution escalation engine, trivial completion) | ~2000+ |
 | `apps/ai/proactive_checkins.py` | Proactive check-in service (20 check-in types, 5 domain schedulers) | ~1200+ |
 | `apps/ai/assistant_intelligence.py` | Coaching style templates (22+ template keys × 4 styles) | ~600+ |
 | `apps/ai/quick_reply_handlers.py` | Quick reply button generators (13+ handlers) | ~400+ |

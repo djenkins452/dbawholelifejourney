@@ -7,6 +7,40 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-15 — Feature: Deterministic Execution Escalation Engine + Trivial Completion
+
+**Root cause:** CoS morning check-in was suggesting supplements "can move to later today"
+when user was only ~8 minutes behind. Three compounding issues:
+1. Duration estimates inflated supplements to 15 min (actual: ~2 min), causing false overflow
+2. Situation state conflated "nudge" (slightly late) with "behind" (seriously late)
+3. No recovery-awareness in triage — `build_schedule_signals()` had buffer/can_recover logic
+   but it was disconnected from the morning check-in path
+4. No escalation model — same language at 8 min behind and 40 min behind
+
+**Changes:**
+- **Escalation Engine** (`beth_checkin_renderer.py`): New `compute_escalation_level()` function
+  with 4 deterministic levels (ON_TRACK → NUDGE → PRESSING → CRITICAL) based on drift,
+  buffer, anchor proximity. Consumed by all renderers (morning, midday, daily briefing).
+- **Duration Estimates**: Added 20+ supplement/medication keywords (2-3 min each), reduced
+  fallback from 15 min to 5 min. Eliminates phantom time inflation.
+- **Situation State Granularity**: `_assess_situation_structured()` now returns `'nudge'`
+  (distinct from `'behind'`) for moderate lateness. Nudge state preserves the plan.
+- **Move-Later Gating**: "can move to later today" now requires BOTH `'behind'` state AND
+  escalation level ≥ PRESSING. Nudge never triggers rescheduling suggestions.
+- **Trivial Completion Rule**: Items ≤ TRIVIAL_DURATION_THRESHOLD (3 min) that overflow
+  the time budget are rescued back to do_now when completing them won't risk the anchor.
+  Gets "take X quickly" language in output.
+- **Recovery Wiring**: `build_schedule_signals()` and `compute_escalation_level()` now
+  called in `_render_morning()`, closing the disconnection gap.
+- **System-Wide**: Escalation wired into morning, midday, and daily briefing renderers.
+
+**Files changed:**
+- `apps/ai/beth_checkin_renderer.py` — escalation engine, duration fixes, nudge state,
+  trivial completion, move_later gating, renderer wiring
+- `apps/ai/tests/test_escalation_engine.py` — 25 new tests (5 scenarios + unit tests)
+- `apps/ai/tests/test_beth_briefing.py` — updated for nudge state + duration fallback
+- `apps/ai/tests/test_beth_checkin_renderer.py` — updated for escalation-aware briefing
+
 ## 2026-04-14 — Fix: Fat loss voting inversion in body composition signal
 
 **Root cause:** `_assess_fat_loss()` in `body_composition_signal.py` computed

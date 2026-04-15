@@ -7,6 +7,29 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-15 — Fix: Workout routine auto-complete cross-day mismatch
+
+**Root cause:** `auto_complete_routine_schedules()` in `routine_helpers.py` always
+used `get_user_today()` (current date) as the target date for creating RoutineLog
+entries. When the `WorkoutSession.post_save` signal fired, it passed the workout's
+date to the threshold check but not to the auto-complete function. A workout from
+yesterday (e.g., Apr 14) would incorrectly auto-complete today's (Apr 15) routine
+item, causing the Routines page to show "Completed via Cycling at 5:17 PM" while
+the Fitness card showed "Not logged yet."
+
+**Fix:** Added `target_date` parameter to `auto_complete_routine_schedules()` that
+defaults to `get_user_today()` for backward compatibility. Updated all workout
+callers (signal in `signals.py`, view in `views.py`) to pass `instance.date` /
+`workout.date` so the routine log is created for the correct day. The CoS
+execution truth engine already correctly checks `WorkoutQueries.is_completed_on()`
+with today's date, so "Did you complete your workout today?" was always answerable
+— the bug was only in the routine UI showing false completions.
+
+**Files changed:**
+- `apps/life/services/routine_helpers.py` — added `target_date` param, use it instead of hardcoded today
+- `apps/health/signals.py` — pass `target_date=instance.date` to auto-complete call
+- `apps/health/views.py` — pass `target_date=workout.date` to auto-complete call
+
 ## 2026-04-15 — Feature: Deterministic Execution Escalation Engine + Trivial Completion
 
 **Root cause:** CoS morning check-in was suggesting supplements "can move to later today"

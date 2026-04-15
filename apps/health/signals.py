@@ -251,6 +251,7 @@ def handle_workout_session_completed(sender, instance, **kwargs):
                     source='workout',
                     completion_time=effective_time,
                     source_object_id=instance.pk,
+                    target_date=instance.date,
                 )
                 if results:
                     logger.info(

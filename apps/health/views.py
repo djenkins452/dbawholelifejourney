@@ -1939,6 +1939,7 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
                 request.user, 'workout', 'workout',
                 completion_time=workout.started_at or workout.completed_at,
                 source_object_id=workout.pk,
+                target_date=workout.date,
             )
         except Exception:
             pass

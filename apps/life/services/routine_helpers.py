@@ -273,9 +273,9 @@ def toggle_routine_completion(user, schedule, target_date, completion_mode=None)
 
 
 def auto_complete_routine_schedules(user, keyword, source, completion_time=None,
-                                    source_object_id=None):
+                                    source_object_id=None, target_date=None):
     """
-    Auto-complete matching RoutineSchedule items for today.
+    Auto-complete matching RoutineSchedule items for a specific date.
 
     Called from cross-module signals (workout, medicine, bible reading)
     to mark matching routine items as completed.  First-workout-wins:
@@ -296,6 +296,9 @@ def auto_complete_routine_schedules(user, keyword, source, completion_time=None,
                         Defaults to now if None.
         source_object_id: int — PK of the source object (e.g., WorkoutSession.pk)
                          for traceability.
+        target_date: date — the date to auto-complete for. Defaults to today
+                    in user's timezone. Callers should pass the activity's
+                    actual date to prevent cross-day mismatch bugs.
 
     Returns:
         list of dicts: [{schedule_id, status, created}] for each matched item
@@ -305,7 +308,7 @@ def auto_complete_routine_schedules(user, keyword, source, completion_time=None,
     from apps.core.utils import get_user_now, get_user_today
     from apps.life.models import RoutineLog, RoutineSchedule
 
-    user_today = get_user_today(user)
+    user_today = target_date or get_user_today(user)
     user_now = get_user_now(user)
     weekday = user_today.weekday()
 

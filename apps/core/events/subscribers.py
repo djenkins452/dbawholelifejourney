@@ -203,6 +203,35 @@ def on_finance_event_invalidate_cos(event):
         pass
 
 
+@subscribe("meals.*")
+def on_meals_event_invalidate_cos(event):
+    """
+    Invalidate CoS context + SAE state when pantry/meals data changes.
+
+    Added 2026-04-18 as part of the pantry signal consistency pass.
+    Before this subscriber, pantry ingestion (receipt, barcode, photo
+    scan) wrote to the DB but never notified the intelligence layer,
+    so CoS/SAE could serve stale "user has no food" reads for up to
+    the cache TTL after a grocery run. The same `meals.*` pattern now
+    keeps both caches fresh regardless of ingestion source.
+
+    Mirrors the health/task/finance pattern — fail-soft, never raises.
+    """
+    if not event.user:
+        return
+    try:
+        from apps.ai.readiness_cache import invalidate_cos_context
+        invalidate_cos_context(event.user)
+    except Exception:
+        pass
+    try:
+        from django.core.cache import cache
+        cache.delete(f"cos:meals_summary:{event.user.id}")
+        cache.delete(f"wlj:user_state:{event.user.id}")
+    except Exception:
+        pass
+
+
 # =========================================================================
 # Telemetry — Track domain event volume for observability
 # =========================================================================

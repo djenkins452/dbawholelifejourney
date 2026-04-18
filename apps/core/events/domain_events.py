@@ -133,6 +133,15 @@ class EventTypes:
     FINANCE_TRANSACTION_LOGGED = "finance.transaction.logged"
     FINANCE_BUDGET_ALERT = "finance.budget.alert"
 
+    # Meals / Pantry domain
+    # NOTE: these are OWNERSHIP events ("I now have this food"), NOT
+    # intake events. Nutrition intake flows through
+    # HEALTH_NUTRITION_LOGGED via FoodEntry — emitting intake signals
+    # from pantry ingestion would tell CoS the user consumed calories
+    # they only bought.
+    MEALS_PANTRY_ITEM_CREATED = "meals.pantry.item_created"
+    MEALS_PANTRY_ITEM_UPDATED = "meals.pantry.item_updated"
+
     # System domain
     SYSTEM_ENGINE_COMPLETED = "system.engine.completed"
     SYSTEM_ENGINE_FAILED = "system.engine.failed"

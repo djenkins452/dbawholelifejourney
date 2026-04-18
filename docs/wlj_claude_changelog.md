@@ -7,6 +7,112 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-18 — Add: Pantry ingestion signal consistency layer
+
+**Problem:** Across the three pantry ingestion paths (receipt, barcode,
+pantry photo scan), zero domain events were emitted. The intelligence
+layer — CoS context, SAE state, PIE insight triggers — couldn't see any
+pantry mutations in real time. CoS could therefore serve stale "user
+has no food" context for up to the cache TTL after a grocery run.
+
+Previous fix unified the DB write (`finalize_pantry_item`). This fix
+closes the remaining gap: the **signal** layer.
+
+**Prompt challenges (before implementation):**
+1. The original prompt suggested emitting nutrition signals
+   (`calorie_intake_updated`, `protein_intake_updated`) from pantry
+   ingestion. **Rejected** — pantry = ownership ("I now have this
+   food"); nutrition = intake ("I ate this food"). Emitting intake
+   signals from pantry would tell CoS the user consumed calories they
+   only bought. Intake already flows through `HEALTH_NUTRITION_LOGGED`
+   via `FoodEntry`, which is correct.
+2. The prompt proposed a new `PantryIngestionSignalEmitter` class.
+   **Rejected** — the existing `safe_emit_event()` in
+   `apps/core/events/domain_events.py` already provides idempotency,
+   loop-protection, exception isolation, and latency tracking. A new
+   class would be duplicate infrastructure.
+
+**Canonical pattern used:** Existing domain event bus, same as
+`health.*`, `task.*`, `finance.*`. No new infrastructure.
+
+**Implementation:**
+
+- **Two new event types** in `EventTypes`
+  ([apps/core/events/domain_events.py:135](apps/core/events/domain_events.py:135)):
+  - `MEALS_PANTRY_ITEM_CREATED = "meals.pantry.item_created"`
+  - `MEALS_PANTRY_ITEM_UPDATED = "meals.pantry.item_updated"`
+
+- **Emission from `finalize_pantry_item`**
+  ([apps/meals/services/pantry_ingestion.py](apps/meals/services/pantry_ingestion.py)):
+  Exactly ONE event per call, deterministic type (`created` vs
+  `updated`), identical payload shape across all sources. Emitted via
+  `transaction.on_commit` so rollbacks do NOT leak signals. Uses
+  `safe_emit_event` — never raises, never blocks the primary write.
+
+- **Payload shape (invariant across all ingestion sources):**
+  ```python
+  {
+      "household_id": int,
+      "pantry_item_id": int,
+      "ingredient_id": int,
+      "ingredient_name": str,
+      "quantity_delta": float,  # positive on create, positive on update
+      "unit": str,
+      "storage_location": str,
+      "source": "receipt" | "barcode" | "photo_scan" | ...,
+      "created": bool,
+  }
+  ```
+
+- **Subscriber** ([apps/core/events/subscribers.py](apps/core/events/subscribers.py)):
+  New `on_meals_event_invalidate_cos(event)` on `meals.*` pattern.
+  Mirrors the existing health/task/finance handlers — invalidates the
+  CoS context cache, the `cos:meals_summary:{user.id}` cache, and the
+  `wlj:user_state:{user.id}` SAE state cache. Fail-soft.
+
+- **User resolution:** `Household.primary_user` is the subject of the
+  event. Multi-member households still invalidate the primary user's
+  CoS context; secondary-member CoS invalidation is a separate pass.
+
+**Files changed:**
+- `apps/core/events/domain_events.py` — 2 new `EventTypes` constants
+- `apps/core/events/subscribers.py` — new `meals.*` handler
+- `apps/meals/services/pantry_ingestion.py` — emit on commit
+- `apps/meals/tests/test_pantry_ingestion_signals.py` — new, 4 tests
+
+**Verification:**
+- 4 new signal-consistency tests, all pass:
+  - `test_create_emits_item_created_event` — correct event type, full payload
+  - `test_update_emits_item_updated_event` — differentiates create vs update
+  - `test_payload_shape_identical_across_sources` — receipt/barcode/photo_scan produce identical key sets
+  - `test_no_event_on_rollback` — `transaction.on_commit` suppresses signals on rollback
+- Regression: full `apps.meals` + `apps.core.events` suite — 342/342 pass
+- Django system check clean; no migrations needed
+- JS guardrail clean
+
+**Architectural fit check:**
+- **Raw Data → Signals → CoS → LLM** preserved: signals emit from the
+  canonical finalize step, never from UI or LLM.
+- **Single source of truth**: `finalize_pantry_item` is the only
+  emitter. No parallel pipelines.
+- **Deterministic**: payload identical across ingestion sources; only
+  `source` field differs.
+- **No new engines, no new emitter classes, no new dependencies.**
+
+**Known limitations / out of scope:**
+- Receipt restaurant path still creates `FoodEntry` without emitting
+  `HEALTH_NUTRITION_LOGGED` ([receipt_routing.py:187](apps/meals/services/receipt_routing.py:187))
+  — separate pre-existing bug in the health domain. Flagged as
+  follow-up.
+- Manual pantry edits (direct PantryItem save in admin/quantity
+  update) do NOT emit. Intentional — they don't go through
+  `finalize_pantry_item`. Separate pass if/when needed.
+- Secondary household members don't receive CoS invalidation. Rare
+  today (most households have one primary user); can be added via
+  `HouseholdMembership` lookup in the subscriber.
+
+---
+
 ## 2026-04-17 — Extend: JS syntax guardrail to static `.js` files
 
 **Problem:** The template guardrail shipped earlier today catches inline

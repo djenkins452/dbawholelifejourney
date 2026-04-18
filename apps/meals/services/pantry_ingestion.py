@@ -35,6 +35,23 @@ The helper guarantees:
       value AND the existing item's location is "unknown"
     - expiration_date_estimated set on create (if shelf_life_days known)
     - InventoryTransaction row logged for every call
+    - exactly ONE domain event emitted per call:
+      `meals.pantry.item_created` on create,
+      `meals.pantry.item_updated` on update.
+
+Signal consistency contract
+---------------------------
+Prior to this helper, the three ingestion entry points (receipt,
+barcode, photo scan) emitted ZERO events — CoS and SAE had no
+real-time visibility into pantry mutations. The event emission here
+is the single canonical signal point for ownership changes, keeping
+CoS/SAE invalidation consistent regardless of how the item was
+added. Payload shape is identical across all sources (the only
+difference is the `source` field).
+
+This is OWNERSHIP emission only. Nutrition INTAKE still flows through
+`health.nutrition.logged` via `FoodEntry` — we deliberately do not
+emit intake signals here because buying food is not eating it.
 """
 
 from __future__ import annotations
@@ -142,4 +159,78 @@ def finalize_pantry_item(
         quantity,
     )
 
+    # Canonical signal emission — exactly one event per call, identical
+    # payload shape regardless of ingestion source. Uses the existing
+    # safe_emit_event() bus (apps.core.events.domain_events), which
+    # provides idempotency, loop-protection, and exception isolation.
+    # Emits transaction.on_commit so CoS/SAE invalidation only runs
+    # after the DB write is durable — prevents stale reads on rollback.
+    transaction.on_commit(
+        lambda: _emit_pantry_event(
+            pantry_item=pantry_item,
+            ingredient=ingredient,
+            household=household,
+            source=source,
+            quantity=quantity,
+            unit=unit,
+            created=created,
+        )
+    )
+
     return pantry_item, created
+
+
+def _emit_pantry_event(
+    *,
+    pantry_item: PantryItem,
+    ingredient,
+    household,
+    source: str,
+    quantity: Decimal,
+    unit: str,
+    created: bool,
+) -> None:
+    """
+    Emit the canonical pantry domain event.
+
+    Separated from finalize_pantry_item() so it can be invoked from
+    `transaction.on_commit` without capturing the entire helper's
+    closure. Keep this function fail-soft — signal emission must
+    never block or raise from the primary write path, and
+    `safe_emit_event` already guarantees that.
+    """
+    try:
+        from apps.core.events.domain_events import (
+            EventTypes,
+            safe_emit_event,
+        )
+    except Exception as e:  # pragma: no cover — extremely defensive
+        logger.warning(
+            "Pantry event bus unavailable; skipping emission: %s", e
+        )
+        return
+
+    event_type = (
+        EventTypes.MEALS_PANTRY_ITEM_CREATED
+        if created
+        else EventTypes.MEALS_PANTRY_ITEM_UPDATED
+    )
+    user = getattr(household, "primary_user", None)
+
+    safe_emit_event(
+        event_type,
+        user=user,
+        data={
+            "household_id": getattr(household, "pk", None),
+            "pantry_item_id": getattr(pantry_item, "pk", None),
+            "ingredient_id": getattr(ingredient, "pk", None),
+            "ingredient_name": getattr(ingredient, "canonical_name", None)
+            or getattr(ingredient, "name", None),
+            "quantity_delta": float(quantity) if quantity is not None else 0.0,
+            "unit": unit,
+            "storage_location": getattr(pantry_item, "storage_location", None),
+            "source": source,
+            "created": created,
+        },
+        source="apps.meals.services.pantry_ingestion",
+    )

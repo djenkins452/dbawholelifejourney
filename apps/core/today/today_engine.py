@@ -66,9 +66,15 @@ def get_today_context(user) -> dict:
     window_end = user_now + timedelta(minutes=COMING_UP_WINDOW_MINUTES)
 
     # ── Step 1: Collect + normalize from all sources ──
+    # Dependency-gated items (e.g., "Drink protein shake" blocked by incomplete
+    # Workout) are filtered INSIDE _collect_task_items() using the shared
+    # is_task_blocked() helper in apps/core/execution/dependency_gating.py.
+    # Blocked tasks are dropped before entering all_items, which guarantees
+    # they cannot appear in any bucket, the next_action calculation, or the
+    # returned context consumed by CoS / renderers.
     all_items = []
     all_items.extend(_collect_routine_items(truth, user_now))
-    all_items.extend(_collect_task_items(user, user_now))
+    all_items.extend(_collect_task_items(user, user_now, truth))
     all_items.extend(_collect_calendar_items(user, user_now))
     all_items.extend(_collect_medication_items(user, user_now))
 
@@ -211,10 +217,16 @@ def _collect_routine_items(truth: dict, user_now) -> list:
     return items
 
 
-def _collect_task_items(user, user_now) -> list:
-    """Collect non-routine tasks due today."""
+def _collect_task_items(user, user_now, truth=None) -> list:
+    """Collect non-routine tasks due today.
+
+    Dependency-blocked tasks are excluded via the shared is_task_blocked()
+    helper. `truth` is the execution-truth dict used to resolve routine and
+    domain prerequisites.
+    """
     items = []
     try:
+        from apps.core.execution.dependency_gating import is_task_blocked
         from apps.life.models import Task
 
         today = user_now.date() if hasattr(user_now, "date") else user_now
@@ -225,6 +237,9 @@ def _collect_task_items(user, user_now) -> list:
         )
 
         for task in today_tasks:
+            if is_task_blocked(task, truth):
+                continue
+
             sched = None
             time_str = None
             if task.scheduled_time:

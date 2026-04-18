@@ -319,6 +319,31 @@ class Task(UserOwnedModel):
         help_text="Estimated duration in minutes (computed from times or set manually)"
     )
 
+    # Dependency gating — hide this task until a prerequisite completes.
+    # depends_on_key uses the Today Engine's canonical key format:
+    #   "task:{pk}"           → another Task
+    #   "routine:{schedule_id}" → a RoutineSchedule completion
+    #   "domain:{name}"        → a domain rollup (workout/journal/prayer/bible_reading)
+    # Resolution happens in apps/core/execution/dependency_gating.is_task_blocked().
+    depends_on_key = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "Canonical key of prerequisite item. Format: 'task:{pk}', "
+            "'routine:{schedule_id}', or 'domain:{name}'. When set and "
+            "hide_until_ready is True, this task is hidden from today's "
+            "actionable list until the prerequisite is complete."
+        ),
+    )
+    hide_until_ready = models.BooleanField(
+        default=True,
+        help_text=(
+            "When True and depends_on_key is set, this task is excluded from "
+            "Today Engine / execution contract / CoS until the prereq completes."
+        ),
+    )
+
     # Email source tracking (for Gmail integration)
     email_source_id = models.CharField(
         max_length=255,

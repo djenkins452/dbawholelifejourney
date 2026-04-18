@@ -7,6 +7,82 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-18 — Add: Task dependency gating (hide items until prerequisite completes)
+
+**Problem:** The Today Engine and execution contract surfaced all items by
+time/priority alone, with no concept of execution order. Real-world
+sequences like "Protein Shake depends on Workout" could not be expressed —
+a user would see "Drink Protein Shake" before the Workout was complete,
+which broke trust in CoS's next-action recommendations.
+
+**Solution — minimal, architecture-safe dependency gating:**
+
+1. **Model** — added two fields to `apps.life.models.Task`:
+   - `depends_on_key` (CharField, 64) — canonical key of prerequisite item.
+     Format mirrors the Today Engine's existing key scheme:
+     `"task:{pk}"` | `"routine:{schedule_id}"` | `"domain:{name}"`
+   - `hide_until_ready` (BooleanField, default True)
+   - Migration: `apps/life/migrations/0052_task_depends_on_key_task_hide_until_ready.py`
+
+2. **Shared helper** — `apps/core/execution/dependency_gating.py`
+   Single rule: `is_task_blocked(task, truth)`. Resolves prerequisites
+   through the Execution Truth Engine:
+   - `task:` prefix → `Task.completion_status == 'completed'`
+   - `routine:` prefix → `truth['routines']['_raw_items'][*].is_completed`
+   - `domain:` prefix → `truth['domains'][name]['completed']`
+
+   Dangling / malformed / unresolvable references **fail open** (treated as
+   satisfied) to avoid permanently gating dependents whose prereq was
+   deleted.
+
+3. **Two enforcement points (and only two):**
+   - `apps/core/today/today_engine.py :: _collect_task_items()` —
+     blocked tasks are dropped before entering `all_items`, which
+     guarantees they cannot appear in any bucket (`foundation`, `overdue`,
+     `coming_up`, `later`, `completed`), the `next_action` calculation,
+     or the context consumed by downstream renderers / CoS.
+   - `apps/core/execution/today_execution.py :: _collect_task_items()` —
+     blocked tasks are dropped before `TaskQueries.overdue` / `due_today`
+     results reach `build_today_execution`. This feeds
+     `prioritize_execution_items` → `build_locked_next_action` →
+     `facts['next_action']` → CoS LOCKED FACT STATEMENTS block, so a
+     blocked task also cannot reach the CoS prompt via that path.
+
+4. **Summary-leakage audit (cos_fact_statements.py:22-295):** Every other
+   `facts['*_summary']` field (`task_summary`, `routine_summary`,
+   `workout_summary`, `journal_summary`, `medication_summary`,
+   `overall_summary`, `faith_summary`, `significant_events_summary`) uses
+   counts/booleans from the Execution Truth Engine and does NOT
+   enumerate Task names. No additional gating points required.
+
+**Tests** — `apps/core/today/tests/test_dependency_gating.py` (15 tests,
+all passing):
+- Shared helper unit tests: task/routine/domain resolution, malformed key,
+  dangling ref, `hide_until_ready=False` bypass.
+- Four spec-mandated cases on the real Today Engine:
+  1. Dependency hidden (blocked task absent from `all_items`, every bucket,
+     and `next`)
+  2. Dependency released (prereq complete → dependent appears)
+  3. Independent items unaffected
+  4. Overdue dependency still hidden — no time-based bypass
+- Execution contract gating (blocked task absent from
+  `build_today_execution['items']` → protects `facts['next_action']`).
+
+**Files:**
+- `apps/life/models.py` (Task: +2 fields)
+- `apps/life/migrations/0052_task_depends_on_key_task_hide_until_ready.py` (new)
+- `apps/core/execution/dependency_gating.py` (new, shared helper)
+- `apps/core/today/today_engine.py` (wire gating in `_collect_task_items`)
+- `apps/core/execution/today_execution.py` (fetch truth once, wire gating
+  in `_collect_task_items`)
+- `apps/core/today/tests/test_dependency_gating.py` (new)
+
+**Why:** Foundational trust fix. "Do not suggest what should not happen
+yet." Single rule, single helper, two enforcement points — no CoS /
+renderer / UI changes, no workflow engine, no execution chains.
+
+---
+
 ## 2026-04-18 — Add: Pantry ingestion signal consistency layer
 
 **Problem:** Across the three pantry ingestion paths (receipt, barcode,

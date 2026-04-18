@@ -41,6 +41,19 @@ def build_today_execution(user):
     user_now = get_user_now(user)
     user_today = get_user_today(user)
 
+    # Fetch execution truth once — used for dependency gating (routine + domain
+    # prerequisites resolve via truth) and for domain summaries further below.
+    # Kept as a single call to avoid redundant work.
+    try:
+        from apps.core.execution.execution_truth_engine import get_execution_truth
+        truth = get_execution_truth(user, user_today)
+    except Exception:
+        logger.warning(
+            "Execution contract: truth fetch failed (gating will fail open)",
+            exc_info=True,
+        )
+        truth = {}
+
     items = []
     summaries = {
         'routines': {},
@@ -51,7 +64,7 @@ def build_today_execution(user):
 
     # ── Tasks (overdue + due today, excluding legacy routine tasks) ──
     try:
-        items.extend(_collect_task_items(user, user_now, user_today))
+        items.extend(_collect_task_items(user, user_now, user_today, truth))
     except Exception:
         logger.warning("Execution contract: task collection failed", exc_info=True)
 
@@ -96,14 +109,23 @@ def build_today_execution(user):
 # ── Item Collectors ──────────────────────────────────────────────
 
 
-def _collect_task_items(user, user_now, user_today):
-    """Collect overdue + today tasks as ExecutionItems."""
+def _collect_task_items(user, user_now, user_today, truth=None):
+    """Collect overdue + today tasks as ExecutionItems.
+
+    Dependency-blocked tasks are excluded via the shared is_task_blocked()
+    helper so they never enter the execution contract — and therefore never
+    reach the action prioritizer, `facts['next_action']`, the CoS locked
+    fact statements, or dashboard item lists.
+    """
+    from apps.core.execution.dependency_gating import is_task_blocked
     from apps.life.services.task_queries import TaskQueries
 
     items = []
 
     # Overdue tasks (due_date < today)
     for t in TaskQueries.overdue(user, as_of=user_today)[:25]:
+        if is_task_blocked(t, truth):
+            continue
         ts = classify_time_status(t.due_date, t.scheduled_time, user_now,
                                   grace_minutes=getattr(t, 'grace_minutes', 0))
         items.append(_task_to_item(t, ts, 'overdue'))
@@ -112,6 +134,8 @@ def _collect_task_items(user, user_now, user_today):
     for t in TaskQueries.due_today(user, as_of=user_today)[:25]:
         if t.is_routine:
             continue  # Legacy routine tasks excluded — use canonical routines
+        if is_task_blocked(t, truth):
+            continue
         ts = classify_time_status(t.due_date, t.scheduled_time, user_now,
                                   grace_minutes=getattr(t, 'grace_minutes', 0))
         items.append(_task_to_item(t, ts, ts['status']))

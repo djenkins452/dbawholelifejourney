@@ -22,14 +22,15 @@ repos:
       # exit code 2 and prints an install hint, rather than hiding the
       # failure.
       - id: check-template-js
-        name: Validate JS syntax in Django templates
+        name: Validate JS syntax (templates + static)
         entry: python3 scripts/check_template_js.py
         language: system
-        # Only run when template files change. Pre-commit passes matched
-        # file paths as positional args, which the script accepts.
-        files: ^templates/.*\.html$
-        # We pass the matched files explicitly (pass_filenames: true is
-        # the default), so edits to one template don't rescan the world.
+        # Run when a template OR a static .js file changes. The script
+        # dispatches by extension — inline <script> blocks for .html
+        # and `node --check` directly for .js.
+        files: ^(templates/.*\.html|static/.*\.js)$
+        # Vendor/minified files are skipped by the script itself
+        # (VENDOR_SKIP_FRAGMENTS in scripts/check_template_js.py).
         pass_filenames: true
         # Quiet mode — don't spam stdout on success, only print on failure.
         args: ["--quiet"]

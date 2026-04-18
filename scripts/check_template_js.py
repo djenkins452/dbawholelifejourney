@@ -1,39 +1,46 @@
 #!/usr/bin/env python3
 """
-Django template JavaScript syntax validator.
+JavaScript syntax validator for WLJ — templates + static files.
 
-Scans Django templates for `<script>` blocks, strips Django template tags
-(`{% ... %}` and `{{ ... }}`), and runs `node --check` on each inline
-script body to catch JavaScript syntax errors before they reach
-production.
+Covers two classes of silent-JS-failure that Django itself cannot see:
+
+1. **Inline scripts in Django templates** (`templates/**/*.html`). Extracts
+   every `<script>` body, strips Django template tags (`{% %}` and `{{ }}`)
+   while preserving line numbers, then runs `node --check` on each body.
+
+2. **Standalone JS files** (`static/**/*.js`). Runs `node --check` directly.
+
+Both feed a single unified report with per-category counts and hard-fail
+on any error.
 
 Motivation
 ----------
-This exists because of a real production incident: on 2026-04-06 a bulk
-find-replace across templates (Medicine → Intake rename) silently
-mangled a single JavaScript string literal in `templates/scan/scan_page.html`
-into invalid JS. The parse error killed the entire IIFE wrapping the
-scan page's scripts, so the camera never started and every button was
-dead. The page looked loaded but was non-functional, with no
-server-side error and no visible client-side indication. Users were
-blocked on food scanning for 11 days before the bug was reported.
+2026-04-06 — commit 39c7d54e (find-replace rename across templates)
+silently corrupted a single JS string literal inside
+`templates/scan/scan_page.html`. The invalid JS killed the entire IIFE
+wrapping the scan page, so camera/barcode food logging was dead for 11
+days with no server error, no visible client error, and no test failure.
 
-Django's own checks cannot catch this — it treats `<script>` content
-as opaque text. Nothing else in the stack will parse it either. This
-script fills that gap.
+Django's `manage.py check` cannot catch this — it treats `<script>`
+content as opaque text. Standalone `.js` files in `static/` have the
+same gap: they're served verbatim by `staticfiles`, so a typo produces
+a browser-side SyntaxError that only an end-user would notice.
+
+This script closes both gaps.
 
 Scope
 -----
-- Checks: inline `<script>...</script>` syntax correctness only.
-- Does NOT check: external `<script src="...">` files, linting rules,
-  Django variable values, runtime behavior.
+- Checks: JavaScript **syntax correctness** only.
+- Does NOT check: linting rules, style, variable values, runtime
+  behavior, or third-party vendor files under configurable skip
+  patterns.
 - Does NOT execute any JavaScript — only `node --check`.
 
 Usage
 -----
-    python3 scripts/check_template_js.py                  # scan all
-    python3 scripts/check_template_js.py path/to/tpl.html # scan one
-    python3 scripts/check_template_js.py --files file1 file2 ...
+    python3 scripts/check_template_js.py                    # scan all
+    python3 scripts/check_template_js.py path/to/file.html  # scan one
+    python3 scripts/check_template_js.py a.html static/b.js # mixed
 
 Exit codes
 ----------
@@ -55,11 +62,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Optional
 
-# Match <script> open tags (capturing attributes and their position) and
-# the matching closing </script>. Non-greedy body match.
-# We intentionally use a simple regex here because we only care about
-# `<script>` tags in Django templates, not arbitrary HTML with nested
-# commented-out script tags. Real templates are well-formed enough.
+# ---------------------------------------------------------------------------
+# Regexes
+# ---------------------------------------------------------------------------
+
+# Inline <script> open tag + body + closing </script>. Non-greedy body.
+# Simple regex is adequate — real templates are well-formed enough and we
+# don't want a heavy HTML parser for a linting tool.
 SCRIPT_BLOCK_RE = re.compile(
     r"<script\b(?P<attrs>[^>]*)>(?P<body>.*?)</script\s*>",
     re.IGNORECASE | re.DOTALL,
@@ -84,6 +93,32 @@ ELSE_OR_ELIF_BLOCK_RE = re.compile(
 # Lines that are pure attribute noise we skip when reporting.
 SRC_ATTR_RE = re.compile(r"""\bsrc\s*=\s*["'][^"']+["']""", re.IGNORECASE)
 
+# `node --check` error format — first line of stderr is `/tmp/xxx.js:LINE`.
+NODE_ERROR_LOCATION_RE = re.compile(r":(\d+)\b")
+
+# ---------------------------------------------------------------------------
+# Skip rules
+# ---------------------------------------------------------------------------
+
+# Path fragments that mark third-party bundles we should NOT validate.
+# These are generally minified and/or target older/newer JS than our
+# installed Node can parse, and we don't own their source anyway.
+#
+# Check is substring-based on the POSIX-style path. Keep this list short
+# — if it grows, prefer a `.jscheckignore` file instead.
+VENDOR_SKIP_FRAGMENTS = (
+    "/vendor/",
+    "/vendors/",
+    "/node_modules/",
+    "/dist/",
+    ".min.js",
+)
+
+
+# ---------------------------------------------------------------------------
+# Data types
+# ---------------------------------------------------------------------------
+
 
 @dataclass
 class ScriptBlock:
@@ -97,12 +132,23 @@ class ScriptBlock:
     has_src: bool
 
     def cleaned_for_node(self) -> str:
-        """Strip Django tags, preserving line count for error mapping."""
         return _strip_django_tags(self.body)
 
 
+@dataclass
+class ValidationError:
+    """One syntax error, reportable in `source_path:line` form."""
+
+    source_path: Path
+    source_line: int
+    node_message: str
+    # "template" (inline <script>) or "static" (standalone .js). Used for
+    # the per-category count in the final report.
+    kind: str
+
+
 # ---------------------------------------------------------------------------
-# Extraction
+# Django tag stripping (templates only)
 # ---------------------------------------------------------------------------
 
 
@@ -125,13 +171,12 @@ def _strip_django_tags(source: str) -> str:
        see code like `let x = null null;` and flag a false positive.
        Repeated application handles nested ifs (innermost first).
 
-    2. Blank the remaining `{% ... %}` tags themselves (if/for/endif
-       openers, `{% block %}`, custom tags, etc.).
+    2. Blank the remaining `{% ... %}` tags themselves.
 
     3. Replace `{{ ... }}` with `(0)` — a valid JS expression that
-       survives being adjacent to other `(0)`s (e.g. `(0)(0)` parses
-       as a call-expression, which is syntactically valid — runtime
-       errors don't matter to us, only syntax).
+       survives being adjacent to other `(0)`s (e.g. `(0)(0)` parses as
+       a call-expression, which is syntactically valid — runtime errors
+       don't matter, only syntax).
 
     All passes preserve newlines so Node error line numbers map back
     to the template 1:1.
@@ -143,19 +188,14 @@ def _strip_django_tags(source: str) -> str:
         prev = current
         current = ELSE_OR_ELIF_BLOCK_RE.sub(_blank_preserving_newlines, current)
 
-    # Phase 2: blank remaining Django block tags (`{% ... %}`).
+    # Phase 2: blank remaining Django block tags.
     current = DJANGO_BLOCK_RE.sub(_blank_preserving_newlines, current)
 
     # Phase 3: replace `{{ ... }}` with a syntactically safe token.
-    # `(0)` is a valid JS expression that composes safely with adjacent
-    # copies of itself (`(0)(0)` is a valid call-expression), so
-    # consecutive template variables never produce a syntax error.
     def _var_to_safe_expr(match: re.Match) -> str:
         text = match.group(0)
         placeholder = "(0)"
         if "\n" in text:
-            # Multi-line variable — preserve newlines exactly and
-            # drop the placeholder on the first line if it fits.
             lines = text.split("\n")
             head = placeholder + " " * max(0, len(lines[0]) - len(placeholder))
             tail = ["\n" + " " * len(line) for line in lines[1:]]
@@ -169,9 +209,13 @@ def _strip_django_tags(source: str) -> str:
     return current
 
 
+# ---------------------------------------------------------------------------
+# Extraction — templates
+# ---------------------------------------------------------------------------
+
+
 def _line_of_offset(source: str, offset: int) -> int:
     """1-based line number of `offset` in `source`."""
-    # Count newlines up to offset.
     return source.count("\n", 0, offset) + 1
 
 
@@ -180,7 +224,6 @@ def extract_script_blocks(template_path: Path) -> List[ScriptBlock]:
     try:
         source = template_path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
-        # Binary-ish template? Skip safely.
         return []
 
     blocks: List[ScriptBlock] = []
@@ -192,15 +235,10 @@ def extract_script_blocks(template_path: Path) -> List[ScriptBlock]:
         if has_src and not body.strip():
             # External script with no inline body — nothing to validate.
             continue
-
         if not body.strip():
             # Empty inline script — valid JS, skip.
             continue
 
-        # Body starts on the line AFTER the opening <script ...> tag,
-        # unless the script is all on one line in which case it starts
-        # on the same line. We approximate by using the offset of the
-        # body match inside the source.
         body_offset = match.start("body")
         start_line = _line_of_offset(source, body_offset)
 
@@ -216,86 +254,168 @@ def extract_script_blocks(template_path: Path) -> List[ScriptBlock]:
 
 
 # ---------------------------------------------------------------------------
-# Validation
+# Validation — shared node runner
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class ValidationError:
-    template_path: Path
-    template_line: int
-    node_message: str
-
-
 def _ensure_node_available() -> Optional[str]:
-    """Return path to `node`, or None if missing."""
     return shutil.which("node")
 
 
-# node --check error format: `/tmp/xxx.js:LINE`
-NODE_ERROR_LOCATION_RE = re.compile(r":(\d+)\b")
-
-
-def validate_block(block: ScriptBlock, node_bin: str) -> Optional[ValidationError]:
-    cleaned = block.cleaned_for_node()
-
-    # Write to a temp file. Use a `.mjs` extension? No — default to `.js`
-    # because template JS is almost always classic scripts, not ES
-    # modules, and we don't want spurious "top-level await" rejections.
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".js", delete=False, encoding="utf-8"
-    ) as tmp:
-        tmp.write(cleaned)
-        tmp_path = tmp.name
-
+def _run_node_check(node_bin: str, js_path: Path):
+    """Run `node --check PATH` and return (returncode, stderr_text)."""
     try:
         result = subprocess.run(
-            [node_bin, "--check", tmp_path],
+            [node_bin, "--check", str(js_path)],
             capture_output=True,
             text=True,
             timeout=15,
         )
     except subprocess.TimeoutExpired:
-        return ValidationError(
-            template_path=block.template_path,
-            template_line=block.start_line,
-            node_message="node --check timed out (>15s)",
-        )
+        return 124, f"node --check timed out (>15s) on {js_path}"
+    return result.returncode, result.stderr or result.stdout or ""
+
+
+def _parse_node_error_line(stderr: str) -> int:
+    """Extract the relative line number from Node's stderr. Default 1."""
+    for line in stderr.splitlines():
+        m = NODE_ERROR_LOCATION_RE.search(line)
+        if m:
+            try:
+                return int(m.group(1))
+            except ValueError:
+                pass
+    return 1
+
+
+# ---------------------------------------------------------------------------
+# Validation — templates
+# ---------------------------------------------------------------------------
+
+
+def validate_block(
+    block: ScriptBlock, node_bin: str
+) -> Optional[ValidationError]:
+    """Validate a single inline <script> body. Returns error or None."""
+    cleaned = block.cleaned_for_node()
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".js", delete=False, encoding="utf-8"
+    ) as tmp:
+        tmp.write(cleaned)
+        tmp_path = Path(tmp.name)
+
+    try:
+        rc, stderr = _run_node_check(node_bin, tmp_path)
     finally:
         try:
             os.unlink(tmp_path)
         except OSError:
             pass
 
-    if result.returncode == 0:
+    if rc == 0:
         return None
 
-    # Parse Node's error. First line of stderr typically looks like:
-    #   /tmp/xxx.js:42
-    # Second line shows the offending source, third line a caret, then
-    # the error class. We scrape the relative line number and remap it
-    # to the template line.
-    stderr = result.stderr or result.stdout or ""
-    relative_line = 1
-    for line in stderr.splitlines():
-        m = NODE_ERROR_LOCATION_RE.search(line)
-        if m:
-            try:
-                relative_line = int(m.group(1))
-            except ValueError:
-                pass
-            break
-
-    # Remap: body line 1 == template_path:block.start_line
+    relative_line = _parse_node_error_line(stderr)
+    # Remap: body line 1 == template line block.start_line.
     template_line = block.start_line + relative_line - 1
-
-    # Clean stderr: strip the tmp path for readability.
-    cleaned_stderr = stderr.replace(tmp_path, "<inline-script>")
+    cleaned_stderr = stderr.replace(str(tmp_path), "<inline-script>")
     return ValidationError(
-        template_path=block.template_path,
-        template_line=template_line,
+        source_path=block.template_path,
+        source_line=template_line,
         node_message=cleaned_stderr.strip(),
+        kind="template",
     )
+
+
+def validate_template_file(
+    path: Path, node_bin: str
+) -> List[ValidationError]:
+    errors: List[ValidationError] = []
+    for block in extract_script_blocks(path):
+        err = validate_block(block, node_bin)
+        if err is not None:
+            errors.append(err)
+    return errors
+
+
+# ---------------------------------------------------------------------------
+# Validation — static .js files
+# ---------------------------------------------------------------------------
+
+
+def validate_static_js_file(
+    path: Path, node_bin: str
+) -> List[ValidationError]:
+    """Run `node --check` directly on a standalone .js file."""
+    rc, stderr = _run_node_check(node_bin, path)
+    if rc == 0:
+        return []
+    relative_line = _parse_node_error_line(stderr)
+    # Node reports absolute paths — replace with the relative path we
+    # passed in so the report is readable.
+    cleaned_stderr = stderr.replace(str(path), str(path))
+    return [
+        ValidationError(
+            source_path=path,
+            source_line=relative_line,
+            node_message=cleaned_stderr.strip(),
+            kind="static",
+        )
+    ]
+
+
+# ---------------------------------------------------------------------------
+# File discovery
+# ---------------------------------------------------------------------------
+
+
+def _is_skipped_vendor(path: Path) -> bool:
+    posix = path.as_posix()
+    return any(frag in posix for frag in VENDOR_SKIP_FRAGMENTS)
+
+
+def _iter_files_for_root(root: Path) -> Iterable[Path]:
+    """
+    Walk a directory yielding validation candidates:
+    - `.html` under any `templates/` subtree
+    - `.js` under any `static/` subtree
+    Vendor/minified paths are skipped.
+    """
+    # Templates
+    for path in root.rglob("*.html"):
+        # skip backup files like `home.html.bak3`
+        if ".bak" in path.name:
+            continue
+        yield path
+    # Static JS
+    for path in root.rglob("*.js"):
+        if _is_skipped_vendor(path):
+            continue
+        yield path
+
+
+def iter_candidate_files(roots: Iterable[Path]) -> Iterable[Path]:
+    """
+    Expand CLI inputs into individual files to validate.
+
+    - A file path is yielded as-is (after vendor skip for .js).
+    - A directory is walked for .html and .js files.
+    """
+    for root in roots:
+        if root.is_file():
+            if root.suffix == ".html":
+                if ".bak" in root.name:
+                    continue
+                yield root
+            elif root.suffix == ".js":
+                if not _is_skipped_vendor(root):
+                    yield root
+            continue
+        if not root.is_dir():
+            continue
+        for path in _iter_files_for_root(root):
+            yield path
 
 
 # ---------------------------------------------------------------------------
@@ -303,20 +423,9 @@ def validate_block(block: ScriptBlock, node_bin: str) -> Optional[ValidationErro
 # ---------------------------------------------------------------------------
 
 
-def iter_template_files(roots: Iterable[Path]) -> Iterable[Path]:
-    for root in roots:
-        if root.is_file():
-            if root.suffix == ".html":
-                yield root
-            continue
-        if not root.is_dir():
-            continue
-        for path in root.rglob("*.html"):
-            # Skip backup files like `home.html.bak3`
-            name = path.name
-            if name.endswith(".bak") or ".bak" in name:
-                continue
-            yield path
+def _classify(path: Path) -> str:
+    """Return 'template' or 'static' based on file extension."""
+    return "template" if path.suffix == ".html" else "static"
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -324,7 +433,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument(
         "paths",
         nargs="*",
-        help="Files or directories to scan. Defaults to ./templates/",
+        help="Files or directories. Defaults to ./templates/ and ./static/",
     )
     parser.add_argument(
         "--quiet",
@@ -345,49 +454,64 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.paths:
         roots = [Path(p) for p in args.paths]
     else:
-        roots = [Path("templates")]
+        roots = [Path("templates"), Path("static")]
+        roots = [r for r in roots if r.exists()]
+        if not roots:
+            if not args.quiet:
+                sys.stdout.write("No default roots found (templates/, static/).\n")
+            return 0
 
-    templates = list(iter_template_files(roots))
-    if not templates:
-        if not args.quiet:
-            sys.stdout.write("No templates found to scan.\n")
-        return 0
+    # Expand and classify.
+    candidates = list(iter_candidate_files(roots))
+    templates = [p for p in candidates if _classify(p) == "template"]
+    static_js = [p for p in candidates if _classify(p) == "static"]
 
-    errors: List[ValidationError] = []
-    scanned = 0
-    blocks_total = 0
-    for template in templates:
-        blocks = extract_script_blocks(template)
-        scanned += 1
-        blocks_total += len(blocks)
+    # Validate.
+    template_errors: List[ValidationError] = []
+    static_errors: List[ValidationError] = []
+
+    template_script_count = 0
+    for path in templates:
+        blocks = extract_script_blocks(path)
+        template_script_count += len(blocks)
         for block in blocks:
             err = validate_block(block, node_bin)
             if err is not None:
-                errors.append(err)
+                template_errors.append(err)
 
-    if errors:
+    for path in static_js:
+        static_errors.extend(validate_static_js_file(path, node_bin))
+
+    all_errors = template_errors + static_errors
+
+    if all_errors:
         sys.stderr.write(
             "\n"
             + "=" * 72
             + "\n"
-            + f"  Template JS validation FAILED — {len(errors)} error(s)\n"
+            + "  JS validation FAILED\n"
             + "=" * 72
             + "\n"
         )
-        for err in errors:
-            rel = err.template_path
+        for err in all_errors:
             try:
-                rel = err.template_path.relative_to(Path.cwd())
+                rel = err.source_path.relative_to(Path.cwd())
             except ValueError:
-                pass
-            sys.stderr.write(f"\n{rel}:{err.template_line}\n")
+                rel = err.source_path
+            label = "[template]" if err.kind == "template" else "[static]  "
+            sys.stderr.write(f"\n{label} {rel}:{err.source_line}\n")
             for line in err.node_message.splitlines():
                 sys.stderr.write(f"  {line}\n")
         sys.stderr.write(
             "\n"
             + "=" * 72
             + "\n"
-            + f"  Scanned {scanned} templates, {blocks_total} inline scripts\n"
+            + f"  Template JS errors : {len(template_errors)}\n"
+            + f"  Static JS errors   : {len(static_errors)}\n"
+            + f"  Total errors       : {len(all_errors)}\n"
+            + f"  Scanned            : {len(templates)} templates "
+            + f"({template_script_count} inline scripts), "
+            + f"{len(static_js)} static .js files\n"
             + "=" * 72
             + "\n"
         )
@@ -395,7 +519,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if not args.quiet:
         sys.stdout.write(
-            f"OK — {scanned} templates, {blocks_total} inline scripts, 0 errors.\n"
+            f"OK — {len(templates)} templates ({template_script_count} inline scripts), "
+            f"{len(static_js)} static .js files, 0 errors.\n"
         )
     return 0
 

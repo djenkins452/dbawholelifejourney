@@ -7,6 +7,58 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-17 — Extend: JS syntax guardrail to static `.js` files
+
+**Problem:** The template guardrail shipped earlier today catches inline
+`<script>` bodies but leaves `static/**/*.js` files — the 21 standalone JS
+modules served by staticfiles — unchecked. A syntax error in any of those
+would silently break whichever pages import them, with the same zero-signal
+failure mode that hid the scan page outage for 11 days.
+
+**Fix:** Extended `scripts/check_template_js.py` (unified, same tool) to also
+run `node --check` on standalone `.js` files. Single invocation, single
+report, per-category counts, single exit code.
+
+**Implementation:**
+- Added `validate_static_js_file()` — direct `node --check` on the source
+  file (no extraction/stripping needed).
+- `iter_candidate_files()` now handles mixed `.html` + `.js` inputs.
+- Default roots: `templates/` AND `static/`.
+- New `VENDOR_SKIP_FRAGMENTS` tuple — substring match on the POSIX path skips
+  `/vendor/`, `/vendors/`, `/node_modules/`, `/dist/`, `*.min.js`. None of
+  those paths currently exist in the repo, so the change is a no-op today but
+  future-proofs the guardrail against introducing vendor bundles.
+- Report renamed and expanded to show template vs static vs total counts.
+
+**Files changed:**
+- `scripts/check_template_js.py` (extended, ~440 SLOC)
+- `.pre-commit-config.yaml` (file filter updated to
+  `^(templates/.*\.html|static/.*\.js)$`)
+- `.github/workflows/test.yml` (step name + comment updated; same
+  `python scripts/check_template_js.py` command — default roots pick up
+  both trees automatically)
+
+**Performance (measured on current repo — 535 templates, 21 JS files):**
+- Full scan: ~7.2s (CI path — once per build)
+- Single staged `.js` file: ~70ms
+- 5 mixed staged files (pre-commit realistic): ~210ms
+
+**Verification:**
+- Full scan: 0 errors (535 templates, 173 inline scripts, 21 static files).
+- Negative `.js`: `const x = ;` → exit 1, reports file:line.
+- Negative `.html`: unchanged regression behavior — flags
+  `scan_page.html:932` on commit 39c7d54e.
+- Mixed inputs: reports template and static errors in one unified block with
+  `[template]` / `[static]` labels and per-category counts.
+- Exit codes verified: 1 on failure, 0 on pass, 2 on missing `node`.
+
+**Out of scope (deliberate, unchanged from prior pass):**
+- No JS linting — syntax only.
+- No vendor file scanning (path-based skip).
+- No npm deps, no bundler, no runtime behavior changes.
+
+---
+
 ## 2026-04-17 — Add: Template JS syntax guardrail (CI + pre-commit)
 
 **Problem this solves:** Django templates are rendered server-side; everything

@@ -85,11 +85,13 @@ jobs:
         continue-on-error: true
 
       # Hard-fails the build when any inline <script> in a Django
-      # template has a JavaScript syntax error. Added after
-      # commit 39c7d54e silently broke the scan page for 11 days by
-      # corrupting a single JS string literal during a find-replace.
-      # Django cannot catch this — it treats <script> as opaque text.
-      - name: Check template JS syntax
+      # template OR any standalone `static/**/*.js` file has a
+      # JavaScript syntax error. Added after commit 39c7d54e silently
+      # broke the scan page for 11 days by corrupting a single JS
+      # string literal during a find-replace. Django cannot catch this —
+      # it treats <script> as opaque text. Static JS files have the same
+      # silent-failure risk when served by staticfiles.
+      - name: Check JS syntax (templates + static)
         run: python scripts/check_template_js.py
 
   security:

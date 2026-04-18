@@ -180,11 +180,18 @@ class ReceiptRoutingService:
 
         Does not attempt nutritional breakdown — just logs the restaurant
         visit with the store name, date, and total.
+
+        Emits `health.nutrition.logged` so the restaurant intake is
+        visible to the canonical event bus the same way a web-form log
+        or an AI-chat log is. Without this, CoS/SAE/PIE subscribers on
+        `health.*` would silently miss receipt-sourced intake — a
+        pre-existing gap flagged during the 2026-04-18 pantry signal
+        consistency pass.
         """
         try:
             from apps.health.models import FoodEntry
 
-            FoodEntry.objects.create(
+            entry = FoodEntry.objects.create(
                 user=user,
                 food_name=f"Meal at {receipt.store}" if receipt.store else "Restaurant meal",
                 logged_date=receipt.receipt_date or timezone.now().date(),
@@ -197,7 +204,23 @@ class ReceiptRoutingService:
                 notes=f"From receipt: {receipt.store or 'Unknown'}"
                 + (f" - ${receipt.total}" if receipt.total else ""),
             )
-            logger.info("Restaurant routing for receipt %d: FoodEntry created", receipt.pk)
+            logger.info(
+                "Restaurant routing for receipt %d: FoodEntry %d created",
+                receipt.pk, entry.pk,
+            )
+
+            # Emit the canonical nutrition event. Deferred to on_commit
+            # so any future transaction wrapping this routing call stays
+            # rollback-safe. In the current autocommit path this fires
+            # immediately after the row is durable.
+            from django.db import transaction as db_transaction
+
+            db_transaction.on_commit(
+                lambda: _emit_restaurant_nutrition_event(
+                    entry=entry, receipt=receipt, user=user,
+                )
+            )
+
             return True
         except Exception as e:
             logger.error(
@@ -308,3 +331,43 @@ class ReceiptRoutingService:
             parts.append("Receipt confirmed and saved")
 
         return ". ".join(parts) + "."
+
+
+# ---------------------------------------------------------------------------
+# Domain event emitter
+# ---------------------------------------------------------------------------
+
+
+def _emit_restaurant_nutrition_event(*, entry, receipt, user) -> None:
+    """
+    Emit `health.nutrition.logged` for a receipt-routed restaurant meal.
+
+    This matches the canonical emission done by FoodEntryCreateView and
+    QuickAddFoodView in apps/health/views.py — same event type, same
+    `entry_id` + `source` keys — with `source="receipt"` and an extra
+    `receipt_id` for traceability that other paths don't have.
+
+    Uses `safe_emit_event` so emission never raises and never blocks
+    the routing caller even if the event bus is unreachable.
+    """
+    try:
+        from apps.core.events.domain_events import (
+            EventTypes,
+            safe_emit_event,
+        )
+    except Exception as e:  # pragma: no cover — extremely defensive
+        logger.warning(
+            "Nutrition event bus unavailable; skipping emission: %s", e
+        )
+        return
+
+    safe_emit_event(
+        EventTypes.HEALTH_NUTRITION_LOGGED,
+        user=user,
+        data={
+            "entry_id": getattr(entry, "pk", None),
+            "receipt_id": getattr(receipt, "pk", None),
+            "source": "receipt",
+        },
+        source="apps.meals.services.receipt_routing",
+    )

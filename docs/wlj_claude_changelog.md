@@ -7,6 +7,104 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-18 — Fix: Receipt-routed restaurant FoodEntry signal gap
+
+**Problem:** `ReceiptRoutingService._route_restaurant` created a
+`FoodEntry` for restaurant receipts at
+[apps/meals/services/receipt_routing.py:187](apps/meals/services/receipt_routing.py:187)
+but never emitted the canonical `health.nutrition.logged` domain event.
+Web-form and AI-chat nutrition logging both emit that event (
+[health/views.py:4839](apps/health/views.py:4839),
+[health/views.py:4853](apps/health/views.py:4853),
+[health/views.py:4961](apps/health/views.py:4961),
+[ai/action_handlers.py:1077](apps/ai/action_handlers.py:1077)), so CoS /
+SAE / PIE subscribers on `health.*` silently missed every receipt-sourced
+restaurant meal. Intake was visible in the DB but invisible to the
+real-time intelligence layer.
+
+**Prompt challenges (before implementation):**
+
+1. **Rejected "build a `log_food_entry()` helper and refactor all
+   callers".** That's scope creep past the "truth-preservation, not
+   redesign" rule — touches 4 view handlers, 1 AI handler, a CBV, and
+   copy/template views that intentionally don't emit. Bugs in a shared
+   helper would cascade. Minimal fix: emit from the one place that's
+   missing it.
+
+2. **Rejected "use a post_save signal on FoodEntry".** Would wrongly
+   fire for copy/meal-template/day-copy paths, producing false double-
+   counted intake in CoS. Those are intentional user-duplication
+   actions, not new intake.
+
+3. **Kept the existing `update_user_state(user, "health")` call.** The
+   event bus `health.*` subscriber invalidates CoS/SAE caches; the
+   direct `update_user_state` rebuilds today's SAE summary immediately.
+   These are complementary, not redundant — removing the direct call
+   would delay SAE materialization to the next cycle.
+
+4. **Payload shape:** Matched the majority (web-view) shape —
+   `{"entry_id", "source"}` — with `source="receipt"` and an extra
+   `receipt_id` field for traceability. The audit confirmed existing
+   subscribers only read `event.user`, so payload keys are advisory.
+
+**Fix:**
+
+- [apps/meals/services/receipt_routing.py](apps/meals/services/receipt_routing.py) —
+  `_route_restaurant` now binds the created `FoodEntry` to a local
+  variable and schedules emission via `transaction.on_commit`. The
+  module-level `_emit_restaurant_nutrition_event(entry, receipt, user)`
+  helper calls `safe_emit_event(EventTypes.HEALTH_NUTRITION_LOGGED, ...)`.
+- Emission is rollback-safe (`on_commit`), fail-soft (`safe_emit_event`
+  never raises), and fires **exactly once per successful
+  `_route_restaurant` call**.
+
+**Tests (5 new, all pass) —
+[apps/meals/tests/test_receipt_nutrition_signal.py](apps/meals/tests/test_receipt_nutrition_signal.py):**
+
+- `test_restaurant_routing_emits_nutrition_logged` — positive parity with
+  web-view emission (same event type, attributed to correct user, correct
+  payload keys).
+- `test_grocery_routing_does_not_emit_nutrition_logged` — narrow
+  guarantee that grocery routing never fires a false intake signal.
+- `test_no_event_when_food_entry_create_fails` — fail-closed: simulated
+  `FoodEntry.objects.create` failure emits nothing.
+- `test_no_event_on_transaction_rollback` — `on_commit` correctly
+  suppresses the event when the outer transaction rolls back.
+- `test_single_event_per_routing_call` — no double-fire within one call;
+  two separate calls produce two distinct events (as expected).
+
+**Files changed:**
+- `apps/meals/services/receipt_routing.py`
+- `apps/meals/tests/test_receipt_nutrition_signal.py` (new, 5 tests)
+
+**Verification:**
+- 5 new tests pass.
+- Full regression: 347/347 tests pass in `apps.meals` + `apps.core.events`.
+- `python3 manage.py makemigrations --check --dry-run` — no changes.
+- Django system check — clean.
+- JS guardrail — clean.
+
+**Architectural fit:**
+- ✅ Raw → Signals → CoS → LLM preserved. Event originates from the
+  canonical write path, not UI/LLM.
+- ✅ No new parallel pipeline. Reuses existing event bus + existing
+  `health.*` subscribers.
+- ✅ No duplicate signals. Only `_route_restaurant` emits; grocery
+  routing stays silent (correct — pantry ownership, not intake).
+- ✅ No payload drift with other `health.nutrition.logged` emitters
+  (web: 2 keys, AI: 4 keys, receipt: 3 keys — `entry_id` + `source` are
+  the common minimum and match).
+
+**Known remaining gaps (not in scope):**
+- Copy/template FoodEntry views ([health/views.py:5303, 5399, 5508, 5754](apps/health/views.py:5303))
+  do not emit. Intentional — duplicating a meal shouldn't double-count
+  intake. No change.
+- Payload shapes still differ across the three emitters (2 / 4 / 3 keys).
+  Subscribers don't depend on this today. A separate schema-parity pass
+  can standardize later if needed.
+
+---
+
 ## 2026-04-18 — Add: Pantry ingestion signal consistency layer
 
 **Problem:** Across the three pantry ingestion paths (receipt, barcode,

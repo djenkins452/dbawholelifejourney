@@ -7,6 +7,70 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-17 — Add: Template JS syntax guardrail (CI + pre-commit)
+
+**Problem this solves:** Django templates are rendered server-side; everything
+inside `<script>` tags is opaque text to Django's own checks. A find-replace
+can silently mangle a JS string literal inside a template, producing invalid
+JavaScript that only manifests as "nothing happens when I click" — no server
+error, no build error, no test failure. This exact failure mode blocked food
+scanning for 11 days (commit 39c7d54e, 2026-04-06).
+
+**Fix:** A minimal, local-only validator that:
+
+1. Walks `templates/**/*.html`.
+2. Extracts every inline `<script>` body.
+3. Strips Django template tags (`{% ... %}` and `{{ ... }}`) while preserving
+   line numbers so Node error output maps back to the template.
+4. Runs `node --check` on each cleaned body.
+5. Exits non-zero and prints `template_path:line` + Node's error if any script
+   is invalid.
+
+**Template tag handling (false-positive prevention):**
+- `{% else %}...{% endif %}` and `{% elif ... %}...{% endif %}` branches are
+  dropped — keeping only the first branch. Without this, patterns like
+  `let x = {% if %}{{ a }}{% else %}fallback{% endif %};` would emit both
+  branches concatenated and flag invalid JS.
+- `{{ var }}` is replaced with `(0)` — a valid JS expression that composes
+  safely when adjacent (e.g. `(0)(0)` is a syntactically valid call
+  expression).
+- All replacements preserve newlines so line numbers stay aligned.
+
+**Files added/changed:**
+- `scripts/check_template_js.py` (new, ~230 lines)
+- `.pre-commit-config.yaml` (new — minimal, local hook only, no external deps)
+- `.github/workflows/test.yml` (add Node setup + hard-fail step in `lint` job)
+
+**Verification:**
+- Full scan: 536 templates, 173 inline scripts, 0 errors on current `main`.
+- Regression test: ran against `39c7d54e:templates/scan/scan_page.html` —
+  correctly flags `scan_page.html:932` with Node's exact error message. Would
+  have blocked the original commit.
+- False-positive test: conditional assignments (workout_form.html line 1476)
+  now pass cleanly.
+- Negative test: synthetic template with `const x = ;` triggers exit code 1
+  with file:line reporting.
+
+**Developer workflow:**
+```bash
+# Full scan
+python3 scripts/check_template_js.py
+
+# Single file
+python3 scripts/check_template_js.py templates/meals/pantry.html
+
+# Enable pre-commit
+pip install pre-commit && pre-commit install
+```
+
+**Out of scope (deliberate):**
+- No JS linting rules — only syntax validity.
+- No external `<script src="...">` file content checks.
+- No Django variable value evaluation — template-time values are untyped.
+- No new bundler, no Webpack/Vite, no frontend framework.
+
+---
+
 ## 2026-04-17 — Fix: Scan page camera completely broken (syntax error)
 
 **User report:** "While trying to log food by picture or barcode, the camera

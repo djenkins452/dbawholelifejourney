@@ -62,6 +62,11 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
 
+      - name: Set up Node.js (for template JS syntax check)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Install linting tools
         run: |
           python -m pip install --upgrade pip
@@ -78,6 +83,14 @@ jobs:
       - name: Run Flake8 linting
         run: flake8 apps/ config/ --max-line-length=120 --ignore=E501,W503
         continue-on-error: true
+
+      # Hard-fails the build when any inline <script> in a Django
+      # template has a JavaScript syntax error. Added after
+      # commit 39c7d54e silently broke the scan page for 11 days by
+      # corrupting a single JS string literal during a find-replace.
+      # Django cannot catch this — it treats <script> as opaque text.
+      - name: Check template JS syntax
+        run: python scripts/check_template_js.py
 
   security:
     name: Security Checks

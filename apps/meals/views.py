@@ -573,49 +573,31 @@ class PantryBarcodeLookupView(LoginRequiredMixin, MealsHouseholdMixin, View):
         else:
             storage_location = determine_storage_location(product_name, category)
 
-        # Create or update PantryItem
-        pantry_item, created = PantryItem.objects.get_or_create(
+        # Finalize through the canonical pantry ingestion helper so all
+        # entry points (receipt, barcode, photo scan) share the same write.
+        from apps.meals.services.pantry_ingestion import finalize_pantry_item
+
+        pantry_item, created = finalize_pantry_item(
             household=household,
             ingredient=ingredient,
-            defaults={
-                "quantity": Decimal("1"),
-                "unit": "piece",
-                "confidence_score": Decimal("0.95"),
-                "last_confirmed_at": timezone.now(),
-                "storage_location": storage_location,
-            },
-        )
-
-        if not created:
-            pantry_item.quantity += Decimal("1")
-            pantry_item.confidence_score = Decimal("0.95")
-            pantry_item.last_confirmed_at = timezone.now()
-            if storage_location and storage_location != "unknown":
-                pantry_item.storage_location = storage_location
-            pantry_item.save(
-                update_fields=[
-                    "quantity",
-                    "confidence_score",
-                    "last_confirmed_at",
-                    "storage_location",
-                    "updated_at",
-                ]
-            )
-        else:
-            # Set estimated expiration for new items
-            if ingredient.shelf_life_days:
-                pantry_item.expiration_date_estimated = timezone.now().date() + timedelta(
-                    days=ingredient.shelf_life_days
-                )
-                pantry_item.save(update_fields=["expiration_date_estimated"])
-
-        # Log inventory transaction
-        InventoryTransaction.objects.create(
-            pantry_item=pantry_item,
-            delta_quantity=Decimal("1"),
+            quantity=Decimal("1"),
+            unit="piece",
+            confidence_score=Decimal("0.95"),
+            storage_location=storage_location,
             source="barcode",
             notes=f"Barcode scan: {barcode}" + (f" ({brand})" if brand else ""),
         )
+
+        # If the user explicitly picked a storage location in the barcode
+        # modal, honor it even on existing items. finalize_pantry_item only
+        # upgrades storage from "unknown" by default.
+        if (
+            user_storage
+            and not created
+            and pantry_item.storage_location != user_storage
+        ):
+            pantry_item.storage_location = user_storage
+            pantry_item.save(update_fields=["storage_location", "updated_at"])
 
         logger.info(
             "Barcode pantry item %s for household %d: %s (barcode=%s)",
@@ -890,6 +872,15 @@ class ReceiptUploadView(
                     "processing_error",
                     "updated_at",
                 ]
+            )
+            # Surface the failure to the user — without this they get
+            # redirected to a FAILED receipt page with no explanation.
+            # Truncate to avoid leaking stack-trace-like strings to UI.
+            detail = str(e).splitlines()[0][:160] if str(e) else "Unknown error"
+            messages.error(
+                request,
+                f"We couldn't read this receipt ({detail}). "
+                "Try a clearer photo, or enter it manually.",
             )
 
         return redirect("meals:receipt_confirm", pk=receipt.pk)
@@ -1710,6 +1701,7 @@ class PantryScanStartView(LoginRequiredMixin, MealsHouseholdMixin, View):
         # which has been unreliable for Vision API reads.
         from apps.meals.services.pantry_photo_detection import pantry_photo_detection_service
 
+        inline_failures = 0
         for f in files:
             raw_bytes = f.read()
             content_type = f.content_type or "image/jpeg"
@@ -1732,6 +1724,7 @@ class PantryScanStartView(LoginRequiredMixin, MealsHouseholdMixin, View):
                     upload, raw_bytes, content_type
                 )
             except Exception as e:
+                inline_failures += 1
                 logger.error(
                     "Failed to process photo for session %d: %s",
                     session.pk, e, exc_info=True,
@@ -1739,12 +1732,44 @@ class PantryScanStartView(LoginRequiredMixin, MealsHouseholdMixin, View):
 
         # If any uploads still unprocessed, dispatch Celery as backup
         unprocessed_count = session.uploads.filter(processed=False).count()
+        dispatch_failed = False
         if unprocessed_count > 0:
             from apps.meals.tasks import process_pantry_scan_task
             try:
                 process_pantry_scan_task.delay(session.pk)
-            except Exception:
-                pass  # Confirm page fallback will handle it
+            except Exception as e:
+                # Fail-loud: inline path already had errors, and the Celery
+                # fallback cannot be dispatched. Log with exc_info so ops can
+                # see the broker failure in production.
+                dispatch_failed = True
+                logger.error(
+                    "Pantry scan Celery dispatch failed for session %d: %s",
+                    session.pk, e, exc_info=True,
+                )
+
+        # Surface failure state to the user via flash messages so the
+        # confirm page shows actionable text instead of an empty detection list.
+        if inline_failures and dispatch_failed:
+            messages.error(
+                request,
+                "We couldn't analyze your pantry photos. "
+                "Please try again in a moment — if the problem persists, "
+                "contact support.",
+            )
+        elif inline_failures and unprocessed_count == 0:
+            # Inline failed but something got processed (partial success).
+            messages.warning(
+                request,
+                "Some photos could not be processed. "
+                "Check the detections below and rescan if needed.",
+            )
+        elif unprocessed_count > 0 and not dispatch_failed:
+            # Inline timed out / failed, but backup is queued
+            messages.info(
+                request,
+                "Analysis is still running in the background. "
+                "Refresh this page in a few seconds to see detections.",
+            )
 
         # Redirect to confirmation page
         from django.urls import reverse

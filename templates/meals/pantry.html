@@ -259,6 +259,23 @@
                 </div>
             </div>
 
+            <!-- Error State — scanner init failure / network error / no camera -->
+            <div id="barcode-error-state" style="display:none;">
+                <div class="barcode-not-found">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="1.5" width="48" height="48">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="8" x2="12" y2="12"/>
+                        <line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    <p id="barcode-error-title">Scanner unavailable</p>
+                    <p class="barcode-notfound-code" id="barcode-error-detail"></p>
+                </div>
+                <div class="barcode-result-actions">
+                    <button type="button" class="btn btn-primary" id="barcode-error-retry-btn">Retry</button>
+                    <button type="button" class="btn btn-ghost" id="barcode-error-close-btn">Close</button>
+                </div>
+            </div>
+
             <!-- Success State -->
             <div id="barcode-success-state" style="display:none;">
                 <div class="barcode-success">
@@ -455,7 +472,8 @@
 </style>
 
 <!-- ZXing barcode scanner library -->
-<script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js"
+        onerror="window.__zxingLoadFailed = true;"></script>
 
 <script nonce="{{ csp_nonce }}">
 (function() {
@@ -550,6 +568,7 @@
     var resultState = document.getElementById('barcode-result-state');
     var notFoundState = document.getElementById('barcode-notfound-state');
     var successState = document.getElementById('barcode-success-state');
+    var errorState = document.getElementById('barcode-error-state');
     var mediaStream = null;
     var zxingReader = null;
     var scanInterval = null;
@@ -558,10 +577,19 @@
     var readCounts = {};
 
     function showState(state) {
-        [scannerState, loadingState, resultState, notFoundState, successState].forEach(function(s) {
+        [scannerState, loadingState, resultState, notFoundState, successState, errorState].forEach(function(s) {
             if (s) s.style.display = 'none';
         });
         if (state) state.style.display = 'block';
+    }
+
+    function showError(title, detail) {
+        stopCamera();
+        var titleEl = document.getElementById('barcode-error-title');
+        var detailEl = document.getElementById('barcode-error-detail');
+        if (titleEl) titleEl.textContent = title;
+        if (detailEl) detailEl.textContent = detail || '';
+        showState(errorState);
     }
 
     function stopCamera() {
@@ -580,10 +608,36 @@
         currentProduct = null;
     }
 
+    function zxingAvailable() {
+        return typeof ZXingBrowser !== 'undefined'
+            && ZXingBrowser
+            && typeof ZXingBrowser.BrowserMultiFormatReader === 'function';
+    }
+
     function startScanner() {
         showState(scannerState);
         readCounts = {};
         currentProduct = null;
+
+        // Preflight: library load failed (CDN blocked / offline)
+        if (window.__zxingLoadFailed || !zxingAvailable()) {
+            console.error('[barcode] ZXing library unavailable');
+            showError(
+                'Scanner library failed to load',
+                'Check your internet connection and refresh the page. If this persists, try a different browser.'
+            );
+            return;
+        }
+
+        // Preflight: camera API available
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.error('[barcode] getUserMedia unavailable');
+            showError(
+                'Camera not supported',
+                'This browser does not support camera access. Try Chrome or Safari.'
+            );
+            return;
+        }
 
         navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
@@ -591,14 +645,18 @@
             mediaStream = stream;
             video.srcObject = stream;
 
-            // Initialize ZXing reader
-            if (!zxingReader && typeof ZXingBrowser !== 'undefined' && ZXingBrowser.BrowserMultiFormatReader) {
-                zxingReader = new ZXingBrowser.BrowserMultiFormatReader();
-            }
-
+            // Initialize ZXing reader defensively
             if (!zxingReader) {
-                console.error('ZXing not available');
-                return;
+                try {
+                    zxingReader = new ZXingBrowser.BrowserMultiFormatReader();
+                } catch (initErr) {
+                    console.error('[barcode] ZXing init failed:', initErr);
+                    showError(
+                        'Scanner failed to initialize',
+                        'The barcode library loaded but could not start. Refresh the page and try again.'
+                    );
+                    return;
+                }
             }
 
             // Poll video frames for barcodes
@@ -627,14 +685,36 @@
                         handleBarcode(code);
                     }
                 }).catch(function() {
+                    // Normal miss: no barcode in frame, keep scanning
                     isProcessing = false;
                 });
             }, 250);
 
         }).catch(function(err) {
-            console.error('Camera access denied:', err);
-            alert('Camera access is required for barcode scanning.');
-            closeModal();
+            console.error('[barcode] getUserMedia failed:', err && err.name, err);
+            // Classify camera errors so the user gets actionable text
+            var name = (err && err.name) || '';
+            if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || name === 'SecurityError') {
+                showError(
+                    'Camera permission denied',
+                    'Allow camera access in your browser settings, then tap Retry.'
+                );
+            } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError' || name === 'OverconstrainedError') {
+                showError(
+                    'No camera found',
+                    'This device does not have a usable camera for scanning.'
+                );
+            } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+                showError(
+                    'Camera is busy',
+                    'Another app or tab is using the camera. Close it and try again.'
+                );
+            } else {
+                showError(
+                    'Could not start camera',
+                    (err && err.message) ? err.message : 'An unexpected error occurred.'
+                );
+            }
         });
     }
 
@@ -647,7 +727,16 @@
             method: 'POST',
             headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
             body: JSON.stringify({ barcode: code })
-        }).then(function(resp) { return resp.json(); })
+        }).then(function(resp) {
+            if (!resp.ok) {
+                // Server-side error — surface as error, not "not found"
+                var statusErr = new Error('Lookup failed with status ' + resp.status);
+                statusErr.isServerError = true;
+                statusErr.status = resp.status;
+                throw statusErr;
+            }
+            return resp.json();
+        })
         .then(function(data) {
             if (data.found) {
                 // Show product result
@@ -666,13 +755,30 @@
                 document.getElementById('barcode-storage').value = '';
                 showState(resultState);
             } else {
+                // Genuine "no match" from the server
                 document.getElementById('barcode-notfound-code').textContent = 'Barcode: ' + code;
                 showState(notFoundState);
             }
         }).catch(function(err) {
-            console.error('Barcode lookup failed:', err);
-            document.getElementById('barcode-notfound-code').textContent = 'Barcode: ' + code;
-            showState(notFoundState);
+            console.error('[barcode] Lookup failed:', err);
+            // Distinguish network/transport failures from server-returned "not found"
+            if (err && err.isServerError) {
+                showError(
+                    'Lookup failed',
+                    'Server returned error ' + err.status + '. Try again in a moment.'
+                );
+            } else if (err instanceof TypeError) {
+                // fetch() rejects with TypeError on network failure
+                showError(
+                    'Network error',
+                    'Could not reach the barcode service. Check your connection and try again.'
+                );
+            } else {
+                showError(
+                    'Lookup failed',
+                    (err && err.message) ? err.message : 'An unexpected error occurred.'
+                );
+            }
         });
     }
 
@@ -736,6 +842,19 @@
     });
 
     document.getElementById('barcode-cancel-btn').addEventListener('click', closeModal);
+
+    // Error-state buttons
+    var errorRetryBtn = document.getElementById('barcode-error-retry-btn');
+    if (errorRetryBtn) {
+        errorRetryBtn.addEventListener('click', function() {
+            readCounts = {};
+            startScanner();
+        });
+    }
+    var errorCloseBtn = document.getElementById('barcode-error-close-btn');
+    if (errorCloseBtn) {
+        errorCloseBtn.addEventListener('click', closeModal);
+    }
 
     // Close modal on overlay click
     modal.addEventListener('click', function(e) {

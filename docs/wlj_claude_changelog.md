@@ -7,6 +7,102 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-17 — Fix: Nutrition ingestion silent failures + canonical pantry finalize
+
+**Root causes (4 proven):**
+
+1. **Barcode scanner ZXing silent failure** — [templates/meals/pantry.html:599](templates/meals/pantry.html:599)
+   `if (!zxingReader) { console.error(...); return; }` returned silently with the
+   camera stream already attached. Users saw a live video feed but no scanning
+   ever ran. If the ZXing CDN was blocked/offline the feature was completely
+   broken with no visible indication.
+
+2. **Receipt Vision failure not surfaced** — [apps/meals/views.py:876-894](apps/meals/views.py:876)
+   Vision API exceptions were logged but never shown to the user. The receipt was
+   marked `CONFIRM_FAILED` and the user was redirected to a failed page with no
+   explanation beyond a raw `processing_error` string.
+
+3. **Pantry scan Celery dispatch silent swallow** — [apps/meals/views.py:1746](apps/meals/views.py:1746)
+   `try: process_pantry_scan_task.delay(session.pk) except Exception: pass`
+   directly violated the "Never Swallow Errors" rule in CLAUDE.md. Broker failures
+   disappeared without a log line, and the user got 0 detections with no message.
+
+4. **Barcode lookup network errors masked as "Not found"** — [templates/meals/pantry.html:672-676](templates/meals/pantry.html:672)
+   Fetch `.catch()` routed network failures to the same "Product not found" UI as
+   a legitimate lookup miss, so users thought the product didn't exist when the
+   real problem was connectivity.
+
+**Fixes:**
+
+- **Barcode scanner** ([templates/meals/pantry.html](templates/meals/pantry.html)):
+  - Added `onerror` handler on the ZXing `<script>` tag so CDN load failure is
+    detected (`window.__zxingLoadFailed`).
+  - Added a new `barcode-error-state` modal panel with a title, detail, retry,
+    and close buttons (event delegation, CSP compliant).
+  - `startScanner()` now preflights `zxingAvailable()` and `getUserMedia`
+    availability before touching the camera.
+  - ZXing constructor call is wrapped in `try/catch` — init failures now surface
+    a distinct "Scanner failed to initialize" message.
+  - `getUserMedia` catch classifies `NotAllowedError`, `NotFoundError`,
+    `NotReadableError`, and `OverconstrainedError` into distinct user messages.
+  - Lookup fetch treats non-2xx responses and `TypeError` (network) as errors,
+    not "not found". "Product not found" now only renders when the server
+    explicitly returns `found: false`.
+
+- **Receipt Vision failure** ([apps/meals/views.py:876-900](apps/meals/views.py:876)):
+  `messages.error()` is now added before redirect on Vision exceptions, so the
+  user sees an actionable flash message in addition to the existing
+  `processing_error` field on the confirm page.
+
+- **Pantry scan dispatch** ([apps/meals/views.py:1713-1779](apps/meals/views.py:1713)):
+  Removed `except Exception: pass`. Now logs with `exc_info=True` and tracks
+  inline-failure counts plus a `dispatch_failed` flag. The view emits
+  `messages.error`, `messages.warning`, or `messages.info` based on whether
+  inline processing failed, partially succeeded, or was queued for async retry.
+
+- **Canonical pantry finalize helper** (new —
+  [apps/meals/services/pantry_ingestion.py](apps/meals/services/pantry_ingestion.py)):
+  Three ingestion paths (receipt, barcode, photo scan) previously duplicated the
+  same `PantryItem.get_or_create` + quantity accumulation + `InventoryTransaction`
+  log with subtle divergence in storage_location handling and update-field lists.
+  Extracted `finalize_pantry_item(...)` as the canonical write step. All three
+  call it now:
+  - [apps/meals/services/receipt_routing.py:151](apps/meals/services/receipt_routing.py:151) → uses helper
+  - [apps/meals/views.py:576](apps/meals/views.py:576) (PantryBarcodeLookupView) → uses helper (user-override still honored post-finalize)
+  - [apps/meals/services/pantry_photo_detection.py:383](apps/meals/services/pantry_photo_detection.py:383) → uses helper
+
+  This is containment, not a redesign — entry-point UX is untouched, ingredient
+  resolution and storage classification remain in the caller, and the helper is
+  a thin, deterministic write.
+
+**Files changed:**
+- `templates/meals/pantry.html` (error modal state + scanner error classification + network-vs-not-found)
+- `apps/meals/views.py` (receipt `messages.error`, pantry-scan log+surface, barcode finalize refactor)
+- `apps/meals/services/pantry_ingestion.py` (new — canonical finalize helper)
+- `apps/meals/services/receipt_routing.py` (use helper)
+- `apps/meals/services/pantry_photo_detection.py` (use helper)
+
+**Why:** Camera capture and barcode scanning appeared broken to users. Four
+silent-failure paths prevented any diagnostic signal from reaching either the
+user or the logs. Additionally, the three divergent PantryItem write paths were
+drift risk for future CoS and signal reliability. Both concerns addressed in a
+single contained pass.
+
+**Verification:**
+- `python3 manage.py check` — clean (except unrelated djstripe INFOs)
+- `python3 manage.py makemigrations --check --dry-run` — no changes detected
+- `python3 manage.py test apps.meals apps.scan -v 1 --keepdb` — 409/410 pass.
+  One failure (`test_medicine_actions`) is pre-existing on clean main, unrelated
+  to this change — spawned a follow-up task to fix it.
+
+**Architectural fit:**
+- Raw Data → Signals/State → CoS → LLM law preserved. No UI-derived truth, no
+  LLM-derived ingestion, no duplicate final-write logic.
+- CoS can now trust a single canonical ingestion finalize path.
+- No new pipelines, no new endpoints, no UX changes for the working paths.
+
+---
+
 ## 2026-04-15 — Fix: Workout routine auto-complete cross-day mismatch
 
 **Root cause:** `auto_complete_routine_schedules()` in `routine_helpers.py` always

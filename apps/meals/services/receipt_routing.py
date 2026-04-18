@@ -147,51 +147,24 @@ class ReceiptRoutingService:
                 ingredient.category if ingredient else "",
             )
 
-            # Update or create PantryItem
-            pantry_item, created = PantryItem.objects.get_or_create(
+            # Finalize through the canonical pantry ingestion helper so all
+            # entry points (receipt, barcode, photo scan) share the same write.
+            from apps.meals.services.pantry_ingestion import finalize_pantry_item
+
+            pantry_item, created = finalize_pantry_item(
                 household=household,
                 ingredient=ingredient,
-                defaults={
-                    "quantity": item.quantity,
-                    "unit": item.unit,
-                    "confidence_score": Decimal("0.95"),
-                    "last_confirmed_at": timezone.now(),
-                    "storage_location": storage_location,
-                },
-            )
-
-            if not created:
-                pantry_item.quantity += item.quantity
-                pantry_item.confidence_score = Decimal("0.95")
-                pantry_item.last_confirmed_at = timezone.now()
-                update_fields = [
-                    "quantity",
-                    "confidence_score",
-                    "last_confirmed_at",
-                    "updated_at",
-                ]
-                # Upgrade storage_location if still unknown and classifier knows better
-                if pantry_item.storage_location == "unknown" and storage_location != "unknown":
-                    pantry_item.storage_location = storage_location
-                    update_fields.append("storage_location")
-                pantry_item.save(update_fields=update_fields)
-                updated_count += 1
-            else:
-                created_count += 1
-                # Set estimated expiration
-                if ingredient.shelf_life_days:
-                    pantry_item.expiration_date_estimated = timezone.now().date() + (
-                        timezone.timedelta(days=ingredient.shelf_life_days)
-                    )
-                    pantry_item.save(update_fields=["expiration_date_estimated"])
-
-            # Log transaction
-            InventoryTransaction.objects.create(
-                pantry_item=pantry_item,
-                delta_quantity=item.quantity,
+                quantity=item.quantity,
+                unit=item.unit,
+                confidence_score=Decimal("0.95"),
+                storage_location=storage_location,
                 source="receipt",
                 notes=f"From receipt: {receipt.store or 'Unknown Store'}",
             )
+            if created:
+                created_count += 1
+            else:
+                updated_count += 1
 
         logger.info(
             "Grocery routing for receipt %d: %d created, %d updated",

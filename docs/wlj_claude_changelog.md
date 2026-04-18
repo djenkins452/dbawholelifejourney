@@ -7,6 +7,55 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-17 — Fix: Scan page camera completely broken (syntax error)
+
+**User report:** "While trying to log food by picture or barcode, the camera
+will not start to allow me to proceed."
+
+**Root cause:** [templates/scan/scan_page.html:932](templates/scan/scan_page.html:932)
+contained a corrupted JavaScript string literal:
+
+```javascript
+medication: 'medicine: '&#x1F48A;'#x1F48A;',
+```
+
+This is an invalid string — three quote characters on one value and an
+unmatched `#x1F48A;` token. The parse error killed the **entire IIFE** wrapping
+the scan page JS (lines 850-1723). Consequences:
+
+- `startCamera()` (line 1715) never ran → camera never initialized
+- All `addEventListener` bindings (lines 1681-1712) never attached → no buttons
+  responded to clicks
+- "Starting camera…" overlay was shown by server-side HTML but never updated
+- No console error surfaced to the user — page looked loaded but was dead
+
+**Introduced by:** commit [39c7d54e](https://github.com/djenkins452/dbawholelifejourney/commit/39c7d54e)
+(Apr 6) — "Phase VI — rename Medicine → Intake across templates". The
+find-replace accidentally did a double substitution on this line, turning
+`medicine: '&#x1F48A;',` into the broken form above. The scan page has been
+silently unusable for food barcode / camera scanning since then.
+
+**Fix:** Corrected the string literal to `medication: '&#x1F48A;',`.
+
+**Files changed:**
+- `templates/scan/scan_page.html`
+
+**Why this wasn't caught:** No JS lint step in CI for Django templates, and the
+symptom ("nothing happens when I click") doesn't produce a server-side error.
+The scan page passes Django's template-syntax check because the broken text is
+inside a `<script>` tag, which Django treats as opaque content.
+
+**Verification:**
+- `python3 manage.py check` — clean
+- Extracted IIFE JS and ran `node --check` — no syntax errors now
+- `/scan/` page now parses, `startCamera()` runs, event listeners bind
+
+**Follow-up:** Consider a pre-commit hook that extracts `<script>` bodies from
+`templates/**/*.html`, strips Django `{% %}` / `{{ }}` tags, and runs
+`node --check` to catch this class of regression.
+
+---
+
 ## 2026-04-17 — Fix: Nutrition ingestion silent failures + canonical pantry finalize
 
 **Root causes (4 proven):**

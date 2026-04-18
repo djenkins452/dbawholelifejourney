@@ -320,20 +320,30 @@ class Task(UserOwnedModel):
     )
 
     # Dependency gating — hide this task until a prerequisite completes.
-    # depends_on_key uses the Today Engine's canonical key format:
-    #   "task:{pk}"           → another Task
+    #
+    # v1 controlled bridge pattern. All parsing / branching on this field
+    # is centralized in apps/core/execution/dependency_gating.py. Do NOT
+    # split, parse, or interpret this value anywhere else — callers must
+    # use is_task_blocked(task, truth) and nothing else.
+    #
+    # Accepted formats (exactly these three):
+    #   "task:{pk}"             → another Task
     #   "routine:{schedule_id}" → a RoutineSchedule completion
-    #   "domain:{name}"        → a domain rollup (workout/journal/prayer/bible_reading)
-    # Resolution happens in apps/core/execution/dependency_gating.is_task_blocked().
+    #   "domain:{name}"         → a domain rollup
+    #                             (workout / journal / faith / prayer / bible_reading)
+    # Empty string = no dependency. Any other shape is invalid and will
+    # fail open (not block the task).
     depends_on_key = models.CharField(
         max_length=64,
         blank=True,
         db_index=True,
         help_text=(
-            "Canonical key of prerequisite item. Format: 'task:{pk}', "
-            "'routine:{schedule_id}', or 'domain:{name}'. When set and "
-            "hide_until_ready is True, this task is hidden from today's "
-            "actionable list until the prerequisite is complete."
+            "Canonical key of prerequisite item. Accepted formats: "
+            "'task:{pk}' | 'routine:{schedule_id}' | 'domain:{name}'. "
+            "All parsing is centralized in "
+            "apps/core/execution/dependency_gating.py — do not interpret "
+            "this field elsewhere. Invalid / unresolvable keys fail open "
+            "(task is shown, not blocked)."
         ),
     )
     hide_until_ready = models.BooleanField(

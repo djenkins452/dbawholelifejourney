@@ -1,28 +1,65 @@
 """
 Dependency Gating — Single source of truth for "is this task blocked?"
 
+============================================================================
+ARCHITECTURAL CONTRACT (v1 — controlled bridge pattern)
+============================================================================
+
+`Task.depends_on_key` is a string-based canonical key used to express
+cross-domain prerequisites (Task / RoutineSchedule / domain rollup) without
+introducing a polymorphic FK in v1. This is an ACCEPTED TRANSITIONAL DESIGN,
+not a permanent one. A future iteration may replace it with a structured
+polymorphic dependency model — do NOT expand string-key usage beyond the
+rules below.
+
+RULES (non-negotiable):
+
+  1. CENTRALIZED PARSING — this module is the ONLY place that parses or
+     branches on `depends_on_key` prefixes. No other module, template,
+     view, serializer, renderer, signal handler, management command, or
+     test helper may split on ':', inspect the prefix, or interpret the
+     identifier. If you need a different decision based on the prereq
+     type, add the method here and call it from elsewhere.
+
+  2. ACCEPTED FORMATS — exactly these three, nothing else:
+        "task:{pk}"             → Task row, pk is a positive integer
+        "routine:{schedule_id}" → RoutineSchedule row, schedule_id is int
+        "domain:{name}"         → domain rollup, name ∈ {workout, journal,
+                                  faith, prayer, bible_reading}
+     An empty / missing `depends_on_key` means "no dependency." Any other
+     string shape (free-form, new prefixes, compound keys, arrays) is
+     invalid and must not be created.
+
+  3. FAIL-OPEN ON INVALID / UNRESOLVABLE — if the key is malformed, the
+     prefix is unknown, the identifier won't parse, the target row has
+     been deleted, or the execution-truth lookup returns nothing, this
+     module returns False (not blocked). It must never raise an exception
+     to its callers. Rationale: a stale or broken reference must not
+     permanently gate a dependent item from the user's actionable list.
+
+  4. SINGLE ENFORCEMENT SURFACE — `is_task_blocked(task, truth)` is called
+     from exactly two collection points:
+        apps/core/today/today_engine.py :: _collect_task_items()
+        apps/core/execution/today_execution.py :: _collect_task_items()
+     Blocked tasks must not appear in:
+        - Today Engine (all_items / any bucket / next_action)
+        - Execution contract (build_today_execution['items'])
+        - CoS facts (next_action, LOCKED FACT STATEMENTS)
+     If a new Task-enumeration path appears, wire `is_task_blocked` in —
+     do NOT duplicate the logic.
+
+  5. FUTURE MIGRATION — when the polymorphic replacement lands, this
+     module is the single point of change. Callers receive the same
+     `is_task_blocked(task, truth) -> bool` surface and should not need
+     modification.
+
+============================================================================
+
 Canonical rule:
     A Task is BLOCKED when:
       1. depends_on_key is set, AND
       2. hide_until_ready is True, AND
       3. the prerequisite is not yet complete.
-
-Blocked tasks must not appear in:
-  - Today Engine (apps/core/today/today_engine.py)
-  - Execution contract (apps/core/execution/today_execution.py)
-  - CoS facts / next_action / locked fact statements
-
-Both the Today Engine and the execution contract call is_task_blocked(task, truth)
-at collection time. No other module applies gating. No logic duplication.
-
-Prerequisite resolution is routing-aware:
-  - "task:{pk}"           → Task.completion_status == 'completed'
-  - "routine:{schedule_id}" → execution truth 'routines._raw_items' is_completed
-  - "domain:{name}"       → execution truth 'domains[name].completed'
-
-Dangling / unresolvable references fail OPEN (not blocked). If the prereq
-cannot be located, the dependency is treated as vacuously satisfied rather
-than permanently gating the dependent item.
 """
 
 import logging

@@ -376,11 +376,26 @@ class ActivityTypeMatchingTests(WorkoutRoutineTestMixin, TestCase):
 
 
 class ToggleGuardTests(WorkoutRoutineTestMixin, TestCase):
-    """Activity-type routines reject manual toggle."""
+    """Manual toggle policy — user must always retain control.
 
-    def test_activity_routine_rejects_toggle(self):
-        """Manual toggle returns error for activity-type schedules."""
+    Historically activity-type routines were refused at the helper level
+    on the rationale "auto-complete handles these." That policy was
+    reversed 2026-04-18 after a user-reported silent-failure bug: when
+    the bridge fails for any reason, the user had no escape hatch.
+    """
+
+    @patch(_PATCH_NOW)
+    @patch(_PATCH_TODAY)
+    def test_activity_routine_accepts_manual_toggle(
+        self, mock_today, mock_now,
+    ):
+        """Manual toggle on activity routines creates a log with
+        completion_source=SOURCE_MANUAL — the user override path."""
         today = date(2026, 3, 22)
+        mock_today.return_value = today
+        mock_now.return_value = timezone.make_aware(
+            datetime(2026, 3, 22, 6, 30)
+        )
 
         self.workout_schedule.routine_type = 'activity'
         self.workout_schedule.activity_type = 'workout'
@@ -389,12 +404,13 @@ class ToggleGuardTests(WorkoutRoutineTestMixin, TestCase):
         result = toggle_routine_completion(
             self.user, self.workout_schedule, today,
         )
-        self.assertEqual(result['status'], 'activity')
-        self.assertIn('error', result)
+        self.assertNotIn('error', result)
+        self.assertTrue(result['is_completed'])
 
-        self.assertFalse(RoutineLog.objects.filter(
+        log = RoutineLog.objects.get(
             schedule=self.workout_schedule, scheduled_date=today,
-        ).exists())
+        )
+        self.assertEqual(log.completion_source, RoutineLog.SOURCE_MANUAL)
 
     @patch(_PATCH_NOW)
     @patch(_PATCH_TODAY)

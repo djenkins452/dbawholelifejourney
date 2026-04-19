@@ -218,10 +218,18 @@ def handle_workout_session_completed(sender, instance, **kwargs):
     # Uses started_at (preferred) > completed_at > now for timeliness,
     # because routine adherence is about when the activity BEGAN.
     #
-    # Threshold gate: aggregate all completed workouts for the day and only
-    # trigger routine completion when total duration >= threshold minutes.
-    # This prevents a 5-minute walk from marking the workout routine done,
-    # while allowing multiple short workouts to aggregate past the threshold.
+    # Qualification gate — a day's workouts qualify for routine auto-complete
+    # when EITHER:
+    #   (a) any completed session has logged workout_exercises (real work
+    #       was tracked — sets/reps), OR
+    #   (b) total duration across completed sessions >= threshold minutes
+    #       (covers activity-mode sessions like "Pickleball 30 min" that
+    #       have no exercise rows).
+    # Rationale: structured strength sessions routinely leave
+    # duration_minutes at 0/null — the user never starts a timer — but
+    # clearly represent a real workout. The duration threshold remains
+    # the guardrail for activity-mode sessions so a 5-minute walk still
+    # doesn't mark the workout routine done.
     if instance.date:
         try:
             from django.db.models import Sum as _Sum
@@ -230,18 +238,30 @@ def handle_workout_session_completed(sender, instance, **kwargs):
             from apps.health.services.fitness_utils import ROUTINE_COMPLETION_THRESHOLD_MINUTES
             from apps.life.services.routine_helpers import auto_complete_routine_schedules
 
-            total_today = (
-                WorkoutSession.objects.filter(
+            completed_qs = (
+                WorkoutSession.objects
+                .filter(
                     user=instance.user,
                     date=instance.date,
                     completed_at__isnull=False,
                 )
                 .exclude(status="deleted")
-                .aggregate(total=_Sum("duration_minutes"))["total"]
-                or 0
             )
 
-            if total_today >= ROUTINE_COMPLETION_THRESHOLD_MINUTES:
+            total_today = (
+                completed_qs.aggregate(total=_Sum("duration_minutes"))["total"]
+                or 0
+            )
+            has_logged_exercises = completed_qs.filter(
+                workout_exercises__isnull=False,
+            ).exists()
+
+            qualifies = (
+                has_logged_exercises
+                or total_today >= ROUTINE_COMPLETION_THRESHOLD_MINUTES
+            )
+
+            if qualifies:
                 # Prefer start time for timeliness classification
                 effective_time = instance.started_at or instance.completed_at
 
@@ -255,13 +275,17 @@ def handle_workout_session_completed(sender, instance, **kwargs):
                 )
                 if results:
                     logger.info(
-                        "WORKOUT_ROUTINE_AUTOCOMPLETE user=%s date=%s matched=%d session=%s total_min=%d",
-                        instance.user_id, instance.date, len(results), instance.pk, total_today,
+                        "WORKOUT_ROUTINE_AUTOCOMPLETE user=%s date=%s "
+                        "matched=%d session=%s total_min=%d exercises=%s",
+                        instance.user_id, instance.date, len(results),
+                        instance.pk, total_today, has_logged_exercises,
                     )
             else:
                 logger.debug(
-                    "WORKOUT_ROUTINE_THRESHOLD_NOT_MET user=%s date=%s total_min=%d threshold=%d",
-                    instance.user_id, instance.date, total_today, ROUTINE_COMPLETION_THRESHOLD_MINUTES,
+                    "WORKOUT_ROUTINE_NOT_QUALIFIED user=%s date=%s "
+                    "total_min=%d threshold=%d exercises=%s",
+                    instance.user_id, instance.date, total_today,
+                    ROUTINE_COMPLETION_THRESHOLD_MINUTES, has_logged_exercises,
                 )
         except Exception as e:
             logger.warning(

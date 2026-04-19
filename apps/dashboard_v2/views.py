@@ -748,7 +748,21 @@ class RoutineScheduleToggleAction(LoginRequiredMixin, View):
         )
 
         today = get_user_today(request.user)
-        toggle_routine_completion(request.user, schedule, today)
+        result = toggle_routine_completion(request.user, schedule, today)
+
+        # Defensive: the helper currently returns plain status dicts for
+        # every successful path, but any future blocking condition that
+        # returns an `error` key must NOT silently no-op the UI. Surface it
+        # at WARNING so production logs show when a toggle request was
+        # refused — otherwise users see an unchanged checkbox with no clue.
+        if isinstance(result, dict) and result.get('error'):
+            logger.warning(
+                "ROUTINE_TOGGLE_REFUSED user=%s schedule_id=%s "
+                "routine=%s status=%s error=%s",
+                request.user.id, schedule.pk,
+                getattr(schedule.routine, 'name', ''),
+                result.get('status'), result.get('error'),
+            )
 
         # Invalidate cache and return the unified action center
         return _render_action_center(request)

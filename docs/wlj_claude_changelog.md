@@ -105,6 +105,60 @@ real-time intelligence layer.
 
 ---
 
+## 2026-04-18 — Fix: Users can always manually toggle routine completion (activity routines included)
+
+**Problem:** User reported he could not mark today's Workout routine
+complete by clicking the Action Center checkbox. The click POSTed, the
+page re-rendered unchanged, no feedback. The "Workout" routine is
+configured as `routine_type='activity'`, and `toggle_routine_completion`
+(`apps/life/services/routine_helpers.py:151-158`) contained an early
+return that refused all manual toggles on activity routines, on the
+rationale that they are "auto-completed by their data source."
+
+That rationale is wrong whenever the bridge silently fails — which is
+exactly what happened earlier today with the duration-threshold bug on
+structured strength sessions. The user was left with a checkbox that
+looked manual but behaved as "system-controlled only."
+
+**Fix — three changes:**
+
+1. **Remove the block.** `apps/life/services/routine_helpers.py` —
+   deleted the early-return branch. The rest of the function already
+   handles the activity case correctly: no existing log → create one
+   with `completion_source=SOURCE_MANUAL`; existing log → delete it.
+   Auto-completes still run as before (those create logs with
+   `completion_source=SOURCE_WORKOUT`), so the two paths remain
+   distinguishable in telemetry via the existing field — no new flag
+   added.
+
+2. **Defensive logging in the toggle view.**
+   `apps/dashboard_v2/views.py :: RoutineScheduleToggleAction.post()` now
+   inspects the helper's return value; if any future blocking condition
+   puts an `error` key on the dict, the view emits
+   `ROUTINE_TOGGLE_REFUSED` at WARNING level with the user, schedule id,
+   routine name, and error message. The same silent-failure mode that
+   hid the activity-route block for months cannot recur unnoticed.
+
+3. **Regression test** —
+   `apps/life/tests/test_activity_routine_manual_toggle.py`:
+   - Manual toggle on activity routine creates a `RoutineLog` with
+     `completion_source=SOURCE_MANUAL` (not `SOURCE_WORKOUT`).
+   - Second click removes the log.
+   - End-to-end scenario: auto-bridge never fires → user clicks
+     manually → log persists with SOURCE_MANUAL (the production
+     scenario from today's report).
+
+**Policy:** The user always retains control over completion state.
+Auto-complete is a convenience, not a lock. If the system is wrong,
+the user's click is authoritative.
+
+**Files:**
+- `apps/life/services/routine_helpers.py` (remove early-return, update docstring)
+- `apps/dashboard_v2/views.py` (log refused toggles)
+- `apps/life/tests/test_activity_routine_manual_toggle.py` (new)
+
+---
+
 ## 2026-04-18 — Fix: Structured workouts (sets/reps) now mark the Workout routine complete
 
 **Problem:** User completed a strength workout (7 exercises, 16 sets,

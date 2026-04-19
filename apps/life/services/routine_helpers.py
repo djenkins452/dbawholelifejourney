@@ -134,8 +134,13 @@ def toggle_routine_completion(user, schedule, target_date, completion_mode=None)
         completed/completed_late → pending (delete log)
         skipped → completed (update)
 
-    Activity-type routines (routine_type='activity') are auto-completed by
-    their data source (e.g., WorkoutSession) and cannot be manually toggled.
+    Activity-type routines (e.g., "Workout" bridged from WorkoutSession) are
+    normally auto-completed by their data source. Manual toggling is STILL
+    permitted — the user must always retain control, because auto-complete
+    can fail silently (bridge broken, integration down, data not yet synced)
+    and the user needs an escape hatch to correct the dashboard. Manual
+    overrides are distinguished from auto-completions via the RoutineLog's
+    `completion_source` field (SOURCE_MANUAL vs. SOURCE_WORKOUT etc.).
 
     Args:
         user: User instance
@@ -148,15 +153,6 @@ def toggle_routine_completion(user, schedule, target_date, completion_mode=None)
     Returns:
         dict: {status: str, is_completed: bool, completed_as_scheduled: bool}
     """
-    # Activity-type routines are auto-completed by their data source
-    if getattr(schedule, 'routine_type', 'binary') == 'activity':
-        return {
-            'status': 'activity',
-            'is_completed': False,
-            'completed_as_scheduled': False,
-            'error': 'Activity routines are auto-completed by their data source',
-        }
-
     from apps.life.models import RoutineLog
 
     existing_log = RoutineLog.objects.filter(

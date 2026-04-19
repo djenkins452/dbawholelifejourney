@@ -105,6 +105,72 @@ real-time intelligence layer.
 
 ---
 
+## 2026-04-18 — Fix: Structured workouts (sets/reps) now mark the Workout routine complete
+
+**Problem:** User completed a strength workout (7 exercises, 16 sets,
+10,550 lbs load, 55 reps) and confirmed it on the workout detail page,
+but the "Workout" routine item in the Action Center stayed 0/1. The
+Physical Health domain card correctly said "Completed at 7:47 PM" —
+domain-level truth knew about the workout; routine-level truth did not.
+
+**Root cause:** The workout→routine auto-complete bridge in
+[apps/health/signals.py:244](apps/health/signals.py:244) (Block 2 of
+`handle_workout_session_completed`) gated on
+`total_today >= WORKOUT_COMPLETION_THRESHOLD_MINUTES` (10 min). It only
+summed `duration_minutes`. Structured strength sessions routinely leave
+`duration_minutes` at 0 or null — lifters don't start a timer — so the
+gate always failed for strength work, regardless of how many sets were
+logged. The 10-minute guardrail was originally meant to filter short
+casual movement (a 5-minute walk), not to punish real strength sessions.
+
+**Fix — 6 lines in the qualification gate:**
+A day's workouts now qualify for routine auto-complete when EITHER:
+
+  (a) any completed session has logged `workout_exercises` (real work
+      was tracked — any number of sets, even 1), OR
+  (b) total completed `duration_minutes` ≥ threshold (preserves the
+      original guardrail for activity-mode sessions like Pickleball or
+      a run that have no exercise rows).
+
+`first-workout-wins` idempotency at
+[apps/life/services/routine_helpers.py:338](apps/life/services/routine_helpers.py:338)
+continues to prevent double-logging, so users who manually check the
+routine before the signal fires still get their explicit action honored.
+
+**Backfill for existing orphaned data:**
+[apps/health/migrations/0086_backfill_structured_workout_routine_logs.py](apps/health/migrations/0086_backfill_structured_workout_routine_logs.py)
+replays `auto_complete_routine_schedules()` for all completed structured
+sessions since 2026-04-15 that have logged exercises but no matching
+workout RoutineLog. The helper is idempotent (first-workout-wins), so
+sessions that already completed their routine correctly are unaffected.
+This covers Danny's Saturday workout so the Action Center reflects
+reality without requiring a manual re-save.
+
+**Tests** — `apps/health/tests/test_workout_routine_bridge_gate.py`
+(6 tests, all passing):
+- Zero-duration structured session with 1 set → routine complete
+- Null-duration structured session with 2 sets → routine complete
+- Exercise row with no sets yet → still qualifies (gate is "exercises
+  logged", not "sets logged")
+- 5-minute activity-mode session (no exercises) → routine NOT complete
+  (guardrail preserved)
+- 30-minute activity-mode session (no exercises) → routine complete
+  (duration branch still works)
+- In-progress session (no `completed_at`) with sets → routine NOT
+  complete (completion is still a hard requirement)
+
+**Files:**
+- `apps/health/signals.py` (new qualification gate in Block 2)
+- `apps/health/migrations/0086_backfill_structured_workout_routine_logs.py` (new)
+- `apps/health/tests/test_workout_routine_bridge_gate.py` (new)
+
+**Why:** Domain truth and routine truth had diverged for structured
+strength sessions — the exact scenario WLJ is designed to support
+(weightlifting as a daily routine). The gate's original intent was to
+filter trivial activity, not to require a timer on every workout.
+
+---
+
 ## 2026-04-18 — Add: Task dependency gating (hide items until prerequisite completes)
 
 **Problem:** The Today Engine and execution contract surfaced all items by

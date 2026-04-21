@@ -43,6 +43,11 @@ from django.conf import settings
 from django.db import close_old_connections, connection
 from django.utils import timezone
 
+from apps.core.ai_state.metric_access import (
+    get_metric,
+    log_direct_orm_read,
+)
+
 logger = logging.getLogger(__name__)
 
 # Max worker threads for parallel context assembly
@@ -1486,6 +1491,11 @@ def _build_intelligence_signals(user, _module_permissions=None):
 
         from apps.core.ai_insights.models import Insight
 
+        log_direct_orm_read(
+            "cos_context:active_insights",
+            user=user,
+            extra={"model": "Insight"},
+        )
         _insight_cutoff = _tz.now() - _td(hours=72)
         recent_insights = Insight.objects.filter(
             user=user, status__in=["new", "read"],
@@ -1518,6 +1528,12 @@ def _build_intelligence_signals(user, _module_permissions=None):
     # Active PRIE predictions
     try:
         from apps.core.ai_predictions.models import Prediction
+
+        log_direct_orm_read(
+            "cos_context:active_predictions",
+            user=user,
+            extra={"model": "Prediction"},
+        )
         active_predictions = Prediction.objects.filter(
             user=user, status="active",
         ).order_by("-confidence_score")[:5]
@@ -1548,6 +1564,12 @@ def _build_intelligence_signals(user, _module_permissions=None):
     # Active PGE guidance
     try:
         from apps.core.ai_guidance.models import GuidanceItem
+
+        log_direct_orm_read(
+            "cos_context:active_guidance",
+            user=user,
+            extra={"model": "GuidanceItem"},
+        )
         now = timezone.now()
         active_guidance = GuidanceItem.objects.filter(
             user=user,
@@ -1582,6 +1604,12 @@ def _build_intelligence_signals(user, _module_permissions=None):
     # Active CDCE correlations
     try:
         from apps.core.ai_cross_domain.models import DomainCorrelation
+
+        log_direct_orm_read(
+            "cos_context:active_correlations",
+            user=user,
+            extra={"model": "DomainCorrelation"},
+        )
         active_correlations = DomainCorrelation.objects.filter(
             user=user, status='active',
         ).order_by('-strength_score')[:5]
@@ -2310,6 +2338,11 @@ def _build_medical_context(user):
     try:
         from apps.medical.models import LabResult
 
+        log_direct_orm_read(
+            "cos_context:recent_labs",
+            user=user,
+            extra={"model": "LabResult"},
+        )
         recent_labs = LabResult.objects.filter(
             user=user,
         ).exclude(
@@ -2482,6 +2515,11 @@ def _build_purpose_context(user):
 
         # Active life goals — names require raw DB (SAE only has counts)
         # This is a lightweight single query, not an N+1 pattern.
+        log_direct_orm_read(
+            "cos_context:life_goals_names",
+            user=user,
+            extra={"model": "LifeGoal"},
+        )
         life_goals = LifeGoal.objects.filter(
             user=user, status='active',
         ).order_by('target_date')[:5]
@@ -2522,6 +2560,11 @@ def _build_purpose_context(user):
             from apps.purpose.models import HabitGoal
             from apps.purpose.services.streak_service import get_streak_data
 
+            log_direct_orm_read(
+                "cos_context:habit_streaks",
+                user=user,
+                extra={"model": "HabitGoal"},
+            )
             active_habits = HabitGoal.objects.filter(
                 user=user, status='active',
             ).select_related('user')[:8]  # Cap to prevent runaway
@@ -3126,6 +3169,11 @@ def _build_signal_aware_context(user):
 
         # Today's signals with trust classification and validation
         daily_signals = []
+        log_direct_orm_read(
+            "cos_context:daily_signals",
+            user=user,
+            extra={"model": "SignalSnapshot"},
+        )
         snapshots = SignalSnapshot.objects.filter(user=user, date=today)
         for s in snapshots:
             # Skip signals from disabled domains
@@ -3178,6 +3226,11 @@ def _build_signal_aware_context(user):
             from apps.dashboard_v2.models import GoalMomentumSnapshot
             from apps.purpose.models import LifeGoal
 
+            log_direct_orm_read(
+                "cos_context:goal_momentum",
+                user=user,
+                extra={"model": "LifeGoal+GoalMomentumSnapshot"},
+            )
             active_goals = LifeGoal.objects.filter(
                 user=user, status='active',
             )[:10]  # Cap at 10 goals
@@ -3579,6 +3632,12 @@ def build_cos_context(user, scoped_builders=None):
     _ranking_context = dict(context)
     try:
         from apps.core.ai_state.models import CoSSituationState
+
+        log_direct_orm_read(
+            "cos_context:signal_arbitration",
+            user=user,
+            extra={"model": "CoSSituationState"},
+        )
         _sit = CoSSituationState.objects.filter(user=user).only(
             'user_acknowledged_signals'
         ).first()
@@ -4245,25 +4304,34 @@ def _build_data_state_snapshot(user) -> str:
     counts = {}
     _completed_titles = []  # v9: populated from SAE task state
     try:
-        from apps.health.models import (
-            WeightEntry, SleepEntry, IntakeLog, Intake,
-            FoodEntry, BloodPressureEntry, WorkoutSession,
-        )
-        from apps.purpose.models import LifeGoal
-        from apps.journal.models import JournalEntry
-        from apps.life.models import Task as LifeTask
         from apps.core.utils import get_user_today
 
         today = get_user_today(user)
 
-        counts['weight_entries'] = WeightEntry.objects.filter(user=user).count()
-        counts['sleep_entries'] = SleepEntry.objects.filter(user=user).count()
-        counts['active_medications'] = Intake.objects.filter(user=user).count()
-        counts['nutrition_entries'] = FoodEntry.objects.filter(user=user).count()
-        counts['blood_pressure_entries'] = BloodPressureEntry.objects.filter(user=user).count()
-        counts['workout_sessions'] = WorkoutSession.objects.filter(user=user).count()
-        counts['goals_defined'] = LifeGoal.objects.filter(user=user).count()
-        counts['journal_entries'] = JournalEntry.objects.filter(user=user).count()
+        # Presence signals for the zero-data grounding rules below.
+        # The LLM only needs "has data" vs "no data" — so we derive
+        # 0-vs-1 from SAE canonical signals instead of running raw
+        # .count() queries. A missing SAE signal returns 0, preserving
+        # the original "NEVER reference X if count==0" behavior.
+        #
+        # NOTE: active_medications currently has no canonical SAE
+        # count, so it is emitted as 0 until medicine.active_count
+        # is added to build_medicine_state. This matches the
+        # "do not rebuild missing canonical metrics" rule.
+        def _present(metric_key: str) -> int:
+            return 1 if get_metric(user, metric_key) is not None else 0
+
+        counts['weight_entries'] = _present('health.last_weight_entry')
+        counts['sleep_entries'] = _present('health.last_sleep_entry')
+        counts['active_medications'] = 0  # No canonical SAE count yet.
+        counts['nutrition_entries'] = _present('health.last_food_entry')
+        counts['blood_pressure_entries'] = _present('health.last_bp_entry')
+        counts['workout_sessions'] = _present('fitness.last_workout_date')
+        counts['goals_defined'] = (
+            get_metric(user, 'goals.active_goal_count').value
+            if get_metric(user, 'goals.active_goal_count') is not None else 0
+        )
+        counts['journal_entries'] = _present('journal.last_entry')
         # v9: Task data from SAE state (CoS purity — no raw task queries).
         # SAE build_task_state() computes time-horizon buckets every 5 min.
         from apps.core.ai_state.state_engine import get_module_state
@@ -10464,19 +10532,18 @@ def build_learning_mode_context(user):
     except Exception:
         pass
 
-    # Medication + fasting (actionable awareness)
+    # Medication adherence — read canonical status from SAE instead
+    # of re-counting IntakeSchedule/IntakeLog at request time. The
+    # SAE medicine state builder computes on_track/overdue/incomplete
+    # in build_medicine_state.
     try:
-        from apps.health.models import IntakeSchedule
-        today = timezone.localdate()
-        schedules = IntakeSchedule.objects.filter(user=user, is_active=True)
-        total = schedules.count()
-        if total > 0:
-            taken = sum(
-                1 for s in schedules
-                if hasattr(s, 'logs') and s.logs.filter(taken_at__date=today).exists()
-            )
+        med_status = get_metric(user, 'health.medication_status')
+        if med_status is not None:
+            med_reason = get_metric(user, 'health.medication_status_reason')
             context['medication_adherence_state'] = {
-                'total_scheduled': total, 'taken_today': taken,
+                'status': med_status.value,
+                'reason': med_reason.value if med_reason else None,
+                'source': med_status.source,
             }
     except Exception:
         pass

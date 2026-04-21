@@ -1155,6 +1155,40 @@ def build_goal_state(user):
     overdue = active_goals.filter(target_date__lt=now.date()).count()
     state["overdue_goal_count"] = overdue
 
+    # Active goal titles — canonical list for CoS narration. Previously
+    # cos_context.py read LifeGoal directly to produce titles; this is
+    # now the single source of truth.
+    today = now.date()
+    fourteen_days = today + timedelta(days=14)
+
+    active_titles = []
+    upcoming_titles = []
+    overdue_titles = []
+    for goal in active_goals.order_by('target_date')[:10]:
+        title = goal.title
+        target = goal.target_date
+        is_foundational = getattr(goal, 'is_foundational', False)
+        entry = {
+            'title': title,
+            'target_date': target.isoformat() if target else None,
+            'is_foundational': bool(is_foundational),
+        }
+        active_titles.append(entry)
+        if target:
+            if target < today:
+                overdue_titles.append({
+                    'title': title,
+                    'days_overdue': (today - target).days,
+                })
+            elif target <= fourteen_days:
+                upcoming_titles.append({
+                    'title': title,
+                    'days_remaining': (target - today).days,
+                })
+    state["active_titles"] = active_titles
+    state["upcoming_titles"] = upcoming_titles[:10]
+    state["overdue_titles"] = overdue_titles[:5]
+
     return state
 
 
@@ -1207,6 +1241,41 @@ def build_habit_state(user):
 
     if last_activity:
         state["last_activity"] = last_activity.isoformat()
+
+    # Per-habit streak data — canonical list for CoS narration. Moved
+    # out of cos_context.py (was reading HabitGoal directly with
+    # .select_related('user')[:8]). Capped at 8 habits, matching the
+    # previous CoS cap. Preserves the same shape the CoS prompt used:
+    # name, current_streak, longest_streak, at_risk, is_foundational,
+    # frequency.
+    streaks_per_habit = []
+    try:
+        from apps.purpose.services.streak_service import get_streak_data
+    except ImportError:
+        get_streak_data = None
+
+    for habit in active_habits[:8]:
+        current = int(habit.current_streak or 0)
+        longest = None
+        at_risk = False
+        if get_streak_data is not None:
+            try:
+                streak = get_streak_data(habit)
+                current = int(getattr(streak, 'current', current) or 0)
+                longest_raw = getattr(streak, 'longest', None)
+                longest = int(longest_raw) if longest_raw is not None else None
+                at_risk = bool(getattr(streak, 'at_risk', False))
+            except Exception:
+                pass
+        streaks_per_habit.append({
+            'name': habit.name,
+            'current_streak': current,
+            'longest_streak': longest,
+            'at_risk': at_risk,
+            'is_foundational': bool(getattr(habit, 'is_foundational', False)),
+            'frequency': getattr(habit, 'frequency_type', None),
+        })
+    state["streaks_per_habit"] = streaks_per_habit
 
     return state
 

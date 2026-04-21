@@ -225,6 +225,48 @@ _REGISTRY_LIST: List[MetricDefinition] = [
         "goals.completion_rate", "goals.completion_rate", "goals",
         "latest", "Milestone completion rate across active goals", "%",
     ),
+    MetricDefinition(
+        "goals.active_titles", "goals.active_titles", "goals",
+        "latest",
+        "List of active goal titles (with target_date + is_foundational) "
+        "for CoS narration",
+        None,
+    ),
+    MetricDefinition(
+        "goals.upcoming_titles", "goals.upcoming_titles", "goals",
+        "14d",
+        "Active goal titles with target_date within next 14 days",
+        None,
+    ),
+    MetricDefinition(
+        "goals.overdue_titles", "goals.overdue_titles", "goals",
+        "latest",
+        "Active goal titles past their target_date",
+        None,
+    ),
+
+    # ── Habits (per-habit streak list for CoS narration) ──────
+    MetricDefinition(
+        "habits.streaks_per_habit", "habits.streaks_per_habit", "habits",
+        "latest",
+        "Per-habit streak data (title, current_streak, longest_streak) "
+        "capped at 8 habits",
+        None,
+    ),
+
+    # ── Fasting (current fast presence for CoS narration) ─────
+    MetricDefinition(
+        "fasting.current_fast_active", "fasting.current_fast_active", "fasting",
+        "latest", "True if a fast is currently in progress", None,
+    ),
+    MetricDefinition(
+        "fasting.current_fast_hours", "fasting.current_fast_hours", "fasting",
+        "latest", "Hours elapsed in the currently active fast", "hours",
+    ),
+    MetricDefinition(
+        "fasting.current_fast_target_hours", "fasting.current_fast_target_hours", "fasting",
+        "latest", "Target duration for the currently active fast", "hours",
+    ),
 ]
 
 

@@ -131,6 +131,32 @@ def record_divergence(key: str, values: Iterable[Any], user=None) -> None:
     )
 
 
+def log_state_gap(
+    missing_key: str,
+    source: str,
+    user=None,
+    extra: Optional[Dict[str, Any]] = None,
+) -> None:
+    """
+    Observability hook: CoS (or another AI-facing module) is reaching
+    past SAE because a canonical state key does not yet exist.
+
+    Unlike ``log_direct_orm_read``, which records *tolerated* reads,
+    this event explicitly flags a gap in the signals/state layer
+    that should be closed. Emits a warning so it surfaces in logs.
+    """
+    payload = {
+        "metric_access": True,
+        "event": "state_gap",
+        "missing_key": missing_key,
+        "source": source,
+        "user_id": getattr(user, "id", None),
+    }
+    if extra:
+        payload.update(extra)
+    logger.warning("metric_access.state_gap", extra=payload)
+
+
 def log_direct_orm_read(source: str, user=None, extra: Optional[Dict[str, Any]] = None) -> None:
     """
     Observability hook: AI-facing modules that still read raw models

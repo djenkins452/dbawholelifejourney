@@ -7,6 +7,107 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-21 — Add: Phase 2 metric-trust — state-first CoS hardening
+
+**Problem.** Phase 1 stripped aggregations (`.aggregate`, `.annotate`,
+`.count()`) from `apps/core/ai_orchestrator/cos_context.py`, but ~28
+raw `.objects.filter(...)` record reads remained. Several were metric-
+adjacent: 4 `LifeGoal` reads for title listings, 1 `HabitGoal` read
+for per-habit streaks, 1 `FastingSession` lookup. Others were
+legitimate (engine outputs, CoS self-state, continuity lookups) but
+undocumented — no way to distinguish "allowed" from "tolerated debt"
+when new code is added.
+
+**Change.**
+
+1. **Four new canonical SAE state keys** in existing domain builders,
+   no new engines:
+   - `goals.active_titles` — list of active life goals (title,
+     target_date iso, is_foundational), capped at 10.
+   - `goals.upcoming_titles` — active goals with `target_date` inside
+     the next 14 days, with `days_remaining`. Capped at 10.
+   - `goals.overdue_titles` — active goals past `target_date`, with
+     `days_overdue`. Capped at 5.
+   - `habits.streaks_per_habit` — per-habit streak payload (name,
+     current_streak, longest_streak, at_risk, is_foundational,
+     frequency). Capped at 8. `get_streak_data()` is now called
+     inside `build_habit_state`, not at CoS request time.
+
+2. **Six CoS reads migrated** to the new state keys:
+   - [cos_context.py:2523](apps/core/ai_orchestrator/cos_context.py:2523)
+     `LifeGoal` active goals → `goals.active_titles`.
+   - [cos_context.py:2568](apps/core/ai_orchestrator/cos_context.py:2568)
+     `HabitGoal` per-habit streaks → `habits.streaks_per_habit`.
+   - [cos_context.py:9090, :9109](apps/core/ai_orchestrator/cos_context.py:9090)
+     `LifeGoal` upcoming / overdue goals → `goals.upcoming_titles` +
+     `goals.overdue_titles`.
+   - [cos_context.py:10502](apps/core/ai_orchestrator/cos_context.py:10502)
+     `FastingSession.objects.filter(is_active=True).first()` →
+     `get_metric('fasting.current_fast_active')`.
+
+3. **Explicit state-gap visibility** for the 3 remaining LabResult
+   reads. New `log_state_gap(missing_key, source, user, extra)`
+   observability hook in `apps/core/ai_state/metric_access.py`. Each
+   site now emits a `metric_access.state_gap` warning with
+   `missing_key` of `medical.recent_labs` / `medical.lab_test_counts`
+   / `medical.lab_test_trends`. Gaps are loud instead of invisible.
+
+4. **CoS data-access policy** codified in the
+   [cos_context.py](apps/core/ai_orchestrator/cos_context.py) module
+   docstring: allowed classes are engine_output, self_state,
+   continuity, reference_data, structured_lookup, and
+   gap_pending_state (with visibility required). Forbidden: any new
+   aggregation or derived status read.
+
+5. **Allowlist module**
+   [apps/core/ai_orchestrator/cos_read_allowlist.py](apps/core/ai_orchestrator/cos_read_allowlist.py)
+   enumerates every model read remaining in `cos_context.py` with a
+   declared count, classification enum, and rationale. Adding a new
+   direct read becomes a two-step change: code + allowlist entry.
+
+6. **New CI tests** in
+   [apps/core/ai_state/tests_metric_access.py](apps/core/ai_state/tests_metric_access.py)
+   (`CosReadAllowlistTests`, 4 tests):
+   - `test_every_direct_read_is_allowlisted` — unknown models fail CI.
+   - `test_declared_counts_match_source` — count divergence fails CI.
+   - `test_allowlist_has_no_dangling_entries` — stale entries fail CI.
+   - `test_gap_reads_emit_state_gap_log` — `gap_pending_state`
+     classifications require a `log_state_gap(...)` call in source.
+
+**State gaps flagged (not rebuilt, per policy):**
+- `medical.recent_labs` / `medical.lab_test_counts` /
+  `medical.lab_test_trends`. Future `build_medical_state` should
+  surface these; until then CoS reads LabResult directly with gap
+  warnings emitted.
+
+**Files:**
+- New: `apps/core/ai_orchestrator/cos_read_allowlist.py`.
+- Modified: `apps/core/ai_state/state_builder.py` (added ~60 lines
+  across `build_goal_state` and `build_habit_state`),
+  `apps/core/ai_state/metric_registry.py` (+8 keys),
+  `apps/core/ai_state/metric_access.py` (added `log_state_gap`),
+  `apps/core/ai_orchestrator/cos_context.py` (6 reads migrated, 3
+  gap logs, policy docstring, `log_state_gap` import),
+  `apps/core/ai_state/tests_metric_access.py` (`CosReadAllowlistTests`),
+  `docs/ENGINE_COS_REFERENCE.md`.
+
+**Why:** CoS is now state-first for domain truth. The 15 remaining
+direct ORM reads in `cos_context.py` are classified, justified, and
+CI-enforced. State gaps are visible in logs rather than masked by
+silent raw reads.
+
+**Verification:**
+- `python3 manage.py check` — clean (pre-existing djstripe infos).
+- `python3 manage.py makemigrations --check --dry-run` — no changes.
+- `apps.core.ai_state.tests_metric_access` — 22/22 pass (18 from
+  Phase 1 + 4 new CosReadAllowlistTests).
+- `apps.core.ai_orchestrator.tests.test_data_state_snapshot` +
+  `test_orchestrator` — 40/40 pass.
+- `apps.purpose.tests.test_goal_engine` — 55/55 pass.
+- `apps.core.ai_state.tests.TestGoalStateBuilder` +
+  `TestHabitStateBuilder` — 7/7 pass.
+
+
 ## 2026-04-20 — Add: Metric Access Layer + aggregation-purity guardrails
 
 **Problem.** Audit proved a parallel-truth pipeline between CoS and the dashboard.

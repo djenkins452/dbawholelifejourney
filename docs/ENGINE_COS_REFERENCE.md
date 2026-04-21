@@ -1,7 +1,7 @@
 # WLJ Engine & CoS Reference
 
 **Auto-maintained document.** Updated whenever engines, CoS context, or intelligence pipeline changes are made.
-**Last updated:** 2026-04-15 (Execution Escalation Engine: 4-level deterministic escalation in beth_checkin_renderer.py, trivial completion rule, duration estimate fixes, nudge state, move_later gating. Previous: 2026-04-07 Workout-Tomorrow Hardening: workout event adapter is now date-aware — past/today → `WorkoutSession`, future → `WorkoutSchedule`; deterministic empty-state contract in `handle_query_event_history` structurally bypasses the LLM for empty/future queries via `ar.message` direct return; new generic `_is_future_tense_query` gate applied to every per-domain summary matcher in `deterministic_router.py` — generalizes future-tense protection across all domains. Earlier the same day: CDCE domain gating added to `detect_fasting_fitness` + `build_fasting_state`; `workout_consistency_score` now uses canonical schedule-based adherence; data migration 0123 purges stale fasting_fitness correlations for users with fasting disabled.)
+**Last updated:** 2026-04-20 (Metric Access Layer: new `apps/core/ai_state/metric_access.py` + `metric_registry.py` as the single approved path for AI-facing metric reads. 10 `PersonalDataService.get_*_data()` methods migrated to read canonical SAE state instead of re-aggregating raw models — glucose/weight/sleep/food/steps/water/workout/journal/mood/medication. 12 methods deprecated to stubs returning None. In `cos_context.py`, the `_build_data_state_snapshot` lifetime-count block no longer issues 8 raw `.count()` queries; presence is derived from SAE signals. Medication adherence state now reads `health.medication_status`. `log_direct_orm_read()` telemetry added at 10 remaining direct-ORM read sites for Phase 2 cleanup. Purity-ratcheting test in `tests_metric_access.py` enforces zero aggregations in migrated files and blocks regressions elsewhere. Previous: 2026-04-15 Execution Escalation Engine: 4-level deterministic escalation in beth_checkin_renderer.py, trivial completion rule, duration estimate fixes, nudge state, move_later gating. Earlier: 2026-04-07 Workout-Tomorrow Hardening: workout event adapter is now date-aware — past/today → `WorkoutSession`, future → `WorkoutSchedule`; deterministic empty-state contract in `handle_query_event_history` structurally bypasses the LLM for empty/future queries via `ar.message` direct return; new generic `_is_future_tense_query` gate applied to every per-domain summary matcher in `deterministic_router.py` — generalizes future-tense protection across all domains. Earlier the same day: CDCE domain gating added to `detect_fasting_fitness` + `build_fasting_state`; `workout_consistency_score` now uses canonical schedule-based adherence; data migration 0123 purges stale fasting_fitness correlations for users with fasting disabled.)
 
 ---
 
@@ -483,6 +483,32 @@ ISE (every 15m) → run_proactive_guidance_scheduler()
 
 ## Truth Layer Architecture
 
+### Metric Access Layer (2026-04-20)
+
+`apps/core/ai_state/metric_access.py` is the single approved entry point for **AI-facing** metric reads. It is a thin facade over `get_state_value()` — it does not compute, aggregate, cache, or fall back.
+
+```
+AI-facing caller
+  └─> get_metric(user, "health.glucose_avg_7d")
+        ├─> METRIC_REGISTRY lookup  → unregistered ⇒ log warning, return None
+        └─> get_state_value(user, state_path)
+              └─> SAE state  → absent ⇒ log "orphan" info, return None
+                             → present ⇒ return MetricResult(value, source, domain, window, unit)
+```
+
+**Rules enforced by `apps/core/ai_state/tests_metric_access.py`:**
+- `PURITY_ENFORCED_FILES` (currently `assistant/data_service.py`, `apps/core/ai_orchestrator/cos_context.py`) must contain zero `.aggregate()`, `.annotate()`, or bare `.count()` calls.
+- `PURITY_BASELINE` files (20 existing AI-facing modules with known Phase 2 debt) may not regress above their current violation count.
+- Any new AI-facing file with raw aggregation fails CI.
+- Every key in `METRIC_REGISTRY` must be written by some `state["<key>"] = ...` line in `state_builder.py`.
+
+**Observability hooks** (`logger.warning` / `logger.info` with `metric_access: True`):
+- `metric_access.unregistered_key` — caller asked for a key not in the registry.
+- `metric_access.orphan` — key is registered but SAE has not populated it yet.
+- `metric_access.divergence` — same metric key emitted with conflicting values in one turn.
+- `metric_access.direct_orm_read` — AI-facing code still reads a model directly (Phase 2 migration target).
+- `personal_data_service.deprecated_call` — one of the 12 deprecated `get_*_data` methods was called.
+
 ### Data Flow: Action → State → Intelligence
 
 ```
@@ -831,6 +857,9 @@ When the user asks a health intelligence question with a brevity keyword ("keep 
 | `apps/core/ai_state/state_engine.py` | SAE — state management |
 | `apps/core/ai_state/state_builder.py` | SAE — module state builders |
 | `apps/core/ai_state/state_updater.py` | SAE — incremental update |
+| `apps/core/ai_state/metric_access.py` | Metric Access Layer — approved entry point for AI-facing metric reads |
+| `apps/core/ai_state/metric_registry.py` | Canonical metric key registry (domain + window + SAE state path) |
+| `apps/core/ai_state/tests_metric_access.py` | Metric-access unit tests + purity/orphan CI gates |
 | `apps/core/ai_insights/insight_engine.py` | PIE — insight generation |
 | `apps/core/ai_insights/health/screenshot_parser.py` | PIE — health screenshot Vision API extraction |
 | `apps/core/ai_insights/health/sleep_analysis.py` | PIE — deterministic sleep analysis + PIE rule |

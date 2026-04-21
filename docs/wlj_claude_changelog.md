@@ -7,6 +7,98 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-20 — Add: Metric Access Layer + aggregation-purity guardrails
+
+**Problem.** Audit proved a parallel-truth pipeline between CoS and the dashboard.
+`assistant/data_service.PersonalDataService` re-aggregated raw models (glucose,
+weight, sleep, etc.) at request time and injected those values into the LLM
+prompt alongside SAE canonical state. `apps/core/ai_orchestrator/cos_context.py`
+did the same with 8 raw `WeightEntry/SleepEntry/FoodEntry/…count()` calls inside
+the zero-data grounding block. Two different pipelines, two different windows,
+two different rounding rules — user got 141 vs 145 mg/dL glucose depending on
+which path the LLM narrated from.
+
+**Change.**
+
+1. **New canonical access layer.**
+   - `apps/core/ai_state/metric_registry.py` — frozen dict of `MetricDefinition`
+     entries mapping each canonical key (e.g. `health.glucose_avg_7d`) to the
+     SAE state path, domain, window, and unit. ~37 keys covering the 10
+     migration targets plus presence signals.
+   - `apps/core/ai_state/metric_access.py` — `get_metric(user, key)` facade
+     over `get_state_value()`. Returns a `MetricResult(value, source, domain,
+     window, unit)` or None. Never aggregates, never caches, never falls back.
+     Includes `log_direct_orm_read()` telemetry hook and `record_divergence()`.
+
+2. **Migrated 10 `PersonalDataService` methods** to read canonical SAE state
+   instead of aggregating: glucose, weight, sleep, food (calories), steps,
+   water, workout, journal, mood, medication. Raw recent-entries lists are
+   retained (not an aggregation) for narrative context.
+
+3. **Deprecated 12 methods** to stubs returning None with a
+   `DeprecationWarning` + `logger.warning("personal_data_service.deprecated_call")`:
+   get_heart_rate_data, get_blood_pressure_data, get_blood_oxygen_data,
+   get_fasting_data, get_mobility_data, get_heart_rate_events_data,
+   get_audio_exposure_data, get_dietary_nutrients_data, get_task_data,
+   get_faith_data, get_goals_data, get_health_summary_data. This honors the
+   "do not rebuild missing canonical metrics" rule — a metric either exists
+   in SAE or it is not narrated to the LLM.
+
+4. **`cos_context.py` cleanup.**
+   - `_build_data_state_snapshot` lifetime counts now derive from SAE presence
+     signals (e.g. `health.last_weight_entry is not None`) instead of 8 raw
+     `.count()` queries. Preserves the zero-data grounding rules exactly.
+   - Medication adherence block at line 10535 now reads
+     `health.medication_status` via `get_metric()` instead of counting
+     `IntakeSchedule.logs`.
+   - `log_direct_orm_read()` instrumented at 10 remaining direct-ORM read
+     sites (Insight, Prediction, GuidanceItem, DomainCorrelation, LabResult,
+     LifeGoal, HabitGoal, SignalSnapshot, GoalMomentumSnapshot, CoSSituationState)
+     so Phase 2 cleanup has per-call telemetry.
+
+5. **Purity + orphan tests** (`apps/core/ai_state/tests_metric_access.py`):
+   - `MetricRegistryTests`: registry lookups.
+   - `GetMetricTests`: unregistered/orphan/populated paths, divergence hook.
+   - `MetricPurityTests`: AST scan for `.aggregate()`, `.annotate()`, and
+     bare `.count()` in `assistant/`, `apps/ai/`, `apps/core/ai_orchestrator/`.
+     Split into three assertions: enforced-files must be pure, baseline files
+     must not regress, new AI-facing files must be pure.
+   - `MetricOrphanTests`: every registered key has a `state["<key>"] = ...`
+     writer in `state_builder.py`. 18 tests, all green in 0.4s.
+
+**User-facing losses accepted (no canonical SAE equivalent yet, per rule):**
+BP 7-day/30-day averages, workout streak, lifetime faith counts,
+goals-based completion rate (vs canonical milestone-based), HealthKit dietary
+nutrient averages, the composite health-summary readout. Each has a TODO
+pointing to the SAE extension that would restore it.
+
+**Files:**
+- New: `apps/core/ai_state/metric_access.py`,
+  `apps/core/ai_state/metric_registry.py`,
+  `apps/core/ai_state/tests_metric_access.py`.
+- Modified: `assistant/data_service.py` (10 methods migrated, 12 deprecated;
+  imports of `Avg, Count, Sum` removed; 2280 → 1679 lines),
+  `apps/core/ai_orchestrator/cos_context.py` (lifetime-counts + medication
+  block migrated, 10 `log_direct_orm_read` calls added),
+  `docs/ENGINE_COS_REFERENCE.md` (Metric Access Layer section + Key File Paths).
+
+**Why:** protect CoS trust. LLM now sees exactly one value per metric per
+turn, from one source. CI blocks regressions; telemetry surfaces remaining
+Phase 2 work rather than hiding it.
+
+**Verification:**
+- `python3 manage.py check` — clean (only pre-existing djstripe config infos).
+- `python3 manage.py test apps.core.ai_state.tests_metric_access -v 2 --failfast`
+  — 18/18 pass in 0.4s.
+- `python3 manage.py test apps.core.ai_orchestrator.tests.test_data_state_snapshot
+  apps.core.ai_orchestrator.tests.test_orchestrator --keepdb` — 40/40 pass
+  (covers the cos_context block I modified).
+- `assistant/tests/test_context_builder.py` — 57/57 pass (covers the
+  formatters that consume the migrated `get_*_data` methods).
+- Deliverable files post-migration: `assistant/data_service.py` = 0
+  aggregations, `apps/core/ai_orchestrator/cos_context.py` = 0 aggregations.
+
+
 ## 2026-04-18 — Fix: Receipt-routed restaurant FoodEntry signal gap
 
 **Problem:** `ReceiptRoutingService._route_restaurant` created a

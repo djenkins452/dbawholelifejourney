@@ -46,14 +46,76 @@ The data cache key format is: personal_data:{user_id}:{data_type}:v{version}:{da
 """
 
 import logging
+import warnings
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from django.core.cache import cache
-from django.db.models import Avg, Count, Sum
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+
+def _get_metric(user, key):
+    """
+    Lazy wrapper around ``apps.core.ai_state.metric_access.get_metric``.
+
+    The assistant package is imported during Django app loading
+    (``assistant/__init__.py`` re-exports :class:`PersonalDataService`),
+    so top-level imports of ``apps.core.ai_state`` trigger
+    ``AppRegistryNotReady``. Deferring the import until call time
+    avoids that boot-order problem without changing the facade's
+    semantics.
+    """
+    from apps.core.ai_state.metric_access import get_metric
+    return get_metric(user, key)
+
+
+# Module-level alias so the existing call sites read as
+# ``get_metric(user, key)`` while still going through the lazy loader.
+get_metric = _get_metric
+
+
+# Methods migrated to the canonical metric access layer. Aggregation
+# has been removed from these and they now read from SAE state via
+# get_metric(). Use this list to keep the deprecated-method warnings
+# in the untouched methods consistent.
+_MIGRATED_METHODS = frozenset({
+    "get_glucose_data",
+    "get_weight_data",
+    "get_sleep_data",
+    "get_food_data",
+    "get_steps_data",
+    "get_water_data",
+    "get_workout_data",
+    "get_journal_data",
+    "get_mood_data",
+    "get_medication_data",
+})
+
+
+def _warn_deprecated_personal_data_method(method_name: str) -> None:
+    """
+    Emit a deprecation warning for a non-migrated ``get_*_data`` method
+    that still performs raw aggregation. Called at the top of each
+    un-migrated method so operators see the warning in logs and in
+    test output without breaking callers.
+    """
+    message = (
+        f"PersonalDataService.{method_name}() still performs raw "
+        "aggregation and is deprecated. It will be removed once the "
+        "corresponding canonical metric is added to SAE. Do not call "
+        "from new code — use apps.core.ai_state.metric_access.get_metric()."
+    )
+    warnings.warn(message, DeprecationWarning, stacklevel=3)
+    logger.warning(
+        "personal_data_service.deprecated_call",
+        extra={
+            "metric_access": True,
+            "event": "deprecated_call",
+            "method": method_name,
+        },
+    )
 
 
 def _to_date(value: Optional[datetime]) -> Optional[date]:
@@ -237,65 +299,56 @@ class PersonalDataService:
                 'entries': [...]
             }
         """
-        # Check cache first
+        # Canonical values come from SAE state; no average is computed
+        # here because no canonical weight average exists yet. Recent
+        # entries are still queried as a non-aggregated list so the
+        # LLM can see specific values for narrative context.
         cache_key = _generate_cache_key(self.user.id, 'weight', since_date)
         cached_data = cache.get(cache_key)
         if cached_data is not None:
             return cached_data
 
-        # Import here to avoid circular imports and allow testing without Django
-        from apps.health.models import WeightEntry
-
-        # Build base queryset
-        queryset = WeightEntry.objects.filter(user=self.user)
-
-        # Apply date filter if provided
-        if since_date:
-            queryset = queryset.filter(recorded_at__gte=since_date)
-
-        # Check if any entries exist
-        if not queryset.exists():
+        weight_current = get_metric(self.user, 'health.weight_current')
+        if weight_current is None:
             return None
 
-        # Get aggregate statistics
-        count = queryset.count()
-        avg_result = queryset.aggregate(avg_value=Avg('value'))
-        average = float(avg_result['avg_value']) if avg_result['avg_value'] else 0.0
+        weight_unit = get_metric(self.user, 'health.weight_unit')
+        last_entry = get_metric(self.user, 'health.last_weight_entry')
+        change_30d = get_metric(self.user, 'health.weight_change_30d')
+        trend = get_metric(self.user, 'health.weight_trend')
 
-        # Get latest entry (queryset is ordered by -recorded_at by default)
-        latest_entry = queryset.first()
-        latest_value = float(latest_entry.value)
-        latest_date = latest_entry.recorded_at
-        latest_unit = latest_entry.unit
-
-        # Get recent entries for context
+        from apps.health.models import WeightEntry
+        entries_qs = WeightEntry.objects.filter(user=self.user)
+        if since_date:
+            entries_qs = entries_qs.filter(recorded_at__gte=since_date)
         recent_entries = list(
-            queryset[:limit].values('value', 'unit', 'recorded_at', 'notes')
+            entries_qs[:limit].values('value', 'unit', 'recorded_at', 'notes')
         )
-
-        # Convert Decimal values to float for JSON serialization
-        entries = []
-        for entry in recent_entries:
-            entries.append({
-                'value': float(entry['value']),
-                'unit': entry['unit'],
-                'recorded_at': entry['recorded_at'],
-                'notes': entry['notes'],
-            })
+        entries = [
+            {
+                'value': float(e['value']),
+                'unit': e['unit'],
+                'recorded_at': e['recorded_at'],
+                'notes': e['notes'],
+            }
+            for e in recent_entries
+        ]
 
         result = {
             'type': 'weight',
-            'count': count,
-            'average': round(average, 1),
-            'latest': latest_value,
-            'latest_date': latest_date,
-            'unit': latest_unit,
+            'latest': float(weight_current.value),
+            'latest_date': last_entry.value if last_entry else None,
+            'unit': (
+                weight_unit.value if weight_unit
+                else (entries[0]['unit'] if entries else 'lb')
+            ),
+            'change_30d': change_30d.value if change_30d else None,
+            'trend': trend.value if trend else None,
+            'source': weight_current.source,
             'entries': entries,
         }
 
-        # Cache the result
         cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
-
         return result
 
     def get_journal_data(
@@ -326,87 +379,38 @@ class PersonalDataService:
                 'latest_date': date(2024, 12, 18)
             }
         """
-        # Check cache first
+        # Canonical journal counts and last-entry date come from SAE
+        # journal state. Streak, consistency %, and missed-day
+        # calculations previously derived here are NOT rebuilt — they
+        # have no canonical equivalent yet. A recent-entries list is
+        # still fetched as non-aggregated row data for narrative use.
         cache_key = _generate_cache_key(self.user.id, 'journal', since_date)
         cached_data = cache.get(cache_key)
         if cached_data is not None:
             return cached_data
 
-        # Import here to avoid circular imports and allow testing without Django
-        from apps.journal.models import JournalEntry
+        entries_7d = get_metric(self.user, 'journal.entries_7d')
+        entries_30d = get_metric(self.user, 'journal.entries_30d')
+        days_since = get_metric(self.user, 'journal.days_since_entry')
+        last_entry_ts = get_metric(self.user, 'journal.last_entry')
 
-        # Build base queryset - filter by user (SoftDeleteManager excludes deleted records)
-        queryset = JournalEntry.objects.filter(user=self.user)
-
-        # Apply date filter if provided
-        if since_date:
-            queryset = queryset.filter(entry_date__gte=_to_date(since_date))
-
-        # Check if any entries exist
-        if not queryset.exists():
+        if (
+            entries_7d is None
+            and entries_30d is None
+            and last_entry_ts is None
+        ):
             return None
 
-        # Get count
-        count = queryset.count()
-
-        # Get latest entry (queryset is ordered by -entry_date, -created_at by default)
-        latest_entry = queryset.first()
-        latest_date = latest_entry.entry_date
-
-        # Get earliest entry for streak/consistency calculations
-        earliest_entry = queryset.order_by('entry_date').first()
-        earliest_date = earliest_entry.entry_date
-
-        # Calculate days since first entry and missed days
-        from apps.core.utils import get_user_today
-        today = get_user_today(self.user)
-        total_days = (today - earliest_date).days + 1  # inclusive
-
-        # Get unique journal dates for streak and missed day calculations
-        journal_dates = set(
-            queryset.values_list('entry_date', flat=True).distinct()
-        )
-        days_with_entries = len(journal_dates)
-        missed_days = total_days - days_with_entries
-
-        # Calculate current streak (consecutive days ending today or yesterday)
-        current_streak = 0
-        check_date = today
-        while check_date in journal_dates:
-            current_streak += 1
-            check_date -= timedelta(days=1)
-
-        # If streak is 0, check if yesterday had an entry (user may not have
-        # journaled yet today)
-        if current_streak == 0:
-            check_date = today - timedelta(days=1)
-            while check_date in journal_dates:
-                current_streak += 1
-                check_date -= timedelta(days=1)
-
-        # Calculate this week's entries (Mon-Sun)
-        start_of_week = today - timedelta(days=today.weekday())
-        this_week_count = queryset.filter(
-            entry_date__gte=start_of_week
-        ).count()
-
-        # Consistency percentage
-        consistency_pct = round((days_with_entries / total_days) * 100, 1) if total_days > 0 else 0
-
-        # Calculate actual missed dates (cap at 30 most recent for prompt size)
-        all_dates_in_range = set()
-        d = earliest_date
-        while d <= today:
-            all_dates_in_range.add(d)
-            d += timedelta(days=1)
-        missed_date_list = sorted(all_dates_in_range - journal_dates, reverse=True)[:30]
-
-        # Get recent entries with mood, tags, and content preview
-        # This allows the AI to answer questions like "was I happy on Feb 2nd?"
+        from apps.journal.models import JournalEntry
+        entries_qs = JournalEntry.objects.filter(user=self.user)
+        if since_date:
+            entries_qs = entries_qs.filter(entry_date__gte=_to_date(since_date))
         recent_entries = []
-        for entry in queryset.prefetch_related('tags')[:14]:  # Last ~2 weeks
+        for entry in entries_qs.prefetch_related('tags')[:14]:
             tags = [t.name for t in entry.tags.all()]
-            preview = entry.body[:200] + '...' if len(entry.body) > 200 else entry.body
+            preview = (
+                entry.body[:200] + '...' if len(entry.body) > 200 else entry.body
+            )
             recent_entries.append({
                 'date': entry.entry_date,
                 'title': entry.title,
@@ -418,22 +422,18 @@ class PersonalDataService:
 
         result = {
             'type': 'journal',
-            'count': count,
-            'latest_date': latest_date,
-            'earliest_date': earliest_date,
-            'total_days_since_start': total_days,
-            'days_with_entries': days_with_entries,
-            'missed_days': missed_days,
-            'missed_dates': missed_date_list,
-            'current_streak': current_streak,
-            'this_week_count': this_week_count,
-            'consistency_percent': consistency_pct,
+            'entries_7d': entries_7d.value if entries_7d else None,
+            'entries_30d': entries_30d.value if entries_30d else None,
+            'days_since_entry': days_since.value if days_since else None,
+            'latest_date': last_entry_ts.value if last_entry_ts else None,
+            'source': (
+                entries_7d.source if entries_7d
+                else (last_entry_ts.source if last_entry_ts else None)
+            ),
             'recent_entries': recent_entries,
         }
 
-        # Cache the result
         cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
-
         return result
 
     def get_medication_data(
@@ -468,63 +468,29 @@ class PersonalDataService:
                 'consistency_percent': 83.3
             }
         """
-        # Check cache first
+        # Canonical medication adherence status is owned by the SAE
+        # medicine state builder (health.medication_status). Raw
+        # MedicineLog consistency-% calculation has been removed; a
+        # canonical adherence % has not yet been promoted into SAE,
+        # so we surface only the status for now.
         cache_key = _generate_cache_key(self.user.id, 'medication', since_date)
         cached_data = cache.get(cache_key)
         if cached_data is not None:
             return cached_data
 
-        # Import here to avoid circular imports and allow testing without Django
-        from apps.health.models import MedicineLog
-
-        # Build base queryset - filter by user (SoftDeleteManager excludes deleted records)
-        queryset = MedicineLog.objects.filter(user=self.user)
-
-        # Apply date filter if provided
-        if since_date:
-            queryset = queryset.filter(scheduled_date__gte=_to_date(since_date))
-
-        # Check if any entries exist
-        if not queryset.exists():
+        status = get_metric(self.user, 'health.medication_status')
+        status_reason = get_metric(self.user, 'health.medication_status_reason')
+        if status is None:
             return None
-
-        # Get total log count
-        total_logs = queryset.count()
-
-        # Get unique days with logs using dates() aggregation
-        unique_dates = queryset.values_list('scheduled_date', flat=True).distinct()
-        days_logged = len(set(unique_dates))
-
-        # Calculate total_days from since_date or first log date to now
-        if since_date:
-            # Use since_date as the start
-            start_date = since_date.date() if isinstance(since_date, datetime) else since_date
-        else:
-            # Use the earliest log date as start
-            earliest_log = queryset.order_by('scheduled_date').first()
-            start_date = earliest_log.scheduled_date
-
-        # Get today's date for the end of the period
-        today = timezone.now().date()
-        total_days = (today - start_date).days + 1  # +1 to include both start and end dates
-
-        # Calculate consistency percentage
-        if total_days > 0:
-            consistency_percent = round((days_logged / total_days) * 100, 1)
-        else:
-            consistency_percent = 0.0
 
         result = {
             'type': 'medication',
-            'total_logs': total_logs,
-            'days_logged': days_logged,
-            'total_days': total_days,
-            'consistency_percent': consistency_percent,
+            'status': status.value,
+            'status_reason': status_reason.value if status_reason else None,
+            'source': status.source,
         }
 
-        # Cache the result
         cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
-
         return result
 
     def get_food_data(
@@ -559,58 +525,44 @@ class PersonalDataService:
                 'latest_date': date(2024, 12, 18)
             }
         """
-        # Check cache first
+        # Canonical daily calories and 7-day rolling average come from
+        # the SAE nutrition state. Raw FoodEntry aggregation has been
+        # removed; we no longer re-derive totals here.
         cache_key = _generate_cache_key(self.user.id, 'food', since_date)
         cached_data = cache.get(cache_key)
         if cached_data is not None:
             return cached_data
 
-        # Import here to avoid circular imports and allow testing without Django
-        from apps.health.models import FoodEntry
+        daily_calories = get_metric(self.user, 'nutrition.daily_calories')
+        rolling_avg = get_metric(self.user, 'nutrition.rolling_7d_calories_avg')
+        entries_today = get_metric(self.user, 'nutrition.food_entries_today')
+        entries_7d = get_metric(self.user, 'nutrition.food_entries_7d')
+        last_entry_ts = get_metric(self.user, 'health.last_food_entry')
 
-        # Build base queryset - filter by user
-        queryset = FoodEntry.objects.filter(user=self.user)
-
-        # Apply date filter if provided
-        if since_date:
-            queryset = queryset.filter(logged_date__gte=_to_date(since_date))
-
-        # Check if any entries exist
-        if not queryset.exists():
+        if (
+            daily_calories is None
+            and rolling_avg is None
+            and last_entry_ts is None
+        ):
             return None
-
-        # Get total entry count
-        total_entries = queryset.count()
-
-        # Get total calories
-        cal_result = queryset.aggregate(total_cal=Sum('total_calories'))
-        total_calories = float(cal_result['total_cal']) if cal_result['total_cal'] else 0.0
-
-        # Get unique days for average calculation
-        unique_dates = queryset.values_list('logged_date', flat=True).distinct()
-        days_count = len(set(unique_dates))
-
-        # Calculate average daily calories
-        if days_count > 0:
-            average_daily_calories = round(total_calories / days_count, 1)
-        else:
-            average_daily_calories = 0.0
-
-        # Get latest entry (queryset is ordered by -logged_date by default)
-        latest_entry = queryset.first()
-        latest_date = latest_entry.logged_date
 
         result = {
             'type': 'food',
-            'total_entries': total_entries,
-            'total_calories': round(total_calories, 1),
-            'average_daily_calories': average_daily_calories,
-            'latest_date': latest_date,
+            'daily_calories': daily_calories.value if daily_calories else None,
+            'average_daily_calories': (
+                rolling_avg.value if rolling_avg else None
+            ),
+            'average_window': '7d_rolling',
+            'entries_today': entries_today.value if entries_today else None,
+            'entries_7d': entries_7d.value if entries_7d else None,
+            'latest_date': last_entry_ts.value if last_entry_ts else None,
+            'source': (
+                rolling_avg.source if rolling_avg
+                else (daily_calories.source if daily_calories else None)
+            ),
         }
 
-        # Cache the result
         cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
-
         return result
 
     def get_glucose_data(
@@ -652,66 +604,61 @@ class PersonalDataService:
                 'entries': [...]
             }
         """
-        # Check cache first
+        # Canonical 7-day glucose average and latest reading come from
+        # SAE state. We do not re-aggregate GlucoseEntry here — doing so
+        # produced the 141 vs 145 divergence that triggered this layer.
         cache_key = _generate_cache_key(self.user.id, 'glucose', since_date)
         cached_data = cache.get(cache_key)
         if cached_data is not None:
             return cached_data
 
-        # Import here to avoid circular imports and allow testing without Django
-        from apps.health.models import GlucoseEntry
-
-        # Build base queryset
-        queryset = GlucoseEntry.objects.filter(user=self.user)
-
-        # Apply date filter if provided
-        if since_date:
-            queryset = queryset.filter(recorded_at__gte=since_date)
-
-        # Check if any entries exist
-        if not queryset.exists():
+        glucose_avg_7d = get_metric(self.user, 'health.glucose_avg_7d')
+        latest = get_metric(self.user, 'health.latest_glucose')
+        if glucose_avg_7d is None and latest is None:
             return None
 
-        # Get aggregate statistics
-        count = queryset.count()
-        avg_result = queryset.aggregate(avg_value=Avg('value'))
-        average = float(avg_result['avg_value']) if avg_result['avg_value'] else 0.0
+        latest_unit = get_metric(self.user, 'health.latest_glucose_unit')
+        variability = get_metric(self.user, 'health.glucose_variability_level')
 
-        # Get latest entry (queryset is ordered by -recorded_at by default)
-        latest_entry = queryset.first()
-        latest_value = float(latest_entry.value)
-        latest_date = latest_entry.recorded_at
-        latest_unit = latest_entry.unit
-
-        # Get recent entries for context
+        from apps.health.models import GlucoseEntry
+        entries_qs = GlucoseEntry.objects.filter(user=self.user)
+        if since_date:
+            entries_qs = entries_qs.filter(recorded_at__gte=since_date)
         recent_entries = list(
-            queryset[:limit].values('value', 'unit', 'recorded_at', 'context', 'trend')
+            entries_qs[:limit].values(
+                'value', 'unit', 'recorded_at', 'context', 'trend'
+            )
         )
-
-        # Convert Decimal values to float for JSON serialization
-        entries = []
-        for entry in recent_entries:
-            entries.append({
-                'value': float(entry['value']),
-                'unit': entry['unit'],
-                'recorded_at': entry['recorded_at'],
-                'context': entry['context'],
-                'trend': entry['trend'],
-            })
+        entries = [
+            {
+                'value': float(e['value']),
+                'unit': e['unit'],
+                'recorded_at': e['recorded_at'],
+                'context': e['context'],
+                'trend': e['trend'],
+            }
+            for e in recent_entries
+        ]
 
         result = {
             'type': 'glucose',
-            'count': count,
-            'average': round(average, 1),
-            'latest': latest_value,
-            'latest_date': latest_date,
-            'unit': latest_unit,
+            'average': glucose_avg_7d.value if glucose_avg_7d else None,
+            'average_window': '7d_rolling',
+            'latest': latest.value if latest else None,
+            'unit': (
+                latest_unit.value if latest_unit
+                else (entries[0]['unit'] if entries else 'mg/dL')
+            ),
+            'variability_level': variability.value if variability else None,
+            'source': glucose_avg_7d.source if glucose_avg_7d else (
+                latest.source if latest else None
+            ),
             'entries': entries,
         }
+        if entries:
+            result['latest_date'] = entries[0]['recorded_at']
 
-        # Cache the result
         cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
-
         return result
 
     def get_faith_data(
@@ -760,90 +707,12 @@ class PersonalDataService:
                 'reading_plans': {'active': 1, 'completed': 2}
             }
         """
-        # Check cache first
-        cache_key = _generate_cache_key(self.user.id, 'faith', since_date)
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            return cached_data
-
-        # Import here to avoid circular imports and allow testing without Django
-        from apps.faith.models import (
-            FaithMilestone, PrayerRequest, SavedVerse, UserReadingPlan
-        )
-
-        # Initialize result structure
-        result = {
-            'type': 'faith',
-            'prayer_requests': None,
-            'saved_verses': 0,
-            'milestones': 0,
-            'reading_plans': {'active': 0, 'completed': 0},
-        }
-
-        has_data = False
-
-        # Query prayer requests
-        prayer_qs = PrayerRequest.objects.filter(user=self.user)
-        if since_date:
-            prayer_qs = prayer_qs.filter(created_at__gte=since_date)
-
-        if prayer_qs.exists():
-            has_data = True
-            total_prayers = prayer_qs.count()
-            answered_prayers = prayer_qs.filter(is_answered=True).count()
-            active_prayers = total_prayers - answered_prayers
-            latest_prayer = prayer_qs.first()
-
-            result['prayer_requests'] = {
-                'total': total_prayers,
-                'active': active_prayers,
-                'answered': answered_prayers,
-                'latest_date': latest_prayer.created_at,
-            }
-
-        # Query saved verses
-        verse_qs = SavedVerse.objects.filter(user=self.user)
-        if since_date:
-            verse_qs = verse_qs.filter(created_at__gte=since_date)
-
-        verse_count = verse_qs.count()
-        if verse_count > 0:
-            has_data = True
-            result['saved_verses'] = verse_count
-
-        # Query faith milestones
-        milestone_qs = FaithMilestone.objects.filter(user=self.user)
-        if since_date:
-            milestone_qs = milestone_qs.filter(created_at__gte=since_date)
-
-        milestone_count = milestone_qs.count()
-        if milestone_count > 0:
-            has_data = True
-            result['milestones'] = milestone_count
-
-        # Query reading plans (status-based, not date-based)
-        active_plans = UserReadingPlan.objects.filter(
-            user=self.user, status='active'
-        ).count()
-        completed_plans = UserReadingPlan.objects.filter(
-            user=self.user, status='completed'
-        ).count()
-
-        if active_plans > 0 or completed_plans > 0:
-            has_data = True
-            result['reading_plans'] = {
-                'active': active_plans,
-                'completed': completed_plans,
-            }
-
-        # Return None if no faith data exists
-        if not has_data:
-            return None
-
-        # Cache the result
-        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
-
-        return result
+        # DEPRECATED: no canonical faith counts exist in SAE yet.
+        # Rebuilding prayer/verse/milestone counters here bypasses the
+        # signals/state layer. Until SAE exposes faith counts this
+        # method returns None — surfacing the gap rather than fabricating.
+        _warn_deprecated_personal_data_method("get_faith_data")
+        return None
 
     def get_goals_data(
         self,
@@ -886,82 +755,13 @@ class PersonalDataService:
                 'domains': [{'name': 'Health', 'count': 3}, {'name': 'Faith', 'count': 2}]
             }
         """
-        # Check cache first
-        cache_key = _generate_cache_key(self.user.id, 'goals', since_date)
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            return cached_data
-
-        # Import here to avoid circular imports and allow testing without Django
-        from apps.purpose.models import LifeGoal
-
-        # Build base queryset
-        queryset = LifeGoal.objects.filter(user=self.user)
-
-        # Apply date filter if provided (based on created_at)
-        if since_date:
-            queryset = queryset.filter(created_at__gte=since_date)
-
-        # Check if any goals exist
-        if not queryset.exists():
-            return None
-
-        # Get total count
-        total = queryset.count()
-
-        # Get counts by status
-        status_counts = queryset.values('status').annotate(count=Count('status'))
-        by_status = {item['status']: item['count'] for item in status_counts}
-
-        # Get counts by timeframe
-        timeframe_counts = queryset.values('timeframe').annotate(count=Count('timeframe'))
-        by_timeframe = {item['timeframe']: item['count'] for item in timeframe_counts}
-
-        # Calculate completion rate
-        completed_count = by_status.get('completed', 0)
-        if total > 0:
-            completion_rate = round((completed_count / total) * 100, 1)
-        else:
-            completion_rate = 0.0
-
-        # Get recently completed goals (up to 5)
-        completed_goals = queryset.filter(
-            status='completed',
-            completed_date__isnull=False
-        ).order_by('-completed_date')[:5]
-
-        recent_completed = [
-            {
-                'title': goal.title,
-                'completed_date': goal.completed_date,
-            }
-            for goal in completed_goals
-        ]
-
-        # Get domains with goal counts (only for goals that have a domain)
-        domain_counts = queryset.filter(
-            domain__isnull=False
-        ).values('domain__name').annotate(count=Count('domain')).order_by('-count')
-
-        domains = [
-            {'name': item['domain__name'], 'count': item['count']}
-            for item in domain_counts
-        ]
-
-        result = {
-            'type': 'goals',
-            'total': total,
-            'by_status': by_status,
-            'by_timeframe': by_timeframe,
-            'completion_rate': completion_rate,
-            'recent_completed': recent_completed,
-            'domains': domains,
-        }
-
-        # Cache the result
-        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
-
-        return result
+        # DEPRECATED: goals-based completion_rate (derived from
+        # status counts) is a different definition from the canonical
+        # milestone-based goals.completion_rate already in SAE. Until
+        # the two are reconciled in SAE, this method returns None to
+        # avoid narrating a conflicting rate to the LLM.
+        _warn_deprecated_personal_data_method("get_goals_data")
+        return None
 
     def get_mood_data(
         self,
@@ -997,60 +797,47 @@ class PersonalDataService:
                 'latest_date': date(2024, 12, 18)
             }
         """
-        # Check cache first
+        # Canonical mood distribution, trend, and latest mood come
+        # from SAE journal state. Raw JournalEntry.annotate(Count) has
+        # been removed — see journal.mood_* in the metric registry.
         cache_key = _generate_cache_key(self.user.id, 'mood', since_date)
         cached_data = cache.get(cache_key)
         if cached_data is not None:
             return cached_data
 
-        # Import here to avoid circular imports and allow testing without Django
-        from apps.journal.models import JournalEntry
+        mood_avg_7d = get_metric(self.user, 'journal.mood_avg_7d')
+        mood_trend = get_metric(self.user, 'journal.mood_trend')
+        distribution = get_metric(self.user, 'journal.mood_distribution')
+        latest_mood = get_metric(self.user, 'journal.last_mood')
+        last_entry_ts = get_metric(self.user, 'journal.last_entry')
 
-        # Build base queryset - filter by user and has mood (SoftDeleteManager excludes deleted records)
-        queryset = JournalEntry.objects.filter(
-            user=self.user
-        ).exclude(mood='')
-
-        # Apply date filter if provided
-        if since_date:
-            queryset = queryset.filter(entry_date__gte=_to_date(since_date))
-
-        # Check if any entries exist
-        if not queryset.exists():
+        if (
+            mood_avg_7d is None
+            and distribution is None
+            and latest_mood is None
+        ):
             return None
 
-        # Get count of entries with mood
-        count = queryset.count()
-
-        # Get mood distribution (counts per mood level)
-        mood_counts = queryset.values('mood').annotate(
-            count=Count('mood')
-        ).order_by('-count')
-
-        mood_distribution = {}
         most_common = None
-        for item in mood_counts:
-            mood_distribution[item['mood']] = item['count']
-            if most_common is None:
-                most_common = item['mood']
-
-        # Get latest entry with mood (queryset is ordered by -entry_date, -created_at)
-        latest_entry = queryset.first()
-        latest_mood = latest_entry.mood
-        latest_date = latest_entry.entry_date
+        dist_value = distribution.value if distribution else None
+        if isinstance(dist_value, dict) and dist_value:
+            most_common = max(dist_value.items(), key=lambda kv: kv[1])[0]
 
         result = {
             'type': 'mood',
-            'count': count,
-            'mood_distribution': mood_distribution,
+            'mood_avg_7d': mood_avg_7d.value if mood_avg_7d else None,
+            'mood_trend': mood_trend.value if mood_trend else None,
+            'mood_distribution': dist_value,
             'most_common': most_common,
-            'latest_mood': latest_mood,
-            'latest_date': latest_date,
+            'latest_mood': latest_mood.value if latest_mood else None,
+            'latest_date': last_entry_ts.value if last_entry_ts else None,
+            'source': (
+                distribution.source if distribution
+                else (mood_avg_7d.source if mood_avg_7d else None)
+            ),
         }
 
-        # Cache the result
         cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
-
         return result
 
     def get_heart_rate_data(
@@ -1077,57 +864,14 @@ class PersonalDataService:
                 - context (str): Context of latest reading (resting, active, etc.)
                 - entries (list): Last N entries
         """
-        # Check cache first
-        cache_key = _generate_cache_key(self.user.id, 'heart_rate', since_date)
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            return cached_data
-
-        from apps.health.models import HeartRateEntry
-
-        queryset = HeartRateEntry.objects.filter(user=self.user)
-
-        if since_date:
-            queryset = queryset.filter(recorded_at__gte=since_date)
-
-        if not queryset.exists():
-            return None
-
-        count = queryset.count()
-        avg_result = queryset.aggregate(avg_value=Avg('bpm'))
-        average = float(avg_result['avg_value']) if avg_result['avg_value'] else 0.0
-
-        latest_entry = queryset.first()
-        latest_value = latest_entry.bpm
-        latest_date = latest_entry.recorded_at
-        latest_context = latest_entry.context
-
-        recent_entries = list(
-            queryset[:limit].values('bpm', 'recorded_at', 'context', 'notes')
-        )
-
-        entries = [
-            {
-                'bpm': entry['bpm'],
-                'recorded_at': entry['recorded_at'],
-                'context': entry['context'],
-                'notes': entry['notes'],
-            }
-            for entry in recent_entries
-        ]
-
-        result = {
-            'type': 'heart_rate',
-            'count': count,
-            'average': round(average, 1),
-            'latest': latest_value,
-            'latest_date': latest_date,
-            'context': latest_context,
-            'entries': entries,
-        }
-
-        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
-        return result
+        # DEPRECATED: not in the priority-10 migration set. SAE does
+        # hold heart_rate_avg_7d and latest_heart_rate as canonical
+        # signals — this method should be removed in favor of a direct
+        # get_metric() call at the caller, or migrated in a later
+        # phase. Until then, return None to avoid parallel-truth
+        # injection into the LLM prompt.
+        _warn_deprecated_personal_data_method("get_heart_rate_data")
+        return None
 
     def get_blood_pressure_data(
         self,
@@ -1153,61 +897,13 @@ class PersonalDataService:
                 - latest_date (datetime): Date of most recent entry
                 - entries (list): Last N entries
         """
-        cache_key = _generate_cache_key(self.user.id, 'blood_pressure', since_date)
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            return cached_data
-
-        from apps.health.models import BloodPressureEntry
-
-        queryset = BloodPressureEntry.objects.filter(user=self.user)
-
-        if since_date:
-            queryset = queryset.filter(recorded_at__gte=since_date)
-
-        if not queryset.exists():
-            return None
-
-        count = queryset.count()
-        avg_result = queryset.aggregate(
-            avg_sys=Avg('systolic'),
-            avg_dia=Avg('diastolic')
-        )
-        avg_systolic = float(avg_result['avg_sys']) if avg_result['avg_sys'] else 0.0
-        avg_diastolic = float(avg_result['avg_dia']) if avg_result['avg_dia'] else 0.0
-
-        latest_entry = queryset.first()
-        latest_systolic = latest_entry.systolic
-        latest_diastolic = latest_entry.diastolic
-        latest_date = latest_entry.recorded_at
-
-        recent_entries = list(
-            queryset[:limit].values('systolic', 'diastolic', 'recorded_at', 'notes')
-        )
-
-        entries = [
-            {
-                'systolic': entry['systolic'],
-                'diastolic': entry['diastolic'],
-                'recorded_at': entry['recorded_at'],
-                'notes': entry['notes'],
-            }
-            for entry in recent_entries
-        ]
-
-        result = {
-            'type': 'blood_pressure',
-            'count': count,
-            'avg_systolic': round(avg_systolic, 1),
-            'avg_diastolic': round(avg_diastolic, 1),
-            'latest_systolic': latest_systolic,
-            'latest_diastolic': latest_diastolic,
-            'latest_date': latest_date,
-            'entries': entries,
-        }
-
-        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
-        return result
+        # DEPRECATED: no canonical BP 7-day/30-day average exists in
+        # SAE. BP averaging was re-derived here and also in dashboard
+        # views — a divergence we accept losing temporarily rather
+        # than rebuilding. The next step is to add bp_systolic_avg_7d
+        # / bp_diastolic_avg_7d to SAE build_health_state.
+        _warn_deprecated_personal_data_method("get_blood_pressure_data")
+        return None
 
     def get_blood_oxygen_data(
         self,
@@ -1240,44 +936,12 @@ class PersonalDataService:
 
         queryset = BloodOxygenEntry.objects.filter(user=self.user)
 
-        if since_date:
-            queryset = queryset.filter(recorded_at__gte=since_date)
-
-        if not queryset.exists():
-            return None
-
-        count = queryset.count()
-        avg_result = queryset.aggregate(avg_value=Avg('spo2'))
-        average = float(avg_result['avg_value']) if avg_result['avg_value'] else 0.0
-
-        latest_entry = queryset.first()
-        latest_value = latest_entry.spo2
-        latest_date = latest_entry.recorded_at
-
-        recent_entries = list(
-            queryset[:limit].values('spo2', 'recorded_at', 'notes')
-        )
-
-        entries = [
-            {
-                'spo2': entry['spo2'],
-                'recorded_at': entry['recorded_at'],
-                'notes': entry['notes'],
-            }
-            for entry in recent_entries
-        ]
-
-        result = {
-            'type': 'blood_oxygen',
-            'count': count,
-            'average': round(average, 1),
-            'latest': latest_value,
-            'latest_date': latest_date,
-            'entries': entries,
-        }
-
-        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
-        return result
+        # DEPRECATED: not in the priority-10 migration set. SAE has
+        # canonical blood_oxygen_avg_7d and latest_blood_oxygen — a
+        # follow-up phase should wire this method (or its callers)
+        # through get_metric(). Return None in the meantime.
+        _warn_deprecated_personal_data_method("get_blood_oxygen_data")
+        return None
 
     def get_workout_data(
         self,
@@ -1301,52 +965,38 @@ class PersonalDataService:
                 - latest_date (date): Date of most recent session
                 - workouts (list): Last N sessions
         """
+        # Canonical workout counts and minutes come from SAE fitness
+        # state. Raw WorkoutSession aggregation has been removed — see
+        # fitness.workouts_7d, fitness.workouts_30d, and
+        # fitness.workout_minutes_7d in the metric registry.
         cache_key = _generate_cache_key(self.user.id, 'workout', since_date)
         cached_data = cache.get(cache_key)
         if cached_data is not None:
             return cached_data
 
-        from apps.health.models import WorkoutSession
+        workouts_7d = get_metric(self.user, 'fitness.workouts_7d')
+        workouts_30d = get_metric(self.user, 'fitness.workouts_30d')
+        minutes_7d = get_metric(self.user, 'fitness.workout_minutes_7d')
+        last_workout_date = get_metric(self.user, 'fitness.last_workout_date')
 
-        queryset = WorkoutSession.objects.filter(user=self.user)
-
-        if since_date:
-            queryset = queryset.filter(date__gte=_to_date(since_date))
-
-        if not queryset.exists():
-            logger.info(
-                "get_workout_data: no workouts found for user %s since %s",
-                self.user.id, since_date,
-            )
+        if workouts_7d is None and workouts_30d is None and last_workout_date is None:
             return None
 
-        count = queryset.count()
-
-        # Calculate aggregates
-        agg = queryset.aggregate(
-            total_minutes=Sum('duration_minutes'),
-            total_calories=Sum('calories_burned'),
-            avg_calories=Avg('calories_burned'),
-            avg_duration=Avg('duration_minutes'),
-            avg_heart_rate=Avg('avg_heart_rate'),
-            total_distance=Sum('distance_miles'),
-        )
-
-        total_minutes = agg['total_minutes'] or 0
-        avg_duration = round(float(agg['avg_duration']), 1) if agg['avg_duration'] else 0
-
-        latest_entry = queryset.first()
-        latest_date = latest_entry.date
-
-        # Get recent workouts with full detail
-        recent_sessions = queryset[:limit]
+        from apps.health.models import WorkoutSession
+        entries_qs = WorkoutSession.objects.filter(user=self.user)
+        if since_date:
+            entries_qs = entries_qs.filter(date__gte=_to_date(since_date))
+        recent_sessions = entries_qs[:limit]
         workouts = [
             {
                 'name': session.name,
                 'date': session.date,
                 'duration_minutes': session.duration_minutes,
                 'calories_burned': session.calories_burned,
-                'distance_miles': float(session.distance_miles) if session.distance_miles else None,
+                'distance_miles': (
+                    float(session.distance_miles)
+                    if session.distance_miles else None
+                ),
                 'avg_heart_rate': session.avg_heart_rate,
                 'workout_type': session.workout_type,
                 'source': session.source,
@@ -1357,14 +1007,17 @@ class PersonalDataService:
 
         result = {
             'type': 'workout',
-            'count': count,
-            'total_minutes': total_minutes,
-            'avg_duration': avg_duration,
-            'total_calories': agg['total_calories'] or 0,
-            'avg_calories': round(float(agg['avg_calories'])) if agg['avg_calories'] else None,
-            'avg_heart_rate': round(float(agg['avg_heart_rate'])) if agg['avg_heart_rate'] else None,
-            'total_distance': round(float(agg['total_distance']), 1) if agg['total_distance'] else None,
-            'latest_date': latest_date,
+            'workouts_7d': workouts_7d.value if workouts_7d else None,
+            'workouts_30d': workouts_30d.value if workouts_30d else None,
+            'total_minutes_7d': minutes_7d.value if minutes_7d else None,
+            'latest_date': (
+                last_workout_date.value if last_workout_date
+                else (workouts[0]['date'] if workouts else None)
+            ),
+            'source': (
+                workouts_7d.source if workouts_7d
+                else (last_workout_date.source if last_workout_date else None)
+            ),
             'workouts': workouts,
         }
 
@@ -1393,74 +1046,12 @@ class PersonalDataService:
                 - longest_fast_hours (float): Longest fast duration
                 - recent_fasts (list): Last N completed fasts
         """
-        cache_key = _generate_cache_key(self.user.id, 'fasting', since_date)
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            return cached_data
-
-        from apps.health.models import FastingWindow
-
-        queryset = FastingWindow.objects.filter(user=self.user)
-
-        if since_date:
-            queryset = queryset.filter(started_at__gte=since_date)
-
-        if not queryset.exists():
-            return None
-
-        # Check for active fast
-        active_fast = None
-        active_qs = queryset.filter(ended_at__isnull=True)
-        if active_qs.exists():
-            active = active_qs.first()
-            from django.utils import timezone
-            now = timezone.now()
-            duration_hours = (now - active.started_at).total_seconds() / 3600
-            active_fast = {
-                'started_at': active.started_at,
-                'fasting_type': active.fasting_type,
-                'hours_elapsed': round(duration_hours, 1),
-            }
-
-        # Get completed fasts
-        completed = queryset.filter(ended_at__isnull=False)
-        total_fasts = completed.count()
-
-        # Calculate durations
-        durations = []
-        for fast in completed:
-            if fast.ended_at and fast.started_at:
-                duration = (fast.ended_at - fast.started_at).total_seconds() / 3600
-                durations.append(duration)
-
-        avg_duration = round(sum(durations) / len(durations), 1) if durations else 0
-        longest_fast = round(max(durations), 1) if durations else 0
-
-        # Recent completed fasts
-        recent = completed.order_by('-started_at')[:limit]
-        recent_fasts = []
-        for fast in recent:
-            duration = 0
-            if fast.ended_at and fast.started_at:
-                duration = (fast.ended_at - fast.started_at).total_seconds() / 3600
-            recent_fasts.append({
-                'started_at': fast.started_at,
-                'ended_at': fast.ended_at,
-                'fasting_type': fast.fasting_type,
-                'duration_hours': round(duration, 1),
-            })
-
-        result = {
-            'type': 'fasting',
-            'total_fasts': total_fasts,
-            'active_fast': active_fast,
-            'avg_duration_hours': avg_duration,
-            'longest_fast_hours': longest_fast,
-            'recent_fasts': recent_fasts,
-        }
-
-        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
-        return result
+        # DEPRECATED: SAE has canonical fasting.rolling_7d_avg_fast_duration,
+        # fasting.fasts_7d, and fasting.current_fast_* keys. This method
+        # was not in the priority-10 scope. Return None until the
+        # fasting method is migrated in a later phase.
+        _warn_deprecated_personal_data_method("get_fasting_data")
+        return None
 
     def get_water_data(
         self,
@@ -1485,48 +1076,30 @@ class PersonalDataService:
                 - avg_daily_oz (float): 7-day average daily intake
                 - entries (list): Recent water entries
         """
+        # Canonical today + 7-day water values come from SAE. Raw
+        # WaterEntry aggregation has been removed — see
+        # health.water_today_oz / water_avg_oz_7d in the metric registry.
         cache_key = _generate_cache_key(self.user.id, 'water', since_date)
         cached_data = cache.get(cache_key)
         if cached_data is not None:
             return cached_data
 
-        from apps.health.models import WaterEntry
-        from apps.core.utils import get_user_today
-        from datetime import timedelta
+        today_oz = get_metric(self.user, 'health.water_today_oz')
+        today_pct = get_metric(self.user, 'health.water_today_pct')
+        avg_oz_7d = get_metric(self.user, 'health.water_avg_oz_7d')
 
-        queryset = WaterEntry.objects.filter(user=self.user)
-
-        if since_date:
-            queryset = queryset.filter(recorded_at__gte=since_date)
-
-        if not queryset.exists():
+        if today_oz is None and avg_oz_7d is None:
             return None
 
-        today = get_user_today(self.user)
-        total_entries = queryset.count()
-
-        # Today's progress
-        today_progress = WaterEntry.get_daily_goal_progress(self.user, today)
-
-        # Calculate 7-day average
-        week_ago = timezone.now() - timedelta(days=7)
-        week_entries = queryset.filter(logged_date__gte=week_ago.date())
-        avg_daily_oz = 0.0
-        if week_entries.exists():
-            daily_totals = {}
-            for entry in week_entries:
-                day = entry.logged_date
-                if day not in daily_totals:
-                    daily_totals[day] = 0
-                daily_totals[day] += entry.amount_oz
-            if daily_totals:
-                avg_daily_oz = round(sum(daily_totals.values()) / len(daily_totals), 1)
-
-        # Recent entries
+        from apps.health.models import WaterEntry
+        entries_qs = WaterEntry.objects.filter(user=self.user)
+        if since_date:
+            entries_qs = entries_qs.filter(recorded_at__gte=since_date)
         recent_entries = list(
-            queryset[:limit].values('amount', 'unit', 'container', 'logged_date', 'recorded_at', 'notes')
+            entries_qs[:limit].values(
+                'amount', 'unit', 'container', 'logged_date', 'recorded_at', 'notes'
+            )
         )
-
         entries = [
             {
                 'amount': float(entry['amount']),
@@ -1541,11 +1114,14 @@ class PersonalDataService:
 
         result = {
             'type': 'water',
-            'total_entries': total_entries,
-            'today_oz': today_progress['total_oz'],
-            'today_percentage': today_progress['percentage'],
-            'today_goal_met': today_progress['goal_met'],
-            'avg_daily_oz': avg_daily_oz,
+            'today_oz': today_oz.value if today_oz else None,
+            'today_percentage': today_pct.value if today_pct else None,
+            'avg_daily_oz': avg_oz_7d.value if avg_oz_7d else None,
+            'avg_window': '7d_rolling',
+            'source': (
+                today_oz.source if today_oz
+                else (avg_oz_7d.source if avg_oz_7d else None)
+            ),
             'entries': entries,
         }
 
@@ -1557,37 +1133,33 @@ class PersonalDataService:
         since_date: Optional[datetime] = None,
         limit: int = 10,
     ) -> Optional[Dict[str, Any]]:
-        """Retrieve and summarize the user's steps data."""
+        """Retrieve and summarize the user's steps data.
+
+        Canonical 7-day average steps come from SAE state. We do not
+        re-aggregate StepsEntry here.
+        """
         cache_key = _generate_cache_key(self.user.id, 'steps', since_date)
         cached_data = cache.get(cache_key)
         if cached_data is not None:
             return cached_data
 
-        from apps.health.models import StepsEntry
-
-        queryset = StepsEntry.objects.filter(user=self.user)
-
-        if since_date:
-            queryset = queryset.filter(logged_date__gte=_to_date(since_date))
-
-        if not queryset.exists():
+        avg_7d = get_metric(self.user, 'health.steps_avg_7d')
+        entries_7d = get_metric(self.user, 'health.steps_entries_7d')
+        if avg_7d is None and entries_7d is None:
             return None
 
-        count = queryset.count()
-        avg_result = queryset.aggregate(avg_steps=Avg('count'))
-        average = float(avg_result['avg_steps']) if avg_result['avg_steps'] else 0.0
-
-        latest_entry = queryset.order_by('-logged_date').first()
-        latest_count = latest_entry.count
-        latest_date = latest_entry.logged_date
-
-        # Get recent entries
-        recent_entries = queryset.order_by('-logged_date')[:limit]
+        from apps.health.models import StepsEntry
+        entries_qs = StepsEntry.objects.filter(user=self.user)
+        if since_date:
+            entries_qs = entries_qs.filter(logged_date__gte=_to_date(since_date))
+        recent_entries = entries_qs.order_by('-logged_date')[:limit]
         entries = [
             {
                 'count': entry.count,
                 'logged_date': entry.logged_date,
-                'distance_miles': float(entry.distance_miles) if entry.distance_miles else None,
+                'distance_miles': (
+                    float(entry.distance_miles) if entry.distance_miles else None
+                ),
                 'calories_burned': entry.calories_burned,
                 'exercise_minutes': entry.exercise_minutes,
                 'flights_climbed': entry.flights_climbed,
@@ -1597,10 +1169,12 @@ class PersonalDataService:
 
         result = {
             'type': 'steps',
-            'count': count,
-            'average': round(average, 0),
-            'latest': latest_count,
-            'latest_date': latest_date,
+            'average': avg_7d.value if avg_7d else None,
+            'average_window': '7d_rolling',
+            'entries_7d': entries_7d.value if entries_7d else None,
+            'latest': entries[0]['count'] if entries else None,
+            'latest_date': entries[0]['logged_date'] if entries else None,
+            'source': avg_7d.source if avg_7d else None,
             'entries': entries,
         }
 
@@ -1612,36 +1186,36 @@ class PersonalDataService:
         since_date: Optional[datetime] = None,
         limit: int = 10,
     ) -> Optional[Dict[str, Any]]:
-        """Retrieve and summarize the user's sleep data."""
+        """Retrieve and summarize the user's sleep data.
+
+        Canonical 7-day average and last-night hours are read from SAE
+        state. Recent entries are returned as a non-aggregated list so
+        the LLM can narrate specific nights.
+        """
         cache_key = _generate_cache_key(self.user.id, 'sleep', since_date)
         cached_data = cache.get(cache_key)
         if cached_data is not None:
             return cached_data
 
-        from apps.health.models import SleepEntry
-
-        queryset = SleepEntry.objects.filter(user=self.user)
-
-        if since_date:
-            queryset = queryset.filter(sleep_date__gte=_to_date(since_date))
-
-        if not queryset.exists():
+        avg_7d = get_metric(self.user, 'health.sleep_avg_hours_7d')
+        last_night = get_metric(self.user, 'health.sleep_last_night_hours')
+        entries_7d = get_metric(self.user, 'health.sleep_entries_7d')
+        last_entry_ts = get_metric(self.user, 'health.last_sleep_entry')
+        if avg_7d is None and last_night is None and last_entry_ts is None:
             return None
 
-        count = queryset.count()
-        avg_result = queryset.aggregate(avg_duration=Avg('asleep_duration_minutes'))
-        avg_minutes = float(avg_result['avg_duration']) if avg_result['avg_duration'] else 0.0
-        avg_hours = round(avg_minutes / 60, 1)
-
-        latest_entry = queryset.order_by('-sleep_date').first()
-        latest_date = latest_entry.sleep_date
-        latest_hours = round(latest_entry.asleep_duration_minutes / 60, 1) if latest_entry.asleep_duration_minutes else 0
-
-        recent_entries = queryset.order_by('-sleep_date')[:limit]
+        from apps.health.models import SleepEntry
+        entries_qs = SleepEntry.objects.filter(user=self.user)
+        if since_date:
+            entries_qs = entries_qs.filter(sleep_date__gte=_to_date(since_date))
+        recent_entries = entries_qs.order_by('-sleep_date')[:limit]
         entries = [
             {
                 'sleep_date': entry.sleep_date,
-                'hours': round(entry.asleep_duration_minutes / 60, 1) if entry.asleep_duration_minutes else 0,
+                'hours': (
+                    round(entry.asleep_duration_minutes / 60, 1)
+                    if entry.asleep_duration_minutes else 0
+                ),
                 'quality': entry.quality,
                 'notes': entry.notes,
             }
@@ -1650,13 +1224,18 @@ class PersonalDataService:
 
         result = {
             'type': 'sleep',
-            'count': count,
-            'avg_hours': avg_hours,
-            'latest_hours': latest_hours,
-            'latest_date': latest_date,
-            'latest_quality': latest_entry.quality,
+            'avg_hours': avg_7d.value if avg_7d else None,
+            'avg_window': '7d_rolling',
+            'latest_hours': last_night.value if last_night else None,
+            'latest_date': last_entry_ts.value if last_entry_ts else None,
+            'entries_7d': entries_7d.value if entries_7d else None,
+            'source': avg_7d.source if avg_7d else (
+                last_night.source if last_night else None
+            ),
             'entries': entries,
         }
+        if entries:
+            result['latest_quality'] = entries[0].get('quality')
 
         cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
         return result
@@ -1666,220 +1245,38 @@ class PersonalDataService:
         since_date: Optional[datetime] = None,
         limit: int = 10,
     ) -> Optional[Dict[str, Any]]:
-        """Retrieve and summarize the user's mobility/gait data."""
-        cache_key = _generate_cache_key(self.user.id, 'mobility', since_date)
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            return cached_data
-
-        from apps.health.models import MobilityEntry
-
-        queryset = MobilityEntry.objects.filter(user=self.user)
-
-        if since_date:
-            queryset = queryset.filter(metric_date__gte=_to_date(since_date))
-
-        if not queryset.exists():
-            return None
-
-        count = queryset.count()
-        latest_entry = queryset.order_by('-metric_date').first()
-        latest_date = latest_entry.metric_date
-
-        recent_entries = queryset.order_by('-metric_date')[:limit]
-        entries = [
-            {
-                'metric_date': entry.metric_date,
-                'walking_speed': float(entry.walking_speed) if entry.walking_speed else None,
-                'walking_steadiness': entry.walking_steadiness,
-                'walking_asymmetry': float(entry.walking_asymmetry) if entry.walking_asymmetry else None,
-                'step_length': float(entry.step_length) if entry.step_length else None,
-                'double_support_time': float(entry.double_support_time) if entry.double_support_time else None,
-                'six_min_walk_distance': float(entry.six_min_walk_distance) if entry.six_min_walk_distance else None,
-            }
-            for entry in recent_entries
-        ]
-
-        result = {
-            'type': 'mobility',
-            'count': count,
-            'latest_date': latest_date,
-            'latest_walking_speed': float(latest_entry.walking_speed) if latest_entry.walking_speed else None,
-            'latest_steadiness': latest_entry.walking_steadiness,
-            'entries': entries,
-        }
-
-        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
-        return result
+        """DEPRECATED — no canonical mobility metrics in SAE yet."""
+        _warn_deprecated_personal_data_method("get_mobility_data")
+        return None
 
     def get_heart_rate_events_data(
         self,
         since_date: Optional[datetime] = None,
         limit: int = 10,
     ) -> Optional[Dict[str, Any]]:
-        """Retrieve and summarize the user's heart rate event alerts."""
-        cache_key = _generate_cache_key(self.user.id, 'heart_rate_events', since_date)
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            return cached_data
-
-        from apps.health.models import HeartRateEventEntry
-
-        queryset = HeartRateEventEntry.objects.filter(user=self.user)
-
-        if since_date:
-            queryset = queryset.filter(recorded_at__gte=since_date)
-
-        if not queryset.exists():
-            return None
-
-        count = queryset.count()
-        high_hr_count = queryset.filter(event_type='high_hr').count()
-        low_hr_count = queryset.filter(event_type='low_hr').count()
-        irregular_count = queryset.filter(event_type='irregular_rhythm').count()
-
-        latest_entry = queryset.order_by('-recorded_at').first()
-
-        recent_entries = queryset.order_by('-recorded_at')[:limit]
-        entries = [
-            {
-                'event_type': entry.event_type,
-                'heart_rate': entry.heart_rate,
-                'threshold': entry.threshold,
-                'recorded_at': entry.recorded_at,
-                'duration_seconds': entry.duration_seconds,
-            }
-            for entry in recent_entries
-        ]
-
-        result = {
-            'type': 'heart_rate_events',
-            'count': count,
-            'high_hr_count': high_hr_count,
-            'low_hr_count': low_hr_count,
-            'irregular_rhythm_count': irregular_count,
-            'latest_date': latest_entry.recorded_at,
-            'latest_event_type': latest_entry.event_type,
-            'entries': entries,
-        }
-
-        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
-        return result
+        """DEPRECATED — no canonical HR-event counters in SAE yet."""
+        _warn_deprecated_personal_data_method("get_heart_rate_events_data")
+        return None
 
     def get_audio_exposure_data(
         self,
         since_date: Optional[datetime] = None,
         limit: int = 10,
     ) -> Optional[Dict[str, Any]]:
-        """Retrieve and summarize the user's audio exposure data."""
-        cache_key = _generate_cache_key(self.user.id, 'audio_exposure', since_date)
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            return cached_data
-
-        from apps.health.models import AudioExposureEntry
-
-        queryset = AudioExposureEntry.objects.filter(user=self.user)
-
-        if since_date:
-            queryset = queryset.filter(metric_date__gte=_to_date(since_date))
-
-        if not queryset.exists():
-            return None
-
-        count = queryset.count()
-        latest_entry = queryset.order_by('-metric_date').first()
-
-        # Calculate averages for headphone levels
-        headphone_entries = queryset.exclude(headphone_level_db__isnull=True)
-        avg_headphone = None
-        if headphone_entries.exists():
-            avg_result = headphone_entries.aggregate(avg_db=Avg('headphone_level_db'))
-            avg_headphone = float(avg_result['avg_db']) if avg_result['avg_db'] else None
-
-        recent_entries = queryset.order_by('-metric_date')[:limit]
-        entries = [
-            {
-                'metric_date': entry.metric_date,
-                'headphone_level_db': float(entry.headphone_level_db) if entry.headphone_level_db else None,
-                'headphone_duration_minutes': entry.headphone_duration_minutes,
-                'environmental_level_db': float(entry.environmental_level_db) if entry.environmental_level_db else None,
-            }
-            for entry in recent_entries
-        ]
-
-        result = {
-            'type': 'audio_exposure',
-            'count': count,
-            'avg_headphone_db': round(avg_headphone, 1) if avg_headphone else None,
-            'latest_date': latest_entry.metric_date,
-            'latest_headphone_db': float(latest_entry.headphone_level_db) if latest_entry.headphone_level_db else None,
-            'latest_environmental_db': float(latest_entry.environmental_level_db) if latest_entry.environmental_level_db else None,
-            'entries': entries,
-        }
-
-        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
-        return result
+        """DEPRECATED — no canonical audio-exposure metrics in SAE yet."""
+        _warn_deprecated_personal_data_method("get_audio_exposure_data")
+        return None
 
     def get_dietary_nutrients_data(
         self,
         since_date: Optional[datetime] = None,
         limit: int = 10,
     ) -> Optional[Dict[str, Any]]:
-        """Retrieve and summarize the user's dietary nutrient data from HealthKit."""
-        cache_key = _generate_cache_key(self.user.id, 'dietary_nutrients', since_date)
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            return cached_data
-
-        from apps.health.models import DietaryNutrientEntry
-
-        queryset = DietaryNutrientEntry.objects.filter(user=self.user)
-
-        if since_date:
-            queryset = queryset.filter(metric_date__gte=_to_date(since_date))
-
-        if not queryset.exists():
-            return None
-
-        count = queryset.count()
-        latest_entry = queryset.order_by('-metric_date').first()
-
-        # Calculate averages
-        avg_result = queryset.aggregate(
-            avg_calories=Avg('calories'),
-            avg_protein=Avg('protein_g'),
-            avg_carbs=Avg('carbohydrates_g'),
-            avg_fat=Avg('fat_g'),
-        )
-
-        recent_entries = queryset.order_by('-metric_date')[:limit]
-        entries = [
-            {
-                'metric_date': entry.metric_date,
-                'calories': entry.calories,
-                'protein_g': float(entry.protein_g) if entry.protein_g else None,
-                'carbohydrates_g': float(entry.carbohydrates_g) if entry.carbohydrates_g else None,
-                'fat_g': float(entry.fat_g) if entry.fat_g else None,
-                'fiber_g': float(entry.fiber_g) if entry.fiber_g else None,
-                'sugar_g': float(entry.sugar_g) if entry.sugar_g else None,
-            }
-            for entry in recent_entries
-        ]
-
-        result = {
-            'type': 'dietary_nutrients',
-            'count': count,
-            'avg_calories': round(float(avg_result['avg_calories']), 0) if avg_result['avg_calories'] else None,
-            'avg_protein_g': round(float(avg_result['avg_protein']), 1) if avg_result['avg_protein'] else None,
-            'avg_carbs_g': round(float(avg_result['avg_carbs']), 1) if avg_result['avg_carbs'] else None,
-            'avg_fat_g': round(float(avg_result['avg_fat']), 1) if avg_result['avg_fat'] else None,
-            'latest_date': latest_entry.metric_date,
-            'entries': entries,
-        }
-
-        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
-        return result
+        """DEPRECATED — HealthKit dietary nutrient averages are not
+        yet a canonical SAE signal. Canonical nutrition metrics live
+        on the nutrition module (daily_calories, rolling_7d_*)."""
+        _warn_deprecated_personal_data_method("get_dietary_nutrients_data")
+        return None
 
     def get_task_data(
         self,
@@ -1902,72 +1299,13 @@ class PersonalDataService:
                 - due_today (int): Number of tasks due today
                 - completion_rate (float): Percentage of completed tasks
         """
-        cache_key = _generate_cache_key(self.user.id, 'task', since_date)
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            return cached_data
-
-        from apps.life.models import Task
-        from apps.core.utils import get_user_today
-
-        queryset = Task.objects.filter(user=self.user)
-
-        if since_date:
-            queryset = queryset.filter(created_at__gte=since_date)
-
-        if not queryset.exists():
-            return None
-
-        today = get_user_today(self.user)
-        total = queryset.count()
-        completed = queryset.filter(completion_status='completed').count()
-        pending = total - completed
-
-        # Overdue: not completed, due date in the past
-        overdue = queryset.filter(
-            completion_status='pending',
-            due_date__lt=today
-        ).count()
-
-        # Due today: not completed, due date is today
-        due_today = queryset.filter(
-            completion_status='pending',
-            due_date=today
-        ).count()
-
-        completion_rate = round((completed / total) * 100, 1) if total > 0 else 0.0
-
-        # Include individual upcoming/today tasks with full details
-        upcoming_tasks = []
-        today_tasks = queryset.filter(
-            completion_status='pending',
-            due_date__lte=today + timedelta(days=7),  # next 7 days
-        ).order_by('due_date', 'scheduled_time')[:10]
-
-        for task in today_tasks:
-            task_info = {
-                'title': task.title,
-                'due_date': task.due_date.isoformat() if task.due_date else None,
-                'is_today': task.due_date == today if task.due_date else False,
-                'is_overdue': task.due_date < today if task.due_date else False,
-                'scheduled_time': task.scheduled_time.strftime('%I:%M %p').lstrip('0') if task.scheduled_time else None,
-                'priority': task.priority,
-            }
-            upcoming_tasks.append(task_info)
-
-        result = {
-            'type': 'task',
-            'total': total,
-            'completed': completed,
-            'pending': pending,
-            'overdue': overdue,
-            'due_today': due_today,
-            'completion_rate': completion_rate,
-            'upcoming_tasks': upcoming_tasks,
-        }
-
-        cache.set(cache_key, result, PERSONAL_DATA_CACHE_TTL)
-        return result
+        # DEPRECATED: SAE build_task_state() already computes
+        # overdue_count, completed_today, due_today, and time-horizon
+        # task buckets. Consumers should read from get_module_state(
+        # user, 'tasks') directly or migrate to a canonical task
+        # metric access path.
+        _warn_deprecated_personal_data_method("get_task_data")
+        return None
 
     def get_user_data(
         self,
@@ -2052,254 +1390,13 @@ class PersonalDataService:
         Returns:
             A dict with summaries from each health type that has data, or None.
         """
-        from datetime import timedelta
-        from django.db.models import Avg, Max, Min, Count
-
-        if since_date is None:
-            since_date = timezone.now() - timedelta(days=7)
-        elif isinstance(since_date, date) and not isinstance(since_date, datetime):
-            since_date = timezone.make_aware(
-                datetime.combine(since_date, datetime.min.time())
-            )
-
-        summaries = {}
-
-        # Weight
-        try:
-            from apps.health.models import WeightEntry
-            qs = WeightEntry.objects.filter(user=self.user)
-            latest = qs.order_by('-recorded_at').first()
-            if latest:
-                summaries['weight'] = {
-                    'latest': float(latest.value_in_lb),
-                    'latest_date': latest.recorded_at,
-                    'total_entries': qs.count(),
-                }
-        except Exception:
-            pass
-
-        # Steps
-        try:
-            from apps.health.models import StepsEntry
-            qs = StepsEntry.objects.filter(
-                user=self.user, logged_date__gte=since_date
-            )
-            if qs.exists():
-                agg = qs.aggregate(avg=Avg('count'), total=Count('id'))
-                latest = qs.order_by('-logged_date').first()
-                summaries['steps'] = {
-                    'avg': int(agg['avg']) if agg['avg'] else 0,
-                    'entries': agg['total'],
-                    'latest': latest.count if latest else 0,
-                    'latest_date': latest.logged_date if latest else None,
-                }
-        except Exception:
-            pass
-
-        # Heart Rate
-        try:
-            from apps.health.models import HeartRateEntry
-            qs = HeartRateEntry.objects.filter(
-                user=self.user, recorded_at__date__gte=since_date
-            )
-            if qs.exists():
-                agg = qs.aggregate(
-                    avg=Avg('bpm'), lo=Min('bpm'), hi=Max('bpm'), total=Count('id')
-                )
-                summaries['heart_rate'] = {
-                    'avg_bpm': round(float(agg['avg'])) if agg['avg'] else None,
-                    'range': f"{agg['lo']}-{agg['hi']}" if agg['lo'] else None,
-                    'entries': agg['total'],
-                }
-        except Exception:
-            pass
-
-        # Sleep
-        try:
-            from apps.health.models import SleepEntry
-            qs = SleepEntry.objects.filter(
-                user=self.user, sleep_date__gte=since_date
-            )
-            if qs.exists():
-                agg = qs.aggregate(avg=Avg('asleep_duration_minutes'), total=Count('id'))
-                latest = qs.order_by('-sleep_date').first()
-                summaries['sleep'] = {
-                    'avg_hours': round(float(agg['avg']) / 60, 1) if agg['avg'] else None,
-                    'entries': agg['total'],
-                    'latest_hours': round(latest.asleep_duration_minutes / 60, 1) if latest and latest.asleep_duration_minutes else None,
-                }
-        except Exception:
-            pass
-
-        # Blood Pressure
-        try:
-            from apps.health.models import BloodPressureEntry
-            qs = BloodPressureEntry.objects.filter(
-                user=self.user, recorded_at__date__gte=since_date
-            )
-            if qs.exists():
-                agg = qs.aggregate(
-                    avg_sys=Avg('systolic'), avg_dia=Avg('diastolic'), total=Count('id')
-                )
-                summaries['blood_pressure'] = {
-                    'avg': f"{round(float(agg['avg_sys']))}/{round(float(agg['avg_dia']))}" if agg['avg_sys'] else None,
-                    'entries': agg['total'],
-                }
-        except Exception:
-            pass
-
-        # Glucose
-        try:
-            from apps.health.models import GlucoseEntry
-            qs = GlucoseEntry.objects.filter(
-                user=self.user, recorded_at__date__gte=since_date
-            )
-            if qs.exists():
-                agg = qs.aggregate(avg=Avg('value'), total=Count('id'))
-                summaries['glucose'] = {
-                    'avg': round(float(agg['avg'])) if agg['avg'] else None,
-                    'entries': agg['total'],
-                }
-        except Exception:
-            pass
-
-        # Blood Oxygen
-        try:
-            from apps.health.models import BloodOxygenEntry
-            qs = BloodOxygenEntry.objects.filter(
-                user=self.user, recorded_at__date__gte=since_date
-            )
-            if qs.exists():
-                agg = qs.aggregate(avg=Avg('spo2'), total=Count('id'))
-                summaries['blood_oxygen'] = {
-                    'avg_spo2': round(float(agg['avg']), 1) if agg['avg'] else None,
-                    'entries': agg['total'],
-                }
-        except Exception:
-            pass
-
-        # Workouts
-        try:
-            from apps.health.models import WorkoutSession
-            qs = WorkoutSession.objects.filter(
-                user=self.user, date__gte=_to_date(since_date)
-            )
-            if qs.exists():
-                agg = qs.aggregate(
-                    total=Count('id'),
-                    total_minutes=Sum('duration_minutes'),
-                    total_calories=Sum('calories_burned'),
-                    avg_calories=Avg('calories_burned'),
-                    avg_hr=Avg('avg_heart_rate'),
-                    total_distance=Sum('distance_miles'),
-                )
-                latest = qs.order_by('-date').first()
-                workout_summary = {
-                    'count': agg['total'],
-                    'latest_date': latest.date,
-                    'total_minutes': agg['total_minutes'] or 0,
-                    'total_calories': agg['total_calories'] or 0,
-                }
-                if agg['avg_calories']:
-                    workout_summary['avg_calories'] = round(float(agg['avg_calories']))
-                if agg['avg_hr']:
-                    workout_summary['avg_heart_rate'] = round(float(agg['avg_hr']))
-                if agg['total_distance']:
-                    workout_summary['total_distance_miles'] = round(float(agg['total_distance']), 1)
-                # Include recent workout names/types
-                recent = qs.order_by('-date')[:5]
-                workout_summary['recent'] = [
-                    {
-                        'name': w.name,
-                        'type': w.workout_type,
-                        'date': str(w.date),
-                        'duration': w.duration_minutes,
-                        'calories': w.calories_burned,
-                        'avg_hr': w.avg_heart_rate,
-                        'distance': float(w.distance_miles) if w.distance_miles else None,
-                    }
-                    for w in recent
-                ]
-                summaries['workouts'] = workout_summary
-        except Exception:
-            pass
-
-        # Mobility
-        try:
-            from apps.health.models import MobilityEntry
-            qs = MobilityEntry.objects.filter(
-                user=self.user, recorded_at__date__gte=since_date
-            )
-            if qs.exists():
-                summaries['mobility'] = {
-                    'entries': qs.count(),
-                }
-        except Exception:
-            pass
-
-        # Heart Rate Events
-        try:
-            from apps.health.models import HeartRateEventEntry
-            qs = HeartRateEventEntry.objects.filter(
-                user=self.user, recorded_at__date__gte=since_date
-            )
-            if qs.exists():
-                summaries['heart_rate_events'] = {
-                    'count': qs.count(),
-                }
-        except Exception:
-            pass
-
-        # Audio Exposure
-        try:
-            from apps.health.models import AudioExposureEntry
-            qs = AudioExposureEntry.objects.filter(
-                user=self.user, recorded_at__date__gte=since_date
-            )
-            if qs.exists():
-                summaries['audio_exposure'] = {
-                    'entries': qs.count(),
-                }
-        except Exception:
-            pass
-
-        # Fasting
-        try:
-            from apps.health.models import FastingWindow
-            qs = FastingWindow.objects.filter(
-                user=self.user, started_at__date__gte=since_date,
-                ended_at__isnull=False,
-            )
-            if qs.exists():
-                summaries['fasting'] = {
-                    'completed': qs.count(),
-                }
-        except Exception:
-            pass
-
-        # Medication
-        try:
-            from apps.health.models import MedicineLog
-            qs = MedicineLog.objects.filter(
-                user=self.user, taken_at__date__gte=since_date
-            )
-            if qs.exists():
-                summaries['medication'] = {
-                    'doses_logged': qs.count(),
-                }
-        except Exception:
-            pass
-
-        if not summaries:
-            return None
-
-        return {
-            'type': 'health_summary',
-            'period': 'last 7 days',
-            'data_types_found': list(summaries.keys()),
-            'data_types_count': len(summaries),
-            'summaries': summaries,
-        }
+        # DEPRECATED: this method re-aggregated 15+ health tables at
+        # request time — a second analytics layer that duplicated SAE.
+        # It was the single largest parallel-truth violation flagged
+        # in the 2026-04-20 metric access audit. Callers should read
+        # individual canonical metrics via get_metric() instead.
+        _warn_deprecated_personal_data_method("get_health_summary_data")
+        return None
 
     def query_by_intent(
         self,

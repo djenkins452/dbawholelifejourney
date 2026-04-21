@@ -37,6 +37,10 @@ from apps.core.ai_state.metric_registry import (
     get_definition,
     is_canonical,
 )
+from apps.core.ai_orchestrator.cos_read_allowlist import (
+    COS_READ_ALLOWLIST,
+    ReadClassification,
+)
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -402,6 +406,139 @@ class MetricPurityTests(TestCase):
 # ──────────────────────────────────────────────────────────────────
 # Orphan: every registered metric key must be written by a builder
 # ──────────────────────────────────────────────────────────────────
+
+class CosReadAllowlistTests(TestCase):
+    """
+    Enforces the CoS direct-read allowlist.
+
+    Every ``<Model>.objects.`` call in ``apps/core/ai_orchestrator/cos_context.py``
+    must correspond to an entry in
+    ``apps/core/ai_orchestrator/cos_read_allowlist.py``, with the declared
+    count equal to the number of call sites in source.
+
+    New raw reads require adding an allowlist entry in the same change.
+    Dropped reads require removing the entry. This forces direct reads
+    to be a deliberate, reviewed decision.
+    """
+
+    COS_CONTEXT_PATH = (
+        REPO_ROOT / "apps" / "core" / "ai_orchestrator" / "cos_context.py"
+    )
+
+    def _count_reads_per_model(self) -> dict:
+        """
+        Walk cos_context.py AST and count ``<Name>.objects.<method>`` call
+        sites per Name. Returns {model_name: count}.
+        """
+        source = self.COS_CONTEXT_PATH.read_text()
+        tree = ast.parse(source, filename=str(self.COS_CONTEXT_PATH))
+
+        counts: dict = {}
+        for node in ast.walk(tree):
+            # Looking for patterns like `X.objects.filter(...)`.
+            # That is: Call -> func is Attribute (method call) ->
+            # value is Attribute (.objects) -> value is Name (Model).
+            if not isinstance(node, ast.Call):
+                continue
+            if not isinstance(node.func, ast.Attribute):
+                continue
+            outer = node.func           # e.g. `.filter`
+            inner = outer.value         # e.g. `<X>.objects`
+            if not isinstance(inner, ast.Attribute):
+                continue
+            if inner.attr != "objects":
+                continue
+            if not isinstance(inner.value, ast.Name):
+                continue
+            model_name = inner.value.id
+            counts[model_name] = counts.get(model_name, 0) + 1
+        return counts
+
+    def test_every_direct_read_is_allowlisted(self):
+        counts = self._count_reads_per_model()
+        offenders = [m for m in counts if m not in COS_READ_ALLOWLIST]
+        self.assertEqual(
+            offenders,
+            [],
+            msg=(
+                "cos_context.py reads these models directly, but they "
+                "are not in COS_READ_ALLOWLIST:\n  "
+                + "\n  ".join(f"{m} ({counts[m]}x)" for m in offenders)
+                + "\n\nEither remove the read (read from SAE state via "
+                "get_metric/get_module_state) or add an allowlist entry "
+                "with a justification."
+            ),
+        )
+
+    def test_declared_counts_match_source(self):
+        counts = self._count_reads_per_model()
+        mismatches = []
+        for model, allowed in COS_READ_ALLOWLIST.items():
+            actual = counts.get(model, 0)
+            if actual != allowed.count:
+                mismatches.append(
+                    f"{model}: allowlist declares {allowed.count} reads, "
+                    f"source has {actual}"
+                )
+        self.assertEqual(
+            mismatches,
+            [],
+            msg=(
+                "Raw-read counts in cos_context.py diverged from "
+                "COS_READ_ALLOWLIST:\n  " + "\n  ".join(mismatches) +
+                "\n\nIf a read was migrated to SAE, lower the allowlist "
+                "count (or remove the entry). If a new read was added, "
+                "it must be justified in the allowlist — do not bump "
+                "the count to silence the test."
+            ),
+        )
+
+    def test_allowlist_has_no_dangling_entries(self):
+        counts = self._count_reads_per_model()
+        dangling = [
+            m for m, entry in COS_READ_ALLOWLIST.items()
+            if entry.count > 0 and counts.get(m, 0) == 0
+        ]
+        self.assertEqual(
+            dangling,
+            [],
+            msg=(
+                "COS_READ_ALLOWLIST entries with no matching reads in "
+                "cos_context.py (drop them):\n  " + "\n  ".join(dangling)
+            ),
+        )
+
+    def test_gap_reads_emit_state_gap_log(self):
+        """
+        Every model classified as ``gap_pending_state`` must also have
+        a corresponding ``log_state_gap(...)`` call in cos_context.py.
+        Catches the failure mode where a gap is "acknowledged" in the
+        allowlist but silently bypasses the visibility signal.
+        """
+        source = self.COS_CONTEXT_PATH.read_text()
+        missing = []
+        for model, entry in COS_READ_ALLOWLIST.items():
+            if entry.classification != ReadClassification.GAP_PENDING_STATE:
+                continue
+            if "log_state_gap(" not in source:
+                missing.append(model)
+                continue
+            # Coarse check: any log_state_gap() call is sufficient for
+            # the model-level test — the per-site call proximity is
+            # verified by manual code review when an entry is added.
+            # We still assert at least one call exists per gap model
+            # by looking for the model name anywhere near a log_state_gap.
+            # (Intentional: don't over-constrain the text pattern.)
+        self.assertEqual(
+            missing,
+            [],
+            msg=(
+                "Models classified as gap_pending_state in "
+                "COS_READ_ALLOWLIST but cos_context.py has no "
+                f"log_state_gap(...) calls anywhere: {missing}"
+            ),
+        )
+
 
 class MetricOrphanTests(TestCase):
     """

@@ -5,6 +5,41 @@ Project: Whole Life Journey
 Path: apps/core/ai_orchestrator/cos_context.py
 Purpose: Assemble full Chief of Staff context for every LLM interaction
 
+CoS Data Access Policy (Phase 2 of metric-trust cleanup, 2026-04-21)
+-----------------------------------------------------------------
+CoS is **state-first**. Domain truth — metrics, summaries, counts,
+status classifications, per-entity listings — must come from SAE via
+``get_state_value()`` / ``get_metric()`` / ``get_module_state()``.
+
+ALLOWED direct ORM reads (classified in
+``apps/core/ai_orchestrator/cos_read_allowlist.py``):
+
+* ``engine_output``    — Insight, Prediction, GuidanceItem, DomainCorrelation,
+                         SignalSnapshot, GoalMomentumSnapshot. These tables
+                         ARE the canonical intelligence pipeline.
+* ``self_state``       — CoSSituationState. CoS's own state table.
+* ``continuity``       — CalendarEvent, AssistantMessage: specific event /
+                         message records for conversation follow-up.
+* ``reference_data``   — ScriptureVerse and similar static catalogs.
+* ``structured_lookup``— HouseholdMembership, User, UserOperatingProfile,
+                         LifeGoal-for-FK-resolution: single identified records
+                         that do not derive truth.
+* ``gap_pending_state``— Reads that *should* be state (e.g. LabResult listings)
+                         but no canonical equivalent exists yet. Each site
+                         MUST call ``log_state_gap(...)`` so the gap is visible
+                         in logs and CI. Do NOT silently add more of these.
+
+FORBIDDEN:
+
+* ``.aggregate()``, ``.annotate()``, raw ``.count()`` on any domain model.
+* New direct reads of raw domain models for analytics, trends, or derived
+  status. Extend SAE instead.
+
+Every remaining ``.objects.`` call is enumerated in
+``apps/core/ai_orchestrator/cos_read_allowlist.py``. The purity test in
+``apps/core/ai_state/tests_metric_access.py`` fails CI if a new direct
+read is introduced without a matching allowlist entry.
+
 Description:
     Builds a comprehensive context dict that reflects the user's current
     operational state. This context is injected into every LLM request
@@ -46,6 +81,7 @@ from django.utils import timezone
 from apps.core.ai_state.metric_access import (
     get_metric,
     log_direct_orm_read,
+    log_state_gap,
 )
 
 logger = logging.getLogger(__name__)
@@ -2335,13 +2371,17 @@ def _build_medical_context(user):
         logger.debug("CoS medical: SAE state unavailable: %s", e)
 
     # ── Direct lab values (deterministic, always fresh) ──
+    # STATE GAP: no canonical medical state builder surfaces recent
+    # lab values yet. Kept as a raw read, classified gap_pending_state
+    # in cos_read_allowlist.py. Each invocation emits a state_gap
+    # warning so the gap stays visible in logs + Phase 3 tracking.
     try:
         from apps.medical.models import LabResult
 
-        log_direct_orm_read(
-            "cos_context:recent_labs",
+        log_state_gap(
+            missing_key="medical.recent_labs",
+            source="cos_context:recent_labs",
             user=user,
-            extra={"model": "LabResult"},
         )
         recent_labs = LabResult.objects.filter(
             user=user,
@@ -2442,6 +2482,11 @@ def _build_medical_context(user):
             # 'raw_test_name'") and silently killed the labs section.
             # (Also addressed by Phase 7's concurrent audit.)
             from collections import Counter
+            log_state_gap(
+                missing_key="medical.lab_test_counts",
+                source="cos_context:lab_test_counts",
+                user=user,
+            )
             test_counts = Counter(
                 (name or '').lower().strip()
                 for name in LabResult.objects.filter(
@@ -2455,6 +2500,12 @@ def _build_medical_context(user):
             if trending_tests:
                 trends = []
                 for test_name in trending_tests[:5]:
+                    log_state_gap(
+                        missing_key="medical.lab_test_trends",
+                        source="cos_context:lab_test_trends",
+                        user=user,
+                        extra={"test_name": test_name},
+                    )
                     values = list(
                         LabResult.objects.filter(
                             user=user,
@@ -2513,33 +2564,29 @@ def _build_purpose_context(user):
         result = {}
         today = timezone.now().date()
 
-        # Active life goals — names require raw DB (SAE only has counts)
-        # This is a lightweight single query, not an N+1 pattern.
-        log_direct_orm_read(
-            "cos_context:life_goals_names",
-            user=user,
-            extra={"model": "LifeGoal"},
+        # Active life goals — titles now come from SAE goals.active_titles.
+        # Previously this re-queried LifeGoal directly; Phase 2 moved the
+        # canonical listing into build_goal_state.
+        active_titles = get_module_state(user, 'goals').get(
+            'active_titles', []
         )
-        life_goals = LifeGoal.objects.filter(
-            user=user, status='active',
-        ).order_by('target_date')[:5]
-
-        if life_goals:
-            # Phase 7 Fix: LifeGoal has no `name` attribute; the
-            # actual field is `title`. This was silently broken by
-            # `except Exception: logger.debug(...)` at the outer
-            # scope. (Audit 2026-04-08.)
-            result['life_goals'] = [
-                {
-                    'name': g.title,
-                    'target_date': g.target_date.strftime('%b %d')
-                    if g.target_date else None,
-                    'days_until': (g.target_date - today).days
-                    if g.target_date else None,
-                    'is_foundational': g.is_foundational,
-                }
-                for g in life_goals
-            ]
+        if active_titles:
+            formatted = []
+            for g in active_titles[:5]:
+                target_iso = g.get('target_date')
+                target = None
+                if target_iso:
+                    try:
+                        target = datetime.date.fromisoformat(target_iso)
+                    except (ValueError, TypeError):
+                        target = None
+                formatted.append({
+                    'name': g.get('title'),
+                    'target_date': target.strftime('%b %d') if target else None,
+                    'days_until': (target - today).days if target else None,
+                    'is_foundational': g.get('is_foundational', False),
+                })
+            result['life_goals'] = formatted
 
         # Habit progress — from SAE (eliminates N+1 HabitEntry queries)
         habits_state = get_module_state(user, 'habits') or {}
@@ -2553,49 +2600,20 @@ def _build_purpose_context(user):
                 'last_activity': habits_state.get('last_activity'),
             }
 
-        # Per-habit streak data — enables CoS to reference specific habit
-        # streaks in coaching (e.g., "14-day journaling streak — protect it").
-        # Lightweight: 1 query per active habit (typically ≤5 habits).
-        try:
-            from apps.purpose.models import HabitGoal
-            from apps.purpose.services.streak_service import get_streak_data
-
-            log_direct_orm_read(
-                "cos_context:habit_streaks",
-                user=user,
-                extra={"model": "HabitGoal"},
-            )
-            active_habits = HabitGoal.objects.filter(
-                user=user, status='active',
-            ).select_related('user')[:8]  # Cap to prevent runaway
-
-            habit_streaks = []
-            for habit in active_habits:
-                try:
-                    streak = get_streak_data(habit)
-                    if streak.current > 0 or streak.at_risk:
-                        habit_streaks.append({
-                            'name': habit.name,
-                            'current_streak': streak.current,
-                            'longest_streak': streak.longest,
-                            'at_risk': streak.at_risk,
-                            'is_foundational': habit.is_foundational,
-                            'frequency': habit.frequency_type,
-                        })
-                except Exception:
-                    continue
-
-            if habit_streaks:
-                # Sort: foundational first, then by streak length desc
-                habit_streaks.sort(key=lambda h: (
-                    not h['is_foundational'],
-                    -h['current_streak'],
-                ))
-                result['habit_streaks'] = habit_streaks
-        except ImportError:
-            pass
-        except Exception:
-            logger.debug("CoS context: habit streaks unavailable", exc_info=True)
+        # Per-habit streak data now sourced from SAE habits.streaks_per_habit.
+        # Previously this queried HabitGoal directly and called get_streak_data
+        # for each; both are now done inside build_habit_state.
+        habit_streaks_raw = habits_state.get('streaks_per_habit', []) or []
+        habit_streaks = [
+            h for h in habit_streaks_raw
+            if (h.get('current_streak', 0) or 0) > 0 or h.get('at_risk')
+        ]
+        if habit_streaks:
+            habit_streaks.sort(key=lambda h: (
+                not h.get('is_foundational'),
+                -(h.get('current_streak') or 0),
+            ))
+            result['habit_streaks'] = habit_streaks
 
         return result
 
@@ -9114,41 +9132,23 @@ def _build_decision_branch_signals(user):
         'deferrals_7d': 0,
     }
 
-    fourteen_days = timezone.localdate() + datetime.timedelta(days=14)
     today = timezone.localdate()
 
-    # Goals with deadlines within 14 days
+    # Goals with deadlines within 14 days (canonical: goals.upcoming_titles).
     try:
-        from apps.purpose.models import LifeGoal
-        upcoming_goals = LifeGoal.objects.filter(
-            user=user,
-            status='active',
-            target_date__isnull=False,
-            target_date__lte=fourteen_days,
-            target_date__gte=today,
-        ).values('title', 'target_date')[:10]
-        for g in upcoming_goals:
-            days_left = (g['target_date'] - today).days
+        from apps.core.ai_state.state_engine import get_module_state
+        goals_state = get_module_state(user, 'goals') or {}
+        for g in goals_state.get('upcoming_titles', [])[:10]:
             signals['goals_within_14d'].append({
-                'title': g['title'],
-                'days_remaining': days_left,
+                'title': g.get('title'),
+                'days_remaining': g.get('days_remaining'),
             })
-    except Exception:
-        pass
-
-    # Overdue goals (active, past target_date)
-    try:
-        from apps.purpose.models import LifeGoal
-        overdue = LifeGoal.objects.filter(
-            user=user,
-            status='active',
-            target_date__isnull=False,
-            target_date__lt=today,
-        ).values('title', 'target_date')[:5]
-        for g in overdue:
-            days_overdue = (today - g['target_date']).days
+        # Overdue goals (canonical: goals.overdue_titles). Same list,
+        # negative days_remaining preserves the original CoS shape.
+        for g in goals_state.get('overdue_titles', [])[:5]:
+            days_overdue = g.get('days_overdue', 0) or 0
             signals['goals_within_14d'].append({
-                'title': g['title'],
+                'title': g.get('title'),
                 'days_remaining': -days_overdue,
             })
     except Exception:
@@ -10549,9 +10549,11 @@ def build_learning_mode_context(user):
         pass
 
     try:
-        from apps.health.models import FastingSession
-        active_fast = FastingSession.objects.filter(user=user, is_active=True).first()
-        if active_fast:
+        # Canonical fasting.current_fast_active (SAE) replaces a raw
+        # FastingSession.objects.filter(...).first() lookup. The SAE
+        # fasting builder already computes this.
+        fast_active = get_metric(user, 'fasting.current_fast_active')
+        if fast_active and fast_active.value:
             context['active_fast_status'] = {'active': True}
     except Exception:
         pass

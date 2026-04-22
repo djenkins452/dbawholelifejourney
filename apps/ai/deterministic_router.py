@@ -1402,6 +1402,78 @@ def refine_cos_response(text: str) -> str:
     return out
 
 
+# ═════════════════════════════════════════════════════════════════
+# Phase 19.3 — Single-action fallback resolver
+#
+# The decision contract requires ONE concrete next action, never a
+# category or list of options. When the main priority stack in
+# _build_focus_query_response returns None (no overdue / upcoming /
+# foundational exec item / signal focus), this resolver picks a
+# single habit — or the hard-coded concrete default — to surface.
+#
+# Do NOT change this function's return shape without updating both
+# callers (_build_focus_query_response and _try_decision_query_route).
+# ═════════════════════════════════════════════════════════════════
+
+
+_FINAL_DEFAULT_ACTION = "Take 3 minutes to pray now"
+
+
+def resolve_fallback_action(user) -> dict:
+    """Return a concrete single-action fallback: ``{primary_action,
+    context_reason}``. Never returns a category, never multi-option,
+    never None.
+
+    Priority (narrow — the main stack already tried tasks, upcoming,
+    foundational exec items, and signal focus before this resolver
+    runs):
+
+        3. Highest-priority foundational habit from SAE
+           ``habits.streaks_per_habit``. Foundational first, then
+           longest current streak as the tiebreaker so the user is
+           nudged to protect an established streak.
+        5. Hard-coded concrete default — a prayer anchor.
+    """
+    # 3. Habit lookup via canonical SAE state.
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        habits_state = get_module_state(user, 'habits') or {}
+        streaks = habits_state.get('streaks_per_habit') or []
+        ranked = sorted(
+            streaks,
+            key=lambda h: (
+                not h.get('is_foundational', False),
+                -(h.get('current_streak') or 0),
+            ),
+        )
+        if ranked:
+            top = ranked[0]
+            name = (top.get('name') or '').strip()
+            streak = int(top.get('current_streak') or 0)
+            if name:
+                primary = f"Do your {name} now"
+                context = (
+                    f"Protect your {streak}-day streak"
+                    if streak >= 3 else None
+                )
+                return {
+                    'primary_action': primary,
+                    'context_reason': context,
+                }
+    except Exception:
+        logger.debug(
+            "resolve_fallback_action: habit lookup failed for user=%s",
+            getattr(user, 'id', '?'),
+            exc_info=True,
+        )
+
+    # 5. Hard-coded concrete default.
+    return {
+        'primary_action': _FINAL_DEFAULT_ACTION,
+        'context_reason': None,
+    }
+
+
 _COS_DECISIVE_STARTS = (
     "Take", "Start", "Complete", "Get ", "Close ", "Address",
     "Log", "Plan", "Shut", "Stay ", "Clear ", "Then ",
@@ -2240,21 +2312,27 @@ def _build_focus_query_response(user):
             if not context_reason:
                 context_reason = "No other overdue items — use the momentum"
         else:
-            # Daytime, truly nothing pressing.
-            primary_action = (
-                "Complete your highest-priority foundational habit — "
-                "prayer, movement, or a quick journal entry"
-            )
-            if not context_reason:
-                context_reason = (
-                    "No overdue items, no upcoming schedule pressure, "
-                    "and no high-priority focus surfaced"
-                )
+            # Phase 19.3: no category fallback, no multi-option
+            # wording. Deterministic single-action resolver.
+            fb = resolve_fallback_action(user)
+            primary_action = fb['primary_action']
+            # Resolver owns the context — do not re-layer the old
+            # "no concrete focus surfaced" debug line.
+            context_reason = fb.get('context_reason')
     elif late and primary_action and not quick_wins_titles:
         # Late evening but a real primary exists (e.g. unfinished
         # foundational). Nudge toward close-the-day framing — context
         # still explains why.
         pass  # Keep primary as-is; formatter handles late-evening tone.
+
+    # Safety guard: the contract requires exactly one concrete
+    # primary action. Every branch above must populate it. If a
+    # future edit introduces a path that leaves primary_action None,
+    # fail closed to the hard-coded final default so the user never
+    # receives an empty response.
+    if not primary_action:
+        primary_action = _FINAL_DEFAULT_ACTION
+        context_reason = None
 
     return _format_cos_decision_response(
         quick_wins=quick_wins_titles,
@@ -2313,16 +2391,15 @@ def _try_decision_query_route(msg_lower, user):
         getattr(user, 'id', '?'),
     )
 
-    # Phase 19: new-format fallback (no "Do this next:" / "Reason:"
-    # / "Priority:" markers). Still decisive.
+    # Phase 19.3: concrete single-action fallback. No category,
+    # no "A, B, or C" options, no debug leakage. The resolver
+    # picks the user's highest-priority foundational habit (or
+    # the hard-coded concrete default) and returns one clear
+    # next step.
+    _fallback = resolve_fallback_action(user)
     _SAFE_FALLBACK = _format_cos_decision_response(
-        primary_action=(
-            "Complete your highest-priority foundational habit — "
-            "prayer, movement, or a quick journal entry"
-        ),
-        context_reason=(
-            "Decision-query fallback — no concrete focus surfaced"
-        ),
+        primary_action=_fallback['primary_action'],
+        context_reason=_fallback.get('context_reason'),
     )
 
     try:

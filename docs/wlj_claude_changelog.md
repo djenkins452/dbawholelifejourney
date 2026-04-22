@@ -7,6 +7,84 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-22 — Change: Phase 19.1 CoS tone refiner + quick-action dedup
+
+**Problem.** Phase 19 output still read a bit mechanical:
+
+```
+Take your Magnesium and your Metformin now — both are quick and overdue.
+Then start Work on WLJ.
+Work on WLJ (scheduled at 05:15) is overdue and 1 more item(s) are also behind: Prayer Time.
+```
+
+Three issues: `your X and your Y` doubled the possessive; the
+"(scheduled at HH:MM)" parenthetical was scheduler noise; and the
+context line restated the primary's title.
+
+**Change — two parts:**
+
+**A. Deterministic tone refiner** at
+[apps/ai/deterministic_router.py:refine_cos_response](apps/ai/deterministic_router.py)
+applied as the tail of `_format_cos_decision_response` (the formatter
+is the last step every handler calls, so the refiner runs exactly
+once per response). Six transformations, all idempotent, none change
+meaning:
+
+1. `your X and your Y` → `your X and Y`
+2. Strip `(scheduled at HH:MM)` parentheticals
+3. `and N more item(s) are also behind: A, B` →
+   `along with A and B` (Oxford comma for 3+)
+4. Merge primary + restated-title context: `Then start X.\nX is overdue …`
+   → `Then start X — it's already overdue …`
+5. `for the night so tomorrow starts clean` →
+   `for the night — tomorrow starts clean`
+6. Strip any stray `[Cc]onsider ` (never allowed)
+
+Result:
+
+```
+Take your Magnesium and Metformin now — both are quick and overdue.
+Then start Work on WLJ — it's already overdue along with Prayer Time.
+```
+
+**B. Quick-action dedup fix** — the Phase 19 code keyed the
+primary-exclusion set on `id`, but execution items use `source_id` +
+`source_type`. The dedup was silently failing, letting the third
+quick action become the primary. Fixed to use
+`(source_type, source_id)` tuples and widened from the top-2 slice
+to ALL quick candidates: if an item qualifies as a quick action, it
+may appear in the quick-wins line (cap 2) but never in the primary
+slot. The primary is reserved for a bigger task, foundational gap,
+or intentional shutdown.
+
+**Scope guardrails (respected):**
+* No changes to decision logic, signal selection, routing, or the
+  4-part response structure.
+* Transformations are pure string substitutions — deterministic,
+  idempotent, no added or removed actions.
+* Refiner preserves the primary action on its own line unless it
+  merges with a trivially-redundant context line (case 4 above).
+
+**Files:**
+* Modified: `apps/ai/deterministic_router.py` (+~150 lines: the
+  refiner + helper functions, `source_id` dedup key fix),
+  `apps/ai/tests/test_quick_action_priority.py`,
+  `apps/ai/tests/test_execution_first.py`,
+  `apps/ai/tests/test_cos_decision_format.py`,
+  `docs/wlj_claude_changelog.md`.
+* New: `apps/ai/tests/test_cos_tone_refiner.py` (19 new tests —
+  determinism, idempotence, each transformation individually, plus
+  end-to-end against the real formatter).
+
+**Verification:**
+* `python3 manage.py check` — clean.
+* `python3 manage.py makemigrations --check --dry-run` — no
+  changes.
+* 237/237 pass across the full scoped suite (155 pre-existing
+  decision/execution tests + 20 Phase 19 + 19 Phase 19.1 +
+  22 metric_access + 21 unified_feed).
+
+
 ## 2026-04-22 — Change: Phase 19 CoS decision-layer response format
 
 **Problem.** The deterministic "what should I do right now" handler at

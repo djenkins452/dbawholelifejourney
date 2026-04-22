@@ -141,10 +141,12 @@ class OverdueOverridesSignalTests(TestCase):
         ):
             resp = _build_focus_query_response(self.user)
 
-        # Phase 10: Wake up filtered → Prayer selected → 1 more (Bible)
+        # Phase 10 → 19.1: Wake up filtered, Prayer selected as primary,
+        # Bible surfaces as the "along with" tail (the refiner rewrites
+        # "1 more item(s) are also behind: Bible" into
+        # "along with Bible").
         self.assertIn("Prayer", resp)
-        self.assertIn("1 more", resp)
-        self.assertIn("Bible", resp)
+        self.assertIn("along with Bible", resp)
 
 
 # ══════════════════════════════════════════════════════════════

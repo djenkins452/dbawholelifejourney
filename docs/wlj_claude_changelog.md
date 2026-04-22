@@ -7,6 +7,85 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-22 — Fix: Phase 19.3 single-action fallback resolver
+
+**Problem.** When the main priority stack in
+`_build_focus_query_response` returned nothing (empty execution
+items + no trust-report signals — the "brand new user" shape), the
+response fell through to a generic multi-option string:
+
+```
+Complete your highest-priority foundational habit — prayer, movement, or a quick journal entry.
+No overdue items, no upcoming schedule pressure, and no high-priority focus surfaced.
+```
+
+That violates the CoS decision contract: **one concrete action, never
+a category, never a list of options, never a debug line.** The same
+string was also hard-coded as the `_SAFE_FALLBACK` inside
+`_try_decision_query_route` so it reached the user whenever any
+handler raised.
+
+**Change.** New deterministic resolver
+[`resolve_fallback_action(user)`](apps/ai/deterministic_router.py)
+returns `{'primary_action', 'context_reason'}` with a single
+concrete next step:
+
+1. **Habit lookup** — reads SAE canonical `habits.streaks_per_habit`
+   (Phase 2 state key). Sorts foundational habits first, then by
+   longest current streak (so the nudge protects an established
+   streak). Returns `"Do your {habit_name} now"` with an optional
+   `"Protect your {N}-day streak"` context line when the streak
+   is ≥ 3 days.
+2. **Final default** — hard-coded concrete action
+   `"Take 3 minutes to pray now"`. Used when the user has no
+   active habits or when the SAE read raises.
+
+Module-scope constant `_FINAL_DEFAULT_ACTION` holds the anchor
+string so tests and both call sites reference the same value.
+
+**Three sites updated:**
+
+1. `_build_focus_query_response` — the daytime "nothing pressing"
+   branch now delegates to `resolve_fallback_action(user)` instead
+   of hard-coding the multi-option fallback. A new safety guard at
+   the end of the function catches any future code path that leaves
+   `primary_action` None and fails closed to `_FINAL_DEFAULT_ACTION`.
+
+2. `_try_decision_query_route._SAFE_FALLBACK` — previously a
+   module-built constant with the same multi-option wording. Now
+   computed per-request via the resolver (the route already has a
+   `user` in scope).
+
+3. Deleted the debug line `"Decision-query fallback — no concrete
+   focus surfaced"` at both sites.
+
+**Scope guardrails (respected):**
+- No changes to signals, routing, formatter, refiner.
+- The existing priority stack (overdue → upcoming → foundational
+  exec → signal focus) is untouched — the resolver only runs
+  **after** the stack returns None.
+- Every branch of `_build_focus_query_response` now populates
+  `primary_action`; the final safety guard is belt-and-suspenders
+  for future edits.
+
+**Files:**
+- Modified: `apps/ai/deterministic_router.py` (+~80 lines: resolver
+  + safety guard + two call-site rewrites + comment updates),
+  `docs/wlj_claude_changelog.md`.
+- New: `apps/ai/tests/test_cos_fallback_resolver.py` (10 tests —
+  habit selection, streak tiebreaks, short-streak suppresses
+  context line, empty habits → final default, SAE exception →
+  final default, forbidden-fragment contract, empty-state focus
+  query integration, safe-fallback route on handler failure).
+
+**Verification:**
+- `python3 manage.py check` — clean.
+- `python3 manage.py makemigrations --check --dry-run` — no
+  changes.
+- 266/266 pass across the full scoped decision/refiner/fallback/
+  metric/signal suite.
+
+
 ## 2026-04-22 — Change: Phase 19.2 CoS leadership-voice polish
 
 **Problem.** After Phase 19.1 the output was readable and tight, but

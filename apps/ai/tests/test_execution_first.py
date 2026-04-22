@@ -95,8 +95,8 @@ class OverdueOverridesSignalTests(TestCase):
 
         # Phase 10: "Wake up" is filtered out (implied-done); the
         # next valid overdue item (Prayer Time) is selected.
-        self.assertIn("Prayer Time", resp)
-        self.assertTrue(resp.startswith("Do this next:"))
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
+        assert_cos_action_first(self, resp, must_contain="Prayer Time")
         self.assertIn("overdue", resp.lower())
         # Must NOT contain signal-layer actions like "Log a meal"
         self.assertNotIn("Log a meal", resp)
@@ -170,8 +170,8 @@ class UpcomingSelectedWhenNoOverdueTests(TestCase):
         ):
             resp = _build_focus_query_response(self.user)
 
-        self.assertIn("Workout", resp)
-        self.assertTrue(resp.startswith("Do this next:"))
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
+        assert_cos_action_first(self, resp, must_contain="Workout")
         self.assertIn("Nothing is overdue", resp)
 
 
@@ -236,7 +236,8 @@ class SignalOnlyWhenNoExecutionItemsTests(TestCase):
         ):
             resp = _build_focus_query_response(self.user)
 
-        self.assertTrue(resp.startswith("Do this next:"))
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
+        assert_cos_action_first(self, resp)
         # The signal layer should fire. The exact action depends on
         # the user's trust reports. We just verify the execution
         # layer didn't produce the action (none of the item titles).
@@ -254,7 +255,8 @@ class SignalOnlyWhenNoExecutionItemsTests(TestCase):
         ):
             resp = _build_focus_query_response(self.user)
 
-        self.assertTrue(resp.startswith("Do this next:"))
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
+        assert_cos_action_first(self, resp)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -322,11 +324,11 @@ class Phase8RegressionTests(TestCase):
     def test_action_first_format_preserved(self):
         user = _make_user("phase8_regression@test.com")
         from apps.ai.deterministic_router import _build_focus_query_response
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
         resp = _build_focus_query_response(user)
-        self.assertTrue(
-            resp.startswith("Do this next:"),
-            f"Action-First format broken, got: {resp[:80]}",
-        )
+        # Phase 19: the "Action-First" contract is now the 4-part
+        # CoS decision shape, not the literal "Do this next:" prefix.
+        assert_cos_action_first(self, resp)
 
     def test_never_none(self):
         user = _make_user("never_none@test.com")
@@ -341,7 +343,8 @@ class Phase8RegressionTests(TestCase):
         result = _try_decision_query_route("what should i do", user)
         self.assertIsNotNone(result)
         self.assertTrue(result.is_terminal)
-        self.assertIn("Do this next:", result.response)
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
+        assert_cos_action_first(self, result.response)
 
     def test_validator_still_rejects_weasel(self):
         from apps.ai.deterministic_router import validate_response

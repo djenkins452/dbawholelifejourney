@@ -131,10 +131,8 @@ class MedsNotBlockedBySequenceTests(TestCase):
             resp = _build_focus_query_response(self.user)
 
         # System must select an actionable med/supp — not fall to signals
-        self.assertTrue(
-            resp.startswith("Do this next:"),
-            f"expected action, got: {resp[:80]!r}",
-        )
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
+        assert_cos_action_first(self, resp)
         # Must NOT fall through to signal layer (sleep trend, nutrition)
         self.assertNotIn("wind-down", resp.lower())
         self.assertNotIn("macro", resp.lower())
@@ -208,5 +206,5 @@ class SignalLayerOnlyWhenTrulyEmptyTests(TestCase):
         ):
             resp = _build_focus_query_response(self.user)
 
-        self.assertIn("THORNE Creatine", resp)
-        self.assertTrue(resp.startswith("Do this next:"))
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
+        assert_cos_action_first(self, resp, must_contain="THORNE Creatine")

@@ -35,6 +35,7 @@ Public API:
 
 import logging
 import time
+from typing import List, Optional
 
 from django.conf import settings
 
@@ -1026,6 +1027,166 @@ def _classify_decision_intent(msg_lower):
     return 'EXECUTION_NOW'
 
 
+# ═════════════════════════════════════════════════════════════════
+# Phase 19 — CoS Decision Response Formatter
+#
+# The handlers below (_build_focus_query_response, _build_biggest_risk_response,
+# _build_fix_first_response) all produce a deterministic string that the
+# CoS uses as its reply for "what should I do right now" / "what's my
+# biggest risk" / "what should I fix first". The previous format —
+#
+#     Do this next: <action>
+#     Reason:
+#     <why>
+#     Priority: <label>
+#
+# — felt like a checklist. This layer rewrites output into the
+# four-part CoS structure defined in the Phase 19 decision-layer brief:
+#
+#   (1) Quick wins       — optional, max 2, "<2 min each"
+#   (2) Primary action   — required unless intentional shutdown
+#   (3) Context          — optional short signal-based reason
+#   (4) Stop condition   — late-evening shutdown when appropriate
+#
+# Selection logic (which items to surface) is unchanged. Only the
+# assembly + phrasing and the quick-action stacking rule change.
+# ═════════════════════════════════════════════════════════════════
+
+
+def _is_late_evening(user) -> bool:
+    """True when the user's local hour is >= 20 or < 5.
+
+    Late-evening flips the decision frame: we stop suggesting heavy
+    new work and favor intentional shutdown.
+    """
+    try:
+        from apps.core.utils import get_user_now
+        now = get_user_now(user)
+        hour = now.hour
+    except Exception:
+        return False
+    return hour >= 20 or hour < 5
+
+
+def _strip_trailing_punct(text: str) -> str:
+    if not text:
+        return ""
+    s = text.strip()
+    while s and s[-1] in ".!?;":
+        s = s[:-1]
+    return s.strip()
+
+
+def _lowercase_first(text: str) -> str:
+    if not text:
+        return ""
+    return text[0].lower() + text[1:]
+
+
+def _sentence_case(text: str) -> str:
+    if not text:
+        return ""
+    return text[0].upper() + text[1:]
+
+
+def _format_cos_decision_response(
+    *,
+    quick_wins: Optional[List[str]] = None,
+    primary_action: Optional[str] = None,
+    context_reason: Optional[str] = None,
+    lead_with_context: bool = False,
+) -> str:
+    """Assemble the four-part CoS decision response.
+
+    Args:
+        quick_wins: Up to 2 short phrases (e.g. "your Magnesium").
+            Narratively combined into one "Take X and Y now — quick
+            and overdue." line. Extras beyond 2 are dropped (per
+            brief: quick wins must never dominate).
+        primary_action: Full sentence/clause for the main move.
+            Required unless the caller is intentionally producing a
+            shutdown-only message (edge case).
+        context_reason: Short explanation of WHY, tied to signals.
+        lead_with_context: If True, the context line precedes
+            everything else (risk-driven openings like "Your glucose
+            is trending up and your workout streak broke.").
+    """
+    qws = [q.strip() for q in (quick_wins or []) if q and q.strip()]
+    qws = qws[:2]  # hard cap per brief
+    lines: List[str] = []
+
+    # (1 or 3a) Context leading — risk-mode openings only.
+    if lead_with_context and context_reason:
+        lines.append(_strip_trailing_punct(context_reason) + ".")
+
+    # (1) Quick wins
+    if qws:
+        if len(qws) == 1:
+            lines.append(f"Take {qws[0]} now — quick and overdue.")
+        else:
+            lines.append(
+                f"Take {qws[0]} and {qws[1]} now — "
+                "both are quick and overdue."
+            )
+
+    # (2) Primary action
+    if primary_action:
+        primary_clean = _strip_trailing_punct(primary_action)
+        has_prefix = bool(qws) or (lead_with_context and context_reason)
+        if has_prefix:
+            lines.append(f"Then {_lowercase_first(primary_clean)}.")
+        else:
+            # Standalone primary — sentence-case so downstream
+            # imperative detectors recognize it.
+            lines.append(_sentence_case(primary_clean) + ".")
+
+    # (3b) Trailing context — only when not already led with it.
+    if context_reason and not lead_with_context:
+        lines.append(_strip_trailing_punct(context_reason) + ".")
+
+    # Deduplicate consecutive identical lines (edge case).
+    dedup: List[str] = []
+    for ln in lines:
+        if not dedup or dedup[-1].strip() != ln.strip():
+            dedup.append(ln)
+    return "\n".join(dedup)
+
+
+_COS_DECISIVE_STARTS = (
+    "Take", "Start", "Complete", "Get ", "Close ", "Address",
+    "Log", "Plan", "Shut", "Stay ", "Clear ", "Then ",
+    # Context-lead sentences commonly start with these (risk mode):
+    "You", "Your", "Medication", "Health",
+    "Cross-domain", "No ", "You're",
+)
+
+
+def _looks_like_cos_decision_response(resp) -> bool:
+    """True if ``resp`` matches the Phase 19 CoS decision contract.
+
+    Contract:
+    * non-empty string,
+    * no legacy format markers (``Do this next:`` / ``Reason:`` / ``Priority:``),
+    * at least one line starts with a recognized decisive/context opener.
+
+    Used by the decision-query gate to decide whether a handler output
+    is healthy or should be swapped for the safe fallback.
+    """
+    if not resp or not isinstance(resp, str):
+        return False
+    stripped = resp.strip()
+    if not stripped:
+        return False
+    # Reject legacy markers — those should have been removed.
+    for marker in ("Do this next:", "Reason:\n", "Priority:"):
+        if marker in resp:
+            return False
+    for line in (ln for ln in resp.splitlines() if ln.strip()):
+        if any(line.startswith(v) for v in _COS_DECISIVE_STARTS):
+            return True
+    return False
+
+
 def _build_biggest_risk_response(user):
     """Phase 11 — deterministic BIGGEST_RISK response.
 
@@ -1051,17 +1212,14 @@ def _build_biggest_risk_response(user):
 
         if expected > 0 and taken == 0 and adherence_7d is not None:
             if adherence_7d < 80:
-                action = "Take your overdue medications now."
-                reason = (
-                    f"Medication adherence is at {adherence_7d}% this "
-                    f"week and you have 0 of {expected} doses taken "
-                    f"today. Missed doses compound — this is your "
-                    f"highest-impact risk right now."
-                )
-                return (
-                    f"Do this next: {action}\n\n"
-                    f"Reason:\n{reason}\n"
-                    f"Priority: health risk"
+                return _format_cos_decision_response(
+                    primary_action="Take your overdue medications now",
+                    context_reason=(
+                        f"Medication adherence is at {adherence_7d}% "
+                        f"this week and you have 0 of {expected} doses "
+                        f"taken today — missed doses compound"
+                    ),
+                    lead_with_context=True,
                 )
 
         # ── 2. Health intelligence risk flags ───────────────────
@@ -1088,15 +1246,15 @@ def _build_biggest_risk_response(user):
 
                 # Build an actionable response from the risk
                 action = _risk_to_action(flag_text, med, health)
-                reason = (
-                    f"Health intelligence flagged: {flag_text}. "
-                    f"{top_rec}" if top_rec else
-                    f"Health intelligence flagged: {flag_text}."
+                ctx_text = (
+                    f"Health intelligence flagged: {flag_text}. {top_rec}"
+                    if top_rec else
+                    f"Health intelligence flagged: {flag_text}"
                 )
-                return (
-                    f"Do this next: {action}\n\n"
-                    f"Reason:\n{reason}\n"
-                    f"Priority: health risk"
+                return _format_cos_decision_response(
+                    primary_action=_strip_trailing_punct(action),
+                    context_reason=ctx_text,
+                    lead_with_context=True,
                 )
 
         # ── 3. Cross-domain signals ─────────────────────────────
@@ -1114,11 +1272,14 @@ def _build_biggest_risk_response(user):
                 action = best_signal.get('recommended_action', '')
                 summary = best_signal.get('summary', '')
                 if action:
-                    return (
-                        f"Do this next: {action}\n\n"
-                        f"Reason:\n"
-                        f"Cross-domain pattern detected: {summary}\n"
-                        f"Priority: risk pattern"
+                    return _format_cos_decision_response(
+                        primary_action=_strip_trailing_punct(action),
+                        context_reason=(
+                            f"Cross-domain pattern detected: {summary}"
+                            if summary else
+                            "Cross-domain pattern detected"
+                        ),
+                        lead_with_context=True,
                     )
         except Exception:
             pass
@@ -1151,38 +1312,41 @@ def _build_biggest_risk_response(user):
                 and i.get('importance') == 'foundational'
             )
             if overdue_count > 0:
-                return (
-                    f"Do this next: Address your {overdue_count} "
-                    f"overdue item(s) — falling behind on your "
-                    f"schedule is your biggest risk today.\n\n"
-                    f"Reason:\n"
-                    f"No critical health risks detected, but "
-                    f"{overdue_count} items are overdue. Letting "
-                    f"them accumulate erodes consistency.\n"
-                    f"Priority: consistency risk"
+                return _format_cos_decision_response(
+                    primary_action=(
+                        f"Clear your {overdue_count} overdue item(s) "
+                        "now — falling behind is your biggest risk today"
+                    ),
+                    context_reason=(
+                        "No critical health risks surfaced, but "
+                        f"{overdue_count} item(s) are overdue. Letting "
+                        "them accumulate erodes consistency"
+                    ),
                 )
             if incomplete_foundational > 0:
-                return (
-                    f"Do this next: Complete your remaining "
-                    f"{incomplete_foundational} foundational "
-                    f"item(s) for the day.\n\n"
-                    f"Reason:\n"
-                    f"No critical health risks detected. Your "
-                    f"biggest risk right now is skipping "
-                    f"foundational commitments.\n"
-                    f"Priority: consistency risk"
+                return _format_cos_decision_response(
+                    primary_action=(
+                        f"Complete your remaining "
+                        f"{incomplete_foundational} foundational "
+                        "item(s) for the day"
+                    ),
+                    context_reason=(
+                        "No critical health risks surfaced. Skipping "
+                        "foundational commitments is your biggest risk"
+                    ),
                 )
     except Exception:
         pass
 
     # Truly no risks — explicit low-risk state
-    return (
-        "Your priority is: No major risks right now.\n\n"
-        "Reason:\n"
-        "Medication adherence is acceptable, no health flags "
-        "surfaced, and no critical patterns detected. Stay "
-        "on your current plan.\n"
-        "Priority: low risk"
+    return _format_cos_decision_response(
+        primary_action="Stay on your current plan",
+        context_reason=(
+            "No major risks right now. Medication adherence is "
+            "acceptable, no health flags surfaced, and no critical "
+            "patterns detected"
+        ),
+        lead_with_context=True,
     )
 
 
@@ -1232,22 +1396,28 @@ def _build_fix_first_response(user):
 
         if expected > 0 and taken == 0 and adherence_7d is not None:
             if adherence_7d < 70:
-                return (
-                    "Do this next: Take your overdue medications "
-                    "now — this is the fastest way to close your "
-                    "biggest gap today.\n\n"
-                    "Reason:\n"
-                    f"You've drifted on medication consistency "
-                    f"({adherence_7d}% this week, 0 of {expected} "
-                    f"doses today). Every missed dose compounds. "
-                    f"Taking them now is the single highest-impact "
-                    f"correction you can make right now.\n"
-                    f"Priority: critical recovery"
+                return _format_cos_decision_response(
+                    primary_action=(
+                        "Take your overdue medications now — the "
+                        "fastest way to close your biggest gap today"
+                    ),
+                    context_reason=(
+                        f"You've drifted on medication consistency "
+                        f"({adherence_7d}% this week, 0 of {expected} "
+                        f"doses today). Every missed dose compounds"
+                    ),
+                    lead_with_context=True,
                 )
 
-        # ── 2. Quick-action override (Phase 16) ──────────────────
-        # Same logic as EXECUTION_NOW: overdue meds/supps first.
+        # ── 2. Quick-action + overdue stacking (Phase 19) ────────
+        # Same stacking contract as EXECUTION_NOW: up to 2 quick wins
+        # precede the primary recovery action — they never replace it.
         exec_builder = MODULE_BUILDERS.get('execution')
+        quick_wins_titles: List[str] = []
+        quick_ids: set = set()
+        primary_action: Optional[str] = None
+        context_reason: Optional[str] = None
+
         if exec_builder:
             exec_state = exec_builder(user) or {}
             exec_items = exec_state.get('items', [])
@@ -1271,30 +1441,16 @@ def _build_fix_first_response(user):
                     _qa_imp_ff.get(x.get('importance', 'flexible'), 2),
                     x.get('scheduled_time', '99:99'),
                 ))
-                top = quick_ff[0]
-                n = len(quick_ff)
-                title = top['title']
-                if n > 1:
-                    others = ', '.join(i['title'] for i in quick_ff[1:4])
-                    note = (
-                        f"{title} is overdue and takes under a "
-                        f"minute. {n - 1} more quick action(s) "
-                        f"pending: {others}."
-                    )
-                else:
-                    note = (
-                        f"{title} is overdue and takes under a "
-                        f"minute — clearing it now keeps your "
-                        f"routine intact."
-                    )
-                return (
-                    f"Do this next: Take {title} — quick win "
-                    f"before your next task.\n\n"
-                    f"Reason:\n{note}\n"
-                    f"Priority: quick recovery"
-                )
+                for q in quick_ff[:2]:
+                    t = q.get('title') or ''
+                    if t:
+                        quick_wins_titles.append(f"your {t}")
+                quick_ids = {
+                    q.get('id') for q in quick_ff[:2]
+                    if q.get('id') is not None
+                }
 
-            # ── 3. Overdue execution items → recovery framing ───
+            # ── Overdue execution items → recovery framing ──────
             _IMPLIED_DONE = frozenset({
                 'wake up', 'go to bed', 'go to sleep',
                 'lights out', 'get up', 'get out of bed',
@@ -1304,6 +1460,7 @@ def _build_fix_first_response(user):
                 i for i in exec_items
                 if i.get('time_status') == 'overdue'
                 and not i.get('completed_today')
+                and i.get('id') not in quick_ids
                 and (i.get('title') or '').strip().lower()
                     not in _IMPLIED_DONE
             ]
@@ -1360,58 +1517,77 @@ def _build_fix_first_response(user):
                     )
                     drift_note = (
                         f"You're behind on {n} items ({others}). "
+                        f"{title} is the fastest way to regain momentum"
                     )
                 else:
-                    drift_note = "You've fallen behind. "
-                return (
-                    f"Do this next: Get back on track by starting "
-                    f"{title} now.\n\n"
-                    f"Reason:\n"
-                    f"{drift_note}"
-                    f"{title} is the fastest way to regain momentum "
-                    f"— it's overdue and unblocks your day.\n"
-                    f"Priority: recovery"
-                )
+                    drift_note = (
+                        f"You've fallen behind. {title} is the "
+                        f"fastest way to regain momentum"
+                    )
+                primary_action = f"Get back on track by starting {title}"
+                context_reason = drift_note
 
-            # ── 3. Foundational gaps → gap-closure framing ──────
-            incomplete_raw = [
-                i for i in exec_items
-                if not i.get('completed_today')
-                and i.get('importance') in ('foundational', 'important')
-                and (i.get('title') or '').strip().lower()
-                    not in _IMPLIED_DONE
-            ]
-            # Phase 12 + 15: filter blocked items (routine only)
-            incomplete = []
-            for item in incomplete_raw:
-                gid = item.get('execution_group_id')
-                if gid is None:
-                    incomplete.append(item)
-                    continue
-                gtype = item.get('execution_group_type', '')
-                if gtype not in _SEQUENTIAL_FF:
-                    incomplete.append(item)
-                    continue
-                gate = _group_gates_ff.get(gid)
-                if gate is None or item.get('scheduled_time', '99:99') <= gate:
-                    incomplete.append(item)
-            incomplete.sort(key=lambda x: (
-                0 if x.get('source_type') == 'task' else 1,
-                _imp_order.get(x.get('importance', 'flexible'), 2),
-                x.get('scheduled_time', '99:99'),
-            ))
-            if incomplete:
-                top = incomplete[0]
-                return (
-                    f"Do this next: Close this gap — complete "
-                    f"{top['title']}.\n\n"
-                    f"Reason:\n"
-                    f"No urgent overdue items, but {top['title']} "
-                    f"is a {top.get('importance', 'required')} "
-                    f"commitment that's still open. Completing it "
-                    f"now keeps your day on track.\n"
-                    f"Priority: gap closure"
-                )
+            # ── Foundational gaps → gap-closure framing ─────────
+            if not primary_action:
+                incomplete_raw = [
+                    i for i in exec_items
+                    if not i.get('completed_today')
+                    and i.get('id') not in quick_ids
+                    and i.get('importance') in ('foundational', 'important')
+                    and (i.get('title') or '').strip().lower()
+                        not in _IMPLIED_DONE
+                ]
+                # Phase 12 + 15: filter blocked items (routine only)
+                incomplete = []
+                for item in incomplete_raw:
+                    gid = item.get('execution_group_id')
+                    if gid is None:
+                        incomplete.append(item)
+                        continue
+                    gtype = item.get('execution_group_type', '')
+                    if gtype not in _SEQUENTIAL_FF:
+                        incomplete.append(item)
+                        continue
+                    gate = _group_gates_ff.get(gid)
+                    if gate is None or item.get('scheduled_time', '99:99') <= gate:
+                        incomplete.append(item)
+                incomplete.sort(key=lambda x: (
+                    0 if x.get('source_type') == 'task' else 1,
+                    _imp_order.get(x.get('importance', 'flexible'), 2),
+                    x.get('scheduled_time', '99:99'),
+                ))
+                if incomplete:
+                    top = incomplete[0]
+                    primary_action = (
+                        f"Close this gap — complete {top['title']}"
+                    )
+                    context_reason = (
+                        f"No urgent overdue items, but {top['title']} "
+                        f"is a {top.get('importance', 'required')} "
+                        "commitment still open"
+                    )
+
+        # If we have quick wins or a primary action, assemble.
+        if quick_wins_titles or primary_action:
+            # Primary action is required. If only quick wins exist,
+            # provide a recovery-framed close.
+            if not primary_action:
+                late = _is_late_evening(user)
+                if late:
+                    primary_action = (
+                        "shut it down for the night so tomorrow "
+                        "starts clean"
+                    )
+                else:
+                    primary_action = (
+                        "stay on your recovery plan — nothing else "
+                        "is actively behind"
+                    )
+            return _format_cos_decision_response(
+                quick_wins=quick_wins_titles,
+                primary_action=primary_action,
+                context_reason=context_reason,
+            )
 
     except Exception as e:
         logger.warning(
@@ -1419,21 +1595,21 @@ def _build_fix_first_response(user):
             getattr(user, 'id', '?'), e,
         )
 
-    # ── 4. Nothing to fix — you're on track ─────────────────
-    return (
-        "Your priority is: You're on track — no critical gaps "
-        "to fix right now.\n\n"
-        "Reason:\n"
-        "No overdue items, no critical health risks, and your "
-        "foundational commitments are accounted for. Stay on "
-        "your current plan.\n"
-        "Priority: on track"
+    # ── Nothing to fix — you're on track ─────────────────────
+    return _format_cos_decision_response(
+        primary_action="Stay on your current plan",
+        context_reason=(
+            "You're on track — no overdue items, no critical health "
+            "risks, and your foundational commitments are accounted for"
+        ),
+        lead_with_context=True,
     )
 
 
 def _build_focus_query_response(user):
     """
-    Phase 4 / Phase 8 / Phase 14 — deterministic EXECUTION_NOW response.
+    Phase 4 / Phase 8 / Phase 14 / Phase 19 — deterministic
+    EXECUTION_NOW response.
 
     Phase 9: execution-first priority stack (overdue → upcoming →
     foundational-gap → signal-focus).
@@ -1441,43 +1617,40 @@ def _build_focus_query_response(user):
     Phase 12: dependency-aware filtering (blocked items excluded).
     Phase 14: output sanitization (no internal schedule data shown).
 
-    Output format:
+    Phase 19 (CoS decision-layer upgrade):
+    * Quick wins (meds/supps overdue, ≤2 min) NO LONGER short-circuit
+      the priority stack. They are collected into a narrative line
+      (max 2) that precedes the primary action — never replaces it.
+    * Late-evening context (user local hour >= 20 or < 5) flips the
+      default primary to an intentional shutdown when nothing else
+      is pressing.
+    * Output uses `_format_cos_decision_response` — the old
+      ``Do this next: … / Reason: … / Priority: …`` shape is gone.
 
-        Do this next: <specific action>
-
-        Reason:
-        <why, based on execution state>
-
-    Phase 8 never-None guarantee: even when no focus exists, no
-    trust reports load, or the signal pipeline is empty, this
-    function returns a valid Action-First response. Decision
-    queries must never fall through to the LLM.
-
-    Returns a single string. Never None. Never empty. Always
-    starts with "Do this next: ".
+    Phase 8 never-None guarantee still holds: even when no focus
+    exists, no trust reports load, or the signal pipeline is empty,
+    this returns a non-empty CoS-style response. Decision queries
+    never fall through to the LLM.
     """
     # ══════════════════════════════════════════════════════════
-    # Phase 9 — EXECUTION-FIRST decision selection.
+    # Phase 9 — EXECUTION-FIRST selection (Phase 19 stacking).
     #
-    # Priority stack (STRICT ORDER):
-    #   1. OVERDUE items (always win — time relevance > signal priority)
+    # Priority stack for the PRIMARY action (strict order):
+    #   1. OVERDUE items (time relevance > signal priority)
     #   2. UPCOMING items (0-90 minutes out)
-    #   3. FOUNDATIONAL execution gaps (required daily actions not done)
-    #   4. SIGNAL-BASED focus (sleep trends, health risks, patterns)
+    #   3. FOUNDATIONAL execution gaps
+    #   4. SIGNAL-BASED focus (trust reports)
     #
-    # The signal layer (compute_right_now_focus / trust reports) only
-    # fires if NO execution items exist. A lower-priority task
-    # happening NOW always beats a higher-priority trend happening
-    # LATER. The system operates as a disciplined operator managing
-    # the current day, not a strategist optimizing long-term signals.
+    # Separately, up to 2 med/supp "quick wins" may be stacked
+    # in front of the primary.
     # ══════════════════════════════════════════════════════════
 
-    action = None
-    reason = None
-    priority_label = None
-    confidence = None
+    primary_action: Optional[str] = None
+    context_reason: Optional[str] = None
 
-    # ── Priority 1 + 2: overdue + upcoming from execution engine ─
+    quick_wins_titles: List[str] = []
+    quick_ids: set = set()
+
     try:
         from apps.core.ai_state.state_builder import MODULE_BUILDERS
         exec_builder = MODULE_BUILDERS.get('execution')
@@ -1485,67 +1658,51 @@ def _build_focus_query_response(user):
             exec_state = exec_builder(user) or {}
             exec_items = exec_state.get('items', [])
 
-            # ── Phase 16: Quick-action priority override ─────────
-            # Medications and supplements that are overdue or due now
-            # take ≤2 minutes. Knock them out before any larger task
-            # or routine item. This pre-selection fires BEFORE the
-            # normal overdue/upcoming ranking.
+            # ── Phase 19: collect quick-win candidates ───────────
+            # Meds/supps overdue or in-progress. ≤2 min each, so
+            # they ride alongside the primary action — never replace it.
             _QUICK_SOURCE_TYPES = frozenset({
                 'medication_dose', 'supplement_dose',
             })
-            quick_actions = [
+            quick_candidates = [
                 i for i in exec_items
                 if i.get('source_type') in _QUICK_SOURCE_TYPES
                 and i.get('time_status') in ('overdue', 'in_progress')
                 and not i.get('completed_today')
             ]
-            if quick_actions:
-                # Meds before supps, foundational before standard
+            if quick_candidates:
                 _qa_imp = {
                     'foundational': 0, 'important': 1,
                     'standard': 1, 'flexible': 2,
                 }
-                quick_actions.sort(key=lambda x: (
+                quick_candidates.sort(key=lambda x: (
                     0 if x.get('source_type') == 'medication_dose' else 1,
                     _qa_imp.get(x.get('importance', 'flexible'), 2),
                     x.get('scheduled_time', '99:99'),
                 ))
-                top = quick_actions[0]
-                n_quick = len(quick_actions)
-                verb = "Take" if top.get('source_type') == 'medication_dose' else "Take"
-                action = f"{verb} {top['title']}."
-                if n_quick > 1:
-                    others = ', '.join(
-                        i['title'] for i in quick_actions[1:4]
-                    )
-                    reason = (
-                        f"{top['title']} is a quick health action "
-                        f"that takes under a minute and is overdue. "
-                        f"{n_quick - 1} more quick action(s) are "
-                        f"also pending: {others}."
-                    )
-                else:
-                    reason = (
-                        f"{top['title']} is a quick health action "
-                        f"that takes under a minute and is overdue "
-                        f"— clearing it now keeps your routine intact."
-                    )
-                priority_label = 'quick action'
-
-                lines = [f"Do this next: {action}", "", "Reason:"]
-                lines.append(reason)
-                lines.append(f"Priority: {priority_label}")
-                return "\n".join(lines)
+                # Cap at 2 per brief (quick wins must never dominate).
+                for q in quick_candidates[:2]:
+                    title = q.get('title') or ''
+                    if title:
+                        quick_wins_titles.append(f"your {title}")
+                # Track IDs so the primary-action search skips them
+                # (dedup rule #7 — no single item surfaced twice).
+                quick_ids = {
+                    q.get('id') for q in quick_candidates[:2]
+                    if q.get('id') is not None
+                }
 
             all_overdue = [
                 i for i in exec_items
                 if i.get('time_status') == 'overdue'
                 and not i.get('completed_today')
+                and i.get('id') not in quick_ids
             ]
             upcoming = [
                 i for i in exec_items
                 if i.get('time_status') in ('upcoming', 'in_progress')
                 and not i.get('completed_today')
+                and i.get('id') not in quick_ids
             ]
 
             # ── Phase 10: intelligent item selection ──────────────
@@ -1692,7 +1849,7 @@ def _build_focus_query_response(user):
             # Priority 1: overdue items
             if overdue:
                 top = overdue[0]
-                action = f"Start {top['title']}."
+                primary_action = f"Start {top['title']}"
                 n_overdue = len(overdue)
                 sched = top.get('scheduled_time', '')
                 sched_str = f" (scheduled at {sched})" if sched else ''
@@ -1700,16 +1857,15 @@ def _build_focus_query_response(user):
                     others = ', '.join(
                         i['title'] for i in overdue[1:4]
                     )
-                    reason = (
+                    context_reason = (
                         f"{top['title']}{sched_str} is overdue "
                         f"and {n_overdue - 1} more item(s) are "
-                        f"also behind: {others}."
+                        f"also behind: {others}"
                     )
                 else:
-                    reason = (
-                        f"{top['title']}{sched_str} is overdue."
+                    context_reason = (
+                        f"{top['title']}{sched_str} is overdue"
                     )
-                priority_label = 'overdue'
 
             # Priority 2: upcoming items (nothing overdue)
             elif upcoming:
@@ -1723,21 +1879,21 @@ def _build_focus_query_response(user):
                 if upcoming_filtered:
                     top = upcoming_filtered[0]
                     sched = top.get('scheduled_time', '')
-                    action = f"Start {top['title']}."
-                    reason = (
+                    primary_action = f"Start {top['title']}"
+                    context_reason = (
                         f"Nothing is overdue. {top['title']} is "
-                        f"your next item (scheduled at {sched})."
+                        f"your next item (scheduled at {sched})"
                     )
-                    priority_label = 'upcoming'
 
             # Priority 3: foundational execution gaps (no overdue,
             # no upcoming, but some required items are not done)
-            if not action and exec_items:
+            if not primary_action and exec_items:
                 incomplete = sorted(
                     _filter_blocked(
                         [
                             i for i in exec_items
                             if _is_actionable(i)
+                            and i.get('id') not in quick_ids
                             and i.get('importance') in (
                                 'foundational', 'important',
                             )
@@ -1748,14 +1904,13 @@ def _build_focus_query_response(user):
                 )
                 if incomplete:
                     top = incomplete[0]
-                    action = f"Complete {top['title']}."
-                    reason = (
+                    primary_action = f"Complete {top['title']}"
+                    context_reason = (
                         f"No schedule pressure right now, but "
                         f"{top['title']} is a "
                         f"{top.get('importance', 'required')} item "
-                        f"that hasn't been completed today."
+                        f"that hasn't been completed today"
                     )
-                    priority_label = 'foundational_gap'
     except Exception as e:
         logger.warning(
             "[FOCUS_QUERY] execution-first lookup failed for user=%s: "
@@ -1764,7 +1919,7 @@ def _build_focus_query_response(user):
         )
 
     # ── Priority 4: signal-based focus (ONLY if no execution items) ──
-    if not action:
+    if not primary_action:
         focus = None
         try:
             from apps.core.ai_state.right_now import compute_right_now_focus
@@ -1791,60 +1946,64 @@ def _build_focus_query_response(user):
             )
 
         action_hints = {
-            'workouts': 'Log a workout or move a session into today.',
-            'medication': "Take any missed dose now if it's safe to do so.",
-            'medicine': "Take any missed dose now if it's safe to do so.",
-            'fasting': 'Log your current fast or start the next one.',
-            'nutrition': 'Log a meal or check your macro targets.',
-            'sleep': 'Plan an earlier wind-down tonight.',
-            'body_composition': 'Add a measurement.',
-            'journal': 'Write a short entry — even one sentence.',
-            'faith': "Open your reading plan and complete today's passage.",
+            'workouts': 'Log a workout or move a session into today',
+            'medication': "Take any missed dose now if it's safe to do so",
+            'medicine': "Take any missed dose now if it's safe to do so",
+            'fasting': 'Log your current fast or start the next one',
+            'nutrition': 'Log a meal or check your macro targets',
+            'sleep': 'Plan an earlier wind-down tonight',
+            'body_composition': 'Add a measurement',
+            'journal': 'Write a short entry — even one sentence',
+            'faith': "Open your reading plan and complete today's passage",
         }
 
         if focus and focus.get('status') == 'focused':
             domain = focus.get('domain', '') or ''
-            action = action_hints.get(domain)
-            if not action:
+            primary_action = action_hints.get(domain)
+            if not primary_action:
                 clean = domain.replace('_', ' ').strip()
-                action = f"Address {clean}." if clean else None
-            reason = focus.get('reason', '') or ''
-            priority_label = focus.get('priority', 'medium')
-            confidence = focus.get('confidence')
+                primary_action = f"Address {clean}" if clean else None
+            context_reason = focus.get('reason', '') or context_reason
 
-    # Phase 8 never-None fallback
-    if not action:
-        action = "Complete your highest priority foundational task."
-        reason = reason or (
-            "No overdue items, no upcoming schedule pressure, and no "
-            "high-priority focus surfaced. Default to the highest-"
-            "priority foundational habit (prayer, sleep, movement)."
-        )
+    # ── Phase 19 never-None fallback: late-evening aware ──────────
+    # If nothing pressing surfaced, the response shape depends on
+    # the time of day AND whether quick wins exist.
+    late = _is_late_evening(user)
+    if not primary_action:
+        if late:
+            # Intentional shutdown replaces primary action.
+            primary_action = (
+                "shut it down for the night so tomorrow starts clean"
+            )
+            # Suppress any partial context — shutdown line stands alone.
+            context_reason = None
+        elif quick_wins_titles:
+            # Daytime + only quick wins. Keep momentum forward.
+            primary_action = "stay on your next scheduled block"
+            if not context_reason:
+                context_reason = "No other overdue items — use the momentum"
+        else:
+            # Daytime, truly nothing pressing.
+            primary_action = (
+                "Complete your highest-priority foundational habit — "
+                "prayer, movement, or a quick journal entry"
+            )
+            if not context_reason:
+                context_reason = (
+                    "No overdue items, no upcoming schedule pressure, "
+                    "and no high-priority focus surfaced"
+                )
+    elif late and primary_action and not quick_wins_titles:
+        # Late evening but a real primary exists (e.g. unfinished
+        # foundational). Nudge toward close-the-day framing — context
+        # still explains why.
+        pass  # Keep primary as-is; formatter handles late-evening tone.
 
-    # ── Assemble Action-First response (Phase 8 mandatory shape) ──
-    #
-    # Phase 14: output sanitization. The response contains ONLY:
-    #   - action line (Do this next: ...)
-    #   - reason block (why, based on execution state)
-    #   - priority label (optional)
-    #
-    # Removed: time-status schedule overlay (slack minutes, buffer
-    # calculations, "Next is <item> at <time>"). These exposed
-    # internal scheduling diagnostics to the user (e.g. "582 min
-    # slack remaining", "Next is Wake up at 5:00 AM" when Wake up
-    # was already done). If it doesn't help the user act, it should
-    # not be shown.
-    lines = [f"Do this next: {action}", "", "Reason:"]
-    if reason:
-        lines.append(reason)
-    if priority_label and confidence is not None:
-        lines.append(
-            f"Priority: {priority_label} ({confidence}% confidence)"
-        )
-    elif priority_label:
-        lines.append(f"Priority: {priority_label}")
-
-    return "\n".join(lines)
+    return _format_cos_decision_response(
+        quick_wins=quick_wins_titles,
+        primary_action=primary_action,
+        context_reason=context_reason,
+    )
 
 
 def _try_focus_query_route(msg_lower, user):
@@ -1897,27 +2056,25 @@ def _try_decision_query_route(msg_lower, user):
         getattr(user, 'id', '?'),
     )
 
-    _SAFE_FALLBACK = (
-        "Do this next: Complete your highest priority "
-        "foundational task.\n\n"
-        "Reason:\n"
-        "Decision-query fallback — no concrete focus surfaced. "
-        "Lead with the highest-priority foundational habit "
-        "(prayer, sleep, movement)."
+    # Phase 19: new-format fallback (no "Do this next:" / "Reason:"
+    # / "Priority:" markers). Still decisive.
+    _SAFE_FALLBACK = _format_cos_decision_response(
+        primary_action=(
+            "Complete your highest-priority foundational habit — "
+            "prayer, movement, or a quick journal entry"
+        ),
+        context_reason=(
+            "Decision-query fallback — no concrete focus surfaced"
+        ),
     )
 
     try:
-        # Phase 11.1: HARD ENFORCE routing. No silent fallback
-        # allowed that overrides intent. Each handler MUST produce
-        # its own Action-First response. If a handler returns empty,
-        # log the failure explicitly — do NOT silently swap to a
-        # different handler.
+        # Phase 11.1 / Phase 19: HARD ENFORCE routing. Each handler
+        # MUST produce a non-empty decisive response. If it comes
+        # back empty, log and fall back to the safe default.
         if intent == 'BIGGEST_RISK':
             response = _build_biggest_risk_response(user)
-            if not response or (
-                'Do this next:' not in response
-                and 'Your priority is:' not in response
-            ):
+            if not _looks_like_cos_decision_response(response):
                 logger.warning(
                     "DECISION_INTENT_FALLBACK: BIGGEST_RISK handler "
                     "returned empty for user=%s",
@@ -1926,7 +2083,7 @@ def _try_decision_query_route(msg_lower, user):
                 response = _SAFE_FALLBACK
         elif intent == 'FIX_FIRST':
             response = _build_fix_first_response(user)
-            if not response or 'Do this next:' not in response:
+            if not _looks_like_cos_decision_response(response):
                 logger.warning(
                     "DECISION_INTENT_FALLBACK: FIX_FIRST handler "
                     "returned empty for user=%s — using safe fallback "
@@ -1936,7 +2093,7 @@ def _try_decision_query_route(msg_lower, user):
                 response = _SAFE_FALLBACK
         else:  # EXECUTION_NOW
             response = _build_focus_query_response(user)
-            if not response or 'Do this next:' not in response:
+            if not _looks_like_cos_decision_response(response):
                 response = _SAFE_FALLBACK
 
         # ── Phase 18.2: Decision Governance Gate ────────────────

@@ -7,6 +7,78 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-22 — Fix: Phase 19.5 Dashboard/CoS glucose single-source-of-truth
+
+**Investigation.** The user flagged the original Phase 1 symptom:
+CoS reported one glucose value and the dashboard showed a different
+one. Tracing both paths against the current codebase:
+
+**DASHBOARD SOURCE** (before this fix):
+- signal key: none — raw `.aggregate(Avg('value'))` over
+  `GlucoseEntry` at [apps/health/views.py:6732](apps/health/views.py:6732)
+- time window: user-selectable 0/7/30/60/90, default 7
+- cache: none, recomputed per request
+- rounding: 1 decimal
+
+**CoS SOURCE** (Phase 1 migration):
+- signal key: `health.glucose_avg_7d`
+- computation: SAE `build_health_state` at
+  [state_builder.py:657](apps/core/ai_state/state_builder.py:657)
+- time window: hardcoded 7-day rolling
+- cache: SAE snapshot (invalidated on GlucoseEntry post_save)
+- rounding: integer
+
+**Compare:**
+- Signal keys match? **NO** — dashboard had no signal.
+- Time windows match? **Only for the default (7d) view**.
+- Both use SAE/state? **NO** — dashboard still raw-aggregated.
+- Duplicate logic? **YES** — two independent `Avg('value')` paths.
+
+This is the exact violation Phase 1's audit flagged and deferred
+("not rewriting dashboards — narrowly targets AI-facing code"). The
+deferral kept CoS clean but left the user-visible divergence alive.
+
+**Fix.** In [GlucoseDashboardView.get_context_data](apps/health/views.py:6730):
+
+- When `period == 7` (default), read `get_metric(user,
+  'health.glucose_avg_7d')` from SAE instead of computing
+  `Avg('value')`. Both CoS and the dashboard summary stat now draw
+  the same integer from the same snapshot — no more 141 vs 145
+  oscillation.
+- When the user explicitly selects a non-default period
+  (30/60/90), raw aggregation is retained — SAE doesn't expose
+  those windows as canonical signals. The view records
+  `context['avg_glucose_source']` as `raw:30d_user_selected_window`
+  (vs `SAE:health.glucose_avg_7d` for the canonical case) so a
+  future audit can verify the path at a glance.
+
+No changes to signals, SAE, CoS, formatter, refiner, or routing.
+The fix is a one-site dashboard correction.
+
+**Guardrail.** Six new parity tests in
+[apps/health/tests/test_glucose_dashboard_canonical.py](apps/health/tests/test_glucose_dashboard_canonical.py):
+
+- `test_dashboard_avg_matches_sae_glucose_avg_7d` — seeds
+  GlucoseEntry rows, rebuilds SAE, and asserts
+  `dashboard.context['avg_glucose'] == get_metric(...).value`.
+- `test_dashboard_records_sae_as_source` — pins the source label.
+- `test_dashboard_uses_raw_for_user_selected_window` — documents
+  that 30/60/90 day views are explicit user overrides.
+- `test_state_engine_and_metric_access_agree` — cross-check
+  between `get_state_value` and `get_metric`.
+- `test_repeated_dashboard_reads_are_stable` — rules out hidden
+  refresh drift.
+- `test_both_return_none_when_no_entries` — null-semantics
+  parity when the user has no data.
+
+**Verification:**
+- `python3 manage.py check` — clean.
+- `python3 manage.py makemigrations --check --dry-run` — no
+  changes.
+- 280/280 pass across the full scoped suite (6 new + 274
+  previous).
+
+
 ## 2026-04-22 — Change: Phase 19.4 final-default anchor + time-of-day flavor
 
 **Change.** Replaces the Phase 19.3 final-default string

@@ -6734,7 +6734,30 @@ class GlucoseDashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 min=Min('value'),
                 max=Max('value'),
             )
-            context['avg_glucose'] = round(stats['avg'], 1) if stats['avg'] else None
+
+            # Phase 19.5 — single source of truth for the 7-day
+            # summary average. When period == 7 (the default view)
+            # the dashboard reads the canonical SAE signal
+            # `health.glucose_avg_7d` so the dashboard and the CoS
+            # decision layer can never disagree on the headline
+            # glucose number for the user. Raw aggregation is
+            # retained only for user-selected non-default windows
+            # (30 / 60 / 90 days) that SAE does not yet expose as
+            # canonical signals.
+            if period == 7:
+                from apps.core.ai_state.metric_access import get_metric
+                _sae = get_metric(user, 'health.glucose_avg_7d')
+                context['avg_glucose'] = _sae.value if _sae else None
+                context['avg_glucose_source'] = (
+                    _sae.source if _sae else None
+                )
+            else:
+                context['avg_glucose'] = (
+                    round(stats['avg'], 1) if stats['avg'] else None
+                )
+                context['avg_glucose_source'] = (
+                    f'raw:{period}d_user_selected_window'
+                )
             context['min_glucose'] = stats['min']
             context['max_glucose'] = stats['max']
 

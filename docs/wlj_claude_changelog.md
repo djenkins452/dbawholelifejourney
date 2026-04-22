@@ -7,6 +7,113 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-22 — Add: Phase 3 metric-trust — unified signal feed for CoS
+
+**Problem.** Signals are generated correctly by PIE, PRIE, PGE, CDCE,
+and the cross-domain signal detector, but CoS consumes them in five
+separate shapes. `_rank_top_signals` already picks a single
+`top_signal` across insights / predictions / guidance / correlations,
+but:
+
+- it does not include `cross_domain_signals` (from
+  `generate_cross_domain_signals`) in the candidate pool;
+- it explicitly excludes positive insights (so CoS had no "momentum"
+  signal feed for encouragement);
+- it returns a flat `top_signal` + `supporting_signals` rather than
+  the TOP / CRITICAL / POSITIVE buckets that the narrative layer
+  wants to anchor on;
+- deduplication across sources is weak — a single issue
+  ("glucose elevated") can appear as an Insight, a Guidance item,
+  and a cross-domain signal simultaneously with no collapse.
+
+Phase 3 is about **signal consolidation for decision-making**, not
+a new engine.
+
+**Change.**
+
+1. **New adapter module** [apps/core/ai_signals/unified_feed.py](apps/core/ai_signals/unified_feed.py):
+   - `UnifiedSignal` dataclass — single normalized shape across
+     sources (source, source_id, domain, type, title, message,
+     severity, confidence, priority_score, signal_class, action_text,
+     action_type, dedupe_key, related_entities).
+   - Per-source normalizers map `active_insights`,
+     `active_predictions`, `active_guidance`,
+     `cross_domain_correlations`, `cross_domain_signals`, and
+     synthetic drift signals into `UnifiedSignal`.
+   - Deduplication: groups by `dedupe_key` first (uses the existing
+     field on Insight / Prediction / Guidance / Correlation), falls
+     back to `(domain, signal_class, lowercased title head)` for
+     cross-source siblings with no `dedupe_key`. Source precedence:
+     Guidance > Insight > Prediction > Cross-domain > Correlation >
+     Drift. The canonical signal inherits `action_text` from any
+     Guidance member in the cluster.
+   - Action templates keyed by `(domain, signal_class)` fill
+     `action_text` only when the cluster has no Guidance member.
+   - `priority_score = severity*0.5 + urgency*0.3 + confidence*0.2`
+     normalized to 0–1 so it is comparable across sources.
+   - `bucket_signals` partitions into:
+     - `top` (up to N by priority_score, falling back to positives
+       when no actionable signals exist so CoS never runs dry),
+     - `critical` (risk class + severity in {critical, high}),
+     - `positive` (momentum / opportunity class).
+   - `compose_signal_summary` emits a short deterministic synthesis
+     string for CoS narration ("2 critical: overdue tasks stacking,
+     medication adherence risk | Momentum: 14-day streak").
+
+2. **CoS context integration** in
+   [apps/core/ai_orchestrator/cos_context.py](apps/core/ai_orchestrator/cos_context.py):
+   after the existing `_rank_top_signals` and
+   `generate_cross_domain_signals` calls, a new
+   `build_signal_buckets(context)` call adds four keys to the
+   context dict:
+   - `top_signals` — list of `UnifiedSignal` dicts.
+   - `critical_signals` — subset for urgency framing.
+   - `positive_signals` — subset for encouragement framing.
+   - `signal_summary` — compact narrative anchor.
+   
+   No new DB queries — the adapter reuses the intelligence payload
+   already loaded earlier in `build_cos_context`, preserving the
+   request-path performance rule.
+
+3. **Tests** in
+   [apps/core/ai_signals/tests_unified_feed.py](apps/core/ai_signals/tests_unified_feed.py)
+   — 21 tests, all `SimpleTestCase` (no DB needed since the adapter
+   operates on a dict):
+   - Shape + determinism (3 tests).
+   - Deduplication across sources with and without `dedupe_key`
+     (4 tests).
+   - Priority ordering + bounds (3 tests).
+   - Bucket assignment (4 tests, including positive-fallback).
+   - Action extraction (guidance propagation + templates) (2 tests).
+   - `signal_summary` formatting (2 tests).
+   - CoS integration contract (2 tests).
+   - Dataclass sanity (1 test).
+
+**What Phase 3 does NOT do, by the corrected scope:**
+- No new signal engine.
+- No new signal registry.
+- No new DB model — `UnifiedSignal` is a dataclass used at runtime.
+- No re-ranking of existing engine outputs — those stay authoritative.
+- No prompt-engineering changes — the new context keys are
+  exposed to CoS; actually making the LLM narrate around them is
+  deliberately out of scope.
+- No migration of engine outputs into SAE (per Phase 2 decision).
+
+**Files:**
+- New: `apps/core/ai_signals/unified_feed.py` (~380 lines),
+  `apps/core/ai_signals/tests_unified_feed.py` (~290 lines).
+- Modified: `apps/core/ai_orchestrator/cos_context.py` (+24 lines
+  calling the adapter and seeding fallbacks),
+  `docs/wlj_claude_changelog.md`,
+  `docs/ENGINE_COS_REFERENCE.md`.
+
+**Verification:**
+- `python3 manage.py check` — clean (pre-existing djstripe infos).
+- `python3 manage.py makemigrations --check --dry-run` — no changes.
+- `apps.core.ai_signals.tests_unified_feed` — 21/21 pass in 0.001s.
+- `apps.core.ai_state.tests_metric_access` — 22/22 still pass.
+
+
 ## 2026-04-21 — Add: Phase 2 metric-trust — state-first CoS hardening
 
 **Problem.** Phase 1 stripped aggregations (`.aggregate`, `.annotate`,

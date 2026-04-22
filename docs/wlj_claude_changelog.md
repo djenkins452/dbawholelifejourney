@@ -7,6 +7,63 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-22 — Change: Phase 19.4 final-default anchor + time-of-day flavor
+
+**Change.** Replaces the Phase 19.3 final-default string
+`"Take 3 minutes to pray now"` with the cleaner, more authoritative
+anchor:
+
+```python
+_FINAL_DEFAULT_ACTION = "Pause and pray now"
+```
+
+Used when neither the main priority stack
+(overdue → upcoming → foundational → signal) nor the habit lookup
+in `resolve_fallback_action` surface anything concrete.
+
+Adds an optional time-of-day flavor clause via a new helper
+[`_time_aware_final_default(user)`](apps/ai/deterministic_router.py):
+
+- Morning (5 ≤ local hour < 12) →
+  `"Pause and pray now — set the tone for your day"`
+- Evening (local hour ≥ 20 or < 5) →
+  `"Pause and pray now — close out your day"`
+- Midday (12 ≤ local hour < 20) → bare anchor
+
+Any failure in the time lookup falls back to the bare anchor, so
+the single-action contract is preserved.
+
+**Contract preserved:**
+- Never a multi-option string (no commas, no "or").
+- Always a single concrete imperative.
+- `_FINAL_DEFAULT_ACTION` module constant stays as the bare
+  "Pause and pray now" form so the safety guard in
+  `_build_focus_query_response` references a deterministic value.
+
+**Internal:**
+- `_looks_like_cos_decision_response` / `_COS_DECISIVE_STARTS` now
+  recognize `"Pause"`, `"Do "`, `"Go straight into"`, and
+  `"Move into"` as valid opening verbs so the
+  `_try_decision_query_route` safe-fallback gate doesn't
+  mistakenly swap a valid response.
+- Matching update to the imperative list in
+  `test_decision_hard_lock.py::test_has_a_primary_instruction`.
+
+**Tests.** Added 8 new tests in `TimeAwareFinalDefaultTests`:
+morning boundary inclusive at 5, exclusive at 12; evening at 21;
+early-morning (3 am) treated as evening window; midday at 14;
+time-lookup exception falls back to bare anchor; sweep of 9
+hours confirming no variant contains "or" or multi-option commas;
+each variant starts with "Pause and pray now".
+
+Updated three Phase 19.3 assertions for the new anchor string.
+
+**Verification:**
+- `python3 manage.py check` — clean.
+- 274/274 pass across the full scoped suite (8 new + 266
+  previous).
+
+
 ## 2026-04-22 — Fix: Phase 19.3 single-action fallback resolver
 
 **Problem.** When the main priority stack in

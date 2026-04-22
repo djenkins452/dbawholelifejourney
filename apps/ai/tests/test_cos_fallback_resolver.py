@@ -16,9 +16,12 @@ from unittest.mock import patch
 from django.conf import settings
 from django.test import SimpleTestCase, TestCase
 
+from datetime import datetime
+
 from apps.ai.deterministic_router import (
     _FINAL_DEFAULT_ACTION,
     _build_focus_query_response,
+    _time_aware_final_default,
     _try_decision_query_route,
     resolve_fallback_action,
 )
@@ -117,7 +120,13 @@ class FallbackResolverHabitPickTests(TestCase):
     def test_no_habits_returns_final_default(self):
         with self._with_habits([]):
             fb = resolve_fallback_action(self.user)
-        self.assertEqual(fb['primary_action'], _FINAL_DEFAULT_ACTION)
+        # Phase 19.4: default may carry a time-of-day suffix, but
+        # always leads with the bare anchor string.
+        self.assertTrue(
+            fb['primary_action'].startswith(_FINAL_DEFAULT_ACTION),
+            f"expected prefix {_FINAL_DEFAULT_ACTION!r}, got "
+            f"{fb['primary_action']!r}",
+        )
         self.assertIsNone(fb['context_reason'])
 
     def test_sae_exception_falls_back_to_final_default(self):
@@ -126,7 +135,9 @@ class FallbackResolverHabitPickTests(TestCase):
             side_effect=RuntimeError("SAE broken"),
         ):
             fb = resolve_fallback_action(self.user)
-        self.assertEqual(fb['primary_action'], _FINAL_DEFAULT_ACTION)
+        self.assertTrue(
+            fb['primary_action'].startswith(_FINAL_DEFAULT_ACTION),
+        )
 
 
 class FallbackResolverContractTests(SimpleTestCase):
@@ -154,7 +165,7 @@ class FallbackResolverContractTests(SimpleTestCase):
         # Starts with an imperative verb.
         self.assertTrue(
             _FINAL_DEFAULT_ACTION.split()[0] in (
-                "Take", "Do", "Start", "Pray", "Write",
+                "Take", "Do", "Start", "Pray", "Write", "Pause",
             ),
             f"final default must start with an imperative, got "
             f"{_FINAL_DEFAULT_ACTION!r}",
@@ -225,6 +236,91 @@ class BuildFocusQueryEmptyStateTests(TestCase):
         # No multi-option wording — exactly one habit surfaced.
         self.assertNotIn(" or ", resp)
         self.assertNotIn(",", resp.split("\n")[0])
+
+
+class TimeAwareFinalDefaultTests(SimpleTestCase):
+    """Phase 19.4 — optional time-of-day suffix on the final default.
+
+    The default never becomes a multi-option string. It only adds
+    a short purpose clause using an em-dash.
+    """
+
+    def _at_hour(self, hour):
+        from unittest.mock import MagicMock
+        fake_now = datetime(2026, 4, 22, hour, 0)
+        return patch(
+            "apps.core.utils.get_user_now", return_value=fake_now,
+        ), MagicMock()
+
+    def test_morning_adds_set_the_tone(self):
+        ctx, user = self._at_hour(8)
+        with ctx:
+            out = _time_aware_final_default(user)
+        self.assertEqual(
+            out, "Pause and pray now — set the tone for your day",
+        )
+
+    def test_evening_adds_close_out(self):
+        ctx, user = self._at_hour(21)
+        with ctx:
+            out = _time_aware_final_default(user)
+        self.assertEqual(
+            out, "Pause and pray now — close out your day",
+        )
+
+    def test_early_morning_counts_as_evening_window(self):
+        # The late-evening window wraps past midnight (< 5) so the
+        # close-out phrasing is appropriate at 3am.
+        ctx, user = self._at_hour(3)
+        with ctx:
+            out = _time_aware_final_default(user)
+        self.assertEqual(
+            out, "Pause and pray now — close out your day",
+        )
+
+    def test_midday_returns_bare_anchor(self):
+        ctx, user = self._at_hour(14)
+        with ctx:
+            out = _time_aware_final_default(user)
+        self.assertEqual(out, _FINAL_DEFAULT_ACTION)
+
+    def test_morning_boundary_inclusive_at_5(self):
+        ctx, user = self._at_hour(5)
+        with ctx:
+            out = _time_aware_final_default(user)
+        self.assertTrue(out.endswith("set the tone for your day"))
+
+    def test_morning_boundary_exclusive_at_12(self):
+        ctx, user = self._at_hour(12)
+        with ctx:
+            out = _time_aware_final_default(user)
+        self.assertEqual(out, _FINAL_DEFAULT_ACTION)
+
+    def test_time_lookup_exception_falls_back_to_bare_anchor(self):
+        from unittest.mock import MagicMock
+        with patch(
+            "apps.core.utils.get_user_now",
+            side_effect=RuntimeError("tz broken"),
+        ):
+            out = _time_aware_final_default(MagicMock())
+        self.assertEqual(out, _FINAL_DEFAULT_ACTION)
+
+    def test_all_time_aware_variants_are_singular(self):
+        """Every variant is still a single action — no 'or', no
+        multi-option commas."""
+        for hour in (3, 5, 8, 11, 12, 14, 19, 20, 23):
+            with patch(
+                "apps.core.utils.get_user_now",
+                return_value=datetime(2026, 4, 22, hour, 0),
+            ):
+                from unittest.mock import MagicMock
+                out = _time_aware_final_default(MagicMock())
+            self.assertNotIn(" or ", out, f"hour={hour}: {out!r}")
+            self.assertNotIn(",", out, f"hour={hour}: {out!r}")
+            self.assertTrue(
+                out.startswith("Pause and pray now"),
+                f"hour={hour}: {out!r}",
+            )
 
 
 class TryDecisionRouteFallbackTests(TestCase):

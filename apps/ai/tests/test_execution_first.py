@@ -95,9 +95,11 @@ class OverdueOverridesSignalTests(TestCase):
 
         # Phase 10: "Wake up" is filtered out (implied-done); the
         # next valid overdue item (Prayer Time) is selected.
+        # Phase 19.2: "is overdue" language is replaced with
+        # leadership "you're behind on it".
         from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
         assert_cos_action_first(self, resp, must_contain="Prayer Time")
-        self.assertIn("overdue", resp.lower())
+        self.assertIn("you're behind", resp.lower())
         # Must NOT contain signal-layer actions like "Log a meal"
         self.assertNotIn("Log a meal", resp)
         self.assertNotIn("macro", resp.lower())

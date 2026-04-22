@@ -106,14 +106,15 @@ class CosDecisionFormatterTests(SimpleTestCase):
     """The four-part formatter in isolation."""
 
     def test_quick_plus_primary_day(self):
-        # Phase 19.1: refiner collapses "your X and your Y" → "your X and Y".
+        # Phase 19.1: collapses "your X and your Y".
+        # Phase 19.2: "Then start" → "Then go straight into".
         out = _format_cos_decision_response(
             quick_wins=["your Magnesium", "your Metformin"],
             primary_action="start your next task block and clear your top priority",
         )
         self.assertIn("Take your Magnesium and Metformin now", out)
         self.assertIn("both are quick and overdue", out)
-        self.assertIn("Then start your next task block", out)
+        self.assertIn("Then go straight into your next task block", out)
         self.assertTrue(out.endswith("."))
 
     def test_quick_plus_shutdown_night(self):
@@ -130,13 +131,17 @@ class CosDecisionFormatterTests(SimpleTestCase):
         )
 
     def test_primary_only_day(self):
-        # Phase 19.1: refiner merges primary + restated-title context
-        # into a single line and strips the "(scheduled at …)" noise.
+        # Phase 19.1 merges primary + restated-title context.
+        # Phase 19.2: "Start" → "Go straight into"; "it's already
+        # overdue" → "you're behind on it already".
         out = _format_cos_decision_response(
             primary_action="Start Workout",
             context_reason="Workout is overdue",
         )
-        self.assertEqual(out, "Start Workout — it's already overdue.")
+        self.assertEqual(
+            out,
+            "Go straight into Workout — you're behind on it already.",
+        )
 
     def test_primary_only_night(self):
         out = _format_cos_decision_response(
@@ -278,9 +283,10 @@ class Phase19FocusScenarioTests(TestCase):
     def test_scenario_3_primary_only_day(self):
         items = [_task("Work on WLJ", "05:15", id_=21)]
         resp = self._run(items, late=False)
+        # Phase 19.2: "is overdue" → "you're behind on it"
         assert_cos_action_first(
             self, resp,
-            must_contain=("Work on WLJ", "overdue"),
+            must_contain=("Work on WLJ", "you're behind"),
             must_not_contain=("Then ",),
         )
 

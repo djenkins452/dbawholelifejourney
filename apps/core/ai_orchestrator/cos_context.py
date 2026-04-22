@@ -3684,6 +3684,31 @@ def build_cos_context(user, scoped_builders=None):
     except Exception:
         logger.debug("CoS context: cross-domain signals unavailable", exc_info=True)
 
+    # ── Phase 3: Unified Signal Feed ───────────────────────────
+    # Thin consolidation adapter over the engine outputs loaded above.
+    # Normalizes PIE/PRIE/PGE/CDCE/cross-domain into a single shape,
+    # deduplicates by dedupe_key + (domain, class, title) similarity,
+    # and bucketizes into TOP / CRITICAL / POSITIVE so CoS can anchor
+    # narrative on signals instead of raw metrics.
+    #
+    # This adapter does NOT query the database — it reuses the
+    # intelligence_result already assembled earlier in this function.
+    try:
+        from apps.core.ai_signals.unified_feed import build_signal_buckets
+        feed = build_signal_buckets(context, top_n=5)
+        context['top_signals'] = feed['top_signals']
+        context['critical_signals'] = feed['critical_signals']
+        context['positive_signals'] = feed['positive_signals']
+        context['signal_summary'] = feed['signal_summary']
+    except Exception:
+        logger.debug(
+            "CoS context: unified signal feed unavailable", exc_info=True
+        )
+        context.setdefault('top_signals', [])
+        context.setdefault('critical_signals', [])
+        context.setdefault('positive_signals', [])
+        context.setdefault('signal_summary', '')
+
     # ── Phase 3: Signal Trust Contract + Right Now Focus ──────────
     # Aggregate the per-domain _trust dicts that the state builders
     # attached, then compute a single deterministic right_now_focus.

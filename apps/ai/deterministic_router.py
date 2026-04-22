@@ -1159,15 +1159,15 @@ def _format_cos_decision_response(
 
 
 # ═════════════════════════════════════════════════════════════════
-# Phase 19.1 — CoS tone refinement (post-processing only)
+# Phase 19.1 / 19.2 — CoS tone refinement (post-processing only)
 #
 # Applied at the tail of _format_cos_decision_response so every
 # handler's output runs through it. All transformations are
-# deterministic regex substitutions — no randomness, no reordering,
-# no added actions, no removed actions. Meaning is preserved; only
-# wording is tightened.
+# deterministic regex / string substitutions — no randomness, no
+# reordering, no added actions, no removed actions. Meaning is
+# preserved; only wording is tightened.
 #
-# Rules (from the Phase 19.1 brief):
+# Phase 19.1 rules:
 #   1. Collapse "your X and your Y" → "your X and Y"
 #   2. Strip "(scheduled at HH:MM)" parentheticals
 #   3. Convert "and N more item(s) are also behind: A, B" →
@@ -1178,6 +1178,19 @@ def _format_cos_decision_response(
 #   5. Soften "… so tomorrow starts clean" → "… — tomorrow starts
 #      clean" on the shutdown phrase
 #   6. Safety scrub: strip "consider" (never allowed)
+#
+# Phase 19.2 rules (leadership-voice polish, runs AFTER 19.1):
+#   7. Strengthen verbs: "Start …" / "Then start …" →
+#      "Go straight into …" / "Then go straight into …"; same for
+#      "begin" → "move into". Narrow patterns (line-anchored or
+#      after "Then ") so titles that happen to contain the word
+#      "Start" aren't rewritten.
+#   8. Leadership framing: "it's already overdue" →
+#      "you're behind on it already"
+#   9. Normalize "N item(s)" to plural English: "1 item", "2 items"
+#  10. Add consequence framing to the two specific biggest-risk
+#      fallback phrases (idempotent — the tags are only appended
+#      when they are not already present).
 # ═════════════════════════════════════════════════════════════════
 
 _REFINE_YOUR_AND_YOUR_RE = re.compile(
@@ -1327,6 +1340,64 @@ def refine_cos_response(text: str) -> str:
 
     # 6. Safety scrub: drop "consider".
     out = _REFINE_CONSIDER_RE.sub('', out)
+
+    # ── Phase 19.2 — leadership-voice polish ────────────────────
+    # Applied AFTER 19.1 so these rules operate on the already-
+    # merged, already-cleaned text. Each transformation is
+    # idempotent: applying refine twice produces the same result
+    # as applying it once.
+
+    # 7a. "Start X" / "Then start X" → "Go straight into X" /
+    #     "Then go straight into X". Anchored to line start or
+    #     "Then " prefix so titles containing the word "Start"
+    #     are not accidentally rewritten.
+    out = re.sub(r'(^|\n)Start ', r'\1Go straight into ', out)
+    out = re.sub(r'\bThen start ', 'Then go straight into ', out)
+
+    # 7b. "Begin X" / "Then begin X" → "Move into X" /
+    #     "Then move into X".
+    out = re.sub(r'(^|\n)Begin ', r'\1Move into ', out)
+    out = re.sub(r'\bThen begin ', 'Then move into ', out)
+
+    # 8. Leadership framing — shift "it's" subject to "you".
+    out = out.replace(
+        "it's already overdue",
+        "you're behind on it already",
+    )
+
+    # 9. Pluralize "item(s)" deterministically. Real outputs have
+    #    the count separated from "item(s)" by adjectives like
+    #    "overdue" / "foundational", so we default to the plural
+    #    form globally and then fix the singular "1 items" case
+    #    with a word-boundary anchor (so "11 items" stays plural).
+    out = out.replace('item(s)', 'items')
+    # Fix singular "1 items" even when adjectives sit between the
+    # count and "items" (e.g. "1 overdue foundational items").
+    # \b1\b keeps "11 items" / "21 items" as plural.
+    out = re.sub(r'\b1 ((?:\w+ )*)items\b', r'1 \1item', out)
+
+    # 10. Consequence framing on biggest-risk fallback phrases.
+    #     Only appended when not already present (idempotent).
+    if (
+        "falling behind is your biggest risk today" in out
+        and "this compounds quickly" not in out
+    ):
+        out = out.replace(
+            "falling behind is your biggest risk today",
+            "falling behind is your biggest risk today — "
+            "this compounds quickly",
+            1,
+        )
+    if (
+        "Skipping foundational commitments is your biggest risk" in out
+        and "slip further" not in out
+    ):
+        out = out.replace(
+            "Skipping foundational commitments is your biggest risk",
+            "Skipping foundational commitments is your biggest risk — "
+            "it'll slip further if you leave it",
+            1,
+        )
 
     return out
 

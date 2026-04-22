@@ -318,9 +318,11 @@ class RealMorningScenarioTests(TestCase):
 
         # Phase 18.2: Prayer Time (faith, tier 0, 05:30) outranks
         # Work on WLJ (work, tier 2, 05:15). Wake up filtered.
+        # Phase 19.2: "is overdue" → "you're behind on it".
         self.assertIn("Prayer Time", resp)
-        self.assertIn("overdue", resp.lower())
+        self.assertIn("you're behind", resp.lower())
         self.assertNotIn("Start Wake up", resp)
+        self.assertNotIn("Go straight into Wake up", resp)
         self.assertNotIn("Start Shower", resp)
 
     def test_with_wake_up_explicitly_completed(self):

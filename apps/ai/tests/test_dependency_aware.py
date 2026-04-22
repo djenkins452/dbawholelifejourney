@@ -185,11 +185,13 @@ class RealMorningSequenceTests(TestCase):
         ):
             resp = _build_focus_query_response(self.user)
 
+        # Phase 19.2: "Start" → "Go straight into".
         self.assertTrue(
-            "Workout" in resp and "Start" in resp,
+            "Workout" in resp and "Go straight into" in resp,
             f"Expected Workout selection, got: {resp[:120]!r}",
         )
         self.assertNotIn("Start Shower", resp)
+        self.assertNotIn("Go straight into Shower", resp)
 
     def test_all_morning_done_falls_through(self):
         """When the entire morning routine is complete, the selector

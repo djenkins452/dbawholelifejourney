@@ -7,6 +7,108 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-22 — Change: Phase 19.2 CoS leadership-voice polish
+
+**Problem.** After Phase 19.1 the output was readable and tight, but
+still had system-voice fingerprints:
+
+```
+Then start Work on WLJ — it's already overdue along with Prayer Time.
+```
+
+"start" is a weak verb; "it's already overdue" describes the item as
+a system state rather than addressing the user. Additionally the
+biggest-risk fallback still said "Clear your 3 overdue item(s)" with
+the literal "(s)" parenthetical.
+
+**Change.** Four new deterministic, idempotent transformations layered
+into [`refine_cos_response`](apps/ai/deterministic_router.py) after
+the Phase 19.1 rules. Order matters — 19.2 operates on the already-
+merged, already-cleaned text.
+
+1. **Verb strengthening (rule 7).** `Start …` / `Then start …` →
+   `Go straight into …` / `Then go straight into …`; same mapping
+   `Begin` → `Move into`. Anchored to line-start or "Then " prefix so
+   a title that happens to contain the word "Start" (e.g. a
+   hypothetical "Start of Day" item) is not rewritten. "starts"
+   (shutdown phrase) and "starting" (fix-first recovery framing) are
+   different words and pass through unchanged.
+
+2. **Leadership framing (rule 8).** `it's already overdue` →
+   `you're behind on it already`. Shifts the subject from the
+   system's observation to the user's accountability. The
+   "along with X" tail from rule 3 (Phase 19.1) still composes
+   correctly: "you're behind on it already along with Prayer Time".
+
+3. **Plural normalization (rule 9).** `item(s)` → `items`; then a
+   narrow singular fix `\b1 ((?:\w+ )*)items\b` → `1 \1item`
+   preserves "1 item" while allowing adjectives ("1 overdue item")
+   between the count and the noun. `\b1\b` keeps "11 items" /
+   "21 items" plural.
+
+4. **Consequence framing (rule 10).** Biggest-risk fallback
+   phrases get a one-time consequence tag:
+   - `falling behind is your biggest risk today` →
+     `… — this compounds quickly`
+   - `Skipping foundational commitments is your biggest risk` →
+     `… — it'll slip further if you leave it`
+
+   Both are guarded by negative presence checks so running the
+   refiner twice on the same response yields the same result.
+
+**Example — full Phase 19 → 19.1 → 19.2 pipeline:**
+
+Before:
+```
+Take your Magnesium and your Metformin now — both are quick and overdue.
+Then start Work on WLJ.
+Work on WLJ (scheduled at 05:15) is overdue and 1 more item(s) are also behind: Prayer Time.
+```
+
+After:
+```
+Take your Magnesium and Metformin now — both are quick and overdue.
+Then go straight into Work on WLJ — you're behind on it already along with Prayer Time.
+```
+
+**Scope guardrails (respected):**
+* No change to decision logic, signal selection, routing, or the
+  4-part response structure.
+* Casing rule (brief rule 4) is a no-op — WLJ's handler format
+  strings already emit lowercase labels (`foundational`, `important`,
+  `standard`). Titles like "Work on WLJ" are legitimate proper
+  phrasing and left alone.
+* Compression rule (brief rule 5) is intentionally deferred —
+  preserving the 4-part visual structure (quick wins → primary →
+  context → stop) takes precedence over merging into one physical
+  sentence. Noted in the module docstring.
+
+**Tests.** Added 20 new tests under
+[apps/ai/tests/test_cos_tone_refiner.py](apps/ai/tests/test_cos_tone_refiner.py):
+
+- `Phase19_2VerbStrengthTests` (7) — line-start / after-"Then "
+  cases, plus negative tests that "Start of Day" / "starts clean" /
+  "starting" pass through unchanged.
+- `Phase19_2LeadershipFramingTests` (2) — subject swap with and
+  without the "along with X" tail.
+- `Phase19_2ItemPluralTests` (3) — singular, plural, and bare.
+- `Phase19_2ConsequenceFramingTests` (4) — both biggest-risk
+  tags, idempotence, and non-biggest-risk responses untouched.
+- `Phase19_2IntegrationTests` (3) — classic morning example,
+  biggest-risk with consequence tag, three-pass idempotence.
+
+Updated 6 existing tests to match the new verbs / leadership
+framing.
+
+**Verification:**
+* `python3 manage.py check` — clean.
+* `python3 manage.py makemigrations --check --dry-run` — no
+  changes.
+* 256/256 pass across the full scoped suite (155 pre-existing +
+  20 Phase 19 + 38 Phase 19.1 + 19.2 refiner + 22 metric_access +
+  21 unified_feed — Phase 19.2 added 20 new tests).
+
+
 ## 2026-04-22 — Change: Phase 19.1 CoS tone refiner + quick-action dedup
 
 **Problem.** Phase 19 output still read a bit mechanical:

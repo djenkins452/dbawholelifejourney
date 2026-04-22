@@ -160,7 +160,8 @@ class FocusResponseActionFirstTests(TestCase):
         imperatives = (
             "Take", "Start", "Complete", "Get ", "Close ",
             "Address", "Log", "Plan", "Shut", "Stay ",
-            "Clear ", "Then ",
+            "Clear ", "Then ", "Pause", "Do ",
+            "Go straight into", "Move into",
         )
         has_imperative = any(
             any(ln.startswith(v) for v in imperatives) for ln in lines

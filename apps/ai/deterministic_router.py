@@ -1416,7 +1416,31 @@ def refine_cos_response(text: str) -> str:
 # ═════════════════════════════════════════════════════════════════
 
 
-_FINAL_DEFAULT_ACTION = "Take 3 minutes to pray now"
+# Bare fallback string — used directly by the safety guard at the
+# end of _build_focus_query_response. The resolver below layers an
+# optional time-aware suffix on top of this base for the common
+# path. Both forms are a single concrete action; never a category.
+_FINAL_DEFAULT_ACTION = "Pause and pray now"
+
+
+def _time_aware_final_default(user) -> str:
+    """Return the final-default action with an optional time-of-day
+    flavor clause. Morning / evening add a short purpose line;
+    other hours keep the bare anchor. Never returns a multi-option
+    string. Any failure in the time lookup falls back to the bare
+    ``_FINAL_DEFAULT_ACTION`` so the contract is preserved.
+    """
+    try:
+        from apps.core.utils import get_user_now
+        hour = get_user_now(user).hour
+    except Exception:
+        return _FINAL_DEFAULT_ACTION
+
+    if 5 <= hour < 12:
+        return f"{_FINAL_DEFAULT_ACTION} — set the tone for your day"
+    if hour >= 20 or hour < 5:
+        return f"{_FINAL_DEFAULT_ACTION} — close out your day"
+    return _FINAL_DEFAULT_ACTION
 
 
 def resolve_fallback_action(user) -> dict:
@@ -1432,7 +1456,9 @@ def resolve_fallback_action(user) -> dict:
            ``habits.streaks_per_habit``. Foundational first, then
            longest current streak as the tiebreaker so the user is
            nudged to protect an established streak.
-        5. Hard-coded concrete default — a prayer anchor.
+        5. Hard-coded concrete default — ``_FINAL_DEFAULT_ACTION``
+           ("Pause and pray now"), optionally decorated with a
+           time-of-day purpose clause (morning / evening).
     """
     # 3. Habit lookup via canonical SAE state.
     try:
@@ -1467,9 +1493,9 @@ def resolve_fallback_action(user) -> dict:
             exc_info=True,
         )
 
-    # 5. Hard-coded concrete default.
+    # 5. Hard-coded concrete default, optionally time-aware.
     return {
-        'primary_action': _FINAL_DEFAULT_ACTION,
+        'primary_action': _time_aware_final_default(user),
         'context_reason': None,
     }
 
@@ -1477,6 +1503,7 @@ def resolve_fallback_action(user) -> dict:
 _COS_DECISIVE_STARTS = (
     "Take", "Start", "Complete", "Get ", "Close ", "Address",
     "Log", "Plan", "Shut", "Stay ", "Clear ", "Then ",
+    "Pause", "Do ", "Go straight into", "Move into",
     # Context-lead sentences commonly start with these (risk mode):
     "You", "Your", "Medication", "Health",
     "Cross-domain", "No ", "You're",

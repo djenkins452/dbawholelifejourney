@@ -34,6 +34,7 @@ Public API:
 """
 
 import logging
+import re
 import time
 from typing import List, Optional
 
@@ -1149,7 +1150,185 @@ def _format_cos_decision_response(
     for ln in lines:
         if not dedup or dedup[-1].strip() != ln.strip():
             dedup.append(ln)
-    return "\n".join(dedup)
+    assembled = "\n".join(dedup)
+
+    # Phase 19.1: tone refinement as the very last step of every
+    # handler's output path. Every handler ends by calling this
+    # formatter, so the refiner runs exactly once per response.
+    return refine_cos_response(assembled)
+
+
+# ═════════════════════════════════════════════════════════════════
+# Phase 19.1 — CoS tone refinement (post-processing only)
+#
+# Applied at the tail of _format_cos_decision_response so every
+# handler's output runs through it. All transformations are
+# deterministic regex substitutions — no randomness, no reordering,
+# no added actions, no removed actions. Meaning is preserved; only
+# wording is tightened.
+#
+# Rules (from the Phase 19.1 brief):
+#   1. Collapse "your X and your Y" → "your X and Y"
+#   2. Strip "(scheduled at HH:MM)" parentheticals
+#   3. Convert "and N more item(s) are also behind: A, B" →
+#      "along with A and B"
+#   4. Merge primary-line title with a context line that restates
+#      it: "Then start X.\nX is overdue …" → "Then start X —
+#      it's already overdue …"
+#   5. Soften "… so tomorrow starts clean" → "… — tomorrow starts
+#      clean" on the shutdown phrase
+#   6. Safety scrub: strip "consider" (never allowed)
+# ═════════════════════════════════════════════════════════════════
+
+_REFINE_YOUR_AND_YOUR_RE = re.compile(
+    r'\byour (.+?) and your\b'
+)
+_REFINE_SCHEDULED_AT_RE = re.compile(
+    r'\s*\(scheduled at \d{1,2}:\d{2}\)'
+)
+_REFINE_N_MORE_ITEMS_RE = re.compile(
+    r' and \d+ more item\(s\) are also behind: ([^.]+)'
+)
+_REFINE_SHUTDOWN_RE = re.compile(
+    r'for the night so tomorrow starts clean'
+)
+_REFINE_CONSIDER_RE = re.compile(
+    r'\b[Cc]onsider\s+'
+)
+# "Then start TITLE." / "Start TITLE." / "Complete TITLE." /
+# "Get back on track by starting TITLE." / "Close this gap —
+# complete TITLE."
+_REFINE_PRIMARY_TITLE_RES = (
+    re.compile(
+        r'^(?:Then\s+)?'
+        r'(?:[Ss]tart|[Cc]omplete|[Tt]ake)\s+'
+        r'(.+?)\.$'
+    ),
+    re.compile(
+        r'^(?:Then\s+)?'
+        r'[Gg]et back on track by starting\s+(.+?)\.$'
+    ),
+    re.compile(
+        r'^(?:Then\s+)?'
+        r'[Cc]lose this gap — complete\s+(.+?)\.$'
+    ),
+)
+
+
+def _refine_item_list(items_raw: str) -> str:
+    """"X, Y, Z" → "X, Y, and Z" (Oxford) or "X and Y" for two.
+
+    Used when rewriting "along with …" clauses after the
+    "N more item(s) are also behind" transform.
+    """
+    items = [p.strip() for p in items_raw.split(',') if p.strip()]
+    if not items:
+        return ''
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return f"{', '.join(items[:-1])}, and {items[-1]}"
+
+
+def _refine_merge_primary_and_context(text: str) -> str:
+    """Collapse adjacent primary + context lines that repeat the
+    primary's task title. Preserves the section (primary remains on
+    its own line); only the redundant title restatement is merged
+    into a trailing clause."""
+    lines = text.splitlines()
+    if len(lines) < 2:
+        return text
+
+    out: list = []
+    i = 0
+    while i < len(lines):
+        cur = lines[i]
+        nxt = lines[i + 1] if i + 1 < len(lines) else None
+
+        merged_line = None
+        if nxt:
+            title = None
+            for pat in _REFINE_PRIMARY_TITLE_RES:
+                m = pat.match(cur)
+                if m:
+                    title = m.group(1)
+                    break
+
+            if title and nxt.startswith(title):
+                rest = nxt[len(title):].lstrip()
+                # Case A: "<TITLE> is overdue[ along with X]."
+                if rest.startswith('is overdue'):
+                    tail = rest[len('is overdue'):]
+                    tail = tail.rstrip('.')
+                    merged_line = (
+                        cur[:-1]  # strip trailing "."
+                        + " — it's already overdue"
+                        + tail
+                        + "."
+                    )
+                # Case B: "<TITLE> is a … item that hasn't been
+                # completed today."  (Priority 3 foundational branch)
+                elif rest.startswith('is a ') or rest.startswith('is still'):
+                    merged_line = cur[:-1] + " — " + rest
+                # Case C: "<TITLE> is the fastest way to regain
+                # momentum" (fix-first recovery branch)
+                elif rest.startswith('is the fastest way'):
+                    merged_line = cur[:-1] + " — " + rest
+                # Case D: "<TITLE> is your next item" (upcoming)
+                elif rest.startswith('is your next item'):
+                    merged_line = cur[:-1] + " — " + rest
+
+        if merged_line is not None:
+            out.append(merged_line)
+            i += 2
+        else:
+            out.append(cur)
+            i += 1
+
+    return '\n'.join(out)
+
+
+def refine_cos_response(text: str) -> str:
+    """Phase 19.1 — deterministic tone refinement.
+
+    Post-processes the already-assembled CoS decision response.
+    Does NOT change meaning, reorder sections, remove the primary
+    action, or add new actions. Idempotent: ``refine(refine(x)) ==
+    refine(x)`` for all inputs.
+    """
+    if not text:
+        return text
+
+    out = text
+
+    # 1. Collapse "your X and your Y" → "your X and Y". Iterate
+    #    until stable in case of nested occurrences (rare).
+    prev = None
+    while prev != out:
+        prev = out
+        out = _REFINE_YOUR_AND_YOUR_RE.sub(r'your \1 and', out)
+
+    # 2. Strip "(scheduled at HH:MM)" parentheticals.
+    out = _REFINE_SCHEDULED_AT_RE.sub('', out)
+
+    # 3. "and N more item(s) are also behind: A, B" → "along with A and B"
+    def _n_more_sub(m):
+        return ' along with ' + _refine_item_list(m.group(1))
+    out = _REFINE_N_MORE_ITEMS_RE.sub(_n_more_sub, out)
+
+    # 4. Merge primary + duplicated-title context line.
+    out = _refine_merge_primary_and_context(out)
+
+    # 5. Soften the shutdown phrase.
+    out = _REFINE_SHUTDOWN_RE.sub(
+        'for the night — tomorrow starts clean', out,
+    )
+
+    # 6. Safety scrub: drop "consider".
+    out = _REFINE_CONSIDER_RE.sub('', out)
+
+    return out
 
 
 _COS_DECISIVE_STARTS = (
@@ -1445,9 +1624,12 @@ def _build_fix_first_response(user):
                     t = q.get('title') or ''
                     if t:
                         quick_wins_titles.append(f"your {t}")
+                # (source_type, source_id) of ALL quick candidates —
+                # see EXECUTION_NOW dedup rationale.
                 quick_ids = {
-                    q.get('id') for q in quick_ff[:2]
-                    if q.get('id') is not None
+                    (q.get('source_type'), q.get('source_id'))
+                    for q in quick_ff
+                    if q.get('source_id') is not None
                 }
 
             # ── Overdue execution items → recovery framing ──────
@@ -1460,7 +1642,7 @@ def _build_fix_first_response(user):
                 i for i in exec_items
                 if i.get('time_status') == 'overdue'
                 and not i.get('completed_today')
-                and i.get('id') not in quick_ids
+                and (i.get('source_type'), i.get('source_id')) not in quick_ids
                 and (i.get('title') or '').strip().lower()
                     not in _IMPLIED_DONE
             ]
@@ -1532,7 +1714,7 @@ def _build_fix_first_response(user):
                 incomplete_raw = [
                     i for i in exec_items
                     if not i.get('completed_today')
-                    and i.get('id') not in quick_ids
+                    and (i.get('source_type'), i.get('source_id')) not in quick_ids
                     and i.get('importance') in ('foundational', 'important')
                     and (i.get('title') or '').strip().lower()
                         not in _IMPLIED_DONE
@@ -1685,24 +1867,28 @@ def _build_focus_query_response(user):
                     title = q.get('title') or ''
                     if title:
                         quick_wins_titles.append(f"your {title}")
-                # Track IDs so the primary-action search skips them
-                # (dedup rule #7 — no single item surfaced twice).
+                # Track (source_type, source_id) of ALL quick-action
+                # candidates so none of them can become the primary.
+                # The primary is reserved for a non-quick item (task,
+                # routine, foundational gap, or intentional shutdown).
+                # Execution items carry `source_id`, not `id`.
                 quick_ids = {
-                    q.get('id') for q in quick_candidates[:2]
-                    if q.get('id') is not None
+                    (q.get('source_type'), q.get('source_id'))
+                    for q in quick_candidates
+                    if q.get('source_id') is not None
                 }
 
             all_overdue = [
                 i for i in exec_items
                 if i.get('time_status') == 'overdue'
                 and not i.get('completed_today')
-                and i.get('id') not in quick_ids
+                and (i.get('source_type'), i.get('source_id')) not in quick_ids
             ]
             upcoming = [
                 i for i in exec_items
                 if i.get('time_status') in ('upcoming', 'in_progress')
                 and not i.get('completed_today')
-                and i.get('id') not in quick_ids
+                and (i.get('source_type'), i.get('source_id')) not in quick_ids
             ]
 
             # ── Phase 10: intelligent item selection ──────────────
@@ -1893,7 +2079,7 @@ def _build_focus_query_response(user):
                         [
                             i for i in exec_items
                             if _is_actionable(i)
-                            and i.get('id') not in quick_ids
+                            and (i.get('source_type'), i.get('source_id')) not in quick_ids
                             and i.get('importance') in (
                                 'foundational', 'important',
                             )

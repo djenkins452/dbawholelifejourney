@@ -106,31 +106,37 @@ class CosDecisionFormatterTests(SimpleTestCase):
     """The four-part formatter in isolation."""
 
     def test_quick_plus_primary_day(self):
+        # Phase 19.1: refiner collapses "your X and your Y" → "your X and Y".
         out = _format_cos_decision_response(
             quick_wins=["your Magnesium", "your Metformin"],
             primary_action="start your next task block and clear your top priority",
         )
-        self.assertIn("Take your Magnesium and your Metformin now", out)
+        self.assertIn("Take your Magnesium and Metformin now", out)
         self.assertIn("both are quick and overdue", out)
         self.assertIn("Then start your next task block", out)
         self.assertTrue(out.endswith("."))
 
     def test_quick_plus_shutdown_night(self):
+        # Phase 19.1: "your X and your Y" collapses and the shutdown
+        # phrase is softened ("so tomorrow" → "— tomorrow").
         out = _format_cos_decision_response(
             quick_wins=["your Magnesium", "your Metformin"],
             primary_action="shut it down for the night so tomorrow starts clean",
         )
-        self.assertIn("Take your Magnesium and your Metformin now", out)
-        self.assertIn("Then shut it down for the night", out)
+        self.assertIn("Take your Magnesium and Metformin now", out)
+        self.assertIn(
+            "Then shut it down for the night — tomorrow starts clean",
+            out,
+        )
 
     def test_primary_only_day(self):
+        # Phase 19.1: refiner merges primary + restated-title context
+        # into a single line and strips the "(scheduled at …)" noise.
         out = _format_cos_decision_response(
             primary_action="Start Workout",
-            context_reason="Workout (scheduled at 06:15) is overdue",
+            context_reason="Workout is overdue",
         )
-        lines = out.splitlines()
-        self.assertEqual(lines[0], "Start Workout.")
-        self.assertIn("Workout (scheduled at 06:15) is overdue", lines[1])
+        self.assertEqual(out, "Start Workout — it's already overdue.")
 
     def test_primary_only_night(self):
         out = _format_cos_decision_response(

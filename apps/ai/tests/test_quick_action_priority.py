@@ -160,7 +160,11 @@ class MultipleQuickActionsTests(TestCase):
         first_line = resp.split('\n')[0]
         self.assertIn("Mounjaro", first_line)
 
-    def test_shows_count_of_pending(self):
+    def test_shows_top_two_quick_wins(self):
+        """Phase 19: quick-wins list is capped at 2 (never dominates
+        the response). With 3 overdue quick actions, the top 2 show
+        by priority (meds before supps, foundational before standard).
+        The 3rd is dropped from the quick-wins line."""
         from apps.ai.deterministic_router import _build_focus_query_response
         from apps.core.ai_state import state_builder
 
@@ -175,7 +179,12 @@ class MultipleQuickActionsTests(TestCase):
         ):
             resp = _build_focus_query_response(self.user)
 
-        self.assertIn("2 more", resp)
+        # Meds rank first, then supps by scheduled_time.
+        self.assertIn("Mounjaro", resp)
+        self.assertIn("Perfect Amino", resp)
+        # The third item is dropped — the 2-cap is the whole point
+        # of the Phase 19 rule "quick wins must never dominate".
+        self.assertNotIn("THORNE Creatine", resp)
 
 
 class NoQuickActionFallsBackTests(TestCase):

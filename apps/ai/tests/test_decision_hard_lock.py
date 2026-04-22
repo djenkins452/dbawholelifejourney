@@ -133,15 +133,15 @@ class FocusResponseActionFirstTests(TestCase):
         from apps.ai.deterministic_router import _build_focus_query_response
         return _build_focus_query_response(self.user)
 
-    def test_first_line_starts_with_do_this_next(self):
-        """The first non-empty line MUST start with 'Do this next:'."""
+    def test_first_line_is_decisive_not_passive(self):
+        """Phase 19: the first non-empty line must be a decisive
+        instruction (quick-win, primary-action, or risk-context-lead).
+        The old 'Do this next:' prefix is gone."""
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
         resp = self._build()
+        assert_cos_action_first(self, resp)
         lines = [ln for ln in resp.splitlines() if ln.strip()]
         self.assertTrue(lines, "response must not be empty")
-        self.assertTrue(
-            lines[0].startswith("Do this next:"),
-            f"first line must start with 'Do this next:', got {lines[0]!r}",
-        )
 
     def test_never_returns_none(self):
         resp = self._build()
@@ -149,9 +149,26 @@ class FocusResponseActionFirstTests(TestCase):
         self.assertIsInstance(resp, str)
         self.assertTrue(len(resp) > 0)
 
-    def test_contains_reason_block(self):
+    def test_has_a_primary_instruction(self):
+        """Phase 19: the response contains at least one decisive line
+        (either an imperative verb or a 'Then <action>' follow-on)."""
         resp = self._build()
-        self.assertIn("Reason:", resp)
+        lines = [ln for ln in resp.splitlines() if ln.strip()]
+        self.assertTrue(lines, "response must not be empty")
+        # At least one line should start with an imperative verb
+        # or the 'Then' primary-action prefix.
+        imperatives = (
+            "Take", "Start", "Complete", "Get ", "Close ",
+            "Address", "Log", "Plan", "Shut", "Stay ",
+            "Clear ", "Then ",
+        )
+        has_imperative = any(
+            any(ln.startswith(v) for v in imperatives) for ln in lines
+        )
+        self.assertTrue(
+            has_imperative,
+            f"no decisive imperative found in response: {resp!r}",
+        )
 
     def test_no_passive_phrases(self):
         resp = self._build().lower()
@@ -162,32 +179,26 @@ class FocusResponseActionFirstTests(TestCase):
                 f"focus response must not contain passive phrase {bad!r}",
             )
 
-    def test_empty_state_still_returns_action_first(self):
+    def test_empty_state_still_returns_decisive_response(self):
         """Even with a brand new user (no trust reports, no focus),
-        the response must still be Action-First."""
+        the response must still be a decisive CoS-style string."""
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
         fresh_user = _make_user("empty_state@test.com")
         from apps.ai.deterministic_router import _build_focus_query_response
         resp = _build_focus_query_response(fresh_user)
-        self.assertIsNotNone(resp)
-        lines = [ln for ln in resp.splitlines() if ln.strip()]
-        self.assertTrue(lines)
-        self.assertTrue(
-            lines[0].startswith("Do this next:"),
-            f"empty state fallback must still lead with action, got {lines[0]!r}",
-        )
+        assert_cos_action_first(self, resp)
 
     def test_builder_exception_safe_fallback(self):
         """If compute_right_now_focus raises, _build_focus_query_response
-        must still return an Action-First string — not None, not empty."""
+        must still return a decisive CoS string — not None, not empty."""
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
         from apps.ai.deterministic_router import _build_focus_query_response
         with patch(
             "apps.core.ai_state.right_now.compute_right_now_focus",
             side_effect=RuntimeError("signal pipeline exploded"),
         ):
             resp = _build_focus_query_response(self.user)
-        self.assertIsNotNone(resp)
-        lines = [ln for ln in resp.splitlines() if ln.strip()]
-        self.assertTrue(lines[0].startswith("Do this next:"))
+        assert_cos_action_first(self, resp)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -211,17 +222,20 @@ class DecisionQueryRouteTests(TestCase):
             r.route_name.startswith("decision_query"),
             f"expected decision_query prefix, got {r.route_name!r}",
         )
-        self.assertTrue("Do this next:" in r.response or "Your priority is:" in r.response, f"Missing Action-First prefix: {r.response[:80]!r}")
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
+        assert_cos_action_first(self, r.response)
 
     def test_not_working_returns_route_result(self):
         r = self._route("what's not working")
         self.assertIsNotNone(r)
-        self.assertTrue("Do this next:" in r.response or "Your priority is:" in r.response, f"Missing Action-First prefix: {r.response[:80]!r}")
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
+        assert_cos_action_first(self, r.response)
 
     def test_help_me_decide_returns_route_result(self):
         r = self._route("help me decide")
         self.assertIsNotNone(r)
-        self.assertTrue("Do this next:" in r.response or "Your priority is:" in r.response, f"Missing Action-First prefix: {r.response[:80]!r}")
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
+        assert_cos_action_first(self, r.response)
 
     def test_non_decision_query_returns_none(self):
         r = self._route("log my weight at 180")
@@ -242,7 +256,8 @@ class DecisionQueryRouteTests(TestCase):
                 "what is my biggest risk", self.user,
             )
         self.assertIsNotNone(r)
-        self.assertTrue("Do this next:" in r.response or "Your priority is:" in r.response, f"Missing Action-First prefix: {r.response[:80]!r}")
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
+        assert_cos_action_first(self, r.response)
 
 
 # ══════════════════════════════════════════════════════════════

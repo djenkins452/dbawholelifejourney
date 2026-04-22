@@ -93,11 +93,11 @@ class CompletedItemsExcludedTests(TestCase):
             resp = _build_focus_query_response(self.user)
 
         self.assertIn("Work on WLJ", resp)
-        # "Wake up" must NOT appear as the selected action
-        self.assertFalse(
-            resp.startswith("Do this next: Start Wake up"),
-            "completed item was selected as the primary action",
-        )
+        # "Wake up" (completed) must NOT be the selected primary action.
+        # Phase 19: primary may appear as "Start Work on WLJ" or
+        # "Then start Work on WLJ" depending on quick-win stacking.
+        self.assertNotIn("Start Wake up", resp)
+        self.assertNotIn("start Wake up", resp)
 
     def test_all_completed_falls_through(self):
         """When all overdue items are completed, the system should
@@ -355,8 +355,11 @@ class Phase9RegressionTests(TestCase):
     def test_action_first_format_preserved(self):
         user = _make_user("p9_regression@test.com")
         from apps.ai.deterministic_router import _build_focus_query_response
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
+        # Phase 19: "Action-First" now means the CoS decision shape,
+        # not the literal "Do this next:" prefix.
         resp = _build_focus_query_response(user)
-        self.assertTrue(resp.startswith("Do this next:"))
+        assert_cos_action_first(self, resp)
 
     def test_never_none(self):
         user = _make_user("p9_never_none@test.com")

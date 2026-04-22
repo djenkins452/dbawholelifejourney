@@ -164,11 +164,13 @@ class BiggestRiskUsesSignalLayerTests(TestCase):
         with patch.object(cos_context, '_fresh_module_state', fake_fresh):
             resp = _build_biggest_risk_response(self.user)
 
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
+        assert_cos_action_first(
+            self, resp,
+            must_contain=("55%",),
+            must_not_contain=("Work on WLJ",),
+        )
         self.assertIn("medication", resp.lower())
-        self.assertIn("55%", resp)
-        self.assertIn("Do this next:", resp)
-        # Must NOT select an execution task like "Start Work on WLJ"
-        self.assertNotIn("Work on WLJ", resp)
 
     def test_risk_response_when_no_med_crisis(self):
         """When medication is fine, _build_biggest_risk_response may
@@ -192,15 +194,11 @@ class BiggestRiskUsesSignalLayerTests(TestCase):
         with patch.object(cos_context, '_fresh_module_state', fake_fresh):
             resp = _build_biggest_risk_response(self.user)
 
-        # Phase 11.2: when no critical risk is found, the builder
-        # returns an explicit low-risk assessment (either a minor
-        # risk or "No major risks right now"). Must start with an
-        # Action-First prefix.
-        self.assertIsNotNone(resp)
-        self.assertTrue(
-            'Do this next:' in resp or 'Your priority is:' in resp,
-            f"Expected Action-First prefix, got: {resp[:80]!r}",
-        )
+        # Phase 19: when no critical risk is found, the builder
+        # returns an explicit low-risk assessment in the CoS
+        # decision shape.
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
+        assert_cos_action_first(self, resp)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -229,8 +227,13 @@ class FixFirstHybridTests(TestCase):
         with patch.object(cos_context, '_fresh_module_state', fake_fresh):
             resp = _build_fix_first_response(self.user)
 
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
+        assert_cos_action_first(self, resp)
         self.assertIn("medication", resp.lower())
-        self.assertIn("critical", resp.lower())
+        # Phase 19: "critical" wording is no longer guaranteed — the
+        # recovery context is conveyed by adherence %, dose counts,
+        # and the "fastest way to close your biggest gap" framing.
+        self.assertIn("medications now", resp.lower())
 
     def test_no_critical_risk_uses_recovery_framing(self):
         """Phase 11.2: when medication is fine, FIX_FIRST produces
@@ -252,10 +255,8 @@ class FixFirstHybridTests(TestCase):
         with patch.object(cos_context, '_fresh_module_state', fake_fresh):
             resp = _build_fix_first_response(self.user)
 
-        self.assertTrue(
-            'Do this next:' in resp or 'Your priority is:' in resp,
-            f"Expected Action-First prefix, got: {resp[:80]!r}",
-        )
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
+        assert_cos_action_first(self, resp)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -266,10 +267,11 @@ class ActionFirstPreservedTests(TestCase):
     def setUp(self):
         self.user = _make_user("action_first_p11@test.com")
 
-    def test_all_three_modes_start_with_action_first_prefix(self):
-        """All responses must use one of the two Action-First prefixes:
-        'Do this next:' or 'Your priority is:'."""
+    def test_all_three_modes_produce_cos_decision_shape(self):
+        """Phase 19: all three intent modes must produce the 4-part
+        CoS decision shape (no legacy prefixes)."""
         from apps.ai.deterministic_router import _try_decision_query_route
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
 
         for q in [
             "what should i do right now",
@@ -278,12 +280,7 @@ class ActionFirstPreservedTests(TestCase):
         ]:
             r = _try_decision_query_route(q.lower(), self.user)
             self.assertIsNotNone(r, f"{q} returned None")
-            self.assertTrue(
-                r.response.startswith("Do this next:")
-                or r.response.startswith("Your priority is:"),
-                f"{q} → missing Action-First prefix, "
-                f"got: {r.response[:80]!r}",
-            )
+            assert_cos_action_first(self, r.response)
 
 
 # ══════════════════════════════════════════════════════════════

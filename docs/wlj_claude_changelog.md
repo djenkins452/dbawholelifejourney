@@ -7,6 +7,152 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-22 — Change: Phase 19 CoS decision-layer response format
+
+**Problem.** The deterministic "what should I do right now" handler at
+`apps/ai/deterministic_router.py :: _build_focus_query_response` (and
+its siblings `_build_biggest_risk_response`, `_build_fix_first_response`)
+returned a rigid three-part structure:
+
+```
+Do this next: <action>.
+
+Reason:
+<why>
+Priority: <label>
+```
+
+It read like a form, not like a Chief of Staff. Two specific
+behavioral issues on top of the tone problem:
+
+1. **Quick-action override was too strict.** When any overdue
+   medication or supplement existed, the handler early-returned
+   with *only* the med mentioned — the user's overdue task or
+   workout never made it into the response even though the user
+   could easily do both.
+2. **No time-of-day awareness.** At 11pm with only a quick
+   overdue vitamin, the response was "Take your magnesium" — no
+   close-the-day framing, no "shut it down" nudge.
+
+**Change.**
+
+Decision-layer behavior upgrade only — no changes to signals,
+state, routing, or architecture.
+
+1. New module-scope formatter
+   [`_format_cos_decision_response`](apps/ai/deterministic_router.py:1477)
+   implementing the 4-part CoS response structure:
+
+   - (1) Quick wins (optional, max 2): *"Take your Magnesium and
+     your Metformin now — both are quick and overdue."*
+   - (2) Primary action (required unless intentional shutdown):
+     *"Then start your next task block and clear your top priority."*
+   - (3) Context (optional, short signal-based reason): *"This
+     keeps you on track because overdue items compound."*
+   - (4) Stop condition (late-evening shutdown): encoded as the
+     primary itself when nothing heavier is pressing: *"Then shut
+     it down for the night so tomorrow starts clean."*
+
+   Supports a `lead_with_context=True` mode for risk-driven
+   handlers where the situation is explained first, then the
+   mitigation action ("Your glucose is trending up and your
+   workout streak broke. Get a 20-minute walk in now — that's
+   your highest-impact move.").
+
+2. New helper
+   [`_is_late_evening(user)`](apps/ai/deterministic_router.py:1464)
+   reads user local time via the existing
+   `apps.core.utils.get_user_now` — returns True when hour ≥ 20 or
+   < 5. Used to flip the default primary to an intentional
+   shutdown when nothing pressing remains.
+
+3. **Quick-action stacking.** Removed the early-return that let
+   meds/supps dominate the response. The three handlers now:
+   - collect up to 2 overdue meds/supps as `quick_wins_titles`,
+   - record their IDs in `quick_ids` and **exclude those items
+     from subsequent overdue / upcoming / foundational searches**
+     (dedup rule: a single item never surfaces twice),
+   - compute `primary_action` from the remaining priority stack
+     exactly as before,
+   - pass both into `_format_cos_decision_response`.
+
+   Edge cases: when only quick wins exist, the primary becomes
+   "shut it down for the night..." (late) or "stay on your next
+   scheduled block" (day). When nothing exists at all, the
+   fallback primary is still the foundational habit nudge.
+
+4. New helper
+   [`_looks_like_cos_decision_response(resp)`](apps/ai/deterministic_router.py:1488)
+   guards `_try_decision_query_route` — if a handler returns
+   empty or reverts to legacy markers, the router falls back to
+   a new-format `_SAFE_FALLBACK` instead of resurrecting the old
+   "Do this next:" string.
+
+5. All three handlers (focus / biggest-risk / fix-first) now use
+   the new formatter. Fix-first stacks quick wins the same way
+   focus does. Biggest-risk always leads with context.
+
+**Test surface.** The old "Do this next: / Reason: / Priority:"
+markers appeared in assertions across 10 files. Added
+[`apps/ai/tests/_cos_decision_helpers.py`](apps/ai/tests/_cos_decision_helpers.py)
+with `assert_cos_action_first(testcase, resp, must_contain=...,
+must_not_contain=...)` and updated the affected assertions to use
+it. New assertions check:
+- response is non-empty,
+- legacy markers are absent,
+- caller-specified content is present/absent.
+
+New test file
+[`apps/ai/tests/test_cos_decision_format.py`](apps/ai/tests/test_cos_decision_format.py)
+covers all 7 brief scenarios:
+1. quick + primary (day)
+2. quick + shutdown (night)
+3. primary only (day)
+4. primary only (night)
+5. risk-driven (context-lead)
+6. no quick wins available
+7. deduplication (quick overlaps primary)
+
+Plus formatter unit tests (`CosDecisionFormatterTests`) and
+`_is_late_evening` unit tests.
+
+**Files:**
+- Modified: `apps/ai/deterministic_router.py` (~500 lines of
+  touched code across the three handlers + new helpers),
+  `apps/ai/tests/test_decision_hard_lock.py`,
+  `apps/ai/tests/test_execution_first.py`,
+  `apps/ai/tests/test_execution_completeness.py`,
+  `apps/ai/tests/test_output_sanitization.py`,
+  `apps/ai/tests/test_intent_aware_decision.py`,
+  `apps/ai/tests/test_action_selection.py`,
+  `docs/wlj_claude_changelog.md`.
+- New: `apps/ai/tests/_cos_decision_helpers.py`,
+  `apps/ai/tests/test_cos_decision_format.py`.
+
+**Out of scope, explicitly:**
+- The LLM-side `validate_response` rule that enforces
+  "Do this next:" / "Your priority is:" prefixes on LLM-produced
+  decision-query outputs is untouched. Deterministic router
+  outputs bypass that validator via `is_terminal=True`, so the
+  new format ships unobstructed. LLM-side prompt shaping for
+  decision queries is a separate follow-up.
+- The LLM never sees these queries anyway; this phase changes
+  only the deterministic path.
+
+**Verification:**
+- `python3 manage.py check` — clean.
+- `python3 manage.py makemigrations --check --dry-run` — no
+  changes.
+- 155/155 pass across the 10 pre-existing decision/execution
+  test files.
+- 20/20 pass in new `test_cos_decision_format.py`.
+- 22/22 still pass in `apps.core.ai_state.tests_metric_access`
+  (Phase 1-2).
+- 21/21 still pass in `apps.core.ai_signals.tests_unified_feed`
+  (Phase 3).
+- Total: 218/218 across the scoped suite.
+
+
 ## 2026-04-22 — Add: Phase 3 metric-trust — unified signal feed for CoS
 
 **Problem.** Signals are generated correctly by PIE, PRIE, PGE, CDCE,

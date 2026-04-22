@@ -165,13 +165,9 @@ class OutputContainsOnlyActionableInfoTests(TestCase):
             resp = _build_focus_query_response(self.user)
 
         lines = [l for l in resp.split('\n') if l.strip()]
-        # First line: action
-        self.assertTrue(
-            lines[0].startswith("Do this next:"),
-            f"expected action line, got: {lines[0]!r}",
-        )
-        # Must have Reason:
-        self.assertIn("Reason:", resp)
+        # Phase 19: output uses the 4-part CoS decision shape.
+        from apps.ai.tests._cos_decision_helpers import assert_cos_action_first
+        assert_cos_action_first(self, resp)
         # Must NOT have any diagnostic line
         for line in lines:
             ll = line.lower()

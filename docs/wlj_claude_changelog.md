@@ -3,8 +3,65 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-04-01 (Foundation excludes completed items — only incomplete foundationals shown)
+# Last Updated: 2026-04-26 (CoS Time/Sequence Integrity — active-block gating)
 # ================================================================# WLJ Change History
+
+
+## 2026-04-26 — Fix: CoS Time/Sequence Integrity (active-block gating)
+
+**Bug.** At 07:55 the CoS recommended "take Fish Oil now" when Fish Oil
+was scheduled for 09:00 and the correct next action was Measurements at
+08:00. The CoS was treating the `next` urgency tier (delta ≤ 120 min)
+as eligible for "Start with X" and had no notion of an active execution
+block, so a future-block item could surface as the primary action.
+
+**Root cause.** [apps/ai/cos_fact_statements.py:458](apps/ai/cos_fact_statements.py:458)
+in `build_locked_next_action()` accepted urgencies `{overdue, now, next}`
+as actionable. There was no gate against future-block items. The
+prioritizer's medicine-group entries also dropped `time_display` to
+empty string, collapsing intra-tier sort to end-of-day.
+
+**Fix (surgical — no parallel engine).**
+1. **Active-block resolver** — new module
+   [apps/core/execution/active_block.py](apps/core/execution/active_block.py)
+   built on the canonical `time_windows.WINDOW_HOURS` map. Per-user
+   bounds are derived from the actual `scheduled_time` min/max of items
+   tagged with each window (with the static map as fallback).
+   Includes `LEAD_IN_MINUTES = 15` so the front of the next block
+   becomes eligible only as the current block winds down. Overdue items
+   pass the gate unconditionally.
+2. **Tightened locked-next-action** —
+   [build_locked_next_action()](apps/ai/cos_fact_statements.py:419)
+   now accepts only `{overdue, now}` as primary "Start with X"
+   eligibility, applies the active-block gate, and surfaces the next
+   eligible follow-on as "After that: X (HH:MM)." Future-block items
+   never become primary even when foundational.
+3. **Prioritizer sort fix** —
+   [action_prioritizer.py:188](apps/core/decision_engine/action_prioritizer.py:188)
+   medicine groups now carry `time_display = scheduled_time` so
+   intra-tier time sort orders intake correctly instead of pinning all
+   groups to 23:59.
+
+**Architecture.** Dashboard and CoS continue to share
+`prioritize_execution_items()` → urgency tiers (now/next/later). With
+CoS restricted to overdue+now, both surfaces resolve the same primary
+action. No new engine, no rewrite of `today_engine.py`.
+
+**Tests.**
+- [apps/core/execution/tests/test_active_block.py](apps/core/execution/tests/test_active_block.py)
+  — block resolution, lead-in, overdue bypass, past/future eligibility.
+- [apps/ai/tests/test_locked_next_action.py](apps/ai/tests/test_locked_next_action.py)
+  — the four scenarios from the spec plus the 07:55 / 08:00 / 09:00
+  regression. Locks the rule "Start with Measurements" — Fish Oil may
+  appear as follow-on, never as the recommended action.
+
+**Files changed.**
+- `apps/core/execution/active_block.py` (new)
+- `apps/ai/cos_fact_statements.py` (build_locked_next_action)
+- `apps/core/decision_engine/action_prioritizer.py` (medicine group time_display)
+- `apps/core/execution/tests/test_active_block.py` (new)
+- `apps/ai/tests/test_locked_next_action.py` (new)
+- `docs/ENGINE_COS_REFERENCE.md` (updated)
 
 
 ## 2026-04-22 — Fix: Phase 19.5 Dashboard/CoS glucose single-source-of-truth

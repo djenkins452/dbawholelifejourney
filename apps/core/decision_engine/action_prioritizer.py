@@ -185,7 +185,10 @@ def build_action_priorities(
             "commitment_level": "",
             "goal_name": g.get("goal_name", ""),
             "time_of_day": g.get("time_of_day", ""),
-            "time_display": "",
+            # Surface the group's scheduled_time so intra-tier sort
+            # respects time order (was empty string, which collapsed
+            # all medicine groups to end-of-day in the time sort).
+            "time_display": g.get("scheduled_time", "") or "",
         })
 
     # ── Binary daily actions (journal, faith, workout) ──

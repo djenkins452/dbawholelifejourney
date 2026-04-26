@@ -84,19 +84,44 @@ class ResolveCosModeTests(SimpleTestCase):
         self.assertIsNone(resolve_cos_mode("Tell me about the prefix"))
         self.assertIsNone(resolve_cos_mode("Affix this to my journal"))
 
-    def test_risk_takes_precedence_over_fix(self):
-        """'biggest risk and what to fix' — risk wins."""
+    def test_fix_takes_precedence_over_risk(self):
+        """Per CoS Strict Mode Isolation: FIX > RISK > EXECUTION.
+        'biggest risk and what to fix' — fix wins."""
         result = resolve_cos_mode(
             "what's my biggest risk and what to fix",
         )
-        self.assertEqual(result, "risk")
+        self.assertEqual(result, "fix")
 
     def test_fix_takes_precedence_over_execution(self):
         """'what should I fix' includes 'what should I' — fix wins over
         the broader 'what should I do' phrasing."""
-        # Just to be defensive — 'fix' phrasing is more specific.
         result = resolve_cos_mode("what should I fix first today")
         self.assertEqual(result, "fix")
+
+    def test_risk_takes_precedence_over_execution(self):
+        """When fix doesn't match but risk does, risk wins over execution."""
+        result = resolve_cos_mode("what's my biggest risk right now")
+        self.assertEqual(result, "risk")
+
+    def test_status_queries_default_to_execution(self):
+        """Per spec: generic status queries default to Execution mode
+        so the LLM never gets to compose a blended response."""
+        for q in [
+            "How am I doing?",
+            "Where am I at?",
+            "Status",
+            "What's going on",
+            "Update me",
+            "Give me a status",
+            "Walk me through my day",
+            "What's my situation",
+            "Brief me",
+            "Where do I stand",
+        ]:
+            self.assertEqual(
+                resolve_cos_mode(q), "execution",
+                f"Status query must default to execution: {q!r}",
+            )
 
 
 class NormalizeModeTests(SimpleTestCase):

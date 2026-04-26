@@ -98,10 +98,19 @@ class TestSignificantEventLockedFacts(TestCase):
         }
         block = format_locked_facts_block(facts)
 
-        self.assertIn("Significant Events:", block)
-        self.assertIn("TODAY:", block)
-        self.assertIn("SIGNIFICANT EVENT ACKNOWLEDGMENT (MANDATORY)", block)
-        self.assertIn("NON-NEGOTIABLE", block)
+        # Per CoS Strict Mode Isolation contract (2026-04-26):
+        # the locked-facts block sent to the LLM contains ONLY the
+        # NEXT ACTION line. Significant events are tracked in
+        # build_locked_facts() output (and consumed by the truth
+        # validator and other surfaces) but no longer leak into the
+        # LLM prompt block — preventing mode blending.
+        self.assertNotIn("Significant Events:", block)
+        self.assertNotIn("SIGNIFICANT EVENT ACKNOWLEDGMENT", block)
+        # The block still wraps the next action.
+        self.assertIn("CURRENT NEXT ACTION", block)
+        self.assertIn("test", block)  # next_action='test' from fixture
+        # Confirm summary is still computed for non-LLM consumers.
+        self.assertIn("TODAY:", summary)
 
     def test_no_today_event_no_mandatory_rules(self):
         """Without today events, no mandatory acknowledgment rules."""
@@ -139,3 +148,49 @@ class TestSignificantEventLockedFacts(TestCase):
         summary, signals = _build_significant_event_summary(self.user)
         self.assertIn("Upcoming:", summary)
         self.assertIn("Mom", summary)
+
+
+class StrictModeIsolationLockedFactsTests(TestCase):
+    """The locked-facts block sent to the LLM contains ONLY the next
+    action line — no domain summaries, no overdue lists, no future
+    items, no event acknowledgment. (Per CoS Strict Mode Isolation
+    contract.) The richer build_locked_facts() dict is still
+    available to the truth validator and other surfaces — only the
+    LLM-facing prompt block is slimmed."""
+
+    def test_block_contains_only_next_action_line(self):
+        from apps.ai.cos_fact_statements import format_locked_facts_block
+        facts = {
+            'faith_summary': 'Bible reading is not yet completed.',
+            'routine_summary': 'Morning Routine: 1/3 done.',
+            'task_summary': 'Tasks: 2 pending.',
+            'workout_summary': 'No workout scheduled today.',
+            'journal_summary': 'Journal not written.',
+            'medication_summary': 'Morning meds: pending.',
+            'significant_events_summary': 'TODAY: Birthday — Mom.',
+            'overall_summary': '1 of 8 done — keep going.',
+            'next_action': 'Next: Bible reading. Do this now.',
+        }
+        block = format_locked_facts_block(facts)
+
+        # The next action MUST appear.
+        self.assertIn('Next: Bible reading. Do this now.', block)
+        self.assertIn('CURRENT NEXT ACTION', block)
+
+        # NONE of the domain summaries may appear — the LLM has no
+        # material to blend.
+        self.assertNotIn('Bible reading is not yet completed.', block)
+        self.assertNotIn('Morning Routine:', block)
+        self.assertNotIn('Tasks:', block)
+        self.assertNotIn('No workout scheduled', block)
+        self.assertNotIn('Journal not written', block)
+        self.assertNotIn('Morning meds:', block)
+        self.assertNotIn('Significant Events:', block)
+        self.assertNotIn('Overall:', block)
+        self.assertNotIn('SIGNIFICANT EVENT ACKNOWLEDGMENT', block)
+
+    def test_block_falls_back_when_no_next_action(self):
+        from apps.ai.cos_fact_statements import format_locked_facts_block
+        facts = {'next_action': None}
+        block = format_locked_facts_block(facts)
+        self.assertIn('Nothing pending right now.', block)

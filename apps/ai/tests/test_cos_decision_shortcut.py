@@ -142,7 +142,9 @@ class CosShortcutChatTests(TestCase):
         self.assertTrue(result.get('deterministic'))
         self.assertEqual(result['cos_decision']['mode'], 'fix')
         self.assertIn('File Receipts', result['response'])
-        self.assertIn('unlock 3', result['response'])
+        self.assertEqual(
+            result['response'], 'Fix this first: File Receipts.',
+        )
 
     def test_non_mode_query_falls_through(self):
         """A non-matching message must NOT trigger the shortcut.

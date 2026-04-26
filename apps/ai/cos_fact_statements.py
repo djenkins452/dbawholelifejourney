@@ -464,79 +464,33 @@ def format_locked_facts_block(facts) -> str:
     """
     Format locked facts into the prompt block the LLM receives.
 
-    This is the ONLY source of factual statements about today's status.
-    The LLM must use these statements exactly.
+    STRICT MODE ISOLATION contract — the block contains EXACTLY the
+    deterministic NEXT ACTION line. No domain summaries, no overdue
+    lists, no future items, no event acknowledgments. The LLM is given
+    nothing to blend.
+
+    The richer `build_locked_facts(user)` dict is still available to
+    the truth validator (`apps.ai.cos_truth_validator`) — that path is
+    unchanged. We only narrow what reaches the LLM as a system prompt.
+
+    Rationale: when the LLM receives multiple summaries plus a next
+    action, it weaves them into a single multi-mode response (overdue
+    + future + execution all at once). With only the next action in
+    the block, the LLM has no material to blend.
     """
-    # Check if there are today events that require mandatory acknowledgment
-    events_summary = facts.get('significant_events_summary', '')
-    has_today_events = events_summary.startswith("TODAY")
-
-    lines = [
-        "=" * 60,
-        "LOCKED FACT STATEMENTS (SYSTEM-GENERATED — DO NOT CHANGE)",
-        "=" * 60,
-        "",
-        f"  Faith: {facts['faith_summary']}",
-        f"  Routines: {facts['routine_summary']}",
-        f"  Tasks: {facts['task_summary']}",
-        f"  Workout: {facts['workout_summary']}",
-        f"  Journal: {facts['journal_summary']}",
-        f"  Medications: {facts['medication_summary']}",
-        f"  Significant Events: {events_summary}",
-        f"  Overall: {facts['overall_summary']}",
-        "",
-        f"  NEXT ACTION: {facts.get('next_action', 'Unable to determine.')}",
-        "",
-        "RULES:",
-        "- You MUST include these facts in your response.",
-        "- You MUST NOT change their wording, meaning, or completion status.",
-        "- You MUST NOT infer, assume, or override completion status.",
-        "- You MUST NOT say something is complete if the fact says 'not yet'.",
-        "- You MUST NOT say something is pending if the fact says "
-        "'not scheduled'.",
-        "- You MUST NOT say 'great start' or 'productive' if Overall says "
-        "'Nothing has been completed'.",
-        "- You MAY add coaching, encouragement, or next-step suggestions "
-        "AFTER presenting these facts.",
-        "- You MAY paraphrase lightly for conversational flow, but the "
-        "meaning and completion status MUST remain identical.",
-        "- Example of acceptable paraphrasing:",
-        "  Locked: 'Bible reading is not yet completed.'",
-        "  OK: 'Bible reading hasn't been done yet.'",
-        "  NOT OK: 'Bible reading is complete.'",
-        "  NOT OK: 'You've finished your reading.'",
-        "  Locked: 'No workout scheduled today.'",
-        "  OK: 'No workout on the schedule today.'",
-        "  NOT OK: 'Workout is not yet completed.'",
-        "",
-        "NEXT ACTION RULE (MANDATORY):",
-        "- When the user asks 'what should I do next' or 'what to focus on',",
-        "  your recommendation MUST match the NEXT ACTION above.",
-        "- You MUST NOT recommend goals, prayer requests, or items not in",
-        "  the execution list.",
-        "- You MUST NOT invent actions from contextual data (goals, habits,",
-        "  signals, patterns).",
-        "- The NEXT ACTION is computed by the system from execution priority.",
-        "  You do NOT decide priority — you only communicate it.",
-    ]
-
-    # Mandatory event acknowledgment rules (deterministic — not LLM-decided)
-    if has_today_events:
-        lines.extend([
-            "",
-            "SIGNIFICANT EVENT ACKNOWLEDGMENT (MANDATORY):",
-            "- The Significant Events line above contains a TODAY event.",
-            "- You MUST acknowledge this event in your response.",
-            "- This is NON-NEGOTIABLE — do NOT skip, defer, or minimize it.",
-            "- If it is the user's birthday: lead with warm, genuine "
-            "acknowledgment. This takes priority over status reporting.",
-            "- If it is someone else's event: mention it naturally and "
-            "warmly within your response.",
-            "- You MAY use appropriate tone (celebration, remembrance) "
-            "based on the event type (birthday vs memorial).",
-            "- Do NOT just list it as data — treat it as personally "
-            "meaningful because it IS personally meaningful.",
-        ])
-
-    lines.append("=" * 60)
-    return "\n".join(lines)
+    next_action = facts.get('next_action') or 'Nothing pending right now.'
+    return (
+        "=" * 60 + "\n"
+        "CURRENT NEXT ACTION (SYSTEM-GENERATED — DO NOT BLEND)\n"
+        + "=" * 60 + "\n"
+        f"\n  {next_action}\n\n"
+        "RULES:\n"
+        "- This is the system-determined next action. Quote it verbatim "
+        "or paraphrase lightly.\n"
+        "- DO NOT augment with overdue lists, future items, or domain "
+        "summaries. If the user asks for status, the next action IS the "
+        "status.\n"
+        "- DO NOT invent actions from goals, habits, signals, or other "
+        "context. The system decides priority — you communicate it.\n"
+        + "=" * 60
+    )

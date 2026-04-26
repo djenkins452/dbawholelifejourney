@@ -667,7 +667,9 @@ class TestScheduleSignals(SimpleTestCase):
         result = build_schedule_signals(items, [], now)
         self.assertEqual(result['schedule_status'], 'on_track')
         self.assertGreater(result['buffer_minutes_available'], 15)
-        self.assertIn("buffer", result['guidance'].lower())
+        # Per CoS Strict Mode Isolation: no minute math in user-facing
+        # text. Guidance is now categorical only.
+        self.assertEqual(result['guidance'].lower(), 'on schedule.')
 
     def test_slightly_behind_with_recovery(self):
         """10 min behind with 15 min buffer → recoverable."""

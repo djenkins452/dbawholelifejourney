@@ -538,35 +538,26 @@ def build_schedule_signals(all_items, completed, user_now):
     drift_min = drift['drift_minutes']
     buffer_min = buffer['buffer_minutes']
 
-    # Build guidance text (deterministic, no LLM)
+    # Build guidance text (deterministic, no LLM, NO time math).
+    # Per CoS Strict Mode Isolation contract: no minute counts, no
+    # countdown phrasing. Categorical labels only.
     guidance = ''
     if status == 'on_track':
-        if buffer_min > 15:
-            guidance = f"On schedule with {buffer_min} minutes of buffer."
-        else:
-            guidance = "On schedule."
+        guidance = "On schedule."
     elif status == 'slightly_behind':
         if can_recover:
-            guidance = (
-                f"Running about {drift_min} minutes behind, "
-                f"but {buffer_min} minutes of buffer ahead — recoverable."
-            )
+            guidance = "Running behind, but recoverable."
         else:
             guidance = (
-                f"Running about {drift_min} minutes behind. "
-                f"Consider moving one item to later today."
+                "Running behind. Consider moving one item to later today."
             )
     else:  # at_risk
         if can_recover:
-            guidance = (
-                f"Behind by {drift_min} minutes. "
-                f"{buffer_min} minutes of buffer available — "
-                f"tight but possible if you start now."
-            )
+            guidance = "Behind and at risk — start now to recover."
         else:
             guidance = (
-                f"Behind by {drift_min} minutes with limited buffer. "
-                f"You may need to adjust your plan."
+                "Behind with limited buffer. You may need to adjust "
+                "your plan."
             )
 
     return {
@@ -638,48 +629,44 @@ def compute_escalation_level(schedule_signals, all_items, user_now):
     at_risk_item = next_anchor_name
 
     # --- Level determination (highest match wins) ---
+    # Reasons use categorical phrasing only (no minute counts) per
+    # CoS Strict Mode Isolation: "behind" / "at risk" / "upcoming".
     level = ESCALATION_ON_TRACK
     reason = "On schedule."
 
     # Level 1 — NUDGE: any drift detected but recoverable
     if drift_min > DRIFT_ON_TRACK_THRESHOLD and can_recover:
         level = ESCALATION_NUDGE
-        reason = (
-            f"{drift_min} min behind with {buffer_min} min buffer — "
-            f"recoverable if you tighten pace."
-        )
+        reason = "Behind, but recoverable if you tighten pace."
 
     # Level 2 — PRESSING: drift significant OR approaching anchor tight
     if drift_min >= _DRIFT_PRESSING_MINUTES:
         level = max(level, ESCALATION_PRESSING)
-        reason = f"{drift_min} min behind — drift is significant."
+        reason = "Drift is significant."
     if (minutes_to_anchor is not None
             and minutes_to_anchor <= _ANCHOR_PRESSING_MINUTES
             and drift_min > DRIFT_ON_TRACK_THRESHOLD):
         level = max(level, ESCALATION_PRESSING)
         reason = (
-            f"{at_risk_item or 'Next anchor'} is in {minutes_to_anchor} min "
-            f"and you're {drift_min} min behind."
+            f"{at_risk_item or 'Next anchor'} is upcoming and "
+            f"you're behind."
         )
 
     # Level 2 also if not recoverable but drift is moderate
     if not can_recover and drift_min > DRIFT_ON_TRACK_THRESHOLD:
         level = max(level, ESCALATION_PRESSING)
-        reason = (
-            f"{drift_min} min behind with only {buffer_min} min buffer — "
-            f"recovery is tight."
-        )
+        reason = "Behind with limited buffer — recovery is tight."
 
     # Level 3 — CRITICAL: anchor imminent with drift, or massive drift
     if drift_min >= _DRIFT_CRITICAL_MINUTES:
         level = max(level, ESCALATION_CRITICAL)
-        reason = f"{drift_min} min behind — plan is at serious risk."
+        reason = "Plan is at serious risk."
     if (minutes_to_anchor is not None
             and minutes_to_anchor <= _ANCHOR_CRITICAL_MINUTES
             and drift_min > DRIFT_ON_TRACK_THRESHOLD):
         level = max(level, ESCALATION_CRITICAL)
         reason = (
-            f"{at_risk_item or 'Next anchor'} is in {minutes_to_anchor} min — "
+            f"{at_risk_item or 'Next anchor'} is imminent — "
             f"start now or you'll miss it."
         )
 
@@ -736,29 +723,29 @@ def _find_minutes_to_anchor(all_items, user_now):
 
 def _build_escalation_directive(level, drift_min, buffer_min, can_recover,
                                 at_risk_item, minutes_to_anchor):
-    """Build assertive coaching directive for escalation level."""
+    """Build assertive coaching directive for escalation level.
+
+    Categorical phrasing only — no minute counts, no countdown
+    language (per CoS Strict Mode Isolation contract). The drift_min,
+    buffer_min, and minutes_to_anchor parameters are kept in the
+    signature for the caller's threshold logic but no longer surface
+    in the user-visible string.
+    """
     if level == ESCALATION_ON_TRACK:
         return ""
 
     if level == ESCALATION_NUDGE:
         if can_recover and buffer_min > drift_min:
-            return (
-                f"Running {drift_min} min behind, but still recoverable. "
-                f"Tighten pace."
-            )
-        return f"Running {drift_min} min behind — pick up the pace."
+            return "Running behind, but still recoverable. Tighten pace."
+        return "Running behind — pick up the pace."
 
     if level == ESCALATION_PRESSING:
-        if at_risk_item and minutes_to_anchor is not None:
+        if at_risk_item:
             return (
                 f"You're slipping further behind. "
-                f"{at_risk_item} is at risk if you don't start within "
-                f"{minutes_to_anchor} min."
+                f"{at_risk_item} is at risk if you don't start soon."
             )
-        return (
-            f"Drift is growing — {drift_min} min behind now. "
-            f"Focus on what's next."
-        )
+        return "You're behind — focus on what's next."
 
     # CRITICAL
     if at_risk_item:

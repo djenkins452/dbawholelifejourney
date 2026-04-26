@@ -1,10 +1,4 @@
-{# Action Group — Action Center Option C: time block is the primary
-   execution unit. Every time-bound block renders ONE consistent parent
-   control that completes (or undoes) all items in the block via the
-   block_complete_toggle endpoint. The endpoint preserves the canonical
-   intake_group_log rollup when a block is purely intake. The
-   `flexible` (unscheduled) bucket has no parent control — it is a
-   header-only catch-all. #}
+{# Action Group — every time block renders one parent control posting to dashboard_v2:block_complete_toggle. The flexible bucket is a header-only catch-all. #}
 <div class="v2-ac-group{% if group.all_complete %} v2-ac-group-complete{% endif %}">
     <div class="v2-ac-group-header" data-action="toggle-group">
         {% if group.is_time_block %}

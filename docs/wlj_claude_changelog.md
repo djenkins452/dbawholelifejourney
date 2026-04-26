@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-04-26 — Hotfix: Action Center comment leaking into rendered HTML
+
+The Option C template change introduced a multi-line `{# ... #}` comment
+at the top of `_action_group.html`. Django's `{# #}` is single-line
+only — the trailing lines after the first newline rendered as visible
+text above every Action Group on the dashboard. Collapsed the comment
+to one line so it parses correctly. No behavior change.
+
+Files: `templates/dashboard_v2/partials/_action_group.html`.
+
+
 ## 2026-04-26 — Feature: Action Center — Time Block as Primary Execution Unit (Option C)
 
 **Goal.** Make the Action Center consistent with WLJ's execution model:

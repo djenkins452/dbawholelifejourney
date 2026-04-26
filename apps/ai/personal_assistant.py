@@ -644,6 +644,86 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
         """Get or create today's conversation."""
         return AssistantConversation.get_or_create_active(self.user)
 
+    def _cos_mode_shortcut(self, message, conversation):
+        """
+        Deterministic CoS decision-mode shortcut.
+
+        If the user message matches a CoS decision-mode keyword
+        (execution / risk / fix), build the deterministic answer from
+        the shared execution_state and selectors, log both the user
+        message and the deterministic assistant message to the
+        conversation, and return the chat payload.
+
+        Returns:
+            dict — chat response payload — when a mode matched.
+            None — when the message did not match; caller falls through
+                   to the normal LLM pipeline.
+
+        The LLM is NEVER called in this path.
+        """
+        try:
+            from apps.ai.cos_mode_router import resolve_cos_mode
+            from apps.core.execution.execution_state import (
+                build_execution_state,
+            )
+            from apps.core.execution.selectors import select as run_selector
+
+            mode = resolve_cos_mode(message)
+            if mode is None:
+                return None
+
+            state = build_execution_state(self.user)
+            decision = run_selector(mode, state)
+
+            response_text = decision.get('message') or (
+                "Unable to determine a deterministic answer right now."
+            )
+
+            # Log both messages to conversation history so the chat UI
+            # shows the exchange like any other.
+            try:
+                AssistantMessage.objects.create(
+                    conversation=conversation,
+                    role='user',
+                    content=message,
+                    message_type='text',
+                )
+                AssistantMessage.objects.create(
+                    conversation=conversation,
+                    role='assistant',
+                    content=response_text,
+                    message_type='text',
+                )
+            except Exception:
+                logger.warning(
+                    "[COS MODE SHORTCUT] history log failed user=%s mode=%s",
+                    self.user.id, mode, exc_info=True,
+                )
+
+            primary = decision.get('primary_action') or {}
+            logger.info(
+                "[COS MODE SHORTCUT] user=%s mode=%s primary=%s",
+                self.user.id, mode,
+                primary.get('title') or '<none>',
+            )
+
+            return {
+                'response': response_text,
+                'cos_decision': {
+                    'mode': decision.get('mode'),
+                    'primary_action': decision.get('primary_action'),
+                    'reason': decision.get('reason'),
+                    'follow_on': decision.get('follow_on'),
+                },
+                'deterministic': True,
+            }
+        except Exception:
+            logger.warning(
+                "[COS MODE SHORTCUT] failed user=%s — falling through to LLM",
+                self.user.id, exc_info=True,
+            )
+            return None
+
     def generate_proactive_briefing(self) -> Optional[dict]:
         """
         Generate a proactive daily executive briefing (v7).
@@ -909,6 +989,17 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
 
         if not conversation:
             conversation = self.get_or_create_conversation()
+
+        # ── Deterministic CoS decision-mode shortcut ──
+        # Three keyword-routed queries ("what should I do" / "biggest risk"
+        # / "what should I fix") bypass the LLM and intent pipeline entirely.
+        # The state, selectors, and message text are 100% deterministic and
+        # share the same execution_state contract used by Action Center.
+        # See apps/ai/cos_mode_router.py + apps/core/execution/selectors.py.
+        if not (image_data or images_list):
+            shortcut = self._cos_mode_shortcut(message, conversation)
+            if shortcut is not None:
+                return shortcut
 
         # Calculate image expiration (72 hours from now)
         image_expires_at = None

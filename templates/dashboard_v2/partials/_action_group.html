@@ -1,49 +1,36 @@
-{# Action Group — renders a time block, type group, or standalone item #}
-{% if group.group_type == "standalone" %}
-    {# Standalone item — render directly without group header #}
-    {% with item=group.items.0 %}
-    {% include "dashboard_v2/partials/_action_item_v2.html" %}
-    {% endwith %}
-{% else %}
-    {# Multi-item group (time block, routine, medication window, or flexible) #}
-    <div class="v2-ac-group{% if group.all_complete %} v2-ac-group-complete{% endif %}">
-        <div class="v2-ac-group-header" data-action="toggle-group">
-            {% if group.group_type == "routine" %}
-            <button class="v2-ac-group-toggle{% if group.all_complete %} v2-completed{% endif %}"
-                    hx-post="{% url 'dashboard_v2:routine_complete_toggle' routine_id=group.group_id %}"
-                    hx-target="#action-center-panel"
-                    hx-swap="outerHTML">
-                {% if group.all_complete %}
-                <span class="v2-check">&#10003;</span>
-                {% else %}
-                <span class="v2-check-empty">&#9675;</span>
-                {% endif %}
-            </button>
-            {% elif group.group_type == "medication_window" or group.group_type == "supplement_window" %}
-            <button class="v2-ac-group-toggle{% if group.all_complete %} v2-completed{% endif %}"
-                    hx-post="{% url 'dashboard_v2:intake_group_log' time_of_day=group.group_id %}"
-                    hx-target="#action-center-panel"
-                    hx-swap="outerHTML">
-                {% if group.all_complete %}
-                <span class="v2-check">&#10003;</span>
-                {% else %}
-                <span class="v2-check-empty">&#9675;</span>
-                {% endif %}
-            </button>
+{# Action Group — Action Center Option C: time block is the primary
+   execution unit. Every time-bound block renders ONE consistent parent
+   control that completes (or undoes) all items in the block via the
+   block_complete_toggle endpoint. The endpoint preserves the canonical
+   intake_group_log rollup when a block is purely intake. The
+   `flexible` (unscheduled) bucket has no parent control — it is a
+   header-only catch-all. #}
+<div class="v2-ac-group{% if group.all_complete %} v2-ac-group-complete{% endif %}">
+    <div class="v2-ac-group-header" data-action="toggle-group">
+        {% if group.is_time_block %}
+        <button class="v2-ac-group-toggle{% if group.all_complete %} v2-completed{% endif %}"
+                hx-post="{% url 'dashboard_v2:block_complete_toggle' block_key=group.time_block_key %}"
+                hx-target="#action-center-panel"
+                hx-swap="outerHTML">
+            {% if group.all_complete %}
+            <span class="v2-check">&#10003;</span>
             {% else %}
-            {# Time block or flexible — no group-level toggle, just visual header #}
-            <span class="v2-ac-group-time-icon">&#128337;</span>
+            <span class="v2-check-empty">&#9675;</span>
             {% endif %}
-            <span class="v2-ac-group-title{% if group.all_complete %} v2-strikethrough{% endif %}">{{ group.title }}</span>
-            <span class="v2-ac-group-badge{% if group.all_complete %} v2-badge-complete{% endif %}">
-                {{ group.completed_count }} / {{ group.total }}
-            </span>
-            <span class="v2-ac-group-chevron">&#9660;</span>
-        </div>
-        <div class="v2-ac-group-items{% if group.all_complete %} v2-ac-group-collapsed{% endif %}">
-            {% for item in group.items %}
-            {% include "dashboard_v2/partials/_action_item_v2.html" %}
-            {% endfor %}
-        </div>
+        </button>
+        {% else %}
+        {# Flexible / unscheduled bucket — no time, no parent toggle #}
+        <span class="v2-ac-group-time-icon">&#128337;</span>
+        {% endif %}
+        <span class="v2-ac-group-title{% if group.all_complete %} v2-strikethrough{% endif %}">{{ group.title }}</span>
+        <span class="v2-ac-group-badge{% if group.all_complete %} v2-badge-complete{% endif %}">
+            {{ group.completed_count }} / {{ group.total }}
+        </span>
+        <span class="v2-ac-group-chevron">&#9660;</span>
     </div>
-{% endif %}
+    <div class="v2-ac-group-items{% if group.all_complete %} v2-ac-group-collapsed{% endif %}">
+        {% for item in group.items %}
+        {% include "dashboard_v2/partials/_action_item_v2.html" %}
+        {% endfor %}
+    </div>
+</div>

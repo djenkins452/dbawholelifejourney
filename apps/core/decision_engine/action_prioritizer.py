@@ -26,6 +26,20 @@ import datetime
 URGENCY_ORDER = {"overdue": 0, "now": 1, "next": 2, "upcoming": 3, "done": 4}
 
 
+def time_block_key_for(scheduled_time):
+    """Round a time to the nearest 15-min block. Returns 'HH:MM' string or None.
+
+    Public — exported so block-level completion endpoints can match
+    Action Center grouping without re-implementing the rounding rule.
+    """
+    if scheduled_time is None:
+        return None
+    total_minutes = scheduled_time.hour * 60 + scheduled_time.minute
+    rounded = (total_minutes // 15) * 15
+    h, m = divmod(rounded, 60)
+    return f"{h:02d}:{m:02d}"
+
+
 def time_diff_minutes(now_time, target_time):
     """
     Calculate minutes from now_time to target_time (positive = future).
@@ -584,13 +598,7 @@ def build_grouped_action_center(execution_items, current_time, summaries=None):
 
     def _time_block_key(scheduled_time):
         """Round to nearest 15-min block for grouping. Returns HH:MM string or None."""
-        if scheduled_time is None:
-            return None
-        # Round to nearest 15 minutes
-        total_minutes = scheduled_time.hour * 60 + scheduled_time.minute
-        rounded = (total_minutes // 15) * 15
-        h, m = divmod(rounded, 60)
-        return f"{h:02d}:{m:02d}"
+        return time_block_key_for(scheduled_time)
 
     def _time_block_display(block_key):
         """Convert HH:MM block key to display format (e.g., '6:00 PM')."""
@@ -633,21 +641,30 @@ def build_grouped_action_center(execution_items, current_time, summaries=None):
         urg_map = {v: k for k, v in URGENCY_ORDER.items()}
         block_urgency = urg_map.get(min_urg_val, 'upcoming')
 
-        # Check if this block is homogeneous (single original group)
-        # If so, preserve group-level toggle functionality
-        orig_groups = set()
+        # Time block as primary execution unit (Option C):
+        # Every time block renders one parent control. Original group
+        # type is no longer surfaced as the rendering branch — instead
+        # we expose `intake_window` (when the block is purely intake
+        # from one window) so the block-level completion endpoint can
+        # preserve the canonical intake_group_log optimization without
+        # the template needing branch logic.
+        intake_windows = set()
+        intake_only = bool(block_items)
         for item in block_items:
             gt = item.get('group_type', 'standalone')
-            gid = item.get('group_id')
-            if gt != 'standalone' and gid is not None:
-                orig_groups.add((gt, gid))
-
-        is_homogeneous = len(orig_groups) == 1
-        homo_gt, homo_gid = orig_groups.pop() if is_homogeneous else (None, None)
+            if gt in ('medication_window', 'supplement_window'):
+                intake_windows.add((gt, item.get('group_id')))
+            else:
+                intake_only = False
+        intake_window_key = (
+            list(intake_windows)[0][1]
+            if intake_only and len(intake_windows) == 1
+            else None
+        )
 
         result_groups.append({
-            'group_type': homo_gt if is_homogeneous else 'time_block',
-            'group_id': homo_gid if is_homogeneous else block_key,
+            'group_type': 'time_block',
+            'group_id': block_key,
             'title': _time_block_display(block_key),
             'time_block_key': block_key,
             'items': block_items,
@@ -657,6 +674,11 @@ def build_grouped_action_center(execution_items, current_time, summaries=None):
             'is_foundational': any(i['is_foundational'] for i in block_items),
             'urgency': block_urgency,
             'is_time_block': True,
+            # Optimization hint for the block-level completion endpoint:
+            # when set, this block is purely one intake window and may
+            # be completed via the canonical intake_group_log pathway
+            # (single window-level rollup) instead of per-dose dispatch.
+            'intake_window_key': intake_window_key,
         })
 
     # ── HARD GUARD: no scheduled item may appear in flexible ──

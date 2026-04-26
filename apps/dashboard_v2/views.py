@@ -904,6 +904,217 @@ class IntakeGroupLogAction(LoginRequiredMixin, View):
         return _render_action_center(request)
 
 
+class BlockCompleteToggleAction(LoginRequiredMixin, View):
+    """HTMX POST endpoint to complete (or undo) every item in a time block.
+
+    Time block = the canonical 15-min-rounded slot from
+    `apps.core.decision_engine.action_prioritizer.time_block_key_for`.
+    Block IS the unit of execution (Action Center Option C).
+
+    Behavior:
+      - Resolves the block's items from `build_today_execution(user)`
+        (single source of truth — same data the Action Center renders).
+      - If `all_complete` is True for the block, the click UNDOES every
+        item in that block (mirrors existing per-domain toggle UX).
+      - Otherwise, every NOT-yet-complete item is completed; already-
+        complete items are left alone.
+      - **Intake optimization preserved.** When the block is purely
+        intake from a single window (no tasks, no routine items, no
+        binary actions), the canonical `IntakeGroupLogAction` pathway
+        is invoked so the analytics rollup is a single window-level
+        bulk action — identical to clicking "Take morning meds" today.
+      - Otherwise per-item dispatch:
+          * routine_item   → toggle_routine_completion(schedule)
+          * task           → Task.mark_complete / mark_incomplete
+          * dose           → IntakeLog create/delete (mirrors per-dose
+                              IntakeLogAction semantics: supply
+                              decrement + medication_taken event)
+
+    Idempotent: items already in the target state are skipped (no
+    duplicate logs, no double events, no supply double-decrement).
+
+    Returns the unified Action Center fragment for HTMX swap.
+    """
+
+    def post(self, request, block_key):
+        from apps.core.decision_engine.action_prioritizer import (
+            time_block_key_for,
+        )
+        from apps.core.events.domain_events import (
+            EventTypes, safe_emit_event,
+        )
+        from apps.core.execution.today_execution import build_today_execution
+        from apps.health.models import IntakeLog, IntakeSchedule
+        from apps.life.models import RoutineSchedule, Task
+        from apps.life.services.routine_helpers import (
+            toggle_routine_completion,
+        )
+
+        # Normalize block_key — accept "HH:MM" (preferred) or "HHMM"
+        # (callers using path safety) defensively.
+        bk = (block_key or '').strip()
+        if len(bk) == 4 and bk.isdigit():
+            bk = f"{bk[:2]}:{bk[2:]}"
+        if len(bk) != 5 or bk[2] != ':':
+            return HttpResponse(status=400)
+
+        today = get_user_today(request.user)
+
+        contract = build_today_execution(request.user)
+        items = contract.get('items') or []
+
+        # Filter to items in this block, using the canonical rounding
+        # rule — never re-implement here.
+        def _item_block(item):
+            sched_str = item.get('scheduled_time')
+            if not sched_str:
+                return None
+            from datetime import datetime as _dt
+            for fmt in ('%H:%M', '%I:%M %p'):
+                try:
+                    t = _dt.strptime(sched_str.strip(), fmt).time()
+                    return time_block_key_for(t)
+                except (ValueError, TypeError):
+                    continue
+            return None
+
+        block_items = [i for i in items if _item_block(i) == bk]
+        if not block_items:
+            return _render_action_center(request)
+
+        # Are all items in the block already complete? Determines toggle
+        # direction.
+        all_complete = all(i.get('completed_today') for i in block_items)
+        target_complete = not all_complete  # toggle: complete-all / undo-all
+
+        # ── Pure-intake optimization ──
+        # If every item in this block is a medication or supplement dose
+        # AND they share a single execution_group_id (window key), defer
+        # to the canonical IntakeGroupLogAction so the analytics rollup
+        # is preserved as a single window-level event.
+        windows = set()
+        intake_only = bool(block_items)
+        for item in block_items:
+            gt = item.get('execution_group_type')
+            if gt in ('medication_window', 'supplement_window'):
+                windows.add(item.get('execution_group_id'))
+            else:
+                intake_only = False
+                break
+        if intake_only and len(windows) == 1:
+            time_of_day = next(iter(windows))
+            # Reuse the canonical bulk endpoint logic so behavior, event
+            # emission, and supply tracking stay in one place.
+            return IntakeGroupLogAction.as_view()(
+                request, time_of_day=time_of_day,
+            )
+
+        # ── Mixed-domain or non-intake block: per-item dispatch ──
+        for item in block_items:
+            is_done = bool(item.get('completed_today'))
+            if is_done == target_complete:
+                continue  # Already in the target state — skip silently
+
+            stype = item.get('source_type')
+            sid = item.get('source_id')
+
+            if stype == 'task':
+                try:
+                    task = Task.objects.get(pk=sid, user=request.user)
+                except Task.DoesNotExist:
+                    logger.warning(
+                        "BLOCK_TOGGLE: missing task pk=%s user=%s",
+                        sid, request.user.id,
+                    )
+                    continue
+                if target_complete:
+                    task.mark_complete()
+                else:
+                    task.mark_incomplete()
+
+            elif stype == 'routine_item':
+                schedule = (
+                    RoutineSchedule.objects
+                    .select_related('routine')
+                    .filter(pk=sid, routine__user=request.user)
+                    .first()
+                )
+                if not schedule:
+                    logger.warning(
+                        "BLOCK_TOGGLE: missing routine schedule_id=%s "
+                        "user=%s", sid, request.user.id,
+                    )
+                    continue
+                # toggle_routine_completion flips state — only call when
+                # the item's actual state differs from target. We've
+                # already gated by `is_done == target_complete` above.
+                toggle_routine_completion(request.user, schedule, today)
+
+            elif stype in ('medication_dose', 'supplement_dose'):
+                # Per-dose dispatch (mirrors IntakeLogAction body).
+                schedule = (
+                    IntakeSchedule.objects
+                    .select_related('intake')
+                    .filter(pk=sid, intake__user=request.user)
+                    .first()
+                )
+                if not schedule or not schedule.applies_to_day(
+                    today.weekday()
+                ):
+                    continue
+                medicine = schedule.intake
+                existing = IntakeLog.objects.filter(
+                    user=request.user,
+                    intake=medicine,
+                    schedule=schedule,
+                    scheduled_date=today,
+                    log_status__in=['taken', 'late'],
+                ).first()
+
+                if target_complete and not existing:
+                    log, _created = IntakeLog.objects.get_or_create(
+                        user=request.user,
+                        intake=medicine,
+                        schedule=schedule,
+                        scheduled_date=today,
+                        defaults={
+                            'scheduled_time': schedule.scheduled_time,
+                            'is_prn_dose': False,
+                        },
+                    )
+                    log.mark_taken()
+                    if (
+                        medicine.current_supply is not None
+                        and medicine.current_supply > 0
+                    ):
+                        medicine.current_supply -= 1
+                        medicine.save(update_fields=[
+                            'current_supply', 'updated_at',
+                        ])
+                    safe_emit_event(
+                        EventTypes.HEALTH_MEDICATION_TAKEN,
+                        request.user,
+                        {
+                            'log_id': log.id,
+                            'medicine_name': medicine.name,
+                            'source': 'dashboard_block_toggle',
+                        },
+                    )
+                elif not target_complete and existing:
+                    existing.delete()
+                    if medicine.current_supply is not None:
+                        medicine.current_supply += 1
+                        medicine.save(update_fields=[
+                            'current_supply', 'updated_at',
+                        ])
+
+            # Binary domain items (journal/workout/faith) are not
+            # toggled from the Action Center — they navigate to their
+            # domain page. Block-level click ignores them, by design.
+
+        return _render_action_center(request)
+
+
 # ── Celebration Endpoints ────────────────────────────────────────────
 
 

@@ -3,8 +3,102 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-04-26 (CoS Decision Modes: Execution / Risk / Fix)
+# Last Updated: 2026-04-26 (Action Center: Time Block as Primary Execution Unit)
 # ================================================================# WLJ Change History
+
+
+## 2026-04-26 — Feature: Action Center — Time Block as Primary Execution Unit (Option C)
+
+**Goal.** Make the Action Center consistent with WLJ's execution model:
+*time block* is the unit of execution. One parent control per block.
+One click = complete (or undo) every item in the block.
+
+**Bug fixed.** The previous renderer used a homogeneity check
+([action_prioritizer.py:636-650](apps/core/decision_engine/action_prioritizer.py:636))
+to decide whether a section got a parent control. Result: two visually
+identical 8:00 AM sections could behave differently — one had a
+"complete all" circle, one had a header-only clock — depending on
+whether the items happened to share a single original execution group.
+Worse: a block with one routine item + one standalone task got a
+*routine* checkbox that **silently completed only the routine items**
+and skipped the standalone task. Inconsistent and incorrect.
+
+**Architecture (no new engine).**
+
+1. **Renderer simplified** —
+   [action_prioritizer.py:636-680](apps/core/decision_engine/action_prioritizer.py:636)
+   the homogeneity branch is gone. Every time block now sets
+   `group_type='time_block'` and exposes a new `intake_window_key`
+   field (set ONLY when the block is purely intake from a single
+   window) as an optimization hint.
+
+2. **Single parent control** —
+   [_action_group.html](templates/dashboard_v2/partials/_action_group.html)
+   collapsed three branches (`routine` / `medication_window` /
+   `time_block`) into one. Every time block now renders the same
+   parent button posting to `dashboard_v2:block_complete_toggle`. The
+   dead `standalone` branch is removed.
+
+3. **New endpoint** — `BlockCompleteToggleAction` at
+   [dashboard_v2/views.py](apps/dashboard_v2/views.py) +
+   `actions/block/<str:block_key>/toggle/` URL. Behavior:
+   - Pulls items via `build_today_execution(user)` — single source of
+     truth, same data the Action Center renders.
+   - If `all_complete`, undoes every item in the block. Otherwise
+     completes all incomplete items. Items already in the target
+     state are skipped (idempotent, no duplicate logs / events).
+   - **Intake optimization preserved.** When the block is purely
+     intake from one window, dispatches to the canonical
+     `IntakeGroupLogAction.as_view()(time_of_day=...)` so the
+     analytics rollup remains a single window-level event.
+   - Otherwise per-item dispatch:
+       routine_item → `toggle_routine_completion(schedule)`
+       task        → `Task.mark_complete()` / `mark_incomplete()`
+       dose        → `IntakeLog` create/delete (mirrors per-dose
+                      `IntakeLogAction`: supply decrement +
+                      medication_taken event).
+   - Binary domain items (journal/workout/faith) navigate to their
+     domain pages; block-level click ignores them by design.
+
+4. **Helper exported** —
+   [action_prioritizer.py :: time_block_key_for(time)](apps/core/decision_engine/action_prioritizer.py)
+   is now a public function so the new endpoint matches the Action
+   Center's 15-minute rounding rule without re-implementing it.
+
+5. **CoS / Action Center alignment.** Both surfaces continue to share
+   `prioritize_execution_items()` and `build_today_execution()`. The
+   alignment test (`CosActionCenterAlignmentTests`) verifies that the
+   first item in the Action Center's first 'now'-tier block is the
+   same item the deterministic Execution-mode selector picks as
+   primary. Same state, same answer.
+
+**Existing endpoints preserved.** `routine_complete_toggle`,
+`routine_schedule_toggle`, `intake_group_log`, `intake_log`,
+`task_toggle` are all untouched and remain reachable for direct
+callers (legacy templates, iOS app, etc.). Only the Action Center
+parent-control HTMX target moved to the new endpoint.
+
+**Tests (14 new, all passing).**
+- `apps/dashboard_v2/tests/test_block_complete_toggle.py`:
+  - 5 tests on grouped output (single-item, homogeneous, pure-intake,
+    mixed-domain, two-routines-at-same-time — all become `time_block`).
+  - 2 tests on `time_block_key_for` rounding helper.
+  - 2 tests on single-item block toggling (complete + idempotent undo).
+  - 1 test on mixed-domain regression: routine+task at 08:00 → both
+    completed in one click (the silent-skip bug is gone).
+  - 2 tests on pure-intake delegation to `IntakeGroupLogAction` (with
+    correct `time_of_day` kwarg).
+  - 1 test on empty block (200, not 404).
+  - 1 test on malformed block_key (400).
+  - 1 test on Action Center / CoS alignment (same primary action).
+
+**Files changed.**
+- `apps/core/decision_engine/action_prioritizer.py` (homogeneity branch removed; `time_block_key_for` exported)
+- `apps/dashboard_v2/views.py` (`BlockCompleteToggleAction`)
+- `apps/dashboard_v2/urls.py` (`block_complete_toggle`)
+- `templates/dashboard_v2/partials/_action_group.html` (single parent control)
+- `apps/dashboard_v2/tests/test_block_complete_toggle.py` (new)
+- `docs/ENGINE_COS_REFERENCE.md`
 
 
 ## 2026-04-26 — Feature: CoS Decision Modes (Execution / Risk / Fix)

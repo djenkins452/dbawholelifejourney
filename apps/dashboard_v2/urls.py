@@ -105,6 +105,14 @@ urlpatterns = [
         views.RoutineCompleteToggleAction.as_view(),
         name="routine_complete_toggle",
     ),
+    # Block-level completion (Action Center Option C — time block as
+    # primary execution unit). One parent control per time block;
+    # dispatches to per-item handlers, with intake-window optimization.
+    path(
+        "actions/block/<str:block_key>/toggle/",
+        views.BlockCompleteToggleAction.as_view(),
+        name="block_complete_toggle",
+    ),
     # Celebration endpoints
     path(
         "celebration/<int:pk>/reveal/",

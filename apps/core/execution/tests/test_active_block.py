@@ -134,17 +134,56 @@ class IsItemInActiveBlockTests(SimpleTestCase):
         )
         self.assertTrue(eligible)
 
-    def test_overdue_always_eligible(self):
-        """Overdue items pass the gate even from a past block."""
+    def test_overdue_in_immediately_preceding_block_eligible(self):
+        """Overdue items in the immediately preceding canonical block
+        ARE Execution-eligible. At 14:00 (afternoon), an overdue
+        13:00 item is in 'lunch' (the preceding block) → eligible."""
         ab = get_active_block(self.user, now=datetime.time(14, 0),
                               execution_items=[])
-        # 'afternoon' block. A 06:00 morning item is in a past block.
+        eligible = is_item_in_active_block(
+            {"scheduled_time": "13:00", "time_status": "overdue"},
+            ab,
+            datetime.time(14, 0),
+        )
+        self.assertTrue(eligible)
+
+    def test_overdue_in_long_past_block_not_eligible(self):
+        """Strict Mode Isolation contract: overdue items in long-past
+        blocks (more than one block back) are NOT Execution-eligible.
+        At 14:00 (afternoon), a 06:00 morning item is two blocks
+        back — must surface in Risk/Fix only, NOT in Execution."""
+        ab = get_active_block(self.user, now=datetime.time(14, 0),
+                              execution_items=[])
         eligible = is_item_in_active_block(
             {"scheduled_time": "06:00", "time_status": "overdue"},
             ab,
             datetime.time(14, 0),
         )
-        self.assertTrue(eligible)
+        self.assertFalse(
+            eligible,
+            "06:00 morning item must NOT be Execution-eligible at "
+            "14:00 — it's two blocks back. Spec: stale items belong "
+            "in Risk/Fix only.",
+        )
+
+    def test_overdue_5_30_at_noon_not_eligible(self):
+        """The headline regression from the user spec: at noon (lunch
+        block), a 5:30 AM prayer item is in 'morning' (5-10), two
+        blocks back from lunch (12-14). Execution mode must NOT
+        recommend this."""
+        ab = get_active_block(self.user, now=datetime.time(12, 0),
+                              execution_items=[])
+        self.assertEqual(ab["name"], "lunch")
+        eligible = is_item_in_active_block(
+            {"scheduled_time": "05:30", "time_status": "overdue"},
+            ab,
+            datetime.time(12, 0),
+        )
+        self.assertFalse(
+            eligible,
+            "5:30 AM at noon is two blocks back — must NOT be "
+            "Execution-eligible per Strict Mode Isolation contract.",
+        )
 
     def test_past_block_non_overdue_not_eligible(self):
         """A past-block item that isn't overdue is not eligible

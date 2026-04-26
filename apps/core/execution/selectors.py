@@ -93,23 +93,31 @@ def _empty_payload(mode: str, message: str) -> dict:
 
 def get_next_action(state: dict) -> dict:
     """
-    EXECUTION MODE selector.
+    EXECUTION MODE selector — STRICT MODE ISOLATION contract.
 
-    Rules (locked by CoS Time/Sequence Integrity contract):
-      - Eligibility = {overdue, now} only. 'next' is follow-on context,
-        never primary.
-      - Active-block gate: items outside the active block (with 15-min
-        lead-in for the front of the next block) are not primary.
-        Overdue items always pass the gate.
-      - Within the eligible set, the prioritizer's order (urgency tier
-        → scheduled_time → foundational → title) is honored verbatim.
+    Output is EXACTLY one line, no commentary, no follow-on:
+        "Next: [Action]. Do this now."
+    or, when no current valid action exists:
+        "Next: [Action]." (forward-only — no "Do this now")
+    or, when nothing is pending at all:
+        "Nothing pending right now."
+
+    Rules:
+      - Eligibility = {overdue, now} only. 'next' (~2h away) is NOT
+        primary — it is forward context only.
+      - Active-block gate: items in the active block, or the next
+        block during lead-in, or overdue items in the *immediately
+        preceding* canonical block. Overdue items in long-past blocks
+        (e.g. a 5:30 AM prayer at noon) are NEVER primary — they
+        surface in Risk / Fix instead.
+      - Selector returns a SINGLE deterministic line. The chat shortcut
+        and JSON API both render this as `message`. No blending.
     """
     from apps.core.execution.active_block import is_item_in_active_block
 
     actions = state.get("actions") or []
     if not actions:
-        return _empty_payload("execution",
-                              "All items are complete — nothing pending.")
+        return _empty_payload("execution", "Nothing pending right now.")
 
     active_block = state.get("active_block") or {}
     now_time = state.get("now") or _time(12, 0)
@@ -132,60 +140,41 @@ def get_next_action(state: dict) -> dict:
     ]
     actionable = [a for a in primary_pool if _block_eligible(a)]
 
-    if not actionable:
+    if actionable:
+        top = actionable[0]
+        title = top.get('title', '')
+        return {
+            "mode": "execution",
+            "primary_action": top,
+            "reason": "current",
+            "follow_on": None,
+            "message": f"Next: {title}. Do this now.",
+        }
+
+    # Nothing currently actionable — surface the next eligible item as
+    # forward context, but DO NOT instruct "Do this now".
+    forward_pool = [
+        a for a in actions
+        if a.get('urgency') in ('next', 'upcoming')
+        and _block_eligible(a)
+    ]
+    if not forward_pool:
         forward_pool = [
             a for a in actions
             if a.get('urgency') in ('next', 'upcoming')
         ]
-        forward_in_block = [a for a in forward_pool if _block_eligible(a)]
-        forward = forward_in_block or forward_pool
-        if forward:
-            f = forward[0]
-            f_title = f.get('title', '')
-            f_time = f.get('time_display', '')
-            time_note = f" at {f_time}" if f_time else ""
-            msg = f"You're clear right now. Next up is {f_title}{time_note}."
-            return {
-                "mode": "execution",
-                "primary_action": None,
-                "reason": msg,
-                "follow_on": f,
-                "message": msg,
-            }
-        msg = "You're clear right now — nothing pending in the near term."
-        return _empty_payload("execution", msg)
+    if forward_pool:
+        f = forward_pool[0]
+        title = f.get('title', '')
+        return {
+            "mode": "execution",
+            "primary_action": None,
+            "reason": "upcoming",
+            "follow_on": f,
+            "message": f"Next: {title}.",
+        }
 
-    top = actionable[0]
-    top_title = top.get('title', '')
-    suffix = _format_time_suffix(top)
-    primary_msg = f"Start with {top_title}{suffix}."
-
-    follow = next(
-        (
-            a for a in actions
-            if a is not top
-            and a.get('urgency') in ('overdue', 'now', 'next')
-            and _block_eligible(a)
-        ),
-        None,
-    )
-    if follow:
-        f_title = follow.get('title', '')
-        f_suffix = _format_time_suffix(follow)
-        message = f"{primary_msg} After that: {f_title}{f_suffix}."
-    else:
-        message = primary_msg
-
-    return {
-        "mode": "execution",
-        "primary_action": top,
-        "reason": (
-            f"{top_title} is the next eligible action in your "
-            f"{active_block.get('name') or 'current'} block."
-        ),
-        "follow_on": follow,
-        "message": message,
-    }
+    return _empty_payload("execution", "Nothing pending right now.")
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -194,7 +183,14 @@ def get_next_action(state: dict) -> dict:
 
 def get_biggest_risk(state: dict) -> dict:
     """
-    RISK MODE selector.
+    RISK MODE selector — STRICT MODE ISOLATION contract.
+
+    Output is EXACTLY one line:
+        "Biggest risk: [Issue]. Fix this next."
+    or, when nothing is at risk:
+        "No risks right now."
+
+    No time math. No reason text. No multiple suggestions.
 
     Selection priority (strict, deterministic):
       1. Foundational + overdue (longest overdue first).
@@ -202,17 +198,13 @@ def get_biggest_risk(state: dict) -> dict:
       3. Foundational + now-tier missed items (currently in the now
          window but not done — about to slip).
 
-    Within each tier, we further break ties by:
-        - earlier scheduled_time (longer lateness)
-        - higher domain weight (health/medication > routines > tasks)
-        - title (deterministic stable tiebreak)
-
-    No raw-data reasoning. No LLM. No "If ignored:" consequence text in v1.
+    Within each tier, ties broken by: earlier scheduled_time
+    (longer lateness) → higher domain weight (health/medication >
+    routines > tasks) → title.
     """
     actions = state.get("actions") or []
     if not actions:
-        return _empty_payload("risk",
-                              "No pending items — no risk detected.")
+        return _empty_payload("risk", "No risks right now.")
 
     overdue = state.get("overdue_actions") or []
     now_actions = state.get("now_actions") or []
@@ -222,56 +214,25 @@ def get_biggest_risk(state: dict) -> dict:
         return _DOMAIN_RISK_WEIGHT.get(src, 0)
 
     def _risk_key(a):
-        # Lower is higher risk (so we sort ascending and take the first).
-        # foundational_rank: 0 if foundational, 1 otherwise.
         foundational_rank = 0 if a.get('is_foundational') else 1
-        # earlier time = larger lateness ⇒ smaller minutes.
         time_min = _action_time_to_minutes(a)
-        # higher weight ⇒ smaller key, so negate.
         weight = -_domain_weight(a)
         return (foundational_rank, time_min, weight, a.get('title', ''))
 
-    pool = []
-    if overdue:
-        pool = overdue[:]
-    elif now_actions:
-        pool = now_actions[:]
-    else:
-        return _empty_payload(
-            "risk",
-            "No overdue or active-window items — nothing at risk right now.",
-        )
+    pool = list(overdue) if overdue else list(now_actions)
+    if not pool:
+        return _empty_payload("risk", "No risks right now.")
 
     pool.sort(key=_risk_key)
     top = pool[0]
-
     title = top.get('title', '')
-    suffix = _format_time_suffix(top)
-    src = (top.get('source') or 'item').replace('_', ' ')
-    is_overdue = top.get('urgency') == 'overdue'
-    is_foundational = bool(top.get('is_foundational'))
-
-    if is_overdue and is_foundational:
-        reason = (
-            f"Foundational {src} overdue from {top.get('time_display') or 'today'}."
-        )
-    elif is_overdue:
-        reason = (
-            f"{src.capitalize()} overdue from {top.get('time_display') or 'today'}."
-        )
-    elif is_foundational:
-        reason = f"Foundational {src} in active window — about to slip."
-    else:
-        reason = f"{src.capitalize()} in active window — about to slip."
-
-    message = f"Your biggest risk right now is: {title}{suffix} — {reason} Fix this next."
 
     return {
         "mode": "risk",
         "primary_action": top,
-        "reason": reason,
+        "reason": "overdue" if top.get('urgency') == 'overdue' else "at_risk",
         "follow_on": None,
-        "message": message,
+        "message": f"Biggest risk: {title}. Fix this next.",
     }
 
 
@@ -281,38 +242,30 @@ def get_biggest_risk(state: dict) -> dict:
 
 def get_fix_priority(state: dict) -> dict:
     """
-    FIX MODE selector.
+    FIX MODE selector — STRICT MODE ISOLATION contract.
 
-    Goal: reduce the most accumulated disorder. Picks the single overdue
-    item whose completion would unblock the largest number of dependent
-    pending tasks. Ties broken by (a) lowest commitment_level (simplest
-    quick win), (b) earlier scheduled_time, (c) title.
+    Output is EXACTLY one line:
+        "Fix this first: [Action]."
+    or, when nothing is overdue:
+        "Nothing to fix."
 
-    Source of unblock impact:
-        state["blocked_dependents"]: depends_on_key -> [Task pks]
+    No time. No impact text. No multiple suggestions.
 
-    We construct candidate `depends_on_key`s from each overdue action's
-    type + identifier without parsing keys ourselves — the
-    dependency_gating module owns key parsing. Here we only build
-    candidate keys that match the canonical formats:
-        task:{pk}      — for overdue tasks
-        routine:{pk}   — for overdue routine items
-        domain:{name}  — for overdue binary-domain actions
-
-    No DB access in this selector — `state["blocked_dependents"]` was
-    pre-computed by build_execution_state.
+    Goal: reduce accumulated disorder. Picks the overdue item whose
+    completion unblocks the most dependent pending tasks (via
+    state["blocked_dependents"], pre-computed by build_execution_state
+    from dependency_gating semantics). Ties broken by:
+      1. lowest commitment_level (simplest quick win)
+      2. earliest scheduled_time
+      3. title
     """
     actions = state.get("actions") or []
     if not actions:
-        return _empty_payload("fix",
-                              "Nothing to fix — no pending items.")
+        return _empty_payload("fix", "Nothing to fix.")
 
     overdue = state.get("overdue_actions") or []
     if not overdue:
-        return _empty_payload(
-            "fix",
-            "Nothing to fix — no overdue items.",
-        )
+        return _empty_payload("fix", "Nothing to fix.")
 
     blocked_map = state.get("blocked_dependents") or {}
 
@@ -337,45 +290,29 @@ def get_fix_priority(state: dict) -> dict:
         return keys
 
     def _unblock_count(action) -> int:
-        total = 0
-        for k in _candidate_keys(action):
-            total += len(blocked_map.get(k, []))
-        return total
+        return sum(
+            len(blocked_map.get(k, [])) for k in _candidate_keys(action)
+        )
 
     annotated = [(a, _unblock_count(a)) for a in overdue]
-    max_unblock = max((cnt for _, cnt in annotated), default=0)
 
     def _fix_key(item):
         a, cnt = item
-        # Higher unblock count first ⇒ negate.
         commitment = (a.get('commitment_level') or '').lower()
         commit_rank = _COMMITMENT_RANK.get(commitment, 1)
         time_min = _action_time_to_minutes(a)
         return (-cnt, commit_rank, time_min, a.get('title', ''))
 
     annotated.sort(key=_fix_key)
-    top, top_unblock = annotated[0]
+    top, _top_unblock = annotated[0]
     title = top.get('title', '')
-    suffix = _format_time_suffix(top)
-
-    if top_unblock > 0:
-        impact = (
-            f"This will unlock {top_unblock} blocked "
-            f"{'item' if top_unblock == 1 else 'items'}."
-        )
-        reason = f"Clears {top_unblock} dependent items downstream."
-    else:
-        impact = "This is your simplest overdue item — clears the backlog."
-        reason = "Simplest overdue item — quick win to reduce backlog."
-
-    message = f"Start by fixing: {title}{suffix}. {impact}"
 
     return {
         "mode": "fix",
         "primary_action": top,
-        "reason": reason,
+        "reason": "backlog_cleanup",
         "follow_on": None,
-        "message": message,
+        "message": f"Fix this first: {title}.",
     }
 
 

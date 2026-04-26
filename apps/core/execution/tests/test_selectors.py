@@ -80,7 +80,7 @@ class ExecutionModeTests(SimpleTestCase):
 
     def test_07_55_measurements_wins_over_fish_oil(self):
         """Regression: at 07:55, Measurements (08:00, urgency=now) is
-        primary; Fish Oil (09:00, urgency=next) is follow-on only."""
+        primary. Spec format: 'Next: Measurements. Do this now.'"""
         actions = [
             _action('Measurements', 'now', time_display='08:00',
                     source='routine'),
@@ -92,14 +92,36 @@ class ExecutionModeTests(SimpleTestCase):
         result = get_next_action(state)
         self.assertEqual(result['mode'], 'execution')
         self.assertEqual(result['primary_action']['title'], 'Measurements')
-        self.assertTrue(
-            result['message'].startswith('Start with Measurements'),
-            f"Got: {result['message']!r}",
+        self.assertEqual(
+            result['message'], 'Next: Measurements. Do this now.',
         )
-        # Fish Oil may appear as follow-on but must NOT be primary.
-        self.assertNotEqual(
-            result['primary_action']['title'], 'Fish Oil',
-        )
+
+    def test_5_30_overdue_at_noon_NOT_in_execution(self):
+        """Regression: at noon (lunch block), an overdue 5:30 AM
+        prayer must NOT be the Execution-mode primary. It belongs in
+        Risk/Fix only."""
+        # Lunch block (12-14)
+        ab = {
+            'name': 'lunch',
+            'start_time': datetime.time(12, 0),
+            'end_time': datetime.time(14, 0),
+            'lead_in_end_time': datetime.time(13, 45),
+            'next_block_name': 'afternoon',
+            'next_block_start': datetime.time(14, 0),
+            'bounds': {},
+        }
+        actions = [
+            _action('Morning Prayer', 'overdue', time_display='05:30',
+                    source='faith', is_foundational=True),
+        ]
+        state = _state(actions, now=datetime.time(12, 0), active_block=ab)
+
+        result = get_next_action(state)
+        # The 5:30 AM item is two blocks back from lunch — NOT
+        # Execution-eligible. With nothing else current, Execution
+        # should report "Nothing pending right now."
+        self.assertIsNone(result['primary_action'])
+        self.assertNotIn('Morning Prayer', result['message'])
 
     def test_clear_state_returns_forward_hint(self):
         actions = [
@@ -111,13 +133,17 @@ class ExecutionModeTests(SimpleTestCase):
         result = get_next_action(state)
         self.assertEqual(result['mode'], 'execution')
         self.assertIsNone(result['primary_action'])
-        self.assertIn("clear right now", result['message'].lower())
+        # Forward hint: identifies the item, but does NOT instruct
+        # "Do this now" (since it's not yet actionable).
+        self.assertEqual(
+            result['message'], 'Next: Evening Review.',
+        )
 
-    def test_no_actions_says_complete(self):
+    def test_no_actions_says_pending(self):
         result = get_next_action(_state([]))
         self.assertEqual(result['mode'], 'execution')
         self.assertIsNone(result['primary_action'])
-        self.assertIn('All items are complete', result['message'])
+        self.assertEqual(result['message'], 'Nothing pending right now.')
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -138,7 +164,12 @@ class RiskModeTests(SimpleTestCase):
         result = get_biggest_risk(state)
         self.assertEqual(result['mode'], 'risk')
         self.assertEqual(result['primary_action']['title'], 'Morning Meds')
-        self.assertIn('Foundational', result['reason'])
+        # Spec format: "Biggest risk: X. Fix this next." — no minute
+        # math, no time suffix, no reason text.
+        self.assertEqual(
+            result['message'],
+            'Biggest risk: Morning Meds. Fix this next.',
+        )
 
     def test_oldest_overdue_wins_when_both_foundational(self):
         actions = [
@@ -176,7 +207,7 @@ class RiskModeTests(SimpleTestCase):
         state = _state(actions, now=datetime.time(8, 0))
         result = get_biggest_risk(state)
         self.assertIsNone(result['primary_action'])
-        self.assertIn('nothing at risk', result['message'].lower())
+        self.assertEqual(result['message'], 'No risks right now.')
 
     def test_no_overdue_falls_back_to_now_window(self):
         actions = [
@@ -188,7 +219,10 @@ class RiskModeTests(SimpleTestCase):
         self.assertEqual(
             result['primary_action']['title'], 'Foundational Now Item',
         )
-        self.assertIn('about to slip', result['reason'].lower())
+        self.assertEqual(
+            result['message'],
+            'Biggest risk: Foundational Now Item. Fix this next.',
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -206,7 +240,7 @@ class FixModeTests(SimpleTestCase):
                     source='task', atype='task', pk=20,
                     commitment_level='flexible'),
         ]
-        # Update Spreadsheet (pk=20) unblocks 3 dependents; File Receipts (pk=10) unblocks 1.
+        # Update Spreadsheet (pk=20) unblocks 3 dependents.
         state = _state(actions, blocked_dependents={
             'task:10': [101],
             'task:20': [201, 202, 203],
@@ -217,7 +251,11 @@ class FixModeTests(SimpleTestCase):
         self.assertEqual(
             result['primary_action']['title'], 'Update Spreadsheet',
         )
-        self.assertIn('unlock 3', result['message'])
+        # Spec: "Fix this first: X." — no impact text.
+        self.assertEqual(
+            result['message'],
+            'Fix this first: Update Spreadsheet.',
+        )
 
     def test_simplest_quick_win_when_no_unblocks(self):
         """When no items unblock anything, pick the simplest commitment level."""
@@ -243,7 +281,7 @@ class FixModeTests(SimpleTestCase):
 
         result = get_fix_priority(state)
         self.assertIsNone(result['primary_action'])
-        self.assertIn('Nothing to fix', result['message'])
+        self.assertEqual(result['message'], 'Nothing to fix.')
 
     def test_routine_unblock_via_routine_key(self):
         """A routine item unblocks via 'routine:{pk}' canonical key."""
@@ -257,7 +295,9 @@ class FixModeTests(SimpleTestCase):
 
         result = get_fix_priority(state)
         self.assertEqual(result['primary_action']['title'], 'Morning Walk')
-        self.assertIn('unlock 2', result['message'])
+        self.assertEqual(
+            result['message'], 'Fix this first: Morning Walk.',
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -308,7 +348,10 @@ class ModeSeparationTests(SimpleTestCase):
         self.assertEqual(
             result['primary_action']['title'], 'Morning Meds',
         )
-        self.assertIn('Foundational', result['reason'])
+        self.assertEqual(
+            result['message'],
+            'Biggest risk: Morning Meds. Fix this next.',
+        )
 
     def test_fix_picks_highest_unblock_overdue(self):
         result = get_fix_priority(self.state)
@@ -316,10 +359,17 @@ class ModeSeparationTests(SimpleTestCase):
         self.assertEqual(
             result['primary_action']['title'], 'File Receipts',
         )
-        self.assertIn('unlock 3', result['message'])
+        self.assertEqual(
+            result['message'], 'Fix this first: File Receipts.',
+        )
 
     def test_three_modes_produce_distinct_messages(self):
-        """The three messages must be visibly different. No blending."""
+        """The three messages must be visibly different. No blending.
+        Spec openers (per CoS Strict Mode Isolation):
+            Execution: 'Next: ...'
+            Risk:      'Biggest risk: ...'
+            Fix:       'Fix this first: ...'
+        """
         e = get_next_action(self.state)['message']
         r = get_biggest_risk(self.state)['message']
         f = get_fix_priority(self.state)['message']
@@ -327,10 +377,15 @@ class ModeSeparationTests(SimpleTestCase):
         self.assertNotEqual(e, r)
         self.assertNotEqual(r, f)
         self.assertNotEqual(e, f)
-        # And each must use its mode's signature opener.
-        self.assertTrue(e.startswith('Start with'))
-        self.assertTrue(r.startswith('Your biggest risk'))
-        self.assertTrue(f.startswith('Start by fixing'))
+        self.assertTrue(e.startswith('Next:'), f"Got: {e!r}")
+        self.assertTrue(r.startswith('Biggest risk:'), f"Got: {r!r}")
+        self.assertTrue(f.startswith('Fix this first:'), f"Got: {f!r}")
+        # No time math anywhere.
+        for msg in (e, r, f):
+            self.assertNotRegex(
+                msg, r'\d+\s*(min|minutes)\b',
+                f"Time-math language leaked into: {msg!r}",
+            )
 
     def test_select_dispatch_routes_correctly(self):
         e = select('execution', self.state)
@@ -343,3 +398,108 @@ class ModeSeparationTests(SimpleTestCase):
     def test_select_unknown_mode_defaults_to_execution(self):
         result = select('mystery', self.state)
         self.assertEqual(result['mode'], 'execution')
+
+
+# ══════════════════════════════════════════════════════════════════════
+# STRICT MODE ISOLATION — midday past-action regression
+# ══════════════════════════════════════════════════════════════════════
+
+class StrictModeIsolationMiddayTests(SimpleTestCase):
+    """The user spec scenario:
+        At midday with early-morning missed items —
+        Execution: shows current valid action ONLY.
+        Risk:      shows missed morning item.
+        Fix:       shows ONE recovery action.
+    """
+
+    def setUp(self):
+        # 12:00 noon, lunch block (12-14).
+        self.lunch_block = {
+            'name': 'lunch',
+            'start_time': datetime.time(12, 0),
+            'end_time': datetime.time(14, 0),
+            'lead_in_end_time': datetime.time(13, 45),
+            'next_block_name': 'afternoon',
+            'next_block_start': datetime.time(14, 0),
+            'bounds': {},
+        }
+        self.actions = [
+            # 5:30 AM prayer — overdue, 6+ hours stale, in 'morning' block
+            # (two blocks back from lunch). MUST NOT appear in Execution.
+            _action('Morning Prayer', 'overdue', time_display='05:30',
+                    source='faith', is_foundational=True,
+                    atype='task', pk=11),
+            # 12:30 PM lunch break — current valid action.
+            _action('Eat Lunch', 'now', time_display='12:30',
+                    source='routine', is_foundational=False,
+                    atype='task', pk=22),
+        ]
+        self.state = _state(
+            self.actions, now=datetime.time(12, 0),
+            active_block=self.lunch_block,
+            blocked_dependents={},
+        )
+
+    def test_execution_shows_current_valid_action_only(self):
+        """Execution must pick 12:30 lunch, NOT the 5:30 AM prayer."""
+        result = get_next_action(self.state)
+        self.assertEqual(result['mode'], 'execution')
+        self.assertEqual(
+            result['primary_action']['title'], 'Eat Lunch',
+        )
+        self.assertEqual(result['message'], 'Next: Eat Lunch. Do this now.')
+        self.assertNotIn('Morning Prayer', result['message'])
+        # No time math.
+        self.assertNotRegex(
+            result['message'], r'\d+\s*(min|minutes)\b',
+        )
+
+    def test_risk_surfaces_missed_morning_item(self):
+        """Risk picks the foundational overdue from morning."""
+        result = get_biggest_risk(self.state)
+        self.assertEqual(result['mode'], 'risk')
+        self.assertEqual(
+            result['primary_action']['title'], 'Morning Prayer',
+        )
+        self.assertEqual(
+            result['message'],
+            'Biggest risk: Morning Prayer. Fix this next.',
+        )
+        # No time math, no reason text.
+        self.assertNotRegex(
+            result['message'], r'\d+\s*(min|minutes)\b',
+        )
+        self.assertNotIn('—', result['message'])  # no reason em-dash
+
+    def test_fix_surfaces_recovery_action(self):
+        """Fix picks the missed morning prayer (only overdue item)."""
+        result = get_fix_priority(self.state)
+        self.assertEqual(result['mode'], 'fix')
+        self.assertEqual(
+            result['primary_action']['title'], 'Morning Prayer',
+        )
+        self.assertEqual(
+            result['message'], 'Fix this first: Morning Prayer.',
+        )
+        # No impact text, no time math.
+        self.assertNotIn('unlock', result['message'])
+        self.assertNotRegex(
+            result['message'], r'\d+\s*(min|minutes)\b',
+        )
+
+    def test_three_modes_distinct_at_midday(self):
+        """Headline guarantee: same midday state → three distinct lines.
+        No blending, no overlap."""
+        e = get_next_action(self.state)['message']
+        r = get_biggest_risk(self.state)['message']
+        f = get_fix_priority(self.state)['message']
+
+        self.assertEqual(e, 'Next: Eat Lunch. Do this now.')
+        self.assertEqual(r, 'Biggest risk: Morning Prayer. Fix this next.')
+        self.assertEqual(f, 'Fix this first: Morning Prayer.')
+
+        # Execution must NOT mention the missed morning item.
+        self.assertNotIn('Morning Prayer', e)
+        # Risk and Fix point to it; Execution does not.
+        self.assertIn('Morning Prayer', r)
+        self.assertIn('Morning Prayer', f)

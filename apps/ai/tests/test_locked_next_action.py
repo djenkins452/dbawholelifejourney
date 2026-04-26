@@ -150,13 +150,13 @@ class Scenario1_MorningSequenceTests(TestCase):
         self.assertIn('Measurements', result,
                       f"Expected Measurements as primary; got: {result!r}")
         self.assertTrue(
-            result.startswith('Start with Measurements'),
-            f"Primary must be 'Start with Measurements...'; got: {result!r}",
+            result.startswith('Next: Measurements'),
+            f"Primary must be 'Next: Measurements...'; got: {result!r}",
         )
 
         # Fish Oil MUST NOT be the "Start with" recommendation.
         self.assertFalse(
-            result.startswith('Start with Fish Oil'),
+            result.startswith('Next: Fish Oil'),
             f"Fish Oil must not be primary; got: {result!r}",
         )
 
@@ -198,7 +198,7 @@ class Scenario2_LeadInTests(TestCase):
         # 09:00 intake group is delta=10min → "now" urgency, in active
         # morning block — it IS the right primary at 08:50.
         self.assertTrue(
-            result.startswith('Start with Morning'),
+            result.startswith('Next: Morning'),
             f"Expected morning intake group as primary at 08:50; "
             f"got: {result!r}",
         )
@@ -240,7 +240,7 @@ class Scenario3_MultiWindowIntakeTests(TestCase):
         # 08:30 supplement is delta=30 → "now" → eligible primary.
         # Group title is the window label "Morning".
         self.assertTrue(
-            result.startswith('Start with Morning'),
+            result.startswith('Next: Morning'),
             f"Expected Morning intake group primary; got: {result!r}",
         )
         # Evening (18:00) is "upcoming" and far outside the morning block —
@@ -280,9 +280,13 @@ class Scenario4_OverduePriorityTests(TestCase):
         )
 
         # Overdue must be primary; future block never overrides.
+        # 06:00 morning prayer is in 'morning' block; at 10:30 (mid_morning)
+        # morning IS the immediately-preceding canonical block → still
+        # Execution-eligible per Strict Mode Isolation contract.
         self.assertTrue(
-            result.startswith('Start with Morning Prayer'),
-            f"Overdue must be primary; got: {result!r}",
+            result.startswith('Next: Morning Prayer'),
+            f"Overdue in preceding block must be primary; "
+            f"got: {result!r}",
         )
 
     def test_future_block_does_not_jump_unfinished_current_block(self):
@@ -308,16 +312,15 @@ class Scenario4_OverduePriorityTests(TestCase):
             lambda: build_locked_next_action(self.user),
         )
 
-        # Stretch at 09:30 is overdue (delta=-25), so it wins as overdue.
-        # Even if not overdue, it's at urgency 'now' (delta within ±30).
-        # Mid-morning vitamin is at 10:30 (delta=35) → "next" → not primary.
+        # Stretch at 09:30 with current 09:55 → routine "now" urgency.
+        # Mid-morning vitamin at 10:30 → "next" urgency, not primary.
         self.assertTrue(
-            result.startswith('Start with Stretch'),
+            result.startswith('Next: Stretch'),
             f"Current-block unfinished item must win; got: {result!r}",
         )
         # Vitamin must not lead even though it's foundational.
         self.assertFalse(
-            result.startswith('Start with Mid-morning Vitamin'),
+            result.startswith('Next: Mid-morning Vitamin'),
             f"Foundational future-block item must not jump; got: {result!r}",
         )
 
@@ -350,5 +353,15 @@ class FollowOnContextTests(TestCase):
             lambda: build_locked_next_action(self.user),
         )
 
-        self.assertIn("clear right now", result.lower(),
-                      f"Expected 'clear right now' phrasing; got: {result!r}")
+        # New strict format: forward hint identifies the next item with
+        # "Next: X." (no "Do this now" since it's not yet actionable).
+        # The supplement group title is the window label "Evening".
+        self.assertTrue(
+            result.startswith('Next: Evening'),
+            f"Expected forward 'Next: Evening...' hint; got: {result!r}",
+        )
+        # Strict mode isolation: no commentary, no time math.
+        self.assertNotRegex(
+            result, r'\d+\s*(min|minutes)\b',
+            f"Time-math language leaked into: {result!r}",
+        )

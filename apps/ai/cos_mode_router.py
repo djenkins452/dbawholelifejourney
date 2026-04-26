@@ -53,11 +53,12 @@ _FIX_PATTERNS = [
     r"\breduce backlog\b",
 ]
 
-# EXECUTION MODE — explicit "what should I do" phrasing. (This is also the
-# default fallback for empty-string mode requests in the API endpoint —
-# the chat shortcut, however, returns None for unmatched input so the
-# normal intent pipeline can handle it.)
+# EXECUTION MODE — explicit "what should I do" phrasing AND broad
+# status-style queries. CoS Strict Mode Isolation: any status query
+# defaults to Execution so the LLM never gets to compose a blended
+# multi-mode briefing.
 _EXECUTION_PATTERNS = [
+    # Direct execution prompts
     r"\bwhat should i do\b",
     r"\bwhat'?s? next\b",
     r"\bwhat is next\b",
@@ -66,6 +67,26 @@ _EXECUTION_PATTERNS = [
     r"\bwhat now\b",
     r"\bnext step\b",
     r"\bwhat'?s the next\b",
+    # Generic status queries (per user spec — must default to Execution)
+    r"\bhow am i doing\b",
+    r"\bhow are we doing\b",
+    r"\bhow'?s? my day\b",
+    r"\bhow is my day\b",
+    r"\bwhere am i at\b",
+    r"\bwhere am i\b",
+    r"\bstatus\b",
+    r"\bwhat'?s going on\b",
+    r"\bwhat is going on\b",
+    r"\bgive me an update\b",
+    r"\bgive me a status\b",
+    r"\bgive me a brief\b",
+    r"\bbrief me\b",
+    r"\bupdate me\b",
+    r"\bwalk me through\b",
+    r"\bmy situation\b",
+    r"\bcurrent situation\b",
+    r"\bstate of (the )?day\b",
+    r"\bwhere do i stand\b",
 ]
 
 VALID_MODES = ("execution", "risk", "fix")
@@ -89,9 +110,13 @@ def resolve_cos_mode(user_input: str):
         keyword. The caller should fall through to the normal intent
         pipeline.
 
-    Order of evaluation: RISK and FIX are checked before EXECUTION
-    because their phrasings are more specific. If a message matches
-    multiple modes (rare), risk wins over fix wins over execution.
+    Precedence (per CoS Strict Mode Isolation contract):
+        FIX > RISK > EXECUTION
+
+    Fix-mode phrasings ("what to fix", "catch up", "behind on") are
+    the most specific and the most user-actionable, so they win when
+    a message overlaps multiple categories. Risk wins over Execution
+    for the same reason. Generic status queries map to Execution.
     """
     if not user_input:
         return None
@@ -99,10 +124,10 @@ def resolve_cos_mode(user_input: str):
     if not text:
         return None
 
-    if _matches_any(text, _RISK_PATTERNS):
-        return "risk"
     if _matches_any(text, _FIX_PATTERNS):
         return "fix"
+    if _matches_any(text, _RISK_PATTERNS):
+        return "risk"
     if _matches_any(text, _EXECUTION_PATTERNS):
         return "execution"
     return None

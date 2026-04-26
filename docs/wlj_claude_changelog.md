@@ -3,8 +3,111 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-04-26 (Action Center: Time Block as Primary Execution Unit)
+# Last Updated: 2026-04-26 (CoS Strict Mode Isolation — no blending)
 # ================================================================# WLJ Change History
+
+
+## 2026-04-26 — CoS Strict Mode Isolation (no blending)
+
+User report: CoS chat was producing blended responses — listing
+overdue items, future items, a stale "start with X" action, plus
+phrases like "255 min risk" — all in one message. Three deterministic
+modes (Execution / Risk / Fix) were leaking into a single response.
+
+Root causes (verified):
+1. The locked-facts block fed to the LLM dumped 8 domain summaries
+   plus the next action with the rule "You MUST include these facts" —
+   so the LLM weaved everything into one multi-mode briefing.
+2. The keyword router only matched 3 narrow phrasings; "how am I
+   doing" / "where am I at" / "status" all fell through to the LLM
+   with the merged context.
+3. `is_item_in_active_block` let *any* overdue item pass — at noon,
+   a 5:30 AM prayer surfaced as the Execution-mode primary even
+   though it should be a Risk/Fix item.
+4. `beth_checkin_renderer.py` composed minute-math drift text
+   ("Running 255 minutes behind") that bled into proactive briefings.
+5. Selector outputs were too verbose (e.g. "Start with X (HH:MM).
+   After that: Y (HH:MM).") and didn't match the spec contract.
+
+Fix (six surgical changes, no new engine):
+
+1. **Tightened selectors** to the spec contract
+   ([selectors.py](apps/core/execution/selectors.py)):
+     Execution: `Next: [Action]. Do this now.`
+     Risk:      `Biggest risk: [Issue]. Fix this next.`
+     Fix:       `Fix this first: [Action].`
+   No time suffix, no follow-on, no reason text, no impact text.
+
+2. **Execution past-action gate**
+   ([active_block.py:is_item_in_active_block](apps/core/execution/active_block.py)).
+   Overdue items are eligible only if scheduled in the active block
+   OR the immediately preceding canonical block. Older overdue items
+   are blocked from Execution and surface in Risk/Fix only. The
+   5:30 AM prayer at noon is no longer "Start with…".
+
+3. **Slim locked-facts block**
+   ([cos_fact_statements.py:format_locked_facts_block](apps/ai/cos_fact_statements.py)).
+   Reduced from 8 summaries + events + 60 lines of rules → JUST the
+   next action line + brief don't-blend rules. The richer
+   `build_locked_facts(user)` dict is unchanged for non-LLM
+   consumers (truth validator etc.) — only the LLM-facing prompt
+   block was slimmed.
+
+4. **Expanded mode router**
+   ([cos_mode_router.py](apps/ai/cos_mode_router.py)).
+   Added 21 new patterns covering "how am I doing", "where am I at",
+   "status", "what's going on", "update me", "walk me through",
+   "where do I stand", etc. — all default to Execution. Precedence
+   reordered to **Fix > Risk > Execution** per spec.
+
+5. **Stripped minute-math**
+   ([beth_checkin_renderer.py](apps/ai/beth_checkin_renderer.py)).
+   `build_schedule_signals` guidance, `compute_escalation_level`
+   reasons, and `_build_escalation_directive` directives no longer
+   contain minute counts. Categorical phrasing only:
+   "behind" / "at risk" / "upcoming" / "recoverable".
+
+6. **Regression tests** ([test_selectors.py](apps/core/execution/tests/test_selectors.py),
+   [test_event_locked_facts.py](apps/ai/tests/test_event_locked_facts.py),
+   [test_cos_mode_router.py](apps/ai/tests/test_cos_mode_router.py)):
+     - Midday + 5:30 AM overdue: Execution NEVER picks the past
+       item; Risk and Fix DO.
+     - Same midday state → three distinct messages.
+     - No `\d+\s*(min|minutes)\b` anywhere in selector output.
+     - Locked-facts block contains only the next action.
+     - Status queries default to Execution mode.
+
+**Before / after example outputs (same midday state):**
+
+  Before (blended):
+    "Good evening. You're 255 min behind. Start with 5:30 AM
+    prayer. Workout at 6:15 AM is upcoming. Mom's birthday is
+    today. Bible reading is not yet completed..."
+
+  After:
+    Execution → "Next: Eat Lunch. Do this now."
+    Risk      → "Biggest risk: Morning Prayer. Fix this next."
+    Fix       → "Fix this first: Morning Prayer."
+
+**Files changed.**
+- `apps/core/execution/selectors.py`
+- `apps/core/execution/active_block.py`
+- `apps/ai/cos_fact_statements.py`
+- `apps/ai/cos_mode_router.py`
+- `apps/ai/beth_checkin_renderer.py`
+- Tests: `apps/core/execution/tests/test_active_block.py`,
+  `apps/core/execution/tests/test_selectors.py`,
+  `apps/ai/tests/test_cos_mode_router.py`,
+  `apps/ai/tests/test_locked_next_action.py`,
+  `apps/ai/tests/test_cos_decision_shortcut.py`,
+  `apps/ai/tests/test_event_locked_facts.py`,
+  `apps/ai/tests/test_beth_checkin_renderer.py`
+- `docs/ENGINE_COS_REFERENCE.md`
+
+123 tests pass in the focused regression. Pre-existing renderer
+failures unrelated to this change (MagicMock/timezone issues in
+`test_beth_checkin_renderer` and `test_beth_briefing`) are not
+addressed here — they fail on `main` without these changes too.
 
 
 ## 2026-04-26 — Hotfix: Action Center comment leaking into rendered HTML

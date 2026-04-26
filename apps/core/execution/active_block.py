@@ -267,30 +267,33 @@ def get_active_block(user, now=None, execution_items=None):
 
 def is_item_in_active_block(item, active_block, now_time):
     """
-    Decide whether an execution item is eligible under active-block gating.
+    Decide whether an execution item is eligible for **EXECUTION mode**.
 
-    An item is eligible if any of:
-      - It is overdue (always eligible — overdue trumps block bounds).
-      - Its scheduled_time falls in the active block's canonical window.
-      - Its scheduled_time is in the next block AND we are within the
-        lead-in window (now >= lead_in_end_time).
+    Execution mode rule (CoS Strict Mode Isolation contract):
+      - An item is eligible if its scheduled_time falls in the active
+        block's canonical window.
+      - Or if its scheduled_time is in the next block AND we are within
+        the lead-in window (now >= lead_in_end_time).
+      - For OVERDUE items: only eligible if scheduled_time is in the
+        active block OR the immediately preceding canonical block.
+        Overdue items in long-past blocks (e.g. a 5:30 AM prayer at
+        noon) are NOT Execution-eligible — they belong in Risk/Fix.
+      - Items with no scheduled_time bypass the gate (handled elsewhere).
 
-    Items in past blocks (other than overdue ones, which are caught
-    above) and items in future blocks beyond the lead-in window are
-    NOT eligible — they get demoted to "upcoming" for the prioritizer.
+    Risk and Fix selectors do NOT use this function — they consume
+    state['overdue_actions'] directly so behind-schedule users always
+    see their stale items somewhere, just not in Execution.
 
     Args:
-        item: dict — must have 'scheduled_time' (HH:MM string or time)
-              and may have 'time_status' ('overdue' marks always-eligible).
+        item: dict — 'scheduled_time' (HH:MM string or time) and
+              optional 'time_status' ('overdue' triggers the
+              preceding-block rule).
         active_block: dict from get_active_block(). May have name=None.
         now_time: datetime.time.
 
     Returns:
         bool
     """
-    if item.get('time_status') == 'overdue':
-        return True
-
     sched = _parse_time(item.get('scheduled_time'))
     if sched is None:
         # No scheduled time — let the prioritizer decide; block gate
@@ -298,6 +301,7 @@ def is_item_in_active_block(item, active_block, now_time):
         return True
 
     sched_mins = _time_to_minutes(sched)
+    is_overdue = item.get('time_status') == 'overdue'
 
     # No active block (e.g., very early morning): only items in the
     # next block, within lead-in, are eligible.
@@ -312,13 +316,29 @@ def is_item_in_active_block(item, active_block, now_time):
             and sched_mins < next_start_mins + 60  # only first hour of next block
         )
 
-    from apps.core.time_windows import WINDOW_HOURS
-    sh, eh = WINDOW_HOURS[active_block["name"]]
+    from apps.core.time_windows import WINDOW_HOURS, WINDOW_ORDER
+    active_name = active_block["name"]
+    sh, eh = WINDOW_HOURS[active_name]
+
+    # In active block: always eligible (overdue or not).
     if sh * 60 <= sched_mins < eh * 60:
         return True
 
-    # Next-block lead-in: only if we are in the lead-in window AND the
-    # item is in the next block.
+    # Overdue items: eligible ONLY if in the immediately preceding
+    # canonical block. Older items are stale and surface only in
+    # Risk/Fix modes.
+    if is_overdue:
+        try:
+            idx = WINDOW_ORDER.index(active_name)
+        except ValueError:
+            return False
+        if idx == 0:
+            return False  # No preceding block today
+        prev_name = WINDOW_ORDER[idx - 1]
+        psh, peh = WINDOW_HOURS[prev_name]
+        return psh * 60 <= sched_mins < peh * 60
+
+    # Non-overdue future item: next-block lead-in check.
     next_name = active_block.get("next_block_name")
     if next_name is None:
         return False

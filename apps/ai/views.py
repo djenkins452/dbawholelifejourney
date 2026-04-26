@@ -2117,3 +2117,70 @@ class TextToSpeechView(LoginRequiredMixin, View):
             'audio': audio_b64,
             'content_type': 'audio/mpeg',
         })
+
+
+# ---------------------------------------------------------------------------
+# CoS Decision Mode API — deterministic, no LLM
+# ---------------------------------------------------------------------------
+
+class CosDecisionView(LoginRequiredMixin, AssistantMixin, View):
+    """
+    Deterministic CoS decision endpoint for the three decision modes.
+
+    GET  /assistant/api/cos/decision/?mode=execution
+    GET  /assistant/api/cos/decision/?mode=risk
+    GET  /assistant/api/cos/decision/?mode=fix
+
+    Returns a structured decision payload built from the shared
+    execution_state contract. NO LLM is called; the answer is derived
+    from the same Today Engine / active-block / prioritizer pipeline
+    that powers the Action Center.
+
+    Response shape:
+        {
+            "success": true,
+            "mode": "execution" | "risk" | "fix",
+            "primary_action": {...} | null,
+            "reason": str,
+            "follow_on": {...} | null,
+            "message": str
+        }
+    """
+
+    def get(self, request, *args, **kwargs):
+        enabled, error = self.check_personal_assistant_enabled()
+        if not enabled:
+            return JsonResponse({
+                'success': False,
+                'error': error,
+            }, status=403)
+
+        mode_param = request.GET.get('mode', '')
+        try:
+            from apps.ai.cos_mode_router import normalize_mode
+            from apps.core.execution.execution_state import (
+                build_execution_state,
+            )
+            from apps.core.execution.selectors import select as run_selector
+
+            mode = normalize_mode(mode_param)
+            state = build_execution_state(request.user)
+            decision = run_selector(mode, state)
+
+            return JsonResponse({
+                'success': True,
+                'mode': decision.get('mode'),
+                'primary_action': decision.get('primary_action'),
+                'reason': decision.get('reason'),
+                'follow_on': decision.get('follow_on'),
+                'message': decision.get('message'),
+            })
+        except Exception:
+            logger.error(
+                "CoS decision endpoint failed mode=%s", mode_param,
+                exc_info=True,
+            )
+            return JsonResponse({
+                'success': False,
+                'error': 'Failed to compute CoS decision.',
+            }, status=500)

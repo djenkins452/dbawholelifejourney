@@ -420,18 +420,10 @@ def build_locked_next_action(user) -> str:
     """
     Build the system-determined next action recommendation.
 
-    Uses the Execution Truth Engine → today_execution → action prioritizer
-    pipeline. The LLM does NOT decide what to recommend — the system does.
-
-    Eligibility rules (CoS Time/Sequence Integrity contract):
-      - Only items with urgency 'overdue' or 'now' may be the primary
-        "Start with X" recommendation. 'next' items (up to ~2h away)
-        are referenced as follow-on context only — never as primary.
-      - Items outside the active execution block are never eligible
-        as primary, even if they fall within the now/overdue window.
-        (Active block is resolved via get_active_block().)
-      - When nothing is eligible, surface the next upcoming item as
-        forward context: "You're clear right now. Next up is X at HH:MM."
+    Thin wrapper over the deterministic EXECUTION-mode selector.
+    The selector contract (eligibility = overdue + now only, active-block
+    gate, no LLM) lives in apps.core.execution.selectors.get_next_action;
+    this function only builds the state and renders the legacy str return.
 
     Returns a locked statement like:
         "Start with Shower."
@@ -439,109 +431,26 @@ def build_locked_next_action(user) -> str:
         "All items are complete — nothing pending."
     """
     try:
-        from apps.core.execution.today_execution import build_today_execution
-        from apps.core.execution.active_block import (
-            get_active_block,
-            is_item_in_active_block,
-        )
-        from apps.core.decision_engine.action_prioritizer import (
-            prioritize_execution_items,
-        )
-        from apps.core.utils import get_user_now
+        from apps.core.execution.execution_state import build_execution_state
+        from apps.core.execution.selectors import get_next_action
 
-        now = get_user_now(user)
-        current_time = now.time()
+        state = build_execution_state(user)
+        decision = get_next_action(state)
 
-        # Build execution contract for prioritizer
-        exec_contract = build_today_execution(user)
-        items = exec_contract.get('items', [])
-        summaries = exec_contract.get('summaries', {})
-
-        # Resolve the active execution block from the *same* item set so
-        # CoS and Dashboard cannot diverge.
-        active_block = get_active_block(user, now=now, execution_items=items)
-
-        # Get prioritized actions (completed items already filtered out)
-        priorities = prioritize_execution_items(
-            items, current_time, summaries=summaries,
-        )
-
-        if not priorities:
-            return "All items are complete — nothing pending."
-
-        # ── Primary eligibility: overdue + now only ──
-        # 'next' items (delta up to ~2h) are NOT primary recommendations;
-        # they appear only as follow-on hints below.
-        primary_urgencies = {'overdue', 'now'}
-        primary_pool = [
-            p for p in priorities
-            if p.get('urgency') in primary_urgencies
-        ]
-
-        # ── Active-block gate ──
-        # Drop items from non-active blocks. Overdue items pass through
-        # is_item_in_active_block() unconditionally, so behind-schedule
-        # users still see the overdue item first.
-        def _block_eligible(action):
-            return is_item_in_active_block(
-                {
-                    'scheduled_time': action.get('time_display'),
-                    'time_status': (
-                        'overdue' if action.get('urgency') == 'overdue'
-                        else None
-                    ),
-                },
-                active_block,
-                current_time,
-            )
-
-        actionable = [p for p in primary_pool if _block_eligible(p)]
-
-        if not actionable:
-            # Nothing actionable right now — surface forward context.
-            forward_pool = [
-                p for p in priorities
-                if p.get('urgency') in ('next', 'upcoming')
-            ]
-            # Prefer items in the active block for the "next up" hint.
-            forward_in_block = [p for p in forward_pool if _block_eligible(p)]
-            forward = forward_in_block or forward_pool
-            if forward:
-                next_title = forward[0]['title']
-                next_time = forward[0].get('time_display', '')
-                time_note = f" at {next_time}" if next_time else ""
-                return f"You're clear right now. Next up is {next_title}{time_note}."
-            return "You're clear right now — nothing pending in the near term."
-
-        top = actionable[0]
-        top_title = top['title']
-        top_time = top.get('time_display', '')
-        time_suffix = f" ({top_time})" if top_time else ""
-        result = f"Start with {top_title}{time_suffix}."
-
-        # Optional follow-on: the next eligible 'now' or 'next' item AFTER
-        # the primary, restricted to the active block. Never references a
-        # future-block item as the follow-on.
-        followon_candidates = [
-            p for p in priorities
-            if p is not top
-            and p.get('urgency') in ('overdue', 'now', 'next')
-            and _block_eligible(p)
-        ]
-        if followon_candidates:
-            f = followon_candidates[0]
-            f_title = f['title']
-            f_time = f.get('time_display', '')
-            f_suffix = f" ({f_time})" if f_time else ""
-            result = f"{result} After that: {f_title}{f_suffix}."
-
+        primary = decision.get('primary_action') or {}
+        active_block = state.get('active_block') or {}
         logger.info(
             "[CoS LOCKED NEXT ACTION] user=%s top=%s block=%s "
-            "actionable=%d total=%d",
-            user.id, top_title, active_block.get('name'),
-            len(actionable), len(priorities),
+            "total=%d",
+            user.id,
+            primary.get('title') or '<none>',
+            active_block.get('name'),
+            len(state.get('actions') or []),
         )
-        return result
+        return decision.get('message') or (
+            "Unable to determine next action — check your routine "
+            "and task list."
+        )
 
     except Exception:
         logger.warning(

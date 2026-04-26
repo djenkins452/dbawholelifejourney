@@ -66,6 +66,9 @@ urlpatterns = [
     # Event Reflections (Post-Event Check-ins)
     path('api/event-reflection/', views.EventReflectionView.as_view(), name='api_event_reflection'),
 
+    # CoS deterministic decision modes (execution / risk / fix)
+    path('api/cos/decision/', views.CosDecisionView.as_view(), name='api_cos_decision'),
+
     # Text-to-Speech (TTS)
     path('api/tts/', views.TextToSpeechView.as_view(), name='api_tts'),
 

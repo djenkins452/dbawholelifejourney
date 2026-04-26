@@ -3,8 +3,98 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-04-26 (CoS Time/Sequence Integrity — active-block gating)
+# Last Updated: 2026-04-26 (CoS Decision Modes: Execution / Risk / Fix)
 # ================================================================# WLJ Change History
+
+
+## 2026-04-26 — Feature: CoS Decision Modes (Execution / Risk / Fix)
+
+**Goal.** Expand CoS from a single response style into three deterministic
+decision modes that share the same state but apply different selection
+logic:
+
+  - **Execution** — "what should I do right now?"
+  - **Risk**      — "what is my biggest risk right now?"
+  - **Fix**       — "what should I fix first?"
+
+**Architecture (NO new engine, NO LLM decision-making).**
+
+1. **Single state contract** — new
+   [apps/core/execution/execution_state.py](apps/core/execution/execution_state.py)
+   composes `build_today_execution + active_block + prioritize_execution_items`
+   into one dict (`now`, `active_block`, `actions`, `overdue_actions`,
+   `now_actions`, `next_actions`, `upcoming_actions`,
+   `blocked_dependents`). All three selectors consume this dict and
+   nothing else — no DB access, no raw-data reasoning inside selectors.
+
+2. **Three pure selectors** —
+   [apps/core/execution/selectors.py](apps/core/execution/selectors.py):
+
+   - `get_next_action(state)` (Execution) — overdue+now eligibility,
+     active-block gate, time-then-foundational order. Returns the locked
+     "Start with X" message; 'next' tier appears only as "After that:"
+     follow-on, never as primary.
+   - `get_biggest_risk(state)` (Risk) — sorts by foundational+overdue,
+     then oldest overdue (earliest scheduled time = longest lateness),
+     then domain weight (health/medication > routines > tasks). No
+     "If ignored:" consequence text in v1 (intentionally deferred —
+     no deterministic source without raw-data reasoning).
+   - `get_fix_priority(state)` (Fix) — picks the overdue item whose
+     completion would unblock the most dependent pending tasks, using
+     `state["blocked_dependents"]` (pre-computed from
+     `dependency_gating.is_task_blocked` semantics). Ties broken by
+     simplest commitment level → earliest time → title.
+
+3. **Keyword mode router** —
+   [apps/ai/cos_mode_router.py](apps/ai/cos_mode_router.py).
+   Pure regex matcher (NO LLM) mapping a raw user message to a mode
+   string or None. Risk wins over Fix, Fix wins over Execution when
+   phrasings overlap. Word-boundary patterns avoid false positives
+   ("affix"/"prefix" do NOT trigger fix mode).
+
+4. **send_message shortcut** —
+   [apps/ai/personal_assistant.py :: _cos_mode_shortcut()](apps/ai/personal_assistant.py).
+   Inserted right after conversation creation, before any LLM call. If
+   the message matches a mode keyword AND has no images attached, the
+   shortcut builds state, dispatches to the selector, logs both
+   messages to conversation history, and returns the structured
+   payload — bypassing the LLM and intent pipeline entirely. On any
+   internal error the shortcut returns None so the normal pipeline
+   handles the message.
+
+5. **Thin JSON API** — `GET /assistant/api/cos/decision/?mode={execution|risk|fix}`
+   exposes the same three selectors over HTTP for iOS/future surfaces:
+   [apps/ai/views.py :: CosDecisionView](apps/ai/views.py).
+   Response: `{success, mode, primary_action, reason, follow_on, message}`.
+
+6. **Locked next-action refactor** —
+   [build_locked_next_action(user)](apps/ai/cos_fact_statements.py:419)
+   is now a thin wrapper over `get_next_action(state)`. Existing CoS
+   locked-facts behavior is unchanged byte-for-byte; the implementation
+   moved to the selector so the same logic is shared with the chat
+   shortcut and the API.
+
+**Tests (37 new, all passing in focused regression).**
+- [apps/core/execution/tests/test_selectors.py](apps/core/execution/tests/test_selectors.py)
+  — 16 tests: per-mode behavior + mode-separation guarantee (same state,
+  three distinct outputs).
+- [apps/ai/tests/test_cos_mode_router.py](apps/ai/tests/test_cos_mode_router.py)
+  — 13 tests: keyword phrasings, precedence, false-positive guards.
+- [apps/ai/tests/test_cos_decision_shortcut.py](apps/ai/tests/test_cos_decision_shortcut.py)
+  — 8 tests: send_message shortcut + API endpoint round-trip per mode.
+
+**Files changed.**
+- `apps/core/execution/execution_state.py` (new)
+- `apps/core/execution/selectors.py` (new)
+- `apps/ai/cos_mode_router.py` (new)
+- `apps/ai/personal_assistant.py` (`send_message` shortcut + helper)
+- `apps/ai/cos_fact_statements.py` (`build_locked_next_action` → wrapper)
+- `apps/ai/views.py` (`CosDecisionView`)
+- `apps/ai/urls.py` (`/api/cos/decision/`)
+- `apps/core/execution/tests/test_selectors.py` (new)
+- `apps/ai/tests/test_cos_mode_router.py` (new)
+- `apps/ai/tests/test_cos_decision_shortcut.py` (new)
+- `docs/ENGINE_COS_REFERENCE.md`
 
 
 ## 2026-04-26 — Fix: CoS Time/Sequence Integrity (active-block gating)

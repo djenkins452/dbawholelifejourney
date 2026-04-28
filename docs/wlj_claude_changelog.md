@@ -3,7 +3,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-04-26 (CoS Strict Mode Isolation — no blending)
+# Last Updated: 2026-04-28 (Signal Rendering Framework — Phase 1)
 # ================================================================# WLJ Change History
 
 
@@ -108,6 +108,108 @@ Fix (six surgical changes, no new engine):
 failures unrelated to this change (MagicMock/timezone issues in
 `test_beth_checkin_renderer` and `test_beth_briefing`) are not
 addressed here — they fail on `main` without these changes too.
+
+
+## 2026-04-28 — Feature: Signal Rendering Framework — Phase 1
+
+The canonical interpretation layer that turns a `UnifiedSignal` into
+deterministic Label / Meaning / Action text. NO LLM. Single source of
+truth. Table-driven dispatch.
+
+**Why.** Six different files were each rolling their own per-domain
+rendering (`cos_fact_statements.py` summary builders,
+`physical_decision.py` vitals copy, `beth_checkin_renderer.py`
+escalation text, `signal_presenter.py` Phase 2 templates, etc.).
+Result: the same medication adherence signal could surface as four
+different sentences in four different surfaces. The new framework
+collapses this into one table.
+
+**Phase 1 scope (this commit):**
+- New module `apps/core/signals/signal_renderer.py`:
+  - `SIGNAL_RENDER_MAP[(domain, type, severity)] → template` —
+    table-driven; ~13 entries for Phase 1 domains (health/medical,
+    faith, life). Adding a new signal = one table edit.
+  - `LABEL_TAXONOMY = {"Alert", "Trend", "Opportunity"}` —
+    enforced; `Unclear` / `Mixed` / `Needs clarity` are rejected.
+  - `DOMAIN_PRIORITY` — health/medical = foundational; faith /
+    meals / sleep / habits = important; life / tasks / routines =
+    supporting.
+  - `normalize_signal()` — strips `signal.title` / `signal.message`
+    so the renderer cannot accidentally depend on producer prose.
+  - `render_signal(signal, context) → dict | None` — returns
+    `{label, message, action, priority, domain}` or None when no
+    template matches (caller falls back to legacy during migration).
+  - `select_top_signals(signals, max_n=2)` — sorts by
+    (priority, severity, confidence, recency); foundational always
+    surfaces.
+  - `resolve_conflicts(pool)` — drops same-domain non-foundational
+    signals when a foundational signal is present
+    (e.g. `glucose_high` suppresses `weight_loss_positive`).
+  - `_TYPE_ALIAS` — temporary translation layer so PIE/PRIE/PGE
+    don't have to be touched in Phase 1. Logs every alias use.
+- New endpoint `GET /api/signals/?max=2` —
+  `apps/core/signals/views_renderer.py :: SignalsAPIView`. Reads
+  signals from `unified_feed.build_signal_buckets(cos_context)`,
+  runs them through `select_top_signals`, returns the rendered
+  payload. Auth-required, no extra fields.
+- `apps/health/services/physical_decision.py` — vitals branches
+  now call `render_signal()` first; legacy inline copy retained as
+  a fallback only.
+- Observability — every render, suppress, and top-selection logs
+  with `matched_template_key=(domain,type,severity)`.
+
+**What still uses ad-hoc copy (deliberate — Phase 2/3):**
+- `apps/ai/cos_fact_statements.py` — the six `_build_*_summary()`
+  functions remain unchanged. Phase 2 lifts them into the renderer.
+- `apps/ai/beth_checkin_renderer.py` — proactive briefing text.
+  Phase 3.
+- Finance / relationships / brain_training / sports / meals
+  domains — no renderer entries yet. Add in later phases.
+- `physical_decision.py` non-vitals branches (data uncertainty,
+  nutrition gap, training gap, plateau) — these are inline-computed
+  reasons, not UnifiedSignals. Lifting them into proper signals is
+  a separate task.
+
+**Sample real outputs.**
+- Glucose high:
+    `Glucose Alert · "Your glucose has been running high this week." ·`
+    `"Log your next 3 meals and add a fasting reading tomorrow." · foundational · health`
+- Tasks overloaded (high):
+    `Tasks Alert · "Your task list is piling up." ·`
+    `"Move one task to later today to clear pressure." · supporting · life`
+- Conflict (same-domain): `glucose_high (foundational) +`
+  `weight_loss_positive (important)` → `weight_loss_positive`
+  suppressed; only `Glucose Alert` survives.
+
+**Tests.** 16 new tests in
+`apps/core/signals/tests/test_signal_renderer.py` covering all six
+spec validations:
+- `render_glucose_high` — exact spec-locked strings.
+- `priority_override` — foundational beats supporting.
+- `no_numeric_language` — no `mg/dL`, `mmHg`, `bpm` in any template.
+- `single_action_only` — one action per signal; no `and then`,
+  `plus also`.
+- `conflict_resolution` — same-domain non-foundational dropped.
+- `foundational_always_surfaces` — even when buried.
+Plus contract tests (normalize strips title/message; unknown key →
+None; alias logged on use; response shape exactly 5 keys).
+
+469 tests in focused regression — all pass except 5 pre-existing
+failures unrelated to this change (verified via `git stash`):
+`test_fat_loss_confirmed`, `test_fat_loss_reversed`,
+`test_fallback_on_no_data`, `test_outcome_failure_when_stalled_with_compliance`,
+`test_generates_signal_from_medicine_log`.
+
+**Files changed.**
+- `apps/core/signals/signal_renderer.py` (new)
+- `apps/core/signals/views_renderer.py` (new)
+- `apps/core/signals/urls.py` (added `path('', ...)`)
+- `apps/core/signals/tests/test_signal_renderer.py` (new)
+- `apps/health/services/physical_decision.py` (vitals branch routes
+  through renderer; legacy fallback retained)
+- `apps/health/tests/test_physical_intelligence_v2.py` (assertion
+  updated to spec-locked shorter strings)
+- `docs/ENGINE_COS_REFERENCE.md`
 
 
 ## 2026-04-26 — Hotfix: Action Center comment leaking into rendered HTML

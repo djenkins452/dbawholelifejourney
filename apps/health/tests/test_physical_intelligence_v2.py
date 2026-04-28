@@ -1106,11 +1106,19 @@ class TestVitalsSnapshot(TestCase):
         self.assertNotIn("diabetic range", clarity.lower())
         self.assertNotIn("takes priority over", clarity.lower())
 
-        # The action must be concrete and in-app first (logging),
-        # with the provider note brief and secondary.
+        # Phase 1 Signal Rendering Framework: copy is now table-locked
+        # in apps/core/signals/signal_renderer.py. Spec contract:
+        # one short sentence, one action.
+        self.assertEqual(
+            clarity, "Your glucose has been running high this week.",
+        )
+
+        # The action must be concrete and in-app first (logging).
         action = result.get("clarity_action", "")
-        self.assertIn("log", action.lower(),
-                      f"Action must include in-app logging step; got: {action!r}")
+        self.assertEqual(
+            action,
+            "Log your next 3 meals and add a fasting reading tomorrow.",
+        )
 
     def test_all_signals_present_highest_priority(self):
         """TC4: All signals present → highest priority signal displayed."""

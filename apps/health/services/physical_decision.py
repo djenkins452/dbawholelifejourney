@@ -742,64 +742,92 @@ def _enrich_with_clarity(decision, signals, body_comp):
     )
 
     # Priority 1: Metabolic/cardiovascular risk from vitals.
-    # When a vitals signal is driving this card, the data IS clear — it's
-    # a health alert, not "progress unclear". The label and copy reflect
-    # that. Plain English; no clinical jargon ("126 mg/dL"), no
-    # system-speak ("takes priority over body composition signal").
-    # Action is concrete and in-app first; provider note is brief and
-    # secondary.
+    # Phase 1 Signal Rendering Framework integration: route through the
+    # canonical renderer (apps.core.signals.signal_renderer). When the
+    # renderer matches a template, its output IS the displayed text. If
+    # no template matches, fall back to the legacy inline copy below.
+    # Phase 2/3 will lift the fallback paths into the renderer too.
     if vitals_alert:
         metric = vitals_alert["metric"]
         status = vitals_alert["status"]
+
+        # Translate vitals_snapshot status → canonical renderer type.
+        renderer_type = None
+        renderer_severity = None
+        if metric == "glucose":
+            if status == "high":
+                renderer_type, renderer_severity = "glucose_high", "high"
+            elif status == "elevated":
+                renderer_type, renderer_severity = "glucose_elevated", "medium"
+            elif status == "low":
+                renderer_type, renderer_severity = "glucose_low", "high"
+        elif metric == "blood_pressure" and status == "high":
+            renderer_type, renderer_severity = "blood_pressure_high", "high"
+
+        rendered = None
+        if renderer_type and renderer_severity:
+            try:
+                from apps.core.signals.signal_renderer import render_signal
+                rendered = render_signal({
+                    "domain": "health",
+                    "type": renderer_type,
+                    "severity": renderer_severity,
+                    "confidence": 0.9,
+                })
+            except Exception:
+                logger.warning(
+                    "[PHYSICAL_DECISION] signal_renderer call failed — "
+                    "falling back to legacy copy",
+                    exc_info=True,
+                )
+                rendered = None
+
+        if rendered:
+            decision["clarity_label"] = rendered["label"]
+            decision["clarity_severity"] = "alert"
+            decision["clarity_reason"] = rendered["message"]
+            decision["clarity_action"] = rendered["action"]
+            decision["action_category"] = "clarity"
+            return decision
+
+        # ── Legacy fallback (Phase 1 safety net) ──
+        # Reached only when the renderer table has no matching entry.
+        # Same copy as before the renderer was introduced.
         if metric == "glucose":
             decision["clarity_label"] = "Glucose Alert"
             decision["clarity_severity"] = "alert"
             if status == "high":
                 decision["clarity_reason"] = (
-                    "Your glucose has been running high this week. "
-                    "That's a foundation-level signal — body composition "
-                    "won't move reliably until this stabilizes."
+                    "Your glucose has been running high this week."
                 )
                 decision["clarity_action"] = (
-                    "Log your next 3 meals so we can see what's driving "
-                    "it, and add a fasting reading first thing tomorrow. "
-                    "Bring this trend to your provider at your next visit."
+                    "Log your next 3 meals and add a fasting reading "
+                    "tomorrow."
                 )
             elif status == "elevated":
                 decision["clarity_label"] = "Glucose Trend"
                 decision["clarity_reason"] = (
-                    "Your glucose is trending elevated. Catching it here "
-                    "is the easy win — small changes work fast at this level."
+                    "Your glucose is trending higher than normal."
                 )
                 decision["clarity_action"] = (
-                    "Try a 15-minute walk after your largest meal for the "
-                    "next 5 days, and log a reading 2 hours after eating. "
-                    "Watch what changes."
+                    "Tighten meal consistency today and log your next meals."
                 )
             elif status == "low":
                 decision["clarity_reason"] = (
-                    "Your recent glucose readings are low. This needs "
-                    "attention before anything else."
+                    "Your recent glucose readings are low."
                 )
                 decision["clarity_action"] = (
-                    "Have a fast-acting carb (juice or glucose tab) and "
-                    "recheck in 15 minutes. If this keeps happening, "
-                    "talk to your provider."
+                    "Have a fast-acting carb and recheck in 15 minutes."
                 )
             decision["action_category"] = "clarity"
             return decision
-        elif metric == "blood_pressure" and status in ("high",):
+        elif metric == "blood_pressure" and status == "high":
             decision["clarity_label"] = "Blood Pressure Alert"
             decision["clarity_severity"] = "alert"
             decision["clarity_reason"] = (
-                "Your last blood pressure reading was elevated. This is "
-                "upstream of body composition — it sets the ceiling on "
-                "what training can do."
+                "Your blood pressure is running high."
             )
-            decision["clarity_action"] = (
-                "Log your BP daily at the same time for the next 5 days. "
-                "If it stays elevated, share the trend with your provider."
-            )
+            decision["clarity_action"] = "Log daily readings this week."
             decision["action_category"] = "clarity"
             return decision
 

@@ -667,16 +667,29 @@ def _get_previous_decision(user):
 
 
 def _enrich_with_clarity(decision, signals, body_comp):
-    """When outcome is uncertain, explain WHY and provide a specific next step.
+    """When outcome is uncertain OR a vitals alert is present, surface
+    the right header, reason, and a concrete in-app next step.
 
     Populates:
-    - clarity_reason: WHY progress is unclear (with impact)
-    - clarity_action: specific, time-bound next step
-    - action_category: "clarity" (data/visibility fix) or "performance" (behavior fix)
+    - clarity_label: short header for the panel (e.g. "Glucose Alert",
+                     "Blood Pressure Alert", or "Progress Unclear" for
+                     genuine data-uncertainty cases).
+    - clarity_severity: "alert" when a vitals signal is driving this
+                        (the data IS clear, it's a health alert), or
+                        "info" when progress really is unclear.
+    - clarity_reason: WHY this is showing — plain English, no clinical
+                      jargon ("126 mg/dL"), no system-speak ("takes
+                      priority over body composition signal").
+    - clarity_action: specific, in-app next step. External "consult
+                      your provider" notes are kept brief and secondary.
+    - action_category: "clarity" (data/visibility fix) or "performance"
+                       (behavior fix)
     - signal_interpretation: one-line synthesis of contradictory signals
 
     Deterministic: checks signal gaps in priority order, first match wins.
     """
+    decision.setdefault("clarity_label", "Progress Unclear")
+    decision.setdefault("clarity_severity", "info")
     decision.setdefault("clarity_reason", "")
     decision.setdefault("clarity_action", "")
     decision.setdefault("action_category", decision.get("action_category", "performance"))
@@ -685,8 +698,17 @@ def _enrich_with_clarity(decision, signals, body_comp):
     outcome = decision.get("outcome_status")
     confidence = decision.get("confidence", "low")
 
-    # ── Only populate when uncertain ──
-    needs_clarity = outcome == "unknown"
+    # ── Vitals alerts ALWAYS surface ──
+    # If glucose or BP is flagged elevated/high/low, the user needs to
+    # see it regardless of body composition outcome. Foundation-level
+    # signals beat body comp uncertainty checks.
+    vitals_pre = decision.get("vitals_snapshot") or []
+    has_vitals_alert = any(
+        v.get("status") in ("elevated", "high", "low") for v in vitals_pre
+    )
+
+    # ── Only populate when uncertain (or a vitals alert is present) ──
+    needs_clarity = has_vitals_alert or outcome == "unknown"
     if not needs_clarity and confidence in ("low", "medium"):
         if outcome in ("partial", "unknown", None):
             needs_clarity = True
@@ -719,49 +741,64 @@ def _enrich_with_clarity(decision, signals, body_comp):
         None,
     )
 
-    # Priority 1: Metabolic/cardiovascular risk from vitals
-    # Clinical significance: glucose or BP alerts outrank body comp signals
+    # Priority 1: Metabolic/cardiovascular risk from vitals.
+    # When a vitals signal is driving this card, the data IS clear — it's
+    # a health alert, not "progress unclear". The label and copy reflect
+    # that. Plain English; no clinical jargon ("126 mg/dL"), no
+    # system-speak ("takes priority over body composition signal").
+    # Action is concrete and in-app first; provider note is brief and
+    # secondary.
     if vitals_alert:
         metric = vitals_alert["metric"]
         status = vitals_alert["status"]
         if metric == "glucose":
+            decision["clarity_label"] = "Glucose Alert"
+            decision["clarity_severity"] = "alert"
             if status == "high":
                 decision["clarity_reason"] = (
-                    "Your average blood glucose is above 126 mg/dL — this is in the diabetic range "
-                    "and takes priority over any body composition signal."
+                    "Your glucose has been running high this week. "
+                    "That's a foundation-level signal — body composition "
+                    "won't move reliably until this stabilizes."
                 )
                 decision["clarity_action"] = (
-                    "Review your recent meals and fasting glucose readings. "
-                    "Consult your healthcare provider about your glucose management plan."
+                    "Log your next 3 meals so we can see what's driving "
+                    "it, and add a fasting reading first thing tomorrow. "
+                    "Bring this trend to your provider at your next visit."
                 )
             elif status == "elevated":
+                decision["clarity_label"] = "Glucose Trend"
                 decision["clarity_reason"] = (
-                    "Your average blood glucose is in the pre-diabetic range (100-125 mg/dL). "
-                    "Metabolic health is the foundation — body composition goals depend on it."
+                    "Your glucose is trending elevated. Catching it here "
+                    "is the easy win — small changes work fast at this level."
                 )
                 decision["clarity_action"] = (
-                    "Focus on post-meal glucose: check readings 2 hours after your largest meal. "
-                    "Reducing refined carbs and adding 15 minutes of walking post-meal can lower readings."
+                    "Try a 15-minute walk after your largest meal for the "
+                    "next 5 days, and log a reading 2 hours after eating. "
+                    "Watch what changes."
                 )
             elif status == "low":
                 decision["clarity_reason"] = (
-                    "Your blood glucose readings are below 70 mg/dL — this indicates hypoglycemia "
-                    "and requires immediate attention before any other health goal."
+                    "Your recent glucose readings are low. This needs "
+                    "attention before anything else."
                 )
                 decision["clarity_action"] = (
-                    "Have a fast-acting carb source (juice, glucose tabs) and recheck in 15 minutes. "
-                    "If this is recurring, discuss with your healthcare provider."
+                    "Have a fast-acting carb (juice or glucose tab) and "
+                    "recheck in 15 minutes. If this keeps happening, "
+                    "talk to your provider."
                 )
             decision["action_category"] = "clarity"
             return decision
         elif metric == "blood_pressure" and status in ("high",):
+            decision["clarity_label"] = "Blood Pressure Alert"
+            decision["clarity_severity"] = "alert"
             decision["clarity_reason"] = (
-                f"Your blood pressure reading ({vitals_alert['value']} mmHg) is elevated. "
-                "Cardiovascular health is a higher priority than body composition tracking."
+                "Your last blood pressure reading was elevated. This is "
+                "upstream of body composition — it sets the ceiling on "
+                "what training can do."
             )
             decision["clarity_action"] = (
-                "Monitor your blood pressure daily at the same time. "
-                "If readings remain elevated for 3+ days, consult your healthcare provider."
+                "Log your BP daily at the same time for the next 5 days. "
+                "If it stays elevated, share the trend with your provider."
             )
             decision["action_category"] = "clarity"
             return decision
@@ -1462,6 +1499,8 @@ def _fallback_decision():
         "impact_statement": "",
         "outcome_risk": "low",
         "impact_time_horizon": "today",
+        "clarity_label": "Progress Unclear",
+        "clarity_severity": "info",
         "clarity_reason": "The system cannot assess your progress without data.",
         "clarity_action": "Log your weight daily and any vitals (glucose, blood pressure) to unlock insights.",
         "action_category": "clarity",

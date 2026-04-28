@@ -6,9 +6,9 @@
 
     {# ── 1. PRIMARY VERDICT ── #}
     {% if is_unclear %}
-    <div class="pi-verdict-card pi-verdict-unclear">
+    <div class="pi-verdict-card pi-verdict-unclear pi-severity-{{ clarity_severity|default:'info' }}">
         <div class="pi-verdict-row">
-            <span class="pi-verdict-label">Progress Unclear</span>
+            <span class="pi-verdict-label">{{ clarity_label|default:"Progress Unclear" }}</span>
         </div>
         <p class="pi-clarity-reason">{{ clarity_reason }}</p>
         <div class="pi-clarity-action {% if is_clarity_action %}pi-clarity-type{% else %}pi-performance-type{% endif %}">

@@ -1093,6 +1093,25 @@ class TestVitalsSnapshot(TestCase):
         self.assertIn("glucose", clarity.lower())
         self.assertNotIn("measure your waist", clarity.lower())
 
+        # ── User-facing copy regression (2026-04-26) ──
+        # The card header must label this as a glucose alert (not the
+        # generic "Progress Unclear"). Severity must be 'alert' (the
+        # data IS clear; this is a health alert, not data uncertainty).
+        self.assertEqual(result.get("clarity_label"), "Glucose Alert")
+        self.assertEqual(result.get("clarity_severity"), "alert")
+
+        # The reason must NOT contain clinical jargon or system-speak
+        # that confuses non-clinicians.
+        self.assertNotIn("126 mg/dL", clarity)
+        self.assertNotIn("diabetic range", clarity.lower())
+        self.assertNotIn("takes priority over", clarity.lower())
+
+        # The action must be concrete and in-app first (logging),
+        # with the provider note brief and secondary.
+        action = result.get("clarity_action", "")
+        self.assertIn("log", action.lower(),
+                      f"Action must include in-app logging step; got: {action!r}")
+
     def test_all_signals_present_highest_priority(self):
         """TC4: All signals present → highest priority signal displayed."""
         self._create_summaries()

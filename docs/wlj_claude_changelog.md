@@ -3,8 +3,34 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-03 (CoS Recovery Contract — task classification, recoverability, recovery-state machine)
+# Last Updated: 2026-05-04 (Hotfix — SleepEntry quality_rating varchar-Avg crash on dashboard load)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-04 — Hotfix: SleepEntry quality_rating Avg() crash on dashboard load
+
+User report: production 500 — `function avg(character varying) does
+not exist` thrown from `_build_health_state` during the dashboard's
+momentum service. Pre-existing latent bug; surfaced for users whose
+SleepEntry rows have `quality_score = NULL` (the fallback path).
+
+Root cause: `apps/core/ai_state/state_builder.py:479` issued
+`recent_sleep.aggregate(avg=Avg('quality_rating'))`. `quality_rating`
+is a `CharField` with string choices `{excellent, good, fair, poor,
+terrible}` — PostgreSQL cannot AVG a varchar. The original author's
+comment described the field as "1-5 rescaled to 0-100," confusing
+this CharField with a numeric rating column that doesn't exist.
+
+Fix: replaced the broken DB-level Avg with an in-Python mapping of
+the choice strings to numeric scores (excellent=100, good=80,
+fair=60, poor=40, terrible=20) and a Python average. `quality_score`
+remains the canonical preferred source — the new path only runs when
+quality_score is null AND quality_rating is set on at least one row.
+
+Files: `apps/core/ai_state/state_builder.py` (build_health_state
+sleep block); `apps/core/ai_state/tests_single_source_of_truth.py`
+(new `SleepQualityRatingFallbackTests` — 3 tests covering the
+fallback path, score-takes-precedence, and no-data cases). Tests pass.
 
 
 ## 2026-05-03 — Feature: CoS Recovery Contract (task classification + recoverability + recovery-state machine)

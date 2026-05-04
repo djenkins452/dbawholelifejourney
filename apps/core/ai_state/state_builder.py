@@ -469,19 +469,35 @@ def build_health_state(user):
         from django.db.models import Avg as _Avg
 
         # sleep_quality_avg_7d: average of quality_score (0-100 scale)
-        # if present; else quality_rating (1-5) rescaled to 0-100.
+        # if present; else map quality_rating string choices to numeric
+        # and average in Python. quality_rating is a CharField with
+        # choices {excellent, good, fair, poor, terrible} — DB-level
+        # Avg() raises `function avg(character varying) does not exist`
+        # in PostgreSQL.
         qscore_avg = recent_sleep.aggregate(
             avg=_Avg("quality_score")
         )["avg"]
         if qscore_avg is not None:
             state["sleep_quality_avg_7d"] = round(float(qscore_avg), 1)
         else:
-            qrating_avg = recent_sleep.aggregate(
-                avg=_Avg("quality_rating")
-            )["avg"]
-            if qrating_avg is not None:
-                # 1-5 → 0-100
-                state["sleep_quality_avg_7d"] = round(float(qrating_avg) * 20, 1)
+            _Q_RATING_MAP = {
+                "excellent": 100,
+                "good": 80,
+                "fair": 60,
+                "poor": 40,
+                "terrible": 20,
+            }
+            ratings = list(
+                recent_sleep.exclude(quality_rating="")
+                .values_list("quality_rating", flat=True)
+            )
+            numeric = [
+                _Q_RATING_MAP[r] for r in ratings if r in _Q_RATING_MAP
+            ]
+            if numeric:
+                state["sleep_quality_avg_7d"] = round(
+                    sum(numeric) / len(numeric), 1,
+                )
 
         # sleep_trend: compare first-half vs second-half of the 7-day
         # window. Threshold: 15-minute difference in average sleep

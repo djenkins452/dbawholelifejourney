@@ -420,3 +420,58 @@ class TemplateNoModelObjectReferencesTests(TestCase):
             src,
             "Template still uses view-computed avg_spo2",
         )
+
+
+class SleepQualityRatingFallbackTests(TestCase):
+    """Regression: build_health_state used to call
+    `Avg('quality_rating')` when quality_score was null. Postgres
+    rejects this with `function avg(character varying) does not
+    exist` because quality_rating is a CharField with string
+    choices ({excellent, good, fair, poor, terrible})."""
+
+    def setUp(self):
+        self.user = _make_user("sleep_quality_fallback@test.com")
+
+    def _seed(self, days_ago, *, rating=None, score=None):
+        from apps.health.models import SleepEntry
+        wake = timezone.now() - timedelta(days=days_ago)
+        bed = wake - timedelta(hours=8)
+        SleepEntry.objects.create(
+            user=self.user,
+            sleep_date=wake.date(),
+            bedtime=bed,
+            wake_time=wake,
+            total_duration_minutes=480,
+            quality_rating=rating or "",
+            quality_score=score,
+        )
+
+    def test_string_rating_falls_back_without_db_aggregate(self):
+        """When quality_score is NULL but quality_rating is set, the
+        builder must NOT issue an Avg() against the varchar column."""
+        for d in range(1, 4):
+            self._seed(d, rating="good")  # quality_score=None
+
+        from apps.core.ai_state.state_builder import build_health_state
+        state = build_health_state(self.user)
+        # 'good' → 80 in the Python-side map.
+        self.assertEqual(state["sleep_quality_avg_7d"], 80.0)
+
+    def test_quality_score_takes_precedence(self):
+        for d in range(1, 4):
+            self._seed(d, rating="poor", score=90)
+
+        from apps.core.ai_state.state_builder import build_health_state
+        state = build_health_state(self.user)
+        self.assertEqual(state["sleep_quality_avg_7d"], 90.0)
+
+    def test_no_ratings_no_scores_yields_none(self):
+        for d in range(1, 4):
+            self._seed(d)  # both null/empty
+
+        from apps.core.ai_state.state_builder import build_health_state
+        state = build_health_state(self.user)
+        # The key may exist as a contract default — what matters is
+        # that we never raise the varchar-Avg ProgrammingError. The
+        # value in this case is None.
+        self.assertIsNone(state.get("sleep_quality_avg_7d"))

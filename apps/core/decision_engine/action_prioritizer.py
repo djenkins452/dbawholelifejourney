@@ -18,9 +18,36 @@ Priority ordering (strict):
 
 Foundational precedence per item:
     linked goal/habit/domain is_foundational > item-level is_foundational > False
+
+Recovery contract additions (consumed by build_execution_state):
+    - prioritize_execution_items now FILTERS out non-recoverable items
+      and items suppressed by block collapse. Selectors must stay dumb.
+    - compute_block_collapses() returns the structured BlockCollapse list
+      with strategy ∈ {recover_partially, skip, defer}.
+    - compute_at_risk() applies the strict risk horizon and suppresses
+      non-dependency future risk when overdue exists.
+    - apply_recovery_bucket_selection() re-orders the action list per
+      RecoveryState.mode without blending buckets.
 """
 
 import datetime
+import logging
+
+from apps.core.execution.constants import (
+    AT_RISK_HORIZON_MINUTES,
+    COLLAPSE_MIN_GROUP_SIZE,
+    DEPENDENCY_RISK_HORIZON_MINUTES,
+)
+from apps.core.execution.recoverability import is_recoverable
+from apps.core.execution.recovery_state import (
+    NORMAL,
+    RECOVERY,
+    SHUTDOWN,
+    STABILIZE,
+)
+from apps.core.execution.task_classifier import FLEXIBLE
+
+logger = logging.getLogger(__name__)
 
 # Canonical urgency ordering — lower = higher priority
 URGENCY_ORDER = {"overdue": 0, "now": 1, "next": 2, "upcoming": 3, "done": 4}
@@ -236,7 +263,10 @@ def build_action_priorities(
     return actions
 
 
-def prioritize_execution_items(execution_items, current_time, summaries=None):
+def prioritize_execution_items(
+    execution_items, current_time, summaries=None,
+    suppressed_source_keys=None,
+):
     """
     Adapter: convert ExecutionItem dicts from the authoritative execution contract
     into the format build_action_priorities() expects, then prioritize.
@@ -245,16 +275,31 @@ def prioritize_execution_items(execution_items, current_time, summaries=None):
 
     Args:
         execution_items: list of ExecutionItem dicts from build_today_execution()
+            (each annotated with task_class / recovery_grace_minutes / is_reset_action)
         current_time: datetime.time — user's local time
         summaries: optional dict — execution summaries for binary domain actions
+        suppressed_source_keys: optional set of (source_type, source_id) tuples
+            whose items must NOT enter the action pool — supplied by the
+            block-collapse layer in build_execution_state. Items in this
+            set are filtered before any ranking happens.
 
     Returns:
-        Sorted list of action dicts (same format as build_action_priorities output).
+        Sorted list of action dicts. Each action carries the upstream
+        recovery metadata (task_class, is_reset_action, is_recoverable,
+        domain) so selectors can filter without re-deriving.
     """
+    suppressed = suppressed_source_keys or set()
+
     # Map execution items → action prioritizer's schedule_items + pending_routines
     schedule_items = []
     pending_routines = []
     medicine_groups_map = {}  # window → {total, taken, ...}
+
+    # Source metadata index: action.pk + action.source → enrichment dict.
+    # Used after build_action_priorities() to attach task_class /
+    # is_reset_action / is_recoverable / domain to each action.
+    meta_index = {}
+    medicine_group_meta = {}  # group_key → {is_recoverable, task_class, ...}
 
     for item in execution_items:
         if not item.get('is_actionable', False):
@@ -262,6 +307,17 @@ def prioritize_execution_items(execution_items, current_time, summaries=None):
         # Belt-and-suspenders: never surface completed items even if
         # is_actionable was set incorrectly upstream.
         if item.get('completed_today'):
+            continue
+
+        # Recovery filter: drop non-recoverable items (HARD_EXPIRED past
+        # scheduled, WINDOWED past cutoff). They surface in expired_items
+        # / collapsed_blocks / risk-mode foundational tracking instead.
+        if not is_recoverable(item, current_time):
+            continue
+
+        # Block-collapse suppression — gate set by the upstream layer.
+        src_key = (item.get('source_type'), item.get('source_id'))
+        if src_key in suppressed:
             continue
 
         if item['source_type'] == 'task':
@@ -280,6 +336,14 @@ def prioritize_execution_items(execution_items, current_time, summaries=None):
                 'type': 'task',
                 'is_all_day': False,
             })
+            meta_index[('schedule', item['source_id'])] = {
+                'task_class': item.get('task_class'),
+                'is_reset_action': item.get('is_reset_action', False),
+                'is_recoverable': True,  # filtered above
+                'domain': item.get('domain'),
+                'source_type': 'task',
+                'source_id': item['source_id'],
+            }
         elif item['source_type'] == 'routine_item':
             # Pass scheduled_time so routines get proper urgency
             # classification (now/next/upcoming) instead of always "next"
@@ -297,6 +361,14 @@ def prioritize_execution_items(execution_items, current_time, summaries=None):
                 'time_display': item.get('scheduled_time', ''),
                 'is_overdue': _routine_overdue,
             })
+            meta_index[('routine', item['source_id'])] = {
+                'task_class': item.get('task_class'),
+                'is_reset_action': item.get('is_reset_action', False),
+                'is_recoverable': True,
+                'domain': item.get('domain'),
+                'source_type': 'routine_item',
+                'source_id': item['source_id'],
+            }
         elif item['source_type'] in ('medication_dose', 'supplement_dose'):
             # Use group_type + window as key to keep medications and supplements separate
             group_type = item.get('execution_group_type', 'medication_window')
@@ -322,6 +394,21 @@ def prioritize_execution_items(execution_items, current_time, summaries=None):
             # Track if any dose in this window is overdue
             if item.get('time_status') == 'overdue':
                 medicine_groups_map[group_key]['has_overdue'] = True
+            # Recovery metadata at the group level — most-foundational
+            # classification wins; reset flag is OR-aggregated.
+            mg_meta = medicine_group_meta.setdefault(group_key, {
+                'task_class': item.get('task_class'),
+                'is_reset_action': item.get('is_reset_action', False),
+                'is_foundational': item.get('is_foundational', False),
+                'domain': item.get('domain'),
+                'source_type': item['source_type'],
+                'source_id': group_key,
+            })
+            mg_meta['is_reset_action'] = (
+                mg_meta['is_reset_action'] or item.get('is_reset_action', False)
+            )
+            if item.get('is_foundational'):
+                mg_meta['is_foundational'] = True
 
     # Finalize medicine groups
     medicine_groups = []
@@ -352,13 +439,311 @@ def prioritize_execution_items(execution_items, current_time, summaries=None):
                 'goal_name': '',
             })
 
-    return build_action_priorities(
+    actions = build_action_priorities(
         schedule_items=schedule_items,
         pending_routines=pending_routines,
         medicine_groups=medicine_groups,
         binary_actions=binary_actions,
         current_time=current_time,
     )
+
+    # Enrich each action with upstream recovery metadata so selectors and
+    # downstream layers can read it without re-deriving. For medicine
+    # groups (which have no pk) we look up by (source, group_key) where
+    # group_key is the time_of_day field on the group dict.
+    for a in actions:
+        src = a.get('source')
+        pk = a.get('pk')
+        meta = None
+        if src in ('schedule', 'routine') and pk is not None:
+            meta = meta_index.get((src, pk))
+        elif src == 'intake':
+            window = a.get('time_of_day')
+            # try medication_window then supplement_window
+            for gt in ('medication_window', 'supplement_window'):
+                meta = medicine_group_meta.get(f"{gt}_{window}")
+                if meta:
+                    break
+        if meta:
+            a['task_class'] = meta.get('task_class')
+            a['is_reset_action'] = meta.get('is_reset_action', False)
+            a['is_recoverable'] = meta.get('is_recoverable', True)
+            a['domain'] = meta.get('domain')
+            a['source_type'] = meta.get('source_type')
+        else:
+            # Binary actions and unmapped items: safe defaults.
+            a.setdefault('task_class', None)
+            a.setdefault('is_reset_action', False)
+            a.setdefault('is_recoverable', True)
+            a.setdefault('domain', a.get('source'))
+            a.setdefault('source_type', None)
+
+    return actions
+
+
+# ── Block collapse ──────────────────────────────────────────────────
+
+def compute_block_collapses(execution_items, current_time, active_block=None):
+    """Group missed items in the same execution_group into BlockCollapse
+    summaries with a deterministic strategy.
+
+    A block collapses when:
+      - It is NOT the currently active block, AND
+      - It contains >= COLLAPSE_MIN_GROUP_SIZE open items where each
+        item is either overdue or non-recoverable.
+
+    Strategy assignment:
+      recover_partially  block has >=1 recoverable foundational item.
+                          Only those items remain in the action pool.
+      skip               every item in the block is non-recoverable.
+                          All items suppressed from the action pool.
+      defer              recoverable but no foundational lever — the
+                          block is parked. All items suppressed from
+                          the action pool, but visible in summaries.
+
+    Returns:
+        dict:
+            'collapses': list of {
+                'group_type': str,
+                'group_id': str,
+                'parent_title': str,
+                'item_count': int,
+                'recoverable_count': int,
+                'expired_count': int,
+                'has_foundational_recoverable': bool,
+                'strategy': 'recover_partially' | 'skip' | 'defer',
+                'item_source_ids': list[(source_type, source_id)],
+            }
+            'suppressed_source_keys': set of (source_type, source_id) tuples
+                that prioritize_execution_items must filter out.
+    """
+    active_name = (active_block or {}).get('name')
+    groups = {}
+    for it in (execution_items or []):
+        if it.get('completed_today'):
+            continue
+        if not it.get('is_actionable', False):
+            continue
+        gtype = it.get('execution_group_type')
+        gid = it.get('execution_group_id')
+        if not gtype or not gid or gtype == 'standalone':
+            continue
+        # Only consider items that are overdue or non-recoverable; an
+        # all-pending future block is not a candidate for collapse.
+        is_late = it.get('time_status') == 'overdue'
+        is_dead = not is_recoverable(it, current_time)
+        if not (is_late or is_dead):
+            continue
+        # Skip the active block — its items are still being executed.
+        if active_name and gid == active_name:
+            continue
+        groups.setdefault((gtype, gid), []).append(it)
+
+    collapses = []
+    suppressed = set()
+
+    for (gtype, gid), items in groups.items():
+        if len(items) < COLLAPSE_MIN_GROUP_SIZE:
+            continue
+        recoverable_items = [i for i in items if is_recoverable(i, current_time)]
+        expired_items = [i for i in items if not is_recoverable(i, current_time)]
+        foundational_recoverable = [
+            i for i in recoverable_items if i.get('is_foundational')
+        ]
+        reset_recoverable = [
+            i for i in recoverable_items if i.get('is_reset_action')
+        ]
+        # A "lever" is anything worth keeping in the action pool: a
+        # foundational item OR a reset action. Both let the user
+        # actually do something useful from the missed block.
+        levers = list({
+            (i.get('source_type'), i.get('source_id')): i
+            for i in foundational_recoverable + reset_recoverable
+        }.values())
+
+        if not recoverable_items:
+            strategy = 'skip'
+            keep_keys = set()
+        elif levers:
+            strategy = 'recover_partially'
+            keep_keys = {
+                (i.get('source_type'), i.get('source_id')) for i in levers
+            }
+        else:
+            strategy = 'defer'
+            keep_keys = set()
+
+        for i in items:
+            key = (i.get('source_type'), i.get('source_id'))
+            if key not in keep_keys:
+                suppressed.add(key)
+
+        parent_title = (
+            items[0].get('parent_title')
+            or f"{gtype.replace('_', ' ').title()}"
+        )
+        collapses.append({
+            'group_type': gtype,
+            'group_id': gid,
+            'parent_title': parent_title,
+            'item_count': len(items),
+            'recoverable_count': len(recoverable_items),
+            'expired_count': len(expired_items),
+            'has_foundational_recoverable': bool(foundational_recoverable),
+            'strategy': strategy,
+            'item_source_ids': [
+                (i.get('source_type'), i.get('source_id')) for i in items
+            ],
+        })
+
+    return {
+        'collapses': collapses,
+        'suppressed_source_keys': suppressed,
+    }
+
+
+# ── Risk computation ────────────────────────────────────────────────
+
+def compute_at_risk(actions, blocked_dependents, current_time):
+    """Apply strict risk-horizon rules to the prioritized action list.
+
+    Returns the subset that legitimately qualifies as "at risk":
+      A. Any overdue item is at_risk by definition.
+      B. Future items inside AT_RISK_HORIZON_MINUTES.
+      C. Future items inside DEPENDENCY_RISK_HORIZON_MINUTES that
+         participate in a dependency chain (their pk appears as a key
+         in blocked_dependents — i.e., other tasks are gated on them).
+
+    Suppression rule:
+      If overdue items exist AND no dependency chain exists for a
+      given future item, that future item is suppressed (returns
+      empty future-list, overdue-only).
+    """
+    if not actions:
+        return []
+
+    overdue = [a for a in actions if a.get('urgency') == 'overdue']
+    # When nothing is overdue, foundational now-tier items become the
+    # at-risk fallback (they are about to slip).
+    now_foundational = [
+        a for a in actions
+        if a.get('urgency') == 'now' and a.get('is_foundational')
+    ]
+    blocked_keys = set((blocked_dependents or {}).keys())
+
+    def _delta_minutes(a):
+        td = _parse_time(a.get('time_display'))
+        if td is None:
+            return None
+        now_min = current_time.hour * 60 + current_time.minute
+        sched_min = td.hour * 60 + td.minute
+        return sched_min - now_min
+
+    def _has_dependency(a):
+        pk = a.get('pk')
+        if pk is None:
+            return False
+        return f"task:{pk}" in blocked_keys or f"routine:{pk}" in blocked_keys
+
+    future_at_risk = []
+    for a in actions:
+        if a.get('urgency') in ('overdue', 'now'):
+            continue
+        delta = _delta_minutes(a)
+        if delta is None or delta < 0:
+            continue
+        if delta <= AT_RISK_HORIZON_MINUTES:
+            future_at_risk.append(a)
+        elif (
+            delta <= DEPENDENCY_RISK_HORIZON_MINUTES
+            and _has_dependency(a)
+        ):
+            future_at_risk.append(a)
+
+    # Suppression: when overdue items exist, drop future items that do
+    # NOT participate in a dependency chain. Overdue items remain.
+    if overdue:
+        future_at_risk = [a for a in future_at_risk if _has_dependency(a)]
+        return overdue + future_at_risk
+
+    # No overdue: now-tier foundational items become the leading risk
+    # signal, with the same future-horizon set.
+    return now_foundational + future_at_risk
+
+
+# ── Recovery-mode bucket selection ──────────────────────────────────
+
+def apply_recovery_bucket_selection(actions, recovery_state):
+    """Re-order the action list per RecoveryState.mode without blending.
+
+    NORMAL    pass-through.
+    STABILIZE reset action(s) first; rest follows original order.
+    RECOVERY  bucket order: reset → recoverable foundational overdue
+              → quick-win recoverable overdue → next anchor.
+    SHUTDOWN  essential-anchor only: foundational items remaining +
+              flexible/upcoming-anchor; non-foundational overdue
+              non-anchor items dropped from primary order.
+
+    The function ONLY reorders / filters the list. It does not
+    fabricate new actions.
+    """
+    if not actions or not recovery_state:
+        return list(actions or [])
+
+    mode = recovery_state.get('mode', NORMAL)
+
+    if mode == NORMAL:
+        return list(actions)
+
+    def _is_reset(a):
+        return bool(a.get('is_reset_action'))
+
+    def _is_foundational(a):
+        return bool(a.get('is_foundational'))
+
+    def _is_overdue(a):
+        return a.get('urgency') == 'overdue'
+
+    if mode == STABILIZE:
+        resets = [a for a in actions if _is_reset(a)]
+        rest = [a for a in actions if not _is_reset(a)]
+        return resets + rest
+
+    if mode == RECOVERY:
+        resets = [a for a in actions if _is_reset(a)]
+        foundational_overdue = [
+            a for a in actions
+            if _is_foundational(a) and _is_overdue(a) and not _is_reset(a)
+        ]
+        quick_overdue = [
+            a for a in actions
+            if _is_overdue(a)
+            and not _is_foundational(a)
+            and not _is_reset(a)
+        ]
+        rest = [
+            a for a in actions
+            if a not in resets
+            and a not in foundational_overdue
+            and a not in quick_overdue
+        ]
+        return resets + foundational_overdue + quick_overdue + rest
+
+    if mode == SHUTDOWN:
+        # Keep foundational items (anchors) + items in the upcoming
+        # "nightly" window; drop non-foundational overdue chatter.
+        kept = []
+        for a in actions:
+            if _is_foundational(a):
+                kept.append(a)
+                continue
+            # Allow forward-only non-overdue items; drop non-foundational
+            # overdue items so we don't tell the user to "catch up" at 9PM.
+            if not _is_overdue(a):
+                kept.append(a)
+        return kept
+
+    return list(actions)
 
 
 def _parse_time(time_str):

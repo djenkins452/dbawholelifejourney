@@ -3,9 +3,130 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-04-28 (Signal Rendering Framework — Phase 1)
+# Last Updated: 2026-05-03 (CoS Recovery Contract — task classification, recoverability, recovery-state machine)
 # ================================================================# WLJ Change History
 
+
+## 2026-05-03 — Feature: CoS Recovery Contract (task classification + recoverability + recovery-state machine)
+
+User report: at 2:10 PM the CoS was recommending obviously bad actions —
+a 6:45 AM protein shake, a 10:30 AM church service, and flagging a
+6:00 PM fish oil dose as "at risk." The system had no concept of which
+items remain meaningfully completable after their window has passed,
+no recovery mode for off-track days, and no way to suppress noisy
+future "risk" signals when the present is already behind. Selectors
+were also doing per-item active-block re-checks and risk fallbacks,
+violating the strict "selectors only pick from pre-filtered state" rule.
+
+Holistic refactor — uses existing hooks (ExecutionItem,
+prioritize_execution_items, active_block, build_execution_state). No
+parallel pipeline, no LLM in the path. Selectors become pure picks.
+
+### Files added
+- `apps/core/execution/constants.py` — single home for thresholds
+  (recovery-mode triggers, risk horizons, grace defaults, collapse
+  policy). All upstream code imports from here.
+- `apps/core/execution/task_classifier.py` — deterministic classifier
+  returning `(task_class, grace_minutes, is_reset_action)` per
+  ExecutionItem. Resolution order: explicit registry → activity_type
+  rule → domain/intake rule → source-type fallback → safe default.
+  Classes: `HARD_EXPIRED`, `WINDOWED`, `SOFT_EXPIRED`, `FLEXIBLE`.
+  Reset flag is set ONLY by activity_type / domain / registry — never
+  inferred from titles.
+- `apps/core/execution/recoverability.py` — `is_recoverable(item, now)`.
+  WINDOWED cutoff = `min(scheduled + grace, next_anchor_block_start)`,
+  preventing morning-recovery drift (a 6:45 AM protein shake cannot be
+  recommended at 2:10 PM even with grace).
+- `apps/core/execution/recovery_state.py` — deterministic state machine
+  emitting `{mode, day_narrative, missed_foundational_count,
+  recoverable_overdue_count, expired_count, recommended_strategy,
+  reset_action_available}`. Modes: NORMAL / RECOVERY / STABILIZE /
+  SHUTDOWN. Narratives: on_track / behind_recoverable /
+  behind_reset_required / day_lost_salvage / evening_closeout.
+- `apps/core/execution/tests/test_task_classifier.py` (15 tests)
+- `apps/core/execution/tests/test_recoverability.py` (12 tests)
+- `apps/core/execution/tests/test_recovery_state.py` (7 tests)
+- `apps/core/execution/tests/test_recovery_pipeline.py` (22 tests
+  including the canonical 2:10 PM scenario)
+
+### Files modified
+- `apps/core/execution/today_execution.py` — every ExecutionItem now
+  carries `task_class`, `recovery_grace_minutes`, `is_reset_action`
+  (additive; idempotent annotation).
+- `apps/core/decision_engine/action_prioritizer.py`
+  - `prioritize_execution_items()` filters non-recoverable items and
+    items in collapse-suppressed source-key sets before ranking.
+  - Each prioritized action now carries `task_class`, `is_reset_action`,
+    `is_recoverable`, `domain`, `source_type` (read by selectors).
+  - New `compute_block_collapses()` — groups missed items in the same
+    `execution_group_id` with strategy `recover_partially | skip |
+    defer`. `recover_partially` keeps foundational AND reset levers
+    alive in the action pool.
+  - New `compute_at_risk()` — strict 60–90 min horizon; 4 h horizon
+    only when a dependency chain exists; suppresses non-dependency
+    future risk entirely when overdue items exist.
+  - New `apply_recovery_bucket_selection()` — re-orders the action
+    list per RecoveryState.mode without blending: STABILIZE pushes
+    reset first; RECOVERY orders reset → foundational overdue →
+    quick win → rest; SHUTDOWN drops non-foundational overdue chatter.
+- `apps/core/execution/execution_state.py` — composed state now
+  exposes `eligible_actions` (active-block filtered subset),
+  `expired_items`, `deferred_items`, `collapsed_blocks`,
+  `at_risk_actions`, `recovery_state`. Active-block gate moved
+  upstream from selectors.
+- `apps/core/execution/selectors.py` — selectors slimmed to pure picks
+  from pre-filtered state. `get_next_action` reads `eligible_actions`,
+  `get_biggest_risk` reads `at_risk_actions` (with foundational-expired
+  fall-through), `get_fix_priority` prefers reset action / collapsed-
+  block lever in RECOVERY/STABILIZE before falling through to the
+  existing unblock-count logic. No re-ranking, no DB, no LLM.
+- `apps/ai/cos_fact_statements.py` — added `build_recovery_brief()`
+  and threaded a 2–4 line "DAY MODE" hint into the locked-facts block
+  ONLY when mode != NORMAL. Lean in the common case; gives the LLM
+  tone awareness for recovery / stabilize / shutdown days without
+  inviting blending.
+
+### Why each piece exists
+- **Classifier without title matching** — title tokens drift; explicit
+  fields don't. Registry pin + activity_type tags survive renames and
+  generalize across users.
+- **Hard cutoff for WINDOWED** — grace alone is too permissive (a
+  90-min grace would let a 6:45 AM shake survive into mid-morning).
+  Capping at `next_anchor_block_start` is the deterministic fix.
+- **Foundational influences risk + fix even when expired** — the user
+  needs to know "you missed Church" without the system re-suggesting
+  it as an action. Foundational-expired items now route to risk-mode
+  fall-through and recovery-state counts.
+- **Block collapse as a SELECTION gate** — collapsing was previously a
+  UI concept; making it a selection gate prevents the prioritizer from
+  surfacing N stale items independently. Strategy keeps the right
+  items: foundational + reset levers survive `recover_partially`,
+  everything else is suppressed.
+- **Risk horizons strict** — the Fish Oil 6 PM at 2:10 PM bug is now
+  impossible: standard 90 min, 4 h only with dependency, suppressed
+  entirely when overdue exists.
+- **Selectors pure** — separation of concerns. All filtering and
+  ranking lives upstream; selectors render fixed sentence templates
+  from the pre-filtered fields.
+
+### Test coverage
+- 56 new tests in apps/core/execution/tests/.
+- All 94 execution-layer tests pass (including pre-existing).
+- Canonical 2:10 PM scenario asserts every behavior the user listed:
+  Church filtered from actions, Protein Shake filtered, Shower kept
+  via recover_partially, Fish Oil NOT at risk, RECOVERY/STABILIZE
+  mode triggered post-noon, morning block collapses.
+
+### Migration / risk notes
+- No DB migrations. ExecutionItem is enriched additively; new fields
+  ride through SAE serialization on the next rebuild.
+- `prioritize_execution_items` keeps its return shape (list); new
+  fields surface via `build_execution_state` siblings.
+- Recovery-mode bucket reordering changes `state["actions"][0]` in
+  RECOVERY mode — intentional. Dashboard V2 lists already read by
+  urgency tier, not by index.
+- At-risk suppression rule changes Risk-mode answers when overdue
+  exists — intended; Fish Oil-style false signals removed.
 
 ## 2026-04-26 — CoS Strict Mode Isolation (no blending)
 

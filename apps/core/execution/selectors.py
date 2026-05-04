@@ -95,53 +95,31 @@ def get_next_action(state: dict) -> dict:
     """
     EXECUTION MODE selector — STRICT MODE ISOLATION contract.
 
-    Output is EXACTLY one line, no commentary, no follow-on:
-        "Next: [Action]. Do this now."
-    or, when no current valid action exists:
-        "Next: [Action]." (forward-only — no "Do this now")
-    or, when nothing is pending at all:
-        "Nothing pending right now."
+    Pure pick from pre-filtered state["eligible_actions"]. No priority
+    computation, no re-ranking, no DB, no LLM. Recovery filtering, block
+    collapse suppression, and recovery-mode bucket reordering all
+    happened upstream in build_execution_state.
 
-    Rules:
-      - Eligibility = {overdue, now} only. 'next' (~2h away) is NOT
-        primary — it is forward context only.
-      - Active-block gate: items in the active block, or the next
-        block during lead-in, or overdue items in the *immediately
-        preceding* canonical block. Overdue items in long-past blocks
-        (e.g. a 5:30 AM prayer at noon) are NEVER primary — they
-        surface in Risk / Fix instead.
-      - Selector returns a SINGLE deterministic line. The chat shortcut
-        and JSON API both render this as `message`. No blending.
+    Output is EXACTLY one line:
+        "Next: [Action]. Do this now."     — current overdue/now action
+        "Next: [Action]."                  — forward-only context
+        "Nothing pending right now."       — empty pool
     """
-    from apps.core.execution.active_block import is_item_in_active_block
-
-    actions = state.get("actions") or []
-    if not actions:
-        return _empty_payload("execution", "Nothing pending right now.")
-
-    active_block = state.get("active_block") or {}
-    now_time = state.get("now") or _time(12, 0)
-
-    def _block_eligible(action):
-        return is_item_in_active_block(
-            {
-                'scheduled_time': action.get('time_display'),
-                'time_status': (
-                    'overdue' if action.get('urgency') == 'overdue' else None
-                ),
-            },
-            active_block,
-            now_time,
-        )
+    # eligible_actions is the block-filtered subset upstream. An empty
+    # list means "nothing in the current window" — do NOT fall back to
+    # the unfiltered action list for the PRIMARY pool (it would
+    # re-introduce stale items as "Do this now").
+    if "eligible_actions" in state:
+        eligible = state.get("eligible_actions") or []
+    else:
+        eligible = state.get("actions") or []
 
     primary_pool = [
-        a for a in actions
+        a for a in eligible
         if a.get('urgency') in ('overdue', 'now')
     ]
-    actionable = [a for a in primary_pool if _block_eligible(a)]
-
-    if actionable:
-        top = actionable[0]
+    if primary_pool:
+        top = primary_pool[0]
         title = top.get('title', '')
         return {
             "mode": "execution",
@@ -151,20 +129,31 @@ def get_next_action(state: dict) -> dict:
             "message": f"Next: {title}. Do this now.",
         }
 
-    # Nothing currently actionable — surface the next eligible item as
-    # forward context, but DO NOT instruct "Do this now".
-    forward_pool = [
-        a for a in actions
+    # Forward hint may pull from the FULL list — block-eligible upcoming
+    # first, then any upcoming. The hint is informational, not a "do now"
+    # instruction, so showing a future item from the next block is fine.
+    forward_eligible = [
+        a for a in eligible
         if a.get('urgency') in ('next', 'upcoming')
-        and _block_eligible(a)
     ]
-    if not forward_pool:
-        forward_pool = [
-            a for a in actions
-            if a.get('urgency') in ('next', 'upcoming')
-        ]
-    if forward_pool:
-        f = forward_pool[0]
+    if forward_eligible:
+        f = forward_eligible[0]
+        title = f.get('title', '')
+        return {
+            "mode": "execution",
+            "primary_action": None,
+            "reason": "upcoming",
+            "follow_on": f,
+            "message": f"Next: {title}.",
+        }
+
+    all_actions = state.get("actions") or []
+    forward_any = [
+        a for a in all_actions
+        if a.get('urgency') in ('next', 'upcoming')
+    ]
+    if forward_any:
+        f = forward_any[0]
         title = f.get('title', '')
         return {
             "mode": "execution",
@@ -185,32 +174,33 @@ def get_biggest_risk(state: dict) -> dict:
     """
     RISK MODE selector — STRICT MODE ISOLATION contract.
 
+    Pure pick from pre-filtered state["at_risk_actions"]. The horizon
+    rule (60–90 min standard, 4h with dependency, suppress non-dependency
+    future risk when overdue exists) is enforced upstream in
+    compute_at_risk(). Foundational missed items take precedence,
+    including ones that are no longer recoverable but still influence
+    the day narrative.
+
     Output is EXACTLY one line:
         "Biggest risk: [Issue]. Fix this next."
-    or, when nothing is at risk:
+    or:
         "No risks right now."
-
-    No time math. No reason text. No multiple suggestions.
-
-    Selection priority (strict, deterministic):
-      1. Foundational + overdue (longest overdue first).
-      2. Any overdue (longest overdue first; foundational tiebreak).
-      3. Foundational + now-tier missed items (currently in the now
-         window but not done — about to slip).
-
-    Within each tier, ties broken by: earlier scheduled_time
-    (longer lateness) → higher domain weight (health/medication >
-    routines > tasks) → title.
     """
-    actions = state.get("actions") or []
-    if not actions:
+    at_risk = state.get("at_risk_actions") or []
+
+    # Foundational expired items also count as risk signals even though
+    # they cannot be acted on — they describe what's already lost. We
+    # surface them when no actionable risk exists.
+    expired_items = state.get("expired_items") or []
+    foundational_expired = [
+        i for i in expired_items if i.get('is_foundational')
+    ]
+
+    if not at_risk and not foundational_expired:
         return _empty_payload("risk", "No risks right now.")
 
-    overdue = state.get("overdue_actions") or []
-    now_actions = state.get("now_actions") or []
-
     def _domain_weight(a):
-        src = (a.get('source') or '').lower()
+        src = (a.get('source') or a.get('domain') or '').lower()
         return _DOMAIN_RISK_WEIGHT.get(src, 0)
 
     def _risk_key(a):
@@ -219,20 +209,32 @@ def get_biggest_risk(state: dict) -> dict:
         weight = -_domain_weight(a)
         return (foundational_rank, time_min, weight, a.get('title', ''))
 
-    pool = list(overdue) if overdue else list(now_actions)
-    if not pool:
-        return _empty_payload("risk", "No risks right now.")
+    if at_risk:
+        pool = list(at_risk)
+        pool.sort(key=_risk_key)
+        top = pool[0]
+        title = top.get('title', '')
+        return {
+            "mode": "risk",
+            "primary_action": top,
+            "reason": "overdue" if top.get('urgency') == 'overdue' else "at_risk",
+            "follow_on": None,
+            "message": f"Biggest risk: {title}. Fix this next.",
+        }
 
-    pool.sort(key=_risk_key)
-    top = pool[0]
-    title = top.get('title', '')
-
+    # Fall through to foundational expired — read from items, not actions.
+    foundational_expired.sort(key=lambda i: (
+        i.get('scheduled_time') or '23:59',
+        i.get('title') or '',
+    ))
+    top_item = foundational_expired[0]
+    title = top_item.get('title', '')
     return {
         "mode": "risk",
-        "primary_action": top,
-        "reason": "overdue" if top.get('urgency') == 'overdue' else "at_risk",
+        "primary_action": None,
+        "reason": "foundational_missed",
         "follow_on": None,
-        "message": f"Biggest risk: {title}. Fix this next.",
+        "message": f"Biggest risk: {title} missed. Reset for the rest of today.",
     }
 
 
@@ -244,26 +246,57 @@ def get_fix_priority(state: dict) -> dict:
     """
     FIX MODE selector — STRICT MODE ISOLATION contract.
 
+    Pure pick from pre-filtered state. Recovery-mode awareness:
+      - In RECOVERY/STABILIZE, prefer (a) a reset action if available,
+        (b) the highest-leverage collapsed-block summary.
+      - Otherwise pick the overdue action whose completion unblocks
+        the most dependent pending tasks.
+
     Output is EXACTLY one line:
         "Fix this first: [Action]."
-    or, when nothing is overdue:
+    or:
         "Nothing to fix."
-
-    No time. No impact text. No multiple suggestions.
-
-    Goal: reduce accumulated disorder. Picks the overdue item whose
-    completion unblocks the most dependent pending tasks (via
-    state["blocked_dependents"], pre-computed by build_execution_state
-    from dependency_gating semantics). Ties broken by:
-      1. lowest commitment_level (simplest quick win)
-      2. earliest scheduled_time
-      3. title
     """
+    # Fix mode reads the FULL action list (not block-filtered) — fix is
+    # about clearing accumulated disorder, not just the active block.
     actions = state.get("actions") or []
-    if not actions:
-        return _empty_payload("fix", "Nothing to fix.")
-
     overdue = state.get("overdue_actions") or []
+    recovery = state.get("recovery_state") or {}
+    mode = recovery.get("mode", "NORMAL")
+    collapsed_blocks = state.get("collapsed_blocks") or []
+
+    # Recovery / stabilize: prefer the reset lever first. The bucket
+    # selection upstream already pushed reset actions to the front.
+    if mode in ("RECOVERY", "STABILIZE"):
+        for a in actions:
+            if a.get('is_reset_action'):
+                title = a.get('title', '')
+                return {
+                    "mode": "fix",
+                    "primary_action": a,
+                    "reason": "reset",
+                    "follow_on": None,
+                    "message": f"Fix this first: {title}.",
+                }
+        # No reset action — surface a recover_partially block summary
+        # if one exists (highest-leverage missed group).
+        partial = [
+            c for c in collapsed_blocks
+            if c.get('strategy') == 'recover_partially'
+        ]
+        if partial:
+            top_block = sorted(
+                partial, key=lambda c: -c.get('item_count', 0)
+            )[0]
+            title = top_block.get('parent_title', 'Missed block')
+            return {
+                "mode": "fix",
+                "primary_action": None,
+                "reason": "block_recover",
+                "follow_on": None,
+                "message": f"Fix this first: {title}.",
+            }
+
     if not overdue:
         return _empty_payload("fix", "Nothing to fix.")
 

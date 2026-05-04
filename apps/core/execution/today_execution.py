@@ -100,6 +100,18 @@ def build_today_execution(user):
     except Exception:
         logger.warning("Execution contract: domain summary failed", exc_info=True)
 
+    # Annotate every item with task_class / recovery_grace_minutes /
+    # is_reset_action. PURE annotation — additive fields only.
+    try:
+        from apps.core.execution.task_classifier import annotate as _annotate
+        for it in items:
+            _annotate(it)
+    except Exception:
+        logger.warning(
+            "Execution contract: classifier annotation failed",
+            exc_info=True,
+        )
+
     return {
         'items': items,
         'summaries': summaries,

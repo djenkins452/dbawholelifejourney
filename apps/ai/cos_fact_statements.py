@@ -116,6 +116,7 @@ def build_locked_facts(user) -> dict:
         'significant_events_summary': event_summary,
         'overall_summary': _build_overall_summary(raw),
         'next_action': build_locked_next_action(user),
+        'recovery_brief': build_recovery_brief(user),
         '_raw': raw,
         '_event_signals': event_signals,
     }
@@ -416,6 +417,62 @@ def _build_significant_event_summary(user):
         return "No significant events today or upcoming.", []
 
 
+def build_recovery_brief(user) -> dict:
+    """Return the deterministic recovery brief for the locked-facts block.
+
+    Reads state["recovery_state"] directly. No LLM, no logic here — this
+    is a pass-through formatter for the day-mode hint.
+
+    Returns:
+        dict: {
+            'mode': str,
+            'day_narrative': str,
+            'reason': str,
+            'expired_titles': list[str],   # foundational expired only
+            'collapsed_titles': list[str], # parent_title for each
+                                            # collapsed block (truncated)
+        }
+        OR {'mode': 'NORMAL', ...} when nothing to surface.
+    """
+    try:
+        from apps.core.execution.execution_state import build_execution_state
+
+        state = build_execution_state(user)
+        recovery = state.get('recovery_state') or {}
+        expired = state.get('expired_items') or []
+        collapsed = state.get('collapsed_blocks') or []
+
+        # Foundational expired only — non-foundational stale items are
+        # noise at this layer.
+        expired_titles = [
+            i.get('title', '') for i in expired
+            if i.get('is_foundational')
+        ][:3]
+        collapsed_titles = [
+            c.get('parent_title', '') for c in collapsed
+            if c.get('strategy') in ('skip', 'recover_partially', 'defer')
+        ][:3]
+
+        return {
+            'mode': recovery.get('mode', 'NORMAL'),
+            'day_narrative': recovery.get('day_narrative', 'on_track'),
+            'reason': recovery.get('reason', ''),
+            'expired_titles': expired_titles,
+            'collapsed_titles': collapsed_titles,
+        }
+    except Exception:
+        logger.warning(
+            "[CoS RECOVERY BRIEF] FAILED user=%s", user.id, exc_info=True,
+        )
+        return {
+            'mode': 'NORMAL',
+            'day_narrative': 'on_track',
+            'reason': '',
+            'expired_titles': [],
+            'collapsed_titles': [],
+        }
+
+
 def build_locked_next_action(user) -> str:
     """
     Build the system-determined next action recommendation.
@@ -479,12 +536,39 @@ def format_locked_facts_block(facts) -> str:
     the block, the LLM has no material to blend.
     """
     next_action = facts.get('next_action') or 'Nothing pending right now.'
+    recovery = facts.get('recovery_brief') or {}
+    mode = recovery.get('mode', 'NORMAL')
+
+    # Day-mode hint — added ONLY when mode != NORMAL. Keeps the prompt
+    # block lean in the common case while giving the LLM tone awareness
+    # for recovery / stabilize / shutdown days.
+    recovery_lines = ""
+    if mode != 'NORMAL':
+        narrative = recovery.get('day_narrative', 'on_track')
+        expired = recovery.get('expired_titles') or []
+        collapsed = recovery.get('collapsed_titles') or []
+        recovery_lines = f"\nDAY MODE: {mode} ({narrative})\n"
+        if expired:
+            recovery_lines += (
+                f"EXPIRED (do not surface as actions): "
+                f"{', '.join(expired)}\n"
+            )
+        if collapsed:
+            recovery_lines += (
+                f"COLLAPSED BLOCKS: {', '.join(collapsed)}\n"
+            )
+        recovery_lines += (
+            "TONE: acknowledge state without re-listing past misses; "
+            "the next action is forward-only.\n"
+        )
+
     return (
         "=" * 60 + "\n"
         "CURRENT NEXT ACTION (SYSTEM-GENERATED — DO NOT BLEND)\n"
         + "=" * 60 + "\n"
-        f"\n  {next_action}\n\n"
-        "RULES:\n"
+        f"\n  {next_action}\n"
+        + recovery_lines +
+        "\nRULES:\n"
         "- This is the system-determined next action. Quote it verbatim "
         "or paraphrase lightly.\n"
         "- DO NOT augment with overdue lists, future items, or domain "

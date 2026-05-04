@@ -46,9 +46,16 @@ def _action(title, urgency, *, time_display='', source='routine',
 
 def _state(actions, *, now=datetime.time(8, 0), active_block=None,
            blocked_dependents=None):
-    """Build a state dict mirroring build_execution_state output shape."""
+    """Build a state dict mirroring build_execution_state output shape.
+
+    Mirrors the upstream contract: eligible_actions is the active-block
+    filtered subset (what EXECUTION-mode reads), while actions keeps
+    everything for Risk/Fix selectors to consider.
+    """
+    from apps.core.execution.active_block import is_item_in_active_block
+    from apps.core.decision_engine.action_prioritizer import compute_at_risk
+
     if active_block is None:
-        # Default: morning canonical block
         active_block = {
             'name': 'morning',
             'start_time': datetime.time(5, 0),
@@ -58,17 +65,38 @@ def _state(actions, *, now=datetime.time(8, 0), active_block=None,
             'next_block_start': datetime.time(10, 0),
             'bounds': {},
         }
+
+    def _eligible(a):
+        return is_item_in_active_block(
+            {
+                'scheduled_time': a.get('time_display'),
+                'time_status': (
+                    'overdue' if a.get('urgency') == 'overdue' else None
+                ),
+            },
+            active_block,
+            now,
+        )
+
+    eligible = [a for a in actions if _eligible(a)]
+    blocked = blocked_dependents or {}
     return {
         'now': now,
         'active_block': active_block,
         'items': [],
         'summaries': {},
         'actions': actions,
+        'eligible_actions': eligible,
         'overdue_actions': [a for a in actions if a['urgency'] == 'overdue'],
         'now_actions':     [a for a in actions if a['urgency'] == 'now'],
         'next_actions':    [a for a in actions if a['urgency'] == 'next'],
         'upcoming_actions':[a for a in actions if a['urgency'] == 'upcoming'],
-        'blocked_dependents': blocked_dependents or {},
+        'expired_items': [],
+        'deferred_items': [],
+        'collapsed_blocks': [],
+        'at_risk_actions': compute_at_risk(actions, blocked, now),
+        'recovery_state': {'mode': 'NORMAL', 'day_narrative': 'on_track'},
+        'blocked_dependents': blocked,
     }
 
 

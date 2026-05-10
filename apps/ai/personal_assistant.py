@@ -1910,6 +1910,131 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                     response = _validated
             elif _truth_violations:
                 response = _validated
+
+            # ── Narration Contract enforcement (5a — soft) ──
+            # Inspect the (possibly regenerated) response for state
+            # claims and check traceability to canonical sources.
+            # Canonical and rollup blobs are constructed from the
+            # data we already have in scope, not from prompt text —
+            # so this path doesn't depend on prompt plumbing.
+            _narration_result = None
+            _exec_state_for_telem = None
+            _contradictions = []
+            try:
+                from apps.ai.narration_contract_validator import (
+                    validate_narration_contract,
+                )
+                from apps.core.execution.execution_state import (
+                    build_execution_state,
+                )
+                _exec_state_for_telem = build_execution_state(self.user)
+                _eligible = _exec_state_for_telem.get('eligible_actions') or []
+                _at_risk = _exec_state_for_telem.get('at_risk_actions') or []
+                _expired = _exec_state_for_telem.get('expired_items') or []
+                _domains = (
+                    _exec_state_for_telem.get('summaries', {}).get('domains', {})
+                )
+                _meds = (
+                    _exec_state_for_telem.get('summaries', {}).get('medications', {})
+                )
+                # Canonical blob: per-item entity titles the LLM is
+                # allowed to make state claims about.
+                _canonical_titles = (
+                    [a.get('title', '') for a in _eligible]
+                    + [a.get('title', '') for a in _at_risk]
+                    + [i.get('title', '') for i in _expired]
+                )
+                _next_msg = (
+                    (_locked or {}).get('next_action', '')
+                )
+                _canonical_blob = "\n".join(
+                    [_next_msg] + _canonical_titles
+                )
+                # Rollup blob: domain labels + window labels.
+                _rollup_blob = "\n".join(
+                    list(_domains.keys())
+                    + [m.get('label', '') for m in _meds.values()]
+                )
+                _narration_result = validate_narration_contract(
+                    response, _canonical_blob, _rollup_blob,
+                    user_id=self.user.id,
+                    request_id=getattr(self, '_chat_request_id', None),
+                )
+            except Exception:
+                logger.warning(
+                    "NARRATION_CONTRACT_VALIDATOR failed user=%s",
+                    self.user.id, exc_info=True,
+                )
+
+            # ── Contradiction telemetry (5b) ──
+            try:
+                from apps.core.ai_orchestrator.contradiction_telemetry import (
+                    detect_contradictions,
+                )
+                if _exec_state_for_telem is None:
+                    from apps.core.execution.execution_state import (
+                        build_execution_state as _bes2,
+                    )
+                    _exec_state_for_telem = _bes2(self.user)
+                _fresh_med_schedule = []
+                try:
+                    from apps.core.ai_state.state_builder import (
+                        build_medicine_state,
+                    )
+                    _fresh_med = build_medicine_state(self.user) or {}
+                    _fresh_med_schedule = _fresh_med.get(
+                        'schedule_status_today', [],
+                    )
+                except Exception:
+                    pass
+                _contradictions = detect_contradictions(
+                    exec_state=_exec_state_for_telem,
+                    fresh_med_schedule=_fresh_med_schedule,
+                    user_id=self.user.id,
+                    request_id=getattr(self, '_chat_request_id', None),
+                )
+            except Exception:
+                logger.warning(
+                    "CONTRADICTION_TELEMETRY failed user=%s",
+                    self.user.id, exc_info=True,
+                )
+
+            # ── Snapshot artifact (B1, flag-gated) ──
+            try:
+                from django.conf import settings as _snap_settings
+                from apps.ai.observability.chat_snapshot import (
+                    build_snapshot_payload, dump_chat_snapshot,
+                    new_request_id,
+                )
+                _request_id = (
+                    getattr(self, '_chat_request_id', None)
+                    or new_request_id()
+                )
+                dump_chat_snapshot(build_snapshot_payload(
+                    request_id=_request_id,
+                    user_id=self.user.id,
+                    user_message=str(message)[:1024],
+                    rendered_prompt='',
+                    execution_state=_exec_state_for_telem or {},
+                    selector_outputs={},
+                    rollup_summaries=(
+                        (_exec_state_for_telem or {}).get('summaries', {})
+                    ),
+                    contradictions=[
+                        c.as_dict() if hasattr(c, 'as_dict') else c
+                        for c in (_contradictions or [])
+                    ],
+                    narration_validations=_narration_result or {},
+                    llm_response_text=response or '',
+                    llm_model=getattr(_snap_settings, 'COS_MODEL', 'unknown'),
+                    llm_duration_ms=0,
+                ))
+            except Exception:
+                # Snapshot is observability — never break chat.
+                logger.warning(
+                    "CHAT_SNAPSHOT post-response failed user=%s",
+                    self.user.id, exc_info=True,
+                )
         except Exception as _val_outer_err:
             # Truth validation failure is CRITICAL — log at error level
             logger.error(

@@ -1347,4 +1347,9 @@ WLJ_BUILDER_TOKEN_LIMITS_ENABLED = env.bool('WLJ_BUILDER_TOKEN_LIMITS_ENABLED', 
 # Global token budget ceiling for assembled prompts
 WLJ_TOKEN_BUDGET_MAX = env.int('WLJ_TOKEN_BUDGET_MAX', default=12000)
 WLJ_TOKEN_BUDGET_ENABLED = env.bool('WLJ_TOKEN_BUDGET_ENABLED', default=True)
+# Per-request CoS chat snapshot artifact (B1 — observability).
+# When True, every chat turn writes a JSON file under
+# LOG_DIR/chat_snapshots/<date>/<request_id>.json. Default OFF; turn
+# on for narrative-drift debugging. Auto-pruned externally after 24 h.
+WLJ_CHAT_SNAPSHOTS_ENABLED = env.bool('WLJ_CHAT_SNAPSHOTS_ENABLED', default=False)
     

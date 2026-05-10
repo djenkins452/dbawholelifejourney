@@ -3,8 +3,124 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-04 (Hotfix — SleepEntry quality_rating varchar-Avg crash on dashboard load)
+# Last Updated: 2026-05-10 (Narration Contract — prompt-tier governance + contradiction telemetry + chat snapshots)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-10 — Feature: Narration Contract + CoS state-integrity instrumentation
+
+User report: at 9:00 AM, Beth narrated a 1:00 PM Lunch as "at risk"
+and claimed Wake up / Prayer Time / Bible Reading / THRONE Creatine /
+Lantus SoloStar were "already done" while their checkboxes were
+unchecked in Action Center. SYSTEM INVESTIGATION MODE audit traced the
+divergence to two architectural drifts:
+
+1. The chat-prompt assembly emitted rich rollup summaries
+   (`prayer: DONE`, `MEDICATION ALL TAKEN`) alongside per-item state.
+   The LLM was free to convert rollups into per-item completion claims.
+2. The chat path injected the full forward schedule with HH:MM times.
+   The LLM saw `Lunch @13:00` and synthesized "at risk" framing on
+   its own, since the deterministic at_risk_actions list was never
+   surfaced in the prompt.
+
+This change introduces a narration-governance layer above the existing
+deterministic engines. No new decision engine. No engine bypass. No
+LLM-as-decider. The deterministic engines remain authoritative; the
+contract binds the LLM to interpret prompt sections by trust tier.
+
+### New modules
+- `apps/core/ai_orchestrator/narration_contract.py` — preamble +
+  `section_header(tier, title)` + tier constants
+  (`canonical_item_truth`, `rollup_summary`, `advisory`,
+  `contextual`). Untagged sections default to `contextual`.
+- `apps/ai/narration_contract_validator.py` — soft post-response
+  validator. Detects "done / overdue / at risk / next action / fix
+  first" claims and grades each by traceability to canonical_item_
+  truth. Logs warnings; does NOT block responses in v1.
+- `apps/core/ai_orchestrator/contradiction_telemetry.py` — detects
+  rollup-vs-canonical disagreements:
+    PRAYER_ROLLUP_VS_ITEMS — `prayer: DONE` with pending prayer routine.
+    BIBLE_ROLLUP_VS_ITEMS  — same for bible.
+    WORKOUT_ROLLUP_VS_ITEMS / JOURNAL_ROLLUP_VS_ITEMS — same pattern.
+    MEDICATION_WINDOW_VS_DOSE — window ALL TAKEN with a pending dose.
+- `apps/ai/observability/chat_snapshot.py` — flag-gated single-file
+  artifact (`WLJ_CHAT_SNAPSHOTS_ENABLED`) capturing per-request
+  prompt sections, execution state, selector outputs, contradictions,
+  and validator results.
+
+### Modified
+- `apps/core/ai_orchestrator/cos_context.py`
+  - **A0**: Narration Contract preamble inserted at top of
+    `format_cos_system_injection`.
+  - **A1**: New DECISIONS section (canonical_item_truth) carrying
+    selector outputs (`get_next_action`, `get_biggest_risk`,
+    `get_fix_priority`) verbatim, plus `recovery_state.mode` and
+    `day_narrative`. The LLM is bound to quote these for any
+    next/risk/fix narration.
+  - **A3**: ACTION PRIORITIES filtered to `eligible_actions`
+    (block-gated subset). Far-future items go to a new FORWARD
+    SCHEDULE section tagged `contextual` — visible for entity
+    grounding only, NOT eligible for "at risk" or "next" narration.
+  - **A4**: NEXT UP suppressed when target time is beyond
+    `AT_RISK_HORIZON_MINUTES` away.
+  - **A5**: MEDICATION PROGRESS now uses a single source
+    (`_exec_summaries['medications']`); the previous
+    `_fresh_module_state('medicine')` rollup narration is removed
+    from the prompt to prevent two-source divergence. Fresh state
+    remains in context for entity grounding only.
+  - High-leverage sections explicitly tagged: TODAY'S TASKS
+    (canonical_item_truth), DAILY EXECUTION STATUS (rollup_summary),
+    MEDICATION PROGRESS (rollup_summary), ROUTINE PROGRESS
+    (canonical_item_truth), ACTION PRIORITIES (canonical_item_truth),
+    ROUTINE MAINTENANCE PLAN (advisory), FORWARD SCHEDULE
+    (contextual). Untagged sections fall back to `contextual` per
+    the preamble.
+- `apps/ai/personal_assistant.py` — post-response: invoke narration
+  validator (5a), contradiction telemetry (5b), and snapshot dump
+  (B1) inside the existing locked-facts validation block. All three
+  are wrapped in defensive try/except — observability must never
+  break a chat turn.
+- `config/settings.py` — `WLJ_CHAT_SNAPSHOTS_ENABLED` flag (default
+  False).
+
+### Why each piece
+- **Narration Contract preamble** — gives the LLM explicit interpretive
+  rules. Without it, the LLM was effectively the assembler.
+- **DECISIONS section** — surfaces deterministic selector output to
+  the LLM for general questions, not just keyword-routed ones. The
+  keyword shortcut path keeps working; this extends the same authority
+  to non-shortcut questions.
+- **A3 filter + FORWARD SCHEDULE** — the LLM still sees future items
+  for entity grounding but cannot label them "at risk" without
+  violating the contract.
+- **A4 NEXT UP suppression** — closes the loophole where the chat
+  prompt named a far-future item as the "next" action signal.
+- **A5 single medication source** — eliminates the dual-read split
+  that allowed window ALL TAKEN to disagree with fresh per-dose state.
+- **Validator + contradiction telemetry + snapshot** — observability
+  scaffolding so future drifts surface in logs, not in user reports.
+
+### Testing
+- 36 new tests across:
+  - `apps/core/ai_orchestrator/tests/test_narration_contract.py` (12)
+  - `apps/ai/tests/test_narration_contract_validator.py` (8)
+  - `apps/core/ai_orchestrator/tests/test_contradiction_telemetry.py` (6)
+  - `apps/ai/tests/test_chat_snapshot.py` (6)
+  - `apps/core/execution/tests/test_chat_canonical_alignment.py` (4)
+- Canonical 9:00 AM regression scenario: deterministic layer never
+  asserts what Beth narrated.
+- All previously-passing execution-layer tests continue to pass.
+
+### Migration / risk notes
+- No DB migrations.
+- `WLJ_CHAT_SNAPSHOTS_ENABLED` default False — zero overhead unless
+  enabled.
+- Narration Contract preamble adds ~30 lines to every chat prompt;
+  acceptable given the existing prompt is ~6 000 lines.
+- Soft enforcement only: validator logs warnings, does not block
+  responses or trigger regeneration. Hard enforcement reserved for
+  a follow-up after warning telemetry settles.
+- Architecture Laws bumped to 1.2 with Law 16 (Narration Contract).
 
 
 ## 2026-05-04 — Hotfix: SleepEntry quality_rating Avg() crash on dashboard load

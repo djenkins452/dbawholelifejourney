@@ -90,6 +90,35 @@ logger = logging.getLogger(__name__)
 _PARALLEL_MAX_WORKERS = 6
 
 
+def _delta_minutes_until(time_display, now_time):
+    """Return minutes from now_time until the given time_display string,
+    or None if unparseable. Negative when time_display is in the past.
+
+    Used by the A4 NEXT-UP suppression gate: items beyond the at-risk
+    horizon must not be narrated as current pressure.
+    """
+    if not time_display:
+        return None
+    import datetime as _dt
+    if isinstance(time_display, _dt.time):
+        target = time_display
+    else:
+        target = None
+        for fmt in ("%H:%M", "%I:%M %p"):
+            try:
+                target = _dt.datetime.strptime(
+                    str(time_display).strip(), fmt,
+                ).time()
+                break
+            except (ValueError, TypeError):
+                continue
+        if target is None:
+            return None
+    now_min = now_time.hour * 60 + now_time.minute
+    target_min = target.hour * 60 + target.minute
+    return target_min - now_min
+
+
 def _fresh_module_state(user, module):
     """
     Phase 6: build a fresh module state, bypassing the UserState cache.
@@ -4500,7 +4529,16 @@ def _build_data_state_snapshot(user) -> str:
     # Today's remaining tasks — grouped by time proximity
     if _today:
         lines.append("")
-        lines.append("TODAY'S TASKS (AUTHORITATIVE — due today, not yet overdue):")
+        try:
+            from apps.core.ai_orchestrator.narration_contract import (
+                TIER_CANONICAL, section_header,
+            )
+            lines.append(section_header(
+                TIER_CANONICAL,
+                "TODAY'S TASKS (AUTHORITATIVE — due today, not yet overdue):",
+            ))
+        except Exception:
+            lines.append("TODAY'S TASKS (AUTHORITATIVE — due today, not yet overdue):")
         _PROX_ORDER = ['due_now', 'due_soon', 'later_today', 'unscheduled']
         _PROX_LABELS = {
             'due_now': 'DUE NOW (within 1 hour)',
@@ -4614,7 +4652,20 @@ def _build_data_state_snapshot(user) -> str:
         }
 
     lines.append("")
-    lines.append("DAILY EXECUTION STATUS (AUTHORITATIVE — today only, live query):")
+    try:
+        from apps.core.ai_orchestrator.narration_contract import (
+            TIER_ROLLUP, section_header,
+        )
+        lines.append(section_header(
+            TIER_ROLLUP,
+            "DAILY EXECUTION STATUS (domain rollup — today only, live query):",
+        ))
+        lines.append(
+            "  NOTE: domain DONE labels are rollups. They DO NOT mean "
+            "every routine item in that domain has been checked."
+        )
+    except Exception:
+        lines.append("DAILY EXECUTION STATUS (AUTHORITATIVE — today only, live query):")
     _domain_fields = [
         ('journal', _truth_domains.get('journal', False)),
         ('workout', _truth_domains.get('workout', False)),
@@ -4792,7 +4843,16 @@ def _build_data_state_snapshot(user) -> str:
         _routine_comp = _exec_summaries.get('routines', {})
         if _routine_comp:
             lines.append("")
-            lines.append("ROUTINE PROGRESS (derived from item completion):")
+            try:
+                from apps.core.ai_orchestrator.narration_contract import (
+                    TIER_CANONICAL, section_header,
+                )
+                lines.append(section_header(
+                    TIER_CANONICAL,
+                    "ROUTINE PROGRESS (per-item state):",
+                ))
+            except Exception:
+                lines.append("ROUTINE PROGRESS (derived from item completion):")
             for _rid, _rc in _routine_comp.items():
                 _rname = _rc.get('name', f'Routine {_rid}')
                 _done = _rc.get('completed_count', 0)
@@ -4844,11 +4904,28 @@ def _build_data_state_snapshot(user) -> str:
                 else:
                     lines.append(f"    [{_ri_status}] {ri.get('title', '')} ({_ri_parent})")
 
-    # Medication progress (from execution summaries)
+    # Medication progress (window-level rollup — A5: SINGLE SOURCE).
+    # Uses _exec_summaries['medications'] only; pending_medications
+    # remains in context for entity grounding but is NOT narrated here
+    # to prevent dual-source divergence between SAE-fresh and the
+    # execution-truth-derived rollup.
     _med_summaries = _exec_summaries.get('medications', {})
     if _med_summaries:
         lines.append("")
-        lines.append("MEDICATION PROGRESS:")
+        try:
+            from apps.core.ai_orchestrator.narration_contract import (
+                TIER_ROLLUP, section_header,
+            )
+            lines.append(section_header(
+                TIER_ROLLUP,
+                "MEDICATION PROGRESS (window-level rollup):",
+            ))
+            lines.append(
+                "  NOTE: 'ALL TAKEN' is a window aggregate. It does NOT "
+                "mean any specific dose can be claimed taken in narration."
+            )
+        except Exception:
+            lines.append("MEDICATION PROGRESS:")
         for _window, _ms in _med_summaries.items():
             _label = _ms.get('label', _window)
             _taken = _ms.get('taken', 0)
@@ -4864,7 +4941,16 @@ def _build_data_state_snapshot(user) -> str:
         if _timed_actions:
             _has_urgent_actions = True
             lines.append("")
-            lines.append("ROUTINE MAINTENANCE PLAN:")
+            try:
+                from apps.core.ai_orchestrator.narration_contract import (
+                    TIER_ADVISORY, section_header,
+                )
+                lines.append(section_header(
+                    TIER_ADVISORY,
+                    "ROUTINE MAINTENANCE PLAN (advisory — guidance only):",
+                ))
+            except Exception:
+                lines.append("ROUTINE MAINTENANCE PLAN:")
             for ta in _timed_actions:
                 lines.append(f"  {ta['guidance']}")
             lines.append(
@@ -4961,27 +5047,38 @@ def _build_data_state_snapshot(user) -> str:
     )
 
     # ── Unified Action Priorities from Execution Contract ──
-    # Uses the FRESH execution contract built above (not SAE cache).
+    # A3: filter to eligible_actions (block-gated, recovery-aware) so
+    #     far-future items NEVER pollute the canonical action list the
+    #     LLM uses for "next / at risk / urgency" narration.
+    # A4: suppress NEXT UP when target is beyond AT_RISK_HORIZON_MINUTES.
+    # Both reuse build_execution_state output cached on context above.
     try:
-        from apps.core.decision_engine.action_prioritizer import prioritize_execution_items
+        from apps.core.execution.constants import AT_RISK_HORIZON_MINUTES
         from apps.core.utils import get_user_now
 
         user_now = get_user_now(user)
         current_time = user_now.time()
 
-        # Reuse the fresh contract built in the Daily Execution Status block
-        exec_items = _exec_contract.get('items', [])
-        exec_summaries = _exec_contract.get('summaries', {})
+        # Prefer the already-built execution state (A1 stashed it).
+        _state_for_priorities = context.get('_decision_state')
+        if _state_for_priorities is None:
+            from apps.core.execution.execution_state import (
+                build_execution_state,
+            )
+            _state_for_priorities = build_execution_state(user)
 
-        action_priorities = prioritize_execution_items(
-            exec_items, current_time, summaries=exec_summaries,
-        )
+        # A3: ACTION PRIORITIES draws from eligible_actions (block-gated
+        # subset). Far-future / non-block-eligible items are NOT
+        # canonical here; they go to the FORWARD SCHEDULE section below
+        # tagged contextual.
+        action_priorities = _state_for_priorities.get('eligible_actions') or []
+        forward_only = [
+            a for a in (_state_for_priorities.get('actions') or [])
+            if a not in action_priorities
+        ]
 
         if action_priorities:
             # ── CURRENT MOMENT detection ──
-            # Identify what the user should be doing RIGHT NOW based on
-            # urgency classification. "now" items are within the active
-            # window (-5 to +30 min of scheduled time).
             _now_items = [a for a in action_priorities if a['urgency'] == 'now']
             _next_items = [a for a in action_priorities if a['urgency'] == 'next']
             _overdue_items = [a for a in action_priorities if a['urgency'] == 'overdue']
@@ -5005,19 +5102,33 @@ def _build_data_state_snapshot(user) -> str:
                     f"this should be handled first."
                 )
             elif _next_items:
+                # A4: only emit NEXT UP if the upcoming item is within
+                # the at-risk horizon. Beyond that, future items are
+                # schedule context only — NOT current pressure.
                 _upcoming = _next_items[0]
-                _time_note = f" at {_upcoming['time_display']}" if _upcoming.get('time_display') else " soon"
-                lines.append("")
-                lines.append(
-                    f"NEXT UP: {_upcoming['title']}{_time_note}."
-                )
+                _delta = _delta_minutes_until(_upcoming.get('time_display'), current_time)
+                if _delta is not None and _delta <= AT_RISK_HORIZON_MINUTES:
+                    _time_note = f" at {_upcoming['time_display']}" if _upcoming.get('time_display') else " soon"
+                    lines.append("")
+                    lines.append(
+                        f"NEXT UP: {_upcoming['title']}{_time_note}."
+                    )
 
             lines.append("")
-            lines.append("ACTION PRIORITIES (same as dashboard Action Center):")
-            lines.append("This list is pre-filtered: completed items are EXCLUDED.")
+            try:
+                from apps.core.ai_orchestrator.narration_contract import (
+                    TIER_CANONICAL, section_header,
+                )
+                lines.append(section_header(
+                    TIER_CANONICAL,
+                    "ACTION PRIORITIES (block-eligible — same as Action Center):",
+                ))
+            except Exception:
+                lines.append("ACTION PRIORITIES (block-eligible — same as Action Center):")
+            lines.append("This list is pre-filtered: completed items AND far-future items are EXCLUDED.")
             lines.append("Use this ordering when recommending what to do next.")
-            lines.append("This list is for context only. Your primary next-action "
-                         "recommendation MUST match the NEXT ACTION in LOCKED FACTS.")
+            lines.append("Your primary next-action recommendation MUST match the "
+                         "NEXT ACTION in DECISIONS / LOCKED FACTS.")
             lines.append("Do NOT recommend goals, prayer requests, or items not in "
                          "this execution list.")
             for i, action in enumerate(action_priorities[:7], 1):
@@ -5032,6 +5143,33 @@ def _build_data_state_snapshot(user) -> str:
             lines.append("")
             lines.append("ACTION PRIORITIES: All clear — no pending actions.")
             lines.append("Do NOT invent actions from informational sections. Acknowledge completion.")
+
+        # Forward schedule (contextual) — items intentionally excluded
+        # from canonical ACTION PRIORITIES. Visible for entity grounding
+        # only. The narration contract bars these from being claimed
+        # "at risk" or "next."
+        if forward_only:
+            lines.append("")
+            try:
+                from apps.core.ai_orchestrator.narration_contract import (
+                    TIER_CONTEXTUAL, section_header,
+                )
+                lines.append(section_header(
+                    TIER_CONTEXTUAL,
+                    "FORWARD SCHEDULE (later today — context only):",
+                ))
+            except Exception:
+                lines.append("FORWARD SCHEDULE (later today — context only):")
+            lines.append(
+                "  These items are NOT eligible for 'next' or 'at risk' "
+                "narration. They exist for entity grounding only."
+            )
+            for i, action in enumerate(forward_only[:5], 1):
+                _u_tag = action.get("urgency", "upcoming").upper()
+                _time_tag = f" {action['time_display']}" if action.get('time_display') else ""
+                lines.append(
+                    f"  {i}. [{_u_tag}] {action.get('title', '')}{_time_tag}"
+                )
     except Exception:
         logger.warning("Action prioritizer unavailable for CoS context", exc_info=True)
 
@@ -5900,6 +6038,26 @@ def format_cos_system_injection(context, user_message=None):
     lines = []
 
     # ══════════════════════════════════════════════════════════════
+    # NARRATION CONTRACT PREAMBLE (foundational — must be first).
+    # Binds the LLM to tier-based interpretation of every section
+    # below. See apps/core/ai_orchestrator/narration_contract.py.
+    # ══════════════════════════════════════════════════════════════
+    try:
+        from apps.core.ai_orchestrator.narration_contract import (
+            narration_contract_preamble,
+        )
+        lines.append(narration_contract_preamble())
+        lines.append("")
+    except Exception:
+        # The preamble is foundational — but never let an import
+        # failure break the entire prompt. Log + continue.
+        logger.warning(
+            "NARRATION_CONTRACT preamble failed to load — proceeding "
+            "without it",
+            exc_info=True,
+        )
+
+    # ══════════════════════════════════════════════════════════════
     # SECTION 0: PHASE 4 DECISION RULES (HARD CONTRACT)
     # These instructions govern HOW the LLM constructs every response.
     # They are not preferences. They are not guidance. They are the
@@ -6189,6 +6347,70 @@ def format_cos_system_injection(context, user_message=None):
     if _locked_facts_block:
         lines.append(_locked_facts_block)
     lines.append("")
+
+    # ══════════════════════════════════════════════════════════════
+    # DECISIONS (NARRATION CONTRACT — A1)
+    # Canonical state for "next / risk / fix" — emitted by the
+    # deterministic CoS selectors (apps/core/execution/selectors.py).
+    # The LLM is bound to quote these verbatim for the corresponding
+    # state claims. NEVER write a "next action / biggest risk / fix
+    # first" line that disagrees with this section.
+    # ══════════════════════════════════════════════════════════════
+    if _facts_user:
+        try:
+            from apps.core.ai_orchestrator.narration_contract import (
+                TIER_CANONICAL,
+                section_header,
+            )
+            from apps.core.execution.execution_state import (
+                build_execution_state,
+            )
+            from apps.core.execution.selectors import (
+                get_biggest_risk,
+                get_fix_priority,
+                get_next_action,
+            )
+
+            _decision_state = build_execution_state(_facts_user)
+            _next = get_next_action(_decision_state)
+            _risk = get_biggest_risk(_decision_state)
+            _fix = get_fix_priority(_decision_state)
+            _recovery = _decision_state.get('recovery_state') or {}
+
+            lines.append(section_header(TIER_CANONICAL, "DECISIONS"))
+            lines.append(
+                f"  next_action: {_next.get('message', 'Nothing pending right now.')}"
+            )
+            lines.append(
+                f"  biggest_risk: {_risk.get('message', 'No risks right now.')}"
+            )
+            lines.append(
+                f"  fix_priority: {_fix.get('message', 'Nothing to fix.')}"
+            )
+            lines.append(
+                f"  day_mode: {_recovery.get('mode', 'NORMAL')}"
+            )
+            lines.append(
+                f"  day_narrative: {_recovery.get('day_narrative', 'on_track')}"
+            )
+            lines.append(
+                "  rule: 'next action / biggest risk / fix first' claims "
+                "in your response MUST match these lines verbatim."
+            )
+            # Stash for the validator + snapshot.
+            context['_decision_state'] = _decision_state
+            context['_decisions'] = {
+                'next_action': _next,
+                'biggest_risk': _risk,
+                'fix_priority': _fix,
+                'recovery_state': _recovery,
+            }
+            lines.append("")
+        except Exception:
+            logger.warning(
+                "DECISIONS section failed to build — proceeding without it",
+                exc_info=True,
+            )
 
     # ══════════════════════════════════════════════════════════════
     # SECTION 2: PATTERNS (ENGINE OUTPUT — ADVISORY ONLY)

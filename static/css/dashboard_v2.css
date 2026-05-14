@@ -2916,3 +2916,127 @@ a.v2-state-item:hover {
 .v2-water-history:hover {
     text-decoration: underline;
 }
+
+/* ============================================================== */
+/* Action Center — Chronological Timeline (X1–X3)                  */
+/* Emphasis classes. Time controls position; these classes only    */
+/* control visual weight, color, and decoration.                   */
+/* ============================================================== */
+
+/* Container — vertical timeline */
+.v2-ac-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.v2-ac-timeline-block {
+    border-left: 2px solid transparent;
+    transition: border-color 150ms ease;
+}
+
+/* Per-item emphasis rings — vertical stripe on the left edge */
+.v2-ac-emphasis-ring-overdue       { box-shadow: inset 3px 0 0 #d96b4f; }
+.v2-ac-emphasis-ring-now           { box-shadow: inset 3px 0 0 #4f88d9; }
+.v2-ac-emphasis-ring-foundational  { box-shadow: inset 3px 0 0 #e8c872; }
+.v2-ac-emphasis-ring-expired       { box-shadow: inset 3px 0 0 #888;    }
+
+/* Per-item tone — affects text color */
+.v2-ac-emphasis-tone-warning  .v2-ac-item-title { color: #b04a30; }
+.v2-ac-emphasis-tone-active   .v2-ac-item-title { color: #2a5d99; font-weight: 600; }
+.v2-ac-emphasis-tone-muted    .v2-ac-item-title { color: #888; }
+
+/* Recovery dim — subtle de-emphasis without hiding */
+.v2-ac-recovery-dim          { opacity: 0.55; }
+.v2-ac-recovery-dim:hover    { opacity: 0.9;  }
+
+.v2-ac-item-expired .v2-ac-item-title {
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+    text-decoration-color: rgba(120, 120, 120, 0.6);
+}
+
+/* Per-item badges (Past Due / Now / Expired / Foundational / Reset / Completed) */
+.v2-ac-item-badge {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    margin-right: 0.4rem;
+    border-radius: 0.25rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.2;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+.v2-ac-badge-past-due     { background: #fbe1d7; color: #a93a1f; }
+.v2-ac-badge-now          { background: #dceaf8; color: #1f4e8a; }
+.v2-ac-badge-expired      { background: #ececec; color: #666;    }
+.v2-ac-badge-foundational { background: #fcefcb; color: #8c6d11; }
+.v2-ac-badge-reset        { background: #e3edd2; color: #4d6b1a; }
+.v2-ac-badge-completed    { background: #e0f1e3; color: #2b6235; }
+
+/* Block-level tags (small chip in the time-block header) */
+.v2-ac-block-tag {
+    display: inline-block;
+    padding: 0.05rem 0.4rem;
+    margin-left: 0.5rem;
+    border-radius: 0.2rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.v2-tag-overdue   { background: #fbe1d7; color: #a93a1f; }
+.v2-tag-now       { background: #dceaf8; color: #1f4e8a; }
+.v2-tag-collapsed { background: #f0e8f8; color: #5b3d80; }
+
+/* Block-level recovery treatments */
+.v2-ac-block-collapsed-recovery .v2-ac-group-header {
+    background-image: linear-gradient(
+        135deg,
+        rgba(120, 120, 120, 0.04) 0%,
+        rgba(120, 120, 120, 0.04) 50%,
+        transparent 50%,
+        transparent 100%
+    );
+    background-size: 8px 8px;
+}
+.v2-ac-block-strategy-skip            .v2-ac-group-title { color: #888; }
+.v2-ac-block-strategy-defer           .v2-ac-group-title { color: #888; }
+.v2-ac-block-strategy-recover_partially .v2-ac-group-title { color: #555; }
+
+/* Unscheduled section — visually distinct from the timeline */
+.v2-ac-flexible {
+    margin-top: 1.25rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed rgba(0, 0, 0, 0.12);
+}
+
+/* Recovery banner */
+.v2-ac-recovery-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 0.85rem;
+    margin-bottom: 0.75rem;
+    border-radius: 0.4rem;
+    border: 1px solid transparent;
+    font-size: 0.9rem;
+}
+.v2-ac-banner-info {
+    background: #eaf2fb;
+    border-color: #c5d9f0;
+    color: #1f3f63;
+}
+.v2-ac-banner-warning {
+    background: #fdf0e6;
+    border-color: #f3cdaf;
+    color: #8c401a;
+}
+.v2-ac-banner-icon { font-size: 1.05rem; }
+.v2-ac-banner-text { font-weight: 600; }
+.v2-ac-banner-detail {
+    margin-left: auto;
+    font-size: 0.8rem;
+    opacity: 0.85;
+}

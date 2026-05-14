@@ -1131,3 +1131,292 @@ def build_grouped_action_center(execution_items, current_time, summaries=None):
         'all_done': completed >= total and total > 0,
         'has_items': total > 0,
     }
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Chronological Timeline (X1) — chronological-first rendering model.
+#
+# The Action Center is a DAILY EXECUTION TIMELINE. Chronological time
+# controls vertical ordering. Urgency, foundationality, expiry, and
+# recovery state influence STYLING via per-item emphasis metadata, not
+# vertical position.
+#
+# This builder does NOT replace build_grouped_action_center — it sits
+# alongside it. The dashboard service computes BOTH and the template
+# branches on WLJ_ACTION_CENTER_CHRONOLOGICAL.
+# ══════════════════════════════════════════════════════════════════════
+
+
+# Recovery banner copy — deterministic. No LLM. One canonical line per
+# mode. Severity is a CSS-class hint only.
+RECOVERY_BANNER_COPY = {
+    "NORMAL":    {"text": None,                                     "severity": None},
+    "RECOVERY":  {"text": "Rebuild the day forward.",               "severity": "warning"},
+    "STABILIZE": {"text": "Take a reset action first.",             "severity": "info"},
+    "SHUTDOWN":  {"text": "Focus on closing the day cleanly.",      "severity": "info"},
+}
+
+
+def _compute_emphasis(item, recovery_mode="NORMAL"):
+    """Deterministic per-item visual emphasis metadata.
+
+    Returns a small dict the template renders directly. The template
+    NEVER derives styling from state itself — all styling decisions
+    live here in Python.
+
+    Args:
+        item: dict with keys completed, expired, urgency, is_foundational,
+              is_reset_action.
+        recovery_mode: str — one of 'NORMAL', 'RECOVERY', 'STABILIZE',
+              'SHUTDOWN'. Drives optional dimming.
+
+    Returns:
+        dict: {ring, tone, badge, recovery_dim}
+    """
+    ring = None
+    tone = None
+    badge = None
+    recovery_dim = False
+
+    if item.get('completed'):
+        tone = 'muted'
+        badge = 'completed'
+    elif item.get('expired'):
+        tone = 'muted'
+        badge = 'expired'
+        ring = 'expired'
+    elif item.get('urgency') == 'overdue':
+        ring = 'overdue'
+        tone = 'warning'
+        badge = 'past due'
+    elif item.get('urgency') == 'now':
+        ring = 'now'
+        tone = 'active'
+        badge = 'now'
+    elif item.get('is_reset_action'):
+        ring = 'foundational'   # reuse same chip; reset is a stabilize lever
+        badge = 'reset'
+    elif item.get('is_foundational'):
+        ring = 'foundational'
+        badge = 'foundational'
+
+    # Recovery dimming: in RECOVERY / SHUTDOWN, non-foundational overdue
+    # items dim so the eye is drawn to anchors. The item remains visible
+    # in its natural chronological position — emphasis only.
+    if (
+        recovery_mode in ('RECOVERY', 'SHUTDOWN')
+        and not item.get('is_foundational')
+        and item.get('urgency') == 'overdue'
+        and not item.get('completed')
+    ):
+        recovery_dim = True
+        tone = 'muted'
+
+    return {
+        'ring': ring,
+        'tone': tone,
+        'badge': badge,
+        'recovery_dim': recovery_dim,
+    }
+
+
+def build_chronological_timeline(
+    execution_items,
+    current_time,
+    summaries=None,
+    recovery_state=None,
+    collapsed_blocks=None,
+):
+    """Build a chronologically-ordered Action Center timeline.
+
+    Reuses build_grouped_action_center for per-item urgency / time-block
+    grouping — DOES NOT compute its own urgency or its own time blocks.
+    Adds: recovery annotations, emphasis metadata, strict chronological
+    sort, separated flexible items.
+
+    Args:
+        execution_items: list[ExecutionItem dict] from build_today_execution
+        current_time: datetime.time — user's local now
+        summaries: optional execution summaries
+        recovery_state: optional dict from compute_recovery_state. When
+            provided, drives the banner + recovery dimming.
+        collapsed_blocks: optional list[dict] from compute_block_collapses.
+            Items whose source_id is in a collapsed block carry
+            in_collapsed_block=True and collapsed_block_strategy in their
+            emphasis-adjacent fields.
+
+    Returns:
+        dict — see module docstring for the full contract.
+    """
+    import datetime as _dt
+
+    # Reuse the existing grouped builder for urgency classification +
+    # time-block grouping. We DO NOT recompute either.
+    base = build_grouped_action_center(execution_items, current_time, summaries)
+
+    # Map source_id → collapse metadata for fast lookup.
+    suppressed_keys_to_strategy = {}
+    for cb in (collapsed_blocks or []):
+        strategy = cb.get('strategy')
+        for src_key in cb.get('item_source_ids') or []:
+            suppressed_keys_to_strategy[tuple(src_key)] = strategy
+
+    # Build a set of expired source_ids from the recovery contract.
+    try:
+        from apps.core.execution.recoverability import is_recoverable
+    except Exception:
+        is_recoverable = None
+
+    rec_mode = (recovery_state or {}).get('mode', 'NORMAL')
+
+    # ── Walk every time-block group from the base builder. The base
+    #    already iterated `sorted(time_blocks.keys())` — order preserved.
+    timeline = []
+    for g in base.get('groups') or []:
+        if g.get('group_type') == 'flexible':
+            continue  # flexible handled separately at the bottom
+
+        annotated_items = []
+        for raw in g.get('items', []):
+            sched = raw.get('scheduled_time')
+            effective = sched  # X1: effective_time IS scheduled_time today;
+                               # X4 will split them when reschedule visibility lands.
+
+            # Expired check via recoverability (when available).
+            expired = False
+            if is_recoverable and raw.get('is_actionable') and not raw.get('completed'):
+                # The base builder's items don't carry task_class — pull
+                # from the original execution item to check expiry.
+                try:
+                    src_match = next(
+                        (i for i in execution_items
+                         if i.get('source_type') == raw.get('source_type')
+                         and i.get('source_id') == raw.get('source_id')),
+                        None,
+                    )
+                    if src_match is not None:
+                        expired = not is_recoverable(src_match, current_time)
+                except Exception:
+                    expired = False
+
+            collapsed_strategy = suppressed_keys_to_strategy.get(
+                (raw.get('source_type'), raw.get('source_id'))
+            )
+            in_collapsed_block = collapsed_strategy is not None
+
+            # Attach state for emphasis computation.
+            item_for_emphasis = {
+                'completed': raw.get('completed', False),
+                'expired': expired,
+                'urgency': raw.get('urgency'),
+                'is_foundational': raw.get('is_foundational', False),
+                'is_reset_action': raw.get('is_reset_action', False),
+            }
+            emphasis = _compute_emphasis(item_for_emphasis, rec_mode)
+
+            annotated_items.append({
+                **raw,
+                'effective_time': effective,
+                'expired': expired,
+                'in_collapsed_block': in_collapsed_block,
+                'collapsed_block_strategy': collapsed_strategy,
+                'emphasis': emphasis,
+            })
+
+        # Within-block sort: effective_time, then foundational, then title.
+        annotated_items.sort(key=lambda i: (
+            i.get('effective_time') or _dt.time(23, 59),
+            not i.get('is_foundational', False),
+            i.get('title') or '',
+        ))
+
+        block_state = {
+            'total': len(annotated_items),
+            'completed_count': sum(1 for i in annotated_items if i.get('completed')),
+            'all_complete': bool(annotated_items) and all(
+                i.get('completed') for i in annotated_items
+            ),
+            'has_overdue': any(i.get('urgency') == 'overdue' for i in annotated_items),
+            'has_now': any(i.get('urgency') == 'now' for i in annotated_items),
+            'is_foundational': any(i.get('is_foundational') for i in annotated_items),
+            'in_collapsed_block': any(
+                i.get('in_collapsed_block') for i in annotated_items
+            ),
+            'collapsed_block_strategy': next(
+                (i.get('collapsed_block_strategy') for i in annotated_items
+                 if i.get('collapsed_block_strategy')), None,
+            ),
+        }
+
+        # Determine the block's effective_time for cross-block sorting.
+        block_effective = (
+            annotated_items[0].get('effective_time')
+            if annotated_items else None
+        )
+
+        timeline.append({
+            'block_key': g.get('time_block_key') or g.get('group_id'),
+            'time_display': g.get('title'),
+            'effective_time': block_effective,
+            'items': annotated_items,
+            'block_state': block_state,
+            'intake_window_key': g.get('intake_window_key'),
+            'group_id': g.get('group_id'),
+            'group_type': 'time_block',
+            'is_time_block': True,
+        })
+
+    # ── Strict chronological cross-block sort.
+    #    Defensive: base already sorts, but we re-sort to enforce the
+    #    contract invariant. Unit test asserts this remains monotonic.
+    timeline.sort(key=lambda b: b.get('effective_time') or _dt.time(23, 59))
+
+    # ── Flexible items: unscheduled, visually separated at bottom.
+    flexible_items = []
+    for g in base.get('groups') or []:
+        if g.get('group_type') != 'flexible':
+            continue
+        for raw in g.get('items', []):
+            item_for_emphasis = {
+                'completed': raw.get('completed', False),
+                'expired': False,
+                'urgency': raw.get('urgency'),
+                'is_foundational': raw.get('is_foundational', False),
+                'is_reset_action': raw.get('is_reset_action', False),
+            }
+            flexible_items.append({
+                **raw,
+                'effective_time': None,
+                'expired': False,
+                'in_collapsed_block': False,
+                'collapsed_block_strategy': None,
+                'emphasis': _compute_emphasis(item_for_emphasis, rec_mode),
+            })
+
+    # ── Recovery banner (deterministic).
+    banner = RECOVERY_BANNER_COPY.get(rec_mode, RECOVERY_BANNER_COPY['NORMAL'])
+
+    return {
+        'timeline_version': 'v2_chronological',
+        'timeline': timeline,
+        'flexible_items': flexible_items,
+        'total_items': base.get('total_items', 0),
+        'completed_items': base.get('completed_items', 0),
+        'all_done': base.get('all_done', False),
+        'has_items': base.get('has_items', False),
+        'recovery_state': {
+            'mode': rec_mode,
+            'day_narrative': (recovery_state or {}).get('day_narrative', 'on_track'),
+            'banner_text': banner['text'],
+            'banner_severity': banner['severity'],
+            'reset_action_available': (recovery_state or {}).get('reset_action_available', False),
+            'missed_foundational_count': (recovery_state or {}).get('missed_foundational_count', 0),
+            'recoverable_overdue_count': (recovery_state or {}).get('recoverable_overdue_count', 0),
+            'expired_count': (recovery_state or {}).get('expired_count', 0),
+        },
+        'collapsed_blocks': list(collapsed_blocks or []),
+        # Backward compat — keep phase_groups populated for the legacy
+        # template path while the feature flag can flip off.
+        'phase_groups': base.get('phase_groups', {}),
+        'groups': base.get('groups', []),
+    }

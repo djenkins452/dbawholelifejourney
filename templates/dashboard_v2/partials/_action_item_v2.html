@@ -3,7 +3,7 @@
 {#   - If toggle_url exists → HTMX button (clickable checkbox) #}
 {#   - If no toggle_url → link-only (arrow icon) #}
 {# Completed items remain visible with checkmark + strikethrough #}
-<div class="v2-ac-item{% if item.completed %} v2-ac-item-done{% endif %}{% if item.is_foundational %} v2-ac-item-foundational{% endif %}">
+<div class="v2-ac-item{% if item.completed %} v2-ac-item-done{% endif %}{% if item.is_foundational %} v2-ac-item-foundational{% endif %}{% if item.emphasis.ring %} v2-ac-emphasis-ring-{{ item.emphasis.ring }}{% endif %}{% if item.emphasis.tone %} v2-ac-emphasis-tone-{{ item.emphasis.tone }}{% endif %}{% if item.emphasis.recovery_dim %} v2-ac-recovery-dim{% endif %}{% if item.expired %} v2-ac-item-expired{% endif %}">
     <div class="v2-ac-item-toggle">
         {% if item.toggle_url %}
             {# Actionable item — HTMX toggle button #}
@@ -42,6 +42,9 @@
         {% endif %}
     </div>
     <div class="v2-ac-item-meta">
+        {% if item.emphasis.badge %}
+        <span class="v2-ac-item-badge v2-ac-badge-{{ item.emphasis.badge|slugify }}">{{ item.emphasis.badge }}</span>
+        {% endif %}
         {% if item.time_display %}
         <span class="v2-ac-item-time">{{ item.time_display }}</span>
         {% endif %}

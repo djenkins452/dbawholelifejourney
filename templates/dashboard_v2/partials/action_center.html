@@ -4,86 +4,145 @@
      hx-get="{% url 'dashboard_v2:section_action_center' %}"
      hx-trigger="refresh-action-center from:body"
      hx-swap="outerHTML">
-{% if ac.has_items %}
-<section class="v2-section v2-action-center-section">
-    <div class="v2-action-center-header">
-        <h2 class="v2-section-title">Action Center</h2>
-        <span class="v2-ac-progress-badge{% if ac.all_done %} v2-ac-complete{% endif %}">
-            {{ ac.completed_items }} / {{ ac.total_items }}
-        </span>
-    </div>
 
-    {% if ac.all_done %}
-    {# All items completed — celebration state #}
-    <div class="v2-ac-all-complete">
-        <span class="v2-ac-complete-icon">&#10003;</span>
-        <div class="v2-ac-complete-text">
-            <span class="v2-ac-complete-primary">All complete</span>
-            <span class="v2-ac-complete-detail">{{ ac.completed_items }} / {{ ac.total_items }} items done today</span>
+{% if ac.timeline_version == 'v2_chronological' and feature_flags.WLJ_ACTION_CENTER_CHRONOLOGICAL %}
+    {# ═══════════════════════════════════════════════════════════════ #}
+    {# X1–X3: Chronological timeline (default).                         #}
+    {# Time controls vertical ordering. Urgency/foundationality/        #}
+    {# recovery state surface as emphasis only, never as position.      #}
+    {# ═══════════════════════════════════════════════════════════════ #}
+    {% if ac.has_items %}
+    {% include "dashboard_v2/partials/_action_recovery_banner.html" %}
+
+    <section class="v2-section v2-action-center-section">
+        <div class="v2-action-center-header">
+            <h2 class="v2-section-title">Today</h2>
+            <span class="v2-ac-progress-badge{% if ac.all_done %} v2-ac-complete{% endif %}">
+                {{ ac.completed_items }} / {{ ac.total_items }}
+            </span>
         </div>
-    </div>
+
+        {% if ac.all_done %}
+        <div class="v2-ac-all-complete">
+            <span class="v2-ac-complete-icon">&#10003;</span>
+            <div class="v2-ac-complete-text">
+                <span class="v2-ac-complete-primary">All complete</span>
+                <span class="v2-ac-complete-detail">{{ ac.completed_items }} / {{ ac.total_items }} items done today</span>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="v2-ac-timeline">
+            {% for group in ac.timeline %}
+                {% include "dashboard_v2/partials/_action_timeline_block.html" %}
+            {% endfor %}
+        </div>
+
+        {% if ac.flexible_items %}
+        <div class="v2-ac-flexible">
+            <div class="v2-ac-phase-label v2-phase-flexible">Unscheduled</div>
+            {% for action in ac.flexible_items %}
+                {% include "dashboard_v2/partials/_action_item.html" %}
+            {% endfor %}
+        </div>
+        {% endif %}
+    </section>
+    {% else %}
+    <section class="v2-section v2-action-center-section">
+        <div class="v2-action-center-header">
+            <h2 class="v2-section-title">Today</h2>
+        </div>
+        <div class="v2-ac-empty">
+            <p>Nothing scheduled for today. Enjoy the free time.</p>
+        </div>
+    </section>
     {% endif %}
 
-    {# NOW section — overdue + due now #}
-    {% if ac.phase_groups.now %}
-    <div class="v2-ac-phase">
-        <div class="v2-ac-phase-label v2-phase-now">Now</div>
-        {% for group in ac.phase_groups.now %}
-        {% include "dashboard_v2/partials/_action_group.html" %}
-        {% endfor %}
-    </div>
+{% else %}
+    {# ═══════════════════════════════════════════════════════════════ #}
+    {# LEGACY: phase_groups path (kept while the flag can flip off).    #}
+    {# Removed after burn-in.                                           #}
+    {# ═══════════════════════════════════════════════════════════════ #}
+    {% if ac.has_items %}
+    <section class="v2-section v2-action-center-section">
+        <div class="v2-action-center-header">
+            <h2 class="v2-section-title">Action Center</h2>
+            <span class="v2-ac-progress-badge{% if ac.all_done %} v2-ac-complete{% endif %}">
+                {{ ac.completed_items }} / {{ ac.total_items }}
+            </span>
+        </div>
+
+        {% if ac.all_done %}
+        <div class="v2-ac-all-complete">
+            <span class="v2-ac-complete-icon">&#10003;</span>
+            <div class="v2-ac-complete-text">
+                <span class="v2-ac-complete-primary">All complete</span>
+                <span class="v2-ac-complete-detail">{{ ac.completed_items }} / {{ ac.total_items }} items done today</span>
+            </div>
+        </div>
+        {% endif %}
+
+        {# NOW section — overdue + due now #}
+        {% if ac.phase_groups.now %}
+        <div class="v2-ac-phase">
+            <div class="v2-ac-phase-label v2-phase-now">Now</div>
+            {% for group in ac.phase_groups.now %}
+            {% include "dashboard_v2/partials/_action_group.html" %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {# UPCOMING section #}
+        {% if ac.phase_groups.upcoming %}
+        <div class="v2-ac-phase">
+            <div class="v2-ac-phase-label v2-phase-upcoming">Upcoming</div>
+            {% for group in ac.phase_groups.upcoming %}
+            {% include "dashboard_v2/partials/_action_group.html" %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {# LATER TODAY section #}
+        {% if ac.phase_groups.later %}
+        <div class="v2-ac-phase">
+            <div class="v2-ac-phase-label v2-phase-later">Later Today</div>
+            {% for group in ac.phase_groups.later %}
+            {% include "dashboard_v2/partials/_action_group.html" %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {# FLEXIBLE / UNSCHEDULED section #}
+        {% if ac.phase_groups.flexible %}
+        <div class="v2-ac-phase">
+            <div class="v2-ac-phase-label v2-phase-flexible">Flexible</div>
+            {% for group in ac.phase_groups.flexible %}
+            {% include "dashboard_v2/partials/_action_group.html" %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {# COMPLETED EARLIER — past items already done #}
+        {% if ac.phase_groups.done %}
+        <div class="v2-ac-phase v2-ac-phase-done">
+            <div class="v2-ac-phase-label v2-phase-done">Completed Earlier</div>
+            {% for group in ac.phase_groups.done %}
+            {% include "dashboard_v2/partials/_action_group.html" %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+
+    </section>
+    {% elif not ac.has_items %}
+    <section class="v2-section v2-action-center-section">
+        <div class="v2-action-center-header">
+            <h2 class="v2-section-title">Action Center</h2>
+        </div>
+        <div class="v2-ac-empty">
+            <p>Nothing scheduled for today. Enjoy the free time.</p>
+        </div>
+    </section>
     {% endif %}
-
-    {# UPCOMING section #}
-    {% if ac.phase_groups.upcoming %}
-    <div class="v2-ac-phase">
-        <div class="v2-ac-phase-label v2-phase-upcoming">Upcoming</div>
-        {% for group in ac.phase_groups.upcoming %}
-        {% include "dashboard_v2/partials/_action_group.html" %}
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    {# LATER TODAY section #}
-    {% if ac.phase_groups.later %}
-    <div class="v2-ac-phase">
-        <div class="v2-ac-phase-label v2-phase-later">Later Today</div>
-        {% for group in ac.phase_groups.later %}
-        {% include "dashboard_v2/partials/_action_group.html" %}
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    {# FLEXIBLE / UNSCHEDULED section #}
-    {% if ac.phase_groups.flexible %}
-    <div class="v2-ac-phase">
-        <div class="v2-ac-phase-label v2-phase-flexible">Flexible</div>
-        {% for group in ac.phase_groups.flexible %}
-        {% include "dashboard_v2/partials/_action_group.html" %}
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    {# COMPLETED EARLIER — past items already done #}
-    {% if ac.phase_groups.done %}
-    <div class="v2-ac-phase v2-ac-phase-done">
-        <div class="v2-ac-phase-label v2-phase-done">Completed Earlier</div>
-        {% for group in ac.phase_groups.done %}
-        {% include "dashboard_v2/partials/_action_group.html" %}
-        {% endfor %}
-    </div>
-    {% endif %}
-
-
-</section>
-{% elif not ac.has_items %}
-<section class="v2-section v2-action-center-section">
-    <div class="v2-action-center-header">
-        <h2 class="v2-section-title">Action Center</h2>
-    </div>
-    <div class="v2-ac-empty">
-        <p>Nothing scheduled for today. Enjoy the free time.</p>
-    </div>
-</section>
 {% endif %}
 </div>

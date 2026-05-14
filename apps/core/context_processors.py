@@ -79,6 +79,21 @@ def _get_module_enablement_defaults():
     return defaults
 
 
+def feature_flags(request):
+    """Expose UI-relevant WLJ feature flags to templates.
+
+    Templates read these via {{ feature_flags.NAME }}. Keep the surface
+    small — only flags that influence rendering belong here.
+    """
+    return {
+        'feature_flags': {
+            'WLJ_ACTION_CENTER_CHRONOLOGICAL': getattr(
+                settings, 'WLJ_ACTION_CENTER_CHRONOLOGICAL', True,
+            ),
+        }
+    }
+
+
 def site_context(request):
     """
     Add site-wide context variables.

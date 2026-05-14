@@ -222,6 +222,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.core.context_processors.feature_flags",
                 "apps.core.context_processors.theme_context",
                 "apps.core.context_processors.site_context",
                 "apps.core.context_processors.favorites_context",
@@ -1352,4 +1353,11 @@ WLJ_TOKEN_BUDGET_ENABLED = env.bool('WLJ_TOKEN_BUDGET_ENABLED', default=True)
 # LOG_DIR/chat_snapshots/<date>/<request_id>.json. Default OFF; turn
 # on for narrative-drift debugging. Auto-pruned externally after 24 h.
 WLJ_CHAT_SNAPSHOTS_ENABLED = env.bool('WLJ_CHAT_SNAPSHOTS_ENABLED', default=False)
+# Action Center chronological timeline (Evolution X1–X3).
+# When True, the Action Center renders ac.timeline (chronological,
+# urgency-as-emphasis). When False, falls back to the legacy
+# phase_groups path (NOW / UPCOMING / LATER buckets). Default True.
+WLJ_ACTION_CENTER_CHRONOLOGICAL = env.bool(
+    'WLJ_ACTION_CENTER_CHRONOLOGICAL', default=True,
+)
     

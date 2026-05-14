@@ -141,6 +141,45 @@ class NineAMScenarioTests(SimpleTestCase):
         self.assertEqual([a["title"] for a in out], [a["title"] for a in actions])
 
 
+class ActionCenterTimelineAlignmentTests(SimpleTestCase):
+    """The 9:00 AM scenario through the new chronological timeline.
+    Asserts that 5:30 AM and 5:45 AM items appear BEFORE 9:00 AM —
+    not in a UPCOMING bucket below 'now' items."""
+
+    def test_9am_morning_items_before_9am_item_in_timeline(self):
+        from apps.core.decision_engine.action_prioritizer import (
+            build_chronological_timeline,
+        )
+        now = dt.time(9, 0)
+        items = [
+            _routine(101, "Wake up",      scheduled_time="05:30",
+                     completed=False, foundational=True),
+            _routine(102, "Splash water", scheduled_time="05:45",
+                     completed=False, foundational=False),
+            _routine(103, "Stretch",      scheduled_time="09:00",
+                     completed=False, foundational=False),
+        ]
+        out = build_chronological_timeline(items, now)
+        order = [b['time_display'] for b in out['timeline']]
+        # Strict chronological — what the user expects.
+        self.assertEqual(order, ['5:30 AM', '5:45 AM', '9:00 AM'])
+
+    def test_9am_overdue_items_carry_overdue_emphasis(self):
+        from apps.core.decision_engine.action_prioritizer import (
+            build_chronological_timeline,
+        )
+        now = dt.time(9, 0)
+        items = [
+            _routine(101, "Wake up", scheduled_time="05:30",
+                     completed=False, foundational=True),
+        ]
+        out = build_chronological_timeline(items, now)
+        item = out['timeline'][0]['items'][0]
+        # Urgency surfaces as emphasis only; position is chronological.
+        self.assertEqual(item['emphasis']['ring'], 'overdue')
+        self.assertEqual(item['emphasis']['badge'], 'past due')
+
+
 class ContradictionTelemetryAlignmentTests(SimpleTestCase):
     """Prove that the bridge-driven 'prayer: DONE' rollup is loud when
     a child item is still pending."""

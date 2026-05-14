@@ -402,6 +402,56 @@ class DashboardV2Service:
             self._get_user_now().time(),
             summaries=exec_contract.get('summaries'),
         )
+
+        # ── X1: Chronological timeline (Action Center Evolution).
+        # Reuses build_grouped_action_center for urgency classification +
+        # time-block grouping; adds chronological ordering, recovery
+        # annotations, and emphasis metadata.
+        # ALWAYS populated alongside ac_data — the template decides
+        # which to render via WLJ_ACTION_CENTER_CHRONOLOGICAL flag.
+        try:
+            from apps.core.decision_engine.action_prioritizer import (
+                build_chronological_timeline,
+            )
+            from apps.core.execution.execution_state import (
+                build_execution_state,
+            )
+            _exec_state = build_execution_state(self.user)
+            _timeline = build_chronological_timeline(
+                exec_contract['items'],
+                self._get_user_now().time(),
+                summaries=exec_contract.get('summaries'),
+                recovery_state=_exec_state.get('recovery_state'),
+                collapsed_blocks=_exec_state.get('collapsed_blocks'),
+            )
+            # Merge timeline fields into ac_data so the template reads
+            # a single object.
+            ac_data['timeline_version'] = _timeline['timeline_version']
+            ac_data['timeline'] = _timeline['timeline']
+            ac_data['flexible_items'] = _timeline['flexible_items']
+            ac_data['recovery_state'] = _timeline['recovery_state']
+            ac_data['collapsed_blocks'] = _timeline['collapsed_blocks']
+            # Surface eligible_actions for diagnostic / future use.
+            ac_data['eligible_actions'] = _exec_state.get('eligible_actions') or []
+        except Exception:
+            # Timeline is presentation enrichment — never break the
+            # dashboard. Falls back to legacy phase_groups rendering.
+            import logging as _log
+            _log.getLogger(__name__).warning(
+                "Chronological timeline failed to build for user=%s",
+                self.user.pk, exc_info=True,
+            )
+            ac_data.setdefault('timeline_version', 'legacy')
+            ac_data.setdefault('timeline', [])
+            ac_data.setdefault('flexible_items', [])
+            ac_data.setdefault('recovery_state', {
+                'mode': 'NORMAL',
+                'banner_text': None,
+                'banner_severity': None,
+            })
+            ac_data.setdefault('collapsed_blocks', [])
+            ac_data.setdefault('eligible_actions', [])
+
         context["ac"] = ac_data
         context["all_done"] = ac_data['all_done']
 

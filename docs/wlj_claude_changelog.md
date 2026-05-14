@@ -3,8 +3,127 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-10 (Narration Contract — prompt-tier governance + contradiction telemetry + chat snapshots)
+# Last Updated: 2026-05-14 (Action Center Evolution — chronological timeline + recovery banner)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-14 — Feature: Action Center Chronological Timeline (X1–X3)
+
+User report: at 9:00 AM the Action Center placed a 9:00 AM item in
+the NOW phase while 5:30 AM and 5:45 AM items appeared BELOW it in
+UPCOMING. The phase-bucket model (NOW / UPCOMING / LATER) had been
+overriding chronological order — later items visually above earlier
+ones broke execution trust.
+
+System Investigation Mode audit (Action Center Ordering Audit) traced
+the root cause to urgency-bucketing in `build_grouped_action_center`:
+blocks were filtered into NOW/UPCOMING/LATER by their urgency, not by
+their effective time. Rescheduling and any urgency-misclassification
+moved items across phase headers in ways the user could not predict.
+
+The fix: the Action Center is a DAILY EXECUTION TIMELINE. Chronological
+time controls vertical ordering. Urgency, foundationality, expiry, and
+recovery state become per-item EMPHASIS (color, ring, badge, dimming)
+— never vertical position.
+
+### Approved scope shipped
+- **X1** Chronological timeline data model
+- **X2** Template migration
+- **X3** Recovery-state banner + dimming
+
+### Deferred
+- **X4** Reschedule visibility (original vs. rescheduled time) — defer
+  until the new timeline stabilizes.
+
+### Files
+NEW
+- `apps/core/decision_engine/action_prioritizer.py` — added
+  `build_chronological_timeline(execution_items, current_time,
+  summaries, recovery_state, collapsed_blocks)`, `_compute_emphasis()`,
+  `RECOVERY_BANNER_COPY` table. Reuses `build_grouped_action_center`
+  for urgency classification + time-block grouping; does NOT compute
+  its own urgency or its own time blocks. Adds chronological sort,
+  recovery annotations, and emphasis metadata.
+- `templates/dashboard_v2/partials/_action_timeline_block.html` —
+  one time-block partial; block-level toggle preserved (same endpoint
+  as legacy). Renders block-state tags (past due / now / collapsed).
+- `templates/dashboard_v2/partials/_action_recovery_banner.html` —
+  banner partial reading `ac.recovery_state.banner_text` /
+  `banner_severity`. Renders nothing for NORMAL mode.
+- `apps/core/decision_engine/tests/test_chronological_timeline.py` —
+  24 tests covering ordering invariants, emphasis, banner, collapse
+  annotations, version marker.
+- `apps/dashboard_v2/tests/test_action_center_v2.py` — 18 tests
+  covering service merge, banner template rendering per mode, feature-
+  flag template switching.
+
+MODIFIED
+- `apps/dashboard_v2/services/dashboard_service.py` —
+  `get_execution_context` now calls `build_chronological_timeline()`
+  alongside `build_grouped_action_center()` and merges the timeline
+  fields (`timeline`, `timeline_version`, `flexible_items`,
+  `recovery_state`, `collapsed_blocks`, `eligible_actions`) into the
+  `ac` dict. Both rendering paths receive complete data — template
+  branches on feature flag.
+- `templates/dashboard_v2/partials/action_center.html` — top-level
+  branch: chronological timeline path (default), legacy phase_groups
+  path (flag-OFF). Legacy body preserved verbatim; deletable after
+  burn-in.
+- `templates/dashboard_v2/partials/_action_item_v2.html` — added
+  optional emphasis class rendering (`v2-ac-emphasis-ring-*`,
+  `v2-ac-emphasis-tone-*`, `v2-ac-recovery-dim`, `v2-ac-item-expired`)
+  and a per-item badge slot. Legacy items without `emphasis` field
+  render unchanged.
+- `apps/core/context_processors.py` — new `feature_flags` context
+  processor exposing `WLJ_ACTION_CENTER_CHRONOLOGICAL` to templates.
+- `config/settings.py` — added flag (default True) + registered the
+  new context processor.
+- `apps/core/execution/tests/test_chat_canonical_alignment.py` —
+  extended with the 9 AM regression scenario asserting
+  ['5:30 AM', '5:45 AM', '9:00 AM'] order through the timeline.
+- `static/css/dashboard_v2.css` — emphasis classes, banner styling,
+  collapsed-block treatments. Pure presentation.
+
+### Architecture notes
+- **No parallel prioritization engine.** `build_chronological_timeline`
+  is a thin wrapper over `build_grouped_action_center`. Urgency
+  classification, time-block grouping, and recoverability all come
+  from existing layers.
+- **No execution logic in templates.** Emphasis metadata
+  (`{ring, tone, badge, recovery_dim}`) is computed deterministically
+  in Python by `_compute_emphasis()`. The template only reads strings
+  and applies CSS classes.
+- **LLM-last preserved.** Banner copy is a hard-coded dict
+  (`RECOVERY_BANNER_COPY`), not LLM-generated.
+- **Backward compat.** `phase_groups` field is still populated, so
+  any caller that reads it (e.g., old test fixtures, third-party
+  templates) keeps working. Both paths are exercised in tests.
+- **Feature flag.** `WLJ_ACTION_CENTER_CHRONOLOGICAL` defaults True.
+  The legacy phase-bucket path remains reachable for instant rollback.
+  Removal target: 30 days post-deploy.
+
+### Banner copy (canonical, deterministic)
+```
+NORMAL    → (no banner)
+RECOVERY  → "Rebuild the day forward."           (warning severity)
+STABILIZE → "Take a reset action first."         (info severity)
+SHUTDOWN  → "Focus on closing the day cleanly."  (info severity)
+```
+
+### Testing
+- 45 new + extended tests; full focused sweep across
+  `apps.core.execution`, `apps.core.decision_engine`,
+  `apps.core.ai_orchestrator.tests.test_narration_contract`,
+  `apps.dashboard_v2` (including pre-existing block-complete-toggle
+  tests): all pass.
+- Regression: 9 AM scenario asserts strict chronological order in
+  the timeline.
+
+### Migration / risk notes
+- No DB migrations.
+- Service always populates timeline data — flag controls UI only.
+- Old phase_groups path tested alongside new timeline path.
+- CSS additions are additive; no existing styling changed.
 
 
 ## 2026-05-10 — Feature: Narration Contract + CoS state-integrity instrumentation

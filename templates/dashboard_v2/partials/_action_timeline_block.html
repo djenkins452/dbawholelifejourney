@@ -1,0 +1,37 @@
+{# Action Center Timeline block (X1 — chronological-first).         #}
+{# One time-block rendered in chronological position.                 #}
+{# Block-level toggle preserved (same endpoint as legacy partial).   #}
+{# Emphasis is applied to items, never to position.                  #}
+<div class="v2-ac-group v2-ac-timeline-block{% if group.block_state.all_complete %} v2-ac-group-complete{% endif %}{% if group.block_state.in_collapsed_block %} v2-ac-block-collapsed-recovery v2-ac-block-strategy-{{ group.block_state.collapsed_block_strategy }}{% endif %}"
+     data-block-key="{{ group.block_key }}">
+    <div class="v2-ac-group-header" data-action="toggle-group">
+        <button class="v2-ac-group-toggle{% if group.block_state.all_complete %} v2-completed{% endif %}"
+                hx-post="{% url 'dashboard_v2:block_complete_toggle' block_key=group.block_key %}"
+                hx-target="#action-center-panel"
+                hx-swap="outerHTML">
+            {% if group.block_state.all_complete %}
+            <span class="v2-check">&#10003;</span>
+            {% else %}
+            <span class="v2-check-empty">&#9675;</span>
+            {% endif %}
+        </button>
+        <span class="v2-ac-group-title{% if group.block_state.all_complete %} v2-strikethrough{% endif %}">{{ group.time_display }}</span>
+        {% if group.block_state.has_overdue %}
+        <span class="v2-ac-block-tag v2-tag-overdue">past due</span>
+        {% elif group.block_state.has_now %}
+        <span class="v2-ac-block-tag v2-tag-now">now</span>
+        {% endif %}
+        {% if group.block_state.in_collapsed_block %}
+        <span class="v2-ac-block-tag v2-tag-collapsed" title="Block strategy: {{ group.block_state.collapsed_block_strategy }}">{{ group.block_state.collapsed_block_strategy|cut:"_"|title }}</span>
+        {% endif %}
+        <span class="v2-ac-group-badge{% if group.block_state.all_complete %} v2-badge-complete{% endif %}">
+            {{ group.block_state.completed_count }} / {{ group.block_state.total }}
+        </span>
+        <span class="v2-ac-group-chevron">&#9660;</span>
+    </div>
+    <div class="v2-ac-group-items{% if group.block_state.all_complete %} v2-ac-group-collapsed{% endif %}">
+        {% for item in group.items %}
+        {% include "dashboard_v2/partials/_action_item_v2.html" %}
+        {% endfor %}
+    </div>
+</div>

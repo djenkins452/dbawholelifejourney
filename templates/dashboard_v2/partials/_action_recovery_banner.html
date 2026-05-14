@@ -1,0 +1,25 @@
+{# X3 — Recovery state banner.                                       #}
+{# Text + severity come from build_chronological_timeline (Python).  #}
+{# Banner is INTERPRETATION; it never overrides per-item state.      #}
+{% if ac.recovery_state.banner_text %}
+<div class="v2-ac-recovery-banner v2-ac-banner-{{ ac.recovery_state.banner_severity|default:'info' }}"
+     data-recovery-mode="{{ ac.recovery_state.mode }}">
+    <span class="v2-ac-banner-icon" aria-hidden="true">
+        {% if ac.recovery_state.banner_severity == 'warning' %}&#9888;{% else %}&#9432;{% endif %}
+    </span>
+    <span class="v2-ac-banner-text">{{ ac.recovery_state.banner_text }}</span>
+    {% if ac.recovery_state.mode == 'RECOVERY' %}
+    <span class="v2-ac-banner-detail">
+        {{ ac.recovery_state.recoverable_overdue_count }} item{{ ac.recovery_state.recoverable_overdue_count|pluralize }} behind{% if ac.recovery_state.expired_count %}, {{ ac.recovery_state.expired_count }} expired{% endif %}.
+    </span>
+    {% elif ac.recovery_state.mode == 'STABILIZE' %}
+    <span class="v2-ac-banner-detail">
+        {{ ac.recovery_state.missed_foundational_count }} foundational item{{ ac.recovery_state.missed_foundational_count|pluralize }} missed.
+    </span>
+    {% elif ac.recovery_state.mode == 'SHUTDOWN' %}
+    <span class="v2-ac-banner-detail">
+        Preserve tomorrow — finish essentials only.
+    </span>
+    {% endif %}
+</div>
+{% endif %}

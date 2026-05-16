@@ -73,7 +73,7 @@ class Command(BaseCommand):
             }
         )
 
-        # Always process days — get_or_create is safe for existing records
+        # Always process days — update_or_create refreshes content on existing records
         # Matthew reading plan days
         days = [
             {
@@ -439,7 +439,11 @@ class Command(BaseCommand):
         ]
 
         for day_data in days:
-            ReadingPlanDay.objects.get_or_create(
+            # update_or_create (not get_or_create) so the loader is content-authoritative
+            # for existing day rows. get_or_create silently drops `defaults` when the row
+            # already exists, which left production gospel days stuck with whatever thin
+            # content was seeded by earlier loader versions.
+            ReadingPlanDay.objects.update_or_create(
                 plan=template,
                 day_number=day_data["day_number"],
                 defaults={
@@ -683,7 +687,11 @@ class Command(BaseCommand):
         ]
 
         for day_data in days:
-            ReadingPlanDay.objects.get_or_create(
+            # update_or_create (not get_or_create) so the loader is content-authoritative
+            # for existing day rows. get_or_create silently drops `defaults` when the row
+            # already exists, which left production gospel days stuck with whatever thin
+            # content was seeded by earlier loader versions.
+            ReadingPlanDay.objects.update_or_create(
                 plan=template,
                 day_number=day_data["day_number"],
                 defaults={
@@ -720,7 +728,7 @@ class Command(BaseCommand):
             }
         )
 
-        # Always process days — get_or_create is safe for existing records
+        # Always process days — update_or_create refreshes content on existing records
         days = [
             {
                 "day_number": 1,
@@ -1045,7 +1053,11 @@ class Command(BaseCommand):
         ]
 
         for day_data in days:
-            ReadingPlanDay.objects.get_or_create(
+            # update_or_create (not get_or_create) so the loader is content-authoritative
+            # for existing day rows. get_or_create silently drops `defaults` when the row
+            # already exists, which left production gospel days stuck with whatever thin
+            # content was seeded by earlier loader versions.
+            ReadingPlanDay.objects.update_or_create(
                 plan=template,
                 day_number=day_data["day_number"],
                 defaults={
@@ -1082,7 +1094,7 @@ class Command(BaseCommand):
             }
         )
 
-        # Always process days — get_or_create is safe for existing records
+        # Always process days — update_or_create refreshes content on existing records
         days = [
             {
                 "day_number": 1,
@@ -1307,7 +1319,11 @@ class Command(BaseCommand):
         ]
 
         for day_data in days:
-            ReadingPlanDay.objects.get_or_create(
+            # update_or_create (not get_or_create) so the loader is content-authoritative
+            # for existing day rows. get_or_create silently drops `defaults` when the row
+            # already exists, which left production gospel days stuck with whatever thin
+            # content was seeded by earlier loader versions.
+            ReadingPlanDay.objects.update_or_create(
                 plan=template,
                 day_number=day_data["day_number"],
                 defaults={

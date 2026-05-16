@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 196,
+    "fields": {
+      "title": "Gospel reading plans now feel consistently guided",
+      "description": "Every day of every Gospel reading plan (Matthew, Mark, Luke, and John) now includes the full canonical structure: a Context section to ground the passage, three levels of Commentary (beginner, intermediate, advanced), a Reflection prompt, and your private Reflection entry. Previously some days in the John plan were missing Context or Commentary — not because the content didn't exist, but because the database loader couldn't update day entries once they were created. The loader is now content-authoritative, and a one-time refresh ensures every existing day in every gospel plan is brought up to the same standard. The John plan now feels as intentionally designed and spiritually rich as Matthew.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-05-16",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-05-16T10:30:00Z",
+      "updated_at": "2026-05-16T10:30:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 195,
     "fields": {
       "title": "Your Chief of Staff now understands what you're asking",

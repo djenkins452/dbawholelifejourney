@@ -810,6 +810,46 @@ class ReadingPlanIntegrityTests(ReadingPlanTestMixin, TestCase):
             is_valid, errors = template.validate_day_integrity()
             self.assertTrue(is_valid, f"{slug} failed after double-load: {errors}")
 
+    def test_gospel_plan_days_have_complete_content(self):
+        """Every gospel day must have all canonical content sections populated.
+
+        Without this guard, a future loader edit could silently drop a field
+        for some days and tests would still pass (count/integrity checks alone
+        miss this). The user-facing experience needs every day to render
+        Context, Commentary (all 3 levels), and a Reflection prompt.
+        """
+        from django.core.management import call_command
+
+        call_command("load_gospel_plans", verbosity=0)
+
+        required_text_fields = [
+            "title",
+            "context_summary",
+            "commentary_beginner",
+            "commentary_intermediate",
+            "commentary_advanced",
+            "reflection_prompt",
+        ]
+        gospel_slugs = [
+            "journey-through-matthew",
+            "journey-through-mark",
+            "journey-through-luke",
+            "journey-through-john",
+        ]
+        for slug in gospel_slugs:
+            template = ReadingPlanTemplate.objects.get(slug=slug)
+            for day in template.days.all().order_by("day_number"):
+                for field in required_text_fields:
+                    value = getattr(day, field, "")
+                    self.assertTrue(
+                        value and value.strip(),
+                        f"{slug} day {day.day_number}: {field} is empty",
+                    )
+                self.assertTrue(
+                    day.scripture_references,
+                    f"{slug} day {day.day_number}: scripture_references is empty",
+                )
+
     def test_start_plan_creates_progress_for_all_days(self):
         """Starting a plan creates UserReadingProgress for every day."""
         user = self.create_user()

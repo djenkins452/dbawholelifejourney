@@ -3,8 +3,78 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-14 (Action Center Evolution — chronological timeline + recovery banner)
+# Last Updated: 2026-05-16 (Gospel reading plans — loader idempotency + content backfill)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-16 — Fix: Gospel reading plan content consistency (John / Luke / Matthew / Mark)
+
+User report: the John reading plan felt inconsistent and incomplete next to
+Matthew — Context / Commentary / Reflection sections were missing on days
+where Matthew rendered all of them. Audit requested across all four gospels
+to ensure each follows the same canonical day structure
+(Theme → Context → Scriptures → Commentary → Reflection prompt → Reflection
+entry).
+
+Root cause was architectural, not content: the loader file
+`apps/faith/management/commands/load_gospel_plans.py` already defines rich
+content for every day of all four gospels — context_summary, three
+commentary levels (beginner/intermediate/advanced), reflection_prompt. The
+template `templates/faith/reading_plans/progress.html` already renders all
+sections conditionally. **The bug was that the loader used
+`ReadingPlanDay.objects.get_or_create(plan, day_number, defaults={…})`,
+and Django's `get_or_create` silently drops `defaults` when the row already
+exists.** So once a day row was created in production (during early loader
+iterations when content was thinner — e.g., the John "placeholder template
+only" deploy in commit 23eff456, then the partial-coverage deploy in
+2a229179 with `if not created: return template`), that row's content was
+frozen forever. Subsequent loader edits never overwrote it. The
+"complete all gospel plans" migration 0020 just calls the loader and so
+suffered the same limitation.
+
+John was the most exposed plan because it was deployed in three separate
+stages (placeholder → days 1-5 → days 6-21 → coverage to day 22),
+maximising the chance that thin/transitional rows landed in production
+before being abandoned.
+
+### Fix
+- `apps/faith/management/commands/load_gospel_plans.py` — switched all
+  four day-population loops from `get_or_create` to `update_or_create`.
+  The loader is now content-authoritative: every run brings existing day
+  rows up to whatever the file declares. Stale "get_or_create is safe"
+  comments updated to reflect the new behaviour.
+- `apps/faith/migrations/0021_refresh_gospel_plan_content.py` — new data
+  migration that calls `load_gospel_plans` once at deploy. Because the
+  loader is now update_or_create, this backfills every existing John /
+  Luke / Mark / Matthew day with the canonical text fields in
+  production on next deploy.
+- `apps/faith/tests/test_reading_plans.py` — added
+  `test_gospel_plan_days_have_complete_content`, which iterates every day
+  of every gospel plan and asserts that title, context_summary,
+  commentary_beginner / intermediate / advanced, reflection_prompt, and
+  scripture_references are all populated. The existing
+  `test_gospel_plan_loader_creates_complete_plans` and
+  `test_gospel_plan_loader_idempotent` only verified counts and gap-free
+  numbering; a future loader edit that dropped a field for some days
+  would have passed those tests. It will not pass this one.
+
+### Safety
+`update_or_create` keys on `(plan, day_number)`, so day primary keys stay
+stable. Only `ReadingPlanDay` text fields are touched.
+`UserReadingProgress` (which holds user-authored reflection notes) FKs
+`ReadingPlanDay` by id and is unaffected. The
+`test_gospel_plan_loader_idempotent` test (which runs the loader twice)
+continues to pass — no duplicates created.
+
+### Files
+- `apps/faith/management/commands/load_gospel_plans.py` — 4 day-loop sites
+  converted to `update_or_create`; stale loader comments updated
+- `apps/faith/migrations/0021_refresh_gospel_plan_content.py` — NEW
+- `apps/faith/tests/test_reading_plans.py` — NEW test
+  `test_gospel_plan_days_have_complete_content`
+- `apps/core/fixtures/release_notes.json` — user-facing release note added
+- `apps/core/management/commands/load_initial_data.py` — reset to pick
+  up the new release note entry
 
 
 ## 2026-05-14 — Feature: Action Center Chronological Timeline (X1–X3)

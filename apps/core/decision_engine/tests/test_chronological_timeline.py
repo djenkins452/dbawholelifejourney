@@ -195,14 +195,75 @@ class EmphasisMetadataTests(SimpleTestCase):
         self.assertEqual(e['tone'], 'muted')
         self.assertEqual(e['badge'], 'completed')
 
-    def test_expired_emphasis(self):
+    def test_expired_default_badge_is_behind_not_expired(self):
+        """
+        Recovery Contract vocabulary: a past-cutoff item with no task_class
+        (or a non-HARD_EXPIRED task_class) must show the humane 'behind'
+        badge — never the punitive 'expired' word. The CSS de-emphasis
+        (ring='expired', tone='muted') is preserved so the item is still
+        visually dimmed, just no longer labeled as gone.
+        """
         e = _compute_emphasis({
             'urgency': 'overdue', 'is_foundational': True,
             'completed': False, 'expired': True, 'is_reset_action': False,
         })
-        self.assertEqual(e['ring'], 'expired')
-        self.assertEqual(e['badge'], 'expired')
+        self.assertEqual(e['badge'], 'behind')
+        self.assertNotEqual(e['badge'], 'expired')  # vocabulary guardrail
+        self.assertEqual(e['ring'], 'expired')      # CSS hook unchanged
         self.assertEqual(e['tone'], 'muted')
+
+    def test_expired_windowed_renders_as_behind(self):
+        """
+        WINDOWED items (nutrition anchors, supplements, measurements) past
+        their grace + anchor-block cap must render 'behind', not 'expired'.
+        These are still meaningfully doable — see Recovery Contract docs.
+        """
+        e = _compute_emphasis({
+            'urgency': 'overdue', 'is_foundational': False,
+            'completed': False, 'expired': True, 'is_reset_action': False,
+            'task_class': 'WINDOWED',
+        })
+        self.assertEqual(e['badge'], 'behind')
+
+    def test_expired_hard_expired_renders_as_missed(self):
+        """
+        Only HARD_EXPIRED items (services, meetings, appointments, classes,
+        events) past their scheduled time render the stronger 'missed'
+        badge. These are the only items the Recovery Contract treats as
+        genuinely time-locked. The badge stays inside the muted/dimmed
+        visual treatment — humane wording, same de-emphasis.
+        """
+        e = _compute_emphasis({
+            'urgency': 'overdue', 'is_foundational': True,
+            'completed': False, 'expired': True, 'is_reset_action': False,
+            'task_class': 'HARD_EXPIRED',
+        })
+        self.assertEqual(e['badge'], 'missed')
+        self.assertEqual(e['ring'], 'expired')
+        self.assertEqual(e['tone'], 'muted')
+
+    def test_emphasis_never_emits_expired_badge(self):
+        """
+        Belt-and-suspenders: across the four possible (task_class, expired)
+        combinations the emphasis function must never produce the literal
+        badge string 'expired'. Locks the vocabulary contract in place
+        against future regressions.
+        """
+        for task_class in (None, 'HARD_EXPIRED', 'WINDOWED', 'SOFT_EXPIRED', 'FLEXIBLE'):
+            for expired in (True, False):
+                e = _compute_emphasis({
+                    'urgency': 'overdue', 'is_foundational': False,
+                    'completed': False, 'expired': expired,
+                    'is_reset_action': False,
+                    'task_class': task_class,
+                })
+                self.assertNotEqual(
+                    e.get('badge'),
+                    'expired',
+                    f"task_class={task_class} expired={expired} "
+                    f"produced badge='expired' — violates Recovery Contract "
+                    f"vocabulary (use 'behind' or 'missed')",
+                )
 
     def test_foundational_pending_emphasis(self):
         e = _compute_emphasis({

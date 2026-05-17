@@ -9,8 +9,11 @@
     </span>
     <span class="v2-ac-banner-text">{{ ac.recovery_state.banner_text }}</span>
     {% if ac.recovery_state.mode == 'RECOVERY' %}
+    {# Vocabulary contract: "behind" = past scheduled time but still doable; #}
+    {# "past window" = aggregate of items beyond their recoverability cutoff #}
+    {# (covers HARD_EXPIRED + WINDOWED). Avoids the punitive "expired" word.  #}
     <span class="v2-ac-banner-detail">
-        {{ ac.recovery_state.recoverable_overdue_count }} item{{ ac.recovery_state.recoverable_overdue_count|pluralize }} behind{% if ac.recovery_state.expired_count %}, {{ ac.recovery_state.expired_count }} expired{% endif %}.
+        {{ ac.recovery_state.recoverable_overdue_count }} item{{ ac.recovery_state.recoverable_overdue_count|pluralize }} behind{% if ac.recovery_state.expired_count %}, {{ ac.recovery_state.expired_count }} past window{% endif %}.
     </span>
     {% elif ac.recovery_state.mode == 'STABILIZE' %}
     <span class="v2-ac-banner-detail">

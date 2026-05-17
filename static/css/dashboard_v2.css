@@ -2956,7 +2956,16 @@ a.v2-state-item:hover {
     text-decoration-color: rgba(120, 120, 120, 0.6);
 }
 
-/* Per-item badges (Past Due / Now / Expired / Foundational / Reset / Completed) */
+/* Per-item badges (Past Due / Now / Behind / Missed / Foundational / Reset / Completed) */
+/* Vocabulary contract — see _compute_emphasis() in action_prioritizer.py:    */
+/*   behind  = past its window but still meaningfully doable (e.g. a 7am      */
+/*             protein shake at 9am). The de-emphasis is muted-gray;          */
+/*             intentionally NOT punitive.                                    */
+/*   missed  = a genuinely time-locked HARD_EXPIRED item the moment is gone   */
+/*             for (e.g. a 10:30 service at 2pm). Same muted visual; humane   */
+/*             wording.                                                       */
+/*   expired = legacy class kept for backward compat with any cached HTML;    */
+/*             new code never emits this badge.                               */
 .v2-ac-item-badge {
     display: inline-block;
     padding: 0.1rem 0.45rem;
@@ -2970,7 +2979,9 @@ a.v2-state-item:hover {
 }
 .v2-ac-badge-past-due     { background: #fbe1d7; color: #a93a1f; }
 .v2-ac-badge-now          { background: #dceaf8; color: #1f4e8a; }
-.v2-ac-badge-expired      { background: #ececec; color: #666;    }
+.v2-ac-badge-behind       { background: #ececec; color: #666;    }
+.v2-ac-badge-missed       { background: #ececec; color: #666;    }
+.v2-ac-badge-expired      { background: #ececec; color: #666;    }  /* legacy */
 .v2-ac-badge-foundational { background: #fcefcb; color: #8c6d11; }
 .v2-ac-badge-reset        { background: #e3edd2; color: #4d6b1a; }
 .v2-ac-badge-completed    { background: #e0f1e3; color: #2b6235; }

@@ -3,8 +3,93 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-17 (DB connection resiliency — stale-connection race fix)
+# Last Updated: 2026-05-17 (Action Center vocabulary — Recovery Contract alignment)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-17 — Fix: Action Center vocabulary aligned with Recovery Contract
+
+User report: the homepage Action Center was marking everyday items
+("Protein Shake", "Measurements", "Perfect Amino", and similar) as
+**EXPIRED** the moment their scheduled time passed plus a grace window.
+This collided with the project's Recovery Contract philosophy ("recover
+forward, not punitive failure tracking") — the user can still
+meaningfully drink a protein shake at 9 AM that was scheduled for 7 AM;
+calling it "EXPIRED" makes the homepage feel like a failure tracker
+rather than a daily execution timeline.
+
+### Root cause (proven via full pipeline trace)
+The Recovery Contract has four task classes
+(`HARD_EXPIRED` / `WINDOWED` / `SOFT_EXPIRED` / `FLEXIBLE`) and the
+recoverability machinery correctly distinguishes them. The bug was
+purely in the **display vocabulary** at one site: `_compute_emphasis()`
+in `apps/core/decision_engine/action_prioritizer.py` collapsed every
+past-cutoff item into a single `badge='expired'`, regardless of whether
+it was a genuinely time-locked HARD_EXPIRED item (a missed church
+service — yes, gone) or a WINDOWED routine item (a protein shake past
+its anchor block — still meaningfully doable).
+
+### Fix — vocabulary only, no logic change
+Split the single `expired` badge branch by task class:
+
+| Task class | Past-cutoff badge | Visual |
+|---|---|---|
+| `HARD_EXPIRED` (services, meetings, appointments, classes, events) | `missed` | muted/dimmed (unchanged) |
+| `WINDOWED` and everything else | `behind` | muted/dimmed (unchanged) |
+| `SOFT_EXPIRED` / `FLEXIBLE` | (never past-cutoff — always `past due` or no badge) | normal |
+
+CSS dimming (`ring='expired'`, `tone='muted'`) stays — past-cutoff items
+are still visually de-emphasised so the eye is drawn to in-window work.
+Only the *word* changes to remove the punitive feel.
+
+The aggregate recovery banner ("X items behind, Y expired") becomes
+"X behind, Y past window" — neutral aggregate phrasing that correctly
+covers both HARD_EXPIRED and WINDOWED.
+
+### What is explicitly NOT changing
+- `task_classifier.py` — no reclassification. Protein shake stays
+  WINDOWED so the "morning anchors can't drift into afternoon
+  recommendations" intent is preserved.
+- `recoverability.py` — no grace-window or anchor-block-cap changes.
+- `recovery_state.py` — STABILIZE / RECOVERY / SHUTDOWN logic unchanged.
+- Completion path — items badged `behind` or `missed` remain fully
+  actionable from the homepage exactly as before. The `expired` boolean
+  on items is a display flag, never a filter.
+
+### Files
+- `apps/core/decision_engine/action_prioritizer.py` — split the
+  `expired` badge branch by `task_class`; threaded `task_class` through
+  the `item_for_emphasis` dict at the in-block call site; expanded the
+  `_compute_emphasis()` docstring with the vocabulary contract.
+- `templates/dashboard_v2/partials/_action_recovery_banner.html` —
+  "X expired" → "X past window".
+- `static/css/dashboard_v2.css` — added `.v2-ac-badge-behind` and
+  `.v2-ac-badge-missed` rules (same muted-grey style as legacy
+  `.v2-ac-badge-expired`). Legacy class retained for any cached HTML.
+- `apps/core/decision_engine/tests/test_chronological_timeline.py` —
+  replaced `test_expired_emphasis` with four new tests covering:
+  default (no task_class) → `behind`; WINDOWED → `behind`;
+  HARD_EXPIRED → `missed`; and a belt-and-suspenders guard asserting
+  that across the full (task_class × expired) matrix the function
+  never emits `badge='expired'`.
+
+### Verification
+- `python3 manage.py makemigrations --check --dry-run` clean
+- 27/27 chronological-timeline tests pass (including 4 new vocabulary
+  tests + the regression-guard)
+- 35/35 recovery-state, classifier, recoverability tests pass — no
+  side-effect on the recovery state machine or recoverability machinery
+- Pre-edit regression grep across `apps/` and `templates/` confirmed
+  no other site asserts on `badge='expired'`
+
+### Follow-ups (deferred — not in this PR)
+- Optional cosmetic alignment to the user's full proposed vocabulary
+  (`past due` → `late`, `now` → `due now`) — defer; bigger test
+  footprint, no functional gain.
+- If after observation any specific items (e.g. "Shower") still feel
+  wrong, the next step is a targeted classifier amendment (promote
+  certain `activity_type`s from WINDOWED to SOFT_EXPIRED) — separate
+  scoped PR.
 
 
 ## 2026-05-17 — Fix: Production DB connection resiliency (stale-connection race)

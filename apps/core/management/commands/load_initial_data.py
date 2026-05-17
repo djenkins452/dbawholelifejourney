@@ -1049,6 +1049,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Gospel reading-plan consistency rebuild (PK 196)
         self._reset_gospel_plan_consistency_release_notes(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Action Center vocabulary fix (PK 197)
+        self._reset_action_center_vocabulary_release_notes(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -6876,3 +6879,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Gospel plan consistency release notes FAILED: {e}'))
+
+    def _reset_action_center_vocabulary_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes after adding PK 197 (Action Center
+        vocabulary fix — removing punitive "EXPIRED" labels, aligning with the
+        Recovery Contract philosophy: "behind" for past-window items,
+        "missed" reserved for genuinely time-locked HARD_EXPIRED items).
+        """
+        reset_tracker_name = 'reset_action_center_vocabulary_2026_05_17'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for Action Center vocabulary (PK 197)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Action Center vocabulary',
+                'command',
+                'One-time reset: added PK 197 for Action Center vocabulary fix'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Action Center vocabulary release notes FAILED: {e}'))

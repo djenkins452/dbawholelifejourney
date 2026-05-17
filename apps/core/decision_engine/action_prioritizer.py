@@ -1164,9 +1164,31 @@ def _compute_emphasis(item, recovery_mode="NORMAL"):
     NEVER derives styling from state itself — all styling decisions
     live here in Python.
 
+    Vocabulary contract (Recovery Contract philosophy: "recover forward,
+    not punitive failure tracking"):
+      - HARD_EXPIRED items past their cutoff → badge 'missed'.
+        Reserved for genuinely time-locked commitments (services,
+        meetings, appointments, classes, events) where the moment is
+        actually gone.
+      - All other past-cutoff items (WINDOWED nutrition / supplements /
+        measurements) → badge 'behind'.  Still meaningfully doable; just
+        outside the optimal window.  The user can still complete them
+        from the homepage exactly as before — 'expired' is a display
+        flag, not a filter.
+      - SOFT_EXPIRED and FLEXIBLE items are never past-cutoff
+        (is_recoverable always returns True for them), so they never
+        reach this branch — they get 'past due', 'reset', 'foundational',
+        or no badge depending on urgency.
+
+    The CSS dimming (ring='expired', tone='muted') stays — these items
+    are still visually de-emphasised so the eye is drawn to in-window
+    work; only the *word* changes to remove the punitive feel.
+
     Args:
         item: dict with keys completed, expired, urgency, is_foundational,
-              is_reset_action.
+              is_reset_action, and (optional) task_class.  task_class is
+              consulted to choose between 'missed' (HARD_EXPIRED) and
+              'behind' (everything else) — defaults to 'behind' if absent.
         recovery_mode: str — one of 'NORMAL', 'RECOVERY', 'STABILIZE',
               'SHUTDOWN'. Drives optional dimming.
 
@@ -1183,8 +1205,14 @@ def _compute_emphasis(item, recovery_mode="NORMAL"):
         badge = 'completed'
     elif item.get('expired'):
         tone = 'muted'
-        badge = 'expired'
-        ring = 'expired'
+        ring = 'expired'  # CSS hook stays — items remain visually dimmed.
+        # Humane vocabulary: reserve 'missed' for HARD_EXPIRED (truly
+        # time-locked) items; everything else past its window is just
+        # 'behind' — still doable, still completable.
+        if item.get('task_class') == 'HARD_EXPIRED':
+            badge = 'missed'
+        else:
+            badge = 'behind'
     elif item.get('urgency') == 'overdue':
         ring = 'overdue'
         tone = 'warning'
@@ -1283,7 +1311,11 @@ def build_chronological_timeline(
                                # X4 will split them when reschedule visibility lands.
 
             # Expired check via recoverability (when available).
+            # Also pull task_class from the source execution item so the
+            # emphasis vocabulary can distinguish 'missed' (HARD_EXPIRED)
+            # from 'behind' (other past-cutoff items). See _compute_emphasis().
             expired = False
+            task_class = None
             if is_recoverable and raw.get('is_actionable') and not raw.get('completed'):
                 # The base builder's items don't carry task_class — pull
                 # from the original execution item to check expiry.
@@ -1296,8 +1328,10 @@ def build_chronological_timeline(
                     )
                     if src_match is not None:
                         expired = not is_recoverable(src_match, current_time)
+                        task_class = src_match.get('task_class')
                 except Exception:
                     expired = False
+                    task_class = None
 
             collapsed_strategy = suppressed_keys_to_strategy.get(
                 (raw.get('source_type'), raw.get('source_id'))
@@ -1308,6 +1342,7 @@ def build_chronological_timeline(
             item_for_emphasis = {
                 'completed': raw.get('completed', False),
                 'expired': expired,
+                'task_class': task_class,
                 'urgency': raw.get('urgency'),
                 'is_foundational': raw.get('is_foundational', False),
                 'is_reset_action': raw.get('is_reset_action', False),

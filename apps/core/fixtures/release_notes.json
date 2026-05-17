@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 197,
+    "fields": {
+      "title": "Action Center vocabulary: no more punitive \"EXPIRED\"",
+      "description": "The homepage Action Center used to mark everyday items — a 7 AM protein shake, morning measurements, a routine supplement — as \"EXPIRED\" the moment their scheduled window passed. That felt like a failure tracker. It's now aligned with the Recovery Contract: \"recover forward, not punitive.\" Items past their optimal window show \"BEHIND\" instead — still visually de-emphasised, still completable from the homepage with one tap, just not labelled as gone. The stronger word \"MISSED\" is now reserved for genuinely time-locked commitments where the moment really is gone (a church service, a meeting, an appointment, a class). The recovery banner's aggregate count reads \"X behind, Y past window\" instead of \"Y expired.\" Nothing about completion changes — if you do something later, you still complete it normally. The homepage now represents the living reality of your day, not a clock-enforcement scoreboard.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-05-17",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-05-17T20:45:00Z",
+      "updated_at": "2026-05-17T20:45:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 196,
     "fields": {
       "title": "Gospel reading plans now feel consistently guided",

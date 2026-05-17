@@ -252,8 +252,33 @@ if DATABASE_URL:
     DATABASES = {
         "default": {
             **env.db("DATABASE_URL"),
-            "CONN_MAX_AGE": 600,  # Reuse connections for 10 min (reduces churn)
-            "CONN_HEALTH_CHECKS": True,  # Verify connections before reuse
+            # Persist connections for 60s. This is intentionally well below
+            # Railway / pgbouncer's idle-connection lifetime (~600s) so we
+            # never reuse a connection the server has already torn down.
+            # Previous value (600s) sat at the same scale as the server-side
+            # idle window, producing the race condition that surfaced as
+            # "SSL SYSCALL error: EOF detected" → "connection already closed"
+            # on the /api/notifications/count/ poll. 60s still amortises
+            # connection-setup cost across a typical page-load burst.
+            "CONN_MAX_AGE": 60,
+            # Verify the persistent connection is alive at request start via
+            # SELECT 1 before any query runs. Catches connections the server
+            # has dropped while we were idle. Necessary but not sufficient
+            # alone — see OPTIONS keepalives below.
+            "CONN_HEALTH_CHECKS": True,
+            "OPTIONS": {
+                # libpq TCP keepalives. Without these, the Linux kernel only
+                # notices a dead peer after tcp_keepalive_time (~2 hours),
+                # which means CONN_HEALTH_CHECKS' SELECT 1 can succeed
+                # against a socket the server has already closed, and the
+                # next real query fails. With these, the kernel surfaces
+                # the dead peer within ~80s (30s idle + 5×10s probes), so
+                # the health check actually catches it.
+                "keepalives": 1,
+                "keepalives_idle": 30,
+                "keepalives_interval": 10,
+                "keepalives_count": 5,
+            },
         },
     }
 elif DEBUG:

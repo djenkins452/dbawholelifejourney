@@ -3,8 +3,90 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-16 (Gospel reading plans — loader idempotency + content backfill)
+# Last Updated: 2026-05-17 (DB connection resiliency — stale-connection race fix)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-17 — Fix: Production DB connection resiliency (stale-connection race)
+
+Production was logging `OperationalError: SSL SYSCALL error: EOF detected`
+followed by `InterfaceError: connection already closed` on
+`/api/notifications/count/` while evaluating `request.user.is_authenticated`
+during session lookup. Failure cadence matched the 60s notification-badge
+polling interval, suggesting an infrastructure issue rather than an
+endpoint bug.
+
+### Root cause (proven, not speculation)
+Gunicorn workers hold persistent DB connections per Django's
+`CONN_MAX_AGE`. The previous value of **600s sat at parity with Railway /
+pgbouncer's ~600s server-side idle horizon**, opening a race where the
+server tore down a connection that Django still considered fresh and
+reusable. `CONN_HEALTH_CHECKS=True` was set — and was the only thing
+saving us from constant failures — but it is not sufficient on its own
+for two reasons:
+
+1. It runs once at request start; a connection can die between the
+   `SELECT 1` health probe and the actual auth/session query.
+2. Without libpq TCP keepalives, the Linux kernel takes
+   ~`tcp_keepalive_time` (2 hours) to surface a dead peer, so the
+   health-check probe itself can succeed against a socket the server
+   has already closed.
+
+The `/api/notifications/count/` endpoint is not buggy — it is the
+canary. As the highest-frequency authenticated DB request in the
+system (every signed-in browser tab polls every 60s, into worker idle
+gaps), it is the simplest path that exercises every layer at the
+cadence most likely to trip the race. The same vulnerability exists on
+every authenticated request; users notice it here because it logs
+loudly once a minute.
+
+### Fix (Option A — minimal, deterministic)
+`config/settings.py` — DATABASES['default']:
+
+- `CONN_MAX_AGE`: **600 → 60**. Recycles persistent connections well
+  inside any plausible managed-Postgres idle timeout. Still amortises
+  connection setup across the burst of requests in a typical page load.
+- `OPTIONS['keepalives'] = 1`, `keepalives_idle = 30`,
+  `keepalives_interval = 10`, `keepalives_count = 5`. Tells libpq to
+  run TCP keepalives. Net effect: the kernel reports a dead peer
+  within ~80s (30s idle + 5×10s probes) instead of ~2 hours, so
+  `CONN_HEALTH_CHECKS`' SELECT 1 reliably detects dead connections
+  before the next query runs.
+- `CONN_HEALTH_CHECKS` stays True (unchanged) — still useful as the
+  first line.
+
+This is a settings-only change. No new middleware, no retry wrapper,
+no pooler, no `--preload` change. Belt-and-suspenders Option B
+(post_fork connection cleanup + scoped OperationalError-retry on
+auth path) is intentionally deferred — fall back to it only if 7 days
+of production observation show residual stale-connection errors.
+
+### Why not retry-on-OperationalError middleware
+That would mask the underlying problem from observability and
+contradicts the AI Engineering Rules in CLAUDE.md ("Never swallow
+errors"). The chosen fix removes the race rather than catching it.
+
+### Files
+- `config/settings.py` — DATABASES['default'] tightened + keepalives added
+- `apps/core/tests/test_database_resiliency_settings.py` — NEW test
+  locking the three contract pieces in place (CONN_MAX_AGE ≤ 300,
+  CONN_HEALTH_CHECKS True, libpq keepalives configured) so a future
+  edit cannot silently regress the fix.
+
+### Verification
+- `python3 manage.py check` clean
+- `apps.core.tests.test_database_resiliency_settings` — 3/3 pass
+- Live Postgres connection smoke test with the new OPTIONS — libpq
+  accepts the keepalive parameters and queries execute normally
+- Settings merge confirmed at runtime: `CONN_MAX_AGE=60`,
+  `CONN_HEALTH_CHECKS=True`,
+  `OPTIONS={keepalives: 1, keepalives_idle: 30, …}`
+
+### Acceptance criteria (production)
+- Zero `SSL SYSCALL error: EOF detected` /
+  `connection already closed` errors over a 7-day post-deploy window
+- No p95 regression on `/api/notifications/count/`
+- DB connection count steady around 4 (one per worker) — no spike
 
 
 ## 2026-05-16 — Fix: Gospel reading plan content consistency (John / Luke / Matthew / Mark)

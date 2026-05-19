@@ -3,8 +3,81 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-17 (Action Center vocabulary — Recovery Contract alignment)
+# Last Updated: 2026-05-18 (FatSecret foods.search XML-error fix)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-18 — Fix: FatSecret /rest/server.api wrong request format (XML error from JSON body)
+
+Production error report (mail_admins):
+```
+FatSecret foods.search JSON decode error (status=200, body=<?xml
+version="1.0" encoding="utf-8" ?><error xmlns="…"
+xsi:schemaLocation="http://platform.fatsecret.com/a…):
+Expecting value: line 1 column 1 (char 0)
+```
+
+### Root cause (proven by reading the code)
+`search_foods()`, `get_food_details()`, and `_get_access_token()` all live
+in `apps/health/services/fatsecret.py`. The token call uses `data=`
+(form-encoded) and works. The two data calls were using `json={…}` with
+`Content-Type: application/json` — but FatSecret's `/rest/server.api`
+endpoint does NOT accept JSON bodies. When it sees a JSON body its
+legacy parser drops the parameters (no `method`, no `format`) and
+returns its default XML error envelope with HTTP 200. The
+`_safe_json()` resilience wrapper (added March 2026) caught the
+resulting `ValueError`, logged to mail_admins, and returned an empty
+list — so users searching food via FatSecret silently got zero results
+while admins got one email per failed search.
+
+The wrapper was treating the symptom; the underlying request format
+was wrong since the integration was created in Jan 2026.
+
+### Fix (minimal, three sites)
+- `search_foods()` — `json={…}` → `data={…}`; removed explicit
+  `Content-Type: application/json` header so requests sets the correct
+  `application/x-www-form-urlencoded` automatically.
+- `get_food_details()` — same one-line change, same rationale.
+- `_safe_json()` log truncation bumped 200 → 500 chars so the next time
+  FatSecret returns an XML error we can actually see the `<code>` and
+  `<message>` fields in the admin email instead of having the body cut
+  off mid-`schemaLocation`.
+
+### Explicitly NOT changed
+- `recognize_food_image()` — different endpoint
+  (`/rest/image-recognition/v2`), different documented contract: it
+  takes a JSON body containing the base64 image. Switching it to
+  form-encoded would break image scans (and the base64 image payload
+  is impractical to form-encode anyway). Not implicated in the
+  production report.
+- `lookup_barcode()` — already correct (GET with query params on
+  `/rest/food/barcode/find-by-id/v2`).
+- `_get_access_token()` — already correct (form-encoded body on the
+  OAuth 2.0 token endpoint).
+- `_safe_json()`'s graceful-degradation contract — kept as a safety
+  net. The fix removes the cause; the net stays.
+
+### Tests
+New `apps/health/tests/test_fatsecret_request_format.py` locks all
+three endpoint shapes against future drift:
+1. `search_foods` must use `data=` (and must NOT use `json=` or force
+   `Content-Type: application/json`).
+2. `get_food_details` must use `data=`.
+3. `recognize_food_image` must KEEP `json=` — different endpoint.
+4. `_safe_json` must log ≥500 chars of an XML-error body so the
+   `<code>` and `<message>` fields are visible to operators.
+
+4/4 pass locally.
+
+### Acceptance (production)
+- Zero new "FatSecret foods.search JSON decode error" admin emails
+  over a 48 h window.
+- Spot-check: live food search ("Big Mac") returns FatSecret results
+  in the autocomplete instead of zero.
+
+### Files
+- `apps/health/services/fatsecret.py` — request format + log width
+- `apps/health/tests/test_fatsecret_request_format.py` — NEW guard tests
 
 
 ## 2026-05-17 — Fix: Action Center vocabulary aligned with Recovery Contract

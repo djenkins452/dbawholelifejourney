@@ -97,7 +97,15 @@ class FatSecretService:
         return bool(self.client_id and self.client_secret)
 
     def _safe_json(self, response, context: str = "FatSecret"):
-        """Parse JSON from response, handling empty/malformed bodies."""
+        """Parse JSON from response, handling empty/malformed bodies.
+
+        When FatSecret returns its XML error envelope (which it does, with
+        HTTP 200, whenever the request format is wrong or there is an
+        OAuth / rate-limit issue), the JSON parse fails. We log a 500-char
+        prefix of the body — wide enough to capture the full <error>
+        envelope including <code> and <message> fields so the actual
+        FatSecret error reason is visible in the admin email.
+        """
         if not response.content:
             logger.warning("%s returned empty response body (status=%s)", context, response.status_code)
             return None
@@ -106,7 +114,7 @@ class FatSecretService:
         except ValueError as e:
             logger.error(
                 "%s JSON decode error (status=%s, body=%s): %s",
-                context, response.status_code, response.text[:200], e,
+                context, response.status_code, response.text[:500], e,
             )
             return None
 
@@ -193,13 +201,21 @@ class FatSecretService:
             return []
 
         try:
+            # FatSecret /rest/server.api takes form-encoded parameters
+            # (or query string), NOT a JSON body — even when format=json is
+            # requested. Sending a JSON body causes FatSecret's legacy parser
+            # to drop our parameters and return its default XML error envelope
+            # with HTTP 200, which then fails JSON decoding downstream. See
+            # docstring on the class and the production incident logged at
+            # _safe_json in March 2026 for context.
             response = requests.post(
                 FATSECRET_API_URL,
                 headers={
                     'Authorization': f'Bearer {token}',
-                    'Content-Type': 'application/json'
+                    # No Content-Type override — requests sets
+                    # application/x-www-form-urlencoded automatically for `data=`.
                 },
-                json={
+                data={
                     'method': 'foods.search',
                     'search_expression': query,
                     'format': 'json',
@@ -248,13 +264,15 @@ class FatSecretService:
             return None
 
         try:
+            # See search_foods() for the form-encoded vs JSON rationale —
+            # /rest/server.api requires form-encoded parameters; sending JSON
+            # makes FatSecret return XML and breaks JSON parsing downstream.
             response = requests.post(
                 FATSECRET_API_URL,
                 headers={
                     'Authorization': f'Bearer {token}',
-                    'Content-Type': 'application/json'
                 },
-                json={
+                data={
                     'method': 'food.get',
                     'food_id': food_id,
                     'format': 'json'

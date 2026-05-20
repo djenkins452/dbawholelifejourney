@@ -52,6 +52,21 @@ from django.core.exceptions import ImproperlyConfigured
 # Detect if we're running tests
 TESTING = len(sys.argv) > 1 and sys.argv[1] == 'test'
 
+# F7 — Investigation-only diagnostic for the RuntimeWarning
+# "Accessing the database during app initialization is discouraged."
+# Captures the full Python stack the FIRST time that warning fires
+# per process and logs it. Strictly additive — falls through to the
+# original warnings.showwarning so normal warning emission is unchanged.
+# See apps/core/startup_diagnostics.py for the full rationale. Skip
+# during tests so the test runner's own warning filters are not
+# perturbed; we only need this signal from real boots.
+if not TESTING:
+    try:
+        from apps.core.startup_diagnostics import install_diagnostics
+        install_diagnostics()
+    except Exception:  # noqa: BLE001 — diagnostic must never crash boot.
+        pass
+
 # Sentry SDK is optional - only import if available
 try:
     import sentry_sdk

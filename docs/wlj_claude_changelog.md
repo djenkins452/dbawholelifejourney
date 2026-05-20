@@ -3,8 +3,131 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-18 (FatSecret foods.search XML-error fix)
+# Last Updated: 2026-05-20 (Post-incident hardening — reduced Phase 1: F2 + F3 + F6 + F7)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-20 — Hardening: Post-incident review follow-ups (F2 + F3 + F6 + F7)
+
+Context: production 502 incident (2026-05-19) where Railway reported the
+service healthy but Cloudflare returned 502 Bad Gateway for all paths
+until a manual redeploy. Investigation (full report in conversation
+transcript) ranked eight candidate hardening actions F1–F8. User
+approved a **reduced, deterministic Phase 1**: ship F2 + F3 + F7 as
+investigation/visibility wins, plus F6 because with `--preload` actually
+in production use it is strictly additive (closes inherited connections
+post-fork; no-ops if there were none). Explicitly HELD: F1 retry
+middleware, F4 timeout reduction, F5 worker model change, F8 startup
+decomposition — pending stronger evidence and to preserve deterministic
+behavior. Rationale: site recovered on redeploy, so the incident looks
+more like runtime-state / dependency instability than a proven
+architectural flaw. Smallest safe changes first; do not introduce
+behavior-changing resilience patterns until they are justified.
+
+### F2 — Railway healthcheck wired to `/_health/`
+`railway.json` now declares `healthcheckPath: "/_health/"` and
+`healthcheckTimeout: 10`. The `/_health/` view at
+`apps/core/views.py:196` already runs `SELECT 1` against the DB and
+returns 503 on failure, so Railway will now report degraded when the
+DB is actually unreachable — instead of the previous behavior where
+Railway saw the gunicorn master listening on TCP 8080 and reported
+"healthy" while workers were unable to serve. Closes the operational
+blind spot that let the 502 incident persist undetected.
+
+### F3 — Procfile vs Railway truth reconciliation (documentation)
+The committed `Procfile` was NOT what Railway actually runs. Railway
+uses a Custom Start Command (documented as a comment in `railway.toml`)
+which runs `load_initial_data` and `recalculate_task_priorities` on
+every deploy — explicitly contradicted by the "NEVER add to startup"
+comment block at the bottom of the Procfile. Anyone reading the
+Procfile to reason about production boot behavior was getting wrong
+information.
+
+Added a prominent header to `Procfile` stating "Procfile is NOT what
+Railway runs," establishing a source-of-truth ranking: (1) Railway
+dashboard Custom Start Command, (2) `railway.toml` comment block,
+(3) this Procfile. No operational change — only documentation. Did
+NOT attempt to reconcile the underlying load_initial_data / startup
+divergence (that is F8, deferred).
+
+### F6 — Defensive gunicorn `post_fork` hook (no Railway change needed)
+New file `gunicorn.conf.py` at the repo root. Gunicorn auto-loads
+`gunicorn.conf.py` from CWD when no `--config` is passed, and the
+Railway custom start command does not pass `--config`, so this file
+is picked up automatically without any dashboard change.
+
+The hook closes any DB connection that workers may have inherited
+from the `--preload` master. The audit of all AppConfig.ready()
+methods + module-level grep did not find a code path that opens a DB
+connection during preload, but the RuntimeWarning
+"Accessing the database during app initialization is discouraged"
+DOES fire repeatedly during boot — so something is touching the DB
+during init. Whatever it is, its connection's file descriptor would
+be shared across all 4 forked workers, producing the exact
+"SSL SYSCALL error: EOF detected" pattern that initiated this whole
+incident thread.
+
+Strictly additive: closing zero connections is a no-op; closing a
+real inherited connection prevents a latent fault. Cannot break a
+working path. Wrapped in defensive try/except so the hook itself
+cannot crash worker boot.
+
+### F7 — APPS_NOT_READY warning source instrumentation (investigation only)
+New file `apps/core/startup_diagnostics.py` installs a one-shot wrapper
+around `warnings.showwarning` that captures the full Python stack the
+FIRST time the "Accessing the database during app initialization"
+warning fires per process, logs it at WARNING level (visible in
+console + file handlers, NOT mail_admins since that's ERROR-gated),
+and falls through to the original handler so normal warning emission
+is unchanged.
+
+Wired into `config/settings.py` very early — before any DB-accessing
+code can run — and skipped when `TESTING` so the test runner's own
+warning filters are unperturbed. Idempotent install; cannot
+double-wrap. Wrapped in try/except so a diagnostic failure cannot
+crash boot.
+
+This is investigation-only. Once the source of the warning is
+identified in production logs, the offending code should be fixed
+and this diagnostic removed (or its `install_diagnostics()` call
+deleted from settings.py).
+
+### Files
+- `railway.json` — added `healthcheckPath` and `healthcheckTimeout`
+- `Procfile` — added "NOT what Railway runs" header + source-of-truth
+  ranking; preserved the historical command and "NEVER add" block as
+  desired-state documentation
+- `gunicorn.conf.py` — NEW, auto-discovered, defensive `post_fork`
+  hook closes any inherited connections
+- `apps/core/startup_diagnostics.py` — NEW, one-shot warning shim
+- `config/settings.py` — installed the diagnostic shim very early
+  (skipped during tests)
+
+### Verification
+- `python3 manage.py check` clean
+- All four edited files parse / valid JSON
+- Shim smoke-test: install is idempotent, non-target warnings fall
+  through silently, target warning fires diagnostic + falls through
+  with full stack capture
+- `apps.core.tests.test_database_resiliency_settings` 3/3 pass (no
+  regression from settings.py edit)
+
+### What is intentionally NOT in this change
+- F1 stale-connection retry middleware — held; deterministic behavior
+  preserved until we have stronger evidence the retry is necessary
+- F4 gunicorn `--timeout` reduction — held; needs operational decision
+- F5 worker class change — held; risk of surfacing new failure modes
+- F8 boot-chain decomposition (move load_initial_data off boot path) —
+  held; operational decision deferred
+
+### Next signals to watch
+- Does `/_health/` now appear in Railway's deployment health UI? Does
+  it correctly fire when DB is unreachable?
+- Within 24 h of next deploy: does the captured APPS_NOT_READY stack
+  trace appear in logs once per worker boot? Use it to identify and
+  fix the source.
+- Within 7 days: does the SSL EOF / connection-closed pattern recur?
+  If yes, escalate to F1 (retry middleware) with documented evidence.
 
 
 ## 2026-05-18 — Fix: FatSecret /rest/server.api wrong request format (XML error from JSON body)

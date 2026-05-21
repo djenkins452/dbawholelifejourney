@@ -3,8 +3,160 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-20 (Post-incident hardening — reduced Phase 1: F2 + F3 + F6 + F7)
+# Last Updated: 2026-05-20 (Visual Truth Contract — homepage / CoS trust fix)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-20 — Fix: Visual Truth Contract (homepage falsely implied completion)
+
+User report: the homepage Action Center visually marked items as
+completed / crossed out / dismissed for items the user never completed
+("THORNE Creatine", "Workout", "Protein Shake", "Shower", "Perfect
+Amino"). Meanwhile CoS correctly reported the same items as incomplete
+and actionable. This is the deepest possible trust violation: two
+surfaces of the same app, disagreeing about what the user has done.
+
+### Root cause — confirmed (purely a CSS-layer violation)
+The data pipeline is intact:
+  raw data → execution truth → CoS + UI
+CoS reads `item.completed` directly and reports incomplete items as
+incomplete. The homepage's data-bound classes are also correct
+(`item.completed` only goes True on real completion). The break was a
+single CSS rule:
+
+  static/css/dashboard_v2.css:2953-2957 (pre-fix)
+  .v2-ac-item-expired .v2-ac-item-title {
+      text-decoration: line-through;
+      ...
+  }
+
+This applied **strike-through to the title of any past-window item**.
+Strike-through is the universal "this is done" signal, so even though
+the badge text correctly said "BEHIND" (per the 2026-05-17 vocabulary
+fix), the visual treatment overrode the text and read as "done" to
+the user. Visual semantics override text semantics — the user sees
+the strike-through before they read the badge.
+
+Secondary contributor: `.v2-ac-recovery-dim { opacity: 0.55 }` was
+psychologically too strong. At 55% opacity, items in RECOVERY mode
+(non-foundational overdue) read as "dismissed / already handled" even
+though they were still actionable. This is the likely explanation for
+"Shower" and "Workout" appearing done — those are `SOFT_EXPIRED`
+(never reach `expired=True`) but DO receive `recovery_dim` when
+overdue in RECOVERY mode.
+
+The 2026-05-17 vocabulary fix changed the BADGE TEXT but left the
+strike-through CSS in place. That was the wrong scope. This commit
+finishes the job at the visual layer.
+
+### Fix scope — presentation semantics only
+Per user direction: do NOT touch CoS, prioritizer, recoverability,
+execution state, completion state, DB schema, signals, or timeline
+ordering. This is purely a visual trust fix.
+
+**A. Strike-through removed for non-completed items**
+`static/css/dashboard_v2.css` — the `text-decoration: line-through`
+declaration on `.v2-ac-item-expired .v2-ac-item-title` is deleted. The
+selector itself is kept (as a CSS hook for any future non-completion-
+resembling treatment), but its body is now empty with a contract
+comment. Past-window items continue to be visually distinguished via
+three independent NON-completion signals already in place:
+  1. `ring-expired` — grey left-rail border
+  2. `tone-muted`   — grey title text colour
+  3. "BEHIND" / "MISSED" badge text
+
+**B. Recovery dim softened to a humane treatment**
+`.v2-ac-recovery-dim` opacity: `0.55 → 0.78`; hover: `0.9 → 1.0`.
+The item is now clearly present and clearly actionable — just visually
+de-prioritised so the eye is drawn to anchors first. No longer reads
+as "dismissed."
+
+**C. Permanent regression guard — new contract test**
+`apps/core/tests/test_visual_truth_contract.py` (NEW) — parses
+`static/css/dashboard_v2.css` after every change and asserts:
+  1. No selector declares `text-decoration: line-through` unless it
+     is in an explicit allowlist of completion-gated selectors
+     (currently: `.v2-strikethrough` and `.v2-action-title-link.v2-
+     strikethrough`, both of which the template only applies on a
+     real completion signal).
+  2. `.v2-ac-item-expired` (the 2026-05-20 incident site) specifically
+     never re-introduces strike-through.
+  3. `.v2-ac-recovery-dim` opacity stays in the humane range
+     0.70 ≤ opacity ≤ 0.95.
+Adding to the allowlist requires a comment proving the template only
+applies the class on a real completion signal. The test was verified
+to catch the original pre-fix CSS by simulation.
+
+**D. Permanent architecture rule documented**
+`docs/WLJ_VISUAL_TRUTH_CONTRACT.md` (NEW) — codifies the invariant:
+  > Only actual user completion may visually resemble completion.
+  > Homepage visual state must NEVER imply false completion.
+Lists allowed treatments for non-completion states (badges, muted
+tone, subtle dimming 0.70–0.90, left-rail rings) and the reserved
+completion signals (strike-through, opacity below 0.7, filled
+checkmark, "done" colours, "completed" badges). Includes the
+architectural pipeline context and "when you find yourself wanting
+to break this rule" guidance.
+
+`CLAUDE.md` — added a short Visual Truth Contract section in the
+required-rules region, plus a row in the Reference Docs table
+pointing at the new doc.
+
+### Files
+- `static/css/dashboard_v2.css` — removed line-through from
+  `.v2-ac-item-expired`; bumped `.v2-ac-recovery-dim` opacity
+  0.55 → 0.78 (hover 0.9 → 1.0); extensive contract comments
+- `apps/core/tests/test_visual_truth_contract.py` — NEW (3 tests)
+- `docs/WLJ_VISUAL_TRUTH_CONTRACT.md` — NEW permanent architecture
+  invariant
+- `CLAUDE.md` — added Visual Truth Contract section + reference
+  doc entry
+
+### Explicitly NOT changed
+- `apps/core/decision_engine/action_prioritizer.py` — `_compute_emphasis()`,
+  `item.expired`, badge logic all unchanged
+- `apps/core/execution/*` — recoverability, task_classifier,
+  recovery_state, today_execution all unchanged
+- `apps/core/ai_orchestrator/cos_context.py` — completion semantics
+  unchanged (CoS is the correct reader; it was never the problem)
+- `templates/dashboard_v2/partials/_action_item_v2.html` — template
+  unchanged; CSS hooks `.v2-ac-item-expired` and `.v2-ac-recovery-dim`
+  still applied as before — only their CSS rules changed
+- DB schema, signals, timeline ordering, completion booleans — all
+  unchanged
+
+### Verification
+- New contract test: 3/3 pass
+- Existing chronological-timeline tests: 27/27 pass — no regression
+  from any logic-adjacent change (there were none)
+- `python3 manage.py check` clean
+- `makemigrations --check` clean (no schema change)
+- Pre-flight grep verified the only consumers of the two affected
+  CSS classes are the rules being edited and the single template
+  line that applies them
+- Audit of every other `text-decoration: line-through` rule in the
+  codebase confirmed all are correctly gated on a completion signal
+  (life/home.html, life/task_list.html, components/checkbox_item.html,
+  assistant-panel.css — all gated on `.completed` / `.skipped` /
+  `{% if checked %}`)
+- Simulated the pre-fix CSS through the new contract parser:
+  correctly flagged `.v2-ac-item-expired .v2-ac-item-title` as a
+  violation. Regression-catch confirmed.
+
+### Before / after visual semantics
+
+| Backend state              | Before (broken)                            | After (contract-aligned)                  |
+|----------------------------|--------------------------------------------|-------------------------------------------|
+| Completed                  | 60% opacity, grey title, line-through      | unchanged — line-through reserved here   |
+| WINDOWED past grace        | grey title + **line-through** (reads done) | grey title + "BEHIND" badge + grey ring  |
+| HARD_EXPIRED past time     | grey title + **line-through** (reads done) | grey title + "MISSED" badge + grey ring  |
+| RECOVERY-dimmed overdue    | 55% opacity + muted text (reads dismissed) | 78% opacity + muted text (clearly present)|
+| Overdue in grace           | red title (correct)                        | unchanged                                 |
+| Now / Foundational / Reset | (correct)                                  | unchanged                                 |
+
+The pipeline `raw data → signals/state → CoS + UI` is preserved.
+The trust break was in presentation semantics. The break is now closed
+and a permanent contract test prevents silent regression.
 
 
 ## 2026-05-20 — Hardening: Post-incident review follow-ups (F2 + F3 + F6 + F7)

@@ -2946,14 +2946,32 @@ a.v2-state-item:hover {
 .v2-ac-emphasis-tone-active   .v2-ac-item-title { color: #2a5d99; font-weight: 600; }
 .v2-ac-emphasis-tone-muted    .v2-ac-item-title { color: #888; }
 
-/* Recovery dim — subtle de-emphasis without hiding */
-.v2-ac-recovery-dim          { opacity: 0.55; }
-.v2-ac-recovery-dim:hover    { opacity: 0.9;  }
+/* Recovery dim — subtle de-emphasis without hiding.
+   WLJ Visual Truth Contract: must read as "lower priority, still actionable",
+   NOT as "dismissed / handled". Previous value (0.55) was psychologically too
+   strong — at 55% opacity the item read as already-dealt-with. 0.78 keeps the
+   item clearly present and actionable while letting the eye prioritise
+   anchors. Full opacity on hover signals interactability without ambiguity. */
+.v2-ac-recovery-dim          { opacity: 0.78; }
+.v2-ac-recovery-dim:hover    { opacity: 1.0;  }
 
+/* Past-window items (badge="behind" or "missed", set by _compute_emphasis).
+   WLJ Visual Truth Contract — see docs/WLJ_VISUAL_TRUTH_CONTRACT.md:
+   ONLY `item.completed == True` may produce visuals that read as "done".
+   Past-window items are NOT done — they are still meaningfully doable. They
+   communicate "past window" via three INDEPENDENT non-completion signals:
+     1. ring-expired   — grey left-rail (CSS hook above)
+     2. tone-muted     — grey title text color (CSS hook above)
+     3. "behind" or "missed" badge text (set by _compute_emphasis)
+   No strike-through. No completion-resembling styling. No "done" colours.
+   Removed text-decoration declaration that was previously here — it
+   visually claimed completion for items that were not completed and
+   broke the trust contract between Homepage and CoS (2026-05-20 incident).
+   Class is kept as a CSS hook for any future non-completion-resembling
+   treatment (e.g., small icon, left-edge dim). */
 .v2-ac-item-expired .v2-ac-item-title {
-    text-decoration: line-through;
-    text-decoration-thickness: 1px;
-    text-decoration-color: rgba(120, 120, 120, 0.6);
+    /* Intentionally no text-decoration. See contract above and
+       apps/core/tests/test_visual_truth_contract.py which enforces this. */
 }
 
 /* Per-item badges (Past Due / Now / Behind / Missed / Foundational / Reset / Completed) */

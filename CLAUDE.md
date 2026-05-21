@@ -69,6 +69,18 @@ Mobile: `max-width: 480px` | Tablet: `max-width: 768px` | Desktop: `min-width: 7
 
 ---
 
+## Visual Truth Contract (REQUIRED)
+
+> **Only actual user completion may visually resemble completion.**
+
+Strike-through, "completed" colours, heavy opacity reduction, filled checkmarks, and any other visual that reads as "done" are RESERVED exclusively for items where the data layer confirms `item.completed == True` (or the domain-equivalent boolean — `is_completed`, `taken`, `all_complete`, etc.).
+
+Past-window / behind / missed / recoverable / overdue items may use badges, muted text, subtle dimming (opacity 0.70–0.90), or left-rail colour — NEVER completion-resembling visuals.
+
+Enforced by `apps/core/tests/test_visual_truth_contract.py`. Full rule and rationale in `docs/WLJ_VISUAL_TRUTH_CONTRACT.md` (incident origin: 2026-05-20).
+
+---
+
 ## Quick Reference
 
 | Item | Value |
@@ -215,6 +227,7 @@ The 5-point registration:
 
 | Doc | When to Read |
 |-----|-------------|
+| `docs/WLJ_VISUAL_TRUTH_CONTRACT.md` | **Any homepage/Action Center CSS or template change** |
 | `docs/ENGINE_COS_REFERENCE.md` | **Engine/CoS changes — AUTO-MAINTAIN (see below)** |
 | `docs/INTELLIGENCE_ARCHITECTURE.md` | AI/intelligence feature work |
 | `docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md` | AI/intelligence feature work |
@@ -254,4 +267,4 @@ The 5-point registration:
 
 ---
 
-*Last updated: 2026-03-05*
+*Last updated: 2026-05-20 (added Visual Truth Contract section + doc reference)*

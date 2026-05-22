@@ -91,6 +91,8 @@ class CoSSituationState(models.Model):
     MODE_URGENT_INTERVENTION = 'urgent_intervention'
     MODE_CELEBRATION = 'celebration'
     MODE_RECOVERY = 'recovery'
+    MODE_OFF_RHYTHM = 'off_rhythm'
+    MODE_RETURNING = 'returning'
 
     SITUATION_MODE_CHOICES = [
         (MODE_MORNING_ORIENTATION, 'Morning Orientation'),
@@ -101,6 +103,8 @@ class CoSSituationState(models.Model):
         (MODE_URGENT_INTERVENTION, 'Urgent Intervention'),
         (MODE_CELEBRATION, 'Celebration'),
         (MODE_RECOVERY, 'Recovery'),
+        (MODE_OFF_RHYTHM, 'Off Rhythm'),
+        (MODE_RETURNING, 'Returning'),
     ]
 
     user = models.OneToOneField(

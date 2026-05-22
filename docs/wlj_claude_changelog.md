@@ -3,9 +3,128 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-20 (Visual Truth Contract — homepage / CoS trust fix)
+# Last Updated: 2026-05-22 (behavior.rhythm_state Phase 1 — Beth notices off-rhythm)
 # ================================================================# WLJ Change History
 
+
+## 2026-05-22 — feat(cos): behavior.rhythm_state Phase 1 — Beth notices off-rhythm
+
+Phase 1 of the "Beth notices me" initiative. The system already had
+several personal-baseline signals (Operating Profile drift, sentiment
+trajectory, DriftScore, HabitContinuation, WorkoutConsistency) but none
+were composed into a single deterministic observation or routed into
+the assistant's prompt as a relational observation. Phase 1 closes the
+composition + routing gap with the smallest possible deterministic
+state field and one new prompt section.
+
+### What was built
+
+**1. `behavior.rhythm_state` — new field on the existing `behavior` SAE module.**
+Composed by `_compute_rhythm_state(user)` inside `build_behavior_state`.
+Reads only from SAE sub-states (`fitness`, `tasks`) plus the narrow
+`UserDailyActivity` tracking model. Never reads raw domain models;
+enforced by an AST-based architectural test.
+
+Field shape (9 keys, locked): `schema_version`, `status`,
+`previous_status`, `status_changed_at`, `contributors`,
+`contributor_count`, `computed_at`, `trust`, `days_since_last_interaction`.
+
+**2. Four Phase 1 contributors** (all deterministic, all baseline-aware):
+- `engagement_delta` — 7d active days vs prior 30d active days
+- `days_since_last_interaction` — last activity before today
+- `foundational_adherence_delta` — 7d vs 30d completion rate of
+  foundational tasks (requires `build_task_state` to expose
+  `consistency_score_30d` — added in this change)
+- `workout_consistency_delta` — `workouts_7d` vs scaled `workouts_30d`,
+  with full-stop high-severity tier
+
+Severity tiers per contributor (moderate / high) are hardcoded
+deterministic thresholds. Status derivation: `returning` if
+`days_since_last >= 2` AND active today; `off_rhythm` if any high or
+≥2 moderate contributors; `on_rhythm` otherwise.
+
+**3. CoSSituationState extensions.**
+Added two new modes: `MODE_OFF_RHYTHM` and `MODE_RETURNING`. The
+`compute_situation_for_user` runner now:
+- captures `previous_last_interaction` before recompute
+- calls `_maybe_refresh_rhythm_for_returning` for the narrow intra-day
+  trigger (the only allowed intra-day transition: `* -> returning`)
+- detects first-interaction-of-day and only surfaces rhythm modes on
+  that turn (subsequent same-day turns fall through to time-based modes)
+- writes a deterministic `opening_sentence` from static phrasing
+  templates — no LLM, no emotional inference, no causes
+
+**4. Nightly composer refresh.**
+`recompute_all_profiles` (the existing Operating Profile nightly job
+at 07:00 UTC) now also calls `build_behavior_state` for each user and
+persists the resulting rhythm_state to SAE. Isolated try/except so a
+rhythm failure cannot block Operating Profile computation.
+
+**5. Assistant prompt — Section 10 RHYTHM AWARENESS.**
+Absolute rules: use OPENING FRAME verbatim, never extend the rhythm
+observation with inferred causes or feelings, never claim first-person
+emotions ("I worry", "I'm glad"), never ask therapist-register
+questions ("how are you feeling?"), never invent values not in the
+contributors.
+
+**6. Tests** — `apps/core/ai_state/test_rhythm_state.py` (18 tests).
+Covers all six DoD scenarios from Phase 1 planning + architectural
+guards: AST check that the composer references zero raw domain model
+names in code, and import-prefix check that imports stay inside SAE /
+utils / time / core.models.
+
+### What was NOT built (locked deferrals to Phase 2+)
+- `drifting` and `recovering` status values (history tracking deferred)
+- Sentiment trajectory promoted as a first-class contributor
+- Operating Profile peak/deferral/momentum contributors
+- DriftScore slope, override frequency, sleep, glucose, journal
+  frequency contributors
+- Composite numeric score / dashboard meter
+- Recommendation up/down-regulation based on rhythm
+- EoD recap, morning briefing redesign, pre-activity cues
+- User-calibrated thresholds
+
+### Architectural commitments
+- The composer is read-only over SAE sub-states. Adding a new
+  contributor that needs raw-domain data must add the upstream SAE
+  field first, not query the domain model from the composer.
+- Templates live as static dicts in code. No LLM rewording, no DB
+  persistence of phrasing, no per-user template variants.
+- Nightly deep compute + 15-min `returning`-only refresh. No other
+  intra-day transitions allowed.
+
+### Files Modified
+- `apps/core/ai_state/state_builder.py` — added rhythm composer +
+  engagement helper; extended `build_task_state` and
+  `build_behavior_state`
+- `apps/core/ai_state/situation_computer.py` — added rhythm reader,
+  intra-day returning refresh, first-interaction detection, mode +
+  template wiring
+- `apps/core/ai_state/operating_profile.py` — nightly hook to refresh
+  rhythm_state alongside operating profiles
+- `apps/core/ai_state/models.py` — added MODE_OFF_RHYTHM, MODE_RETURNING
+- `apps/ai/personal_assistant.py` — Section 10 RHYTHM AWARENESS in
+  COS_PROACTIVE_INTELLIGENCE_PROMPT
+
+### Files Created
+- `apps/core/ai_state/test_rhythm_state.py` — 18 tests
+- `apps/core/migrations/0124_alter_cossituationstate_situation_mode.py`
+  — choices-only migration for the two new mode values (no DB schema
+  change)
+
+### Why
+User feedback: the CoS assistant didn't feel like it noticed when the
+user was slipping. The deeper architectural finding (per the Phase 0
+reassessment) was that WLJ already had several scattered
+personal-baseline signals but no composed observation routed to the
+assistant's prompt. Phase 1 ships the narrowest possible composer +
+routing change to close that gap while honoring Law 5 (Modify Before
+Adding) — no new app, no new model, no new engine. The composer
+extends an existing SAE module; the runner extends an existing
+situation computer; the nightly trigger shares an existing job. The
+deterministic phrasing layer keeps the assistant from inferring
+feelings, causes, or anything outside the four locked contributor
+signals.
 
 ## 2026-05-20 — Fix: Visual Truth Contract (homepage falsely implied completion)
 

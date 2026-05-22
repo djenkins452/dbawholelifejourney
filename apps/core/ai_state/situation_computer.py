@@ -44,14 +44,26 @@ def compute_situation_for_user(user):
         # Save previous state for delta computation
         previous_concern = situation.dominant_concern
         previous_escalations = list(situation.escalations or [])
+        previous_last_interaction = situation.last_user_interaction
+
+        # Intra-day rhythm refresh — narrow trigger, returning-only.
+        # See _maybe_refresh_rhythm_for_returning for the architectural rule.
+        _maybe_refresh_rhythm_for_returning(user)
 
         # ── Gather signals ──
-        mode = _compute_situation_mode(user, now)
+        rhythm = _read_rhythm_state(user)
+        is_first_interaction_today = _is_first_interaction_today(user, previous_last_interaction)
+        mode = _compute_situation_mode(
+            user, now, rhythm=rhythm,
+            is_first_interaction_today=is_first_interaction_today,
+        )
         concern, priority = _compute_dominant_concern_and_priority(user, now)
         changes = _compute_changes_since_last_interaction(user, situation)
         escalations = _compute_escalations(user, previous_escalations)
         resolutions = _compute_resolutions(user, previous_escalations)
-        opening = _build_opening_sentence(user, mode, concern, priority, changes, now)
+        opening = _build_opening_sentence(
+            user, mode, concern, priority, changes, now, rhythm=rhythm,
+        )
         suppressed = _get_suppressed_signals(user)
         last_interaction = _get_last_user_interaction(user)
         msgs_since_briefing = _count_messages_since_briefing(user)
@@ -85,15 +97,108 @@ def compute_situation_for_user(user):
 
 
 # ─────────────────────────────────────────────────────────────────────
+# Rhythm-state helpers (Phase 1 — behavior.rhythm_state consumer)
+# ─────────────────────────────────────────────────────────────────────
+
+
+def _read_rhythm_state(user):
+    """Read behavior.rhythm_state from SAE. Returns dict or empty dict."""
+    try:
+        from apps.core.ai_state.models import UserState
+        state = UserState.objects.filter(user=user).first()
+        if not state:
+            return {}
+        behavior = state.get_module('behavior') or {}
+        return behavior.get('rhythm_state') or {}
+    except Exception:
+        logger.warning("rhythm read failed for user=%s", getattr(user, 'id', '?'), exc_info=True)
+        return {}
+
+
+def _is_first_interaction_today(user, previous_last_interaction):
+    """Detect whether the current compute represents the user's first
+    interaction context of the local day.
+
+    Uses the previous-cycle's last_user_interaction (captured before the
+    current recompute). True when there is no prior interaction or the
+    prior interaction was on a different calendar day in user TZ.
+    """
+    try:
+        from apps.core.utils import get_user_today
+        user_today = get_user_today(user)
+    except Exception:
+        return False
+
+    if previous_last_interaction is None:
+        return True
+    try:
+        # Convert to user's local date for comparison.
+        from apps.core.utils import get_user_now
+        user_now = get_user_now(user)
+        # previous_last_interaction is timezone-aware UTC; convert to user TZ date.
+        local_prev = previous_last_interaction.astimezone(user_now.tzinfo).date()
+        return local_prev < user_today
+    except Exception:
+        return False
+
+
+def _maybe_refresh_rhythm_for_returning(user):
+    """Narrow intra-day rhythm refresh — returning detection only.
+
+    Architectural rule: rhythm_state is computed fully at the nightly
+    Operating Profile job. The only intra-day transition permitted is
+    `* -> returning`. We rebuild behavior.rhythm_state here only when
+    the existing state suggests the user was absent >=2 days and the
+    user has now interacted today (UserDailyActivity row exists today).
+
+    All other state changes wait for the nightly recompute.
+    """
+    try:
+        from apps.core.utils import get_user_today
+        from apps.core.ai_state.models import UserState
+        from apps.core.models import UserDailyActivity
+
+        rhythm = _read_rhythm_state(user)
+        if not rhythm:
+            return
+        days_since = rhythm.get('days_since_last_interaction')
+        if days_since is None or days_since < 2:
+            return
+        # If already in returning, leave alone — nightly recompute will clear.
+        if rhythm.get('status') == 'returning':
+            return
+
+        user_today = get_user_today(user)
+        had_today = UserDailyActivity.objects.filter(
+            user=user, date=user_today,
+        ).exists()
+        if not had_today:
+            return
+
+        # Conditions met: recompute behavior state so rhythm_state flips to returning.
+        from apps.core.ai_state.state_builder import build_behavior_state
+        new_behavior = build_behavior_state(user)
+        state_row = UserState.objects.filter(user=user).first()
+        if state_row is None:
+            return
+        state_row.set_module('behavior', new_behavior)
+        state_row.save(update_fields=['state_data', 'last_updated'])
+    except Exception:
+        logger.warning("intra-day rhythm refresh failed", exc_info=True)
+
+
+# ─────────────────────────────────────────────────────────────────────
 # Signal gathering functions (all pure logic, no LLM calls)
 # ─────────────────────────────────────────────────────────────────────
 
 
-def _compute_situation_mode(user, now):
+def _compute_situation_mode(user, now, rhythm=None, is_first_interaction_today=False):
     """
     Determine the appropriate interaction mode based on time, state, and signals.
 
-    Replaces the binary daily_brief/light with 8 granular modes.
+    Rhythm-aware modes (off_rhythm, returning) only surface on the first
+    interaction of the user's local day. Subsequent same-day interactions
+    fall through to the standard time-based modes.
     """
     from apps.core.ai_state.models import CoSSituationState
 
@@ -115,6 +220,14 @@ def _compute_situation_mode(user, now):
     # Check for recovery mode
     if _is_in_recovery(user):
         return CoSSituationState.MODE_RECOVERY
+
+    # Rhythm-aware modes — first-message-of-day surfacing only.
+    if is_first_interaction_today and rhythm:
+        rhythm_status = rhythm.get('status')
+        if rhythm_status == 'returning':
+            return CoSSituationState.MODE_RETURNING
+        if rhythm_status == 'off_rhythm':
+            return CoSSituationState.MODE_OFF_RHYTHM
 
     # Check for celebration mode
     if _has_celebration_signals(user, now):
@@ -450,7 +563,7 @@ def _compute_resolutions(user, previous_escalations):
     return resolutions[:5]
 
 
-def _build_opening_sentence(user, mode, concern, priority, changes, now):
+def _build_opening_sentence(user, mode, concern, priority, changes, now, rhythm=None):
     """
     Build a pre-computed opening sentence for CoS.
 
@@ -487,6 +600,12 @@ def _build_opening_sentence(user, mode, concern, priority, changes, now):
             return f"{greeting}. Priority alert: {concern}."
         return f"{greeting}. I have something important to flag."
 
+    if mode == CoSSituationState.MODE_RETURNING:
+        return _build_returning_sentence(rhythm)
+
+    if mode == CoSSituationState.MODE_OFF_RHYTHM:
+        return _build_off_rhythm_sentence(rhythm)
+
     if mode == CoSSituationState.MODE_CELEBRATION:
         return f"{greeting}. Great progress today — let me highlight what's going well."
 
@@ -507,6 +626,86 @@ def _build_opening_sentence(user, mode, concern, priority, changes, now):
         parts.append(f"Suggested focus: {priority}.")
 
     return ' '.join(parts)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Rhythm phrasing templates — deterministic, locked.
+#
+# Templates are static strings with formatted values from contributors.
+# Do NOT make these LLM-generated. Do NOT add emotional inference.
+# Do NOT add causal claims. Beth observes; she does not feel.
+# ─────────────────────────────────────────────────────────────────────
+
+
+_OFF_RHYTHM_TEMPLATES = {
+    'foundational_adherence_delta': (
+        "Your foundationals are at {recent}% this week — your usual is closer to {baseline}%."
+    ),
+    'engagement_delta': (
+        "Last week's been quieter than usual — {recent} active days versus your typical {baseline}."
+    ),
+    'workout_consistency_delta': (
+        "You've logged {recent} workouts this week — your usual pace is closer to {baseline}."
+    ),
+}
+
+
+def _render_contributor_line(contributor):
+    """Render one off_rhythm contributor into a sentence fragment.
+
+    Returns None if the contributor signal is unknown — fails closed
+    rather than inventing language.
+    """
+    template = _OFF_RHYTHM_TEMPLATES.get(contributor.get('signal_name'))
+    if not template:
+        return None
+    recent = contributor.get('recent_value')
+    baseline = contributor.get('baseline_value')
+    if recent is None or baseline is None:
+        return None
+    try:
+        return template.format(recent=recent, baseline=baseline)
+    except (KeyError, ValueError):
+        return None
+
+
+def _build_off_rhythm_sentence(rhythm):
+    """Compose the off_rhythm opening from rhythm_state.contributors.
+
+    Uses up to two contributors (top by severity), joining with ' Also,'.
+    Falls back to a safe generic sentence only if no contributor can
+    be rendered — never invents data.
+    """
+    contributors = (rhythm or {}).get('contributors') or []
+    rendered = []
+    for c in contributors[:2]:
+        line = _render_contributor_line(c)
+        if line:
+            rendered.append(line)
+    if not rendered:
+        return "Last week's looked different from your usual rhythm."
+    if len(rendered) == 1:
+        return rendered[0]
+    # Combine top + secondary. Lowercase the leading word of the secondary
+    # clause so it reads naturally after " Also,".
+    secondary = rendered[1]
+    if secondary and secondary[0].isupper():
+        secondary = secondary[0].lower() + secondary[1:]
+    return f"{rendered[0]} Also, {secondary}"
+
+
+def _build_returning_sentence(rhythm):
+    """Compose the returning opening from rhythm_state.
+
+    Uses days_since_last_interaction. Pluralizes 'day'/'days'.
+    """
+    days = (rhythm or {}).get('days_since_last_interaction')
+    if not isinstance(days, int) or days < 2:
+        # Defensive fallback — should not happen because the mode is
+        # only set when days >= 2, but never invent a specific count.
+        return "Welcome back — what do you want to focus on first?"
+    unit = "day" if days == 1 else "days"
+    return f"It's been {days} {unit}. Welcome back — what do you want to focus on first?"
 
 
 def _get_suppressed_signals(user):

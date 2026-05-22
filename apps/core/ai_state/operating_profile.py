@@ -733,6 +733,8 @@ def recompute_all_profiles():
     computed = 0
     skipped = 0
     errors = 0
+    rhythm_refreshed = 0
+    rhythm_errors = 0
 
     for user in active_users:
         try:
@@ -748,8 +750,33 @@ def recompute_all_profiles():
                 user.id, exc_info=True,
             )
 
+        # Nightly rhythm_state refresh — shares the active-AI-user iteration
+        # with operating profiles. Isolated try/except so a rhythm failure
+        # cannot block operating profile computation.
+        try:
+            from apps.core.ai_state.state_builder import build_behavior_state
+            from apps.core.ai_state.models import UserState
+            new_behavior = build_behavior_state(user)
+            state_row, _ = UserState.objects.get_or_create(user=user)
+            state_row.set_module('behavior', new_behavior)
+            state_row.save(update_fields=['state_data', 'last_updated'])
+            rhythm_refreshed += 1
+        except Exception:
+            rhythm_errors += 1
+            logger.warning(
+                "Rhythm state: nightly refresh failed for user=%s",
+                getattr(user, 'id', '?'), exc_info=True,
+            )
+
     logger.info(
-        "Operating profile batch complete: computed=%d, skipped=%d, errors=%d",
-        computed, skipped, errors,
+        "Operating profile batch complete: computed=%d, skipped=%d, errors=%d, "
+        "rhythm_refreshed=%d, rhythm_errors=%d",
+        computed, skipped, errors, rhythm_refreshed, rhythm_errors,
     )
-    return {'computed': computed, 'skipped': skipped, 'errors': errors}
+    return {
+        'computed': computed,
+        'skipped': skipped,
+        'errors': errors,
+        'rhythm_refreshed': rhythm_refreshed,
+        'rhythm_errors': rhythm_errors,
+    }

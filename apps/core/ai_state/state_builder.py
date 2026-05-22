@@ -3767,7 +3767,11 @@ RHYTHM_ENGAGEMENT_HIGH = 0.25
 RHYTHM_FOUNDATIONAL_MODERATE = 0.7
 RHYTHM_FOUNDATIONAL_HIGH = 0.5
 RHYTHM_WORKOUT_MODERATE = 0.5
-# Workout HIGH = full stop (0 in 7d AND >=3 in 30d). Special-cased.
+RHYTHM_WORKOUT_HIGH = 0.30
+# Workout also fires HIGH when workouts_7d == 0 AND workouts_30d >= MIN_30D
+# (full stop). Catches the partial-drop blind spot identified in Phase 1.1
+# audit: e.g., a 4/wk lifter dropping to 1/wk (ratio ~0.252) reliably flags
+# high under 0.30 even with float precision.
 
 # Prior-data gates. A contributor does NOT flag unless the user has
 # enough baseline history to make the comparison meaningful.
@@ -3777,6 +3781,12 @@ RHYTHM_WORKOUT_MIN_30D = 3
 
 # Returning trigger: minimum gap before re-engagement is notable.
 RHYTHM_RETURNING_MIN_DAYS = 2
+
+# Staleness gate for rhythm_state consumers. If computed_at is older than
+# this many hours, consumers should treat rhythm_state as unknown/silent
+# instead of trusting potentially stale narrative. 36h tolerates one
+# failed nightly retry; a second missed night flips to silence.
+RHYTHM_STALENESS_HOURS = 36
 
 RHYTHM_STATUS_ON = 'on_rhythm'
 RHYTHM_STATUS_OFF = 'off_rhythm'
@@ -3944,7 +3954,9 @@ def _compute_rhythm_state(user, previous_rhythm_state=None):
             severity = 'high'
         elif baseline_per_week > 0:
             ratio = workouts_7d / baseline_per_week
-            if ratio < RHYTHM_WORKOUT_MODERATE:
+            if ratio < RHYTHM_WORKOUT_HIGH:
+                severity = 'high'
+            elif ratio < RHYTHM_WORKOUT_MODERATE:
                 severity = 'moderate'
         if severity:
             contributors.append({

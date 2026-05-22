@@ -102,14 +102,42 @@ def compute_situation_for_user(user):
 
 
 def _read_rhythm_state(user):
-    """Read behavior.rhythm_state from SAE. Returns dict or empty dict."""
+    """Read behavior.rhythm_state from SAE. Returns dict or empty dict.
+
+    Staleness gate: if computed_at is missing or older than
+    RHYTHM_STALENESS_HOURS, returns an empty dict so consumers fall through
+    to time-based modes (fail closed toward silence). Protects against
+    rhythm narrative persisting on stale numbers when the nightly compute
+    has failed.
+    """
     try:
         from apps.core.ai_state.models import UserState
+        from apps.core.ai_state.state_builder import RHYTHM_STALENESS_HOURS
         state = UserState.objects.filter(user=user).first()
         if not state:
             return {}
         behavior = state.get_module('behavior') or {}
-        return behavior.get('rhythm_state') or {}
+        rhythm = behavior.get('rhythm_state') or {}
+        if not rhythm:
+            return {}
+        computed_at_raw = rhythm.get('computed_at')
+        if not computed_at_raw:
+            return {}
+        try:
+            from datetime import datetime
+            computed_at = datetime.fromisoformat(computed_at_raw)
+            # If timezone-naive (shouldn't happen in normal nightly path),
+            # treat as UTC to avoid a tz-mixed comparison.
+            if computed_at.tzinfo is None:
+                from datetime import timezone as _tz
+                computed_at = computed_at.replace(tzinfo=_tz.utc)
+            age_hours = (timezone.now() - computed_at).total_seconds() / 3600.0
+            if age_hours > RHYTHM_STALENESS_HOURS:
+                return {}
+        except (ValueError, TypeError):
+            # Unparseable computed_at — fail closed toward silence.
+            return {}
+        return rhythm
     except Exception:
         logger.warning("rhythm read failed for user=%s", getattr(user, 'id', '?'), exc_info=True)
         return {}

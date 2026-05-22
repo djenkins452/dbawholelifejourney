@@ -525,3 +525,362 @@ class TestComposerArchitecturalGuard(TestCase):
             violations, [],
             f"rhythm composer imports must stay inside SAE/utils/time/core.models: {violations}",
         )
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 1.1 stabilization patch — new tests
+# ─────────────────────────────────────────────────────────────────────
+
+
+class TestPartialWorkoutDrop(TestCase):
+    """Phase 1.1 fix #1 — closing the partial-workout-drop blind spot.
+
+    Workout severity now has a HIGH tier at ratio < 0.30 (in addition to
+    the existing full-stop HIGH and ratio < 0.50 MODERATE tiers).
+    """
+
+    def setUp(self):
+        self.user = _create_test_user()
+
+    @patch('apps.core.utils.get_user_today')
+    def test_5wk_to_1wk_triggers_high_alone(self, mock_today):
+        """5/wk lifter drops to 1/wk: ratio ~0.20 → high → off_rhythm."""
+        today = date(2026, 5, 22)
+        mock_today.return_value = today
+        # workouts_30d=21 -> baseline_per_week ~4.9 -> ratio for 1 = ~0.204
+        _seed_user_state(
+            self.user,
+            fitness={'workouts_7d': 1, 'workouts_30d': 21},
+            tasks={'task_commitment_summary': {
+                'consistency_score': 0.90,
+                'consistency_score_30d': 0.90,
+                'foundational_completed_30d': 60,
+                'foundational_skipped_30d': 5,
+            }},
+        )
+        _seed_daily_activity(self.user, today, [1] * 37)
+
+        from apps.core.ai_state.state_builder import _compute_rhythm_state
+        state = _compute_rhythm_state(self.user)
+        workout = next(
+            c for c in state['contributors']
+            if c['signal_name'] == 'workout_consistency_delta'
+        )
+        self.assertEqual(workout['severity'], 'high')
+        self.assertEqual(state['status'], 'off_rhythm')
+
+    @patch('apps.core.utils.get_user_today')
+    def test_4wk_to_1wk_triggers_high_alone(self, mock_today):
+        """4/wk lifter drops to 1/wk: ratio ~0.252 → high under 0.30 threshold."""
+        today = date(2026, 5, 22)
+        mock_today.return_value = today
+        # workouts_30d=17 -> baseline_per_week ~3.97 -> ratio for 1 = ~0.252
+        _seed_user_state(
+            self.user,
+            fitness={'workouts_7d': 1, 'workouts_30d': 17},
+            tasks={'task_commitment_summary': {
+                'consistency_score': 0.90,
+                'consistency_score_30d': 0.90,
+                'foundational_completed_30d': 60,
+                'foundational_skipped_30d': 5,
+            }},
+        )
+        _seed_daily_activity(self.user, today, [1] * 37)
+
+        from apps.core.ai_state.state_builder import _compute_rhythm_state
+        state = _compute_rhythm_state(self.user)
+        workout = next(
+            c for c in state['contributors']
+            if c['signal_name'] == 'workout_consistency_delta'
+        )
+        self.assertEqual(workout['severity'], 'high')
+        self.assertEqual(state['status'], 'off_rhythm')
+
+
+class TestStalenessFallback(TestCase):
+    """Phase 1.1 fix #3 — stale rhythm_state must be treated as silent."""
+
+    def setUp(self):
+        self.user = _create_test_user()
+
+    def test_stale_rhythm_state_returns_empty(self):
+        """computed_at older than RHYTHM_STALENESS_HOURS -> empty dict."""
+        from apps.core.ai_state.models import UserState
+        from apps.core.ai_state.state_builder import RHYTHM_STALENESS_HOURS
+        from datetime import datetime, timezone as dt_timezone, timedelta as td
+
+        stale_at = (
+            datetime.now(dt_timezone.utc)
+            - td(hours=RHYTHM_STALENESS_HOURS + 4)
+        ).isoformat()
+        state, _ = UserState.objects.get_or_create(user=self.user)
+        state.set_module('behavior', {
+            'rhythm_state': {
+                'schema_version': 1,
+                'status': 'off_rhythm',
+                'previous_status': 'on_rhythm',
+                'status_changed_at': stale_at,
+                'contributors': [{
+                    'signal_name': 'workout_consistency_delta',
+                    'recent_value': 0, 'baseline_value': 4,
+                    'window_days': 7, 'severity': 'high',
+                }],
+                'contributor_count': 1,
+                'computed_at': stale_at,
+                'trust': 'high',
+                'days_since_last_interaction': 1,
+            },
+        })
+        state.save()
+
+        from apps.core.ai_state.situation_computer import _read_rhythm_state
+        self.assertEqual(_read_rhythm_state(self.user), {})
+
+    def test_fresh_rhythm_state_returns_dict(self):
+        """computed_at within window -> dict returned normally."""
+        from apps.core.ai_state.models import UserState
+        from datetime import datetime, timezone as dt_timezone
+
+        fresh_at = datetime.now(dt_timezone.utc).isoformat()
+        state, _ = UserState.objects.get_or_create(user=self.user)
+        state.set_module('behavior', {
+            'rhythm_state': {
+                'schema_version': 1,
+                'status': 'off_rhythm',
+                'previous_status': 'on_rhythm',
+                'status_changed_at': fresh_at,
+                'contributors': [],
+                'contributor_count': 0,
+                'computed_at': fresh_at,
+                'trust': 'medium',
+                'days_since_last_interaction': 0,
+            },
+        })
+        state.save()
+
+        from apps.core.ai_state.situation_computer import _read_rhythm_state
+        result = _read_rhythm_state(self.user)
+        self.assertEqual(result.get('status'), 'off_rhythm')
+
+    def test_missing_computed_at_returns_empty(self):
+        """Defensive: rhythm_state without computed_at is silent."""
+        from apps.core.ai_state.models import UserState
+        state, _ = UserState.objects.get_or_create(user=self.user)
+        state.set_module('behavior', {
+            'rhythm_state': {
+                'schema_version': 1,
+                'status': 'off_rhythm',
+                'contributors': [],
+                'contributor_count': 0,
+                # computed_at deliberately absent
+            },
+        })
+        state.save()
+
+        from apps.core.ai_state.situation_computer import _read_rhythm_state
+        self.assertEqual(_read_rhythm_state(self.user), {})
+
+
+class TestSituationIntegration(TestCase):
+    """Phase 1.1 fix #2 — end-to-end composer -> situation -> opening sentence.
+
+    Verifies the bridge that composer_unit_tests + template_unit_tests
+    individually cover but never exercise together. Patches the three
+    higher-priority suppressor helpers so rhythm path is reachable.
+    """
+
+    def setUp(self):
+        self.user = _create_test_user()
+
+    def _seed_today_active(self, today, days_pattern):
+        _seed_daily_activity(self.user, today, days_pattern)
+
+    @patch('apps.core.ai_state.situation_computer._has_celebration_signals', return_value=False)
+    @patch('apps.core.ai_state.situation_computer._is_in_recovery', return_value=False)
+    @patch('apps.core.ai_state.situation_computer._has_urgent_signals', return_value=False)
+    @patch('apps.core.utils.get_user_today')
+    def test_off_rhythm_end_to_end(self, mock_today, *_mocks):
+        """off_rhythm rhythm_state -> MODE_OFF_RHYTHM + workout template."""
+        today = date(2026, 5, 22)
+        mock_today.return_value = today
+        # Workout full stop + foundational collapse -> off_rhythm via composer.
+        _seed_user_state(
+            self.user,
+            fitness={'workouts_7d': 0, 'workouts_30d': 17},
+            tasks={'task_commitment_summary': {
+                'consistency_score': 0.40,
+                'consistency_score_30d': 0.90,
+                'foundational_completed_30d': 60,
+                'foundational_skipped_30d': 5,
+            }},
+        )
+        self._seed_today_active(today, [1] * 37)
+
+        # Pre-seed rhythm_state by calling build_behavior_state and persisting,
+        # since situation_computer reads from SAE rather than recomputing.
+        from apps.core.ai_state.state_builder import build_behavior_state
+        from apps.core.ai_state.models import UserState
+        new_behavior = build_behavior_state(self.user)
+        state_row = UserState.objects.get(user=self.user)
+        state_row.set_module('behavior', new_behavior)
+        state_row.save()
+
+        # Ensure last_user_interaction is "yesterday" so first-message rule fires.
+        from apps.core.ai_state.models import CoSSituationState
+        from django.utils import timezone as dj_tz
+        sit, _ = CoSSituationState.objects.get_or_create(user=self.user)
+        sit.last_user_interaction = dj_tz.now() - timedelta(days=1)
+        sit.save()
+
+        from apps.core.ai_state.situation_computer import compute_situation_for_user
+        result = compute_situation_for_user(self.user)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.situation_mode, CoSSituationState.MODE_OFF_RHYTHM)
+        # Opening sentence must cite one of the off_rhythm templates verbatim.
+        opening = result.opening_sentence or ''
+        # Top contributor by severity is workout (high) — workout template wins.
+        self.assertIn("workouts this week", opening)
+        self.assertIn("your usual pace is closer to", opening)
+
+    @patch('apps.core.ai_state.situation_computer._has_celebration_signals', return_value=False)
+    @patch('apps.core.ai_state.situation_computer._is_in_recovery', return_value=False)
+    @patch('apps.core.ai_state.situation_computer._has_urgent_signals', return_value=False)
+    @patch('apps.core.utils.get_user_today')
+    def test_returning_end_to_end_with_repeat_suppression(self, mock_today, *_mocks):
+        """Returning fires once; second same-day compute falls through."""
+        today = date(2026, 5, 22)
+        mock_today.return_value = today
+        # 34 active + 2 absent + 1 today => days_since_last == 3, had_today True.
+        self._seed_today_active(today, [1] * 34 + [0, 0, 1])
+        _seed_user_state(
+            self.user,
+            fitness={'workouts_7d': 0, 'workouts_30d': 0},
+            tasks={'task_commitment_summary': {
+                'consistency_score': 0.5,
+                'consistency_score_30d': 0.9,
+                'foundational_completed_30d': 0,
+                'foundational_skipped_30d': 0,
+            }},
+        )
+
+        # Pre-seed rhythm_state so situation reads "returning" immediately.
+        from apps.core.ai_state.state_builder import build_behavior_state
+        from apps.core.ai_state.models import UserState, CoSSituationState
+        new_behavior = build_behavior_state(self.user)
+        state_row = UserState.objects.get(user=self.user)
+        state_row.set_module('behavior', new_behavior)
+        state_row.save()
+
+        # Set last_user_interaction to yesterday -> first-of-day = True.
+        from django.utils import timezone as dj_tz
+        sit, _ = CoSSituationState.objects.get_or_create(user=self.user)
+        sit.last_user_interaction = dj_tz.now() - timedelta(days=1)
+        sit.save()
+
+        from apps.core.ai_state.situation_computer import compute_situation_for_user
+        # First call: rhythm preface should fire.
+        first = compute_situation_for_user(self.user)
+        self.assertEqual(first.situation_mode, CoSSituationState.MODE_RETURNING)
+        self.assertIn("Welcome back", first.opening_sentence or '')
+        self.assertIn("days", first.opening_sentence or '')
+
+        # Simulate a user message landing now (later today) by updating
+        # last_user_interaction to "now". The next compute should see this
+        # as not-first-of-day and fall through to a time-based mode.
+        sit.refresh_from_db()
+        sit.last_user_interaction = dj_tz.now()
+        sit.save()
+
+        second = compute_situation_for_user(self.user)
+        self.assertNotEqual(second.situation_mode, CoSSituationState.MODE_RETURNING)
+        self.assertNotEqual(second.situation_mode, CoSSituationState.MODE_OFF_RHYTHM)
+
+
+class TestRealLifeDannySlippingScenario(TestCase):
+    """Permanent regression test for the exact scenario that triggered the
+    rhythm_state project:
+
+      - workouts stopped (or near-stopped)
+      - meds slipping (foundational adherence dropping)
+      - interaction reduced but still present (not absent)
+      - mild general funk pattern
+
+    Beth MUST notice this. If this test ever fails in CI, the
+    "Beth notices me" promise is broken.
+    """
+
+    def setUp(self):
+        self.user = _create_test_user()
+
+    @patch('apps.core.ai_state.situation_computer._has_celebration_signals', return_value=False)
+    @patch('apps.core.ai_state.situation_computer._is_in_recovery', return_value=False)
+    @patch('apps.core.ai_state.situation_computer._has_urgent_signals', return_value=False)
+    @patch('apps.core.utils.get_user_today')
+    def test_real_life_danny_slipping_scenario(self, mock_today, *_mocks):
+        today = date(2026, 5, 22)
+        mock_today.return_value = today
+
+        # Inputs reflecting the lived scenario:
+        # - Workouts: dropped to 1/week against a ~4/week baseline.
+        # - Foundationals: 7d consistency 0.55 vs 30d 0.88 (meds slipping).
+        # - Engagement: down to ~3 days/week from daily, BUT was active
+        #   yesterday — "reduced but still present", NOT absent.
+        _seed_user_state(
+            self.user,
+            fitness={'workouts_7d': 1, 'workouts_30d': 17},
+            tasks={'task_commitment_summary': {
+                'consistency_score': 0.55,
+                'consistency_score_30d': 0.88,
+                'foundational_completed_30d': 56,
+                'foundational_skipped_30d': 8,
+            }},
+        )
+        # Pattern (37 slots, oldest left -> newest right; helper reverses
+        # for offset indexing). last_7 = [day_6_ago ... yesterday, today].
+        # Key constraint: yesterday MUST be active so days_since_last == 1
+        # and the returning override does NOT fire. We want off_rhythm, not
+        # returning — Danny is slipping but still showing up.
+        prior_30 = [1] * 22 + [0] * 8           # 22 active days in prior 30d
+        last_7 = [0, 0, 1, 0, 0, 1, 1]          # 3 active: -4d, yesterday, today
+        pattern = prior_30 + last_7
+        _seed_daily_activity(self.user, today, pattern)
+
+        # Run composer -> persist -> run situation.
+        from apps.core.ai_state.state_builder import build_behavior_state
+        from apps.core.ai_state.models import UserState, CoSSituationState
+        new_behavior = build_behavior_state(self.user)
+        state_row = UserState.objects.get(user=self.user)
+        state_row.set_module('behavior', new_behavior)
+        state_row.save()
+
+        # First-message-of-day setup.
+        from django.utils import timezone as dj_tz
+        sit, _ = CoSSituationState.objects.get_or_create(user=self.user)
+        sit.last_user_interaction = dj_tz.now() - timedelta(days=1)
+        sit.save()
+
+        # Composer assertions: status off_rhythm with workout high-tier flag.
+        rhythm = new_behavior.get('rhythm_state', {})
+        self.assertEqual(rhythm.get('status'), 'off_rhythm',
+                         "Beth must notice: status should be off_rhythm")
+        sig_names = [c['signal_name'] for c in rhythm.get('contributors', [])]
+        self.assertIn('workout_consistency_delta', sig_names,
+                      "Workout drop must be a contributor")
+        workout = next(
+            c for c in rhythm['contributors']
+            if c['signal_name'] == 'workout_consistency_delta'
+        )
+        # With the 0.30 high threshold, 1 vs ~4/wk baseline ratio ~0.252 -> high.
+        self.assertEqual(workout['severity'], 'high',
+                         "1/wk vs 4/wk baseline must trigger HIGH severity")
+
+        # Situation assertions: mode + opening sentence.
+        from apps.core.ai_state.situation_computer import compute_situation_for_user
+        result = compute_situation_for_user(self.user)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.situation_mode, CoSSituationState.MODE_OFF_RHYTHM,
+                         "Situation mode must be MODE_OFF_RHYTHM")
+        self.assertTrue(result.opening_sentence,
+                        "Opening sentence must be populated — silent Beth is failure")
+        self.assertIn("workouts this week", result.opening_sentence,
+                      "Beth must mention workouts (top contributor)")

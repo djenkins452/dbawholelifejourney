@@ -2782,10 +2782,12 @@ def build_task_state(user):
         state['active_tasks_by_level'] = by_level
 
         # EXCEPTION: intentional direct query (not domain truth)
-        # Reason: 7-day consistency score aggregate (completed + skipped + pending in one query)
+        # Reason: 7d/30d consistency aggregates (completed + skipped + pending in one query)
         # TaskQueries doesn't expose this multi-status aggregate
+        # 30d window feeds behavior.rhythm_state foundational_adherence_delta contributor.
         # Do not reuse for general truth evaluation
         seven_days_ago = now - timedelta(days=7)
+        thirty_days_ago = now - timedelta(days=30)
 
         nn_agg = Task.objects.filter(
             user=user,
@@ -2799,6 +2801,14 @@ def build_task_state(user):
                 completion_status='skipped',
                 last_skipped_at__gte=seven_days_ago,
             )),
+            completed_30d=Count('id', filter=Q(
+                completion_status='completed',
+                completed_at__gte=thirty_days_ago,
+            )),
+            skipped_30d=Count('id', filter=Q(
+                completion_status='skipped',
+                last_skipped_at__gte=thirty_days_ago,
+            )),
             active_pending=Count('id', filter=Q(
                 status='active',
                 completion_status='pending',
@@ -2806,16 +2816,23 @@ def build_task_state(user):
         )
         nn_completed_7d = nn_agg['completed_7d']
         nn_skipped_7d = nn_agg['skipped_7d']
+        nn_completed_30d = nn_agg['completed_30d']
+        nn_skipped_30d = nn_agg['skipped_30d']
         nn_total = nn_agg['active_pending']
 
         total_acted = nn_completed_7d + nn_skipped_7d
         consistency = round(nn_completed_7d / total_acted, 2) if total_acted > 0 else 0.0
+        total_acted_30d = nn_completed_30d + nn_skipped_30d
+        consistency_30d = round(nn_completed_30d / total_acted_30d, 2) if total_acted_30d > 0 else 0.0
 
         state['task_commitment_summary'] = {
             'foundational_total': nn_total,
             'foundational_completed_7d': nn_completed_7d,
             'foundational_skipped_7d': nn_skipped_7d,
+            'foundational_completed_30d': nn_completed_30d,
+            'foundational_skipped_30d': nn_skipped_30d,
             'consistency_score': consistency,
+            'consistency_score_30d': consistency_30d,
         }
 
         # EXCEPTION: intentional direct query (not domain truth)
@@ -3728,6 +3745,261 @@ def build_daily_execution_status(user):
     return state
 
 
+# ══════════════════════════════════════════════════════════════════
+# Phase 1 — behavior.rhythm_state composer
+#
+# Composes existing personal-baseline signals into a single
+# "off-rhythm" observation that Beth can narrate deterministically.
+# Read-only over SAE sub-states (fitness, tasks) plus the narrow
+# UserDailyActivity tracking table for engagement signals.
+#
+# Status derivation is deterministic. No LLM, no predictions,
+# no causes. CoSSituationState consumes this state and translates
+# it into mode + opening_sentence.
+# ══════════════════════════════════════════════════════════════════
+
+RHYTHM_SCHEMA_VERSION = 1
+
+# Severity thresholds (locked, deterministic). Ratios compare a recent
+# window against the user's own prior baseline.
+RHYTHM_ENGAGEMENT_MODERATE = 0.5
+RHYTHM_ENGAGEMENT_HIGH = 0.25
+RHYTHM_FOUNDATIONAL_MODERATE = 0.7
+RHYTHM_FOUNDATIONAL_HIGH = 0.5
+RHYTHM_WORKOUT_MODERATE = 0.5
+# Workout HIGH = full stop (0 in 7d AND >=3 in 30d). Special-cased.
+
+# Prior-data gates. A contributor does NOT flag unless the user has
+# enough baseline history to make the comparison meaningful.
+RHYTHM_ENGAGEMENT_MIN_PRIOR_DAYS = 7   # active days in prior 30-day window
+RHYTHM_FOUNDATIONAL_MIN_30D_ACTIVITY = 5
+RHYTHM_WORKOUT_MIN_30D = 3
+
+# Returning trigger: minimum gap before re-engagement is notable.
+RHYTHM_RETURNING_MIN_DAYS = 2
+
+RHYTHM_STATUS_ON = 'on_rhythm'
+RHYTHM_STATUS_OFF = 'off_rhythm'
+RHYTHM_STATUS_RETURNING = 'returning'
+
+
+def _compute_engagement_signals(user):
+    """Read UserDailyActivity for engagement and absence contributors.
+
+    UserDailyActivity is a narrow tracking model (one row per user per
+    day, 90-day retention). Reading <= 37 rows for one user is cheap
+    and does not violate the "no raw domain models" rule — this is a
+    signal/tracking model, not a domain entity model.
+
+    Returns dict:
+      interaction_days_7d           int (active days in last 7)
+      interaction_days_prior_30d    int (active days in the 30d before that)
+      engagement_ratio              float|None (per-day rate ratio)
+      days_since_last_interaction   int|None (gap to most recent activity before today)
+      had_activity_today            bool (UserDailyActivity row exists for today)
+      has_sufficient_prior          bool (enough baseline to flag)
+    """
+    from apps.core.models import UserDailyActivity
+    from apps.core.utils import get_user_today
+
+    today = get_user_today(user)
+    seven_days_ago = today - timedelta(days=7)
+    thirty_seven_days_ago = today - timedelta(days=37)
+
+    active_dates = set(
+        UserDailyActivity.objects
+        .filter(user=user, date__gte=thirty_seven_days_ago, date__lte=today)
+        .values_list('date', flat=True)
+    )
+
+    had_activity_today = today in active_dates
+    dates_before_today = [d for d in active_dates if d < today]
+    last_active_before_today = max(dates_before_today) if dates_before_today else None
+    days_since_last = (today - last_active_before_today).days if last_active_before_today else None
+
+    # Active-day counts. 7d window = [today-7, today). Prior 30d = [today-37, today-7).
+    interaction_days_7d = sum(1 for d in active_dates if seven_days_ago <= d < today)
+    interaction_days_prior_30d = sum(
+        1 for d in active_dates if thirty_seven_days_ago <= d < seven_days_ago
+    )
+
+    has_sufficient_prior = interaction_days_prior_30d >= RHYTHM_ENGAGEMENT_MIN_PRIOR_DAYS
+
+    if has_sufficient_prior and interaction_days_prior_30d > 0:
+        rate_7d = interaction_days_7d / 7.0
+        rate_prior = interaction_days_prior_30d / 30.0
+        engagement_ratio = rate_7d / rate_prior if rate_prior > 0 else None
+    else:
+        engagement_ratio = None
+
+    return {
+        'interaction_days_7d': interaction_days_7d,
+        'interaction_days_prior_30d': interaction_days_prior_30d,
+        'engagement_ratio': engagement_ratio,
+        'days_since_last_interaction': days_since_last,
+        'had_activity_today': had_activity_today,
+        'has_sufficient_prior': has_sufficient_prior,
+    }
+
+
+def _compute_rhythm_state(user, previous_rhythm_state=None):
+    """Compose behavior.rhythm_state from existing SAE sub-states.
+
+    Architectural contract:
+      - Reads only from SAE sub-states (fitness, tasks) and the narrow
+        UserDailyActivity tracking model.
+      - Does NOT read raw domain models (WeightEntry, JournalEntry,
+        WorkoutSession, Task, etc.).
+      - Does NOT call the LLM, PRIE, or any prediction module.
+      - Does NOT compute new heuristics — joins existing signals.
+
+    Status:
+      returning   — multi-day absence followed by activity today
+      off_rhythm  — 1 high-severity contributor OR 2+ moderate
+      on_rhythm   — otherwise
+
+    Field shape is locked. Do not add fields without architectural review.
+    """
+    from apps.core.ai_state.models import UserState
+
+    now = get_current_time()
+    contributors = []
+
+    try:
+        user_state = UserState.objects.get(user=user)
+    except UserState.DoesNotExist:
+        user_state = None
+    except Exception:
+        logger.warning("rhythm composer: UserState read failed", exc_info=True)
+        user_state = None
+
+    fitness_state = user_state.get_module('fitness') if user_state else {}
+    tasks_state = user_state.get_module('tasks') if user_state else {}
+
+    # Engagement (UserDailyActivity).
+    try:
+        engagement = _compute_engagement_signals(user)
+    except Exception:
+        logger.warning("rhythm composer: engagement read failed", exc_info=True)
+        engagement = {
+            'interaction_days_7d': 0,
+            'interaction_days_prior_30d': 0,
+            'engagement_ratio': None,
+            'days_since_last_interaction': None,
+            'had_activity_today': False,
+            'has_sufficient_prior': False,
+        }
+
+    # ── Contributor: engagement_delta ───────────────────────────
+    if engagement['has_sufficient_prior'] and engagement['engagement_ratio'] is not None:
+        ratio = engagement['engagement_ratio']
+        severity = None
+        if ratio < RHYTHM_ENGAGEMENT_HIGH:
+            severity = 'high'
+        elif ratio < RHYTHM_ENGAGEMENT_MODERATE:
+            severity = 'moderate'
+        if severity:
+            contributors.append({
+                'signal_name': 'engagement_delta',
+                'recent_value': engagement['interaction_days_7d'],
+                'baseline_value': round(engagement['interaction_days_prior_30d'] * 7 / 30, 1),
+                'window_days': 7,
+                'severity': severity,
+            })
+
+    # ── Contributor: foundational_adherence_delta ───────────────
+    task_summary = tasks_state.get('task_commitment_summary', {}) if tasks_state else {}
+    nn_total_30d = (
+        task_summary.get('foundational_completed_30d', 0)
+        + task_summary.get('foundational_skipped_30d', 0)
+    )
+    rate_7d = task_summary.get('consistency_score', 0.0) or 0.0
+    rate_30d = task_summary.get('consistency_score_30d', 0.0) or 0.0
+
+    if nn_total_30d >= RHYTHM_FOUNDATIONAL_MIN_30D_ACTIVITY and rate_30d > 0:
+        ratio = rate_7d / rate_30d
+        severity = None
+        if ratio < RHYTHM_FOUNDATIONAL_HIGH:
+            severity = 'high'
+        elif ratio < RHYTHM_FOUNDATIONAL_MODERATE:
+            severity = 'moderate'
+        if severity:
+            contributors.append({
+                'signal_name': 'foundational_adherence_delta',
+                'recent_value': round(rate_7d * 100),
+                'baseline_value': round(rate_30d * 100),
+                'window_days': 7,
+                'severity': severity,
+            })
+
+    # ── Contributor: workout_consistency_delta ──────────────────
+    workouts_7d = fitness_state.get('workouts_7d', 0) if fitness_state else 0
+    workouts_30d = fitness_state.get('workouts_30d', 0) if fitness_state else 0
+
+    if workouts_30d >= RHYTHM_WORKOUT_MIN_30D:
+        baseline_per_week = workouts_30d * 7 / 30
+        severity = None
+        # Full-stop high severity: zero workouts despite established baseline.
+        if workouts_7d == 0:
+            severity = 'high'
+        elif baseline_per_week > 0:
+            ratio = workouts_7d / baseline_per_week
+            if ratio < RHYTHM_WORKOUT_MODERATE:
+                severity = 'moderate'
+        if severity:
+            contributors.append({
+                'signal_name': 'workout_consistency_delta',
+                'recent_value': workouts_7d,
+                'baseline_value': round(baseline_per_week, 1),
+                'window_days': 7,
+                'severity': severity,
+            })
+
+    # ── Status derivation ───────────────────────────────────────
+    days_since_last = engagement['days_since_last_interaction']
+    had_activity_today = engagement['had_activity_today']
+
+    high_count = sum(1 for c in contributors if c['severity'] == 'high')
+    moderate_count = sum(1 for c in contributors if c['severity'] == 'moderate')
+
+    if (
+        days_since_last is not None
+        and days_since_last >= RHYTHM_RETURNING_MIN_DAYS
+        and had_activity_today
+    ):
+        status = RHYTHM_STATUS_RETURNING
+    elif high_count >= 1 or moderate_count >= 2:
+        status = RHYTHM_STATUS_OFF
+    else:
+        status = RHYTHM_STATUS_ON
+
+    # Cap contributors at 3 and order by severity then signal name.
+    severity_rank = {'high': 0, 'moderate': 1}
+    contributors.sort(key=lambda c: (severity_rank.get(c['severity'], 9), c['signal_name']))
+    contributors = contributors[:3]
+
+    trust = 'high' if (high_count >= 1 or moderate_count >= 2) else 'medium'
+
+    prev = previous_rhythm_state or {}
+    previous_status = prev.get('status') or RHYTHM_STATUS_ON
+    if status != previous_status:
+        status_changed_at = now.isoformat()
+    else:
+        status_changed_at = prev.get('status_changed_at') or now.isoformat()
+
+    return {
+        'schema_version': RHYTHM_SCHEMA_VERSION,
+        'status': status,
+        'previous_status': previous_status,
+        'status_changed_at': status_changed_at,
+        'contributors': contributors,
+        'contributor_count': len(contributors),
+        'computed_at': now.isoformat(),
+        'trust': trust,
+        'days_since_last_interaction': days_since_last,
+    }
+
+
 # ── Builder Registry ─────────────────────────────────────────────
 
 # Maps module names to their builder functions.
@@ -3738,6 +4010,9 @@ def build_behavior_state(user):
 
     Returns composite score + per-domain breakdown for CoS consumption.
     Includes adherence_delta for dashboard cockpit trend indicators.
+    Includes rhythm_state — a deterministic composite of personal-baseline
+    deviation signals (Phase 1 contributors: engagement_delta,
+    foundational_adherence_delta, workout_consistency_delta).
     """
     state = {}
     try:
@@ -3787,6 +4062,22 @@ def build_behavior_state(user):
     except Exception as e:
         logger.warning("build_behavior_state failed: %s", e, exc_info=True)
         state['behavior_score'] = None
+
+    # ── rhythm_state composer (always runs, isolated from behavior_score) ─
+    try:
+        from apps.core.ai_state.models import UserState
+        prev_rhythm = None
+        try:
+            prior = UserState.objects.get(user=user).get_module('behavior')
+            prev_rhythm = prior.get('rhythm_state') if isinstance(prior, dict) else None
+        except UserState.DoesNotExist:
+            prev_rhythm = None
+        except Exception:
+            prev_rhythm = None
+        state['rhythm_state'] = _compute_rhythm_state(user, previous_rhythm_state=prev_rhythm)
+    except Exception:
+        logger.warning("rhythm_state composition failed", exc_info=True)
+
     return state
 
 

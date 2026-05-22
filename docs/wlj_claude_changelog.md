@@ -3,9 +3,89 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-22 (behavior.rhythm_state Phase 1 — Beth notices off-rhythm)
+# Last Updated: 2026-05-22 (behavior.rhythm_state Phase 1.1 — stabilization patch)
 # ================================================================# WLJ Change History
 
+
+## 2026-05-22 — fix(cos): behavior.rhythm_state Phase 1.1 — stabilization patch
+
+Phase 1.1 surgical hardening of the rhythm_state observation layer.
+Closes three gaps identified in the Phase 1 production-readiness audit
+without expanding scope (no new contributors, no new modes, no new
+templates, no new engines).
+
+### Fix 1 — Workout partial-drop blind spot
+
+Phase 1.0 only fired workout HIGH severity on a full stop (0 in 7d).
+A 4–5/wk lifter dropping to 1/wk would only flag MODERATE, and if no
+other contributor flagged, status stayed `on_rhythm`. The assistant
+stayed silent on an obvious slip.
+
+Added `RHYTHM_WORKOUT_HIGH = 0.30`. Workout severity now also fires
+HIGH when `workouts_7d / baseline_per_week < 0.30`, in addition to the
+existing full-stop path. Threshold chosen over 0.25 to reliably catch
+the 4/wk → 1/wk case (ratio ~0.252) despite float precision.
+
+### Fix 2 — Staleness fallback
+
+Phase 1.0 had no safety net for failed nightly compute. If the job
+failed, rhythm_state persisted with stale numbers and the assistant
+could narrate "your foundationals are at 62% this week" using week-old
+data.
+
+Added `RHYTHM_STALENESS_HOURS = 36` and a staleness gate inside
+`_read_rhythm_state`. If `computed_at` is missing, unparseable, or
+older than 36 hours, the reader returns `{}` and consumers fall
+through to standard time-based modes. Fails closed toward silence —
+the assistant says nothing rhythm-related rather than something stale.
+
+### Fix 3 — End-to-end integration tests
+
+Phase 1.0 tested composer and templates individually but never
+exercised the bridge from rhythm_state → CoSSituationState →
+opening_sentence. Three integration tests added:
+- `test_off_rhythm_end_to_end` — off_rhythm rhythm_state produces
+  `MODE_OFF_RHYTHM` with a workout-template opening sentence.
+- `test_returning_end_to_end_with_repeat_suppression` — verifies the
+  first-message-of-day rule fires `MODE_RETURNING` once, then falls
+  through to a time-based mode on the second compute same day.
+- `test_real_life_danny_slipping_scenario` — permanent CI regression
+  test for the exact "workouts stopped, meds slipping, interaction
+  reduced but still present" pattern that triggered the project.
+  If this test ever fails, the "Beth notices me" promise is broken.
+
+Plus two unit tests for the workout HIGH tier (5/wk → 1/wk and
+4/wk → 1/wk) and three for the staleness gate (stale / fresh /
+missing computed_at).
+
+### Test suite
+26 rhythm tests total (18 from Phase 1.0 + 8 new). All passing.
+`makemigrations --check --dry-run` clean.
+
+### Architectural commitments preserved
+- No new contributor, no new mode, no new model, no new template, no
+  new engine.
+- Composer still reads only from SAE sub-states + UserDailyActivity.
+- Staleness gate fails closed (silence), never fails open (false
+  off_rhythm).
+- Schema unchanged. No DB migration.
+- Beth's prompt unchanged.
+
+### Files Modified
+- `apps/core/ai_state/state_builder.py` — two new constants;
+  workout high-tier branch added before existing moderate check.
+- `apps/core/ai_state/situation_computer.py` — staleness gate in
+  `_read_rhythm_state`.
+- `apps/core/ai_state/test_rhythm_state.py` — 8 new tests (4 new
+  test classes).
+
+### Why
+Production-readiness audit identified specific weaknesses: partial
+workout drop blind spot, no staleness safety net, untested bridge
+between composer and assistant output. Phase 1.1 closes all three
+with the smallest possible deterministic changes. Phase 2 work
+(sentiment contributor, action-count engagement signal, dashboard
+meter, etc.) remains deferred.
 
 ## 2026-05-22 — feat(cos): behavior.rhythm_state Phase 1 — Beth notices off-rhythm
 

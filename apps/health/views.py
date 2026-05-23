@@ -3765,6 +3765,7 @@ class IntakeTakeView(LoginRequiredMixin, View):
             defaults={
                 "scheduled_time": schedule.scheduled_time,
                 "is_prn_dose": False,
+                "source": IntakeLog.SOURCE_UI_PER_ITEM,
             }
         )
         _t1 = _time.perf_counter()
@@ -3781,7 +3782,7 @@ class IntakeTakeView(LoginRequiredMixin, View):
             taken_at = user_tz.localize(scheduled_dt)
 
         # Mark as taken (with scheduled time or current time)
-        log.mark_taken(taken_at=taken_at)
+        log.mark_taken(taken_at=taken_at, source=IntakeLog.SOURCE_UI_PER_ITEM)
         _t2 = _time.perf_counter()
 
         # Auto-complete matching routine task — deferred to Celery worker.
@@ -3863,11 +3864,12 @@ class IntakeSkipView(LoginRequiredMixin, View):
             defaults={
                 "scheduled_time": schedule.scheduled_time,
                 "is_prn_dose": False,
+                "source": IntakeLog.SOURCE_UI_SKIP,
             }
         )
 
         # Mark as skipped
-        log.mark_skipped(reason)
+        log.mark_skipped(reason, source=IntakeLog.SOURCE_UI_SKIP)
 
         messages.info(request, f"Skipped {intake_obj.name} for today.")
         next_url = request.POST.get("next", reverse_lazy("health:intake_home"))

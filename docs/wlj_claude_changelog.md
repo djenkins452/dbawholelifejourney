@@ -3,9 +3,240 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-22 (behavior.rhythm_state Phase 1.1 — stabilization patch)
+# Last Updated: 2026-05-23 (trust fix + provenance: stabilization PR for IntakeLog)
 # ================================================================# WLJ Change History
 
+
+## 2026-05-23 — feat(trust): IntakeLog completion provenance (Phase 2 of stabilization)
+
+Phase 2 of the trust-critical IntakeLog stabilization PR. Phase 1
+(separate commit) removed the inferred-completion write path. Phase 2
+adds granular provenance tracking so future incidents are debuggable
+without DB forensics.
+
+### What was added
+
+**1. Extended `IntakeLog.SOURCE_CHOICES`** with 7 granular values for
+each canonical write path. Existing 3 legacy values (`manual`, `cos`,
+`routine`) preserved for backward compat with existing rows.
+
+New granular values:
+- `ui_per_item` — health page checkbox, dashboard per-item action
+- `ui_block_toggle` — time-block bulk toggle (marks all items in block)
+- `ui_skip` — explicit skip button
+- `llm_action` — `handle_take_medicine` / `handle_take_intake_by_time`
+- `quick_reply` — proactive check-in quick-reply button
+- `sms_reply` — SMS reply handler
+- `correction` — retroactive user correction service
+
+**2. Updated `mark_taken()` and `mark_skipped()`** to accept an
+optional `source` keyword argument. When provided, updates the source
+field on save. When omitted, existing source value is preserved
+(backward compatible with all current callers).
+
+**3. Updated every canonical write path** to stamp its specific source:
+- `apps/health/views.py` — `IntakeTakeView` → `ui_per_item`,
+  `IntakeSkipView` → `ui_skip`
+- `apps/dashboard_v2/views.py` — `IntakeLogAction` → `ui_per_item`
+  (per-item) and `ui_block_toggle` (bulk); `BlockCompleteToggleAction`
+  → `ui_block_toggle`
+- `apps/ai/action_handlers.py` — all `handle_take_medicine` /
+  `handle_take_intake_by_time` writes → `llm_action`
+- `apps/ai/quick_reply_handlers.py` — 3 sites → `quick_reply`
+- `apps/sms/services.py` — 2 sites → `sms_reply`
+- `apps/core/behavior/correction_service.py` —
+  `correct_medication_log` → `correction`
+
+**4. Tests** — new file `apps/health/tests/test_intake_log_provenance.py`
+with 11 tests covering:
+- Model-level source field defaults and persistence
+- `mark_taken(source=X)` and `mark_skipped(source=X)` semantics
+- Backward compat: legacy calls without source preserve existing value
+- Write-path stamp verification per source value
+- Stable-contract tests for the public set of SOURCE_* constants
+
+**5. Reminder suppression lock-in tests** —
+`TestReminderSuppressionStillWorks` in
+`apps/ai/tests/test_affirmation_detector.py` with 3 tests proving the
+three independent suppression mechanisms still fire when a user
+affirms an activity (now that auto-completion is disabled):
+- Conversation metadata `affirmed_completions` is written
+- `AssistantMessage.quick_reply_used = 'user_affirmed'` is set
+- Future proactive check-ins are suppressed via `is_activity_affirmed`
+
+### FOLLOW-UP DEFECT (Deferred)
+
+**Files:**
+- `apps/ai/quick_reply_handlers.py` (3 sites: handle_skip_medicine,
+  handle_mark_medicine_group_taken, handle_skip_medicine_group)
+- `apps/sms/services.py` (2 sites: _mark_medicine_taken,
+  _mark_medicine_skipped)
+
+**Issue:** Legacy IntakeLog field names still referenced:
+```
+date    → should be scheduled_date
+time    → should be scheduled_time
+status  → should be log_status
+```
+
+These handlers were written against an older `IntakeLog` schema and
+were not migrated. The current calls will raise
+`TypeError: ... got unexpected keyword arguments` when invoked, so the
+medicine quick-reply and SMS-reply flows are silently broken today.
+
+**Why NOT fixed in this PR:** Out of scope for the trust stabilization
+PR (whose focus was the inferred-completion violation + provenance).
+The trust PR added defensive `source=IntakeLog.SOURCE_QUICK_REPLY` /
+`SOURCE_SMS_REPLY` kwargs so provenance is captured the moment the
+field names are corrected.
+
+**Trust-risk note:** This defect causes "feature does not work" rather
+than "feature does wrong thing." It cannot cause an item to falsely
+show as completed — `update_or_create` simply errors and rolls back.
+So unlike the inferred-completion violation Phase 1 fixed, this defect
+is not a trust contract issue. Still high-priority for a follow-up PR
+because users tapping quick-reply buttons today get no DB write.
+
+**Tracked in backlog:** `docs/improvement_tasks.md` Task 22 (deferred,
+high-priority follow-up).
+
+### Architectural commitments preserved
+
+- Single source of truth: `IntakeLog.log_status` unchanged.
+- Choices-only migration (no DB schema change, no risk to existing rows).
+- All existing rows default to `manual` (backward compatible).
+- No new write paths added.
+- No UI-owned truth.
+- Method signature changes are additive (default `source=None`
+  preserves all existing callers).
+- `mark_taken()` only updates `source` when explicitly provided —
+  legacy callers cannot accidentally overwrite an existing source.
+
+### Test verification
+- `apps.health.tests.test_intake_log_provenance` — 11 tests, all pass
+- `apps.ai.tests.test_affirmation_detector.TestMedicineAutoCompleteDisabled`
+  + `TestReminderSuppressionStillWorks` — 7 tests, all pass
+- `makemigrations --check --dry-run` clean after generating
+  `0087_alter_intakelog_source` (choices-only)
+
+### Files Modified
+
+Production:
+- `apps/health/models.py` — extended SOURCE_CHOICES, mark_taken/mark_skipped accept source
+- `apps/health/views.py` — IntakeTakeView, IntakeSkipView
+- `apps/dashboard_v2/views.py` — IntakeLogAction (2 sites), BlockCompleteToggleAction
+- `apps/ai/action_handlers.py` — handle_take_medicine write sites (3)
+- `apps/ai/quick_reply_handlers.py` — 3 sites (with stale-field note)
+- `apps/sms/services.py` — 2 sites (with stale-field note)
+- `apps/core/behavior/correction_service.py` — correct_medication_log
+
+New:
+- `apps/health/migrations/0087_alter_intakelog_source.py` — choices migration
+- `apps/health/tests/test_intake_log_provenance.py` — 11 tests
+
+Modified:
+- `apps/ai/tests/test_affirmation_detector.py` — added 3
+  TestReminderSuppressionStillWorks tests
+
+### Why
+
+User reported a supplement appearing as COMPLETED without recall of
+marking it. Phase 1 closed the architectural-violation write path.
+Phase 2 ensures any future "did I really mark this?" question can be
+answered by inspecting `IntakeLog.source` — no DB forensics needed.
+Together, Phase 1 + Phase 2 = the stabilization PR.
+
+## 2026-05-23 — fix(trust): disable inferred medicine/supplement completion
+
+**TRUST-CRITICAL FIX.** Removes a write path that violated the WLJ
+trust contract: supplements/medicine must NEVER auto-complete without
+explicit user action.
+
+### Root cause investigation
+
+User reported a supplement ("Thorne Creatine" at 7:15 AM) showing as
+COMPLETED on the homepage without recalling marking it. Investigation
+identified three write paths that could create an IntakeLog with
+`log_status='taken'` without an explicit per-item button click:
+
+1. `BlockCompleteToggleAction` — one click on a time-block toggle
+   marks every item in that block taken (canonical user action, but
+   UX-risky if user doesn't realize block contains supplements).
+2. `_try_auto_complete_medicine` in `apps/ai/affirmation_detector.py`
+   — regex matched user messages like "I already took my meds" and
+   created an IntakeLog directly. **Architectural violation: inferred
+   adherence is forbidden by the trust contract.**
+3. LLM `handle_take_medicine` action handler — LLM-driven, depends on
+   intent confidence and confirmation gating.
+
+Cannot definitively prove which path created today's specific row
+without production DB access. Path #2 is the one that violates the
+architectural rule regardless of which path caused today's incident,
+so it is fixed first.
+
+### What was fixed
+
+`_try_auto_complete_medicine()` body is replaced with a documented
+no-op that returns `None` and logs a trust-contract notice. The
+function signature is preserved so the dispatcher call site needs no
+changes. The surrounding `handle_affirmed_completion()` flow remains
+intact:
+- The user still gets a natural-language acknowledgment ("Got it,
+  I'll stop reminding you").
+- The proactive medicine check-in is still suppressed via
+  `AssistantMessage.quick_reply_used='user_affirmed'`.
+- **No `IntakeLog` is ever created from natural-language affirmations.**
+
+Authoritative completion paths preserved:
+- `IntakeTakeView` (`apps/health/views.py:3760`) — per-item checkbox
+- `IntakeLogAction` (`apps/dashboard_v2/views.py:688`) — dashboard per-item
+- `BlockCompleteToggleAction` (`apps/dashboard_v2/views.py:1077`) — block bulk
+- `IntakeSkipView` (`apps/health/views.py:3858`) — explicit skip
+- `correct_medicine_log` (`apps/core/behavior/correction_service.py`)
+
+### Architectural commitments preserved
+
+- Single source of truth: `IntakeLog.log_status` in `('taken', 'late')`.
+  Both homepage and CoS read this same source via the same query.
+- No new inferred-completion paths added.
+- No new write paths added.
+- No UI-owned truth.
+- No schema change, no migration.
+
+### Cleared with evidence
+
+The earlier rhythm_state Phase 1 + 1.1 commits (`2349f287`, `923a9576`)
+were audited against `IntakeLog`, `Intake`, `IntakeSchedule`,
+`mark_taken`, and any "taken" status assignment. They contain ZERO
+writes to medicine completion. The rhythm composer reads `Task`
+foundational adherence (a different model) but never touches the
+intake pipeline. Rhythm is innocent of this trust violation.
+
+### Files Modified
+
+- `apps/ai/affirmation_detector.py` — `_try_auto_complete_medicine`
+  body replaced with `return None` and explanatory docstring.
+- `apps/ai/tests/test_affirmation_detector.py` — added
+  `TestMedicineAutoCompleteDisabled` class with 4 regression tests:
+  - `test_try_auto_complete_medicine_returns_none`
+  - `test_try_auto_complete_medicine_creates_zero_intake_logs`
+  - `test_handle_affirmed_completion_creates_zero_intake_logs`
+  - `test_single_active_medicine_does_not_auto_complete`
+
+### Test verification
+
+`python3 manage.py test apps.ai.tests.test_affirmation_detector.TestMedicineAutoCompleteDisabled`
+— 4 tests pass.
+
+### Why
+
+The user must be able to trust that a "completed" supplement means
+they actually completed it. Inferred completion from regex matching
+breaks that contract irreversibly: the user cannot later distinguish
+"I told CoS I took it" from "I actually confirmed the dose." Disabling
+this path is non-negotiable per the architectural rule. Smallest
+possible diff to close the violation while preserving the surrounding
+acknowledgment + reminder-suppression behavior.
 
 ## 2026-05-22 — fix(cos): behavior.rhythm_state Phase 1.1 — stabilization patch
 

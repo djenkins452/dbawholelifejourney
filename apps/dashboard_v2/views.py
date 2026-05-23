@@ -693,10 +693,11 @@ class IntakeLogAction(LoginRequiredMixin, View):
                 defaults={
                     "scheduled_time": schedule.scheduled_time,
                     "is_prn_dose": False,
+                    "source": IntakeLog.SOURCE_UI_PER_ITEM,
                 },
             )
             # mark_taken handles late/on-time classification via grace period
-            log.mark_taken()
+            log.mark_taken(source=IntakeLog.SOURCE_UI_PER_ITEM)
 
             # Decrement supply if tracked
             if medicine.current_supply is not None and medicine.current_supply > 0:
@@ -884,10 +885,11 @@ class IntakeGroupLogAction(LoginRequiredMixin, View):
                     defaults={
                         "scheduled_time": schedule.scheduled_time,
                         "is_prn_dose": False,
+                        "source": IntakeLog.SOURCE_UI_BLOCK_TOGGLE,
                     },
                 )
                 # mark_taken handles late/on-time classification
-                log.mark_taken()
+                log.mark_taken(source=IntakeLog.SOURCE_UI_BLOCK_TOGGLE)
                 taken_count += 1
 
                 # Decrement supply if tracked
@@ -1082,9 +1084,10 @@ class BlockCompleteToggleAction(LoginRequiredMixin, View):
                         defaults={
                             'scheduled_time': schedule.scheduled_time,
                             'is_prn_dose': False,
+                            'source': IntakeLog.SOURCE_UI_BLOCK_TOGGLE,
                         },
                     )
-                    log.mark_taken()
+                    log.mark_taken(source=IntakeLog.SOURCE_UI_BLOCK_TOGGLE)
                     if (
                         medicine.current_supply is not None
                         and medicine.current_supply > 0

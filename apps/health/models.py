@@ -2717,14 +2717,35 @@ class IntakeLog(UserOwnedModel):
         (STATUS_LATE, "Taken Late"),
     ]
 
-    # Source of the log entry
-    SOURCE_MANUAL = "manual"
-    SOURCE_COS = "cos"
-    SOURCE_ROUTINE = "routine"
+    # Source of the log entry — provenance for trust-critical auditing.
+    # When debugging "did the user actually mark this complete?", the source
+    # field answers "which code path created/updated this row?"
+    #
+    # Existing 3 values preserved for backward compat. Granular values added
+    # 2026-05-23 (Phase 2 stabilization PR) so future incidents are debuggable
+    # without DB forensics.
+    SOURCE_MANUAL = "manual"             # Legacy: generic UI action
+    SOURCE_COS = "cos"                   # Legacy: generic AI action
+    SOURCE_ROUTINE = "routine"           # Legacy: routine completion bridge
+    # ── Granular paths (added Phase 2) ────────────────────────────
+    SOURCE_UI_PER_ITEM = "ui_per_item"           # Health/dashboard per-item checkbox
+    SOURCE_UI_BLOCK_TOGGLE = "ui_block_toggle"   # Time-block bulk toggle (marks many)
+    SOURCE_UI_SKIP = "ui_skip"                   # Explicit skip button
+    SOURCE_LLM_ACTION = "llm_action"             # handle_take_medicine LLM tool call
+    SOURCE_QUICK_REPLY = "quick_reply"           # Proactive check-in quick-reply button
+    SOURCE_SMS_REPLY = "sms_reply"               # SMS reply handler
+    SOURCE_CORRECTION = "correction"             # Retroactive user correction
     SOURCE_CHOICES = [
-        (SOURCE_MANUAL, "Manual"),
-        (SOURCE_COS, "CoS"),
-        (SOURCE_ROUTINE, "Routine"),
+        (SOURCE_MANUAL, "Manual (legacy)"),
+        (SOURCE_COS, "CoS (legacy)"),
+        (SOURCE_ROUTINE, "Routine (legacy)"),
+        (SOURCE_UI_PER_ITEM, "UI — Per-Item Check"),
+        (SOURCE_UI_BLOCK_TOGGLE, "UI — Block Toggle"),
+        (SOURCE_UI_SKIP, "UI — Skip"),
+        (SOURCE_LLM_ACTION, "LLM Action Handler"),
+        (SOURCE_QUICK_REPLY, "Quick Reply"),
+        (SOURCE_SMS_REPLY, "SMS Reply"),
+        (SOURCE_CORRECTION, "User Correction"),
     ]
 
     intake = models.ForeignKey(
@@ -2853,8 +2874,17 @@ class IntakeLog(UserOwnedModel):
         diff = taken_local - scheduled_local
         return max(0, int(diff.total_seconds() / 60))
 
-    def mark_taken(self, taken_at=None):
-        """Mark this dose as taken."""
+    def mark_taken(self, taken_at=None, source=None):
+        """Mark this dose as taken.
+
+        Args:
+            taken_at: timestamp when dose was actually taken
+                (defaults to now).
+            source: provenance — one of IntakeLog.SOURCE_*. If provided,
+                updates the source field so the most recent writer is
+                recorded. If None, the existing source value is preserved
+                (backward compatible with legacy callers).
+        """
         self.taken_at = taken_at or timezone.now()
 
         # Check if it was late
@@ -2882,14 +2912,29 @@ class IntakeLog(UserOwnedModel):
         else:
             self.log_status = self.STATUS_TAKEN
 
-        self.save(update_fields=["taken_at", "log_status", "updated_at"])
+        update_fields = ["taken_at", "log_status", "updated_at"]
+        if source is not None:
+            self.source = source
+            update_fields.append("source")
+        self.save(update_fields=update_fields)
 
-    def mark_skipped(self, reason=""):
-        """Mark this dose as intentionally skipped."""
+    def mark_skipped(self, reason="", source=None):
+        """Mark this dose as intentionally skipped.
+
+        Args:
+            reason: optional skip reason stored in notes.
+            source: provenance — one of IntakeLog.SOURCE_*. Updates the
+                source field when provided; preserved otherwise.
+        """
         self.log_status = self.STATUS_SKIPPED
+        update_fields = ["log_status", "updated_at"]
         if reason:
             self.notes = reason
-        self.save(update_fields=["log_status", "notes", "updated_at"])
+            update_fields.append("notes")
+        if source is not None:
+            self.source = source
+            update_fields.append("source")
+        self.save(update_fields=update_fields)
 
     def mark_missed(self):
         """Mark this dose as missed (not taken or skipped)."""

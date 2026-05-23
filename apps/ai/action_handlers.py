@@ -2004,7 +2004,8 @@ class ActionHandler:
                 log_status=IntakeLog.STATUS_TAKEN,
                 is_prn_dose=True,
                 prn_reason=notes or "",
-                notes=notes or ""
+                notes=notes or "",
+                source=IntakeLog.SOURCE_LLM_ACTION,
             )
         else:
             # Scheduled medicine - find the appropriate schedule
@@ -2036,10 +2037,11 @@ class ActionHandler:
                     scheduled_date=today,
                     defaults={
                         'scheduled_time': schedule.scheduled_time,
-                        'notes': notes or ""
+                        'notes': notes or "",
+                        'source': IntakeLog.SOURCE_LLM_ACTION,
                     }
                 )
-                log.mark_taken(taken_at=now)
+                log.mark_taken(taken_at=now, source=IntakeLog.SOURCE_LLM_ACTION)
             else:
                 # No matching schedule found, create a general log
                 log = IntakeLog.objects.create(
@@ -2048,7 +2050,8 @@ class ActionHandler:
                     scheduled_date=today,
                     taken_at=now,
                     log_status=IntakeLog.STATUS_TAKEN,
-                    notes=notes or ""
+                    notes=notes or "",
+                    source=IntakeLog.SOURCE_LLM_ACTION,
                 )
 
         _emit_domain_event("health.medication.taken", self.user, {
@@ -2140,6 +2143,7 @@ class ActionHandler:
                             "scheduled_time": schedule.scheduled_time,
                             "is_prn_dose": False,
                             "notes": notes,
+                            "source": IntakeLog.SOURCE_LLM_ACTION,
                         }
                     )
 
@@ -2150,7 +2154,7 @@ class ActionHandler:
                         scheduled_dt = dt.combine(today, schedule.scheduled_time)
                         taken_at = user_tz.localize(scheduled_dt)
 
-                    log.mark_taken(taken_at=taken_at)
+                    log.mark_taken(taken_at=taken_at, source=IntakeLog.SOURCE_LLM_ACTION)
                     taken_count += 1
                     taken_names.append(f"{medicine.name} ({medicine.dose})")
 

@@ -510,73 +510,39 @@ def _try_auto_complete(user, activity_type: str, message: str) -> Optional[dict]
 
 
 def _try_auto_complete_medicine(user, message: str) -> Optional[dict]:
-    """Mark medicine as taken using existing MedicineLog pathway."""
-    try:
-        from apps.health.models import Intake, IntakeLog
+    """Inferred medicine/supplement completion — DISABLED.
 
-        today = timezone.now().date()
+    Per the WLJ trust contract: supplements and medications require
+    explicit user completion via the UI. There is NO inferred adherence,
+    NO smart completion, and NO hidden auto-resolution from natural-
+    language pattern matching.
 
-        # Find active medicines
-        active_meds = Intake.objects.filter(
-            user=user,
-            intake_status=Intake.STATUS_ACTIVE,
-        )
+    Prior behavior (now disabled): regex matched user messages like
+    "I already took my meds" and created an IntakeLog with
+    log_status='taken'. That bypassed the trust contract — the user
+    could not later distinguish "I told CoS I took it" from "I actually
+    confirmed it via the dose checkbox," which is the exact failure
+    mode this contract is designed to prevent.
 
-        if active_meds.count() == 0:
-            return None
+    The surrounding handle_affirmed_completion() flow remains intact:
+    the user still gets a natural-language acknowledgment, and the
+    proactive check-in for that activity is still suppressed via
+    AssistantMessage.quick_reply_used='user_affirmed'. The user retains
+    sole authority to mark medications/supplements taken, via:
+      - IntakeTakeView (apps/health/views.py:3760)
+      - IntakeLogAction (apps/dashboard_v2/views.py:688)
+      - BlockCompleteToggleAction (apps/dashboard_v2/views.py:1077)
+      - IntakeSkipView (apps/health/views.py:3858)
+      - Behavior correction service (explicit retroactive correction)
 
-        # If only one active medicine, use it directly
-        if active_meds.count() == 1:
-            med = active_meds.first()
-        else:
-            # Try to match medicine name from message
-            msg_lower = message.lower()
-            med = None
-            for m in active_meds:
-                if m.name.lower() in msg_lower:
-                    med = m
-                    break
-
-            if not med:
-                # Multiple medicines, can't determine which — don't auto-complete
-                return None
-
-        # Check if already logged today
-        existing = IntakeLog.objects.filter(
-            intake=med,
-            date=today,
-            status='taken',
-        ).first()
-        if existing:
-            return {
-                'already_done': True,
-                'item_name': med.name,
-            }
-
-        # Log using existing model pathway
-        IntakeLog.objects.create(
-            intake=med,
-            date=today,
-            time=timezone.now().strftime('%H:%M'),
-            status='taken',
-        )
-
-        logger.info(
-            "AFFIRM_AUTO_COMPLETE_MED user=%s med=%s",
-            user.id, med.name,
-        )
-        return {
-            'completed': True,
-            'item_name': med.name,
-        }
-
-    except Exception as e:
-        logger.warning(
-            "AFFIRM_AUTO_COMPLETE_MED_FAILED user=%s error=%s",
-            user.id if hasattr(user, 'id') else user,
-            e, exc_info=True,
-        )
-        return None
+    Always returns None to signal "no auto-complete happened."
+    """
+    logger.info(
+        "AFFIRM_AUTO_COMPLETE_MED_DISABLED user=%s "
+        "(trust contract: medicine requires explicit completion)",
+        getattr(user, 'id', '?'),
+    )
+    return None
 
 
 # ---------------------------------------------------------------------------

@@ -659,3 +659,124 @@ class TestCheckInTypeMap(TestCase):
                 t, CHECK_IN_TYPE_MAP,
                 f"Missing mapping for check_in_type: {t}"
             )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Phase 1.2 Trust Contract — Inferred Medicine Completion Disabled
+#
+# Background: Pre-existing `_try_auto_complete_medicine` created
+# IntakeLog rows with log_status='taken' when user messages matched
+# affirmation regex patterns. That violates the WLJ trust contract:
+# supplements/medicine must NEVER auto-complete without explicit user
+# action. The function is now neutered (returns None unconditionally).
+# These tests lock that behavior in CI so the violation cannot regress.
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TestMedicineAutoCompleteDisabled(AffirmationTestBase):
+    """Lock-in: inferred medicine completion via affirmation must NEVER
+    create an IntakeLog. The trust contract forbids inferred adherence.
+
+    These tests fail if anyone re-enables the auto-complete path.
+    """
+
+    def _create_active_medicine(self, name="Thorne Creatine"):
+        from datetime import date
+        from apps.health.models import Intake
+        return Intake.objects.create(
+            user=self.user,
+            name=name,
+            dose="5g",
+            intake_type=Intake.INTAKE_TYPE_SUPPLEMENT,
+            intake_status=Intake.STATUS_ACTIVE,
+            start_date=date(2026, 1, 1),
+        )
+
+    def test_try_auto_complete_medicine_returns_none(self):
+        """Direct unit test: the function returns None for any input."""
+        from apps.ai.affirmation_detector import _try_auto_complete_medicine
+        self._create_active_medicine()
+        result = _try_auto_complete_medicine(self.user, "I already took my meds")
+        self.assertIsNone(result)
+
+    def test_try_auto_complete_medicine_creates_zero_intake_logs(self):
+        """The function must not write to IntakeLog under any input."""
+        from apps.ai.affirmation_detector import _try_auto_complete_medicine
+        from apps.health.models import IntakeLog
+        self._create_active_medicine()
+
+        for message in [
+            "I already took my meds",
+            "Already took my medicine earlier",
+            "Took my pills this morning",
+            "I just took my creatine",
+            "Got my meds done",
+            "Already took it",
+            "Took my medication",
+            "i took my meds",
+        ]:
+            _try_auto_complete_medicine(self.user, message)
+
+        self.assertEqual(
+            IntakeLog.objects.filter(intake__user=self.user).count(), 0,
+            "Trust contract violation: inferred medicine completion wrote "
+            "an IntakeLog. _try_auto_complete_medicine must return None "
+            "unconditionally and create zero rows.",
+        )
+
+    def test_handle_affirmed_completion_creates_zero_intake_logs(self):
+        """Full flow: affirming medicine via the public entry point must
+        acknowledge the user but NEVER write IntakeLog.
+
+        This is the canonical regression test for the trust violation.
+        """
+        from apps.health.models import IntakeLog
+        self._create_active_medicine()
+
+        # Proactive medicine check-in is the precondition for affirmation routing.
+        AssistantMessage.objects.create(
+            conversation=self.conversation,
+            role='assistant',
+            content='Your morning meds are due.',
+            message_type='nudge',
+            is_proactive=True,
+            metadata={'check_in_type': 'medicine'},
+        )
+
+        count_before = IntakeLog.objects.filter(intake__user=self.user).count()
+
+        result = handle_affirmed_completion(
+            self.user,
+            "Already took my meds earlier",
+            self.conversation,
+        )
+
+        # Surrounding flow still works (acknowledgment + activity identified).
+        self.assertIsNotNone(result)
+        self.assertTrue(result['handled'])
+        self.assertEqual(result['activity_type'], 'medicine')
+        # Auto-complete is now never true (function returns None).
+        self.assertFalse(result.get('auto_completed', False))
+
+        count_after = IntakeLog.objects.filter(intake__user=self.user).count()
+        self.assertEqual(
+            count_after, count_before,
+            "Affirming medicine via natural language MUST NOT create an "
+            "IntakeLog. Trust contract violation if this fires.",
+        )
+
+    def test_single_active_medicine_does_not_auto_complete(self):
+        """Edge case: with exactly one active medicine, prior code marked
+        it taken on ambiguous affirmations. Verify this no longer occurs.
+        """
+        from apps.ai.affirmation_detector import _try_auto_complete_medicine
+        from apps.health.models import IntakeLog
+
+        # Exactly one active intake (the historical risky case).
+        self._create_active_medicine(name="Solo Med")
+
+        result = _try_auto_complete_medicine(self.user, "already took it")
+        self.assertIsNone(result)
+        self.assertEqual(
+            IntakeLog.objects.filter(intake__user=self.user).count(), 0,
+        )

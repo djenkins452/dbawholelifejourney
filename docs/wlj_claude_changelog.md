@@ -3,9 +3,101 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-22 (behavior.rhythm_state Phase 1.1 — stabilization patch)
+# Last Updated: 2026-05-23 (trust fix: inferred medicine completion disabled)
 # ================================================================# WLJ Change History
 
+
+## 2026-05-23 — fix(trust): disable inferred medicine/supplement completion
+
+**TRUST-CRITICAL FIX.** Removes a write path that violated the WLJ
+trust contract: supplements/medicine must NEVER auto-complete without
+explicit user action.
+
+### Root cause investigation
+
+User reported a supplement ("Thorne Creatine" at 7:15 AM) showing as
+COMPLETED on the homepage without recalling marking it. Investigation
+identified three write paths that could create an IntakeLog with
+`log_status='taken'` without an explicit per-item button click:
+
+1. `BlockCompleteToggleAction` — one click on a time-block toggle
+   marks every item in that block taken (canonical user action, but
+   UX-risky if user doesn't realize block contains supplements).
+2. `_try_auto_complete_medicine` in `apps/ai/affirmation_detector.py`
+   — regex matched user messages like "I already took my meds" and
+   created an IntakeLog directly. **Architectural violation: inferred
+   adherence is forbidden by the trust contract.**
+3. LLM `handle_take_medicine` action handler — LLM-driven, depends on
+   intent confidence and confirmation gating.
+
+Cannot definitively prove which path created today's specific row
+without production DB access. Path #2 is the one that violates the
+architectural rule regardless of which path caused today's incident,
+so it is fixed first.
+
+### What was fixed
+
+`_try_auto_complete_medicine()` body is replaced with a documented
+no-op that returns `None` and logs a trust-contract notice. The
+function signature is preserved so the dispatcher call site needs no
+changes. The surrounding `handle_affirmed_completion()` flow remains
+intact:
+- The user still gets a natural-language acknowledgment ("Got it,
+  I'll stop reminding you").
+- The proactive medicine check-in is still suppressed via
+  `AssistantMessage.quick_reply_used='user_affirmed'`.
+- **No `IntakeLog` is ever created from natural-language affirmations.**
+
+Authoritative completion paths preserved:
+- `IntakeTakeView` (`apps/health/views.py:3760`) — per-item checkbox
+- `IntakeLogAction` (`apps/dashboard_v2/views.py:688`) — dashboard per-item
+- `BlockCompleteToggleAction` (`apps/dashboard_v2/views.py:1077`) — block bulk
+- `IntakeSkipView` (`apps/health/views.py:3858`) — explicit skip
+- `correct_medicine_log` (`apps/core/behavior/correction_service.py`)
+
+### Architectural commitments preserved
+
+- Single source of truth: `IntakeLog.log_status` in `('taken', 'late')`.
+  Both homepage and CoS read this same source via the same query.
+- No new inferred-completion paths added.
+- No new write paths added.
+- No UI-owned truth.
+- No schema change, no migration.
+
+### Cleared with evidence
+
+The earlier rhythm_state Phase 1 + 1.1 commits (`2349f287`, `923a9576`)
+were audited against `IntakeLog`, `Intake`, `IntakeSchedule`,
+`mark_taken`, and any "taken" status assignment. They contain ZERO
+writes to medicine completion. The rhythm composer reads `Task`
+foundational adherence (a different model) but never touches the
+intake pipeline. Rhythm is innocent of this trust violation.
+
+### Files Modified
+
+- `apps/ai/affirmation_detector.py` — `_try_auto_complete_medicine`
+  body replaced with `return None` and explanatory docstring.
+- `apps/ai/tests/test_affirmation_detector.py` — added
+  `TestMedicineAutoCompleteDisabled` class with 4 regression tests:
+  - `test_try_auto_complete_medicine_returns_none`
+  - `test_try_auto_complete_medicine_creates_zero_intake_logs`
+  - `test_handle_affirmed_completion_creates_zero_intake_logs`
+  - `test_single_active_medicine_does_not_auto_complete`
+
+### Test verification
+
+`python3 manage.py test apps.ai.tests.test_affirmation_detector.TestMedicineAutoCompleteDisabled`
+— 4 tests pass.
+
+### Why
+
+The user must be able to trust that a "completed" supplement means
+they actually completed it. Inferred completion from regex matching
+breaks that contract irreversibly: the user cannot later distinguish
+"I told CoS I took it" from "I actually confirmed the dose." Disabling
+this path is non-negotiable per the architectural rule. Smallest
+possible diff to close the violation while preserving the surrounding
+acknowledgment + reminder-suppression behavior.
 
 ## 2026-05-22 — fix(cos): behavior.rhythm_state Phase 1.1 — stabilization patch
 

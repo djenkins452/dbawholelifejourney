@@ -163,6 +163,40 @@
 - UI: upload area on Assistant page or Settings, with preview/edit/delete
 - Size limit + summarization for very long documents (token budget)
 
+### Task 22: Fix stale IntakeLog field names in quick_reply / SMS handlers (FOLLOW-UP DEFECT — DEFERRED)
+**Status:** ⚪ Pending — High priority follow-up
+**Impact:** Medium-High — affected handlers fail at runtime (silent breakage of medicine quick-reply + SMS-reply flows)
+**Source:** Discovered during 2026-05-23 trust stabilization PR audit; defensively annotated but NOT fixed in that PR to preserve scope.
+
+**Files:**
+- `apps/ai/quick_reply_handlers.py` — `handle_skip_medicine`, `handle_mark_medicine_group_taken`, `handle_skip_medicine_group` (3 sites)
+- `apps/sms/services.py` — `_mark_medicine_taken`, `_mark_medicine_skipped` (2 sites)
+
+**Issue:** Legacy `IntakeLog` field names still referenced:
+```
+date        → should be: scheduled_date
+time        → should be: scheduled_time
+status      → should be: log_status
+```
+The current `IntakeLog` schema uses the `scheduled_*` / `log_status` field names. These handlers were written against an older schema and were not migrated. `update_or_create(date=..., time=..., defaults={'status': ...})` and `objects.create(..., status=...)` will raise `TypeError: ... got unexpected keyword arguments` when invoked.
+
+**Why not fixed in trust PR:** Out of scope for the IntakeLog stabilization PR (trust contract was the focus). The trust PR added `source=IntakeLog.SOURCE_QUICK_REPLY` / `SOURCE_SMS_REPLY` kwargs defensively so provenance is captured when these handlers are corrected.
+
+**Scope to fix:**
+- Replace `date=` → `scheduled_date=` in all 5 sites
+- Replace `time=` → `scheduled_time=` in all 5 sites
+- Replace `status=` → `log_status=` in all 5 sites
+- Add explicit `user=...` arg where missing (some sites omit it; `IntakeLog` requires it via `UserOwnedModel`)
+- For `get_or_create`/`update_or_create`, include `schedule=` in the lookup key so the row matches existing scheduled-dose logs instead of creating duplicates
+- Use `log.mark_taken(source=IntakeLog.SOURCE_QUICK_REPLY)` / `mark_skipped(..., source=...)` instead of raw `objects.create()` so grace-period late detection runs
+
+**Test plan:**
+- Integration test for `handle_mark_medicine_group_taken` confirming an `IntakeLog` is created against the right schedule for the right user and with `source='quick_reply'`
+- Integration test for SMS `_mark_medicine_taken` confirming an `IntakeLog` is created with `source='sms_reply'`
+- Negative test: pre-existing log for same (user, intake, schedule, date) is updated, not duplicated
+
+**Trust risk:** The defect's blast radius is "feature does not work" rather than "feature does wrong thing." So unlike the inferred-completion bug, this defect cannot cause an item to falsely show as completed — it just fails silently. Still high-priority because users tapping the assistant's quick-reply buttons today get no DB write.
+
 ---
 
 ## TODO: Owner Financial Command Center — Polish

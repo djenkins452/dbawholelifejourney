@@ -64,20 +64,41 @@ affirms an activity (now that auto-completion is disabled):
 - `AssistantMessage.quick_reply_used = 'user_affirmed'` is set
 - Future proactive check-ins are suppressed via `is_activity_affirmed`
 
-### Out-of-scope items observed (NOT fixed in this PR)
+### FOLLOW-UP DEFECT (Deferred)
 
-While auditing write paths I noticed pre-existing bugs:
-- `apps/ai/quick_reply_handlers.py` uses stale field names
-  (`date`/`time`/`status` instead of
-  `scheduled_date`/`scheduled_time`/`log_status`). These calls fail
-  at runtime against the current schema. Defensive `source` kwarg
-  added so provenance is captured when fixed.
-- `apps/sms/services.py` uses `status=` instead of `log_status=`.
-  Same defensive treatment.
+**Files:**
+- `apps/ai/quick_reply_handlers.py` (3 sites: handle_skip_medicine,
+  handle_mark_medicine_group_taken, handle_skip_medicine_group)
+- `apps/sms/services.py` (2 sites: _mark_medicine_taken,
+  _mark_medicine_skipped)
 
-These are pre-existing bugs unrelated to this stabilization. Flagged
-here so a follow-up PR can address them without scope-creeping this
-trust-fix.
+**Issue:** Legacy IntakeLog field names still referenced:
+```
+date    → should be scheduled_date
+time    → should be scheduled_time
+status  → should be log_status
+```
+
+These handlers were written against an older `IntakeLog` schema and
+were not migrated. The current calls will raise
+`TypeError: ... got unexpected keyword arguments` when invoked, so the
+medicine quick-reply and SMS-reply flows are silently broken today.
+
+**Why NOT fixed in this PR:** Out of scope for the trust stabilization
+PR (whose focus was the inferred-completion violation + provenance).
+The trust PR added defensive `source=IntakeLog.SOURCE_QUICK_REPLY` /
+`SOURCE_SMS_REPLY` kwargs so provenance is captured the moment the
+field names are corrected.
+
+**Trust-risk note:** This defect causes "feature does not work" rather
+than "feature does wrong thing." It cannot cause an item to falsely
+show as completed — `update_or_create` simply errors and rolls back.
+So unlike the inferred-completion violation Phase 1 fixed, this defect
+is not a trust contract issue. Still high-priority for a follow-up PR
+because users tapping quick-reply buttons today get no DB write.
+
+**Tracked in backlog:** `docs/improvement_tasks.md` Task 22 (deferred,
+high-priority follow-up).
 
 ### Architectural commitments preserved
 

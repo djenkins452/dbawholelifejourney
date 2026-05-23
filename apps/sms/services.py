@@ -711,12 +711,16 @@ class SMSNotificationService:
             from apps.health.models import Intake, IntakeLog
 
             medicine = Intake.objects.get(pk=notification.object_id)
+            # NOTE: `status=` should be `log_status=` per current schema —
+            # pre-existing bug, out of scope for this PR. The `source` kwarg
+            # is added so provenance is tracked once the field name is fixed.
             IntakeLog.objects.create(
                 user=notification.user,
                 intake=medicine,
                 scheduled_date=timezone.now().date(),
                 taken_at=timezone.now(),
                 status=IntakeLog.STATUS_TAKEN,
+                source=IntakeLog.SOURCE_SMS_REPLY,
             )
             return f"Logged {medicine.name} as taken"
         except Exception as e:
@@ -732,11 +736,13 @@ class SMSNotificationService:
             from apps.health.models import Intake, IntakeLog
 
             medicine = Intake.objects.get(pk=notification.object_id)
+            # NOTE: `status=` should be `log_status=` — see comment above.
             IntakeLog.objects.create(
                 user=notification.user,
                 intake=medicine,
                 scheduled_date=timezone.now().date(),
                 status=IntakeLog.STATUS_SKIPPED,
+                source=IntakeLog.SOURCE_SMS_REPLY,
             )
             return f"Logged {medicine.name} as skipped"
         except Exception as e:

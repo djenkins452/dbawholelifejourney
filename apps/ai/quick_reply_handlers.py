@@ -160,6 +160,11 @@ def handle_skip_medicine(user, params: dict) -> dict:
         log_time = dose_time or timezone.now().strftime('%H:%M')
 
         # Create skip log
+        # NOTE: field names below (date/time/status) appear to be stale —
+        # current schema uses scheduled_date/scheduled_time/log_status.
+        # Out-of-scope to fix in this stabilization PR; tracked separately.
+        # The `source` kwarg is added defensively so provenance is
+        # captured if/when the field names are corrected.
         IntakeLog.objects.update_or_create(
             intake=medicine,
             date=log_date,
@@ -167,6 +172,7 @@ def handle_skip_medicine(user, params: dict) -> dict:
             defaults={
                 'status': 'skipped',
                 'notes': reason or 'Skipped via assistant',
+                'source': IntakeLog.SOURCE_QUICK_REPLY,
             }
         )
 
@@ -214,6 +220,7 @@ def handle_mark_medicine_group_taken(user, params: dict) -> dict:
             log_time = schedule.scheduled_time.strftime('%H:%M') if schedule else (dose_time or '09:00')
 
             # Create or update log
+            # NOTE: stale field names — see comment on first IntakeLog.update_or_create above.
             IntakeLog.objects.update_or_create(
                 intake=medicine,
                 date=today,
@@ -221,6 +228,7 @@ def handle_mark_medicine_group_taken(user, params: dict) -> dict:
                 defaults={
                     'status': 'taken',
                     'notes': 'Logged via assistant group quick reply',
+                    'source': IntakeLog.SOURCE_QUICK_REPLY,
                 }
             )
             marked_count += 1
@@ -271,6 +279,7 @@ def handle_skip_medicine_group(user, params: dict) -> dict:
 
             log_time = schedule.scheduled_time.strftime('%H:%M') if schedule else (dose_time or '09:00')
 
+            # NOTE: stale field names — see comment on first IntakeLog.update_or_create above.
             IntakeLog.objects.update_or_create(
                 intake=medicine,
                 date=today,
@@ -278,6 +287,7 @@ def handle_skip_medicine_group(user, params: dict) -> dict:
                 defaults={
                     'status': 'skipped',
                     'notes': 'Skipped via assistant group quick reply',
+                    'source': IntakeLog.SOURCE_QUICK_REPLY,
                 }
             )
             skipped_count += 1

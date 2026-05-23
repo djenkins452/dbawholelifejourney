@@ -65,6 +65,7 @@ def correct_medication_log(user, medicine_id, schedule_id, scheduled_date, new_s
             'scheduled_time': schedule.scheduled_time,
             'taken_at': timezone.now() if new_status in ('taken', 'late') else None,
             'is_user_corrected': True,
+            'source': IntakeLog.SOURCE_CORRECTION,
         },
     )
 

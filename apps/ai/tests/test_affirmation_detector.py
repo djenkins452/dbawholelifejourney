@@ -780,3 +780,80 @@ class TestMedicineAutoCompleteDisabled(AffirmationTestBase):
         self.assertEqual(
             IntakeLog.objects.filter(intake__user=self.user).count(), 0,
         )
+
+
+class TestReminderSuppressionStillWorks(AffirmationTestBase):
+    """Phase 1.2 lock-in: reminder suppression must still work even
+    though auto-completion is disabled.
+
+    Three independent suppression mechanisms must continue to fire when
+    a user affirms an activity:
+
+    1. conversation.metadata['affirmed_completions'] stores the affirmation
+       so the proactive check-in scheduler can suppress future reminders.
+    2. AssistantMessage.quick_reply_used is set on the current proactive
+       message so it's not re-triggered.
+    3. get_affirmed_completions() returns the affirmed activity so the
+       LLM system prompt can inject the context.
+
+    None of these depend on the (now neutered) auto-complete path.
+    """
+
+    def _setup_proactive_medicine_checkin(self):
+        return AssistantMessage.objects.create(
+            conversation=self.conversation,
+            role='assistant',
+            content='Your morning meds are due.',
+            message_type='nudge',
+            is_proactive=True,
+            metadata={'check_in_type': 'medicine'},
+        )
+
+    def test_affirmation_writes_to_conversation_metadata(self):
+        """Suppression mechanism #1: metadata['affirmed_completions']."""
+        from apps.ai.affirmation_detector import get_affirmed_completions
+        self._setup_proactive_medicine_checkin()
+
+        handle_affirmed_completion(
+            self.user,
+            "Already took my meds earlier",
+            self.conversation,
+        )
+
+        self.conversation.refresh_from_db()
+        affirmed = get_affirmed_completions(self.conversation)
+        self.assertIn('medicine', affirmed)
+        # Timestamp is an ISO string.
+        self.assertIsInstance(affirmed['medicine'], str)
+
+    def test_affirmation_marks_current_proactive_handled(self):
+        """Suppression mechanism #2: AssistantMessage.quick_reply_used."""
+        proactive = self._setup_proactive_medicine_checkin()
+
+        handle_affirmed_completion(
+            self.user,
+            "Already took my meds earlier",
+            self.conversation,
+        )
+
+        proactive.refresh_from_db()
+        self.assertEqual(proactive.quick_reply_used, 'user_affirmed')
+
+    def test_future_proactive_checkin_is_suppressed(self):
+        """Mechanism #3 / end-to-end: after affirmation, ProactiveCheckInService
+        suppresses a new medicine check-in via is_activity_affirmed.
+        """
+        from apps.ai.affirmation_detector import is_activity_affirmed
+        self._setup_proactive_medicine_checkin()
+
+        handle_affirmed_completion(
+            self.user,
+            "Already took my meds earlier",
+            self.conversation,
+        )
+
+        # The proactive scheduler calls is_activity_affirmed before dispatching.
+        self.conversation.refresh_from_db()
+        self.assertTrue(is_activity_affirmed(self.conversation, 'medicine'))
+        # And the medicine_group alias still resolves via CHECK_IN_TYPE_MAP.
+        self.assertTrue(is_activity_affirmed(self.conversation, 'medicine_group'))

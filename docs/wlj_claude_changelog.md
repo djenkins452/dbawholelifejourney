@@ -7,6 +7,64 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-24 — feat(health_briefing): Phase 1A · C1 — HealthBriefing v1 contract module
+
+First commit of the Metabolic Intelligence v1 build (Phase 1A, Wave 1). Pure
+additions; no DB changes, no behavior changes, no Beth-visible impact. Lays
+the type foundation that subsequent commits build against.
+
+### What was added
+
+**New module: `apps.core.health_briefing`** — distinct from `apps.core.ai_briefing`
+(the existing Daily Briefing Engine). HealthBriefing is consumed by Beth for
+deterministic metabolic narration; DBE produces user-facing daily summaries.
+
+- `apps/core/health_briefing/__init__.py` — module docstring stating the
+  Phase 0 architectural commitments (briefing-not-reasoning, two-channel,
+  background composition, no raw rows for Beth).
+- `apps/core/health_briefing/contract.py` — frozen `@dataclass` contract:
+  - Enums: `OverallStatus`, `RiskLevel`, `TrendDirection`, `AcuteSeverity`
+    (all `str, Enum` for clean JSON serialization).
+  - Components: `ComposedOver`, `Trend`, `AcuteAlert`, `Driver`.
+  - `HealthBriefing` — identity, headline, three-horizon trajectory,
+    acute channel, ranked drivers, lean evidence, why-trace, narration
+    control flags.
+  - Versioning constants: `SCHEMA_VERSION = 1`, `COMPOSER_VERSION = "1.0.0"`,
+    `DEFAULT_TTL_SECONDS = 1800` (locked Phase 0 default).
+  - Hard caps: `MAX_DRIVERS = 3`, `MAX_WATCH_ITEMS = 3`, `MAX_WHY_BULLETS = 5`
+    enforced in `__post_init__`.
+  - `compute_briefing_id()` — deterministic SHA-256 of identity inputs for
+    replay.
+- `apps/core/health_briefing/tests/test_contract.py` — 33 tests covering
+  version constants, enum values, Trend validation, HealthBriefing
+  validation (frozen-ness, range checks, cap enforcement, acute-alert
+  evidence-ref resolution, insufficient_data consistency), and briefing-id
+  determinism.
+
+### Files Created
+- `apps/core/health_briefing/__init__.py`
+- `apps/core/health_briefing/contract.py`
+- `apps/core/health_briefing/tests/__init__.py`
+- `apps/core/health_briefing/tests/test_contract.py`
+
+### Verification
+- `python3 manage.py test apps.core.health_briefing.tests.test_contract` — 33/33 pass
+- `python3 manage.py check` — clean (only unrelated djstripe info messages)
+
+### Why
+The Phase 0 architecture lock identified that "shallow coaching" failures
+(e.g., "glucose elevated" silencing 21-lb weight loss + dropping insulin
+needs) stem from missing deterministic composition, not from missing Beth
+reasoning. C1 lands the type contract that the composer (W3) will produce
+and Beth (W5) will consume. Pure type additions are the safest possible
+first commit — they cannot regress anything and can be reverted with zero
+side effects.
+
+### Bible Journey coordination
+- BibleJourney-Touches: none (no shared HIGH-risk files modified).
+- Only shared file touched: `docs/wlj_claude_changelog.md` (append-only,
+  trivial merge resolution).
+
 ## 2026-05-24 — feat(faith.journey): Journey — Commit 3 (models, admin, loader)
 
 Creates the isolated `apps.faith.journey` Django app — models, admin, loader,

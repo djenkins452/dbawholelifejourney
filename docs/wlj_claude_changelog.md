@@ -3,8 +3,110 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-24 (feat: Walking With God Through Scripture — Commit 3, models + loader)
+# Last Updated: 2026-05-24 (feat: Walking With God Through Scripture — Commit 4, views + templates)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-24 — feat(faith.journey): Journey — Commit 4 (views, templates, annotation reuse)
+
+Daily reading surface for "Walking With God Through Scripture" — views,
+templates, the deterministic "I'm stuck" surface, and the four reuse-only
+annotation endpoints. The user can now read the authored Day 15 of "Out of
+Egypt to the Tabernacle" end-to-end at /faith/journey/today/ (once the
+JourneyPath is_active flag is flipped after theological reviewer signoff).
+
+### What was added
+
+**URL routes** (under `/faith/journey/`, namespace `journey`):
+- `today/` — canonical entry; renders the user's current day or no-journey screen
+- `<arc_slug>/day/<n>/` — addressable read-only review of a past day
+- `<arc_slug>/day/<n>/complete/` — POST: mark day complete, advance progress
+- `start/` — POST: begin the journey
+- `settings/` — difficulty tier + optional reminder time
+- `annotations/highlight/`, `bookmark/`, `save-verse/`, `note/` — JSON POST
+  endpoints that create rows in the existing four annotation models
+
+**Code (under `apps/faith/journey/`):**
+- `urls.py` — URL patterns + namespace
+- `views.py` — views + four JSON annotation endpoints
+- `services.py` — `parse_reference()`, journey state helpers
+  (`get_active_journey`, `get_current_day`, `get_day_in_arc`,
+  `can_view_day`), `mark_day_complete()` with arc-advancement,
+  BOOK_ORDER for all 66 canonical books
+- `forms.py` — `JourneySettingsForm`, `CompleteDayForm`
+- `tests/test_views.py` — 17 new view tests (routing, 403 future-day,
+  tier rendering, settings, complete flow, "I'm stuck", four annotation
+  endpoints, reverence assertions)
+
+**Templates** (under `templates/faith/journey/`):
+- `day.html` — single scroll column: locator → setting the scene →
+  scripture → plain English (tier) → key insight → reflection →
+  application → complete button → retention anchor → sticky "I'm stuck"
+- `no_journey.html` — start screen / "not open yet" message
+- `no_day.html` — graceful fallback
+- `settings.html` — difficulty + reminder
+
+**Settings**
+- `config/urls.py` — single-line addition: `path("faith/journey/", include(...))`.
+  Root-mount to avoid touching `apps/faith/urls.py`.
+
+### Spec refinements
+
+1. **Theology-difference template tier rules**: max once per day. Simple
+   → never. Standard → if needed. Deeper → don't repeat if Standard has it.
+2. **Isolation carve-out formalized**: Journey may import `BibleHighlight`,
+   `BibleBookmark`, `BibleStudyNote`, `SavedVerse`, `BIBLE_TRANSLATION_CHOICES`
+   from `apps.faith.models`. Reading-plan models remain forbidden.
+3. Content adjustment: removed theology template from Day 15's
+   `plain_english_deeper` (Standard already has it).
+
+### Annotation behavior
+
+Tap-a-verse contextual popover → Highlight / Bookmark / Save verse / Note.
+All endpoints JSON, create rows in existing models with no schema or
+behavior modification. Yellow highlight default. Note action uses
+`window.prompt()` for MVP simplicity. Native iOS long-press text selection
+preserved (we attach `click`, not `contextmenu`).
+
+### UX principles upheld
+
+- Single scroll column, max-width 720px
+- Serif typography for Scripture; sans only for utility chrome
+- Warm paper background; gold (#8b6914) as the only accent
+- 44×44px minimum touch targets; 16px form-input font (iOS no-zoom)
+- No streak, no badges, no celebrations, no Beth on reading surface
+- "I'm stuck" sticky-bottom, quiet, deterministic — no AI
+- Future days locked (403); past days reviewable; current day full experience
+
+### Test results
+
+- 38 scoped journey tests pass (`apps.faith.journey`)
+- `python3 manage.py check` clean
+- `python3 manage.py makemigrations --check --dry-run` clean
+
+### Parallel-stream safety
+
+Only shared infrastructure touched: one line in `config/urls.py`. No
+faith-app Python code modified. No health code touched. Zero overlap with
+the parallel Health Intelligence / CGM stream.
+
+### Files modified
+
+- `apps/faith/journey/{urls,views,services,forms}.py` — new
+- `apps/faith/journey/tests/test_views.py` — new (17 tests)
+- `apps/faith/journey/tests/test_isolation.py` — refined for annotation carve-out
+- `apps/faith/journey/content/walking_with_god/arcs/arc_01_egypt_to_tabernacle.json`
+  — removed theology template from `plain_english_deeper`
+- `templates/faith/journey/{day,no_journey,no_day,settings}.html` — new
+- `config/urls.py` — single-line addition
+- `docs/CLAUDE_WALKING_WITH_GOD.md` — Commit 4 spec refinements
+- `docs/wlj_claude_changelog.md` — this entry
+
+### Next commit
+
+Commit 5 will wire engagement signals + SAE journey state block + CoS
+context block, all firing to PIE for internal observability. Beth remains
+silent on the journey surface in Phase 1.
 
 
 ## 2026-05-24 — feat(health_briefing): Phase 1A · C2 — Thresholds registry

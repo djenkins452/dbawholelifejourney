@@ -79,6 +79,8 @@ urlpatterns = [
     path("journal/", include("apps.journal.urls", namespace="journal")),
     # Faith
     path("faith/", include("apps.faith.urls", namespace="faith")),
+    # Faith → Journey (isolated submodule; mounted at root to avoid touching apps/faith/urls.py)
+    path("faith/journey/", include("apps.faith.journey.urls", namespace="journey")),
     # Health
     path("health/", include("apps.health.urls", namespace="health")),
     # Admin Console

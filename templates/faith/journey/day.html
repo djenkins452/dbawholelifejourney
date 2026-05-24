@@ -1,0 +1,527 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ path.name }} — Day {{ day.day_number }}{% endblock %}
+
+{% block extra_css %}
+<style nonce="{{ csp_nonce }}">
+  /* Walking With God Through Scripture — quiet, reverent, mobile-first. */
+  :root {
+    --journey-fg: #1f2937;
+    --journey-fg-muted: #4b5563;
+    --journey-bg: #fbf9f4;            /* warm paper */
+    --journey-card: #ffffff;
+    --journey-accent: #8b6914;        /* muted gold */
+    --journey-rule: #e7e2d6;
+    --journey-scripture-bg: #fdfaf2;
+    --journey-context-bg: #f1ece1;
+    --journey-stuck-bg: #f7f3ea;
+  }
+  .journey-wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+    color: var(--journey-fg);
+    background: var(--journey-bg);
+    min-height: calc(100vh - 80px);
+    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+    line-height: 1.65;
+  }
+  .journey-locator {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--journey-fg-muted);
+    margin-bottom: 4px;
+  }
+  .journey-locator-detail {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    color: var(--journey-fg-muted);
+    margin-bottom: 24px;
+  }
+  .journey-section + .journey-section { margin-top: 28px; }
+  .journey-section-label {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--journey-accent);
+    margin-bottom: 10px;
+  }
+  .journey-context {
+    background: var(--journey-context-bg);
+    border-left: 3px solid var(--journey-accent);
+    padding: 18px 20px;
+    border-radius: 4px;
+    font-size: 16px;
+    white-space: pre-wrap;
+  }
+  .journey-scripture {
+    background: var(--journey-scripture-bg);
+    border: 1px solid var(--journey-rule);
+    padding: 22px 22px;
+    border-radius: 4px;
+    font-size: 19px;
+    line-height: 1.7;
+  }
+  .journey-scripture .verse-block {
+    display: block;
+    padding: 4px 0;
+  }
+  .journey-scripture .verse-num {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--journey-fg-muted);
+    vertical-align: top;
+    margin-right: 6px;
+    user-select: none;
+  }
+  .journey-scripture .verse-text {
+    cursor: pointer;
+  }
+  .journey-scripture-attribution {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 12px;
+    color: var(--journey-fg-muted);
+    margin-top: 10px;
+    text-align: right;
+  }
+  .journey-plain {
+    font-size: 17px;
+    white-space: pre-wrap;
+  }
+  .journey-tier-switch {
+    margin-top: 10px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+    color: var(--journey-fg-muted);
+  }
+  .journey-tier-switch a {
+    color: var(--journey-fg-muted);
+    text-decoration: underline;
+    margin-left: 12px;
+  }
+  .journey-key-insight {
+    font-size: 20px;
+    font-style: italic;
+    text-align: center;
+    color: var(--journey-fg);
+    padding: 16px 20px;
+    border-top: 1px solid var(--journey-rule);
+    border-bottom: 1px solid var(--journey-rule);
+  }
+  .journey-reflection textarea,
+  .journey-form input[type="time"] {
+    width: 100%;
+    font-family: Georgia, serif;
+    font-size: 16px;             /* iOS no-zoom */
+    border: 1px solid var(--journey-rule);
+    border-radius: 4px;
+    padding: 12px;
+    background: var(--journey-card);
+  }
+  .journey-application {
+    font-size: 17px;
+    background: var(--journey-card);
+    border: 1px solid var(--journey-rule);
+    padding: 16px 18px;
+    border-radius: 4px;
+  }
+  .journey-application label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    color: var(--journey-fg-muted);
+    cursor: pointer;
+  }
+  .journey-complete-btn {
+    background: var(--journey-accent);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 14px 22px;
+    font-size: 16px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    cursor: pointer;
+    min-height: 44px;
+    width: 100%;
+  }
+  .journey-complete-btn:disabled { opacity: 0.6; cursor: default; }
+  .journey-retention {
+    font-size: 14px;
+    color: var(--journey-fg-muted);
+    background: transparent;
+    border-top: 1px dashed var(--journey-rule);
+    padding-top: 18px;
+    margin-top: 32px;
+  }
+  .journey-stuck {
+    position: sticky;
+    bottom: 12px;
+    margin-top: 30px;
+    background: var(--journey-stuck-bg);
+    border: 1px solid var(--journey-rule);
+    border-radius: 999px;
+    padding: 10px 18px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+    color: var(--journey-fg-muted);
+    text-align: center;
+    cursor: pointer;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .journey-confusion-panel {
+    background: var(--journey-card);
+    border: 1px solid var(--journey-rule);
+    border-radius: 4px;
+    padding: 18px;
+    margin-top: 12px;
+  }
+  .journey-confusion-panel[hidden] { display: none; }
+  .journey-confusion-topic {
+    border-top: 1px solid var(--journey-rule);
+    padding: 12px 0;
+    cursor: pointer;
+  }
+  .journey-confusion-topic:first-child { border-top: 0; padding-top: 0; }
+  .journey-confusion-topic .topic-q {
+    font-weight: 600;
+    color: var(--journey-fg);
+  }
+  .journey-confusion-topic .topic-a {
+    margin-top: 8px;
+    font-size: 15px;
+    color: var(--journey-fg);
+    line-height: 1.6;
+    white-space: pre-wrap;
+  }
+  .journey-confusion-topic .topic-a[hidden] { display: none; }
+  .journey-review-banner {
+    background: #f5f1e6;
+    border: 1px solid var(--journey-rule);
+    border-radius: 4px;
+    padding: 10px 14px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+    color: var(--journey-fg-muted);
+    margin-bottom: 16px;
+  }
+  /* Annotation popover */
+  .journey-anno-popover {
+    position: absolute;
+    z-index: 30;
+    background: #fff;
+    border: 1px solid var(--journey-rule);
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+    padding: 6px;
+    display: flex;
+    gap: 4px;
+  }
+  .journey-anno-popover[hidden] { display: none; }
+  .journey-anno-popover button {
+    background: transparent;
+    border: 0;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+    color: var(--journey-fg);
+    border-radius: 4px;
+    min-height: 44px;
+  }
+  .journey-anno-popover button:hover { background: var(--journey-stuck-bg); }
+  .verse-highlight-yellow  { background-color: #fff5b3; }
+  .verse-highlight-green   { background-color: #d3f1cf; }
+  .verse-highlight-blue    { background-color: #cfe4f9; }
+  .verse-highlight-pink    { background-color: #f9d3e2; }
+  .verse-highlight-purple  { background-color: #e1d3f9; }
+  .verse-highlight-orange  { background-color: #fbdbb6; }
+
+  @media (max-width: 480px) {
+    .journey-wrap { padding: 16px 14px 100px; }
+    .journey-scripture { font-size: 18px; padding: 18px; }
+    .journey-key-insight { font-size: 18px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="journey-wrap" data-testid="journey-day">
+
+  {% if review_mode %}
+    <div class="journey-review-banner">
+      You're reviewing a past day. Your current reading is
+      <a href="{% url 'journey:today' %}">today's day</a>.
+    </div>
+  {% endif %}
+
+  <!-- 1. Where you are -->
+  <div class="journey-locator">{{ path.name }}</div>
+  <div class="journey-locator-detail">
+    {{ arc.era_label }} · {{ arc.name }} · Day {{ day.day_number }}
+    {% if arc.estimated_days %}of {{ arc.estimated_days }}{% endif %}
+  </div>
+
+  <!-- 2. Setting the scene -->
+  <section class="journey-section">
+    <div class="journey-section-label">Setting the scene</div>
+    <div class="journey-context">{{ day.context_before }}</div>
+  </section>
+
+  <!-- 3. Reading -->
+  <section class="journey-section">
+    <div class="journey-section-label">Today's reading · {{ day.scripture_refs|join:", " }}</div>
+    <div class="journey-scripture" data-journey-scripture data-reference="{{ day.scripture_refs|first }}">
+      {% for block in day.scripture_content.blocks %}
+        <span class="verse-block" data-verse-ref="{{ block.ref }}" data-verse-num="{{ block.verse }}" data-verse-text="{{ block.text }}">
+          <span class="verse-num">{{ block.verse }}</span><span class="verse-text">{{ block.text }}</span>
+        </span>
+      {% endfor %}
+    </div>
+    <div class="journey-scripture-attribution">World English Bible (public domain)</div>
+  </section>
+
+  <!-- 4. Plain English -->
+  <section class="journey-section">
+    <div class="journey-section-label">Plain English ({{ tier|title }})</div>
+    <div class="journey-plain">{{ plain_english }}</div>
+    <div class="journey-tier-switch">
+      Read this in
+      {% for t in other_tiers %}
+        <a href="?tier={{ t.value }}" data-tier-switch="{{ t.value }}">{{ t.label }}</a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- 5. Key insight -->
+  <section class="journey-section">
+    <div class="journey-key-insight">"{{ day.key_insight }}"</div>
+  </section>
+
+  <!-- 6. Reflect + 7. Apply (form) -->
+  {% if not review_mode %}
+  <form method="post" action="{% url 'journey:complete_day' arc.slug day.day_number %}" class="journey-form">
+    {% csrf_token %}
+    <section class="journey-section journey-reflection">
+      <div class="journey-section-label">Reflect</div>
+      <p>{{ day.reflection_prompt }}</p>
+      {{ complete_form.reflection_notes }}
+    </section>
+
+    <section class="journey-section">
+      <div class="journey-section-label">One small step</div>
+      <div class="journey-application">
+        {{ day.application_action }}
+        <label>
+          {{ complete_form.application_committed }}
+          <span>I'll do this today.</span>
+        </label>
+      </div>
+    </section>
+
+    <section class="journey-section">
+      <button type="submit" class="journey-complete-btn" {% if is_complete %}disabled{% endif %}>
+        {% if is_complete %}Day complete{% else %}Mark today complete{% endif %}
+      </button>
+    </section>
+  </form>
+  {% endif %}
+
+  <!-- 8. Retention anchor -->
+  {% if day.retention_anchor %}
+  <section class="journey-section journey-retention">{{ day.retention_anchor }}</section>
+  {% endif %}
+
+  <!-- "I'm stuck" deterministic surface -->
+  <button type="button" class="journey-stuck" data-stuck-toggle aria-expanded="false" aria-controls="journey-confusion">
+    I'm stuck — show me common questions
+  </button>
+  <div id="journey-confusion" class="journey-confusion-panel" hidden>
+    {% for topic in day.confusion_topics %}
+      <div class="journey-confusion-topic" data-topic-toggle>
+        <div class="topic-q">{{ topic.topic }}</div>
+        <div class="topic-a" hidden>{{ topic.plain_english_answer }}</div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <!-- Annotation popover (created here, positioned by JS) -->
+  <div class="journey-anno-popover" id="journey-anno-popover" hidden>
+    <button type="button" data-anno-action="highlight">Highlight</button>
+    <button type="button" data-anno-action="bookmark">Bookmark</button>
+    <button type="button" data-anno-action="save">Save verse</button>
+    <button type="button" data-anno-action="note">Note</button>
+  </div>
+
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function () {
+  "use strict";
+
+  // ---- Tier switching: hand off to a simple URL query (server reads request.GET) ----
+  document.querySelectorAll("[data-tier-switch]").forEach(function (a) {
+    a.addEventListener("click", function (e) {
+      // Default link behavior works; server will swap tier if implemented.
+      // (Phase 1: tier is read from UserJourney.preferred_difficulty;
+      //  this link is a hint for future per-page override.)
+    });
+  });
+
+  // ---- "I'm stuck" toggle ----
+  var stuckBtn = document.querySelector("[data-stuck-toggle]");
+  var stuckPanel = document.getElementById("journey-confusion");
+  if (stuckBtn && stuckPanel) {
+    stuckBtn.addEventListener("click", function () {
+      var isHidden = stuckPanel.hasAttribute("hidden");
+      if (isHidden) {
+        stuckPanel.removeAttribute("hidden");
+        stuckBtn.setAttribute("aria-expanded", "true");
+        stuckBtn.textContent = "Hide common questions";
+      } else {
+        stuckPanel.setAttribute("hidden", "");
+        stuckBtn.setAttribute("aria-expanded", "false");
+        stuckBtn.textContent = "I'm stuck — show me common questions";
+      }
+    });
+  }
+
+  // ---- Confusion topic expand/collapse ----
+  document.querySelectorAll("[data-topic-toggle]").forEach(function (topic) {
+    topic.addEventListener("click", function () {
+      var answer = topic.querySelector(".topic-a");
+      if (!answer) return;
+      if (answer.hasAttribute("hidden")) {
+        answer.removeAttribute("hidden");
+      } else {
+        answer.setAttribute("hidden", "");
+      }
+    });
+  });
+
+  // ---- Verse tap → annotation popover ----
+  var scriptureEl = document.querySelector("[data-journey-scripture]");
+  var popover = document.getElementById("journey-anno-popover");
+  var activeVerse = null;
+
+  function hidePopover() {
+    if (popover) popover.setAttribute("hidden", "");
+    activeVerse = null;
+  }
+
+  function showPopoverAtElement(el) {
+    if (!popover) return;
+    activeVerse = el.closest(".verse-block");
+    var rect = el.getBoundingClientRect();
+    popover.removeAttribute("hidden");
+    popover.style.top = (window.scrollY + rect.bottom + 6) + "px";
+    popover.style.left = (window.scrollX + rect.left) + "px";
+  }
+
+  if (scriptureEl) {
+    scriptureEl.querySelectorAll(".verse-text").forEach(function (vt) {
+      vt.addEventListener("click", function (e) {
+        e.stopPropagation();
+        showPopoverAtElement(vt);
+      });
+    });
+  }
+
+  document.addEventListener("click", function (e) {
+    if (!popover) return;
+    if (popover.contains(e.target)) return;
+    hidePopover();
+  });
+
+  // ---- Annotation actions ----
+  function csrfToken() {
+    var name = "csrftoken=";
+    var parts = document.cookie.split(";");
+    for (var i = 0; i < parts.length; i++) {
+      var c = parts[i].trim();
+      if (c.indexOf(name) === 0) return c.substring(name.length);
+    }
+    return "";
+  }
+
+  function postJSON(url, body) {
+    return fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken(),
+      },
+      body: JSON.stringify(body),
+    });
+  }
+
+  function verseRefFor(verseBlock) {
+    var ref = verseBlock.getAttribute("data-verse-ref");
+    return ref;
+  }
+
+  function verseTextFor(verseBlock) {
+    return verseBlock.getAttribute("data-verse-text");
+  }
+
+  function flashStatus(msg) {
+    var el = document.createElement("div");
+    el.textContent = msg;
+    el.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;padding:10px 16px;border-radius:6px;z-index:100;font-family:-apple-system,sans-serif;font-size:14px;";
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, 1800);
+  }
+
+  if (popover) {
+    popover.querySelectorAll("[data-anno-action]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (!activeVerse) return;
+        var action = btn.getAttribute("data-anno-action");
+        var ref = verseRefFor(activeVerse);
+        var text = verseTextFor(activeVerse);
+
+        var endpoints = {
+          highlight: { url: "{% url 'journey:annotation_highlight' %}", body: { reference: ref, text: text, color: "yellow" }, msg: "Highlighted." },
+          bookmark:  { url: "{% url 'journey:annotation_bookmark' %}",  body: { reference: ref, include_verse: true }, msg: "Bookmarked." },
+          save:      { url: "{% url 'journey:annotation_save_verse' %}", body: { reference: ref, text: text }, msg: "Verse saved." },
+          note:      { url: "{% url 'journey:annotation_note' %}",      body: { reference: ref, content: window.prompt("Add a note for this verse:") || "" }, msg: "Note saved." },
+        };
+        var spec = endpoints[action];
+        if (!spec) return hidePopover();
+        if (action === "note" && !spec.body.content) return hidePopover();
+
+        postJSON(spec.url, spec.body).then(function (r) {
+          if (r.ok) {
+            if (action === "highlight") {
+              activeVerse.classList.add("verse-highlight-" + spec.body.color);
+            }
+            flashStatus(spec.msg);
+          } else {
+            flashStatus("Couldn't save — please try again.");
+          }
+          hidePopover();
+        }).catch(function () {
+          flashStatus("Couldn't save — please try again.");
+          hidePopover();
+        });
+      });
+    });
+  }
+
+})();
+</script>
+{% endblock %}

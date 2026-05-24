@@ -5,7 +5,7 @@
 **Internal name:** Journey
 **Owner:** Danny Jenkins
 **Created:** 2026-05-24
-**Last updated:** 2026-05-24 (Commit 3: models + loader + admin; spec refinements from Commit 2 review)
+**Last updated:** 2026-05-24 (Commit 4: views + templates + annotation reuse; spec refinements from Commit 3 review)
 
 > This document is the single source of truth for the Journey architecture, content schema, editorial workflow, and Beth boundaries. Subsequent commits (models, content packs, views, signals) must conform to this spec. Changes to the spec require revisiting this document before changing code.
 
@@ -57,7 +57,8 @@ The Journey is architecturally isolated from the existing reading-plan system. T
 ### Hard boundary rules
 
 - Journey code lives in `apps/faith/journey/`
-- Journey code **must not import** `ReadingPlanTemplate`, `ReadingPlanDay`, `UserReadingPlan`, `UserReadingProgress`, `ReadingPlanAssessment`, or any service that operates on them
+- Journey code **must not import** `ReadingPlanTemplate`, `ReadingPlanDay`, `UserReadingPlan`, `UserReadingProgress`, `ReadingPlanAssessment`, `UserAssessmentResponse`, or any service that operates on them
+- Journey code **may import** the four annotation models (`BibleHighlight`, `BibleBookmark`, `BibleStudyNote`, `SavedVerse`) from `apps.faith.models`. These are explicitly carved out as safe shared infrastructure — they are reference-keyed, per-user, not coupled to reading plans, and were promoted into Phase 1 reuse-only.
 - Existing reading-plan code **must not import** anything from `apps/faith/journey/`
 - The two systems may coexist for any user: one active Journey plus any number of active reading plans, without interaction
 
@@ -401,6 +402,11 @@ The journey is taught from a **Bible-centered Protestant / Evangelical** lens. T
 
 - **Privilege the text itself.** Anchor every interpretation in what the passage actually says. Avoid imposing systems the text does not require.
 - **When major Christian traditions differ** on a passage's meaning (e.g., the nature of the Lord's Supper, certain readings of the law, particular Christological types), **acknowledge the difference briefly and respectfully**, then continue with the journey's lens. Use the template: *"Some Christians understand this differently. For this journey, we are reading it through a Bible-centered Protestant lens."* **Do not apply this template mechanically.** Use it only when the passage genuinely surfaces a meaningful theological difference. Most days will not need it. Repeating it on every day causes template fatigue and undermines its weight when it does matter.
+- **Theology-difference template — tier rules** (locked at Commit 4):
+  - **Maximum once per day** across all three tiers.
+  - **Simple** tier — never include. Keep it free of theological caveats.
+  - **Standard** tier — include if needed.
+  - **Deeper** tier — do not repeat the template if it already appears in Standard. May appear in Deeper *only if* Standard does not include it and the deeper-tier discussion specifically requires it.
 - **Never debate denominations.** Never argue against another tradition. Never characterize another tradition unfavorably.
 - **Avoid contested theological terms** in the `plain_english_simple` and `plain_english_standard` tiers. Where a term must appear (e.g., "atonement," "justification"), define it in plain language before using it.
 - **Christ-centered framing** is appropriate when a passage is genuinely Christological (Messianic prophecies, types in the law that the New Testament explicitly fulfills). Avoid forced Christological readings where the text does not support them.

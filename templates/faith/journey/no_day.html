@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Walking With God — Today{% endblock %}
+
+{% block content %}
+<div style="max-width:640px;margin:60px auto;padding:0 20px;font-family:Georgia,serif;text-align:center;color:#1f2937;line-height:1.65;">
+  <p style="font-family:-apple-system,sans-serif;font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:#8b6914;margin-bottom:14px;">
+    {{ user_journey.journey_path.name }}
+  </p>
+  <h1 style="font-size:26px;margin:0 0 16px;">A pause in the journey.</h1>
+  <p>
+    Today's reading is being prepared. There's nothing for you to catch up on —
+    rest in what you've already read, and check back soon.
+  </p>
+  <p style="margin-top:24px;font-family:-apple-system,sans-serif;font-size:14px;color:#6b7280;">
+    You're on Day {{ user_journey.current_day_number }} of
+    {{ user_journey.current_arc.name }}.
+  </p>
+</div>
+{% endblock %}

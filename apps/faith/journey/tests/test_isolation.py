@@ -34,10 +34,18 @@ def _journey_python_files():
     return files
 
 
-FORBIDDEN_IMPORT_MODULES = {
-    "apps.faith.models",
+# The four annotation models are the documented safe carve-out (see spec §2):
+# reference-keyed, per-user, not coupled to reading plans. Importing these from
+# apps.faith.models is explicitly allowed.
+ALLOWED_FAITH_MODELS = {
+    "BibleHighlight",
+    "BibleBookmark",
+    "BibleStudyNote",
+    "SavedVerse",
+    "BIBLE_TRANSLATION_CHOICES",  # constant used to align translation choices
 }
 
+# Reading-plan symbols — always forbidden.
 FORBIDDEN_READING_PLAN_SYMBOLS = {
     "ReadingPlanTemplate",
     "ReadingPlanDay",
@@ -49,21 +57,37 @@ FORBIDDEN_READING_PLAN_SYMBOLS = {
 
 
 def _find_forbidden_imports(tree: ast.AST) -> list[str]:
-    """Return forbidden module names imported in this AST."""
+    """Return forbidden imports from apps.faith.models.
+
+    Allows imports of the four documented annotation models
+    (BibleHighlight, BibleBookmark, BibleStudyNote, SavedVerse) and
+    BIBLE_TRANSLATION_CHOICES. Anything else imported from
+    apps.faith.models is an isolation violation.
+    """
     offenders = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
-            if node.module and node.module in FORBIDDEN_IMPORT_MODULES:
-                offenders.append(f"from {node.module} import ...")
-            # Also check `from apps.faith import models`
-            if node.module == "apps.faith":
+            if node.module == "apps.faith.models":
+                for alias in node.names:
+                    if alias.name not in ALLOWED_FAITH_MODELS:
+                        offenders.append(
+                            f"from apps.faith.models import {alias.name} "
+                            f"(only {sorted(ALLOWED_FAITH_MODELS)} are allowed)"
+                        )
+            elif node.module == "apps.faith":
                 for alias in node.names:
                     if alias.name == "models":
-                        offenders.append("from apps.faith import models")
+                        offenders.append("from apps.faith import models (use specific imports)")
+            elif node.module and node.module.startswith("apps.faith.") and node.module not in {"apps.faith.journey"}:
+                # Allow imports from journey itself; flag deeper imports into other faith submodules.
+                if not node.module.startswith("apps.faith.journey"):
+                    # Block imports from apps.faith.services, apps.faith.engagement, etc.
+                    if node.module not in {"apps.faith.models"}:  # already handled above
+                        offenders.append(f"from {node.module} import ... (not allowed for isolation)")
         elif isinstance(node, ast.Import):
             for alias in node.names:
-                if alias.name in FORBIDDEN_IMPORT_MODULES:
-                    offenders.append(f"import {alias.name}")
+                if alias.name == "apps.faith.models":
+                    offenders.append("import apps.faith.models (use specific imports)")
     return offenders
 
 

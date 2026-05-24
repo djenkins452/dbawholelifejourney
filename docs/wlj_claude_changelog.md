@@ -3,8 +3,146 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-24 (spec+content: Walking With God Through Scripture — Commit 2)
+# Last Updated: 2026-05-24 (feat: Walking With God Through Scripture — Commit 3, models + loader)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-24 — feat(faith.journey): Journey — Commit 3 (models, admin, loader)
+
+Creates the isolated `apps.faith.journey` Django app — models, admin, loader,
+migration, isolation tests. No views, no templates, no Beth tool, no
+calendar projection, no signals yet. Authored Day 15 content pack ingests
+cleanly end-to-end.
+
+### What was added
+
+**New Django app: `apps.faith.journey`** (label `journey`)
+- `apps/faith/journey/__init__.py`, `apps.py` (JourneyConfig)
+- `apps/faith/journey/models.py` — five models:
+  - `JourneyPath` — curated multi-arc journey container
+  - `JourneyArc` — narratively coherent span within a path
+  - `JourneyDay` — atomic content unit (context + scripture + 3 plain-English
+    tiers + insight + reflection + application + confusion_topics +
+    retention_anchor)
+  - `UserJourney` — user's instance (with `journey_status`, not `status`,
+    to avoid SoftDeleteModel.status collision — same pattern as
+    `UserReadingPlan.plan_status`)
+  - `UserJourneyDayProgress` — per-day completion record
+- `apps/faith/journey/admin.py` — admin for all five models
+- `apps/faith/journey/migrations/0001_initial.py` — generated migration
+- `apps/faith/journey/management/commands/load_journey_path.py` —
+  idempotent JSON loader with full schema validation per spec §5
+- `apps/faith/journey/content/walking_with_god/path.json` — JourneyPath
+  metadata for the Walking With God journey
+- `apps/faith/journey/tests/` — 21 tests:
+  - `test_models.py` (10) — creation, uniqueness, `journey_status` vs
+    `SoftDeleteModel.status` independence
+  - `test_loader.py` (9) — happy path, idempotency, dry-run, validation
+    of translation/confusion_topics/length caps/retention_anchor/sequence
+    gating, real Day 15 content pack ingestion
+  - `test_isolation.py` (2) — AST-based scan asserting Journey code does
+    not import from `apps.faith.models` or reference reading-plan symbols
+    as identifiers (docstrings/comments allowed)
+
+**Settings change** (single line)
+- `config/settings.py` — added `"apps.faith.journey"` to INSTALLED_APPS
+
+### Spec refinements (incorporated into `docs/CLAUDE_WALKING_WITH_GOD.md`)
+
+Per Commit 2 review approvals:
+
+1. **`confusion_topics` minimum raised from 2 to 3.** Understanding
+   difficult passages is core to the mission; the "I'm stuck" surface must
+   feel consistently valuable. Loader enforces.
+2. **`retention_anchor` required for chronological arcs.** Doing meaningful
+   narrative work; should not be optional. Field is now non-blank in the
+   model; loader enforces non-empty.
+3. **Theology-difference template — no mechanical repetition.** Editorial
+   framework now explicitly warns against template fatigue. Surface the
+   "Some Christians understand this differently..." note only when the
+   passage genuinely involves a meaningful theological difference.
+
+Plus one rename discovered during model implementation:
+
+4. **`UserJourney.status` renamed to `UserJourney.journey_status`** to
+   avoid silent collision with `SoftDeleteModel.status` (active/archived/
+   deleted). Same pattern as `UserReadingPlan.plan_status`. Spec data-model
+   table updated to reflect the rename.
+
+### Loader behavior
+
+- `python manage.py load_journey_path <slug>` — idempotent upsert
+- `--dry-run` flag validates without writing
+- Validates: required fields, day_number uniqueness within arc, sequence/
+  gap (only when arc `is_active=True`), confusion_topics ≥ 3,
+  `key_insight ≤ 200`, `application_action ≤ 280`, translation == "WEB",
+  scripture_refs non-empty, scripture_content.blocks non-empty,
+  retention_anchor non-empty
+- Atomic transaction; either the whole pack loads or nothing changes
+
+Validated on the real Day 15 pack:
+- Path: Walking With God Through Scripture (`is_active=False`, publish-gated)
+- Arc: Out of Egypt to the Tabernacle (`is_active=False`, ~21 days planned)
+- Day 15: Leviticus 1:1-17 (17 verse blocks, 5 confusion topics, all three
+  difficulty tiers, retention anchor present)
+
+### Test results
+
+- All 21 journey tests pass with `--keepdb`
+- `python3 manage.py check` — clean (only pre-existing djstripe info)
+- `python3 manage.py makemigrations --check --dry-run` — no other
+  migrations missing
+
+### Files modified
+
+- `apps/faith/journey/` — new isolated Django app (10 new files + migration)
+- `apps/faith/journey/content/walking_with_god/path.json` — new
+- `config/settings.py` — single-line INSTALLED_APPS addition
+- `docs/CLAUDE_WALKING_WITH_GOD.md` — Commit 3 spec refinements
+- `docs/wlj_claude_changelog.md` — this entry
+
+### What is explicitly NOT changed by this commit
+
+- No existing model, view, template, service, or test outside the new app
+- No `apps.faith.models` (reading-plan models untouched)
+- No `apps.health.*` or any module outside the journey
+- No views, templates, URLs (deferred to Commit 4)
+- No signals (deferred to Commit 5)
+- No SAE state / CoS context wiring (deferred to Commit 5)
+- No Beth tool (deferred — Phase 1 keeps Beth silent on journey surface)
+- No calendar projection (deferred to Phase 2)
+- No annotation reuse (BibleHighlight/Bookmark/Note will hook into journey
+  in Commit 4 with the reading view)
+
+### Isolation discipline
+
+AST-based isolation tests enforce the hard module boundary at code review
+time. The tests fail if any `.py` file under `apps/faith/journey/`
+references `apps.faith.models`, `ReadingPlanTemplate`, `ReadingPlanDay`,
+`UserReadingPlan`, `UserReadingProgress`, `ReadingPlanAssessment`, or
+`UserAssessmentResponse` as actual Python identifiers (Name/Attribute/
+Import nodes). Docstrings and comments may reference these names for
+documentation purposes.
+
+### Parallel-stream safety
+
+This commit only touches:
+- New files under `apps/faith/journey/`
+- `config/settings.py` (single-line INSTALLED_APPS addition)
+- `docs/CLAUDE_WALKING_WITH_GOD.md`
+- `docs/wlj_claude_changelog.md`
+
+The only shared infrastructure touched is INSTALLED_APPS (one line) and the
+changelog. No health code, no existing faith code, no shared state, no
+shared migration files affected.
+
+### Next commit
+
+Commit 4 will build the daily reading view, templates, "I'm stuck"
+deterministic surface, dashboard card, journey settings page, and
+integrate the existing annotation models (`BibleHighlight`,
+`BibleBookmark`, `BibleStudyNote`, `SavedVerse`) into the journey reading
+flow as reuse-only.
 
 
 ## 2026-05-24 — spec+content(faith): Journey — Commit 2 (schema reality-check)

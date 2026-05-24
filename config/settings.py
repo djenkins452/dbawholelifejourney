@@ -158,6 +158,7 @@ INSTALLED_APPS = [
     "apps.dashboard",
     "apps.journal",
     "apps.faith",
+    "apps.faith.journey",  # Walking With God Through Scripture — isolated Journey submodule
     "apps.health",
     "apps.admin_console",
     "apps.life",

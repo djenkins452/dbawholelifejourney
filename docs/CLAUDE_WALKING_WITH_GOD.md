@@ -5,7 +5,7 @@
 **Internal name:** Journey
 **Owner:** Danny Jenkins
 **Created:** 2026-05-24
-**Last updated:** 2026-05-24 (Commit 2: tier rename, theology stance refined, annotations moved to Phase 1, first authored day)
+**Last updated:** 2026-05-24 (Commit 3: models + loader + admin; spec refinements from Commit 2 review)
 
 > This document is the single source of truth for the Journey architecture, content schema, editorial workflow, and Beth boundaries. Subsequent commits (models, content packs, views, signals) must conform to this spec. Changes to the spec require revisiting this document before changing code.
 
@@ -209,7 +209,7 @@ The atomic unit of content. One record per day per arc.
 | `reflection_prompt` | TextField, required | Single personal question |
 | `application_action` | CharField (~280), required | One small concrete action |
 | `confusion_topics` | JSONField | List of `{topic, plain_english_answer}` objects |
-| `retention_anchor` | TextField, blank | Optional connection to story arc |
+| `retention_anchor` | TextField, required for chronological arcs | Connection to story arc (yesterday → today → tomorrow). Required because it does meaningful narrative work. |
 
 Constraints: `unique_together = (arc, day_number)`.
 
@@ -224,7 +224,7 @@ Inherits UserOwnedModel.
 | `journey_path` | FK → JourneyPath | The path the user is on |
 | `current_arc` | FK → JourneyArc, nullable | The currently active arc |
 | `current_day_number` | PositiveIntegerField, default 1 | 1-indexed within current arc |
-| `status` | CharField (`active` / `paused` / `completed` / `abandoned`) | Lifecycle |
+| `journey_status` | CharField (`active` / `paused` / `completed` / `abandoned`) | Lifecycle. Named `journey_status` (not `status`) to avoid collision with `SoftDeleteModel.status`. Same pattern as `UserReadingPlan.plan_status`. |
 | `preferred_difficulty` | CharField (`simple` / `standard` / `deeper`) | User choice; defaults to path default |
 | `reminder_time` | TimeField, nullable | Off by default; user opts in |
 | `started_at` | DateTimeField, auto_now_add | When created |
@@ -348,12 +348,13 @@ The loader (`load_journey_path`) must validate before upserting:
 - All required fields present on every day
 - `day_number` values are unique within an arc and ≥ 1
 - Sequence/gap check (no missing day numbers from 1 to N) only runs when the parent arc has `is_active = true`. This allows incremental authoring of an arc while it remains inactive.
-- `confusion_topics` contains at least 2 entries per day
+- `confusion_topics` contains at least 3 entries per day (raised from 2 — understanding difficult passages is core to the mission; the "I'm stuck" surface must feel consistently valuable)
 - All three `plain_english_*` tiers populated (`simple`, `standard`, `deeper`)
 - `scripture_refs` is non-empty
 - `scripture_content.translation` is `"WEB"` (Phase 1 only)
 - `key_insight` ≤ 200 characters
 - `application_action` ≤ 280 characters
+- `retention_anchor` populated (required for chronological arcs; raised from optional)
 
 Loader is idempotent: re-running upserts; never duplicates.
 
@@ -399,7 +400,7 @@ A day is publish-ready when:
 The journey is taught from a **Bible-centered Protestant / Evangelical** lens. This is the stated grounding for all authored content. Within that grounding:
 
 - **Privilege the text itself.** Anchor every interpretation in what the passage actually says. Avoid imposing systems the text does not require.
-- **When major Christian traditions differ** on a passage's meaning (e.g., the nature of the Lord's Supper, certain readings of the law, particular Christological types), **acknowledge the difference briefly and respectfully**, then continue with the journey's lens. Use the template: *"Some Christians understand this differently. For this journey, we are reading it through a Bible-centered Protestant lens."*
+- **When major Christian traditions differ** on a passage's meaning (e.g., the nature of the Lord's Supper, certain readings of the law, particular Christological types), **acknowledge the difference briefly and respectfully**, then continue with the journey's lens. Use the template: *"Some Christians understand this differently. For this journey, we are reading it through a Bible-centered Protestant lens."* **Do not apply this template mechanically.** Use it only when the passage genuinely surfaces a meaningful theological difference. Most days will not need it. Repeating it on every day causes template fatigue and undermines its weight when it does matter.
 - **Never debate denominations.** Never argue against another tradition. Never characterize another tradition unfavorably.
 - **Avoid contested theological terms** in the `plain_english_simple` and `plain_english_standard` tiers. Where a term must appear (e.g., "atonement," "justification"), define it in plain language before using it.
 - **Christ-centered framing** is appropriate when a passage is genuinely Christological (Messianic prophecies, types in the law that the New Testament explicitly fulfills). Avoid forced Christological readings where the text does not support them.

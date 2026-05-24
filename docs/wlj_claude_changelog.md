@@ -7,6 +7,50 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-24 — feat(health_briefing): Phase 1A · C2 — Thresholds registry
+
+Wave 1, second commit. Pure additions; no DB, no behavior, no Beth impact.
+Adds the registry-by-key threshold module the composer (W3) will read.
+
+### What was added
+
+- `apps/core/health_briefing/thresholds.py` — single locked v1 profile
+  keyed by `"default"`. Six categories:
+  - `StalenessProfile` — per-field freshness ceilings (CGM ≤6h,
+    weight ≤7d, HbA1c ≤120d, etc.)
+  - `GlucoseTargets` — TIR band (ADA general T2D default: 70–180 mg/dL)
+  - `AcuteGlucose` — cut points for acute alerts (critical_low 54,
+    low 70, high 250, critical_high 300)
+  - `TrendMagnitude` — cut points for direction classification
+  - `ConfidenceFloors` — single_source_cap 0.75, narration_floor 0.5,
+    sufficient_data_floor 0.3
+  - `CoverageMinimums` — per-horizon minimum readings
+- `apps/core/health_briefing/tests/test_thresholds.py` — 18 tests
+  covering lookup (fallback to default on unknown key), pinned numeric
+  values, clinical ordering invariants (critical_low < low < high <
+  critical_high; TIR inside acute band; staleness CGM < weight < HbA1c),
+  unit-interval confidence floors, and frozen-ness at the top and
+  nested level.
+
+### Files Created
+- `apps/core/health_briefing/thresholds.py`
+- `apps/core/health_briefing/tests/test_thresholds.py`
+
+### Verification
+- `python3 manage.py test apps.core.health_briefing.tests.test_thresholds`
+  — 18/18 pass
+
+### Additivity discipline
+This module is the Phase 0 "registry-by-key" pattern in concrete form.
+Phase 6 (per-user clinical target tuning — T1D/T2D/pregnancy) will add
+new keys to `_REGISTRY` without changing `get_profile()` or any composer
+call site. The locked v1 set has only `"default"`; a pinned test asserts
+this so the next addition is a deliberate decision, not a drift.
+
+### Bible Journey coordination
+- BibleJourney-Touches: none.
+- Only shared file touched: `docs/wlj_claude_changelog.md` (append-only).
+
 ## 2026-05-24 — feat(health_briefing): Phase 1A · C1 — HealthBriefing v1 contract module
 
 First commit of the Metabolic Intelligence v1 build (Phase 1A, Wave 1). Pure

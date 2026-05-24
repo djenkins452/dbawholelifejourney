@@ -3,8 +3,84 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-23 (trust fix + provenance: stabilization PR for IntakeLog)
+# Last Updated: 2026-05-24 (spec: Walking With God Through Scripture — Commit 1)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-24 — spec(faith): Walking With God Through Scripture (Journey) — Commit 1
+
+Specification-only commit. No models, code, views, templates, content packs,
+or behavior changes. Establishes the architecture, content schema, editorial
+workflow, Beth boundaries, MVP scope, and risk safeguards for a new isolated
+"Journey" feature inside the faith domain.
+
+### What was added
+
+**`docs/CLAUDE_WALKING_WITH_GOD.md`** — the single source of truth for the
+Journey architecture. Sections:
+
+- Mission and product principles
+- Isolation-first architecture with hard module boundaries
+- Explicit protection rules for existing Bible plans
+- Proposed data model: 5 new models (`JourneyPath`, `JourneyArc`,
+  `JourneyDay`, `UserJourney`, `UserJourneyDayProgress`) — fully isolated
+  from `ReadingPlanTemplate` / `ReadingPlanDay` / `UserReadingPlan` /
+  `UserReadingProgress`
+- Content-pack JSON schema with required fields and loader validation rules
+- Editorial workflow (drafter → writing reviewer → theological reviewer →
+  maintainer merge) with day-level acceptance criteria
+- Theological reviewer guidelines and sign-off mechanism
+- Beth prohibition list (13 explicit "must never" rules) to live as a code
+  constant in future phases
+- Beth Phase 1 boundary: silent on the journey surface; no tool; passive
+  CoS context awareness only
+- Phase 1 MVP scope (15 deliverables) with explicit Phase 1 exclusions and
+  prioritized Phase 2 candidate list
+- Risk register (3 tiers) with documented safeguards for each
+- Testing strategy (scoped per WLJ policy; includes isolation tests and
+  Beth-boundary tests)
+- Commit sequence for the remaining 5 commits in Phase 1
+
+### Decisions locked at Commit 1
+
+1. MVP arc: Egypt → Tabernacle (Exodus 1 – Leviticus 10, ~21 days)
+2. Authoring: LLM-drafted + theological reviewer sign-off
+3. Theological reviewer: not yet named; required before public launch
+4. Translation: WEB only for MVP
+5. Beth: silent on journey surface in Phase 1; no retrieval tool
+6. Reminders: off by default; user opts in
+7. Navigation: Faith → Journey
+8. Calendar projection: deferred to Phase 2
+9. Difficulty prompt cadence: after each arc completes
+10. Streak visibility on journey surface: none
+
+### Why this is spec-only
+
+The Journey feature is architecturally isolated from existing reading plans
+to eliminate regression risk to the five deployed plans (Jonah, Ruth, Noah,
+Daniel, Ten Commandments) and the reading-plan infrastructure. Writing the
+spec before any models or content lets us validate the JSON content-pack
+schema by hand (Commit 2) before committing to a data shape. Skipping
+straight to models would risk schema churn under authored content.
+
+### Files modified
+
+- `docs/CLAUDE_WALKING_WITH_GOD.md` — new (spec)
+- `docs/wlj_claude_changelog.md` — this entry
+
+### What is explicitly NOT changed by this commit
+
+- No existing model, view, template, service, migration, or test
+- No `ReadingPlanTemplate`, `ReadingPlanDay`, `UserReadingPlan`,
+  `UserReadingProgress`, or existing plan loader
+- No existing Bible plan behavior
+- No CoS context, SAE state, or signal definitions
+- No user-facing surface
+
+### Next commit
+
+Commit 2 will author the first day of the Egypt → Tabernacle arc as a JSON
+content pack (no code) to reality-check the schema before any models exist.
 
 
 ## 2026-05-23 — feat(trust): IntakeLog completion provenance (Phase 2 of stabilization)

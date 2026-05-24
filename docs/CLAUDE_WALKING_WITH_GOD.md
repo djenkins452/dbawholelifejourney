@@ -1,11 +1,11 @@
 # Walking With God Through Scripture — Specification
 
-**Status:** Specification only. No models, no code, no content packs yet.
+**Status:** Specification + one reality-check authored day. No models, no views, no Django code yet.
 **User-facing name:** Walking With God Through Scripture
 **Internal name:** Journey
 **Owner:** Danny Jenkins
 **Created:** 2026-05-24
-**Last updated:** 2026-05-24
+**Last updated:** 2026-05-24 (Commit 2: tier rename, theology stance refined, annotations moved to Phase 1, first authored day)
 
 > This document is the single source of truth for the Journey architecture, content schema, editorial workflow, and Beth boundaries. Subsequent commits (models, content packs, views, signals) must conform to this spec. Changes to the spec require revisiting this document before changing code.
 
@@ -46,7 +46,7 @@ Not: *"I am completing another reading program."*
 | 5 | **Scripture first, Beth second** | Beth is silent on the journey surface in Phase 1. Future phases may add invited retrieval, never proactive presence. |
 | 6 | **Plain English** | Assume an intelligent, non-specialist reader. No seminary language. |
 | 7 | **User-paced** | No day expires. No auto-skip. No "you're behind." |
-| 8 | **Non-denominational, Christ-centered** | Teach consensus historic Christian readings; name where mainstream traditions differ; do not advocate for one tradition. |
+| 8 | **Bible-centered Protestant / Evangelical grounding** | Teach from a Bible-centered Protestant lens. When major Christian traditions differ on a passage, acknowledge the difference briefly and respectfully, then continue with the journey's lens. Never debate denominations. |
 
 ---
 
@@ -65,10 +65,10 @@ The Journey is architecturally isolated from the existing reading-plan system. T
 
 | Existing capability | Reuse allowed | Notes |
 |---|---|---|
-| `BibleHighlight` | Yes (Phase 2 or later) | Reference-keyed, per-user, not coupled to plans |
-| `BibleBookmark` | Yes (Phase 2 or later) | Same |
-| `BibleStudyNote` | Yes (Phase 2 or later) | Same |
-| `SavedVerse` | Yes (Phase 2 or later) | Same |
+| `BibleHighlight` | Yes (Phase 1, reuse only) | Reference-keyed, per-user, not coupled to plans. Journey reading invokes the existing model; no modification, no schema change, no behavior change. |
+| `BibleBookmark` | Yes (Phase 1, reuse only) | Same |
+| `BibleStudyNote` | Yes (Phase 1, reuse only) | Same |
+| `SavedVerse` | Yes (Phase 1, reuse only) | Same |
 | `ScriptureVerse` (curated) | Yes (read-only) | Canonical verse text source |
 | SAE state-building pattern | Yes | New `build_journey_state()` lives in `apps/faith/journey/state.py` |
 | CoS context-building pattern | Yes | New `build_journey_context_block()` lives in `apps/faith/journey/context.py` |
@@ -167,7 +167,7 @@ The user-facing journey container. Phase 1 ships exactly one instance: *Walking 
 | `narrative_overview` | TextField | One-paragraph framing |
 | `cover_image_url` | URLField, blank | Optional |
 | `estimated_weeks` | PositiveIntegerField | Informational only |
-| `difficulty_default` | CharField (`gentle` / `standard` / `deep`) | Starting tier when user begins |
+| `difficulty_default` | CharField (`simple` / `standard` / `deeper`) | Starting tier when user begins |
 | `is_active` | BooleanField, default True | Available to users when True |
 | `is_featured` | BooleanField, default False | Promoted on faith dashboard |
 
@@ -202,9 +202,9 @@ The atomic unit of content. One record per day per arc.
 | `scripture_refs` | JSONField | List of reference strings: `["Exodus 12:1-13"]` |
 | `scripture_content` | JSONField | Pre-embedded WEB translation (see §5 schema) |
 | `context_before` | TextField, required | "Context First" step (plain English, before reading) |
-| `plain_english_gentle` | TextField, required | Tier 1 commentary |
-| `plain_english_standard` | TextField, required | Tier 2 commentary |
-| `plain_english_deep` | TextField, required | Tier 3 commentary |
+| `plain_english_simple` | TextField, required | Tier 1 commentary — approachable, accessible |
+| `plain_english_standard` | TextField, required | Tier 2 commentary — default reading depth |
+| `plain_english_deeper` | TextField, required | Tier 3 commentary — historical, linguistic, cross-references |
 | `key_insight` | CharField (~200), required | One-sentence takeaway |
 | `reflection_prompt` | TextField, required | Single personal question |
 | `application_action` | CharField (~280), required | One small concrete action |
@@ -225,7 +225,7 @@ Inherits UserOwnedModel.
 | `current_arc` | FK → JourneyArc, nullable | The currently active arc |
 | `current_day_number` | PositiveIntegerField, default 1 | 1-indexed within current arc |
 | `status` | CharField (`active` / `paused` / `completed` / `abandoned`) | Lifecycle |
-| `preferred_difficulty` | CharField (`gentle` / `standard` / `deep`) | User choice; defaults to path default |
+| `preferred_difficulty` | CharField (`simple` / `standard` / `deeper`) | User choice; defaults to path default |
 | `reminder_time` | TimeField, nullable | Off by default; user opts in |
 | `started_at` | DateTimeField, auto_now_add | When created |
 | `last_engaged_at` | DateTimeField, nullable | Set when user reads or interacts |
@@ -319,9 +319,9 @@ apps/faith/journey/content/walking_with_god/
         ]
       },
       "context_before": "Four hundred years have passed since Joseph...",
-      "plain_english_gentle": "Israel has grown into a large group of people in Egypt...",
+      "plain_english_simple": "Israel has grown into a large group of people in Egypt...",
       "plain_english_standard": "What started as 70 family members has grown to a nation...",
-      "plain_english_deep": "The Hebrew text emphasizes the fulfillment of God's promise to Abraham...",
+      "plain_english_deeper": "The Hebrew text emphasizes the fulfillment of God's promise to Abraham...",
       "key_insight": "God's promises don't depend on circumstances — they unfold over generations.",
       "reflection_prompt": "Where in your life are you waiting on a promise that feels delayed?",
       "application_action": "Take 5 minutes today to write down one promise of God you're trusting.",
@@ -346,9 +346,10 @@ apps/faith/journey/content/walking_with_god/
 The loader (`load_journey_path`) must validate before upserting:
 
 - All required fields present on every day
-- `day_number` values are sequential starting from 1 with no gaps
+- `day_number` values are unique within an arc and ≥ 1
+- Sequence/gap check (no missing day numbers from 1 to N) only runs when the parent arc has `is_active = true`. This allows incremental authoring of an arc while it remains inactive.
 - `confusion_topics` contains at least 2 entries per day
-- All three `plain_english_*` tiers populated
+- All three `plain_english_*` tiers populated (`simple`, `standard`, `deeper`)
 - `scripture_refs` is non-empty
 - `scripture_content.translation` is `"WEB"` (Phase 1 only)
 - `key_insight` ≤ 200 characters
@@ -381,9 +382,9 @@ Loader is idempotent: re-running upserts; never duplicates.
 A day is publish-ready when:
 
 - All required fields populated and pass schema validation
-- `plain_english_gentle` is genuinely accessible to a non-specialist
+- `plain_english_simple` is genuinely accessible to a non-specialist
 - `plain_english_standard` adds depth without academic vocabulary
-- `plain_english_deep` adds historical, linguistic, or cross-reference depth
+- `plain_english_deeper` adds historical, linguistic, or cross-reference depth
 - `key_insight` is one specific takeaway, not generic
 - `application_action` is concrete and achievable in under 15 minutes
 - `confusion_topics` contains at least 2 *specific* day-relevant confusions, each with a complete plain-English answer
@@ -395,11 +396,15 @@ A day is publish-ready when:
 
 ### Editorial framework (theological)
 
-- Teach **consensus historic Christian readings**. Where the major Christian traditions (Catholic, Orthodox, mainline Protestant, evangelical) agree, present the consensus.
-- Where they differ on a passage's meaning, **name the differences plainly** without advocating for one tradition.
-- Avoid contested theological terms in plain-English tiers. Where a term must appear (e.g., "atonement"), define it in the day's plain English before using it.
-- Christ-centered framing is appropriate when a passage is genuinely Christological (e.g., Messianic prophecies, types in the law). Avoid Christological readings where the text does not support them.
-- Do not adopt any position on contested modern issues (eschatology systems, predestination vs free will systems, denominational distinctives) unless the passage requires it. If it does, name the spectrum.
+The journey is taught from a **Bible-centered Protestant / Evangelical** lens. This is the stated grounding for all authored content. Within that grounding:
+
+- **Privilege the text itself.** Anchor every interpretation in what the passage actually says. Avoid imposing systems the text does not require.
+- **When major Christian traditions differ** on a passage's meaning (e.g., the nature of the Lord's Supper, certain readings of the law, particular Christological types), **acknowledge the difference briefly and respectfully**, then continue with the journey's lens. Use the template: *"Some Christians understand this differently. For this journey, we are reading it through a Bible-centered Protestant lens."*
+- **Never debate denominations.** Never argue against another tradition. Never characterize another tradition unfavorably.
+- **Avoid contested theological terms** in the `plain_english_simple` and `plain_english_standard` tiers. Where a term must appear (e.g., "atonement," "justification"), define it in plain language before using it.
+- **Christ-centered framing** is appropriate when a passage is genuinely Christological (Messianic prophecies, types in the law that the New Testament explicitly fulfills). Avoid forced Christological readings where the text does not support them.
+- **Do not adopt positions on contested modern issues** (eschatology systems, predestination vs free will systems, sign gifts continuance, baptism mode) unless the passage directly requires it. If it does, name the spectrum and continue.
+- **No spiritual coaching beyond the day's authored reflection and application.** The text and the lens are the teachers; the journey does not editorialize beyond them.
 
 ---
 
@@ -493,6 +498,7 @@ When a future phase adds Beth retrieval, the boundary is:
 13. **Management command** `load_journey_path <slug>` — idempotent loader
 14. **End-to-end test path** — start journey → complete 3 days → reach arc end → see completion screen
 15. **Spec doc** (this document)
+16. **Reuse of existing annotation models** — `BibleHighlight`, `BibleBookmark`, `BibleStudyNote`, `SavedVerse` work inside the journey reading view. **Reuse only**: no schema change, no behavior change, no shared progression coupling. The journey simply invokes the existing capabilities so users can highlight a verse, bookmark a passage, save a verse to memory, or write a study note while reading.
 
 ### Phase 1 exclusions
 
@@ -510,7 +516,6 @@ The following are explicitly out of scope for Phase 1:
 - Social sharing
 - Branching paths or conditional days
 - Push notifications (opt-in or otherwise)
-- Highlight / bookmark / note integration inside journey reading
 - Streak visibility on the journey surface
 - Any proactive Beth behavior involving the journey
 
@@ -518,13 +523,12 @@ The following are explicitly out of scope for Phase 1:
 
 1. Second arc authored ("Wilderness Years" — Numbers + Deuteronomy excerpts) + arc transition flow
 2. Beth `get_journey_day_content` retrieval tool + prohibition-list-enforced system prompt for journey-context conversations
-3. Highlight / bookmark / note reuse within journey reading (via existing `BibleHighlight` / `BibleBookmark` / `BibleStudyNote`)
-4. Calendar projection of journey days (with clear labeling to distinguish from topical plan projections)
-5. ESV / NIV / NLT translation switching with API fetching and caching
-6. Difficulty tier prompt after each arc completes ("Try a deeper version of the next arc?")
-7. Mobile-tuned reading surface (long-press behavior, iPhone SE width validation)
-8. Audio narration of reading + plain-English layers
-9. Subsequent arcs (continuing the chronological journey)
+3. Calendar projection of journey days (with clear labeling to distinguish from topical plan projections)
+4. ESV / NIV / NLT translation switching with API fetching and caching
+5. Difficulty tier prompt after each arc completes ("Try a deeper version of the next arc?")
+6. Mobile-tuned reading surface (long-press behavior, iPhone SE width validation)
+7. Audio narration of reading + plain-English layers
+8. Subsequent arcs (continuing the chronological journey)
 
 ---
 
@@ -621,20 +625,23 @@ Each commit follows WLJ Task Completion rules: changelog entry, scoped tests, mi
 
 ---
 
-## Appendix A — Decisions Locked at Commit 1
+## Appendix A — Decisions Locked at Commits 1 and 2
 
-| # | Decision | Choice |
-|---|---|---|
-| 1 | MVP arc scope | Egypt → Tabernacle (Exodus 1 – Leviticus 10, ~21 days) |
-| 2 | Authoring workflow | LLM-drafted + theological reviewer sign-off |
-| 3 | Theological reviewer | Not named; required before public launch |
-| 4 | Translation for MVP | WEB only |
-| 5 | Beth in Phase 1 | Silent on journey surface; no tool |
-| 6 | Reminder default | Off; user opts in |
-| 7 | Nav placement | Faith → Journey |
-| 8 | Calendar projection in MVP | No; deferred to Phase 2 |
-| 9 | Difficulty prompt cadence | After each arc completes |
-| 10 | Streak visibility on journey surface | None |
+| # | Decision | Choice | Locked at |
+|---|---|---|---|
+| 1 | MVP arc scope | Egypt → Tabernacle (Exodus 1 – Leviticus 10, ~21 days) | Commit 1 |
+| 2 | Authoring workflow | LLM-drafted + writing review + theological reviewer sign-off | Commit 1 |
+| 3 | Theological reviewer | Not named; required before public launch | Commit 1 |
+| 4 | Translation for MVP | WEB only | Commit 1 |
+| 5 | Beth in Phase 1 | Silent on journey surface; no tool | Commit 1 |
+| 6 | Reminder default | Off; user opts in | Commit 1 |
+| 7 | Nav placement | Faith → Journey | Commit 1 |
+| 8 | Calendar projection in MVP | No; deferred to Phase 2 | Commit 1 |
+| 9 | Difficulty prompt cadence | After each arc completes | Commit 1 |
+| 10 | Streak visibility on journey surface | None | Commit 1 |
+| 11 | Theology stance | Bible-centered Protestant / Evangelical grounding; brief respectful acknowledgement when traditions differ; no denomination debates | Commit 2 |
+| 12 | Difficulty tier names | `simple` / `standard` / `deeper` (renamed from `gentle` / `standard` / `deep`) | Commit 2 |
+| 13 | Annotation reuse | `BibleHighlight`, `BibleBookmark`, `BibleStudyNote`, `SavedVerse` available inside journey reading in Phase 1, reuse-only, no modifications | Commit 2 |
 
 ---
 

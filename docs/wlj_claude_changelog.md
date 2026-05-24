@@ -3,8 +3,105 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-24 (spec: Walking With God Through Scripture — Commit 1)
+# Last Updated: 2026-05-24 (spec+content: Walking With God Through Scripture — Commit 2)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-24 — spec+content(faith): Journey — Commit 2 (schema reality-check)
+
+Spec refinements + one fully-authored representative day to reality-check the
+content-pack schema before any Django models are built. No code, no models,
+no migrations, no views, no behavior changes. Strict isolation maintained:
+no files outside `apps/faith/journey/content/` and `docs/` touched.
+
+### Spec refinements (incorporated into `docs/CLAUDE_WALKING_WITH_GOD.md`)
+
+**1. Theology stance** — changed from "consensus historic Christian
+readings" to **Bible-centered Protestant / Evangelical grounding**. When
+major Christian traditions differ on a passage, authored content briefly
+and respectfully acknowledges the difference, then continues with the
+journey's lens. No denomination debates. Specific template added:
+*"Some Christians understand this differently. For this journey, we are
+reading it through a Bible-centered Protestant lens."*
+
+**2. Difficulty tier names** — renamed:
+- `gentle` → `simple`
+- `standard` → `standard` (unchanged)
+- `deep` → `deeper`
+
+Reason: "gentle" reads as remedial. "Simple" / "deeper" preserves
+approachability without making users feel less capable. Applied to model
+field names (`plain_english_simple`, `plain_english_deeper`), choice
+values (`UserJourney.preferred_difficulty`, `JourneyPath.difficulty_default`),
+and content-pack schema.
+
+**3. Annotation models moved into Phase 1** — `BibleHighlight`,
+`BibleBookmark`, `BibleStudyNote`, `SavedVerse` are now Phase 1
+deliverables. Reuse only: no schema change, no behavior change, no shared
+progression coupling. Journey reading invokes existing capabilities so
+users can highlight, bookmark, save, and write study notes while reading
+without needing a parallel system. Removed from Phase 1 exclusions and
+Phase 2 candidates.
+
+**4. Loader validation refinement** — sequence/gap check (no missing day
+numbers from 1 to N) only runs when the parent arc has `is_active=true`.
+This permits incremental authoring while an arc remains inactive. Day
+uniqueness within arc still enforced at all times.
+
+### Content authored
+
+**`apps/faith/journey/content/walking_with_god/arcs/arc_01_egypt_to_tabernacle.json`**
+— arc metadata + one fully-authored day:
+
+- **Arc:** *Out of Egypt to the Tabernacle* (Exodus 1 – Leviticus 10,
+  ~21 days, `is_active: false`)
+- **Day:** Day 15 — **Leviticus 1:1-17 (The Burnt Offering)**
+
+Day 15 was chosen as the canonical dropout passage. Leviticus 1 is the
+exact section where readers typically stop. If the content format makes
+this material feel meaningful, the format is validated. If it cannot,
+the format itself is wrong.
+
+### Schema observations from real-world authoring
+
+- All required fields populated; all constraints respected (`key_insight`
+  116/200 chars, `application_action` 140/280 chars, 5 confusion topics
+  vs ≥2 minimum, three tiers escalate 841 → 1,703 → 2,555 chars)
+- JSON parses cleanly
+- Schema needed one loader rule change (gap check gated on `is_active`)
+  to support incremental authoring of a 21-day arc
+- All other schema constraints held under real-world content
+
+### Files modified
+
+- `apps/faith/journey/content/walking_with_god/arcs/arc_01_egypt_to_tabernacle.json` — new
+- `docs/CLAUDE_WALKING_WITH_GOD.md` — spec refinements (3 approved changes
+  + Appendix A decisions table extended)
+- `docs/wlj_claude_changelog.md` — this entry
+
+### What is explicitly NOT changed by this commit
+
+- No existing model, view, template, service, migration, or test
+- No `apps/faith/` Python code (Journey models do not exist yet)
+- No `ReadingPlanTemplate`, `ReadingPlanDay`, `UserReadingPlan`,
+  `UserReadingProgress`, or existing plan loader
+- No `apps/health/` or any other app outside the new content directory
+- No CoS context, SAE state, or signal definitions
+- No user-facing surface
+
+### Parallel-stream safety
+
+Active Health Intelligence / CGM session is assumed to be touching health
+models and state systems. This commit is fully isolated from those areas
+— only the changelog is a potential shared touch-point, and that is a
+single appended entry.
+
+### Next commit
+
+Commit 3 will create the five Journey models (`JourneyPath`, `JourneyArc`,
+`JourneyDay`, `UserJourney`, `UserJourneyDayProgress`) + admin + the
+`load_journey_path` management command + isolation tests. The authored
+day from this commit serves as the loader smoke-test fixture.
 
 
 ## 2026-05-24 — spec(faith): Walking With God Through Scripture (Journey) — Commit 1

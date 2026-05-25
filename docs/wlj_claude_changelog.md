@@ -7,6 +7,117 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-25 — feat(health_briefing): Phase 1A · C11 — Composer + developer explain mode
+
+Wave 3, third commit. Brings together the C9 facts and C10 ranking
+into a full HealthBriefing assembly + snapshot persistence + developer-
+facing explanation mode + management command. **Beth still cannot see
+it.** No edits to cos_context.py, personal_assistant.py, or Beth's
+system prompt. W5 (C14/C15) wires Beth.
+
+### What was added
+
+**Composer (`apps/core/health_briefing/composer.py`):**
+
+`compose_briefing(user, profile=None, persist=True, now=None)` — pure
+orchestration:
+
+1. Read SAE state via `get_module_state(user, "health"/"medicine"/"medical")`
+   — no raw DB queries.
+2. Compute Layer 4 verdicts via `compute_all_facts` (C9).
+3. Assemble acute alerts from `health_state.latest_glucose` against
+   the C2 acute_glucose cut points (critical_low 54, critical_high 300;
+   mmol/L normalized).
+4. Rank via `rank_facts` (C10).
+5. Build three glucose horizon Trends (7d/30d/90d via pairwise window
+   comparisons), a weight 30d Trend, and an optional insulin 30d
+   Trend (None when insulin observation absent).
+6. Build evidence: `inputs_used`, `inputs_missing`, `staleness_flags`
+   from the ~22 health/medicine/medical fields the composer cares about.
+7. Compute `briefing_id` via `compute_briefing_id` (sha256 of user_id
+   + generated_at + composer_version + sha256 of inputs_used).
+8. Assemble HealthBriefing dataclass.
+9. (Optional) Persist as HealthBriefingSnapshot.
+
+Persistence is opt-in. The composer reads SAE only; never queries
+domain rows. Background-only execution (Celery/management command).
+
+**Developer explain mode (`apps/core/health_briefing/explain.py`):**
+
+`explain_briefing(briefing)` returns a deterministic multi-line text
+report matching the user-requested shape:
+
+    HealthBriefing user=4081 briefing_id=abc123…
+      composed_at:   2026-05-25T15:30:00+00:00
+      headline:      Metabolic trajectory is improving.
+      status:        improving (confidence 0.82)
+      risk_level:    low
+
+    Drivers (positive):
+      + Glycemic Control tight (+18) — 85% time-in-range
+      + Insulin Dependence decreasing (+15) — Recent daily …
+      + Weight Trajectory improving (+12) — Weight down 3.0 lb…
+
+    Watch items:
+      - Glycemic Trajectory declining (-5) — …
+
+    Acute alerts: none
+    Trends:
+      glucose 7d:  down  magnitude=22 confidence=0.7
+      ...
+
+Not user-facing. Not Beth-facing. Developer tooling only.
+
+**Management command (`run_health_briefing`):**
+
+Args: `--user <email>`, `--no-persist`, `--no-explain`. Composes a
+briefing for one user and prints the explanation. The only Wave 3
+entrypoint that exercises the composer end-to-end.
+
+### Wave 3 hard guardrail (C11 invisible to Beth) — honored
+
+- No edits to `apps/core/ai_orchestrator/cos_context.py`.
+- No edits to `apps/ai/personal_assistant.py`.
+- No edits to Beth's system prompt or any addendum registration.
+- The composer is reachable only via the `run_health_briefing`
+  management command in this commit; C12 will add Celery beat + event
+  triggers, still without Beth integration.
+
+### Tests (`apps/core/health_briefing/tests/test_composer.py`)
+
+29 tests in 0.464s:
+- `TrendFromPairTests` (4) — flat / down / up / insufficient
+- `GlucoseTrendsTests` (2) — empty state + partial horizons
+- `WeightTrendTests` (2) — direction + flat threshold
+- `InsulinTrendTests` (2) — None when absent, direction when present
+- `AcuteAlertBuilderTests` (5) — critical low/high, mmol/L
+  conversion, no false positives, no alert when no reading
+- `EvidenceHashTests` (2) — deterministic + change-sensitive
+- `HeadlineTests` (1) — every OverallStatus has a template
+- `ComposerIntegrationTests` (6) — empty state, thriving state,
+  acute override, briefing_id changes with evidence, persist works,
+  no-persist leaves no row
+- `NoRawRowsAuditTests` (1) — **critical Phase 0 audit**: serialized
+  payload contains no `Model object` / `QuerySet` strings
+- `ExplainModeTests` (4) — insufficient / driver-lines / acute-line /
+  determinism
+
+### Files Created
+- `apps/core/health_briefing/composer.py`
+- `apps/core/health_briefing/explain.py`
+- `apps/core/health_briefing/management/__init__.py`
+- `apps/core/health_briefing/management/commands/__init__.py`
+- `apps/core/health_briefing/management/commands/run_health_briefing.py`
+- `apps/core/health_briefing/tests/test_composer.py`
+
+### Verification
+- `python3 manage.py test apps.core.health_briefing.tests.test_composer
+  --keepdb` — 29/29 pass.
+
+### Bible Journey coordination
+- BibleJourney-Touches: none. New module + management command only.
+- Only shared file: `docs/wlj_claude_changelog.md` (append-only).
+
 ## 2026-05-25 — feat(health_briefing): Phase 1A · C10 — Ranking module
 
 Wave 3, second commit. Deterministic ranking of Layer 4 fact verdicts

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load journey_tags %}
 
 {% block title %}Bible Reading Plans - Whole Life Journey{% endblock %}
 
@@ -16,6 +17,10 @@
             <p class="page-subtitle">Grow in Scripture with guided reading plans</p>
         </div>
     </div>
+
+    {# Walking With God Through Scripture — quiet single card at top of plans page. #}
+    {# No-op when the canonical journey path is not active. #}
+    {% journey_reading_plans_card request.user %}
 
     {% if active_plans %}
     <section class="mb-8">

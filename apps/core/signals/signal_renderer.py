@@ -432,3 +432,96 @@ def resolve_conflicts(pool: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             continue
         survivors.append(item)
     return survivors
+
+
+def _is_positive_or_momentum(item: Dict[str, Any]) -> bool:
+    """True when the underlying signal carries positive/momentum semantics.
+
+    Positive/momentum signals must NOT be suppressed by a same-domain
+    foundational risk signal in the briefing channel — without this
+    exemption, a "glucose_high" foundational signal silences any
+    concurrent "metabolic_improving" momentum signal in the same
+    domain, which is the exact failure mode the Phase 0 review
+    identified (risk #R1).
+
+    We check both signal_class and severity to cover both signal
+    sources: UnifiedSignal carries signal_class directly; legacy
+    producers may only set severity == "positive".
+    """
+    sig = item.get("signal")
+    if sig is None:
+        return False
+    # Read signal_class from either an object attribute or dict key —
+    # producers vary (UnifiedSignal dataclass vs raw dict).
+    sig_class = None
+    if isinstance(sig, dict):
+        sig_class = sig.get("signal_class")
+    else:
+        sig_class = getattr(sig, "signal_class", None)
+    if isinstance(sig_class, str) and sig_class.lower() in {
+        "momentum", "opportunity",
+    }:
+        return True
+    try:
+        norm = normalize_signal(sig)
+        if norm.get("severity") == "positive":
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def resolve_conflicts_for_briefing(
+    pool: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """
+    Briefing-channel-only variant of resolve_conflicts().
+
+    Same suppression rule as resolve_conflicts() EXCEPT positive and
+    momentum signals are exempted: they survive even when a foundational
+    risk signal exists in the same domain. The briefing channel must
+    surface progress alongside concern — the alerts feed
+    (resolve_conflicts) intentionally does not.
+
+    This function is invoked only when assembling signals for the
+    HealthBriefing composer / future DomainBriefing composers. The
+    user-facing alerts feed continues to call resolve_conflicts() and
+    its behavior is byte-identical to pre-C13 (verified by regression
+    tests in tests_signal_renderer_briefing_channel.py).
+
+    Architecture note (Phase 0 lock): we do NOT modify
+    resolve_conflicts(). The briefing channel and the alerts channel
+    are two separate policies; this is the second one.
+    """
+    foundational_domains = {
+        item["rendered"]["domain"]
+        for item in pool
+        if item["rendered"]["priority"] == "foundational"
+    }
+    if not foundational_domains:
+        return pool
+
+    survivors: List[Dict[str, Any]] = []
+    for item in pool:
+        r = item["rendered"]
+        if (
+            r["priority"] != "foundational"
+            and r["domain"] in foundational_domains
+        ):
+            if _is_positive_or_momentum(item):
+                logger.info(
+                    "[SIGNAL_RENDERER] briefing_exempt reason=positive_momentum "
+                    "domain=%s exempt_label=%s exempt_priority=%s",
+                    r["domain"], r["label"], r["priority"],
+                )
+                survivors.append(item)
+                continue
+            logger.info(
+                "[SIGNAL_RENDERER] briefing_suppress "
+                "reason=foundational_dominates "
+                "domain=%s suppressed_label=%s suppressed_priority=%s",
+                r["domain"], r["label"], r["priority"],
+            )
+            continue
+        survivors.append(item)
+    return survivors

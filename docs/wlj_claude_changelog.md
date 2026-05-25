@@ -7,6 +7,117 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-25 — feat(signals): Phase 1A · C13 — R1 fix: briefing-channel suppression exemption
+
+Wave 4, sole commit. The R1 architectural fix from the Phase 0 review:
+positive/momentum signals must coexist with same-domain foundational
+risk signals **in the briefing channel only**. The user-facing alerts
+feed continues to suppress them exactly as before — that's the right
+UX for a discrete-alert surface.
+
+### Architectural rule
+
+Two channels, two policies:
+
+* **Alerts feed (existing):** `resolve_conflicts()` — unchanged.
+  Same-domain foundational still dominates. This is correct for the
+  alerts UX surface.
+* **Briefing channel (new):** `resolve_conflicts_for_briefing()` —
+  exempts positive/momentum signals from same-domain foundational
+  suppression. The briefing must surface progress alongside concern.
+
+### What was added
+
+**`apps/core/signals/signal_renderer.py`** — two additions, zero
+modifications:
+
+1. New helper `_is_positive_or_momentum(item)` — checks the underlying
+   signal's `signal_class` (in {"momentum", "opportunity"}) or
+   `severity == "positive"`. Reads from both dict-shaped and
+   object-shaped (UnifiedSignal) signals.
+2. New function `resolve_conflicts_for_briefing(pool)` — same
+   suppression logic as `resolve_conflicts()` except positive/momentum
+   items survive. Emits a new telemetry line:
+   `[SIGNAL_RENDERER] briefing_exempt reason=positive_momentum ...`
+   for visibility into when the exemption fires.
+
+**`resolve_conflicts()` is byte-identical to pre-C13.** Not modified.
+Not refactored. Not factored-through-a-shared-helper. The new function
+is a complete copy with the exemption inserted. Architecture lock
+rule: alerts-feed regression cost is zero.
+
+### Wave 4 hard guardrail — explicit regression proof
+
+`apps/core/signals/tests/test_signal_renderer_briefing_channel.py`
+includes a `ResolveConflictsRegressionTests` class with **7 tests**
+that pin the existing `resolve_conflicts()` behavior:
+
+- empty pool → empty
+- no-foundational pool → returned unchanged with same identity
+- foundational suppresses same-domain non-foundational
+- foundational suppresses **even positive momentum in same domain**
+  (this is the pre-C13 behavior that we're explicitly preserving)
+- cross-domain coexistence preserved
+- cross-domain lower-priority survives foundational
+- multiple foundationals only suppress within their own domain
+
+Plus the **existing** `apps.core.signals.tests.test_signal_renderer`
+suite (16 tests) runs unchanged and continues to pass — that includes
+the canonical `ConflictResolutionTests` class. End-to-end: alerts feed
+is identical in semantics and in telemetry strings to pre-C13.
+
+### New behavior tests (9)
+
+`ResolveConflictsForBriefingTests` (7) + `TwoChannelDivergenceTests` (2):
+
+- positive momentum survives same-domain foundational
+- severity="positive" alone (no signal_class) also exempted
+- non-positive/non-momentum risk still suppressed
+- object-shaped (UnifiedSignal) momentum detected
+- "opportunity" signal_class also exempted
+- cross-domain unchanged from `resolve_conflicts`
+- no-foundational pool returned unchanged
+- alerts suppresses, briefing keeps — same pool, different result
+- no-momentum pool → both channels produce identical output
+
+### Files Created
+- `apps/core/signals/tests/test_signal_renderer_briefing_channel.py`
+
+### Files Modified
+- `apps/core/signals/signal_renderer.py` — two functions appended
+  after the existing `resolve_conflicts()`. Zero existing-line edits.
+
+### Verification
+
+- `python3 manage.py test
+  apps.core.signals.tests.test_signal_renderer_briefing_channel --keepdb`
+  — 16/16 pass in 0.001s.
+- `python3 manage.py test apps.core.signals.tests.test_signal_renderer
+  --keepdb` — 16/16 pass (existing alerts-feed suite, zero regression).
+
+### Bible Journey coordination
+
+- BibleJourney-Touches: `apps/core/signals/signal_renderer.py` (HIGH
+  shared file). **Edit is strictly additive — zero changes to existing
+  `resolve_conflicts()`, zero changes to `SIGNAL_RENDER_MAP`, zero
+  changes to `select_top_signals` or normalization. Faith signal
+  templates Bible Journey may have added are unaffected. The existing
+  alerts-feed suppression telemetry log string is unchanged. Any future
+  faith momentum/positive signal will automatically benefit from the
+  briefing-channel exemption when the renderer is invoked through
+  `resolve_conflicts_for_briefing` (but not when invoked through the
+  existing `resolve_conflicts` — preserving the alerts UX).
+- Only other shared file: `docs/wlj_claude_changelog.md` (append-only).
+
+### Composer integration
+
+The W3 composer (C11) currently builds its own driver lists from
+Layer 4 interpreted facts and does not yet call the signal renderer.
+A future commit (Phase 1B) can route briefing-channel signals through
+`resolve_conflicts_for_briefing()` when composer-fed signals are
+introduced. C13 lays the renderer foundation; no composer changes
+needed in this commit.
+
 ## 2026-05-25 — feat(health_briefing): Phase 1A · C12 — Celery beat + event-triggered recompute
 
 Wave 3, fourth commit. Wires the composer into background execution:

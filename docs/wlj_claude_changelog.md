@@ -7,6 +7,130 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-25 — feat(health_briefing): Phase 1A · C14 — Beth narration addendum
+
+Wave 5, first commit. Delivers the static base narration contract +
+per-briefing dynamic addendum builder + registration helper. **C14
+does NOT wire any of this into Beth.** No edits to
+`cos_context.py`, `personal_assistant.py`, or any prompt assembler.
+C15 remains blocked pending validation-scenario spot-check against
+the addendum language.
+
+### What was added
+
+`apps/core/health_briefing/narration_contract.py` — three surfaces:
+
+**1. Static base addendum** (~3.7 KB) —
+`HEALTH_BRIEFING_NARRATION_ADDENDUM_BASE`. Universal narration
+contract Beth follows whenever she receives a HealthBriefing.
+Carries:
+
+- **ROLE**: narrator, not analyst. "The composer has already weighed
+  evidence, ranked drivers, classified risk. Speak from that, not
+  around it."
+- **YOU MUST** (8 rules): treat status/confidence/risk as
+  authoritative; surface acute in first sentence with the specific
+  value; name a positive driver when recognition required; explicitly
+  say "not enough data" on insufficient_data_flag; cite only inputs_used;
+  association language never causal; stay silent on insulin when
+  insulin_trend_30d is null; acknowledge staleness when flagged.
+- **YOU MAY** (6 affordances): personalize tone, order delivery
+  without re-ranking, connect to other CoS context, suggest
+  reframings, adjust verbosity, recognize effort.
+- **YOU MUST NOT** (8 prohibitions): re-rank, compute own
+  trajectory, claim causality, invent terminology, cite absent
+  numbers, override risk_level, manufacture concerns, quote alerts
+  feed.
+- **TONE BAR**: wise, balanced, encouraging, truthful, non-alarmist,
+  high-trust (verbatim from the validation-scenarios doc).
+- **CAVEATS**: four pre-written phrases Beth may always use verbatim.
+
+**2. Dynamic per-briefing addendum** —
+`build_briefing_addendum(briefing)`. Deterministic per-turn text
+appended to the base addendum at CoS assembly time. Surfaces:
+
+- Briefing identity (`[briefing_id=…]`) for replay traceability
+- Headline (status + confidence) + Risk level
+- `INSUFFICIENT DATA` directive when `insufficient_data_flag`
+- `ACUTE — surface FIRST` block when `acute_alerts` non-empty,
+  with severity tag and the alert's `why` text
+- `POSITIVE RECOGNITION REQUIRED` line with driver labels when
+  `positive_recognition_required`
+- Pre-ranked driver and watch lists with scores and reasons,
+  marked "do NOT re-rank"
+- Insulin gate line when `insulin_trend_30d is None`
+- Inputs-missing guidance (top 8 missing fields, "do NOT make
+  claims")
+- Staleness acknowledgement line when `staleness_flags` non-empty
+
+**3. Registration helper** —
+`register_health_briefing_addendum()` /
+`get_registered_addenda()` / `is_addendum_registered()` /
+`unregister_health_briefing_addendum()` (test-only). Implements
+the named-addendum pattern from the Bible Journey coordination
+protocol. C15 will call `register_health_briefing_addendum()` at
+boot; the prompt assembler will iterate
+`get_registered_addenda()`.
+
+### Files Created
+- `apps/core/health_briefing/narration_contract.py`
+- `apps/core/health_briefing/tests/test_narration_contract.py`
+
+### Files Modified
+- None. C14 adds two files and touches nothing else.
+
+### Tests — 38 in 0.001s, all pass
+
+- `BaseAddendumContentTests` (13) — every guardrail (1 through 8)
+  is present in the addendum text; forbidden language absent; tone
+  words present; two-channel rule stated.
+- `DynamicAddendumStructureTests` (13) — every dynamic field path
+  (acute, insufficient_data, positive_recognition, drivers, insulin
+  gate, inputs_missing, staleness) emits when triggered and is
+  absent when not. Determinism verified.
+- `RegistrationTests` (5) — name is `"health_briefing"`,
+  not-registered-by-default, register makes it available, register
+  is idempotent, get returns a copy (mutation-safe).
+- `ValidationScenarioAlignmentTests` (6) — for six representative
+  scenarios from `docs/health_briefing_validation_scenarios.md`
+  (canonical Danny progress, acute low, insufficient data, insulin
+  absent, horizon disagreement, CGM stale), the produced addendum
+  contains the expected guidance keywords. This bridges the doc to
+  the runtime contract.
+
+Two friction items during implementation: addendum is word-wrapped,
+so `assertIn("first sentence", text)` failed across a line break —
+fixed by normalizing whitespace in the test. Addendum uses "MUST NOT"
+section header + "re-rank top_positive_drivers..." bullet — fixed
+test to check both pieces. Friction, not architecture risk.
+
+### Wave 5 hard guardrail — C14 invisible to Beth
+
+End-of-C14 audit: zero edits to `apps/core/ai_orchestrator/cos_context.py`,
+`apps/ai/personal_assistant.py`, Beth's system prompt assembler, or
+any CoS slot. The module is fully built and tested, but nothing
+imports it from a Beth-facing code path. Beth still sees no
+HealthBriefing context. C15 remains blocked.
+
+### C15 readiness
+
+- ✅ Static addendum exists.
+- ✅ Dynamic per-briefing addendum builder exists.
+- ✅ Registration helper exists.
+- ✅ All eight user-specified guardrails encoded.
+- ✅ Validation-scenario alignment verified for six representative
+  scenarios.
+- ⏸ Awaiting user spot-check of addendum language against the 15
+  validation scenarios before C15 begins.
+
+### Bible Journey coordination
+
+- BibleJourney-Touches: none. Both files live in
+  `apps/core/health_briefing/`. The registration namespace
+  (`"health_briefing"`) is distinct from any name Bible Journey
+  might use (e.g., `"faith_journey"`); both can register safely.
+- Only shared file: `docs/wlj_claude_changelog.md` (append-only).
+
 ## 2026-05-25 — docs(health_briefing): Validation scenarios populated (W5 prerequisite)
 
 Doc-only commit. Populates `docs/health_briefing_validation_scenarios.md`

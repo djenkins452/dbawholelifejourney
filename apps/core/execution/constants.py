@@ -45,3 +45,14 @@ GRACE_REST_OF_DAY = None
 # Minimum number of missed/non-recoverable items in a single
 # execution_group_id before we collapse them into one summary entry.
 COLLAPSE_MIN_GROUP_SIZE = 2
+
+
+# ── Optimization supplement lead-window ─────────────────────────────
+# How many minutes before its scheduled time an optimization-priority
+# supplement may surface as next_action. Items further out are
+# suppressed from the action pool entirely — Beth should not jump ahead
+# of the day for nudge-class supplements (e.g., Perfect Amino at 1:00 PM
+# must not appear as "next" at 11:13 AM when no other items qualify).
+# Critical / foundational medications follow their existing window rules
+# and are NOT subject to this lead cap.
+OPTIMIZATION_SUPPLEMENT_LEAD_MINUTES = 15

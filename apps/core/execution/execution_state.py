@@ -121,11 +121,24 @@ def build_execution_state(user, now=None) -> dict:
     actions = apply_recovery_bucket_selection(raw_actions, recovery_state)
 
     # ── Active-block eligibility filter for EXECUTION mode. Stale
-    #    recoverable items (e.g., a 5:30 AM SOFT_EXPIRED prayer at
+    #    recoverable items (e.g., a 5:30 AM HARD_EXPIRED service at
     #    noon) live in Risk/Fix only; they must NOT be the next action.
+    #
+    #    Phase 3 exception: SOFT_EXPIRED items in LATE_OPEN status stay
+    #    eligible all day. A 6:15 AM workout at 11:13 AM is still a
+    #    real candidate for "what should I do now?" — the user just
+    #    delayed it. Evicting it forces the selector to pick the next
+    #    future anchor (e.g. a 1:00 PM optimization supplement), which
+    #    is the exact bug we are fixing.
     from apps.core.execution.active_block import is_item_in_active_block
+    from apps.core.execution.execution_status import LATE_OPEN as _LATE_OPEN
 
     def _block_eligible(a):
+        # LATE_OPEN bypass — SOFT_EXPIRED items past their schedule
+        # remain meaningfully completable until end-of-day, regardless
+        # of which canonical block we are currently in.
+        if a.get('execution_status') == _LATE_OPEN:
+            return True
         return is_item_in_active_block(
             {
                 'scheduled_time': a.get('time_display'),

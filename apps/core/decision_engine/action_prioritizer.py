@@ -37,6 +37,11 @@ from apps.core.execution.constants import (
     AT_RISK_HORIZON_MINUTES,
     COLLAPSE_MIN_GROUP_SIZE,
     DEPENDENCY_RISK_HORIZON_MINUTES,
+    OPTIMIZATION_SUPPLEMENT_LEAD_MINUTES,
+)
+from apps.core.execution.execution_status import (
+    LATE_OPEN,
+    STATUS_SEVERITY_RANK,
 )
 from apps.core.execution.recoverability import is_recoverable
 from apps.core.execution.recovery_state import (
@@ -45,7 +50,7 @@ from apps.core.execution.recovery_state import (
     SHUTDOWN,
     STABILIZE,
 )
-from apps.core.execution.task_classifier import FLEXIBLE
+from apps.core.execution.task_classifier import FLEXIBLE, SOFT_EXPIRED
 
 logger = logging.getLogger(__name__)
 
@@ -263,6 +268,48 @@ def build_action_priorities(
     return actions
 
 
+def _is_optimization_supplement_too_early(item, current_time):
+    """Return True when an optimization-class supplement is scheduled
+    more than OPTIMIZATION_SUPPLEMENT_LEAD_MINUTES in the future.
+
+    Such items are excluded from the action pool entirely so that
+    Beth never recommends a future nudge-class supplement ahead of
+    items the user actually has open right now (e.g. surfacing
+    Perfect Amino at 1:00 PM while the user is at 11:13 AM with a
+    workout / shake / shower still on the day's plan).
+
+    Critical / foundational supplements pass through normally — they
+    are governed by their existing WINDOWED grace logic in the
+    recoverability layer.
+
+    Rules:
+        - Only applies to source_type == 'supplement_dose'.
+        - Only applies when the dose's priority is 'optimization'.
+          Critical and foundational supplements are untouched.
+        - Only applies to future doses (delta > LEAD_MINUTES). Past /
+          imminent doses are eligible.
+        - Items with no scheduled_time are exempt (no way to compute
+          the lead).
+    """
+    if not current_time:
+        return False
+    if item.get('source_type') != 'supplement_dose':
+        return False
+    # Critical / foundational supplements: governed by window logic.
+    if item.get('is_foundational'):
+        return False
+    priority = (item.get('priority') or '').lower()
+    if priority != 'optimization':
+        return False
+    scheduled = _parse_time(item.get('scheduled_time'))
+    if scheduled is None:
+        return False
+    sched_m = scheduled.hour * 60 + scheduled.minute
+    now_m = current_time.hour * 60 + current_time.minute
+    delta = sched_m - now_m
+    return delta > OPTIMIZATION_SUPPLEMENT_LEAD_MINUTES
+
+
 def prioritize_execution_items(
     execution_items, current_time, summaries=None,
     suppressed_source_keys=None,
@@ -320,6 +367,13 @@ def prioritize_execution_items(
         if src_key in suppressed:
             continue
 
+        # Optimization-supplement lead-window filter: nudge-class
+        # supplements (priority='optimization') >15 min in the future
+        # are kept out of the action pool. Prevents Beth jumping ahead
+        # of the day for items that are not yet imminent.
+        if _is_optimization_supplement_too_early(item, current_time):
+            continue
+
         if item['source_type'] == 'task':
             schedule_items.append({
                 'title': item['title'],
@@ -340,6 +394,7 @@ def prioritize_execution_items(
                 'task_class': item.get('task_class'),
                 'is_reset_action': item.get('is_reset_action', False),
                 'is_recoverable': True,  # filtered above
+                'execution_status': item.get('execution_status'),
                 'domain': item.get('domain'),
                 'source_type': 'task',
                 'source_id': item['source_id'],
@@ -365,6 +420,7 @@ def prioritize_execution_items(
                 'task_class': item.get('task_class'),
                 'is_reset_action': item.get('is_reset_action', False),
                 'is_recoverable': True,
+                'execution_status': item.get('execution_status'),
                 'domain': item.get('domain'),
                 'source_type': 'routine_item',
                 'source_id': item['source_id'],
@@ -395,11 +451,15 @@ def prioritize_execution_items(
             if item.get('time_status') == 'overdue':
                 medicine_groups_map[group_key]['has_overdue'] = True
             # Recovery metadata at the group level — most-foundational
-            # classification wins; reset flag is OR-aggregated.
+            # classification wins; reset flag is OR-aggregated;
+            # execution_status takes the WORST-case across doses so a
+            # late-but-recovering window surfaces as AT_RISK / LATE_OPEN
+            # rather than ON_TIME.
             mg_meta = medicine_group_meta.setdefault(group_key, {
                 'task_class': item.get('task_class'),
                 'is_reset_action': item.get('is_reset_action', False),
                 'is_foundational': item.get('is_foundational', False),
+                'execution_status': item.get('execution_status'),
                 'domain': item.get('domain'),
                 'source_type': item['source_type'],
                 'source_id': group_key,
@@ -409,6 +469,15 @@ def prioritize_execution_items(
             )
             if item.get('is_foundational'):
                 mg_meta['is_foundational'] = True
+            # Worst-case aggregation for execution_status.
+            existing_rank = STATUS_SEVERITY_RANK.get(
+                mg_meta.get('execution_status'), 0,
+            )
+            new_rank = STATUS_SEVERITY_RANK.get(
+                item.get('execution_status'), 0,
+            )
+            if new_rank > existing_rank:
+                mg_meta['execution_status'] = item.get('execution_status')
 
     # Finalize medicine groups
     medicine_groups = []
@@ -468,6 +537,7 @@ def prioritize_execution_items(
             a['task_class'] = meta.get('task_class')
             a['is_reset_action'] = meta.get('is_reset_action', False)
             a['is_recoverable'] = meta.get('is_recoverable', True)
+            a['execution_status'] = meta.get('execution_status')
             a['domain'] = meta.get('domain')
             a['source_type'] = meta.get('source_type')
         else:
@@ -475,6 +545,7 @@ def prioritize_execution_items(
             a.setdefault('task_class', None)
             a.setdefault('is_reset_action', False)
             a.setdefault('is_recoverable', True)
+            a.setdefault('execution_status', None)
             a.setdefault('domain', a.get('source'))
             a.setdefault('source_type', None)
 
@@ -545,6 +616,22 @@ def compute_block_collapses(execution_items, current_time, active_block=None):
     for (gtype, gid), items in groups.items():
         if len(items) < COLLAPSE_MIN_GROUP_SIZE:
             continue
+
+        # Phase 2 contract: SOFT_EXPIRED / FLEXIBLE-only groups never
+        # collapse. Items like workout / protein shake / shower /
+        # journaling are LATE_OPEN — late but still meaningfully
+        # intended today. Collapsing them into a recover_partially
+        # lever was the root cause of "Beth tells me to do a reset
+        # action instead of just letting me get to my workout."
+        # Foundational / WINDOWED / HARD_EXPIRED groups (medication
+        # blocks, appointments) continue to collapse normally.
+        non_soft_items = [
+            i for i in items
+            if (i.get('task_class') or FLEXIBLE) not in (SOFT_EXPIRED, FLEXIBLE)
+        ]
+        if not non_soft_items:
+            continue
+
         recoverable_items = [i for i in items if is_recoverable(i, current_time)]
         expired_items = [i for i in items if not is_recoverable(i, current_time)]
         foundational_recoverable = [

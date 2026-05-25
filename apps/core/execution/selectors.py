@@ -91,19 +91,75 @@ def _empty_payload(mode: str, message: str) -> dict:
 # EXECUTION MODE — "What should I do right now?"
 # ══════════════════════════════════════════════════════════════════════
 
+def _telemetry_snapshot(action):
+    """Compact dict for next_action selection telemetry. Reads-only."""
+    if not action:
+        return None
+    return {
+        "title": action.get("title"),
+        "urgency": action.get("urgency"),
+        "execution_status": action.get("execution_status"),
+        "task_class": action.get("task_class"),
+        "source_type": action.get("source_type"),
+        "is_foundational": action.get("is_foundational"),
+        "is_reset_action": action.get("is_reset_action"),
+        "time_display": action.get("time_display"),
+    }
+
+
+def _log_next_action_selection(
+    *, selected, selection_reason, eligible, all_actions, suppressed_reason=None,
+):
+    """Phase 1–3 observability hook for the recovery redesign.
+
+    Emits a single INFO line per get_next_action call. Goal: when a
+    regression slips into production we can grep
+    '[NEXT_ACTION TELEMETRY]' and see exactly which item won, what its
+    execution_status was, and what was suppressed.
+
+    Logged fields are intentionally compact and PII-free. Do not add
+    user identifiers here — Beth's chat path adds those at its own
+    layer when needed.
+    """
+    try:
+        # Build short summaries — first 5 candidates from each pool.
+        elig_summary = [_telemetry_snapshot(a) for a in (eligible or [])[:5]]
+        all_summary = [_telemetry_snapshot(a) for a in (all_actions or [])[:5]]
+        logger.info(
+            "[NEXT_ACTION TELEMETRY] selected=%s reason=%s suppressed=%s "
+            "eligible_count=%d all_count=%d eligible_preview=%s "
+            "all_preview=%s",
+            _telemetry_snapshot(selected),
+            selection_reason,
+            suppressed_reason,
+            len(eligible or []),
+            len(all_actions or []),
+            elig_summary,
+            all_summary,
+        )
+    except Exception:
+        # Telemetry must never break the selector.
+        logger.debug("next_action telemetry emit failed", exc_info=True)
+
+
 def get_next_action(state: dict) -> dict:
     """
     EXECUTION MODE selector — STRICT MODE ISOLATION contract.
 
     Pure pick from pre-filtered state["eligible_actions"]. No priority
     computation, no re-ranking, no DB, no LLM. Recovery filtering, block
-    collapse suppression, and recovery-mode bucket reordering all
+    collapse suppression, recovery-mode bucket reordering, LATE_OPEN
+    eligibility, and the optimization-supplement lead window all
     happened upstream in build_execution_state.
 
     Output is EXACTLY one line:
         "Next: [Action]. Do this now."     — current overdue/now action
         "Next: [Action]."                  — forward-only context
         "Nothing pending right now."       — empty pool
+
+    Observability: every call emits a [NEXT_ACTION TELEMETRY] log line
+    with the winning candidate + previews of the eligible / all pools.
+    Use to diagnose production regressions in the recovery redesign.
     """
     # eligible_actions is the block-filtered subset upstream. An empty
     # list means "nothing in the current window" — do NOT fall back to
@@ -114,6 +170,8 @@ def get_next_action(state: dict) -> dict:
     else:
         eligible = state.get("actions") or []
 
+    all_actions = state.get("actions") or []
+
     primary_pool = [
         a for a in eligible
         if a.get('urgency') in ('overdue', 'now')
@@ -121,6 +179,12 @@ def get_next_action(state: dict) -> dict:
     if primary_pool:
         top = primary_pool[0]
         title = top.get('title', '')
+        _log_next_action_selection(
+            selected=top,
+            selection_reason="primary_pool_overdue_or_now",
+            eligible=eligible,
+            all_actions=all_actions,
+        )
         return {
             "mode": "execution",
             "primary_action": top,
@@ -139,6 +203,12 @@ def get_next_action(state: dict) -> dict:
     if forward_eligible:
         f = forward_eligible[0]
         title = f.get('title', '')
+        _log_next_action_selection(
+            selected=f,
+            selection_reason="forward_eligible",
+            eligible=eligible,
+            all_actions=all_actions,
+        )
         return {
             "mode": "execution",
             "primary_action": None,
@@ -147,7 +217,6 @@ def get_next_action(state: dict) -> dict:
             "message": f"Next: {title}.",
         }
 
-    all_actions = state.get("actions") or []
     forward_any = [
         a for a in all_actions
         if a.get('urgency') in ('next', 'upcoming')
@@ -155,6 +224,12 @@ def get_next_action(state: dict) -> dict:
     if forward_any:
         f = forward_any[0]
         title = f.get('title', '')
+        _log_next_action_selection(
+            selected=f,
+            selection_reason="forward_any_fallback",
+            eligible=eligible,
+            all_actions=all_actions,
+        )
         return {
             "mode": "execution",
             "primary_action": None,
@@ -163,6 +238,12 @@ def get_next_action(state: dict) -> dict:
             "message": f"Next: {title}.",
         }
 
+    _log_next_action_selection(
+        selected=None,
+        selection_reason="empty",
+        eligible=eligible,
+        all_actions=all_actions,
+    )
     return _empty_payload("execution", "Nothing pending right now.")
 
 

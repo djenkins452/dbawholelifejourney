@@ -40,8 +40,14 @@ from .constants import (
     SHUTDOWN_OVERDUE_THRESHOLD,
     SHUTDOWN_TRIGGER_HOUR,
 )
+from .execution_status import (
+    AT_RISK,
+    EXPIRED_HARD,
+    EXPIRED_WINDOWED,
+    LATE_OPEN,
+)
 from .recoverability import is_recoverable
-from .task_classifier import FLEXIBLE
+from .task_classifier import FLEXIBLE, HARD_EXPIRED, SOFT_EXPIRED, WINDOWED
 
 
 # ── Mode constants ──────────────────────────────────────────────────
@@ -119,6 +125,47 @@ def compute_recovery_state(items, now, summaries=None, active_block=None):
         and (i.get("task_class") or FLEXIBLE) != FLEXIBLE
     ]
 
+    # ── Execution-status–aware escalation count ────────────────────
+    # RECOVERY mode MUST only escalate on items that genuinely
+    # threaten the day's safety / health intent. The prior contract
+    # counted any late item — that incorrectly treated a delayed
+    # workout / shower / protein shake (SOFT_EXPIRED LATE_OPEN) as
+    # equivalent to a missed insulin dose (foundational WINDOWED
+    # AT_RISK / EXPIRED_WINDOWED), forcing the mode into RECOVERY
+    # and triggering "rebuild the day" reactions when nothing was
+    # actually breaking.
+    #
+    # New contract (Phase 2):
+    #   escalation_overdue = foundational items in AT_RISK or
+    #                        EXPIRED_WINDOWED state only.
+    #
+    # Hard-expired foundational items (missed appointments) are
+    # surfaced via missed_foundational_count for STABILIZE, but the
+    # action itself is gone so they do NOT pump the RECOVERY counter
+    # — Beth cannot help the user "recover" something that is over.
+    def _status_of(item):
+        return item.get("execution_status")
+
+    escalation_overdue = []
+    for i in overdue_open:
+        if not i.get("is_foundational"):
+            continue
+        cls = i.get("task_class") or FLEXIBLE
+        # SOFT_EXPIRED LATE_OPEN never escalates — late but still
+        # planned today. FLEXIBLE items have no real "late".
+        if cls in (SOFT_EXPIRED, FLEXIBLE):
+            continue
+        status = _status_of(i)
+        if status in (AT_RISK, EXPIRED_WINDOWED):
+            escalation_overdue.append(i)
+            continue
+        # Defensive fallback: if execution_status wasn't annotated
+        # (legacy callers / failures), fall back to the
+        # task_class + recoverability inference for WINDOWED items
+        # only. SOFT_EXPIRED never falls back into escalation.
+        if status is None and cls == WINDOWED:
+            escalation_overdue.append(i)
+
     # Reset-action availability: only items the user could actually do.
     reset_available = any(
         i.get("is_reset_action") and is_recoverable(i, now_time)
@@ -129,12 +176,16 @@ def compute_recovery_state(items, now, summaries=None, active_block=None):
         "missed_foundational_count": len(missed_foundational),
         "recoverable_overdue_count": len(recoverable_overdue),
         "expired_count": len(expired),
+        "escalation_overdue_count": len(escalation_overdue),
         "current_window_status": (active_block or {}).get("name") or "no_block",
         "reset_action_available": reset_available,
     }
 
     # ── Mode resolution ────────────────────────────────────────────
     hour = now_time.hour
+    # SHUTDOWN preserves its prior signal (any late or expired item in
+    # the evening) — the user did not include SHUTDOWN in the Phase 2
+    # narrowing. Evening "stop trying to catch up" semantics stay.
     total_overdue_signal = len(recoverable_overdue) + len(expired)
 
     if (
@@ -150,14 +201,17 @@ def compute_recovery_state(items, now, summaries=None, active_block=None):
         )
     elif (
         hour >= RECOVERY_TRIGGER_HOUR
-        and len(recoverable_overdue) >= RECOVERY_OVERDUE_THRESHOLD
+        and len(escalation_overdue) >= RECOVERY_OVERDUE_THRESHOLD
     ):
+        # RECOVERY now requires *foundational* WINDOWED items to be
+        # genuinely at-risk / expired. A bunch of late SOFT_EXPIRED
+        # workouts/showers/journals can no longer flip the mode.
         mode = RECOVERY
         strategy = STRAT_RECOVER
         narrative = NARR_DAY_LOST_SALVAGE
         reason = (
-            f"Past noon with {len(recoverable_overdue)} recoverable items "
-            f"behind — rebuild the day forward."
+            f"Past noon with {len(escalation_overdue)} foundational item(s) "
+            f"at risk — rebuild the day forward."
         )
     elif counts["missed_foundational_count"] >= 1 and reset_available:
         mode = STABILIZE
@@ -183,6 +237,7 @@ def compute_recovery_state(items, now, summaries=None, active_block=None):
         "missed_foundational_count": counts["missed_foundational_count"],
         "recoverable_overdue_count": counts["recoverable_overdue_count"],
         "expired_count": counts["expired_count"],
+        "escalation_overdue_count": counts["escalation_overdue_count"],
         "current_window_status": counts["current_window_status"],
         "recommended_strategy": strategy,
         "day_narrative": narrative,

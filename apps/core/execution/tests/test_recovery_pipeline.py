@@ -268,7 +268,15 @@ class AtRiskHorizonTests(SimpleTestCase):
 
 class BlockCollapseTests(SimpleTestCase):
 
-    def test_collapse_fires_at_min_group_size(self):
+    def test_soft_expired_only_group_does_not_collapse(self):
+        """Phase 2 contract: SOFT_EXPIRED-only groups never collapse.
+
+        Workout + protein shake + shower late at 11 AM is still a
+        valid, intended day — just delayed. Collapsing them into a
+        single recover_partially summary was the root cause of Beth
+        telling the user to "do a reset action" instead of letting
+        them resume their workout.
+        """
         items = [
             annotate({
                 'source_type': 'routine_item', 'source_id': i,
@@ -284,11 +292,20 @@ class BlockCollapseTests(SimpleTestCase):
             for i in range(1, 4)
         ]
         result = compute_block_collapses(items, dt.time(14, 10))
-        self.assertEqual(len(result['collapses']), 1)
-        # All SOFT_EXPIRED, no foundational → defer strategy.
-        self.assertEqual(result['collapses'][0]['strategy'], 'defer')
+        self.assertEqual(
+            result['collapses'], [],
+            "SOFT_EXPIRED-only groups must NOT collapse under "
+            "the Phase 2 contract.",
+        )
+        self.assertEqual(result['suppressed_source_keys'], set())
 
-    def test_collapse_strategy_recover_partially_with_foundational(self):
+    def test_foundational_soft_expired_group_still_does_not_collapse(self):
+        """Phase 2 contract: even a foundational SOFT_EXPIRED group
+        stays individually surfaced. The 'is_foundational' flag does
+        not override the SOFT_EXPIRED bypass — a foundational habit
+        like daily journaling that's late should be LATE_OPEN, not
+        collapsed under a recover_partially lever.
+        """
         items = [
             annotate({
                 'source_type': 'routine_item', 'source_id': 1,
@@ -312,14 +329,66 @@ class BlockCollapseTests(SimpleTestCase):
             }),
         ]
         result = compute_block_collapses(items, dt.time(14, 10))
-        self.assertEqual(result['collapses'][0]['strategy'], 'recover_partially')
-        # Foundational item is kept out of the suppression set.
+        self.assertEqual(result['collapses'], [])
+        # Neither item is suppressed — both remain individually
+        # actionable in the eligible pool.
         self.assertNotIn(
             ('routine_item', 1), result['suppressed_source_keys'],
         )
-        # Non-foundational item IS suppressed.
-        self.assertIn(
+        self.assertNotIn(
             ('routine_item', 2), result['suppressed_source_keys'],
+        )
+
+    def test_windowed_group_with_foundational_lever_still_collapses(self):
+        """Counter-test: WINDOWED groups (medications, nutrition
+        anchors) continue to collapse via recover_partially when a
+        foundational lever exists. The Phase 2 narrowing only
+        excludes SOFT_EXPIRED — WINDOWED groups still need the
+        collapse summary so Beth can say 'fix the lunch meds block'
+        instead of listing each missed dose."""
+        # Items in the 'afternoon' canonical window (14–17). The
+        # recoverability layer caps grace at the next-anchor block
+        # start ('evening' = 17:00), which is well past the 60-min
+        # grace, so the actual cutoff is scheduled + 60min.
+        items = [
+            annotate({
+                'source_type': 'medication_dose', 'source_id': 1,
+                'title': 'Critical Med', 'domain': 'health',
+                'is_actionable': True, 'completed_today': False,
+                'is_foundational': True, 'time_status': 'overdue',
+                'execution_group_type': 'medication_window',
+                'execution_group_id': 'afternoon',
+                'parent_title': 'Afternoon Medications',
+                'scheduled_time': '15:00',
+                'intake_type': 'medication',
+                'priority': 'critical',
+            }),
+            annotate({
+                'source_type': 'medication_dose', 'source_id': 2,
+                'title': 'Other Med', 'domain': 'health',
+                'is_actionable': True, 'completed_today': False,
+                'is_foundational': False, 'time_status': 'overdue',
+                'execution_group_type': 'medication_window',
+                'execution_group_id': 'afternoon',
+                'scheduled_time': '15:00',
+                'intake_type': 'medication',
+                'priority': 'critical',
+            }),
+        ]
+        # 15:30 — both items still inside the 60-min WINDOWED grace
+        # window (15:00 + 60min = 16:00). Both recoverable.
+        result = compute_block_collapses(items, dt.time(15, 30))
+        self.assertEqual(len(result['collapses']), 1)
+        self.assertEqual(
+            result['collapses'][0]['strategy'], 'recover_partially',
+        )
+        # Foundational lever remains in the pool; the non-foundational
+        # dose is suppressed under the recover_partially strategy.
+        self.assertNotIn(
+            ('medication_dose', 1), result['suppressed_source_keys'],
+        )
+        self.assertIn(
+            ('medication_dose', 2), result['suppressed_source_keys'],
         )
 
     def test_collapse_skip_when_all_expired(self):

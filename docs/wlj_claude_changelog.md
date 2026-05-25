@@ -3,8 +3,134 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-25 (Arc 1 PRODUCTION: Walking With God — Creation -> Egypt, 7 days, deployed)
+# Last Updated: 2026-05-25 (Recovery redesign Phases 1-3 — execution_status + class-aware RECOVERY + LATE_OPEN eligibility)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-25 — feat(execution): Recovery redesign Phases 1-3 — execution_status + class-aware RECOVERY + LATE_OPEN eligibility
+
+Deterministic-truth fix for the "Beth jumps ahead of the day" bug.
+At 11:13 AM Beth was recommending a 1:00 PM Perfect Amino dose
+because late-but-intended workout / protein shake / shower items
+had been evicted from the eligible action pool, and the day mode
+had falsely flipped to RECOVERY. Root cause: the prior contract
+counted any late SOFT_EXPIRED item toward escalation and used
+the active-block filter to drop late items, leaving only future
+items as candidates.
+
+### Phase 1 — new `execution_status` field
+
+Single source of truth for "what state is this item in *right now*?"
+Six deterministic states derived purely from `task_class`,
+`scheduled_time`, grace, foundational, current time, and completion:
+
+- `ON_TIME`           — within scheduled window, or no schedule
+- `LATE_OPEN`         — SOFT_EXPIRED past scheduled, still doable today
+- `AT_RISK`           — WINDOWED past scheduled, inside grace cutoff
+- `EXPIRED_WINDOWED`  — WINDOWED past grace cutoff
+- `EXPIRED_HARD`      — HARD_EXPIRED past scheduled (appointment / service)
+- `SKIPPED`           — user-marked skipped
+
+`build_today_execution()` annotates every item after the classifier
+pass, so selectors / recovery_state / block_eligibility / UI all
+read the same field instead of re-deriving lateness independently.
+
+### Phase 2 — RECOVERY trigger is now class-aware
+
+`compute_recovery_state()` introduces `escalation_overdue_count` —
+counts only foundational items in AT_RISK or EXPIRED_WINDOWED. Late
+SOFT_EXPIRED items (workout, shake, shower, journaling, Bible
+reading, flexible supplements) never escalate the mode. STABILIZE
+is unchanged (it already only looked at foundational *expired*
+items, which SOFT_EXPIRED never becomes). SHUTDOWN preserved as a
+safety floor for evening "preserve tomorrow" semantics.
+
+`compute_block_collapses()` skips SOFT_EXPIRED-only groups
+entirely — the workout / shake / shower trio no longer collapses
+under a `recover_partially` lever. WINDOWED / HARD_EXPIRED groups
+(medications, appointments) still collapse normally.
+
+### Phase 3 — LATE_OPEN items remain eligible all day
+
+`build_execution_state._block_eligible()` short-circuits to True
+when `execution_status == LATE_OPEN`. A 6:15 AM workout at 11:13 AM
+stays in `eligible_actions`, so `get_next_action()` returns it as
+"Next: Workout. Do this now." instead of falling through to the
+future Perfect Amino anchor.
+
+### Optimization-supplement lead window
+
+New constant `OPTIMIZATION_SUPPLEMENT_LEAD_MINUTES = 15`. Supplement
+doses with `priority='optimization'` (e.g., Perfect Amino, creatine,
+fish oil) scheduled more than 15 minutes in the future are filtered
+out of the action pool entirely. Critical / foundational supplements
+follow their existing WINDOWED grace logic and are NOT affected.
+
+### Observability
+
+`get_next_action()` emits one `[NEXT_ACTION TELEMETRY]` INFO log
+per call: selected title + reason, eligible / all preview snapshots
+including `execution_status`, `task_class`, `urgency`, `is_foundational`.
+Designed for production regression diagnosis — grep
+`[NEXT_ACTION TELEMETRY]` to inspect why a particular item won.
+
+### Files changed
+
+Created:
+- `apps/core/execution/execution_status.py` — pure status module
+- `apps/core/execution/tests/test_execution_status.py` — 19 unit tests
+- `apps/core/execution/tests/test_late_open_eligibility.py` — 13 end-to-end
+  regression tests covering scenarios A (delayed workout), B (Perfect Amino
+  bug), C (critical medication still escalates), D (missed appointment is
+  EXPIRED_HARD), E (streaming/non-streaming parity), F (UI alignment)
+
+Modified:
+- `apps/core/execution/constants.py` — `OPTIMIZATION_SUPPLEMENT_LEAD_MINUTES`
+- `apps/core/execution/today_execution.py` — annotate `execution_status`
+- `apps/core/execution/recovery_state.py` — class-aware escalation
+- `apps/core/execution/execution_state.py` — LATE_OPEN eligibility bypass
+- `apps/core/execution/selectors.py` — next_action telemetry
+- `apps/core/decision_engine/action_prioritizer.py` — SOFT_EXPIRED-only
+  groups don't collapse; optimization-supplement lead filter;
+  `execution_status` propagated through meta
+- `apps/core/execution/tests/test_recovery_state.py` — updated assertions
+- `apps/core/execution/tests/test_recovery_pipeline.py` — updated block
+  collapse tests
+
+### Behaviour delta
+
+The Perfect Amino at 11:13 AM scenario, before/after:
+
+Before:
+- mode=RECOVERY, narrative=day_lost_salvage
+- eligible_actions=[Perfect Amino @ 1pm]
+- next_action="Next: Perfect Amino."
+
+After:
+- mode=NORMAL, narrative=behind_recoverable
+- eligible_actions=[Workout, Protein Shake, Shower]
+- next_action="Next: Workout. Do this now."
+
+Safety preserved: two foundational AT_RISK medication doses past
+noon still trigger RECOVERY mode (Scenario C verified).
+
+### Why
+
+The prior contract treated TIME COMPLIANCE as the primary signal.
+A delayed workout was indistinguishable from a missed insulin dose.
+The new contract treats DAILY EXECUTION INTENT as primary: a
+SOFT_EXPIRED item past its scheduled time is "still planned today"
+unless explicitly skipped. Hard windows (insulin, appointments,
+critical meds) retain their existing escalation behaviour.
+
+No model changes. No migrations. No template changes.
+Tests: 137/137 pass. `python manage.py check` clean.
+
+Deferred (NOT in this commit): Phase 4 (optimization supplement
+rewrite), Phase 5 (Beth narration / tone changes), PLANNED_LATER
+status, explicit user defer workflow.
+
+---
 
 
 ## 2026-05-25 — feat(health_briefing): Phase 1A · C14 — Beth narration addendum

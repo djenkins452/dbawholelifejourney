@@ -112,6 +112,23 @@ def build_today_execution(user):
             exc_info=True,
         )
 
+    # Annotate every item with execution_status (ON_TIME / LATE_OPEN /
+    # AT_RISK / EXPIRED_WINDOWED / EXPIRED_HARD / SKIPPED). Single source
+    # of truth — selectors, recovery state, and block eligibility all
+    # read this field instead of re-deriving lateness themselves. Must
+    # run AFTER task_classifier.annotate (depends on task_class).
+    try:
+        from apps.core.execution.execution_status import (
+            annotate_execution_status,
+        )
+        for it in items:
+            annotate_execution_status(it, user_now)
+    except Exception:
+        logger.warning(
+            "Execution contract: execution_status annotation failed",
+            exc_info=True,
+        )
+
     return {
         'items': items,
         'summaries': summaries,

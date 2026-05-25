@@ -7,6 +7,88 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-25 — docs(health_briefing): Validation scenarios populated (W5 prerequisite)
+
+Doc-only commit. Populates `docs/health_briefing_validation_scenarios.md`
+with all 15 hand-curated real-world acceptance scenarios. No code.
+No Beth integration. Gating artifact for Wave 5 (C14/C15).
+
+### What was added
+
+Each scenario carries:
+- **A. Context / inputs** — concrete SAE state the composer reads
+- **B. Expected briefing output** — every composer field
+- **C. Expected Beth behavior** — narration MUST / MAY / MUST NOT
+- **D. Bad-response examples** — concrete things Beth must not say
+- **E. Success criteria** — the bar this scenario must clear
+
+### Tier 1 — User-priority real-world trust scenarios (7)
+
+1. **Canonical Danny metabolic progress** — the flagship scenario.
+   Weight down, insulin down, exercise consistent, glucose mildly
+   elevated. The exact failure mode the Phase 0 review identified.
+2. **Travel disruption week** — sleep poor, exercise disrupted,
+   restaurant food, glucose worsened. Bad week vs declining
+   trajectory.
+3. **Acute glucose danger** — critical low overrides thriving headline.
+4. **Mixed state** — meaningful progress alongside variability concern.
+5. **Insufficient data** — brand-new user; honesty test.
+6. **Strong progress + temporary bad week** — horizon disagreement
+   (7d slip vs 30d/90d still improving).
+7. **Sleep disruption causing glucose drift** — connect-the-dots
+   without causal overreach.
+
+### Tier 2 — Phase 0 failure modes & edge cases (8)
+
+8. **CGM offline (data staleness)** — no narration from stale data.
+9. **Insulin observation completely absent** — critical
+   no-fabrication rule. Most WLJ users don't log insulin; Beth must
+   stay silent on insulin entirely.
+10. **Insulin trend rising** — confounder safety (prescription change
+    vs decline). No causal speculation.
+11. **Weight loss + glucose stable with catabolic risk** — Phase 0
+    failure mode #3. Don't celebrate rapid loss without context.
+12. **Healthy and unremarkable week** — gentle case. No manufactured
+    drama.
+13. **Perfect adherence + everything improving** — positive
+    recognition guaranteed. Genuine celebration, not pro-forma
+    "good job."
+14. **Multiple acute alerts simultaneously** — compound severity.
+    Acute focus, not paralysis.
+15. **Post-illness recovery week** — variance ≠ trajectory change.
+    Recovery framing.
+
+### Universal cross-scenario trust tests
+
+10 blanket trust tests every scenario must pass: no fabrication,
+no causal overreach, acute surfaces first, positive recognition
+honored, no stat dumps, no manufactured concerns, insufficient data
+named, insulin claims gated, tone matches risk level, length
+matches situation.
+
+### W5 gate
+
+All 15 must be reviewed before C15 merges. Population tracking table
+in the doc tracks reviewed status. The Wave 5 question, per the user:
+
+> Would this response feel **wise**, **balanced**, **encouraging**,
+> **truthful**, **non-alarmist**, and **high-trust** to Danny?
+
+A scenario producing structurally correct output but feeling
+alarmist, dismissive, or robotic is a **fail** — even if every unit
+test passes.
+
+### Files Created
+- (None — the doc already existed as a skeleton from Wave 1.)
+
+### Files Modified
+- `docs/health_briefing_validation_scenarios.md` — fully populated
+  with 15 scenarios + universal trust tests + source material.
+
+### Bible Journey coordination
+- BibleJourney-Touches: none. Doc-only commit in `docs/`.
+- Only shared file: `docs/wlj_claude_changelog.md` (append-only).
+
 ## 2026-05-25 — feat(signals): Phase 1A · C13 — R1 fix: briefing-channel suppression exemption
 
 Wave 4, sole commit. The R1 architectural fix from the Phase 0 review:

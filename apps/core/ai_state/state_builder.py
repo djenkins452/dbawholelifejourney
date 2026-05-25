@@ -88,6 +88,16 @@ HEALTH_CONTRACT = {
     'latest_glucose':            None,
     'latest_glucose_unit':       None,
     'glucose_avg_7d':            None,
+    # Metabolic Intelligence v1 (Phase 1A · C5) — additive multi-horizon
+    # glucose metrics. Defaults are None so existing readers ignoring
+    # these keys are unaffected. Populated by build_health_state when
+    # data is available; overnight_avg_glucose stays None until C7
+    # adds the backing DailyHealthSummary field.
+    'glucose_avg_30d':           None,
+    'glucose_avg_90d':           None,
+    'time_in_range_pct_7d':      None,
+    'time_in_range_pct_30d':     None,
+    'overnight_avg_glucose':     None,
     # ── Steps ─────────────────────────────────────────────────
     'steps_status':              'no_data',
     'steps_status_reason':       '',
@@ -719,6 +729,50 @@ def build_health_state(user):
             else:
                 state["glucose_variability_level"] = "stable"
                 state["glucose_variability_label"] = "Stable"
+
+        # ── Metabolic Intelligence v1 (Phase 1A · C5) ──────────
+        # Multi-horizon glucose averages and time-in-range. Sourced
+        # from existing infrastructure (GlucoseEntry + DailyHealthSummary)
+        # so no schema changes here. Each block is wrapped so a single
+        # missing data point does not blank the rest.
+        cutoff_30d_glucose = now - timedelta(days=30)
+        cutoff_90d_glucose = now - timedelta(days=90)
+        glucose_avg_30d = GlucoseEntry.objects.filter(
+            user=user, recorded_at__gte=cutoff_30d_glucose
+        ).aggregate(avg=Avg("value"))["avg"]
+        if glucose_avg_30d:
+            state["glucose_avg_30d"] = round(float(glucose_avg_30d))
+
+        glucose_avg_90d = GlucoseEntry.objects.filter(
+            user=user, recorded_at__gte=cutoff_90d_glucose
+        ).aggregate(avg=Avg("value"))["avg"]
+        if glucose_avg_90d:
+            state["glucose_avg_90d"] = round(float(glucose_avg_90d))
+
+        # Time-in-range is already computed per-day by DailySummaryBuilder.
+        # Average those daily percentages across the window.
+        cutoff_7d_date = (now - timedelta(days=7)).date()
+        cutoff_30d_date = (now - timedelta(days=30)).date()
+        tir_7d = DailyHealthSummary.objects.filter(
+            user=user,
+            summary_date__gte=cutoff_7d_date,
+            time_in_range_pct__isnull=False,
+        ).aggregate(avg=Avg("time_in_range_pct"))["avg"]
+        if tir_7d is not None:
+            state["time_in_range_pct_7d"] = round(float(tir_7d), 1)
+
+        tir_30d = DailyHealthSummary.objects.filter(
+            user=user,
+            summary_date__gte=cutoff_30d_date,
+            time_in_range_pct__isnull=False,
+        ).aggregate(avg=Avg("time_in_range_pct"))["avg"]
+        if tir_30d is not None:
+            state["time_in_range_pct_30d"] = round(float(tir_30d), 1)
+
+        # overnight_avg_glucose intentionally not populated here — the
+        # backing DailyHealthSummary.overnight_avg_glucose field lands in
+        # C7. Until then HEALTH_CONTRACT defaults this to None and the
+        # composer treats it as missing data.
     except Exception:
         logger.error("SAE: glucose state build failed", exc_info=True)
 

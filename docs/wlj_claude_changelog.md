@@ -7,6 +7,94 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-25 — feat(health_state): Phase 1A · C5 — HEALTH_CONTRACT glucose extensions
+
+Wave 2, first commit. Pure additive extension to the SAE health state
+contract. No schema changes. No behavioral change to Beth. No Bible
+Journey collision (faith_state journey integration explicitly verified
+to remain intact).
+
+### What was added
+
+**HEALTH_CONTRACT (`apps/core/ai_state/state_builder.py`):**
+
+Five new keys appended to the glucose section, all defaulting to `None`:
+
+- `glucose_avg_30d` — rolling 30-day glucose average (mg/dL).
+- `glucose_avg_90d` — rolling 90-day glucose average (mg/dL).
+- `time_in_range_pct_7d` — 7-day average of daily TIR from
+  DailyHealthSummary.
+- `time_in_range_pct_30d` — 30-day average of daily TIR.
+- `overnight_avg_glucose` — reserved for C7 once the backing
+  `DailyHealthSummary.overnight_avg_glucose` field exists; defaults to
+  None until then.
+
+**build_health_state extension:**
+
+The glucose block now also queries GlucoseEntry for 30d and 90d
+averages and DailyHealthSummary for 7d and 30d TIR averages. All
+sourced from existing infrastructure — no new models or fields needed.
+Each computation is wrapped so missing data on one window does not
+blank the others. The whole block remains inside the existing
+try/except so a single SAE failure cannot break health state.
+
+`overnight_avg_glucose` is intentionally not populated in build_health_state —
+the backing daily-summary field lands in C7. Until then HEALTH_CONTRACT
+defaults the key to None and the future composer treats it as missing.
+
+### Bible Journey guardrail (explicit verification)
+
+Per the Wave 2 guardrail, I verified that `build_faith_state` and its
+`state["journey"] = build_journey_state(user)` block remain intact at
+lines 1357-1366 of `state_builder.py`. C5 only added lines inside
+`HEALTH_CONTRACT` and inside the glucose block of `build_health_state`;
+nothing was removed or modified outside those two locations. The
+test module `tests_health_contract_glucose_extensions.py` includes a
+`FaithStateJourneyIntegrationPreservedTests` class with five tests that
+inspect the source of `build_faith_state` to prove the integration is
+still wired (import statement present, state assignment present,
+ImportError guard present). These tests fail loudly if a future commit
+accidentally regresses the parallel workstream's additions.
+
+`welcome_back_state` was searched for — it lives entirely in
+`apps/faith/journey/views.py`, not in the state builder. Not a
+collision surface.
+
+### Files Created
+- `apps/core/ai_state/tests_health_contract_glucose_extensions.py`
+
+### Files Modified
+- `apps/core/ai_state/state_builder.py` — five new HEALTH_CONTRACT
+  keys; glucose block of build_health_state extended.
+
+### Tests
+- `python3 manage.py test
+  apps.core.ai_state.tests_health_contract_glucose_extensions
+  --keepdb` — 14/14 pass.
+- Test classes: HealthContractKeysExistTests (3),
+  ExistingContractKeysPreservedTests (2),
+  BuildHealthStateGlucoseExtensionsTests (4),
+  FaithStateJourneyIntegrationPreservedTests (5).
+- Runtime 116s — slow due to GlucoseEntry/DailyHealthSummary post_save
+  signals firing the SAE refresh Celery dispatch (different handlers
+  from C3's mute). Tests still pass; will mute these in C7/C8 where
+  more data fixtures are created.
+
+### Why
+C5 is the smallest possible step that gives the future composer (W3)
+the multi-horizon glucose visibility it needs without altering any
+existing behavior. Every new field has a None default so any reader
+not yet aware of these keys continues to work exactly as before. This
+is the additivity discipline locked in Phase 0.
+
+### Bible Journey coordination
+- BibleJourney-Touches: `apps/core/ai_state/state_builder.py` (HIGH
+  shared file). Additive only; build_faith_state integration verified
+  intact via dedicated test class. No edits to VALID_STATUS_VALUES,
+  _validate_health_contract, _calculate_reading_streak, build_faith_state,
+  or any non-glucose section of build_health_state.
+- Only other shared file: `docs/wlj_claude_changelog.md` (append-only).
+
 ## 2026-05-25 — feat(health_briefing): Phase 1A · C4 — HealthBriefingSnapshot persistence
 
 Wave 1, fourth and final commit of the foundations wave. Adds the

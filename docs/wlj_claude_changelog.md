@@ -7,6 +7,85 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-25 — feat(health_briefing): Phase 1A · C10 — Ranking module
+
+Wave 3, second commit. Deterministic ranking of Layer 4 fact verdicts
+into briefing-ready drivers + headline + risk. Pure functions, no DB,
+no I/O, no Beth integration.
+
+### What was added
+
+`apps/core/health_briefing/ranking.py` — `rank_facts()` consumes a list
+of FactVerdict (C9) + optional acute alerts (composer-assembled) and
+returns a `RankingResult` carrying:
+
+- `overall_status` — one of OverallStatus (thriving / improving /
+  stable / mixed / declining / at_risk / insufficient_data)
+- `overall_confidence` — weighted average of sufficient-fact
+  confidences, weight = |contribution| + 1
+- `risk_level` — none / low / moderate / high / acute
+- `top_positive_drivers` (≤3, sorted descending by contribution)
+- `watch_items` (≤3, sorted by most-negative contribution first)
+- `acute_alerts` (passed through verbatim)
+- `why` (≤5 short bullets, sorted by absolute contribution; acute
+  alerts prepended)
+- `positive_recognition_required` — true when status ∈ {thriving,
+  improving, stable, mixed} AND any positive driver clears
+  narration_floor (0.5 from C2 thresholds registry)
+- `insufficient_data_flag` — true when every fact is
+  INSUFFICIENT_DATA and no acute alerts
+
+### Classification thresholds (locked v1)
+
+| Net contribution | Headline |
+|------------------|----------|
+| ≥ +35            | thriving |
+| +10 to +34       | improving |
+| -10 to +9        | stable (mixed if any decline) |
+| -29 to -11       | mixed |
+| ≤ -30            | declining |
+
+Acute alert presence overrides headline to `at_risk` and risk to `acute`
+— the briefing cannot paint a rosy picture during an acute event
+(directly addresses Phase 0 failure mode #1: "metabolic trajectory
+improving while user is in DKA").
+
+### Determinism
+
+Tied contributions break by ASCII order of the fact key. Same inputs
+always produce the same RankingResult — verified by
+`DeterminismTests`. Input list order is irrelevant.
+
+### Tests
+
+`apps/core/health_briefing/tests/test_ranking.py` — 28 tests in 1ms.
+Classes:
+- InsufficientDataTests (2) — empty / all-insufficient paths
+- HeadlineClassificationTests (6) — every status bucket
+- AcuteAlertBehaviorTests (2) — override + why ordering
+- DriversAndWatchItemsTests (3) — sort order, cap, neutral exclusion
+- PositiveRecognitionTests (4) — required / not-required boundary
+- RiskLevelTests (5) — every risk level
+- ConfidenceWeightingTests (2) — weighted-average behavior
+- WhyBulletTests (2) — cap + ordering
+- DeterminismTests (2) — same inputs → same output; order-insensitive
+
+### Files Created
+- `apps/core/health_briefing/ranking.py`
+- `apps/core/health_briefing/tests/test_ranking.py`
+
+### Verification
+- `python3 manage.py test apps.core.health_briefing.tests.test_ranking
+  --keepdb` — 28/28 pass in 0.001s.
+
+### Wave 3 hard guardrail (C11 invisible to Beth)
+C10 does not touch `cos_context.py`, `personal_assistant.py`, or
+Beth's system prompt.
+
+### Bible Journey coordination
+- BibleJourney-Touches: none.
+- Only shared file: `docs/wlj_claude_changelog.md` (append-only).
+
 ## 2026-05-25 — feat(health_briefing): Phase 1A · C9 — Layer 4 interpreted facts
 
 Wave 3, first commit. Pure-function module producing seven composer-

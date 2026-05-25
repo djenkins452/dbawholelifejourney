@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load journey_tags %}
 
 {% block title %}Faith - Whole Life Journey{% endblock %}
 
@@ -53,7 +54,10 @@
         {% endif %}
     </section>
     {% endif %}
-    
+
+    {# Walking With God Through Scripture — quiet, single card. No-op when user has no active journey. #}
+    {% journey_dashboard_card request.user %}
+
     <div class="faith-grid">
         <!-- Prayer Requests -->
         <div class="faith-card">

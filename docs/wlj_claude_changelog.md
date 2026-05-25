@@ -3,8 +3,193 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-25 (feat: Walking With God Through Scripture — Commit 5, signals + state + welcome-back)
+# Last Updated: 2026-05-25 (feat: Walking With God Through Scripture — Commit 6 (Phase 1 complete))
 # ================================================================# WLJ Change History
+
+
+## 2026-05-25 — feat(faith.journey): Journey — Commit 6 (dashboard card + capability + Phase 1 close)
+
+Final Phase 1 commit for "Walking With God Through Scripture". Adds the
+single modest Faith-dashboard journey card, registers the journey domain
+capability (additive only, no new consumers), and applies two iPhone
+sanity-pass fixes. Phase 1 is now functionally complete, pending
+theological reviewer naming + content authoring for the remaining ~20 days.
+
+### What was added
+
+**Faith dashboard card** (modest, single, Faith-page only):
+- `apps/faith/journey/dashboard.py` — `get_dashboard_card_data(user)` returns
+  the card payload or None
+- `apps/faith/journey/templatetags/__init__.py` + `journey_tags.py` —
+  `{% journey_dashboard_card user %}` inclusion tag
+- `templates/faith/journey/_dashboard_card.html` — the partial, with
+  scoped CSS-with-nonce styling
+- `templates/faith/home.html` — single additive change: `{% load journey_tags %}`
+  + `{% journey_dashboard_card request.user %}` between Today's Verse and
+  the existing faith-grid. No existing card or layout touched.
+
+Card UX (locked, tested):
+- Appears on the Faith page ONLY — not homepage, not global dashboard, not
+  CoS prioritization, not "Do This Now"
+- Renders nothing when user has no active journey
+- Information density per the locked spec: journey name → arc + day position
+  → today's focus (key_insight) → single CTA "Continue Journey"
+- Test asserts no urgency language: no "streak", "behind", "missed",
+  "don't forget", "urgent"
+
+**Capability registration** (additive, future-safe infrastructure only):
+- `apps/faith/journey/capabilities.py` — new `DomainCapability` for
+  `faith.journey`. Auto-discovered by `apps.core.domain_registry` at startup.
+- `intent_types=[]` — no CoS intents (Beth silent on journey surface)
+- `proactive_signals=[]` — no proactive surfacing
+- `expected_signal_types=[...]` — six signals documented for discoverability
+- Existing `apps/faith/capabilities.py` UNCHANGED — separate registration
+
+**Tests** (7 new):
+- `tests/test_dashboard.py` — dashboard data helper (none vs populated),
+  partial render on faith home (with vs without active journey), no-urgency-
+  language assertion, capability registration verification, existing faith
+  capability unmodified
+
+### iPhone sanity-pass — two real issues fixed
+
+**Issue 1: sticky "I'm stuck" pill obstructed the complete button.**
+The `.journey-stuck` pill used `position: sticky; bottom: 12px`, positioned
+in the DOM after the "Mark today complete" button. Because sticky elements
+remain at their bottom-offset while their natural position is below the
+viewport, the pill VISUALLY overlapped the complete button while the user
+was reading the reflection/application section. The complete button is the
+most important interaction on the page; obstructing it broke the calm,
+Scripture-first UX promise.
+
+**Fix:** removed `position: sticky`. The pill is now a normal inline block
+near the end of the page. Trade-off: help is no longer always-available
+mid-scroll; user must scroll to find it. Acceptable — the pill's existence
+is documented in the page's natural flow, and the deterministic confusion
+panel that opens from it is also inline.
+
+**Issue 2: annotation popover overflowed at iPhone width.**
+Four buttons (Highlight / Bookmark / Save verse / Note) × ~90px each =
+~360px. At iPhone SE width (375px) minus padding, the popover would clip
+horizontally.
+
+**Fix:** added `flex-wrap: wrap` and `max-width: calc(100vw - 32px)` to
+`.journey-anno-popover`. Buttons now wrap to 2×2 on narrow screens.
+
+### iPhone sanity-pass — no-issue notes
+
+The following were reviewed and are acceptable as-is:
+- Locator (13px sans-uppercase) — readable
+- Setting the scene (16px serif body in gold-bordered box) — readable, warm
+- Today's reading (18px serif on iPhone, line-height 1.7) — comfortable
+- Plain English (17px serif) — comfortable
+- Key insight (18px italic centered) — sets the takeaway clearly
+- Reflect textarea (16px, full width, no-zoom safe) — works
+- Application (17px + 14px checkbox label) — readable, 44px touch target
+- Mark today complete button (16px, 14×22 padding, 44px min-height,
+  full-width gold) — prominent and tappable
+- Retention anchor (14px muted, dashed top rule) — closes the page calmly
+- Welcome-back banner (18px italic title, 15px body, warm sand bg,
+  gold left border) — reverent, non-guilt
+- Dashboard card (19px serif title drops to 18px on mobile, 13px muted
+  position, 16px italic focus, 15px CTA in 44px min-height) — quiet,
+  appropriate
+
+### Known mobile observations (not blocking Phase 1)
+
+- Annotation popover positioning still uses simple absolute placement
+  relative to tapped verse; near right-edge verses MAY shift slightly
+  due to the new `max-width` clamp. Phase 2 refinement: edge-detection.
+- `window.prompt()` for the Note action is iOS-clinical, not reverent.
+  Replace with an in-page modal in Phase 2.
+- The "Welcome back" banner is text-only; a quick "See past 7 days"
+  recap link is a Phase 2 addition.
+
+### Files modified
+
+**New (5):**
+- `apps/faith/journey/dashboard.py`
+- `apps/faith/journey/capabilities.py`
+- `apps/faith/journey/templatetags/__init__.py`
+- `apps/faith/journey/templatetags/journey_tags.py`
+- `apps/faith/journey/tests/test_dashboard.py`
+- `templates/faith/journey/_dashboard_card.html`
+
+**Modified (intentional, minimal):**
+- `templates/faith/home.html` — 2 additive lines (`{% load %}` + `{% tag %}`)
+- `templates/faith/journey/day.html` — sticky-pill un-sticky + popover wrap
+- `docs/CLAUDE_WALKING_WITH_GOD.md` — Commit 6 timestamp
+- `docs/wlj_claude_changelog.md` — this entry
+
+### Test results
+
+- 66 scoped journey tests pass (`apps.faith.journey`)
+- `python3 manage.py check` clean
+- `python3 manage.py makemigrations --check --dry-run` clean (no model changes)
+- Capability registration verified at runtime via test
+
+### Parallel-stream safety
+
+Only `templates/faith/home.html` was a shared faith-app file touched
+(2 additive lines). No existing card content modified. No Python in
+`apps/faith/` (outside `apps/faith/journey/`) modified. No core, no
+health, no shared state-builders touched in this commit.
+
+`git fetch origin main` before commit observed parallel
+`feat(health): Phase 1A · C3 — Insulin model fields` had landed on
+main; pre-push rebase confirmed no conflicts.
+
+### Phase 1 readiness — what's done
+
+- Five new isolated models (5) + migrations (2) + admin
+- One fully-authored representative day (Day 15 — Leviticus 1:1-17)
+- Idempotent JSON content-pack loader with full schema validation
+- Daily reading view + four supporting page views (today, review_day,
+  start, settings, complete_day)
+- Four annotation reuse endpoints (highlight, bookmark, save-verse, note)
+  + confusion-flagged observability endpoint
+- "I'm stuck" deterministic surface (no Beth)
+- Welcome-back banner (warm, no guilt, no streak loss)
+- Six engagement signals (internal observability only)
+- SAE journey state block + CoS passive context block (Beth silent)
+- Modest Faith-dashboard card (Faith page only)
+- Domain capability registration (additive, future-safe)
+- 66 scoped tests covering all of the above + isolation guarantees
+
+### Phase 1 readiness — what blocks public launch
+
+1. **Theological reviewer not yet named.** Content cannot publish publicly
+   until a named reviewer signs off on each authored day. Code is ready.
+2. **Authoring of the remaining ~20 days** of Out of Egypt → Tabernacle.
+   Per spec, each day requires: context + 3 plain-English tiers + key
+   insight + reflection + application + ≥3 confusion topics + retention
+   anchor, plus writing + theological review.
+3. **`JourneyPath.is_active` flag** must be flipped to True via admin
+   after reviewer signoff and arc completion.
+
+### What is explicitly NOT in Phase 1
+
+- Beth tool / chat affordance on the journey surface
+- Calendar projection of journey days
+- ESV / NIV / NLT translations (WEB only)
+- Audio narration
+- Push notifications
+- Branching paths
+- Second arc
+- Difficulty tier auto-suggestion
+- Mobile-app-specific UI
+
+### Next steps
+
+After this commit, the recommended sequence is:
+1. Name a theological reviewer + draft the editorial framework agreement
+2. Author day 1 of the Out of Egypt → Tabernacle arc (LLM draft + writing
+   review + theological signoff)
+3. Continue authoring days 2-21 incrementally (arc remains `is_active=False`
+   while incomplete; loader gap-check is gated to permit this)
+4. When all 21 days are signed off: flip `is_active=True` for the arc, then
+   for the path — public launch
+5. Then Phase 2 (Beth retrieval tool, second arc, calendar projection, etc.)
 
 
 ## 2026-05-25 — feat(health): Phase 1A · C3 — Insulin model fields (Option A)

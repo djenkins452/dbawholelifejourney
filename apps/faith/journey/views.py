@@ -311,6 +311,45 @@ def annotation_save_verse(request):
     return JsonResponse({"id": sv.id, "reference": sv.reference, "is_memory_verse": sv.is_memory_verse})
 
 
+def journey_health(request):
+    """Anonymous-readable production verification endpoint.
+
+    Returns only PUBLIC metadata about the JourneyPath / Arc / Day config.
+    No user data, no scripture content, no PII. Safe to expose.
+
+    Used to verify production-DB state from outside without requiring auth.
+    Lives here intentionally so a curl from anywhere can confirm whether
+    Arc 1 is actually visible to users.
+    """
+    from apps.faith.journey.models import JourneyArc, JourneyDay, JourneyPath
+    paths = []
+    for p in JourneyPath.objects.all().order_by("slug"):
+        paths.append({
+            "slug": p.slug,
+            "name": p.name,
+            "is_active": p.is_active,
+            "is_featured": p.is_featured,
+        })
+    arcs = []
+    for a in JourneyArc.objects.select_related("journey_path").order_by("journey_path__slug", "order"):
+        arcs.append({
+            "path_slug": a.journey_path.slug,
+            "arc_slug": a.slug,
+            "order": a.order,
+            "estimated_days": a.estimated_days,
+            "is_active": a.is_active,
+            "day_count": a.days.count(),
+        })
+    return JsonResponse({
+        "paths": paths,
+        "arcs": arcs,
+        "total_journey_days": JourneyDay.objects.count(),
+        "walking_with_god_visible_to_users": JourneyPath.objects.filter(
+            slug="walking_with_god", is_active=True
+        ).exists(),
+    })
+
+
 @login_required
 @require_POST
 def confusion_flagged(request):

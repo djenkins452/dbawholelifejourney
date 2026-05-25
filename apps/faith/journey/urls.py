@@ -13,6 +13,9 @@ app_name = "journey"
 
 
 urlpatterns = [
+    # Production verification endpoint — anonymous-safe, public metadata only
+    path("_health/", views.journey_health, name="health"),
+
     # Canonical entry — resolves to the user's current day
     path("today/", views.journey_today, name="today"),
 

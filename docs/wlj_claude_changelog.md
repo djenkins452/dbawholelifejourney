@@ -7,6 +7,83 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-25 — feat(health_briefing): Phase 1A · C9 — Layer 4 interpreted facts
+
+Wave 3, first commit. Pure-function module producing seven composer-
+internal verdicts from SAE state. No DB, no I/O, no signal handlers,
+no Beth integration. Each verdict is a frozen `FactVerdict` dataclass
+carrying (key, label, verdict, confidence, contribution, why,
+inputs_used, inputs_missing).
+
+### What was added
+
+`apps/core/health_briefing/interpreted_facts.py` — seven fact functions
++ `compute_all_facts()` orchestrator + `ALL_FACTS` registry:
+
+| Fact | Source | Verdicts |
+|------|--------|----------|
+| `glycemic_control` | health_state TIR + variability + 7d avg | tight / adequate / loose / uncontrolled / insufficient_data |
+| `glycemic_trajectory` | health_state 7d/30d/90d glucose averages | improving / stable / declining / insufficient_data |
+| `insulin_dependence` | medicine_state insulin_total_7d + daily_avg_30d | decreasing / stable / increasing / insufficient_data |
+| `weight_trajectory` | health_state weight_trend + weight_change_30d | improving / stable / declining / insufficient_data |
+| `exercise_response` | health_state workout_count_7d + steps_avg_7d | strong / adequate / poor / insufficient_data |
+| `sleep_recovery` | health_state sleep_avg_hours_7d | strong / adequate / poor / insufficient_data |
+| `adherence` | medicine_state adherence_7d (flat or _contract.summary) | strong / adequate / poor / insufficient_data |
+
+Each fact returns a signed `contribution` in [-100, +100] (positive
+contributes to "metabolic improving" headline; negative to "concern").
+Contributions are capped at ±25 per fact so no single fact dominates.
+
+### Architectural commitments
+
+- Pure functions; no DB queries; no Django imports. Importing the
+  module is free of side effects.
+- Never raise on missing data — return `INSUFFICIENT_DATA` with empty
+  contribution and zero confidence, so the briefing composer can
+  treat absence as missing rather than fabricated.
+- Single producer per fact (Law 4). The composer reads these
+  verdicts; no other module computes them.
+- Confidence capped via the C2 thresholds registry
+  `confidence_floors.single_source_cap` (0.75 in v1).
+- `glycemic_control` dampens contribution by 5 when variability is
+  "high" — captures the "in-range but oscillating" failure mode.
+
+### Tests
+`apps/core/health_briefing/tests/test_interpreted_facts.py` — 40 tests
+in 1ms. Coverage:
+- FactVerdict shape (2 tests)
+- glycemic_control_state (7) — every verdict bucket + variability
+  dampening + confidence cap + avg fallback
+- glycemic_trajectory (6) — insufficient / single-window / improving /
+  declining / stable / contribution clipping
+- insulin_dependence_state (5) — every verdict bucket
+- weight_trajectory_state (4)
+- exercise_response_state (3)
+- sleep_recovery_state (4)
+- adherence_state (4)
+- ComputeAllFacts (4) — registry size, stable ordering, all-
+  insufficient when no data, mixed-state realistic scenario
+
+### Files Created
+- `apps/core/health_briefing/interpreted_facts.py`
+- `apps/core/health_briefing/tests/test_interpreted_facts.py`
+
+### Verification
+- `python3 manage.py test
+  apps.core.health_briefing.tests.test_interpreted_facts --keepdb` —
+  40/40 pass in 0.001s.
+- `python3 manage.py makemigrations --check --dry-run` — clean.
+
+### Wave 3 hard guardrail (C11 invisible to Beth)
+C9 does not touch `cos_context.py`, `personal_assistant.py`, or Beth's
+system prompt. The verdicts produced here will be consumed by the C11
+composer and persisted as snapshots; Beth integration is W5/C14-15.
+
+### Bible Journey coordination
+- BibleJourney-Touches: none. New module under
+  `apps/core/health_briefing/`.
+- Only shared file: `docs/wlj_claude_changelog.md` (append-only).
+
 ## 2026-05-25 — feat(health): Phase 1A · C8 — MealGlucoseResponse model + classifier
 
 Wave 2, fourth and final commit. Completes the Phase 1A foundations

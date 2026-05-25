@@ -7,6 +7,138 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-25 — feat(health_briefing): Phase 1A · C12 — Celery beat + event-triggered recompute
+
+Wave 3, fourth commit. Wires the composer into background execution:
+a Celery-Beat scheduler runs every 30 minutes to fan out per-user
+recompute tasks, and post_save handlers on four metabolic-input
+models dispatch async recomputes the moment new data lands. **Beth
+still cannot see any of this.** No edits to cos_context.py,
+personal_assistant.py, or Beth's system prompt.
+
+### What was added
+
+**Tasks (`apps/core/health_briefing/tasks.py`):**
+
+- `recompute_health_briefing_for_user_task(user_id)` — `@shared_task`.
+  Loads the user, calls `compose_briefing(user, persist=True)`. Skips
+  gracefully when user_id no longer exists. Idempotent: identical SAE
+  state produces identical briefing_id; the snapshot's `unique=True`
+  briefing_id + `update_or_create` upsert collapses duplicates.
+  Max retries 2, default delay 60s.
+- `recompute_all_health_briefings_task()` — `@shared_task`. Iterates
+  `UserState.objects.values_list("user_id", flat=True).distinct()`
+  and dispatches the per-user task via `.delay()`. Returns the
+  dispatch count for log inspection. Excludes cold accounts (no
+  UserState row).
+
+**Signal handlers (`apps/core/health_briefing/signals.py`):**
+
+post_save receivers on four sources:
+
+- `health.GlucoseEntry`
+- `health.IntakeLog`
+- `health.WeightEntry`
+- `medical.LabResult`
+
+Each calls `_dispatch_recompute(instance.user_id, source)` which
+enqueues the per-user task via `.delay()`. **Synchronous composer
+invocation is forbidden in signal handlers** — ingestion saves must
+never be blocked.
+
+`_dispatch_recompute` wraps the `.delay()` call in try/except and
+logs a warning on failure (Celery unreachable in dev/tests). The
+next 30-minute beat tick will catch up.
+
+**Registration (`apps/core/apps.py:ready`):**
+
+Two new imports at the end of CoreConfig.ready():
+
+    import apps.core.health_briefing.tasks    # noqa
+    import apps.core.health_briefing.signals  # noqa
+
+This makes `@shared_task` definitions visible to Celery at boot and
+connects the post_save handlers without depending on
+`apps.core.health_briefing` being a separate INSTALLED_APP entry.
+
+**Schedule (`config/settings.py`):**
+
+One additive entry in `CELERY_BEAT_SCHEDULE`:
+
+    "health-briefing-recompute-every-30-min": {
+        "task": "apps.core.health_briefing.tasks.recompute_all_health_briefings_task",
+        "schedule": 1800.0,
+    }
+
+### Recompute boundedness (Wave 3 guardrail re-pinned)
+
+- HealthBriefingSnapshot has zero post_save / post_delete handlers
+  (verified C4, re-tested here in `NoSnapshotCascadeTests`).
+- Signal handlers call `.delay()` only — never invoke the composer
+  synchronously, so ingestion saves are never blocked.
+- The composer reads SAE state read-only and never mutates any
+  domain model that could re-trigger a handler.
+- No write → recompute → write loop possible.
+
+### Tests (`apps/core/health_briefing/tests/test_tasks_and_signals.py`)
+
+10 tests:
+- `RecomputeForUserTaskTests` (2) — composer called with persist;
+  graceful skip for missing user.
+- `RecomputeAllTaskTests` (1) — fan-out limited to users with a
+  UserState row; correct user_ids dispatched.
+- `SignalHandlerDispatchTests` (5) — each of the four model saves
+  dispatches with the correct user_id; dispatch failure (Celery
+  unreachable) is swallowed and does not break ingestion.
+- `NoSnapshotCascadeTests` (1) — creating a HealthBriefingSnapshot
+  does NOT trigger another recompute. Snapshots are terminal.
+- `BeatScheduleRegistrationTests` (1) — settings entry registered
+  correctly (task name + 1800s schedule).
+
+### Friction during implementation (transparency)
+
+Two test-only mistakes that required a re-run:
+- Patch path `apps.core.health_briefing.signals.recompute_...` failed
+  because the task is imported inside the dispatcher function, not
+  at module level. Corrected to `apps.core.health_briefing.tasks.
+  recompute_...` (the source of truth).
+- `WeightEntry.weight` → actual field is `WeightEntry.value`.
+
+Same class of friction as C6/C8 fixture mistakes. Production code
+unaffected.
+
+### Files Created
+- `apps/core/health_briefing/tasks.py`
+- `apps/core/health_briefing/signals.py`
+- `apps/core/health_briefing/tests/test_tasks_and_signals.py`
+
+### Files Modified
+- `apps/core/apps.py` — two-line import addition in ready().
+- `config/settings.py` — one-entry addition to CELERY_BEAT_SCHEDULE.
+
+### Verification
+- `python3 manage.py test
+  apps.core.health_briefing.tests.test_tasks_and_signals --keepdb` —
+  10/10 pass.
+
+### Wave 3 hard guardrail (C11/C12 invisible to Beth)
+
+End-of-Wave-3 audit: no edits to `apps/core/ai_orchestrator/cos_context.py`,
+`apps/ai/personal_assistant.py`, or Beth's system prompt across any
+of C9-C12. The composer runs, briefings build, snapshots persist,
+telemetry exists — and Beth still sees nothing. This is the Wave 3
+safe-validation window the user requested.
+
+### Bible Journey coordination
+- BibleJourney-Touches: `apps/core/apps.py` (HIGH shared file) and
+  `config/settings.py` (HIGH shared file). Both edits are strictly
+  additive — apps.py adds two new import lines at the bottom of
+  CoreConfig.ready(); settings.py adds one new dict entry to
+  CELERY_BEAT_SCHEDULE. No existing line modified. Bible Journey's
+  state_builder integration, faith.journey app registration, and any
+  existing settings entries are untouched.
+- Only other shared file: `docs/wlj_claude_changelog.md` (append-only).
+
 ## 2026-05-25 — feat(health_briefing): Phase 1A · C11 — Composer + developer explain mode
 
 Wave 3, third commit. Brings together the C9 facts and C10 ranking

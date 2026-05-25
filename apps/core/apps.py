@@ -38,3 +38,7 @@ class CoreConfig(AppConfig):
         import apps.core.events.subscribers  # noqa: F401
         # Register execution quality signal handlers
         import apps.core.signals.execution_signals  # noqa: F401
+        # Phase 1A · C12 — register HealthBriefing shared_task definitions
+        # and event-triggered recompute signal handlers.
+        import apps.core.health_briefing.tasks  # noqa: F401
+        import apps.core.health_briefing.signals  # noqa: F401

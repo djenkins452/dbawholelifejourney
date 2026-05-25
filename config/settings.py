@@ -1143,6 +1143,14 @@ CELERY_BEAT_SCHEDULE = {
         "task": "core.check_system_health",
         "schedule": 300.0,  # COAS health monitoring (was APScheduler)
     },
+    # Phase 1A · C12 — metabolic intelligence briefing recompute.
+    # Runs every 30 minutes; per-user fan-out dispatched async.
+    # Composer is read-only against SAE; recomputes do not cascade
+    # (HealthBriefingSnapshot has zero post_save handlers).
+    "health-briefing-recompute-every-30-min": {
+        "task": "apps.core.health_briefing.tasks.recompute_all_health_briefings_task",
+        "schedule": 1800.0,
+    },
     "capture-pending-reminders-hourly": {
         "task": "capture.send_pending_capture_reminders",
         "schedule": 3600.0,  # Hourly (was APScheduler)

@@ -1354,6 +1354,17 @@ def build_faith_state(user):
     except Exception as e:
         logger.warning("SAE: faith trust attach failed: %s", e)
 
+    # Walking With God Through Scripture — isolated Journey submodule.
+    # Wrapped in try/except so a journey failure never breaks faith state.
+    try:
+        from apps.faith.journey.state import build_journey_state
+        state["journey"] = build_journey_state(user)
+    except ImportError:
+        # Journey app not installed — expected in legacy deployments.
+        pass
+    except Exception as e:
+        logger.warning("SAE: journey state attach failed: %s", e)
+
     return state
 
 

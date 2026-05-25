@@ -5,7 +5,7 @@
 **Internal name:** Journey
 **Owner:** Danny Jenkins
 **Created:** 2026-05-24
-**Last updated:** 2026-05-24 (Commit 4: views + templates + annotation reuse; spec refinements from Commit 3 review)
+**Last updated:** 2026-05-25 (Commit 5: signals + SAE state + CoS context + welcome-back)
 
 > This document is the single source of truth for the Journey architecture, content schema, editorial workflow, and Beth boundaries. Subsequent commits (models, content packs, views, signals) must conform to this spec. Changes to the spec require revisiting this document before changing code.
 

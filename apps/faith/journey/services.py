@@ -209,10 +209,12 @@ def mark_day_complete(
             .order_by("day_number")
             .first()
         )
+        arc_just_completed = False
         if next_day is not None:
             user_journey.current_day_number = next_day.day_number
         else:
             # End of arc. Try to move to next arc in the path.
+            arc_just_completed = True
             next_arc = (
                 journey_day.arc.journey_path.arcs
                 .filter(order__gt=journey_day.arc.order)
@@ -229,6 +231,11 @@ def mark_day_complete(
 
         user_journey.last_engaged_at = timezone.now()
         user_journey.save()
+
+        # Fire arc.completed signal AFTER the save commits so subscribers see consistent state.
+        if arc_just_completed:
+            from apps.faith.journey.signals import emit_arc_completed
+            emit_arc_completed(user_journey.user, user_journey=user_journey, arc=journey_day.arc)
 
     return progress
 

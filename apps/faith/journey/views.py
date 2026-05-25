@@ -57,20 +57,15 @@ def _render_no_journey(request):
     return render(request, "faith/journey/no_journey.html", {"journey_path": path})
 
 
-def _render_day(request, user_journey, day, *, review_mode: bool):
+def _render_day(request, user_journey, day, *, review_mode: bool, welcome_back: bool = False):
     """Render a single day's reading.
 
     review_mode=True means the user is viewing a past day (no complete button).
+    welcome_back=True means the user returned after a ≥3-day gap; banner shown.
     """
     progress = get_progress_for_day(user_journey, day)
     tier = user_journey.preferred_difficulty
     plain_english = day.plain_english_for_tier(tier)
-
-    # Provide both Standard and Deeper as switchable views — gentle on-page toggle.
-    other_tiers = []
-    for value, label in [("simple", "Simple"), ("standard", "Standard"), ("deeper", "Deeper")]:
-        if value != tier:
-            other_tiers.append({"value": value, "label": label})
 
     context = {
         "user_journey": user_journey,
@@ -79,7 +74,6 @@ def _render_day(request, user_journey, day, *, review_mode: bool):
         "path": day.arc.journey_path,
         "tier": tier,
         "plain_english": plain_english,
-        "other_tiers": other_tiers,
         "progress": progress,
         "complete_form": CompleteDayForm(initial={
             "reflection_notes": progress.reflection_notes,
@@ -87,6 +81,7 @@ def _render_day(request, user_journey, day, *, review_mode: bool):
         }),
         "review_mode": review_mode,
         "is_complete": progress.is_completed,
+        "welcome_back": welcome_back,
     }
     return render(request, "faith/journey/day.html", context)
 
@@ -97,17 +92,34 @@ def _render_day(request, user_journey, day, *, review_mode: bool):
 
 @login_required
 def journey_today(request):
-    """Canonical entry point. Redirects (or renders) the user's current day."""
+    """Canonical entry point. Renders the user's current day.
+
+    Welcome-back logic: if the user hasn't visited in ≥3 days, render the
+    banner and emit the journey.resumed signal once. Updates last_visited_at
+    on every load. last_engaged_at is intentionally NOT updated here (that
+    fires only on day completion, preserving days_since_last_read accuracy).
+    """
     user_journey = get_active_journey(request.user)
     if user_journey is None:
         return _render_no_journey(request)
+
+    now = timezone.now()
+    welcome_back = False
+    if user_journey.last_visited_at is not None:
+        gap_days = (now - user_journey.last_visited_at).days
+        if gap_days >= 3:
+            welcome_back = True
+            from apps.faith.journey.signals import emit_resumed
+            emit_resumed(request.user, user_journey=user_journey, days_since_last_visit=gap_days)
+    user_journey.last_visited_at = now
+    user_journey.save(update_fields=["last_visited_at"])
+
     day = get_current_day(user_journey)
     if day is None:
-        # Authored content gap — render a holding state.
         return render(request, "faith/journey/no_day.html", {
             "user_journey": user_journey,
         })
-    return _render_day(request, user_journey, day, review_mode=False)
+    return _render_day(request, user_journey, day, review_mode=False, welcome_back=welcome_back)
 
 
 @login_required
@@ -297,6 +309,31 @@ def annotation_save_verse(request):
         is_memory_verse=bool(data.get("is_memory_verse", False)),
     )
     return JsonResponse({"id": sv.id, "reference": sv.reference, "is_memory_verse": sv.is_memory_verse})
+
+
+@login_required
+@require_POST
+def confusion_flagged(request):
+    """Fire journey.confusion.flagged when the user taps a confusion topic.
+
+    Internal observability only. No response surface beyond a 204.
+    """
+    user_journey = get_active_journey(request.user)
+    data = _parse_json_body(request) or {}
+    arc_slug = data.get("arc_slug", "")
+    day_number = data.get("day_number")
+    topic = data.get("topic", "")
+    if not arc_slug or not isinstance(day_number, int) or not topic:
+        return HttpResponseBadRequest("missing fields")
+    from apps.faith.journey.signals import emit_confusion_flagged
+    emit_confusion_flagged(
+        request.user,
+        user_journey=user_journey,
+        arc_slug=arc_slug,
+        day_number=day_number,
+        topic=topic,
+    )
+    return HttpResponse(status=204)
 
 
 @login_required

@@ -2249,6 +2249,24 @@ def _build_faith_context(user):
                 getattr(user, 'pk', '?'), e,
             )
 
+        # Walking With God Through Scripture — passive context for Beth.
+        # NOTE: Beth is silent on the journey surface (Phase 1). This block
+        # is for factual reference only ("you're on Day 6"); Beth must not
+        # proactively initiate journey conversation. momentum_score is
+        # deliberately omitted from this block (internal-only).
+        try:
+            from apps.faith.journey.context import build_journey_context_block
+            journey_block = build_journey_context_block(user)
+            if journey_block and journey_block.get("active"):
+                result['faith_summary']['journey'] = journey_block
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.warning(
+                "CoS context: journey context lookup failed for user %s: %s",
+                getattr(user, 'pk', '?'), e,
+            )
+
         return result
 
     except Exception as e:

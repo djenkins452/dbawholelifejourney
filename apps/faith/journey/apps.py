@@ -14,3 +14,7 @@ class JourneyConfig(AppConfig):
     name = "apps.faith.journey"
     label = "journey"
     verbose_name = "Faith Journey"
+
+    def ready(self):
+        """Connect Journey signal handlers."""
+        import apps.faith.journey.signals  # noqa: F401

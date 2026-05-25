@@ -33,4 +33,7 @@ urlpatterns = [
     path("annotations/bookmark/", views.annotation_bookmark_create, name="annotation_bookmark"),
     path("annotations/save-verse/", views.annotation_save_verse, name="annotation_save_verse"),
     path("annotations/note/", views.annotation_note_create, name="annotation_note"),
+
+    # Confusion flagged — internal observability ping
+    path("confusion/flagged/", views.confusion_flagged, name="confusion_flagged"),
 ]

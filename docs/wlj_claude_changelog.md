@@ -3,8 +3,179 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-24 (feat: Walking With God Through Scripture — Commit 4, views + templates)
+# Last Updated: 2026-05-25 (feat: Walking With God Through Scripture — Commit 5, signals + state + welcome-back)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-25 — feat(faith.journey): Journey — Commit 5 (signals, SAE state, CoS context, welcome-back)
+
+Observability + passive context-awareness + non-guilt re-engagement for
+"Walking With God Through Scripture". Wires six engagement signals,
+exposes journey state to SAE (so Beth can factually reference it when
+invoked elsewhere), and adds the welcome-back banner for users returning
+after a ≥3-day gap. Beth remains SILENT on the journey reading surface;
+no proactive behavior added.
+
+### Six signals fire to the existing WLJ domain events bus
+
+| Event | Trigger | Purpose |
+|---|---|---|
+| `journey.started` | UserJourney created (active) | PIE milestone, internal |
+| `journey.day.completed` | is_completed False→True transition | PIE consistency rule, faith engagement |
+| `journey.arc.completed` | Last day in current arc just completed | PIE milestone, arc transition |
+| `journey.application.committed` | application_committed False→True transition | Faith engagement |
+| `journey.confusion.flagged` | User taps a confusion topic | Editorial feedback (which topics confuse users) |
+| `journey.resumed` | journey_today() view loaded after ≥3-day gap | Re-engagement analysis |
+
+All emissions route through `apps.core.events.domain_events.safe_emit_event`.
+Internal observability only — no PGE surfacing, no proactive Beth, no
+user-facing momentum language.
+
+Re-firing protection on save-driven signals: pre_save hook stashes prior
+is_completed / application_committed values; post_save emits only on
+False→True transitions. Editing a completed day does NOT re-fire.
+
+### SAE journey state block (faith.journey)
+
+`build_faith_state(user)["journey"]` now returns:
+
+```
+{
+  "active": bool,
+  "journey_path_slug", "journey_path_name",
+  "current_arc_slug", "current_arc_name",
+  "current_arc_day", "current_arc_total_days",
+  "preferred_difficulty",
+  "days_since_last_read",
+  "momentum_score",                       # INTERNAL ONLY
+  "application_committed_this_week",
+}
+```
+
+momentum_score computation: 1.0 when last_engaged_at < 3 days; linear
+decay 1.0 → 0.0 between day 3 and day 21; 0.0 thereafter. Pure derived
+value, no background worker needed.
+
+### CoS passive context block (faith_summary.journey)
+
+`_build_faith_context(user)` adds a `journey` sub-key under faith_summary
+when the user has an active journey. **Deliberately omits momentum_score
+and application_committed_this_week** — those are internal-only and must
+NEVER be Beth-recited.
+
+Shape Beth sees:
+```
+{
+  "active": True,
+  "journey_name", "arc_name", "arc_day", "arc_total_days",
+  "preferred_difficulty",
+  "days_since_last_read",
+}
+```
+
+Beth's contract on this block (Phase 1):
+- Can factually reference when ASKED ("you're on Day 6 of arc 1")
+- Must NOT proactively initiate journey conversation
+- Must NOT use momentum_score (it's not in this block anyway)
+
+### Welcome-back recovery flow
+
+Banner appears at the top of `/faith/journey/today/` when
+`(now - last_visited_at) >= 3 days`. Copy:
+
+> **Welcome back.**
+> Pick up where you left off. Nothing's been missed — the journey waits for you.
+
+- No guilt language. No "you missed X days." No "you're behind." No streak loss.
+- Tested: rendered HTML asserts none of those phrases appear.
+- `last_visited_at` updated on every today/ load; `last_engaged_at` only
+  updated on day completion. This separation means opening the page after
+  a gap does NOT mask the reading gap in `days_since_last_read`.
+
+### Tier query-string links removed
+
+Per Commit 4 finding (links rendered but didn't switch tiers). Replaced
+with a single quiet line linking to the settings page where difficulty
+actually changes. No broken interactions remain.
+
+### Files modified
+
+**New (under `apps/faith/journey/`):**
+- `state.py` — `build_journey_state(user)` + `compute_momentum_score(days)`
+- `context.py` — `build_journey_context_block(user)` (Beth-facing block)
+- `signals.py` — six event emitters + Django signal handlers with transition
+  guards
+- `tests/test_state.py` — state shape, momentum_score curves, internal-only
+  field omission from Beth context
+- `tests/test_signals.py` — every signal fires correctly, transition guards
+  work, resumed only fires on ≥3-day gap
+- `migrations/0002_userjourney_last_visited_at.py` — generated
+
+**Modified (intentional, minimal):**
+- `apps/faith/journey/models.py` — added `last_visited_at` field
+- `apps/faith/journey/apps.py` — `ready()` hook wires signals
+- `apps/faith/journey/views.py` — welcome-back logic in `journey_today`;
+  new `confusion_flagged` endpoint
+- `apps/faith/journey/urls.py` — added `confusion/flagged/` route
+- `apps/faith/journey/services.py` — `mark_day_complete` emits
+  `journey.arc.completed` when an arc's last day flips to True
+- `apps/faith/journey/tests/test_views.py` — added 4 welcome-back tests
+- `templates/faith/journey/day.html` — welcome-back banner; tier links
+  replaced with settings-page hint; confusion-topic taps now fire the
+  observability ping
+- `apps/core/ai_state/state_builder.py` — single try/except integration
+  point (~8 lines) that calls `build_journey_state` and merges under
+  `faith["journey"]`. Wrapped to ensure journey failure never breaks faith.
+- `apps/core/ai_orchestrator/cos_context.py` — single try/except integration
+  point (~14 lines) that calls `build_journey_context_block` and merges
+  under `faith_summary["journey"]` when active. Same exception isolation
+  pattern as the existing biblical_calendar hook directly above it.
+- `docs/CLAUDE_WALKING_WITH_GOD.md` — Commit 5 notes
+- `docs/wlj_claude_changelog.md` — this entry
+
+### Test results
+
+- 59 scoped journey tests pass (`apps.faith.journey`)
+- `python3 manage.py check` clean
+- `python3 manage.py makemigrations --check --dry-run` clean
+- Manual end-to-end: `build_faith_state(user)` now includes `journey`
+  block alongside existing reading/prayer keys; returns the empty-state
+  shape for users without an active journey
+
+### Parallel-stream safety
+
+Two shared core files touched: `apps/core/ai_state/state_builder.py` and
+`apps/core/ai_orchestrator/cos_context.py`. Both edits are tiny (8–14
+lines), localized inside the existing `build_faith_state` /
+`_build_faith_context` functions, and follow the same try/except pattern
+as the existing `biblical_calendar` hook. No HealthBriefing-adjacent code
+modified. The parallel Health Intelligence work touches health domain
+files; faith functions are isolated.
+
+`git fetch origin main` before commit confirmed no new remote commits
+since last push. Will rebase before push if anything lands.
+
+### What is explicitly NOT changed by this commit
+
+- No Beth tool (`get_journey_day_content` deferred to Phase 2)
+- No proactive Beth behavior — silent on journey surface
+- No PGE / PRIE / coaching nudges from journey signals
+- No calendar projection
+- No notifications
+- No homepage takeover
+- No CoS prioritization
+- No "Do This Now" surfacing
+- No new EventTypes constants in `apps.core.events.domain_events`
+  (signal names live as constants in `apps/faith/journey/signals.py` to
+  avoid touching shared infra)
+
+### Next commit
+
+Commit 6 will land the final Phase 1 deliverables: the dashboard card
+(modest, appropriately-sized, not a homepage takeover), and any remaining
+admin polish. After Commit 6, Phase 1 ships pending theological-reviewer
+naming and content authoring for the remaining ~20 days of Out of Egypt
+→ Tabernacle.
 
 
 ## 2026-05-24 — feat(faith.journey): Journey — Commit 4 (views, templates, annotation reuse)

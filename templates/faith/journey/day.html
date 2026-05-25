@@ -217,6 +217,25 @@
     color: var(--journey-fg-muted);
     margin-bottom: 16px;
   }
+  /* Welcome-back banner — warm, quiet, no guilt. Appears on return after ≥3-day gap. */
+  .journey-welcome-back {
+    background: #f5f1e6;
+    border-left: 3px solid var(--journey-accent);
+    border-radius: 4px;
+    padding: 14px 18px;
+    margin-bottom: 24px;
+    font-family: Georgia, "Iowan Old Style", serif;
+  }
+  .journey-welcome-back .jwb-title {
+    font-size: 18px;
+    color: var(--journey-fg);
+    margin-bottom: 6px;
+  }
+  .journey-welcome-back .jwb-body {
+    font-size: 15px;
+    color: var(--journey-fg-muted);
+    line-height: 1.55;
+  }
   /* Annotation popover */
   .journey-anno-popover {
     position: absolute;
@@ -267,6 +286,15 @@
     </div>
   {% endif %}
 
+  {% if welcome_back %}
+    <div class="journey-welcome-back" data-testid="journey-welcome-back">
+      <div class="jwb-title">Welcome back.</div>
+      <div class="jwb-body">
+        Pick up where you left off. Nothing's been missed — the journey waits for you.
+      </div>
+    </div>
+  {% endif %}
+
   <!-- 1. Where you are -->
   <div class="journey-locator">{{ path.name }}</div>
   <div class="journey-locator-detail">
@@ -298,10 +326,7 @@
     <div class="journey-section-label">Plain English ({{ tier|title }})</div>
     <div class="journey-plain">{{ plain_english }}</div>
     <div class="journey-tier-switch">
-      Read this in
-      {% for t in other_tiers %}
-        <a href="?tier={{ t.value }}" data-tier-switch="{{ t.value }}">{{ t.label }}</a>
-      {% endfor %}
+      Change difficulty in <a href="{% url 'journey:settings' %}">journey settings</a>.
     </div>
   </section>
 
@@ -371,15 +396,6 @@
 (function () {
   "use strict";
 
-  // ---- Tier switching: hand off to a simple URL query (server reads request.GET) ----
-  document.querySelectorAll("[data-tier-switch]").forEach(function (a) {
-    a.addEventListener("click", function (e) {
-      // Default link behavior works; server will swap tier if implemented.
-      // (Phase 1: tier is read from UserJourney.preferred_difficulty;
-      //  this link is a hint for future per-page override.)
-    });
-  });
-
   // ---- "I'm stuck" toggle ----
   var stuckBtn = document.querySelector("[data-stuck-toggle]");
   var stuckPanel = document.getElementById("journey-confusion");
@@ -398,13 +414,28 @@
     });
   }
 
-  // ---- Confusion topic expand/collapse ----
+  // ---- Confusion topic expand/collapse + observability ping ----
+  var JOURNEY_ARC_SLUG = "{{ arc.slug|escapejs }}";
+  var JOURNEY_DAY_NUMBER = {{ day.day_number }};
+
   document.querySelectorAll("[data-topic-toggle]").forEach(function (topic) {
     topic.addEventListener("click", function () {
       var answer = topic.querySelector(".topic-a");
       if (!answer) return;
-      if (answer.hasAttribute("hidden")) {
+      var opening = answer.hasAttribute("hidden");
+      if (opening) {
         answer.removeAttribute("hidden");
+        // Fire-and-forget observability ping. Don't block the UI.
+        var topicQ = topic.querySelector(".topic-q");
+        var topicText = topicQ ? topicQ.textContent.trim() : "";
+        try {
+          fetch("{% url 'journey:confusion_flagged' %}", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
+            body: JSON.stringify({ arc_slug: JOURNEY_ARC_SLUG, day_number: JOURNEY_DAY_NUMBER, topic: topicText }),
+          });
+        } catch (e) { /* silent */ }
       } else {
         answer.setAttribute("hidden", "");
       }

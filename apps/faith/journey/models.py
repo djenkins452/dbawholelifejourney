@@ -253,10 +253,14 @@ class UserJourney(UserOwnedModel):
     )
 
     started_at = models.DateTimeField(default=timezone.now)
+    # Updated on day completion only — drives days_since_last_read.
     last_engaged_at = models.DateTimeField(null=True, blank=True)
+    # Updated on every today/ page view — drives welcome-back trigger.
+    # Separate from last_engaged_at so opening the page doesn't mask a real reading gap.
+    last_visited_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 
-    # Internal observability only. Never displayed to user.
+    # Internal observability only. Never displayed to user. Computed lazily in state.py.
     momentum_score = models.FloatField(default=1.0)
 
     class Meta:

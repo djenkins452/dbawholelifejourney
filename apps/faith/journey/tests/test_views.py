@@ -153,6 +153,67 @@ class JourneyDayViewTests(TestCase):
         self.assertIn(uj.journey_status, {"active", "completed"})
 
 
+class WelcomeBackTests(TestCase):
+    """Welcome-back banner appears when ≥3 days since last_visited_at."""
+
+    @classmethod
+    def setUpTestData(cls):
+        call_command("load_journey_path", "walking_with_god")
+
+    def setUp(self):
+        self.user = _make_user("welcomeback@example.com")
+        self.client = Client()
+        self.client.force_login(self.user)
+        from datetime import timedelta
+        from django.utils import timezone
+        self.uj = UserJourney.objects.create(
+            user=self.user,
+            journey_path=JourneyPath.objects.get(slug="walking_with_god"),
+            current_arc=JourneyArc.objects.get(slug="egypt_to_tabernacle"),
+            current_day_number=15,
+            last_visited_at=timezone.now() - timedelta(days=5),
+        )
+
+    def test_banner_renders_after_three_day_gap(self):
+        resp = self.client.get(reverse("journey:today"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Welcome back", resp.content)
+        # No guilt language
+        body = resp.content.lower()
+        self.assertNotIn(b"you missed", body)
+        self.assertNotIn(b"you're behind", body)
+        self.assertNotIn(b"haven't read", body)
+        # Banner is data-testid-tagged
+        self.assertIn(b'data-testid="journey-welcome-back"', resp.content)
+
+    def test_banner_does_not_render_on_first_visit(self):
+        # first visit: last_visited_at None — no welcome-back
+        self.uj.last_visited_at = None
+        self.uj.save(update_fields=["last_visited_at"])
+        resp = self.client.get(reverse("journey:today"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn(b'data-testid="journey-welcome-back"', resp.content)
+
+    def test_last_visited_at_updated_on_view(self):
+        from django.utils import timezone
+        resp = self.client.get(reverse("journey:today"))
+        self.assertEqual(resp.status_code, 200)
+        self.uj.refresh_from_db()
+        delta = (timezone.now() - self.uj.last_visited_at).total_seconds()
+        self.assertLess(delta, 5)
+
+    def test_last_engaged_at_NOT_updated_on_view(self):
+        """Opening the page must not mask the reading gap."""
+        from django.utils import timezone
+        from datetime import timedelta
+        five_days_ago = timezone.now() - timedelta(days=5)
+        self.uj.last_engaged_at = five_days_ago
+        self.uj.save(update_fields=["last_engaged_at"])
+        self.client.get(reverse("journey:today"))
+        self.uj.refresh_from_db()
+        self.assertAlmostEqual(self.uj.last_engaged_at.timestamp(), five_days_ago.timestamp(), places=1)
+
+
 class StuckSurfaceTests(TestCase):
     """The 'I'm stuck' deterministic surface renders authored confusion topics."""
 

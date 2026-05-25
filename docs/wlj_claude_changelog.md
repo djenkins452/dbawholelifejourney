@@ -7,6 +7,130 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-25 — feat(health): Phase 1A · C8 — MealGlucoseResponse model + classifier
+
+Wave 2, fourth and final commit. Completes the Phase 1A foundations
+needed by the W3 composer: a deterministic, eligibility-gated, per-meal
+classifier that turns paired FoodEntry + CGM data into a typed spike
+classification. No ML, no inference, no signal handlers. Backfill via
+management command; runtime triggers deferred to a later commit so the
+integration path is deliberately auditable.
+
+### What was added
+
+**Model `MealGlucoseResponse` (`apps/health/models.py`):**
+
+One row per FoodEntry that passes the eligibility gates. Immutable
+once created; OneToOne to FoodEntry guarantees a single classification
+per source row. Fields: `meal_consumed_at` (indexed), `classification`
+(enum of five buckets), `baseline_glucose`, `peak_glucose`,
+`glucose_at_120m`, `delta_peak`, `delta_2h`, `time_to_peak_min`,
+`computed_at`. Indexes on (user, -meal_consumed_at) and
+(user, classification).
+
+Five classification buckets (lookup table, deterministic):
+- `minimal_spike` — delta_peak < 30 mg/dL
+- `moderate_spike` — 30 ≤ delta_peak < 60
+- `large_spike` — 60 ≤ delta_peak < 100
+- `extreme_spike` — delta_peak ≥ 100
+- `prolonged_spike` — any of the above where delta_2h ≥ 40 mg/dL
+  (failed to return to baseline within 2 hours)
+
+**Classifier (`apps/health/services/meal_response_classifier.py`):**
+
+`classify_meal_glucose_response(food_entry, force=False)` returns
+`(MealGlucoseResponse | None, status_string)`. Status is one of the
+seven `ClassifierResult` constants for transparent skip reporting.
+
+Five eligibility gates (all must pass):
+1. FoodEntry.logged_time non-null (need a precise timestamp).
+2. Baseline CGM reading in -10m..+5m window around the meal.
+3. ≥3 of 4 post-meal windows (+30/+60/+90/+120m, ±10m tolerance)
+   contain ≥1 CGM reading.
+4. No other FoodEntry in user's preceding 90 minutes (clean baseline).
+5. No WorkoutSession with started_at in -30m..+120m (exercise
+   confounds glucose response).
+
+Idempotent: re-running on the same FoodEntry returns the existing
+row with status `already_classified` unless `force=True`. mmol/L
+readings are normalized to mg/dL on read.
+
+**Backfill command
+(`apps/health/management/commands/backfill_meal_glucose_responses.py`):**
+
+Iterates user FoodEntries in a date range; reports a per-status tally.
+Flags: `--user`, `--start`, `--end`, `--force`, `--dry-run`. The
+dry-run path wraps the entire iteration in a transaction with
+`set_rollback(True)` so the classifier exercises its writes without
+persisting.
+
+**Migration:** `apps/health/migrations/0090_meal_glucose_response.py`
+— one CreateModel, FKs to FoodEntry (OneToOne CASCADE) and AUTH_USER,
+two indexes. Fully reversible.
+
+### Recompute / signal-loop verification (per Wave 2 guardrail)
+
+MealGlucoseResponse has zero post_save / post_delete handlers. The
+classifier is invoked only from:
+- The backfill management command (this commit).
+- (Future commit) explicit triggers from meal ingestion points.
+
+No signal handler observes MealGlucoseResponse creation. No path
+from MealGlucoseResponse → DailyHealthSummary recompute. No path
+from MealGlucoseResponse → GlucoseEntry side effects. No path
+from MealGlucoseResponse → SAE refresh. Bounded and deterministic.
+
+### Tests (`apps/health/tests/test_meal_glucose_response.py`)
+
+15 tests across five classes:
+
+- `ClassificationBucketsTests` (5) — each of the five classifications
+  exercised via a fixed glucose curve. Lookup-table determinism
+  pinned.
+- `EligibilityGatesTests` (5) — each gate skips correctly with the
+  expected `ClassifierResult` status.
+- `IdempotencyTests` (2) — second call returns existing row; force=True
+  reclassifies same row (OneToOne preserved).
+- `UnitConversionTests` (1) — mmol/L → mg/dL conversion produces
+  expected delta_peak.
+- `ModelSurfaceTests` (2) — classification choices set; __str__
+  shape.
+
+All 15 pass in ~20s. Signal mute mixin expanded to cover
+GlucoseEntry and FoodEntry handlers (in addition to C3's
+Intake/IntakeLog/IntakeSchedule set). Production signal handlers
+remain connected — mute is strictly test-class-scoped.
+
+### Friction during implementation (transparency)
+
+Two field-name guesses required correction during the run:
+- `FoodEntry.brand_name` → actual `food_brand`; also missing required
+  `quantity`. Fixed and re-ran.
+- `WorkoutSession` requires `date` field in addition to `started_at`.
+  Fixed and re-ran.
+
+Friction, not architecture risk. Pattern: explicit reads of real
+model definitions before authoring test fixtures — the LabTestCatalog
+issue in C6 was the same class of mistake. Noted for future commits.
+
+### Files Created
+- `apps/health/services/meal_response_classifier.py`
+- `apps/health/management/commands/backfill_meal_glucose_responses.py`
+- `apps/health/tests/test_meal_glucose_response.py`
+- `apps/health/migrations/0090_meal_glucose_response.py`
+
+### Files Modified
+- `apps/health/models.py` — `MealGlucoseResponse` added at end.
+
+### Verification
+- `python3 manage.py test apps.health.tests.test_meal_glucose_response
+  --keepdb` — 15/15 pass.
+- `python3 manage.py makemigrations --check --dry-run` — clean.
+
+### Bible Journey coordination
+- BibleJourney-Touches: none. Pure health-domain edits.
+- Only shared file: `docs/wlj_claude_changelog.md` (append-only).
+
 ## 2026-05-25 — feat(faith.journey): Arc 1 PRODUCTION — Creation to Egypt (7 days, deployed)
 
 Replaces the reality-check Day 15 (Leviticus 1) with a complete, authored,

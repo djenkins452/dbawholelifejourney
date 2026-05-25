@@ -6296,3 +6296,100 @@ class DailyHealthSummary(UserOwnedModel):
     def __str__(self):
         score = f"HS:{self.health_score}" if self.health_score else "no score"
         return f"Health Summary {self.user.email} {self.summary_date} ({score})"
+
+
+# =============================================================================
+# Metabolic Intelligence v1 (Phase 1A · C8) — Meal Glucose Response
+# =============================================================================
+
+
+class MealGlucoseResponse(UserOwnedModel):
+    """
+    Deterministic per-meal classification of the post-meal glucose response.
+
+    One row per FoodEntry that passes the eligibility gates. The
+    classifier (apps.health.services.meal_response_classifier) computes
+    baseline / peak / 2h-delta from CGM readings in fixed windows and
+    assigns one of five spike classifications. No ML, no inference —
+    pure lookup-table classification.
+
+    Rows are intentionally immutable after creation: ``computed_at`` is
+    auto-set; subsequent reclassification creates a new row only when a
+    different FoodEntry is processed. The same FoodEntry produces at most
+    one response (unique constraint).
+
+    Architecture note: this model has NO post_save / post_delete signal
+    handlers (per the Wave 2 recompute-loop guardrail). Creation happens
+    only via explicit classifier calls — never via signals. The classifier
+    is invoked from the backfill management command in C8; runtime
+    triggers come in a separate commit so the integration path is
+    deliberately auditable.
+    """
+
+    CLASS_MINIMAL_SPIKE = "minimal_spike"
+    CLASS_MODERATE_SPIKE = "moderate_spike"
+    CLASS_LARGE_SPIKE = "large_spike"
+    CLASS_EXTREME_SPIKE = "extreme_spike"
+    CLASS_PROLONGED_SPIKE = "prolonged_spike"
+    CLASSIFICATION_CHOICES = [
+        (CLASS_MINIMAL_SPIKE, "Minimal spike (<30 mg/dL rise)"),
+        (CLASS_MODERATE_SPIKE, "Moderate spike (30-59 mg/dL rise)"),
+        (CLASS_LARGE_SPIKE, "Large spike (60-99 mg/dL rise)"),
+        (CLASS_EXTREME_SPIKE, "Extreme spike (≥100 mg/dL rise)"),
+        (CLASS_PROLONGED_SPIKE, "Prolonged spike (failed to return to baseline)"),
+    ]
+
+    food_entry = models.OneToOneField(
+        "FoodEntry",
+        on_delete=models.CASCADE,
+        related_name="glucose_response",
+        help_text="Source FoodEntry. One response per FoodEntry.",
+    )
+    meal_consumed_at = models.DateTimeField(
+        db_index=True,
+        help_text="When the meal was consumed (FoodEntry logged_date + logged_time).",
+    )
+    classification = models.CharField(
+        max_length=20,
+        choices=CLASSIFICATION_CHOICES,
+        help_text="Deterministic spike classification.",
+    )
+    baseline_glucose = models.DecimalField(
+        max_digits=6, decimal_places=2,
+        help_text="Glucose reading in the -10m..+5m window around the meal (mg/dL).",
+    )
+    peak_glucose = models.DecimalField(
+        max_digits=6, decimal_places=2,
+        help_text="Maximum glucose reading in the +0..+120m window (mg/dL).",
+    )
+    glucose_at_120m = models.DecimalField(
+        max_digits=6, decimal_places=2,
+        help_text="Glucose reading nearest to +120m post-meal (mg/dL).",
+    )
+    delta_peak = models.DecimalField(
+        max_digits=6, decimal_places=2,
+        help_text="peak_glucose - baseline_glucose (mg/dL).",
+    )
+    delta_2h = models.DecimalField(
+        max_digits=6, decimal_places=2,
+        help_text="glucose_at_120m - baseline_glucose (mg/dL).",
+    )
+    time_to_peak_min = models.PositiveSmallIntegerField(
+        help_text="Minutes from meal_consumed_at to peak_glucose timestamp.",
+    )
+    computed_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When the classifier produced this row.",
+    )
+
+    class Meta:
+        ordering = ["-meal_consumed_at"]
+        verbose_name = "meal glucose response"
+        verbose_name_plural = "meal glucose responses"
+        indexes = [
+            models.Index(fields=["user", "-meal_consumed_at"]),
+            models.Index(fields=["user", "classification"]),
+        ]
+
+    def __str__(self):
+        return f"MealResponse({self.classification}, Δ{self.delta_peak} at {self.meal_consumed_at})"

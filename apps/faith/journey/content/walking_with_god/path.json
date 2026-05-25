@@ -1,10 +1,10 @@
 {
   "slug": "walking_with_god",
   "name": "Walking With God Through Scripture",
-  "narrative_overview": "A guided walk through the story of God from creation to the early church. Slow, contextual, plain-English. Built for people who want to finally understand Scripture rather than rush through it. Each day teaches the historical setting before the reading, explains in plain English after, and offers one small step to live what was learned.",
+  "narrative_overview": "A guided walk through the story of God — slow, contextual, plain-English. Built for people who want to finally understand Scripture rather than rush through it. Each day teaches the setting before the reading, explains in plain English after, and offers one small step to live what was learned.",
   "cover_image_url": "",
   "estimated_weeks": 52,
   "difficulty_default": "standard",
-  "is_active": false,
-  "is_featured": false
+  "is_active": true,
+  "is_featured": true
 }

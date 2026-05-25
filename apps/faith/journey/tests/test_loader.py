@@ -110,24 +110,26 @@ class LoaderTests(TestCase):
         _write_fixture_pack(self.tmpdir, "t", self._valid_path_data(), [self._valid_arc()])
         self._patch_content_root("t", self.tmpdir / "content" / "t")
         call_command("load_journey_path", "t")
-        self.assertEqual(JourneyPath.objects.filter(slug="t").count(), 1)
-        self.assertEqual(JourneyArc.objects.count(), 1)
-        self.assertEqual(JourneyDay.objects.count(), 1)
+        t_path = JourneyPath.objects.get(slug="t")
+        self.assertEqual(JourneyArc.objects.filter(journey_path=t_path).count(), 1)
+        self.assertEqual(JourneyDay.objects.filter(arc__journey_path=t_path).count(), 1)
 
     def test_idempotent(self):
         _write_fixture_pack(self.tmpdir, "t", self._valid_path_data(), [self._valid_arc()])
         self._patch_content_root("t", self.tmpdir / "content" / "t")
         call_command("load_journey_path", "t")
         call_command("load_journey_path", "t")
-        self.assertEqual(JourneyPath.objects.filter(slug="t").count(), 1)
-        self.assertEqual(JourneyArc.objects.count(), 1)
-        self.assertEqual(JourneyDay.objects.count(), 1)
+        t_path = JourneyPath.objects.get(slug="t")
+        self.assertEqual(JourneyArc.objects.filter(journey_path=t_path).count(), 1)
+        self.assertEqual(JourneyDay.objects.filter(arc__journey_path=t_path).count(), 1)
 
     def test_dry_run_does_not_write(self):
         _write_fixture_pack(self.tmpdir, "t", self._valid_path_data(), [self._valid_arc()])
         self._patch_content_root("t", self.tmpdir / "content" / "t")
         call_command("load_journey_path", "t", "--dry-run")
-        self.assertEqual(JourneyPath.objects.count(), 0)
+        # Assert this specific fixture path was NOT written.
+        # (Data migration 0003 pre-loads walking_with_god, which is unrelated.)
+        self.assertFalse(JourneyPath.objects.filter(slug="t").exists())
 
     # --- validation -------------------------------------------------------
 
@@ -172,7 +174,9 @@ class LoaderTests(TestCase):
         _write_fixture_pack(self.tmpdir, "t", self._valid_path_data(), [self._valid_arc(days=[gap_day], is_active=False)])
         self._patch_content_root("t", self.tmpdir / "content" / "t")
         call_command("load_journey_path", "t")
-        self.assertEqual(JourneyDay.objects.first().day_number, 15)
+        t_path = JourneyPath.objects.get(slug="t")
+        loaded_day = JourneyDay.objects.get(arc__journey_path=t_path)
+        self.assertEqual(loaded_day.day_number, 15)
 
     def test_sequence_gap_check_enforced_when_arc_active(self):
         """Non-contiguous day_numbers REJECTED when arc is_active=True."""
@@ -197,18 +201,32 @@ class RealContentPackTest(TestCase):
         call_command("load_journey_path", "walking_with_god")
         path = JourneyPath.objects.get(slug="walking_with_god")
         self.assertEqual(path.name, "Walking With God Through Scripture")
-        self.assertFalse(path.is_active)  # publish-gated
+        self.assertTrue(path.is_active)  # Arc 1 launch: path is published
 
-        arc = JourneyArc.objects.get(journey_path=path, slug="egypt_to_tabernacle")
+        arc = JourneyArc.objects.get(journey_path=path, slug="creation_to_egypt")
         self.assertEqual(arc.order, 1)
-        self.assertEqual(arc.era_label, "Exodus")
-        self.assertFalse(arc.is_active)
+        self.assertEqual(arc.era_label, "Genesis")
+        self.assertTrue(arc.is_active)  # Arc 1 is published for users
 
-        day = JourneyDay.objects.get(arc=arc, day_number=15)
-        self.assertEqual(day.scripture_refs, ["Leviticus 1:1-17"])
-        self.assertEqual(day.scripture_content["translation"], "WEB")
-        self.assertEqual(len(day.scripture_content["blocks"]), 17)
-        self.assertGreaterEqual(len(day.confusion_topics), 3)
-        self.assertTrue(day.retention_anchor)
-        self.assertLessEqual(len(day.key_insight), 200)
-        self.assertLessEqual(len(day.application_action), 280)
+        # Spot-check Day 1 (Creation, Genesis 1-2)
+        day1 = JourneyDay.objects.get(arc=arc, day_number=1)
+        self.assertIn("Genesis 1:1-31", day1.scripture_refs)
+        self.assertEqual(day1.scripture_content["translation"], "WEB")
+        self.assertGreaterEqual(len(day1.scripture_content["blocks"]), 31)
+        self.assertGreaterEqual(len(day1.confusion_topics), 3)
+        self.assertTrue(day1.retention_anchor)
+        self.assertLessEqual(len(day1.key_insight), 200)
+        self.assertLessEqual(len(day1.application_action), 280)
+
+        # All 7 days authored, sequential, every day passes schema
+        all_days = JourneyDay.objects.filter(arc=arc).order_by("day_number")
+        self.assertEqual(all_days.count(), 7)
+        self.assertEqual([d.day_number for d in all_days], [1, 2, 3, 4, 5, 6, 7])
+        for d in all_days:
+            self.assertGreaterEqual(len(d.confusion_topics), 3, f"Day {d.day_number} confusion_topics")
+            self.assertLessEqual(len(d.key_insight), 200, f"Day {d.day_number} key_insight")
+            self.assertLessEqual(len(d.application_action), 280, f"Day {d.day_number} application_action")
+            self.assertTrue(d.retention_anchor, f"Day {d.day_number} retention_anchor")
+            self.assertTrue(d.plain_english_simple, f"Day {d.day_number} simple tier")
+            self.assertTrue(d.plain_english_standard, f"Day {d.day_number} standard tier")
+            self.assertTrue(d.plain_english_deeper, f"Day {d.day_number} deeper tier")

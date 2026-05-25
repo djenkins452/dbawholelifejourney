@@ -41,11 +41,11 @@ def _make_user(email="t1@example.com"):
 class JourneyDayViewTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        # Load the real Day 15 pack to test end-to-end with authored content.
+        # Load the real Arc 1 (Creation → Egypt) to test end-to-end with authored content.
         call_command("load_journey_path", "walking_with_god")
         cls.path = JourneyPath.objects.get(slug="walking_with_god")
-        cls.arc = JourneyArc.objects.get(slug="egypt_to_tabernacle")
-        cls.day = JourneyDay.objects.get(arc=cls.arc, day_number=15)
+        cls.arc = JourneyArc.objects.get(slug="creation_to_egypt")
+        cls.day = JourneyDay.objects.get(arc=cls.arc, day_number=1)
 
     def setUp(self):
         self.user = _make_user("view-tester@example.com")
@@ -58,7 +58,7 @@ class JourneyDayViewTests(TestCase):
             user=self.user,
             journey_path=self.path,
             current_arc=self.arc,
-            current_day_number=15,
+            current_day_number=1,
             journey_status="active",
             preferred_difficulty="standard",
         )
@@ -74,9 +74,9 @@ class JourneyDayViewTests(TestCase):
         resp = self.client.get(reverse("journey:today"))
         self.assertEqual(resp.status_code, 200)
         # Locator
-        self.assertIn(b"Day 15", resp.content)
+        self.assertIn(b"Day 1", resp.content)
         # Scripture content
-        self.assertIn(b"Leviticus", resp.content)
+        self.assertIn(b"Genesis", resp.content)
         # Section labels (quiet typography)
         self.assertIn(b"Setting the scene", resp.content)
         self.assertIn(b"Plain English", resp.content)
@@ -100,14 +100,14 @@ class JourneyDayViewTests(TestCase):
         uj.save()
         resp = self.client.get(reverse("journey:today"))
         self.assertEqual(resp.status_code, 200)
-        # Deeper tier mentions Hebrew vocabulary (olah) — proof of tier selection
-        self.assertIn(b"olah", resp.content)
+        # Deeper tier mentions Hebrew vocabulary (bara) — proof of tier selection
+        self.assertIn(b"bara", resp.content)
 
     def test_review_route_renders_past_day(self):
         self._start_journey()
-        resp = self.client.get(reverse("journey:review_day", args=[self.arc.slug, 15]))
+        resp = self.client.get(reverse("journey:review_day", args=[self.arc.slug, 1]))
         self.assertEqual(resp.status_code, 200)
-        self.assertIn(b"Day 15", resp.content)
+        self.assertIn(b"Day 1", resp.content)
 
     def test_review_route_forbids_future_day(self):
         # User on day 15; trying to access day 16 should 403 (no future days authored anyway).
@@ -142,15 +142,16 @@ class JourneyDayViewTests(TestCase):
     def test_complete_day_advances(self):
         uj = self._start_journey()
         resp = self.client.post(
-            reverse("journey:complete_day", args=[self.arc.slug, 15]),
+            reverse("journey:complete_day", args=[self.arc.slug, 1]),
             {"reflection_notes": "First reflection.", "application_committed": "on"},
         )
         # Redirects to today/
         self.assertEqual(resp.status_code, 302)
         uj.refresh_from_db()
-        # Day 15 was the only authored day; no next day in arc → arc continues
-        # but next_day query returns None and there's no next arc, so journey completes.
-        self.assertIn(uj.journey_status, {"active", "completed"})
+        # Arc 1 has 7 days authored — completing Day 1 advances to Day 2.
+        # Journey stays active (no arc completion yet, no next arc to spawn).
+        self.assertEqual(uj.journey_status, "active")
+        self.assertEqual(uj.current_day_number, 2)
 
 
 class WelcomeBackTests(TestCase):
@@ -169,8 +170,8 @@ class WelcomeBackTests(TestCase):
         self.uj = UserJourney.objects.create(
             user=self.user,
             journey_path=JourneyPath.objects.get(slug="walking_with_god"),
-            current_arc=JourneyArc.objects.get(slug="egypt_to_tabernacle"),
-            current_day_number=15,
+            current_arc=JourneyArc.objects.get(slug="creation_to_egypt"),
+            current_day_number=1,
             last_visited_at=timezone.now() - timedelta(days=5),
         )
 
@@ -228,16 +229,16 @@ class StuckSurfaceTests(TestCase):
         UserJourney.objects.create(
             user=self.user,
             journey_path=JourneyPath.objects.get(slug="walking_with_god"),
-            current_arc=JourneyArc.objects.get(slug="egypt_to_tabernacle"),
-            current_day_number=15,
+            current_arc=JourneyArc.objects.get(slug="creation_to_egypt"),
+            current_day_number=1,
         )
 
     def test_confusion_topics_render(self):
         resp = self.client.get(reverse("journey:today"))
         self.assertEqual(resp.status_code, 200)
-        # Day 15 has 5 authored confusion topics; at least one familiar string must appear.
-        self.assertIn(b"Why does God want animals killed", resp.content)
-        self.assertIn(b"pleasant aroma", resp.content)
+        # Day 1 has 4 authored confusion topics; at least one familiar string must appear.
+        self.assertIn(b"image of God", resp.content)
+        self.assertIn(b"science", resp.content)
 
 
 class AnnotationReuseTests(TestCase):
@@ -254,8 +255,8 @@ class AnnotationReuseTests(TestCase):
         UserJourney.objects.create(
             user=self.user,
             journey_path=JourneyPath.objects.get(slug="walking_with_god"),
-            current_arc=JourneyArc.objects.get(slug="egypt_to_tabernacle"),
-            current_day_number=15,
+            current_arc=JourneyArc.objects.get(slug="creation_to_egypt"),
+            current_day_number=1,
         )
 
     def _post_json(self, url_name, body):

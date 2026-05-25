@@ -46,8 +46,8 @@ class SignalEmissionTests(TestCase):
     def setUpTestData(cls):
         call_command("load_journey_path", "walking_with_god")
         cls.path = JourneyPath.objects.get(slug="walking_with_god")
-        cls.arc = JourneyArc.objects.get(slug="egypt_to_tabernacle")
-        cls.day15 = JourneyDay.objects.get(arc=cls.arc, day_number=15)
+        cls.arc = JourneyArc.objects.get(slug="creation_to_egypt")
+        cls.day1 = JourneyDay.objects.get(arc=cls.arc, day_number=1)
 
     def _captured(self, patched_emit):
         """Helper: list of (event_type, data) for each call to safe_emit_event."""
@@ -65,7 +65,7 @@ class SignalEmissionTests(TestCase):
         user = _u("started@example.com")
         with mock.patch("apps.core.events.domain_events.safe_emit_event") as patched_emit:
             UserJourney.objects.create(
-                user=user, journey_path=self.path, current_arc=self.arc, current_day_number=15,
+                user=user, journey_path=self.path, current_arc=self.arc, current_day_number=1,
             )
             events = [c.args[0] for c in patched_emit.call_args_list]
             self.assertIn("journey.started", events)
@@ -73,7 +73,7 @@ class SignalEmissionTests(TestCase):
     def test_journey_started_does_not_fire_on_update(self):
         user = _u("started2@example.com")
         uj = UserJourney.objects.create(
-            user=user, journey_path=self.path, current_arc=self.arc, current_day_number=15,
+            user=user, journey_path=self.path, current_arc=self.arc, current_day_number=1,
         )
         with mock.patch("apps.core.events.domain_events.safe_emit_event") as patched_emit:
             uj.preferred_difficulty = "deeper"
@@ -86,12 +86,12 @@ class SignalEmissionTests(TestCase):
     def test_day_completed_fires_only_on_false_to_true_transition(self):
         user = _u("daycomp@example.com")
         uj = UserJourney.objects.create(
-            user=user, journey_path=self.path, current_arc=self.arc, current_day_number=15,
+            user=user, journey_path=self.path, current_arc=self.arc, current_day_number=1,
         )
         with mock.patch("apps.core.events.domain_events.safe_emit_event") as patched_emit:
             # First save: is_completed False — no event
             progress = UserJourneyDayProgress.objects.create(
-                user=user, user_journey=uj, journey_day=self.day15, is_completed=False,
+                user=user, user_journey=uj, journey_day=self.day1, is_completed=False,
             )
             events_after_create = [c.args[0] for c in patched_emit.call_args_list]
             self.assertNotIn("journey.day.completed", events_after_create)
@@ -113,11 +113,11 @@ class SignalEmissionTests(TestCase):
     def test_application_committed_fires_only_on_transition(self):
         user = _u("appcomp@example.com")
         uj = UserJourney.objects.create(
-            user=user, journey_path=self.path, current_arc=self.arc, current_day_number=15,
+            user=user, journey_path=self.path, current_arc=self.arc, current_day_number=1,
         )
         with mock.patch("apps.core.events.domain_events.safe_emit_event") as patched_emit:
             progress = UserJourneyDayProgress.objects.create(
-                user=user, user_journey=uj, journey_day=self.day15, application_committed=False,
+                user=user, user_journey=uj, journey_day=self.day1, application_committed=False,
             )
             self.assertNotIn("journey.application.committed", [c.args[0] for c in patched_emit.call_args_list])
             progress.application_committed = True
@@ -128,13 +128,15 @@ class SignalEmissionTests(TestCase):
     # -------------------------------------------------- arc completed (service)
 
     def test_arc_completed_fires_when_last_day_marked_complete(self):
-        """Day 15 is currently the only authored day. Completing it = arc done."""
+        """Arc 1 has 7 days. Completing day 7 = arc done."""
+        from apps.faith.journey.models import JourneyDay
         user = _u("arccomp@example.com")
+        day7 = JourneyDay.objects.get(arc=self.arc, day_number=7)
         uj = UserJourney.objects.create(
-            user=user, journey_path=self.path, current_arc=self.arc, current_day_number=15,
+            user=user, journey_path=self.path, current_arc=self.arc, current_day_number=7,
         )
         with mock.patch("apps.core.events.domain_events.safe_emit_event") as patched_emit:
-            mark_day_complete(uj, self.day15, reflection_notes="done", application_committed=False)
+            mark_day_complete(uj, day7, reflection_notes="done", application_committed=False)
             events = [c.args[0] for c in patched_emit.call_args_list]
             self.assertIn("journey.arc.completed", events)
 
@@ -145,12 +147,12 @@ class SignalEmissionTests(TestCase):
         client = Client()
         client.force_login(user)
         UserJourney.objects.create(
-            user=user, journey_path=self.path, current_arc=self.arc, current_day_number=15,
+            user=user, journey_path=self.path, current_arc=self.arc, current_day_number=1,
         )
         with mock.patch("apps.core.events.domain_events.safe_emit_event") as patched_emit:
             resp = client.post(
                 reverse("journey:confusion_flagged"),
-                data='{"arc_slug":"egypt_to_tabernacle","day_number":15,"topic":"Why are there sacrifices?"}',
+                data='{"arc_slug":"creation_to_egypt","day_number":1,"topic":"What does it mean to be made in God\'s image?"}',
                 content_type="application/json",
             )
             self.assertEqual(resp.status_code, 204)
@@ -164,7 +166,7 @@ class SignalEmissionTests(TestCase):
         client = Client()
         client.force_login(user)
         uj = UserJourney.objects.create(
-            user=user, journey_path=self.path, current_arc=self.arc, current_day_number=15,
+            user=user, journey_path=self.path, current_arc=self.arc, current_day_number=1,
             last_visited_at=timezone.now() - timedelta(days=5),
         )
         with mock.patch("apps.core.events.domain_events.safe_emit_event") as patched_emit:
@@ -178,7 +180,7 @@ class SignalEmissionTests(TestCase):
         client = Client()
         client.force_login(user)
         uj = UserJourney.objects.create(
-            user=user, journey_path=self.path, current_arc=self.arc, current_day_number=15,
+            user=user, journey_path=self.path, current_arc=self.arc, current_day_number=1,
             last_visited_at=timezone.now() - timedelta(hours=12),
         )
         with mock.patch("apps.core.events.domain_events.safe_emit_event") as patched_emit:

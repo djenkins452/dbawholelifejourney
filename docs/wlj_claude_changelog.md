@@ -3,8 +3,63 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-25 (feat: Walking With God Through Scripture — Commit 6 (Phase 1 complete))
+# Last Updated: 2026-05-25 (Arc 1 PRODUCTION: Walking With God — Creation -> Egypt, 7 days, deployed)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-25 — feat(faith.journey): Arc 1 PRODUCTION — Creation to Egypt (7 days, deployed)
+
+Replaces the reality-check Day 15 (Leviticus 1) with a complete, authored,
+production-ready 7-day journey: Creation to Egypt. Path is_active and arc
+is_active both True. Public-facing.
+
+**Days authored:**
+1. Creation (Genesis 1:1-31, 2:1-3, 2:7, 2:15-25)
+2. The Fall (Genesis 3:1-24)
+3. Cain, Abel, Corruption (Genesis 4:1-16, 6:5-8)
+4. Noah and the Flood (Genesis 6-9 curated)
+5. Babel + Abraham Begins (Genesis 11:1-9, 12:1-9)
+6. Abraham's Journey (Genesis 15, 17, 22 curated)
+7. Joseph and Egypt (Genesis 37, 45, 50 curated)
+
+Each day delivers all seven Journey content elements: context_before, WEB
+scripture (curated), three plain-English tiers, key_insight (<=200),
+reflection_prompt, application_action (<=280), >=3 confusion_topics, and
+retention_anchor chaining today to the larger story.
+
+**Production deployment:** Data migration
+`0003_load_arc_1_creation_to_egypt` runs via Procfile `migrate --noinput`
+on every Railway deploy. Deletes the legacy egypt_to_tabernacle arc, then
+calls load_journey_path programmatically. Idempotent. Required because
+Railway has no CLI access for management commands.
+
+**State transitions:**
+- JourneyPath.is_active: False -> True (published)
+- JourneyPath.is_featured: False -> True
+- Arc creation_to_egypt: 7 days, is_active=True
+- Legacy egypt_to_tabernacle: DELETED via migration
+
+**Navigation:** /faith/ (modest dashboard card), /faith/journey/today/
+(canonical entry), /faith/journey/<arc>/day/<n>/ (review past days),
+/faith/journey/settings/ (difficulty + reminder). NOT on homepage, NOT in
+nav, NOT in CoS prioritization, NOT in "Do This Now".
+
+**Editorial decisions:** Curated readings per spec; Beth silent; theology
+template used once total (Day 1 standard tier, age-of-earth note); divisive
+points addressed in confusion_topics rather than main tier text.
+
+**Tests:** 66 scoped journey tests pass. manage.py check clean.
+makemigrations --check clean.
+
+**Parallel-stream safety:** No apps/core/, no apps/health/, no apps/faith/
+outside journey/ touched. Health Intelligence stream (Phase 1A C7)
+unaffected.
+
+**Known rough edges:** Day 4 is heaviest (40+ verses); annotation popover
+edge-positioning is simple absolute; window.prompt() for notes is
+iOS-clinical; welcome-back banner is text-only; no mid-page tier
+switcher. All Phase 2 candidates. Theological reviewer still not named -
+content shipped under explicit no-checkpoint mandate.
 
 
 ## 2026-05-25 — feat(health): Phase 1A · C7 — DailyHealthSummary metabolic fields

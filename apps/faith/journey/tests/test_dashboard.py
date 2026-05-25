@@ -51,18 +51,18 @@ class DashboardCardDataTests(TestCase):
         UserJourney.objects.create(
             user=user,
             journey_path=JourneyPath.objects.get(slug="walking_with_god"),
-            current_arc=JourneyArc.objects.get(slug="egypt_to_tabernacle"),
-            current_day_number=15,
+            current_arc=JourneyArc.objects.get(slug="creation_to_egypt"),
+            current_day_number=1,
         )
         data = get_dashboard_card_data(user)
         self.assertIsNotNone(data)
         self.assertEqual(data["journey_name"], "Walking With God Through Scripture")
-        self.assertEqual(data["arc_name"], "Out of Egypt to the Tabernacle")
-        self.assertEqual(data["day_number"], 15)
-        self.assertEqual(data["total_days"], 21)
-        # Focus is the day's key_insight — short, one-sentence
-        self.assertIn("approaching God", data["focus"])
-        self.assertEqual(data["scripture_refs"], ["Leviticus 1:1-17"])
+        self.assertEqual(data["arc_name"], "Creation to Egypt")
+        self.assertEqual(data["day_number"], 1)
+        self.assertEqual(data["total_days"], 7)
+        # Focus is Day 1's key_insight — short, one-sentence
+        self.assertIn("God", data["focus"])
+        self.assertIn("Genesis 1:1-31", data["scripture_refs"])
 
 
 class DashboardCardRenderTests(TestCase):
@@ -86,16 +86,16 @@ class DashboardCardRenderTests(TestCase):
         UserJourney.objects.create(
             user=self.user,
             journey_path=JourneyPath.objects.get(slug="walking_with_god"),
-            current_arc=JourneyArc.objects.get(slug="egypt_to_tabernacle"),
-            current_day_number=15,
+            current_arc=JourneyArc.objects.get(slug="creation_to_egypt"),
+            current_day_number=1,
         )
         resp = self.client.get(reverse("faith:home"))
         self.assertEqual(resp.status_code, 200)
         self.assertIn(b'data-testid="journey-dashboard-card"', resp.content)
         # Card contains the journey name, arc name, day position
         self.assertIn(b"Walking With God Through Scripture", resp.content)
-        self.assertIn(b"Out of Egypt to the Tabernacle", resp.content)
-        self.assertIn(b"Day 15", resp.content)
+        self.assertIn(b"Creation to Egypt", resp.content)
+        self.assertIn(b"Day 1", resp.content)
         # Quiet language only — no urgency / guilt / streak
         body = resp.content.lower()
         # Scope the card itself for the no-pressure-language assertion.

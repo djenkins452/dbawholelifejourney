@@ -7,6 +7,124 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-25 — feat(health): Phase 1A · C7 — DailyHealthSummary metabolic fields
+
+Wave 2, third commit. Schema additions to DailyHealthSummary plus
+builder population for overnight glucose, glucose readings count, and
+per-day insulin totals. No new signal handlers. No recompute paths
+added. No Beth behavior change. No Bible Journey collision.
+
+### What was added
+
+**Model (`apps/health/models.py`):** six new fields on DailyHealthSummary,
+all additive nullable / safe-default:
+
+- `overnight_avg_glucose` — DecimalField nullable. Avg glucose during
+  midnight–6am window. Used by the briefing for dawn-phenomenon /
+  nocturnal-hypo PIE rule (Phase 1B).
+- `glucose_readings_count` — PositiveSmallInteger, default 0. Number
+  of GlucoseEntries the day's aggregates were computed from. Provides
+  a confidence signal for downstream composers.
+- `meal_response_distribution` — JSONField, default `{}`. Distribution
+  of classified meal glucose responses (e.g.,
+  `{"minimal_spike": 2, "large_spike": 1}`). Populated by C8 once
+  the MealGlucoseResponse classifier exists.
+- `insulin_total_units` — DecimalField nullable. Daily insulin total
+  (basal + bolus + correction).
+- `insulin_basal_units` — DecimalField nullable. Basal portion.
+- `insulin_bolus_units` — DecimalField nullable. Bolus + correction
+  portion (rolled up together; PIE rules in Phase 1B may split).
+
+**Migration:** `apps/health/migrations/0089_daily_summary_metabolic_fields.py`
+— six pure AddField operations, all nullable / safe defaults, no
+backfill needed, fully reversible.
+
+**Builder (`apps/health/services/daily_summary_builder.py`):**
+
+- `_collect_glucose` extended:
+  - Now also captures `glucose_readings_count` (always present when
+    the day has any readings).
+  - Computes `overnight_avg_glucose` over readings with
+    `recorded_at.hour < 6` (midnight–6am exclusive). Same UTC
+    convention as the rest of the daily collectors.
+  - All pre-C7 outputs preserved (glucose_avg / min / max /
+    variability / time_in_range_pct).
+- `_collect_insulin` — NEW. Sums `IntakeLog.dose_amount` for the day
+  filtered to logs whose `Intake.intake_subtype` is in
+  `INSULIN_SUBTYPES` and `log_status ∈ {taken, late}`. Splits
+  `insulin_basal_units` (dose_event_type='basal') from
+  `insulin_bolus_units` (meal_bolus + correction rolled up). Returns
+  None when no insulin doses logged.
+- `build_for_date` now invokes `_collect_insulin` and emits `"insulin"`
+  in `signals_present` when insulin data exists.
+
+### Recompute / signal-loop verification (per Wave 2 guardrail)
+
+Audited signal handlers for the four models the user flagged:
+
+- **DailyHealthSummary** — zero handlers (no model listens to it).
+  Saves are terminal; nothing cascades.
+- **GlucoseEntry** — handlers in `apps.dashboard.signals` (cache
+  invalidate, ~ms) and `apps.ai.signals` (SAE refresh, Celery
+  dispatch with sync fallback). Neither triggers a
+  DailyHealthSummary rebuild.
+- **IntakeLog** — handlers in `apps.dashboard.signals` (cache
+  invalidate) and `apps.ai.signals` (SAE refresh) and
+  `apps.core.signals.execution_signals` (execution telemetry).
+  None triggers a DailyHealthSummary rebuild.
+- **MealGlucoseResponse** — not yet introduced; C8 will deliberately
+  add no signal handlers. Classifier called only from the backfill
+  command and (later, in a separate commit) from explicit meal
+  ingestion points. No signal-driven loop possible.
+
+C7 added zero new signal handlers. Recompute paths for
+DailyHealthSummary remain: (a) explicit `builder.build_for_date()`
+calls, (b) the existing nightly Celery beat task. Bounded and
+deterministic.
+
+### Tests (`apps/health/tests/test_daily_summary_metabolic_extensions.py`)
+
+16 tests across four classes:
+
+- `DailyHealthSummaryNewFieldsTests` (4) — six new fields exist with
+  expected defaults (None / 0 / `{}`).
+- `CollectGlucoseExtensionsTests` (5) — glucose_readings_count
+  populated; overnight_avg uses midnight–6am window; no overnight
+  readings → no overnight_avg key; existing glucose outputs
+  preserved; no readings → returns None as before.
+- `CollectInsulinTests` (5) — no logs → None; basal-only; basal +
+  bolus + correction (33u total, 18u basal, 15u bolus); missed/
+  skipped excluded; non-insulin log with dose_amount excluded
+  (filter via intake_subtype).
+- `BuildForDateInsulinSignalTests` (2) — insulin appears in
+  signals_present when data exists; absent when no insulin logged
+  and meal_response_distribution defaults to `{}`.
+
+Runtime 288s — slow due to GlucoseEntry/DailyHealthSummary post_save
+SAE-refresh signals hitting the Redis-retry storm in non-muted
+classes. Tests pass; I declined to add GlucoseEntry to the mute
+mixin scope here to keep the C7 patch minimal. C8 will add
+GlucoseEntry to its mute scope where it matters more.
+
+### Files Created
+- `apps/health/tests/test_daily_summary_metabolic_extensions.py`
+- `apps/health/migrations/0089_daily_summary_metabolic_fields.py`
+
+### Files Modified
+- `apps/health/models.py` — six new DailyHealthSummary fields.
+- `apps/health/services/daily_summary_builder.py` — `_collect_glucose`
+  extended; new `_collect_insulin`; `build_for_date` wires insulin.
+
+### Verification
+- `python3 manage.py test
+  apps.health.tests.test_daily_summary_metabolic_extensions
+  --keepdb` — 16/16 pass.
+- `python3 manage.py makemigrations --check --dry-run` — clean.
+
+### Bible Journey coordination
+- BibleJourney-Touches: none. Pure health-domain edits.
+- Only shared file: `docs/wlj_claude_changelog.md` (append-only).
+
 ## 2026-05-25 — feat(state): Phase 1A · C6 — MEDICINE + MEDICAL state extensions
 
 Wave 2, second commit. Additive extensions to build_medicine_state and

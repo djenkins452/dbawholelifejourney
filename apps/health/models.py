@@ -6162,6 +6162,38 @@ class DailyHealthSummary(UserOwnedModel):
         help_text="% of readings in 70-180 mg/dL range",
     )
 
+    # --- Glucose: Metabolic Intelligence v1 (Phase 1A · C7) ---
+    overnight_avg_glucose = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+        help_text="Avg glucose mg/dL during overnight window (midnight–6am local).",
+    )
+    glucose_readings_count = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Number of glucose readings the day's aggregates were computed from.",
+    )
+    meal_response_distribution = models.JSONField(
+        default=dict, blank=True,
+        help_text=(
+            "Distribution of classified meal glucose responses for the day "
+            "(e.g., {'minimal_spike': 2, 'large_spike': 1}). Populated by "
+            "the MealGlucoseResponse classifier (C8); empty dict until then."
+        ),
+    )
+
+    # --- Insulin (Phase 1A · C7) ---
+    insulin_total_units = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True,
+        help_text="Total insulin units logged for the day (basal + bolus + correction).",
+    )
+    insulin_basal_units = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True,
+        help_text="Basal insulin units logged for the day.",
+    )
+    insulin_bolus_units = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True,
+        help_text="Bolus + correction insulin units logged for the day.",
+    )
+
     # --- Nutrition ---
     calories_consumed = models.PositiveIntegerField(null=True, blank=True)
     protein_g = models.DecimalField(

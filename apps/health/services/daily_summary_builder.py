@@ -91,6 +91,15 @@ class DailyHealthSummaryBuilder:
             data.update(medication)
             signals.append("medication")
 
+        # Phase 1A · C7: insulin is an additive signal independent of
+        # generic medication adherence. Emits its own "insulin" signal
+        # so downstream consumers can detect insulin observation
+        # presence separately from medication compliance.
+        insulin = self._collect_insulin(user, target_date)
+        if insulin:
+            data.update(insulin)
+            signals.append("insulin")
+
         fasting = self._collect_fasting(user, target_date)
         if fasting:
             data.update(fasting)
@@ -450,26 +459,36 @@ class DailyHealthSummaryBuilder:
         """Collect glucose metrics for the day."""
         from apps.health.models import GlucoseEntry
 
-        readings = GlucoseEntry.objects.filter(
-            user=user, recorded_at__date=target_date,
+        readings = list(
+            GlucoseEntry.objects.filter(user=user, recorded_at__date=target_date)
         )
-        count = readings.count()
+        count = len(readings)
         if count == 0:
             return None
 
-        # Convert all to mg/dL for consistency
+        # Convert all to mg/dL for consistency. Capture the local
+        # recorded hour for the overnight-window aggregation below.
         values = []
+        overnight_values = []
         for r in readings:
             val = float(r.value)
             if r.unit == "mmol/L":
                 val = val * 18.0  # Convert to mg/dL
             values.append(val)
+            # Overnight window: midnight (inclusive) through 6am
+            # (exclusive). Using UTC hour here matches recorded_at's
+            # stored timezone — same convention as the rest of the
+            # daily aggregations in this builder.
+            if 0 <= r.recorded_at.hour < 6:
+                overnight_values.append(val)
 
         avg_val = statistics.mean(values)
         result = {
             "glucose_avg": Decimal(str(round(avg_val, 2))),
             "glucose_min": Decimal(str(round(min(values), 2))),
             "glucose_max": Decimal(str(round(max(values), 2))),
+            # Phase 1A · C7: confidence signal for downstream composers.
+            "glucose_readings_count": count,
         }
 
         # Coefficient of variation
@@ -481,6 +500,13 @@ class DailyHealthSummaryBuilder:
         # Time in range (70-180 mg/dL)
         in_range = sum(1 for v in values if 70 <= v <= 180)
         result["time_in_range_pct"] = Decimal(str(round((in_range / count) * 100, 2)))
+
+        # Phase 1A · C7: overnight aggregate for dawn-phenomenon /
+        # nocturnal-hypo detection (PIE rule lands in Phase 1B).
+        if overnight_values:
+            result["overnight_avg_glucose"] = Decimal(
+                str(round(statistics.mean(overnight_values), 2))
+            )
 
         return result
 
@@ -570,6 +596,63 @@ class DailyHealthSummaryBuilder:
                 user.email, target_date, exc_info=True,
             )
         return None
+
+    def _collect_insulin(self, user, target_date):
+        """Collect per-day insulin totals (Phase 1A · C7).
+
+        Sourced from IntakeLog.dose_amount filtered to logs whose
+        Intake.intake_subtype is in INSULIN_SUBTYPES (C3 surface).
+        Only 'taken' and 'late' logs count — same rule as
+        calculate_medicine_adherence.
+
+        Returns None when no insulin doses were logged that day so the
+        caller can skip emitting the 'insulin' signal.
+        """
+        from django.db.models import Sum
+        from apps.health.models import Intake, IntakeLog
+
+        try:
+            logs = IntakeLog.objects.filter(
+                user=user,
+                intake__intake_subtype__in=Intake.INSULIN_SUBTYPES,
+                log_status__in=['taken', 'late'],
+                dose_amount__isnull=False,
+                scheduled_date=target_date,
+            )
+            total = logs.aggregate(s=Sum('dose_amount'))['s']
+            if total is None:
+                return None
+
+            basal_total = logs.filter(
+                dose_event_type=IntakeLog.DOSE_EVENT_BASAL,
+            ).aggregate(s=Sum('dose_amount'))['s']
+            # Bolus + correction roll up together as "bolus_units" —
+            # both are post-meal / non-basal dosing. PIE rules in
+            # Phase 1B may split if needed.
+            bolus_total = logs.filter(
+                dose_event_type__in=[
+                    IntakeLog.DOSE_EVENT_MEAL_BOLUS,
+                    IntakeLog.DOSE_EVENT_CORRECTION,
+                ],
+            ).aggregate(s=Sum('dose_amount'))['s']
+
+            return {
+                "insulin_total_units": Decimal(str(round(float(total), 2))),
+                "insulin_basal_units": (
+                    Decimal(str(round(float(basal_total), 2)))
+                    if basal_total is not None else None
+                ),
+                "insulin_bolus_units": (
+                    Decimal(str(round(float(bolus_total), 2)))
+                    if bolus_total is not None else None
+                ),
+            }
+        except Exception:
+            logger.warning(
+                "Failed to collect insulin totals for %s on %s",
+                user.email, target_date, exc_info=True,
+            )
+            return None
 
     def _collect_fasting(self, user, target_date):
         """Collect fasting hours for the day."""

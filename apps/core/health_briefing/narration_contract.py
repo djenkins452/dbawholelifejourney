@@ -203,6 +203,103 @@ def _format_inputs_guidance(briefing: HealthBriefing) -> List[str]:
     return lines
 
 
+def build_briefing_addendum_from_payload(payload: Dict) -> str:
+    """Dict-payload variant of `build_briefing_addendum`.
+
+    The C15 wiring reads HealthBriefing data from a
+    `HealthBriefingSnapshot.payload` JSON dict (serialized by
+    `apps.core.health_briefing.composer._serialize_briefing`), not
+    from a reconstructed HealthBriefing dataclass. This helper walks
+    the dict directly so we never round-trip through the dataclass's
+    `__post_init__` validators (which could reject older snapshots
+    after a contract change).
+
+    Produces the same shape of output as `build_briefing_addendum`.
+    Kept side-by-side with the dataclass variant so the two never
+    drift — every change here must mirror the dataclass version.
+    """
+    parts: List[str] = []
+
+    briefing_id = str(payload.get("briefing_id") or "")
+    overall_status = str(payload.get("overall_status") or "stable")
+    overall_confidence = payload.get("overall_confidence", 0.0)
+    risk_level = str(payload.get("risk_level") or "none")
+
+    parts.append(f"[briefing_id={briefing_id[:12]}…]")
+    parts.append(f"Headline: {overall_status} (confidence {overall_confidence})")
+    parts.append(f"Risk: {risk_level}")
+
+    if payload.get("insufficient_data_flag"):
+        parts.append(
+            "INSUFFICIENT DATA — explicitly say so. Do not fabricate "
+            "trajectory, status, or risk."
+        )
+
+    acute_alerts = payload.get("acute_alerts") or []
+    if acute_alerts:
+        parts.append("ACUTE — surface FIRST in your response:")
+        for alert in acute_alerts:
+            sev = str(alert.get("severity") or "high")
+            label = str(alert.get("label") or "Acute event")
+            why = str(alert.get("why") or "")
+            parts.append(f"  [{sev}] {label} — {why}")
+
+    top_drivers = payload.get("top_positive_drivers") or []
+    watch_items = payload.get("watch_items") or []
+    if payload.get("positive_recognition_required") and top_drivers:
+        names = "; ".join(str(d.get("label") or "") for d in top_drivers)
+        parts.append(
+            f"POSITIVE RECOGNITION REQUIRED — name at least one of: {names}"
+        )
+
+    if top_drivers:
+        parts.append("Pre-ranked positive drivers (do NOT re-rank):")
+        for d in top_drivers:
+            score = d.get("score") or 0
+            try:
+                score_int = int(score)
+            except (TypeError, ValueError):
+                score_int = 0
+            score_str = f"+{score_int}" if score_int > 0 else f"{score_int}"
+            parts.append(
+                f"  + {d.get('label')} ({score_str}) — {d.get('why', '')}"
+            )
+    if watch_items:
+        parts.append("Pre-ranked watch items (do NOT re-rank):")
+        for d in watch_items:
+            score = d.get("score") or 0
+            try:
+                score_int = int(score)
+            except (TypeError, ValueError):
+                score_int = 0
+            parts.append(
+                f"  - {d.get('label')} ({score_int}) — {d.get('why', '')}"
+            )
+
+    if payload.get("insulin_trend_30d") is None:
+        parts.append(
+            "No insulin observation in this briefing — do NOT mention "
+            "insulin in your response."
+        )
+
+    inputs_missing = payload.get("inputs_missing") or []
+    if inputs_missing:
+        skip = ", ".join(sorted(inputs_missing)[:8])
+        parts.append(
+            f"No data on: {skip}. Do NOT make claims about these fields."
+        )
+
+    staleness_flags = payload.get("staleness_flags") or []
+    if staleness_flags:
+        stale = ", ".join(sorted(staleness_flags))
+        parts.append(
+            f"Stale data flagged: {stale}. Acknowledge the gap; do not "
+            "narrate from these as current."
+        )
+
+    return "\n".join(parts)
+
+
 def build_briefing_addendum(briefing: HealthBriefing) -> str:
     """Produce the per-turn dynamic addendum for a specific briefing.
 

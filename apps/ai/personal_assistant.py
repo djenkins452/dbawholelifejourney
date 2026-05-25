@@ -3694,6 +3694,38 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                 memory = get_conversation_memory(conversation)
                 if memory:
                     system_prompt += "\n\n" + memory
+
+            # ── Phase 1A · C15 — HealthBriefing narration addendum ──
+            # If the CoS context carries a recent HealthBriefingSnapshot
+            # (set by cos_context._build_health_briefing_slot), inject
+            # the C14 narration contract + the per-briefing dynamic
+            # addendum. The composer is read-only against SAE; this
+            # path adds no cost to the request and is fully reversible
+            # via WLJ_DISABLE_HEALTH_BRIEFING_SLOT.
+            try:
+                briefing_slot = (cos_context or {}).get("health_briefing")
+                if briefing_slot and briefing_slot.get("payload"):
+                    from apps.core.health_briefing.narration_contract import (
+                        HEALTH_BRIEFING_NARRATION_ADDENDUM_BASE,
+                        build_briefing_addendum_from_payload,
+                    )
+                    dyn = build_briefing_addendum_from_payload(
+                        briefing_slot["payload"]
+                    )
+                    system_prompt += (
+                        "\n\n" + HEALTH_BRIEFING_NARRATION_ADDENDUM_BASE
+                        + "\n\n" + dyn
+                    )
+                    logger.info(
+                        "HEALTH_BRIEFING_ADDENDUM_INJECTED user=%s "
+                        "briefing_id=%s",
+                        self.user.id,
+                        briefing_slot.get("briefing_id", "")[:12],
+                    )
+            except Exception as _hb_err:
+                logger.warning(
+                    "Health briefing addendum injection failed: %s", _hb_err,
+                )
         except Exception as e:
             logger.warning("Executive briefing failed: %s", e)
         finally:

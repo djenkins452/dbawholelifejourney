@@ -177,6 +177,54 @@ def _fresh_module_state(user, module):
 # Context Builder Functions (each runs independently in its own thread)
 # =========================================================================
 
+
+def _build_health_briefing_slot(user):
+    """Attach the most recent HealthBriefingSnapshot for this user.
+
+    Read-only: never invokes the composer. Returns a plain dict with
+    ``briefing_id``, ``generated_at``, and ``payload`` (the serialized
+    HealthBriefing). Returns None when no snapshot exists or the most
+    recent one is expired — in either case Beth's prompt assembly
+    skips the addendum injection cleanly (her pre-C15 behavior
+    resumes).
+
+    Phase 1A · C15 entrypoint. Bible Journey workstream owns no
+    interactions with this slot.
+    """
+    try:
+        from apps.core.health_briefing.models import HealthBriefingSnapshot
+    except Exception:
+        # Module not installed yet (legacy environments). Safe default.
+        return None
+    try:
+        snap = (
+            HealthBriefingSnapshot.objects
+            .filter(user=user)
+            .order_by("-generated_at")
+            .first()
+        )
+        if snap is None:
+            return None
+        if snap.is_expired:
+            logger.info(
+                "[HEALTH_BRIEFING_SLOT] snapshot stale user=%s "
+                "briefing_id=%s — skipping",
+                user.id, snap.briefing_id[:12],
+            )
+            return None
+        return {
+            "briefing_id": snap.briefing_id,
+            "generated_at": snap.generated_at.isoformat(),
+            "payload": snap.payload,
+        }
+    except Exception:
+        logger.debug(
+            "CoS context: health briefing slot unavailable for user=%s",
+            getattr(user, "id", "?"), exc_info=True,
+        )
+        return None
+
+
 def _build_blueprint_and_governance(user, prefs):
     """Build blueprint state, governance profile, and persona profile."""
     result = {}
@@ -3660,6 +3708,23 @@ def build_cos_context(user, scoped_builders=None):
     # =====================================================================
     # POST-ASSEMBLY (depends on composed context — must be sequential)
     # =====================================================================
+
+    # Phase 1A · C15 — HealthBriefing slot.
+    #
+    # Read-only attach of the most recent HealthBriefingSnapshot for the
+    # user. Never triggers the composer. Never queries raw domain rows.
+    # Beth reads this in personal_assistant.py to inject the C14
+    # narration addendum into her system prompt.
+    #
+    # Rollback: set WLJ_DISABLE_HEALTH_BRIEFING_SLOT=1 in the environment
+    # to suppress the slot. Beth falls back to her pre-C15 context.
+    import os as _os
+    if _os.environ.get(
+        "WLJ_DISABLE_HEALTH_BRIEFING_SLOT", ""
+    ).lower() not in ("1", "true", "yes"):
+        context["health_briefing"] = _build_health_briefing_slot(user)
+    else:
+        context["health_briefing"] = None
 
     # Day Significance — promote biblical day to top-level cross-domain context.
     # This is a peer of daily_signals and goal_momentum, not nested under faith.

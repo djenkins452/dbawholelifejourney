@@ -7,6 +7,207 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-25 — feat(health_briefing): Phase 1A · C15 — Wire HealthBriefing into CoS + Beth
+
+Wave 5, second commit. **First commit that changes Beth's behavior.**
+Three small additive edits + one new payload-helper + 17 wiring tests.
+Beth now receives the HealthBriefing narration addendum whenever a
+recent snapshot exists. Fully reversible via env var.
+
+### What was added / changed
+
+**`apps/core/health_briefing/narration_contract.py`** — added
+`build_briefing_addendum_from_payload(payload: dict) -> str`
+alongside the existing dataclass-driven `build_briefing_addendum`.
+The snapshot stores the briefing as a dict (JSONField); the wiring
+needs the dict-shaped helper to avoid round-tripping through the
+dataclass's validators (which could reject older snapshots after a
+future contract change). Both helpers produce identical output for
+equivalent inputs.
+
+**`apps/core/ai_orchestrator/cos_context.py`** — two changes:
+1. Added `_build_health_briefing_slot(user)` helper near the other
+   `_build_*` builders. Read-only attach of the most recent
+   `HealthBriefingSnapshot`. Returns dict `{briefing_id,
+   generated_at, payload}` or None when missing/stale. Never
+   queries raw GlucoseEntry / IntakeLog / LabResult rows. Never
+   triggers the composer.
+2. Post-assembly section now calls the slot and stores under
+   `context["health_briefing"]`. Honors
+   `WLJ_DISABLE_HEALTH_BRIEFING_SLOT` env var for rollback.
+
+**`apps/ai/personal_assistant.py`** — one new block in
+`_generate_response`, immediately after the executive briefing /
+conversation memory injection:
+
+```
+try:
+    briefing_slot = (cos_context or {}).get("health_briefing")
+    if briefing_slot and briefing_slot.get("payload"):
+        from apps.core.health_briefing.narration_contract import (
+            HEALTH_BRIEFING_NARRATION_ADDENDUM_BASE,
+            build_briefing_addendum_from_payload,
+        )
+        dyn = build_briefing_addendum_from_payload(briefing_slot["payload"])
+        system_prompt += "\n\n" + HEALTH_BRIEFING_NARRATION_ADDENDUM_BASE + "\n\n" + dyn
+        logger.info("HEALTH_BRIEFING_ADDENDUM_INJECTED ...")
+except Exception as _hb_err:
+    logger.warning("Health briefing addendum injection failed: %s", _hb_err)
+```
+
+Failure of the addendum injection cannot break Beth — caught and
+logged. Beth falls back to her pre-C15 behavior.
+
+### Rollback
+
+`WLJ_DISABLE_HEALTH_BRIEFING_SLOT=1` in the environment suppresses
+the slot at the cos_context layer. The injection block in
+personal_assistant then sees `briefing_slot=None` and skips. No
+restart required — env vars read per-request.
+
+### Tests — 17 in 0.676s, all pass
+
+`apps/core/health_briefing/tests/test_cos_context_wiring.py`:
+
+- `PayloadAddendumBuilderTests` (9) — every dynamic path
+  (briefing_id, headline, INSUFFICIENT DATA, ACUTE block with
+  severity tag + value, POSITIVE RECOGNITION REQUIRED, insulin
+  gate, drivers with signed scores, inputs_missing, staleness).
+- `CoSSlotBehaviorTests` (5) — None when no snapshot, dict with
+  required keys when fresh snapshot exists, None when only
+  expired snapshot exists, returns most recent fresh, doesn't
+  return another user's snapshot.
+- `NoRawRowsInCoSSlotAuditTests` (1) — **critical Phase 0 audit
+  rule**: the slot payload serializes to JSON without any Django
+  Model object or QuerySet leaks.
+- `RollbackEnvVarTests` (1) — env var path validated.
+- `AddendumBaseSizeTests` (1) — static base addendum under 5 KB
+  size budget. Currently ~3.7 KB.
+
+Regression sweep — 70/70 pass on the prior C13/C14 suites
+(`test_signal_renderer`, `test_signal_renderer_briefing_channel`,
+`test_narration_contract`).
+
+### Validation: end-to-end chain proof
+
+Three representative scenarios verified end-to-end. For each: real
+synthetic snapshot → real slot read → real dynamic addendum → 
+simulated contract-following Beth response. Full validation report
+appears in the C15 commit assistant message (and below for
+posterity).
+
+**Scenario 1 — Canonical Danny Progress**
+
+Raw snapshot payload (excerpt): `overall_status=improving`,
+`overall_confidence=0.82`, `risk_level=low`,
+`positive_recognition_required=True`, three positive drivers
+(Insulin Dependence +18, Weight Trajectory +12, Glycemic Control
++8), one watch item (Glycemic Trajectory -3), insulin_trend_30d
+populated.
+
+Dynamic addendum injected:
+- `Headline: improving (confidence 0.82)`
+- `Risk: low`
+- `POSITIVE RECOGNITION REQUIRED — name at least one of: Insulin
+  Dependence; Weight Trajectory; Glycemic Control`
+- All three drivers listed with `(+N)` scores, marked do-NOT-re-rank
+- No ACUTE block, no insulin gate (insulin observed)
+
+Expected Beth output: leads with metabolic improvement, names
+insulin reduction and weight loss specifically, frames glucose as
+"still" elevated (not the headline), encouraging without being
+saccharine. **Acute-first survives (none triggered).
+Positive-recognition survives (driver named). No fabrication.
+Tone: wise/balanced/encouraging/truthful.**
+
+**Scenario 3 — Acute Glucose Danger**
+
+Raw snapshot payload: `overall_status=at_risk`, `risk_level=acute`,
+one `acute_alerts` entry (glucose_critical_low, critical, "Most
+recent reading 48 mg/dL"). Positive drivers exist but
+`positive_recognition_required=False` (acute overrides).
+
+Dynamic addendum injected:
+- `Headline: at_risk (confidence 0.8)`
+- `Risk: acute`
+- `ACUTE — surface FIRST in your response:` followed by
+  `[critical] Critical low glucose — Most recent reading 48 mg/dL`
+- Positive recognition line ABSENT (acute overrides)
+
+Expected Beth output: first sentence references the critical low and
+specific value (48 mg/dL), suggests concrete corrective action,
+defers metabolic progress to follow-up sentence. **Acute-first
+survives (forced to first sentence). No fabrication. Tone: urgent
+without panic.**
+
+**Scenario 5 — Insufficient Data (Brand-New User)**
+
+Raw snapshot payload: `overall_status=insufficient_data`,
+`overall_confidence=0.0`, `insufficient_data_flag=True`,
+`inputs_missing` lists most fields, `insulin_trend_30d=None`.
+
+Dynamic addendum injected:
+- `Headline: insufficient_data (confidence 0.0)`
+- `INSUFFICIENT DATA — explicitly say so. Do not fabricate
+  trajectory, status, or risk.`
+- `No insulin observation in this briefing — do NOT mention
+  insulin in your response.`
+- `No data on: glucose_avg_7d, ...`
+
+Expected Beth output: explicitly states data gap, proposes one or
+two concrete first actions (not ten), zero insulin mentions, zero
+fabricated metabolic claims. **Insufficient-data honesty survives.
+No insulin claim possible (gate honored). Tone: inviting, not
+apologetic.**
+
+### Files Created
+- `apps/core/health_briefing/tests/test_cos_context_wiring.py`
+
+### Files Modified
+- `apps/core/health_briefing/narration_contract.py` — added
+  `build_briefing_addendum_from_payload`. Dataclass variant
+  unchanged.
+- `apps/core/ai_orchestrator/cos_context.py` — added
+  `_build_health_briefing_slot` helper + post-assembly call with
+  env-var rollback.
+- `apps/ai/personal_assistant.py` — added addendum-injection block
+  after the executive briefing / conversation memory injection. No
+  existing line modified; the block is purely additive.
+
+### Bible Journey coordination
+- BibleJourney-Touches: **TWO** high-shared files —
+  `apps/core/ai_orchestrator/cos_context.py` (added one helper +
+  one post-assembly call) and `apps/ai/personal_assistant.py`
+  (added one injection block). Both edits are strictly additive:
+  no existing lines modified, no existing behavior changed when
+  no health briefing snapshot exists. Faith / journey / day
+  significance / executive tone code paths in cos_context.py are
+  untouched. Existing executive briefing / conversation memory /
+  CoS prompt assembly in personal_assistant.py are untouched.
+- Only other shared file: `docs/wlj_claude_changelog.md`
+  (append-only).
+
+### End-of-Phase-1A audit
+
+This is the **final commit of Phase 1A — Metabolic Intelligence v1**.
+
+- ✅ All architecture lock decisions honored (Option A insulin,
+  cross-domain composer in apps/core/, named-slot + named-addendum
+  patterns, two-channel renderer policy, registry-by-key thresholds,
+  domain-agnostic contract names).
+- ✅ All Wave 2 / 3 / 4 / 5 guardrails honored throughout.
+- ✅ All 8 user-specified C14 narration guardrails encoded and
+  asserted.
+- ✅ All 15 validation scenarios drafted and simulated; 6 verified
+  via addendum-alignment tests; 3 verified end-to-end.
+- ✅ Recompute boundedness verified (snapshot has no signal handlers,
+  no write→recompute→write loop possible).
+- ✅ Beth never receives raw GlucoseEntry / IntakeLog / LabResult
+  rows (audit pinned at C11 + extended to C15).
+- ✅ Rollback path exists (WLJ_DISABLE_HEALTH_BRIEFING_SLOT env var).
+- ✅ Zero Bible Journey collisions across 15 commits + 1 doc
+  commit; explicitly verified at every shared-file touch.
+
 ## 2026-05-25 — feat(execution): Recovery redesign Phases 1-3 — execution_status + class-aware RECOVERY + LATE_OPEN eligibility
 
 Deterministic-truth fix for the "Beth jumps ahead of the day" bug.

@@ -2300,6 +2300,21 @@ class Intake(UserOwnedModel):
         (INTAKE_TYPE_SUPPLEMENT, "Supplement"),
     ]
 
+    # ── Intake subtype (Phase 1A · Metabolic Intelligence) ──
+    # Optional refinement under intake_type. v1 only distinguishes insulin
+    # variants because metabolic intelligence needs per-event dose tracking
+    # for insulin specifically. Null for every other intake — and per the
+    # Phase 0 lock, null behavior is identical to pre-C3 behavior.
+    INTAKE_SUBTYPE_INSULIN_BASAL = "insulin_basal"
+    INTAKE_SUBTYPE_INSULIN_BOLUS = "insulin_bolus"
+    INTAKE_SUBTYPE_CHOICES = [
+        (INTAKE_SUBTYPE_INSULIN_BASAL, "Insulin — Basal"),
+        (INTAKE_SUBTYPE_INSULIN_BOLUS, "Insulin — Bolus"),
+    ]
+    INSULIN_SUBTYPES = frozenset(
+        {INTAKE_SUBTYPE_INSULIN_BASAL, INTAKE_SUBTYPE_INSULIN_BOLUS}
+    )
+
     PRIORITY_CRITICAL = "critical"
     PRIORITY_OPTIMIZATION = "optimization"
     PRIORITY_CHOICES = [
@@ -2467,6 +2482,17 @@ class Intake(UserOwnedModel):
         default="",
         help_text="Unit of measurement (mg, g, IU, mcg, ml)",
     )
+    intake_subtype = models.CharField(
+        max_length=20,
+        choices=INTAKE_SUBTYPE_CHOICES,
+        null=True,
+        blank=True,
+        help_text=(
+            "Optional refinement under intake_type. Currently used to mark "
+            "insulin variants (basal vs bolus) for metabolic intelligence. "
+            "Null for all other intakes (default)."
+        ),
+    )
 
     # Refill Request Tracking
     refill_requested = models.BooleanField(
@@ -2496,6 +2522,11 @@ class Intake(UserOwnedModel):
     def is_paused(self):
         """Check if this intake is temporarily paused."""
         return self.intake_status == self.STATUS_PAUSED
+
+    @property
+    def is_insulin(self):
+        """True when this intake represents any insulin variant."""
+        return self.intake_subtype in self.INSULIN_SUBTYPES
 
     @property
     def needs_refill(self):
@@ -2813,6 +2844,57 @@ class IntakeLog(UserOwnedModel):
         choices=SOURCE_CHOICES,
         default=SOURCE_MANUAL,
         help_text="How this log was created (manual, CoS, routine bridge)",
+    )
+
+    # ── Per-event dose fields (Phase 1A · Metabolic Intelligence) ──
+    # Optional, per-administration dose data. Required only for insulin
+    # logging (where dose varies per event); null for all other intake
+    # logs. Per Phase 0: when intake.is_insulin is False, these fields
+    # remain null and existing behavior is unchanged.
+    DOSE_UNIT_UNITS = "units"
+    DOSE_UNIT_ML = "ml"
+    DOSE_UNIT_MG = "mg"
+    DOSE_UNIT_CHOICES = [
+        (DOSE_UNIT_UNITS, "Units (U)"),
+        (DOSE_UNIT_ML, "Milliliters (ml)"),
+        (DOSE_UNIT_MG, "Milligrams (mg)"),
+    ]
+
+    DOSE_EVENT_BASAL = "basal"
+    DOSE_EVENT_MEAL_BOLUS = "meal_bolus"
+    DOSE_EVENT_CORRECTION = "correction"
+    DOSE_EVENT_TYPE_CHOICES = [
+        (DOSE_EVENT_BASAL, "Basal"),
+        (DOSE_EVENT_MEAL_BOLUS, "Meal Bolus"),
+        (DOSE_EVENT_CORRECTION, "Correction"),
+    ]
+
+    dose_amount = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=(
+            "Per-event dose amount. Required for insulin logs where dose "
+            "varies per administration; null for all other intake logs."
+        ),
+    )
+    dose_unit = models.CharField(
+        max_length=20,
+        choices=DOSE_UNIT_CHOICES,
+        null=True,
+        blank=True,
+        help_text="Unit for dose_amount (units, ml, mg). Null when dose_amount is null.",
+    )
+    dose_event_type = models.CharField(
+        max_length=20,
+        choices=DOSE_EVENT_TYPE_CHOICES,
+        null=True,
+        blank=True,
+        help_text=(
+            "Type of dose event (basal, meal_bolus, correction). Used by "
+            "insulin intelligence; null for all other intake logs."
+        ),
     )
 
     class Meta:

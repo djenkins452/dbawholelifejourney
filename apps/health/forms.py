@@ -489,6 +489,7 @@ class MedicineForm(forms.ModelForm):
         model = Intake
         fields = [
             "intake_type",
+            "intake_subtype",
             "category",
             "priority",
             "name",
@@ -512,6 +513,10 @@ class MedicineForm(forms.ModelForm):
             "intake_type": forms.Select(attrs={
                 "class": "form-select",
                 "id": "id_intake_type",
+            }),
+            "intake_subtype": forms.Select(attrs={
+                "class": "form-select",
+                "id": "id_intake_subtype",
             }),
             "priority": forms.Select(attrs={
                 "class": "form-select",

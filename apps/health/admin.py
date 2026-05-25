@@ -252,6 +252,7 @@ class IntakeAdmin(admin.ModelAdmin):
         "user",
         "dose",
         "intake_type",
+        "intake_subtype",
         "category",
         "frequency",
         "intake_status",
@@ -260,7 +261,7 @@ class IntakeAdmin(admin.ModelAdmin):
         "start_date",
         "status",
     ]
-    list_filter = ["intake_status", "intake_type", "category", "priority", "frequency", "is_prn", "status", "start_date"]
+    list_filter = ["intake_status", "intake_type", "intake_subtype", "category", "priority", "frequency", "is_prn", "status", "start_date"]
     search_fields = ["user__email", "name", "purpose", "prescribing_doctor"]
     raw_id_fields = ["user"]
     date_hierarchy = "start_date"
@@ -268,7 +269,7 @@ class IntakeAdmin(admin.ModelAdmin):
 
     fieldsets = (
         (None, {
-            "fields": ("user", "name", "purpose", "dose", "intake_type", "category", "priority", "dosage_unit")
+            "fields": ("user", "name", "purpose", "dose", "intake_type", "intake_subtype", "category", "priority", "dosage_unit")
         }),
         ("Scheduling", {
             "fields": ("frequency", "is_prn", "start_date", "end_date", "grace_period_minutes")
@@ -315,8 +316,11 @@ class IntakeLogAdmin(admin.ModelAdmin):
         "log_status",
         "taken_at",
         "is_prn_dose",
+        "dose_amount",
+        "dose_unit",
+        "dose_event_type",
     ]
-    list_filter = ["log_status", "is_prn_dose", "scheduled_date", "status"]
+    list_filter = ["log_status", "is_prn_dose", "dose_event_type", "scheduled_date", "status"]
     search_fields = ["user__email", "intake__name", "notes"]
     raw_id_fields = ["user", "intake", "schedule"]
     date_hierarchy = "scheduled_date"

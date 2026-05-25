@@ -7,6 +7,111 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-25 — feat(health): Phase 1A · C3 — Insulin model fields (Option A)
+
+Wave 1, third commit. First DB change of the Metabolic Intelligence v1
+build. Adds the per-event dose observation surface for insulin without
+introducing a new model — extending Intake/IntakeLog per the locked
+Phase 0 decision (Option A over Option B). All new fields are nullable
+and default to null, so behavior for every non-insulin intake is
+identical to pre-C3.
+
+### What was added
+
+**Model changes (`apps/health/models.py`):**
+
+- `Intake.intake_subtype` — CharField, nullable, choices:
+  `insulin_basal` | `insulin_bolus`. Null for every non-insulin intake.
+- `Intake.INSULIN_SUBTYPES` — frozenset constant for membership tests.
+- `Intake.is_insulin` — property; True only when intake_subtype is in
+  INSULIN_SUBTYPES.
+- `IntakeLog.dose_amount` — DecimalField (7,2), nullable.
+- `IntakeLog.dose_unit` — CharField, nullable, choices: `units` | `ml` | `mg`.
+- `IntakeLog.dose_event_type` — CharField, nullable, choices:
+  `basal` | `meal_bolus` | `correction`.
+
+**Migration:** `apps/health/migrations/0088_insulin_dose_fields.py`
+— four pure AddField operations, all nullable, no backfill required,
+fully reversible.
+
+**Admin (`apps/health/admin.py`):**
+
+- IntakeAdmin: added intake_subtype to list_display, list_filter, and
+  the primary fieldset.
+- IntakeLogAdmin: added dose_amount, dose_unit, dose_event_type to
+  list_display; dose_event_type to list_filter.
+
+**Form (`apps/health/forms.py`):**
+
+- MedicineForm: added intake_subtype to Meta.fields with a Select widget.
+
+**Regression coverage (`apps/health/tests/test_insulin_regression.py`):**
+
+21 tests across four classes proving the guardrail
+`if medication != insulin, nothing changes`:
+
+- `ChoiceSurfaceTests` (5) — pin every new choice list to catch drift,
+  including a test that the existing INTAKE_TYPE_CHOICES set is
+  unchanged.
+- `NonInsulinDefaultStateTests` (8) — non-insulin Intake/IntakeLog
+  saves with all new fields null; is_insulin returns False for null
+  subtype and for supplements; __str__ output for both models is
+  unchanged.
+- `NonInsulinAdherenceUnchangedWhenInsulinCoexistsTests` (4) — proves
+  that `calculate_single_medicine_adherence()` returns a byte-identical
+  dict for a non-insulin medicine whether or not insulin intakes
+  coexist; also confirms the aggregate `calculate_medicine_adherence()`
+  continues to include insulin as a normal medication (pre-existing
+  behavior preserved).
+- `MedicineFormBackwardCompatibilityTests` (4) — MedicineForm validates
+  and saves with intake_subtype omitted; accepts explicit insulin
+  subtypes; correctly sets is_insulin on save.
+
+### Test isolation principle
+
+The regression tests use a `_MuteIntakeLogSignals` mixin to disconnect
+four signal handlers (in `apps.ai.signals`) that call
+`_refresh_sae_module()`. In production those handlers dispatch to
+Celery; in tests Celery cannot reach Redis and retries 20 times per
+save (~20s each), turning a 0.6s test into a 5-minute test. The mute
+is strictly scoped: it disconnects in `setUpClass` and reconnects in
+`tearDownClass`, so signals continue to fire normally for every test
+that does not opt into the mixin and for all production code paths.
+The dashboard and SMS handlers (which do not dispatch to Celery and
+are fast) are left connected.
+
+### Files Created
+- `apps/health/migrations/0088_insulin_dose_fields.py`
+- `apps/health/tests/test_insulin_regression.py`
+
+### Files Modified
+- `apps/health/models.py` — Intake subtype + INSULIN_SUBTYPES +
+  is_insulin property; IntakeLog dose fields + dose unit/event type
+  choices.
+- `apps/health/admin.py` — IntakeAdmin and IntakeLogAdmin field
+  surfaces.
+- `apps/health/forms.py` — MedicineForm Meta.fields and widgets.
+
+### Verification
+- `python3 manage.py test apps.health.tests.test_insulin_regression` —
+  21/21 pass in 0.576s.
+- `python3 manage.py makemigrations --check --dry-run` — clean.
+
+### Why
+The C3 commit lands the only DB change in Wave 1. Insulin is the one
+metabolic input the prior architecture cannot observe (no insulin dose
+tracking exists). Without it, the headline failure example from the
+Phase 0 review ("insulin 50u → 35u") is unbuildable. Option A reuses
+the existing Intake adherence machinery, ingestion, admin, and forms
+— the smallest surface area that enables every downstream Phase 1A
+deliverable.
+
+### Bible Journey coordination
+- BibleJourney-Touches: none. Only health-domain models, admin, and
+  forms modified. No edits to UnifiedSignal, cos_context, signal
+  renderer, Beth system prompt, or any shared SAE infrastructure.
+- Only shared file: `docs/wlj_claude_changelog.md` (append-only).
+
 ## 2026-05-25 — feat(faith.journey): Journey — Commit 5 (signals, SAE state, CoS context, welcome-back)
 
 Observability + passive context-awareness + non-guilt re-engagement for

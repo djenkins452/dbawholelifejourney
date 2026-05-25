@@ -7,6 +7,96 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-25 — feat(state): Phase 1A · C6 — MEDICINE + MEDICAL state extensions
+
+Wave 2, second commit. Additive extensions to build_medicine_state and
+build_medical_state. No schema changes. No behavioral change to Beth.
+No Bible Journey collision.
+
+### What was added
+
+**`build_medicine_state` — insulin daily-dose aggregates:**
+
+Four new flat keys populated when insulin IntakeLogs exist (set only
+when data is present — absence is None, not zero):
+
+- `insulin_total_today_units` — sum of today's insulin doses.
+- `insulin_total_7d_units` — sum over last 7 days.
+- `insulin_total_30d_units` — sum over last 30 days.
+- `insulin_daily_avg_30d_units` — 30d total divided by 30.
+
+Sourced from the C3 surface: `IntakeLog.dose_amount` filtered to logs
+whose `Intake.intake_subtype ∈ INSULIN_SUBTYPES` and `log_status ∈
+{taken, late}`. Same status filter as existing adherence math.
+
+If no insulin logs exist the keys are not set — composer treats None
+as "no insulin observation" rather than "zero units" to prevent
+false-confident narration of an empty surface.
+
+**`build_medical_state` — recent glycemic labs:**
+
+One new flat key:
+
+- `recent_glycemic_labs` — list of up to 10 LabResults from the last
+  90 days whose `canonical_test.category == 'diabetes'` (the
+  LabTestCatalog category covering HbA1c, fasting glucose, etc.).
+  Each entry has `test`, `value`, `value_numeric`, `unit`, `flag`,
+  `collected_at`.
+
+Uses the same 90-day cutoff as the pre-existing `abnormal_list` query.
+Empty list when no glycemic labs exist (not None) so consumers can
+iterate without a None check.
+
+**Tests (`apps/core/ai_state/tests_medicine_medical_extensions.py`):**
+
+11 tests across four classes (one re-pinning Bible Journey integrity):
+
+- `MedicineStateInsulinExtensionsTests` (4) — no insulin → keys
+  omitted; insulin logs populate all four aggregates; missed/skipped
+  logs excluded; non-insulin logs don't pollute insulin totals.
+- `MedicineStateExistingShapePreservedTests` (3) — _contract sections
+  unchanged; existing flat keys present; _meta completeness 'full' /
+  confidence 'high' preserved.
+- `MedicalStateGlycemicLabsTests` (3) — empty list when none; populated
+  from category='diabetes' LabResults only; existing medical_alerts /
+  recent_lab_panels / _contract structure preserved.
+- `FaithStateUnchangedByC6Tests` (1) — re-pins build_faith_state
+  journey integration as a guardrail (same inspection pattern as C5).
+
+### Files Created
+- `apps/core/ai_state/tests_medicine_medical_extensions.py`
+
+### Files Modified
+- `apps/core/ai_state/state_builder.py` — insulin block added inside
+  build_medicine_state (after _meta, before signal trust); glycemic
+  labs block added inside build_medical_state (after flat keys, before
+  closing try/except).
+
+### Verification
+- `python3 manage.py test apps.core.ai_state.tests_medicine_medical_extensions
+  --keepdb` — 11/11 pass in 0.584s.
+- Initial run had one failure: I guessed wrong field names for
+  `LabTestCatalog` (used `display_name`/`primary_unit`, actual are
+  `name`/`default_unit`). Fixed and re-ran clean. Friction, not
+  architecture risk.
+
+### Architectural choice
+build_medicine_state and build_medical_state have no static contract
+dict like HEALTH_CONTRACT — they build their state dicts dynamically.
+Rather than introducing two new contract constants in this commit
+(which would expand surface area beyond what the briefing needs),
+extensions are flat-key additions on the state dict. The briefing
+composer (W3) reads via `state.get(key)` and treats absence as
+"missing." This matches the existing pattern for medicine and medical
+state and keeps C6 the smallest viable change.
+
+### Bible Journey coordination
+- BibleJourney-Touches: `apps/core/ai_state/state_builder.py` (HIGH
+  shared file). Additive only — two well-scoped blocks added inside
+  existing builder functions. build_faith_state and its journey
+  integration verified intact via inspection test.
+- Only other shared file: `docs/wlj_claude_changelog.md` (append-only).
+
 ## 2026-05-25 — feat(health_state): Phase 1A · C5 — HEALTH_CONTRACT glucose extensions
 
 Wave 2, first commit. Pure additive extension to the SAE health state

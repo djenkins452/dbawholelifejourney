@@ -3409,6 +3409,49 @@ def build_medicine_state(user):
         confidence='high',
     )
 
+    # ── Metabolic Intelligence v1 (Phase 1A · C6) ──────────────
+    # Insulin daily-dose aggregates. Sourced from IntakeLog.dose_amount
+    # for logs whose Intake has intake_subtype in INSULIN_SUBTYPES (C3
+    # surface). All four fields default to None when no insulin is
+    # logged — the briefing composer (W3) treats None as "no insulin
+    # observation" rather than "zero units," preventing false-confident
+    # interpretation of an empty surface.
+    try:
+        from decimal import Decimal
+        from django.db.models import Sum
+        from apps.health.models import Intake, IntakeLog
+
+        insulin_logs = IntakeLog.objects.filter(
+            user=user,
+            intake__intake_subtype__in=Intake.INSULIN_SUBTYPES,
+            log_status__in=['taken', 'late'],
+            dose_amount__isnull=False,
+        )
+        today_total = insulin_logs.filter(
+            scheduled_date=user_today,
+        ).aggregate(s=Sum('dose_amount'))['s']
+        if today_total is not None:
+            state['insulin_total_today_units'] = float(today_total)
+
+        cutoff_7d_date = user_today - timedelta(days=7)
+        cutoff_30d_date = user_today - timedelta(days=30)
+
+        total_7d = insulin_logs.filter(
+            scheduled_date__gte=cutoff_7d_date,
+        ).aggregate(s=Sum('dose_amount'))['s']
+        if total_7d is not None:
+            state['insulin_total_7d_units'] = float(total_7d)
+
+        total_30d = insulin_logs.filter(
+            scheduled_date__gte=cutoff_30d_date,
+        ).aggregate(s=Sum('dose_amount'))['s']
+        if total_30d is not None:
+            t30 = float(total_30d)
+            state['insulin_total_30d_units'] = t30
+            state['insulin_daily_avg_30d_units'] = round(t30 / 30, 2)
+    except Exception:
+        logger.warning("SAE: insulin totals build failed", exc_info=True)
+
     # Phase 3 — Signal Trust Contract
     try:
         from apps.core.ai_state.signal_trust import assess_medication
@@ -4624,6 +4667,34 @@ def build_medical_state(user):
         # Flat keys for backward compat with existing CoS builder
         state['medical_alerts'] = abnormal_list
         state['recent_lab_panels'] = panel_list
+
+        # ── Metabolic Intelligence v1 (Phase 1A · C6) ──────────
+        # Recent glycemic labs (HbA1c, fasting glucose, etc.) for the
+        # briefing composer's long-term metabolic anchor. Filter by
+        # canonical_test category 'diabetes' (the LabTestCatalog
+        # category that covers diabetes / glycemic tests). Bounded by
+        # the same 90-day cutoff used by abnormal_list above.
+        glycemic_labs = list(
+            LabResult.objects
+            .filter(
+                user=user,
+                collected_at__gte=cutoff,
+                canonical_test__category='diabetes',
+            )
+            .select_related('canonical_test')
+            .order_by('-collected_at')[:10]
+        )
+        state['recent_glycemic_labs'] = [
+            {
+                'test': r.canonical_test.short_name if r.canonical_test else r.raw_test_name[:30],
+                'value': str(r.value_text)[:20],
+                'value_numeric': float(r.value_numeric) if r.value_numeric is not None else None,
+                'unit': r.unit,
+                'flag': r.abnormal_flag,
+                'collected_at': r.collected_at.isoformat() if r.collected_at else None,
+            }
+            for r in glycemic_labs
+        ]
 
     except ImportError:
         pass

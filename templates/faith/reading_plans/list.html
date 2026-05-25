@@ -22,6 +22,10 @@
     {# No-op when the canonical journey path is not active. #}
     {% journey_reading_plans_card request.user %}
 
+    {# The Journey roadmap / table of contents — sits directly beneath the Journey card. #}
+    {# No-op when the canonical journey path is not active. #}
+    {% journey_roadmap request.user %}
+
     {% if active_plans %}
     <section class="mb-8">
         <h2 class="section-title">Your Active Plans</h2>

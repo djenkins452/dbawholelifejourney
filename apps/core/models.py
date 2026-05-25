@@ -2369,3 +2369,6 @@ from apps.core.ai_config import AIThresholdConfig  # noqa: E402, F401
 
 # Phase 4 Signal — Feedback loop model
 from apps.core.signals.models import SignalFeedback  # noqa: E402, F401
+
+# Phase 1A Metabolic Intelligence — HealthBriefing snapshot persistence
+from apps.core.health_briefing.models import HealthBriefingSnapshot  # noqa: E402, F401

@@ -7,6 +7,113 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-25 — feat(health_briefing): Phase 1A · C4 — HealthBriefingSnapshot persistence
+
+Wave 1, fourth and final commit of the foundations wave. Adds the
+persistence backbone of the Phase 0 observability commitment: every
+composed briefing produces one immutable row, indexed for fast
+per-user retrieval and for cleanup queries by expiry.
+
+### What was added
+
+**Model (`apps/core/health_briefing/models.py`):**
+
+- `HealthBriefingSnapshot` — fields:
+  - `briefing_id` (CharField 64, unique) — SHA-256 from
+    `compute_briefing_id()` (C1 contract).
+  - `user` (FK, CASCADE, related_name `health_briefing_snapshots`).
+  - `generated_at` (DateTimeField) — when the composer produced it.
+  - `composer_version` (CharField 20) — semver of the producing composer.
+  - `payload` (JSONField) — full HealthBriefing serialized to dict.
+  - `expires_at` (DateTimeField) — `generated_at + ttl_seconds`.
+  - `created_at` (auto_now_add).
+- Meta: `ordering = ['-generated_at']`; indexes on
+  `(user, -generated_at)` and `(expires_at,)`.
+- `app_label = "core"` — registers the model under the existing
+  `apps.core` app via the `apps/core/models.py` re-export pattern (no
+  INSTALLED_APPS change, no Bible Journey collision on settings.py).
+- `is_expired` property — `timezone.now() > expires_at`. Provided as a
+  flag; snapshots are NOT auto-deleted on expiry. Cleanup is a separate
+  concern (W6 management command).
+
+**Re-export (`apps/core/models.py`):**
+
+- Single line: `from apps.core.health_briefing.models import
+  HealthBriefingSnapshot  # noqa: E402, F401`. Follows the same
+  pattern as `SignalFeedback`, `DomainCorrelation`,
+  `ArbitrationDecisionLog`, etc.
+
+**Migration:** `apps/core/migrations/0125_health_briefing_snapshot.py`
+— one `CreateModel` operation, two indexes, FK to AUTH_USER_MODEL.
+Fully reversible.
+
+**Tests (`apps/core/health_briefing/tests/test_snapshot.py`):**
+
+11 tests across three classes:
+
+- `SnapshotPersistenceTests` (7) — round-trip persistence, briefing_id
+  uniqueness constraint, created_at auto-population, __str__ format,
+  ordering (newest first), user-cascade delete, related_name reverse
+  accessor.
+- `SnapshotExpiryTests` (3) — is_expired returns False for future
+  expiry, True for past expiry, and expired snapshots remain queryable
+  (no auto-delete).
+- `SnapshotIntegrationWithContractTests` (1) — smoke test that the
+  model accepts a payload shaped like the C1 contract output, including
+  `compute_briefing_id()`-derived briefing_id.
+
+### Files Created
+- `apps/core/health_briefing/models.py`
+- `apps/core/health_briefing/tests/test_snapshot.py`
+- `apps/core/migrations/0125_health_briefing_snapshot.py`
+
+### Files Modified
+- `apps/core/models.py` — one-line re-export of HealthBriefingSnapshot.
+
+### Verification
+- `python3 manage.py test apps.core.health_briefing.tests.test_snapshot
+  --keepdb` — 11/11 pass in 0.910s; migration auto-applied to test DB.
+- `python3 manage.py makemigrations --check --dry-run` — clean.
+
+### Snapshot retention future-proofing (Guardrail 2)
+
+The locked default is 30-day full-payload retention. Lightweight
+forward-looking review for Phases 3–5:
+
+| Phase | Likely payload growth | Per-user/month size (full retention) |
+|-------|----------------------|--------------------------------------|
+| 1A    | ~5–10 KB             | ~7–14 MB (48 snapshots/day × 30d)    |
+| 3     | +HRV/recovery → ~12 KB | ~17 MB                              |
+| 5     | +cross-domain links → ~18 KB | ~26 MB                        |
+
+For Danny alone the storage is trivial at every phase. At any future
+multi-user scale (10K+ users), Phase 5 would project to ~260 GB/month
+which is still manageable but worth optimizing. Non-blocking options to
+consider when the trigger fires:
+
+1. **Payload compression** — zlib/gzip on the JSONField (4–5× size
+   reduction). Postgres TOAST already compresses large JSON
+   transparently, so this may be a no-op in practice.
+2. **Field-level retention** — keep full payload for 7d, then strip
+   `inputs_used` / `decision_log` (when added in Phase 2/7), retaining
+   only headline + drivers + why.
+3. **Daily aggregation** — after 7d, collapse to one canonical snapshot
+   per day (the last successful composition of that day).
+4. **Cold storage tier** — move snapshots > 30d to an external object
+   store with cheaper $/GB.
+
+None of these need to be designed now. The current schema admits all
+four strategies without breaking changes (payload is opaque JSON;
+adding a `compression` field later is additive; daily-aggregation is a
+batch job; cold storage doesn't touch the model). Awareness only.
+
+### Bible Journey coordination
+- BibleJourney-Touches: none. New model, new test module, single
+  re-export line in `apps/core/models.py`. No edits to UnifiedSignal,
+  cos_context, signal renderer, Beth system prompt, settings.py, or
+  any other Bible-Journey-touched file.
+- Only shared file: `docs/wlj_claude_changelog.md` (append-only).
+
 ## 2026-05-25 — feat(faith.journey): Journey — Commit 6 (dashboard card + capability + Phase 1 close)
 
 Final Phase 1 commit for "Walking With God Through Scripture". Adds the

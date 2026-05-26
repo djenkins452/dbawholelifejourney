@@ -3,9 +3,148 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-23 (trust fix + provenance: stabilization PR for IntakeLog)
+# Last Updated: 2026-05-26 (trust fix: false-urgency escalation directive)
 # ================================================================# WLJ Change History
 
+
+## 2026-05-26 — fix(trust): gate at_risk_item by anchor proximity (no more "drop this for 3-hour-out Fish Oil")
+
+**TRUST-CRITICAL FIX.** At ~3:08 PM Beth told the user "Drop this and
+go to Fish Oil now" when Fish Oil was scheduled for 6:00 PM — three
+hours away. None of the user's pending items were actually due.
+
+### Root cause (proven)
+
+The phrase came from a **deterministic renderer**, not the LLM.
+Hardcoded f-string at `apps/ai/beth_checkin_renderer.py:754` in
+`_build_escalation_directive`:
+
+```python
+# CRITICAL
+if at_risk_item:
+    if minutes_to_anchor is not None and minutes_to_anchor <= 5:
+        return f"Go to {at_risk_item} now."
+    return f"Drop this and go to {at_risk_item} now."
+```
+
+Upstream, `compute_escalation_level` was assigning
+`at_risk_item = next_anchor_name` unconditionally. So when drift from
+*earlier* items (≥40 min) triggered CRITICAL escalation via the
+drift-only path (line 661–663), the directive falsely cited the next
+medication anchor — even if that anchor was hours away. Fish Oil at
+6 PM ended up named as the urgent thing at 3 PM.
+
+### The fix
+
+One architectural gate added to `compute_escalation_level`:
+
+```python
+_ANCHOR_AT_RISK_WINDOW_MINUTES = 45
+
+# In compute_escalation_level, replacing unconditional assignment:
+if (minutes_to_anchor is not None
+        and minutes_to_anchor <= _ANCHOR_AT_RISK_WINDOW_MINUTES):
+    at_risk_item = next_anchor_name
+else:
+    at_risk_item = None
+```
+
+When the next anchor is beyond 45 minutes, it cannot be cited as the
+at-risk item. CRITICAL escalation still fires correctly when drift
+warrants it — but falls through to the generic safe directive
+`"You need to act now — plan is at serious risk."` instead of falsely
+naming a far-future anchor.
+
+The 45-minute threshold was chosen as a trust-conservative starting
+posture (60 min was the initial proposal but felt too early for
+"drop this and go now" framing). Widen later only if real usage shows
+false-negative misses.
+
+### Before vs after — exact behavior at 3:08 PM, Fish Oil at 6:00 PM
+
+**Before:** `"Drop this and go to Fish Oil now."`
+**After:** `"You need to act now — plan is at serious risk."`
+
+(Still firm, still acknowledges real drift, no longer falsely names
+a 3-hour-out supplement.)
+
+Legitimate case preserved: at 5:23 PM with Fish Oil at 6 PM (37 min
+away) and drift, Beth still says `"Drop this and go to Fish Oil now."`
+— because at that point Fish Oil IS at risk.
+
+### Tests added — 8 in apps/ai/tests/test_escalation_directive.py
+
+- `test_drop_this_never_fires_for_far_future_anchor` — drift CRITICAL
+  with anchor 172 min away does not cite the anchor.
+- `test_drop_this_fires_for_imminent_anchor_with_drift` — legitimate
+  case preserved (anchor within window + drift → named directive).
+- `test_no_directive_when_on_track` — zero drift → empty directive.
+- `test_pressing_directive_only_fires_when_anchor_proximate` —
+  PRESSING with far anchor uses generic phrasing.
+- `test_critical_with_far_anchor_uses_generic_directive` — explicit
+  drift-only CRITICAL test.
+- `test_compute_buffer_minutes_still_finds_next_anchor` — fix does
+  not break `next_anchor` for other consumers.
+- `test_critical_with_at_risk_item_none_returns_generic` — directive
+  builder boundary semantics.
+- `test_no_drop_this_for_fish_oil_when_3hr_away` — **permanent
+  regression guard for the exact 2026-05-26 incident scenario.**
+  Mirrors the user's actual schedule (Fish Oil 6 PM, Magnesium 6 PM,
+  Log Nutrition 6 PM, Empty Dishwasher 6:30 PM, Journal 8 PM) with
+  50-min drift. If this test ever fails, the trust contract has
+  regressed.
+
+All 8 tests pass (0.000s — pure logic, no DB).
+
+### Broader trust insight (documented for follow-up, NOT fixed here)
+
+The investigation exposed an architectural reality: **WLJ has two
+user-facing output paths, and the trust safeguards added by prior PRs
+all live on only one of them.**
+
+```
+Raw Data → Signals → CoS context → LLM → User       (LLM path — has trust rules)
+Raw Data → Signals → deterministic renderer → User  (deterministic path — own gaps)
+```
+
+The deterministic renderer (`beth_checkin_renderer.py`) bypasses every
+trust safeguard added by the rhythm composer / IntakeLog provenance /
+affirmation auto-complete-disable / Section 10 RHYTHM AWARENESS prompt
+work. Today's narrow fix patches one specific gap. A broader audit of
+the deterministic surface is logged as Task 23 in
+`docs/improvement_tasks.md` for a future stabilization pass.
+
+### Architectural commitments preserved
+
+- ✅ Minimal blast radius: one constant added + one if/else gate
+- ✅ No prompt changes
+- ✅ No LLM-path changes
+- ✅ No renderer rewrite
+- ✅ No prioritization-engine retuning
+- ✅ Existing behavior preserved for legitimate at-risk anchors
+- ✅ `next_anchor` field still populated correctly for other consumers
+- ✅ No new write paths, no schema changes, no migrations
+
+### Files Modified
+- `apps/ai/beth_checkin_renderer.py` — added `_ANCHOR_AT_RISK_WINDOW_MINUTES`
+  constant; gated `at_risk_item` assignment in
+  `compute_escalation_level` by anchor proximity.
+
+### Files Created
+- `apps/ai/tests/test_escalation_directive.py` — 8 regression tests.
+
+### Backlog Updated
+- `docs/improvement_tasks.md` — Task 23 added (deterministic renderer
+  trust-surface stabilization, architectural follow-up).
+
+### Why
+
+User reported Beth confidently naming a 3-hour-out supplement as
+"do this immediately" — a textbook trust violation. The investigation
+proved the bug was in a deterministic renderer path that bypasses
+the LLM trust rules entirely. The narrow logic fix restores correct
+behavior without touching architecture; the broader trust-surface gap
+is documented for separate work.
 
 ## 2026-05-23 — feat(trust): IntakeLog completion provenance (Phase 2 of stabilization)
 

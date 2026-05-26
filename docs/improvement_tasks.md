@@ -163,6 +163,39 @@
 - UI: upload area on Assistant page or Settings, with preview/edit/delete
 - Size limit + summarization for very long documents (token budget)
 
+### Task 23: Deterministic renderer trust-surface stabilization (FOLLOW-UP — ARCHITECTURAL)
+**Status:** ⚪ Pending — Architectural pass, not urgent but important
+**Impact:** High — closes a structural gap in WLJ's trust discipline
+**Source:** Surfaced by the 2026-05-26 "Drop this and go to Fish Oil now" trust bug investigation. The narrow at_risk_item fix shipped in that PR is complete; this task is the broader architectural follow-up the investigation exposed.
+
+**Architectural insight:**
+WLJ has TWO output paths that emit user-facing language, not one:
+
+```
+Raw Data → Signals → CoS context → LLM → User       (LLM path)
+Raw Data → Signals → deterministic renderer → User  (deterministic path)
+```
+
+All prior trust-stabilization work (rhythm composer, IntakeLog provenance, affirmation auto-complete disable, Section 10 RHYTHM AWARENESS prompt rules) lives on the LLM path. The deterministic renderer (`apps/ai/beth_checkin_renderer.py`) bypasses every one of those safeguards. The 2026-05-26 incident proved it has its own discipline gaps.
+
+**Scope (not yet committed, for separate PR):**
+1. **Audit every deterministic phrasing template** in `beth_checkin_renderer.py` (and any sibling renderers) against the same trust rules the LLM path follows: never invent urgency, cite sources, no first-person feelings, respect time-window gating, no inferred adherence.
+2. **Add per-template provenance comments** linking each hardcoded sentence to the signal that justifies it (analogous to IntakeLog.source).
+3. **Add architectural test** that the renderer module does not import any LLM-only modules, AND that every f-string emitted to users is keyed against a deterministic input (no "drop this and go" without a proven anchor in the actionable window).
+4. **Consider centralizing the time-window discipline** — currently `_ANCHOR_AT_RISK_WINDOW_MINUTES = 45` lives in this one file, but the same concept (anchor proximity gating) likely applies in other renderers / action prioritizers. A shared `time_windows.actionable_window_minutes()` would prevent the same bug class from recurring elsewhere.
+5. **Consider per-user threshold calibration** — hardcoded 45/40/25/10 min thresholds were tuned for one assumed schedule cadence. A user with a sparse schedule could hit drift-CRITICAL constantly. Worth real-usage data first.
+
+**Why NOT done in the 2026-05-26 PR:** Out of scope. The user explicitly required smallest-blast-radius fix for the trust-critical bug. The architectural pass deserves its own deliberation and is a Phase-3-class follow-up.
+
+**Test plan:**
+- Lock-in tests for each template family (NUDGE/PRESSING/CRITICAL with anchor/without anchor)
+- Property tests: "for any drift, any anchor minutes_to_anchor > window, directive does not name the anchor"
+- Cross-renderer integration tests (morning, midday, evening, end_of_day all behave consistently)
+
+**Trust-risk classification:** Latent — the current state-after-fix is correct for the known incident pattern. Other deterministic templates may have similar latent bugs that just haven't surfaced yet. This task is preventive hygiene, not a patch.
+
+---
+
 ### Task 22: Fix stale IntakeLog field names in quick_reply / SMS handlers (FOLLOW-UP DEFECT — DEFERRED)
 **Status:** ⚪ Pending — High priority follow-up
 **Impact:** Medium-High — affected handlers fail at runtime (silent breakage of medicine quick-reply + SMS-reply flows)

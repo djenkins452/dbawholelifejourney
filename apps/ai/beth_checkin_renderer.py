@@ -598,6 +598,18 @@ _ANCHOR_PRESSING_MINUTES = 25   # < 25 min to anchor = pressing
 _DRIFT_PRESSING_MINUTES = 20    # 20+ min drift = pressing
 _DRIFT_CRITICAL_MINUTES = 40    # 40+ min drift = critical
 
+# An anchor is only "at risk" if it is within an actionable window.
+# Beyond this, drift-driven CRITICAL escalation must not falsely
+# implicate far-future anchors (e.g. a 6 PM supplement when the user
+# is drifting at 3 PM for unrelated reasons).
+#
+# Chosen at 45 min as a trust-conservative starting posture:
+# - long enough to legitimately warn about an imminent anchor
+# - short enough that a not-yet-due supplement cannot be framed
+#   as "drop this and go now" hours ahead of its window.
+# Widen later only if real usage shows false-negative misses.
+_ANCHOR_AT_RISK_WINDOW_MINUTES = 45
+
 
 def compute_escalation_level(schedule_signals, all_items, user_now):
     """Compute deterministic escalation level from schedule signals.
@@ -626,7 +638,16 @@ def compute_escalation_level(schedule_signals, all_items, user_now):
 
     # Find minutes until next anchor
     minutes_to_anchor = _find_minutes_to_anchor(all_items, user_now)
-    at_risk_item = next_anchor_name
+    # Gate at_risk_item: an anchor is only "at risk" if it is within
+    # _ANCHOR_AT_RISK_WINDOW_MINUTES. Otherwise drift triggered by
+    # unrelated earlier items must not falsely implicate a far-future
+    # anchor in the escalation directive. See trust-bug investigation
+    # 2026-05-26 (Fish Oil at 6 PM falsely cited at 3 PM).
+    if (minutes_to_anchor is not None
+            and minutes_to_anchor <= _ANCHOR_AT_RISK_WINDOW_MINUTES):
+        at_risk_item = next_anchor_name
+    else:
+        at_risk_item = None
 
     # --- Level determination (highest match wins) ---
     # Reasons use categorical phrasing only (no minute counts) per

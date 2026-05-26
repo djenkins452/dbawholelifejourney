@@ -3,9 +3,98 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-26 (Walking With God Through Scripture — completed all 12 arcs / 85 days end-to-end)
+# Last Updated: 2026-05-26 (trust fix: false-urgency escalation directive)
 # ================================================================# WLJ Change History
 
+
+## 2026-05-26 — fix(trust): gate at_risk_item by anchor proximity (no more "drop this for 3-hour-out Fish Oil")
+
+**TRUST-CRITICAL FIX.** At ~3:08 PM Beth told the user "Drop this and
+go to Fish Oil now" when Fish Oil was scheduled for 6:00 PM — three
+hours away. None of the user's pending items were actually due.
+
+### Root cause (proven)
+
+The phrase came from a **deterministic renderer**, not the LLM.
+Hardcoded f-string at `apps/ai/beth_checkin_renderer.py:754` in
+`_build_escalation_directive`:
+
+```python
+# CRITICAL
+if at_risk_item:
+    if minutes_to_anchor is not None and minutes_to_anchor <= 5:
+        return f"Go to {at_risk_item} now."
+    return f"Drop this and go to {at_risk_item} now."
+```
+
+Upstream, `compute_escalation_level` was assigning
+`at_risk_item = next_anchor_name` unconditionally. So when drift from
+*earlier* items (≥40 min) triggered CRITICAL escalation via the
+drift-only path (line 661–663), the directive falsely cited the next
+medication anchor — even if that anchor was hours away. Fish Oil at
+6 PM ended up named as the urgent thing at 3 PM.
+
+### The fix
+
+One architectural gate added to `compute_escalation_level`:
+
+```python
+_ANCHOR_AT_RISK_WINDOW_MINUTES = 45
+
+# In compute_escalation_level, replacing unconditional assignment:
+if (minutes_to_anchor is not None
+        and minutes_to_anchor <= _ANCHOR_AT_RISK_WINDOW_MINUTES):
+    at_risk_item = next_anchor_name
+else:
+    at_risk_item = None
+```
+
+When the next anchor is beyond 45 minutes, it cannot be cited as the
+at-risk item. CRITICAL escalation still fires correctly when drift
+warrants it — but falls through to the generic safe directive
+`"You need to act now — plan is at serious risk."` instead of falsely
+naming a far-future anchor.
+
+The 45-minute threshold was chosen as a trust-conservative starting
+posture. Widen later only if real usage shows false-negative misses.
+
+### Before vs after — exact behavior at 3:08 PM, Fish Oil at 6:00 PM
+
+**Before:** `"Drop this and go to Fish Oil now."`
+**After:** `"You need to act now — plan is at serious risk."`
+
+Legitimate case preserved: at 5:23 PM with Fish Oil at 6 PM (37 min
+away) and drift, Beth still says `"Drop this and go to Fish Oil now."`
+— because at that point Fish Oil IS at risk.
+
+### Tests added — 8 in apps/ai/tests/test_escalation_directive.py
+
+Including `test_no_drop_this_for_fish_oil_when_3hr_away` as a
+**permanent regression guard** mirroring the exact 2026-05-26 incident
+scenario (Fish Oil 6 PM, Magnesium 6 PM, Log Nutrition 6 PM, Empty
+Dishwasher 6:30 PM, Journal 8 PM, with 50-min drift). All 8 pass.
+
+### Broader trust insight (documented for follow-up, NOT fixed here)
+
+The investigation exposed an architectural reality: WLJ has two
+user-facing output paths, and all prior trust safeguards (rhythm
+composer, IntakeLog provenance, affirmation auto-complete disable,
+Section 10 RHYTHM AWARENESS prompt) live on the LLM path only.
+The deterministic renderer bypasses them entirely. Today's fix
+patches one gap; the broader audit is logged as Task 23 in
+`docs/improvement_tasks.md`.
+
+### Files Modified
+- `apps/ai/beth_checkin_renderer.py` — `_ANCHOR_AT_RISK_WINDOW_MINUTES`
+  constant + gated `at_risk_item` assignment.
+
+### Files Created
+- `apps/ai/tests/test_escalation_directive.py` — 8 regression tests.
+
+### Backlog Updated
+- `docs/improvement_tasks.md` — Task 23 added.
+
+---
 
 ## 2026-05-26 — feat(journey): Complete Walking With God Through Scripture — all 12 arcs / 85 days
 

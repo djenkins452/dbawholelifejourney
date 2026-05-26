@@ -48,13 +48,20 @@ VALID_DAY = {
 }
 
 
-def _write_fixture_pack(tmpdir: Path, slug: str, path_data: dict, arcs: list[dict]):
+def _write_fixture_pack(tmpdir: Path, slug: str, path_data: dict, arcs: list[dict],
+                        filenames=None):
+    """Write a content pack to disk.
+
+    ``filenames`` lets callers control each arc file's exact filename — used
+    by arc_slug tests to exercise filename-match vs slug-fallback paths.
+    """
     content_root = tmpdir / "content" / slug
     (content_root / "arcs").mkdir(parents=True)
     with (content_root / "path.json").open("w") as f:
         json.dump(path_data, f)
     for i, arc in enumerate(arcs):
-        with (content_root / "arcs" / f"arc_{i:02d}.json").open("w") as f:
+        name = filenames[i] if filenames else f"arc_{i:02d}.json"
+        with (content_root / "arcs" / name).open("w") as f:
             json.dump(arc, f)
     return content_root
 
@@ -192,6 +199,63 @@ class LoaderTests(TestCase):
         self._patch_content_root("t", self.tmpdir / "content" / "t")
         with self.assertRaises(CommandError):
             call_command("load_journey_path", "t")
+
+    # --- arc_slug resolution (fast path + slug fallback) ------------------
+
+    def test_arc_slug_filename_fast_path_loads_only_named_arc(self):
+        """When the filename ends with _<arc_slug>, only that arc is loaded."""
+        arc_a = self._valid_arc(slug="alpha", order=1)
+        arc_b = self._valid_arc(slug="beta", order=2)
+        _write_fixture_pack(
+            self.tmpdir, "t", self._valid_path_data(), [arc_a, arc_b],
+            filenames=["arc_01_alpha.json", "arc_02_beta.json"],
+        )
+        self._patch_content_root("t", self.tmpdir / "content" / "t")
+        call_command("load_journey_path", "t", arc_slug="alpha")
+        t_path = JourneyPath.objects.get(slug="t")
+        arc_slugs = set(JourneyArc.objects.filter(journey_path=t_path).values_list("slug", flat=True))
+        self.assertEqual(arc_slugs, {"alpha"})
+
+    def test_arc_slug_falls_back_to_json_slug_when_filename_unrelated(self):
+        """JSON `slug` is canonical: filename need not encode it."""
+        arc = self._valid_arc(slug="canonical_slug", order=1)
+        _write_fixture_pack(
+            self.tmpdir, "t", self._valid_path_data(), [arc],
+            filenames=["unrelated_filename.json"],
+        )
+        self._patch_content_root("t", self.tmpdir / "content" / "t")
+        call_command("load_journey_path", "t", arc_slug="canonical_slug")
+        t_path = JourneyPath.objects.get(slug="t")
+        self.assertTrue(
+            JourneyArc.objects.filter(journey_path=t_path, slug="canonical_slug").exists()
+        )
+
+    def test_arc_slug_unknown_slug_raises(self):
+        """A slug that matches neither filename nor JSON content raises clearly."""
+        arc = self._valid_arc(slug="known_slug", order=1)
+        _write_fixture_pack(self.tmpdir, "t", self._valid_path_data(), [arc])
+        self._patch_content_root("t", self.tmpdir / "content" / "t")
+        with self.assertRaises(CommandError):
+            call_command("load_journey_path", "t", arc_slug="missing_slug")
+
+    def test_arc_slug_filename_match_skips_other_arcs(self):
+        """Other on-disk arc files are not validated when arc_slug narrows the set."""
+        good_arc = self._valid_arc(slug="alpha", order=1)
+        bad_arc = self._valid_arc(slug="beta", order=2)
+        # Inject an invalid day into `beta` — would fail full validation.
+        bad_arc["days"][0] = dict(VALID_DAY, key_insight="x" * 250)
+        _write_fixture_pack(
+            self.tmpdir, "t", self._valid_path_data(), [good_arc, bad_arc],
+            filenames=["arc_01_alpha.json", "arc_02_beta.json"],
+        )
+        self._patch_content_root("t", self.tmpdir / "content" / "t")
+        # arc_slug=alpha must succeed even though beta is invalid on disk.
+        call_command("load_journey_path", "t", arc_slug="alpha")
+        t_path = JourneyPath.objects.get(slug="t")
+        self.assertEqual(
+            set(JourneyArc.objects.filter(journey_path=t_path).values_list("slug", flat=True)),
+            {"alpha"},
+        )
 
 
 class RealContentPackTest(TestCase):

@@ -3,8 +3,83 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-25 (Recovery redesign Phases 1-3 — execution_status + class-aware RECOVERY + LATE_OPEN eligibility)
+# Last Updated: 2026-05-26 (Walking With God Through Scripture — completed all 12 arcs / 85 days end-to-end)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-26 — feat(journey): Complete Walking With God Through Scripture — all 12 arcs / 85 days
+
+**Content delivery mission completed.** All ten remaining arcs (3-12) authored end-to-end, with Arc 1 and Arc 2 as the canonical voice anchors. The journey now spans the entire biblical narrative from Genesis 1 through Revelation 22 in 85 reading days.
+
+### Final arc inventory
+
+| # | Arc | Days | Slug | Era |
+|---|-----|------|------|-----|
+| 1 | Creation to Egypt | 7 | creation_to_egypt | Genesis |
+| 2 | Slavery to Deliverance | 7 | slavery_to_deliverance | Exodus 1-20 |
+| 3 | Covenant and Wilderness | 9 | covenant_and_wilderness | Exodus 21 - Deuteronomy |
+| 4 | Into the Promised Land | 7 | into_the_promised_land | Joshua-Judges-Ruth |
+| 5 | Kings and Kingdom | 8 | kings_and_kingdom | Samuel-Kings |
+| 6 | Prophets and Exile | 7 | prophets_and_exile | Major/Minor Prophets |
+| 7 | Return and Waiting | 6 | return_and_waiting | Ezra-Nehemiah-Esther + intertestamental |
+| 8 | The Coming of Jesus | 9 | the_coming_of_jesus | Gospels (Christmas → Triumphal Entry) |
+| 9 | The Cross and the Empty Tomb | 5 | cross_and_empty_tomb | Passion week |
+| 10 | The Church Begins | 7 | the_church_begins | Acts |
+| 11 | Letters to the Churches | 8 | letters_to_the_churches | Epistles (Romans → 1 John) |
+| 12 | The End and the New Beginning | 5 | end_and_new_beginning | Revelation |
+
+**Total: 12 arcs, 85 reading days.**
+
+### What was authored
+
+- `apps/faith/journey/content/walking_with_god/arcs/arc_03_covenant_and_wilderness.json` — flagship Leviticus arc (Danny's historical dropout zone)
+- `arc_04_into_the_promised_land.json` — Joshua, Judges, Ruth
+- `arc_05_kings_and_kingdom.json` — Hannah/Samuel → Saul → David → Solomon → kingdom divides → fall to Babylon
+- `arc_06_prophets_and_exile.json` — major and minor prophets (sub-agent authored)
+- `arc_07_return_and_waiting.json` — Cyrus/Ezra → Nehemiah → Esther → Malachi → 400-year silence → Simeon
+- `arc_08_coming_of_jesus.json` — Christmas → John the Baptist + Baptism → Temptation + Disciples → Beatitudes → Loving Enemies + Lord's Prayer → Storms and Healings → Parables of the Lost → Peter's Confession + Transfiguration → Triumphal Entry + Temple Cleansing
+- `arc_09_cross_and_empty_tomb.json` — Passion week (sub-agent authored)
+- `arc_10_church_begins.json` — Pentecost → First persecution → Stephen → Saul/Paul conversion → Cornelius → Paul's journeys → Paul in Rome
+- `arc_11_letters_to_the_churches.json` — Romans → 1 Corinthians → Galatians → Ephesians → Philippians → Hebrews → James → 1 John
+- `arc_12_end_and_new_beginning.json` — Revelation (sub-agent authored)
+
+### Migration
+
+- `apps/faith/journey/migrations/0006_load_arcs_3_through_12.py` — defensive migration following the proven 0004/0005 pattern. Loads all 10 arcs via `call_command("load_journey_path", ..., arc_slug=...)`, forces `is_active=True` on every expected arc via direct ORM as a safety net, prints structured logs to stdout for Railway visibility, and is idempotent. Local validation: all 12 arcs / 85 days loaded successfully (`visible_arcs=12/12`, `loader_ok=True`).
+
+### Voice and theology consistency
+
+- **Voice anchor:** Arcs 1-2 (which received positive user feedback) are the canonical voice. Arcs 3-12 preserve the same warm, direct, plain-English tier structure (simple / standard / deeper).
+- **Theology stance:** Bible-centered Protestant/Evangelical. "Some Christians understand this differently" template used max once per day, never in Simple tier.
+- **Translation:** WEB (World English Bible) public domain.
+- **Confusion topics:** Each day has 3-4 confusion topics with plain-English answers.
+- **Schema:** Every day includes scripture_refs, scripture_content (translation + blocks with optional red-letter), context_before, three plain English tiers, key_insight (≤200), reflection_prompt, application_action (≤280), confusion_topics, retention_anchor.
+
+### Special handling notes
+
+- **Arc 3 (Leviticus):** Historically Danny's dropout zone. Authored to solve specifically: laws that feel random, genealogies, sacrificial system. Frames Leviticus as God's invitation to live as a kingdom of priests, not a burden.
+- **Arc 8 Day 5 (Lord's Prayer):** Includes "forgive us as we forgive others" with the postscript Jesus added (Matthew 6:14-15) — handled as evidential rather than transactional.
+- **Arc 9:** Reverent, not manipulative. Avoids sentimentality about the cross.
+- **Arc 11 Day 1 (Romans):** Most theologically dense day. Covers thesis, central argument, result, climax in one day with extensive cross-references.
+- **Arc 12 (Revelation):** Does NOT make Revelation weird. No fear/conspiracy energy. Focuses on the marriage supper of the Lamb, the new heavens and new earth, every tear wiped away.
+
+### Beth on the journey surface (Phase 1)
+
+Beth remains silent on the journey reading surface. No chat icon on `/faith/journey/today/`. No proactive behavior. No recital of momentum_score. Beth is registered as a capability consumer (via `apps/faith/journey/cos_capability.py`) but does not narrate over the surface in Phase 1.
+
+### What Danny should test first
+
+1. Visit `/faith/journey/` and verify the roadmap shows all 12 arcs as "Available" (or "In Progress" where Danny has read).
+2. Read Arc 8 Day 1 (Christmas) — voice anchor check; should match the warmth of Arcs 1-2.
+3. Read Arc 3 Day 1 (Leviticus opener) — flagship test of whether the dropout-zone framing works.
+4. Read Arc 11 Day 8 (1 John, "God is love") — emotional check; closing of the Epistles arc.
+5. Verify `/faith/journey/_health/` returns 200 with `visible_arcs=12/12`.
+
+### Files modified
+
+- 10 new JSON content packs in `apps/faith/journey/content/walking_with_god/arcs/`
+- 1 new migration: `apps/faith/journey/migrations/0006_load_arcs_3_through_12.py`
+- Changelog entry (this file)
 
 
 ## 2026-05-25 — feat(health_briefing): Phase 1A · C15 — Wire HealthBriefing into CoS + Beth

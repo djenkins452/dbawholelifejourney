@@ -24,7 +24,10 @@ def _log(msg):
 
 
 def load_arc_2(apps, schema_editor):
-    from apps.faith.journey.models import JourneyArc, JourneyDay, JourneyPath
+    # Use migration-frozen models — schema-safe across future model edits.
+    JourneyPath = apps.get_model("journey", "JourneyPath")
+    JourneyArc = apps.get_model("journey", "JourneyArc")
+    JourneyDay = apps.get_model("journey", "JourneyDay")
 
     _log("=== START: Arc 2 (Slavery to Deliverance) load ===")
 
@@ -33,14 +36,18 @@ def load_arc_2(apps, schema_editor):
     days_before = JourneyDay.objects.count()
     _log(f"BEFORE: arcs={arcs_before}, total days={days_before}")
 
-    # Belt-and-suspenders: run the loader. It will pick up the new
-    # arc_02_slavery_to_deliverance.json file in the content pack and
-    # upsert it alongside the existing arc_01.
+    # Belt-and-suspenders: run the loader for ONLY this arc. Determinism:
+    # --arc-slug isolates the migration from future content added on disk.
     loader_ok = False
     try:
-        call_command("load_journey_path", "walking_with_god", verbosity=0)
+        call_command(
+            "load_journey_path",
+            "walking_with_god",
+            arc_slug="slavery_to_deliverance",
+            verbosity=0,
+        )
         loader_ok = True
-        _log("LOADER: load_journey_path('walking_with_god') succeeded")
+        _log("LOADER: load_journey_path arc='slavery_to_deliverance' succeeded")
     except Exception as exc:
         _log(f"LOADER FAILED (will continue with manual enforcement): {exc!r}")
 

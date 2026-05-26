@@ -18,16 +18,22 @@ from django.db import migrations
 
 
 def load_arc_1(apps, schema_editor):
-    """Load Arc 1 — Creation to Egypt from the JSON content pack."""
+    """Load Arc 1 — Creation to Egypt from the JSON content pack.
+
+    Determinism contract: this migration explicitly loads ONLY the
+    ``creation_to_egypt`` arc via ``--arc-slug``. Future arc files added to
+    ``apps/faith/journey/content/walking_with_god/arcs/`` do not affect this
+    migration. A fresh DB in 2028 will replay exactly what was authored in 2026.
+    """
     # Remove the legacy reality-check arc if it's present.
     # We use the historical model so the migration is faithful to its schema epoch.
     JourneyArc = apps.get_model("journey", "JourneyArc")
     JourneyArc.objects.filter(slug="egypt_to_tabernacle").delete()
 
-    # Invoke the loader for the live content pack on disk.
-    # This is safe: load_journey_path uses update_or_create and runs inside
-    # its own transaction.
-    call_command("load_journey_path", "walking_with_god")
+    # Single-arc load. The loader uses update_or_create and runs inside its own
+    # transaction. Arc-slug filtering is strictly filename-based, so no other
+    # JSON file on disk will be read or validated.
+    call_command("load_journey_path", "walking_with_god", arc_slug="creation_to_egypt")
 
 
 def reverse(apps, schema_editor):

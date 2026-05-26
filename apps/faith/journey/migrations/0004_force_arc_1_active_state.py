@@ -39,9 +39,12 @@ def _log(msg):
 
 
 def force_arc_1_active(apps, schema_editor):
-    # Use the LIVE models — this migration runs after all schema migrations,
-    # so the current ORM is safe.
-    from apps.faith.journey.models import JourneyArc, JourneyDay, JourneyPath
+    # Use the migration-frozen models via apps.get_model so that a future
+    # schema change to JourneyPath/JourneyArc/JourneyDay does not retroactively
+    # break this historical migration. This migration is now schema-safe.
+    JourneyPath = apps.get_model("journey", "JourneyPath")
+    JourneyArc = apps.get_model("journey", "JourneyArc")
+    JourneyDay = apps.get_model("journey", "JourneyDay")
 
     _log("=== START: Defensive Arc 1 activation ===")
 
@@ -78,15 +81,21 @@ def force_arc_1_active(apps, schema_editor):
     legacy_deleted, _ = JourneyArc.objects.filter(slug="egypt_to_tabernacle").delete()
     _log(f"LEGACY arc deletion: rows removed = {legacy_deleted}")
 
-    # 4) Belt-and-suspenders: run the loader to upsert days from disk.
-    #    If the content pack is in the container, this loads all 7 days.
-    #    If for some reason the pack is missing, we catch and log, then
+    # 4) Belt-and-suspenders: run the loader to upsert Arc 1's days from disk.
+    #    Determinism: this migration ONLY touches `creation_to_egypt`. The
+    #    --arc-slug filter means new arc files added later cannot mutate this
+    #    migration's behavior. If the pack is missing, we catch and log, then
     #    proceed to manual arc enforcement below.
     loader_ok = False
     try:
-        call_command("load_journey_path", "walking_with_god", verbosity=0)
+        call_command(
+            "load_journey_path",
+            "walking_with_god",
+            arc_slug="creation_to_egypt",
+            verbosity=0,
+        )
         loader_ok = True
-        _log("LOADER: load_journey_path('walking_with_god') succeeded")
+        _log("LOADER: load_journey_path arc='creation_to_egypt' succeeded")
     except Exception as exc:
         _log(f"LOADER FAILED (continuing with manual enforcement): {exc!r}")
 

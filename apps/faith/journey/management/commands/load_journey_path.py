@@ -23,6 +23,15 @@ Schema validation rules (see docs/CLAUDE_WALKING_WITH_GOD.md §5):
 Usage:
     python manage.py load_journey_path walking_with_god
     python manage.py load_journey_path walking_with_god --dry-run
+    python manage.py load_journey_path walking_with_god --arc-slug creation_to_egypt
+
+When ``--arc-slug`` is provided the loader will validate and upsert ONLY the
+matching arc file. Resolution prefers a filename match (stem ends with the
+slug) but falls back to reading the JSON ``slug`` field if filename narrowing
+finds nothing — the JSON ``slug`` is canonical. This single-arc mode is what
+historical data migrations use to remain deterministic; new arc files added
+to disk later cannot change which file an existing ``arc_slug=...`` resolves
+to, because slug uniqueness is a content-authoring contract.
 """
 
 from __future__ import annotations
@@ -60,10 +69,23 @@ class Command(BaseCommand):
             action="store_true",
             help="Validate the content pack without writing to the database.",
         )
+        parser.add_argument(
+            "--arc-slug",
+            dest="arc_slug",
+            default=None,
+            help=(
+                "When provided, load ONLY the arc whose JSON filename stem ends "
+                "with this slug (e.g. 'creation_to_egypt' matches "
+                "'arc_01_creation_to_egypt.json'). Used by historical data "
+                "migrations to remain deterministic regardless of which other "
+                "arc files are present on disk."
+            ),
+        )
 
     def handle(self, *args, **options):
         slug = options["slug"]
         dry_run = options["dry_run"]
+        arc_slug = options.get("arc_slug")
 
         content_root = self._resolve_content_root(slug)
         path_file = content_root / "path.json"
@@ -75,10 +97,7 @@ class Command(BaseCommand):
             raise ContentPackError(f"arcs/ directory not found at {arcs_dir}")
 
         path_data = self._read_json(path_file)
-        arc_files = sorted(arcs_dir.glob("*.json"))
-
-        if not arc_files:
-            raise ContentPackError(f"No arc files found in {arcs_dir}")
+        arc_files = self._select_arc_files(arcs_dir, arc_slug)
 
         self._validate_path_data(path_data, slug)
         arc_payloads = [self._read_json(p) for p in arc_files]
@@ -111,6 +130,86 @@ class Command(BaseCommand):
         """Locate apps/faith/journey/content/<slug>/."""
         journey_app = apps.get_app_config("journey")
         return Path(journey_app.path) / "content" / slug
+
+    def _select_arc_files(self, arcs_dir: Path, arc_slug: str | None) -> list[Path]:
+        """Return arc JSON files to load.
+
+        Architecture contract: the JSON ``slug`` field is the canonical
+        identifier for an arc. Filenames are a convenience and may drift over
+        time — content authors should not be forced to rename a file just
+        because they rename a slug.
+
+        Resolution order when ``arc_slug`` is provided:
+          1. **Filename fast path.** Match stems equal to ``arc_slug`` or
+             ending with ``_<arc_slug>``. No JSON parsing required.
+          2. **Slug fallback.** If filename narrowing finds zero matches,
+             read every ``.json`` file's ``slug`` field and match against
+             ``arc_slug``. A single fallback hit logs a warning and proceeds;
+             multiple slug hits or zero hits raise.
+
+        Determinism is preserved because the content-authoring contract
+        guarantees slug uniqueness within a journey path. Future arc files
+        added to disk cannot retroactively change which file an existing
+        ``arc_slug=...`` call resolves to.
+        """
+        all_json = sorted(p for p in arcs_dir.iterdir() if p.is_file() and p.suffix == ".json")
+
+        if arc_slug is None:
+            if not all_json:
+                raise ContentPackError(f"No arc files found in {arcs_dir}")
+            return all_json
+
+        # 1) Filename fast path — cheap, no JSON parsing.
+        filename_matches = [
+            p for p in all_json
+            if p.stem == arc_slug or p.stem.endswith(f"_{arc_slug}")
+        ]
+        if len(filename_matches) == 1:
+            return filename_matches
+        if len(filename_matches) > 1:
+            raise ContentPackError(
+                f"Multiple files in {arcs_dir} match arc_slug '{arc_slug}' by "
+                f"filename: {[p.name for p in filename_matches]}. Filenames "
+                f"must be unambiguous when more than one would match."
+            )
+
+        # 2) Slug fallback — JSON `slug` field is canonical.
+        slug_matches: list[Path] = []
+        for p in all_json:
+            try:
+                with p.open("r", encoding="utf-8") as f:
+                    payload = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                # Tolerate other malformed files while searching for a specific
+                # arc. If the malformed file IS the target, the "no match"
+                # error below is clearer than a JSON parse error blamed on an
+                # unrelated file.
+                continue
+            if isinstance(payload, dict) and payload.get("slug") == arc_slug:
+                slug_matches.append(p)
+
+        if len(slug_matches) == 1:
+            match = slug_matches[0]
+            self.stdout.write(self.style.WARNING(
+                f"Arc '{arc_slug}' resolved by JSON `slug` field (filename "
+                f"'{match.name}' does not end with '_{arc_slug}'). The JSON "
+                f"slug is canonical; the filename is advisory."
+            ))
+            return slug_matches
+        if len(slug_matches) > 1:
+            raise ContentPackError(
+                f"Multiple arc files in {arcs_dir} declare slug '{arc_slug}': "
+                f"{[p.name for p in slug_matches]}. Slugs must be unique "
+                f"within a journey path."
+            )
+
+        # 3) No match by either route.
+        raise ContentPackError(
+            f"No arc file in {arcs_dir} matches arc_slug '{arc_slug}'. "
+            f"Searched {len(all_json)} .json file(s) by filename (stem == "
+            f"'{arc_slug}' or stem ends with '_{arc_slug}') and by JSON "
+            f"`slug` field. Neither approach found a match."
+        )
 
     def _read_json(self, path: Path) -> dict[str, Any]:
         try:

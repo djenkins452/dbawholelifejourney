@@ -7,6 +7,68 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-26 — feat(dashboard_v3): restore canonical v2 dial gauges + self-critique rendering fixes
+
+Two changes in one pass:
+
+**1. Canonical v2 dial gauges restored at the top of v3.**
+The compact gauge tiles from the previous refinement pass were the
+wrong visual. v3 now renders the existing canonical
+`templates/dashboard_v2/partials/cockpit_dial.html` — same SVG
+half-donut, same colors, same "Tap for details" expand, same data
+flow to v2's cockpit_panel endpoint. Composer passes raw
+`GoalCockpitService.get_cockpit_data()` output through unchanged as
+`cockpit_domains`. Fallback gauges still render when the user has no
+active LifeGoals. v3 home loads `static/css/dashboard_v2.css` so the
+dial visuals match v2 exactly. Zero v2 files changed.
+
+**2. Self-critique rendering fixes (spotted by inspecting live v3):**
+- **Biggest Opportunity no longer leaks raw slugs** like
+  "Emotional Overload 7D". Composer now uses the prediction's
+  ``explanation`` first clause as the headline; falls back to a
+  humanized slug only when no explanation exists.
+- **Focus Right Now reason cleaned up.** Selector internals like
+  ``current`` or ``primary_pool_overdue_or_now`` no longer leak into
+  the visible "Why" text — replaced by deterministic human sentences
+  derived from the item's execution_status + urgency.
+- **Biggest Risk dedupes against Focus Right Now.** When the same
+  item is selected for both modes, the Briefing now omits Biggest
+  Risk so the user isn't shown the same item twice.
+- **Domain Accountability no longer contradicts itself.** When a
+  card has a substantive Recommendation, the composer suppresses the
+  "Not enough signal yet — log more" insight line. (Card layout was
+  showing a "no signal" line above a substantive program rec —
+  obvious contradiction.)
+- **Coming Up cap raised** from 3 to 5 items so the dashboard
+  matches the density Beth shows in chat.
+- **Trajectory threshold tightened.** A single positive insight is
+  now "steady" — "improving" requires at least 2 positive signals
+  AND no negatives. (The dashboard was over-claiming "Improving" on
+  one stray win.)
+
+**Files Modified:**
+- `apps/core/cos_briefing/executive_summary.py` (opportunity title,
+  follow-on cap, focus reason humanizer, trajectory threshold)
+- `apps/dashboard_v3/services/composer.py` (cockpit_domains
+  passthrough, biggest_risk dedup, accountability insight returns
+  None when only a recommendation is present)
+- `apps/dashboard_v3/tests/test_composer.py` (+5 tests for the
+  fixes, updated trajectory + going-well tests)
+- `templates/dashboard_v3/home.html` (load v2 dashboard CSS)
+- `templates/dashboard_v3/sections/gauges.html` (cockpit_dial include)
+- `templates/dashboard_v3/sections/accountability_cards.html`
+  (suppress insight when only a rec is present)
+- `static/dashboard_v3/css/dashboard_v3.css` (v3-cockpit-row grid)
+
+**Tests:** 23 pass (18 prior + 5 new for self-critique fixes).
+
+**Why:** The user looked at v3 in production and asked for the
+familiar dial gauges back at the top, plus to "evaluate v3 yourself
+and do better." Self-critique pass found 5 distinct rendering bugs
+plus the contradiction in Domain Accountability cards. All fixed
+without touching dashboard_v2.
+
+
 ## 2026-05-26 — feat(dashboard_v3): refinement pass — density, fallback gauges, header weather, 2×2 rhythm
 
 Addressed the gap between v3's first cut and the original CoS-first

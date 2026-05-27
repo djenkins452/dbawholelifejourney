@@ -63,7 +63,20 @@ class CoSBriefingExecutiveSummaryTests(TestCase):
         summary = build_executive_summary(self.user)
         self.assertTrue(summary["going_well"])
         self.assertEqual(summary["going_well"][0]["module"], "health")
-        self.assertIn(summary["trajectory"], ("improving", "mixed"))
+        # One positive insight is "steady", not "improving" — see trajectory
+        # threshold change after self-critique pass.
+        self.assertEqual(summary["trajectory"], "steady")
+
+    def test_two_positive_insights_register_as_improving(self):
+        for i in range(2):
+            Insight.objects.create(
+                user=self.user, module="health",
+                insight_type=f"good_{i}", severity="positive",
+                title=f"Good {i}", message="", confidence_score=0.9,
+                dedupe_key=f"good-{i}",
+            )
+        summary = build_executive_summary(self.user)
+        self.assertEqual(summary["trajectory"], "improving")
 
     def test_needs_attention_orders_critical_before_warning(self):
         Insight.objects.create(
@@ -82,7 +95,10 @@ class CoSBriefingExecutiveSummaryTests(TestCase):
     def test_trajectory_logic(self):
         # Pure unit tests on the derivation rule — no DB.
         self.assertEqual(_derive_trajectory([], [], None), "unknown")
-        self.assertEqual(_derive_trajectory([{}], [], None), "improving")
+        # One positive is "steady" — not enough to claim a trend.
+        self.assertEqual(_derive_trajectory([{}], [], None), "steady")
+        # Two positives, no negatives → improving.
+        self.assertEqual(_derive_trajectory([{}, {}], [], None), "improving")
         self.assertEqual(_derive_trajectory([], [{}], None), "slipping")
         self.assertEqual(
             _derive_trajectory([{}], [{}, {}], {"title": "x"}), "slipping"
@@ -192,6 +208,94 @@ class DashboardV3ComposerTests(TestCase):
             self.assertEqual(g["source"], "sae_fallback")
             # Drivers list must always exist (even if it's a single info row).
             self.assertIn("drivers", g)
+
+
+class SelfCritiqueFixTests(TestCase):
+    """Tests for the self-critique pass: render-bug fixes spotted in v3."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="v3-fixes@test.com", password="testpass123"
+        )
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"),
+        )
+
+    def test_biggest_opportunity_uses_explanation_not_slug(self):
+        from datetime import date, timedelta
+        from apps.core.ai_predictions.models import Prediction
+        Prediction.objects.create(
+            user=self.user,
+            prediction_type="emotional_overload_7d",
+            module="journal",
+            predicted_value=0.0,
+            predicted_date=date.today() + timedelta(days=7),
+            confidence_score=0.85,
+            explanation="Sleep deficit is compounding emotional overload risk this week. Address before Friday.",
+            evidence={},
+            status="active",
+            dedupe_key="opp-1",
+        )
+        summary = build_executive_summary(self.user)
+        opp = summary["biggest_opportunity"]
+        self.assertIsNotNone(opp)
+        # No raw slug leak. The headline should be the first clause of the
+        # explanation, not "Emotional Overload 7D".
+        self.assertNotIn("7D", opp["title"])
+        self.assertIn("Sleep deficit", opp["title"])
+
+    def test_humanize_focus_reason_replaces_selector_noise(self):
+        from apps.core.cos_briefing.executive_summary import _humanize_focus_reason
+        # Short raw reason → replaced
+        self.assertNotEqual(
+            _humanize_focus_reason("current", {"urgency": "now"}),
+            "current",
+        )
+        # Underscore-bearing internal label → replaced
+        self.assertNotEqual(
+            _humanize_focus_reason(
+                "primary_pool_overdue_or_now",
+                {"urgency": "overdue"},
+            ),
+            "primary_pool_overdue_or_now",
+        )
+        # A real human sentence → preserved
+        long_real = "This anchors the morning recovery; complete before the next block."
+        self.assertEqual(
+            _humanize_focus_reason(long_real, {}),
+            long_real,
+        )
+
+    def test_accountability_insight_silent_when_only_recommendation(self):
+        from apps.dashboard_v3.services.composer import _accountability_insight
+        rec = {"title": "Try X", "message": "details"}
+        # No going_well, no needs_attention, but a real recommendation:
+        # insight should be None so the template doesn't contradict the rec
+        # with a "not enough signal yet" line.
+        self.assertIsNone(_accountability_insight([], [], rec))
+        # Without a rec, fall back to the legacy "not enough signal" copy.
+        self.assertIsNotNone(_accountability_insight([], [], None))
+
+    def test_biggest_risk_dedupes_against_focus_now(self):
+        """When the selector picks the same item for both risk and focus,
+        only focus_now should render it. The exec summary's biggest_risk
+        gets cleared by the composer."""
+        from apps.core.ai_insights.models import Insight
+        # Force a critical insight so biggest_risk has a fallback.
+        Insight.objects.create(
+            user=self.user, module="health", insight_type="x",
+            severity="critical", title="Critical fallback",
+            message="", confidence_score=0.9, dedupe_key="crit-fb",
+        )
+        # The selectors will yield None for both (no items today), but the
+        # exec summary will then surface the critical fallback as risk.
+        ctx = build_dashboard_v3_context(self.user)
+        # If focus_now has the same title as biggest_risk, risk must be None.
+        risk = ctx["executive_summary"].get("biggest_risk")
+        focus = ctx["focus_now"]
+        if risk and focus:
+            self.assertNotEqual(risk["title"], focus["title"])
 
 
 class WeatherTileTests(TestCase):

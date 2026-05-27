@@ -29,7 +29,9 @@
                         </ul>
                     {% endif %}
 
-                    {% if card.insight %}
+                    {% if card.insight and not card.recommendation %}
+                        <p class="v3-card-insight">{{ card.insight }}</p>
+                    {% elif card.insight and card.going_well|length|add:card.needs_attention|length > 0 %}
                         <p class="v3-card-insight">{{ card.insight }}</p>
                     {% endif %}
 

@@ -58,6 +58,7 @@ logger = logging.getLogger(__name__)
 MAX_GOING_WELL = 5
 MAX_NEEDS_ATTENTION = 5
 MAX_RECOMMENDATIONS = 3
+MAX_FOLLOW_ON = 5            # how many "coming up" hints next to focus_now
 INSIGHT_WINDOW_DAYS = 7      # only fresh insights count toward the briefing
 
 
@@ -197,11 +198,13 @@ def _collect_focus_now(user) -> tuple[dict | None, list[dict]]:
             "time_display": primary.get("time_display"),
             "execution_status": primary.get("execution_status"),
             "task_class": primary.get("task_class"),
-            "reason": payload.get("reason") or "Top priority right now.",
+            "reason": _humanize_focus_reason(
+                payload.get("reason"), primary,
+            ),
             "source": "selector:next_action",
         }
 
-    # Follow-on hints — next 2 future / upcoming items, soft suggestions only.
+    # Follow-on hints — soft suggestions only, deduped against primary.
     follow_on_pool = (state.get("next_actions") or []) + (state.get("upcoming_actions") or [])
     seen_keys = {(primary.get("source_type"), primary.get("source_id"))} if primary else set()
     follow_on = []
@@ -215,10 +218,35 @@ def _collect_focus_now(user) -> tuple[dict | None, list[dict]]:
             "time_display": a.get("time_display"),
             "module": a.get("source_type"),
         })
-        if len(follow_on) >= 3:
+        if len(follow_on) >= MAX_FOLLOW_ON:
             break
 
     return focus, follow_on
+
+
+def _humanize_focus_reason(raw_reason, primary) -> str:
+    """Replace selector internals ("current", "primary_pool_overdue_or_now")
+    with a clean human sentence.
+
+    The locked-facts API uses short technical reason strings for logging;
+    those are not display-grade. If the reason is short, technical, or
+    contains underscores / equals signs, we synthesize a clean sentence
+    from the item's execution_status + urgency.
+    """
+    if raw_reason and len(raw_reason) > 20 and "_" not in raw_reason and "=" not in raw_reason:
+        return raw_reason
+
+    status = (primary or {}).get("execution_status") or ""
+    urgency = (primary or {}).get("urgency") or ""
+    if urgency == "overdue":
+        return "Past its scheduled time — recover this before it stacks up."
+    if status == "AT_RISK":
+        return "At risk of being missed in this block."
+    if status == "LATE_OPEN":
+        return "Originally scheduled earlier — still completable today."
+    if urgency == "now":
+        return "Scheduled for the current block."
+    return "Top priority in your current block."
 
 
 # ── Biggest Risk ───────────────────────────────────────────────────────
@@ -263,7 +291,13 @@ def _collect_biggest_risk(user, needs_attention: list[dict]) -> dict | None:
 
 
 def _collect_biggest_opportunity(user) -> dict | None:
-    """Strongest near-term positive prediction."""
+    """Strongest near-term positive prediction.
+
+    Uses ``explanation`` as the visible title (it's the human-written
+    sentence) and falls back to a humanized prediction_type only when no
+    explanation exists. Prevents raw type leaks like "Emotional Overload 7D"
+    showing as the "Biggest Opportunity" headline.
+    """
     from apps.core.ai_predictions.models import Prediction
 
     candidate = (
@@ -274,13 +308,35 @@ def _collect_biggest_opportunity(user) -> dict | None:
     )
     if not candidate:
         return None
+
+    explanation = (candidate.explanation or "").strip()
+    if explanation:
+        # First clause becomes the title; the rest is supporting text.
+        first_clause = explanation.split(". ")[0].rstrip(".") + "."
+        rest = explanation[len(first_clause):].strip()
+        title = first_clause
+        message = rest or "Trajectory looks favorable."
+    else:
+        title = _humanize_type(candidate.prediction_type)
+        message = "Trajectory looks favorable."
+
     return {
-        "title": candidate.prediction_type.replace("_", " ").title(),
-        "message": candidate.explanation or "Trajectory looks favorable.",
+        "title": title,
+        "message": message,
         "module": candidate.module,
         "confidence": round(candidate.confidence_score, 2),
         "source": "prediction",
     }
+
+
+def _humanize_type(s: str) -> str:
+    """Turn a slug like 'weight_30d_trend_down' into a human-readable label."""
+    if not s:
+        return ""
+    words = s.replace("_", " ").split()
+    # Capitalize words but preserve numeric/period tokens.
+    return " ".join(w if w.isupper() or any(c.isdigit() for c in w) else w.capitalize()
+                    for w in words)
 
 
 # ── Recommendations (PGE) ──────────────────────────────────────────────
@@ -310,15 +366,23 @@ def _collect_recommendations(user) -> list[dict[str, Any]]:
 
 
 def _derive_trajectory(going_well, needs_attention, biggest_risk) -> str:
-    """Cheap deterministic mood label — purely from counts + risk flag."""
+    """Cheap deterministic mood label — purely from counts + risk flag.
+
+    Threshold: "improving" requires at least 2 positive signals AND no
+    needs_attention; a single positive insight is not enough to claim
+    upward trajectory (avoids the over-optimistic "Improving" label the
+    user flagged in the v3 review).
+    """
     pos = len(going_well or [])
     neg = len(needs_attention or [])
     has_risk = bool(biggest_risk)
 
     if pos == 0 and neg == 0 and not has_risk:
         return "unknown"
-    if pos > 0 and neg == 0:
+    if pos >= 2 and neg == 0:
         return "improving"
+    if pos == 1 and neg == 0:
+        return "steady"           # one win is not a trend
     if neg > 0 and pos == 0:
         return "slipping"
     if has_risk and neg >= pos:

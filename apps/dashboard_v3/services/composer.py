@@ -59,7 +59,12 @@ def build_dashboard_v3_context(user) -> dict[str, Any]:
     Read-only. Safe on the request path. Returns a dict that the template
     consumes directly — no further compute happens in templates.
     """
+    cockpit_domains = _safe(_build_cockpit_domains_raw, user, default=[])
+
     context: dict[str, Any] = {
+        # Raw canonical dial data — matches v2 cockpit_dial.html contract.
+        "cockpit_domains": cockpit_domains,
+        # Composed/fallback gauges (used only when cockpit is empty).
         "gauges": _safe(_build_gauges, user, default=[]),
         "executive_summary": _safe(_build_executive_summary, user, default={}),
         "focus_now": None,        # filled below from executive_summary
@@ -71,14 +76,30 @@ def build_dashboard_v3_context(user) -> dict[str, Any]:
         "utilities": _safe(_build_utilities, user, default={}),
     }
 
-    # Promote focus_now / follow_on from the exec summary so the template
-    # can render them in their own dedicated section without re-reading the
-    # composer. Keeps the template thin.
     exec_summary = context["executive_summary"] or {}
     context["focus_now"] = exec_summary.get("focus_now")
     context["follow_on"] = exec_summary.get("follow_on") or []
 
+    # ── Self-critique fix: drop biggest_risk if it duplicates focus_now.
+    risk = exec_summary.get("biggest_risk")
+    focus = context["focus_now"]
+    if risk and focus and risk.get("title") == focus.get("title"):
+        # The user is already looking at this in Focus Now — no value in
+        # repeating it in the briefing.
+        exec_summary["biggest_risk"] = None
+
     return context
+
+
+def _build_cockpit_domains_raw(user) -> list[dict]:
+    """Return the GoalCockpitService output unchanged.
+
+    v3 renders these via the canonical v2 cockpit_dial.html partial so the
+    visual matches v2 (which is what the user actually wants at the top of
+    the page). No transformation — same shape, same source of truth.
+    """
+    from apps.dashboard_v2.services.cockpit_service import GoalCockpitService
+    return GoalCockpitService(user).get_cockpit_data() or []
 
 
 # ── Section builders ──────────────────────────────────────────────────
@@ -376,8 +397,14 @@ def _build_accountability_cards(user) -> list[dict]:
     return cards
 
 
-def _accountability_insight(going_well, needs_attention, recommendation) -> str:
-    """Deterministic one-line interpretation. No LLM, fully rule-based."""
+def _accountability_insight(going_well, needs_attention, recommendation) -> str | None:
+    """Deterministic one-line interpretation. No LLM, fully rule-based.
+
+    Returns None when there's nothing meaningful to say — caller skips the
+    insight block entirely instead of showing a "not enough signal" line
+    next to a substantive recommendation (the contradiction the user
+    flagged in the v3 review).
+    """
     pos = len(going_well or [])
     neg = len(needs_attention or [])
 
@@ -387,10 +414,12 @@ def _accountability_insight(going_well, needs_attention, recommendation) -> str:
         return "Drift detected — accountability needed here."
     if neg > 0 and pos > 0 and neg >= pos:
         return "Mixed signals. Wins are real, but drift is outpacing them."
-    if neg > 0 and pos > pos:
-        return "Mostly steady with one or two areas to tighten."
-    if pos > 0 and neg > 0:
+    if neg > 0 and pos > 0:
         return "Steady progress — protect the wins and address the drift."
+    # No going_well, no needs_attention. If we have a recommendation, the
+    # rec speaks for itself — don't undercut it with a "no signal" line.
+    if recommendation:
+        return None
     return "Not enough signal yet — log more and patterns will emerge."
 
 

@@ -109,8 +109,23 @@
 .v3-h4-inline { display: inline; margin-right: 6px; }
 .v3-muted { color: var(--v3-text-soft); font-size: 0.82rem; font-style: italic; margin: 0; }
 
-/* ── Gauges — horizontal scoreboard ──────────────────────────── */
+/* ── Gauges — canonical v2 dials at top ───────────────────────── */
+/* When the user has active LifeGoals the v2 cockpit_dial.html renders
+   inside .v3-cockpit-row. Lay them out as a horizontal row matching the
+   density of the rest of v3 (v2's own .v2-cockpit-row is 3-col which is
+   fine — we just override the gap to match v3 rhythm). */
 
+.v3-cockpit-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.v3-cockpit-row .v2-cockpit-dial {
+    box-shadow: var(--v3-shadow);
+}
+
+/* Fallback gauges — compact tiles when cockpit has no active domains */
 .v3-gauges-row {
     display: grid;
     grid-template-columns: repeat(4, 1fr);

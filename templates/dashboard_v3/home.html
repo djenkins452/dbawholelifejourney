@@ -4,7 +4,11 @@
 {% block title %}Dashboard V3 (Experimental) — Whole Life Journey{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'dashboard_v3/css/dashboard_v3.css' %}?v=20260526b">
+{# Canonical v2 dashboard CSS — required for cockpit dial visuals
+   (.v2-cockpit-dial, .v2-gauge-svg, .v2-dial-*, gaugeReveal keyframe).
+   v3 overrides anything it needs via its own stylesheet loaded after. #}
+<link rel="stylesheet" href="{% static 'css/dashboard_v2.css' %}">
+<link rel="stylesheet" href="{% static 'dashboard_v3/css/dashboard_v3.css' %}?v=20260526c">
 {% endblock %}
 
 {% block content %}

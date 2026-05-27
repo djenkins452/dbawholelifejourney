@@ -1,9 +1,3 @@
-{# Gauges — TOP of v3. Reuses the canonical v2 dial visual so the
-   dashboard surface matches what Danny is used to. When the user has
-   active LifeGoals/HabitGoals the v2 cockpit dial renders (clickable,
-   HTMX-expandable to v2's cockpit panel — same data Beth sees). When
-   the cockpit is empty, fall back to the compact v3 baseline tiles
-   built from SAE state so the dashboard never feels empty. #}
 <section class="v3-gauges">
     {% if cockpit_domains %}
         <div class="v3-cockpit-row">

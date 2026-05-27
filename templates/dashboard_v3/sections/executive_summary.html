@@ -1,8 +1,7 @@
-{# Executive summary — 3-column dense briefing. #}
 <section class="v3-exec">
     <header class="v3-exec-head">
         <div class="v3-exec-title-row">
-            <h2 class="v3-h2">Chief-of-Staff Briefing</h2>
+            <h2 class="v3-h2">Executive Briefing</h2>
             <span class="v3-trajectory v3-trajectory-{{ summary.trajectory|default:'unknown' }}">
                 {% if summary.trajectory == 'improving' %}↑ Improving
                 {% elif summary.trajectory == 'slipping' %}↓ Slipping
@@ -11,11 +10,14 @@
                 {% else %}Building signal{% endif %}
             </span>
         </div>
+        {% if summary.headline %}
+            <p class="v3-exec-headline">{{ summary.headline }}</p>
+        {% endif %}
     </header>
 
     <div class="v3-exec-cols">
         <div class="v3-exec-col">
-            <h3 class="v3-h4">Going Well</h3>
+            <h3 class="v3-h4">What's Improving</h3>
             {% if summary.going_well %}
                 <ul class="v3-tight v3-tight-pos">
                     {% for item in summary.going_well %}

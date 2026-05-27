@@ -1,16 +1,45 @@
-{# Focus Now — prominent 2-column card. Primary action LEFT, follow-on RIGHT. #}
 <section class="v3-focus-section">
     <article class="v3-focus">
         <div class="v3-focus-primary">
-            <span class="v3-focus-tag">🎯 Focus Right Now</span>
             {% if focus %}
-                <h2 class="v3-focus-title">{{ focus.title }}</h2>
-                <div class="v3-focus-meta">
-                    {% if focus.time_display %}<span class="v3-focus-time">⏱ {{ focus.time_display }}</span>{% endif %}
-                    {% if focus.execution_status %}<span class="v3-focus-status v3-status-{{ focus.execution_status|lower }}">{{ focus.execution_status }}</span>{% endif %}
+                <div class="v3-focus-tag-row">
+                    {% if focus.urgency == 'overdue' or focus.execution_status == 'AT_RISK' %}
+                        <span class="v3-focus-tag v3-focus-tag-urgent">⚠ DO THIS NOW</span>
+                    {% else %}
+                        <span class="v3-focus-tag">🎯 FOCUS RIGHT NOW</span>
+                    {% endif %}
                 </div>
+                <h2 class="v3-focus-title">{{ focus.title }}</h2>
                 {% if focus.reason %}<p class="v3-focus-reason">{{ focus.reason }}</p>{% endif %}
+
+                <dl class="v3-focus-grid">
+                    {% if focus.protects %}
+                        <div class="v3-focus-grid-row">
+                            <dt>Protects</dt>
+                            <dd>
+                                <ul class="v3-focus-protects">
+                                    {% for p in focus.protects %}<li>{{ p }}</li>{% endfor %}
+                                </ul>
+                            </dd>
+                        </div>
+                    {% endif %}
+                    {% if focus.estimated_minutes %}
+                        <div class="v3-focus-grid-row">
+                            <dt>Estimated</dt>
+                            <dd>{{ focus.estimated_minutes }} min</dd>
+                        </div>
+                    {% endif %}
+                    {% if focus.time_display %}
+                        <div class="v3-focus-grid-row">
+                            <dt>Scheduled</dt>
+                            <dd>{{ focus.time_display }}</dd>
+                        </div>
+                    {% endif %}
+                </dl>
+
+                <div class="v3-focus-action">Action: Start now.</div>
             {% else %}
+                <span class="v3-focus-tag">🎯 FOCUS RIGHT NOW</span>
                 <h2 class="v3-focus-title v3-focus-title-empty">All clear right now.</h2>
                 <p class="v3-focus-reason">Nothing pending in the current block. Take a breath.</p>
             {% endif %}
@@ -19,7 +48,7 @@
         <div class="v3-focus-side">
             <h3 class="v3-h4">Coming Up</h3>
             {% if follow_on %}
-                <ul class="v3-tight v3-focus-followon">
+                <ul class="v3-focus-followon">
                     {% for f in follow_on %}
                         <li>
                             <span class="v3-followon-title">{{ f.title }}</span>

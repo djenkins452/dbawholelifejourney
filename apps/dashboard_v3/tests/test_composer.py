@@ -14,11 +14,13 @@ from django.conf import settings
 from django.test import TestCase
 
 from apps.core.cos_briefing.executive_summary import (
+    _derive_headline,
     _derive_trajectory,
     build_executive_summary,
 )
 from apps.core.cos_briefing.rhythm import (
     RHYTHM_BUCKETS,
+    _momentum_label,
     build_rhythm_sections,
     _classify_item,
 )
@@ -296,6 +298,105 @@ class SelfCritiqueFixTests(TestCase):
         focus = ctx["focus_now"]
         if risk and focus:
             self.assertNotEqual(risk["title"], focus["title"])
+
+
+class HeadlineAndMomentumTests(TestCase):
+    """Tests for the new Visual-Beth voice pieces."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="v3-voice@test.com", password="testpass123"
+        )
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"),
+        )
+
+    # ── Headline ──
+    def test_headline_for_unknown_state(self):
+        line = _derive_headline("unknown", [], [], None, None)
+        self.assertIn("Light data", line)
+
+    def test_headline_for_improving(self):
+        line = _derive_headline("improving", [{}, {}], [], None, None)
+        self.assertIn("trending up", line.lower())
+
+    def test_headline_for_recovery_mode(self):
+        state = {
+            "recovery_state": {"mode": "RECOVERY"},
+            "overdue_actions": [],
+            "at_risk_actions": [],
+        }
+        line = _derive_headline("mixed", [], [], state, {"title": "x"})
+        self.assertIn("recover", line.lower())
+
+    def test_headline_for_many_overdue(self):
+        state = {
+            "recovery_state": {"mode": "NORMAL"},
+            "overdue_actions": [{}, {}, {}, {}],
+            "at_risk_actions": [],
+        }
+        line = _derive_headline("slipping", [], [], state, None)
+        self.assertIn("past due", line)
+
+    def test_summary_emits_headline_key(self):
+        summary = build_executive_summary(self.user)
+        self.assertIn("headline", summary)
+        self.assertIsInstance(summary["headline"], str)
+        self.assertTrue(summary["headline"])
+
+    # ── Momentum ──
+    def test_momentum_for_complete_block(self):
+        self.assertIn("Complete", _momentum_label(8, 8, 0, 0, False, True))
+
+    def test_momentum_for_overdue(self):
+        line = _momentum_label(2, 5, 0, 2, True, False)
+        self.assertIn("past due", line.lower())
+
+    def test_momentum_for_strong_progress(self):
+        line = _momentum_label(6, 8, 0, 0, True, False)
+        self.assertIn("strong", line.lower())
+
+    def test_momentum_for_empty_block(self):
+        self.assertEqual(_momentum_label(0, 0, 0, 0, False, False), "Nothing scheduled.")
+
+    def test_rhythm_section_includes_momentum_field(self):
+        result = build_rhythm_sections(
+            self.user,
+            execution_contract={"items": [], "summaries": {}},
+        )
+        for section in result["sections"]:
+            self.assertIn("momentum", section)
+            self.assertIsInstance(section["momentum"], str)
+
+
+class TemplateCommentLeakGuardTests(TestCase):
+    """Regression guard: Django's {# #} comment syntax is single-line only.
+    A multi-line {# ... #} block leaks as literal text into the rendered
+    page. This test re-scans every v3 template after each change and fails
+    if any multi-line {# ... #} comment is present."""
+
+    def test_no_multiline_django_comments_in_v3_templates(self):
+        import glob, os, re
+        repo = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))
+        )))
+        offenders = []
+        for path in glob.glob(
+            os.path.join(repo, "templates/dashboard_v3/**/*.html"),
+            recursive=True,
+        ):
+            with open(path) as f:
+                content = f.read()
+            for m in re.finditer(r"\{#.*?#\}", content, re.DOTALL):
+                if "\n" in m.group(0):
+                    offenders.append(path)
+                    break
+        self.assertEqual(offenders, [], (
+            "Multi-line {# ... #} comments leak as literal text in Django. "
+            "Use {% comment %} ... {% endcomment %} instead. "
+            f"Offending files: {offenders}"
+        ))
 
 
 class WeatherTileTests(TestCase):

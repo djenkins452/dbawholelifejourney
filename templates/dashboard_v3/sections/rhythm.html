@@ -41,9 +41,10 @@
                 {% endif %}
 
                 <div class="v3-rhythm-body">
+                    {% if s.momentum %}
+                        <p class="v3-rhythm-momentum">{{ s.momentum }}</p>
+                    {% endif %}
                     {% with open_items=s.items|dictsort:"scheduled_time" %}
-                        {% with open_count=0 %}{% endwith %}
-                        {# Open / at-risk / overdue items — these are what matters now. #}
                         <ul class="v3-rhythm-open">
                             {% for item in s.items %}
                                 {% if not item.completed_today %}

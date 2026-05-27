@@ -4,11 +4,8 @@
 {% block title %}Dashboard V3 (Experimental) — Whole Life Journey{% endblock %}
 
 {% block extra_css %}
-{# Canonical v2 dashboard CSS — required for cockpit dial visuals
-   (.v2-cockpit-dial, .v2-gauge-svg, .v2-dial-*, gaugeReveal keyframe).
-   v3 overrides anything it needs via its own stylesheet loaded after. #}
 <link rel="stylesheet" href="{% static 'css/dashboard_v2.css' %}">
-<link rel="stylesheet" href="{% static 'dashboard_v3/css/dashboard_v3.css' %}?v=20260526c">
+<link rel="stylesheet" href="{% static 'dashboard_v3/css/dashboard_v3.css' %}?v=20260526d">
 {% endblock %}
 
 {% block content %}
@@ -16,7 +13,6 @@
     <header class="v3-topbar">
         <div class="v3-topbar-greet">
             <h1 class="v3-greeting">{{ greeting }}</h1>
-            <span class="v3-subgreeting">Executive briefing · {{ v3.executive_summary.as_of|slice:":10" }}</span>
         </div>
         <div class="v3-topbar-meta">
             <span class="v3-pill v3-pill-exp">EXPERIMENTAL · v3</span>

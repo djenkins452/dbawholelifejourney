@@ -1,4 +1,3 @@
-{# Domain accountability — dense 3-column desktop grid. #}
 <section class="v3-cards">
     <header class="v3-section-head">
         <h2 class="v3-h2">Domain Accountability</h2>
@@ -13,39 +12,45 @@
                         <h3 class="v3-card-label">{{ card.label }}</h3>
                     </header>
 
-                    {% if card.going_well %}
-                        <ul class="v3-tight v3-tight-pos v3-tight-sm">
-                            {% for w in card.going_well %}
-                                <li><span class="v3-mark" aria-hidden="true">✓</span>{{ w.title }}</li>
-                            {% endfor %}
-                        </ul>
-                    {% endif %}
-
                     {% if card.needs_attention %}
-                        <ul class="v3-tight v3-tight-warn v3-tight-sm">
-                            {% for n in card.needs_attention %}
-                                <li><span class="v3-mark" aria-hidden="true">{% if n.severity == 'critical' %}!{% else %}⚠{% endif %}</span>{{ n.title }}</li>
-                            {% endfor %}
-                        </ul>
+                        <div class="v3-card-slot">
+                            <span class="v3-card-slot-label v3-card-slot-warn">Attention</span>
+                            <ul class="v3-tight v3-tight-warn v3-tight-sm">
+                                {% for n in card.needs_attention %}
+                                    <li><span class="v3-mark" aria-hidden="true">{% if n.severity == 'critical' %}!{% else %}⚠{% endif %}</span>{{ n.title }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% elif card.going_well %}
+                        <div class="v3-card-slot">
+                            <span class="v3-card-slot-label v3-card-slot-pos">Going Well</span>
+                            <ul class="v3-tight v3-tight-pos v3-tight-sm">
+                                {% for w in card.going_well %}
+                                    <li><span class="v3-mark" aria-hidden="true">✓</span>{{ w.title }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
                     {% endif %}
 
-                    {% if card.insight and not card.recommendation %}
-                        <p class="v3-card-insight">{{ card.insight }}</p>
-                    {% elif card.insight and card.going_well|length|add:card.needs_attention|length > 0 %}
-                        <p class="v3-card-insight">{{ card.insight }}</p>
+                    {% if card.insight and card.needs_attention %}
+                        <div class="v3-card-slot">
+                            <span class="v3-card-slot-label">Why it matters</span>
+                            <p class="v3-card-slot-text">{{ card.insight }}</p>
+                        </div>
                     {% endif %}
 
                     {% if card.recommendation %}
-                        <div class="v3-card-rec">
-                            <strong>{{ card.recommendation.title }}</strong>{% if card.recommendation.message %} — {{ card.recommendation.message }}{% endif %}
+                        <div class="v3-card-slot">
+                            <span class="v3-card-slot-label v3-card-slot-rec">Recommendation</span>
+                            <p class="v3-card-slot-text v3-card-slot-rec-text">
+                                <strong>{{ card.recommendation.title }}</strong>{% if card.recommendation.message %} — {{ card.recommendation.message|truncatewords:18 }}{% endif %}
+                            </p>
                         </div>
                     {% endif %}
                 </article>
             {% endfor %}
         </div>
     {% else %}
-        <div class="v3-empty-soft">
-            No domain signals yet — accountability cards appear as your engines accumulate data.
-        </div>
+        <div class="v3-empty-soft">No domain signals yet — cards appear as your engines accumulate data.</div>
     {% endif %}
 </section>

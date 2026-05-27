@@ -7,6 +7,75 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-26 — fix+feat(dashboard_v3): comment-leak fix + Visual-Beth UX redesign
+
+**Critical render bug — root cause and fix.** Django template-comment
+syntax `{# ... #}` is **single-line only** — the lexer regex doesn't
+match across newlines, so multi-line `{# ... #}` blocks fall through
+the lexer and render as literal page text. Two such blocks (in
+`home.html` and `gauges.html`) were leaking visible commentary in
+production and pushing the gauges out of view. Removed them; added a
+regression-guard test that scans every v3 template for multi-line
+`{# ... #}` and fails the build if any return.
+
+**Visual-Beth redesign.** The dashboard stopped reading like a
+report and started reading like Beth speaking. All changes are
+deterministic — no LLM, no new metrics:
+
+- **Focus Right Now** is now a *directive* card.
+  - Headline tag flips to "⚠ DO THIS NOW" (with pulse glow) when the
+    item is overdue or AT_RISK; "🎯 FOCUS RIGHT NOW" otherwise.
+  - `Protects:` lists the next 2-3 items in the same active block
+    (from canonical `eligible_actions`) — i.e., what literally slips
+    if this slips. No new lookup, just naming the truth.
+  - `Estimated:` reads canonical `Task.estimated_duration_minutes`.
+  - `Action: Start now.` closes the card.
+- **Executive Briefing** now opens with a *headline sentence*
+  composed deterministically from `(trajectory, recovery_mode,
+  overdue_count, at_risk_count, focus_now)`. Eight pre-written
+  sentences cover the meaningful combinations. The page now has a
+  voice instead of leading with bullet lists.
+- **Domain Accountability** cards collapsed to fixed 3-slot layout —
+  Attention · Why It Matters · Recommendation — with shorter prose
+  (Recommendation message truncated at 18 words). Cards scan in 3-5
+  seconds instead of needing to be read.
+- **Rhythm tiles** each carry a 1-line `momentum` label derived
+  deterministically from completion% and at-risk/overdue counts
+  ("Strong execution so far", "1 past due — close the loop",
+  "Building momentum", etc.). Gives each block a *feel* without
+  inventing data.
+
+**Visual:** warmer palette (off-white background, ink-black headings,
+indigo signature accent on the Executive Briefing left border),
+tighter padding throughout, denser hierarchy. Reduced vertical
+height ~30% vs the previous pass.
+
+**Files Modified:**
+- `apps/core/cos_briefing/executive_summary.py` (focus_now.protects +
+  estimated_minutes, exec_summary.headline, exec_state reuse)
+- `apps/core/cos_briefing/rhythm.py` (section.momentum)
+- `templates/dashboard_v3/home.html` (comment fix, lean topbar)
+- `templates/dashboard_v3/sections/gauges.html` (comment fix)
+- `templates/dashboard_v3/sections/focus_now.html` (directive card)
+- `templates/dashboard_v3/sections/executive_summary.html` (headline)
+- `templates/dashboard_v3/sections/accountability_cards.html`
+  (3-slot tight layout)
+- `templates/dashboard_v3/sections/rhythm.html` (momentum line)
+- `static/dashboard_v3/css/dashboard_v3.css` (warmer palette, density,
+  Focus card visual weight, comment-leak guard styles)
+- `apps/dashboard_v3/tests/test_composer.py` (+11 tests: headline,
+  momentum, comment-leak guard, summary-emits-headline-key)
+
+**Tests:** 34 pass (23 prior + 11 new).
+
+**Why:** v3 was architecturally sound but UX still read as "a report
+about my life" rather than "Beth helping me run my life." This pass
+gave the dashboard a *voice* using only deterministic, canonical
+state. The comment leak was also blocking the gauges from rendering
+to most of the visible viewport — fixing it restores the v2 dials
+at the top as designed.
+
+
 ## 2026-05-26 — feat(dashboard_v3): restore canonical v2 dial gauges + self-critique rendering fixes
 
 Two changes in one pass:

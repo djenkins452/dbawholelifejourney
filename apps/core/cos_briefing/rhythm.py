@@ -221,6 +221,9 @@ def build_rhythm_sections(user, execution_contract: dict | None = None) -> dict:
                 "at_risk": at_risk,
                 "overdue": overdue,
             },
+            "momentum": _momentum_label(
+                completed, total, at_risk, overdue, is_current, is_past,
+            ),
         })
 
     return {
@@ -228,6 +231,35 @@ def build_rhythm_sections(user, execution_contract: dict | None = None) -> dict:
         "sections": sections,
         "totals": totals,
     }
+
+
+def _momentum_label(completed, total, at_risk, overdue, is_current, is_past) -> str:
+    """One-line deterministic "feel" of a rhythm block.
+
+    Pure function of completion-state. No new metric, no recompute — just
+    naming a status the user can already see by counting items. Gives
+    the dashboard a *voice* without inventing anything.
+    """
+    if total == 0:
+        return "Nothing scheduled."
+    pct = completed / total if total else 0
+    if pct >= 1.0:
+        return "Complete — great execution."
+    if overdue >= 2:
+        return f"{overdue} past due — let's recover the rhythm."
+    if overdue == 1:
+        return "1 past due — close the loop."
+    if at_risk >= 2:
+        return f"{at_risk} at risk — small actions now."
+    if pct >= 0.75:
+        return "Strong execution so far." if is_current or is_past else "Set up well."
+    if pct >= 0.5:
+        return "Good progress." if is_current else "Building."
+    if pct >= 0.25:
+        return "Building momentum." if is_current else "Just started."
+    if completed > 0:
+        return "Slow start — pick one and go."
+    return "Not started yet." if is_current else "Coming up."
 
 
 def _bucket_index(key: str) -> int:

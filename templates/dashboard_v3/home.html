@@ -34,7 +34,7 @@
     </header>
 
     {# 1. Gauges — top scoreboard #}
-    {% include "dashboard_v3/sections/gauges.html" with gauges=v3.gauges %}
+    {% include "dashboard_v3/sections/gauges.html" with cockpit_domains=v3.cockpit_domains gauges=v3.gauges %}
 
     {# 2. Executive summary — dense 3-column briefing #}
     {% include "dashboard_v3/sections/executive_summary.html" with summary=v3.executive_summary %}

@@ -7,6 +7,69 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-26 — fix(dashboard_v3): gauges invisible + empty rhythm tiles
+
+Two blocker bugs both rooted in *not actually verifying rendered HTML*.
+
+**Bug #1 — gauges were never rendering.** `home.html` included the
+gauges section with only `with gauges=v3.gauges` and the child
+`gauges.html` checked `{% if cockpit_domains %}`. Because
+`cockpit_domains` lives at `v3.cockpit_domains`, the unqualified name
+resolved to nothing — `{% if %}` was always false — the v2 dial
+branch never executed and either the fallback tiles rendered or
+nothing did. **Fix:** pass `cockpit_domains=v3.cockpit_domains`
+explicitly in the include.
+
+**Bug #2 — Day Rhythm rendered blank with 2 items.** Items list was
+wrapped in `{% with open_items=s.items|dictsort:"scheduled_time" %}`.
+Django's `dictsort` throws when keys mix `None` and string values —
+exactly the case when one Day-bucket item has `scheduled_time="09:00"`
+and another has `None`. The whole `{% with %}` silently produced
+nothing → "0/2" header with empty body. **Fix:** delete the broken
+unused `dictsort` wrapper. The composer pre-sorts items already.
+
+**UX correction — no rhythm tile ever feels empty again.** Each
+section dict now carries:
+- `open_label` — "Still Open" / "Still Open (recoverable)" /
+  "Coming Later" depending on past/current/future
+- `open_count` — drives the conditional render so blocks with items
+  but no open ones (all completed) still render their completion foot
+- `block_start_time` — earliest scheduled item in the bucket,
+  pre-formatted "9:00 AM"
+- Context-aware `momentum` — future blocks with items get
+  "Begins at 9:00 AM. Stay focused on the current block first."
+  instead of a generic line
+
+**Render-verification test added.** New test seeds a `LifeDomain` +
+`LifeGoal`, hits `/dashboard-v3/`, and asserts the rendered HTML
+contains the canonical v2 dial markers (`v2-cockpit-dial`,
+`v2-gauge-svg`, `v2-dial-label`). Plus a leaked-comment guard that
+fails the build if any `{#` or `#}` appears in the rendered body.
+Both classes of "invisible gauges" regressions are now CI-blocked.
+
+**Files Modified:**
+- `templates/dashboard_v3/home.html` (pass cockpit_domains)
+- `templates/dashboard_v3/sections/rhythm.html` (delete dictsort,
+  add open_label slot, contextual coming-later phrasing)
+- `apps/core/cos_briefing/rhythm.py` (open_label, open_count,
+  block_start_time, _earliest_scheduled_time, context-aware momentum)
+- `static/dashboard_v3/css/dashboard_v3.css` (open-label style)
+- `apps/dashboard_v3/tests/test_views.py` (+2 render tests)
+- `apps/dashboard_v3/tests/test_composer.py` (+2 rhythm enrichment tests)
+
+**Tests:** 38 pass (34 prior + 4 new). Test suite now contains
+contract guards against both root causes.
+
+**Why:** Two consecutive ship attempts left the gauges invisible
+because no test actually verified the rendered HTML — only the
+context dict. The composer was producing correct data; the template
+include silently dropped it. The rhythm tile was getting correct
+items; the dictsort silently crashed the body render. Both classes
+of bug now have CI guards. Lesson: when "the data is right but the
+page is wrong," the test must hit the *rendered HTML*, not the
+context dict.
+
+
 ## 2026-05-26 — fix+feat(dashboard_v3): comment-leak fix + Visual-Beth UX redesign
 
 **Critical render bug — root cause and fix.** Django template-comment

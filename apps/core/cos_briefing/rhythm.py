@@ -206,6 +206,19 @@ def build_rhythm_sections(user, execution_contract: dict | None = None) -> dict:
         else:
             expanded = False
 
+        open_count = total - completed
+        block_start_time = _earliest_scheduled_time(bucket_items)
+
+        # Contextual label for the open-items list — phrasing depends on
+        # whether the block is current, past, or future. Empty / completed
+        # blocks show nothing for this slot (handled in the template).
+        if is_current:
+            open_label = "Still Open" if open_count else ""
+        elif is_past:
+            open_label = "Still Open (recoverable)" if open_count else ""
+        else:
+            open_label = "Coming Later" if open_count else ""
+
         sections.append({
             "key": bucket["key"],
             "label": bucket["label"],
@@ -215,6 +228,9 @@ def build_rhythm_sections(user, execution_contract: dict | None = None) -> dict:
             "is_past": is_past,
             "expanded": expanded,
             "status": status,
+            "open_count": open_count,
+            "open_label": open_label,
+            "block_start_time": block_start_time,
             "completion": {
                 "completed": completed,
                 "total": total,
@@ -222,7 +238,10 @@ def build_rhythm_sections(user, execution_contract: dict | None = None) -> dict:
                 "overdue": overdue,
             },
             "momentum": _momentum_label(
-                completed, total, at_risk, overdue, is_current, is_past,
+                completed, total, at_risk, overdue,
+                is_current, is_past,
+                block_start_time=block_start_time,
+                bucket_label=bucket["label"],
             ),
         })
 
@@ -233,16 +252,25 @@ def build_rhythm_sections(user, execution_contract: dict | None = None) -> dict:
     }
 
 
-def _momentum_label(completed, total, at_risk, overdue, is_current, is_past) -> str:
+def _momentum_label(
+    completed, total, at_risk, overdue,
+    is_current, is_past,
+    block_start_time: str | None = None,
+    bucket_label: str | None = None,
+) -> str:
     """One-line deterministic "feel" of a rhythm block.
 
-    Pure function of completion-state. No new metric, no recompute — just
-    naming a status the user can already see by counting items. Gives
-    the dashboard a *voice* without inventing anything.
+    Pure function of completion-state + a couple of block-context fields.
+    No new metric, no recompute — just naming a status the user can
+    already see by counting items. For *future* blocks with items, names
+    the block start time so the tile never feels empty.
     """
     if total == 0:
         return "Nothing scheduled."
+
     pct = completed / total if total else 0
+    is_future = not is_current and not is_past
+
     if pct >= 1.0:
         return "Complete — great execution."
     if overdue >= 2:
@@ -251,6 +279,14 @@ def _momentum_label(completed, total, at_risk, overdue, is_current, is_past) -> 
         return "1 past due — close the loop."
     if at_risk >= 2:
         return f"{at_risk} at risk — small actions now."
+
+    if is_future:
+        # The single most important rule: future blocks with items must
+        # never feel empty. Tell the user when the block opens.
+        if block_start_time:
+            return f"Begins at {block_start_time}. Stay focused on the current block first."
+        return "Coming up later today."
+
     if pct >= 0.75:
         return "Strong execution so far." if is_current or is_past else "Set up well."
     if pct >= 0.5:
@@ -260,6 +296,21 @@ def _momentum_label(completed, total, at_risk, overdue, is_current, is_past) -> 
     if completed > 0:
         return "Slow start — pick one and go."
     return "Not started yet." if is_current else "Coming up."
+
+
+def _earliest_scheduled_time(items: list[dict]) -> str | None:
+    """Return the earliest scheduled_time (HH:MM string) in an items list,
+    or None if no item has one. Pre-formatted for direct display."""
+    times = [i.get("scheduled_time") for i in items if i.get("scheduled_time")]
+    if not times:
+        return None
+    earliest = min(times)
+    # scheduled_time is stored as "HH:MM" 24h. Convert to 12h for display.
+    try:
+        from datetime import datetime as _dt
+        return _dt.strptime(earliest, "%H:%M").strftime("%-I:%M %p")
+    except (ValueError, TypeError):
+        return earliest
 
 
 def _bucket_index(key: str) -> int:

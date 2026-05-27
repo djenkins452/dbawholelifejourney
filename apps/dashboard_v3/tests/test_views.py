@@ -49,3 +49,48 @@ class DashboardV3ViewTests(TestCase):
         resp = self.client.get(reverse("dashboard_v2:home"))
         self.assertEqual(resp.status_code, 200)
         self.assertTemplateUsed(resp, "dashboard_v2/home.html")
+
+    def test_no_leaked_template_comments_in_rendered_page(self):
+        """Render-time check: a Django {# #} block must never leak into
+        the visible HTML. If this test fails, a multi-line {# #} block
+        snuck in and is showing as page text."""
+        resp = self.client.get(reverse("dashboard_v3:home"))
+        body = resp.content.decode("utf-8")
+        # The opening {# should never appear in rendered output.
+        # (It's safe to assert exact-string absence — Django escapes
+        # entities, so a real `{#` in HTML would have to come from a
+        # broken-comment leak.)
+        self.assertNotIn("{#", body, "Found a leaked Django comment in rendered HTML")
+        self.assertNotIn("#}", body, "Found a leaked Django comment close in rendered HTML")
+
+    def test_v2_dial_markup_renders_when_cockpit_has_domains(self):
+        """When the user has active LifeGoals/HabitGoals, the v3 gauges
+        section MUST render the canonical v2 cockpit_dial.html partial —
+        not the v3 fallback tiles. This test seeds a LifeDomain + LifeGoal
+        so the cockpit returns data and asserts the v2 dial markup
+        appears in the rendered HTML."""
+        from apps.purpose.models import LifeDomain, LifeGoal
+
+        domain, _ = LifeDomain.objects.get_or_create(
+            slug="health",
+            defaults={
+                "name": "Health",
+                "color": "#dc2626",
+                "is_active": True,
+                "sort_order": 1,
+            },
+        )
+        LifeGoal.objects.create(
+            user=self.user,
+            domain=domain,
+            title="Test goal for gauges",
+            status="active",
+        )
+
+        resp = self.client.get(reverse("dashboard_v3:home"))
+        body = resp.content.decode("utf-8")
+        # Canonical v2 dial markers — if these aren't present, the gauges
+        # aren't really rendering (regression we hit repeatedly).
+        self.assertIn("v2-cockpit-dial", body)
+        self.assertIn("v2-gauge-svg", body)
+        self.assertIn("v2-dial-label", body)

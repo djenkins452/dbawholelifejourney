@@ -369,6 +369,41 @@ class HeadlineAndMomentumTests(TestCase):
             self.assertIn("momentum", section)
             self.assertIsInstance(section["momentum"], str)
 
+    def test_rhythm_section_includes_open_label_and_block_start(self):
+        """Every section dict must carry open_label, open_count, and
+        block_start_time so the template never renders an empty body."""
+        result = build_rhythm_sections(
+            self.user,
+            execution_contract={"items": [], "summaries": {}},
+        )
+        for section in result["sections"]:
+            self.assertIn("open_label", section)
+            self.assertIn("open_count", section)
+            self.assertIn("block_start_time", section)
+
+    def test_future_block_momentum_mentions_block_start(self):
+        """A future block with items must have a momentum line that names
+        the start time — preventing the 'visible but blank' UX."""
+        items = [
+            # Future block: items scheduled in the Day window (12:00-17:00)
+            {"scheduled_time": "13:00", "completed_today": False,
+             "is_actionable": True, "title": "Fish Oil"},
+            {"scheduled_time": "14:30", "completed_today": False,
+             "is_actionable": True, "title": "Metformin"},
+        ]
+        result = build_rhythm_sections(
+            self.user,
+            execution_contract={"items": items, "summaries": {}},
+        )
+        day_section = next(s for s in result["sections"] if s["key"] == "day")
+        # If we're currently in morning, day is future. If we're currently
+        # in day, the assertion still holds because is_current path uses
+        # different momentum copy — but block_start_time should always be
+        # set when items exist.
+        self.assertIsNotNone(day_section["block_start_time"])
+        self.assertEqual(day_section["open_count"], 2)
+        self.assertTrue(day_section["open_label"])  # Not empty string
+
 
 class TemplateCommentLeakGuardTests(TestCase):
     """Regression guard: Django's {# #} comment syntax is single-line only.

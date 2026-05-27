@@ -1,4 +1,3 @@
-{# Today's Rhythm — 2×2 compact tile grid. Open items only by default. #}
 <section class="v3-rhythm-section">
     <header class="v3-section-head">
         <h2 class="v3-h2">Today's Rhythm</h2>
@@ -25,26 +24,26 @@
                     <span class="v3-rhythm-name">{{ s.label }}</span>
                     <span class="v3-rhythm-count">
                         {% if s.completion.total %}
-                            {{ s.completion.completed }}/{{ s.completion.total }}
+                            {{ s.completion.completed }}/{{ s.completion.total }}{% if not s.is_current and not s.is_past %} upcoming{% endif %}
                         {% else %}—{% endif %}
                     </span>
                     {% if s.is_current %}<span class="v3-rhythm-now-pill">now</span>{% endif %}
                 </button>
 
                 {% if s.completion.total %}
-                    {% with progress=s.completion.completed|stringformat:"s" total=s.completion.total %}
-                        <div class="v3-rhythm-bar" aria-hidden="true">
-                            <div class="v3-rhythm-bar-fill"
-                                 style="width: {% widthratio s.completion.completed s.completion.total 100 %}%"></div>
-                        </div>
-                    {% endwith %}
+                    <div class="v3-rhythm-bar" aria-hidden="true">
+                        <div class="v3-rhythm-bar-fill"
+                             style="width: {% widthratio s.completion.completed s.completion.total 100 %}%"></div>
+                    </div>
                 {% endif %}
 
                 <div class="v3-rhythm-body">
                     {% if s.momentum %}
                         <p class="v3-rhythm-momentum">{{ s.momentum }}</p>
                     {% endif %}
-                    {% with open_items=s.items|dictsort:"scheduled_time" %}
+
+                    {% if s.open_count %}
+                        <p class="v3-rhythm-open-label">{{ s.open_label }}</p>
                         <ul class="v3-rhythm-open">
                             {% for item in s.items %}
                                 {% if not item.completed_today %}
@@ -65,11 +64,9 @@
                                 {% endif %}
                             {% endfor %}
                         </ul>
-
-                        {% if not s.items %}
-                            <p class="v3-rhythm-empty">No items in this block.</p>
-                        {% endif %}
-                    {% endwith %}
+                    {% elif not s.completion.total %}
+                        <p class="v3-rhythm-empty">Nothing scheduled in this block.</p>
+                    {% endif %}
 
                     {% if s.completion.completed %}
                         <div class="v3-rhythm-foot">

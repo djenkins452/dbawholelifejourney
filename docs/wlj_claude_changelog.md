@@ -7,6 +7,60 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-26 — feat(dashboard_v3): task interaction model (circle=complete, title=open)
+
+dashboard_v3 stops being visual-only. Rhythm task rows and Focus Right
+Now are now executable from the dashboard itself — using the exact
+same canonical mutation endpoints v2 uses. **Zero new write logic.
+Zero duplicate completion path.** dashboard_v3 is another surface
+into the same operating system.
+
+**Interactions:**
+- **Circle click → complete.** Rhythm and Focus Now both render
+  HTMX buttons that `hx-post` to the item's canonical `toggle_url`
+  (`dashboard_v2:task_toggle`, `routine_schedule_toggle`, or
+  `intake_log` — already attached to every execution item by
+  `today_execution.py`). `hx-swap="none"` discards v2's HTML
+  response (it targets v2 markup); the page script then reloads
+  the v3 surface so gauges, exec briefing, focus_now,
+  accountability, and rhythm all refresh from freshly-rebuilt
+  canonical state.
+- **Title click → open source.** Each task row's title is an
+  `<a href="{{ item.detail_url }}">` to the canonical edit/detail
+  page (`task.get_absolute_url()`, `life:routine_list`, or
+  `health:intake_detail`). v3 does NOT recreate editing — the user
+  is sent to the canonical edit screen.
+- **Completed items get a green checkmark button** that posts to
+  the same toggle URL (undo).
+
+**Hover affordances:**
+- Circle: hover scale + green ring → "complete this"
+- Title: dashed underline + indigo → "navigate to source"
+- Distinct cursors so the role is unambiguous.
+
+**Files Modified:**
+- `apps/core/cos_briefing/executive_summary.py` (focus_now now
+  carries toggle_url + detail_url passthrough from primary)
+- `templates/dashboard_v3/sections/rhythm.html` (circle becomes
+  HTMX button, title becomes link, completed items become undo button)
+- `templates/dashboard_v3/sections/focus_now.html` (title link +
+  "Mark Complete" action button)
+- `templates/dashboard_v3/home.html` (htmx:afterRequest listener
+  reloads on successful toggle; CSP-safe via nonce script)
+- `static/dashboard_v3/css/dashboard_v3.css` (distinct circle vs
+  title affordances; focus-action button styling)
+- `apps/dashboard_v3/tests/test_views.py` (+2 tests asserting
+  rendered HTML contains canonical v2 toggle URL + detail link)
+
+**Tests:** 40 pass (38 prior + 2 new).
+
+**Why:** dashboard_v3 was visually correct but operationally inert.
+Real workflow friction made this obvious — Danny couldn't actually
+run his day from v3. Now he can complete tasks from the dashboard
+without losing the canonical write path or duplicating logic. v3
+is another view into the same OS, not a second OS.
+
+
 ## 2026-05-26 — fix(dashboard_v3): gauges invisible + empty rhythm tiles
 
 Two blocker bugs both rooted in *not actually verifying rendered HTML*.

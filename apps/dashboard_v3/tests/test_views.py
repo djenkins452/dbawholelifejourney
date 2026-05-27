@@ -63,6 +63,59 @@ class DashboardV3ViewTests(TestCase):
         self.assertNotIn("{#", body, "Found a leaked Django comment in rendered HTML")
         self.assertNotIn("#}", body, "Found a leaked Django comment close in rendered HTML")
 
+    def test_task_circle_posts_to_canonical_v2_toggle_endpoint(self):
+        """Operating-system contract: clicking the rhythm circle MUST
+        POST to the exact same canonical mutation endpoint v2 uses
+        (dashboard_v2:task_toggle). No v3 write logic. No duplicate
+        path. Same engine."""
+        from datetime import date
+        from apps.life.models import Task
+
+        Task.objects.create(
+            user=self.user,
+            title="Wire-up Test Task",
+            commitment_level="important",
+            completion_status="pending",
+            due_date=date.today(),
+        )
+        resp = self.client.get(reverse("dashboard_v3:home"))
+        body = resp.content.decode("utf-8")
+
+        # Rendered HTML must reference the canonical v2 task_toggle URL —
+        # not a v3-specific route.
+        expected_fragment = "/dashboard/actions/task/"
+        self.assertIn(expected_fragment, body,
+            "Rhythm circle must hx-post to the canonical v2 task_toggle URL")
+        self.assertIn("data-v3-toggle", body,
+            "Circle button must carry the data-v3-toggle marker for the reload script")
+        self.assertIn('hx-swap="none"', body,
+            "Must discard v2's response (it targets v2 markup)")
+
+    def test_task_title_links_to_canonical_detail_url(self):
+        """Title click navigates to the source. We don't recreate edit
+        in v3 — we send the user to the canonical edit screen."""
+        from datetime import date
+        from apps.life.models import Task
+
+        task = Task.objects.create(
+            user=self.user,
+            title="Detail-Link Test Task",
+            commitment_level="important",
+            completion_status="pending",
+            due_date=date.today(),
+        )
+        # Verify the task model produces a non-empty detail URL — if it
+        # doesn't, the title is rendered as plain text (v2 also does this)
+        # and the link assertion is moot. We assert the URL appears IFF
+        # get_absolute_url() returned something.
+        try:
+            expected = task.get_absolute_url()
+        except Exception:
+            expected = ""
+        if expected:
+            resp = self.client.get(reverse("dashboard_v3:home"))
+            self.assertIn(expected, resp.content.decode("utf-8"))
+
     def test_v2_dial_markup_renders_when_cockpit_has_domains(self):
         """When the user has active LifeGoals/HabitGoals, the v3 gauges
         section MUST render the canonical v2 cockpit_dial.html partial —

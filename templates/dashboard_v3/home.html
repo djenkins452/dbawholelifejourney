@@ -54,7 +54,7 @@
 
 <script nonce="{{ csp_nonce }}">
 (function() {
-    // CSP-safe rhythm-tile toggle
+    // CSP-safe rhythm-tile expand/collapse
     document.querySelectorAll('.v3-rhythm-toggle').forEach(function(btn) {
         btn.addEventListener('click', function() {
             var key = btn.getAttribute('data-rhythm-key');
@@ -65,7 +65,7 @@
             btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
         });
     });
-    // "View N completed" toggles inside a tile
+    // "View N completed" toggle inside a tile
     document.querySelectorAll('.v3-rhythm-show-completed').forEach(function(btn) {
         btn.addEventListener('click', function() {
             var key = btn.getAttribute('data-rhythm-key');
@@ -75,6 +75,30 @@
             list.setAttribute('data-shown', shown ? 'false' : 'true');
             btn.textContent = shown ? btn.getAttribute('data-collapsed-label') : btn.getAttribute('data-expanded-label');
         });
+    });
+
+    // ── Task completion via canonical v2 toggle endpoints ──
+    // Every [data-v3-toggle] button HTMX-POSTs to the EXACT same
+    // canonical mutation endpoint v2 uses. We discard v2's response
+    // (it targets v2 markup) and reload the v3 page so gauges, exec
+    // briefing, focus_now, accountability, and rhythm all refresh from
+    // freshly-rebuilt canonical state. Single write path, single truth.
+    document.body.addEventListener('htmx:afterRequest', function(evt) {
+        var trig = evt.target;
+        if (!trig || !trig.hasAttribute || !trig.hasAttribute('data-v3-toggle')) {
+            return;
+        }
+        if (evt.detail && evt.detail.successful) {
+            // Optimistic visual: dim the row immediately so the click feels
+            // instant; the full reload follows in a tick.
+            var row = trig.closest('.v3-ritem, .v3-focus');
+            if (row) row.style.opacity = '0.5';
+            window.location.reload();
+        } else {
+            // Surface the failure non-destructively — log + restore.
+            console.warn('v3 toggle failed', evt.detail);
+            trig.disabled = false;
+        }
     });
 })();
 </script>

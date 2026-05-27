@@ -48,8 +48,24 @@
                             {% for item in s.items %}
                                 {% if not item.completed_today %}
                                     <li class="v3-ritem v3-ritem-{{ item.urgency|default:'next' }}">
-                                        <span class="v3-ritem-glyph" aria-hidden="true">○</span>
-                                        <span class="v3-ritem-title">{{ item.title }}</span>
+                                        {% if item.toggle_url %}
+                                            <button type="button"
+                                                    class="v3-ritem-glyph v3-ritem-glyph-btn"
+                                                    data-v3-toggle
+                                                    hx-post="{{ item.toggle_url }}"
+                                                    hx-swap="none"
+                                                    aria-label="Mark {{ item.title }} complete"
+                                                    title="Mark complete">○</button>
+                                        {% else %}
+                                            <span class="v3-ritem-glyph" aria-hidden="true">○</span>
+                                        {% endif %}
+                                        {% if item.detail_url %}
+                                            <a href="{{ item.detail_url }}"
+                                               class="v3-ritem-title v3-ritem-title-link"
+                                               title="Open {{ item.title }}">{{ item.title }}</a>
+                                        {% else %}
+                                            <span class="v3-ritem-title">{{ item.title }}</span>
+                                        {% endif %}
                                         {% if item.time_display %}<span class="v3-ritem-time">{{ item.time_display }}</span>{% endif %}
                                         {% if item.urgency == 'overdue' %}
                                             <span class="v3-ritem-badge v3-ritem-badge-overdue">PAST DUE</span>
@@ -83,8 +99,22 @@
                                 {% for item in s.items %}
                                     {% if item.completed_today %}
                                         <li class="v3-ritem v3-ritem-completed">
-                                            <span class="v3-ritem-glyph" aria-hidden="true">✓</span>
-                                            <span class="v3-ritem-title">{{ item.title }}</span>
+                                            {% if item.toggle_url %}
+                                                <button type="button"
+                                                        class="v3-ritem-glyph v3-ritem-glyph-btn v3-ritem-glyph-done"
+                                                        data-v3-toggle
+                                                        hx-post="{{ item.toggle_url }}"
+                                                        hx-swap="none"
+                                                        aria-label="Undo {{ item.title }}"
+                                                        title="Undo">✓</button>
+                                            {% else %}
+                                                <span class="v3-ritem-glyph" aria-hidden="true">✓</span>
+                                            {% endif %}
+                                            {% if item.detail_url %}
+                                                <a href="{{ item.detail_url }}" class="v3-ritem-title v3-ritem-title-link">{{ item.title }}</a>
+                                            {% else %}
+                                                <span class="v3-ritem-title">{{ item.title }}</span>
+                                            {% endif %}
                                             {% if item.time_display %}<span class="v3-ritem-time">{{ item.time_display }}</span>{% endif %}
                                         </li>
                                     {% endif %}

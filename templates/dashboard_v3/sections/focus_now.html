@@ -9,7 +9,11 @@
                         <span class="v3-focus-tag">🎯 FOCUS RIGHT NOW</span>
                     {% endif %}
                 </div>
-                <h2 class="v3-focus-title">{{ focus.title }}</h2>
+                {% if focus.detail_url %}
+                    <h2 class="v3-focus-title"><a href="{{ focus.detail_url }}" class="v3-focus-title-link">{{ focus.title }}</a></h2>
+                {% else %}
+                    <h2 class="v3-focus-title">{{ focus.title }}</h2>
+                {% endif %}
                 {% if focus.reason %}<p class="v3-focus-reason">{{ focus.reason }}</p>{% endif %}
 
                 <dl class="v3-focus-grid">
@@ -37,7 +41,18 @@
                     {% endif %}
                 </dl>
 
-                <div class="v3-focus-action">Action: Start now.</div>
+                <div class="v3-focus-action">
+                    {% if focus.toggle_url %}
+                        <button type="button"
+                                class="v3-focus-action-btn"
+                                data-v3-toggle
+                                hx-post="{{ focus.toggle_url }}"
+                                hx-swap="none">
+                            ✓ Mark Complete
+                        </button>
+                    {% endif %}
+                    <span class="v3-focus-action-note">Action: Start now.</span>
+                </div>
             {% else %}
                 <span class="v3-focus-tag">🎯 FOCUS RIGHT NOW</span>
                 <h2 class="v3-focus-title v3-focus-title-empty">All clear right now.</h2>

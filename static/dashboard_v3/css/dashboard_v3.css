@@ -402,11 +402,45 @@
     position: absolute;
     left: 0;
 }
-.v3-focus-action {
-    margin-top: 10px;
-    font-size: 0.82rem;
-    font-weight: 700;
+.v3-focus-title-link {
+    color: var(--v3-ink);
+    text-decoration: none;
+    border-bottom: 1px dashed transparent;
+    transition: color 0.12s ease, border-color 0.12s ease;
+}
+.v3-focus-title-link:hover {
     color: var(--v3-accent);
+    border-bottom-color: var(--v3-accent);
+}
+
+.v3-focus-action {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.v3-focus-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--v3-accent);
+    color: #fff;
+    border: 0;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.12s ease, transform 0.1s ease;
+    box-shadow: 0 2px 6px -2px rgba(67, 56, 202, 0.45);
+}
+.v3-focus-action-btn:hover { background: #3730a3; }
+.v3-focus-action-btn:active { transform: translateY(1px); }
+.v3-focus-action-note {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--v3-text-mute);
     letter-spacing: 0.01em;
 }
 
@@ -592,14 +626,68 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 13px;
-    height: 13px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     color: var(--v3-text-soft);
     font-size: 0.7rem;
     flex-shrink: 0;
+    line-height: 1;
 }
+
+/* Interactive completion circle (mirror of v2 .v2-ac-check affordance) */
+.v3-ritem-glyph-btn {
+    background: var(--v3-surface);
+    border: 1.5px solid var(--v3-border-strong);
+    color: var(--v3-text-soft);
+    cursor: pointer;
+    padding: 0;
+    font: inherit;
+    font-size: 0.7rem;
+    transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.v3-ritem-glyph-btn:hover {
+    border-color: var(--v3-positive);
+    color: var(--v3-positive);
+    background: rgba(22, 101, 52, 0.08);
+    transform: scale(1.15);
+}
+.v3-ritem-glyph-btn:active { transform: scale(0.95); }
+.v3-ritem-glyph-btn:focus-visible {
+    outline: 2px solid var(--v3-accent);
+    outline-offset: 2px;
+}
+.v3-ritem-glyph-done {
+    background: rgba(22, 101, 52, 0.16);
+    border-color: var(--v3-positive);
+    color: var(--v3-positive);
+}
+.v3-ritem-glyph-done:hover {
+    background: rgba(185, 28, 28, 0.10);
+    border-color: var(--v3-risk);
+    color: var(--v3-risk);
+}
+
 .v3-ritem-title { flex-grow: 1; line-height: 1.2; }
+
+/* Title link — navigates to the canonical source/edit page */
+.v3-ritem-title-link {
+    color: var(--v3-text);
+    text-decoration: none;
+    cursor: pointer;
+    border-bottom: 1px dashed transparent;
+    transition: color 0.12s ease, border-color 0.12s ease;
+}
+.v3-ritem-title-link:hover {
+    color: var(--v3-accent);
+    border-bottom-color: var(--v3-accent);
+}
+.v3-ritem-title-link:focus-visible {
+    outline: 2px solid var(--v3-accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
 .v3-ritem-time { color: var(--v3-text-soft); font-size: 0.72rem; }
 .v3-ritem-overdue { background: rgba(185, 28, 28, 0.05); }
 

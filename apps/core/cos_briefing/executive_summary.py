@@ -214,6 +214,11 @@ def _collect_focus_now(user):
             ),
             "protects": _derive_protects(primary, primary_key, state),
             "estimated_minutes": _derive_estimated_minutes(primary),
+            # Canonical interaction URLs — same source v2 uses. No new
+            # write logic — dashboard_v3 is just another surface into
+            # the same operating system.
+            "toggle_url": primary.get("toggle_url"),
+            "detail_url": primary.get("detail_url"),
             "source": "selector:next_action",
         }
 

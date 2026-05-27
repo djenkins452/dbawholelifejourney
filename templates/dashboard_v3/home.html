@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Dashboard V3 (Experimental) — Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'dashboard_v3/css/dashboard_v3.css' %}?v=20260526a">
+{% endblock %}
+
+{% block content %}
+<div class="v3-shell">
+    <div class="v3-banner" role="status">
+        <span class="v3-banner-pill">EXPERIMENTAL · v3</span>
+        <span class="v3-banner-text">Chief-of-Staff dashboard preview. Production dashboard unchanged at <a href="/dashboard/">/dashboard/</a>.</span>
+    </div>
+
+    <header class="v3-header">
+        <div class="v3-header-left">
+            <h1 class="v3-greeting">{{ greeting }}</h1>
+            <p class="v3-subgreeting">Here's your executive briefing.</p>
+        </div>
+        {% if v3.utilities.weather %}
+        <aside class="v3-weather-tile" aria-label="Weather">
+            <div class="v3-weather-temp">{{ v3.utilities.weather.temperature_f }}°</div>
+            <div class="v3-weather-meta">
+                <div class="v3-weather-condition">{{ v3.utilities.weather.condition|default:"" }}</div>
+                {% if v3.utilities.weather.city %}
+                <div class="v3-weather-city">{{ v3.utilities.weather.city }}</div>
+                {% endif %}
+            </div>
+        </aside>
+        {% endif %}
+    </header>
+
+    {# ── 1. Major life gauges ────────────────────────────────────── #}
+    {% include "dashboard_v3/sections/gauges.html" with gauges=v3.gauges %}
+
+    {# ── 2. Executive Summary ────────────────────────────────────── #}
+    {% include "dashboard_v3/sections/executive_summary.html" with summary=v3.executive_summary %}
+
+    {# ── 3. Focus Right Now ──────────────────────────────────────── #}
+    {% include "dashboard_v3/sections/focus_now.html" with focus=v3.focus_now follow_on=v3.follow_on %}
+
+    {# ── 4. Domain Accountability Cards ──────────────────────────── #}
+    {% include "dashboard_v3/sections/accountability_cards.html" with cards=v3.accountability_cards %}
+
+    {# ── 5. Rhythm Execution ─────────────────────────────────────── #}
+    {% include "dashboard_v3/sections/rhythm.html" with rhythm=v3.rhythm %}
+
+    {# ── 6. Supporting utilities ─────────────────────────────────── #}
+    {% include "dashboard_v3/sections/utilities.html" with utilities=v3.utilities %}
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function() {
+    // Rhythm-block toggle. No inline handlers — CSP compliant.
+    document.querySelectorAll('.v3-rhythm-toggle').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var key = btn.getAttribute('data-rhythm-key');
+            var card = document.querySelector('.v3-rhythm-card[data-rhythm-key="' + key + '"]');
+            if (!card) return;
+            var expanded = card.getAttribute('data-expanded') === 'true';
+            card.setAttribute('data-expanded', expanded ? 'false' : 'true');
+            btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        });
+    });
+})();
+</script>
+{% endblock %}

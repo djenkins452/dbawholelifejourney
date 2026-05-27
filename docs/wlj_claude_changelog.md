@@ -7,6 +7,57 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-26 — feat(dashboard_v3): Chief-of-Staff-first experimental dashboard
+
+**EXPERIMENTAL SURFACE.** New isolated dashboard at `/dashboard-v3/`.
+Production dashboard at `/dashboard/` (dashboard_v2) and legacy at
+`/dashboard/legacy/` (dashboard) are UNTOUCHED.
+
+**Architecture:** Pure consumer of canonical truth — zero new business
+logic, zero LLM, zero duplicate truth. Reuses:
+- `GoalCockpitService` for top life gauges
+- `apps.core.execution.execution_state.build_execution_state` +
+  `selectors.get_next_action / get_biggest_risk` for "Focus Right Now"
+- `Insight` / `Prediction` / `GuidanceItem` for accountability cards
+- `apps.core.time_windows` for rhythm bucket boundaries
+- `WaterEntry` + weather_service for compact utilities
+
+**New canonical layer (shared with Beth in future):**
+- `apps/core/cos_briefing/executive_summary.py` —
+  `build_executive_summary(user)` returns going_well / needs_attention /
+  biggest_risk / biggest_opportunity / focus_now / follow_on /
+  recommendations / trajectory as structured data. Zero LLM. Beth can
+  read this same dict later so the surfaces cannot disagree.
+- `apps/core/cos_briefing/rhythm.py` — collapses the 6 canonical time
+  windows into 4 rhythm buckets (☀️ morning, 🌤 day, 🌙 evening,
+  🌑 night) with time-aware default expansion and completion counts
+  that honor the Visual Truth Contract.
+
+**New app:**
+- `apps/dashboard_v3/` — views, urls, services/composer, tests
+- Templates at `templates/dashboard_v3/` — home + 6 section partials
+- CSS at `static/dashboard_v3/css/dashboard_v3.css` — premium card
+  system; completion visuals strictly gated to `item.completed_today`
+
+**Files Added:**
+- `apps/core/cos_briefing/{__init__,executive_summary,rhythm}.py`
+- `apps/dashboard_v3/{__init__,apps,views,urls}.py`,
+  `apps/dashboard_v3/services/{__init__,composer}.py`,
+  `apps/dashboard_v3/tests/{__init__,test_composer,test_views}.py`
+- `templates/dashboard_v3/home.html` + `sections/{gauges,executive_summary,focus_now,accountability_cards,rhythm,utilities}.html`
+- `static/dashboard_v3/css/dashboard_v3.css`
+
+**Files Modified:**
+- `config/settings.py` — INSTALLED_APPS += `apps.dashboard_v3`
+- `config/urls.py` — `path("dashboard-v3/", include(...))`
+
+**Tests:** 16 new (apps.dashboard_v3 + apps.core.cos_briefing). All pass.
+
+**Why:** Production v2 feels execution-heavy and intelligence-light.
+v3 inverts the priority — CoS briefing first, accountability second,
+checklist third — without risking the production surface.
+
+
 ## 2026-05-26 — fix(trust): gate at_risk_item by anchor proximity (no more "drop this for 3-hour-out Fish Oil")
 
 **TRUST-CRITICAL FIX.** At ~3:08 PM Beth told the user "Drop this and

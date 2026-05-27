@@ -1,0 +1,72 @@
+{# Per-domain accountability cards — Going Well / Needs Attention / Insight / Recommendation. #}
+<section class="v3-cards" aria-label="Domain accountability">
+    <header class="v3-section-head">
+        <h2 class="v3-section-title">Domain Accountability</h2>
+    </header>
+
+    {% if cards %}
+        <div class="v3-cards-grid">
+            {% for card in cards %}
+                <article class="v3-card" data-domain="{{ card.slug }}">
+                    <header class="v3-card-head">
+                        <span class="v3-card-icon" aria-hidden="true">{{ card.icon }}</span>
+                        <h3 class="v3-card-label">{{ card.label }}</h3>
+                    </header>
+
+                    {% if card.going_well %}
+                        <div class="v3-card-block">
+                            <h4 class="v3-card-h">Going Well</h4>
+                            <ul class="v3-card-list v3-card-list-positive">
+                                {% for w in card.going_well %}
+                                    <li>
+                                        <span class="v3-bullet" aria-hidden="true">✓</span>
+                                        {{ w.title }}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+
+                    {% if card.needs_attention %}
+                        <div class="v3-card-block">
+                            <h4 class="v3-card-h">Needs Attention</h4>
+                            <ul class="v3-card-list v3-card-list-warn">
+                                {% for n in card.needs_attention %}
+                                    <li>
+                                        <span class="v3-bullet" aria-hidden="true">
+                                            {% if n.severity == 'critical' %}!{% else %}⚠{% endif %}
+                                        </span>
+                                        {{ n.title }}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+
+                    {% if card.insight %}
+                        <div class="v3-card-insight">
+                            <span class="v3-card-insight-label">Accountability Insight</span>
+                            <p class="v3-card-insight-text">{{ card.insight }}</p>
+                        </div>
+                    {% endif %}
+
+                    {% if card.recommendation %}
+                        <div class="v3-card-rec">
+                            <span class="v3-card-rec-label">Recommendation</span>
+                            <p class="v3-card-rec-text">
+                                <strong>{{ card.recommendation.title }}</strong>
+                                {% if card.recommendation.message %}
+                                    — {{ card.recommendation.message }}
+                                {% endif %}
+                            </p>
+                        </div>
+                    {% endif %}
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="v3-empty-soft">
+            No domain signals yet — accountability cards appear as your engines accumulate data.
+        </div>
+    {% endif %}
+</section>

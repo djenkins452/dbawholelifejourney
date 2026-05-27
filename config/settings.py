@@ -183,6 +183,7 @@ INSTALLED_APPS = [
     'apps.meals',  # Meal Intelligence pillar — ingredient normalization, pantry, meal planning
     'apps.notes',  # Unified notes system with entity attachments
     'apps.dashboard_v2',  # Dashboard V2 — Life Command Center (experimental)
+    'apps.dashboard_v3',  # Dashboard V3 — CoS-first experimental surface (/dashboard-v3/)
     'apps.sports',  # Sports context domain — team tracking & game-day signals
     'assistant',
     'django_apscheduler',

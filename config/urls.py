@@ -75,6 +75,8 @@ urlpatterns = [
     path("dashboard/", include("apps.dashboard_v2.urls", namespace="dashboard_v2")),
     # Legacy dashboard (old widgets, kept for backward compat)
     path("dashboard/legacy/", include("apps.dashboard.urls", namespace="dashboard")),
+    # Dashboard V3 — experimental CoS-first surface (isolated, no impact on V2)
+    path("dashboard-v3/", include("apps.dashboard_v3.urls", namespace="dashboard_v3")),
     # Journal
     path("journal/", include("apps.journal.urls", namespace="journal")),
     # Faith

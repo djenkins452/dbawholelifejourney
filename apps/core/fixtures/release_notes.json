@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 198,
+    "fields": {
+      "title": "Experimental: Chief-of-Staff dashboard preview at /dashboard-v3/",
+      "description": "A brand-new, experimental dashboard is available alongside your regular dashboard. Visit /dashboard-v3/ to try it. The current dashboard at /dashboard/ is unchanged — nothing about your normal experience is affected. The preview is structured around a Chief-of-Staff briefing first, accountability second, and your checklist third. You'll see top life gauges with trend direction, an executive summary of what's going well and what needs attention, a single 'Focus Right Now' recommendation, per-domain accountability cards, and rhythm-based execution blocks (Morning, Day, Evening, Night) that expand and collapse around the time of day. Weather and water tiles are tucked into supporting roles instead of taking premium real estate. Everything you see is built from the same canonical data sources your assistant reads, so the dashboard and assistant cannot disagree. Try it, then let us know what you think.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-05-26",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-05-26T20:00:00Z",
+      "updated_at": "2026-05-26T20:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 197,
     "fields": {
       "title": "Action Center vocabulary: no more punitive \"EXPIRED\"",

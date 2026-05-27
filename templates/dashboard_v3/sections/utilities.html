@@ -1,23 +1,19 @@
-{# Supporting utilities — water, quick stats. Weather lives in the header. #}
+{# Utilities — small inline strip at the bottom. #}
 {% if utilities.water %}
-<section class="v3-utilities" aria-label="Supporting utilities">
-    <header class="v3-section-head">
-        <h2 class="v3-section-title">Quick Stats</h2>
-    </header>
-
-    <div class="v3-utility-grid">
-        <article class="v3-utility-tile">
-            <h3 class="v3-utility-label">Water</h3>
-            <div class="v3-utility-value">
-                {{ utilities.water.total_oz }}
-                <span class="v3-utility-unit">/ {{ utilities.water.goal_oz }} oz</span>
+<section class="v3-utilities">
+    <div class="v3-utility-row">
+        <article class="v3-utility">
+            <span class="v3-utility-icon" aria-hidden="true">💧</span>
+            <div class="v3-utility-body">
+                <div class="v3-utility-line">
+                    <span class="v3-utility-label">Water</span>
+                    <span class="v3-utility-value">{{ utilities.water.total_oz }}<span class="v3-utility-unit"> / {{ utilities.water.goal_oz }} oz</span></span>
+                </div>
+                <div class="v3-utility-bar" aria-hidden="true">
+                    <div class="v3-utility-bar-fill" style="width: {{ utilities.water.percentage|default:0 }}%"></div>
+                </div>
             </div>
-            <div class="v3-utility-bar" aria-hidden="true">
-                <div class="v3-utility-bar-fill" style="width: {{ utilities.water.percentage|default:0 }}%"></div>
-            </div>
-            <div class="v3-utility-status">
-                {% if utilities.water.goal_met %}✓ Goal met today{% else %}{{ utilities.water.percentage|default:0 }}% of goal{% endif %}
-            </div>
+            {% if utilities.water.goal_met %}<span class="v3-utility-tag">✓ Goal met</span>{% endif %}
         </article>
     </div>
 </section>

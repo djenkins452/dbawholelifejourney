@@ -85,35 +85,41 @@ def build_dashboard_v3_context(user) -> dict[str, Any]:
 
 
 def _build_gauges(user) -> list[dict]:
-    """Reuse GoalCockpitService — already produces deterministic, signed
-    domain scores driven by the user's active goals.
+    """Reuse GoalCockpitService — deterministic, goal-driven domain scores.
 
-    We re-decorate each entry with a 'trend_label' and a short 'drivers'
-    list (from components) for the gauge card template, without touching
-    the underlying scoring logic.
+    Decorates each entry with a 'trend_label' and a short 'drivers' list
+    (from components) for the gauge card template.
+
+    Fallback: when the user has no active LifeGoals/HabitGoals the cockpit
+    is empty. We don't show a "no domains" empty state — we render a
+    canonical baseline (Health / Faith / Life Execution / Purpose) built
+    READ-ONLY from existing SAE state. No new metric computation, no LLM.
     """
     from apps.dashboard_v2.services.cockpit_service import GoalCockpitService
 
     raw = GoalCockpitService(user).get_cockpit_data() or []
+    if not raw:
+        return _fallback_gauges_from_sae(user)
+
     out = []
     for d in raw:
         trend_delta = d.get("trend_delta") or 0
         if trend_delta > 0:
-            trend_label = f"Trending Up (+{trend_delta})"
+            trend_label = f"+{trend_delta}"
         elif trend_delta < 0:
-            trend_label = f"Trending Down ({trend_delta})"
+            trend_label = f"{trend_delta}"
         else:
-            trend_label = "Steady"
+            trend_label = "—"
 
-        # Top up to 3 driver components, preserving the cockpit's order.
         components = d.get("components") or []
-        drivers = []
-        for c in components[:4]:
-            drivers.append({
+        drivers = [
+            {
                 "label": c.get("label", ""),
-                "status": c.get("status", "info"),   # good/warn/poor/info
+                "status": c.get("status", "info"),
                 "detail": c.get("detail", ""),
-            })
+            }
+            for c in components[:3]
+        ]
 
         out.append({
             "slug": d.get("slug"),
@@ -126,8 +132,155 @@ def _build_gauges(user) -> list[dict]:
             "trend_label": trend_label,
             "drivers": drivers,
             "priority": d.get("priority"),
+            "source": "cockpit",
         })
     return out
+
+
+# ── Fallback gauges (canonical SAE-driven, no fabrication) ────────────
+
+
+def _fallback_gauges_from_sae(user) -> list[dict]:
+    """Baseline gauges derived from already-built SAE state.
+
+    Every value comes from an existing canonical field — no aggregation
+    or recomputation happens here. If a domain has no data, its gauge
+    shows "—" instead of being hidden, so the dashboard always feels
+    populated.
+    """
+    from apps.core.ai_state.state_engine import get_module_state
+
+    gauges: list[dict] = []
+
+    # ── Health ────────────────────────────────────────────────────
+    try:
+        health = get_module_state(user, "health") or {}
+        gauges.append(_status_gauge(
+            slug="health",
+            label="Health",
+            icon="💪",
+            statuses=[
+                ("Sleep", health.get("sleep_status")),
+                ("Water", health.get("water_status")),
+                ("Glucose", health.get("glucose_status")),
+                ("Steps", health.get("steps_status")),
+            ],
+        ))
+    except Exception:
+        logger.debug("fallback health gauge failed", exc_info=True)
+
+    # ── Faith ─────────────────────────────────────────────────────
+    try:
+        faith = get_module_state(user, "faith") or {}
+        streak = faith.get("reading_streak") or 0
+        plans = faith.get("active_reading_plans") or 0
+        # Streak-driven 0-100; capped at 21-day plateau.
+        score = min(100, int(streak * 5)) if streak else (40 if plans else None)
+        drivers = []
+        if streak:
+            drivers.append({"label": f"{streak}-day streak", "status": "good"})
+        if plans:
+            drivers.append({"label": f"{plans} active plan{'s' if plans != 1 else ''}", "status": "good"})
+        if not drivers:
+            drivers.append({"label": "No plan active yet", "status": "info"})
+        gauges.append({
+            "slug": "faith", "label": "Faith", "icon": "✝️",
+            "score": score, "trend": "flat", "trend_delta": 0,
+            "trend_label": "—", "drivers": drivers,
+            "source": "sae_fallback",
+        })
+    except Exception:
+        logger.debug("fallback faith gauge failed", exc_info=True)
+
+    # ── Life Execution — completion% of today's actionable items ──
+    try:
+        from apps.core.execution.today_execution import build_today_execution
+        contract = build_today_execution(user)
+        items = contract.get("items", []) or []
+        actionable = [i for i in items if i.get("is_actionable")]
+        completed = sum(1 for i in actionable if i.get("completed_today"))
+        total = len(actionable)
+        score = int(round((completed / total) * 100)) if total else None
+        overdue = sum(
+            1 for i in actionable
+            if not i.get("completed_today") and i.get("urgency") == "overdue"
+        )
+        at_risk = sum(
+            1 for i in actionable
+            if not i.get("completed_today")
+            and i.get("execution_status") == "AT_RISK"
+        )
+        drivers = [
+            {"label": f"{completed}/{total} done today",
+             "status": "good" if total and completed >= total * 0.75 else "info"},
+        ]
+        if overdue:
+            drivers.append({"label": f"{overdue} overdue", "status": "warn"})
+        if at_risk:
+            drivers.append({"label": f"{at_risk} at risk", "status": "warn"})
+        gauges.append({
+            "slug": "life", "label": "Life Execution", "icon": "🧭",
+            "score": score, "trend": "flat", "trend_delta": 0,
+            "trend_label": "—", "drivers": drivers,
+            "source": "sae_fallback",
+        })
+    except Exception:
+        logger.debug("fallback life-execution gauge failed", exc_info=True)
+
+    # ── Purpose ───────────────────────────────────────────────────
+    try:
+        goals = get_module_state(user, "goals") or {}
+        count = goals.get("active_goal_count") or 0
+        # Presence-driven: 0 goals → no score; 1+ goals → 50 + 10/goal cap 90.
+        score = None if count == 0 else min(90, 50 + count * 10)
+        drivers = [{
+            "label": f"{count} active goal{'s' if count != 1 else ''}",
+            "status": "good" if count else "info",
+        }]
+        gauges.append({
+            "slug": "purpose", "label": "Purpose", "icon": "🎯",
+            "score": score, "trend": "flat", "trend_delta": 0,
+            "trend_label": "—", "drivers": drivers,
+            "source": "sae_fallback",
+        })
+    except Exception:
+        logger.debug("fallback purpose gauge failed", exc_info=True)
+
+    return gauges
+
+
+# Maps SAE *_status values → (numeric weight, presentation status).
+_STATUS_TO_WEIGHT = {
+    "excellent": (100, "good"),
+    "good": (80, "good"),
+    "fair": (55, "warn"),
+    "poor": (25, "poor"),
+    "no_data": (None, "info"),
+    None: (None, "info"),
+    "": (None, "info"),
+}
+
+
+def _status_gauge(slug, label, icon, statuses):
+    """Average available _status values into a 0-100 score with drivers."""
+    weights = []
+    drivers = []
+    for driver_label, status in statuses:
+        weight, vis = _STATUS_TO_WEIGHT.get(status, (None, "info"))
+        if weight is not None:
+            weights.append(weight)
+        drivers.append({
+            "label": driver_label,
+            "status": vis,
+            "detail": status or "no data",
+        })
+    score = int(round(sum(weights) / len(weights))) if weights else None
+    return {
+        "slug": slug, "label": label, "icon": icon,
+        "score": score, "trend": "flat", "trend_delta": 0,
+        "trend_label": "—", "drivers": drivers,
+        "source": "sae_fallback",
+    }
 
 
 def _build_executive_summary(user) -> dict:
@@ -241,23 +394,42 @@ def _accountability_insight(going_well, needs_attention, recommendation) -> str:
     return "Not enough signal yet — log more and patterns will emerge."
 
 
+def build_weather_tile(user) -> dict:
+    """Always-returns weather payload for the header tile.
+
+    Shape: {'available': bool, 'data': dict | None, 'message': str | None}
+
+    Guarantees the header pill always renders something — either real
+    weather, or a "set location" hint — so the dashboard never feels
+    half-built.
+    """
+    prefs = getattr(user, "preferences", None)
+    location_city = (prefs and getattr(prefs, "location_city", "")) or ""
+    if not location_city:
+        return {
+            "available": False,
+            "data": None,
+            "message": "Set location",
+        }
+    try:
+        from apps.dashboard.services.weather import weather_service
+        weather_data = weather_service.get_weather_data(location_city)
+        if weather_data:
+            return {
+                "available": True,
+                "data": weather_data.to_dict(),
+                "message": None,
+            }
+    except Exception:
+        logger.debug("v3: weather lookup failed", exc_info=True)
+    return {"available": False, "data": None, "message": "Weather unavailable"}
+
+
 def _build_utilities(user) -> dict:
-    """Small supporting tiles — weather + water. Moved out of premium space."""
+    """Small supporting tiles — water only. Weather lives in the header."""
     util: dict[str, Any] = {}
     prefs = getattr(user, "preferences", None)
 
-    # Weather — same source as v2, smaller surface area.
-    try:
-        location_city = (prefs and getattr(prefs, "location_city", "")) or ""
-        if location_city:
-            from apps.dashboard.services.weather import weather_service
-            weather_data = weather_service.get_weather_data(location_city)
-            if weather_data:
-                util["weather"] = weather_data.to_dict()
-    except Exception:
-        logger.debug("v3: weather lookup failed", exc_info=True)
-
-    # Water — keep visible but compact.
     if prefs and getattr(prefs, "health_enabled", True):
         try:
             from apps.core.utils import get_user_now

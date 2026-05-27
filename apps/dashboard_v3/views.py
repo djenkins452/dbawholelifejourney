@@ -13,7 +13,7 @@ import logging
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView
 
-from apps.dashboard_v3.services import build_dashboard_v3_context
+from apps.dashboard_v3.services import build_dashboard_v3_context, build_weather_tile
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,7 @@ class DashboardV3View(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["v3"] = build_dashboard_v3_context(self.request.user)
+        ctx["weather_tile"] = build_weather_tile(self.request.user)
 
         # Greeting & time phase — small helpers reused from v2 so the
         # surfaces feel coherent without inventing parallel logic.

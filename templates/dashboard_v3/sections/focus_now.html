@@ -1,38 +1,33 @@
-{# Focus Right Now — single primary recommendation, then follow-on hints. #}
-<section class="v3-focus" aria-label="Focus right now">
-    <header class="v3-section-head">
-        <h2 class="v3-section-title">🎯 Focus Right Now</h2>
-    </header>
-
-    {% if focus %}
-        <article class="v3-focus-card">
-            <h3 class="v3-focus-title">{{ focus.title }}</h3>
-            {% if focus.time_display %}
-                <div class="v3-focus-time">⏱ {{ focus.time_display }}</div>
+{# Focus Now — prominent 2-column card. Primary action LEFT, follow-on RIGHT. #}
+<section class="v3-focus-section">
+    <article class="v3-focus">
+        <div class="v3-focus-primary">
+            <span class="v3-focus-tag">🎯 Focus Right Now</span>
+            {% if focus %}
+                <h2 class="v3-focus-title">{{ focus.title }}</h2>
+                <div class="v3-focus-meta">
+                    {% if focus.time_display %}<span class="v3-focus-time">⏱ {{ focus.time_display }}</span>{% endif %}
+                    {% if focus.execution_status %}<span class="v3-focus-status v3-status-{{ focus.execution_status|lower }}">{{ focus.execution_status }}</span>{% endif %}
+                </div>
+                {% if focus.reason %}<p class="v3-focus-reason">{{ focus.reason }}</p>{% endif %}
+            {% else %}
+                <h2 class="v3-focus-title v3-focus-title-empty">All clear right now.</h2>
+                <p class="v3-focus-reason">Nothing pending in the current block. Take a breath.</p>
             {% endif %}
-            {% if focus.reason %}
-                <p class="v3-focus-reason">{{ focus.reason }}</p>
-            {% endif %}
-        </article>
-    {% else %}
-        <article class="v3-focus-card v3-focus-empty">
-            <p class="v3-focus-reason">Nothing pending right now. Take a breath.</p>
-        </article>
-    {% endif %}
-
-    {% if follow_on %}
-        <div class="v3-focus-followon">
-            <h4 class="v3-focus-sub">Coming Up</h4>
-            <ul class="v3-followon-list">
-                {% for f in follow_on %}
-                    <li>
-                        <span class="v3-followon-title">{{ f.title }}</span>
-                        {% if f.time_display %}
-                            <span class="v3-followon-time">— {{ f.time_display }}</span>
-                        {% endif %}
-                    </li>
-                {% endfor %}
-            </ul>
         </div>
-    {% endif %}
+
+        <div class="v3-focus-side">
+            <h3 class="v3-h4">Coming Up</h3>
+            {% if follow_on %}
+                <ul class="v3-tight v3-focus-followon">
+                    {% for f in follow_on %}
+                        <li>
+                            <span class="v3-followon-title">{{ f.title }}</span>
+                            {% if f.time_display %}<span class="v3-followon-time">{{ f.time_display }}</span>{% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}<p class="v3-muted">Nothing scheduled soon.</p>{% endif %}
+        </div>
+    </article>
 </section>

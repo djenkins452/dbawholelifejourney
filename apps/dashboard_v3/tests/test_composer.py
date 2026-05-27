@@ -176,3 +176,40 @@ class DashboardV3ComposerTests(TestCase):
         self.assertEqual(ctx["accountability_cards"], [])
         self.assertIsInstance(ctx["rhythm"], dict)
         self.assertIn("sections", ctx["rhythm"])
+
+    def test_gauges_fall_back_to_sae_when_cockpit_empty(self):
+        """User has no LifeGoals/HabitGoals → gauges must still populate
+        from canonical SAE state (Health, Faith, Life Execution, Purpose)."""
+        ctx = build_dashboard_v3_context(self.user)
+        gauges = ctx["gauges"]
+        self.assertTrue(gauges, "fallback gauges must always render")
+        slugs = {g["slug"] for g in gauges}
+        # We require AT LEAST these four baselines for a fresh user.
+        for required in ("health", "faith", "life", "purpose"):
+            self.assertIn(required, slugs)
+        # Every fallback gauge must be tagged as such for telemetry/debugging.
+        for g in gauges:
+            self.assertEqual(g["source"], "sae_fallback")
+            # Drivers list must always exist (even if it's a single info row).
+            self.assertIn("drivers", g)
+
+
+class WeatherTileTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="v3-weather@test.com", password="testpass123"
+        )
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"),
+        )
+
+    def test_weather_tile_returns_set_location_when_unset(self):
+        from apps.dashboard_v3.services import build_weather_tile
+        # Fresh user has no location_city; tile must still render.
+        self.user.preferences.location_city = ""
+        self.user.preferences.save()
+        tile = build_weather_tile(self.user)
+        self.assertFalse(tile["available"])
+        self.assertIsNone(tile["data"])
+        self.assertIn("location", tile["message"].lower())

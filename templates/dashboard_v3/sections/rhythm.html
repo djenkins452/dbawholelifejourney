@@ -1,68 +1,98 @@
-{# Rhythm-based execution — replaces giant checklist with collapsible time blocks. #}
-<section class="v3-rhythm" aria-label="Today's rhythm">
+{# Today's Rhythm — 2×2 compact tile grid. Open items only by default. #}
+<section class="v3-rhythm-section">
     <header class="v3-section-head">
-        <h2 class="v3-section-title">Today's Rhythm</h2>
+        <h2 class="v3-h2">Today's Rhythm</h2>
         {% if rhythm.totals.total %}
-            <span class="v3-rhythm-totals">
+            <span class="v3-rhythm-grand">
                 {{ rhythm.totals.completed }}/{{ rhythm.totals.total }} complete
-                {% if rhythm.totals.at_risk %} · {{ rhythm.totals.at_risk }} at risk{% endif %}
-                {% if rhythm.totals.overdue %} · {{ rhythm.totals.overdue }} overdue{% endif %}
+                {% if rhythm.totals.at_risk %}· {{ rhythm.totals.at_risk }} at risk{% endif %}
+                {% if rhythm.totals.overdue %}· {{ rhythm.totals.overdue }} overdue{% endif %}
             </span>
         {% endif %}
     </header>
 
-    <div class="v3-rhythm-stack">
-        {% for section in rhythm.sections %}
-            <article class="v3-rhythm-card v3-rhythm-card-{{ section.status }}"
-                     data-rhythm-key="{{ section.key }}"
-                     data-expanded="{{ section.expanded|yesno:'true,false' }}"
-                     {% if section.is_current %}data-current="true"{% endif %}>
+    <div class="v3-rhythm-grid">
+        {% for s in rhythm.sections %}
+            <article class="v3-rhythm-tile v3-rhythm-{{ s.status }}"
+                     data-rhythm-key="{{ s.key }}"
+                     data-expanded="{{ s.expanded|yesno:'true,false' }}"
+                     {% if s.is_current %}data-current="true"{% endif %}>
                 <button type="button"
                         class="v3-rhythm-toggle"
-                        data-rhythm-key="{{ section.key }}"
-                        aria-expanded="{{ section.expanded|yesno:'true,false' }}"
-                        aria-controls="rhythm-body-{{ section.key }}">
-                    <span class="v3-rhythm-icon" aria-hidden="true">{{ section.icon }}</span>
-                    <span class="v3-rhythm-label">{{ section.label }}</span>
+                        data-rhythm-key="{{ s.key }}"
+                        aria-expanded="{{ s.expanded|yesno:'true,false' }}">
+                    <span class="v3-rhythm-icon" aria-hidden="true">{{ s.icon }}</span>
+                    <span class="v3-rhythm-name">{{ s.label }}</span>
                     <span class="v3-rhythm-count">
-                        {% if section.completion.total %}
-                            {{ section.completion.completed }}/{{ section.completion.total }}
-                            {% if section.status == 'complete' %} ✅{% endif %}
-                        {% else %}
-                            <span class="v3-rhythm-empty-tag">empty</span>
-                        {% endif %}
+                        {% if s.completion.total %}
+                            {{ s.completion.completed }}/{{ s.completion.total }}
+                        {% else %}—{% endif %}
                     </span>
-                    <span class="v3-rhythm-chevron" aria-hidden="true">▾</span>
+                    {% if s.is_current %}<span class="v3-rhythm-now-pill">now</span>{% endif %}
                 </button>
 
-                <div id="rhythm-body-{{ section.key }}" class="v3-rhythm-body">
-                    {% if section.items %}
-                        <ul class="v3-rhythm-items">
-                            {% for item in section.items %}
-                                <li class="v3-rhythm-item v3-status-{{ item.execution_status|default:'on_time'|lower }} v3-urgency-{{ item.urgency|default:'next' }}{% if item.completed_today %} v3-item-completed{% endif %}">
-                                    <span class="v3-item-glyph" aria-hidden="true">
-                                        {% if item.completed_today %}✓{% else %}○{% endif %}
-                                    </span>
-                                    <span class="v3-item-title">{{ item.title }}</span>
-                                    {% if item.time_display %}
-                                        <span class="v3-item-time">{{ item.time_display }}</span>
-                                    {% endif %}
-                                    {% if not item.completed_today %}
+                {% if s.completion.total %}
+                    {% with progress=s.completion.completed|stringformat:"s" total=s.completion.total %}
+                        <div class="v3-rhythm-bar" aria-hidden="true">
+                            <div class="v3-rhythm-bar-fill"
+                                 style="width: {% widthratio s.completion.completed s.completion.total 100 %}%"></div>
+                        </div>
+                    {% endwith %}
+                {% endif %}
+
+                <div class="v3-rhythm-body">
+                    {% with open_items=s.items|dictsort:"scheduled_time" %}
+                        {% with open_count=0 %}{% endwith %}
+                        {# Open / at-risk / overdue items — these are what matters now. #}
+                        <ul class="v3-rhythm-open">
+                            {% for item in s.items %}
+                                {% if not item.completed_today %}
+                                    <li class="v3-ritem v3-ritem-{{ item.urgency|default:'next' }}">
+                                        <span class="v3-ritem-glyph" aria-hidden="true">○</span>
+                                        <span class="v3-ritem-title">{{ item.title }}</span>
+                                        {% if item.time_display %}<span class="v3-ritem-time">{{ item.time_display }}</span>{% endif %}
                                         {% if item.urgency == 'overdue' %}
-                                            <span class="v3-item-badge v3-item-badge-overdue">PAST DUE</span>
+                                            <span class="v3-ritem-badge v3-ritem-badge-overdue">PAST DUE</span>
                                         {% elif item.execution_status == 'AT_RISK' %}
-                                            <span class="v3-item-badge v3-item-badge-risk">AT RISK</span>
+                                            <span class="v3-ritem-badge v3-ritem-badge-risk">AT RISK</span>
                                         {% elif item.execution_status == 'LATE_OPEN' %}
-                                            <span class="v3-item-badge v3-item-badge-late">LATE OPEN</span>
+                                            <span class="v3-ritem-badge v3-ritem-badge-late">LATE</span>
                                         {% elif item.urgency == 'now' %}
-                                            <span class="v3-item-badge v3-item-badge-now">NOW</span>
+                                            <span class="v3-ritem-badge v3-ritem-badge-now">NOW</span>
                                         {% endif %}
-                                    {% endif %}
-                                </li>
+                                    </li>
+                                {% endif %}
                             {% endfor %}
                         </ul>
-                    {% else %}
-                        <p class="v3-rhythm-empty">No items scheduled here.</p>
+
+                        {% if not s.items %}
+                            <p class="v3-rhythm-empty">No items in this block.</p>
+                        {% endif %}
+                    {% endwith %}
+
+                    {% if s.completion.completed %}
+                        <div class="v3-rhythm-foot">
+                            <button type="button"
+                                    class="v3-rhythm-show-completed"
+                                    data-rhythm-key="{{ s.key }}"
+                                    data-collapsed-label="✅ {{ s.completion.completed }} completed"
+                                    data-expanded-label="Hide completed">
+                                ✅ {{ s.completion.completed }} completed
+                            </button>
+                            <ul class="v3-rhythm-completed-list v3-tight v3-tight-sm"
+                                data-rhythm-key="{{ s.key }}"
+                                data-shown="false">
+                                {% for item in s.items %}
+                                    {% if item.completed_today %}
+                                        <li class="v3-ritem v3-ritem-completed">
+                                            <span class="v3-ritem-glyph" aria-hidden="true">✓</span>
+                                            <span class="v3-ritem-title">{{ item.title }}</span>
+                                            {% if item.time_display %}<span class="v3-ritem-time">{{ item.time_display }}</span>{% endif %}
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+                            </ul>
+                        </div>
                     {% endif %}
                 </div>
             </article>

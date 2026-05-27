@@ -1,38 +1,28 @@
-{# Major life gauges — top of dashboard_v3. Reads composer gauges only. #}
-<section class="v3-gauges" aria-label="Life gauges">
-    {% if gauges %}
-        <div class="v3-gauges-grid">
-            {% for g in gauges %}
-                <article class="v3-gauge-card" data-trend="{{ g.trend|default:'flat' }}">
-                    <header class="v3-gauge-head">
-                        <span class="v3-gauge-icon" aria-hidden="true">{{ g.icon|default:'•' }}</span>
-                        <h3 class="v3-gauge-label">{{ g.label }}</h3>
-                    </header>
-                    <div class="v3-gauge-score-row">
-                        <span class="v3-gauge-score">{{ g.score|default:'—' }}</span>
-                        {% if g.score %}<span class="v3-gauge-score-unit">%</span>{% endif %}
-                    </div>
-                    <div class="v3-gauge-trend v3-gauge-trend-{{ g.trend|default:'flat' }}">
-                        {{ g.trend_label }}
-                    </div>
-                    {% if g.drivers %}
-                        <ul class="v3-gauge-drivers">
-                            {% for d in g.drivers %}
-                                <li class="v3-driver v3-driver-{{ d.status|default:'info' }}">
-                                    <span class="v3-driver-glyph" aria-hidden="true">
-                                        {% if d.status == 'good' %}✓{% elif d.status == 'warn' or d.status == 'poor' %}⚠{% else %}•{% endif %}
-                                    </span>
-                                    <span class="v3-driver-text">{{ d.label }}</span>
-                                </li>
-                            {% endfor %}
-                        </ul>
+{# Gauges — compact horizontal scoreboard. Always renders something. #}
+<section class="v3-gauges">
+    <div class="v3-gauges-row">
+        {% for g in gauges %}
+            <article class="v3-gauge" data-trend="{{ g.trend|default:'flat' }}">
+                <div class="v3-gauge-top">
+                    <span class="v3-gauge-icon" aria-hidden="true">{{ g.icon|default:'•' }}</span>
+                    <span class="v3-gauge-label">{{ g.label }}</span>
+                </div>
+                <div class="v3-gauge-mid">
+                    <span class="v3-gauge-score">{{ g.score|default:"—" }}{% if g.score %}<span class="v3-gauge-pct">%</span>{% endif %}</span>
+                    {% if g.trend_label and g.trend_label != "—" %}
+                        <span class="v3-gauge-delta v3-gauge-delta-{{ g.trend|default:'flat' }}">{{ g.trend_label }}</span>
                     {% endif %}
-                </article>
-            {% endfor %}
-        </div>
-    {% else %}
-        <div class="v3-empty-soft">
-            No active life domains yet — set a goal and gauges will populate from your signals.
-        </div>
-    {% endif %}
+                </div>
+                {% if g.drivers %}
+                    <ul class="v3-gauge-drivers">
+                        {% for d in g.drivers %}
+                            <li class="v3-driver v3-driver-{{ d.status|default:'info' }}">
+                                <span class="v3-driver-dot" aria-hidden="true"></span>{{ d.label }}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </article>
+        {% endfor %}
+    </div>
 </section>

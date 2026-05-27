@@ -4,64 +4,76 @@
 {% block title %}Dashboard V3 (Experimental) — Whole Life Journey{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'dashboard_v3/css/dashboard_v3.css' %}?v=20260526a">
+<link rel="stylesheet" href="{% static 'dashboard_v3/css/dashboard_v3.css' %}?v=20260526b">
 {% endblock %}
 
 {% block content %}
 <div class="v3-shell">
-    <div class="v3-banner" role="status">
-        <span class="v3-banner-pill">EXPERIMENTAL · v3</span>
-        <span class="v3-banner-text">Chief-of-Staff dashboard preview. Production dashboard unchanged at <a href="/dashboard/">/dashboard/</a>.</span>
-    </div>
-
-    <header class="v3-header">
-        <div class="v3-header-left">
+    <header class="v3-topbar">
+        <div class="v3-topbar-greet">
             <h1 class="v3-greeting">{{ greeting }}</h1>
-            <p class="v3-subgreeting">Here's your executive briefing.</p>
+            <span class="v3-subgreeting">Executive briefing · {{ v3.executive_summary.as_of|slice:":10" }}</span>
         </div>
-        {% if v3.utilities.weather %}
-        <aside class="v3-weather-tile" aria-label="Weather">
-            <div class="v3-weather-temp">{{ v3.utilities.weather.temperature_f }}°</div>
-            <div class="v3-weather-meta">
-                <div class="v3-weather-condition">{{ v3.utilities.weather.condition|default:"" }}</div>
-                {% if v3.utilities.weather.city %}
-                <div class="v3-weather-city">{{ v3.utilities.weather.city }}</div>
-                {% endif %}
-            </div>
-        </aside>
-        {% endif %}
+        <div class="v3-topbar-meta">
+            <span class="v3-pill v3-pill-exp">EXPERIMENTAL · v3</span>
+            {% if weather_tile.available and weather_tile.data %}
+                <span class="v3-pill v3-pill-weather" title="{{ weather_tile.data.city }}">
+                    <span class="v3-pill-weather-temp">{{ weather_tile.data.temperature_f }}°</span>
+                    <span class="v3-pill-weather-cond">{{ weather_tile.data.condition|default:"" }}</span>
+                    {% if weather_tile.data.city %}
+                        <span class="v3-pill-weather-city">{{ weather_tile.data.city }}</span>
+                    {% endif %}
+                </span>
+            {% else %}
+                <a href="{% url 'users:preferences' %}" class="v3-pill v3-pill-weather v3-pill-weather-empty">
+                    <span class="v3-pill-weather-temp">—</span>
+                    <span class="v3-pill-weather-cond">{{ weather_tile.message|default:"Set location" }}</span>
+                </a>
+            {% endif %}
+        </div>
     </header>
 
-    {# ── 1. Major life gauges ────────────────────────────────────── #}
+    {# 1. Gauges — top scoreboard #}
     {% include "dashboard_v3/sections/gauges.html" with gauges=v3.gauges %}
 
-    {# ── 2. Executive Summary ────────────────────────────────────── #}
+    {# 2. Executive summary — dense 3-column briefing #}
     {% include "dashboard_v3/sections/executive_summary.html" with summary=v3.executive_summary %}
 
-    {# ── 3. Focus Right Now ──────────────────────────────────────── #}
+    {# 3. Focus right now — prominent, paired with follow-on #}
     {% include "dashboard_v3/sections/focus_now.html" with focus=v3.focus_now follow_on=v3.follow_on %}
 
-    {# ── 4. Domain Accountability Cards ──────────────────────────── #}
+    {# 4. Domain accountability — 3-column dense cards #}
     {% include "dashboard_v3/sections/accountability_cards.html" with cards=v3.accountability_cards %}
 
-    {# ── 5. Rhythm Execution ─────────────────────────────────────── #}
+    {# 5. Today's rhythm — 2×2 compact tiles #}
     {% include "dashboard_v3/sections/rhythm.html" with rhythm=v3.rhythm %}
 
-    {# ── 6. Supporting utilities ─────────────────────────────────── #}
+    {# 6. Utilities — small inline row #}
     {% include "dashboard_v3/sections/utilities.html" with utilities=v3.utilities %}
 </div>
 
 <script nonce="{{ csp_nonce }}">
 (function() {
-    // Rhythm-block toggle. No inline handlers — CSP compliant.
+    // CSP-safe rhythm-tile toggle
     document.querySelectorAll('.v3-rhythm-toggle').forEach(function(btn) {
         btn.addEventListener('click', function() {
             var key = btn.getAttribute('data-rhythm-key');
-            var card = document.querySelector('.v3-rhythm-card[data-rhythm-key="' + key + '"]');
-            if (!card) return;
-            var expanded = card.getAttribute('data-expanded') === 'true';
-            card.setAttribute('data-expanded', expanded ? 'false' : 'true');
+            var tile = document.querySelector('.v3-rhythm-tile[data-rhythm-key="' + key + '"]');
+            if (!tile) return;
+            var expanded = tile.getAttribute('data-expanded') === 'true';
+            tile.setAttribute('data-expanded', expanded ? 'false' : 'true');
             btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        });
+    });
+    // "View N completed" toggles inside a tile
+    document.querySelectorAll('.v3-rhythm-show-completed').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var key = btn.getAttribute('data-rhythm-key');
+            var list = document.querySelector('.v3-rhythm-completed-list[data-rhythm-key="' + key + '"]');
+            if (!list) return;
+            var shown = list.getAttribute('data-shown') === 'true';
+            list.setAttribute('data-shown', shown ? 'false' : 'true');
+            btn.textContent = shown ? btn.getAttribute('data-collapsed-label') : btn.getAttribute('data-expanded-label');
         });
     });
 })();

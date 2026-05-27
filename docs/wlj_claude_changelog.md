@@ -7,6 +7,61 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-26 — feat(dashboard_v3): refinement pass — density, fallback gauges, header weather, 2×2 rhythm
+
+Addressed the gap between v3's first cut and the original CoS-first
+requirements. Same architecture (canonical-truth consumer, no LLM,
+no new business logic) — refinement focuses on layout density,
+fallback behavior, and rhythm UX.
+
+**Changes:**
+- **Gauges always render.** `_fallback_gauges_from_sae(user)` builds
+  baseline Health / Faith / Life Execution / Purpose gauges from
+  already-built SAE state (`sleep_status`, `water_status`,
+  `reading_streak`, `active_reading_plans`, today execution
+  completion%, `active_goal_count`). The "No active life domains"
+  empty state is gone. No new metric computation — every input is a
+  read of a canonical SAE field.
+- **Weather lives in the header.** New `build_weather_tile(user)`
+  always returns a payload; renders as a small pill in the top bar
+  (temp · condition · city). When location is unset, the pill becomes
+  a "Set location" link. No more silent disappearance.
+- **2×2 rhythm tile grid.** Replaced the stacked rhythm cards with a
+  compact desktop 2×2 grid (Morning · Day / Evening · Night). Each
+  tile shows only OPEN items by default; completed items collapse to
+  a single "✅ N completed" pill that expands on click. Visual Truth
+  Contract preserved (`.v3-ritem-completed` is the sole gate for
+  completion visuals).
+- **Dense desktop layout.** Shell widened to 1480px. Section gap
+  16px (was 28). Explicit grids (4-col gauges, 3-col exec-summary,
+  2-col focus-now, 3-col accountability) — not `auto-fit`, so the
+  page never collapses to wide single-column tiles on large
+  displays. Reduces vertical scroll by ~50%.
+- **Focus Now strengthened.** Now a prominent 2-column card —
+  primary action title + status + reason on the left, "Coming Up"
+  follow-on inline on the right.
+- **Executive summary 3-column.** Going Well · Needs Attention ·
+  Callouts (Biggest Risk / Biggest Opportunity / Steady State).
+  Recommendation chips inline below.
+
+**Files Modified:**
+- `apps/dashboard_v3/services/composer.py` (fallback gauges, weather tile)
+- `apps/dashboard_v3/services/__init__.py` (export weather tile)
+- `apps/dashboard_v3/views.py` (wire weather tile into context)
+- `apps/dashboard_v3/tests/test_composer.py` (+2 tests)
+- `templates/dashboard_v3/home.html` (header bar with weather pill)
+- `templates/dashboard_v3/sections/{gauges,executive_summary,focus_now,accountability_cards,rhythm,utilities}.html` (all rewritten denser)
+- `static/dashboard_v3/css/dashboard_v3.css` (full density redesign)
+
+**Tests:** 18 pass (16 prior + 2 new). Visual Truth Contract still gated.
+
+**Why:** The first cut still felt like "a prettier task list" because
+of vertical stacking, single-column tiles, all-completed-items-shown
+rhythm sections, and an empty-state cliff when no goals are configured.
+This pass collapses the page to an executive scoreboard while keeping
+the architecture rules intact.
+
+
 ## 2026-05-26 — feat(dashboard_v3): Chief-of-Staff-first experimental dashboard
 
 **EXPERIMENTAL SURFACE.** New isolated dashboard at `/dashboard-v3/`.

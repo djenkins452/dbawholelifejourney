@@ -1,84 +1,69 @@
-{# Executive Summary — the Chief-of-Staff briefing. Deterministic composition. #}
-<section class="v3-exec" aria-label="Executive summary">
-    <header class="v3-section-head">
-        <h2 class="v3-section-title">Chief-of-Staff Briefing</h2>
-        <span class="v3-trajectory v3-trajectory-{{ summary.trajectory|default:'unknown' }}">
-            {% if summary.trajectory == 'improving' %}↑ Improving
-            {% elif summary.trajectory == 'slipping' %}↓ Slipping
-            {% elif summary.trajectory == 'steady' %}→ Steady
-            {% elif summary.trajectory == 'mixed' %}↔ Mixed
-            {% else %}Not enough signal{% endif %}
-        </span>
+{# Executive summary — 3-column dense briefing. #}
+<section class="v3-exec">
+    <header class="v3-exec-head">
+        <div class="v3-exec-title-row">
+            <h2 class="v3-h2">Chief-of-Staff Briefing</h2>
+            <span class="v3-trajectory v3-trajectory-{{ summary.trajectory|default:'unknown' }}">
+                {% if summary.trajectory == 'improving' %}↑ Improving
+                {% elif summary.trajectory == 'slipping' %}↓ Slipping
+                {% elif summary.trajectory == 'steady' %}→ Steady
+                {% elif summary.trajectory == 'mixed' %}↔ Mixed
+                {% else %}Building signal{% endif %}
+            </span>
+        </div>
     </header>
 
-    <div class="v3-exec-grid">
+    <div class="v3-exec-cols">
         <div class="v3-exec-col">
-            <h3 class="v3-exec-h">Going Well</h3>
+            <h3 class="v3-h4">Going Well</h3>
             {% if summary.going_well %}
-                <ul class="v3-exec-list v3-exec-list-positive">
+                <ul class="v3-tight v3-tight-pos">
                     {% for item in summary.going_well %}
-                        <li>
-                            <span class="v3-bullet" aria-hidden="true">✓</span>
-                            <span class="v3-exec-text">{{ item.title }}</span>
-                        </li>
+                        <li><span class="v3-mark" aria-hidden="true">✓</span>{{ item.title }}</li>
                     {% endfor %}
                 </ul>
-            {% else %}
-                <p class="v3-exec-empty">Nothing recent.</p>
-            {% endif %}
+            {% else %}<p class="v3-muted">No positive signals this week.</p>{% endif %}
         </div>
 
         <div class="v3-exec-col">
-            <h3 class="v3-exec-h">Needs Attention</h3>
+            <h3 class="v3-h4">Needs Attention</h3>
             {% if summary.needs_attention %}
-                <ul class="v3-exec-list v3-exec-list-warn">
+                <ul class="v3-tight v3-tight-warn">
                     {% for item in summary.needs_attention %}
-                        <li>
-                            <span class="v3-bullet" aria-hidden="true">
-                                {% if item.severity == 'critical' %}!{% else %}⚠{% endif %}
-                            </span>
-                            <span class="v3-exec-text">{{ item.title }}</span>
-                        </li>
+                        <li><span class="v3-mark" aria-hidden="true">{% if item.severity == 'critical' %}!{% else %}⚠{% endif %}</span>{{ item.title }}</li>
                     {% endfor %}
                 </ul>
-            {% else %}
-                <p class="v3-exec-empty">All clear.</p>
+            {% else %}<p class="v3-muted">All clear.</p>{% endif %}
+        </div>
+
+        <div class="v3-exec-col v3-exec-col-callouts">
+            {% if summary.biggest_risk %}
+                <div class="v3-callout v3-callout-risk">
+                    <span class="v3-callout-label">Biggest Risk</span>
+                    <p class="v3-callout-title">{{ summary.biggest_risk.title }}</p>
+                </div>
+            {% endif %}
+            {% if summary.biggest_opportunity %}
+                <div class="v3-callout v3-callout-opp">
+                    <span class="v3-callout-label">Biggest Opportunity</span>
+                    <p class="v3-callout-title">{{ summary.biggest_opportunity.title }}</p>
+                </div>
+            {% endif %}
+            {% if not summary.biggest_risk and not summary.biggest_opportunity %}
+                <div class="v3-callout v3-callout-neutral">
+                    <span class="v3-callout-label">Steady State</span>
+                    <p class="v3-callout-title">No critical risks or breakout opportunities right now.</p>
+                </div>
             {% endif %}
         </div>
-    </div>
-
-    <div class="v3-exec-callouts">
-        {% if summary.biggest_risk %}
-            <div class="v3-callout v3-callout-risk">
-                <span class="v3-callout-label">Biggest Risk</span>
-                <p class="v3-callout-title">{{ summary.biggest_risk.title }}</p>
-                {% if summary.biggest_risk.message %}
-                    <p class="v3-callout-msg">{{ summary.biggest_risk.message }}</p>
-                {% endif %}
-            </div>
-        {% endif %}
-        {% if summary.biggest_opportunity %}
-            <div class="v3-callout v3-callout-opp">
-                <span class="v3-callout-label">Biggest Opportunity</span>
-                <p class="v3-callout-title">{{ summary.biggest_opportunity.title }}</p>
-                {% if summary.biggest_opportunity.message %}
-                    <p class="v3-callout-msg">{{ summary.biggest_opportunity.message }}</p>
-                {% endif %}
-            </div>
-        {% endif %}
     </div>
 
     {% if summary.recommendations %}
         <div class="v3-exec-recs">
-            <h3 class="v3-exec-h">Recommended Focus</h3>
-            <ul class="v3-rec-list">
-                {% for r in summary.recommendations %}
-                    <li class="v3-rec v3-rec-p{{ r.priority }}">
-                        <strong class="v3-rec-title">{{ r.title }}</strong>
-                        {% if r.message %}<span class="v3-rec-msg">— {{ r.message }}</span>{% endif %}
-                    </li>
-                {% endfor %}
-            </ul>
+            <span class="v3-h4 v3-h4-inline">Recommended Focus —</span>
+            {% for r in summary.recommendations %}
+                <span class="v3-rec-chip v3-rec-chip-p{{ r.priority }}">{{ r.title }}</span>
+            {% endfor %}
         </div>
     {% endif %}
 </section>

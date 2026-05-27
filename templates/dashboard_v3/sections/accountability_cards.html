@@ -1,7 +1,7 @@
-{# Per-domain accountability cards — Going Well / Needs Attention / Insight / Recommendation. #}
-<section class="v3-cards" aria-label="Domain accountability">
+{# Domain accountability — dense 3-column desktop grid. #}
+<section class="v3-cards">
     <header class="v3-section-head">
-        <h2 class="v3-section-title">Domain Accountability</h2>
+        <h2 class="v3-h2">Domain Accountability</h2>
     </header>
 
     {% if cards %}
@@ -14,51 +14,28 @@
                     </header>
 
                     {% if card.going_well %}
-                        <div class="v3-card-block">
-                            <h4 class="v3-card-h">Going Well</h4>
-                            <ul class="v3-card-list v3-card-list-positive">
-                                {% for w in card.going_well %}
-                                    <li>
-                                        <span class="v3-bullet" aria-hidden="true">✓</span>
-                                        {{ w.title }}
-                                    </li>
-                                {% endfor %}
-                            </ul>
-                        </div>
+                        <ul class="v3-tight v3-tight-pos v3-tight-sm">
+                            {% for w in card.going_well %}
+                                <li><span class="v3-mark" aria-hidden="true">✓</span>{{ w.title }}</li>
+                            {% endfor %}
+                        </ul>
                     {% endif %}
 
                     {% if card.needs_attention %}
-                        <div class="v3-card-block">
-                            <h4 class="v3-card-h">Needs Attention</h4>
-                            <ul class="v3-card-list v3-card-list-warn">
-                                {% for n in card.needs_attention %}
-                                    <li>
-                                        <span class="v3-bullet" aria-hidden="true">
-                                            {% if n.severity == 'critical' %}!{% else %}⚠{% endif %}
-                                        </span>
-                                        {{ n.title }}
-                                    </li>
-                                {% endfor %}
-                            </ul>
-                        </div>
+                        <ul class="v3-tight v3-tight-warn v3-tight-sm">
+                            {% for n in card.needs_attention %}
+                                <li><span class="v3-mark" aria-hidden="true">{% if n.severity == 'critical' %}!{% else %}⚠{% endif %}</span>{{ n.title }}</li>
+                            {% endfor %}
+                        </ul>
                     {% endif %}
 
                     {% if card.insight %}
-                        <div class="v3-card-insight">
-                            <span class="v3-card-insight-label">Accountability Insight</span>
-                            <p class="v3-card-insight-text">{{ card.insight }}</p>
-                        </div>
+                        <p class="v3-card-insight">{{ card.insight }}</p>
                     {% endif %}
 
                     {% if card.recommendation %}
                         <div class="v3-card-rec">
-                            <span class="v3-card-rec-label">Recommendation</span>
-                            <p class="v3-card-rec-text">
-                                <strong>{{ card.recommendation.title }}</strong>
-                                {% if card.recommendation.message %}
-                                    — {{ card.recommendation.message }}
-                                {% endif %}
-                            </p>
+                            <strong>{{ card.recommendation.title }}</strong>{% if card.recommendation.message %} — {{ card.recommendation.message }}{% endif %}
                         </div>
                     {% endif %}
                 </article>

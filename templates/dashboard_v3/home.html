@@ -5,7 +5,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/dashboard_v2.css' %}">
-<link rel="stylesheet" href="{% static 'dashboard_v3/css/dashboard_v3.css' %}?v=20260526d">
+<link rel="stylesheet" href="{% static 'dashboard_v3/css/dashboard_v3.css' %}?v=20260528a">
 {% endblock %}
 
 {% block content %}
@@ -74,6 +74,29 @@
             var shown = list.getAttribute('data-shown') === 'true';
             list.setAttribute('data-shown', shown ? 'false' : 'true');
             btn.textContent = shown ? btn.getAttribute('data-collapsed-label') : btn.getAttribute('data-expanded-label');
+        });
+    });
+
+    // ── Focus card navigation (advice → immediate action) ──
+    // The whole Focus card is a link to the canonical execution location
+    // (resolved deterministically server-side). Clicks on the Mark Complete
+    // button or any nested control are ignored so completion ≠ navigation.
+    function v3Navigate(el) {
+        var dest = el.getAttribute('data-v3-nav');
+        if (dest) window.location.href = dest;
+    }
+    document.querySelectorAll('[data-v3-nav]').forEach(function(card) {
+        card.addEventListener('click', function(e) {
+            if (e.target.closest('button, a, input, [data-v3-no-nav]')) return;
+            v3Navigate(card);
+        });
+        // Keyboard affordance (role="link" + tabindex)
+        card.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                if (e.target.closest('button, a, input, [data-v3-no-nav]')) return;
+                e.preventDefault();
+                v3Navigate(card);
+            }
         });
     });
 

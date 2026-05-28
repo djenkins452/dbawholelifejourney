@@ -319,6 +319,26 @@
     width: 4px;
     background: var(--v3-accent);
 }
+/* Whole-card navigation affordance — "go do it here" */
+.v3-focus-nav { cursor: pointer; transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.1s ease; }
+.v3-focus-nav:hover {
+    border-color: rgba(67, 56, 202, 0.45);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 14px 36px -16px rgba(67, 56, 202, 0.55);
+    transform: translateY(-1px);
+}
+.v3-focus-nav:focus-visible { outline: 2px solid var(--v3-accent); outline-offset: 3px; }
+.v3-focus-go {
+    margin-left: auto;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--v3-accent);
+    opacity: 0;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    transform: translateX(-4px);
+}
+.v3-focus-nav:hover .v3-focus-go { opacity: 1; transform: translateX(0); }
+
 .v3-focus-primary { display: flex; flex-direction: column; gap: 6px; }
 .v3-focus-tag-row { display: flex; align-items: center; gap: 8px; }
 .v3-focus-tag {

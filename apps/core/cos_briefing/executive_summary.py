@@ -219,6 +219,10 @@ def _collect_focus_now(user):
             # the same operating system.
             "toggle_url": primary.get("toggle_url"),
             "detail_url": primary.get("detail_url"),
+            # Deterministic "go do it here" deep-link, resolved from
+            # canonical metadata (not display text). See
+            # apps.core.execution.action_routing.
+            "destination_url": _resolve_destination(primary),
             "source": "selector:next_action",
         }
 
@@ -263,6 +267,16 @@ def _derive_protects(primary, primary_key, state) -> list[str]:
         if len(protects) >= 3:
             break
     return protects
+
+
+def _resolve_destination(primary) -> str:
+    """Canonical 'where does this action happen?' deep-link for the focus item."""
+    try:
+        from apps.core.execution.action_routing import resolve_action_destination
+        return resolve_action_destination(primary)
+    except Exception:
+        logger.debug("focus destination resolve failed", exc_info=True)
+        return "/life/"
 
 
 def _derive_estimated_minutes(primary) -> int | None:

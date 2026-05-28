@@ -7,6 +7,53 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-28 — feat(dashboard_v3): canonical "Do This Now" execution routing (advice → action)
+
+Focus Right Now no longer just tells Danny what to do — the whole card is
+now a one-click deep-link to the exact WLJ page where the action happens.
+Advice → immediate action, no hunting.
+
+**Canonical resolver:** `apps/core/execution/action_routing.py` ::
+`resolve_action_destination(item)`. Single source of truth for "where does
+this action happen?" — metadata-first (rename-safe), NOT display-text
+matching:
+- `source_type` ∈ {medication_dose, supplement_dose} → /health/physical/intake/
+- routine `activity_type`: workout → fitness, bible/faith → faith,
+  journal → journal
+- Task `module`: faith → faith, journal → journal, nutrition → nutrition,
+  fitness → fitness, medicine → intake
+- binary domain summaries (faith/workout/journal)
+- documented keyword bridge — ONLY for sub-domains the metadata can't yet
+  express (e.g. nutrition vs fitness within Health), mirroring the existing
+  `auto_complete_routine_schedules` metadata-first/name-fallback precedent
+- safe fallback → /life/
+
+All URLs resolve via `reverse()` with literal-path fallback → never a dead
+link. Rename-safe: "Bible Reading" → "Morning Scripture" still routes to
+/faith/ because it keys on activity_type, not the title (covered by test).
+
+**UX:** the entire Focus card is clickable (navigates to the execution
+location); a subtle "Go →" hint + elevation appears on hover; the
+"✓ Mark Complete" button remains a separate, isolated action. CSP-safe JS
+handler ignores clicks on buttons/links/inputs so completion never triggers
+navigation. Keyboard accessible (role="link" + Enter/Space).
+
+**Files Modified:**
+- `apps/core/execution/action_routing.py` (NEW resolver)
+- `apps/core/execution/tests/test_action_routing.py` (NEW — 12 tests)
+- `apps/core/cos_briefing/executive_summary.py` (focus.destination_url)
+- `templates/dashboard_v3/sections/focus_now.html` (whole-card nav)
+- `templates/dashboard_v3/home.html` (CSP-safe nav handler)
+- `static/dashboard_v3/css/dashboard_v3.css` (nav affordance)
+
+**Tests:** 24 pass (12 routing + 12 verified-completion), incl. the
+rename-safety guarantee and no-dead-link guard.
+
+**Why:** the dashboard removed completion friction last pass; this removes
+navigation friction. Focus Right Now is now a portal to the work, not just
+a label. dashboard_v3 only; v2 untouched.
+
+
 ## 2026-05-28 — fix(execution): Wake Up auto-completion never fired (day-start cache gated it)
 
 **TRUST-CRITICAL DEFECT.** dashboard_v3 showed "DO THIS NOW: Wake Up"

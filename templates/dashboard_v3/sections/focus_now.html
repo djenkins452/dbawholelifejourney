@@ -1,5 +1,8 @@
 <section class="v3-focus-section">
-    <article class="v3-focus">
+    <article class="v3-focus{% if focus.destination_url %} v3-focus-nav{% endif %}"
+             {% if focus.destination_url %}data-v3-nav="{{ focus.destination_url }}"
+             role="link" tabindex="0"
+             aria-label="Go to {{ focus.title }}"{% endif %}>
         <div class="v3-focus-primary">
             {% if focus %}
                 <div class="v3-focus-tag-row">
@@ -8,12 +11,9 @@
                     {% else %}
                         <span class="v3-focus-tag">🎯 FOCUS RIGHT NOW</span>
                     {% endif %}
+                    {% if focus.destination_url %}<span class="v3-focus-go" aria-hidden="true">Go →</span>{% endif %}
                 </div>
-                {% if focus.detail_url %}
-                    <h2 class="v3-focus-title"><a href="{{ focus.detail_url }}" class="v3-focus-title-link">{{ focus.title }}</a></h2>
-                {% else %}
-                    <h2 class="v3-focus-title">{{ focus.title }}</h2>
-                {% endif %}
+                <h2 class="v3-focus-title">{{ focus.title }}</h2>
                 {% if focus.reason %}<p class="v3-focus-reason">{{ focus.reason }}</p>{% endif %}
 
                 <dl class="v3-focus-grid">

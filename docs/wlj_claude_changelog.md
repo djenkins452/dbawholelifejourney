@@ -7,6 +7,65 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-28 — release(dashboard): promote dashboard_v3 to production default (flag-gated, instant rollback)
+
+dashboard_v3 is now the canonical dashboard served at `/dashboard/`. v2 is
+preserved intact as a rollback-safe backup.
+
+**Promotion mechanism (safest possible):** the `dashboard_v2:home` path
+(`/dashboard/`) is now a dispatcher (`dashboard_home_dispatch`) that serves
+`DashboardV3View` when `DASHBOARD_V3_DEFAULT=True` (default) and
+`DashboardV2View` otherwise. Because `LOGIN_REDIRECT_URL` and every nav link
+already point at `dashboard_v2:home`, this promotes v3 across login + all
+navigation with ZERO nav/redirect changes, and `reverse('dashboard_v2:home')`
+still returns `/dashboard/`.
+
+**Why not rename the app:** v3 reuses the `dashboard_v2:` action namespace
+(`task_toggle`, `intake_log`, `routine_schedule_toggle`, `cockpit_panel`).
+Renaming would break those reverse() calls + migrations + signals. So v2
+stays fully mounted; only the home view is swapped.
+
+**Rollback path (minutes, no code change):** set env
+`DASHBOARD_V3_DEFAULT=false` and redeploy → `/dashboard/` instantly serves v2
+again. v2 also stays directly reachable at `/dashboard/classic/` for
+validation and as the live rollback target. `/dashboard-v3/` retained for
+validation.
+
+**Parity:** v3 view now uses `HelpContextMixin` with help_context_id
+`DASHBOARD_V2_HOME` so the help button works on the promoted dashboard.
+
+**Observability (lightweight, one line each):**
+- `DASHBOARD_SERVE version=vX user=N` — which dashboard was served
+- `DASHBOARD_V3_LOAD user=N gauges=N focus=… dest=… rhythm=c/t` — per load
+- `DASH_TOGGLE kind=task|routine … status=…` — completion toggles
+- `WAKE_UP_RESULT …` (pre-existing) — verified wake-up
+No over-logging; just enough to debug a regression fast.
+
+**Everything preserved & working** (covered by tests): gauges, wake-up
+auto-completion, Focus Now, Mark Complete (canonical toggle), card
+navigation (routing resolver), rhythm completion, intake/faith/fitness/
+routine deep-links, Beth alignment (shared canonical truth), cockpit
+drill-down (dashboard_v2 endpoints intact).
+
+**Files Modified:**
+- `config/settings.py` (DASHBOARD_V3_DEFAULT flag)
+- `apps/dashboard_v2/views.py` (dashboard_home_dispatch + toggle logging)
+- `apps/dashboard_v2/urls.py` (home → dispatcher; add `classic/`)
+- `apps/dashboard_v3/views.py` (HelpContextMixin parity + load logging)
+- `apps/dashboard_v3/tests/test_views.py` (promotion + rollback + namespace
+  guard tests; updated the old v2-route assertion to the new reality)
+
+**Tests:** dashboard_v3 view suite + routing + verified-completion all pass,
+including: serves-v3-by-default, rollback-flag-serves-v2, classic-serves-v2,
+v2-action-endpoints-still-reverse.
+
+**Validation checklist:** ✓ gauges (dial render test) ✓ wake-up
+(dashboard-load + cache-set regression) ✓ Mark Complete (toggle URL test)
+✓ card navigation (routing suite) ✓ intake/faith/fitness/routine links
+(routing suite) ✓ no broken routes (check + reverse guard) ✓ Beth agreement
+(shared canonical truth). Mobile: responsive CSS unchanged from prior pass.
+
+
 ## 2026-05-28 — feat(dashboard_v3): canonical "Do This Now" execution routing (advice → action)
 
 Focus Right Now no longer just tells Danny what to do — the whole card is

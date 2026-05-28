@@ -7,7 +7,7 @@ Verifies:
 """
 
 from django.conf import settings
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from apps.users.models import TermsAcceptance, User
@@ -32,6 +32,37 @@ class DashboardV3ViewTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertTemplateUsed(resp, "dashboard_v3/home.html")
 
+    # ── PRODUCTION PROMOTION (2026-05-28) ──
+    def test_canonical_dashboard_serves_v3_by_default(self):
+        """/dashboard/ (dashboard_v2:home) serves dashboard_v3 by default."""
+        resp = self.client.get(reverse("dashboard_v2:home"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertTemplateUsed(resp, "dashboard_v3/home.html")
+
+    @override_settings(DASHBOARD_V3_DEFAULT=False)
+    def test_rollback_flag_serves_v2(self):
+        """Flipping DASHBOARD_V3_DEFAULT=False instantly restores v2 at
+        /dashboard/ — the rollback path."""
+        resp = self.client.get(reverse("dashboard_v2:home"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertTemplateUsed(resp, "dashboard_v2/home.html")
+
+    def test_v2_classic_route_always_serves_v2(self):
+        """/dashboard/classic/ is the preserved v2 home (validation +
+        rollback target), regardless of the flag."""
+        resp = self.client.get(reverse("dashboard_v2:classic"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertTemplateUsed(resp, "dashboard_v2/home.html")
+
+    def test_v2_action_endpoints_still_reverse(self):
+        """v3 depends on the dashboard_v2: action namespace — it must stay
+        intact after promotion."""
+        # These must not raise NoReverseMatch.
+        reverse("dashboard_v2:task_toggle", kwargs={"pk": 1})
+        reverse("dashboard_v2:routine_schedule_toggle", kwargs={"schedule_id": 1})
+        reverse("dashboard_v2:intake_log", kwargs={"schedule_id": 1})
+        reverse("dashboard_v2:cockpit_panel", kwargs={"domain": "health"})
+
     def test_context_carries_v3_namespace(self):
         resp = self.client.get(reverse("dashboard_v3:home"))
         self.assertIn("v3", resp.context)
@@ -44,9 +75,12 @@ class DashboardV3ViewTests(TestCase):
         resp = self.client.get(reverse("dashboard_v3:home"))
         self.assertIn(resp.status_code, (302, 301))
 
-    def test_does_not_break_dashboard_v2(self):
-        """Regression guard: V3 must not affect the V2 production route."""
-        resp = self.client.get(reverse("dashboard_v2:home"))
+    def test_dashboard_v2_is_preserved_and_reachable(self):
+        """Post-promotion: the V2 experience is preserved intact and still
+        renders correctly at its classic route (rollback target). /dashboard/
+        itself now serves V3 — covered by
+        test_canonical_dashboard_serves_v3_by_default."""
+        resp = self.client.get(reverse("dashboard_v2:classic"))
         self.assertEqual(resp.status_code, 200)
         self.assertTemplateUsed(resp, "dashboard_v2/home.html")
 

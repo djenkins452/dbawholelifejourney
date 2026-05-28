@@ -123,6 +123,12 @@ SECRET_KEY = env("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env.bool("DEBUG", default=False)
 
+# Dashboard promotion flag (2026-05-28): /dashboard/ serves dashboard_v3 by
+# default. INSTANT ROLLBACK: set DASHBOARD_V3_DEFAULT=false in the env and
+# redeploy — /dashboard/ falls back to the preserved v2 experience with no
+# code change. v2 also stays directly reachable at /dashboard/classic/.
+DASHBOARD_V3_DEFAULT = env.bool("DASHBOARD_V3_DEFAULT", default=True)
+
 # Allowed hosts for production and development
 ALLOWED_HOSTS = [
     "wholelifejourney.com",

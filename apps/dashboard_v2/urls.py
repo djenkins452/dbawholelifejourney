@@ -5,8 +5,11 @@ from . import views
 app_name = "dashboard_v2"
 
 urlpatterns = [
-    # Main dashboard shell
-    path("", views.DashboardV2View.as_view(), name="home"),
+    # Canonical dashboard home — dispatches to v3 (default) or v2 via the
+    # DASHBOARD_V3_DEFAULT flag. reverse('dashboard_v2:home') still → /dashboard/.
+    path("", views.dashboard_home_dispatch, name="home"),
+    # Preserved v2 home — direct access for validation + rollback target.
+    path("classic/", views.DashboardV2View.as_view(), name="classic"),
     # Cockpit expanded panel (HTMX)
     path(
         "cockpit/<str:domain>/panel/",

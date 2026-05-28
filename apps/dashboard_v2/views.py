@@ -25,6 +25,33 @@ from .services.dashboard_service import DashboardV2Service
 logger = logging.getLogger(__name__)
 
 
+# ── Production dashboard dispatcher ─────────────────────────────────
+
+
+def dashboard_home_dispatch(request, *args, **kwargs):
+    """Canonical /dashboard/ entry point.
+
+    Serves dashboard_v3 by default (promoted 2026-05-28). For an INSTANT
+    rollback, set the DASHBOARD_V3_DEFAULT env flag to False and redeploy —
+    /dashboard/ falls back to the preserved v2 experience with no code
+    change. v2 also stays directly reachable at /dashboard/classic/.
+
+    All dashboard_v2 action endpoints (task_toggle, intake_log,
+    routine_schedule_toggle, cockpit_panel, …) remain mounted and are
+    reused by dashboard_v3 — this dispatcher only swaps the HOME view.
+    """
+    from django.conf import settings
+
+    use_v3 = getattr(settings, "DASHBOARD_V3_DEFAULT", True)
+    uid = request.user.id if request.user.is_authenticated else "anon"
+    if use_v3:
+        from apps.dashboard_v3.views import DashboardV3View
+        logger.info("DASHBOARD_SERVE version=v3 user=%s", uid)
+        return DashboardV3View.as_view()(request, *args, **kwargs)
+    logger.info("DASHBOARD_SERVE version=v2 user=%s", uid)
+    return DashboardV2View.as_view()(request, *args, **kwargs)
+
+
 # ── Main Dashboard View ─────────────────────────────────────────────
 
 
@@ -637,6 +664,11 @@ class TaskToggleAction(LoginRequiredMixin, View):
         else:
             task.mark_complete()
 
+        logger.info(
+            "DASH_TOGGLE kind=task pk=%s user=%s status=%s",
+            pk, request.user.id, task.completion_status,
+        )
+
         # Invalidate cache and return the unified action center
         return _render_action_center(request)
 
@@ -765,6 +797,12 @@ class RoutineScheduleToggleAction(LoginRequiredMixin, View):
                 request.user.id, schedule.pk,
                 getattr(schedule.routine, 'name', ''),
                 result.get('status'), result.get('error'),
+            )
+        else:
+            logger.info(
+                "DASH_TOGGLE kind=routine schedule_id=%s user=%s status=%s",
+                schedule.pk, request.user.id,
+                (result or {}).get('status') if isinstance(result, dict) else 'ok',
             )
 
         # Invalidate cache and return the unified action center

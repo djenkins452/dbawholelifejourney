@@ -13,19 +13,23 @@ import logging
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView
 
+from apps.help.mixins import HelpContextMixin
+
 from apps.dashboard_v3.services import build_dashboard_v3_context, build_weather_tile
 
 logger = logging.getLogger(__name__)
 
 
-class DashboardV3View(LoginRequiredMixin, TemplateView):
-    """The experimental CoS-first dashboard.
+class DashboardV3View(HelpContextMixin, LoginRequiredMixin, TemplateView):
+    """The CoS-first dashboard — PRODUCTION default at /dashboard/ (2026-05-28).
 
-    Lives at /dashboard-v3/. Coexists with /dashboard/ (V2 production) and
-    /dashboard/legacy/ (V1). No data writes, no model changes.
+    Also reachable at /dashboard-v3/ for validation. The preserved v2
+    experience lives at /dashboard/classic/ (rollback target). Reuses the
+    DASHBOARD_V2_HOME help context for parity with the help button.
     """
 
     template_name = "dashboard_v3/home.html"
+    help_context_id = "DASHBOARD_V2_HOME"
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -56,6 +60,25 @@ class DashboardV3View(LoginRequiredMixin, TemplateView):
 
         ctx["v3"] = build_dashboard_v3_context(self.request.user)
         ctx["weather_tile"] = build_weather_tile(self.request.user)
+
+        # Lightweight load observability (one line) — enough to debug a
+        # regression fast without over-logging. Captures gauge count, the
+        # focus action + its resolved destination, and rhythm totals.
+        try:
+            v3 = ctx["v3"]
+            focus = v3.get("focus_now") or {}
+            rhythm_totals = (v3.get("rhythm") or {}).get("totals", {})
+            logger.info(
+                "DASHBOARD_V3_LOAD user=%s gauges=%d focus=%r dest=%s "
+                "rhythm=%s/%s",
+                self.request.user.id,
+                len(v3.get("cockpit_domains") or v3.get("gauges") or []),
+                focus.get("title"),
+                focus.get("destination_url"),
+                rhythm_totals.get("completed"), rhythm_totals.get("total"),
+            )
+        except Exception:
+            logger.debug("v3: load log skipped", exc_info=True)
 
         # Greeting & time phase — small helpers reused from v2 so the
         # surfaces feel coherent without inventing parallel logic.

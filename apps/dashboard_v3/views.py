@@ -31,11 +31,23 @@ class DashboardV3View(LoginRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
 
         # VERIFIED AUTO-COMPLETION (Rule 1 — authenticated presence proves
-        # wakefulness). Loading the dashboard IS authenticated activity, so
-        # run the canonical, idempotent day-start initializer BEFORE building
-        # context — that way Wake Up auto-completes and the cascade (gauges,
-        # focus, rhythm, exec briefing) reflects it on THIS render. Cached
-        # per user-local day, so this is a cheap no-op after the first load.
+        # wakefulness). Loading the dashboard IS authenticated activity.
+        #
+        # Run wake-up completion UNCONDITIONALLY here (NOT via the
+        # day-start cache) so it reflects on THIS render regardless of
+        # whether handle_day_start already ran/short-circuited from a CoS
+        # path earlier today. complete_wake_up() is idempotent
+        # (first-write-wins) and completes whatever the dashboard actually
+        # shows as the Wake Up item, so this is the authoritative trigger
+        # for the surface the user is looking at.
+        try:
+            from apps.core.execution.verified_completion import complete_wake_up
+            complete_wake_up(self.request.user)
+        except Exception:
+            logger.debug("v3: wake-up completion skipped", exc_info=True)
+
+        # Also run the broader day-start initializer (ensures today's
+        # routine task instances exist). Idempotent / cache-gated.
         try:
             from apps.ai.executive_briefing import handle_day_start
             handle_day_start(self.request.user)

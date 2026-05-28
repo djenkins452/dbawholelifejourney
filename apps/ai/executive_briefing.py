@@ -104,31 +104,34 @@ def handle_day_start(user):
     today = get_user_today(user)
     cache_key = f"wlj:day_start:{user.id}:{today}"
 
-    # Fast path: already initialized today (cache hit)
-    if cache.get(cache_key):
-        return {'initialized': False, 'wake_completed': False}
+    # ── Step 1: expensive once-per-day init (routine task creation) ──
+    # ONLY this is cache-gated. Wake-up is NOT gated here (see Step 2).
+    initialized = False
+    if not cache.get(cache_key):
+        try:
+            _ensure_routine_tasks_for_today(user, today)
+        except Exception as e:
+            logger.debug("Day start: routine task ensure failed: %s", e)
+        cache.set(cache_key, True, timeout=86400)
+        initialized = True
 
-    # Perform day-start initialization
-    wake_completed = False
-
-    # Step 1: Ensure routine tasks exist for today
-    try:
-        _ensure_routine_tasks_for_today(user, today)
-    except Exception as e:
-        logger.debug("Day start: routine task ensure failed: %s", e)
-
-    # Step 2: Auto-complete Wake Up
+    # ── Step 2: Auto-complete Wake Up — runs on EVERY call ──
+    # DEFECT FIX (2026-05-28): wake-up was previously gated behind the
+    # day-start cache, so a single early no-op (e.g. the routine instance
+    # not yet existing, or a check-in path that set the flag) permanently
+    # disabled wake-up for the rest of the day — leaving the dashboard's
+    # "Wake Up" incomplete while Beth (which infers wakefulness from
+    # activity) reported the user as awake. Wake-up is idempotent
+    # (first-write-wins), so it is safe and correct to attempt it on every
+    # authenticated entry point until it succeeds.
     wake_completed = auto_complete_wakeup(user, today)
 
-    # Mark initialized — TTL until end of day (max 24h)
-    cache.set(cache_key, True, timeout=86400)
-
     logger.info(
-        "DAY_START_INITIALIZED user=%s date=%s wake=%s",
-        user.id, today, wake_completed,
+        "DAY_START user=%s date=%s initialized=%s wake=%s",
+        user.id, today, initialized, wake_completed,
     )
 
-    return {'initialized': True, 'wake_completed': wake_completed}
+    return {'initialized': initialized, 'wake_completed': wake_completed}
 
 
 def auto_complete_wakeup(user, today):
@@ -153,22 +156,14 @@ def auto_complete_wakeup(user, today):
         bool — True if a Wake Up schedule was found and completed.
     """
     try:
-        # Delegate to the formal VERIFIED AUTO-COMPLETION category so wake-up
-        # flows through the same named path as workout/bible (and the same
-        # underlying canonical write path). Idempotent.
-        from apps.core.execution.verified_completion import (
-            on_authenticated_presence,
-        )
+        # Delegate to the formal VERIFIED AUTO-COMPLETION category. The
+        # contract-driven completer finds the Wake Up item in today's
+        # canonical execution contract and completes whatever it actually
+        # is (routine_item or task) — no keyword guessing. Idempotent.
+        from apps.core.execution.verified_completion import complete_wake_up
 
-        result = on_authenticated_presence(user)
-        if result.get("completed"):
-            logger.info(
-                "AUTO_WAKEUP user=%s schedules=%s tasks=%s",
-                user.id,
-                [r.get('schedule_id') for r in result.get('schedules', [])],
-                result.get('tasks', []),
-            )
-            return True
+        result = complete_wake_up(user, target_date=today)
+        return bool(result.get("completed"))
     except Exception as e:
         logger.warning("Wake Up auto-complete failed: %s", e, exc_info=True)
     return False

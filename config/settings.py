@@ -368,6 +368,15 @@ if TESTING:
             "BACKEND": "django.core.files.storage.FileSystemStorage",
         },
     }
+    # Run Celery tasks synchronously in tests so .delay() calls never try to
+    # reach a real Redis broker. Without this, any code path that enqueues a
+    # task (e.g. deferred routine auto-complete, CoS prompt scheduling) blocks
+    # the test for ~20s of Redis connection retries. Test-only — production
+    # path (the else branch / runtime config) is unaffected.
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = False
+    CELERY_BROKER_URL = "memory://"
+    CELERY_RESULT_BACKEND = "cache+memory://"
 else:
     STORAGES = {
         "staticfiles": {

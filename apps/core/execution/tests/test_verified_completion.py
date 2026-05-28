@@ -140,3 +140,79 @@ class VerifiedCompletionTests(TestCase):
         result = apply_verified_completion(self.user, "wake_up")
         self.assertFalse(result["completed"])
         self.assertEqual(RoutineLog.objects.count(), 0)
+
+
+class WakeUpDefectRegressionTests(TestCase):
+    """Regression guard for the 2026-05-28 defect: wake-up was gated behind
+    the day-start cache, so a single early no-op permanently disabled it for
+    the rest of the day. These tests prove wake-up completes regardless of
+    the cache state, and via the contract-driven completer for BOTH a
+    routine_item and a task."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="wakedefect@test.com", password="testpass123"
+        )
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"),
+        )
+        self.today = get_user_today(self.user)
+
+    def _wake_up_routine_schedule(self):
+        routine = Routine.objects.create(user=self.user, name="Morning Routine")
+        return RoutineSchedule.objects.create(
+            routine=routine,
+            name="Wake up",                 # lowercase 'u', as Danny has it
+            scheduled_time=dtime(5, 0),
+            days_of_week="0,1,2,3,4,5,6",
+            is_active=True,
+        )
+
+    def test_contract_driven_completes_routine_item(self):
+        """complete_wake_up finds the 'Wake up' routine item in the canonical
+        execution contract and completes that exact schedule."""
+        from apps.core.execution.verified_completion import complete_wake_up
+        sched = self._wake_up_routine_schedule()
+        result = complete_wake_up(self.user)
+        self.assertTrue(result["completed"])
+        self.assertIn("routine_item", result["source_types"])
+        log = RoutineLog.objects.get(schedule=sched, scheduled_date=self.today)
+        self.assertEqual(log.completion_source, "auto")
+
+    def test_wake_up_completes_even_when_daystart_cache_already_set(self):
+        """THE core defect: simulate an earlier CoS interaction having set
+        the day-start cache. handle_day_start must STILL complete wake-up."""
+        from django.core.cache import cache
+        from apps.ai.executive_briefing import handle_day_start
+        sched = self._wake_up_routine_schedule()
+
+        # Simulate "already initialized today" from an earlier entry point
+        # that did NOT complete wake-up.
+        cache.set(f"wlj:day_start:{self.user.id}:{self.today}", True, 86400)
+        self.assertFalse(
+            RoutineLog.objects.filter(schedule=sched).exists()
+        )
+
+        result = handle_day_start(self.user)
+        self.assertTrue(
+            result["wake_completed"],
+            "Wake-up must complete even when the day-start cache is set",
+        )
+        self.assertTrue(
+            RoutineLog.objects.filter(
+                schedule=sched, scheduled_date=self.today
+            ).exists()
+        )
+
+    def test_idempotent_repeat_calls(self):
+        from apps.core.execution.verified_completion import complete_wake_up
+        sched = self._wake_up_routine_schedule()
+        complete_wake_up(self.user)
+        complete_wake_up(self.user)  # second call — no error, no double log
+        self.assertEqual(
+            RoutineLog.objects.filter(
+                schedule=sched, scheduled_date=self.today
+            ).count(),
+            1,
+        )

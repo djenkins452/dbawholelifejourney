@@ -162,5 +162,138 @@ def on_authenticated_presence(user) -> dict[str, Any]:
     Idempotent — safe to call from every authenticated entry point (login
     signal, dashboard load, CoS first interaction). Returns the verified
     completion result for 'wake_up'.
+
+    Uses the contract-driven completer so that whatever the dashboard SHOWS
+    as the Wake Up item is exactly what gets completed (no Task-vs-Schedule
+    keyword guessing).
     """
-    return apply_verified_completion(user, "wake_up")
+    return complete_wake_up(user)
+
+
+# ── Contract-driven Wake Up completion (the robust path) ──────────────
+# Tokens that identify a Wake Up execution item by title. Case-insensitive.
+_WAKE_UP_TOKENS = ("wake up", "wake-up", "wakeup")
+
+
+def complete_wake_up(user, *, target_date=None) -> dict[str, Any]:
+    """Deterministically complete today's Wake Up item.
+
+    Strategy: locate the Wake Up item in the canonical execution contract
+    (`build_today_execution`) and complete THAT exact item via its canonical
+    mutation, keyed by source_type + source_id. This removes the
+    Task-vs-RoutineSchedule ambiguity entirely — we complete whatever the
+    dashboard actually displays.
+
+    Falls back to the keyword facade only when no Wake Up item is surfaced
+    in today's contract (covers schedules/tasks not yet in the contract).
+
+    Idempotent: already-completed items are skipped. Never raises on the
+    request path. Heavily instrumented for production tracing.
+    """
+    uid = getattr(user, "id", "?")
+    matched: list[dict] = []
+
+    try:
+        from apps.core.execution.today_execution import build_today_execution
+        contract = build_today_execution(user)
+        items = contract.get("items", []) or []
+    except Exception:
+        logger.warning(
+            "WAKE_UP build_today_execution failed user=%s", uid, exc_info=True,
+        )
+        items = []
+
+    for item in items:
+        title = (item.get("title") or "").strip().lower()
+        if any(tok in title for tok in _WAKE_UP_TOKENS):
+            matched.append(item)
+
+    # Trace exactly what we found — so production logs answer "did the
+    # lookup match, and what source type was it?"
+    logger.info(
+        "WAKE_UP_TRACE user=%s contract_items=%d matched=%s",
+        uid, len(items),
+        [(m.get("source_type"), m.get("source_id"), m.get("title"),
+          m.get("completed_today")) for m in matched],
+    )
+
+    if not matched:
+        # Nothing surfaced today — fall back to the keyword facade in case
+        # a schedule/task exists outside today's contract window.
+        logger.info("WAKE_UP_FALLBACK_TO_FACADE user=%s", uid)
+        return apply_verified_completion(user, "wake_up", target_date=target_date)
+
+    completed_any = False
+    already = False
+    for item in matched:
+        if item.get("completed_today"):
+            already = True
+            continue
+        if _complete_execution_item(user, item, target_date=target_date):
+            completed_any = True
+
+    reason = (
+        "authenticated_presence" if completed_any
+        else ("already_complete" if already else "no_match")
+    )
+    logger.info(
+        "WAKE_UP_RESULT user=%s completed=%s reason=%s",
+        uid, completed_any, reason,
+    )
+    return {
+        "activity": "wake_up",
+        "completed": completed_any,
+        "reason": reason,
+        "source": "auto",
+        "matched": [m.get("title") for m in matched],
+        "source_types": [m.get("source_type") for m in matched],
+    }
+
+
+def _complete_execution_item(user, item, *, target_date=None) -> bool:
+    """Complete a single execution item via its canonical mutation.
+
+    Dispatches by source_type to the EXISTING canonical write path — this is
+    a router to canonical mutations, not a new write path:
+      - task          → Task.mark_complete()
+      - routine_item  → auto_complete_routine_schedules() against the exact
+                        schedule's own name (guaranteed match, auto provenance)
+    """
+    stype = item.get("source_type")
+    sid = item.get("source_id")
+    try:
+        if stype == "task":
+            from apps.life.models import Task
+            t = Task.objects.filter(pk=sid, user=user).first()
+            if t and t.completion_status == "pending":
+                t.mark_complete()
+                logger.info("WAKE_UP_COMPLETED_TASK user=%s task=%s",
+                            getattr(user, "id", "?"), sid)
+                return True
+        elif stype == "routine_item":
+            from apps.life.models import RoutineSchedule
+            from apps.life.services.routine_helpers import (
+                auto_complete_routine_schedules,
+            )
+            sched = RoutineSchedule.objects.filter(
+                pk=sid, routine__user=user,
+            ).first()
+            if sched:
+                # Use the schedule's OWN name as keyword → guaranteed
+                # icontains match, with canonical 'auto' provenance.
+                res = auto_complete_routine_schedules(
+                    user=user, keyword=sched.name, source="auto",
+                    target_date=target_date,
+                )
+                if res:
+                    logger.info(
+                        "WAKE_UP_COMPLETED_ROUTINE user=%s schedule=%s name=%r",
+                        getattr(user, "id", "?"), sid, sched.name,
+                    )
+                    return True
+    except Exception:
+        logger.warning(
+            "WAKE_UP complete item failed stype=%s sid=%s user=%s",
+            stype, sid, getattr(user, "id", "?"), exc_info=True,
+        )
+    return False

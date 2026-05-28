@@ -7,6 +7,80 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-28 — fix(execution): Wake Up auto-completion never fired (day-start cache gated it)
+
+**TRUST-CRITICAL DEFECT.** dashboard_v3 showed "DO THIS NOW: Wake Up"
+and "Morning rhythm: Wake up incomplete" while Beth simultaneously
+reported the user as awake (Work on WLJ 5:15 AM, Prayer Time 5:30 AM).
+Two truths. Root-caused and fixed — no guessing.
+
+**Root cause:** `handle_day_start()` gated ALL its work — including
+wake-up auto-completion — behind a once-per-day cache flag
+(`wlj:day_start:{user}:{today}`). The flag was set on the FIRST call
+regardless of whether wake-up actually completed:
+```python
+if cache.get(cache_key):
+    return {... 'wake_completed': False}   # short-circuits wake-up
+...
+wake_completed = auto_complete_wakeup(user, today)
+cache.set(cache_key, True, ...)            # set even if wake-up no-op'd
+```
+The user's earliest CoS interaction (~5:15 AM) set the flag. If wake-up
+didn't complete on that first call (the routine instance not yet ready,
+or a lookup miss against the specific item), EVERY later call — the
+"check in", the dashboard load — short-circuited at the cache check and
+never retried. Wake Up stayed open all day. Beth, which infers
+wakefulness from activity rather than from the Wake Up item, disagreed.
+
+**Why "check in" didn't trigger it:** `build_checkin_briefing()` never
+calls `handle_day_start()` — only `build_executive_briefing()` and a few
+ai/views entry points do. So the check-in never attempted wake-up, and
+by the time the dashboard ran it, the cache (set by an earlier entry
+point that failed wake-up) gated it off.
+
+**Fix:**
+1. **Decoupled wake-up from the cache.** `handle_day_start()` now only
+   cache-gates the expensive routine-task-creation; wake-up runs on
+   EVERY call (it is idempotent — first-write-wins).
+2. **Contract-driven completer.** New
+   `verified_completion.complete_wake_up(user)` finds the Wake Up item in
+   the canonical execution contract (`build_today_execution`) and
+   completes THAT exact item by source_type via canonical mutations
+   (Task.mark_complete / auto_complete_routine_schedules against the
+   schedule's own name). Removes the Task-vs-RoutineSchedule keyword
+   ambiguity — it completes whatever the dashboard actually shows.
+3. **Dashboard runs it unconditionally.** dashboard_v3 view calls
+   `complete_wake_up()` directly (NOT via the day-start cache) before
+   composing context, so the cascade reflects on the same render.
+4. **Heavy instrumentation.** `WAKE_UP_TRACE` / `WAKE_UP_RESULT` /
+   `WAKE_UP_COMPLETED_*` logs record contract items, matches, source
+   types, and skip reasons for production tracing.
+
+**Also fixed (root of the slow tests):** added `CELERY_TASK_ALWAYS_EAGER`
++ in-memory broker under the `TESTING` settings block. Tests were
+hammering a non-existent local Redis (20× retries ≈ 326s for 9 tests);
+now the same suite runs in 2.4s. Test-only — production unaffected.
+
+**Files Modified:**
+- `apps/core/execution/verified_completion.py` (complete_wake_up +
+  _complete_execution_item + instrumentation)
+- `apps/ai/executive_briefing.py` (handle_day_start decoupled;
+  auto_complete_wakeup → contract-driven completer)
+- `apps/dashboard_v3/views.py` (unconditional complete_wake_up)
+- `config/settings.py` (Celery eager in TESTING)
+- `apps/core/execution/tests/test_verified_completion.py` (+3 regression
+  tests, incl. "completes even when day-start cache already set")
+
+**Tests:** 12 verified-completion tests pass in 2.4s, including the exact
+defect regression.
+
+**Verification proof:** `test_wake_up_completes_even_when_daystart_cache_already_set`
+sets the day-start cache flag, asserts no Wake Up RoutineLog exists, calls
+`handle_day_start()`, then asserts the RoutineLog IS created with
+`completion_source='auto'`. This fails on the old code and passes on the
+fix.
+
+
 ## 2026-05-26 — feat(execution): formal VERIFIED AUTO-COMPLETION category + Wake Up on dashboard/login
 
 Formalizes deterministic auto-completion ("WLJ is where the activity

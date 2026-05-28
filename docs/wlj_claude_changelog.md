@@ -7,6 +7,68 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-26 — feat(execution): formal VERIFIED AUTO-COMPLETION category + Wake Up on dashboard/login
+
+Formalizes deterministic auto-completion ("WLJ is where the activity
+happened → the matching task auto-completes") as a named category, and
+closes the one real gap: Wake Up now fires on ANY authenticated
+activity, not only CoS chat.
+
+**VERIFIED, not inferred.** Only deterministic in-app proof triggers
+completion. No LLM, no pattern/streak/schedule guessing.
+raw data → signals → completion → Beth/UI.
+
+**New formal facade:** `apps/core/execution/verified_completion.py`
+- `apply_verified_completion(user, activity, ...)` + registry for the
+  three rules: wake_up / workout / bible.
+- Routes through the EXISTING canonical write paths only —
+  `auto_complete_routine_schedules()` (RoutineSchedule→RoutineLog,
+  provenance) and `RoutineTaskService.auto_complete_routine_task()`
+  (Task). No second engine, no duplicate logic.
+- Records provenance via existing `RoutineLog.completion_source` enum
+  (auto / workout / bible) + a human `reason` (authenticated_presence /
+  workout_completed / bible_activity_completed).
+- Idempotent (first-write-wins per day); never raises on request path.
+
+**Wake Up now triggers on authenticated activity (the real gap):**
+- `apps/dashboard_v3/views.py` calls the canonical idempotent
+  `handle_day_start(user)` BEFORE building context — so loading the
+  dashboard auto-completes Wake Up and the cascade (gauges, focus,
+  rhythm, exec briefing) reflects it on the SAME render.
+- `apps/users/signals.py` adds a `user_logged_in` receiver →
+  `handle_day_start(user)`, so a login also completes Wake Up.
+- `apps/ai/executive_briefing.py::auto_complete_wakeup` refactored to
+  delegate to the formal facade — wake-up now flows through the same
+  named category as workout/bible.
+
+**Already-wired (verified, unchanged):** Workout (health signals +
+views) and Bible (faith views, both task + provenance schedule paths)
+already auto-complete through the same underlying canonical functions.
+They are now documented in the formal category registry.
+
+**Cascade:** All downstream surfaces (rhythm, Focus Right Now,
+Executive Briefing, gauges, at-risk logic, Beth context) read canonical
+state fresh, so completion propagates automatically on next read/render.
+
+**Files Modified:**
+- `apps/core/execution/verified_completion.py` (NEW — formal facade)
+- `apps/core/execution/tests/test_verified_completion.py` (NEW — 11 tests)
+- `apps/ai/executive_briefing.py` (auto_complete_wakeup → facade)
+- `apps/dashboard_v3/views.py` (handle_day_start before context build)
+- `apps/users/signals.py` (user_logged_in → handle_day_start)
+- `apps/dashboard_v3/tests/test_views.py` (+1 dashboard-load wake-up test)
+
+**Tests:** verified-completion suite + dashboard suite all pass.
+
+**Why:** The mechanics largely existed but Wake Up only fired from CoS
+chat — opening dashboard_v3 in the morning left it incomplete. Now any
+authenticated activity (login or dashboard load) completes it. The new
+facade gives the codebase a single, named, provenance-consistent entry
+point for the category without creating a second write path. Safety:
+strictly verified, never inferred — the lesson from prior
+inferred-completion incidents is preserved.
+
+
 ## 2026-05-26 — feat(dashboard_v3): task interaction model (circle=complete, title=open)
 
 dashboard_v3 stops being visual-only. Rhythm task rows and Focus Right

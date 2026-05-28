@@ -29,6 +29,19 @@ class DashboardV3View(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+
+        # VERIFIED AUTO-COMPLETION (Rule 1 — authenticated presence proves
+        # wakefulness). Loading the dashboard IS authenticated activity, so
+        # run the canonical, idempotent day-start initializer BEFORE building
+        # context — that way Wake Up auto-completes and the cascade (gauges,
+        # focus, rhythm, exec briefing) reflects it on THIS render. Cached
+        # per user-local day, so this is a cheap no-op after the first load.
+        try:
+            from apps.ai.executive_briefing import handle_day_start
+            handle_day_start(self.request.user)
+        except Exception:
+            logger.debug("v3: day-start init skipped", exc_info=True)
+
         ctx["v3"] = build_dashboard_v3_context(self.request.user)
         ctx["weather_tile"] = build_weather_tile(self.request.user)
 

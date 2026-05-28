@@ -153,20 +153,20 @@ def auto_complete_wakeup(user, today):
         bool — True if a Wake Up schedule was found and completed.
     """
     try:
-        from apps.life.services.routine_helpers import (
-            auto_complete_routine_schedules,
+        # Delegate to the formal VERIFIED AUTO-COMPLETION category so wake-up
+        # flows through the same named path as workout/bible (and the same
+        # underlying canonical write path). Idempotent.
+        from apps.core.execution.verified_completion import (
+            on_authenticated_presence,
         )
 
-        results = auto_complete_routine_schedules(
-            user=user,
-            keyword='wake up',
-            source='auto',
-        )
-        if results:
+        result = on_authenticated_presence(user)
+        if result.get("completed"):
             logger.info(
-                "AUTO_WAKEUP user=%s schedules=%s",
+                "AUTO_WAKEUP user=%s schedules=%s tasks=%s",
                 user.id,
-                [r['schedule_id'] for r in results],
+                [r.get('schedule_id') for r in result.get('schedules', [])],
+                result.get('tasks', []),
             )
             return True
     except Exception as e:

@@ -25,11 +25,30 @@ Copyright:
 """
 
 from django.conf import settings
+from django.contrib.auth.signals import user_logged_in
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
 
 from .models import UserPreferences
+
+
+@receiver(user_logged_in)
+def verified_wakeup_on_login(sender, request, user, **kwargs):
+    """VERIFIED AUTO-COMPLETION (Rule 1): a login IS authenticated activity,
+    which deterministically proves the user is awake. Run the canonical,
+    idempotent day-start initializer so today's Wake Up auto-completes.
+
+    Idempotent (cached per user-local day); never raises into the auth flow.
+    """
+    try:
+        from apps.ai.executive_briefing import handle_day_start
+        handle_day_start(user)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).debug(
+            "verified wake-up on login skipped", exc_info=True
+        )
 
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)

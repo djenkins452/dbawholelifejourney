@@ -63,6 +63,34 @@ class DashboardV3ViewTests(TestCase):
         self.assertNotIn("{#", body, "Found a leaked Django comment in rendered HTML")
         self.assertNotIn("#}", body, "Found a leaked Django comment close in rendered HTML")
 
+    def test_dashboard_load_auto_completes_wake_up(self):
+        """VERIFIED AUTO-COMPLETION Rule 1: loading the dashboard is
+        authenticated activity → today's Wake Up routine auto-completes
+        through the canonical path, and the cascade reflects it."""
+        from datetime import time as dtime
+        from apps.core.utils import get_user_today
+        from apps.life.models import Routine, RoutineSchedule, RoutineLog
+
+        routine = Routine.objects.create(user=self.user, name="Morning Routine")
+        sched = RoutineSchedule.objects.create(
+            routine=routine,
+            name="Wake Up",
+            scheduled_time=dtime(6, 0),
+            days_of_week="0,1,2,3,4,5,6",
+            is_active=True,
+        )
+        today = get_user_today(self.user)
+        self.assertFalse(
+            RoutineLog.objects.filter(schedule=sched, scheduled_date=today).exists()
+        )
+
+        resp = self.client.get(reverse("dashboard_v3:home"))
+        self.assertEqual(resp.status_code, 200)
+
+        # Wake Up must now be completed via the canonical path with auto provenance.
+        log = RoutineLog.objects.get(schedule=sched, scheduled_date=today)
+        self.assertEqual(log.completion_source, "auto")
+
     def test_task_circle_posts_to_canonical_v2_toggle_endpoint(self):
         """Operating-system contract: clicking the rhythm circle MUST
         POST to the exact same canonical mutation endpoint v2 uses

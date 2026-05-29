@@ -64,6 +64,14 @@ HEALTH_CONTRACT = {
     'weight_unit':               'lb',
     'weight_trend':              'insufficient_data',
     'weight_change_30d':         None,
+    # Weight-sync staleness signal (2026-05-28) — canonical "is Apple Health
+    # weight sync delivering?" so dashboard/Beth distinguish a SYNC failure
+    # from the user not weighing. Populated from
+    # apps.health.services.weight_sync.get_weight_sync_status.
+    'weight_last_synced_at':     None,
+    'weight_sync_source':        None,   # apple_health | manual | None
+    'weight_sync_gap_days':      None,
+    'weight_sync_stale':         False,
     # ── Blood Pressure ────────────────────────────────────────
     'bp_status':                 'no_data',
     'bp_status_reason':          '',
@@ -220,6 +228,22 @@ def build_health_state(user):
         state["weight_entries_90d"] = WeightEntry.objects.filter(
             user=user, recorded_at__gte=cutoff_90d
         ).count()
+
+    # ── Weight-sync staleness signal ─────────────────────────
+    # Canonical "is Apple Health weight sync delivering?" so dashboard/Beth
+    # distinguish a sync failure from the user not weighing. Reads the SAME
+    # WeightEntry rows; only adds provenance/staleness interpretation.
+    try:
+        from apps.health.services.weight_sync import get_weight_sync_status
+        sync = get_weight_sync_status(user)
+        state["weight_last_synced_at"] = (
+            sync["last_entry_at"].isoformat() if sync.get("last_entry_at") else None
+        )
+        state["weight_sync_source"] = sync.get("recent_source")
+        state["weight_sync_gap_days"] = sync.get("gap_days")
+        state["weight_sync_stale"] = bool(sync.get("sync_stale"))
+    except Exception:
+        logger.warning("health state: weight_sync status failed", exc_info=True)
 
     # ── Body Composition ─────────────────────────────────────
     latest_bf = (

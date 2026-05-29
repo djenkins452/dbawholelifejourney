@@ -7,6 +7,72 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-28 — investigation+fix(health): Apple Health weight-sync trust failure (source-aware accountability)
+
+**Investigation (no guessing — code-traced + date math).** Dashboard/Beth
+reported "No weight entry in 25 days" while the weight screen's latest entry
+was May 3, 2026.
+
+**Root cause:** Apple Health → WLJ ingestion stopped on/around May 3. The
+read layer is PROVEN correct — the weight screen
+([health/views.py:787](apps/health/views.py) WeightListView), SAE
+([state_builder.py:185](apps/core/ai_state/state_builder.py) build_health_state),
+and the accountability rule
+([rules_health.py:182](apps/core/ai_insights/rules_health.py)
+MissingWeightLoggingRule) ALL read the identical query (WeightEntry, ordered
+by recorded_at, status=active) and AGREE the latest entry is May 3. May 28 −
+May 3 = 25. Not a read/filter/snapshot bug; not a Beth-vs-dashboard
+divergence.
+
+**Failing layer:** ingestion. Weight enters via a PUSH-only path (the iOS app
+POSTs to `/api/health/ingest/` → process_weight_metric); there is NO scheduled
+pull. So if the phone stops POSTing (expired MobileAuthToken, revoked HealthKit
+permission, or app not opened), weight silently stops with zero server errors.
+
+**Fixes shipped (no backfill, no fabricated entries, read layer untouched):**
+
+1. **Read-only diagnostic migration** —
+   `apps/mobile/migrations/0002_diagnostic_weight_sync.py`. Logs (grep
+   `[WEIGHT_SYNC_DIAG]` in deploy output) the latest WeightEntry per source,
+   30-day counts, last 10 HealthIngestionRun rows, and MobileDevice/Token
+   state for dannyjenkins71@gmail.com — the only way to read prod (no CLI).
+   Strictly read-only; every section guarded; no-op reverse.
+
+2. **Source-aware accountability (the trust fix)** — new canonical signal
+   `apps/health/services/weight_sync.py :: get_weight_sync_status(user)`.
+   When recent entries came from Apple Health AND a sync device is active, a
+   multi-day gap is reported as *"Apple Health weight sync may have stopped
+   (last synced May 3)"* (severity warning) instead of implying Danny stopped
+   weighing. Manual-only gaps keep the generic info message.
+   `MissingWeightLoggingRule` consumes this signal — so dashboard AND Beth
+   (both read the same insight) narrate identically.
+
+3. **Staleness signal in SAE** — added `weight_last_synced_at`,
+   `weight_sync_source`, `weight_sync_gap_days`, `weight_sync_stale` to
+   HEALTH_CONTRACT + build_health_state, so a sync gap is detectable
+   proactively and shared canonically by dashboard, Beth, and admin views.
+
+**iOS checklist:** `docs/wlj_weight_sync_ios_checklist.md` — what Danny checks
+on the phone (token re-auth, HealthKit Weight permission, force-open to sync,
+scale→Apple Health link).
+
+**Files Modified:**
+- `apps/health/services/weight_sync.py` (NEW canonical signal)
+- `apps/mobile/migrations/0002_diagnostic_weight_sync.py` (NEW read-only diag)
+- `apps/core/ai_insights/rules_health.py` (source-aware message)
+- `apps/core/ai_state/state_builder.py` (HEALTH_CONTRACT + populate sync keys)
+- `apps/health/tests/test_weight_sync.py` (NEW — 9 tests)
+- `docs/wlj_weight_sync_ios_checklist.md` (NEW)
+
+**Tests:** 30 pass (weight-sync + source-aware insight + health-contract
+intact). `makemigrations --check` clean (diagnostic is RunPython-only).
+
+**Why:** the trust break wasn't bad data interpretation — it was the dashboard
+implying user failure when Apple Health sync had silently stalled. The system
+now distinguishes "sync stopped" from "you stopped," and detects sync gaps
+proactively. The read layer was already correct and is unchanged.
+
+
 ## 2026-05-28 — release(dashboard): promote dashboard_v3 to production default (flag-gated, instant rollback)
 
 dashboard_v3 is now the canonical dashboard served at `/dashboard/`. v2 is

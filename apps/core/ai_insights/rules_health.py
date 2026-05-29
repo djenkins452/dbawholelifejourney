@@ -2,6 +2,8 @@
 Health Insight Rules — Weight trends and missing logging detection.
 """
 
+import logging
+
 from apps.core.ai_insights.base_rules import BaseInsightRule
 from apps.core.ai_insights.models import build_dedupe_key
 from apps.core.ai_insights.pattern_utils import (
@@ -11,6 +13,8 @@ from apps.core.ai_insights.pattern_utils import (
     requires_min_points,
 )
 from apps.core.ai_insights.rule_registry import register
+
+logger = logging.getLogger(__name__)
 
 MEDICAL_DISCLAIMER = (
     "\n\n_Educational information only — not medical advice. "
@@ -193,26 +197,58 @@ class MissingWeightLoggingRule(BaseInsightRule):
             return []
 
         window_start, window_end = get_time_window(days=gap_days)
+        last_date_str = latest.recorded_at.strftime('%B %d, %Y')
+
+        # Source-aware framing (trust fix): if recent entries came from
+        # Apple Health AND a sync device is active, a gap is a SYNC failure
+        # — do NOT imply the user stopped weighing. Same canonical signal
+        # SAE/dashboard/Beth all read.
+        sync_stale = False
+        try:
+            from apps.health.services.weight_sync import get_weight_sync_status
+            sync_stale = bool(get_weight_sync_status(user).get("sync_stale"))
+        except Exception:
+            logger.debug("weight rule: sync status unavailable", exc_info=True)
+
+        if sync_stale:
+            severity = "warning"
+            title = "Apple Health weight sync may have stopped"
+            message = (
+                f"Your last weight synced from Apple Health was {gap_days} days "
+                f"ago on {last_date_str}. The sync — not your weigh-ins — looks "
+                f"stalled. Open the WLJ app on your phone and confirm Apple "
+                f"Health weight permission is on to resume syncing."
+            )
+            explain = (
+                f"Rule: {self.rule_name}. Last entry: {latest.recorded_at.date()} "
+                f"(source=apple_health, device active). Gap: {gap_days}d "
+                f"(sync_stale threshold)."
+            )
+        else:
+            severity = "info"
+            title = f"No weight entry in {gap_days} days"
+            message = (
+                f"Your last weight entry was {gap_days} days ago "
+                f"on {last_date_str}. Regular tracking helps identify trends."
+            )
+            explain = (
+                f"Rule: {self.rule_name}. Last entry: {latest.recorded_at.date()}. "
+                f"Gap: {gap_days} days (threshold: 3)."
+            )
 
         return [
             {
-                "severity": "info",
-                "title": f"No weight entry in {gap_days} days",
-                "message": (
-                    f"Your last weight entry was {gap_days} days ago "
-                    f"on {latest.recorded_at.strftime('%B %d, %Y')}. "
-                    f"Regular tracking helps identify trends."
-                ),
+                "severity": severity,
+                "title": title,
+                "message": message,
                 "confidence_score": 0.9,
-                "explain_why": (
-                    f"Rule: {self.rule_name}. Last entry: {latest.recorded_at.date()}. "
-                    f"Gap: {gap_days} days (threshold: 3)."
-                ),
+                "explain_why": explain,
                 "evidence": {
                     "rule_name": self.rule_name,
                     "last_entry_id": latest.id,
                     "last_entry_date": str(latest.recorded_at.date()),
                     "gap_days": gap_days,
+                    "sync_stale": sync_stale,
                 },
                 "dedupe_key": build_dedupe_key(
                     user.id, self.insight_type,

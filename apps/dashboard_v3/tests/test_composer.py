@@ -300,6 +300,220 @@ class SelfCritiqueFixTests(TestCase):
             self.assertNotEqual(risk["title"], focus["title"])
 
 
+class RhythmInteractionModeTests(TestCase):
+    """Workflow enhancement: rhythm sections derive interaction_mode +
+    dose_groups + preview_groups from canonical state. No UI-only truth.
+    Beth/Dashboard convergence preserved (both consume the same
+    underlying execution items)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="rhythm-modes@test.com", password="testpass123"
+        )
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"),
+        )
+
+    def _items(self, **kw):
+        """Default future morning item generator."""
+        defaults = {
+            "is_actionable": True, "completed_today": False, "title": "X",
+        }
+        defaults.update(kw)
+        return defaults
+
+    def test_every_section_carries_interaction_mode(self):
+        result = build_rhythm_sections(
+            self.user, execution_contract={"items": [], "summaries": {}},
+        )
+        for s in result["sections"]:
+            self.assertIn(s["interaction_mode"], ("full", "preview", "summary", "empty"))
+
+    def test_preview_mode_groups_future_items_by_time_no_checkboxes(self):
+        """Day Rhythm with two scheduled items in the future must come
+        back in preview mode with a grouped 'Coming Later' list — no dead
+        white space, no checkboxes."""
+        items = [
+            self._items(scheduled_time="13:00", title="10X Optimize",
+                        source_type="supplement_dose"),
+            self._items(scheduled_time="13:00", title="Fish Oil",
+                        source_type="supplement_dose"),
+            self._items(scheduled_time="18:00", title="Log Nutrition",
+                        source_type="task"),
+        ]
+        result = build_rhythm_sections(
+            self.user, execution_contract={"items": items, "summaries": {}},
+        )
+        day = next(s for s in result["sections"] if s["key"] == "day")
+        if day["is_current"]:
+            self.skipTest("Day is currently the active window; preview not applicable")
+        self.assertEqual(day["interaction_mode"], "preview")
+        # Preview groups: by scheduled time, no per-item checkboxes.
+        times = [pg["time"] for pg in day["preview_groups"]]
+        self.assertEqual(len(day["preview_groups"]), 2)
+        self.assertIn("1:00 PM", times)
+        self.assertIn("6:00 PM", times)
+        first = day["preview_groups"][0]
+        self.assertEqual(len(first["titles"]), 2)
+
+    def test_empty_future_section_is_mode_empty(self):
+        result = build_rhythm_sections(
+            self.user, execution_contract={"items": [], "summaries": {}},
+        )
+        for s in result["sections"]:
+            if not s["is_current"] and not s["is_past"] and s["completion"]["total"] == 0:
+                self.assertEqual(s["interaction_mode"], "empty")
+
+    def test_dose_groups_split_meds_from_supplements(self):
+        """Meds and supplements MUST come back as separate groups so the
+        dashboard renders distinct buttons (user can take meds, skip
+        supplements). No hardcoded names."""
+        items = [
+            self._items(source_type="medication_dose", intake_type="medication",
+                        time_of_day="morning", title="Metformin"),
+            self._items(source_type="medication_dose", intake_type="medication",
+                        time_of_day="morning", title="Lantus"),
+            self._items(source_type="supplement_dose", intake_type="supplement",
+                        time_of_day="morning", title="Fish Oil"),
+        ]
+        result = build_rhythm_sections(
+            self.user, execution_contract={"items": items, "summaries": {}},
+        )
+        morning = next(s for s in result["sections"] if s["key"] == "morning")
+        kinds = {(g["kind"], g["time_of_day"]) for g in morning["dose_groups"]}
+        # Only built for the CURRENT rhythm. If morning isn't current we
+        # skip — but the helper itself is deterministic and tested below.
+        if morning["is_current"]:
+            self.assertIn(("medication", "morning"), kinds)
+            self.assertIn(("supplement", "morning"), kinds)
+
+    def test_dose_groups_helper_counts_completion(self):
+        """Direct test of _build_dose_groups so it's covered regardless of
+        which window happens to be current at test time."""
+        from apps.core.cos_briefing.rhythm import _build_dose_groups
+        items = [
+            {"source_type": "medication_dose", "intake_type": "medication",
+             "time_of_day": "morning", "completed_today": True, "title": "M1"},
+            {"source_type": "medication_dose", "intake_type": "medication",
+             "time_of_day": "morning", "completed_today": False, "title": "M2"},
+            {"source_type": "supplement_dose", "intake_type": "supplement",
+             "time_of_day": "morning", "completed_today": False, "title": "S1"},
+            {"source_type": "medication_dose", "intake_type": "medication",
+             "time_of_day": "evening", "completed_today": False, "title": "M3"},
+        ]
+        groups = _build_dose_groups(items)
+        # Three distinct groups: morning-med, morning-supp, evening-med
+        self.assertEqual(len(groups), 3)
+        morning_med = next(
+            g for g in groups
+            if g["kind"] == "medication" and g["time_of_day"] == "morning"
+        )
+        self.assertEqual(morning_med["count"], 2)
+        self.assertEqual(morning_med["completed"], 1)
+        self.assertFalse(morning_med["all_completed"])
+
+    def test_dose_groups_helper_ignores_non_dose_items(self):
+        from apps.core.cos_briefing.rhythm import _build_dose_groups
+        items = [
+            {"source_type": "task", "title": "Wake Up"},
+            {"source_type": "routine_item", "title": "Shower"},
+        ]
+        self.assertEqual(_build_dose_groups(items), [])
+
+    def test_preview_groups_skips_completed_and_handles_unscheduled(self):
+        from apps.core.cos_briefing.rhythm import _build_preview_groups
+        items = [
+            {"scheduled_time": "09:00", "completed_today": True, "title": "Done"},
+            {"scheduled_time": "13:00", "completed_today": False, "title": "Later"},
+            {"scheduled_time": None, "completed_today": False, "title": "Anytime task"},
+        ]
+        groups = _build_preview_groups(items)
+        # Completed items excluded
+        titles = sum((g["titles"] for g in groups), [])
+        self.assertNotIn("Done", titles)
+        self.assertIn("Later", titles)
+        self.assertIn("Anytime task", titles)
+        # Unscheduled groups under "Anytime"
+        self.assertTrue(any(g["time"] == "Anytime" for g in groups))
+
+    def test_past_rhythm_with_open_items_stays_expanded(self):
+        """TRUST RULE: a past rhythm that still has unfinished items must
+        NOT collapse — hiding leftover meds/supplements/routines behind a
+        summary creates the exact 'I forgot I had unfinished items'
+        regression we forbade. Past + open_count>0 → expanded=True."""
+        from apps.core.cos_briefing.rhythm import _bucket_index, RHYTHM_BUCKETS
+        from apps.core.utils import get_user_now
+        try:
+            current_hour = get_user_now(self.user).time().hour
+        except Exception:
+            current_hour = 12
+
+        # Pick the morning bucket and ensure today's "now" is past it.
+        if current_hour < 12:
+            self.skipTest("Wall-clock is still inside the morning window")
+
+        items = [
+            # One completed + one open morning item → past with leftover
+            self._items(scheduled_time="06:00", title="Done thing",
+                        completed_today=True),
+            self._items(scheduled_time="07:00", title="Forgotten med",
+                        completed_today=False, source_type="medication_dose",
+                        intake_type="medication", time_of_day="morning"),
+        ]
+        result = build_rhythm_sections(
+            self.user, execution_contract={"items": items, "summaries": {}},
+        )
+        morning = next(s for s in result["sections"] if s["key"] == "morning")
+        self.assertTrue(morning["is_past"])
+        self.assertEqual(morning["interaction_mode"], "summary")
+        self.assertGreater(morning["open_count"], 0)
+        self.assertTrue(
+            morning["expanded"],
+            "Past rhythm with leftover items MUST stay expanded — "
+            "collapsing would hide unfinished work and break trust.",
+        )
+
+    def test_past_rhythm_fully_complete_does_collapse(self):
+        """The trust rule only triggers when there are open items. A past
+        rhythm that's fully complete should collapse to the compact
+        summary as designed (minimal footprint, no accountability cost)."""
+        from apps.core.utils import get_user_now
+        try:
+            current_hour = get_user_now(self.user).time().hour
+        except Exception:
+            current_hour = 12
+        if current_hour < 12:
+            self.skipTest("Wall-clock is still inside the morning window")
+
+        items = [
+            self._items(scheduled_time="06:00", title="Done A",
+                        completed_today=True),
+            self._items(scheduled_time="07:00", title="Done B",
+                        completed_today=True),
+        ]
+        result = build_rhythm_sections(
+            self.user, execution_contract={"items": items, "summaries": {}},
+        )
+        morning = next(s for s in result["sections"] if s["key"] == "morning")
+        self.assertTrue(morning["is_past"])
+        self.assertEqual(morning["interaction_mode"], "summary")
+        self.assertEqual(morning["open_count"], 0)
+        self.assertFalse(
+            morning["expanded"],
+            "Past rhythm with zero open items collapses — that's the "
+            "compact summary the trust rule allows.",
+        )
+
+    def test_rhythm_returns_preview_key_for_beth_alignment(self):
+        """Beth needs the same 'coming next' definition the dashboard uses,
+        so it's surfaced on the canonical result."""
+        result = build_rhythm_sections(
+            self.user, execution_contract={"items": [], "summaries": {}},
+        )
+        self.assertIn("preview_key", result)
+
+
 class HeadlineAndMomentumTests(TestCase):
     """Tests for the new Visual-Beth voice pieces."""
 

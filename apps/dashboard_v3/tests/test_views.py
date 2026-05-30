@@ -97,6 +97,24 @@ class DashboardV3ViewTests(TestCase):
         self.assertNotIn("{#", body, "Found a leaked Django comment in rendered HTML")
         self.assertNotIn("#}", body, "Found a leaked Django comment close in rendered HTML")
 
+    def test_intake_group_log_kind_url_reverses(self):
+        """The new kind-filtered group endpoint MUST be reachable —
+        meds vs supplements rely on distinct URLs for separate workflows.
+        Old URL stays for v2 backwards compatibility."""
+        # Both URLs must reverse (no NoReverseMatch).
+        legacy = reverse(
+            "dashboard_v2:intake_group_log",
+            kwargs={"time_of_day": "morning"},
+        )
+        kinded = reverse(
+            "dashboard_v2:intake_group_log_kind",
+            kwargs={"time_of_day": "morning", "kind": "medication"},
+        )
+        self.assertEqual(legacy, "/dashboard/actions/intake/group/morning/log/")
+        self.assertEqual(
+            kinded, "/dashboard/actions/intake/group/morning/medication/log/",
+        )
+
     def test_dashboard_load_auto_completes_wake_up(self):
         """VERIFIED AUTO-COMPLETION Rule 1: loading the dashboard is
         authenticated activity → today's Wake Up routine auto-completes

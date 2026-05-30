@@ -12,7 +12,7 @@
 
     <div class="v3-rhythm-grid">
         {% for s in rhythm.sections %}
-            <article class="v3-rhythm-tile v3-rhythm-{{ s.status }}"
+            <article class="v3-rhythm-tile v3-rhythm-{{ s.status }} v3-rhythm-mode-{{ s.interaction_mode }}"
                      data-rhythm-key="{{ s.key }}"
                      data-expanded="{{ s.expanded|yesno:'true,false' }}"
                      {% if s.is_current %}data-current="true"{% endif %}>
@@ -24,7 +24,7 @@
                     <span class="v3-rhythm-name">{{ s.label }}</span>
                     <span class="v3-rhythm-count">
                         {% if s.completion.total %}
-                            {{ s.completion.completed }}/{{ s.completion.total }}{% if not s.is_current and not s.is_past %} upcoming{% endif %}
+                            {{ s.completion.completed }}/{{ s.completion.total }}{% if s.interaction_mode == 'preview' %} upcoming{% endif %}{% if s.is_past and s.open_count %} · {{ s.open_count }} still open{% endif %}
                         {% else %}—{% endif %}
                     </span>
                     {% if s.is_current %}<span class="v3-rhythm-now-pill">now</span>{% endif %}
@@ -42,49 +42,100 @@
                         <p class="v3-rhythm-momentum">{{ s.momentum }}</p>
                     {% endif %}
 
-                    {% if s.open_count %}
-                        <p class="v3-rhythm-open-label">{{ s.open_label }}</p>
-                        <ul class="v3-rhythm-open">
-                            {% for item in s.items %}
-                                {% if not item.completed_today %}
-                                    <li class="v3-ritem v3-ritem-{{ item.urgency|default:'next' }}">
-                                        {% if item.toggle_url %}
-                                            <button type="button"
-                                                    class="v3-ritem-glyph v3-ritem-glyph-btn"
-                                                    data-v3-toggle
-                                                    hx-post="{{ item.toggle_url }}"
-                                                    hx-swap="none"
-                                                    aria-label="Mark {{ item.title }} complete"
-                                                    title="Mark complete">○</button>
-                                        {% else %}
-                                            <span class="v3-ritem-glyph" aria-hidden="true">○</span>
-                                        {% endif %}
-                                        {% if item.detail_url %}
-                                            <a href="{{ item.detail_url }}"
-                                               class="v3-ritem-title v3-ritem-title-link"
-                                               title="Open {{ item.title }}">{{ item.title }}</a>
-                                        {% else %}
-                                            <span class="v3-ritem-title">{{ item.title }}</span>
-                                        {% endif %}
-                                        {% if item.time_display %}<span class="v3-ritem-time">{{ item.time_display }}</span>{% endif %}
-                                        {% if item.urgency == 'overdue' %}
-                                            <span class="v3-ritem-badge v3-ritem-badge-overdue">PAST DUE</span>
-                                        {% elif item.execution_status == 'AT_RISK' %}
-                                            <span class="v3-ritem-badge v3-ritem-badge-risk">AT RISK</span>
-                                        {% elif item.execution_status == 'LATE_OPEN' %}
-                                            <span class="v3-ritem-badge v3-ritem-badge-late">LATE</span>
-                                        {% elif item.urgency == 'now' %}
-                                            <span class="v3-ritem-badge v3-ritem-badge-now">NOW</span>
-                                        {% endif %}
+                    {# ── FULL mode (active rhythm) ── #}
+                    {% if s.interaction_mode == 'full' %}
+                        {% if s.dose_groups %}
+                            <div class="v3-rhythm-dose-groups" role="group" aria-label="Group complete">
+                                {% for g in s.dose_groups %}
+                                    <button type="button"
+                                            class="v3-group-complete-btn v3-group-{{ g.kind }}{% if g.all_completed %} v3-group-done{% endif %}"
+                                            data-v3-toggle
+                                            hx-post="{% url 'dashboard_v2:intake_group_log_kind' time_of_day=g.time_of_day kind=g.kind %}"
+                                            hx-swap="none"
+                                            title="Toggle the entire {{ g.label|lower }} group ({{ g.count }} items)">
+                                        {% if g.all_completed %}↺ Undo {{ g.label }} ({{ g.count }}){% else %}✓ Complete {{ g.label }} ({{ g.count }}){% endif %}
+                                    </button>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        {% if s.open_count %}
+                            <p class="v3-rhythm-open-label">{{ s.open_label }}</p>
+                            <ul class="v3-rhythm-open">
+                                {% for item in s.items %}
+                                    {% if not item.completed_today %}
+                                        <li class="v3-ritem v3-ritem-{{ item.urgency|default:'next' }}">
+                                            {% if item.toggle_url %}
+                                                <button type="button"
+                                                        class="v3-ritem-glyph v3-ritem-glyph-btn"
+                                                        data-v3-toggle
+                                                        hx-post="{{ item.toggle_url }}"
+                                                        hx-swap="none"
+                                                        aria-label="Mark {{ item.title }} complete"
+                                                        title="Mark complete">○</button>
+                                            {% else %}
+                                                <span class="v3-ritem-glyph" aria-hidden="true">○</span>
+                                            {% endif %}
+                                            {% if item.detail_url %}
+                                                <a href="{{ item.detail_url }}" class="v3-ritem-title v3-ritem-title-link" title="Open {{ item.title }}">{{ item.title }}</a>
+                                            {% else %}
+                                                <span class="v3-ritem-title">{{ item.title }}</span>
+                                            {% endif %}
+                                            {% if item.time_display %}<span class="v3-ritem-time">{{ item.time_display }}</span>{% endif %}
+                                            {% if item.urgency == 'overdue' %}<span class="v3-ritem-badge v3-ritem-badge-overdue">PAST DUE</span>
+                                            {% elif item.execution_status == 'AT_RISK' %}<span class="v3-ritem-badge v3-ritem-badge-risk">AT RISK</span>
+                                            {% elif item.execution_status == 'LATE_OPEN' %}<span class="v3-ritem-badge v3-ritem-badge-late">LATE</span>
+                                            {% elif item.urgency == 'now' %}<span class="v3-ritem-badge v3-ritem-badge-now">NOW</span>{% endif %}
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+
+                    {# ── PREVIEW mode (future rhythm with items) ── #}
+                    {% elif s.interaction_mode == 'preview' %}
+                        {% if s.preview_groups %}
+                            <p class="v3-rhythm-open-label">{{ s.open_label }}</p>
+                            <ul class="v3-rhythm-preview-list">
+                                {% for pg in s.preview_groups %}
+                                    <li class="v3-rhythm-preview-row">
+                                        <span class="v3-rhythm-preview-time">{{ pg.time }}</span>
+                                        <ul class="v3-rhythm-preview-titles">
+                                            {% for t in pg.titles %}<li>{{ t }}</li>{% endfor %}
+                                        </ul>
                                     </li>
-                                {% endif %}
-                            {% endfor %}
-                        </ul>
-                    {% elif not s.completion.total %}
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+
+                    {# ── EMPTY mode (future rhythm with nothing) ── #}
+                    {% elif s.interaction_mode == 'empty' %}
                         <p class="v3-rhythm-empty">Nothing scheduled in this block.</p>
+
+                    {# ── SUMMARY mode (past rhythm) ── #}
+                    {% elif s.interaction_mode == 'summary' %}
+                        {% if s.open_count %}
+                            <p class="v3-rhythm-open-label">{{ s.open_label }}</p>
+                            <ul class="v3-rhythm-open">
+                                {% for item in s.items %}
+                                    {% if not item.completed_today %}
+                                        <li class="v3-ritem v3-ritem-{{ item.urgency|default:'next' }}">
+                                            {% if item.toggle_url %}
+                                                <button type="button" class="v3-ritem-glyph v3-ritem-glyph-btn" data-v3-toggle hx-post="{{ item.toggle_url }}" hx-swap="none" aria-label="Mark {{ item.title }} complete" title="Mark complete">○</button>
+                                            {% else %}
+                                                <span class="v3-ritem-glyph" aria-hidden="true">○</span>
+                                            {% endif %}
+                                            {% if item.detail_url %}<a href="{{ item.detail_url }}" class="v3-ritem-title v3-ritem-title-link">{{ item.title }}</a>{% else %}<span class="v3-ritem-title">{{ item.title }}</span>{% endif %}
+                                            {% if item.time_display %}<span class="v3-ritem-time">{{ item.time_display }}</span>{% endif %}
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
                     {% endif %}
 
-                    {% if s.completion.completed %}
+                    {# Completed items collapsible footer — applies to full + summary #}
+                    {% if s.completion.completed and s.interaction_mode != 'preview' and s.interaction_mode != 'empty' %}
                         <div class="v3-rhythm-foot">
                             <button type="button"
                                     class="v3-rhythm-show-completed"
@@ -100,21 +151,11 @@
                                     {% if item.completed_today %}
                                         <li class="v3-ritem v3-ritem-completed">
                                             {% if item.toggle_url %}
-                                                <button type="button"
-                                                        class="v3-ritem-glyph v3-ritem-glyph-btn v3-ritem-glyph-done"
-                                                        data-v3-toggle
-                                                        hx-post="{{ item.toggle_url }}"
-                                                        hx-swap="none"
-                                                        aria-label="Undo {{ item.title }}"
-                                                        title="Undo">✓</button>
+                                                <button type="button" class="v3-ritem-glyph v3-ritem-glyph-btn v3-ritem-glyph-done" data-v3-toggle hx-post="{{ item.toggle_url }}" hx-swap="none" aria-label="Undo {{ item.title }}" title="Undo">✓</button>
                                             {% else %}
                                                 <span class="v3-ritem-glyph" aria-hidden="true">✓</span>
                                             {% endif %}
-                                            {% if item.detail_url %}
-                                                <a href="{{ item.detail_url }}" class="v3-ritem-title v3-ritem-title-link">{{ item.title }}</a>
-                                            {% else %}
-                                                <span class="v3-ritem-title">{{ item.title }}</span>
-                                            {% endif %}
+                                            {% if item.detail_url %}<a href="{{ item.detail_url }}" class="v3-ritem-title v3-ritem-title-link">{{ item.title }}</a>{% else %}<span class="v3-ritem-title">{{ item.title }}</span>{% endif %}
                                             {% if item.time_display %}<span class="v3-ritem-time">{{ item.time_display }}</span>{% endif %}
                                         </li>
                                     {% endif %}

@@ -840,21 +840,39 @@ class IntakeGroupLogAction(LoginRequiredMixin, View):
     - Fires medication taken event
     """
 
-    def post(self, request, time_of_day):
+    def post(self, request, time_of_day, kind=None):
+        """
+        Args:
+            time_of_day: window key (morning / afternoon / evening / nightly …)
+            kind: optional 'medication' | 'supplement'. When provided, only
+                  schedules of that intake_type are toggled — preserves the
+                  meds vs supplements workflow separation. When None, the
+                  legacy behavior (all kinds in the window) applies.
+        """
         from apps.core.events.domain_events import EventTypes, safe_emit_event
         from apps.health.models import Intake, IntakeLog, IntakeSchedule
 
         today = get_user_today(request.user)
 
-        # Get all active, non-PRN schedules for this time_of_day
+        # Whitelist kind to keep the URL surface tight.
+        if kind is not None and kind not in ("medication", "supplement"):
+            return _render_action_center(request)
+
+        # Get all active, non-PRN schedules for this time_of_day, optionally
+        # filtered to medication or supplement only.
+        schedule_filter = dict(
+            intake__user=request.user,
+            intake__intake_status=Intake.STATUS_ACTIVE,
+            intake__is_prn=False,
+            is_active=True,
+            time_of_day=time_of_day,
+        )
+        if kind is not None:
+            schedule_filter["intake__intake_type"] = kind
+
         schedules = list(
-            IntakeSchedule.objects.filter(
-                intake__user=request.user,
-                intake__intake_status=Intake.STATUS_ACTIVE,
-                intake__is_prn=False,
-                is_active=True,
-                time_of_day=time_of_day,
-            ).select_related("intake")
+            IntakeSchedule.objects.filter(**schedule_filter)
+            .select_related("intake")
         )
 
         # Filter to schedules that apply today (day-of-week check)

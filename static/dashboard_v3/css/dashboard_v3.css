@@ -622,6 +622,94 @@
     color: var(--v3-text-mute);
 }
 
+/* ── Group-complete buttons (full mode only) ───────────────────── */
+.v3-rhythm-dose-groups {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 8px 0;
+}
+.v3-group-complete-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border-radius: 999px;
+    border: 1px solid var(--v3-border);
+    background: var(--v3-surface);
+    color: var(--v3-text);
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.v3-group-complete-btn:hover {
+    border-color: var(--v3-positive);
+    color: var(--v3-positive);
+    background: rgba(22, 101, 52, 0.06);
+}
+.v3-group-complete-btn:focus-visible {
+    outline: 2px solid var(--v3-accent);
+    outline-offset: 2px;
+}
+.v3-group-medication { border-color: rgba(79, 70, 229, 0.25); }
+.v3-group-supplement { border-color: rgba(8, 145, 178, 0.25); }
+.v3-group-done {
+    background: rgba(22, 101, 52, 0.08);
+    border-color: rgba(22, 101, 52, 0.35);
+    color: var(--v3-positive);
+}
+/* ── Preview mode (future rhythm, compact, no interaction) ─────── */
+.v3-rhythm-mode-preview .v3-rhythm-body { opacity: 0.92; }
+.v3-rhythm-preview-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.v3-rhythm-preview-row {
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 0.82rem;
+    color: var(--v3-text);
+}
+.v3-rhythm-preview-time {
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--v3-text-mute);
+    letter-spacing: 0.02em;
+}
+.v3-rhythm-preview-titles {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.v3-rhythm-preview-titles li {
+    color: var(--v3-text);
+    padding-left: 10px;
+    position: relative;
+}
+.v3-rhythm-preview-titles li::before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    color: var(--v3-text-soft);
+}
+
+/* Empty future tile — minimal but never blank-feeling */
+.v3-rhythm-mode-empty .v3-rhythm-body { padding-bottom: 8px; }
+
+/* Summary mode (past rhythm) — collapse by default, click header to expand */
+.v3-rhythm-mode-summary .v3-rhythm-body { opacity: 0.95; }
+.v3-rhythm-mode-summary[data-expanded="false"] .v3-rhythm-body { display: none; }
+
 .v3-rhythm-open {
     list-style: none;
     margin: 0;

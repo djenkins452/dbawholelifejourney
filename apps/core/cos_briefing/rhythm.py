@@ -192,21 +192,34 @@ def build_rhythm_sections(user, execution_contract: dict | None = None) -> dict:
         else:
             status = "pending"
 
-        # Time-aware default expansion:
-        #   - current bucket: expanded
-        #   - past bucket fully complete: collapsed
-        #   - past bucket with leftovers: expanded (accountability)
-        #   - future bucket: collapsed
         is_current = bucket["key"] == current_key
         is_past = _bucket_index(bucket["key"]) < _bucket_index(current_key)
+
+        # Interaction mode — drives template rendering. Derived from
+        # canonical state only (no UI flags):
+        #   full    → current rhythm, full checkboxes + group-complete buttons
+        #   summary → past rhythm, collapsed to header line; click to expand
+        #   preview → future rhythm with items, compact "Coming Later" view
+        #   empty   → future rhythm with no items, minimal placeholder
         if is_current:
-            expanded = True
+            interaction_mode = "full"
         elif is_past:
-            expanded = status != "complete"
+            interaction_mode = "summary"
+        elif total > 0:
+            interaction_mode = "preview"
         else:
-            expanded = False
+            interaction_mode = "empty"
 
         open_count = total - completed
+
+        # Default expanded state mirrors mode, with one trust-preserving
+        # exception: a past rhythm that still has open items stays
+        # expanded so unfinished work (especially meds/supplements)
+        # remains visible — never hide accountability behind a collapse.
+        expanded = (
+            interaction_mode in ("full", "preview")
+            or (interaction_mode == "summary" and open_count > 0)
+        )
         block_start_time = _earliest_scheduled_time(bucket_items)
 
         # Contextual label for the open-items list — phrasing depends on
@@ -228,9 +241,21 @@ def build_rhythm_sections(user, execution_contract: dict | None = None) -> dict:
             "is_past": is_past,
             "expanded": expanded,
             "status": status,
+            "interaction_mode": interaction_mode,
             "open_count": open_count,
             "open_label": open_label,
             "block_start_time": block_start_time,
+            # Group-complete buttons (full mode only) — one per
+            # (intake_type, time_of_day) cluster of doses.
+            "dose_groups": (
+                _build_dose_groups(bucket_items) if is_current else []
+            ),
+            # Compact preview groups (preview mode only) — list of doses
+            # and tasks grouped by scheduled_time, no checkboxes.
+            "preview_groups": (
+                _build_preview_groups(bucket_items)
+                if interaction_mode == "preview" else []
+            ),
             "completion": {
                 "completed": completed,
                 "total": total,
@@ -245,11 +270,116 @@ def build_rhythm_sections(user, execution_contract: dict | None = None) -> dict:
             ),
         })
 
+    # Preview key — the rhythm immediately AFTER the current one. Surfaced
+    # so Beth can describe "coming next" consistently with the dashboard's
+    # preview tile (same canonical timing logic, no parallel definitions).
+    _bucket_keys = [b["key"] for b in RHYTHM_BUCKETS]
+    try:
+        _ci = _bucket_keys.index(current_key)
+        preview_key = _bucket_keys[_ci + 1] if _ci + 1 < len(_bucket_keys) else None
+    except ValueError:
+        preview_key = None
+
     return {
         "current_key": current_key,
+        "preview_key": preview_key,
         "sections": sections,
         "totals": totals,
     }
+
+
+# ── Helpers for dose grouping (used by full mode group-complete buttons) ──
+
+
+def _build_dose_groups(items: list[dict]) -> list[dict]:
+    """Group medication / supplement doses by (intake_type, time_of_day) so
+    the template can render a 'Complete morning medications' button per
+    cluster while preserving the meds-vs-supplements workflow separation.
+
+    Keys read are canonical fields already on the execution item dict —
+    no hardcoded medicine names, no hardcoded windows.
+
+    Returns a list of dicts:
+        {
+          "kind":          "medication" | "supplement",
+          "time_of_day":   window key (morning/afternoon/evening/nightly/...),
+          "label":         "Morning Medications" | "Morning Supplements" | …
+          "count":         total doses in the group
+          "completed":     count completed today
+          "all_completed": bool
+        }
+    """
+    from apps.core.time_windows import WINDOW_DISPLAY_NAMES
+
+    groups: dict[tuple, dict] = {}
+    for item in items:
+        stype = item.get("source_type")
+        if stype not in ("medication_dose", "supplement_dose"):
+            continue
+        intake_type = (item.get("intake_type")
+                       or ("supplement" if stype == "supplement_dose" else "medication"))
+        tod = (item.get("time_of_day") or "").strip().lower()
+        if not tod or intake_type not in ("medication", "supplement"):
+            continue
+        key = (intake_type, tod)
+        g = groups.setdefault(key, {
+            "kind": intake_type,
+            "time_of_day": tod,
+            "count": 0,
+            "completed": 0,
+        })
+        g["count"] += 1
+        if item.get("completed_today"):
+            g["completed"] += 1
+
+    out = []
+    for (kind, tod), g in groups.items():
+        window_name = WINDOW_DISPLAY_NAMES.get(tod, tod.title())
+        noun = "Medications" if kind == "medication" else "Supplements"
+        g["label"] = f"{window_name} {noun}"
+        g["all_completed"] = g["count"] > 0 and g["completed"] >= g["count"]
+        out.append(g)
+    # Stable order: medication before supplement, then by canonical window order.
+    from apps.core.time_windows import WINDOW_ORDER
+    out.sort(key=lambda g: (
+        0 if g["kind"] == "medication" else 1,
+        WINDOW_ORDER.index(g["time_of_day"]) if g["time_of_day"] in WINDOW_ORDER else 99,
+    ))
+    return out
+
+
+def _build_preview_groups(items: list[dict]) -> list[dict]:
+    """Compact 'Coming Later' grouping by scheduled_time — no checkboxes,
+    no individual interactivity. Eliminates blank space in future rhythm
+    tiles while preserving visibility of what's coming.
+
+    Returns:
+        [{"time": "1:00 PM", "titles": ["10X Optimize", "Fish Oil"]}, …]
+
+    Unscheduled items collapse under "Anytime" so nothing is hidden.
+    """
+    by_time: dict[str, list[str]] = {}
+    order: list[str] = []
+    for item in items:
+        if item.get("completed_today"):
+            continue
+        st = item.get("scheduled_time") or ""
+        display = _format_time_12h(st) if st else "Anytime"
+        if display not in by_time:
+            by_time[display] = []
+            order.append(display)
+        title = item.get("title") or ""
+        if title:
+            by_time[display].append(title)
+    return [{"time": t, "titles": by_time[t]} for t in order if by_time[t]]
+
+
+def _format_time_12h(hhmm: str) -> str:
+    try:
+        from datetime import datetime as _dt
+        return _dt.strptime(hhmm, "%H:%M").strftime("%-I:%M %p")
+    except (ValueError, TypeError):
+        return hhmm
 
 
 def _momentum_label(

@@ -93,6 +93,14 @@ urlpatterns = [
         views.IntakeGroupLogAction.as_view(),
         name="intake_group_log",
     ),
+    # Kind-filtered group toggle (medication vs supplement). Keeps meds and
+    # supplements as separate workflows on the dashboard while reusing the
+    # same canonical IntakeGroupLogAction handler (single write path).
+    path(
+        "actions/intake/group/<str:time_of_day>/<str:kind>/log/",
+        views.IntakeGroupLogAction.as_view(),
+        name="intake_group_log_kind",
+    ),
     path(
         "actions/routine/<int:pk>/complete/",
         views.RoutineCompleteAction.as_view(),

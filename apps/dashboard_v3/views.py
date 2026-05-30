@@ -58,33 +58,41 @@ class DashboardV3View(HelpContextMixin, LoginRequiredMixin, TemplateView):
         except Exception:
             logger.debug("v3: day-start init skipped", exc_info=True)
 
-        # TRUST CONVERGENCE — clears any stale 'missing_weight_logging'
-        # insight whose underlying condition has resolved. Self-sufficient
-        # (reads WeightEntry directly, no SAE dependency). Emits a single
-        # [DASHBOARD_WEIGHT_DEBUG] line per load as forensic evidence so
-        # production logs answer "did the resolver run, what did it see,
-        # what did it dismiss" without ambiguity.
+        # TRUST CONVERGENCE — clears any stale weight-sync artifact (Insight
+        # rows + GuidanceItem rows) whose underlying condition has resolved.
+        # Logging is IMPOSSIBLE TO HIDE: every sub-call is isolated in its
+        # own try/except, and the final [DASHBOARD_WEIGHT_DEBUG] emit lives
+        # OUTSIDE all of them. If the resolver raises, you see the error in
+        # the same log line. If everything succeeds, you see deterministic
+        # evidence of what was found and dismissed.
+        _dbg = {
+            "route": "/dashboard/",
+            "view": "DashboardV3View",
+            "user": self.request.user.id,
+            "resolver_error": None,
+            "sync_error": None,
+        }
         try:
             from apps.health.services.weight_sync import (
-                get_weight_sync_status,
                 resolve_stale_weight_insight_if_cleared,
             )
-            res = resolve_stale_weight_insight_if_cleared(self.request.user)
-            sync = get_weight_sync_status(self.request.user)
-            logger.info(
-                "[DASHBOARD_WEIGHT_DEBUG] route=/dashboard/ view=DashboardV3View "
-                "user=%s resolver_called=True active_before=%s active_after=%s "
-                "dismissed_count=%s dismissed_ids=%s latest_recorded_at=%s "
-                "gap_days=%s sae_weight_sync_stale=%s sae_last_synced=%s",
-                self.request.user.id,
-                res.get("active_before"), res.get("active_after"),
-                res.get("dismissed_count"), res.get("dismissed_ids"),
-                res.get("latest_recorded_at"), res.get("gap_days"),
-                sync.get("sync_stale"),
-                sync["last_entry_at"].isoformat() if sync.get("last_entry_at") else None,
+            _dbg.update(resolve_stale_weight_insight_if_cleared(self.request.user))
+        except Exception as e:
+            _dbg["resolver_error"] = repr(e)
+            logger.warning("v3: resolver raised", exc_info=True)
+        try:
+            from apps.health.services.weight_sync import get_weight_sync_status
+            _sync = get_weight_sync_status(self.request.user)
+            _dbg["sae_sync_stale"] = _sync.get("sync_stale")
+            _dbg["sae_last_synced"] = (
+                _sync["last_entry_at"].isoformat()
+                if _sync.get("last_entry_at") else None
             )
-        except Exception:
-            logger.warning("v3: weight insight cleanup failed", exc_info=True)
+        except Exception as e:
+            _dbg["sync_error"] = repr(e)
+        # ALWAYS emits — outside all try blocks. If we got here, /dashboard/
+        # routed to v3 and this code ran. Failure is impossible to hide.
+        logger.info("[DASHBOARD_WEIGHT_DEBUG] %s", _dbg)
 
         ctx["v3"] = build_dashboard_v3_context(self.request.user)
         ctx["weather_tile"] = build_weather_tile(self.request.user)

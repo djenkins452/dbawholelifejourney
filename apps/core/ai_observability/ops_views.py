@@ -1434,3 +1434,88 @@ from apps.core.ai_observability.ops_telemetry import (  # noqa: E402, F401
     _get_cos_performance,
     _get_api_health_telemetry,
 )
+
+
+class RecomputeHealthSignalsView(View):
+    """One-click "Recompute Health Signals" — Ops Wall control.
+
+    POST /admin-console/ops/recompute-health/
+    Body (optional): {"user_id": <int>} — defaults to request.user.
+
+    Does, in order:
+      1. Rebuild the user's SAE health state (build_health_state → fresh
+         weight_sync_* keys).
+      2. Run PIE for the user with event_type='scheduled_check' so any
+         rule whose condition has cleared can auto-dismiss its own
+         insight via the engine's _auto_dismiss path.
+      3. Call the canonical resolver to dismiss any STALE
+         missing_weight_logging Insight rows AND deactivate any matching
+         GuidanceItem rows — covers both stores the v3 accountability
+         card reads from. Single source of dismissal logic.
+
+    Returns JSON with deterministic counts so the admin can confirm
+    exactly what cleared. Staff-only. No cache clearing or restart
+    required.
+    """
+
+    def post(self, request):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return JsonResponse({"error": "forbidden"}, status=403)
+
+        try:
+            body = json.loads(request.body) if request.body else {}
+        except (json.JSONDecodeError, ValueError):
+            body = {}
+
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+
+        user_id = body.get("user_id") or request.user.id
+        try:
+            target = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            return JsonResponse({"error": "user_not_found"}, status=404)
+
+        out = {
+            "user_id": target.id,
+            "sae_rebuilt": False,
+            "pie_ran": False,
+            "resolver": None,
+        }
+
+        # 1. SAE health rebuild
+        try:
+            from apps.core.ai_state.state_updater import update_user_state
+            update_user_state(target, "health")
+            out["sae_rebuilt"] = True
+        except Exception as e:
+            logger.warning("recompute-health: SAE rebuild failed: %s", e, exc_info=True)
+            out["sae_error"] = repr(e)
+
+        # 2. PIE scheduled_check (allows engine's own auto-dismiss path)
+        try:
+            from apps.core.ai_insights.insight_engine import run_insights
+            from apps.core.time.system_clock import get_current_time
+            import apps.core.ai_insights.rules_health  # noqa: F401
+            run_insights(target, {
+                "event_type": "scheduled_check",
+                "module": "health",
+                "timestamp_utc": get_current_time().isoformat(),
+            })
+            out["pie_ran"] = True
+        except Exception as e:
+            logger.warning("recompute-health: PIE run failed: %s", e, exc_info=True)
+            out["pie_error"] = repr(e)
+
+        # 3. Canonical resolver — both Insight and GuidanceItem
+        try:
+            from apps.health.services.weight_sync import (
+                resolve_stale_weight_insight_if_cleared,
+            )
+            out["resolver"] = resolve_stale_weight_insight_if_cleared(target)
+        except Exception as e:
+            logger.warning("recompute-health: resolver failed: %s", e, exc_info=True)
+            out["resolver_error"] = repr(e)
+
+        logger.info("[RECOMPUTE_HEALTH] %s", out)
+        return JsonResponse({"success": True, **out})

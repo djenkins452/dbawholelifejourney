@@ -110,109 +110,166 @@ def get_weight_sync_status(user) -> dict[str, Any]:
 
 
 def resolve_stale_weight_insight_if_cleared(user) -> dict:
-    """Resolve any stale weight-gap insight whose underlying condition has
-    cleared — fires on every dashboard load. Deterministic.
+    """Resolve EVERY stale weight-gap dashboard artifact whose underlying
+    condition has cleared — fires on every dashboard load. Deterministic.
 
-    SELF-SUFFICIENT (2026-05-30 fix #3): reads `WeightEntry.recorded_at`
-    DIRECTLY, NOT SAE state. Earlier versions depended on SAE keys
-    (`weight_sync_stale` / `weight_sync_gap_days`) which can be missing
-    from `UserState.state_data` if the row was persisted before those keys
-    existed in HEALTH_CONTRACT or if the weight_sync block in
-    build_health_state fell into its try/except. With conservative
-    defaults that meant the resolver was silently skipping dismissal even
-    though a fresh WeightEntry existed in the DB. Reading the canonical
-    `WeightEntry` row directly removes that whole class of bug.
+    Covers BOTH stores the v3 accountability card reads from:
+      - core_ai_insight rows (insight_type='missing_weight_logging')
+        → status flipped to 'dismissed'
+      - ai_guidance.GuidanceItem rows scoped to module='health' with a
+        weight-sync title → is_active flipped to False
 
-    Returns a diagnostic dict for [DASHBOARD_WEIGHT_DEBUG] logging:
-        {active_before, active_after, dismissed_ids, latest_recorded_at,
-         gap_days, dismissed_count}
+    SELF-SUFFICIENT: reads `WeightEntry.recorded_at` DIRECTLY, not SAE.
+    Immune to SAE state shape (missing/stale `weight_sync_*` keys).
+
+    Returns a diagnostic dict consumed by [DASHBOARD_WEIGHT_DEBUG] logging:
+        {
+          latest_recorded_at, gap_days,
+          insight_active_before, insight_dismissed_count, insight_dismissed_ids,
+          guidance_active_before, guidance_deactivated_count,
+          guidance_deactivated_ids, guidance_titles,
+        }
     """
+    from django.db.models import Q
     from apps.core.ai_insights.models import Insight
+    from apps.core.ai_guidance.models import GuidanceItem
     from apps.health.models import WeightEntry
 
     result = {
-        "active_before": 0,
-        "active_after": 0,
-        "dismissed_count": 0,
-        "dismissed_ids": [],
         "latest_recorded_at": None,
         "gap_days": None,
+        "insight_active_before": 0,
+        "insight_dismissed_count": 0,
+        "insight_dismissed_ids": [],
+        "guidance_active_before": 0,
+        "guidance_deactivated_count": 0,
+        "guidance_deactivated_ids": [],
+        "guidance_titles": [],
+        "preserved_reason": None,
     }
 
-    try:
-        active_qs = Insight.objects.filter(
-            user=user,
-            insight_type="missing_weight_logging",
-            status__in=("new", "read"),
+    # ── Both stale-row queries ──
+    # Insight: exact by insight_type (rule-authored, rename-safe).
+    insight_qs = Insight.objects.filter(
+        user=user,
+        insight_type="missing_weight_logging",
+        status__in=("new", "read"),
+    )
+    # GuidanceItem: no taxonomy for weight-sync guidance exists yet, so we
+    # use a documented title-keyword bridge scoped to module='health' (same
+    # metadata-first/name-fallback pattern already used by
+    # auto_complete_routine_schedules). Retire when guidance_type covers
+    # this domain.
+    guidance_qs = GuidanceItem.objects.filter(
+        user=user,
+        module="health",
+        is_active=True,
+    ).filter(
+        Q(title__icontains="weight sync")
+        | Q(title__icontains="weight entry")
+        | Q(title__icontains="Apple Health weight")
+    )
+
+    result["insight_active_before"] = insight_qs.count()
+    result["guidance_active_before"] = guidance_qs.count()
+
+    if not (result["insight_active_before"] or result["guidance_active_before"]):
+        result["preserved_reason"] = "no_active_rows"
+        return result
+
+    # ── Canonical truth: latest WeightEntry directly ──
+    latest = (
+        WeightEntry.objects.filter(user=user)
+        .order_by("-recorded_at")
+        .only("recorded_at")
+        .first()
+    )
+    if not latest:
+        result["preserved_reason"] = "no_weight_entries"
+        return result
+
+    result["latest_recorded_at"] = latest.recorded_at.isoformat()
+    gap = max(0, (timezone.now() - latest.recorded_at).days)
+    result["gap_days"] = gap
+
+    if gap >= 3:
+        # Gap is real → both warnings are correct → preserve.
+        result["preserved_reason"] = f"gap_real_{gap}d"
+        return result
+
+    # ── Dismiss / deactivate (capture IDs first for deterministic logs) ──
+    if result["insight_active_before"]:
+        result["insight_dismissed_ids"] = list(
+            insight_qs.values_list("id", flat=True)
         )
-        result["active_before"] = active_qs.count()
-        if result["active_before"] == 0:
-            return result   # nothing to do — fast path
+        result["insight_dismissed_count"] = insight_qs.update(status="dismissed")
 
-        latest = (
-            WeightEntry.objects.filter(user=user)
-            .order_by("-recorded_at")
-            .only("recorded_at")
-            .first()
-        )
-        if not latest:
-            return result   # no weights at all → preserve the warning
-
-        result["latest_recorded_at"] = latest.recorded_at.isoformat()
-        gap = max(0, (timezone.now() - latest.recorded_at).days)
-        result["gap_days"] = gap
-
-        if gap >= 3:
-            # The gap is real → genuine warning, do NOT dismiss.
-            result["active_after"] = result["active_before"]
-            return result
-
-        # Capture IDs before update so logs can prove which rows were
-        # dismissed (deterministic evidence per the user's debug request).
-        ids = list(active_qs.values_list("id", flat=True))
-        result["dismissed_ids"] = ids
-        result["dismissed_count"] = active_qs.update(status="dismissed")
-        result["active_after"] = 0
-    except Exception:
-        logger.warning(
-            "weight_sync: resolver failed user=%s",
-            getattr(user, "id", "?"), exc_info=True,
-        )
+    if result["guidance_active_before"]:
+        guidance_rows = list(guidance_qs.values("id", "title"))
+        result["guidance_deactivated_ids"] = [g["id"] for g in guidance_rows]
+        result["guidance_titles"] = [g["title"] for g in guidance_rows]
+        result["guidance_deactivated_count"] = guidance_qs.update(is_active=False)
 
     return result
 
 
-def resolve_weight_gap_insights(user) -> int:
-    """Dismiss any active 'missing_weight_logging' insight for this user.
+def resolve_weight_gap_insights(user) -> dict:
+    """Unconditionally dismiss EVERY active weight-gap artifact for a user.
 
-    Called from the WeightEntry post_save signal: once a fresh weight arrives
-    the condition behind the insight no longer holds, so the dashboard
-    accountability layer (which reads persisted PIE Insight rows) must not
-    keep showing a stale warning. Without this, dashboard and Beth diverge
-    after ingest (Beth re-reads SAE = fresh; dashboard re-reads insight rows
-    = stale until 7-day window expires).
+    Called from the WeightEntry post_save signal — a fresh weight arrived,
+    so by definition the condition has cleared. Covers BOTH stores the
+    dashboard accountability card reads from (Insight rows + GuidanceItem
+    rows) so a stale warning cannot persist in either layer.
 
-    Returns the number of insights dismissed (0 if none were active).
+    Returns a diagnostic dict (same shape used by the gated wrapper):
+        {insight_dismissed_count, insight_dismissed_ids,
+         guidance_deactivated_count, guidance_deactivated_ids}
     """
+    from django.db.models import Q
+    out = {
+        "insight_dismissed_count": 0,
+        "insight_dismissed_ids": [],
+        "guidance_deactivated_count": 0,
+        "guidance_deactivated_ids": [],
+    }
     try:
         from apps.core.ai_insights.models import Insight
-        count = Insight.objects.filter(
+        qs = Insight.objects.filter(
             user=user,
             insight_type="missing_weight_logging",
             status__in=("new", "read"),
-        ).update(status="dismissed")
-        if count:
-            logger.info(
-                "weight_sync: resolved %d stale weight-gap insight(s) user=%s",
-                count, getattr(user, "id", "?"),
-            )
-        return count
+        )
+        out["insight_dismissed_ids"] = list(qs.values_list("id", flat=True))
+        out["insight_dismissed_count"] = qs.update(status="dismissed")
     except Exception:
         logger.warning(
-            "weight_sync: insight resolution failed user=%s",
+            "weight_sync: insight dismissal failed user=%s",
             getattr(user, "id", "?"), exc_info=True,
         )
-        return 0
+    try:
+        from apps.core.ai_guidance.models import GuidanceItem
+        gqs = GuidanceItem.objects.filter(
+            user=user, module="health", is_active=True,
+        ).filter(
+            Q(title__icontains="weight sync")
+            | Q(title__icontains="weight entry")
+            | Q(title__icontains="Apple Health weight")
+        )
+        out["guidance_deactivated_ids"] = list(gqs.values_list("id", flat=True))
+        out["guidance_deactivated_count"] = gqs.update(is_active=False)
+    except Exception:
+        logger.warning(
+            "weight_sync: guidance deactivation failed user=%s",
+            getattr(user, "id", "?"), exc_info=True,
+        )
+    if out["insight_dismissed_count"] or out["guidance_deactivated_count"]:
+        logger.info(
+            "weight_sync: cleared user=%s insights=%s guidance=%s",
+            getattr(user, "id", "?"),
+            out["insight_dismissed_count"],
+            out["guidance_deactivated_count"],
+        )
+    return out
 
 
 def _has_active_sync_device(user) -> bool:

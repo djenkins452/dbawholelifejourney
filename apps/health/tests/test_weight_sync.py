@@ -10,7 +10,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from apps.core.ai_insights.models import Insight
@@ -165,13 +165,15 @@ class BethDashboardConvergenceTests(TestCase):
 
     def test_resolver_dismisses_active_weight_gap_insight(self):
         ins = self._make_stale_warning_insight()
-        count = resolve_weight_gap_insights(self.user)
-        self.assertEqual(count, 1)
+        out = resolve_weight_gap_insights(self.user)
+        self.assertEqual(out["insight_dismissed_count"], 1)
         ins.refresh_from_db()
         self.assertEqual(ins.status, "dismissed")
 
     def test_resolver_idempotent_and_safe_with_no_active_insight(self):
-        self.assertEqual(resolve_weight_gap_insights(self.user), 0)
+        out = resolve_weight_gap_insights(self.user)
+        self.assertEqual(out["insight_dismissed_count"], 0)
+        self.assertEqual(out["guidance_deactivated_count"], 0)
 
     def test_post_save_signal_dismisses_stale_insight_on_new_entry(self):
         """THE core defect: stale warning insight in DB, fresh WeightEntry
@@ -219,7 +221,7 @@ class BethDashboardConvergenceTests(TestCase):
 
         res = resolve_stale_weight_insight_if_cleared(self.user)
         self.assertEqual(
-            res["dismissed_count"], 1,
+            res["insight_dismissed_count"], 1,
             "Resolver MUST dismiss using WeightEntry directly when SAE "
             "state is missing/stale — that is the production bug.",
         )
@@ -232,10 +234,85 @@ class BethDashboardConvergenceTests(TestCase):
         [DASHBOARD_WEIGHT_DEBUG] — fixed shape for prod log greps."""
         res = resolve_stale_weight_insight_if_cleared(self.user)
         for key in (
-            "active_before", "active_after", "dismissed_count",
-            "dismissed_ids", "latest_recorded_at", "gap_days",
+            "insight_active_before", "insight_dismissed_count",
+            "insight_dismissed_ids", "guidance_active_before",
+            "guidance_deactivated_count", "guidance_deactivated_ids",
+            "latest_recorded_at", "gap_days",
         ):
             self.assertIn(key, res)
+
+    def test_resolver_deactivates_stale_guidanceitem_with_weight_sync_title(self):
+        """The dashboard's accountability card reads BOTH Insight rows AND
+        GuidanceItem rows. A stale GuidanceItem with 'weight sync' in the
+        title would leak the same warning even after Insight is dismissed —
+        the resolver must cover BOTH stores."""
+        from apps.core.ai_guidance.models import GuidanceItem
+        # Fresh weight (gap < 3 → should clear).
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("290.6"), unit="lb",
+            recorded_at=timezone.now(), source="apple_health",
+            sync_id="gi-test-1",
+        )
+        # Stale GuidanceItem with the warning title.
+        g = GuidanceItem.objects.create(
+            user=self.user,
+            title="Apple Health weight sync may have stopped",
+            message="Sync stalled — check phone.",
+            priority=2,
+            guidance_type="weight_sync_stale",
+            source="composite",
+            module="health",
+            is_active=True,
+        )
+        res = resolve_stale_weight_insight_if_cleared(self.user)
+        self.assertEqual(res["guidance_deactivated_count"], 1)
+        self.assertIn(g.id, res["guidance_deactivated_ids"])
+        g.refresh_from_db()
+        self.assertFalse(g.is_active)
+
+    def test_resolver_preserves_genuine_warning_for_real_gap(self):
+        """If gap is real (>=3 days), NEITHER Insight NOR GuidanceItem is
+        cleared — we must not silently hide a true warning."""
+        from apps.core.ai_guidance.models import GuidanceItem
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("293.7"), unit="lb",
+            recorded_at=timezone.now() - timedelta(days=10),
+            source="apple_health", sync_id="real-gap-1",
+        )
+        ins = self._make_stale_warning_insight()
+        Insight.objects.filter(pk=ins.pk).update(status="new")
+        g = GuidanceItem.objects.create(
+            user=self.user, title="Apple Health weight sync may have stopped",
+            message="x", priority=2, guidance_type="weight_sync_stale",
+            source="composite", module="health", is_active=True,
+        )
+        res = resolve_stale_weight_insight_if_cleared(self.user)
+        self.assertEqual(res["insight_dismissed_count"], 0)
+        self.assertEqual(res["guidance_deactivated_count"], 0)
+        self.assertEqual(res["preserved_reason"], "gap_real_10d")
+        ins.refresh_from_db()
+        g.refresh_from_db()
+        self.assertEqual(ins.status, "new")
+        self.assertTrue(g.is_active)
+
+    def test_resolver_does_not_touch_guidanceitems_in_other_modules(self):
+        """Scoping guard: module='goals' / 'faith' / etc. weight-sync-titled
+        guidance (unlikely but possible) is NOT deactivated by this health
+        resolver."""
+        from apps.core.ai_guidance.models import GuidanceItem
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("290.6"), unit="lb",
+            recorded_at=timezone.now(), source="apple_health", sync_id="scope-1",
+        )
+        unrelated = GuidanceItem.objects.create(
+            user=self.user, title="Weight sync goal", message="x", priority=3,
+            guidance_type="goal_check", source="composite",
+            module="goals", is_active=True,
+        )
+        resolve_stale_weight_insight_if_cleared(self.user)
+        unrelated.refresh_from_db()
+        self.assertTrue(unrelated.is_active)
+
 
     def test_dashboard_load_resolves_preexisting_stale_insight(self):
         """THE production fix: a stale insight that predated the post_save
@@ -270,7 +347,7 @@ class BethDashboardConvergenceTests(TestCase):
         # 1. The resolver runs (this is what the v3 view calls on load).
         res = resolve_stale_weight_insight_if_cleared(self.user)
         self.assertGreaterEqual(
-            res["dismissed_count"], 1,
+            res["insight_dismissed_count"], 1,
             "Pre-existing stale insight MUST be dismissed when fresh weight "
             "exists — otherwise the dashboard keeps showing a warning Beth "
             "already cleared.",
@@ -310,7 +387,7 @@ class BethDashboardConvergenceTests(TestCase):
         Insight.objects.filter(pk=ins.pk).update(status="new")
 
         res = resolve_stale_weight_insight_if_cleared(self.user)
-        self.assertEqual(res["dismissed_count"], 0)
+        self.assertEqual(res["insight_dismissed_count"], 0)
         ins.refresh_from_db()
         self.assertEqual(ins.status, "new")  # genuine warning preserved
 
@@ -346,3 +423,96 @@ class BethDashboardConvergenceTests(TestCase):
                     "leaked to dashboard while SAE shows fresh sync. This is "
                     "the Beth/dashboard divergence we forbade."
                 )
+
+
+# Bypass MFAEnforcementMiddleware for this class — it 302-redirects staff
+# users to the MFA setup page before they can hit any endpoint, which would
+# defeat the point of testing the view's own staff-check logic.
+_OPS_MIDDLEWARE = [
+    m for m in settings.MIDDLEWARE
+    if "MFAEnforcementMiddleware" not in m
+]
+
+
+@override_settings(MIDDLEWARE=_OPS_MIDDLEWARE)
+class RecomputeHealthSignalsOpsTests(TestCase):
+    """Ops endpoint contract: staff-only, clears stale weight artifacts on
+    demand, returns deterministic counts."""
+
+    def setUp(self):
+        from django.test import Client
+        self.admin = User.objects.create_user(
+            email="admin@test.com", password="testpass123", is_staff=True,
+        )
+        TermsAcceptance.objects.create(
+            user=self.admin,
+            terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"),
+        )
+        self.admin.preferences.has_completed_onboarding = True
+        self.admin.preferences.save()
+        self.client = Client()
+        # force_login bypasses password + the middleware redirects that
+        # client.login() trips during tests.
+        self.client.force_login(self.admin)
+
+    def test_endpoint_rejects_non_staff(self):
+        from django.contrib.auth import get_user_model
+        from django.test import Client
+        from django.urls import reverse
+        User2 = get_user_model()
+        u = User2.objects.create_user(
+            email="not-staff@test.com", password="x", is_staff=False,
+        )
+        TermsAcceptance.objects.create(
+            user=u,
+            terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"),
+        )
+        u.preferences.has_completed_onboarding = True
+        u.preferences.save()
+        c = Client()
+        c.force_login(u)
+        resp = c.post(reverse("admin_console:ops_recompute_health"))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_endpoint_clears_stale_weight_artifacts(self):
+        from apps.core.ai_guidance.models import GuidanceItem
+        from django.urls import reverse
+        # Stale artifacts + fresh weight on admin's account.
+        WeightEntry.objects.create(
+            user=self.admin, value=Decimal("290.6"), unit="lb",
+            recorded_at=timezone.now(), source="apple_health",
+            sync_id="ops-1",
+        )
+        ins = Insight.objects.create(
+            user=self.admin, module="health",
+            insight_type="missing_weight_logging", severity="warning",
+            title="Apple Health weight sync may have stopped",
+            message="x", confidence_score=0.9, explain_why="t",
+            evidence={}, dedupe_key="ops-stale-1", status="new",
+        )
+        g = GuidanceItem.objects.create(
+            user=self.admin, title="Apple Health weight sync may have stopped",
+            message="x", priority=2, guidance_type="weight_sync_stale",
+            source="composite", module="health", is_active=True,
+        )
+        resp = self.client.post(reverse("admin_console:ops_recompute_health"))
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        self.assertTrue(data["sae_rebuilt"])
+        self.assertTrue(data["pie_ran"])
+        # The OUTCOME is what matters — both stale artifacts cleared by the
+        # end of the call. (Either the PIE engine's own _auto_dismiss step
+        # OR our resolver dismisses the Insight; the resolver always
+        # handles GuidanceItem since the engine doesn't.) Assert final
+        # state, not which step did it.
+        ins.refresh_from_db()
+        g.refresh_from_db()
+        self.assertEqual(
+            ins.status, "dismissed",
+            "Insight row MUST end up dismissed after Recompute Health Signals",
+        )
+        self.assertFalse(
+            g.is_active,
+            "GuidanceItem MUST end up deactivated after Recompute Health Signals",
+        )

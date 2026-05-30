@@ -7,6 +7,70 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-30 — fix(trust): resolver covers GuidanceItem too + unconditional logging + Recompute ops control (fix #4)
+
+Fix #3 dismissed `Insight` rows but the dashboard accountability card ALSO
+reads `GuidanceItem` rows — its "Recommendation" slot. A stale GuidanceItem
+with a weight-sync title would surface the same warning text even after my
+Insight resolver ran. The user-visible stale warning was surviving because
+the resolver only covered ONE of the two stores the dashboard reads from.
+
+**Fix:**
+
+1. **Resolver covers both stores.**
+   `resolve_stale_weight_insight_if_cleared(user)` and
+   `resolve_weight_gap_insights(user)` now dismiss matching `Insight` rows
+   AND deactivate matching `GuidanceItem` rows in a single canonical write
+   path. GuidanceItem matching is scoped to `module="health"`,
+   `is_active=True`, with title-keyword bridge (`weight sync` / `weight
+   entry` / `Apple Health weight`) — same metadata-first/name-fallback
+   pattern used by `auto_complete_routine_schedules`. Other-module
+   guidance with similar titles is NEVER touched.
+
+2. **`[DASHBOARD_WEIGHT_DEBUG]` log is impossible to hide.** Restructured
+   the v3 view: each sub-call (resolver, get_weight_sync_status) lives in
+   its OWN try/except that records the error into the debug dict, and the
+   final `logger.info("[DASHBOARD_WEIGHT_DEBUG] %s", _dbg)` emits OUTSIDE
+   all try blocks. If the resolver raises you see the error in the same
+   log line. If the dashboard renders at all this line WILL appear in
+   Railway logs — silent suppression structurally impossible.
+
+3. **Ops control: "Recompute Health Signals."**
+   POST `/admin-console/ops/recompute-health/` (staff-only). Optional body
+   `{"user_id": <int>}` defaults to `request.user`. Three steps:
+     a. Rebuild SAE health state (fresh `weight_sync_*` keys).
+     b. Re-run PIE rules for `event_type="scheduled_check"` so engine
+        auto-dismiss can fire for any rule whose evaluate() now returns [].
+     c. Call the canonical resolver — both Insight + GuidanceItem.
+   Returns deterministic JSON counts so the admin can confirm exactly
+   what cleared, no cache clearing or restart required.
+
+**Files Modified:**
+- `apps/health/services/weight_sync.py` (resolver covers Insight +
+  GuidanceItem; signature returns diagnostic dict)
+- `apps/dashboard_v3/views.py` (unconditional [DASHBOARD_WEIGHT_DEBUG]
+  emission outside try/except)
+- `apps/core/ai_observability/ops_views.py` (RecomputeHealthSignalsView)
+- `apps/admin_console/urls.py` (route /ops/recompute-health/)
+- `apps/health/tests/test_weight_sync.py` (+5 regression tests incl.
+  GuidanceItem dismissal, scoping guard, ops endpoint contract)
+
+**Headline regressions:**
+- `test_resolver_deactivates_stale_guidanceitem_with_weight_sync_title` —
+  the exact bug fix #3 missed
+- `test_resolver_preserves_genuine_warning_for_real_gap` — never silently
+  hide a real warning
+- `test_resolver_does_not_touch_guidanceitems_in_other_modules` — scoping
+  guard
+- `test_endpoint_clears_stale_weight_artifacts` — ops control works
+- `test_endpoint_rejects_non_staff` — RBAC
+
+**Single truth, structurally:** Beth's SAE read and the dashboard's
+Insight + GuidanceItem reads now all converge whenever the latest
+`WeightEntry.recorded_at` is < 3 days old. One canonical resolver. Two
+stores. Zero divergence surface left for the weight-sync class of bug.
+
+
 ## 2026-05-30 — fix(trust): self-sufficient resolver + deterministic logging (fix #3 — the real one)
 
 Even after fix #2 deployed (resolver runs on every dashboard load), the

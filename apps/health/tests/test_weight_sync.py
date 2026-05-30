@@ -18,6 +18,7 @@ from apps.core.ai_insights.rules_health import MissingWeightLoggingRule
 from apps.health.models import WeightEntry
 from apps.health.services.weight_sync import (
     get_weight_sync_status,
+    resolve_stale_weight_insight_if_cleared,
     resolve_weight_gap_insights,
 )
 from apps.users.models import TermsAcceptance, User
@@ -191,6 +192,83 @@ class BethDashboardConvergenceTests(TestCase):
             "Stale weight-gap insight MUST be dismissed when a fresh "
             "WeightEntry arrives — otherwise dashboard diverges from Beth.",
         )
+
+    def test_dashboard_load_resolves_preexisting_stale_insight(self):
+        """THE production fix: a stale insight that predated the post_save
+        signal still gets resolved on the NEXT dashboard load — because
+        the resolver runs on render whenever SAE says the condition cleared.
+
+        Simulates the exact prod scenario:
+          1. WeightEntry already exists (May 30 fresh weight) — saved before
+             the signal-based fix deployed, so the post_save handler never
+             dismissed the stale insight.
+          2. The stale 'missing_weight_logging' insight from when sync was
+             actually stalled is still status='new' in the DB.
+          3. Dashboard loads → SAE-gated resolver runs → insight dismissed.
+          4. Neither the accountability card NOR the executive summary's
+             needs_attention surfaces the stale warning anymore.
+        """
+        from apps.core.cos_briefing.executive_summary import build_executive_summary
+        from apps.dashboard_v3.services.composer import _build_accountability_cards
+
+        # Pre-existing fresh weight (the May 30 ingest).
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("290.6"), unit="lb",
+            recorded_at=timezone.now(), source="apple_health",
+            sync_id="prod-fresh-1",
+        )
+        # Pre-existing stale warning insight that NEVER got dismissed.
+        ins = self._make_stale_warning_insight()
+        # Defeat the post_save dismissal so we're testing the load-path
+        # resolver specifically (this is the "predated the signal" case).
+        Insight.objects.filter(pk=ins.pk).update(status="new")
+
+        # 1. The resolver runs (this is what the v3 view calls on load).
+        dismissed = resolve_stale_weight_insight_if_cleared(self.user)
+        self.assertGreaterEqual(
+            dismissed, 1,
+            "Pre-existing stale insight MUST be dismissed when SAE says "
+            "sync is fresh — otherwise Danny's dashboard keeps showing a "
+            "warning Beth already cleared.",
+        )
+        ins.refresh_from_db()
+        self.assertEqual(ins.status, "dismissed")
+
+        # 2. Executive summary's needs_attention is now clean (it filters
+        #    on status in (new,read) — dismissed rows excluded).
+        summary = build_executive_summary(self.user)
+        for n in summary.get("needs_attention", []):
+            self.assertNotIn(
+                "sync", n["title"].lower(),
+                "Executive Summary's 'Needs Attention' is leaking a stale "
+                "weight-sync warning — Beth/dashboard divergence.",
+            )
+
+        # 3. Accountability card is also clean.
+        cards = _build_accountability_cards(self.user)
+        health = next((c for c in cards if c["slug"] == "health"), None)
+        if health:
+            for n in health.get("needs_attention", []):
+                self.assertNotIn("sync", n["title"].lower())
+
+    def test_resolver_does_not_dismiss_when_sync_is_actually_stale(self):
+        """Safety: if SAE genuinely still says stale, do NOT auto-dismiss
+        (we'd be hiding a real warning)."""
+        # No fresh weight; old apple_health entries → sync_stale=True via SAE
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("293.7"), unit="lb",
+            recorded_at=timezone.now() - timedelta(days=25),
+            source="apple_health", sync_id="old-1",
+        )
+        from apps.mobile.models import MobileDevice
+        MobileDevice.objects.create(user=self.user, device_id="d", is_active=True)
+        ins = self._make_stale_warning_insight()
+        Insight.objects.filter(pk=ins.pk).update(status="new")
+
+        dismissed = resolve_stale_weight_insight_if_cleared(self.user)
+        self.assertEqual(dismissed, 0)
+        ins.refresh_from_db()
+        self.assertEqual(ins.status, "new")  # genuine warning preserved
 
     def test_composer_convergence_guard_suppresses_stale_insight(self):
         """Even if a dismissal is ever missed, the composer's SAE-aware

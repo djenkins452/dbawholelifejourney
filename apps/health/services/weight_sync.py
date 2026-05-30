@@ -109,6 +109,41 @@ def get_weight_sync_status(user) -> dict[str, Any]:
     return out
 
 
+def resolve_stale_weight_insight_if_cleared(user) -> int:
+    """Resolve any stale weight-gap insight whose underlying condition has
+    since cleared in SAE — fires on every dashboard load.
+
+    This is the production fix for the 2026-05-30 trust bug: the post_save
+    signal on WeightEntry only catches FUTURE ingests. Pre-existing stale
+    Insight rows (created BEFORE that signal deployed) never get a save
+    event to trigger them. Without this, a fresh weight already in the DB
+    will not clear the stale dashboard warning until the user happens to
+    log another weight.
+
+    Cheap and idempotent: reads cached SAE state (no recompute), and only
+    issues the dismissal UPDATE when the gap actually cleared. Safe to
+    call on every dashboard render.
+
+    Returns the number of insights dismissed (0 if not stale or none active).
+    """
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        health = get_module_state(user, "health") or {}
+    except Exception:
+        logger.debug("weight_sync: SAE read failed (skip cleanup)", exc_info=True)
+        return 0
+
+    # Only dismiss when SAE explicitly says the condition has cleared.
+    # Conservative defaults so a missing key NEVER triggers dismissal.
+    if health.get("weight_sync_stale", True):
+        return 0
+    gap = health.get("weight_sync_gap_days")
+    if gap is None or gap >= 3:
+        return 0
+
+    return resolve_weight_gap_insights(user)
+
+
 def resolve_weight_gap_insights(user) -> int:
     """Dismiss any active 'missing_weight_logging' insight for this user.
 

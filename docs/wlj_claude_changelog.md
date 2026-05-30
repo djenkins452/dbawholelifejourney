@@ -7,6 +7,61 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-30 — fix(trust): pre-existing stale insights — resolve on dashboard load (fix #2)
+
+Fix #1 (the post_save signal) only catches FUTURE WeightEntry ingests.
+Danny's May 30 fresh weight had already been saved BEFORE the signal
+deployed, so no save event fired, and the pre-existing stale
+`missing_weight_logging` insight remained `status="new"` in the DB. The
+dashboard kept showing *"Apple Health weight sync may have stopped"* and
+*"No weight entry in 25 days"* while Beth correctly read the May 30
+weight from SAE.
+
+**Second visible surface (also unguarded):** the Executive Summary's
+"Needs Attention" column reads `Insight.objects.filter(severity__in=
+("warning","critical"), status__in=("new","read"))` with no convergence
+guard — so the stale warning leaked there too, not just in the
+accountability card.
+
+**Fix #2 — SAE-gated cleanup on every dashboard load:**
+
+- New `apps.health.services.weight_sync.resolve_stale_weight_insight_if_cleared(user)`:
+  reads cached SAE state; only dismisses when `weight_sync_stale=False`
+  AND `weight_sync_gap_days < 3`. Conservative defaults — a missing key
+  never triggers dismissal. Cheap (one indexed UPDATE only when needed),
+  idempotent, safe on every render.
+
+- `DashboardV3View.get_context_data` calls the new helper BEFORE
+  composing context. Pre-existing stale insights are dismissed on the
+  very next dashboard render — no waiting for a future save event. Since
+  the dismissal is `status="dismissed"`, every downstream insight read
+  (accountability cards, Executive Summary needs_attention, Beth's
+  needs_attention) excludes them simultaneously. One write, all surfaces
+  converge.
+
+**Why it cannot recur (single source of dismissal):** the new helper
+delegates to the existing `resolve_weight_gap_insights` resolver — the
+same function called by the post_save signal. One write path; one set of
+filters. There is no parallel dismissal logic.
+
+**Files Modified:**
+- `apps/health/services/weight_sync.py` (+ SAE-gated wrapper)
+- `apps/dashboard_v3/views.py` (call resolver on every load)
+- `apps/health/tests/test_weight_sync.py` (+2 regression tests)
+
+**Headline regression:**
+`test_dashboard_load_resolves_preexisting_stale_insight` — creates the
+EXACT prod scenario: pre-existing fresh `WeightEntry` (the May 30 entry)
++ pre-existing stale insight that defeated the post_save dismissal +
+calls the dashboard-load resolver → asserts insight dismissed, exec
+summary's needs_attention clean, accountability card clean. Fails on
+fix-#1-only code; passes on this fix.
+
+Plus `test_resolver_does_not_dismiss_when_sync_is_actually_stale` —
+safety guard: when SAE genuinely still says stale, the helper does NOT
+dismiss (preserves real warnings). 13 tests pass.
+
+
 ## 2026-05-30 — fix(trust): Beth/dashboard divergence — auto-dismiss stale weight-gap insight
 
 **TRUST-CRITICAL.** A fresh weight ingested from Apple Health (290.6 lb, May

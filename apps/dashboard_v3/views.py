@@ -58,6 +58,22 @@ class DashboardV3View(HelpContextMixin, LoginRequiredMixin, TemplateView):
         except Exception:
             logger.debug("v3: day-start init skipped", exc_info=True)
 
+        # TRUST CONVERGENCE (2026-05-30 fix #2): the post_save signal on
+        # WeightEntry only catches future ingests. A weight that landed
+        # BEFORE the signal deployed leaves the stale 'missing_weight_logging'
+        # insight active, so the dashboard keeps showing a warning Beth
+        # already cleared. This call dismisses any such stale insight when
+        # SAE says the condition cleared — fixes pre-existing rows on the
+        # very next render. Cheap (cached SAE read + one indexed UPDATE
+        # only when needed); idempotent.
+        try:
+            from apps.health.services.weight_sync import (
+                resolve_stale_weight_insight_if_cleared,
+            )
+            resolve_stale_weight_insight_if_cleared(self.request.user)
+        except Exception:
+            logger.debug("v3: weight insight cleanup skipped", exc_info=True)
+
         ctx["v3"] = build_dashboard_v3_context(self.request.user)
         ctx["weather_tile"] = build_weather_tile(self.request.user)
 

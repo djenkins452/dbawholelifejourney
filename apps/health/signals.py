@@ -87,6 +87,30 @@ def handle_workout_schedule_deleted(sender, instance, **kwargs):
         )
 
 
+@receiver(post_save, sender='health.WeightEntry')
+def resolve_stale_weight_insights_on_new_entry(sender, instance, created, **kwargs):
+    """TRUST CONVERGENCE: when a fresh WeightEntry arrives the
+    'missing_weight_logging' insight's condition no longer holds. The PIE
+    rule that produced it only runs on scheduled_check events, NOT on
+    record_created — without explicit dismissal here the stale insight
+    persists in the dashboard accountability layer while Beth (reading
+    SAE) is already fresh, producing the user-visible divergence.
+
+    Reuses the canonical resolver in apps.health.services.weight_sync so
+    the dismissal logic stays single-source-of-truth.
+    """
+    if not created:
+        return
+    try:
+        from apps.health.services.weight_sync import resolve_weight_gap_insights
+        resolve_weight_gap_insights(instance.user)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "weight insight resolve on save failed: %s", e, exc_info=True,
+        )
+
+
 @receiver(post_save, sender='health.WorkoutSession')
 def handle_workout_session_completed(sender, instance, **kwargs):
     """

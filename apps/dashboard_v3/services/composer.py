@@ -345,6 +345,28 @@ def _build_accountability_cards(user) -> list[dict]:
             created_at__gte=cutoff,
         ).order_by("-created_at")
     )
+
+    # ── Convergence guard: SAE is the canonical freshness layer ──
+    # Beth reads SAE (recomputed on every relevant write). The
+    # accountability card reads persisted Insight rows. If an Insight's
+    # underlying condition has since cleared in SAE, suppress it here so
+    # the dashboard NEVER tells the user something Beth contradicts. This
+    # is belt-and-suspenders: the post_save signal on WeightEntry already
+    # dismisses these rows; this guard ensures any future missed signal
+    # can't reintroduce the divergence we fixed 2026-05-30.
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        _health = get_module_state(user, "health") or {}
+        if not _health.get("weight_sync_stale", True):
+            _gap = _health.get("weight_sync_gap_days")
+            if _gap is not None and _gap < 3:
+                fresh_insights = [
+                    i for i in fresh_insights
+                    if i.insight_type != "missing_weight_logging"
+                ]
+    except Exception:
+        logger.debug("convergence guard: SAE read failed", exc_info=True)
+
     fresh_guidance = list(
         GuidanceItem.objects.filter(user=user, is_active=True)
         .order_by("priority", "-created_at")

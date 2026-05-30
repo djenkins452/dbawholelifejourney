@@ -109,6 +109,39 @@ def get_weight_sync_status(user) -> dict[str, Any]:
     return out
 
 
+def resolve_weight_gap_insights(user) -> int:
+    """Dismiss any active 'missing_weight_logging' insight for this user.
+
+    Called from the WeightEntry post_save signal: once a fresh weight arrives
+    the condition behind the insight no longer holds, so the dashboard
+    accountability layer (which reads persisted PIE Insight rows) must not
+    keep showing a stale warning. Without this, dashboard and Beth diverge
+    after ingest (Beth re-reads SAE = fresh; dashboard re-reads insight rows
+    = stale until 7-day window expires).
+
+    Returns the number of insights dismissed (0 if none were active).
+    """
+    try:
+        from apps.core.ai_insights.models import Insight
+        count = Insight.objects.filter(
+            user=user,
+            insight_type="missing_weight_logging",
+            status__in=("new", "read"),
+        ).update(status="dismissed")
+        if count:
+            logger.info(
+                "weight_sync: resolved %d stale weight-gap insight(s) user=%s",
+                count, getattr(user, "id", "?"),
+            )
+        return count
+    except Exception:
+        logger.warning(
+            "weight_sync: insight resolution failed user=%s",
+            getattr(user, "id", "?"), exc_info=True,
+        )
+        return 0
+
+
 def _has_active_sync_device(user) -> bool:
     """True if the user has an active mobile device or a live (non-expired)
     auth token — i.e. Apple Health sync SHOULD be delivering data.

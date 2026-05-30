@@ -7,6 +7,71 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-30 — fix(trust): Beth/dashboard divergence — auto-dismiss stale weight-gap insight
+
+**TRUST-CRITICAL.** A fresh weight ingested from Apple Health (290.6 lb, May
+30) yet the dashboard accountability card still showed *"Apple Health weight
+sync may have stopped"* while Beth correctly read the fresh weight. The two
+surfaces were reading **different freshness layers**.
+
+**Root cause:** Beth reads SAE health state (recomputed by
+`fire_intelligence(user, "health")` on every WeightEntry ingest → instant
+fresh). Dashboard accountability cards read **raw `Insight` rows** from PIE
+(`composer.py:341`). `MissingWeightLoggingRule.applies()` only fires on
+`event_type == "scheduled_check"`, NOT on `record_created` — so on weight
+ingest the rule **never runs to create OR dismiss its own insight**. The
+warning insight from when sync WAS stalled persisted in the DB as
+`status="new"` until the 7-day window expired, even though SAE
+`weight_sync_stale` flipped back to False immediately on ingest.
+
+**Fix — two layers (convergence becomes structurally impossible):**
+
+1. **Canonical resolver in the existing weight-sync service:**
+   `apps.health.services.weight_sync.resolve_weight_gap_insights(user)`
+   marks every active `missing_weight_logging` insight `dismissed`. Single
+   source of truth — both the signal and any future caller use this.
+
+2. **WeightEntry `post_save` signal** (`apps/health/signals.py`) calls the
+   resolver on every new WeightEntry creation. The dashboard's persisted
+   insight is dismissed in the same transaction the ingest writes the
+   weight, so accountability and Beth converge in the SAME render cycle —
+   no hard refresh, no waiting for scheduled jobs.
+
+3. **Composer convergence guard** (`apps/dashboard_v3/services/composer.py
+   :: _build_accountability_cards`): even if a future signal is ever
+   missed, the composer now reads SAE `weight_sync_stale` /
+   `weight_sync_gap_days` and **suppresses any lingering
+   `missing_weight_logging` insight** when SAE says the condition cleared.
+   Belt-and-suspenders: dashboard ≠ Beth becomes structurally impossible.
+
+**Why this honors "no duplicate truth":** the SAE state and the PIE Insight
+remain distinct artifacts with distinct purposes (Beth narrates over
+composed state; dashboard surfaces persistent insights). What we fixed is
+**resolution coupling**: an Insight's lifecycle is now tied to the event
+that resolves it, not just the periodic re-evaluation that originally
+created it.
+
+**Files Modified:**
+- `apps/health/services/weight_sync.py` (+ resolve_weight_gap_insights)
+- `apps/health/signals.py` (+ post_save WeightEntry handler)
+- `apps/dashboard_v3/services/composer.py` (convergence guard reading SAE)
+- `apps/health/tests/test_weight_sync.py` (+4 convergence regression tests)
+
+**Tests:** the headline regression
+(`test_post_save_signal_dismisses_stale_insight_on_new_entry`) creates the
+exact production scenario — stale warning insight + fresh apple_health
+WeightEntry — and asserts the insight is dismissed by the signal. The
+composer-guard test forces a re-stale insight and asserts the composer
+suppresses it. Both fail on the old code, pass on the fix.
+
+**Remaining architectural risk (called out, not yet acted on):** other PIE
+rules with the same shape (`applies` gated to `scheduled_check`, insight
+that resolves on a different event class) could exhibit the same
+divergence pattern. Audit recommended next session: every PIE rule whose
+condition is event-resolvable should pair with a resolver signal on the
+event that clears it.
+
+
 ## 2026-05-28 — investigation+fix(health): Apple Health weight-sync trust failure (source-aware accountability)
 
 **Investigation (no guessing — code-traced + date math).** Dashboard/Beth

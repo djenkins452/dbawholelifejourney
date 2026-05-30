@@ -346,14 +346,10 @@ def _build_accountability_cards(user) -> list[dict]:
         ).order_by("-created_at")
     )
 
-    # ── Convergence guard: SAE is the canonical freshness layer ──
-    # Beth reads SAE (recomputed on every relevant write). The
-    # accountability card reads persisted Insight rows. If an Insight's
-    # underlying condition has since cleared in SAE, suppress it here so
-    # the dashboard NEVER tells the user something Beth contradicts. This
-    # is belt-and-suspenders: the post_save signal on WeightEntry already
-    # dismisses these rows; this guard ensures any future missed signal
-    # can't reintroduce the divergence we fixed 2026-05-30.
+    # Convergence guard: SAE is the canonical freshness layer Beth reads.
+    # The accountability card reads persisted Insight rows. If an Insight's
+    # underlying condition has cleared in SAE, suppress it here so the
+    # dashboard never tells the user something Beth contradicts.
     try:
         from apps.core.ai_state.state_engine import get_module_state
         _health = get_module_state(user, "health") or {}

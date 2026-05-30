@@ -110,25 +110,16 @@ def get_weight_sync_status(user) -> dict[str, Any]:
 
 
 def resolve_stale_weight_insight_if_cleared(user) -> dict:
-    """Resolve EVERY stale weight-gap dashboard artifact whose underlying
-    condition has cleared — fires on every dashboard load. Deterministic.
+    """Resolve every stale weight-gap dashboard artifact whose underlying
+    condition has cleared. Called on dashboard load.
 
-    Covers BOTH stores the v3 accountability card reads from:
-      - core_ai_insight rows (insight_type='missing_weight_logging')
-        → status flipped to 'dismissed'
-      - ai_guidance.GuidanceItem rows scoped to module='health' with a
-        weight-sync title → is_active flipped to False
+    Covers BOTH stores the accountability card reads from:
+      - Insight rows (insight_type='missing_weight_logging') → 'dismissed'
+      - GuidanceItem rows (module='health' + weight-sync title) → is_active=False
 
-    SELF-SUFFICIENT: reads `WeightEntry.recorded_at` DIRECTLY, not SAE.
-    Immune to SAE state shape (missing/stale `weight_sync_*` keys).
-
-    Returns a diagnostic dict consumed by [DASHBOARD_WEIGHT_DEBUG] logging:
-        {
-          latest_recorded_at, gap_days,
-          insight_active_before, insight_dismissed_count, insight_dismissed_ids,
-          guidance_active_before, guidance_deactivated_count,
-          guidance_deactivated_ids, guidance_titles,
-        }
+    Reads `WeightEntry.recorded_at` directly (not SAE) so it's immune to
+    SAE state shape. Returns a diagnostic dict with per-store active /
+    dismissed counts + IDs.
     """
     from django.db.models import Q
     from apps.core.ai_insights.models import Insight

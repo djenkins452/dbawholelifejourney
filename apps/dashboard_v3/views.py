@@ -58,41 +58,38 @@ class DashboardV3View(HelpContextMixin, LoginRequiredMixin, TemplateView):
         except Exception:
             logger.debug("v3: day-start init skipped", exc_info=True)
 
-        # TRUST CONVERGENCE — clears any stale weight-sync artifact (Insight
-        # rows + GuidanceItem rows) whose underlying condition has resolved.
-        # Logging is IMPOSSIBLE TO HIDE: every sub-call is isolated in its
-        # own try/except, and the final [DASHBOARD_WEIGHT_DEBUG] emit lives
-        # OUTSIDE all of them. If the resolver raises, you see the error in
-        # the same log line. If everything succeeds, you see deterministic
-        # evidence of what was found and dismissed.
-        _dbg = {
-            "route": "/dashboard/",
-            "view": "DashboardV3View",
-            "user": self.request.user.id,
-            "resolver_error": None,
-            "sync_error": None,
-        }
+        # Trust convergence: dismiss any stale weight-sync artifact (Insight
+        # row OR GuidanceItem row) whose underlying condition has resolved,
+        # so the dashboard accountability layer can never diverge from the
+        # SAE truth Beth reads. Quiet by default; only logs on anomaly.
         try:
             from apps.health.services.weight_sync import (
                 resolve_stale_weight_insight_if_cleared,
             )
-            _dbg.update(resolve_stale_weight_insight_if_cleared(self.request.user))
-        except Exception as e:
-            _dbg["resolver_error"] = repr(e)
-            logger.warning("v3: resolver raised", exc_info=True)
-        try:
-            from apps.health.services.weight_sync import get_weight_sync_status
-            _sync = get_weight_sync_status(self.request.user)
-            _dbg["sae_sync_stale"] = _sync.get("sync_stale")
-            _dbg["sae_last_synced"] = (
-                _sync["last_entry_at"].isoformat()
-                if _sync.get("last_entry_at") else None
+            res = resolve_stale_weight_insight_if_cleared(self.request.user)
+            stuck = (
+                (res.get("insight_active_before") or 0)
+                > (res.get("insight_dismissed_count") or 0)
+                and (res.get("gap_days") or 99) < 3
             )
-        except Exception as e:
-            _dbg["sync_error"] = repr(e)
-        # ALWAYS emits — outside all try blocks. If we got here, /dashboard/
-        # routed to v3 and this code ran. Failure is impossible to hide.
-        logger.info("[DASHBOARD_WEIGHT_DEBUG] %s", _dbg)
+            if stuck:
+                # Active stale rows survived a fresh-weight resolver pass —
+                # the trust contract is at risk. Log so we notice.
+                logger.warning(
+                    "[DASHBOARD_WEIGHT_WARNING] stale weight insight survived "
+                    "resolver user=%s gap_days=%s active_before=%s "
+                    "dismissed=%s guidance_active=%s",
+                    self.request.user.id,
+                    res.get("gap_days"),
+                    res.get("insight_active_before"),
+                    res.get("insight_dismissed_count"),
+                    res.get("guidance_active_before"),
+                )
+        except Exception:
+            logger.error(
+                "[DASHBOARD_WEIGHT_ERROR] resolver raised for user=%s",
+                self.request.user.id, exc_info=True,
+            )
 
         ctx["v3"] = build_dashboard_v3_context(self.request.user)
         ctx["weather_tile"] = build_weather_tile(self.request.user)

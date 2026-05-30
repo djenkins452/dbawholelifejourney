@@ -24,7 +24,7 @@
                     <span class="v3-rhythm-name">{{ s.label }}</span>
                     <span class="v3-rhythm-count">
                         {% if s.completion.total %}
-                            {{ s.completion.completed }}/{{ s.completion.total }}{% if s.interaction_mode == 'preview' %} upcoming{% endif %}{% if s.is_past and s.open_count %} · {{ s.open_count }} still open{% endif %}
+                            {{ s.completion.completed }}/{{ s.completion.total }}{% if not s.is_current and not s.is_past %} upcoming{% endif %}{% if s.is_past and s.open_count %} · {{ s.open_count }} still open{% endif %}
                         {% else %}—{% endif %}
                     </span>
                     {% if s.is_current %}<span class="v3-rhythm-now-pill">now</span>{% endif %}
@@ -108,9 +108,23 @@
                             </ul>
                         {% endif %}
 
-                    {# ── EMPTY mode (future rhythm with nothing) ── #}
+                    {# ── EMPTY mode (distant future or truly nothing) ── #}
                     {% elif s.interaction_mode == 'empty' %}
-                        <p class="v3-rhythm-empty">Nothing scheduled in this block.</p>
+                        {% if s.preview_groups %}
+                            <p class="v3-rhythm-open-label">{{ s.open_label|default:"Coming Later" }}</p>
+                            <ul class="v3-rhythm-preview-list">
+                                {% for pg in s.preview_groups %}
+                                    <li class="v3-rhythm-preview-row">
+                                        <span class="v3-rhythm-preview-time">{{ pg.time }}</span>
+                                        <ul class="v3-rhythm-preview-titles">
+                                            {% for t in pg.titles %}<li>{{ t }}</li>{% endfor %}
+                                        </ul>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="v3-rhythm-empty">Nothing scheduled in this block.</p>
+                        {% endif %}
 
                     {# ── SUMMARY mode (past rhythm) ── #}
                     {% elif s.interaction_mode == 'summary' %}

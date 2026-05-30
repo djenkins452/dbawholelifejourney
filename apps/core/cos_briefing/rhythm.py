@@ -193,19 +193,28 @@ def build_rhythm_sections(user, execution_contract: dict | None = None) -> dict:
             status = "pending"
 
         is_current = bucket["key"] == current_key
-        is_past = _bucket_index(bucket["key"]) < _bucket_index(current_key)
+        bucket_idx = _bucket_index(bucket["key"])
+        current_idx = _bucket_index(current_key)
+        is_past = bucket_idx < current_idx
+        # PREVIEW only the rhythm IMMEDIATELY after current. Farther
+        # futures stay collapsed by default — the dashboard should fill
+        # whitespace, not grow tall just because content exists.
+        is_next_future = (
+            current_idx >= 0 and bucket_idx == current_idx + 1
+        )
 
         # Interaction mode — drives template rendering. Derived from
         # canonical state only (no UI flags):
         #   full    → current rhythm, full checkboxes + group-complete buttons
-        #   summary → past rhythm, collapsed to header line; click to expand
-        #   preview → future rhythm with items, compact "Coming Later" view
-        #   empty   → future rhythm with no items, minimal placeholder
+        #   summary → past rhythm, collapsed to header (expanded if leftovers)
+        #   preview → NEXT future rhythm with items, compact "Coming Later"
+        #   empty   → any other future rhythm (collapsed header by default;
+        #             body still renders behind a click-to-expand toggle)
         if is_current:
             interaction_mode = "full"
         elif is_past:
             interaction_mode = "summary"
-        elif total > 0:
+        elif is_next_future and total > 0:
             interaction_mode = "preview"
         else:
             interaction_mode = "empty"
@@ -250,11 +259,15 @@ def build_rhythm_sections(user, execution_contract: dict | None = None) -> dict:
             "dose_groups": (
                 _build_dose_groups(bucket_items) if is_current else []
             ),
-            # Compact preview groups (preview mode only) — list of doses
-            # and tasks grouped by scheduled_time, no checkboxes.
+            # Compact preview groups (preview AND empty-with-items modes) —
+            # list of doses and tasks grouped by scheduled_time, no checkboxes.
+            # Preview shows by default; empty-with-items shows ONLY when the
+            # user clicks the header to expand — so click-to-expand never
+            # reveals a misleading "Nothing scheduled" while items exist.
             "preview_groups": (
                 _build_preview_groups(bucket_items)
-                if interaction_mode == "preview" else []
+                if interaction_mode in ("preview", "empty") and bucket_items
+                else []
             ),
             "completion": {
                 "completed": completed,
@@ -318,7 +331,16 @@ def _build_dose_groups(items: list[dict]) -> list[dict]:
             continue
         intake_type = (item.get("intake_type")
                        or ("supplement" if stype == "supplement_dose" else "medication"))
-        tod = (item.get("time_of_day") or "").strip().lower()
+        # Production dose items (from today_execution.py) carry the window
+        # key in `execution_group_id`. Fall back to `time_of_day` for
+        # callers that set it directly (unit tests). Both are canonical
+        # window keys; first one wins.
+        tod = (
+            item.get("execution_group_id")
+            or item.get("time_of_day")
+            or ""
+        )
+        tod = tod.strip().lower() if isinstance(tod, str) else ""
         if not tod or intake_type not in ("medication", "supplement"):
             continue
         key = (intake_type, tod)

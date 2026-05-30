@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Dashboard V3 (Experimental) — Whole Life Journey{% endblock %}
+{% block title %}Dashboard — Whole Life Journey{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/dashboard_v2.css' %}">
@@ -15,7 +15,6 @@
             <h1 class="v3-greeting">{{ greeting }}</h1>
         </div>
         <div class="v3-topbar-meta">
-            <span class="v3-pill v3-pill-exp">EXPERIMENTAL · v3</span>
             {% if weather_tile.available and weather_tile.data %}
                 <span class="v3-pill v3-pill-weather" title="{{ weather_tile.data.city }}">
                     <span class="v3-pill-weather-temp">{{ weather_tile.data.temperature_f }}°</span>

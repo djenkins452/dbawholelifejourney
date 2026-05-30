@@ -97,6 +97,85 @@ class DashboardV3ViewTests(TestCase):
         self.assertNotIn("{#", body, "Found a leaked Django comment in rendered HTML")
         self.assertNotIn("#}", body, "Found a leaked Django comment close in rendered HTML")
 
+    def test_intake_group_log_action_url_reverses(self):
+        """Explicit take/undo URLs MUST reverse — the two-button group
+        UI depends on them."""
+        take_url = reverse(
+            "dashboard_v2:intake_group_log_action",
+            kwargs={"time_of_day": "morning", "kind": "supplement", "action": "take"},
+        )
+        undo_url = reverse(
+            "dashboard_v2:intake_group_log_action",
+            kwargs={"time_of_day": "morning", "kind": "supplement", "action": "undo"},
+        )
+        self.assertEqual(
+            take_url,
+            "/dashboard/actions/intake/group/morning/supplement/take/log/",
+        )
+        self.assertEqual(
+            undo_url,
+            "/dashboard/actions/intake/group/morning/supplement/undo/log/",
+        )
+
+    def test_dashboard_renders_both_buttons_in_partial_state(self):
+        """RENDERED PROOF: at 4/3 partial (3 supplements completed, 1
+        open) the dashboard HTML contains BOTH buttons —
+        'Complete Morning Supplements (1)' AND 'Undo Morning Supplements (3)'.
+        Counts equal what each click will do."""
+        from datetime import time as dtime, datetime
+        from unittest.mock import patch
+        from apps.core.utils import get_user_today, get_user_now
+        from apps.health.models import Intake, IntakeSchedule, IntakeLog
+
+        today = get_user_today(self.user)
+
+        # Helper: create a morning supplement schedule + a "taken" log if needed.
+        def _make(name, taken):
+            intake = Intake.objects.create(
+                user=self.user, name=name, intake_type="supplement",
+                intake_status=Intake.STATUS_ACTIVE, is_prn=False,
+                start_date=today,
+            )
+            sched = IntakeSchedule.objects.create(
+                intake=intake, time_of_day="morning",
+                scheduled_time=dtime(6, 0),
+                days_of_week="0,1,2,3,4,5,6",
+                is_active=True,
+            )
+            if taken:
+                IntakeLog.objects.create(
+                    user=self.user, intake=intake, schedule=sched,
+                    scheduled_date=today, scheduled_time=dtime(6, 0),
+                    log_status=IntakeLog.STATUS_TAKEN,
+                    is_prn_dose=False,
+                )
+            return sched
+
+        # 4 supplements: 3 taken, 1 open
+        _make("S1", taken=True)
+        _make("S2", taken=True)
+        _make("S3", taken=True)
+        _make("S4", taken=False)
+
+        # Force "morning" as the current rhythm window so the dose_groups
+        # render regardless of wall-clock when CI runs.
+        real_now = get_user_now(self.user)
+        morning_now = real_now.replace(hour=7, minute=0, second=0, microsecond=0)
+        with patch(
+            "apps.core.utils.get_user_now",
+            return_value=morning_now,
+        ):
+            resp = self.client.get(reverse("dashboard_v3:home"))
+        body = resp.content.decode("utf-8")
+        self.assertIn("v3-rhythm-dose-groups", body)
+
+        # Trust assertion — both labels present, counts equal actual outcomes.
+        self.assertIn("Complete Morning Supplements (1)", body)
+        self.assertIn("Undo Morning Supplements (3)", body)
+        # Neither stale (4) leaks anywhere on a button label.
+        self.assertNotIn("Complete Morning Supplements (4)", body)
+        self.assertNotIn("Complete Morning Supplements (3)", body)
+
     def test_intake_group_log_kind_url_reverses(self):
         """The new kind-filtered group endpoint MUST be reachable —
         meds vs supplements rely on distinct URLs for separate workflows.

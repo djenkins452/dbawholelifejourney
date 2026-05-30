@@ -840,7 +840,7 @@ class IntakeGroupLogAction(LoginRequiredMixin, View):
     - Fires medication taken event
     """
 
-    def post(self, request, time_of_day, kind=None):
+    def post(self, request, time_of_day, kind=None, action=None):
         """
         Args:
             time_of_day: window key (morning / afternoon / evening / nightly …)
@@ -848,14 +848,22 @@ class IntakeGroupLogAction(LoginRequiredMixin, View):
                   schedules of that intake_type are toggled — preserves the
                   meds vs supplements workflow separation. When None, the
                   legacy behavior (all kinds in the window) applies.
+            action: optional 'take' | 'undo' — forces direction. When None
+                  (legacy), behavior is: if all_taken → undo all, else
+                  take any not-taken. Trust rule: the explicit actions
+                  guarantee the button's count equals the actual outcome
+                  (Complete button takes only opens; Undo button reverses
+                  only completed).
         """
         from apps.core.events.domain_events import EventTypes, safe_emit_event
         from apps.health.models import Intake, IntakeLog, IntakeSchedule
 
         today = get_user_today(request.user)
 
-        # Whitelist kind to keep the URL surface tight.
+        # Whitelist kind + action to keep the URL surface tight.
         if kind is not None and kind not in ("medication", "supplement"):
+            return _render_action_center(request)
+        if action is not None and action not in ("take", "undo"):
             return _render_action_center(request)
 
         # Get all active, non-PRN schedules for this time_of_day, optionally
@@ -894,7 +902,18 @@ class IntakeGroupLogAction(LoginRequiredMixin, View):
         )
         all_taken = len(today_logs) >= len(applicable)
 
-        if all_taken:
+        # Direction resolution. Explicit `action` always wins (trust
+        # contract: clicking Undo undoes, period — never accidentally
+        # takes the open ones). When omitted (legacy callers), fall
+        # back to the original toggle semantics.
+        if action == "undo":
+            do_undo = True
+        elif action == "take":
+            do_undo = False
+        else:
+            do_undo = all_taken
+
+        if do_undo:
             # Undo: delete logs and restore supply
             logs_to_delete = IntakeLog.objects.filter(
                 user=request.user,

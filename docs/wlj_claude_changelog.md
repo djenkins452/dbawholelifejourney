@@ -7,6 +7,30 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-30 — fix(dashboard_v3): trust-correct group completion buttons
+
+**Changes:**
+- Rhythm dose-group helper now exposes `open_count` + `completed_count` + `all_completed` so the UI never has to re-derive button affordances from a misleading total-cluster size.
+- Replaced the single "Complete Morning Supplements (4)" toggle with two independent buttons that render based on actual state:
+  - **Complete (open_count)** when there are open items — clicking takes exactly that many
+  - **Undo (completed_count)** when there are completed items — clicking undoes exactly that many
+  - Both render together in partial states (e.g. 4/3 → "Complete (1)" + "Undo (3)")
+- `IntakeGroupLogAction` extended with optional `action` segment (`take` | `undo`); explicit action always wins over legacy toggle direction. Legacy URL preserved for backwards compat (toggle semantics still work).
+- New URL: `actions/intake/group/<time_of_day>/<kind>/<action>/log/` (name: `intake_group_log_action`).
+- Buttons stay scoped to their own `(time_of_day, kind)` — never cross rhythm or intake-type boundaries.
+
+**Files Modified:**
+- `apps/core/cos_briefing/rhythm.py` — `open_count` / `completed_count` / `all_completed` on each dose group
+- `apps/dashboard_v2/views.py` — `IntakeGroupLogAction.post(time_of_day, kind=None, action=None)`; explicit `take`/`undo` overrides toggle
+- `apps/dashboard_v2/urls.py` — new `intake_group_log_action` route with `<action>` segment
+- `templates/dashboard_v3/sections/rhythm.html` — two-button pattern, each label = actual click outcome
+- `apps/dashboard_v3/tests/test_composer.py` — `test_dose_group_button_counts_equal_actual_click_outcomes` covers 4/0, 4/3, 4/4, 4/2
+- `apps/dashboard_v3/tests/test_views.py` — `test_intake_group_log_action_url_reverses` + full HTML render proof at 4/3 partial state
+
+**Why:** Trust rule — a button's count must equal what will actually happen when clicked. Previously "Complete Morning Supplements (4)" at 4/3 partial state implied 4 items would be taken, when only 1 was open. Counts now always represent the real click outcome.
+
+---
+
 ## 2026-05-30 — docs(prompts): add Claude Opus 4.8 Execution Playbook
 
 **Changes:**

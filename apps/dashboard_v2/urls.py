@@ -101,6 +101,15 @@ urlpatterns = [
         views.IntakeGroupLogAction.as_view(),
         name="intake_group_log_kind",
     ),
+    # Explicit-action group endpoint (take|undo). Trust rule: the
+    # button's count must equal the actual outcome — Complete takes only
+    # opens, Undo reverses only completed. Toggle behavior (legacy URL
+    # above) is preserved for backwards compat.
+    path(
+        "actions/intake/group/<str:time_of_day>/<str:kind>/<str:action>/log/",
+        views.IntakeGroupLogAction.as_view(),
+        name="intake_group_log_action",
+    ),
     path(
         "actions/routine/<int:pk>/complete/",
         views.RoutineCompleteAction.as_view(),

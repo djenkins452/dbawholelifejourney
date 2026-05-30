@@ -423,6 +423,48 @@ class RhythmInteractionModeTests(TestCase):
         self.assertEqual(morning_med["completed"], 1)
         self.assertFalse(morning_med["all_completed"])
 
+    def test_dose_group_button_counts_equal_actual_click_outcomes(self):
+        """TRUST RULE: each button's count = how many items the click
+        actually affects. Complete shows open_count; Undo shows
+        completed_count. No misleading total-cluster-size labels."""
+        from apps.core.cos_briefing.rhythm import _build_dose_groups
+
+        def _supp(completed, idx):
+            return {
+                "source_type": "supplement_dose",
+                "intake_type": "supplement",
+                "execution_group_id": "morning",
+                "completed_today": completed,
+                "title": f"S{idx}",
+            }
+
+        # Case A: 4 total / 0 completed → Complete shows (4)
+        a = _build_dose_groups([_supp(False, i) for i in range(4)])[0]
+        self.assertEqual(a["open_count"], 4)
+        self.assertEqual(a["completed_count"], 0)
+        self.assertFalse(a["all_completed"])
+
+        # Case B: 4 total / 3 completed → Complete (1) + Undo (3)
+        b = _build_dose_groups(
+            [_supp(True, 0), _supp(True, 1), _supp(True, 2), _supp(False, 3)]
+        )[0]
+        self.assertEqual(b["open_count"], 1)
+        self.assertEqual(b["completed_count"], 3)
+        self.assertFalse(b["all_completed"])
+
+        # Case C: 4 total / 4 completed → Undo (4) only
+        c = _build_dose_groups([_supp(True, i) for i in range(4)])[0]
+        self.assertEqual(c["open_count"], 0)
+        self.assertEqual(c["completed_count"], 4)
+        self.assertTrue(c["all_completed"])
+
+        # Case D: 4 total / 2 completed → Complete (2) + Undo (2)
+        d = _build_dose_groups(
+            [_supp(True, 0), _supp(True, 1), _supp(False, 2), _supp(False, 3)]
+        )[0]
+        self.assertEqual(d["open_count"], 2)
+        self.assertEqual(d["completed_count"], 2)
+
     def test_dose_groups_helper_falls_back_to_time_of_day(self):
         """Convenience fallback so direct callers can pass time_of_day."""
         from apps.core.cos_briefing.rhythm import _build_dose_groups

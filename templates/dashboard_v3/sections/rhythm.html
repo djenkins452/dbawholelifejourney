@@ -47,14 +47,29 @@
                         {% if s.dose_groups %}
                             <div class="v3-rhythm-dose-groups" role="group" aria-label="Group complete">
                                 {% for g in s.dose_groups %}
-                                    <button type="button"
-                                            class="v3-group-complete-btn v3-group-{{ g.kind }}{% if g.all_completed %} v3-group-done{% endif %}"
-                                            data-v3-toggle
-                                            hx-post="{% url 'dashboard_v2:intake_group_log_kind' time_of_day=g.time_of_day kind=g.kind %}"
-                                            hx-swap="none"
-                                            title="Toggle the entire {{ g.label|lower }} group ({{ g.count }} items)">
-                                        {% if g.all_completed %}↺ Undo {{ g.label }} ({{ g.count }}){% else %}✓ Complete {{ g.label }} ({{ g.count }}){% endif %}
-                                    </button>
+                                    {# Trust rule: each button's count must equal the actual #}
+                                    {# click outcome. Complete → open items only. Undo → completed #}
+                                    {# items only. Both can render in partial states. #}
+                                    {% if g.open_count %}
+                                        <button type="button"
+                                                class="v3-group-complete-btn v3-group-{{ g.kind }}"
+                                                data-v3-toggle
+                                                hx-post="{% url 'dashboard_v2:intake_group_log_action' time_of_day=g.time_of_day kind=g.kind action='take' %}"
+                                                hx-swap="none"
+                                                title="Take the {{ g.open_count }} remaining {{ g.label|lower }}">
+                                            ✓ Complete {{ g.label }} ({{ g.open_count }})
+                                        </button>
+                                    {% endif %}
+                                    {% if g.completed_count %}
+                                        <button type="button"
+                                                class="v3-group-complete-btn v3-group-{{ g.kind }} v3-group-done"
+                                                data-v3-toggle
+                                                hx-post="{% url 'dashboard_v2:intake_group_log_action' time_of_day=g.time_of_day kind=g.kind action='undo' %}"
+                                                hx-swap="none"
+                                                title="Undo the {{ g.completed_count }} completed {{ g.label|lower }}">
+                                            ↺ Undo {{ g.label }} ({{ g.completed_count }})
+                                        </button>
+                                    {% endif %}
                                 {% endfor %}
                             </div>
                         {% endif %}

@@ -359,6 +359,12 @@ def _build_dose_groups(items: list[dict]) -> list[dict]:
         window_name = WINDOW_DISPLAY_NAMES.get(tod, tod.title())
         noun = "Medications" if kind == "medication" else "Supplements"
         g["label"] = f"{window_name} {noun}"
+        # Open vs completed — the two values used by the two buttons.
+        # Trust rule: each button's count must equal what clicking it
+        # actually does. open_count → Complete button. completed_count →
+        # Undo button. Buttons render independently based on these counts.
+        g["completed_count"] = g["completed"]
+        g["open_count"] = max(0, g["count"] - g["completed"])
         g["all_completed"] = g["count"] > 0 and g["completed"] >= g["count"]
         out.append(g)
     # Stable order: medication before supplement, then by canonical window order.

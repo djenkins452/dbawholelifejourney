@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-30 — docs(prompts): add Claude Opus 4.8 Execution Playbook
+
+**Changes:**
+- Added an additive operator playbook describing how to safely use Opus 4.8 capabilities (subagents, workflows, /goal, long-running execution) while building WLJ
+- Establishes "aggressive execution inside protective boundaries": sequential by default, escalate only when complexity justifies it, read-only subagents, surgical mutation behind a Pre-Write Gate
+- References (does not restate) the Architecture Laws, Signal Ontology, and Domain Registry — no governance duplication
+
+**Files Created:**
+- `@WLJ_SYSTEM_PROMPTS/02_CLAUDE/WLJ CLAUDE OPUS 4.8 EXECUTION PLAYBOOK.md`
+
+**Why:** WLJ is a protected production system; this gives Claude a lightweight, reversible guide to move faster on investigation/debugging/verification without destabilizing Beth/CoS, signal pipelines, or the three-phase execution path. Additive only — deleting it has zero effect on existing prompts.
+
+
 ## 2026-05-30 — fix(trust): resolver covers GuidanceItem too + unconditional logging + Recompute ops control (fix #4)
 
 Fix #3 dismissed `Insight` rows but the dashboard accountability card ALSO

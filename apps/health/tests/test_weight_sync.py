@@ -193,6 +193,50 @@ class BethDashboardConvergenceTests(TestCase):
             "WeightEntry arrives — otherwise dashboard diverges from Beth.",
         )
 
+    def test_resolver_works_without_any_SAE_state(self):
+        """Critical fix #3: the resolver must NOT depend on SAE keys.
+        Even if UserState.state_data has no weight_sync_* keys (because the
+        row was persisted before those keys existed, or build_health_state's
+        weight_sync block fell into its try/except), the resolver MUST
+        still dismiss the stale insight using WeightEntry directly.
+
+        This is the exact production case the prior fix missed: SAE was
+        rebuilt manually but the dashboard kept showing the warning."""
+        # Pre-existing fresh weight (May 30 ingest, today).
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("290.6"), unit="lb",
+            recorded_at=timezone.now(), source="apple_health",
+            sync_id="prod-sae-missing-1",
+        )
+        # Stale insight + DEFEAT the post_save dismissal (simulate predeploy).
+        ins = self._make_stale_warning_insight()
+        Insight.objects.filter(pk=ins.pk).update(status="new")
+        # CRUCIAL: deliberately wipe any SAE state for this user so the
+        # resolver has NO weight_sync_* keys to consult — proving it does
+        # not depend on them.
+        from apps.core.ai_state.models import UserState
+        UserState.objects.filter(user=self.user).delete()
+
+        res = resolve_stale_weight_insight_if_cleared(self.user)
+        self.assertEqual(
+            res["dismissed_count"], 1,
+            "Resolver MUST dismiss using WeightEntry directly when SAE "
+            "state is missing/stale — that is the production bug.",
+        )
+        self.assertEqual(res["gap_days"], 0)
+        ins.refresh_from_db()
+        self.assertEqual(ins.status, "dismissed")
+
+    def test_resolver_returns_diagnostic_shape(self):
+        """Resolver returns the dict the v3 view logs as
+        [DASHBOARD_WEIGHT_DEBUG] — fixed shape for prod log greps."""
+        res = resolve_stale_weight_insight_if_cleared(self.user)
+        for key in (
+            "active_before", "active_after", "dismissed_count",
+            "dismissed_ids", "latest_recorded_at", "gap_days",
+        ):
+            self.assertIn(key, res)
+
     def test_dashboard_load_resolves_preexisting_stale_insight(self):
         """THE production fix: a stale insight that predated the post_save
         signal still gets resolved on the NEXT dashboard load — because
@@ -224,12 +268,12 @@ class BethDashboardConvergenceTests(TestCase):
         Insight.objects.filter(pk=ins.pk).update(status="new")
 
         # 1. The resolver runs (this is what the v3 view calls on load).
-        dismissed = resolve_stale_weight_insight_if_cleared(self.user)
+        res = resolve_stale_weight_insight_if_cleared(self.user)
         self.assertGreaterEqual(
-            dismissed, 1,
-            "Pre-existing stale insight MUST be dismissed when SAE says "
-            "sync is fresh — otherwise Danny's dashboard keeps showing a "
-            "warning Beth already cleared.",
+            res["dismissed_count"], 1,
+            "Pre-existing stale insight MUST be dismissed when fresh weight "
+            "exists — otherwise the dashboard keeps showing a warning Beth "
+            "already cleared.",
         )
         ins.refresh_from_db()
         self.assertEqual(ins.status, "dismissed")
@@ -265,8 +309,8 @@ class BethDashboardConvergenceTests(TestCase):
         ins = self._make_stale_warning_insight()
         Insight.objects.filter(pk=ins.pk).update(status="new")
 
-        dismissed = resolve_stale_weight_insight_if_cleared(self.user)
-        self.assertEqual(dismissed, 0)
+        res = resolve_stale_weight_insight_if_cleared(self.user)
+        self.assertEqual(res["dismissed_count"], 0)
         ins.refresh_from_db()
         self.assertEqual(ins.status, "new")  # genuine warning preserved
 

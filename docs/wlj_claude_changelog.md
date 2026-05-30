@@ -7,6 +7,58 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-30 — fix(trust): self-sufficient resolver + deterministic logging (fix #3 — the real one)
+
+Even after fix #2 deployed (resolver runs on every dashboard load), the
+stale warnings still showed in prod with Beth + SAE confirmed fresh.
+Forensic trace confirmed:
+  - route `/dashboard/` correctly dispatches to `DashboardV3View` (the
+    view that calls the resolver)
+  - no cache layers in the v3 composer path
+  - only `MissingWeightLoggingRule` produces those strings
+  - the resolver depended on SAE having `weight_sync_stale` /
+    `weight_sync_gap_days` populated
+
+That last item is the bug. If `UserState.state_data` was persisted
+before HEALTH_CONTRACT gained those keys, or the weight_sync block in
+`build_health_state` ever fell into its try/except during a rebuild,
+the keys are missing → my conservative defaults
+(`get("weight_sync_stale", True)` / `gap=None`) made the resolver SKIP
+the dismissal even when a fresh WeightEntry was right there in the DB.
+The user ran a manual recompute but had no way to know whether it
+populated the new keys correctly.
+
+**Fix:** the resolver no longer reads SAE at all. It queries
+`WeightEntry.recorded_at` directly — the canonical truth source. If
+gap < 3 days → dismiss. If gap >= 3 → preserve (genuine warning).
+Single read of an indexed column; deterministic; immune to SAE state
+shape.
+
+**Deterministic forensic logging** (every dashboard load now emits):
+```
+[DASHBOARD_WEIGHT_DEBUG] route=/dashboard/ view=DashboardV3View
+user=<id> resolver_called=True active_before=<n> active_after=<n>
+dismissed_count=<n> dismissed_ids=[...] latest_recorded_at=<iso>
+gap_days=<n> sae_weight_sync_stale=<bool> sae_last_synced=<iso|None>
+```
+Grep `[DASHBOARD_WEIGHT_DEBUG]` in Railway logs to prove on the next
+render exactly which insight IDs were dismissed.
+
+**Files Modified:**
+- `apps/health/services/weight_sync.py` (resolver self-sufficient; now
+  returns a diagnostic dict instead of int)
+- `apps/dashboard_v3/views.py` (emits `[DASHBOARD_WEIGHT_DEBUG]` line)
+- `apps/health/tests/test_weight_sync.py` (+2 tests incl. resolver-works-
+  without-any-SAE-state, the exact prod case fix #2 missed)
+
+**Headline regression:** `test_resolver_works_without_any_SAE_state`
+deliberately deletes the user's `UserState` row entirely (no SAE keys
+possible), creates a fresh WeightEntry + stale insight, calls the
+resolver, asserts dismissed. Fails on fix-#2 code; passes on fix-#3.
+
+**Tests:** 15 pass.
+
+
 ## 2026-05-30 — fix(trust): pre-existing stale insights — resolve on dashboard load (fix #2)
 
 Fix #1 (the post_save signal) only catches FUTURE WeightEntry ingests.

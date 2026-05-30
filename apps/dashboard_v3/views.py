@@ -58,21 +58,33 @@ class DashboardV3View(HelpContextMixin, LoginRequiredMixin, TemplateView):
         except Exception:
             logger.debug("v3: day-start init skipped", exc_info=True)
 
-        # TRUST CONVERGENCE (2026-05-30 fix #2): the post_save signal on
-        # WeightEntry only catches future ingests. A weight that landed
-        # BEFORE the signal deployed leaves the stale 'missing_weight_logging'
-        # insight active, so the dashboard keeps showing a warning Beth
-        # already cleared. This call dismisses any such stale insight when
-        # SAE says the condition cleared — fixes pre-existing rows on the
-        # very next render. Cheap (cached SAE read + one indexed UPDATE
-        # only when needed); idempotent.
+        # TRUST CONVERGENCE — clears any stale 'missing_weight_logging'
+        # insight whose underlying condition has resolved. Self-sufficient
+        # (reads WeightEntry directly, no SAE dependency). Emits a single
+        # [DASHBOARD_WEIGHT_DEBUG] line per load as forensic evidence so
+        # production logs answer "did the resolver run, what did it see,
+        # what did it dismiss" without ambiguity.
         try:
             from apps.health.services.weight_sync import (
+                get_weight_sync_status,
                 resolve_stale_weight_insight_if_cleared,
             )
-            resolve_stale_weight_insight_if_cleared(self.request.user)
+            res = resolve_stale_weight_insight_if_cleared(self.request.user)
+            sync = get_weight_sync_status(self.request.user)
+            logger.info(
+                "[DASHBOARD_WEIGHT_DEBUG] route=/dashboard/ view=DashboardV3View "
+                "user=%s resolver_called=True active_before=%s active_after=%s "
+                "dismissed_count=%s dismissed_ids=%s latest_recorded_at=%s "
+                "gap_days=%s sae_weight_sync_stale=%s sae_last_synced=%s",
+                self.request.user.id,
+                res.get("active_before"), res.get("active_after"),
+                res.get("dismissed_count"), res.get("dismissed_ids"),
+                res.get("latest_recorded_at"), res.get("gap_days"),
+                sync.get("sync_stale"),
+                sync["last_entry_at"].isoformat() if sync.get("last_entry_at") else None,
+            )
         except Exception:
-            logger.debug("v3: weight insight cleanup skipped", exc_info=True)
+            logger.warning("v3: weight insight cleanup failed", exc_info=True)
 
         ctx["v3"] = build_dashboard_v3_context(self.request.user)
         ctx["weather_tile"] = build_weather_tile(self.request.user)

@@ -109,39 +109,77 @@ def get_weight_sync_status(user) -> dict[str, Any]:
     return out
 
 
-def resolve_stale_weight_insight_if_cleared(user) -> int:
+def resolve_stale_weight_insight_if_cleared(user) -> dict:
     """Resolve any stale weight-gap insight whose underlying condition has
-    since cleared in SAE — fires on every dashboard load.
+    cleared — fires on every dashboard load. Deterministic.
 
-    This is the production fix for the 2026-05-30 trust bug: the post_save
-    signal on WeightEntry only catches FUTURE ingests. Pre-existing stale
-    Insight rows (created BEFORE that signal deployed) never get a save
-    event to trigger them. Without this, a fresh weight already in the DB
-    will not clear the stale dashboard warning until the user happens to
-    log another weight.
+    SELF-SUFFICIENT (2026-05-30 fix #3): reads `WeightEntry.recorded_at`
+    DIRECTLY, NOT SAE state. Earlier versions depended on SAE keys
+    (`weight_sync_stale` / `weight_sync_gap_days`) which can be missing
+    from `UserState.state_data` if the row was persisted before those keys
+    existed in HEALTH_CONTRACT or if the weight_sync block in
+    build_health_state fell into its try/except. With conservative
+    defaults that meant the resolver was silently skipping dismissal even
+    though a fresh WeightEntry existed in the DB. Reading the canonical
+    `WeightEntry` row directly removes that whole class of bug.
 
-    Cheap and idempotent: reads cached SAE state (no recompute), and only
-    issues the dismissal UPDATE when the gap actually cleared. Safe to
-    call on every dashboard render.
-
-    Returns the number of insights dismissed (0 if not stale or none active).
+    Returns a diagnostic dict for [DASHBOARD_WEIGHT_DEBUG] logging:
+        {active_before, active_after, dismissed_ids, latest_recorded_at,
+         gap_days, dismissed_count}
     """
+    from apps.core.ai_insights.models import Insight
+    from apps.health.models import WeightEntry
+
+    result = {
+        "active_before": 0,
+        "active_after": 0,
+        "dismissed_count": 0,
+        "dismissed_ids": [],
+        "latest_recorded_at": None,
+        "gap_days": None,
+    }
+
     try:
-        from apps.core.ai_state.state_engine import get_module_state
-        health = get_module_state(user, "health") or {}
+        active_qs = Insight.objects.filter(
+            user=user,
+            insight_type="missing_weight_logging",
+            status__in=("new", "read"),
+        )
+        result["active_before"] = active_qs.count()
+        if result["active_before"] == 0:
+            return result   # nothing to do — fast path
+
+        latest = (
+            WeightEntry.objects.filter(user=user)
+            .order_by("-recorded_at")
+            .only("recorded_at")
+            .first()
+        )
+        if not latest:
+            return result   # no weights at all → preserve the warning
+
+        result["latest_recorded_at"] = latest.recorded_at.isoformat()
+        gap = max(0, (timezone.now() - latest.recorded_at).days)
+        result["gap_days"] = gap
+
+        if gap >= 3:
+            # The gap is real → genuine warning, do NOT dismiss.
+            result["active_after"] = result["active_before"]
+            return result
+
+        # Capture IDs before update so logs can prove which rows were
+        # dismissed (deterministic evidence per the user's debug request).
+        ids = list(active_qs.values_list("id", flat=True))
+        result["dismissed_ids"] = ids
+        result["dismissed_count"] = active_qs.update(status="dismissed")
+        result["active_after"] = 0
     except Exception:
-        logger.debug("weight_sync: SAE read failed (skip cleanup)", exc_info=True)
-        return 0
+        logger.warning(
+            "weight_sync: resolver failed user=%s",
+            getattr(user, "id", "?"), exc_info=True,
+        )
 
-    # Only dismiss when SAE explicitly says the condition has cleared.
-    # Conservative defaults so a missing key NEVER triggers dismissal.
-    if health.get("weight_sync_stale", True):
-        return 0
-    gap = health.get("weight_sync_gap_days")
-    if gap is None or gap >= 3:
-        return 0
-
-    return resolve_weight_gap_insights(user)
+    return result
 
 
 def resolve_weight_gap_insights(user) -> int:

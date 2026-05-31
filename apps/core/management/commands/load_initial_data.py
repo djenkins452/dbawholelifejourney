@@ -6954,7 +6954,7 @@ Tasks are sorted by priority (ascending) then creation date.""",
         hero card — premium North Star visual with deterministic milestone
         progression ring).
         """
-        reset_tracker_name = 'reset_mission_hero_2026_05_31'
+        reset_tracker_name = 'reset_mission_hero_2026_05_31_v2'
         try:
             if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
                 return

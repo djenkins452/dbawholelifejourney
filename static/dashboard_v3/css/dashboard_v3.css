@@ -904,58 +904,168 @@
 
 .v3-mission { display: block; }
 
+/* North-Star surface: visibly the most important card on the page. Stronger
+   frame, accent top-rail, deeper elevation than the standard tiles. */
 .v3-mission-card {
+    position: relative;
     display: block;
     text-decoration: none;
     color: var(--v3-text);
     background:
-        radial-gradient(120% 140% at 0% 0%, rgba(67, 56, 202, 0.06) 0%, rgba(67, 56, 202, 0) 55%),
+        radial-gradient(140% 120% at 0% 0%, rgba(67, 56, 202, 0.10) 0%, rgba(67, 56, 202, 0) 52%),
         linear-gradient(180deg, var(--v3-surface) 0%, var(--v3-surface-tint) 100%);
     border: 1px solid var(--v3-border-strong);
-    border-radius: 16px;
-    padding: 22px 24px;
-    box-shadow: var(--v3-shadow);
+    border-radius: 18px;
+    padding: 26px 28px 24px;
+    box-shadow: 0 10px 30px -12px rgba(15, 23, 42, 0.22), var(--v3-shadow);
+    overflow: hidden;
     transition: box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
+}
+
+/* Accent top-rail — the visual cue that this is the mission, not a tile. */
+.v3-mission-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--v3-accent) 0%, #6366f1 55%, #818cf8 100%);
 }
 
 .v3-mission-card:hover,
 .v3-mission-card:focus-visible {
-    box-shadow: var(--v3-shadow-focus);
-    transform: translateY(-1px);
+    box-shadow: 0 16px 38px -12px rgba(67, 56, 202, 0.30), var(--v3-shadow-focus);
+    transform: translateY(-2px);
     border-color: var(--v3-accent);
     outline: none;
 }
 
-/* Hero: ring on the left, content on the right. */
-.v3-mission-hero {
+/* ── Header band: large flag/icon, kicker, title, tagline, countdown ── */
+.v3-mission-header {
     display: grid;
-    grid-template-columns: 118px 1fr;
-    gap: 22px;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 22px;
+}
+
+.v3-mission-flag {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 60px;
+    height: 60px;
+    flex-shrink: 0;
+    font-size: 2.1rem;
+    line-height: 1;
+    background: var(--v3-accent-soft);
+    border: 1px solid rgba(67, 56, 202, 0.18);
+    border-radius: 14px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.v3-mission-headtext { min-width: 0; }
+
+.v3-mission-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--v3-accent);
+    background: var(--v3-accent-soft);
+    border-radius: 999px;
+    padding: 3px 10px;
+    margin-bottom: 7px;
+}
+
+.v3-mission-kicker-dot { font-size: 0.7rem; line-height: 1; }
+
+.v3-mission-title {
+    margin: 0;
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: var(--v3-ink);
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+}
+
+.v3-mission-subtitle {
+    margin: 5px 0 0;
+    font-size: 0.92rem;
+    line-height: 1.45;
+    color: var(--v3-text-mute);
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+/* Days-remaining countdown — a real future target date only. */
+.v3-mission-countdown {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    min-width: 72px;
+    padding: 8px 12px;
+    background: var(--v3-surface);
+    border: 1px solid var(--v3-border);
+    border-radius: 12px;
+}
+
+.v3-mission-countdown-num {
+    font-size: 1.55rem;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--v3-ink);
+    letter-spacing: -0.02em;
+}
+
+.v3-mission-countdown-cap {
+    margin-top: 3px;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--v3-text-soft);
+}
+
+/* ── Main: ring on the left, "how things are going" panel on the right ── */
+.v3-mission-main {
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    gap: 28px;
     align-items: center;
 }
 
 /* ── Milestone ring (progression, NOT readiness) ─────────────── */
 .v3-mission-ring-wrap {
     position: relative;
-    width: 118px;
-    height: 118px;
+    width: 150px;
+    height: 150px;
     flex-shrink: 0;
 }
 
 .v3-mission-ring {
-    width: 118px;
-    height: 118px;
+    width: 150px;
+    height: 150px;
     display: block;
+    filter: drop-shadow(0 4px 10px rgba(67, 56, 202, 0.16));
 }
 
 .v3-mission-ring-track {
     stroke: var(--v3-border);
-    stroke-width: 9;
+    stroke-width: 12;
 }
 
 .v3-mission-ring-arc {
     stroke: var(--v3-accent);
-    stroke-width: 9;
+    stroke-width: 12;
     stroke-linecap: round;
     /* Start the arc at 12 o'clock and fill clockwise. */
     transform: rotate(-90deg);
@@ -970,75 +1080,80 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1px;
+    gap: 2px;
     text-align: center;
 }
 
 .v3-mission-ring-frac {
-    font-size: 1.5rem;
+    font-size: 2.1rem;
     font-weight: 800;
     color: var(--v3-ink);
     line-height: 1;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
 }
 
 .v3-mission-ring-slash {
-    font-size: 1rem;
+    font-size: 1.3rem;
     font-weight: 600;
     color: var(--v3-text-soft);
-    margin: 0 1px;
+    margin: 0 2px;
 }
 
 .v3-mission-ring-glyph {
-    font-size: 1.7rem;
+    font-size: 2.2rem;
     line-height: 1;
 }
 
 .v3-mission-ring-cap {
-    font-size: 0.6rem;
+    font-size: 0.62rem;
     font-weight: 700;
-    letter-spacing: 0.07em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--v3-text-soft);
-    margin-top: 3px;
+    margin-top: 5px;
 }
 
-/* ── Body ────────────────────────────────────────────────────── */
-.v3-mission-body { min-width: 0; }
+/* ── "How things are going" panel ────────────────────────────── */
+.v3-mission-panel { min-width: 0; }
 
-.v3-mission-head { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
+.v3-mission-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 7px;
+}
 
-.v3-mission-kicker {
+.v3-mission-panel-label {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--v3-text-soft);
+}
+
+.v3-mission-trend {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    align-self: flex-start;
-    font-size: 0.64rem;
+    gap: 4px;
+    font-size: 0.8rem;
     font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--v3-accent);
-    background: var(--v3-accent-soft);
+    padding: 2px 9px;
     border-radius: 999px;
-    padding: 3px 10px;
+    background: var(--v3-surface);
+    border: 1px solid var(--v3-border);
 }
 
-.v3-mission-kicker-dot { font-size: 0.7rem; line-height: 1; }
-
-.v3-mission-title {
-    margin: 0;
-    font-size: 1.5rem;
-    font-weight: 800;
-    color: var(--v3-ink);
-    line-height: 1.18;
-    letter-spacing: -0.01em;
+.v3-mission-panel-text {
+    margin: 0 0 16px;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: var(--v3-text);
 }
-
-.v3-mission-icon { font-size: 1.45rem; }
 
 .v3-mission-stats {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
 }
 
@@ -1058,17 +1173,90 @@
     color: var(--v3-text);
 }
 
+.v3-mission-cta {
+    display: inline-block;
+    margin-top: 16px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--v3-accent);
+}
+
 /* Momentum is a directional signal, NOT a completion claim — tonal color
    only, never the reserved completion green-check treatment. */
 .v3-mission-momentum-up   { color: var(--v3-opp); }
 .v3-mission-momentum-flat { color: var(--v3-text-mute); }
 .v3-mission-momentum-down { color: var(--v3-warn); }
 
+/* ── Key Drivers row (deterministic behaviour signals) ───────── */
+.v3-mission-drivers {
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid var(--v3-border);
+}
+
+.v3-mission-drivers-label {
+    display: block;
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--v3-text-soft);
+    margin-bottom: 10px;
+}
+
+.v3-mission-drivers-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    gap: 10px;
+}
+
+.v3-mission-driver {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 10px 12px;
+    background: var(--v3-surface);
+    border: 1px solid var(--v3-border);
+    border-radius: 12px;
+    min-width: 0;
+}
+
+.v3-mission-driver-icon { font-size: 1.1rem; line-height: 1; flex-shrink: 0; }
+
+.v3-mission-driver-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.v3-mission-driver-label {
+    font-size: 0.64rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--v3-text-soft);
+}
+
+.v3-mission-driver-value {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--v3-ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.v3-mission-driver-up   { color: var(--v3-opp); }
+.v3-mission-driver-down { color: var(--v3-warn); }
+
 /* ── Why this matters (the user's own words) ─────────────────── */
 .v3-mission-why {
-    margin-top: 18px;
-    padding-top: 16px;
-    border-top: 1px solid var(--v3-border);
+    margin-top: 20px;
+    padding: 16px 18px;
+    background: var(--v3-accent-soft);
+    border-radius: 12px;
+    border-left: 3px solid var(--v3-accent);
 }
 
 .v3-mission-why-label {
@@ -1094,7 +1282,6 @@
 @media (max-width: 1200px) {
     .v3-gauges-row    { grid-template-columns: repeat(2, 1fr); }
     .v3-cards-grid    { grid-template-columns: repeat(2, 1fr); }
-    .v3-mission-stats { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 900px) {
@@ -1102,7 +1289,6 @@
     .v3-focus         { grid-template-columns: 1fr; }
     .v3-rhythm-grid   { grid-template-columns: 1fr; }
     .v3-focus-grid-row { grid-template-columns: 80px 1fr; }
-    .v3-mission-stats { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 640px) {
@@ -1117,11 +1303,15 @@
     .v3-ritem,
     .v3-rhythm-show-completed { font-size: 16px; }
 
-    /* Hero stacks: ring centered above the content on narrow screens. */
-    .v3-mission-card  { padding: 18px; }
-    .v3-mission-hero  { grid-template-columns: 1fr; justify-items: center; gap: 16px; }
-    .v3-mission-body  { width: 100%; }
-    .v3-mission-head  { align-items: center; text-align: center; }
-    .v3-mission-title { font-size: 1.3rem; }
-    .v3-mission-stats { gap: 12px; }
+    /* Header keeps the flag inline; countdown drops below on tiny screens. */
+    .v3-mission-card     { padding: 18px; }
+    .v3-mission-header   { grid-template-columns: auto 1fr; gap: 12px; }
+    .v3-mission-countdown { grid-column: 1 / -1; flex-direction: row; gap: 6px; min-width: 0; align-self: start; }
+    .v3-mission-title    { font-size: 1.35rem; }
+    .v3-mission-flag     { width: 48px; height: 48px; font-size: 1.7rem; }
+
+    /* Main stacks: ring centered above the panel on narrow screens. */
+    .v3-mission-main     { grid-template-columns: 1fr; justify-items: center; gap: 18px; }
+    .v3-mission-panel    { width: 100%; }
+    .v3-mission-stats    { gap: 12px; }
 }

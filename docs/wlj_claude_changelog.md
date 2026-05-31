@@ -7,6 +7,31 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-31 — fix(dashboard_v3): Mission hero card — visual fidelity correction
+
+**What:**
+Visual fidelity pass on the Primary Mission hero card to match the approved North-Star target. Architecture from Phase 2A/2B is unchanged — same single source of truth (`select_active_mission_goal`), same deterministic milestone ring, same icon hierarchy, same hide-if-none rule. This pass strengthens the *presentation* and adds two deterministic, read-only surfaces.
+
+**Changes:**
+- **Stronger hierarchy / mission identity** — dedicated header band: a framed flag/icon tile (60px, accent-soft chip), the "★ Primary Mission" kicker, a larger title (1.7rem), and a new one-line tagline drawn from the user's own `LifeGoal.description` (clamped to 2 lines). Added an accent top-rail and deeper elevation so the card reads as the page's hero, not another tile.
+- **Heavier ring** — track/arc stroke 9→12, ring 118→150px, center fraction 1.5→2.1rem, with a soft accent drop-shadow. Still milestone progression ("2 / 5 milestones"), NOT readiness — no fake percentage, no "on track".
+- **"How things are going" panel** — new right-side panel. Trend (Improving / Steady / Declining ↑→↓) comes ONLY from the latest persisted `GoalMomentumSnapshot.momentum_trend`; the coaching line is one of three FIXED, pre-approved sentences selected by that trend (never generated). Panel is omitted entirely when there is no momentum snapshot. Momentum moved out of the stat columns into this panel.
+- **Key Drivers row** — new deterministic behaviour-signal strip. `_build_mission_drivers(user)` reads ONLY pre-computed SAE module state (read-only, never live-computes on the request path): Weight (`health.weight_change_30d` + `weight_trend` direction), Workouts (`fitness.workouts_7d`), Steps (`health.steps_avg_7d`), Sleep (`health.sleep_avg_hours_7d`), Journal (`journal.entries_7d`), Nutrition (`nutrition.macro_compliance_score`). Each driver is included ONLY when its underlying field is present — missing signals are gracefully omitted (no zero-fill, no fabricated %).
+- **"Why this matters"** — restyled into an accent-soft, left-rail callout (still the user's own `why_it_matters`, excerpted) instead of a bottom text dump.
+- **Layout / proportions** — more breathing room (padding 22→26px, header/main/drivers/why as distinct grouped bands), responsive stacking refined for ≤640px.
+
+**Files:**
+- `apps/dashboard_v3/services/composer.py` — `_MISSION_PANEL_NARRATIVE`, `_DRIVER_ICONS`, `panel`/`subtitle`/`drivers` keys on `_build_mission_card`, new read-only `_build_mission_drivers()`.
+- `templates/dashboard_v3/sections/mission.html` — rebuilt: header band, heavier ring, panel, Key Drivers row.
+- `static/dashboard_v3/css/dashboard_v3.css` — premium hero styling, panel, drivers, responsive.
+- `apps/dashboard_v3/tests/test_composer.py` — 7 new tests (panel narrative/omission, subtitle, drivers surfaced/omitted/empty).
+- `apps/core/fixtures/release_notes.json` — PK 200 description updated (panel + Key Drivers); loader reset tracker bumped to `reset_mission_hero_2026_05_31_v2`.
+
+**Why:** The 2A/2B card was truthful but read like a flat tile; the approved target is a featured, motivating North-Star surface. This corrects the visual fidelity while keeping every element deterministic and defensible (no fake readiness, no health verdicts, no invented data).
+
+**Verification:** `apps.dashboard_v3.tests.test_composer.MissionCardTests` (22 tests) PASS; `test_visual_truth_contract` (3) PASS; `manage.py check` clean; `makemigrations --check` → no changes.
+
+
 ## 2026-05-31 — feat(dashboard_v3): Mission hero card (Phase 2B + safe 2C foundation)
 
 **What:**

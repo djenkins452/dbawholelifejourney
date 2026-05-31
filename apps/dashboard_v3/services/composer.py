@@ -117,6 +117,35 @@ _MOMENTUM_DISPLAY = {
     "falling": {"label": "Declining", "trend": "down"},
 }
 
+# Fixed, deterministic coaching lines for the "How things are going" panel.
+# Selected ONLY by the persisted momentum trend — never generated, never
+# health-conclusion. These are the exact approved sentences; the panel renders
+# nothing when there is no momentum trend to ground them.
+_MISSION_PANEL_NARRATIVE = {
+    "rising": (
+        "Your consistency is building momentum. "
+        "Keep focusing on your foundation phase."
+    ),
+    "stable": (
+        "Progress is steady. Small actions continue compounding."
+    ),
+    "falling": (
+        "Momentum has slowed. Protect consistency and focus on your "
+        "current milestone."
+    ),
+}
+
+# Icon glyphs for the Key Drivers row — purely decorative labels for known
+# deterministic signals (no inference, fixed per signal key).
+_DRIVER_ICONS = {
+    "weight": "⚖️",      # balance scale
+    "workouts": "\U0001F3CB️",  # weight lifter
+    "steps": "\U0001F45F",         # running shoe
+    "sleep": "\U0001F634",         # sleeping face
+    "journal": "✍️",      # writing hand
+    "nutrition": "\U0001F957",     # salad
+}
+
 
 def _latest_momentum(goal):
     """Latest persisted momentum snapshot for a goal (read-only).
@@ -199,8 +228,18 @@ def _build_mission_card(user) -> dict | None:
     # Momentum — latest snapshot trend only. Omit when no snapshot/trend.
     snap = _latest_momentum(goal)
     momentum = None
+    panel = None
     if snap and snap.momentum_trend:
         momentum = _MOMENTUM_DISPLAY.get(snap.momentum_trend)
+        narrative = _MISSION_PANEL_NARRATIVE.get(snap.momentum_trend)
+        if momentum and narrative:
+            # "How things are going" — deterministic trend + a fixed,
+            # pre-approved coaching line. No generated text, no verdict.
+            panel = {
+                "label": momentum["label"],
+                "trend": momentum["trend"],
+                "narrative": narrative,
+            }
 
     # Days remaining — only when a real future target date exists.
     days_remaining = None
@@ -217,18 +256,96 @@ def _build_mission_card(user) -> dict | None:
     # generated; rendered only when they wrote one.
     why = (goal.why_it_matters or "").strip() or None
 
+    # Short tagline under the title — the user's own description, if any.
+    subtitle = (goal.description or "").strip() or None
+
+    # Key Drivers — deterministic behaviour signals, read-only, gracefully
+    # omitted when unavailable.
+    drivers = _build_mission_drivers(user)
+
     return {
         "icon": icon,
         "title": display_title,
+        "subtitle": subtitle,
         "is_primary": True,  # selector guarantees an active Primary Mission
         "current_focus": current_focus,
         "next_milestone_date": next_milestone_date,
         "momentum": momentum,
+        "panel": panel,
+        "drivers": drivers,
         "days_remaining": days_remaining,
         "progress": progress,
         "why": why,
         "goal_id": goal.id,
     }
+
+
+def _build_mission_drivers(user) -> list[dict]:
+    """Deterministic behaviour signals for the Key Drivers row.
+
+    READ-ONLY: reads only pre-computed SAE module state (the nightly / SAME
+    cycle snapshot). NEVER live-computes on the request path, NEVER fabricates
+    a value or a percentage. Each driver is included ONLY when its underlying
+    field is present in state; a missing signal is gracefully omitted (no
+    zero-fill, no placeholder). Order is fixed and meaningful.
+    """
+    from apps.core.ai_state.state_engine import get_module_state
+
+    health = get_module_state(user, "health") or {}
+    fitness = get_module_state(user, "fitness") or {}
+    journal = get_module_state(user, "journal") or {}
+    nutrition = get_module_state(user, "nutrition") or {}
+
+    drivers: list[dict] = []
+
+    def add(key, label, value, trend=None):
+        drivers.append(
+            {
+                "key": key,
+                "icon": _DRIVER_ICONS.get(key, ""),
+                "label": label,
+                "value": value,
+                "trend": trend,
+            }
+        )
+
+    # Weight — the only signal carrying a real persisted trend direction.
+    wchange = health.get("weight_change_30d")
+    if wchange is not None:
+        wtrend = health.get("weight_trend")
+        trend = {"decreasing": "down", "increasing": "up", "stable": "flat"}.get(
+            wtrend
+        )
+        sign = "+" if wchange > 0 else ""
+        add("weight", "Weight", f"{sign}{wchange} lb / 30d", trend)
+
+    # Workout consistency.
+    workouts = fitness.get("workouts_7d")
+    if workouts is not None:
+        add("workouts", "Workouts", f"{workouts}/wk")
+
+    # Steps.
+    steps = health.get("steps_avg_7d")
+    if steps is not None:
+        add("steps", "Steps", f"{steps:,}/day")
+
+    # Sleep.
+    sleep = health.get("sleep_avg_hours_7d")
+    if sleep is not None:
+        add("sleep", "Sleep", f"{sleep}h avg")
+
+    # Journal consistency.
+    entries = journal.get("entries_7d")
+    if entries is not None:
+        add("journal", "Journal", f"{entries}/wk")
+
+    # Nutrition consistency.
+    if nutrition.get("enabled"):
+        macros = nutrition.get("macro_compliance_score")
+        if macros is not None:
+            add("nutrition", "Nutrition", f"{macros:.0f}% macros")
+
+    return drivers
 
 
 def _build_mission_progress(goal) -> dict:

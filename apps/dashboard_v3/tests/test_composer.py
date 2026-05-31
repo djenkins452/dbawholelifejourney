@@ -917,6 +917,85 @@ class MissionCardTests(TestCase):
         mission = build_dashboard_v3_context(self.user)["mission"]
         self.assertIsNone(mission["why"])
 
+    # ── Visual fidelity correction: panel, subtitle, drivers ─────────────
+
+    def _seed_state(self, **modules):
+        """Write a pre-computed SAE snapshot the read-only path will see."""
+        from apps.core.ai_state.models import UserState
+        UserState.objects.update_or_create(
+            user=self.user, defaults={"state_data": modules}
+        )
+
+    def test_panel_narrative_is_fixed_and_grounded_in_momentum(self):
+        # The "how things are going" panel selects one of three pre-approved,
+        # deterministic sentences — never generated, keyed only by trend.
+        goal = self._goal(title="Tracked")
+        self._momentum(goal, trend="rising")
+        panel = build_dashboard_v3_context(self.user)["mission"]["panel"]
+        self.assertIsNotNone(panel)
+        self.assertEqual(panel["trend"], "up")
+        self.assertEqual(panel["label"], "Improving")
+        self.assertIn("building momentum", panel["narrative"])
+
+    def test_panel_omitted_when_no_momentum(self):
+        # No snapshot → no panel. Never fabricated, never a default verdict.
+        self._goal(title="No momentum")
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertIsNone(mission["panel"])
+
+    def test_subtitle_from_user_description(self):
+        self._goal(title="With desc", description="  Run a family 10K.  ")
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertEqual(mission["subtitle"], "Run a family 10K.")
+
+    def test_subtitle_none_when_no_description(self):
+        self._goal(title="No desc", description="")
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertIsNone(mission["subtitle"])
+
+    def test_drivers_surfaced_from_precomputed_state(self):
+        # Drivers read ONLY pre-computed SAE module state, never live compute.
+        self._goal(title="Driven")
+        self._seed_state(
+            health={
+                "weight_change_30d": -2.3,
+                "weight_trend": "decreasing",
+                "steps_avg_7d": 8421,
+                "sleep_avg_hours_7d": 7.1,
+            },
+            fitness={"workouts_7d": 4},
+            journal={"entries_7d": 5},
+            nutrition={"enabled": True, "macro_compliance_score": 82},
+        )
+        drivers = build_dashboard_v3_context(self.user)["mission"]["drivers"]
+        keys = [d["key"] for d in drivers]
+        self.assertEqual(
+            keys, ["weight", "workouts", "steps", "sleep", "journal", "nutrition"]
+        )
+        weight = next(d for d in drivers if d["key"] == "weight")
+        self.assertEqual(weight["value"], "-2.3 lb / 30d")
+        self.assertEqual(weight["trend"], "down")
+        steps = next(d for d in drivers if d["key"] == "steps")
+        self.assertEqual(steps["value"], "8,421/day")
+
+    def test_drivers_gracefully_omitted_when_signal_absent(self):
+        # Missing fields are omitted entirely — no zero-fill, no fabrication.
+        self._goal(title="Sparse")
+        self._seed_state(
+            health={"steps_avg_7d": 6000},  # only steps present
+            fitness={},
+            journal={},
+            nutrition={"enabled": False},
+        )
+        drivers = build_dashboard_v3_context(self.user)["mission"]["drivers"]
+        self.assertEqual([d["key"] for d in drivers], ["steps"])
+
+    def test_drivers_empty_when_state_has_no_signals(self):
+        self._goal(title="Empty state")
+        self._seed_state(health={}, fitness={}, journal={}, nutrition={})
+        drivers = build_dashboard_v3_context(self.user)["mission"]["drivers"]
+        self.assertEqual(drivers, [])
+
 
 class WeatherTileTests(TestCase):
     def setUp(self):

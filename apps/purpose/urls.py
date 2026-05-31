@@ -20,6 +20,7 @@ from .views import (
     GoalUpdateView,
     GoalDeleteView,
     GoalToggleStatusView,
+    GoalPrimaryMissionToggleView,
     BulkDeleteGoalsView,
     # Goal Milestones
     MilestoneCreateView,
@@ -86,6 +87,7 @@ urlpatterns = [
     path("goals/<int:pk>/edit/", GoalUpdateView.as_view(), name="goal_update"),
     path("goals/<int:pk>/delete/", GoalDeleteView.as_view(), name="goal_delete"),
     path("goals/<int:pk>/status/", GoalToggleStatusView.as_view(), name="goal_toggle_status"),
+    path("goals/<int:pk>/primary-mission/", GoalPrimaryMissionToggleView.as_view(), name="goal_primary_mission_toggle"),
     path("goals/bulk/delete/", BulkDeleteGoalsView.as_view(), name="goal_bulk_delete"),
 
     # Goal Milestones

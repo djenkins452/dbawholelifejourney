@@ -321,6 +321,12 @@ class GoalDetailView(PurposeAccessMixin, DetailView):
             self.object.status == 'active'
         )
 
+        # Existing Primary Mission (if any other goal holds it) — used to warn
+        # before a replacement. None when this goal is the mission or none is set.
+        context['current_primary_mission'] = LifeGoal.objects.filter(
+            user=self.request.user, is_primary_mission=True,
+        ).exclude(pk=self.object.pk).first()
+
         return context
 
 
@@ -437,6 +443,36 @@ class GoalToggleStatusView(PurposeAccessMixin, View):
         if next_url:
             return redirect(next_url)
         return redirect('purpose:goal_list')
+
+
+class GoalPrimaryMissionToggleView(PurposeAccessMixin, View):
+    """Set or clear a goal as the user's single Primary Mission.
+
+    Mission selection is explicit user intent. Routing every write through
+    the model's atomic helper guarantees the one-per-user invariant and keeps
+    the dashboard Mission card + Chief of Staff coaching pointed at the same goal.
+    """
+
+    def post(self, request, pk):
+        goal = get_object_or_404(LifeGoal, pk=pk, user=request.user)
+        action = request.POST.get('action', 'set')
+
+        if action == 'clear':
+            goal.clear_primary_mission()
+            messages.info(
+                request, f"'{goal.title}' is no longer your Primary Mission."
+            )
+        else:
+            goal.make_primary_mission()
+            messages.success(
+                request, f"'{goal.title}' is now your Primary Mission."
+            )
+
+        from apps.core.utils import get_safe_redirect_url
+        next_url = get_safe_redirect_url(request)
+        if next_url:
+            return redirect(next_url)
+        return redirect('purpose:goal_detail', pk=goal.pk)
 
 
 # =============================================================================

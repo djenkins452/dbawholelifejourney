@@ -27,6 +27,19 @@
         <div class="header-actions">
             <a href="{% url 'purpose:goal_update' goal.pk %}" class="btn btn-secondary" data-testid="goal-edit-button">Edit</a>
             {% if goal.status == 'active' %}
+            {% if goal.is_primary_mission %}
+            <form method="post" action="{% url 'purpose:goal_primary_mission_toggle' goal.pk %}" class="inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="clear">
+                <button type="submit" class="btn btn-secondary" title="This goal is your featured Mission on the dashboard. Click to unset.">⭐ Primary Mission</button>
+            </form>
+            {% else %}
+            <form method="post" action="{% url 'purpose:goal_primary_mission_toggle' goal.pk %}" class="inline"{% if current_primary_mission %} data-confirm="Make this your Primary Mission? This will replace “{{ current_primary_mission.title|escapejs }}” as your featured Mission."{% endif %}>
+                {% csrf_token %}
+                <input type="hidden" name="action" value="set">
+                <button type="submit" class="btn btn-secondary" title="This goal will appear as your featured Mission on the dashboard and guide your Chief of Staff's mission coaching.">⭐ Make this my Primary Mission</button>
+            </form>
+            {% endif %}
             <form method="post" action="{% url 'purpose:goal_toggle_status' goal.pk %}" class="inline">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="complete">

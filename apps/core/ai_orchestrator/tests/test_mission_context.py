@@ -32,12 +32,14 @@ class MissionPurposeContextTests(TestCase):
         from apps.core.ai_state.state_engine import rebuild_user_state
         rebuild_user_state(self.user)
 
-    def test_no_mission_block_without_foundational_goal(self):
+    def test_no_mission_block_without_primary_mission(self):
         from apps.purpose.models import LifeGoal
         from apps.core.ai_orchestrator.cos_context import _build_purpose_context
 
+        # Foundational but NOT the Primary Mission → Beth stays silent on it.
         LifeGoal.objects.create(
             user=self.user, title="Plain", status="active",
+            is_foundational=True,
         )
         self._rebuild()
         ctx = _build_purpose_context(self.user)
@@ -52,7 +54,7 @@ class MissionPurposeContextTests(TestCase):
             user=self.user,
             title="France 2027 Family 10K",
             status="active",
-            is_foundational=True,
+            is_primary_mission=True,
             target_date=date.today() + timedelta(days=120),
         )
         GoalMilestone.objects.create(
@@ -86,7 +88,7 @@ class MissionPurposeContextTests(TestCase):
             user=self.user,
             title="No momentum yet",
             status="active",
-            is_foundational=True,
+            is_primary_mission=True,
         )
         self._rebuild()
         ctx = _build_purpose_context(self.user)

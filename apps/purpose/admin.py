@@ -76,8 +76,8 @@ class GoalMilestoneInline(admin.TabularInline):
 @admin.register(LifeGoal)
 class LifeGoalAdmin(admin.ModelAdmin):
     """Admin for Life Goals."""
-    list_display = ['title', 'user', 'domain', 'timeframe', 'status', 'target_date', 'milestone_progress']
-    list_filter = ['status', 'domain', 'timeframe']
+    list_display = ['title', 'user', 'domain', 'timeframe', 'status', 'is_primary_mission', 'target_date', 'milestone_progress']
+    list_filter = ['status', 'domain', 'timeframe', 'is_primary_mission']
     search_fields = ['title', 'description', 'user__email']
     ordering = ['-created_at']
     raw_id_fields = ['user', 'annual_direction']

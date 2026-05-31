@@ -7,6 +7,37 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-31 — feat(purpose): Primary Mission selection (Phase 2A)
+
+**What:**
+A user can now explicitly choose ONE active goal as their Primary Mission. The dashboard Mission card and Chief of Staff mission coaching now key off this explicit choice — NOT derived selection. If no Primary Mission is selected, the card hides and the CoS stays silent on missions. No fallback, no auto-selection, no guessing. A Mission is user intent, not algorithmic inference.
+
+**Architecture (explicit intent replaces derived selection):**
+- New field `LifeGoal.is_primary_mission` (BooleanField, default False) — stores a user decision, not computed state. Lives beside `is_foundational`, but the two are orthogonal: foundational = dashboard emphasis; primary mission = the single featured North Star.
+- **One active Primary Mission per user**, enforced at BOTH layers: app-level atomic helper `LifeGoal.make_primary_mission()` (unset-others → set-self in a transaction) and a DB-level partial `UniqueConstraint(fields=['user'], condition=Q(is_primary_mission=True))`.
+- Selection source of truth is now `apps/purpose/mission_selection.py :: select_active_mission_goal()` = `is_primary_mission=True AND status='active'`, `.first()`. Removed all derived ranking (`_rank_mission_goal` — foundational/deadline/momentum/milestones). Both dashboard_v3 composer and the SAE goal-state builder consume this one function → dashboard mission == Beth mission, always.
+
+**Files changed:**
+- `apps/purpose/models.py` — `is_primary_mission` field, Meta partial unique constraint, `make_primary_mission()` / `clear_primary_mission()` atomic helpers.
+- `apps/purpose/migrations/0013_lifegoal_is_primary_mission_and_more.py` — additive field + constraint. No backfill.
+- `apps/purpose/views.py` — new `GoalPrimaryMissionToggleView` (mirrors `GoalToggleStatusView`, routes through the atomic helper); `GoalDetailView` now passes `current_primary_mission` for the replace-confirmation.
+- `apps/purpose/urls.py` — `goals/<pk>/primary-mission/` route.
+- `apps/purpose/templates/purpose/goal_detail.html` — "⭐ Make this my Primary Mission" / "⭐ Primary Mission" control in header actions; replacement uses the existing `data-confirm` browser pattern (no new modal infra).
+- `apps/purpose/admin.py` — `is_primary_mission` in list_display + list_filter.
+- `apps/purpose/mission_selection.py` — explicit-flag selector; removed derived ranking.
+- `apps/dashboard_v3/services/composer.py` — `_build_mission_card` docstring updated (logic unchanged; selection delegated).
+
+**Enforcement / safety:**
+- Toggle endpoint is the ONLY write path for the flag — `is_primary_mission` is deliberately NOT in the create/edit ModelForm `fields`, so a form save can never set two primaries or bypass the helper.
+- Not AI-settable in 2A (mirrors `is_foundational`, which is also not AI-settable) — a deliberate, documented limitation, not a silent gap.
+- Card hide / CoS silence when no mission already works via existing None-guards downstream — the selector swap flows through automatically.
+
+**Tests:**
+- `apps/purpose/tests/test_primary_mission.py` — NEW, 10 tests (atomic unset-on-set; clear; DB constraint blocks two primaries; per-user isolation; selector active+primary only; toggle view set/replace/clear; cross-user 404).
+- Updated `MissionCardTests` (composer), `TestGoalStateBuilder`, `test_mission_context` to use the explicit flag; added paused-mission-hides + only-primary-surfaces cases.
+- Full `apps.purpose` suite (182) green; `makemigrations --check` clean.
+
+
 ## 2026-05-31 — feat(ai/purpose): Beth Mission Awareness (Phase 1B)
 
 **What:**

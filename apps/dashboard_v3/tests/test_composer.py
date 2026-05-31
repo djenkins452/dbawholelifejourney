@@ -756,10 +756,12 @@ class TemplateCommentLeakGuardTests(TestCase):
 
 
 class MissionCardTests(TestCase):
-    """Phase 1A Mission spotlight — deterministic, read-only, no fabrication.
+    """Phase 2A Mission spotlight — deterministic, read-only, no fabrication.
 
-    Reuse only: LifeGoal + GoalMilestone + GoalMomentumSnapshot. Card hides
-    when no foundational goal qualifies; rows omit when their data is absent.
+    Selection is EXPLICIT: only the goal the user marked as Primary Mission
+    (``is_primary_mission=True``) surfaces. No derived fallback. Card hides
+    when no Primary Mission is selected; rows omit when their data is absent.
+    Reuse only: LifeGoal + GoalMilestone + GoalMomentumSnapshot.
     """
 
     def setUp(self):
@@ -777,7 +779,7 @@ class MissionCardTests(TestCase):
             "user": self.user,
             "title": "Mission Goal",
             "status": "active",
-            "is_foundational": True,
+            "is_primary_mission": True,
         }
         defaults.update(kw)
         return LifeGoal.objects.create(**defaults)
@@ -800,9 +802,10 @@ class MissionCardTests(TestCase):
         ctx = build_dashboard_v3_context(self.user)
         self.assertIn("mission", ctx)
 
-    def test_no_foundational_goal_renders_nothing(self):
-        # A non-foundational active goal must NOT surface as a mission.
-        self._goal(is_foundational=False)
+    def test_non_mission_goal_renders_nothing(self):
+        # An active goal NOT marked Primary Mission must NOT surface. No
+        # derived fallback (foundational, deadline, momentum) may pick it.
+        self._goal(is_primary_mission=False, is_foundational=True)
         ctx = build_dashboard_v3_context(self.user)
         self.assertIsNone(ctx["mission"])
 
@@ -841,17 +844,27 @@ class MissionCardTests(TestCase):
         mission = build_dashboard_v3_context(self.user)["mission"]
         self.assertIsNone(mission["current_focus"])
 
-    def test_selection_prefers_long_horizon_with_milestones(self):
+    def test_only_primary_mission_surfaces(self):
         from datetime import date, timedelta
-        # Near-term foundational goal (< 90 days, no milestones).
-        self._goal(title="Near Term",
-                   target_date=date.today() + timedelta(days=30))
-        # Long-horizon foundational goal WITH milestones — should win.
-        winner = self._goal(title="Long Horizon",
-                            target_date=date.today() + timedelta(days=400))
-        self._milestone(winner, title="Phase")
+        # Decoy: a foundational, near-term, momentum-bearing goal that the OLD
+        # derived selector would have picked — but it's not the Primary Mission.
+        decoy = self._goal(title="Decoy", is_primary_mission=False,
+                           is_foundational=True,
+                           target_date=date.today() + timedelta(days=30))
+        self._milestone(decoy, title="Phase")
+        self._momentum(decoy, trend="rising", score=99)
+        # The explicitly-selected Primary Mission must win regardless.
+        self._goal(title="Chosen Mission",
+                   target_date=date.today() + timedelta(days=400))
         mission = build_dashboard_v3_context(self.user)["mission"]
-        self.assertEqual(mission["title"], "Long Horizon")
+        self.assertEqual(mission["title"], "Chosen Mission")
+
+    def test_paused_primary_mission_does_not_surface(self):
+        # Primary Mission flag is necessary but not sufficient — status must
+        # also be active (a paused mission hides the card).
+        self._goal(title="Paused Mission", status="paused")
+        ctx = build_dashboard_v3_context(self.user)
+        self.assertIsNone(ctx["mission"])
 
 
 class WeatherTileTests(TestCase):

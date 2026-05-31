@@ -131,8 +131,8 @@ def _build_mission_card(user) -> dict | None:
 
     Reuse: LifeGoal + GoalMilestone + GoalMomentumSnapshot. Read-only, no
     scoring, no readiness %, no coaching, no fabrication. Returns None when
-    the user has no active foundational goal — the section then renders
-    nothing (no placeholder).
+    the user has not selected an active Primary Mission — the section then
+    renders nothing (no placeholder, no "choose a mission" prompt).
 
     Selection is delegated to the shared purpose-domain selector so the
     dashboard mission and Beth's mission are always the SAME goal.

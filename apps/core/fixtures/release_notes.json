@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 199,
+    "fields": {
+      "title": "Choose your Primary Mission",
+      "description": "You can now pick one Goal as your Primary Mission — the single North Star you want front and centre. Open any active goal and tap ⭐ “Make this my Primary Mission.” That goal becomes the featured Mission card on your dashboard and the one your Chief of Staff coaches you toward, with a short momentum-aware nudge. Only one Primary Mission is active at a time, so choosing a new one steps the previous goal down automatically. This is your choice, not a guess: if you haven't selected a Primary Mission, no Mission card appears and your Chief of Staff stays quiet on it. You can clear it any time from the same goal.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-05-31",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-05-31T20:00:00Z",
+      "updated_at": "2026-05-31T20:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 198,
     "fields": {
       "title": "Experimental: Chief-of-Staff dashboard preview at /dashboard-v3/",

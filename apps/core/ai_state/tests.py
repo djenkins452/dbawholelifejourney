@@ -402,17 +402,20 @@ class TestGoalStateBuilder(TestCase):
         self.assertEqual(state["total_milestones"], 2)
         self.assertEqual(state["completed_milestones"], 1)
 
-    def test_mission_none_without_foundational_goal(self):
+    def test_mission_none_without_primary_mission(self):
         from apps.purpose.models import LifeGoal
         from apps.core.ai_state.state_builder import build_goal_state
 
+        # A foundational goal that is NOT marked Primary Mission must not
+        # surface — selection is explicit, never derived.
         LifeGoal.objects.create(
             user=self.user, title="Plain Goal", status="active",
+            is_foundational=True,
         )
         state = build_goal_state(self.user)
         self.assertIsNone(state["mission"])
 
-    def test_mission_built_from_foundational_goal(self):
+    def test_mission_built_from_primary_mission_goal(self):
         from apps.purpose.models import GoalMilestone, LifeGoal
         from apps.dashboard_v2.models import GoalMomentumSnapshot
         from apps.core.ai_state.state_builder import build_goal_state
@@ -422,7 +425,7 @@ class TestGoalStateBuilder(TestCase):
             user=self.user,
             title="France 2027 Family 10K",
             status="active",
-            is_foundational=True,
+            is_primary_mission=True,
             target_date=target,
         )
         GoalMilestone.objects.create(
@@ -452,7 +455,7 @@ class TestGoalStateBuilder(TestCase):
             user=self.user,
             title="Foundational, no momentum",
             status="active",
-            is_foundational=True,
+            is_primary_mission=True,
         )
         state = build_goal_state(self.user)
         self.assertIsNotNone(state["mission"])

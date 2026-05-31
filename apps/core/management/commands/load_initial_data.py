@@ -1055,6 +1055,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for dashboard_v3 experimental preview (PK 198)
         self._reset_dashboard_v3_preview_release_notes(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Primary Mission selection (PK 199)
+        self._reset_primary_mission_release_notes(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -6911,6 +6914,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset dashboard_v3 preview release notes FAILED: {e}'))
+
+    def _reset_primary_mission_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes after adding PK 199 (Primary
+        Mission selection — user explicitly chooses one Goal as their featured
+        dashboard Mission and Chief-of-Staff coaching focus).
+        """
+        reset_tracker_name = 'reset_primary_mission_2026_05_31'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for Primary Mission (PK 199)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Primary Mission',
+                'command',
+                'One-time reset: added PK 199 for Primary Mission selection'
+            )
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Primary Mission release notes FAILED: {e}'))
 
     def _reset_action_center_vocabulary_release_notes(self, DataLoadConfig, force=False, verbosity=1):
         """

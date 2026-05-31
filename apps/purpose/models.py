@@ -274,6 +274,12 @@ class LifeGoal(UserOwnedModel):
         help_text="Identity-level priority. Foundational goals are always surfaced "
                   "first in the dashboard and receive visual emphasis.",
     )
+    is_primary_mission = models.BooleanField(
+        default=False,
+        help_text="User-selected featured Mission. At most one active per user. "
+                  "Drives the dashboard Mission card and Chief of Staff mission "
+                  "coaching. This is an explicit user choice, not derived state.",
+    )
 
     # Reflection on completion or release
     reflection = models.TextField(
@@ -298,12 +304,45 @@ class LifeGoal(UserOwnedModel):
         ordering = ['domain', 'sort_order', '-created_at']
         verbose_name = "Life Goal"
         verbose_name_plural = "Life Goals"
-    
+        constraints = [
+            # At most one active Primary Mission per user. Enforced at the DB
+            # so "two missions" is an impossible state, not just an app-layer
+            # convention. Checked per-statement; the atomic unset→set ordering
+            # in make_primary_mission() keeps every statement valid.
+            models.UniqueConstraint(
+                fields=['user'],
+                condition=models.Q(is_primary_mission=True),
+                name='one_primary_mission_per_user',
+            ),
+        ]
+
     def __str__(self):
         return self.title
-    
+
     def get_absolute_url(self):
         return reverse('purpose:goal_detail', kwargs={'pk': self.pk})
+
+    def make_primary_mission(self):
+        """Mark this goal as the user's single Primary Mission (atomic).
+
+        Unsets any other primary mission for the same user first, so the
+        one-per-user invariant holds at every statement boundary. Mission
+        selection is an explicit user choice — never derived.
+        """
+        from django.db import transaction
+        with transaction.atomic():
+            LifeGoal.objects.filter(
+                user=self.user, is_primary_mission=True,
+            ).exclude(pk=self.pk).update(is_primary_mission=False)
+            if not self.is_primary_mission:
+                self.is_primary_mission = True
+                self.save(update_fields=['is_primary_mission', 'updated_at'])
+
+    def clear_primary_mission(self):
+        """Remove Primary Mission status from this goal."""
+        if self.is_primary_mission:
+            self.is_primary_mission = False
+            self.save(update_fields=['is_primary_mission', 'updated_at'])
     
     def mark_complete(self):
         """Mark goal as completed."""

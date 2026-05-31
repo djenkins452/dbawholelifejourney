@@ -965,6 +965,68 @@
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
+.v3-mission-flag--img {
+    padding: 0;
+    overflow: hidden;
+    background: var(--v3-accent-soft);
+}
+
+.v3-mission-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 13px;
+}
+
+/* Phase 5 — Mission Actions row (links + wins), outside the card anchor */
+.v3-mission-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 0 4px;
+}
+
+.v3-mission-wins {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--v3-positive, #166534);
+    background: color-mix(in srgb, var(--v3-positive, #166534) 10%, #fff);
+    border: 1px solid color-mix(in srgb, var(--v3-positive, #166534) 25%, transparent);
+    border-radius: 999px;
+    padding: 6px 12px;
+    min-height: 38px;
+}
+
+.v3-mission-wins-glyph { font-size: 0.95rem; }
+
+.v3-mission-action-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--v3-ink, #1f2937);
+    background: #fff;
+    border: 1px solid var(--v3-border, rgba(15, 23, 42, 0.12));
+    border-radius: 999px;
+    padding: 6px 14px;
+    min-height: 38px;
+    text-decoration: none;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.v3-mission-action-chip:hover {
+    border-color: var(--v3-accent);
+    background: var(--v3-accent-soft);
+}
+
+.v3-mission-action-icon { font-size: 0.95rem; }
+
 .v3-mission-headtext { min-width: 0; }
 
 .v3-mission-kicker {

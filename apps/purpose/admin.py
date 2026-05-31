@@ -12,6 +12,8 @@ from .models import (
     AnnualDirection,
     LifeGoal,
     GoalMilestone,
+    GoalMotivationLink,
+    GoalVictoryMilestone,
     ChangeIntention,
     Reflection,
     ReflectionResponse,
@@ -103,6 +105,26 @@ class GoalMilestoneAdmin(admin.ModelAdmin):
         return obj.is_overdue
     is_overdue.boolean = True
     is_overdue.short_description = 'Overdue'
+
+
+@admin.register(GoalMotivationLink)
+class GoalMotivationLinkAdmin(admin.ModelAdmin):
+    """Admin for Goal Motivation Links (Mission Actions)."""
+    list_display = ['title', 'goal', 'url', 'icon', 'sort_order']
+    list_filter = ['goal__user']
+    search_fields = ['title', 'url', 'goal__title']
+    ordering = ['goal', 'sort_order']
+    raw_id_fields = ['goal']
+
+
+@admin.register(GoalVictoryMilestone)
+class GoalVictoryMilestoneAdmin(admin.ModelAdmin):
+    """Admin for Goal Victory Milestones (lightweight wins)."""
+    list_display = ['title', 'goal', 'completed', 'completed_date', 'sort_order']
+    list_filter = ['completed', 'goal__user']
+    search_fields = ['title', 'description', 'goal__title']
+    ordering = ['goal', 'sort_order']
+    raw_id_fields = ['goal']
 
 
 @admin.register(ChangeIntention)

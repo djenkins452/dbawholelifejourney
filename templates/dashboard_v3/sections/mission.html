@@ -19,7 +19,13 @@ has not selected an active Primary Mission (renders nothing — no placeholder).
     <a class="v3-mission-card" href="{% url 'purpose:goal_detail' mission.goal_id %}">
 
         <header class="v3-mission-header">
+            {% if mission.hero_image_url %}
+            <span class="v3-mission-flag v3-mission-flag--img" aria-hidden="true">
+                <img class="v3-mission-thumb" src="{{ mission.hero_image_url }}" alt="" loading="lazy">
+            </span>
+            {% else %}
             <span class="v3-mission-flag" aria-hidden="true">{% if mission.icon %}{{ mission.icon }}{% else %}★{% endif %}</span>
+            {% endif %}
             <div class="v3-mission-headtext">
                 <span class="v3-mission-kicker">
                     <span class="v3-mission-kicker-dot" aria-hidden="true">★</span> Primary Mission
@@ -167,5 +173,21 @@ has not selected an active Primary Mission (renders nothing — no placeholder).
         </figure>
         {% endif %}
     </a>
+
+    {% if mission.mission_links or mission.victories %}
+    <div class="v3-mission-actions" aria-label="Mission actions">
+        {% if mission.victories %}
+        <span class="v3-mission-wins" title="Wins logged along the way">
+            <span class="v3-mission-wins-glyph" aria-hidden="true">🏅</span>
+            {{ mission.victories.completed }} of {{ mission.victories.total }} wins
+        </span>
+        {% endif %}
+        {% for link in mission.mission_links %}
+        <a class="v3-mission-action-chip" href="{{ link.url }}" target="_blank" rel="noopener noreferrer">
+            {% if link.icon %}<span class="v3-mission-action-icon" aria-hidden="true">{{ link.icon }}</span>{% endif %}{{ link.title }}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
 </section>
 {% endif %}

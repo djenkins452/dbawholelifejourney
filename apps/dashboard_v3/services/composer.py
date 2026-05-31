@@ -417,6 +417,22 @@ def _build_mission_card(user) -> dict | None:
     signals = _evaluate_mission_signals(states, phase)
     status = _build_mission_status(goal, snap, signals, today)
 
+    # Phase 5 — emotional motivation layer. Read-only metadata, no scoring.
+    # These touch a SINGLE mission goal's relations (links + wins), so it is a
+    # constant two extra queries — never an N+1 over rows.
+    hero_image_url = goal.hero_image.url if goal.hero_image else None
+    mission_links = [
+        {"title": link.title, "url": link.url, "icon": link.icon}
+        for link in goal.motivation_links.all()[:6]
+    ]
+    wins = list(goal.victory_milestones.all())
+    victories = None
+    if wins:
+        victories = {
+            "total": len(wins),
+            "completed": sum(1 for w in wins if w.completed),
+        }
+
     return {
         "icon": icon,
         "title": display_title,
@@ -432,6 +448,9 @@ def _build_mission_card(user) -> dict | None:
         "days_remaining": days_remaining,
         "progress": progress,
         "why": why,
+        "hero_image_url": hero_image_url,
+        "mission_links": mission_links,
+        "victories": victories,
         "goal_id": goal.id,
     }
 

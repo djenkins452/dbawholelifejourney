@@ -21,12 +21,21 @@ from .views import (
     GoalDeleteView,
     GoalToggleStatusView,
     GoalPrimaryMissionToggleView,
+    GoalHeroImageRemoveView,
     BulkDeleteGoalsView,
     # Goal Milestones
     MilestoneCreateView,
     MilestoneUpdateView,
     MilestoneToggleView,
     MilestoneDeleteView,
+    # Goal Motivation Links
+    MotivationLinkCreateView,
+    MotivationLinkUpdateView,
+    MotivationLinkDeleteView,
+    # Goal Victory Milestones
+    VictoryMilestoneCreateView,
+    VictoryMilestoneToggleView,
+    VictoryMilestoneDeleteView,
     # Intentions
     IntentionListView,
     IntentionDetailView,
@@ -95,6 +104,19 @@ urlpatterns = [
     path("milestones/<int:pk>/edit/", MilestoneUpdateView.as_view(), name="milestone_update"),
     path("milestones/<int:pk>/toggle/", MilestoneToggleView.as_view(), name="milestone_toggle"),
     path("milestones/<int:pk>/delete/", MilestoneDeleteView.as_view(), name="milestone_delete"),
+
+    # Goal Hero Image
+    path("goals/<int:pk>/hero/remove/", GoalHeroImageRemoveView.as_view(), name="goal_hero_remove"),
+
+    # Goal Motivation Links
+    path("goals/<int:goal_pk>/links/", MotivationLinkCreateView.as_view(), name="motivation_link_create"),
+    path("links/<int:pk>/edit/", MotivationLinkUpdateView.as_view(), name="motivation_link_update"),
+    path("links/<int:pk>/delete/", MotivationLinkDeleteView.as_view(), name="motivation_link_delete"),
+
+    # Goal Victory Milestones (lightweight wins)
+    path("goals/<int:goal_pk>/wins/", VictoryMilestoneCreateView.as_view(), name="victory_create"),
+    path("wins/<int:pk>/toggle/", VictoryMilestoneToggleView.as_view(), name="victory_toggle"),
+    path("wins/<int:pk>/delete/", VictoryMilestoneDeleteView.as_view(), name="victory_delete"),
 
     # Intentions
     path("intentions/", IntentionListView.as_view(), name="intention_list"),

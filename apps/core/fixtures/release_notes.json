@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 204,
+    "fields": {
+      "title": "Make your Mission personal — add an image, links, and wins along the way",
+      "description": "Your Primary Mission is about something that matters to you, so the Mission card can now hold onto why. On a goal's page you'll find a new “Mission Inspiration” area: add a meaningful image (a finish line, a dream location, a wedding photo — whatever your mission is), write a short personal note about why it matters right now, and pin a few quick links you want close at hand, like a race website or an inspiration board. When you set an image, it shows up as a small, tasteful thumbnail on your dashboard Mission card, and your links appear as a compact “Mission Actions” row you can tap straight from the dashboard. There's also a lightweight “Wins Along the Way” section for the small victories worth remembering — your first 5K without stopping, two consistent weeks, a milestone that isn't on the formal plan. These wins are separate from your major milestones, so logging them celebrates progress without changing your goal's official tracking. Everything here is optional and entirely yours: nothing is invented, nothing is required, and the card stays clean if you'd rather keep it simple.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-05-31",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-05-31T23:55:00Z",
+      "updated_at": "2026-05-31T23:55:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 203,
     "fields": {
       "title": "Your Mission card now reads recovery fairly — and added a “Worth watching” lane",

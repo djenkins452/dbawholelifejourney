@@ -18,7 +18,7 @@
             <p class="page-subtitle">Focus on direction, not execution</p>
         </div>
         
-        <form method="post" class="form-card" data-testid="goal-form">
+        <form method="post" class="form-card" data-testid="goal-form" enctype="multipart/form-data">
             {% csrf_token %}
 
             <div class="form-group">
@@ -137,6 +137,25 @@
                 <textarea name="reflection" id="id_reflection" class="form-textarea" rows="3"
                           placeholder="What did you learn? How did it go?">{{ form.reflection.value|default:'' }}</textarea>
             </div>
+
+            <div class="form-group">
+                <label for="id_motivation_note" class="form-label">Motivation Note <span class="optional-badge">Optional</span></label>
+                <textarea name="motivation_note" id="id_motivation_note" class="form-textarea" rows="3"
+                          placeholder="A short personal note about why this matters right now...">{{ form.motivation_note.value|default:'' }}</textarea>
+                <p class="form-help">Read back to you in the Mission Inspiration section on this goal's page.</p>
+            </div>
+
+            <div class="form-group">
+                <label for="id_hero_image" class="form-label">Inspiration Image <span class="optional-badge">Optional</span></label>
+                {% if form.instance.hero_image %}
+                <div class="hero-current">
+                    <img src="{{ form.instance.hero_image.url }}" alt="Current inspiration image" class="hero-current-thumb">
+                    <span class="form-help">Choosing a new file replaces the current image.</span>
+                </div>
+                {% endif %}
+                <input type="file" name="hero_image" id="id_hero_image" class="form-input" accept="image/*">
+                <p class="form-help">A meaningful image for this mission — shown on the goal page and as a small thumbnail on your dashboard Mission card.</p>
+            </div>
             {% endif %}
             
             <div class="form-actions">
@@ -203,6 +222,22 @@
     margin-top: var(--space-6);
     padding-top: var(--space-6);
     border-top: 1px solid var(--color-border);
+}
+
+.hero-current {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.hero-current-thumb {
+    width: 120px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
 }
 </style>
 {% endblock %}

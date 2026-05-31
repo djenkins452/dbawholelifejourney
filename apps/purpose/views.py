@@ -34,6 +34,8 @@ from .models import (
     AnnualDirection,
     LifeGoal,
     GoalMilestone,
+    GoalMotivationLink,
+    GoalVictoryMilestone,
     ChangeIntention,
     Reflection,
     ReflectionResponse,
@@ -308,7 +310,9 @@ class GoalDetailView(PurposeAccessMixin, DetailView):
     context_object_name = "goal"
 
     def get_queryset(self):
-        return LifeGoal.objects.filter(user=self.request.user).prefetch_related('milestones')
+        return LifeGoal.objects.filter(user=self.request.user).prefetch_related(
+            'milestones', 'motivation_links', 'victory_milestones'
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -371,11 +375,11 @@ class GoalUpdateView(PurposeAccessMixin, UpdateView):
     template_name = "purpose/goal_form.html"
     fields = [
         'title', 'mission_icon', 'description', 'why_it_matters',
-        'success_looks_like', 'domain', 'commitment_level', 'is_foundational',
-        'timeframe', 'target_date', 'status', 'reflection',
-        'annual_direction'
+        'success_looks_like', 'motivation_note', 'hero_image', 'domain',
+        'commitment_level', 'is_foundational', 'timeframe', 'target_date',
+        'status', 'reflection', 'annual_direction'
     ]
-    
+
     def get_queryset(self):
         return LifeGoal.objects.filter(user=self.request.user)
     
@@ -1472,6 +1476,167 @@ class MilestoneDeleteView(PurposeAccessMixin, View):
 
         milestone.delete()
         messages.success(request, f"Milestone '{title}' deleted.")
+        return redirect('purpose:goal_detail', pk=goal_pk)
+
+
+# =============================================================================
+# Goal Hero Image
+# =============================================================================
+
+class GoalHeroImageRemoveView(PurposeAccessMixin, View):
+    """Remove the inspirational hero image from a goal."""
+
+    def post(self, request, pk):
+        goal = get_object_or_404(LifeGoal, pk=pk, user=request.user)
+        if goal.hero_image:
+            goal.hero_image.delete(save=False)
+            goal.hero_image = None
+            goal.save(update_fields=['hero_image', 'updated_at'])
+            messages.info(request, "Inspiration image removed.")
+        return redirect('purpose:goal_detail', pk=goal.pk)
+
+
+# =============================================================================
+# Goal Motivation Links
+# =============================================================================
+
+class MotivationLinkCreateView(PurposeAccessMixin, View):
+    """Add a motivation link to a goal."""
+
+    def post(self, request, goal_pk):
+        goal = get_object_or_404(LifeGoal, pk=goal_pk, user=request.user)
+
+        title = request.POST.get('title', '').strip()
+        url = request.POST.get('url', '').strip()
+        if not title or not url:
+            messages.error(request, "Link title and URL are both required.")
+            return redirect('purpose:goal_detail', pk=goal_pk)
+
+        icon = request.POST.get('icon', '').strip()[:16]
+        max_order = goal.motivation_links.aggregate(
+            max_order=Max('sort_order')
+        )['max_order'] or 0
+
+        link = GoalMotivationLink(
+            goal=goal,
+            title=title[:80],
+            url=url,
+            icon=icon,
+            sort_order=max_order + 1,
+        )
+        try:
+            link.full_clean()
+        except ValidationError:
+            messages.error(request, "Please enter a valid URL.")
+            return redirect('purpose:goal_detail', pk=goal_pk)
+        link.save()
+
+        messages.success(request, f"Link '{title}' added.")
+        return redirect('purpose:goal_detail', pk=goal_pk)
+
+
+class MotivationLinkUpdateView(PurposeAccessMixin, View):
+    """Edit a motivation link."""
+
+    def post(self, request, pk):
+        link = get_object_or_404(
+            GoalMotivationLink, pk=pk, goal__user=request.user
+        )
+
+        title = request.POST.get('title', '').strip()
+        url = request.POST.get('url', '').strip()
+        if not title or not url:
+            messages.error(request, "Link title and URL are both required.")
+            return redirect('purpose:goal_detail', pk=link.goal.pk)
+
+        link.title = title[:80]
+        link.url = url
+        link.icon = request.POST.get('icon', '').strip()[:16]
+        try:
+            link.full_clean()
+        except ValidationError:
+            messages.error(request, "Please enter a valid URL.")
+            return redirect('purpose:goal_detail', pk=link.goal.pk)
+        link.save()
+
+        messages.success(request, f"Link '{link.title}' updated.")
+        return redirect('purpose:goal_detail', pk=link.goal.pk)
+
+
+class MotivationLinkDeleteView(PurposeAccessMixin, View):
+    """Delete a motivation link."""
+
+    def post(self, request, pk):
+        link = get_object_or_404(
+            GoalMotivationLink, pk=pk, goal__user=request.user
+        )
+        goal_pk = link.goal.pk
+        title = link.title
+        link.delete()
+        messages.success(request, f"Link '{title}' deleted.")
+        return redirect('purpose:goal_detail', pk=goal_pk)
+
+
+# =============================================================================
+# Goal Victory Milestones (lightweight wins)
+# =============================================================================
+
+class VictoryMilestoneCreateView(PurposeAccessMixin, View):
+    """Add a victory milestone (small win) to a goal."""
+
+    def post(self, request, goal_pk):
+        goal = get_object_or_404(LifeGoal, pk=goal_pk, user=request.user)
+
+        title = request.POST.get('title', '').strip()
+        if not title:
+            messages.error(request, "A title for the win is required.")
+            return redirect('purpose:goal_detail', pk=goal_pk)
+
+        icon = request.POST.get('icon', '').strip()[:16]
+        description = request.POST.get('description', '').strip()
+        max_order = goal.victory_milestones.aggregate(
+            max_order=Max('sort_order')
+        )['max_order'] or 0
+
+        GoalVictoryMilestone.objects.create(
+            goal=goal,
+            title=title[:200],
+            description=description,
+            icon=icon,
+            sort_order=max_order + 1,
+        )
+
+        messages.success(request, f"Win '{title}' added.")
+        return redirect('purpose:goal_detail', pk=goal_pk)
+
+
+class VictoryMilestoneToggleView(PurposeAccessMixin, View):
+    """Toggle a victory milestone's completion. Does NOT touch goal progress."""
+
+    def post(self, request, pk):
+        win = get_object_or_404(
+            GoalVictoryMilestone, pk=pk, goal__user=request.user
+        )
+        if win.completed:
+            win.mark_incomplete()
+            messages.info(request, f"'{win.title}' marked not yet achieved.")
+        else:
+            win.mark_complete()
+            messages.success(request, f"Win logged: '{win.title}'!")
+        return redirect('purpose:goal_detail', pk=win.goal.pk)
+
+
+class VictoryMilestoneDeleteView(PurposeAccessMixin, View):
+    """Delete a victory milestone."""
+
+    def post(self, request, pk):
+        win = get_object_or_404(
+            GoalVictoryMilestone, pk=pk, goal__user=request.user
+        )
+        goal_pk = win.goal.pk
+        title = win.title
+        win.delete()
+        messages.success(request, f"Win '{title}' deleted.")
         return redirect('purpose:goal_detail', pk=goal_pk)
 
 

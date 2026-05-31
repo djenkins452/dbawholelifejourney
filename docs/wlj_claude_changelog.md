@@ -3,8 +3,29 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-31 (feat: Mission Intelligence Phase 4 — Worth Watching + adaptive recovery)
+# Last Updated: 2026-05-31 (feat: Mission Phase 5 — emotional motivation layer)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-31 — feat(purpose/dashboard_v3): Mission Phase 5 — emotional motivation layer (hero image, mission links, victory wins)
+
+**What:** Evolved the Mission system from *truthful tracking* to *truthful motivation*. Added an optional, fully generic emotional layer so a Primary Mission can carry a meaningful image, quick links, a personal note, and lightweight "wins along the way" — without any fabrication, gamification, or per-user hardcoding. Works for ANY mission (a race, a wedding, a faith goal, a dream location); nothing is special-cased.
+
+**Data model (`apps/purpose/models.py`, migration `0016`):**
+- `LifeGoal.hero_image` (`ImageField`, optional, `upload_to='purpose/hero/%Y/%m/'`) — Cloudinary-backed in prod, graceful fallback when absent.
+- `LifeGoal.motivation_note` (`TextField`, optional) — a short personal "why this matters right now" note.
+- New `GoalMotivationLink` model (title, url, icon, sort_order) — 0–N outbound links rendered as a compact "Mission Actions" row.
+- New `GoalVictoryMilestone` model (title, description, icon, completed, completed_date, sort_order) — lightweight frequent wins. **Deliberately a SEPARATE relation** (`related_name='victory_milestones'`) so it NEVER touches `milestone_count` / `completed_milestone_count` — the major-milestone counts that drive mission phase + progress ring remain untouched. Manual completion only (auto-detect intentionally not scaffolded — no dead code).
+
+**Goal Detail (`templates/purpose/goal_detail.html`):** New "Mission Inspiration" section (hero image + remove control, motivation note, Mission Actions links with inline add/delete) and a "Wins Along the Way" section (add / toggle / delete, manual completion). CSP-safe (addEventListener + data-* toggles, nonce scripts). Goal Edit form gains the image upload (`enctype=multipart/form-data`) + motivation note, with a live preview of the current hero image.
+
+**Dashboard Mission Card (`apps/dashboard_v3/services/composer.py`, `templates/dashboard_v3/sections/mission.html`, `static/dashboard_v3/css/dashboard_v3.css`):** When set, the hero image becomes a small tasteful rounded thumbnail in the card's existing icon slot (NOT giant, NOT cluttered). A "Mission Actions" chip row + a "wins logged" badge render *outside* the card anchor (avoids nested `<a>`). All read-only: the composer exposes `hero_image_url`, `mission_links` (capped 6), and a `victories` `{total, completed}` count. Touches a single mission goal's relations → a constant two extra queries, never an N+1.
+
+**Views/URLs (`apps/purpose/views.py`, `urls.py`):** `GoalHeroImageRemoveView`, `MotivationLink{Create,Update,Delete}View`, `VictoryMilestone{Create,Toggle,Delete}View` — all POST-only, `PurposeAccessMixin`, ownership-scoped via `goal__user=request.user`, redirect to goal detail. `GoalUpdateView.fields` extended with `motivation_note` + `hero_image`. `GoalDetailView` prefetches the new relations. New models registered in admin.
+
+**Architecture preserved:** hide-if-no-primary-mission, deterministic mission truth (raw → signals → composed state → assistant narrates), the Visual Truth Contract (victory completion uses real `completed` boolean), and dashboard read-only performance. No engine, signal, or CoS contract changed — this is purely an additive presentation/motivation layer.
+
+**Validation:** `makemigrations --check` clean; `python manage.py check` clean; new tests in `apps/purpose/tests/test_mission_inspiration.py` (link/win/hero CRUD + ownership + the milestone-count separation invariant) and Phase-5 cases added to `apps/dashboard_v3/tests/test_composer.py` (link ordering, victory counts, hero url, separation invariant). 65 tests green.
 
 
 ## 2026-05-31 — feat(dashboard_v3): Mission Phase 4 — Worth Watching column + adaptive recovery (sleep)

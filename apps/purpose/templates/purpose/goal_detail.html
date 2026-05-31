@@ -50,6 +50,101 @@
     </div>
     
     <div class="goal-content">
+        {% if goal.hero_image or goal.motivation_note or goal.motivation_links.all %}
+        <div class="content-section inspiration-section" data-testid="goal-inspiration-section">
+            <h3>Mission Inspiration</h3>
+            {% if goal.hero_image %}
+            <figure class="inspiration-hero">
+                <img src="{{ goal.hero_image.url }}" alt="Inspiration for {{ goal.title }}" loading="lazy">
+                {% if goal.status == 'active' %}
+                <form method="post" action="{% url 'purpose:goal_hero_remove' goal.pk %}" class="inspiration-hero-remove" data-confirm-delete="Remove this inspiration image?">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-ghost btn-sm" title="Remove image">Remove image</button>
+                </form>
+                {% endif %}
+            </figure>
+            {% endif %}
+
+            {% if goal.motivation_note %}
+            <p class="inspiration-note">{{ goal.motivation_note|linebreaksbr }}</p>
+            {% endif %}
+
+            {% if goal.motivation_links.all %}
+            <div class="inspiration-links">
+                {% for link in goal.motivation_links.all %}
+                <span class="inspiration-link-item">
+                    <a href="{{ link.url }}" class="mission-action-chip" target="_blank" rel="noopener noreferrer">
+                        {% if link.icon %}<span class="chip-icon">{{ link.icon }}</span>{% endif %}{{ link.title }}
+                    </a>
+                    {% if goal.status == 'active' %}
+                    <form method="post" action="{% url 'purpose:motivation_link_delete' link.pk %}" class="inline" data-confirm-delete="Delete this link?">
+                        {% csrf_token %}
+                        <button type="submit" class="chip-remove" title="Delete link">&times;</button>
+                    </form>
+                    {% endif %}
+                </span>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if goal.status == 'active' %}
+            <button type="button" class="btn btn-ghost btn-sm" data-action="toggle-link-form">+ Add link</button>
+            <div id="linkForm" class="link-form" style="display: none;">
+                <form method="post" action="{% url 'purpose:motivation_link_create' goal.pk %}">
+                    {% csrf_token %}
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="link-icon">Icon (optional)</label>
+                            <input type="text" id="link-icon" name="icon" maxlength="16" placeholder="🏁" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="link-title">Label</label>
+                            <input type="text" id="link-title" name="title" required maxlength="80" placeholder="Race Website" class="form-input">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="link-url">URL</label>
+                        <input type="url" id="link-url" name="url" required placeholder="https://..." class="form-input">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-ghost" data-action="toggle-link-form">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Link</button>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        {% elif goal.is_primary_mission and goal.status == 'active' %}
+        <div class="content-section inspiration-section inspiration-empty" data-testid="goal-inspiration-section">
+            <h3>Mission Inspiration</h3>
+            <p class="inspiration-hint">Add an image, a personal note, or quick links that remind you why this mission matters. <a href="{% url 'purpose:goal_update' goal.pk %}">Add an image or note</a> when you're ready.</p>
+            <button type="button" class="btn btn-ghost btn-sm" data-action="toggle-link-form">+ Add link</button>
+            <div id="linkForm" class="link-form" style="display: none;">
+                <form method="post" action="{% url 'purpose:motivation_link_create' goal.pk %}">
+                    {% csrf_token %}
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="link-icon">Icon (optional)</label>
+                            <input type="text" id="link-icon" name="icon" maxlength="16" placeholder="🏁" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="link-title">Label</label>
+                            <input type="text" id="link-title" name="title" required maxlength="80" placeholder="Race Website" class="form-input">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="link-url">URL</label>
+                        <input type="url" id="link-url" name="url" required placeholder="https://..." class="form-input">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-ghost" data-action="toggle-link-form">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Link</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
         {% if goal.description %}
         <div class="content-section" data-testid="goal-description-section">
             <h3>Description</h3>
@@ -255,6 +350,97 @@
                     <div class="form-actions">
                         <button type="button" class="btn btn-ghost" data-action="toggle-milestone-form">Cancel</button>
                         <button type="submit" class="btn btn-primary">Add Milestone</button>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Victory Milestones Section (lightweight wins) -->
+        <div class="content-section victories-section">
+            <div class="milestones-header">
+                <h3>Wins Along the Way</h3>
+                {% if goal.status == 'active' %}
+                <button type="button" class="btn btn-ghost btn-sm" data-action="toggle-victory-form">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    Add
+                </button>
+                {% endif %}
+            </div>
+
+            {% if goal.victory_milestones.all %}
+            <div class="victory-list">
+                {% for win in goal.victory_milestones.all %}
+                <div class="victory-item {% if win.completed %}completed{% endif %}">
+                    {% if goal.status == 'active' %}
+                    <form method="post" action="{% url 'purpose:victory_toggle' win.pk %}" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="checkbox-btn {% if win.completed %}checked{% endif %}" title="{% if win.completed %}Mark not yet achieved{% else %}Log this win{% endif %}">
+                            {% if win.completed %}
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="3">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            {% endif %}
+                        </button>
+                    </form>
+                    {% else %}
+                    <span class="checkbox-btn disabled {% if win.completed %}checked{% endif %}">
+                        {% if win.completed %}
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="3">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        {% endif %}
+                    </span>
+                    {% endif %}
+                    <div class="victory-content">
+                        <span class="victory-title">{% if win.icon %}{{ win.icon }} {% endif %}{{ win.title }}</span>
+                        {% if win.description %}<span class="victory-description">{{ win.description }}</span>{% endif %}
+                        {% if win.completed and win.completed_date %}<span class="victory-date">Logged {{ win.completed_date|date:"M j, Y" }}</span>{% endif %}
+                    </div>
+                    {% if goal.status == 'active' %}
+                    <form method="post" action="{% url 'purpose:victory_delete' win.pk %}" class="inline" data-confirm-delete="Delete this win?">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-ghost btn-sm text-danger" title="Delete win">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="milestone-empty">
+                <p class="milestone-hint">Small wins keep momentum alive. Log the moments worth remembering on the way to this goal.</p>
+            </div>
+            {% endif %}
+
+            {% if goal.status == 'active' %}
+            <div id="victoryForm" class="milestone-form" style="display: none;">
+                <form method="post" action="{% url 'purpose:victory_create' goal.pk %}">
+                    {% csrf_token %}
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="victory-icon">Icon (optional)</label>
+                            <input type="text" id="victory-icon" name="icon" maxlength="16" placeholder="🎯" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="victory-title">The win</label>
+                            <input type="text" id="victory-title" name="title" required maxlength="200" placeholder="First 5K without stopping" class="form-input">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="victory-description">Note (optional)</label>
+                        <textarea id="victory-description" name="description" rows="2" placeholder="Anything you want to remember about this win..." class="form-input"></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-ghost" data-action="toggle-victory-form">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Win</button>
                     </div>
                 </form>
             </div>
@@ -659,6 +845,161 @@
     gap: var(--space-2);
     margin-top: var(--space-4);
 }
+
+/* Mission Inspiration */
+.inspiration-section {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--color-accent) 4%, var(--color-background));
+}
+
+.inspiration-hero {
+    margin: 0 0 var(--space-4) 0;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    position: relative;
+}
+
+.inspiration-hero img {
+    display: block;
+    width: 100%;
+    max-height: 320px;
+    object-fit: cover;
+}
+
+.inspiration-hero-remove {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+}
+
+.inspiration-hero-remove .btn {
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+}
+
+.inspiration-note {
+    font-size: var(--font-size-md);
+    line-height: 1.6;
+    color: var(--color-text);
+    margin: 0 0 var(--space-4) 0;
+}
+
+.inspiration-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.inspiration-link-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.mission-action-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 8px 14px;
+    min-height: 38px;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background: var(--color-background);
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    text-decoration: none;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.mission-action-chip:hover {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 8%, var(--color-background));
+}
+
+.mission-action-chip .chip-icon {
+    font-size: 1rem;
+}
+
+.chip-remove {
+    border: none;
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 0 4px;
+    min-width: 24px;
+    min-height: 24px;
+}
+
+.chip-remove:hover {
+    color: var(--color-danger, #b91c1c);
+}
+
+.inspiration-hint {
+    color: var(--color-text-muted);
+    line-height: 1.6;
+    margin: 0 0 var(--space-3) 0;
+}
+
+.link-form {
+    margin-top: var(--space-3);
+    padding: var(--space-4);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+/* Victory milestones (lightweight wins) */
+.victory-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+.victory-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.victory-item.completed {
+    background: color-mix(in srgb, var(--color-success, #166534) 8%, var(--color-background));
+    border-color: color-mix(in srgb, var(--color-success, #166534) 30%, var(--color-border));
+}
+
+.victory-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.victory-title {
+    font-weight: 500;
+    color: var(--color-text);
+}
+
+.victory-item.completed .victory-title {
+    color: var(--color-success, #166534);
+}
+
+.victory-description {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+
+.victory-date {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
 </style>
 
 <!-- Celebration Modal -->
@@ -831,6 +1172,34 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('[data-action="toggle-milestone-form"]').forEach(function(btn) {
         btn.addEventListener('click', function() {
             var form = document.getElementById('milestoneForm');
+            if (!form) return;
+            if (form.style.display === 'none') {
+                form.style.display = 'block';
+                form.querySelector('input[name="title"]').focus();
+            } else {
+                form.style.display = 'none';
+            }
+        });
+    });
+
+    // Toggle add-link form
+    document.querySelectorAll('[data-action="toggle-link-form"]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var form = document.getElementById('linkForm');
+            if (!form) return;
+            if (form.style.display === 'none') {
+                form.style.display = 'block';
+                form.querySelector('input[name="title"]').focus();
+            } else {
+                form.style.display = 'none';
+            }
+        });
+    });
+
+    // Toggle add-victory form
+    document.querySelectorAll('[data-action="toggle-victory-form"]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var form = document.getElementById('victoryForm');
             if (!form) return;
             if (form.style.display === 'none') {
                 form.style.display = 'block';

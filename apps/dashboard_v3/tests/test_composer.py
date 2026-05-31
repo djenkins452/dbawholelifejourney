@@ -1293,6 +1293,61 @@ class MissionCardTests(TestCase):
         self.assertLessEqual(len(status["helping"]), 3)
         self.assertLessEqual(len(status["needs"]), 3)
 
+    # ── Phase 5: emotional motivation layer (read-only metadata) ─────────
+
+    def test_mission_links_exposed_in_order(self):
+        from apps.purpose.models import GoalMotivationLink
+        goal = self._goal(title="Linked")
+        GoalMotivationLink.objects.create(
+            goal=goal, title="Race", url="https://example.com/race",
+            icon="🏁", sort_order=2,
+        )
+        GoalMotivationLink.objects.create(
+            goal=goal, title="Inspiration", url="https://example.com/board",
+            icon="📸", sort_order=1,
+        )
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertEqual(
+            [l["title"] for l in mission["mission_links"]],
+            ["Inspiration", "Race"],
+        )
+
+    def test_mission_links_empty_when_none(self):
+        self._goal(title="No links")
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertEqual(mission["mission_links"], [])
+
+    def test_victories_progress_counts(self):
+        from apps.purpose.models import GoalVictoryMilestone
+        goal = self._goal(title="Wins")
+        GoalVictoryMilestone.objects.create(goal=goal, title="First 5K", completed=True)
+        GoalVictoryMilestone.objects.create(goal=goal, title="Two weeks", completed=False)
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertEqual(mission["victories"], {"total": 2, "completed": 1})
+
+    def test_victories_none_when_no_wins(self):
+        self._goal(title="No wins")
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertIsNone(mission["victories"])
+
+    def test_hero_image_url_none_when_unset(self):
+        self._goal(title="No hero")
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertIsNone(mission["hero_image_url"])
+
+    def test_victory_milestones_do_not_affect_milestone_progress(self):
+        # Victory milestones are a SEPARATE relation — they must never change
+        # the major-milestone ring/phase counts that drive mission truth.
+        from apps.purpose.models import GoalVictoryMilestone
+        goal = self._goal(title="Separation")
+        self._milestone(goal, title="Major", completed=False)
+        GoalVictoryMilestone.objects.create(goal=goal, title="Tiny win", completed=True)
+        self.assertEqual(goal.milestone_count, 1)
+        self.assertEqual(goal.completed_milestone_count, 0)
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertEqual(mission["progress"]["total"], 1)
+        self.assertEqual(mission["progress"]["completed"], 0)
+
 
 class WeatherTileTests(TestCase):
     def setUp(self):

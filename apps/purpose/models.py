@@ -289,6 +289,22 @@ class LifeGoal(UserOwnedModel):
                   "metadata — never inferred from the title.",
     )
 
+    # Emotional motivation layer (optional, generic for any mission)
+    hero_image = models.ImageField(
+        upload_to='purpose/hero/%Y/%m/',
+        blank=True,
+        null=True,
+        help_text="Optional inspirational image for this goal (e.g. a race "
+                  "finish line, a dream location, a wedding photo). Shown on the "
+                  "Goal Detail inspiration section and as a small thumbnail on the "
+                  "dashboard Mission card. Purely motivational — never required.",
+    )
+    motivation_note = models.TextField(
+        blank=True,
+        help_text="A short personal note about why this mission matters right "
+                  "now — read back to you in the Goal Inspiration section.",
+    )
+
     # Reflection on completion or release
     reflection = models.TextField(
         blank=True,
@@ -584,6 +600,115 @@ class GoalMilestone(models.Model):
         if not self.target_date:
             return None
         return (self.target_date - timezone.now().date()).days
+
+
+# =============================================================================
+# Goal Motivation Links
+# =============================================================================
+
+class GoalMotivationLink(models.Model):
+    """
+    Optional outbound links that reinforce WHY a mission matters.
+
+    Examples: a race website, an inspiration board, a saved article, the goal's
+    own detail page. Rendered as a compact "Mission Actions" row on the dashboard
+    and in the Goal Inspiration section. Purely motivational metadata — never
+    required, never part of mission truth/state computation.
+    """
+    goal = models.ForeignKey(
+        LifeGoal,
+        on_delete=models.CASCADE,
+        related_name='motivation_links'
+    )
+    title = models.CharField(
+        max_length=80,
+        help_text="Short label for the link (e.g. 'Race Website', 'Inspiration')."
+    )
+    url = models.URLField(
+        max_length=500,
+        help_text="Where this link points."
+    )
+    icon = models.CharField(
+        max_length=16,
+        blank=True,
+        default="",
+        help_text="Optional emoji shown before the label (e.g. 🏁, 📸, 🧾)."
+    )
+    sort_order = models.PositiveIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'created_at']
+        verbose_name = "Goal Motivation Link"
+        verbose_name_plural = "Goal Motivation Links"
+
+    def __str__(self):
+        return f"{self.icon} {self.title}".strip()
+
+
+# =============================================================================
+# Goal Victory Milestones (lightweight, frequent wins)
+# =============================================================================
+
+class GoalVictoryMilestone(models.Model):
+    """
+    Lightweight "small win" markers, SEPARATE from major GoalMilestones.
+
+    Victory milestones celebrate frequent, behaviour-reinforcing wins (e.g.
+    "First 5K without stopping", "Two weeks consistent"). They are intentionally
+    decoupled from GoalMilestone so they NEVER affect milestone_count, the
+    mission phase logic, or the progress ring — those remain driven solely by
+    major milestones. Completion is manual by default; auto-detect is a future
+    phase and is deliberately not scaffolded here.
+    """
+    goal = models.ForeignKey(
+        LifeGoal,
+        on_delete=models.CASCADE,
+        related_name='victory_milestones'
+    )
+    title = models.CharField(
+        max_length=200,
+        help_text="The small win to celebrate (e.g. 'First 5K without stopping')."
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Optional detail about this win."
+    )
+    icon = models.CharField(
+        max_length=16,
+        blank=True,
+        default="",
+        help_text="Optional emoji marker for this win."
+    )
+    completed = models.BooleanField(default=False)
+    completed_date = models.DateField(null=True, blank=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'created_at']
+        verbose_name = "Goal Victory Milestone"
+        verbose_name_plural = "Goal Victory Milestones"
+
+    def __str__(self):
+        status = "✓" if self.completed else "○"
+        return f"{status} {self.title}"
+
+    def mark_complete(self):
+        """Mark this win as achieved."""
+        self.completed = True
+        self.completed_date = timezone.now().date()
+        self.save(update_fields=['completed', 'completed_date', 'updated_at'])
+
+    def mark_incomplete(self):
+        """Revert this win to not-yet-achieved."""
+        self.completed = False
+        self.completed_date = None
+        self.save(update_fields=['completed', 'completed_date', 'updated_at'])
 
 
 # =============================================================================

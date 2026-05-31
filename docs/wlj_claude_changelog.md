@@ -7,6 +7,27 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-31 — fix(mobile): Health Sync NaN crash regression from decimal-idempotency fix
+
+**What:**
+iOS Health Sync started returning `0 created, 0 updated, 1 error` after the decimal-idempotency fix shipped. The failing metric was any value Apple HealthKit emits as NaN (observed on hrv, vo2_max, weight, walking_speed).
+
+**Root cause:**
+The idempotency fix converted handler inputs from `float()` to `Decimal(str(value))`. A NaN value reaches each handler's range guard, e.g. `if hrv_value < 5 or hrv_value > 300:`. With floats, `float('nan') < 5` returns `False` silently, so pre-fix NaN passed validation and was stored (Postgres `numeric` accepts NaN) — the sync "completed successfully." With Decimals, `Decimal('NaN') < 5` **raises `InvalidOperation`** under the default decimal context (only `==`/`!=` are NaN-safe for Decimal; ordering comparisons signal). That surfaced as `Internal error: InvalidOperation`, caught by the ingest loop as one error.
+
+**Changes:**
+- `apps/mobile/views.py` — added `import math`; new `_metric_has_nan()` helper; a single pre-dispatch gate in `health_ingest()` that drops NaN-bearing metrics cleanly as `skipped` (with a low-noise `[HEALTH_SYNC_WARNING]` log) before any handler runs. NaN is meaningless health data that could never converge anyway (`NaN != NaN`). One chokepoint — no handler rewrites; idempotency/convergence for finite values untouched.
+- `apps/mobile/tests/test_health_nan_regression.py` (new) — 3 regression tests using the real NaN payload shape: NaN skipped not errored, skipped across handlers, and a NaN does not block a valid metric in the same batch.
+
+**Files:**
+- `apps/mobile/views.py`
+- `apps/mobile/tests/test_health_nan_regression.py`
+
+**Why:** Restore "sync completes successfully" while persisting no garbage. Infinity is unchanged — it still returns the pre-existing clean `"... out of range"` ValueError (not part of this regression).
+
+**Verification:** `test_health_nan_regression` (3) + `test_health_idempotency` (5) PASS; full `apps.mobile` 77/77 PASS; `makemigrations --check` → no changes; `manage.py check` clean (only pre-existing djstripe info notices).
+
+
 ## 2026-05-31 — fix(dashboard_v3): Mission hero card — visual fidelity correction
 
 **What:**

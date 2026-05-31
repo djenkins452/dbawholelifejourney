@@ -24,6 +24,7 @@ endpoints, providing the appropriate authentication mechanism for API clients.
 
 import json
 import logging
+import math
 from datetime import datetime, timedelta
 from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
 
@@ -447,6 +448,20 @@ def health_ingest(request):
     changed_types = set()
 
     for i, metric in enumerate(metrics):
+        if _metric_has_nan(metric):
+            # Apple HealthKit occasionally emits NaN for derived metrics. Decimal
+            # ordering comparisons on NaN raise InvalidOperation (unlike float NaN,
+            # which compares False), so a NaN that reaches a handler's range check
+            # crashes that metric. NaN is meaningless health data that could never
+            # converge anyway (NaN != NaN), so drop it cleanly as skipped instead of
+            # surfacing an internal error to the client.
+            logger.warning(
+                "[HEALTH_SYNC_WARNING] Skipping NaN metric (user=%s metric=%s)",
+                user.id,
+                metric.get("type", "unknown"),
+            )
+            skipped += 1
+            continue
         try:
             result = process_health_metric(user, metric, existing_glucose_sync_ids)
             if result == "created":
@@ -560,6 +575,16 @@ def health_ingest(request):
         "skipped": skipped,
         "errors": errors,
     })
+
+
+def _metric_has_nan(metric):
+    """True if any top-level value in the metric payload is a NaN float.
+
+    HealthKit metric payloads are flat dicts, so a shallow scan is sufficient.
+    """
+    if not isinstance(metric, dict):
+        return False
+    return any(isinstance(v, float) and math.isnan(v) for v in metric.values())
 
 
 def normalize_for_storage(value, model_cls, field_name):

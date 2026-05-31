@@ -1033,6 +1033,128 @@ class MissionCardTests(TestCase):
         drivers = build_dashboard_v3_context(self.user)["mission"]["drivers"]
         self.assertEqual(drivers, [])
 
+    # ── Phase 3: Mission Intelligence — deterministic state classifier ────
+
+    def _status(self):
+        return build_dashboard_v3_context(self.user)["mission"]["status"]
+
+    def test_status_always_present_for_active_mission(self):
+        self._goal(title="Stateful")
+        status = self._status()
+        self.assertIn(status["state"], {
+            "GETTING_STARTED", "BUILDING_MOMENTUM", "IMPROVING",
+            "MAINTAINING", "SLIPPING", "AT_RISK",
+        })
+        self.assertIn(status["ring_word"], {
+            "BUILDING", "MOMENTUM", "ON TRACK", "STEADY", "RECOVER", "REFOCUS",
+        })
+
+    def test_getting_started_when_no_signals_no_momentum(self):
+        # No tracked positives + no momentum snapshot → the only honest state.
+        self._goal(title="Fresh")
+        self._seed_state(health={}, fitness={}, journal={}, nutrition={})
+        status = self._status()
+        self.assertEqual(status["state"], "GETTING_STARTED")
+        self.assertEqual(status["ring_word"], "BUILDING")
+        self.assertEqual(status["tone"], "flat")
+
+    def test_building_momentum_when_helping_signal_but_no_trend(self):
+        # A positive tracked behaviour without a snapshot → momentum forming,
+        # but never a fabricated IMPROVING direction.
+        self._goal(title="Forming")
+        self._seed_state(fitness={"workouts_7d": 4})
+        status = self._status()
+        self.assertEqual(status["state"], "BUILDING_MOMENTUM")
+        self.assertEqual(status["ring_word"], "MOMENTUM")
+        self.assertTrue(any(d["label"] == "Workouts" for d in status["helping"]))
+
+    def test_improving_requires_real_rising_snapshot(self):
+        goal = self._goal(title="Rising")
+        self._momentum(goal, trend="rising")
+        self._seed_state(fitness={"workouts_7d": 4})
+        status = self._status()
+        self.assertEqual(status["state"], "IMPROVING")
+        self.assertEqual(status["ring_word"], "ON TRACK")
+        self.assertEqual(status["tone"], "up")
+
+    def test_at_risk_when_falling_and_multiple_needs(self):
+        goal = self._goal(title="Struggling")
+        self._momentum(goal, trend="falling")
+        self._seed_state(
+            fitness={"workouts_7d": 0},
+            journal={"entries_7d": 0},
+            health={"sleep_avg_hours_7d": 5.0},
+        )
+        status = self._status()
+        self.assertEqual(status["state"], "AT_RISK")
+        self.assertEqual(status["ring_word"], "REFOCUS")
+        self.assertGreaterEqual(len(status["needs"]), 3)
+
+    def test_slipping_when_falling_with_few_needs(self):
+        goal = self._goal(title="Softening")
+        self._momentum(goal, trend="falling")
+        self._seed_state(fitness={"workouts_7d": 0})
+        status = self._status()
+        self.assertEqual(status["state"], "SLIPPING")
+        self.assertEqual(status["ring_word"], "RECOVER")
+
+    def test_maintaining_when_stable_with_helping(self):
+        goal = self._goal(title="Holding")
+        self._momentum(goal, trend="stable")
+        self._seed_state(
+            fitness={"workouts_7d": 4},
+            health={"sleep_avg_hours_7d": 7.5},
+        )
+        status = self._status()
+        self.assertEqual(status["state"], "MAINTAINING")
+        self.assertEqual(status["ring_word"], "STEADY")
+
+    def test_narrative_references_actual_signals(self):
+        # Copy must ground in real signals — not generic personalisation.
+        goal = self._goal(title="Grounded")
+        self._momentum(goal, trend="rising")
+        self._seed_state(
+            fitness={"workouts_7d": 5},
+            nutrition={"enabled": True, "macro_compliance_score": None},
+        )
+        status = self._status()
+        self.assertIn("training is consistent", status["narrative"])
+        self.assertIn("Nutrition isn't being tracked", status["narrative"])
+
+    def test_no_major_concerns_when_no_needs(self):
+        goal = self._goal(title="Clean")
+        self._momentum(goal, trend="rising")
+        self._seed_state(
+            fitness={"workouts_7d": 5},
+            health={"sleep_avg_hours_7d": 8.0, "steps_avg_7d": 9000},
+        )
+        status = self._status()
+        self.assertEqual(status["needs"], [])
+
+    def test_nutrition_untracked_is_a_need(self):
+        # Objective absence — untracked nutrition is a real need, not a guess.
+        goal = self._goal(title="No nutrition")
+        self._seed_state(nutrition={"enabled": True, "macro_compliance_score": None})
+        status = self._status()
+        self.assertTrue(any(d["label"] == "Nutrition" for d in status["needs"]))
+
+    def test_helping_and_needs_capped_at_three(self):
+        goal = self._goal(title="Lots of signals")
+        self._momentum(goal, trend="rising")
+        self._seed_state(
+            fitness={"workouts_7d": 5},
+            health={
+                "sleep_avg_hours_7d": 8.0,
+                "steps_avg_7d": 12000,
+                "weight_change_30d": -2.0,
+                "weight_trend": "decreasing",
+            },
+            nutrition={"enabled": True, "macro_compliance_score": 90},
+        )
+        status = self._status()
+        self.assertLessEqual(len(status["helping"]), 3)
+        self.assertLessEqual(len(status["needs"]), 3)
+
 
 class WeatherTileTests(TestCase):
     def setUp(self):

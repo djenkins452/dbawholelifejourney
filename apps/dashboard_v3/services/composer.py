@@ -146,6 +146,123 @@ _DRIVER_ICONS = {
     "nutrition": "\U0001F957",     # salad
 }
 
+# ── Phase 3: Mission Intelligence ────────────────────────────────────────
+# Deterministic, explainable mission state. NO percentages, NO hidden scoring.
+# The state is derived from (a) the persisted GoalMomentumSnapshot trend (the
+# ONLY source allowed to claim a direction) and (b) objective behaviour signals
+# read from pre-computed SAE module state. Every state maps 1:1 to a ring word,
+# a label, a tone (reusing the momentum CSS classes), and a fixed base coaching
+# line. The narrative appends grounded clauses that reference the ACTUAL top
+# helping / needs signal — never fabricated personalisation.
+_STATE_GETTING_STARTED = "GETTING_STARTED"
+_STATE_BUILDING_MOMENTUM = "BUILDING_MOMENTUM"
+_STATE_IMPROVING = "IMPROVING"
+_STATE_MAINTAINING = "MAINTAINING"
+_STATE_SLIPPING = "SLIPPING"
+_STATE_AT_RISK = "AT_RISK"
+
+# Ring centre word — answers "what am I doing right now" without a number.
+_RING_WORD = {
+    _STATE_GETTING_STARTED: "BUILDING",
+    _STATE_BUILDING_MOMENTUM: "MOMENTUM",
+    _STATE_IMPROVING: "ON TRACK",
+    _STATE_MAINTAINING: "STEADY",
+    _STATE_SLIPPING: "RECOVER",
+    _STATE_AT_RISK: "REFOCUS",
+}
+
+# Human label for the status pill.
+_STATE_LABEL = {
+    _STATE_GETTING_STARTED: "Getting started",
+    _STATE_BUILDING_MOMENTUM: "Building momentum",
+    _STATE_IMPROVING: "Improving",
+    _STATE_MAINTAINING: "Maintaining",
+    _STATE_SLIPPING: "Slipping",
+    _STATE_AT_RISK: "Needs attention",
+}
+
+# Tone reuses the existing momentum indicator classes (up / flat / down).
+_STATE_TONE = {
+    _STATE_GETTING_STARTED: "flat",
+    _STATE_BUILDING_MOMENTUM: "up",
+    _STATE_IMPROVING: "up",
+    _STATE_MAINTAINING: "flat",
+    _STATE_SLIPPING: "down",
+    _STATE_AT_RISK: "down",
+}
+
+# Fixed base coaching line per state — executive-coach tone, approved verbatim.
+# NEVER generated. Grounded signal clauses are appended at render time.
+_STATE_BASE = {
+    _STATE_GETTING_STARTED: (
+        "You've committed to the mission. Right now the win is consistency — "
+        "small actions create momentum long before race day."
+    ),
+    _STATE_BUILDING_MOMENTUM: (
+        "Momentum is forming. Your recent habits are moving you in the right "
+        "direction. Protect consistency more than intensity."
+    ),
+    _STATE_IMPROVING: (
+        "You are moving in the right direction. The work you're doing now "
+        "compounds over time — France is built in ordinary days."
+    ),
+    _STATE_MAINTAINING: (
+        "You're holding steady. The opportunity now is building from "
+        "maintenance into meaningful forward progress."
+    ),
+    _STATE_SLIPPING: (
+        "Some important habits have softened recently. This is recoverable — "
+        "focus on rebuilding consistency before intensity."
+    ),
+    _STATE_AT_RISK: (
+        "Several mission drivers need attention. The good news: momentum can "
+        "return quickly when small routines come back online."
+    ),
+}
+
+# Documented, defensible signal thresholds. These are the explicit lines that
+# split a tracked behaviour into "helping momentum" vs "needs attention".
+# Objective-absence (zero workouts, zero journal entries, nutrition untracked)
+# is always a "need" — never an invented threshold. Anything between the two
+# bands is neutral (surfaced as a plain driver, claimed for neither side).
+_SIGNAL_BANDS = {
+    "workouts": {"help": 3, "need": 1},      # >=3/wk helping; ==0 needs
+    "steps": {"help": 8000, "need": 4000},   # >=8k helping; <4k needs
+    "sleep": {"help": 7.0, "need": 6.0},     # >=7h helping; <6h needs
+    "journal": {"help": 3, "need": 1},       # >=3/wk helping; ==0 needs
+    "nutrition": {"help": 70, "need": None},  # >=70% helping; untracked needs
+}
+
+# Grounded clause fragments appended to the base coaching line. help_frag is
+# used when the signal is the top "helping" driver; need_frag when it is the
+# top "needs" driver. Each references the ACTUAL tracked behaviour only.
+_SIGNAL_FRAGMENTS = {
+    "workouts": {
+        "help": "Your training is consistent right now — that's the engine.",
+        "need": "Workouts have gone quiet — that's the place to restart.",
+    },
+    "journal": {
+        "help": "You're journaling regularly, which keeps you anchored to the why.",
+        "need": "Journaling has dropped off — a short daily note rebuilds the habit.",
+    },
+    "weight": {
+        "help": "Your weight is trending the right way.",
+        "need": "Weight has drifted up recently — worth a gentle reset.",
+    },
+    "sleep": {
+        "help": "Sleep is supporting your recovery.",
+        "need": "Recovery looks thin — sleep is the lever to pull first.",
+    },
+    "steps": {
+        "help": "Daily movement is strong.",
+        "need": "Daily movement has dropped off lately.",
+    },
+    "nutrition": {
+        "help": "Nutrition is dialled in.",
+        "need": "Nutrition isn't being tracked yet — that's the next lever.",
+    },
+}
+
 
 def _latest_momentum(goal):
     """Latest persisted momentum snapshot for a goal (read-only).
@@ -260,9 +377,19 @@ def _build_mission_card(user) -> dict | None:
     # Short tagline under the title — the user's own description, if any.
     subtitle = (goal.description or "").strip() or None
 
+    # Read the pre-computed SAE module states ONCE (read-only) and reuse them
+    # for both the deterministic drivers row and the mission-status classifier.
+    states = _read_mission_states(user)
+
     # Key Drivers — deterministic behaviour signals, read-only, gracefully
-    # omitted when unavailable.
-    drivers = _build_mission_drivers(user)
+    # omitted when unavailable. Kept for back-compat with existing consumers.
+    drivers = _build_mission_drivers(states)
+
+    # Phase 3 — Mission Intelligence. Deterministic state classification +
+    # grounded coaching narrative + helping/needs split. Built from the same
+    # SAE signals (no extra queries) and the persisted momentum trend only.
+    signals = _evaluate_mission_signals(states)
+    status = _build_mission_status(goal, snap, signals, today)
 
     return {
         "icon": icon,
@@ -275,6 +402,7 @@ def _build_mission_card(user) -> dict | None:
         "momentum": momentum,
         "panel": panel,
         "drivers": drivers,
+        "status": status,
         "days_remaining": days_remaining,
         "progress": progress,
         "why": why,
@@ -321,21 +449,36 @@ def _build_mission_panel(goal, snap) -> dict:
     }
 
 
-def _build_mission_drivers(user) -> list[dict]:
-    """Deterministic behaviour signals for the Key Drivers row.
+def _read_mission_states(user) -> dict:
+    """Read the four pre-computed SAE module states a mission depends on, ONCE.
 
-    READ-ONLY: reads only pre-computed SAE module state (the nightly / SAME
-    cycle snapshot). NEVER live-computes on the request path, NEVER fabricates
-    a value or a percentage. Each driver is included ONLY when its underlying
-    field is present in state; a missing signal is gracefully omitted (no
-    zero-fill, no placeholder). Order is fixed and meaningful.
+    READ-ONLY: pulls only the nightly / SAME-cycle SAE snapshot. NEVER
+    live-computes on the request path. Returned as a plain dict so both the
+    drivers row and the status classifier can share a single read.
     """
     from apps.core.ai_state.state_engine import get_module_state
 
-    health = get_module_state(user, "health") or {}
-    fitness = get_module_state(user, "fitness") or {}
-    journal = get_module_state(user, "journal") or {}
-    nutrition = get_module_state(user, "nutrition") or {}
+    return {
+        "health": get_module_state(user, "health") or {},
+        "fitness": get_module_state(user, "fitness") or {},
+        "journal": get_module_state(user, "journal") or {},
+        "nutrition": get_module_state(user, "nutrition") or {},
+    }
+
+
+def _build_mission_drivers(states: dict) -> list[dict]:
+    """Deterministic behaviour signals for the Key Drivers row.
+
+    READ-ONLY: consumes the pre-read SAE module state. NEVER live-computes on
+    the request path, NEVER fabricates a value or a percentage. Each driver is
+    included ONLY when its underlying field is present in state; a missing
+    signal is gracefully omitted (no zero-fill, no placeholder). Order is fixed
+    and meaningful.
+    """
+    health = states.get("health") or {}
+    fitness = states.get("fitness") or {}
+    journal = states.get("journal") or {}
+    nutrition = states.get("nutrition") or {}
 
     drivers: list[dict] = []
 
@@ -387,6 +530,177 @@ def _build_mission_drivers(user) -> list[dict]:
             add("nutrition", "Nutrition", f"{macros:.0f}% macros")
 
     return drivers
+
+
+def _evaluate_mission_signals(states: dict) -> list[dict]:
+    """Classify each tracked behaviour signal as helping / needs / neutral.
+
+    READ-ONLY and fully deterministic. Polarity is decided by the documented
+    ``_SIGNAL_BANDS`` thresholds and objective absence (zero workouts, zero
+    journal entries, untracked nutrition are always "needs"). A signal is only
+    evaluated when its underlying field is actually present in state — nothing
+    is inferred or zero-filled. Returns a list of dicts in a fixed priority
+    order, each shaped for both the drivers split and the narrative builder::
+
+        {key, icon, label, value, polarity, help_frag, need_frag}
+    """
+    health = states.get("health") or {}
+    fitness = states.get("fitness") or {}
+    journal = states.get("journal") or {}
+    nutrition = states.get("nutrition") or {}
+
+    signals: list[dict] = []
+
+    def emit(key, label, value, polarity):
+        frags = _SIGNAL_FRAGMENTS.get(key, {})
+        signals.append(
+            {
+                "key": key,
+                "icon": _DRIVER_ICONS.get(key, ""),
+                "label": label,
+                "value": value,
+                "polarity": polarity,
+                "help_frag": frags.get("help", ""),
+                "need_frag": frags.get("need", ""),
+            }
+        )
+
+    # Workouts — objective absence (0/wk) is always a need; >=3/wk is helping.
+    workouts = fitness.get("workouts_7d")
+    if workouts is not None:
+        band = _SIGNAL_BANDS["workouts"]
+        if workouts >= band["help"]:
+            polarity = "helping"
+        elif workouts < band["need"]:  # zero
+            polarity = "needs"
+        else:
+            polarity = "neutral"
+        emit("workouts", "Workouts", f"{workouts}/wk", polarity)
+
+    # Weight — the persisted trend direction is the only truth we lean on.
+    wchange = health.get("weight_change_30d")
+    if wchange is not None:
+        wtrend = health.get("weight_trend")
+        if wtrend == "decreasing":
+            polarity = "helping"
+        elif wtrend == "increasing":
+            polarity = "needs"
+        else:
+            polarity = "neutral"
+        sign = "+" if wchange > 0 else ""
+        emit("weight", "Weight", f"{sign}{wchange} lb / 30d", polarity)
+
+    # Sleep — recovery lever.
+    sleep = health.get("sleep_avg_hours_7d")
+    if sleep is not None:
+        band = _SIGNAL_BANDS["sleep"]
+        if sleep >= band["help"]:
+            polarity = "helping"
+        elif sleep < band["need"]:
+            polarity = "needs"
+        else:
+            polarity = "neutral"
+        emit("sleep", "Sleep", f"{sleep}h avg", polarity)
+
+    # Journal — objective absence (0/wk) is always a need.
+    entries = journal.get("entries_7d")
+    if entries is not None:
+        band = _SIGNAL_BANDS["journal"]
+        if entries >= band["help"]:
+            polarity = "helping"
+        elif entries < band["need"]:  # zero
+            polarity = "needs"
+        else:
+            polarity = "neutral"
+        emit("journal", "Journal", f"{entries}/wk", polarity)
+
+    # Steps — daily movement.
+    steps = health.get("steps_avg_7d")
+    if steps is not None:
+        band = _SIGNAL_BANDS["steps"]
+        if steps >= band["help"]:
+            polarity = "helping"
+        elif steps < band["need"]:
+            polarity = "needs"
+        else:
+            polarity = "neutral"
+        emit("steps", "Steps", f"{steps:,}/day", polarity)
+
+    # Nutrition — untracked is an objective need (the next lever), not a guess.
+    if nutrition.get("enabled"):
+        macros = nutrition.get("macro_compliance_score")
+        if macros is None:
+            emit("nutrition", "Nutrition", "Not tracked", "needs")
+        else:
+            band = _SIGNAL_BANDS["nutrition"]
+            polarity = "helping" if macros >= band["help"] else "neutral"
+            emit("nutrition", "Nutrition", f"{macros:.0f}% macros", polarity)
+
+    return signals
+
+
+def _build_mission_status(goal, snap, signals: list[dict], today) -> dict:
+    """Deterministic, explainable mission-state classifier (Phase 3A/3B).
+
+    Truth rules:
+      · A *direction* (improving / slipping / at-risk) may ONLY be claimed when
+        a persisted ``GoalMomentumSnapshot`` trend exists. Without a snapshot we
+        restrict to the two no-direction states (GETTING_STARTED /
+        BUILDING_MOMENTUM) — we never fabricate a trajectory.
+      · Classification reads only objective inputs: the snapshot trend and the
+        helping / needs signal counts. NO percentages, NO hidden scoring.
+      · The coaching narrative is a fixed base line per state plus grounded
+        clauses that name the ACTUAL top helping / needs signal — never invented
+        personalisation.
+
+    Returns ``{state, ring_word, state_label, tone, narrative, helping, needs}``
+    where helping / needs are display-ready signal dicts (max 3 each).
+    """
+    helping = [s for s in signals if s["polarity"] == "helping"]
+    needs = [s for s in signals if s["polarity"] == "needs"]
+    trend = snap.momentum_trend if snap and snap.momentum_trend else None
+
+    if trend == "rising":
+        state = _STATE_IMPROVING if helping else _STATE_BUILDING_MOMENTUM
+    elif trend == "falling":
+        state = _STATE_AT_RISK if len(needs) >= 3 else _STATE_SLIPPING
+    elif trend == "stable":
+        if len(needs) >= 3:
+            state = _STATE_SLIPPING
+        elif len(helping) >= 2:
+            state = _STATE_MAINTAINING
+        else:
+            state = _STATE_BUILDING_MOMENTUM
+    else:
+        # No persisted trend — cannot truthfully claim a direction. At least one
+        # positive tracked behaviour means momentum is forming; otherwise the
+        # honest state is "getting started".
+        state = _STATE_BUILDING_MOMENTUM if helping else _STATE_GETTING_STARTED
+
+    # Grounded narrative: fixed base + the single most relevant helping clause +
+    # the single most relevant needs clause (signals are already priority-sorted).
+    parts = [_STATE_BASE[state]]
+    if helping and helping[0].get("help_frag"):
+        parts.append(helping[0]["help_frag"])
+    if needs and needs[0].get("need_frag"):
+        parts.append(needs[0]["need_frag"])
+    narrative = " ".join(parts)
+
+    def _trim(items):
+        return [
+            {"icon": s["icon"], "label": s["label"], "value": s["value"]}
+            for s in items[:3]
+        ]
+
+    return {
+        "state": state,
+        "ring_word": _RING_WORD[state],
+        "state_label": _STATE_LABEL[state],
+        "tone": _STATE_TONE[state],
+        "narrative": narrative,
+        "helping": _trim(helping),
+        "needs": _trim(needs),
+    }
 
 
 def _build_mission_progress(goal) -> dict:

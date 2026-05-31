@@ -47,10 +47,12 @@ has not selected an active Primary Mission (renders nothing — no placeholder).
                     {% endif %}
                 </svg>
                 <div class="v3-mission-ring-center">
+                    {% if mission.status %}
+                    <span class="v3-mission-ring-word v3-mission-ring-word--{{ mission.status.tone }}">{{ mission.status.ring_word }}</span>
+                    {% endif %}
                     {% if mission.progress.has_milestones %}
-                    <span class="v3-mission-ring-frac">{{ mission.progress.completed }}<span class="v3-mission-ring-slash">/</span>{{ mission.progress.total }}</span>
-                    <span class="v3-mission-ring-cap">milestones</span>
-                    {% else %}
+                    <span class="v3-mission-ring-frac">{{ mission.progress.completed }}<span class="v3-mission-ring-slash">/</span>{{ mission.progress.total }} milestones</span>
+                    {% elif not mission.status %}
                     <span class="v3-mission-ring-glyph">{% if mission.icon %}{{ mission.icon }}{% else %}★{% endif %}</span>
                     <span class="v3-mission-ring-cap">in progress</span>
                     {% endif %}
@@ -58,18 +60,18 @@ has not selected an active Primary Mission (renders nothing — no placeholder).
             </div>
 
             <div class="v3-mission-panel">
-                {% if mission.panel %}
-                <div class="v3-mission-going{% if mission.panel.is_fallback %} v3-mission-going--neutral{% endif %}">
+                {% if mission.status %}
+                <div class="v3-mission-going v3-mission-going--{{ mission.status.tone }}">
                     <div class="v3-mission-going-head">
                         <span class="v3-mission-going-label">
                             <span class="v3-mission-going-glyph" aria-hidden="true">📈</span> How things are going
                         </span>
-                        <span class="v3-mission-trend v3-mission-momentum-{{ mission.panel.trend }}">
-                            {% if mission.panel.trend == 'up' %}<span aria-hidden="true">↑</span>{% elif mission.panel.trend == 'down' %}<span aria-hidden="true">↓</span>{% else %}<span aria-hidden="true">→</span>{% endif %}
-                            {{ mission.panel.label }}
+                        <span class="v3-mission-trend v3-mission-momentum-{{ mission.status.tone }}">
+                            {% if mission.status.tone == 'up' %}<span aria-hidden="true">↑</span>{% elif mission.status.tone == 'down' %}<span aria-hidden="true">↓</span>{% else %}<span aria-hidden="true">→</span>{% endif %}
+                            {{ mission.status.state_label }}
                         </span>
                     </div>
-                    <p class="v3-mission-going-text">{{ mission.panel.narrative }}</p>
+                    <p class="v3-mission-going-text">{{ mission.status.narrative }}</p>
                 </div>
                 {% endif %}
 
@@ -93,19 +95,47 @@ has not selected an active Primary Mission (renders nothing — no placeholder).
             </div>
         </div>
 
-        {% if mission.drivers %}
+        {% if mission.status.helping or mission.status.needs %}
         <div class="v3-mission-drivers">
-            <span class="v3-mission-drivers-label">Key drivers</span>
-            <div class="v3-mission-drivers-row">
-                {% for d in mission.drivers %}
-                <div class="v3-mission-driver">
-                    <span class="v3-mission-driver-icon" aria-hidden="true">{{ d.icon }}</span>
-                    <span class="v3-mission-driver-text">
-                        <span class="v3-mission-driver-label">{{ d.label }}</span>
-                        <span class="v3-mission-driver-value">{{ d.value }}{% if d.trend == 'up' %} <span class="v3-mission-driver-up" aria-hidden="true">↑</span>{% elif d.trend == 'down' %} <span class="v3-mission-driver-down" aria-hidden="true">↓</span>{% endif %}</span>
-                    </span>
+            <div class="v3-mission-drivers-col v3-mission-drivers-col--help">
+                <span class="v3-mission-drivers-label">
+                    <span class="v3-mission-drivers-dot v3-mission-drivers-dot--help" aria-hidden="true"></span>Helping momentum
+                </span>
+                {% if mission.status.helping %}
+                <div class="v3-mission-drivers-row">
+                    {% for d in mission.status.helping %}
+                    <div class="v3-mission-driver">
+                        <span class="v3-mission-driver-icon" aria-hidden="true">{{ d.icon }}</span>
+                        <span class="v3-mission-driver-text">
+                            <span class="v3-mission-driver-label">{{ d.label }}</span>
+                            <span class="v3-mission-driver-value">{{ d.value }}</span>
+                        </span>
+                    </div>
+                    {% endfor %}
                 </div>
-                {% endfor %}
+                {% else %}
+                <span class="v3-mission-drivers-none">Still building</span>
+                {% endif %}
+            </div>
+            <div class="v3-mission-drivers-col v3-mission-drivers-col--need">
+                <span class="v3-mission-drivers-label">
+                    <span class="v3-mission-drivers-dot v3-mission-drivers-dot--need" aria-hidden="true"></span>Needs attention
+                </span>
+                {% if mission.status.needs %}
+                <div class="v3-mission-drivers-row">
+                    {% for d in mission.status.needs %}
+                    <div class="v3-mission-driver">
+                        <span class="v3-mission-driver-icon" aria-hidden="true">{{ d.icon }}</span>
+                        <span class="v3-mission-driver-text">
+                            <span class="v3-mission-driver-label">{{ d.label }}</span>
+                            <span class="v3-mission-driver-value">{{ d.value }}</span>
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <span class="v3-mission-drivers-none">No major concerns</span>
+                {% endif %}
             </div>
         </div>
         {% endif %}

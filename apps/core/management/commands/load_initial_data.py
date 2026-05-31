@@ -1061,6 +1061,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Mission hero card (PK 200)
         self._reset_mission_hero_release_notes(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Mission Intelligence v1 (PK 201)
+        self._reset_mission_intelligence_release_notes(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -6977,6 +6980,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Mission hero release notes FAILED: {e}'))
+
+    def _reset_mission_intelligence_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes after adding PK 201 (Mission
+        Intelligence v1 — deterministic mission-state classifier surfaced on
+        the Primary Mission hero card).
+        """
+        reset_tracker_name = 'reset_mission_intelligence_2026_05_31'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for Mission Intelligence (PK 201)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Mission Intelligence',
+                'command',
+                'One-time reset: added PK 201 for Mission Intelligence v1'
+            )
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Mission Intelligence release notes FAILED: {e}'))
 
     def _reset_action_center_vocabulary_release_notes(self, DataLoadConfig, force=False, verbosity=1):
         """

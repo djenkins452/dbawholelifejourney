@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 201,
+    "fields": {
+      "title": "Your Mission card now reads its own momentum",
+      "description": "Your Primary Mission card is no longer just a pretty progress ring — it now tells you, in plain language, how the mission is actually going. Using the signals you already track (workouts, sleep, steps, weight trend, journaling and nutrition) plus your real momentum trend, it settles on one honest state: Getting started, Building momentum, Improving, Maintaining, Slipping, or Needs attention. The ring centre shows that state as a word — BUILDING, MOMENTUM, ON TRACK, STEADY, RECOVER or REFOCUS — so an early \"0 of 4 milestones\" reads as a beginning, not a failure. The coaching line beneath it speaks to your real signals: if your training is consistent it says so; if nutrition isn't tracked yet, it names that as your next lever. And the drivers strip now splits into \"Helping momentum\" and \"Needs attention,\" showing at most three of each, or \"No major concerns\" when nothing's slipping. Everything stays honest: a direction like Improving only appears when your real momentum is genuinely rising, never as a guess.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-05-31",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-05-31T22:00:00Z",
+      "updated_at": "2026-05-31T22:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 200,
     "fields": {
       "title": "Your Primary Mission, reimagined as a North Star",

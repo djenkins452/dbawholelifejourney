@@ -3,8 +3,40 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-26 (trust fix: false-urgency escalation directive)
+# Last Updated: 2026-05-31 (feat: Mission Intelligence v1 — deterministic state classifier)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-31 — feat(dashboard_v3): Mission Intelligence v1 — deterministic state classifier
+
+**What:** Upgraded the Primary Mission hero card from "visually complete" to "mission intelligence v1." The card now classifies an explainable mission STATE from real, pre-computed signals and narrates it with grounded executive-coach copy — no percentages, no hidden scoring, no fabricated readiness. Architecture law preserved end-to-end: raw data → signals → composed deterministic state → Beth narrates (the composer produces the verdict; Beth never computes it).
+
+**3A — `_build_mission_status()` deterministic classifier** (`apps/dashboard_v3/services/composer.py`):
+- Six explainable states: `GETTING_STARTED`, `BUILDING_MOMENTUM`, `IMPROVING`, `MAINTAINING`, `SLIPPING`, `AT_RISK`.
+- **Direction truth rule:** a direction (IMPROVING / SLIPPING / AT_RISK / MAINTAINING) may ONLY be claimed when a persisted `GoalMomentumSnapshot` trend exists. With no snapshot the classifier is restricted to the two no-direction states (`GETTING_STARTED` / `BUILDING_MOMENTUM`) — a trajectory is never invented.
+- Classification reads only objective inputs: the snapshot trend + helping/needs signal counts. rising→IMPROVING (or BUILDING_MOMENTUM with no positives); falling→AT_RISK (≥3 needs) else SLIPPING; stable→SLIPPING (≥3 needs) / MAINTAINING (≥2 helping) / else BUILDING_MOMENTUM; no trend→BUILDING_MOMENTUM (any positive) else GETTING_STARTED.
+- New helper `_read_mission_states(user)` reads the four SAE module states (health/fitness/journal/nutrition) ONCE, read-only; reused by both the drivers row and the classifier (no extra queries on the request path).
+- `_evaluate_mission_signals()` splits each tracked behaviour into helping / needs / neutral via documented `_SIGNAL_BANDS` thresholds. Objective absence (0 workouts, 0 journal entries, untracked nutrition) is always a "need" — never an invented threshold.
+
+**3B — Coaching panel rewrite** (composer + `templates/dashboard_v3/sections/mission.html`):
+- Each state has a fixed, approved executive-coach base line (`_STATE_BASE`). The narrative appends grounded clauses (`_SIGNAL_FRAGMENTS`) that name the ACTUAL top helping + top needs signal (e.g. workouts strong → "Your training is consistent…", nutrition untracked → "Nutrition isn't being tracked yet — that's the next lever."). No fake personalisation; every clause is backed by a real signal in state.
+- Panel now keys off `mission.status` (state label pill + tone) instead of the older fixed `panel` narrative. Coaching card takes a subtle tonal cue (`--up` / `--flat` / `--down`); tonal only, never the reserved completion treatment.
+
+**3C — Key Drivers → Mission Drivers split** (template + `static/dashboard_v3/css/dashboard_v3.css`):
+- The flat "Key drivers" row is replaced by two labelled columns: **Helping momentum** (green dot) and **Needs attention** (amber dot), max 3 each. Shows "No major concerns" when nothing needs attention and "Still building" when nothing is yet helping. Only actual tracked signals; deterministic.
+
+**3D — Ring psychology fix** (template + CSS):
+- The ring centre no longer reads "0/4" as failure. It now shows a state word (`GETTING_STARTED`→BUILDING, `BUILDING_MOMENTUM`→MOMENTUM, `IMPROVING`→ON TRACK, `MAINTAINING`→STEADY, `SLIPPING`→RECOVER, `AT_RISK`→REFOCUS), tinted by tone, with the literal milestone count ("0/4 milestones") demoted to a small caption beneath. Ring stays milestone-based — no readiness %.
+
+**3E — Layout polish:** Tightened driver/column spacing, reduced the stacked-form feel, drivers columns stack on ≤640px.
+
+**Why:** The card was visually finished but informationally inert — a 0/4 ring read like failure and the panel copy was robotic. This pass makes the surface *say something true and useful* about the mission's actual state while holding the line on the Visual Truth Contract and the "Beth narrates composed state" architecture.
+
+**Note (truth-rule reconciliation):** An earlier directive forbade the unsupported label "On Track." `IMPROVING → "ON TRACK"` is now permitted because IMPROVING is derived strictly from a REAL rising `GoalMomentumSnapshot.momentum_trend` (a deterministic positive trend), so the label is grounded, not aspirational.
+
+**Files:** `apps/dashboard_v3/services/composer.py`, `templates/dashboard_v3/sections/mission.html`, `static/dashboard_v3/css/dashboard_v3.css`, `apps/dashboard_v3/tests/test_composer.py` (11 new `MissionCardTests` for the classifier — 40 mission+visual-truth tests green), `apps/core/fixtures/release_notes.json`.
+
+**Validation:** `apps.dashboard_v3.tests.test_composer.MissionCardTests` + `apps.core.tests.test_visual_truth_contract` → 40 passed. `makemigrations --check` clean (no model changes).
 
 
 ## 2026-05-31 — polish(dashboard_v3): Mission hero card — final fidelity pass

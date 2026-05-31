@@ -1086,17 +1086,33 @@
     text-align: center;
 }
 
-.v3-mission-ring-frac {
-    font-size: 2.4rem;
+/* Phase 3D — ring centre answers "what am I doing now" with a state word,
+   never a readiness %. The literal milestone count sits below as context. */
+.v3-mission-ring-word {
+    font-size: 1.32rem;
     font-weight: 800;
+    line-height: 1.04;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
     color: var(--v3-accent);
-    line-height: 1;
-    letter-spacing: -0.03em;
+}
+
+.v3-mission-ring-word--up   { color: var(--v3-opp); }
+.v3-mission-ring-word--down { color: var(--v3-warn); }
+.v3-mission-ring-word--flat { color: var(--v3-accent); }
+
+.v3-mission-ring-frac {
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--v3-text-soft);
+    line-height: 1.2;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-top: 5px;
 }
 
 .v3-mission-ring-slash {
-    font-size: 1.4rem;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--v3-text-soft);
     margin: 0 1px;
 }
@@ -1125,6 +1141,20 @@
     border: 1px solid rgba(67, 56, 202, 0.16);
     border-radius: 14px;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* Phase 3B — the coaching panel takes a subtle tonal cue from mission state.
+   Tonal only; never the reserved completion treatment. */
+.v3-mission-going--down {
+    background:
+        linear-gradient(180deg, rgba(161, 98, 7, 0.08) 0%, rgba(161, 98, 7, 0.03) 100%);
+    border-color: rgba(161, 98, 7, 0.22);
+}
+
+.v3-mission-going--flat {
+    background:
+        linear-gradient(180deg, rgba(67, 56, 202, 0.05) 0%, rgba(67, 56, 202, 0.02) 100%);
+    border-color: rgba(67, 56, 202, 0.13);
 }
 
 .v3-mission-going-head {
@@ -1223,15 +1253,22 @@
 .v3-mission-momentum-flat { color: var(--v3-text-mute); }
 .v3-mission-momentum-down { color: var(--v3-warn); }
 
-/* ── Key Drivers row (deterministic behaviour signals) ───────── */
+/* ── Mission Drivers — split into Helping momentum / Needs attention ── */
 .v3-mission-drivers {
-    margin-top: 22px;
+    margin-top: 20px;
     padding-top: 18px;
     border-top: 1px solid var(--v3-border);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
 }
 
+.v3-mission-drivers-col { min-width: 0; }
+
 .v3-mission-drivers-label {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-size: 0.64rem;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -1240,10 +1277,28 @@
     margin-bottom: 10px;
 }
 
+.v3-mission-drivers-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.v3-mission-drivers-dot--help { background: var(--v3-positive); }
+.v3-mission-drivers-dot--need { background: var(--v3-warn); }
+
+.v3-mission-drivers-none {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--v3-text-mute);
+    padding: 4px 0;
+}
+
 .v3-mission-drivers-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
-    gap: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
 }
 
 .v3-mission-driver {
@@ -1374,4 +1429,7 @@
     .v3-mission-main     { grid-template-columns: 1fr; justify-items: center; gap: 18px; }
     .v3-mission-panel    { width: 100%; }
     .v3-mission-stats    { gap: 12px; }
+
+    /* Helping / Needs columns stack on narrow screens. */
+    .v3-mission-drivers  { grid-template-columns: 1fr; gap: 16px; }
 }

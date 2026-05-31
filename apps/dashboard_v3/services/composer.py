@@ -64,6 +64,9 @@ def build_dashboard_v3_context(user) -> dict[str, Any]:
     context: dict[str, Any] = {
         # Raw canonical dial data — matches v2 cockpit_dial.html contract.
         "cockpit_domains": cockpit_domains,
+        # Mission spotlight — the headline foundational goal, read-only.
+        # None when no foundational goal qualifies (section renders nothing).
+        "mission": _safe(_build_mission_card, user, default=None),
         # Composed/fallback gauges (used only when cockpit is empty).
         "gauges": _safe(_build_gauges, user, default=[]),
         "executive_summary": _safe(_build_executive_summary, user, default={}),
@@ -103,6 +106,110 @@ def _build_cockpit_domains_raw(user) -> list[dict]:
 
 
 # ── Section builders ──────────────────────────────────────────────────
+
+
+# Truthful momentum labels — only ever set from a real GoalMomentumSnapshot
+# trend. No optimistic default; absence of a snapshot omits the row entirely.
+_MOMENTUM_DISPLAY = {
+    "rising": {"label": "Improving", "trend": "up"},
+    "stable": {"label": "Steady", "trend": "flat"},
+    "falling": {"label": "Declining", "trend": "down"},
+}
+
+
+def _latest_momentum(goal):
+    """Latest persisted momentum snapshot for a goal (read-only).
+
+    Reads the nightly-computed GoalMomentumSnapshot. NEVER triggers live
+    momentum_service computation on the request path.
+    """
+    return goal.momentum_snapshots.first()  # ordered -snapshot_date
+
+
+def _select_mission_goal(candidates, today):
+    """Deterministically pick 'the active mission' from foundational goals.
+
+    Derived selection — no is_mission field. Preference order (per approved
+    spec): has milestones → future target date → long-horizon (>=90 days),
+    nearest first → highest momentum score → stable id fallback.
+    """
+    def key(goal):
+        target = goal.target_date
+        if target and target > today:
+            is_future = True
+            days = (target - today).days
+            beyond_90 = days >= 90
+            days_rank = days
+        else:
+            is_future = False
+            beyond_90 = False
+            days_rank = float("inf")
+
+        snap = _latest_momentum(goal)
+        momentum_score = snap.momentum_score if snap else -1
+
+        # Tuple sorts ascending; negate/invert so "better" comes first.
+        return (
+            not goal.has_milestones,   # has milestones first
+            not is_future,             # future-dated first
+            not beyond_90,             # long-horizon first
+            days_rank,                 # nearest qualifying date first
+            -momentum_score,           # highest momentum first
+            goal.id,                   # stable deterministic fallback
+        )
+
+    return sorted(candidates, key=key)[0]
+
+
+def _build_mission_card(user) -> dict | None:
+    """Mission spotlight built ONLY from existing deterministic state.
+
+    Reuse: LifeGoal + GoalMilestone + GoalMomentumSnapshot. Read-only, no
+    scoring, no readiness %, no coaching, no fabrication. Returns None when
+    the user has no active foundational goal — the section then renders
+    nothing (no placeholder).
+    """
+    from apps.purpose.models import LifeGoal
+    from apps.core.utils import get_user_now
+
+    today = get_user_now(user).date()
+
+    candidates = list(
+        LifeGoal.objects.filter(
+            user=user, status="active", is_foundational=True,
+        )
+    )
+    if not candidates:
+        return None
+
+    goal = _select_mission_goal(candidates, today)
+
+    # Current focus — next incomplete milestone (NOT a fabricated "phase").
+    nm = goal.next_milestone
+    current_focus = nm.title if nm else None
+    next_milestone_date = (
+        nm.target_date.strftime("%b %d, %Y") if nm and nm.target_date else None
+    )
+
+    # Momentum — latest snapshot trend only. Omit when no snapshot/trend.
+    snap = _latest_momentum(goal)
+    momentum = None
+    if snap and snap.momentum_trend:
+        momentum = _MOMENTUM_DISPLAY.get(snap.momentum_trend)
+
+    # Days remaining — only when a real future target date exists.
+    days_remaining = None
+    if goal.target_date and goal.target_date > today:
+        days_remaining = (goal.target_date - today).days
+
+    return {
+        "title": goal.title,
+        "current_focus": current_focus,
+        "next_milestone_date": next_milestone_date,
+        "momentum": momentum,
+        "days_remaining": days_remaining,
+        "goal_id": goal.id,
+    }
 
 
 def _build_gauges(user) -> list[dict]:

@@ -7,6 +7,32 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-31 — feat(dashboard_v3): Mission spotlight card (Phase 1A)
+
+**What:**
+A read-only "Mission" card on the production dashboard (dashboard_v3) that surfaces the user's headline foundational goal. Phase 1A of the Mission Framework — a *fast visible win* built entirely on existing deterministic state. No new domain, no new engine, no schema change, no readiness scoring, no Beth integration, no fabricated intelligence.
+
+**Architecture (composed layer, pure reuse):**
+- Mission = a foundational `LifeGoal` + its `GoalMilestone`s + latest `GoalMomentumSnapshot`. Nothing else.
+- Card lives on `dashboard_v3` (the live surface, promoted 2026-05-28) via its **composer**, NOT the legacy `TILE_DEFINITIONS` registry (that drives the classic/rollback surface only).
+- Selection is **derived, deterministic, no `is_mission` field**: among active foundational goals, prefer has-milestones → future target date → long-horizon (≥90d, nearest first) → highest momentum score → stable id fallback. Scales to multiple foundational goals (France, diabetes reversal, marriage, retirement) without schema expansion.
+
+**Files changed:**
+- `apps/dashboard_v3/services/composer.py` — added `_build_mission_card()`, `_select_mission_goal()`, `_latest_momentum()`, `_MOMENTUM_DISPLAY`; registered `"mission"` key in `build_dashboard_v3_context` (wrapped in existing `_safe()` for graceful degradation).
+- `templates/dashboard_v3/sections/mission.html` — new section; `{% if mission %}` guards the whole card, each row guarded individually.
+- `templates/dashboard_v3/home.html` — one `{% include %}` after gauges (prominent, top of page); bumped CSS cache-bust to `?v=20260531a`.
+- `static/dashboard_v3/css/dashboard_v3.css` — `.v3-mission-*` styles reusing existing v3 tokens; responsive at 1200/640px.
+
+**Truthfulness / Visual Truth Contract:**
+- Request path is read-only — reads the nightly `GoalMomentumSnapshot`, NEVER invokes `momentum_service` live compute.
+- No fabrication: momentum row omitted entirely when no snapshot/trend exists (no optimistic default); days-remaining omitted when no target date; current-focus omitted when no open milestone.
+- Momentum is a directional signal (tonal color only) — never the reserved completion green/checkmark treatment. No %, no progress bar, no coaching line, no confidence score (all explicitly out of Phase 1A scope).
+- "Current Focus" = next incomplete milestone title (honest), NOT a fabricated "phase".
+- Card title renders `goal.title` — no France-specific logic, no hardcoded emoji/flag.
+
+**Verification:** 8 new tests in `apps/dashboard_v3/tests/test_composer.py::MissionCardTests` (selection ranking, graceful degradation, each row's omit-when-absent rule, no-foundational-goal → renders nothing). Full `apps.dashboard_v3` + `test_visual_truth_contract` suites pass (71 tests, 2 skipped). `manage.py check` clean. No migrations (no model changes).
+
+
 ## 2026-05-31 — fix(faith/journey): wire Bible Reading completion to Daily Rhythm
 
 **The symptom:**

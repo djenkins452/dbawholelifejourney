@@ -898,11 +898,82 @@
     text-align: center;
 }
 
+/* ── Mission spotlight ────────────────────────────────────── */
+
+.v3-mission { display: block; }
+
+.v3-mission-card {
+    display: block;
+    text-decoration: none;
+    color: var(--v3-text);
+    background: var(--v3-surface);
+    border: 1px solid var(--v3-border-strong);
+    border-left: 4px solid var(--v3-accent);
+    border-radius: var(--v3-radius);
+    padding: 16px 18px;
+    box-shadow: var(--v3-shadow);
+    transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.v3-mission-card:hover,
+.v3-mission-card:focus-visible {
+    box-shadow: var(--v3-shadow-focus);
+    transform: translateY(-1px);
+    outline: none;
+}
+
+.v3-mission-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
+
+.v3-mission-kicker {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--v3-accent);
+}
+
+.v3-mission-title {
+    margin: 0;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--v3-ink);
+    line-height: 1.2;
+}
+
+.v3-mission-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.v3-mission-stat { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+
+.v3-mission-stat-label {
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--v3-text-soft);
+}
+
+.v3-mission-stat-value {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--v3-text);
+}
+
+/* Momentum is a directional signal, NOT a completion claim — tonal color
+   only, never the reserved completion green-check treatment. */
+.v3-mission-momentum-up   { color: var(--v3-opp); }
+.v3-mission-momentum-flat { color: var(--v3-text-mute); }
+.v3-mission-momentum-down { color: var(--v3-warn); }
+
 /* ── Responsive ───────────────────────────────────────────── */
 
 @media (max-width: 1200px) {
     .v3-gauges-row    { grid-template-columns: repeat(2, 1fr); }
     .v3-cards-grid    { grid-template-columns: repeat(2, 1fr); }
+    .v3-mission-stats { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 900px) {
@@ -918,6 +989,7 @@
     .v3-topbar        { flex-direction: column; align-items: stretch; gap: 8px; }
     .v3-gauges-row    { grid-template-columns: 1fr 1fr; }
     .v3-cards-grid    { grid-template-columns: 1fr; }
+    .v3-mission-stats { grid-template-columns: 1fr 1fr; }
     .v3-focus-title   { font-size: 1.25rem; }
     .v3-rhythm-toggle,
     .v3-ritem,

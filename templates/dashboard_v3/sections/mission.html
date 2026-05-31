@@ -1,0 +1,51 @@
+{% load static %}
+{% comment %}
+Dashboard V3 — Mission spotlight.
+Read-only, deterministic. Renders the headline foundational goal from
+existing state only (LifeGoal + GoalMilestone + GoalMomentumSnapshot).
+Each row is guarded — absent data omits the row, never fabricates it.
+The whole card returns None upstream when no foundational goal qualifies.
+{% endcomment %}
+{% if mission %}
+<section class="v3-mission" aria-label="Mission">
+    <a class="v3-mission-card" href="{% url 'purpose:goal_detail' mission.goal_id %}">
+        <header class="v3-mission-head">
+            <span class="v3-mission-kicker">Mission</span>
+            <h2 class="v3-mission-title">{{ mission.title }}</h2>
+        </header>
+
+        <div class="v3-mission-stats">
+            {% if mission.current_focus %}
+            <div class="v3-mission-stat">
+                <span class="v3-mission-stat-label">Current Focus</span>
+                <span class="v3-mission-stat-value">{{ mission.current_focus }}</span>
+            </div>
+            {% endif %}
+
+            {% if mission.next_milestone_date %}
+            <div class="v3-mission-stat">
+                <span class="v3-mission-stat-label">Next Milestone</span>
+                <span class="v3-mission-stat-value">{{ mission.next_milestone_date }}</span>
+            </div>
+            {% endif %}
+
+            {% if mission.momentum %}
+            <div class="v3-mission-stat">
+                <span class="v3-mission-stat-label">Momentum</span>
+                <span class="v3-mission-stat-value v3-mission-momentum v3-mission-momentum-{{ mission.momentum.trend }}">
+                    {{ mission.momentum.label }}
+                    {% if mission.momentum.trend == 'up' %}<span aria-hidden="true">↑</span>{% elif mission.momentum.trend == 'down' %}<span aria-hidden="true">↓</span>{% endif %}
+                </span>
+            </div>
+            {% endif %}
+
+            {% if mission.days_remaining is not None %}
+            <div class="v3-mission-stat">
+                <span class="v3-mission-stat-label">Days Remaining</span>
+                <span class="v3-mission-stat-value">{{ mission.days_remaining }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </a>
+</section>
+{% endif %}

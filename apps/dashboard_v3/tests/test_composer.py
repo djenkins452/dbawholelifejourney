@@ -755,6 +755,105 @@ class TemplateCommentLeakGuardTests(TestCase):
         ))
 
 
+class MissionCardTests(TestCase):
+    """Phase 1A Mission spotlight — deterministic, read-only, no fabrication.
+
+    Reuse only: LifeGoal + GoalMilestone + GoalMomentumSnapshot. Card hides
+    when no foundational goal qualifies; rows omit when their data is absent.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="v3-mission@test.com", password="testpass123"
+        )
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"),
+        )
+
+    def _goal(self, **kw):
+        from apps.purpose.models import LifeGoal
+        defaults = {
+            "user": self.user,
+            "title": "Mission Goal",
+            "status": "active",
+            "is_foundational": True,
+        }
+        defaults.update(kw)
+        return LifeGoal.objects.create(**defaults)
+
+    def _milestone(self, goal, **kw):
+        from apps.purpose.models import GoalMilestone
+        defaults = {"goal": goal, "title": "Phase One", "completed": False}
+        defaults.update(kw)
+        return GoalMilestone.objects.create(**defaults)
+
+    def _momentum(self, goal, trend="rising", score=60):
+        from apps.dashboard_v2.models import GoalMomentumSnapshot
+        from datetime import date
+        return GoalMomentumSnapshot.objects.create(
+            user=self.user, goal=goal, snapshot_date=date.today(),
+            momentum_score=score, progress_score=40, momentum_trend=trend,
+        )
+
+    def test_context_always_carries_mission_key(self):
+        ctx = build_dashboard_v3_context(self.user)
+        self.assertIn("mission", ctx)
+
+    def test_no_foundational_goal_renders_nothing(self):
+        # A non-foundational active goal must NOT surface as a mission.
+        self._goal(is_foundational=False)
+        ctx = build_dashboard_v3_context(self.user)
+        self.assertIsNone(ctx["mission"])
+
+    def test_full_card_from_existing_state(self):
+        from datetime import date, timedelta
+        target = date.today() + timedelta(days=365)
+        goal = self._goal(title="France 2027", target_date=target)
+        ms_date = date.today() + timedelta(days=120)
+        self._milestone(goal, title="Foundation — Build Momentum",
+                        target_date=ms_date)
+        self._momentum(goal, trend="rising")
+
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertIsNotNone(mission)
+        self.assertEqual(mission["title"], "France 2027")
+        self.assertEqual(mission["current_focus"], "Foundation — Build Momentum")
+        self.assertEqual(mission["days_remaining"], 365)
+        self.assertEqual(mission["momentum"]["label"], "Improving")
+        self.assertEqual(mission["momentum"]["trend"], "up")
+        self.assertIsNotNone(mission["next_milestone_date"])
+
+    def test_momentum_omitted_when_no_snapshot(self):
+        self._goal(title="No Momentum Goal")
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertIsNotNone(mission)
+        self.assertIsNone(mission["momentum"])  # never fabricated
+
+    def test_days_remaining_omitted_when_no_target_date(self):
+        self._goal(title="Open-ended", target_date=None)
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertIsNone(mission["days_remaining"])
+
+    def test_current_focus_omitted_when_no_open_milestone(self):
+        goal = self._goal(title="All done")
+        self._milestone(goal, completed=True)
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertIsNone(mission["current_focus"])
+
+    def test_selection_prefers_long_horizon_with_milestones(self):
+        from datetime import date, timedelta
+        # Near-term foundational goal (< 90 days, no milestones).
+        self._goal(title="Near Term",
+                   target_date=date.today() + timedelta(days=30))
+        # Long-horizon foundational goal WITH milestones — should win.
+        winner = self._goal(title="Long Horizon",
+                            target_date=date.today() + timedelta(days=400))
+        self._milestone(winner, title="Phase")
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertEqual(mission["title"], "Long Horizon")
+
+
 class WeatherTileTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(

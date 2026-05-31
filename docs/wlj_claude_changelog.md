@@ -7,6 +7,49 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-31 — fix(faith/journey): wire Bible Reading completion to Daily Rhythm
+
+**The symptom:**
+User completed today's Bible reading inside the Faith "Journey" module ("Walking With God Through Scripture"). Dashboard's "Do This Next" / Daily Rhythm continued to show "Bible Reading" as still open.
+
+**Root cause:**
+Two parallel Faith completion paths existed; only one was wired to canonical routine completion:
+
+| Path | Service | Writes RoutineLog? |
+|---|---|---|
+| Legacy reading-plan (`UserReadingProgress`) — `apps/faith/views.py:1380` `MarkDayCompleteView` | `progress.mark_complete()` + view-level `auto_complete_routine_schedules` calls (lines 1424-1437) | **YES** |
+| New Journey (`UserJourneyDayProgress`) — `apps/faith/journey/services.py:189` `mark_day_complete()` | sets `is_completed=True` + emits `journey.day.completed` event only | **NO** ← the gap |
+
+The new Journey module was built in isolation (separate Django app `apps.faith.journey`, separate models, separate signals) and never replicated the routine-bridge wiring the legacy path has. The `journey.day.completed` event fires but no subscriber routes it to `auto_complete_routine_schedules`. So `RoutineLog` was never created → `_apply_routine_faith_bridge` in `execution_truth_engine.py` never flipped `faith['bible_reading_completed']=True` → dashboard kept showing the routine as open.
+
+**Fix (minimal, scoped):**
+- **`apps/faith/journey/services.py` only** — added the routine bridge inside `mark_day_complete()` AFTER the persistence/advance logic. Mirrors the legacy `MarkDayCompleteView` pattern but with proper exception logging (per WLJ AI Engineering Rules — `logger.warning(..., exc_info=True)` instead of silent `pass`).
+- Uses canonical `auto_complete_routine_schedules(user, 'bible', 'bible', ...)` helper → no hardcoded plan name, works for any journey path (Genesis, Romans, future paths). Activity-type matched preferentially; `name__icontains` fallback.
+- Idempotent — `auto_complete_routine_schedules` short-circuits if a `RoutineLog` already exists for today (line 334-337 of routine_helpers.py).
+- Also fires `fire_intelligence(user, "faith", progress.pk, "complete_reading")` for downstream PIE/PRIE parity with the legacy reading-plan flow.
+
+**Why service layer (not view, not event subscriber):**
+- Matches single-write-path principle — any future caller of `mark_day_complete()` (iOS API endpoint, admin bulk-completion tool, etc.) gets the bridge for free.
+- Atomic with the rest of the completion (the service is wrapped in `@transaction.atomic`).
+- Direct call mirrors legacy pattern → less cognitive surprise; no new event-bus subscriber indirection to debug.
+
+**Verification — 7 regression tests in `apps/faith/journey/tests/test_routine_bridge.py`, all pass:**
+1. Journey day completion creates a Bible Reading RoutineLog
+2. Idempotent — second completion does NOT duplicate today's log
+3. Manual dashboard completion BEFORE journey → first-write-wins, provenance preserved
+4. Name fallback (`name__icontains='bible'`) matches regardless of activity_type
+5. Activity-type match (`activity_type='bible'`) works for routines with non-"bible" names
+6. `get_execution_truth()` reports `bible_reading_completed=True` immediately after journey completion
+7. Bridge failure (mocked import error) does NOT block journey completion — user still gets `is_completed=True`; warning logged for observability
+
+**Files Modified:**
+- `apps/faith/journey/services.py` — routine bridge + logger import (~30 lines added)
+- `apps/faith/journey/tests/test_routine_bridge.py` — new, 7 tests
+
+**Why:** Trust rule — completing a Bible reading in any Faith flow must be reflected on the dashboard immediately. The dashboard reads canonical state (`RoutineLog`); the Faith side now writes there.
+
+---
+
 ## 2026-05-31 — fix(mobile): HealthKit decimal idempotency — repeated syncs of unchanged data converge to skipped
 
 **The defect (proven):**

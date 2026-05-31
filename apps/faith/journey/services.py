@@ -14,12 +14,15 @@ All functions are deterministic and isolated. No imports of reading-plan code.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from typing import Optional
 
 from django.db import transaction
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 from apps.faith.journey.models import (
     JourneyArc,
@@ -236,6 +239,45 @@ def mark_day_complete(
         if arc_just_completed:
             from apps.faith.journey.signals import emit_arc_completed
             emit_arc_completed(user_journey.user, user_journey=user_journey, arc=journey_day.arc)
+
+    # ── Routine bridge ───────────────────────────────────────────────
+    # Auto-complete the matching "Bible Reading" routine schedule for
+    # today so Daily Rhythm / "Do This Next" reflects the completion
+    # immediately. Mirrors the legacy MarkDayCompleteView pattern at
+    # apps/faith/views.py:1424-1437.
+    #
+    # Domain-agnostic: uses activity_type='bible'/'faith' (preferred)
+    # and name__icontains fallback — works for ANY journey path with
+    # no hardcoded plan name. Idempotent: auto_complete_routine_schedules
+    # short-circuits if a RoutineLog already exists for today.
+    try:
+        from apps.life.services.routine_helpers import auto_complete_routine_schedules
+        auto_complete_routine_schedules(
+            user_journey.user, 'bible', 'bible',
+            source_object_id=progress.pk,
+        )
+        auto_complete_routine_schedules(
+            user_journey.user, 'faith', 'faith',
+            source_object_id=progress.pk,
+        )
+    except Exception:
+        logger.warning(
+            "journey: failed to auto-complete Bible Reading routine "
+            "(user=%s progress=%s) — dashboard may show stale state",
+            user_journey.user_id, progress.pk, exc_info=True,
+        )
+
+    # Fire intelligence chain for parity with legacy reading-plan flow.
+    try:
+        from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+        fire_intelligence(
+            user_journey.user, "faith", progress.pk, "complete_reading",
+        )
+    except Exception:
+        logger.warning(
+            "journey: fire_intelligence failed (user=%s progress=%s)",
+            user_journey.user_id, progress.pk, exc_info=True,
+        )
 
     return progress
 

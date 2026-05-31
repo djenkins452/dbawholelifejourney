@@ -1283,6 +1283,26 @@ def build_goal_state(user):
     state["upcoming_titles"] = upcoming_titles[:10]
     state["overdue_titles"] = overdue_titles[:5]
 
+    # Mission — the headline foundational goal, composed deterministically here
+    # so CoS narrates over pre-built state (never reasons from raw goal data).
+    # Same selector the dashboard uses → dashboard mission == Beth mission.
+    # Read-only: momentum is the nightly snapshot trend, no request-path compute.
+    from apps.purpose.mission_selection import select_active_mission_goal
+
+    state["mission"] = None
+    mission_goal = select_active_mission_goal(user)
+    if mission_goal is not None:
+        snap = mission_goal.momentum_snapshots.first()  # ordered -snapshot_date
+        nm = mission_goal.next_milestone
+        m_target = mission_goal.target_date
+        state["mission"] = {
+            "title": mission_goal.title,
+            "current_focus": nm.title if nm else None,
+            "momentum_trend": snap.momentum_trend if snap else None,
+            "days_remaining": (m_target - today).days
+            if m_target and m_target > today else None,
+        }
+
     return state
 
 

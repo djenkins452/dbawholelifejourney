@@ -2641,6 +2641,16 @@ def _build_medical_context(user):
     return result
 
 
+# Deterministic mission coaching — fixed mapping, NOT LLM-generated.
+# Beth narrates over this line; she never composes it. No readiness, no
+# percentages, no fabricated claims. Coach, not critic. "{title}" filled in.
+_MISSION_COACH_LINE = {
+    "rising": "Momentum on your {title} mission is improving — protect it.",
+    "stable": "Your {title} mission is holding steady — consistency matters.",
+    "falling": "Momentum on your {title} mission has slowed — a small step today helps.",
+}
+
+
 def _build_purpose_context(user):
     """Build purpose context — life goals, habit progress, streaks.
 
@@ -2659,12 +2669,12 @@ def _build_purpose_context(user):
         result = {}
         today = timezone.now().date()
 
+        goals_state = get_module_state(user, 'goals') or {}
+
         # Active life goals — titles now come from SAE goals.active_titles.
         # Previously this re-queried LifeGoal directly; Phase 2 moved the
         # canonical listing into build_goal_state.
-        active_titles = get_module_state(user, 'goals').get(
-            'active_titles', []
-        )
+        active_titles = goals_state.get('active_titles', [])
         if active_titles:
             formatted = []
             for g in active_titles[:5]:
@@ -2709,6 +2719,27 @@ def _build_purpose_context(user):
                 -(h.get('current_streak') or 0),
             ))
             result['habit_streaks'] = habit_streaks
+
+        # Mission — pass-through of the pre-composed goal-state mission. Same
+        # selector the dashboard uses, so dashboard mission == Beth mission.
+        # CONTEXTUAL tier only: deterministic coach_line, no readiness, no
+        # percentages, no completion claims. Beth narrates, never computes.
+        mission = goals_state.get('mission')
+        if mission:
+            trend = mission.get('momentum_trend')
+            template = _MISSION_COACH_LINE.get(trend)
+            coach_line = (
+                template.format(title=mission['title']) if template else None
+            )
+            mission_block = {
+                'title': mission.get('title'),
+                'current_focus': mission.get('current_focus'),
+                'days_remaining': mission.get('days_remaining'),
+                'momentum_trend': trend,
+            }
+            if coach_line:
+                mission_block['coach_line'] = coach_line
+            result['mission'] = mission_block
 
         return result
 

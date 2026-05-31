@@ -7,6 +7,35 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-31 — feat(ai/purpose): Beth Mission Awareness (Phase 1B)
+
+**What:**
+Beth (CoS) is now aware of the active mission and can offer deterministic, CONTEXTUAL-tier coaching toward it. Phase 1B of the Mission Framework — small, additive, read-only. No new engine, no MissionBriefing, no readiness scoring, no schema change, no new context builder. Beth narrates over pre-composed state; she never computes mission truth.
+
+**Architecture (composed layer, single source of truth):**
+- Pipeline unchanged: Goal → milestone → momentum snapshot → goal state → purpose context → Beth narration.
+- Mission selection extracted to a neutral purpose-domain home so the dashboard mission and Beth's mission are ALWAYS the same goal (divergence is structurally impossible — one selector).
+- New `apps/purpose/mission_selection.py :: select_active_mission_goal(user)` — returns the LifeGoal (active + foundational, ranked has-milestones → future date → long-horizon → momentum → id). Both the dashboard_v3 composer and the SAE goal-state builder consume it.
+
+**Files changed:**
+- `apps/purpose/mission_selection.py` — NEW. `select_active_mission_goal()`, `_rank_mission_goal()`, `_latest_momentum()`. Single source of truth for mission selection.
+- `apps/dashboard_v3/services/composer.py` — `_build_mission_card()` now delegates selection to the shared selector (removed the local `_select_mission_goal`).
+- `apps/core/ai_state/state_builder.py` — `build_goal_state()` gains an additive `mission` key (title, current_focus, momentum_trend, days_remaining), composed deterministically from the shared selector. Read-only — nightly `GoalMomentumSnapshot` only, no request-path compute.
+- `apps/core/ai_orchestrator/cos_context.py` — `_build_purpose_context()` passes through the pre-composed `mission` block + a fixed-mapping `coach_line`. No new `_build_mission_context()`. Added `_MISSION_COACH_LINE` (rising/stable/falling → fixed strings; None → omit).
+
+**Coaching (deterministic, CONTEXTUAL tier only):**
+- `rising` → "Momentum on your {title} mission is improving — protect it."
+- `stable` → "Your {title} mission is holding steady — consistency matters."
+- `falling` → "Momentum on your {title} mission has slowed — a small step today helps."
+- `None` (no snapshot trend) → coach_line omitted entirely.
+- NOT LLM-generated. No readiness, no percentages, no "on track", no completion language, no fabricated health conclusions. Coach, not critic.
+
+**Tests:**
+- `apps/core/ai_state/tests.py :: TestGoalStateBuilder` — 3 new (mission None without foundational goal; full mission from goal+milestone+snapshot; momentum/days omitted when absent).
+- `apps/core/ai_orchestrator/tests/test_mission_context.py` — NEW, 4 tests (no block without foundational goal; rising coach_line end-to-end; coach_line omitted without trend; mapping never contains %/ready/on-track).
+- All pass. `manage.py check` clean. Pre-existing unrelated failure noted: `TestHealthStateBuilder.test_empty_health_state` (build_health_state emits `weight_current: None`) — flagged for separate fix.
+
+
 ## 2026-05-31 — feat(dashboard_v3): Mission spotlight card (Phase 1A)
 
 **What:**

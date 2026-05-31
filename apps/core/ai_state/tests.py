@@ -402,6 +402,63 @@ class TestGoalStateBuilder(TestCase):
         self.assertEqual(state["total_milestones"], 2)
         self.assertEqual(state["completed_milestones"], 1)
 
+    def test_mission_none_without_foundational_goal(self):
+        from apps.purpose.models import LifeGoal
+        from apps.core.ai_state.state_builder import build_goal_state
+
+        LifeGoal.objects.create(
+            user=self.user, title="Plain Goal", status="active",
+        )
+        state = build_goal_state(self.user)
+        self.assertIsNone(state["mission"])
+
+    def test_mission_built_from_foundational_goal(self):
+        from apps.purpose.models import GoalMilestone, LifeGoal
+        from apps.dashboard_v2.models import GoalMomentumSnapshot
+        from apps.core.ai_state.state_builder import build_goal_state
+
+        target = date.today() + timedelta(days=120)
+        goal = LifeGoal.objects.create(
+            user=self.user,
+            title="France 2027 Family 10K",
+            status="active",
+            is_foundational=True,
+            target_date=target,
+        )
+        GoalMilestone.objects.create(
+            goal=goal, title="Run 5K continuous", completed=False,
+        )
+        GoalMomentumSnapshot.objects.create(
+            user=self.user,
+            goal=goal,
+            snapshot_date=date.today(),
+            momentum_score=72,
+            progress_score=40,
+            momentum_trend="rising",
+        )
+
+        state = build_goal_state(self.user)
+        mission = state["mission"]
+        self.assertEqual(mission["title"], "France 2027 Family 10K")
+        self.assertEqual(mission["current_focus"], "Run 5K continuous")
+        self.assertEqual(mission["momentum_trend"], "rising")
+        self.assertEqual(mission["days_remaining"], 120)
+
+    def test_mission_omits_momentum_without_snapshot(self):
+        from apps.purpose.models import LifeGoal
+        from apps.core.ai_state.state_builder import build_goal_state
+
+        LifeGoal.objects.create(
+            user=self.user,
+            title="Foundational, no momentum",
+            status="active",
+            is_foundational=True,
+        )
+        state = build_goal_state(self.user)
+        self.assertIsNotNone(state["mission"])
+        self.assertIsNone(state["mission"]["momentum_trend"])
+        self.assertIsNone(state["mission"]["days_remaining"])
+
 
 class TestHabitStateBuilder(TestCase):
     """Test habit state builder accuracy."""

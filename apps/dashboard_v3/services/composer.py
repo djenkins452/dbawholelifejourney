@@ -126,41 +126,6 @@ def _latest_momentum(goal):
     return goal.momentum_snapshots.first()  # ordered -snapshot_date
 
 
-def _select_mission_goal(candidates, today):
-    """Deterministically pick 'the active mission' from foundational goals.
-
-    Derived selection — no is_mission field. Preference order (per approved
-    spec): has milestones → future target date → long-horizon (>=90 days),
-    nearest first → highest momentum score → stable id fallback.
-    """
-    def key(goal):
-        target = goal.target_date
-        if target and target > today:
-            is_future = True
-            days = (target - today).days
-            beyond_90 = days >= 90
-            days_rank = days
-        else:
-            is_future = False
-            beyond_90 = False
-            days_rank = float("inf")
-
-        snap = _latest_momentum(goal)
-        momentum_score = snap.momentum_score if snap else -1
-
-        # Tuple sorts ascending; negate/invert so "better" comes first.
-        return (
-            not goal.has_milestones,   # has milestones first
-            not is_future,             # future-dated first
-            not beyond_90,             # long-horizon first
-            days_rank,                 # nearest qualifying date first
-            -momentum_score,           # highest momentum first
-            goal.id,                   # stable deterministic fallback
-        )
-
-    return sorted(candidates, key=key)[0]
-
-
 def _build_mission_card(user) -> dict | None:
     """Mission spotlight built ONLY from existing deterministic state.
 
@@ -168,21 +133,18 @@ def _build_mission_card(user) -> dict | None:
     scoring, no readiness %, no coaching, no fabrication. Returns None when
     the user has no active foundational goal — the section then renders
     nothing (no placeholder).
+
+    Selection is delegated to the shared purpose-domain selector so the
+    dashboard mission and Beth's mission are always the SAME goal.
     """
-    from apps.purpose.models import LifeGoal
+    from apps.purpose.mission_selection import select_active_mission_goal
     from apps.core.utils import get_user_now
 
     today = get_user_now(user).date()
 
-    candidates = list(
-        LifeGoal.objects.filter(
-            user=user, status="active", is_foundational=True,
-        )
-    )
-    if not candidates:
+    goal = select_active_mission_goal(user)
+    if goal is None:
         return None
-
-    goal = _select_mission_goal(candidates, today)
 
     # Current focus — next incomplete milestone (NOT a fabricated "phase").
     nm = goal.next_milestone

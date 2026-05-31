@@ -7,6 +7,32 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-31 — feat(dashboard_v3): one-tap hydration quick-log buttons
+
+**What ships:** Three buttons inside the existing Water tile on the dashboard:
+- 💧 +8 oz Water
+- ☕ +8 oz Coffee
+- ⚡ +16 oz Electrolytes
+
+One tap creates a `WaterEntry` and reloads the dashboard. No modal, no navigation, no confirmation. Reuses the existing `health:water_quick_log` endpoint and the existing `data-v3-toggle` page-reload pattern (same UX as the rhythm group-complete buttons).
+
+**Scope discipline — Phase 1 only.** Per the spec, this is the minimal tactical implementation. No `QuickLogPreset` model, no handler registry, no admin UI, no cross-domain preset framework, no mobile/chat integration. Just three static buttons posting to a battle-tested endpoint. The broader extensibility architecture is being handled in a separate workstream.
+
+**Trust contract preserved:**
+- Button label number = stored `WaterEntry.amount` exactly. `+16 oz Electrolytes` → `amount=16.00, drink_type='electrolyte'`. No hidden conversion.
+- Hydration coefficient logic (`WaterEntry.effective_oz`: water=1.0, coffee=0.9, electrolyte=1.05) is the existing pre-shipped architecture — unchanged. Display-time only. The new buttons do NOT redesign hydration math.
+
+**Files Modified:**
+- `templates/dashboard_v3/sections/utilities.html` — three buttons inside the existing `<section class="v3-utilities">`, each with HTMX attrs targeting `health:water_quick_log` and `next` back to the dashboard. Used `{% comment %}…{% endcomment %}` (NOT multi-line `{# #}`) per the Django comment-leak guardrail.
+- `static/dashboard_v3/css/dashboard_v3.css` — `.v3-quick-log-row` + `.v3-quick-log-btn` styles (~30 lines, pill shape, mirrors `.v3-utility` aesthetic, touch target ≥36 px tall).
+- `apps/dashboard_v3/tests/test_quick_log_hydration.py` — 6 tests: button render presence for each beverage, endpoint creates entry with exact label amount + correct `drink_type` for each preset, daily total reflects coefficient (proves existing hydration math intact).
+
+**Why:** Eliminates the 5-tap navigation cost of routine hydration logging. The endpoint and model existed; the UX gap was the missing dashboard surface.
+
+**Verification:** 6/6 new tests pass. 130/130 dashboard_v3 regression tests pass.
+
+---
+
 ## 2026-05-31 — feat(purpose/dashboard_v3): Mission Phase 5 — emotional motivation layer (hero image, mission links, victory wins)
 
 **What:** Evolved the Mission system from *truthful tracking* to *truthful motivation*. Added an optional, fully generic emotional layer so a Primary Mission can carry a meaningful image, quick links, a personal note, and lightweight "wins along the way" — without any fabrication, gamification, or per-user hardcoding. Works for ANY mission (a race, a wedding, a faith goal, a dream location); nothing is special-cased.

@@ -16,5 +16,43 @@
             {% if utilities.water.goal_met %}<span class="v3-utility-tag">✓ Goal met</span>{% endif %}
         </article>
     </div>
+
+    {% comment %}
+       Quick-log buttons — one tap to log a beverage. Reuses the existing
+       health:water_quick_log endpoint. The data-v3-toggle attribute pairs
+       with home.html's htmx:afterRequest listener for the page-reload
+       refresh pattern. Trust rule: the label number equals the stored
+       amount exactly. Hydration coefficient (effective_oz) only adjusts
+       the displayed total.
+    {% endcomment %}
+    <div class="v3-quick-log-row" role="group" aria-label="Quick log beverage">
+        <button type="button"
+                class="v3-quick-log-btn"
+                data-v3-toggle
+                hx-post="{% url 'health:water_quick_log' %}"
+                hx-vals='{"preset": "8", "drink_type": "water", "next": "{% url 'dashboard_v2:home' %}"}'
+                hx-swap="none"
+                title="Logs exactly 8 oz of water">
+            💧 +8 oz Water
+        </button>
+        <button type="button"
+                class="v3-quick-log-btn"
+                data-v3-toggle
+                hx-post="{% url 'health:water_quick_log' %}"
+                hx-vals='{"preset": "8", "drink_type": "coffee", "next": "{% url 'dashboard_v2:home' %}"}'
+                hx-swap="none"
+                title="Logs exactly 8 oz of coffee (counts ~0.9× toward hydration)">
+            ☕ +8 oz Coffee
+        </button>
+        <button type="button"
+                class="v3-quick-log-btn"
+                data-v3-toggle
+                hx-post="{% url 'health:water_quick_log' %}"
+                hx-vals='{"preset": "16", "drink_type": "electrolyte", "next": "{% url 'dashboard_v2:home' %}"}'
+                hx-swap="none"
+                title="Logs exactly 16 oz of electrolytes (counts ~1.05× toward hydration)">
+            ⚡ +16 oz Electrolytes
+        </button>
+    </div>
 </section>
 {% endif %}

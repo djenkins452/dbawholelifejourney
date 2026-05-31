@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 200,
+    "fields": {
+      "title": "Your Primary Mission, reimagined as a North Star",
+      "description": "The dashboard Mission card just became a hero. When you choose a Primary Mission, it now appears as a premium, motivating card built around a progress ring that shows how far you've come through your milestones — a real count like \"2 of 5,\" never a made-up score. You'll see your current focus (your next milestone), the date it's due, your momentum trend, and the days remaining, plus an optional \"Why this matters\" line drawn straight from your own words. You can also give your mission a personal icon — a flag, a target, any emoji — by setting a Mission Icon on the goal, or simply by starting the goal's title with an emoji. Everything on the card is honest: if there's no data for a row, it stays hidden, and the card itself only appears once you've chosen a Primary Mission. It should feel like you're preparing for something meaningful.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-05-31",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-05-31T21:00:00Z",
+      "updated_at": "2026-05-31T21:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 199,
     "fields": {
       "title": "Choose your Primary Mission",

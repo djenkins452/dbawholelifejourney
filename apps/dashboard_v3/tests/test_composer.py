@@ -866,6 +866,57 @@ class MissionCardTests(TestCase):
         ctx = build_dashboard_v3_context(self.user)
         self.assertIsNone(ctx["mission"])
 
+    # ── Phase 2B: hero visuals (icon, ring, why) ─────────────────────────
+
+    def test_explicit_mission_icon_metadata_wins(self):
+        self._goal(title="France 2027", mission_icon="🇫🇷")
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertEqual(mission["icon"], "🇫🇷")
+        self.assertEqual(mission["title"], "France 2027")  # title untouched
+
+    def test_leading_emoji_lifted_from_title_when_no_metadata(self):
+        self._goal(title="🎯 Run a Marathon")
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertEqual(mission["icon"], "🎯")
+        # The emoji is removed from the display title so it isn't shown twice.
+        self.assertEqual(mission["title"], "Run a Marathon")
+
+    def test_no_icon_inferred_from_words(self):
+        # Plain text title with no emoji and no metadata → no icon. Critically,
+        # the word "France" must NEVER produce a flag (no hardcoded inference).
+        self._goal(title="France 2027 Family 10K")
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertIsNone(mission["icon"])
+        self.assertEqual(mission["title"], "France 2027 Family 10K")
+
+    def test_ring_reports_truthful_milestone_progression(self):
+        goal = self._goal(title="Tracked")
+        self._milestone(goal, title="A", completed=True)
+        self._milestone(goal, title="B", completed=True)
+        self._milestone(goal, title="C", completed=False)
+        progress = build_dashboard_v3_context(self.user)["mission"]["progress"]
+        self.assertTrue(progress["has_milestones"])
+        self.assertEqual(progress["completed"], 2)
+        self.assertEqual(progress["total"], 3)
+        self.assertEqual(progress["filled"], 67)  # round(2/3*100)
+
+    def test_ring_has_no_milestones_flag_when_none_defined(self):
+        self._goal(title="No milestones")
+        progress = build_dashboard_v3_context(self.user)["mission"]["progress"]
+        self.assertFalse(progress["has_milestones"])
+        self.assertEqual(progress["total"], 0)
+        self.assertEqual(progress["filled"], 0)
+
+    def test_why_excerpt_only_present_when_user_wrote_one(self):
+        self._goal(title="With why", why_it_matters="  Family memories.  ")
+        with_why = build_dashboard_v3_context(self.user)["mission"]
+        self.assertEqual(with_why["why"], "Family memories.")
+
+    def test_why_is_none_when_blank(self):
+        self._goal(title="No why", why_it_matters="")
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertIsNone(mission["why"])
+
 
 class WeatherTileTests(TestCase):
     def setUp(self):

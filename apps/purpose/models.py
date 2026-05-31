@@ -280,6 +280,14 @@ class LifeGoal(UserOwnedModel):
                   "Drives the dashboard Mission card and Chief of Staff mission "
                   "coaching. This is an explicit user choice, not derived state.",
     )
+    mission_icon = models.CharField(
+        max_length=16,
+        blank=True,
+        default="",
+        help_text="Optional emoji/flag shown on the dashboard Mission card "
+                  "(e.g. a country flag for a travel goal). Purely decorative "
+                  "metadata — never inferred from the title.",
+    )
 
     # Reflection on completion or release
     reflection = models.TextField(

@@ -7,6 +7,37 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-31 — feat(dashboard_v3): Mission hero card (Phase 2B + safe 2C foundation)
+
+**What:**
+The dashboard Mission card was upgraded from a flat KPI tile into a premium "North Star" hero card — visually important, emotionally meaningful, and still 100% truthful. Every visible element remains deterministic and defensible; NO fabricated readiness, NO health verdicts, NO arbitrary scoring.
+
+**Visual upgrade (2B):**
+- **Mission icon** — resolved by a strict, non-inferential hierarchy: (1) explicit `LifeGoal.mission_icon` metadata the user set; (2) a leading emoji the user typed at the start of the title (lifted out so it isn't shown twice); (3) graceful fallback to no icon. The matcher keys ONLY off Unicode emoji codepoints — it can never infer a flag from the word "France" (`if "France" in title` is explicitly forbidden and tested against).
+- **Hero ring** — an SVG progress ring showing **milestone progression** (e.g. "2 / 5 milestones"), NOT readiness. This is a literal, explainable count drawn from `GoalMilestone.completed`. When a goal has no milestones the ring becomes a plain decorative anchor with the mission icon (or ★) and an "In progress" caption — no numeric claim. The arc is rendered with SVG presentation attributes (`pathLength`, `stroke-dasharray`) — CSP-safe, no inline style/JS.
+- **Card structure** — Primary Mission pill, icon + title header, the existing deterministic stat stack (Current Focus = next incomplete milestone, Next Milestone date, Momentum trend from the latest persisted snapshot only, Days Remaining from a real future target date only), and an optional "Why this matters" excerpt rendered ONLY from the user's own `why_it_matters` words.
+- Premium calm styling (soft indigo gradient, 16px radius, ring hero) consistent with the existing dashboard_v3 visual language. Fully responsive — the hero stacks with the ring centered at ≤640px.
+
+**Safe 2C foundation laid (scaffolding only, no fabricated intelligence):**
+- `LifeGoal.mission_icon` (CharField, blank) — real decorative metadata, used now by 2B and available to future mission visuals. Editable on the goal create/edit form.
+- Deterministic `_build_mission_progress()` composer helper — the single, truthful milestone-progression primitive a future readiness/visual layer can compose over. Readiness %, key drivers, watch items, and generated summaries remain DEFERRED and intentionally NOT computed or rendered (every visible claim must be explainable).
+
+**Files changed:**
+- `apps/purpose/models.py` — `mission_icon` field.
+- `apps/purpose/migrations/0014_lifegoal_mission_icon.py` — additive, no backfill.
+- `apps/purpose/views.py` — `mission_icon` added to Goal create/update field lists.
+- `apps/purpose/templates/purpose/goal_form.html` — optional Mission Icon input.
+- `apps/dashboard_v3/services/composer.py` — `_resolve_mission_icon()` (leading-emoji matcher), `_build_mission_progress()`, extended `_build_mission_card` (icon, display_title, progress, why, is_primary).
+- `templates/dashboard_v3/sections/mission.html` — rebuilt as hero card with SVG milestone ring + why area.
+- `static/dashboard_v3/css/dashboard_v3.css` — hero card / ring / why styling + responsive stacking.
+- `apps/dashboard_v3/tests/test_composer.py` — 7 new MissionCardTests (icon metadata wins, leading-emoji lift, no-inference, ring progression, no-milestone flag, why excerpt present/blank).
+- `apps/core/fixtures/release_notes.json` + `load_initial_data.py` — user-facing What's New (PK 200).
+
+**Truth guardrails honored:** Visual richness yes; invented truth no. Ring = real milestone count. Momentum = persisted snapshot trend only. Days = real target date only. Icon = metadata/emoji only, never word inference. Card still hides entirely when no active Primary Mission is selected; dashboard mission and Chief-of-Staff mission stay the SAME goal (shared selector unchanged).
+
+**Verification:** 15 MissionCardTests + 21 mission/state/context tests pass; `makemigrations --check` clean; mission.html renders cleanly in both milestone and no-milestone variants. Live authenticated browser screenshot NOT captured (no running auth server with mission data locally).
+
+
 ## 2026-05-31 — feat(purpose): Primary Mission selection (Phase 2A)
 
 **What:**

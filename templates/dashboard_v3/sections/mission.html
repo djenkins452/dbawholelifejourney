@@ -1,51 +1,90 @@
 {% load static %}
 {% comment %}
-Dashboard V3 — Mission spotlight.
-Read-only, deterministic. Renders the headline foundational goal from
-existing state only (LifeGoal + GoalMilestone + GoalMomentumSnapshot).
-Each row is guarded — absent data omits the row, never fabricates it.
-The whole card returns None upstream when no foundational goal qualifies.
+Dashboard V3 — Mission hero card.
+Read-only, deterministic. Every visible element is defensible:
+  · icon      — explicit metadata or a user-typed leading emoji (never inferred)
+  · ring      — literal milestone count (completed / total), NOT readiness
+  · focus     — next incomplete milestone title
+  · momentum  — latest persisted snapshot trend only
+  · days      — real future target date only
+  · why       — the user's own words, excerpted
+Absent data omits its row; the whole card is None upstream when the user has
+not selected an active Primary Mission (renders nothing — no placeholder).
 {% endcomment %}
 {% if mission %}
 <section class="v3-mission" aria-label="Mission">
     <a class="v3-mission-card" href="{% url 'purpose:goal_detail' mission.goal_id %}">
-        <header class="v3-mission-head">
-            <span class="v3-mission-kicker">Mission</span>
-            <h2 class="v3-mission-title">{{ mission.title }}</h2>
-        </header>
-
-        <div class="v3-mission-stats">
-            {% if mission.current_focus %}
-            <div class="v3-mission-stat">
-                <span class="v3-mission-stat-label">Current Focus</span>
-                <span class="v3-mission-stat-value">{{ mission.current_focus }}</span>
+        <div class="v3-mission-hero">
+            <div class="v3-mission-ring-wrap" aria-hidden="true">
+                <svg class="v3-mission-ring" viewBox="0 0 120 120" role="presentation" focusable="false">
+                    <circle class="v3-mission-ring-track" cx="60" cy="60" r="52" fill="none" pathLength="100"></circle>
+                    {% if mission.progress.has_milestones %}
+                    <circle class="v3-mission-ring-arc" cx="60" cy="60" r="52" fill="none" pathLength="100"
+                            stroke-dasharray="{{ mission.progress.filled }} 100" stroke-dashoffset="0"></circle>
+                    {% endif %}
+                </svg>
+                <div class="v3-mission-ring-center">
+                    {% if mission.progress.has_milestones %}
+                    <span class="v3-mission-ring-frac">{{ mission.progress.completed }}<span class="v3-mission-ring-slash">/</span>{{ mission.progress.total }}</span>
+                    <span class="v3-mission-ring-cap">Milestones</span>
+                    {% else %}
+                    <span class="v3-mission-ring-glyph">{% if mission.icon %}{{ mission.icon }}{% else %}★{% endif %}</span>
+                    <span class="v3-mission-ring-cap">In progress</span>
+                    {% endif %}
+                </div>
             </div>
-            {% endif %}
 
-            {% if mission.next_milestone_date %}
-            <div class="v3-mission-stat">
-                <span class="v3-mission-stat-label">Next Milestone</span>
-                <span class="v3-mission-stat-value">{{ mission.next_milestone_date }}</span>
-            </div>
-            {% endif %}
+            <div class="v3-mission-body">
+                <header class="v3-mission-head">
+                    <span class="v3-mission-kicker">
+                        <span class="v3-mission-kicker-dot" aria-hidden="true">★</span> Primary Mission
+                    </span>
+                    <h2 class="v3-mission-title">
+                        {% if mission.icon %}<span class="v3-mission-icon" aria-hidden="true">{{ mission.icon }}</span> {% endif %}{{ mission.title }}
+                    </h2>
+                </header>
 
-            {% if mission.momentum %}
-            <div class="v3-mission-stat">
-                <span class="v3-mission-stat-label">Momentum</span>
-                <span class="v3-mission-stat-value v3-mission-momentum v3-mission-momentum-{{ mission.momentum.trend }}">
-                    {{ mission.momentum.label }}
-                    {% if mission.momentum.trend == 'up' %}<span aria-hidden="true">↑</span>{% elif mission.momentum.trend == 'down' %}<span aria-hidden="true">↓</span>{% endif %}
-                </span>
-            </div>
-            {% endif %}
+                <div class="v3-mission-stats">
+                    {% if mission.current_focus %}
+                    <div class="v3-mission-stat">
+                        <span class="v3-mission-stat-label">Current Focus</span>
+                        <span class="v3-mission-stat-value">{{ mission.current_focus }}</span>
+                    </div>
+                    {% endif %}
 
-            {% if mission.days_remaining is not None %}
-            <div class="v3-mission-stat">
-                <span class="v3-mission-stat-label">Days Remaining</span>
-                <span class="v3-mission-stat-value">{{ mission.days_remaining }}</span>
+                    {% if mission.next_milestone_date %}
+                    <div class="v3-mission-stat">
+                        <span class="v3-mission-stat-label">Next Milestone</span>
+                        <span class="v3-mission-stat-value">{{ mission.next_milestone_date }}</span>
+                    </div>
+                    {% endif %}
+
+                    {% if mission.momentum %}
+                    <div class="v3-mission-stat">
+                        <span class="v3-mission-stat-label">Momentum</span>
+                        <span class="v3-mission-stat-value v3-mission-momentum v3-mission-momentum-{{ mission.momentum.trend }}">
+                            {{ mission.momentum.label }}
+                            {% if mission.momentum.trend == 'up' %}<span aria-hidden="true">↑</span>{% elif mission.momentum.trend == 'down' %}<span aria-hidden="true">↓</span>{% endif %}
+                        </span>
+                    </div>
+                    {% endif %}
+
+                    {% if mission.days_remaining is not None %}
+                    <div class="v3-mission-stat">
+                        <span class="v3-mission-stat-label">Days Remaining</span>
+                        <span class="v3-mission-stat-value">{{ mission.days_remaining }}</span>
+                    </div>
+                    {% endif %}
+                </div>
             </div>
-            {% endif %}
         </div>
+
+        {% if mission.why %}
+        <div class="v3-mission-why">
+            <span class="v3-mission-why-label">Why this matters</span>
+            <p class="v3-mission-why-text">{{ mission.why|truncatechars:180 }}</p>
+        </div>
+        {% endif %}
     </a>
 </section>
 {% endif %}

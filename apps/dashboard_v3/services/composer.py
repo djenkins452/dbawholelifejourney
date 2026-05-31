@@ -18,6 +18,7 @@ NO new business logic. NO LLM. Only reshaping for the presentation layer.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -126,6 +127,46 @@ def _latest_momentum(goal):
     return goal.momentum_snapshots.first()  # ordered -snapshot_date
 
 
+# Conservative leading-emoji matcher: regional-indicator flag pairs, the
+# main pictograph/symbol blocks, dingbats, and the joiners (VS16 / ZWJ) that
+# bind multi-codepoint emoji. Used ONLY to lift a user-typed emoji out of a
+# goal title — never to infer one from words. ("France" matches nothing.)
+_LEADING_EMOJI_RE = re.compile(
+    r"^("
+    r"[\U0001F1E6-\U0001F1FF]{2}"          # flag (two regional indicators)
+    r"|[\U0001F300-\U0001FAFF☀-➿⬀-⯿⌀-⏿]"
+    r"[️‍\U0001F300-\U0001FAFF]*"  # + variation selectors / ZWJ joins
+    r")\s*"
+)
+
+
+def _resolve_mission_icon(goal):
+    """Resolve the Mission card icon WITHOUT hardcoding or inference.
+
+    Priority (per approved hierarchy):
+      1. Explicit ``mission_icon`` metadata the user set.
+      2. A leading emoji the user typed at the start of the title (lifted out
+         so it is not shown twice).
+      3. Graceful fallback: no icon (None) — the card renders cleanly.
+
+    Returns ``(icon_or_none, display_title)``. NEVER keys off title words
+    (no ``if "France" in title``).
+    """
+    raw_title = (goal.title or "").strip()
+
+    explicit = (goal.mission_icon or "").strip()
+    if explicit:
+        return explicit, raw_title
+
+    match = _LEADING_EMOJI_RE.match(raw_title)
+    if match:
+        icon = match.group(1)
+        display_title = raw_title[match.end():].strip() or raw_title
+        return icon, display_title
+
+    return None, raw_title
+
+
 def _build_mission_card(user) -> dict | None:
     """Mission spotlight built ONLY from existing deterministic state.
 
@@ -146,6 +187,8 @@ def _build_mission_card(user) -> dict | None:
     if goal is None:
         return None
 
+    icon, display_title = _resolve_mission_icon(goal)
+
     # Current focus — next incomplete milestone (NOT a fabricated "phase").
     nm = goal.next_milestone
     current_focus = nm.title if nm else None
@@ -164,13 +207,48 @@ def _build_mission_card(user) -> dict | None:
     if goal.target_date and goal.target_date > today:
         days_remaining = (goal.target_date - today).days
 
+    # Hero ring — milestone PROGRESSION, not readiness. This is a literal,
+    # defensible count ("3 of 7 milestones complete"), never a fabricated
+    # percentage or health verdict. When no milestones exist the ring is a
+    # plain decorative anchor with no numeric claim.
+    progress = _build_mission_progress(goal)
+
+    # Optional supporting line — the user's own "why", excerpted. Never
+    # generated; rendered only when they wrote one.
+    why = (goal.why_it_matters or "").strip() or None
+
     return {
-        "title": goal.title,
+        "icon": icon,
+        "title": display_title,
+        "is_primary": True,  # selector guarantees an active Primary Mission
         "current_focus": current_focus,
         "next_milestone_date": next_milestone_date,
         "momentum": momentum,
         "days_remaining": days_remaining,
+        "progress": progress,
+        "why": why,
         "goal_id": goal.id,
+    }
+
+
+def _build_mission_progress(goal) -> dict:
+    """Deterministic milestone progression for the hero ring.
+
+    Pure count of completed vs total milestones — explainable and truthful.
+    NO readiness, NO health weighting, NO arbitrary scoring. ``filled`` is a
+    0–100 fraction used only to draw the SVG arc length.
+    """
+    total = goal.milestone_count
+    completed = goal.completed_milestone_count
+    if total <= 0:
+        return {"has_milestones": False, "completed": 0, "total": 0, "filled": 0}
+
+    filled = int(round((completed / total) * 100))
+    return {
+        "has_milestones": True,
+        "completed": completed,
+        "total": total,
+        "filled": max(0, min(100, filled)),
     }
 
 

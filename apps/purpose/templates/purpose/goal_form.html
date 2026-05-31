@@ -29,6 +29,14 @@
             </div>
 
             <div class="form-group">
+                <label for="id_mission_icon" class="form-label">Mission Icon <span class="optional-badge">Optional</span></label>
+                <input type="text" name="mission_icon" id="id_mission_icon" class="form-input" maxlength="16"
+                       value="{{ form.mission_icon.value|default:'' }}"
+                       placeholder="🇫🇷">
+                <p class="form-help">A single emoji or flag shown on the dashboard Mission card if you make this your Primary Mission.</p>
+            </div>
+
+            <div class="form-group">
                 <label for="id_description" class="form-label">Description</label>
                 <textarea name="description" id="id_description" class="form-textarea" rows="3" data-testid="goal-description-input"
                           placeholder="Describe this goal...">{{ form.description.value|default:'' }}</textarea>

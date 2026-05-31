@@ -25,7 +25,7 @@ endpoints, providing the appropriate authentication mechanism for API clients.
 import json
 import logging
 from datetime import datetime, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -562,6 +562,31 @@ def health_ingest(request):
     })
 
 
+def normalize_for_storage(value, model_cls, field_name):
+    """Quantize a Decimal to the precision its DB column stores.
+
+    HealthKit sends full-precision doubles (e.g. 185.3482284) but the model's
+    DecimalField only stores a few places (e.g. 185.3). Comparing the raw
+    incoming value against the already-stored (quantized) value always reports a
+    difference, so unchanged data is re-saved and counted as "updated" on every
+    sync — it never converges. Quantizing the incoming value to the field's
+    precision before both the equality check and the write makes repeated syncs
+    of unchanged data converge to "skipped". Rounding mode matches Django's
+    format_number (ROUND_HALF_EVEN) so it agrees with what the DB persists.
+
+    No-op for non-Decimal values and non-decimal fields, so it is safe to call
+    over a heterogeneous field-update dict.
+    """
+    if not isinstance(value, Decimal):
+        return value
+    decimal_places = getattr(
+        model_cls._meta.get_field(field_name), "decimal_places", None
+    )
+    if decimal_places is None:
+        return value
+    return value.quantize(Decimal(1).scaleb(-decimal_places), rounding=ROUND_HALF_EVEN)
+
+
 def process_health_metric(user, metric, existing_glucose_sync_ids=None):
     """
     Process a single health metric.
@@ -738,6 +763,8 @@ def process_weight_metric(user, metric_date, source, sync_id, data):
         raise ValueError(f"Weight value out of range: {value}")
     if unit == "kg" and (value < 20 or value > 450):
         raise ValueError(f"Weight value out of range: {value}")
+
+    value = normalize_for_storage(value, WeightEntry, "value")
 
     # Check for existing entry by sync_id first, then fall back to date match
     from datetime import time as dt_time
@@ -1223,6 +1250,8 @@ def process_water_metric(user, metric_date, source, sync_id, data):
     if water_unit == "ml" and (water_amount < 0 or water_amount > 15000):
         raise ValueError(f"Water amount out of range: {water_amount}")
 
+    water_amount = normalize_for_storage(water_amount, WaterEntry, "amount")
+
     # Check for existing entry with same sync_id
     if sync_id:
         existing = WaterEntry.objects.filter(
@@ -1342,6 +1371,8 @@ def process_distance_metric(user, metric_date, source, sync_id, data):
     # Validate range (0 to 100 miles is reasonable)
     if distance_value < 0 or distance_value > 100:
         raise ValueError(f"Distance value out of range: {distance_value}")
+
+    distance_value = normalize_for_storage(distance_value, StepsEntry, "distance_miles")
 
     # Find existing StepsEntry for this date and source
     existing = StepsEntry.objects.filter(
@@ -1630,8 +1661,7 @@ def process_bmi_metric(user, metric_date, source, sync_id, data):
     if bmi_value < 10 or bmi_value > 80:
         raise ValueError(f"BMI value out of range: {bmi_value}")
 
-    _sync_body_composition_entry(user, "bmi", bmi_value, "", metric_date, source)
-    return "created"
+    return _sync_body_composition_entry(user, "bmi", bmi_value, "", metric_date, source)
 
 
 def _sync_body_composition_entry(user, metric_name, value, unit, measurement_date, source):
@@ -1642,8 +1672,13 @@ def _sync_body_composition_entry(user, metric_name, value, unit, measurement_dat
     HealthKit ingestion stores body fat / lean mass on WeightEntry fields,
     but the SAE health builder and UI read from BodyCompositionEntry.
     This bridges the gap.
+
+    Returns "created" / "updated" / "skipped" so callers can report
+    idempotent results.
     """
     from apps.health.models import BodyCompositionEntry
+
+    value = normalize_for_storage(value, BodyCompositionEntry, "value")
 
     existing = BodyCompositionEntry.objects.filter(
         user=user,
@@ -1657,15 +1692,18 @@ def _sync_body_composition_entry(user, metric_name, value, unit, measurement_dat
             existing.unit = unit
             existing.source = source or "apple_health"
             existing.save(update_fields=["value", "unit", "source", "updated_at"])
-    else:
-        BodyCompositionEntry.objects.create(
-            user=user,
-            metric_name=metric_name,
-            value=value,
-            unit=unit,
-            measurement_date=measurement_date,
-            source=source or "apple_health",
-        )
+            return "updated"
+        return "skipped"
+
+    BodyCompositionEntry.objects.create(
+        user=user,
+        metric_name=metric_name,
+        value=value,
+        unit=unit,
+        measurement_date=measurement_date,
+        source=source or "apple_health",
+    )
+    return "created"
 
 
 def process_body_fat_metric(user, metric_date, source, sync_id, data):
@@ -1689,6 +1727,10 @@ def process_body_fat_metric(user, metric_date, source, sync_id, data):
     # Validate range (0 to 60% is reasonable)
     if body_fat_percentage < 0 or body_fat_percentage > 60:
         raise ValueError(f"Body fat percentage out of range: {body_fat_percentage}")
+
+    body_fat_percentage = normalize_for_storage(
+        body_fat_percentage, WeightEntry, "body_fat_percentage"
+    )
 
     # Check for existing entry with this sync_id
     existing = WeightEntry.objects.filter(
@@ -1932,6 +1974,8 @@ def process_lean_body_mass_metric(user, metric_date, source, sync_id, data):
     if lean_mass_value < 10 or lean_mass_value > 300:
         raise ValueError(f"Lean body mass out of range: {lean_mass_value}")
 
+    lean_mass_value = normalize_for_storage(lean_mass_value, WeightEntry, "lean_body_mass")
+
     # Check for existing entry with this sync_id
     existing = WeightEntry.objects.filter(
         user=user,
@@ -1997,6 +2041,8 @@ def process_respiratory_rate_metric(user, metric_date, source, sync_id, data):
     if respiratory_rate < 5 or respiratory_rate > 40:
         raise ValueError(f"Respiratory rate out of range: {respiratory_rate}")
 
+    respiratory_rate = normalize_for_storage(respiratory_rate, SleepEntry, "respiratory_rate")
+
     # Find existing SleepEntry for this date
     existing = SleepEntry.objects.filter(
         user=user,
@@ -2037,6 +2083,8 @@ def process_hrv_metric(user, metric_date, source, sync_id, data):
     if hrv_value < 5 or hrv_value > 300:
         raise ValueError(f"HRV value out of range: {hrv_value}")
 
+    hrv_value = normalize_for_storage(hrv_value, SleepEntry, "hrv_value")
+
     # Find existing SleepEntry for this date
     existing = SleepEntry.objects.filter(
         user=user,
@@ -2076,6 +2124,8 @@ def process_vo2_max_metric(user, metric_date, source, sync_id, data):
     if vo2_max_value < 10 or vo2_max_value > 100:
         raise ValueError(f"VO2 Max value out of range: {vo2_max_value}")
 
+    vo2_max_value = normalize_for_storage(vo2_max_value, SleepEntry, "vo2_max")
+
     # Find existing SleepEntry for this date
     existing = SleepEntry.objects.filter(
         user=user,
@@ -2113,6 +2163,8 @@ def process_caffeine_metric(user, metric_date, source, sync_id, data):
     # Validate range (0 to 2000 mg is reasonable - about 20 cups of coffee)
     if caffeine_value < 0 or caffeine_value > 2000:
         raise ValueError(f"Caffeine value out of range: {caffeine_value}")
+
+    caffeine_value = normalize_for_storage(caffeine_value, SleepEntry, "caffeine_mg")
 
     # Find existing SleepEntry for this date
     existing = SleepEntry.objects.filter(
@@ -2257,17 +2309,21 @@ def process_body_temperature_metric(user, metric_date, source, sync_id, data):
         raise ValueError("temperature_value is required for body_temperature")
 
     try:
-        temperature_value = float(temperature_value)
-    except (TypeError, ValueError):
+        temperature_value = Decimal(str(temperature_value))
+    except (TypeError, InvalidOperation):
         raise ValueError(f"Invalid temperature value: {temperature_value}")
 
     # Validate range (reasonable range: 90-110°F or 32-43°C)
     if temperature_unit == "fahrenheit":
-        if temperature_value < 90.0 or temperature_value > 110.0:
+        if temperature_value < 90 or temperature_value > 110:
             raise ValueError(f"Temperature value out of range: {temperature_value}°F")
     else:
-        if temperature_value < 32.0 or temperature_value > 43.0:
+        if temperature_value < 32 or temperature_value > 43:
             raise ValueError(f"Temperature value out of range: {temperature_value}°C")
+
+    temperature_value = normalize_for_storage(
+        temperature_value, BodyTemperatureEntry, "temperature"
+    )
 
     # Parse recorded_at timestamp
     recorded_at = None
@@ -2293,7 +2349,7 @@ def process_body_temperature_metric(user, metric_date, source, sync_id, data):
     ).first()
 
     if existing:
-        if float(existing.temperature) != temperature_value:
+        if existing.temperature != temperature_value:
             existing.temperature = temperature_value
             existing.save(update_fields=["temperature", "updated_at"])
             return "updated"
@@ -2430,6 +2486,11 @@ def process_mobility_metric(user, metric_date, source, sync_id, data):
 
     if not field_updates:
         return "skipped"
+
+    field_updates = {
+        key: normalize_for_storage(value, MobilityEntry, key)
+        for key, value in field_updates.items()
+    }
 
     # Find or create MobilityEntry for this date
     existing = MobilityEntry.objects.filter(
@@ -2652,6 +2713,11 @@ def process_dietary_nutrient_metric(user, metric_date, source, sync_id, data):
 
     if not field_updates:
         raise ValueError("At least one nutrient value is required")
+
+    field_updates = {
+        key: normalize_for_storage(value, DietaryNutrientEntry, key)
+        for key, value in field_updates.items()
+    }
 
     # Find or create DietaryNutrientEntry for this date
     existing = DietaryNutrientEntry.objects.filter(

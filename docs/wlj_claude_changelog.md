@@ -7,6 +7,28 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-31 — fix(mobile): HealthKit decimal idempotency — repeated syncs of unchanged data converge to skipped
+
+**The defect (proven):**
+Tapping "Sync Health Data Now" repeatedly with no Apple Health changes reported ~70 "updated" every time, never converging. HealthKit sends full-precision doubles (e.g. weight `185.3482284`) but the health models store quantized `DecimalField`s (e.g. `decimal_places=1` → `185.3`). The ingest handlers compared the raw incoming value against the already-quantized stored value (`185.3 != 185.3482284` → always True), so unchanged rows were re-saved and counted as "updated" on every sync forever. (Counting and per-run UI reporting were verified correct; this was purely a backend comparison defect.)
+
+**Fix (minimal, shared helper):**
+- New `normalize_for_storage(value, model_cls, field_name)` in `apps/mobile/views.py` quantizes an incoming `Decimal` to the field's `decimal_places` using `ROUND_HALF_EVEN` (matches Django's `format_number`, so the normalized value equals what the DB persists). No-op for non-`Decimal` values and non-decimal fields, so it is safe over heterogeneous `field_updates` dicts.
+- Applied before BOTH the equality check and the write in every affected decimal handler: weight, distance, water, body_fat, lean_body_mass, respiratory_rate, hrv, vo2_max, caffeine, body_temperature (also converted from a float comparison to Decimal), mobility metrics, dietary nutrients.
+- `_sync_body_composition_entry` now quantizes internally and returns `created`/`updated`/`skipped`; `process_bmi_metric` returns that status instead of always reporting `"created"`.
+
+**Out of scope (untouched):** integer handlers (already converge), glucose prefetch path, iOS client, `HealthIngestionRun` accounting, sync architecture.
+
+**Files Modified:**
+- `apps/mobile/views.py` — `normalize_for_storage` helper + applied across affected decimal handlers; bmi/body-composition now report accurate idempotent status
+- `apps/mobile/tests/test_health_idempotency.py` — new regression tests (weight, distance, water, nutrient, mobility): same full-precision payload submitted 3× asserts sync#1 created → sync#2/#3 skipped, with stored values quantized
+
+**Verification:** 5/5 new idempotency tests pass; 36/36 existing `apps.mobile.tests.test_views` pass; `makemigrations --check` → no changes; `manage.py check` clean.
+
+**Why:** Idempotency on a core health ingestion path — repeated syncs of unchanged data must converge so the user (and CoS) can trust "updated" counts as real change.
+
+---
+
 ## 2026-05-30 — fix(ai): same-day defer guard — Beth no longer mutates schedule when user says "later"
 
 **The trust break:**

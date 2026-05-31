@@ -7,6 +7,33 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-30 — fix(ai): same-day defer guard — Beth no longer mutates schedule when user says "later"
+
+**The trust break:**
+Beth proactively asked "Shower (7:00 AM) has slipped. Can you get to it this afternoon?" User replied "I will shower when I am done with some chores. I can do it later." Beth responded with an action card "Action: Reschedule Routine Item / Impact: Creates a new entry." — silently mutating the RoutineSchedule even though the user only meant "still today, just later."
+
+**Root cause (proven):**
+1. The midday alignment nudge in `beth_checkin_renderer._render_midday` is rendered as plain text — no `quick_replies` JSON attached.
+2. `confirmation_detector.get_most_recent_proactive_message` calls `.exclude(quick_replies=[])`, so the shower nudge was filtered out and `handle_proactive_confirmation` returned `None`.
+3. The deferral fallback ("Okay, I'll check back with you later.") at lines 318-338 never executed.
+4. Reply fell through to the LLM intent classifier. The `reschedule_routine_item` function schema REQUIRES `new_time` (HH:MM), and the system prompt at `intent_service.py:578` literally said *"use when user wants to move a missed routine item to later today"* — exactly matching "I can do it later." The LLM hallucinated an afternoon time to satisfy the required field.
+5. CRUD confirmation flow surfaced the action card: `reschedule_routine_item` isn't in `INTENT_LABELS` (falls through to `.title()` → "Reschedule Routine Item") and isn't routed to update/delete builders (falls into `_build_create_message` → "Creates a new entry").
+
+**Fix (minimal, scoped):**
+- **Deterministic guard** in `apps/ai/confirmation_detector.py`: new `is_timeless_same_day_defer()` matches defer phrases AND rejects any explicit time / day / "tomorrow" / "skip" / "reschedule" / "won't get to" signal. New `_get_recent_proactive_nudge()` finds any recent `is_proactive=True` message (with or without quick_replies). New `_extract_routine_label_from_nudge()` parses the slipping item label so the response can name it. `handle_proactive_confirmation` runs the guard BEFORE the existing LLM path: if a recent Beth nudge exists AND reply is a timeless defer, return `"Understood. I'll leave {label} on today's list and check back later."` with `handled=True`, action_type `same_day_defer_acknowledge`. NO schedule mutation. NO RoutineLog. NO action card. NO LLM call.
+- **LLM hardening** in `apps/ai/intent_service.py`: explicit rule that `reschedule_routine_item` requires a USER-PROVIDED specific time and must NOT fire for vague defers ("later", "this afternoon", "after chores", etc.). Belt-and-suspenders.
+
+**Guardrail honored:** the guard fires ONLY when a recent `is_proactive=True` Beth nudge exists in the conversation. Generic chat phrases like "I'll do that later" cannot globally suppress valid intent routing elsewhere in WLJ.
+
+**Files Modified:**
+- `apps/ai/confirmation_detector.py` — guard helpers + integration in `handle_proactive_confirmation`
+- `apps/ai/intent_service.py` — system prompt strengthened with explicit defer-vs-reschedule rule
+- `apps/ai/tests/test_same_day_defer.py` — 17 tests covering: pattern table (same-day defers, explicit reschedules), label extraction, integration with mocked nudges, schedule-no-mutation assertion, fall-through guarantees for true reschedule / skip / tomorrow / "won't get to"
+
+**Why:** Trust rule — Beth must never silently mutate system state when the user only communicated temporary delay. "Still today, just later" is a materially different intent from "reschedule" / "skip" / "move to tomorrow."
+
+---
+
 ## 2026-05-30 — fix(dashboard_v3): trust-correct group completion buttons
 
 **Changes:**

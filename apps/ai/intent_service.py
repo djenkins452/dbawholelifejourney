@@ -575,11 +575,22 @@ Slippage (query_type="slippage"):
 
 NOTE: This is READ-ONLY. Do NOT use for logging, marking complete, or any mutation. The user is asking about recorded data.
 
-ROUTINE RECOVERY (reschedule_routine_item) — use when user wants to move a missed routine item to later today:
+ROUTINE RECOVERY (reschedule_routine_item) — use when user wants to move a missed routine item to a SPECIFIC NEW TIME today:
 - "move my workout to 7pm" → reschedule_routine_item(item_keyword="workout", new_time="19:00")
 - "I'll do prayer time at noon" → reschedule_routine_item(item_keyword="prayer", new_time="12:00")
 - "reschedule quiet time to 5:30pm" → reschedule_routine_item(item_keyword="quiet time", new_time="17:30")
 NOTE: This is for ROUTINE ITEMS only (recurring daily habits), not tasks. For task rescheduling, use mutate_task.
+
+CRITICAL — DO NOT call reschedule_routine_item for vague same-day deferrals.
+The `new_time` parameter MUST come from the user's words as an explicit HH:MM or "Npm/Nam"/"noon". You may NOT invent a time. If the user does not give you a specific time, this is NOT a reschedule.
+
+The following phrases are SAME-DAY DEFERS — the user still intends today, just not now. Do NOT call any tool for these; respond conversationally that the item stays on today's list:
+- "I'll do it later" / "later today" / "later"
+- "after chores" / "after dinner" / "when I finish work" / "when I'm done"
+- "this afternoon" / "this evening" / "tonight" (without a specific time)
+- "in a bit" / "soon" / "give me an hour" / "not now" / "maybe later"
+- "I'll shower after chores" / "I'll get to it" / "I can still do it"
+Treat these as conversational acknowledgements only. NO schedule write. NO action card.
 
 TASK UPDATES (mutate_task) — use for ANY task mutation verb:
 When the user says move, reschedule, push, postpone, change, rename, update, or delete referring to a task, call mutate_task DIRECTLY. Do NOT use read_task for these.

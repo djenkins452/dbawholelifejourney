@@ -7,6 +7,26 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-31 — fix(dashboard_v3): Mission hero card — icon, panel, milestone emphasis
+
+**What:** Three corrections to the Mission hero card.
+
+1. **Mission icon not rendering** — root cause: the user's France Primary Mission predates the Mission Icon field and had a blank `mission_icon`, so the card correctly fell back to ★ (we never infer a flag from the word "France" at runtime). Fix: one-time DATA backfill migration (`purpose.0015_backfill_france_mission_icon`) that sets `mission_icon="🇫🇷"` on primary-mission goals whose title contains "france" **and** whose icon is still blank (idempotent, never overwrites a user-set icon). Runtime logic is unchanged and still non-inferential.
+2. **"How things are going" panel missing** — root cause: the panel only rendered when a nightly `GoalMomentumSnapshot` existed; goals made primary before the next nightly run had no snapshot, so `panel` was `None` and the header was skipped. Fix: `_build_mission_panel(goal, snap)` now always returns a panel for an active mission. It still prefers the real persisted momentum trend (with the fixed approved coaching line), but falls back to a deterministic, milestone-grounded state ("Getting started" / "Underway") with a NEUTRAL "flat" indicator — a rising/falling DIRECTION is never fabricated without a real snapshot. `is_fallback` flags the fallback state.
+3. **Next Milestone weak hierarchy** — the date now renders in an accent-soft chip with a 📅 glyph, larger (1.05rem) bold accent type, so milestone timing is visually prominent.
+
+Key Drivers continue to represent actual logged behaviour from pre-computed SAE state (weight/workouts/steps/sleep/journal/nutrition) — never expectations.
+
+**Files:**
+- `apps/dashboard_v3/services/composer.py` — new `_build_mission_panel()`; panel always built.
+- `templates/dashboard_v3/sections/mission.html` — Next-milestone chip + 📅 glyph.
+- `static/dashboard_v3/css/dashboard_v3.css` — `.v3-mission-stat--milestone` emphasis.
+- `apps/purpose/migrations/0015_backfill_france_mission_icon.py` — France flag backfill.
+- `apps/dashboard_v3/tests/test_composer.py` — panel fallback/precedence tests (24 pass).
+
+**Verification:** `MissionCardTests` (24) PASS; `test_visual_truth_contract` (3) PASS; template render smoke-test confirms flag, panel, and milestone chip; `makemigrations --check` → no changes.
+
+
 ## 2026-05-31 — fix(mobile): Health Sync NaN crash regression from decimal-idempotency fix
 
 **What:**

@@ -228,18 +228,14 @@ def _build_mission_card(user) -> dict | None:
     # Momentum — latest snapshot trend only. Omit when no snapshot/trend.
     snap = _latest_momentum(goal)
     momentum = None
-    panel = None
     if snap and snap.momentum_trend:
         momentum = _MOMENTUM_DISPLAY.get(snap.momentum_trend)
-        narrative = _MISSION_PANEL_NARRATIVE.get(snap.momentum_trend)
-        if momentum and narrative:
-            # "How things are going" — deterministic trend + a fixed,
-            # pre-approved coaching line. No generated text, no verdict.
-            panel = {
-                "label": momentum["label"],
-                "trend": momentum["trend"],
-                "narrative": narrative,
-            }
+
+    # "How things are going" panel — always present for an active mission.
+    # Prefers the real persisted momentum trend; falls back to a deterministic,
+    # milestone-grounded state (neutral trend, never a fabricated direction)
+    # when the nightly momentum snapshot has not been computed yet.
+    panel = _build_mission_panel(goal, snap)
 
     # Days remaining — only when a real future target date exists.
     days_remaining = None
@@ -277,6 +273,45 @@ def _build_mission_card(user) -> dict | None:
         "progress": progress,
         "why": why,
         "goal_id": goal.id,
+    }
+
+
+def _build_mission_panel(goal, snap) -> dict:
+    """The "How things are going" panel — always present for an active mission.
+
+    Truth contract: the trend direction may ONLY come from a real persisted
+    ``GoalMomentumSnapshot``. When one exists we narrate it with the fixed,
+    pre-approved coaching line for that trend. When the nightly snapshot has
+    not been computed yet we still render the panel, but with a NEUTRAL ("flat")
+    indicator and a milestone-grounded line — we never invent a rising/falling
+    direction. ``is_fallback`` lets the template tone the indicator down.
+    """
+    if snap and snap.momentum_trend in _MISSION_PANEL_NARRATIVE:
+        md = _MOMENTUM_DISPLAY.get(snap.momentum_trend, {})
+        return {
+            "label": md.get("label", ""),
+            "trend": md.get("trend", "flat"),
+            "narrative": _MISSION_PANEL_NARRATIVE[snap.momentum_trend],
+            "is_fallback": False,
+        }
+
+    # No snapshot yet — deterministic, milestone-grounded fallback. No trend
+    # direction is claimed (always the neutral "flat" indicator).
+    if goal.completed_milestone_count > 0:
+        return {
+            "label": "Underway",
+            "trend": "flat",
+            "narrative": _MISSION_PANEL_NARRATIVE["stable"],
+            "is_fallback": True,
+        }
+    return {
+        "label": "Getting started",
+        "trend": "flat",
+        "narrative": (
+            "Your mission is set. Consistency from here is what builds "
+            "momentum — focus on your current milestone."
+        ),
+        "is_fallback": True,
     }
 
 

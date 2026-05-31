@@ -77,9 +77,12 @@ has not selected an active Primary Mission (renders nothing — no placeholder).
                     </div>
                     {% endif %}
                     {% if mission.next_milestone_date %}
-                    <div class="v3-mission-stat">
+                    <div class="v3-mission-stat v3-mission-stat--milestone">
                         <span class="v3-mission-stat-label">Next milestone</span>
-                        <span class="v3-mission-stat-value">{{ mission.next_milestone_date }}</span>
+                        <span class="v3-mission-stat-value v3-mission-stat-value--date">
+                            <span class="v3-mission-stat-cal" aria-hidden="true">📅</span>
+                            {{ mission.next_milestone_date }}
+                        </span>
                     </div>
                     {% endif %}
                 </div>

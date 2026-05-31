@@ -937,11 +937,33 @@ class MissionCardTests(TestCase):
         self.assertEqual(panel["label"], "Improving")
         self.assertIn("building momentum", panel["narrative"])
 
-    def test_panel_omitted_when_no_momentum(self):
-        # No snapshot → no panel. Never fabricated, never a default verdict.
+    def test_panel_fallback_when_no_momentum_is_neutral(self):
+        # No snapshot → panel still renders, but with a NEUTRAL ("flat")
+        # indicator and a milestone-grounded line. A rising/falling DIRECTION
+        # is never fabricated without a real snapshot.
         self._goal(title="No momentum")
-        mission = build_dashboard_v3_context(self.user)["mission"]
-        self.assertIsNone(mission["panel"])
+        panel = build_dashboard_v3_context(self.user)["mission"]["panel"]
+        self.assertIsNotNone(panel)
+        self.assertEqual(panel["trend"], "flat")
+        self.assertTrue(panel["is_fallback"])
+        self.assertEqual(panel["label"], "Getting started")
+
+    def test_panel_fallback_underway_when_milestones_complete(self):
+        goal = self._goal(title="Some progress")
+        self._milestone(goal, title="Done", completed=True)
+        self._milestone(goal, title="Open", completed=False)
+        panel = build_dashboard_v3_context(self.user)["mission"]["panel"]
+        self.assertEqual(panel["trend"], "flat")
+        self.assertEqual(panel["label"], "Underway")
+        self.assertTrue(panel["is_fallback"])
+
+    def test_panel_prefers_real_momentum_over_fallback(self):
+        goal = self._goal(title="Real momentum")
+        self._momentum(goal, trend="falling")
+        panel = build_dashboard_v3_context(self.user)["mission"]["panel"]
+        self.assertFalse(panel["is_fallback"])
+        self.assertEqual(panel["trend"], "down")
+        self.assertEqual(panel["label"], "Declining")
 
     def test_subtitle_from_user_description(self):
         self._goal(title="With desc", description="  Run a family 10K.  ")

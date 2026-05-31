@@ -7,6 +7,24 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-31 — fix(dashboard_v3): Mission Drivers — restore Sleep/Nutrition visibility (Phase 3 regression)
+
+**What:** Phase 3's two-column "Helping momentum / Needs attention" split only rendered signals with an explicit *strong* polarity (helping or needs). Mid-band ("neutral") signals — Sleep, Nutrition, Steps at middling values — were classified but never displayed, so they silently dropped off the card. This restores full mission visibility while keeping the new intelligence model intact.
+
+**Fix (display-only — classification truth rules untouched):**
+- `_evaluate_mission_signals()` now records a deterministic `lean` ("help" / "need") on every signal. For two-sided numeric bands the lean is the band *midpoint* (e.g. steps 4k–8k → midpoint 6k: ≥6k leans helping, <6k leans needs) — derived from the SAME documented thresholds, no invented number. Stable weight and tracked-but-low nutrition lean to the needs side.
+- `_build_mission_status()` builds each display column as **strong signals first, then mid-band fillers that lean to that side**, capped at 3. Strong signals are never displaced by mid-band ones, and every tracked domain now appears.
+- **Mission state classification is unchanged** — it still counts ONLY strong (helping/needs) polarities, so neutral mid-band signals never sway the state word, tone, or narrative.
+
+**France example after fix** — Helping: Workouts, Weight, Sleep · Needs: Journal, Nutrition, Steps.
+
+**Why:** The regression made the card less informative than before Phase 3 (Sleep and Nutrition vanished). The split layout and deterministic truth rules are preserved; only the column-fill logic changed.
+
+**Files:** `apps/dashboard_v3/services/composer.py`, `apps/dashboard_v3/tests/test_composer.py` (3 new regression tests — 43 mission+visual-truth tests green).
+
+**Validation:** `apps.dashboard_v3.tests.test_composer.MissionCardTests` + `apps.core.tests.test_visual_truth_contract` → 43 passed. Responsive split (≤640px stack) unchanged. No model/schema changes.
+
+
 ## 2026-05-31 — feat(dashboard_v3): Mission Intelligence v1 — deterministic state classifier
 
 **What:** Upgraded the Primary Mission hero card from "visually complete" to "mission intelligence v1." The card now classifies an explainable mission STATE from real, pre-computed signals and narrates it with grounded executive-coach copy — no percentages, no hidden scoring, no fabricated readiness. Architecture law preserved end-to-end: raw data → signals → composed deterministic state → Beth narrates (the composer produces the verdict; Beth never computes it).

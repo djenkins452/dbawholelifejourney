@@ -1138,6 +1138,59 @@ class MissionCardTests(TestCase):
         status = self._status()
         self.assertTrue(any(d["label"] == "Nutrition" for d in status["needs"]))
 
+    def test_mid_band_signals_stay_visible_in_split(self):
+        # Regression: mid-band (neutral) signals must NOT disappear. Sleep,
+        # Nutrition and Steps stay visible, distributed by their band-midpoint
+        # lean, while strong signals anchor the Helping column.
+        goal = self._goal(title="France mid-band")
+        self._momentum(goal, trend="rising")
+        self._seed_state(
+            fitness={"workouts_7d": 4},
+            health={
+                "weight_change_30d": -2.0, "weight_trend": "decreasing",
+                "sleep_avg_hours_7d": 7.2,   # >=7 → helping
+                "steps_avg_7d": 5500,        # 4k–8k mid, <6k mid → leans need
+            },
+            journal={"entries_7d": 0},       # objective absence → need
+            nutrition={"enabled": True, "macro_compliance_score": None},  # need
+        )
+        status = self._status()
+        help_labels = [d["label"] for d in status["helping"]]
+        need_labels = [d["label"] for d in status["needs"]]
+        self.assertIn("Workouts", help_labels)
+        self.assertIn("Weight", help_labels)
+        self.assertIn("Sleep", help_labels)
+        self.assertIn("Journal", need_labels)
+        self.assertIn("Nutrition", need_labels)
+        self.assertIn("Steps", need_labels)
+
+    def test_mid_band_lean_positive_surfaces_in_helping(self):
+        # A mid-band signal above its band midpoint leans into Helping.
+        goal = self._goal(title="Mid positive")
+        self._seed_state(health={"steps_avg_7d": 7000})  # 6k–8k → leans help
+        status = self._status()
+        self.assertIn("Steps", [d["label"] for d in status["helping"]])
+
+    def test_strong_signals_not_displaced_by_mid_band(self):
+        # With 3 strong helping signals, mid-band fillers must not bump them.
+        goal = self._goal(title="Crowded helping")
+        self._momentum(goal, trend="rising")
+        self._seed_state(
+            fitness={"workouts_7d": 5},
+            health={
+                "sleep_avg_hours_7d": 8.0,   # helping
+                "steps_avg_7d": 9000,        # helping
+                "weight_change_30d": -1.0, "weight_trend": "decreasing",  # helping
+            },
+        )
+        status = self._status()
+        self.assertEqual(len(status["helping"]), 3)
+        # All three displayed are strong (helping) signals, none mid-band.
+        self.assertEqual(
+            set(d["label"] for d in status["helping"]),
+            {"Workouts", "Weight", "Sleep"},
+        )
+
     def test_helping_and_needs_capped_at_three(self):
         goal = self._goal(title="Lots of signals")
         self._momentum(goal, trend="rising")

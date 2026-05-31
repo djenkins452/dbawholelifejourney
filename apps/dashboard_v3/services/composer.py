@@ -551,7 +551,13 @@ def _evaluate_mission_signals(states: dict) -> list[dict]:
 
     signals: list[dict] = []
 
-    def emit(key, label, value, polarity):
+    def emit(key, label, value, polarity, lean=None):
+        # ``lean`` records which column a NEUTRAL (mid-band) signal belongs in
+        # so it stays visible instead of vanishing. helping/needs are pinned to
+        # their own side; neutral defaults to "need" (a tracked-but-not-strong
+        # signal reads as the weaker side) unless a value-based lean is given.
+        if lean is None:
+            lean = {"helping": "help", "needs": "need"}.get(polarity, "need")
         frags = _SIGNAL_FRAGMENTS.get(key, {})
         signals.append(
             {
@@ -560,22 +566,37 @@ def _evaluate_mission_signals(states: dict) -> list[dict]:
                 "label": label,
                 "value": value,
                 "polarity": polarity,
+                "lean": lean,
                 "help_frag": frags.get("help", ""),
                 "need_frag": frags.get("need", ""),
             }
         )
 
+    def _band_polarity(value, band):
+        """helping / needs / neutral from a documented two-sided band."""
+        if value >= band["help"]:
+            return "helping"
+        if value < band["need"]:
+            return "needs"
+        return "neutral"
+
+    def _band_lean(value, band):
+        """Which side a neutral value leans toward — the band midpoint only.
+
+        Deterministic and derived from the SAME documented thresholds: a value
+        at or above the midpoint of the need→help band leans positive, below it
+        leans toward needs. No invented threshold.
+        """
+        mid = (band["need"] + band["help"]) / 2
+        return "help" if value >= mid else "need"
+
     # Workouts — objective absence (0/wk) is always a need; >=3/wk is helping.
     workouts = fitness.get("workouts_7d")
     if workouts is not None:
         band = _SIGNAL_BANDS["workouts"]
-        if workouts >= band["help"]:
-            polarity = "helping"
-        elif workouts < band["need"]:  # zero
-            polarity = "needs"
-        else:
-            polarity = "neutral"
-        emit("workouts", "Workouts", f"{workouts}/wk", polarity)
+        polarity = _band_polarity(workouts, band)
+        emit("workouts", "Workouts", f"{workouts}/wk", polarity,
+             _band_lean(workouts, band))
 
     # Weight — the persisted trend direction is the only truth we lean on.
     wchange = health.get("weight_change_30d")
@@ -586,7 +607,7 @@ def _evaluate_mission_signals(states: dict) -> list[dict]:
         elif wtrend == "increasing":
             polarity = "needs"
         else:
-            polarity = "neutral"
+            polarity = "neutral"  # stable weight leans to the needs side
         sign = "+" if wchange > 0 else ""
         emit("weight", "Weight", f"{sign}{wchange} lb / 30d", polarity)
 
@@ -594,37 +615,25 @@ def _evaluate_mission_signals(states: dict) -> list[dict]:
     sleep = health.get("sleep_avg_hours_7d")
     if sleep is not None:
         band = _SIGNAL_BANDS["sleep"]
-        if sleep >= band["help"]:
-            polarity = "helping"
-        elif sleep < band["need"]:
-            polarity = "needs"
-        else:
-            polarity = "neutral"
-        emit("sleep", "Sleep", f"{sleep}h avg", polarity)
+        polarity = _band_polarity(sleep, band)
+        emit("sleep", "Sleep", f"{sleep}h avg", polarity,
+             _band_lean(sleep, band))
 
     # Journal — objective absence (0/wk) is always a need.
     entries = journal.get("entries_7d")
     if entries is not None:
         band = _SIGNAL_BANDS["journal"]
-        if entries >= band["help"]:
-            polarity = "helping"
-        elif entries < band["need"]:  # zero
-            polarity = "needs"
-        else:
-            polarity = "neutral"
-        emit("journal", "Journal", f"{entries}/wk", polarity)
+        polarity = _band_polarity(entries, band)
+        emit("journal", "Journal", f"{entries}/wk", polarity,
+             _band_lean(entries, band))
 
     # Steps — daily movement.
     steps = health.get("steps_avg_7d")
     if steps is not None:
         band = _SIGNAL_BANDS["steps"]
-        if steps >= band["help"]:
-            polarity = "helping"
-        elif steps < band["need"]:
-            polarity = "needs"
-        else:
-            polarity = "neutral"
-        emit("steps", "Steps", f"{steps:,}/day", polarity)
+        polarity = _band_polarity(steps, band)
+        emit("steps", "Steps", f"{steps:,}/day", polarity,
+             _band_lean(steps, band))
 
     # Nutrition — untracked is an objective need (the next lever), not a guess.
     if nutrition.get("enabled"):
@@ -633,8 +642,11 @@ def _evaluate_mission_signals(states: dict) -> list[dict]:
             emit("nutrition", "Nutrition", "Not tracked", "needs")
         else:
             band = _SIGNAL_BANDS["nutrition"]
+            # One-sided band (no numeric "need" floor): >=help helping, else a
+            # neutral that leans toward needs (tracked but not yet strong).
             polarity = "helping" if macros >= band["help"] else "neutral"
-            emit("nutrition", "Nutrition", f"{macros:.0f}% macros", polarity)
+            emit("nutrition", "Nutrition", f"{macros:.0f}% macros", polarity,
+                 "help" if macros >= band["help"] else "need")
 
     return signals
 
@@ -656,6 +668,9 @@ def _build_mission_status(goal, snap, signals: list[dict], today) -> dict:
     Returns ``{state, ring_word, state_label, tone, narrative, helping, needs}``
     where helping / needs are display-ready signal dicts (max 3 each).
     """
+    # Classification uses ONLY the strong-signal polarity counts (unchanged
+    # truth rules). Neutral mid-band signals never sway the state — they are
+    # purely for keeping tracked domains visible in the split below.
     helping = [s for s in signals if s["polarity"] == "helping"]
     needs = [s for s in signals if s["polarity"] == "needs"]
     trend = snap.momentum_trend if snap and snap.momentum_trend else None
@@ -686,10 +701,25 @@ def _build_mission_status(goal, snap, signals: list[dict], today) -> dict:
         parts.append(needs[0]["need_frag"])
     narrative = " ".join(parts)
 
+    # Display split — keep ALL tracked domains visible (regression fix). Strong
+    # signals anchor their own column; mid-band (neutral) signals fill the
+    # remaining slots on the side they lean toward, so Sleep / Nutrition / Steps
+    # no longer disappear. Strong signals are never displaced by mid-band ones
+    # (explicit polarity is listed first), and each column is still capped at 3.
+    # Source order is the fixed priority order from _evaluate_mission_signals.
+    neutral_help = [
+        s for s in signals if s["polarity"] == "neutral" and s["lean"] == "help"
+    ]
+    neutral_need = [
+        s for s in signals if s["polarity"] == "neutral" and s["lean"] == "need"
+    ]
+    helping_display = (helping + neutral_help)[:3]
+    needs_display = (needs + neutral_need)[:3]
+
     def _trim(items):
         return [
             {"icon": s["icon"], "label": s["label"], "value": s["value"]}
-            for s in items[:3]
+            for s in items
         ]
 
     return {
@@ -698,8 +728,8 @@ def _build_mission_status(goal, snap, signals: list[dict], today) -> dict:
         "state_label": _STATE_LABEL[state],
         "tone": _STATE_TONE[state],
         "narrative": narrative,
-        "helping": _trim(helping),
-        "needs": _trim(needs),
+        "helping": _trim(helping_display),
+        "needs": _trim(needs_display),
     }
 
 

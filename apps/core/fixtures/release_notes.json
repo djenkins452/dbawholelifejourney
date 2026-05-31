@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 202,
+    "fields": {
+      "title": "Your Mission now understands movement, not just steps",
+      "description": "The Mission card used to judge your activity mostly by daily steps — which is unfair if walking is hard on you but you stay active through workouts, biking, pickleball or strength training. It now reads an adaptive Movement signal instead. It looks at the activity you actually track — structured workouts and their active minutes alongside your steps — and decides whether you're genuinely moving, not just whether you walked a lot. It also adapts to where your mission is: early on, consistency and conditioning count more than step volume, so staying active through workouts reads as momentum even on light-step days; later, as a mission shifts toward something like building running tolerance, daily activity volume starts to matter more again. The coaching line follows suit — if your movement is strong it credits you for staying active despite limitations rather than scolding low steps. As always it's honest: Movement only appears when you've tracked activity, and nothing is invented.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-05-31",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-05-31T23:00:00Z",
+      "updated_at": "2026-05-31T23:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 201,
     "fields": {
       "title": "Your Mission card now reads its own momentum",

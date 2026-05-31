@@ -3,8 +3,29 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-31 (feat: Mission Intelligence v1 — deterministic state classifier)
+# Last Updated: 2026-05-31 (feat: Mission Intelligence Phase 3.5 — adaptive movement signal)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-31 — feat(dashboard_v3): Mission Phase 3.5 — adaptive, phase-aware Movement signal
+
+**What:** The Mission card's activity driver was step-only ("low steps = bad"). That produces a false negative for users who are genuinely active through workouts, biking, pickleball, or strength but who can't accumulate steps (mobility/joint limits). Phase 3.5 replaces the Steps tile with an adaptive **Movement** signal that reads "movement-despite-limitations" and adapts to the mission's milestone phase. Generalized — no per-user logic.
+
+**New deterministic logic (no hidden scoring, no fabricated readiness):**
+- `_mission_movement_phase(goal)` — derives `"foundation"` vs `"readiness"` purely from milestone progression (foundation until ≥half the milestones are complete). No hardcoded titles.
+- `_evaluate_movement_signal(fitness, health, phase)` — aggregates REAL tracked activity (structured workouts + their active minutes + daily steps), never zero-filled, omitted entirely when no activity data exists. Interpretation:
+  - **foundation** (consistency > volume): active (≥2 sessions/wk) → *helping* even on low-step days; no workouts AND low/absent steps → *needs*; otherwise *neutral*.
+  - **readiness** (step tolerance re-enters, e.g. building toward a run): active AND strong steps → *helping*; no workouts OR low steps → *needs*; otherwise *neutral*.
+- Display value prefers real active minutes, then session count, then daily steps — only what is actually tracked.
+- Movement is ranked right after Weight so conditioning surfaces ahead of Sleep. The old step-only block was removed from the rendered signals (back-compat `_build_mission_drivers` Key-Drivers list still emits "steps" for legacy tests; it is not rendered by the card).
+
+**Coaching awareness:** the narrative now grounds in the Movement fragment ("Your workouts are keeping you genuinely active, even on lighter-step days.") instead of penalising low steps when movement is strong.
+
+**Why:** Prevents false negatives in the France 2027 mission and preserves trust — the system no longer tells an active user they're failing because of step volume. Architecture law upheld: raw data → deterministic signal → composed state → assistant narrates (assistant never computes mission truth).
+
+**Files:** `apps/dashboard_v3/services/composer.py` (movement icon, `_MOVEMENT_BANDS`, movement fragments, `_mission_movement_phase`, `_evaluate_movement_signal`, phase-threaded `_evaluate_mission_signals`), `apps/dashboard_v3/tests/test_composer.py` (3 steps→movement rewrites + 4 new movement tests).
+
+**Validation:** `apps.dashboard_v3.tests.test_composer.MissionCardTests` + `apps.core.tests.test_visual_truth_contract` → 47 passed. `makemigrations --check` clean (no model changes). Responsive split unchanged.
 
 
 ## 2026-05-31 — fix(dashboard_v3): Mission Drivers — restore Sleep/Nutrition visibility (Phase 3 regression)

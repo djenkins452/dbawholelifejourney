@@ -1139,17 +1139,18 @@ class MissionCardTests(TestCase):
         self.assertTrue(any(d["label"] == "Nutrition" for d in status["needs"]))
 
     def test_mid_band_signals_stay_visible_in_split(self):
-        # Regression: mid-band (neutral) signals must NOT disappear. Sleep,
-        # Nutrition and Steps stay visible, distributed by their band-midpoint
-        # lean, while strong signals anchor the Helping column.
+        # Regression: mid-band (neutral) signals must NOT disappear. Sleep stays
+        # visible by its band-midpoint lean, and the adaptive Movement signal
+        # surfaces (replacing the old Steps tile) — strong signals anchor the
+        # Helping column without burying mid-band tracked domains.
         goal = self._goal(title="France mid-band")
         self._momentum(goal, trend="rising")
         self._seed_state(
-            fitness={"workouts_7d": 4},
+            fitness={"workouts_7d": 4},      # helping; movement active → helping
             health={
-                "weight_change_30d": -2.0, "weight_trend": "decreasing",
-                "sleep_avg_hours_7d": 7.2,   # >=7 → helping
-                "steps_avg_7d": 5500,        # 4k–8k mid, <6k mid → leans need
+                "weight_change_30d": -0.2, "weight_trend": "stable",  # neutral→need
+                "sleep_avg_hours_7d": 6.6,   # 6.0–7.0 mid, >=6.5 mid → leans help
+                "steps_avg_7d": 5500,        # low steps must NOT bury Movement
             },
             journal={"entries_7d": 0},       # objective absence → need
             nutrition={"enabled": True, "macro_compliance_score": None},  # need
@@ -1158,38 +1159,83 @@ class MissionCardTests(TestCase):
         help_labels = [d["label"] for d in status["helping"]]
         need_labels = [d["label"] for d in status["needs"]]
         self.assertIn("Workouts", help_labels)
-        self.assertIn("Weight", help_labels)
-        self.assertIn("Sleep", help_labels)
+        self.assertIn("Movement", help_labels)   # active despite low steps
+        self.assertIn("Sleep", help_labels)      # mid-band stays visible
         self.assertIn("Journal", need_labels)
         self.assertIn("Nutrition", need_labels)
-        self.assertIn("Steps", need_labels)
+        # The step-only tile is gone — Movement is the single activity signal.
+        self.assertNotIn("Steps", help_labels + need_labels)
 
     def test_mid_band_lean_positive_surfaces_in_helping(self):
         # A mid-band signal above its band midpoint leans into Helping.
         goal = self._goal(title="Mid positive")
-        self._seed_state(health={"steps_avg_7d": 7000})  # 6k–8k → leans help
+        self._seed_state(health={"sleep_avg_hours_7d": 6.6})  # >=6.5 mid → leans help
         status = self._status()
-        self.assertIn("Steps", [d["label"] for d in status["helping"]])
+        self.assertIn("Sleep", [d["label"] for d in status["helping"]])
 
     def test_strong_signals_not_displaced_by_mid_band(self):
         # With 3 strong helping signals, mid-band fillers must not bump them.
         goal = self._goal(title="Crowded helping")
         self._momentum(goal, trend="rising")
         self._seed_state(
-            fitness={"workouts_7d": 5},
+            fitness={"workouts_7d": 5},      # helping (+ Movement helping, foundation)
             health={
-                "sleep_avg_hours_7d": 8.0,   # helping
-                "steps_avg_7d": 9000,        # helping
                 "weight_change_30d": -1.0, "weight_trend": "decreasing",  # helping
+                "sleep_avg_hours_7d": 6.6,   # mid-band filler — must NOT bump a strong one
             },
         )
         status = self._status()
         self.assertEqual(len(status["helping"]), 3)
-        # All three displayed are strong (helping) signals, none mid-band.
+        # All three displayed are strong (helping) signals; mid-band Sleep excluded.
         self.assertEqual(
             set(d["label"] for d in status["helping"]),
-            {"Workouts", "Weight", "Sleep"},
+            {"Workouts", "Weight", "Movement"},
         )
+
+    def test_movement_helping_despite_low_steps_in_foundation(self):
+        # Phase 3.5 core: a user active through workouts is NOT penalised for low
+        # steps during the foundation phase. Movement reads as Helping.
+        goal = self._goal(title="Active, low steps")
+        self._seed_state(
+            fitness={"workouts_7d": 3},
+            health={"steps_avg_7d": 3000},   # low steps — foundation must not penalise
+        )
+        status = self._status()
+        help_labels = [d["label"] for d in status["helping"]]
+        all_labels = help_labels + [d["label"] for d in status["needs"]]
+        self.assertIn("Movement", help_labels)
+        self.assertNotIn("Steps", all_labels)
+
+    def test_movement_needs_when_truly_inactive(self):
+        # No workouts AND low/absent steps → genuinely inactive → Movement is a Need.
+        goal = self._goal(title="Inactive")
+        self._seed_state(
+            fitness={"workouts_7d": 0},
+            health={"steps_avg_7d": 2000},
+        )
+        status = self._status()
+        self.assertTrue(any(d["label"] == "Movement" for d in status["needs"]))
+
+    def test_movement_phase_readiness_weighs_steps(self):
+        # Readiness phase (>=half milestones done) re-introduces step tolerance:
+        # the SAME activity that was Helping in foundation becomes a Need here.
+        goal = self._goal(title="Return to running")
+        self._milestone(goal, title="Foundation done", completed=True)
+        self._milestone(goal, title="Build mileage", completed=False)  # 1/2 → readiness
+        self._seed_state(
+            fitness={"workouts_7d": 3},
+            health={"steps_avg_7d": 3000},   # low steps now matters
+        )
+        status = self._status()
+        self.assertTrue(any(d["label"] == "Movement" for d in status["needs"]))
+
+    def test_movement_value_aggregates_active_minutes(self):
+        # Display value prefers real tracked active minutes over a session count.
+        goal = self._goal(title="Minutes")
+        self._seed_state(fitness={"workouts_7d": 4, "workout_minutes_7d": 180})
+        status = self._status()
+        movement = next(d for d in status["helping"] if d["label"] == "Movement")
+        self.assertEqual(movement["value"], "180 min/wk")
 
     def test_helping_and_needs_capped_at_three(self):
         goal = self._goal(title="Lots of signals")

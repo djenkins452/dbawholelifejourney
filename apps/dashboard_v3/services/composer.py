@@ -141,6 +141,7 @@ _DRIVER_ICONS = {
     "weight": "⚖️",      # balance scale
     "workouts": "\U0001F3CB️",  # weight lifter
     "steps": "\U0001F45F",         # running shoe
+    "movement": "\U0001F3C3",      # runner — conditioning / movement (not step-only)
     "sleep": "\U0001F634",         # sleeping face
     "journal": "✍️",      # writing hand
     "nutrition": "\U0001F957",     # salad
@@ -233,6 +234,18 @@ _SIGNAL_BANDS = {
     "nutrition": {"help": 70, "need": None},  # >=70% helping; untracked needs
 }
 
+# Adaptive Movement Model (Phase 3.5). The "Movement" signal replaces raw
+# step-only logic so a user who is genuinely active through workouts / biking /
+# strength is NOT penalised for low daily steps (e.g. pain-aware training). It
+# aggregates real tracked activity — structured workouts (and their minutes) +
+# daily steps — and is interpreted by the mission's current PHASE. Documented,
+# defensible thresholds only; nothing invented, nothing hardcoded per user.
+_MOVEMENT_BANDS = {
+    "workouts_active": 2,   # >=2 structured sessions/wk = meaningful movement
+    "steps_help": 8000,     # daily-step bands reused from _SIGNAL_BANDS["steps"]
+    "steps_need": 4000,
+}
+
 # Grounded clause fragments appended to the base coaching line. help_frag is
 # used when the signal is the top "helping" driver; need_frag when it is the
 # top "needs" driver. Each references the ACTUAL tracked behaviour only.
@@ -256,6 +269,10 @@ _SIGNAL_FRAGMENTS = {
     "steps": {
         "help": "Daily movement is strong.",
         "need": "Daily movement has dropped off lately.",
+    },
+    "movement": {
+        "help": "Your workouts are keeping you genuinely active, even on lighter-step days.",
+        "need": "Activity is light right now — small, joint-friendly movement is the place to rebuild.",
     },
     "nutrition": {
         "help": "Nutrition is dialled in.",
@@ -388,7 +405,10 @@ def _build_mission_card(user) -> dict | None:
     # Phase 3 — Mission Intelligence. Deterministic state classification +
     # grounded coaching narrative + helping/needs split. Built from the same
     # SAE signals (no extra queries) and the persisted momentum trend only.
-    signals = _evaluate_mission_signals(states)
+    # Phase 3.5 — the mission's milestone PHASE shapes how movement is judged
+    # (early phases reward consistency over step volume).
+    phase = _mission_movement_phase(goal)
+    signals = _evaluate_mission_signals(states, phase)
     status = _build_mission_status(goal, snap, signals, today)
 
     return {
@@ -532,15 +552,111 @@ def _build_mission_drivers(states: dict) -> list[dict]:
     return drivers
 
 
-def _evaluate_mission_signals(states: dict) -> list[dict]:
+def _mission_movement_phase(goal) -> str:
+    """Deterministic mission phase from milestone progression (Phase 3.5C).
+
+    The mission's milestone position decides what movement success looks like:
+
+      · "foundation" (early) — consistency / conditioning matter more than step
+        volume. A user active through workouts is NOT penalised for low steps.
+      · "readiness" (later)  — walking tolerance / step volume re-enter as a
+        real signal (e.g. building toward a run).
+
+    Generic and explainable: no hardcoded milestone titles, no per-user logic.
+    The mission is in "foundation" until at least half its milestones are done.
+    A mission with no milestones is treated as foundation (still building).
+    """
+    total = goal.milestone_count
+    if total <= 0:
+        return "foundation"
+    completed = goal.completed_milestone_count
+    return "foundation" if completed * 2 < total else "readiness"
+
+
+def _evaluate_movement_signal(fitness: dict, health: dict, phase: str) -> dict | None:
+    """Adaptive Movement signal — movement-despite-limitations (Phase 3.5B).
+
+    Replaces step-only logic. Aggregates REAL tracked activity (structured
+    workouts + their minutes + daily steps) and interprets it by mission phase.
+    Returns a signal dict shaped like the others, or None when there is no
+    movement data at all (graceful omit — never zero-filled).
+
+    Deterministic rules (no hidden scoring, no fabricated readiness):
+      foundation phase — movement consistency > step volume:
+        · active (>=2 sessions/wk)        → helping  (low steps do NOT penalise)
+        · no workouts AND low/absent steps → needs    (genuinely inactive)
+        · otherwise                        → neutral
+      readiness phase — step tolerance re-enters:
+        · active AND strong steps          → helping
+        · no workouts OR low steps         → needs
+        · otherwise                        → neutral
+    """
+    workouts = fitness.get("workouts_7d")
+    minutes = fitness.get("workout_minutes_7d")
+    steps = health.get("steps_avg_7d")
+
+    # No movement data tracked at all → omit, exactly like other signals.
+    if workouts is None and steps is None:
+        return None
+
+    w = workouts or 0
+    bands = _MOVEMENT_BANDS
+    active = w >= bands["workouts_active"]
+    inactive = w == 0
+    steps_strong = steps is not None and steps >= bands["steps_help"]
+    steps_low = steps is None or steps < bands["steps_need"]
+
+    if phase == "readiness":
+        if active and steps_strong:
+            polarity, lean = "helping", "help"
+        elif inactive or steps_low:
+            polarity, lean = "needs", "need"
+        else:
+            polarity, lean = "neutral", "need"
+    else:  # foundation
+        if active:
+            polarity, lean = "helping", "help"
+        elif inactive and steps_low:
+            polarity, lean = "needs", "need"
+        else:
+            polarity, lean = "neutral", "need"
+
+    # Display value — aggregate, preferring active minutes, then session count,
+    # then daily steps. Never fabricated; only shows what is actually tracked.
+    if w > 0:
+        if minutes:
+            value = f"{minutes} min/wk"
+        else:
+            value = f"{w} session{'s' if w != 1 else ''}/wk"
+    elif steps is not None:
+        value = f"{steps:,} steps/day"
+    else:
+        value = "No activity logged"
+
+    frags = _SIGNAL_FRAGMENTS["movement"]
+    return {
+        "key": "movement",
+        "icon": _DRIVER_ICONS["movement"],
+        "label": "Movement",
+        "value": value,
+        "polarity": polarity,
+        "lean": lean,
+        "help_frag": frags["help"],
+        "need_frag": frags["need"],
+    }
+
+
+def _evaluate_mission_signals(states: dict, phase: str = "foundation") -> list[dict]:
     """Classify each tracked behaviour signal as helping / needs / neutral.
 
     READ-ONLY and fully deterministic. Polarity is decided by the documented
     ``_SIGNAL_BANDS`` thresholds and objective absence (zero workouts, zero
     journal entries, untracked nutrition are always "needs"). A signal is only
     evaluated when its underlying field is actually present in state — nothing
-    is inferred or zero-filled. Returns a list of dicts in a fixed priority
-    order, each shaped for both the drivers split and the narrative builder::
+    is inferred or zero-filled. ``phase`` shapes the adaptive Movement signal
+    (early phases reward consistency over step volume). Returns a list of dicts
+    in a fixed priority order, each shaped for both the drivers split and the
+    narrative builder::
 
         {key, icon, label, value, polarity, help_frag, need_frag}
     """
@@ -611,6 +727,13 @@ def _evaluate_mission_signals(states: dict) -> list[dict]:
         sign = "+" if wchange > 0 else ""
         emit("weight", "Weight", f"{sign}{wchange} lb / 30d", polarity)
 
+    # Movement (Phase 3.5) — adaptive, phase-aware. REPLACES the step-only
+    # signal: a user active through workouts is not penalised for low steps.
+    # Ranked high (right after weight) so conditioning surfaces ahead of sleep.
+    movement = _evaluate_movement_signal(fitness, health, phase)
+    if movement is not None:
+        signals.append(movement)
+
     # Sleep — recovery lever.
     sleep = health.get("sleep_avg_hours_7d")
     if sleep is not None:
@@ -626,14 +749,6 @@ def _evaluate_mission_signals(states: dict) -> list[dict]:
         polarity = _band_polarity(entries, band)
         emit("journal", "Journal", f"{entries}/wk", polarity,
              _band_lean(entries, band))
-
-    # Steps — daily movement.
-    steps = health.get("steps_avg_7d")
-    if steps is not None:
-        band = _SIGNAL_BANDS["steps"]
-        polarity = _band_polarity(steps, band)
-        emit("steps", "Steps", f"{steps:,}/day", polarity,
-             _band_lean(steps, band))
 
     # Nutrition — untracked is an objective need (the next lever), not a guess.
     if nutrition.get("enabled"):

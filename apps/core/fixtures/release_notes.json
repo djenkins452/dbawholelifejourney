@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 203,
+    "fields": {
+      "title": "Your Mission card now reads recovery fairly — and added a “Worth watching” lane",
+      "description": "The Mission card just got more truthful and more encouraging. First, it reads recovery fairly: around six hours of sleep is no longer treated as a failure. If you're rebuilding your health, training, and movement, that's enough to maintain momentum — so sleep in that range now shows as something to keep an eye on, not a red flag. Only genuinely thin recovery is flagged as needing attention. Second, the drivers strip went from a stark two-way split to three honest lanes: “Helping momentum” for what's genuinely working, a new amber “Worth watching” lane for the middle ground (sleep that's okay but could climb, nutrition that's tracked but not yet dialled in, movement that's happening but light), and “Needs attention” reserved only for what's really slipping. That middle lane matters: not everything is either a win or a problem, and the card now says so. The coaching line follows the same spirit — truthful and supportive, never fake positivity, and always grounded in the signals you actually track.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-05-31",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-05-31T23:30:00Z",
+      "updated_at": "2026-05-31T23:30:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 202,
     "fields": {
       "title": "Your Mission now understands movement, not just steps",

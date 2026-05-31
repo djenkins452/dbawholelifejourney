@@ -3,8 +3,30 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-31 (feat: Mission Intelligence Phase 3.5 — adaptive movement signal)
+# Last Updated: 2026-05-31 (feat: Mission Intelligence Phase 4 — Worth Watching + adaptive recovery)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-31 — feat(dashboard_v3): Mission Phase 4 — Worth Watching column + adaptive recovery (sleep)
+
+**What:** Refined the Mission Hero Card for *truthful motivation*. Two changes to how mission signals are interpreted and displayed, both fully deterministic and grounded in existing SAE state — no fabricated scores, no readiness %, no per-user logic.
+
+**1. Adaptive recovery interpretation (sleep):** Sleep bands changed from `{help 7.0, need 6.0}` to `{help 7.0, need 5.5}`. Now ≥7.0h → **helping**, 5.5–6.99h → **neutral / Worth watching** (a sufficient middle state, NOT a failure), <5.5h → **needs**. For a user rebuilding health, ~6h sleep no longer reads as "Needs attention". Sleep coaching copy rewritten to match (help / watch / need clauses).
+
+**2. New middle column — "Worth watching":** The drivers strip went from a binary Helping / Needs split to three columns: **Helping momentum** (green, strong positive signals), **Worth watching** (amber, genuine neutral signals — sleep ~6h, tracked-but-low nutrition, moderate activity, partial journaling), **Needs attention** (red, only materially negative signals — zero journaling, very poor recovery, no movement). Each column maps 1:1 to signal polarity and is capped at 3. Because neutral signals now have their own home, they can no longer (a) masquerade as failures or (b) sway the mission state classifier toward Slipping/At-risk. Strong signals can never be displaced by neutral fillers (separate columns, no shared slots).
+
+**Mission psychology:** the coaching narrative now appends ONE forward clause — a real need when one exists, otherwise a constructive "worth watching" clause — so the card never ends flat ("still not good enough") yet never fabricates optimism. Every clause names an ACTUAL tracked signal.
+
+**Architecture cleanup:** removed the now-dead `lean` field and `_band_lean()` helper (the Phase-3 mechanism that smuggled neutrals into the two columns) — the Worth Watching column replaces it cleanly. `watch_frag` added to each signal.
+
+**Success-criteria outcome (verified by test):** active user · weight improving · ~6.1h sleep · weak journaling · low-but-tracked nutrition →
+Helping: Workouts, Weight, Movement · Worth watching: Sleep, Nutrition · Needs attention: Journal.
+
+**Part 4 (future emotional assets — hero image, motivation links, mission actions):** deliberately NOT scaffolded. Per the no-dead-code / no-speculative-overengineering rule, adding model fields or UI hooks with no live feature would be empty scaffolding; deferred until the feature is built for real. No groundwork was warranted without it.
+
+**Files:** `apps/dashboard_v3/services/composer.py` (sleep band, fragments, emit/movement drop `lean` + add `watch_frag`, three-column `_build_mission_status`), `templates/dashboard_v3/sections/mission.html` (third column), `static/dashboard_v3/css/dashboard_v3.css` (3-col grid, traffic-light dots green/amber/red), `apps/dashboard_v3/tests/test_composer.py` (3 rewrites + 5 new tests).
+
+**Validation:** `apps.dashboard_v3.tests.test_composer` (93) + `apps.core.tests.test_visual_truth_contract` → all green. `makemigrations --check` clean (no model changes). Adds user-facing release note PK 203 + loader reset tracker.
 
 
 ## 2026-05-31 — feat(dashboard_v3): Mission Phase 3.5 — adaptive, phase-aware Movement signal

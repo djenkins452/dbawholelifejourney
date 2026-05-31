@@ -1253,13 +1253,13 @@
 .v3-mission-momentum-flat { color: var(--v3-text-mute); }
 .v3-mission-momentum-down { color: var(--v3-warn); }
 
-/* ── Mission Drivers — split into Helping momentum / Needs attention ── */
+/* ── Mission Drivers — Helping momentum / Worth watching / Needs attention ── */
 .v3-mission-drivers {
     margin-top: 20px;
     padding-top: 18px;
     border-top: 1px solid var(--v3-border);
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     gap: 18px;
 }
 
@@ -1284,8 +1284,9 @@
     flex-shrink: 0;
 }
 
-.v3-mission-drivers-dot--help { background: var(--v3-positive); }
-.v3-mission-drivers-dot--need { background: var(--v3-warn); }
+.v3-mission-drivers-dot--help  { background: var(--v3-positive); }
+.v3-mission-drivers-dot--watch { background: var(--v3-warn); }
+.v3-mission-drivers-dot--need  { background: var(--v3-risk); }
 
 .v3-mission-drivers-none {
     display: block;
@@ -1430,6 +1431,6 @@
     .v3-mission-panel    { width: 100%; }
     .v3-mission-stats    { gap: 12px; }
 
-    /* Helping / Needs columns stack on narrow screens. */
+    /* Helping / Worth watching / Needs columns stack on narrow screens. */
     .v3-mission-drivers  { grid-template-columns: 1fr; gap: 16px; }
 }

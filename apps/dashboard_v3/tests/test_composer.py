@@ -1138,59 +1138,98 @@ class MissionCardTests(TestCase):
         status = self._status()
         self.assertTrue(any(d["label"] == "Nutrition" for d in status["needs"]))
 
-    def test_mid_band_signals_stay_visible_in_split(self):
-        # Regression: mid-band (neutral) signals must NOT disappear. Sleep stays
-        # visible by its band-midpoint lean, and the adaptive Movement signal
-        # surfaces (replacing the old Steps tile) — strong signals anchor the
-        # Helping column without burying mid-band tracked domains.
-        goal = self._goal(title="France mid-band")
+    def test_success_criteria_three_column_split(self):
+        # The canonical Phase-4 scenario: an active user rebuilding health with
+        # ~6h sleep and weak journaling/nutrition lands as Helping (Workouts,
+        # Weight, Movement) / Worth watching (Sleep, Nutrition) / Needs (Journal).
+        # Crucially, ~6h sleep is a middle state — never "Needs attention".
+        goal = self._goal(title="France 2027")
         self._momentum(goal, trend="rising")
         self._seed_state(
             fitness={"workouts_7d": 4},      # helping; movement active → helping
             health={
-                "weight_change_30d": -0.2, "weight_trend": "stable",  # neutral→need
-                "sleep_avg_hours_7d": 6.6,   # 6.0–7.0 mid, >=6.5 mid → leans help
+                "weight_change_30d": -2.0, "weight_trend": "decreasing",  # helping
+                "sleep_avg_hours_7d": 6.1,   # 5.5–6.99 → Worth watching (NOT a need)
                 "steps_avg_7d": 5500,        # low steps must NOT bury Movement
             },
             journal={"entries_7d": 0},       # objective absence → need
-            nutrition={"enabled": True, "macro_compliance_score": None},  # need
+            nutrition={"enabled": True, "macro_compliance_score": 55},  # tracked, low → watch
         )
         status = self._status()
         help_labels = [d["label"] for d in status["helping"]]
+        watch_labels = [d["label"] for d in status["watching"]]
         need_labels = [d["label"] for d in status["needs"]]
-        self.assertIn("Workouts", help_labels)
-        self.assertIn("Movement", help_labels)   # active despite low steps
-        self.assertIn("Sleep", help_labels)      # mid-band stays visible
+        self.assertEqual(set(help_labels), {"Workouts", "Weight", "Movement"})
+        self.assertIn("Sleep", watch_labels)
+        self.assertIn("Nutrition", watch_labels)
         self.assertIn("Journal", need_labels)
-        self.assertIn("Nutrition", need_labels)
-        # The step-only tile is gone — Movement is the single activity signal.
-        self.assertNotIn("Steps", help_labels + need_labels)
+        # ~6h sleep is a middle state, never a failure.
+        self.assertNotIn("Sleep", need_labels)
+        self.assertNotIn("Steps", help_labels + watch_labels + need_labels)
 
-    def test_mid_band_lean_positive_surfaces_in_helping(self):
-        # A mid-band signal above its band midpoint leans into Helping.
-        goal = self._goal(title="Mid positive")
-        self._seed_state(health={"sleep_avg_hours_7d": 6.6})  # >=6.5 mid → leans help
+    def test_neutral_signal_lands_in_worth_watching_not_needs(self):
+        # A lone mid-band sleep value surfaces in Worth watching — not Helping,
+        # not Needs attention. It is a real middle category.
+        goal = self._goal(title="Mid sleep")
+        self._seed_state(health={"sleep_avg_hours_7d": 6.1})
         status = self._status()
-        self.assertIn("Sleep", [d["label"] for d in status["helping"]])
+        self.assertIn("Sleep", [d["label"] for d in status["watching"]])
+        self.assertNotIn("Sleep", [d["label"] for d in status["helping"]])
+        self.assertNotIn("Sleep", [d["label"] for d in status["needs"]])
 
-    def test_strong_signals_not_displaced_by_mid_band(self):
-        # With 3 strong helping signals, mid-band fillers must not bump them.
+    def test_strong_signals_not_displaced_by_neutral(self):
+        # Strong helping signals fill their own column; a neutral signal goes to
+        # Worth watching and can never bump a strong one out of Helping.
         goal = self._goal(title="Crowded helping")
         self._momentum(goal, trend="rising")
         self._seed_state(
             fitness={"workouts_7d": 5},      # helping (+ Movement helping, foundation)
             health={
                 "weight_change_30d": -1.0, "weight_trend": "decreasing",  # helping
-                "sleep_avg_hours_7d": 6.6,   # mid-band filler — must NOT bump a strong one
+                "sleep_avg_hours_7d": 6.1,   # neutral → Worth watching, not Helping
             },
         )
         status = self._status()
         self.assertEqual(len(status["helping"]), 3)
-        # All three displayed are strong (helping) signals; mid-band Sleep excluded.
+        self.assertIn("Sleep", [d["label"] for d in status["watching"]])
         self.assertEqual(
             set(d["label"] for d in status["helping"]),
             {"Workouts", "Weight", "Movement"},
         )
+
+    def test_narrative_uses_encouraging_watch_clause_when_no_needs(self):
+        # Mission psychology: with no material need, the card closes on a
+        # constructive watch clause, not a flat "still not good enough" note.
+        goal = self._goal(title="Watchful")
+        self._momentum(goal, trend="rising")
+        self._seed_state(
+            fitness={"workouts_7d": 4},        # helping
+            health={"sleep_avg_hours_7d": 6.1},  # watch, no needs
+        )
+        status = self._status()
+        self.assertIn("enough to maintain momentum", status["narrative"])
+
+    def test_sleep_seven_hours_is_helping(self):
+        goal = self._goal(title="Rested")
+        self._seed_state(health={"sleep_avg_hours_7d": 7.0})  # >=7.0 → helping
+        status = self._status()
+        self.assertIn("Sleep", [d["label"] for d in status["helping"]])
+
+    def test_sleep_six_hours_is_worth_watching_not_a_need(self):
+        # Adaptive recovery: ~6h is sufficient to maintain momentum — a watch,
+        # never a "Needs attention" failure for someone rebuilding health.
+        goal = self._goal(title="Six hours")
+        self._seed_state(health={"sleep_avg_hours_7d": 6.0})  # 5.5–6.99 → watch
+        status = self._status()
+        self.assertIn("Sleep", [d["label"] for d in status["watching"]])
+        self.assertNotIn("Sleep", [d["label"] for d in status["needs"]])
+
+    def test_sleep_below_five_and_a_half_is_a_need(self):
+        # Only materially poor recovery (<5.5h) lands in Needs attention.
+        goal = self._goal(title="Deprived")
+        self._seed_state(health={"sleep_avg_hours_7d": 5.2})  # <5.5 → needs
+        status = self._status()
+        self.assertIn("Sleep", [d["label"] for d in status["needs"]])
 
     def test_movement_helping_despite_low_steps_in_foundation(self):
         # Phase 3.5 core: a user active through workouts is NOT penalised for low

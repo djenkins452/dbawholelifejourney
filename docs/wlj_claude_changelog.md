@@ -7,6 +7,26 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-31 — polish(dashboard_v3): Mission hero card — final fidelity pass
+
+**What:** Visual/emotional polish pass to close the remaining gap to the approved target. No architecture, schema, or engine changes; every element stays deterministic and truthful (no readiness %, no fabricated momentum, no unsupported claims).
+
+**Refinements:**
+1. **"How things are going" → real coaching panel** — wrapped in a tinted, bordered, rounded card (`.v3-mission-going`) with an inset highlight, a "📈 How things are going" accent eyebrow, a pill trend indicator, and stronger body type (1.02rem, ink). It now reads as a trusted coaching panel rather than floating body text. Fallback narrative tightened to the approved three-sentence cadence ("Your mission is set. Consistency from here builds momentum. Focus on your current milestone.").
+2. **Ring contrast/weight** — track recoloured from beige to an indigo tint (`rgba(67,56,202,0.14)`) so it reads as a mission anchor even at 0%; stroke 12→13, center fraction 2.1→2.4rem in accent indigo, deeper drop-shadow. Still milestone count only — no readiness, no percentage.
+3. **Why this matters → emotional anchor** — warm parchment gradient, 4px accent rail, oversized soft quote mark, `<blockquote>` treatment, larger italic ink text (1.05rem/1.6). Reflective, not footer-like. Still the user's own `why_it_matters` words.
+4. **Next Milestone block** — consolidated into one prominent card: label, accent date with 📅, and a restored sub-line "`{N} days · {milestone title}`" (e.g. "181 days · Foundation Phase Complete") when a real future milestone `target_date` exists. New deterministic `next_milestone_days` (days until the milestone's own target date, distinct from mission-level days remaining). Removed the now-duplicated standalone "Current focus" column.
+5. **Key Drivers** — subtle spacing/alignment polish only (fixed-width centered icon column, larger gaps). Still actual logged behaviour from pre-computed SAE state — never expectations or benchmarks.
+
+**Files:**
+- `apps/dashboard_v3/services/composer.py` — `next_milestone_days`; tightened fallback narrative.
+- `templates/dashboard_v3/sections/mission.html` — coaching panel card, consolidated milestone block, blockquote Why.
+- `static/dashboard_v3/css/dashboard_v3.css` — panel/ring/why/drivers refinements.
+- `apps/dashboard_v3/tests/test_composer.py` — `next_milestone_days` tests.
+
+**Verification:** `MissionCardTests` (26) PASS; `test_visual_truth_contract` (3) PASS; template render smoke-test confirms flag, coaching panel, "181 days · Foundation Phase Complete", and blockquote Why; `makemigrations --check` → no changes.
+
+
 ## 2026-05-31 — fix(dashboard_v3): Mission hero card — icon, panel, milestone emphasis
 
 **What:** Three corrections to the Mission hero card.

@@ -965,6 +965,21 @@ class MissionCardTests(TestCase):
         self.assertEqual(panel["trend"], "down")
         self.assertEqual(panel["label"], "Declining")
 
+    def test_next_milestone_days_from_real_future_target(self):
+        from datetime import date, timedelta
+        goal = self._goal(title="Timed")
+        self._milestone(goal, title="Foundation Phase Complete",
+                        target_date=date.today() + timedelta(days=181))
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertEqual(mission["next_milestone_days"], 181)
+        self.assertEqual(mission["current_focus"], "Foundation Phase Complete")
+
+    def test_next_milestone_days_none_without_target(self):
+        goal = self._goal(title="Untimed")
+        self._milestone(goal, title="Open", target_date=None)
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self.assertIsNone(mission["next_milestone_days"])
+
     def test_subtitle_from_user_description(self):
         self._goal(title="With desc", description="  Run a family 10K.  ")
         mission = build_dashboard_v3_context(self.user)["mission"]

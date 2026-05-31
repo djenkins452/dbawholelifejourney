@@ -224,6 +224,11 @@ def _build_mission_card(user) -> dict | None:
     next_milestone_date = (
         nm.target_date.strftime("%b %d, %Y") if nm and nm.target_date else None
     )
+    # Days until that milestone — only for a real future target date. Distinct
+    # from the mission-level days_remaining (this is per-milestone timing).
+    next_milestone_days = None
+    if nm and nm.target_date and nm.target_date > today:
+        next_milestone_days = (nm.target_date - today).days
 
     # Momentum — latest snapshot trend only. Omit when no snapshot/trend.
     snap = _latest_momentum(goal)
@@ -266,6 +271,7 @@ def _build_mission_card(user) -> dict | None:
         "is_primary": True,  # selector guarantees an active Primary Mission
         "current_focus": current_focus,
         "next_milestone_date": next_milestone_date,
+        "next_milestone_days": next_milestone_days,
         "momentum": momentum,
         "panel": panel,
         "drivers": drivers,
@@ -308,8 +314,8 @@ def _build_mission_panel(goal, snap) -> dict:
         "label": "Getting started",
         "trend": "flat",
         "narrative": (
-            "Your mission is set. Consistency from here is what builds "
-            "momentum — focus on your current milestone."
+            "Your mission is set. Consistency from here builds momentum. "
+            "Focus on your current milestone."
         ),
         "is_fallback": True,
     }

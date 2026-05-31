@@ -59,33 +59,35 @@ has not selected an active Primary Mission (renders nothing — no placeholder).
 
             <div class="v3-mission-panel">
                 {% if mission.panel %}
-                <div class="v3-mission-panel-head">
-                    <span class="v3-mission-panel-label">How things are going</span>
-                    <span class="v3-mission-trend v3-mission-momentum-{{ mission.panel.trend }}">
-                        {{ mission.panel.label }}
-                        {% if mission.panel.trend == 'up' %}<span aria-hidden="true">↑</span>{% elif mission.panel.trend == 'down' %}<span aria-hidden="true">↓</span>{% else %}<span aria-hidden="true">→</span>{% endif %}
-                    </span>
-                </div>
-                <p class="v3-mission-panel-text">{{ mission.panel.narrative }}</p>
-                {% endif %}
-
-                <div class="v3-mission-stats">
-                    {% if mission.current_focus %}
-                    <div class="v3-mission-stat">
-                        <span class="v3-mission-stat-label">Current focus</span>
-                        <span class="v3-mission-stat-value">{{ mission.current_focus }}</span>
-                    </div>
-                    {% endif %}
-                    {% if mission.next_milestone_date %}
-                    <div class="v3-mission-stat v3-mission-stat--milestone">
-                        <span class="v3-mission-stat-label">Next milestone</span>
-                        <span class="v3-mission-stat-value v3-mission-stat-value--date">
-                            <span class="v3-mission-stat-cal" aria-hidden="true">📅</span>
-                            {{ mission.next_milestone_date }}
+                <div class="v3-mission-going{% if mission.panel.is_fallback %} v3-mission-going--neutral{% endif %}">
+                    <div class="v3-mission-going-head">
+                        <span class="v3-mission-going-label">
+                            <span class="v3-mission-going-glyph" aria-hidden="true">📈</span> How things are going
+                        </span>
+                        <span class="v3-mission-trend v3-mission-momentum-{{ mission.panel.trend }}">
+                            {% if mission.panel.trend == 'up' %}<span aria-hidden="true">↑</span>{% elif mission.panel.trend == 'down' %}<span aria-hidden="true">↓</span>{% else %}<span aria-hidden="true">→</span>{% endif %}
+                            {{ mission.panel.label }}
                         </span>
                     </div>
+                    <p class="v3-mission-going-text">{{ mission.panel.narrative }}</p>
+                </div>
+                {% endif %}
+
+                {% if mission.next_milestone_date or mission.current_focus %}
+                <div class="v3-mission-milestone">
+                    <span class="v3-mission-milestone-label">Next milestone</span>
+                    {% if mission.next_milestone_date %}
+                    <span class="v3-mission-milestone-date">
+                        <span class="v3-mission-milestone-cal" aria-hidden="true">📅</span>{{ mission.next_milestone_date }}
+                    </span>
+                    {% endif %}
+                    {% if mission.next_milestone_days is not None or mission.current_focus %}
+                    <span class="v3-mission-milestone-sub">
+                        {% if mission.next_milestone_days is not None %}<strong>{{ mission.next_milestone_days }} day{{ mission.next_milestone_days|pluralize }}</strong>{% if mission.current_focus %} &middot; {% endif %}{% endif %}{% if mission.current_focus %}{{ mission.current_focus }}{% endif %}
+                    </span>
                     {% endif %}
                 </div>
+                {% endif %}
 
                 <span class="v3-mission-cta" aria-hidden="true">View mission &rarr;</span>
             </div>
@@ -109,10 +111,10 @@ has not selected an active Primary Mission (renders nothing — no placeholder).
         {% endif %}
 
         {% if mission.why %}
-        <div class="v3-mission-why">
+        <figure class="v3-mission-why">
             <span class="v3-mission-why-label">Why this matters</span>
-            <p class="v3-mission-why-text">{{ mission.why|truncatechars:200 }}</p>
-        </div>
+            <blockquote class="v3-mission-why-text">{{ mission.why|truncatechars:220 }}</blockquote>
+        </figure>
         {% endif %}
     </a>
 </section>

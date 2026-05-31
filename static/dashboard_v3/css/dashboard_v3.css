@@ -1055,17 +1055,19 @@
     width: 150px;
     height: 150px;
     display: block;
-    filter: drop-shadow(0 4px 10px rgba(67, 56, 202, 0.16));
+    filter: drop-shadow(0 5px 12px rgba(67, 56, 202, 0.20));
 }
 
+/* Indigo-tinted track (not beige) so the ring reads as a mission anchor even
+   at 0% — the arc then sits clearly above its own channel. */
 .v3-mission-ring-track {
-    stroke: var(--v3-border);
-    stroke-width: 12;
+    stroke: rgba(67, 56, 202, 0.14);
+    stroke-width: 13;
 }
 
 .v3-mission-ring-arc {
     stroke: var(--v3-accent);
-    stroke-width: 12;
+    stroke-width: 13;
     stroke-linecap: round;
     /* Start the arc at 12 o'clock and fill clockwise. */
     transform: rotate(-90deg);
@@ -1080,118 +1082,132 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
+    gap: 1px;
     text-align: center;
 }
 
 .v3-mission-ring-frac {
-    font-size: 2.1rem;
+    font-size: 2.4rem;
     font-weight: 800;
-    color: var(--v3-ink);
+    color: var(--v3-accent);
     line-height: 1;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
 }
 
 .v3-mission-ring-slash {
-    font-size: 1.3rem;
+    font-size: 1.4rem;
     font-weight: 600;
     color: var(--v3-text-soft);
-    margin: 0 2px;
+    margin: 0 1px;
 }
 
 .v3-mission-ring-glyph {
-    font-size: 2.2rem;
+    font-size: 2.3rem;
     line-height: 1;
 }
 
 .v3-mission-ring-cap {
-    font-size: 0.62rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--v3-text-soft);
-    margin-top: 5px;
+    margin-top: 6px;
 }
 
-/* ── "How things are going" panel ────────────────────────────── */
+/* ── "How things are going" — a proper coaching panel ────────── */
 .v3-mission-panel { min-width: 0; }
 
-.v3-mission-panel-head {
+.v3-mission-going {
+    padding: 15px 17px;
+    background:
+        linear-gradient(180deg, rgba(67, 56, 202, 0.07) 0%, rgba(67, 56, 202, 0.03) 100%);
+    border: 1px solid rgba(67, 56, 202, 0.16);
+    border-radius: 14px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.v3-mission-going-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    margin-bottom: 7px;
+    margin-bottom: 9px;
 }
 
-.v3-mission-panel-label {
+.v3-mission-going-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 0.66rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
+    font-weight: 800;
+    letter-spacing: 0.09em;
     text-transform: uppercase;
-    color: var(--v3-text-soft);
+    color: var(--v3-accent);
 }
+
+.v3-mission-going-glyph { font-size: 0.9rem; line-height: 1; }
 
 .v3-mission-trend {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    padding: 2px 9px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    padding: 3px 10px;
     border-radius: 999px;
     background: var(--v3-surface);
     border: 1px solid var(--v3-border);
+    white-space: nowrap;
 }
 
-.v3-mission-panel-text {
-    margin: 0 0 16px;
-    font-size: 1rem;
-    line-height: 1.5;
-    color: var(--v3-text);
+.v3-mission-going-text {
+    margin: 0;
+    font-size: 1.02rem;
+    font-weight: 500;
+    line-height: 1.55;
+    color: var(--v3-ink);
 }
 
-.v3-mission-stats {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
+/* ── Next milestone block — timing should feel like it matters ── */
+.v3-mission-milestone {
+    margin-top: 16px;
+    padding: 12px 14px;
+    background: var(--v3-surface);
+    border: 1px solid var(--v3-border-strong);
+    border-radius: 12px;
 }
 
-.v3-mission-stat { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-
-.v3-mission-stat-label {
-    font-size: 0.66rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
+.v3-mission-milestone-label {
+    display: block;
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--v3-text-soft);
+    margin-bottom: 4px;
 }
 
-.v3-mission-stat-value {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--v3-text);
-}
-
-/* Next milestone gets visual weight — its timing should be hard to miss. */
-.v3-mission-stat--milestone {
-    padding: 8px 12px;
-    background: var(--v3-accent-soft);
-    border: 1px solid rgba(67, 56, 202, 0.18);
-    border-radius: 10px;
-}
-
-.v3-mission-stat-value--date {
+.v3-mission-milestone-date {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    font-size: 1.05rem;
+    gap: 7px;
+    font-size: 1.1rem;
     font-weight: 800;
     color: var(--v3-accent);
     letter-spacing: -0.01em;
 }
 
-.v3-mission-stat-cal { font-size: 0.95rem; line-height: 1; }
+.v3-mission-milestone-cal { font-size: 0.95rem; line-height: 1; }
+
+.v3-mission-milestone-sub {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.85rem;
+    color: var(--v3-text-mute);
+}
+
+.v3-mission-milestone-sub strong { color: var(--v3-ink); font-weight: 700; }
 
 .v3-mission-cta {
     display: inline-block;
@@ -1226,22 +1242,30 @@
 
 .v3-mission-drivers-row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+    gap: 12px;
 }
 
 .v3-mission-driver {
     display: flex;
     align-items: center;
-    gap: 9px;
-    padding: 10px 12px;
+    gap: 10px;
+    padding: 11px 13px;
     background: var(--v3-surface);
     border: 1px solid var(--v3-border);
     border-radius: 12px;
     min-width: 0;
 }
 
-.v3-mission-driver-icon { font-size: 1.1rem; line-height: 1; flex-shrink: 0; }
+.v3-mission-driver-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    font-size: 1.15rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
 
 .v3-mission-driver-text {
     display: flex;
@@ -1270,31 +1294,47 @@
 .v3-mission-driver-up   { color: var(--v3-opp); }
 .v3-mission-driver-down { color: var(--v3-warn); }
 
-/* ── Why this matters (the user's own words) ─────────────────── */
+/* ── Why this matters — the emotional anchor, the user's own words ── */
 .v3-mission-why {
-    margin-top: 20px;
-    padding: 16px 18px;
-    background: var(--v3-accent-soft);
+    position: relative;
+    margin: 20px 0 0;
+    padding: 18px 20px 18px 22px;
+    background: linear-gradient(180deg, #fbf6ec 0%, #f7f1e4 100%);
     border-radius: 12px;
-    border-left: 3px solid var(--v3-accent);
+    border-left: 4px solid var(--v3-accent);
+    overflow: hidden;
+}
+
+/* Soft oversized quote mark — quote-like, reflective, not a footer. */
+.v3-mission-why::before {
+    content: "\201C";
+    position: absolute;
+    top: 2px;
+    right: 14px;
+    font-size: 3.4rem;
+    line-height: 1;
+    font-family: Georgia, "Times New Roman", serif;
+    color: rgba(67, 56, 202, 0.16);
+    pointer-events: none;
 }
 
 .v3-mission-why-label {
     display: block;
     font-size: 0.64rem;
-    font-weight: 700;
-    letter-spacing: 0.07em;
+    font-weight: 800;
+    letter-spacing: 0.09em;
     text-transform: uppercase;
-    color: var(--v3-text-soft);
-    margin-bottom: 5px;
+    color: var(--v3-accent);
+    margin-bottom: 7px;
 }
 
 .v3-mission-why-text {
+    position: relative;
     margin: 0;
-    font-size: 0.95rem;
+    font-size: 1.05rem;
     font-style: italic;
-    line-height: 1.5;
-    color: var(--v3-text-mute);
+    line-height: 1.6;
+    color: var(--v3-ink);
 }
 
 /* ── Responsive ───────────────────────────────────────────── */

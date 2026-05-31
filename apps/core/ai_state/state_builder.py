@@ -37,6 +37,115 @@ def _build_state_meta(completeness='full', confidence='high'):
     }
 
 
+def _gmi_from_mean_mgdl(mean_mgdl):
+    """Glucose Management Indicator (estimated A1C %), Bergenstal 2018.
+
+    GMI(%) = 3.31 + 0.02392 × mean glucose (mg/dL). Returns a float
+    rounded to one decimal place.
+    """
+    return round(3.31 + 0.02392 * mean_mgdl, 1)
+
+
+def _project_a1c(state, user, now):
+    """Compute a deterministic Projected A1C (GMI) from existing glucose
+    history and write it into the health state — but ONLY when the
+    sampling is dense and recent enough to be medically defensible.
+
+    Writes (always): glucose_reading_count_90d.
+    Writes (only at high confidence): projected_a1c, projected_a1c_trend,
+    projected_a1c_confidence='high'. When confidence is low, projected_a1c
+    stays None so downstream signals HIDE rather than fake precision.
+
+    No new storage: reads apps.health.models.GlucoseEntry exclusively.
+    Recency-weighted mean (recent windows weighted heavier) honours the
+    "prefer recent trend" rule; trend compares recent vs prior windows.
+    """
+    try:
+        from django.db.models import Avg, Count
+        from django.db.models.functions import TruncDate
+        from apps.health.models import GlucoseEntry
+
+        cutoff_90d = now - timedelta(days=90)
+        cutoff_45d = now - timedelta(days=45)
+        cutoff_30d = now - timedelta(days=30)
+        cutoff_14d = now - timedelta(days=14)
+
+        window = GlucoseEntry.objects.filter(
+            user=user, recorded_at__gte=cutoff_90d
+        )
+        count_90d = window.count()
+        state["glucose_reading_count_90d"] = count_90d
+
+        # Confidence gate 1 — sampling density. GMI assumes a continuous
+        # glycemic profile; sparse fingersticks bias the mean, so we
+        # require sustained sampling before projecting anything.
+        if count_90d < 70:
+            return
+
+        distinct_days = (
+            window.annotate(d=TruncDate("recorded_at"))
+            .values("d").distinct().count()
+        )
+        # Confidence gate 2 — coverage across the window (≥14 days).
+        if distinct_days < 14:
+            return
+
+        latest = (
+            window.order_by("-recorded_at")
+            .values_list("recorded_at", "unit")
+            .first()
+        )
+        if not latest:
+            return
+        # Confidence gate 3 — recency. Stale data cannot describe the
+        # current trajectory.
+        days_since_last = (now - latest[0]).days
+        if days_since_last > 7:
+            return
+
+        unit = latest[1] or "mg/dL"
+        to_mgdl = (lambda v: v * 18.0) if unit == "mmol/L" else (lambda v: v)
+
+        def _avg(qs):
+            v = qs.aggregate(avg=Avg("value"))["avg"]
+            return None if v is None else to_mgdl(float(v))
+
+        avg_14 = _avg(window.filter(recorded_at__gte=cutoff_14d))
+        avg_30 = _avg(window.filter(recorded_at__gte=cutoff_30d))
+        avg_90 = _avg(window)
+        if avg_90 is None:
+            return
+
+        # Recency-weighted mean (favours the most recent trend, but the
+        # full 90d still anchors the projection). Missing inner windows
+        # gracefully fall back to the broader average.
+        a14 = avg_14 if avg_14 is not None else avg_30 if avg_30 is not None else avg_90
+        a30 = avg_30 if avg_30 is not None else avg_90
+        weighted_mean = (a14 * 0.5) + (a30 * 0.3) + (avg_90 * 0.2)
+        projected = _gmi_from_mean_mgdl(weighted_mean)
+
+        # Trend — recent half (0–45d) vs prior half (45–90d). Trend
+        # matters more than the absolute number: a falling A1C should
+        # read as encouraging even while still elevated.
+        recent_avg = _avg(window.filter(recorded_at__gte=cutoff_45d))
+        prior_avg = _avg(window.filter(recorded_at__lt=cutoff_45d))
+        trend = "stable"
+        if recent_avg is not None and prior_avg is not None:
+            recent_gmi = _gmi_from_mean_mgdl(recent_avg)
+            prior_gmi = _gmi_from_mean_mgdl(prior_avg)
+            delta = recent_gmi - prior_gmi
+            if delta <= -0.2:
+                trend = "improving"
+            elif delta >= 0.2:
+                trend = "worsening"
+
+        state["projected_a1c"] = projected
+        state["projected_a1c_trend"] = trend
+        state["projected_a1c_confidence"] = "high"
+    except Exception:
+        logger.error("SAE: projected A1C build failed", exc_info=True)
+
+
 # ══════════════════════════════════════════════════════════════════
 # Phase 18 — Health State Contract Definitions
 #
@@ -106,6 +215,15 @@ HEALTH_CONTRACT = {
     'time_in_range_pct_7d':      None,
     'time_in_range_pct_30d':     None,
     'overnight_avg_glucose':     None,
+    # Projected A1C (Phase 6 · Metabolic trajectory) — deterministic
+    # GMI / estimated-A1C derived from existing CGM/glucose history.
+    # Computed nightly here, read-only on the request path. Confidence
+    # gating means projected_a1c stays None unless sampling is dense and
+    # recent enough to be medically defensible (no sparse-manual estimates).
+    'projected_a1c':             None,
+    'projected_a1c_trend':       None,   # 'improving' | 'stable' | 'worsening'
+    'projected_a1c_confidence':  None,   # 'high' | 'low'
+    'glucose_reading_count_90d': None,
     # ── Steps ─────────────────────────────────────────────────
     'steps_status':              'no_data',
     'steps_status_reason':       '',
@@ -772,6 +890,14 @@ def build_health_state(user):
         ).aggregate(avg=Avg("value"))["avg"]
         if glucose_avg_90d:
             state["glucose_avg_90d"] = round(float(glucose_avg_90d))
+
+        # ── Projected A1C (Phase 6 · Metabolic trajectory) ─────
+        # Deterministic GMI / estimated-A1C from existing glucose
+        # history. Medically grounded: GMI(%) = 3.31 + 0.02392 ×
+        # mean glucose(mg/dL) (Bergenstal et al., 2018). We weight
+        # the mean toward recent data, then gate on confidence so we
+        # never fake precision from sparse manual logs.
+        _project_a1c(state, user, now)
 
         # Time-in-range is already computed per-day by DailySummaryBuilder.
         # Average those daily percentages across the window.

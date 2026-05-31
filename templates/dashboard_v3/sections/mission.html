@@ -16,7 +16,11 @@ has not selected an active Primary Mission (renders nothing — no placeholder).
 {% endcomment %}
 {% if mission %}
 <section class="v3-mission" aria-label="Primary Mission">
-    <a class="v3-mission-card" href="{% url 'purpose:goal_detail' mission.goal_id %}">
+    {# Phase 6: card is a container with a stretched overlay link so the whole #}
+    {# card still opens the mission, while individual drivers can be their own #}
+    {# anchors layered above it (no invalid nested <a>). #}
+    <div class="v3-mission-card">
+        <a class="v3-mission-card-link" href="{% url 'purpose:goal_detail' mission.goal_id %}" aria-label="View mission: {{ mission.title }}"></a>
 
         <header class="v3-mission-header">
             {% if mission.hero_image_url %}
@@ -110,6 +114,16 @@ has not selected an active Primary Mission (renders nothing — no placeholder).
                 {% if mission.status.helping %}
                 <div class="v3-mission-drivers-row">
                     {% for d in mission.status.helping %}
+                    {% if d.dest %}
+                    <a class="v3-mission-driver v3-mission-driver--link" href="{{ d.dest.href }}" title="{{ d.dest.tooltip }}" aria-label="{{ d.label }} {{ d.value }} — {{ d.dest.tooltip }}">
+                        <span class="v3-mission-driver-icon" aria-hidden="true">{{ d.icon }}</span>
+                        <span class="v3-mission-driver-text">
+                            <span class="v3-mission-driver-label">{{ d.label }}</span>
+                            <span class="v3-mission-driver-value">{{ d.value }}</span>
+                        </span>
+                        <span class="v3-mission-driver-chev" aria-hidden="true">&rsaquo;</span>
+                    </a>
+                    {% else %}
                     <div class="v3-mission-driver">
                         <span class="v3-mission-driver-icon" aria-hidden="true">{{ d.icon }}</span>
                         <span class="v3-mission-driver-text">
@@ -117,6 +131,7 @@ has not selected an active Primary Mission (renders nothing — no placeholder).
                             <span class="v3-mission-driver-value">{{ d.value }}</span>
                         </span>
                     </div>
+                    {% endif %}
                     {% endfor %}
                 </div>
                 {% else %}
@@ -130,6 +145,16 @@ has not selected an active Primary Mission (renders nothing — no placeholder).
                 {% if mission.status.watching %}
                 <div class="v3-mission-drivers-row">
                     {% for d in mission.status.watching %}
+                    {% if d.dest %}
+                    <a class="v3-mission-driver v3-mission-driver--link" href="{{ d.dest.href }}" title="{{ d.dest.tooltip }}" aria-label="{{ d.label }} {{ d.value }} — {{ d.dest.tooltip }}">
+                        <span class="v3-mission-driver-icon" aria-hidden="true">{{ d.icon }}</span>
+                        <span class="v3-mission-driver-text">
+                            <span class="v3-mission-driver-label">{{ d.label }}</span>
+                            <span class="v3-mission-driver-value">{{ d.value }}</span>
+                        </span>
+                        <span class="v3-mission-driver-chev" aria-hidden="true">&rsaquo;</span>
+                    </a>
+                    {% else %}
                     <div class="v3-mission-driver">
                         <span class="v3-mission-driver-icon" aria-hidden="true">{{ d.icon }}</span>
                         <span class="v3-mission-driver-text">
@@ -137,6 +162,7 @@ has not selected an active Primary Mission (renders nothing — no placeholder).
                             <span class="v3-mission-driver-value">{{ d.value }}</span>
                         </span>
                     </div>
+                    {% endif %}
                     {% endfor %}
                 </div>
                 {% else %}
@@ -150,6 +176,16 @@ has not selected an active Primary Mission (renders nothing — no placeholder).
                 {% if mission.status.needs %}
                 <div class="v3-mission-drivers-row">
                     {% for d in mission.status.needs %}
+                    {% if d.dest %}
+                    <a class="v3-mission-driver v3-mission-driver--link" href="{{ d.dest.href }}" title="{{ d.dest.tooltip }}" aria-label="{{ d.label }} {{ d.value }} — {{ d.dest.tooltip }}">
+                        <span class="v3-mission-driver-icon" aria-hidden="true">{{ d.icon }}</span>
+                        <span class="v3-mission-driver-text">
+                            <span class="v3-mission-driver-label">{{ d.label }}</span>
+                            <span class="v3-mission-driver-value">{{ d.value }}</span>
+                        </span>
+                        <span class="v3-mission-driver-chev" aria-hidden="true">&rsaquo;</span>
+                    </a>
+                    {% else %}
                     <div class="v3-mission-driver">
                         <span class="v3-mission-driver-icon" aria-hidden="true">{{ d.icon }}</span>
                         <span class="v3-mission-driver-text">
@@ -157,6 +193,7 @@ has not selected an active Primary Mission (renders nothing — no placeholder).
                             <span class="v3-mission-driver-value">{{ d.value }}</span>
                         </span>
                     </div>
+                    {% endif %}
                     {% endfor %}
                 </div>
                 {% else %}
@@ -172,7 +209,7 @@ has not selected an active Primary Mission (renders nothing — no placeholder).
             <blockquote class="v3-mission-why-text">{{ mission.why|truncatechars:220 }}</blockquote>
         </figure>
         {% endif %}
-    </a>
+    </div>
 
     {% if mission.mission_links or mission.victories %}
     <div class="v3-mission-actions" aria-label="Mission actions">

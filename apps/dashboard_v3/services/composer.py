@@ -21,6 +21,8 @@ import logging
 import re
 from typing import Any
 
+from django.urls import reverse
+
 logger = logging.getLogger(__name__)
 
 # Domain order for accountability cards (presentation-only).
@@ -145,7 +147,45 @@ _DRIVER_ICONS = {
     "sleep": "\U0001F634",         # sleeping face
     "journal": "✍️",      # writing hand
     "nutrition": "\U0001F957",     # salad
+    "a1c": "\U0001FA78",           # drop of blood — metabolic / glucose trajectory
 }
+
+# ── Phase 6: Clickable Action Drivers ────────────────────────────────────
+# Each signal may resolve to ONE meaningful destination. The mapping is by
+# signal key only — generic, never hardcoded per user, never keyed off goal
+# text. Automated metrics (glucose, steps) point to an INSIGHT view, NOT a
+# manual-logging form, because logging them by hand would be wrong. The URL
+# is resolved once at build time; an unresolvable name degrades gracefully to
+# a non-clickable driver (no crash, no broken link). ``tooltip`` is optional
+# hover/title text. ``log`` marks whether the destination is a logging action
+# (vs read-only awareness) — used only for the aria-label verb.
+_DRIVER_DEST = {
+    "weight":    ("health:weight_list",       "Open your weight history",   False),
+    "workouts":  ("health:workout_list",      "Open your workouts",         True),
+    "movement":  ("health:fitness_home",      "Open your activity",         True),
+    "steps":     ("health:fitness_home",      "Open your activity",         False),
+    "sleep":     ("health:sleep_list",        "Open your sleep insights",   False),
+    "journal":   ("journal:home",             "Open your journal",          True),
+    "nutrition": ("meals:dashboard",          "Open nutrition",             True),
+    "a1c":       ("health:glucose_dashboard", "Open your glucose insights", False),
+}
+
+
+def _resolve_driver_dest(key):
+    """Resolve a signal key to a (href, tooltip, is_log) destination, or None.
+
+    Read-only, deterministic, and crash-safe: a missing/renamed URL name
+    simply yields None so the driver renders as plain (non-clickable) text
+    rather than raising NoReverseMatch on the request path.
+    """
+    spec = _DRIVER_DEST.get(key)
+    if not spec:
+        return None
+    name, tooltip, is_log = spec
+    try:
+        return {"href": reverse(name), "tooltip": tooltip, "is_log": is_log}
+    except Exception:
+        return None
 
 # ── Phase 3: Mission Intelligence ────────────────────────────────────────
 # Deterministic, explainable mission state. NO percentages, NO hidden scoring.
@@ -283,6 +323,11 @@ _SIGNAL_FRAGMENTS = {
         "help": "Nutrition is dialled in.",
         "watch": "Nutrition is tracked but has room to climb toward your targets.",
         "need": "Nutrition isn't being tracked yet — that's the next lever.",
+    },
+    "a1c": {
+        "help": "Your glucose trend is improving, which supports your long-term health goals.",
+        "watch": "Your glucose is holding steady — staying consistent here protects your long-term health.",
+        "need": "Your glucose trend has drifted up lately — small, steady habits bring it back down.",
     },
 }
 
@@ -746,6 +791,27 @@ def _evaluate_mission_signals(states: dict, phase: str = "foundation") -> list[d
     if movement is not None:
         signals.append(movement)
 
+    # Projected A1C (Phase 6) — metabolic trajectory. Read-only: the value and
+    # its confidence are pre-computed in the nightly health state builder, never
+    # here. It is emitted ONLY at high confidence (the builder leaves
+    # projected_a1c None when sampling is sparse), so we never fake precision.
+    # Trend drives the polarity — a falling A1C reads as encouraging even while
+    # still elevated — with the ADA target band (≤7.0%) guarding against a
+    # punitive "needs" on someone already in healthy control.
+    a1c = health.get("projected_a1c")
+    if a1c is not None and health.get("projected_a1c_confidence") == "high":
+        a1c_trend = health.get("projected_a1c_trend") or "stable"
+        if a1c_trend == "improving":
+            polarity = "helping"
+            arrow = "↓"
+        elif a1c_trend == "worsening":
+            polarity = "needs" if a1c > 7.0 else "neutral"
+            arrow = "↑"
+        else:  # stable
+            polarity = "helping" if a1c <= 7.0 else "neutral"
+            arrow = "→"
+        emit("a1c", "Projected A1C", f"{a1c}% {arrow}", polarity)
+
     # Sleep — recovery lever.
     sleep = health.get("sleep_avg_hours_7d")
     if sleep is not None:
@@ -838,11 +904,20 @@ def _build_mission_status(goal, snap, signals: list[dict], today) -> dict:
     # Display — one column per polarity, each capped at 3 and in the fixed
     # priority order from _evaluate_mission_signals. Strong signals can never be
     # displaced by neutral fillers because the columns no longer share slots.
+    # Phase 6 — each displayed driver may carry ONE clickable destination
+    # (resolved read-only, crash-safe). A driver with no meaningful action,
+    # or whose URL cannot be resolved, renders as plain text (dest=None).
     def _trim(items):
-        return [
-            {"icon": s["icon"], "label": s["label"], "value": s["value"]}
-            for s in items[:3]
-        ]
+        out = []
+        for s in items[:3]:
+            dest = _resolve_driver_dest(s.get("key"))
+            out.append({
+                "icon": s["icon"],
+                "label": s["label"],
+                "value": s["value"],
+                "dest": dest,
+            })
+        return out
 
     return {
         "state": state,

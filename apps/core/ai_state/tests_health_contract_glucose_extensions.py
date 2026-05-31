@@ -207,6 +207,100 @@ class BuildHealthStateGlucoseExtensionsTests(TestCase):
         self.assertEqual(state["latest_glucose_unit"], "mg/dL")
 
 
+# ── Phase 6: Projected A1C (GMI) engine ─────────────────────────────
+
+
+class ProjectedA1CEngineTests(TestCase):
+    """Deterministic GMI/eA1C from existing glucose history, confidence-gated.
+
+    GMI(%) = 3.31 + 0.02392 × mean glucose(mg/dL). The projection is only
+    written at high confidence (dense, recent sampling); sparse manual logs
+    must leave projected_a1c None so the mission signal HIDES rather than
+    fabricating precision.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = _make_user("a1c_engine@test.com")
+
+    def _seed_readings(self, count, value, days_span, unit="mg/dL"):
+        """Spread ``count`` readings evenly across the last ``days_span`` days."""
+        from apps.health.models import GlucoseEntry
+        now = datetime.now(timezone.utc)
+        step = max(days_span / max(count, 1), 0.01)
+        for i in range(count):
+            GlucoseEntry.objects.create(
+                user=self.user,
+                value=Decimal(str(value)),
+                unit=unit,
+                recorded_at=now - timedelta(days=i * step),
+            )
+
+    def test_new_keys_exist_and_default_none(self):
+        for key in (
+            "projected_a1c", "projected_a1c_trend",
+            "projected_a1c_confidence", "glucose_reading_count_90d",
+        ):
+            self.assertIn(key, HEALTH_CONTRACT)
+            self.assertIsNone(HEALTH_CONTRACT[key])
+
+    def test_dense_recent_data_yields_high_confidence_projection(self):
+        # ~3 readings/day for 30 days at a steady 130 mg/dL.
+        self._seed_readings(count=90, value=130, days_span=30)
+        state = build_health_state(self.user)
+        self.assertEqual(state["projected_a1c_confidence"], "high")
+        # GMI(130) = 3.31 + 0.02392*130 = 6.42 (steady → stable trend).
+        self.assertAlmostEqual(state["projected_a1c"], 6.4, delta=0.1)
+        self.assertEqual(state["projected_a1c_trend"], "stable")
+        self.assertGreaterEqual(state["glucose_reading_count_90d"], 90)
+
+    def test_sparse_data_hidden_low_confidence(self):
+        # Only a handful of manual logs → cannot justify a projection.
+        self._seed_readings(count=10, value=140, days_span=80)
+        state = build_health_state(self.user)
+        self.assertIsNone(state["projected_a1c"])
+        self.assertNotEqual(state["projected_a1c_confidence"], "high")
+        # The raw count is still surfaced for transparency/confidence.
+        self.assertEqual(state["glucose_reading_count_90d"], 10)
+
+    def test_stale_data_hidden_even_if_dense(self):
+        # Dense history, but nothing in the last week → not a current trajectory.
+        from apps.health.models import GlucoseEntry
+        now = datetime.now(timezone.utc)
+        for i in range(90):
+            GlucoseEntry.objects.create(
+                user=self.user, value=Decimal("130"), unit="mg/dL",
+                recorded_at=now - timedelta(days=20 + i * 0.5),
+            )
+        state = build_health_state(self.user)
+        self.assertIsNone(state["projected_a1c"])
+
+    def test_improving_trend_detected(self):
+        from apps.health.models import GlucoseEntry
+        now = datetime.now(timezone.utc)
+        # Prior half (45–90d ago): high (180). Recent half (0–45d): lower (120).
+        for i in range(50):
+            GlucoseEntry.objects.create(
+                user=self.user, value=Decimal("180"), unit="mg/dL",
+                recorded_at=now - timedelta(days=46 + i * 0.8),
+            )
+        for i in range(50):
+            GlucoseEntry.objects.create(
+                user=self.user, value=Decimal("120"), unit="mg/dL",
+                recorded_at=now - timedelta(days=i * 0.8),
+            )
+        state = build_health_state(self.user)
+        self.assertEqual(state["projected_a1c_confidence"], "high")
+        self.assertEqual(state["projected_a1c_trend"], "improving")
+
+    def test_mmol_units_converted_to_mgdl(self):
+        # 7.2 mmol/L ≈ 130 mg/dL → same GMI as the mg/dL steady case.
+        self._seed_readings(count=90, value="7.2", days_span=30, unit="mmol/L")
+        state = build_health_state(self.user)
+        self.assertEqual(state["projected_a1c_confidence"], "high")
+        self.assertAlmostEqual(state["projected_a1c"], 6.4, delta=0.2)
+
+
 # ── Bible Journey shared-state guardrail ────────────────────────────
 
 

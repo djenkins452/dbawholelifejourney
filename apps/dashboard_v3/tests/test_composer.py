@@ -1348,6 +1348,117 @@ class MissionCardTests(TestCase):
         self.assertEqual(mission["progress"]["total"], 1)
         self.assertEqual(mission["progress"]["completed"], 0)
 
+    # ── Phase 6: Projected A1C mission signal (trend-driven, confidence-gated) ─
+
+    def test_a1c_improving_trend_is_helping(self):
+        # Trend matters more than the absolute number: a falling A1C reads as
+        # encouraging (Helping momentum) even while still elevated.
+        self._goal(title="Metabolic")
+        self._seed_state(health={
+            "projected_a1c": 8.1,
+            "projected_a1c_trend": "improving",
+            "projected_a1c_confidence": "high",
+        })
+        status = self._status()
+        helping = [d for d in status["helping"] if d["label"] == "Projected A1C"]
+        self.assertTrue(helping)
+        self.assertEqual(helping[0]["value"], "8.1% ↓")
+
+    def test_a1c_stable_above_target_is_worth_watching(self):
+        self._goal(title="Steady high")
+        self._seed_state(health={
+            "projected_a1c": 7.4,
+            "projected_a1c_trend": "stable",
+            "projected_a1c_confidence": "high",
+        })
+        status = self._status()
+        self.assertIn("Projected A1C", [d["label"] for d in status["watching"]])
+        self.assertNotIn("Projected A1C", [d["label"] for d in status["helping"]])
+
+    def test_a1c_stable_in_target_is_helping(self):
+        # An in-target A1C holding steady is maintenance — genuinely Helping.
+        self._goal(title="In control")
+        self._seed_state(health={
+            "projected_a1c": 6.2,
+            "projected_a1c_trend": "stable",
+            "projected_a1c_confidence": "high",
+        })
+        status = self._status()
+        self.assertIn("Projected A1C", [d["label"] for d in status["helping"]])
+
+    def test_a1c_worsening_above_target_needs_attention(self):
+        self._goal(title="Drifting up")
+        self._seed_state(health={
+            "projected_a1c": 8.2,
+            "projected_a1c_trend": "worsening",
+            "projected_a1c_confidence": "high",
+        })
+        status = self._status()
+        self.assertIn("Projected A1C", [d["label"] for d in status["needs"]])
+
+    def test_a1c_worsening_in_target_is_not_punitive(self):
+        # Drifting within a healthy range must NOT be flagged as a failure —
+        # it is a watch, never a punitive "Needs attention".
+        self._goal(title="Tiny drift")
+        self._seed_state(health={
+            "projected_a1c": 6.4,
+            "projected_a1c_trend": "worsening",
+            "projected_a1c_confidence": "high",
+        })
+        status = self._status()
+        self.assertNotIn("Projected A1C", [d["label"] for d in status["needs"]])
+        self.assertIn("Projected A1C", [d["label"] for d in status["watching"]])
+
+    def test_a1c_hidden_when_confidence_not_high(self):
+        # If the engine could not justify a confident projection, the signal
+        # must be hidden entirely — never faked from sparse data.
+        self._goal(title="Sparse glucose")
+        self._seed_state(health={
+            "projected_a1c": None,
+            "projected_a1c_confidence": "low",
+            "glucose_reading_count_90d": 12,
+        })
+        status = self._status()
+        labels = [d["label"] for col in ("helping", "watching", "needs")
+                  for d in status[col]]
+        self.assertNotIn("Projected A1C", labels)
+
+    def test_a1c_hidden_when_absent(self):
+        self._goal(title="No glucose")
+        self._seed_state(health={})
+        status = self._status()
+        labels = [d["label"] for col in ("helping", "watching", "needs")
+                  for d in status[col]]
+        self.assertNotIn("Projected A1C", labels)
+
+    # ── Phase 6: Clickable action drivers ────────────────────────────────
+
+    def test_displayed_drivers_carry_clickable_destinations(self):
+        # Each displayed driver resolves ONE meaningful destination URL so the
+        # template can render it as a subtle clickable affordance.
+        self._goal(title="Actionable")
+        self._seed_state(
+            fitness={"workouts_7d": 4},  # Workouts + Movement → helping
+        )
+        status = self._status()
+        workouts = next(d for d in status["helping"] if d["label"] == "Workouts")
+        self.assertIsNotNone(workouts["dest"])
+        self.assertEqual(workouts["dest"]["href"], "/health/physical/fitness/workouts/")
+
+    def test_a1c_driver_points_to_insight_not_logging(self):
+        # Automated metrics are clickable but route to an INSIGHT view, never a
+        # manual-logging form (logging glucose by hand would be wrong).
+        self._goal(title="Insight route")
+        self._seed_state(health={
+            "projected_a1c": 6.9,
+            "projected_a1c_trend": "improving",
+            "projected_a1c_confidence": "high",
+        })
+        status = self._status()
+        a1c = next(d for d in status["helping"] if d["label"] == "Projected A1C")
+        self.assertEqual(a1c["dest"]["href"], "/health/physical/glucose/")
+        self.assertFalse(a1c["dest"]["is_log"])
+
 
 class WeatherTileTests(TestCase):
     def setUp(self):

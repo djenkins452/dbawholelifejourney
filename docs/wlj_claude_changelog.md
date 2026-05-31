@@ -3,9 +3,31 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-31 (feat: Mission Phase 5 — emotional motivation layer)
+# Last Updated: 2026-05-31 (feat: Mission Phase 6 — actionable drivers + Projected A1C engine)
 # ================================================================# WLJ Change History
 
+
+## 2026-05-31 — feat(mission): Phase 6 — actionable drivers + Projected A1C engine
+
+**What ships:** Two upgrades to the Primary Mission card, both staying inside the existing raw-data → signals → mission-intelligence architecture (no dashboard-side computation, no fabrication).
+
+**Part 1 — Clickable action drivers.** Each displayed mission driver now resolves ONE meaningful destination and renders as a subtle, premium clickable affordance (pointer cursor, hairline accent border, soft lift, sliding chevron — not a button). Destinations are generic by signal key, never hardcoded per user: Workouts → workouts, Movement/Steps → activity, Weight → weight history, Sleep → sleep insights (read-only awareness), Journal → journal, Nutrition → nutrition, Projected A1C → glucose insights. Automated metrics (glucose, steps) route to an INSIGHT view, never a manual-logging form. URL resolution is crash-safe (a missing/renamed name degrades to plain text). The whole card remains clickable via a stretched overlay link, so driver anchors layer above it without invalid nested `<a>`.
+
+**Part 2 — Projected A1C engine.** A new deterministic metabolic-trajectory signal. Computes GMI / estimated-A1C from EXISTING glucose history (`GlucoseEntry`) — no new storage, no parallel truth — using the medically grounded GMI formula (3.31 + 0.02392 × mean mg/dL, Bergenstal 2018), with the mean recency-weighted toward recent data. Computed in the nightly health state builder (read-only on the request path). Confidence-gated: the projection is HIDDEN unless sampling is dense (≥70 readings / ≥14 distinct days in 90d) AND recent (a reading within 7 days) — sparse manual logs never produce a faked number. Classified into the mission's Helping / Worth Watching / Needs columns by TREND (a falling A1C reads as encouraging even while still elevated), with the ADA ≤7.0% target band guarding against a punitive "needs" on someone already in healthy control. Narrative integration is supportive, never shaming ("Your glucose trend is improving, which supports your long-term health goals").
+
+**Architecture preserved:** deterministic + explainable; heavy compute stays in the nightly engine (request path only reads pre-computed SAE state); no N+1; no duplicated health logic; Visual Truth Contract untouched; generic for any user (no France/per-user hardcoding); CSP-safe (no inline handlers — pure `<a href>` + stretched-link CSS).
+
+**Files Modified:**
+- `apps/core/ai_state/state_builder.py` — new `_project_a1c()` + `_gmi_from_mean_mgdl()` helpers; 4 new HEALTH_CONTRACT keys (`projected_a1c`, `projected_a1c_trend`, `projected_a1c_confidence`, `glucose_reading_count_90d`); computation wired into the glucose block of `build_health_state`.
+- `apps/dashboard_v3/services/composer.py` — `_DRIVER_DEST` map + `_resolve_driver_dest()`; A1C icon + fragments; A1C signal in `_evaluate_mission_signals` (trend-driven, confidence-gated); `_trim` now attaches a per-driver `dest`.
+- `templates/dashboard_v3/sections/mission.html` — card converted to a container with a stretched overlay link; drivers render as clickable anchors when a destination exists.
+- `static/dashboard_v3/css/dashboard_v3.css` — stretched-link + `:focus-within` styles; `.v3-mission-driver--link` premium hover/chevron styles.
+- `apps/dashboard_v3/tests/test_composer.py` — 9 new tests (A1C classification across trend/confidence, clickable destinations, insight-not-logging routing).
+- `apps/core/ai_state/tests_health_contract_glucose_extensions.py` — 6 new engine tests (GMI value, confidence gating for sparse/stale data, improving-trend detection, mmol/L conversion).
+
+**Validation:** 128 tests pass (`apps.core.ai_state.tests_health_contract_glucose_extensions` + `apps.dashboard_v3.tests.test_composer`), `manage.py check` clean.
+
+**Why:** Makes the Mission Card answer "what should I do next?" and "what trajectory am I on?" without fake coaching — drivers become navigable, and metabolic momentum (the heart of a reclaim-your-health mission) surfaces honestly when, and only when, the data can justify it.
 
 ## 2026-05-31 — feat(dashboard_v3): one-tap hydration quick-log buttons
 

@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 205,
+    "fields": {
+      "title": "Your Mission card is now tappable — and quietly tracks your health trajectory",
+      "description": "The signals on your Primary Mission card are now actionable. When a driver has a meaningful next step — your workouts, your activity, your sleep, your journal, your nutrition — you can tap it to jump straight to that part of the app. The cues are subtle on purpose: a gentle highlight and a small arrow on hover, never a loud button. Automated metrics like glucose open their insights view rather than a manual log, because they're already tracked for you. The whole card still opens your mission when you tap anywhere else. There's also a new Projected A1C signal for anyone tracking glucose. It reads your existing glucose history and estimates your A1C trajectory, then places it in Helping momentum, Worth watching, or Needs attention based on the direction it's heading — because a number that's falling is encouraging even while it's still coming down. It only appears when there's enough recent, consistent data to be trustworthy; if the data is too sparse to be sure, it stays hidden rather than guessing. Nothing here is invented, and a falling trend is always framed as the progress it is.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-05-31",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-06-01T00:30:00Z",
+      "updated_at": "2026-06-01T00:30:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 204,
     "fields": {
       "title": "Make your Mission personal — add an image, links, and wins along the way",

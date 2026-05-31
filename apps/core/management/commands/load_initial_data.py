@@ -1069,6 +1069,8 @@ class Command(BaseCommand):
         self._reset_mission_worth_watching_release_notes(DataLoadConfig, force, verbosity)
         # One-time: Reset release_notes for Mission Phase 5 Inspiration layer (PK 204)
         self._reset_mission_inspiration_release_notes(DataLoadConfig, force, verbosity)
+        # One-time: Reset release_notes for Mission Phase 6 actionable drivers + A1C (PK 205)
+        self._reset_mission_actionable_a1c_release_notes(DataLoadConfig, force, verbosity)
 
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
@@ -7106,6 +7108,35 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Mission Inspiration release notes FAILED: {e}'))
+
+    def _reset_mission_actionable_a1c_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes after adding PK 205 (Mission
+        Phase 6 — clickable action drivers + the Projected A1C mission signal).
+        """
+        reset_tracker_name = 'reset_mission_actionable_a1c_2026_05_31'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for Mission Actionable + A1C (PK 205)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Mission Actionable + A1C',
+                'command',
+                'One-time reset: added PK 205 for Mission Phase 6 actionable drivers + Projected A1C'
+            )
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Mission Actionable A1C release notes FAILED: {e}'))
 
     def _reset_action_center_vocabulary_release_notes(self, DataLoadConfig, force=False, verbosity=1):
         """

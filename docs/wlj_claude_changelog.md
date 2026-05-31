@@ -3,9 +3,35 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-31 (feat: Mission Phase 6 — actionable drivers + Projected A1C engine)
+# Last Updated: 2026-05-31 (fix: Mission Phase 6.1 — clinically-accurate Projected A1C / GMI)
 # ================================================================# WLJ Change History
 
+
+## 2026-05-31 — fix(mission): Phase 6.1 — clinically-accurate Projected A1C (GMI)
+
+**Why:** Projected A1C is a high-trust diabetes metric. The Phase 6 implementation (a) altered the displayed number with a 14/30/90-day recency-weighted blend — a non-standard value that would not match what a Dexcom/Libre ecosystem reports — and (b) gated the metric behind brittle all-or-nothing rules (≥70 readings AND ≥14 days AND a reading within 7 days), so normal Dexcom→WLJ sync lag silently HID the metric entirely. This phase makes the number industry-standard and the visibility resilient, separating *calculation* from *confidence*.
+
+**Diagnosis (why it likely wasn't rendering):** The old recency gate (`days_since_last > 7 → return`) is the prime suspect — WLJ's Dexcom sync is not perfectly real time, so a few unsynced recent days would fail the 7-day recency gate and suppress the whole signal even with months of history behind it. The dense-sampling (`<70`) and `<14` distinct-day gates were secondary suppressors. (No production query was possible — there is no CLI/SSH access to prod — so this is a code-path diagnosis, now made moot by the redesign, which renders at medium confidence instead of hiding.)
+
+**Calculation — standard GMI, no blending.** The displayed value is now the published GMI equation (`3.31 + 0.02392 × mean glucose mg/dL`, Bergenstal 2018) applied to the SIMPLE mean of every available reading in the window. No weighting, no smoothing, no trend math touches the number. Trend analysis remains fully separate (recent-half vs prior-half GMI) and drives only narrative/polarity, never the value. Validation: mean ≈133.8 mg/dL → **6.5%**; steady 130 mg/dL → 6.4%; mixed recent-120/prior-180 → simple-mean 150 → **6.9%** (a recency blend would have under-reported this — now asserted in tests).
+
+**Window — available history, not strict calendar.** The 90-day window is anchored on the most recent AVAILABLE reading rather than `now`, so sync lag no longer shrinks or empties the dataset.
+
+**Confidence — separate from calculation, three tiers (never silently hidden):**
+- **high** — ≥70 readings, ≥14 distinct days, latest ≤7 days old → render normally.
+- **medium** — ≥30 readings, ≥7 distinct days, latest ≤30 days old → render the number with a "recent data" caveat (tooltip: "Based on CGM glucose history — not a lab A1C").
+- **low** — anything less (but some history exists) → render a "Need more glucose data" prompt, never a fabricated number.
+- absent (no glucose history at all) → not rendered.
+
+**Rendering.** Label is now **"Projected A1C (GMI)"** (was "Projected A1C"); hover/tooltip clarifies it is a CGM-based estimate, not a laboratory A1C.
+
+**Files Modified:**
+- `apps/core/ai_state/state_builder.py` — `_project_a1c()` rewritten: simple-mean GMI, available-history window, high/medium/low confidence; new `projected_a1c_mean_glucose` HEALTH_CONTRACT key (transparency); `projected_a1c_confidence` now high|medium|low.
+- `apps/dashboard_v3/services/composer.py` — A1C signal renders at high/medium with caveat, low as a nudge; label "Projected A1C (GMI)"; tooltip clarifies CGM-estimate basis.
+- `apps/dashboard_v3/tests/test_composer.py` — updated label + low/medium tests (nudge-not-number, medium caveat).
+- `apps/core/ai_state/tests_health_contract_glucose_extensions.py` — updated/added engine tests: 133.8→6.5 validation, simple-mean-not-weighted guard, sync-lag→medium, truly-stale→low, mean-glucose transparency.
+
+**Validation:** 132 tests pass (`apps.core.ai_state.tests_health_contract_glucose_extensions` + `apps.dashboard_v3.tests.test_composer`), `manage.py check` clean, `makemigrations --check` clean (contract dict, not a model field).
 
 ## 2026-05-31 — feat(mission): Phase 6 — actionable drivers + Projected A1C engine
 

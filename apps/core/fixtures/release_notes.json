@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 206,
+    "fields": {
+      "title": "Projected A1C is now an industry-standard estimate — and more dependable",
+      "description": "We refined the Projected A1C on your Mission card so it matches the standard method used across continuous glucose monitoring. The number you see is now the recognised GMI (Glucose Management Indicator) estimate calculated straight from the simple average of your glucose readings — the same approach the major CGM systems use — with no extra adjustments quietly changing the figure. It's labelled \"Projected A1C (GMI)\" with a note that it's based on your CGM history, not a laboratory A1C. We also made it more reliable: if your glucose sync is a few days behind, the estimate no longer disappears — it stays visible, with an honest confidence level. When there genuinely isn't enough recent data to be sure, you'll see a gentle prompt to sync more rather than a guessed number. Trend still drives the encouragement: a falling A1C is always framed as the progress it is.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-05-31",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-06-01T02:00:00Z",
+      "updated_at": "2026-06-01T02:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 205,
     "fields": {
       "title": "Your Mission card is now tappable — and quietly tracks your health trajectory",

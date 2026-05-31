@@ -1360,7 +1360,7 @@ class MissionCardTests(TestCase):
             "projected_a1c_confidence": "high",
         })
         status = self._status()
-        helping = [d for d in status["helping"] if d["label"] == "Projected A1C"]
+        helping = [d for d in status["helping"] if d["label"] == "Projected A1C (GMI)"]
         self.assertTrue(helping)
         self.assertEqual(helping[0]["value"], "8.1% ↓")
 
@@ -1372,8 +1372,8 @@ class MissionCardTests(TestCase):
             "projected_a1c_confidence": "high",
         })
         status = self._status()
-        self.assertIn("Projected A1C", [d["label"] for d in status["watching"]])
-        self.assertNotIn("Projected A1C", [d["label"] for d in status["helping"]])
+        self.assertIn("Projected A1C (GMI)", [d["label"] for d in status["watching"]])
+        self.assertNotIn("Projected A1C (GMI)", [d["label"] for d in status["helping"]])
 
     def test_a1c_stable_in_target_is_helping(self):
         # An in-target A1C holding steady is maintenance — genuinely Helping.
@@ -1384,7 +1384,7 @@ class MissionCardTests(TestCase):
             "projected_a1c_confidence": "high",
         })
         status = self._status()
-        self.assertIn("Projected A1C", [d["label"] for d in status["helping"]])
+        self.assertIn("Projected A1C (GMI)", [d["label"] for d in status["helping"]])
 
     def test_a1c_worsening_above_target_needs_attention(self):
         self._goal(title="Drifting up")
@@ -1394,7 +1394,7 @@ class MissionCardTests(TestCase):
             "projected_a1c_confidence": "high",
         })
         status = self._status()
-        self.assertIn("Projected A1C", [d["label"] for d in status["needs"]])
+        self.assertIn("Projected A1C (GMI)", [d["label"] for d in status["needs"]])
 
     def test_a1c_worsening_in_target_is_not_punitive(self):
         # Drifting within a healthy range must NOT be flagged as a failure —
@@ -1406,12 +1406,28 @@ class MissionCardTests(TestCase):
             "projected_a1c_confidence": "high",
         })
         status = self._status()
-        self.assertNotIn("Projected A1C", [d["label"] for d in status["needs"]])
-        self.assertIn("Projected A1C", [d["label"] for d in status["watching"]])
+        self.assertNotIn("Projected A1C (GMI)", [d["label"] for d in status["needs"]])
+        self.assertIn("Projected A1C (GMI)", [d["label"] for d in status["watching"]])
 
-    def test_a1c_hidden_when_confidence_not_high(self):
-        # If the engine could not justify a confident projection, the signal
-        # must be hidden entirely — never faked from sparse data.
+    def test_a1c_medium_confidence_renders_with_caveat(self):
+        # Medium confidence still shows the standard GMI number, but flags the
+        # softer basis ("recent data") rather than hiding the metric.
+        self._goal(title="Recent only")
+        self._seed_state(health={
+            "projected_a1c": 6.5,
+            "projected_a1c_trend": "stable",
+            "projected_a1c_confidence": "medium",
+        })
+        status = self._status()
+        match = [d for col in ("helping", "watching", "needs")
+                 for d in status[col] if d["label"] == "Projected A1C (GMI)"]
+        self.assertTrue(match)
+        self.assertIn("6.5%", match[0]["value"])
+        self.assertIn("recent data", match[0]["value"])
+
+    def test_a1c_low_confidence_renders_nudge_not_number(self):
+        # Low confidence must NOT be silently hidden — it surfaces a prompt for
+        # more sync data, and must never show a fabricated number.
         self._goal(title="Sparse glucose")
         self._seed_state(health={
             "projected_a1c": None,
@@ -1419,9 +1435,11 @@ class MissionCardTests(TestCase):
             "glucose_reading_count_90d": 12,
         })
         status = self._status()
-        labels = [d["label"] for col in ("helping", "watching", "needs")
-                  for d in status[col]]
-        self.assertNotIn("Projected A1C", labels)
+        match = [d for col in ("helping", "watching", "needs")
+                 for d in status[col] if d["label"] == "Projected A1C (GMI)"]
+        self.assertTrue(match)
+        self.assertEqual(match[0]["value"], "Need more glucose data")
+        self.assertNotIn("%", match[0]["value"])
 
     def test_a1c_hidden_when_absent(self):
         self._goal(title="No glucose")
@@ -1429,7 +1447,7 @@ class MissionCardTests(TestCase):
         status = self._status()
         labels = [d["label"] for col in ("helping", "watching", "needs")
                   for d in status[col]]
-        self.assertNotIn("Projected A1C", labels)
+        self.assertNotIn("Projected A1C (GMI)", labels)
 
     # ── Phase 6: Clickable action drivers ────────────────────────────────
 
@@ -1455,7 +1473,7 @@ class MissionCardTests(TestCase):
             "projected_a1c_confidence": "high",
         })
         status = self._status()
-        a1c = next(d for d in status["helping"] if d["label"] == "Projected A1C")
+        a1c = next(d for d in status["helping"] if d["label"] == "Projected A1C (GMI)")
         self.assertEqual(a1c["dest"]["href"], "/health/physical/glucose/")
         self.assertFalse(a1c["dest"]["is_log"])
 

@@ -47,101 +47,107 @@ def _gmi_from_mean_mgdl(mean_mgdl):
 
 
 def _project_a1c(state, user, now):
-    """Compute a deterministic Projected A1C (GMI) from existing glucose
-    history and write it into the health state — but ONLY when the
-    sampling is dense and recent enough to be medically defensible.
+    """Compute a clinically-aligned Projected A1C (GMI) from existing glucose
+    history and write it into the health state.
 
-    Writes (always): glucose_reading_count_90d.
-    Writes (only at high confidence): projected_a1c, projected_a1c_trend,
-    projected_a1c_confidence='high'. When confidence is low, projected_a1c
-    stays None so downstream signals HIDE rather than fake precision.
+    DESIGN (Phase 6.1): calculation and confidence are SEPARATE concerns.
 
-    No new storage: reads apps.health.models.GlucoseEntry exclusively.
-    Recency-weighted mean (recent windows weighted heavier) honours the
-    "prefer recent trend" rule; trend compares recent vs prior windows.
+      • CALCULATION — the displayed number is the published GMI equation
+        (Bergenstal 2018) applied to the SIMPLE mean of every available
+        reading in the window. No weighting, no smoothing, no trend math
+        bleeds into the number. This matches what Dexcom/Libre report.
+
+      • CONFIDENCE — derived from data volume, day coverage, and sync
+        freshness; it never alters the number, only how it is presented.
+        high   → render normally
+        medium → render with a "recent available data" caveat
+        low    → render a "need more glucose sync data" prompt (no number)
+
+      • WINDOW — the 90-day window is anchored on the most recent AVAILABLE
+        reading, NOT on `now`. Dexcom→WLJ sync can lag several days; a strict
+        calendar window would shrink or empty just because the latest days
+        haven't synced. Sync lag lowers confidence; it must not erase the
+        metric.
+
+    Writes (whenever any glucose history exists): glucose_reading_count_90d,
+    projected_a1c_confidence, projected_a1c_mean_glucose. Writes the number
+    and trend only at medium/high confidence. No new storage: reads
+    apps.health.models.GlucoseEntry exclusively.
     """
     try:
-        from django.db.models import Avg, Count
+        from django.db.models import Avg
         from django.db.models.functions import TruncDate
         from apps.health.models import GlucoseEntry
 
-        cutoff_90d = now - timedelta(days=90)
-        cutoff_45d = now - timedelta(days=45)
-        cutoff_30d = now - timedelta(days=30)
-        cutoff_14d = now - timedelta(days=14)
-
-        window = GlucoseEntry.objects.filter(
-            user=user, recorded_at__gte=cutoff_90d
+        # Anchor on the most recent available reading (sync-lag tolerant).
+        latest = (
+            GlucoseEntry.objects.filter(user=user)
+            .order_by("-recorded_at")
+            .values_list("recorded_at", "unit")
+            .first()
         )
-        count_90d = window.count()
-        state["glucose_reading_count_90d"] = count_90d
+        if not latest:
+            return  # no glucose history at all — nothing to render
+        latest_at, latest_unit = latest
+        unit = latest_unit or "mg/dL"
+        to_mgdl = (lambda v: v * 18.0) if unit == "mmol/L" else (lambda v: v)
 
-        # Confidence gate 1 — sampling density. GMI assumes a continuous
-        # glycemic profile; sparse fingersticks bias the mean, so we
-        # require sustained sampling before projecting anything.
-        if count_90d < 70:
+        window_start = latest_at - timedelta(days=90)
+        window = GlucoseEntry.objects.filter(
+            user=user, recorded_at__gte=window_start
+        )
+        count = window.count()
+        state["glucose_reading_count_90d"] = count
+        if count < 1:
             return
 
         distinct_days = (
             window.annotate(d=TruncDate("recorded_at"))
             .values("d").distinct().count()
         )
-        # Confidence gate 2 — coverage across the window (≥14 days).
-        if distinct_days < 14:
+        days_since_last = (now - latest_at).days
+
+        # ── CALCULATION — industry-standard GMI on the simple mean ──────────
+        mean_raw = window.aggregate(avg=Avg("value"))["avg"]
+        if mean_raw is None:
+            return
+        mean_mgdl = to_mgdl(float(mean_raw))
+        gmi = _gmi_from_mean_mgdl(mean_mgdl)
+        state["projected_a1c_mean_glucose"] = round(mean_mgdl, 1)
+
+        # ── CONFIDENCE — separate from the number ───────────────────────────
+        if count >= 70 and distinct_days >= 14 and days_since_last <= 7:
+            confidence = "high"
+        elif count >= 30 and distinct_days >= 7 and days_since_last <= 30:
+            confidence = "medium"
+        else:
+            confidence = "low"
+        state["projected_a1c_confidence"] = confidence
+
+        if confidence == "low":
+            # Not enough data to publish a defensible number. Surface the
+            # confidence so the card can prompt for more sync, but never
+            # show a number that could be misread as clinical truth.
             return
 
-        latest = (
-            window.order_by("-recorded_at")
-            .values_list("recorded_at", "unit")
-            .first()
-        )
-        if not latest:
-            return
-        # Confidence gate 3 — recency. Stale data cannot describe the
-        # current trajectory.
-        days_since_last = (now - latest[0]).days
-        if days_since_last > 7:
-            return
-
-        unit = latest[1] or "mg/dL"
-        to_mgdl = (lambda v: v * 18.0) if unit == "mmol/L" else (lambda v: v)
-
-        def _avg(qs):
-            v = qs.aggregate(avg=Avg("value"))["avg"]
-            return None if v is None else to_mgdl(float(v))
-
-        avg_14 = _avg(window.filter(recorded_at__gte=cutoff_14d))
-        avg_30 = _avg(window.filter(recorded_at__gte=cutoff_30d))
-        avg_90 = _avg(window)
-        if avg_90 is None:
-            return
-
-        # Recency-weighted mean (favours the most recent trend, but the
-        # full 90d still anchors the projection). Missing inner windows
-        # gracefully fall back to the broader average.
-        a14 = avg_14 if avg_14 is not None else avg_30 if avg_30 is not None else avg_90
-        a30 = avg_30 if avg_30 is not None else avg_90
-        weighted_mean = (a14 * 0.5) + (a30 * 0.3) + (avg_90 * 0.2)
-        projected = _gmi_from_mean_mgdl(weighted_mean)
-
-        # Trend — recent half (0–45d) vs prior half (45–90d). Trend
-        # matters more than the absolute number: a falling A1C should
-        # read as encouraging even while still elevated.
-        recent_avg = _avg(window.filter(recorded_at__gte=cutoff_45d))
-        prior_avg = _avg(window.filter(recorded_at__lt=cutoff_45d))
+        # ── TREND — fully separate from the displayed number ────────────────
+        # Recent half vs prior half of the available window, each as GMI.
+        # Trend drives narrative/polarity only; the number above is untouched.
+        mid = latest_at - timedelta(days=45)
+        recent_raw = window.filter(recorded_at__gte=mid).aggregate(avg=Avg("value"))["avg"]
+        prior_raw = window.filter(recorded_at__lt=mid).aggregate(avg=Avg("value"))["avg"]
         trend = "stable"
-        if recent_avg is not None and prior_avg is not None:
-            recent_gmi = _gmi_from_mean_mgdl(recent_avg)
-            prior_gmi = _gmi_from_mean_mgdl(prior_avg)
+        if recent_raw is not None and prior_raw is not None:
+            recent_gmi = _gmi_from_mean_mgdl(to_mgdl(float(recent_raw)))
+            prior_gmi = _gmi_from_mean_mgdl(to_mgdl(float(prior_raw)))
             delta = recent_gmi - prior_gmi
             if delta <= -0.2:
                 trend = "improving"
             elif delta >= 0.2:
                 trend = "worsening"
 
-        state["projected_a1c"] = projected
+        state["projected_a1c"] = gmi
         state["projected_a1c_trend"] = trend
-        state["projected_a1c_confidence"] = "high"
     except Exception:
         logger.error("SAE: projected A1C build failed", exc_info=True)
 
@@ -215,14 +221,16 @@ HEALTH_CONTRACT = {
     'time_in_range_pct_7d':      None,
     'time_in_range_pct_30d':     None,
     'overnight_avg_glucose':     None,
-    # Projected A1C (Phase 6 · Metabolic trajectory) — deterministic
-    # GMI / estimated-A1C derived from existing CGM/glucose history.
-    # Computed nightly here, read-only on the request path. Confidence
-    # gating means projected_a1c stays None unless sampling is dense and
-    # recent enough to be medically defensible (no sparse-manual estimates).
-    'projected_a1c':             None,
+    # Projected A1C (Phase 6.1 · Metabolic trajectory) — industry-standard
+    # GMI (Bergenstal 2018) computed on the SIMPLE mean of available CGM/
+    # glucose history. Calculation and confidence are deliberately SEPARATE:
+    # the displayed number is never blended or trend-adjusted, only the
+    # confidence label and trend narrative vary with data density/freshness.
+    # Computed nightly here, read-only on the request path.
+    'projected_a1c':             None,   # GMI % — None at low/insufficient data
     'projected_a1c_trend':       None,   # 'improving' | 'stable' | 'worsening'
-    'projected_a1c_confidence':  None,   # 'high' | 'low'
+    'projected_a1c_confidence':  None,   # 'high' | 'medium' | 'low'
+    'projected_a1c_mean_glucose': None,  # mean mg/dL behind the GMI (transparency)
     'glucose_reading_count_90d': None,
     # ── Steps ─────────────────────────────────────────────────
     'steps_status':              'no_data',

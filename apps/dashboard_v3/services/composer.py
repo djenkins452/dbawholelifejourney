@@ -167,7 +167,7 @@ _DRIVER_DEST = {
     "sleep":     ("health:sleep_list",        "Open your sleep insights",   False),
     "journal":   ("journal:home",             "Open your journal",          True),
     "nutrition": ("meals:dashboard",          "Open nutrition",             True),
-    "a1c":       ("health:glucose_dashboard", "Open your glucose insights", False),
+    "a1c":       ("health:glucose_dashboard", "Based on CGM glucose history — not a lab A1C. Open glucose insights", False),
 }
 
 
@@ -791,15 +791,20 @@ def _evaluate_mission_signals(states: dict, phase: str = "foundation") -> list[d
     if movement is not None:
         signals.append(movement)
 
-    # Projected A1C (Phase 6) — metabolic trajectory. Read-only: the value and
-    # its confidence are pre-computed in the nightly health state builder, never
-    # here. It is emitted ONLY at high confidence (the builder leaves
-    # projected_a1c None when sampling is sparse), so we never fake precision.
-    # Trend drives the polarity — a falling A1C reads as encouraging even while
+    # Projected A1C / GMI (Phase 6.1) — metabolic trajectory. Read-only: the
+    # number, confidence, and trend are pre-computed in the nightly health
+    # state builder, never here. The displayed number is the standard GMI
+    # equation on the simple mean (the builder never blends or trend-adjusts
+    # it). Confidence governs presentation, not the value:
+    #   high/medium → show the number; medium carries a softer caveat via the
+    #                 tooltip ("recent available data").
+    #   low         → show a "need more glucose data" nudge, never a number.
+    # Trend drives polarity — a falling A1C reads as encouraging even while
     # still elevated — with the ADA target band (≤7.0%) guarding against a
     # punitive "needs" on someone already in healthy control.
     a1c = health.get("projected_a1c")
-    if a1c is not None and health.get("projected_a1c_confidence") == "high":
+    a1c_conf = health.get("projected_a1c_confidence")
+    if a1c is not None and a1c_conf in ("high", "medium"):
         a1c_trend = health.get("projected_a1c_trend") or "stable"
         if a1c_trend == "improving":
             polarity = "helping"
@@ -810,7 +815,12 @@ def _evaluate_mission_signals(states: dict, phase: str = "foundation") -> list[d
         else:  # stable
             polarity = "helping" if a1c <= 7.0 else "neutral"
             arrow = "→"
-        emit("a1c", "Projected A1C", f"{a1c}% {arrow}", polarity)
+        caveat = " · recent data" if a1c_conf == "medium" else ""
+        emit("a1c", "Projected A1C (GMI)", f"{a1c}% {arrow}{caveat}", polarity)
+    elif a1c_conf == "low":
+        # Some glucose history exists but it is too sparse/stale to publish a
+        # defensible number — surface the gap rather than hide the metric.
+        emit("a1c", "Projected A1C (GMI)", "Need more glucose data", "neutral")
 
     # Sleep — recovery lever.
     sleep = health.get("sleep_avg_hours_7d")

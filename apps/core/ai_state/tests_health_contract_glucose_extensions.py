@@ -211,12 +211,14 @@ class BuildHealthStateGlucoseExtensionsTests(TestCase):
 
 
 class ProjectedA1CEngineTests(TestCase):
-    """Deterministic GMI/eA1C from existing glucose history, confidence-gated.
+    """Industry-standard GMI/eA1C from existing glucose history (Phase 6.1).
 
-    GMI(%) = 3.31 + 0.02392 × mean glucose(mg/dL). The projection is only
-    written at high confidence (dense, recent sampling); sparse manual logs
-    must leave projected_a1c None so the mission signal HIDES rather than
-    fabricating precision.
+    GMI(%) = 3.31 + 0.02392 × mean glucose(mg/dL), computed on the SIMPLE mean
+    of available readings — never blended or trend-adjusted. Calculation and
+    confidence are separate: the number is published whenever there is enough
+    data (high/medium confidence); only truly insufficient data leaves the
+    number None and a 'low' confidence prompt. Sync lag lowers confidence, it
+    does not erase the metric.
     """
 
     @classmethod
@@ -239,7 +241,8 @@ class ProjectedA1CEngineTests(TestCase):
     def test_new_keys_exist_and_default_none(self):
         for key in (
             "projected_a1c", "projected_a1c_trend",
-            "projected_a1c_confidence", "glucose_reading_count_90d",
+            "projected_a1c_confidence", "projected_a1c_mean_glucose",
+            "glucose_reading_count_90d",
         ):
             self.assertIn(key, HEALTH_CONTRACT)
             self.assertIsNone(HEALTH_CONTRACT[key])
@@ -253,18 +256,50 @@ class ProjectedA1CEngineTests(TestCase):
         self.assertAlmostEqual(state["projected_a1c"], 6.4, delta=0.1)
         self.assertEqual(state["projected_a1c_trend"], "stable")
         self.assertGreaterEqual(state["glucose_reading_count_90d"], 90)
+        # Mean glucose is surfaced for transparency / validation.
+        self.assertAlmostEqual(state["projected_a1c_mean_glucose"], 130, delta=1)
 
-    def test_sparse_data_hidden_low_confidence(self):
-        # Only a handful of manual logs → cannot justify a projection.
+    def test_validation_mean_133_8_gives_gmi_6_5(self):
+        # Real-world validation: mean ≈133.8 mg/dL → GMI ≈6.5% (Dexcom-style).
+        self._seed_readings(count=90, value="133.8", days_span=30)
+        state = build_health_state(self.user)
+        self.assertEqual(state["projected_a1c"], 6.5)
+
+    def test_displayed_number_is_simple_mean_not_recency_weighted(self):
+        # Truthfulness guard: the published GMI must be the SIMPLE mean of all
+        # readings, never weighted toward the recent window. Recent=120,
+        # prior=180 → simple mean 150 → GMI 6.9. A recency-weighted blend would
+        # pull the number well below this; assert it does not.
+        from apps.health.models import GlucoseEntry
+        now = datetime.now(timezone.utc)
+        for i in range(50):
+            GlucoseEntry.objects.create(
+                user=self.user, value=Decimal("180"), unit="mg/dL",
+                recorded_at=now - timedelta(days=46 + i * 0.8),
+            )
+        for i in range(50):
+            GlucoseEntry.objects.create(
+                user=self.user, value=Decimal("120"), unit="mg/dL",
+                recorded_at=now - timedelta(days=i * 0.8),
+            )
+        state = build_health_state(self.user)
+        # GMI(150) = 3.31 + 0.02392*150 = 6.898 ≈ 6.9.
+        self.assertAlmostEqual(state["projected_a1c"], 6.9, delta=0.1)
+
+    def test_sparse_data_low_confidence_no_number(self):
+        # Only a handful of manual logs → too sparse to publish a number, but
+        # the confidence is surfaced (low) rather than the metric vanishing.
         self._seed_readings(count=10, value=140, days_span=80)
         state = build_health_state(self.user)
         self.assertIsNone(state["projected_a1c"])
-        self.assertNotEqual(state["projected_a1c_confidence"], "high")
+        self.assertEqual(state["projected_a1c_confidence"], "low")
         # The raw count is still surfaced for transparency/confidence.
         self.assertEqual(state["glucose_reading_count_90d"], 10)
 
-    def test_stale_data_hidden_even_if_dense(self):
-        # Dense history, but nothing in the last week → not a current trajectory.
+    def test_sync_lag_keeps_metric_at_medium_confidence(self):
+        # Dense history whose latest reading is ~20 days old (Dexcom sync lag).
+        # A strict calendar window would erase the metric; the available-history
+        # window keeps it, at MEDIUM confidence with a real number.
         from apps.health.models import GlucoseEntry
         now = datetime.now(timezone.utc)
         for i in range(90):
@@ -273,6 +308,21 @@ class ProjectedA1CEngineTests(TestCase):
                 recorded_at=now - timedelta(days=20 + i * 0.5),
             )
         state = build_health_state(self.user)
+        self.assertEqual(state["projected_a1c_confidence"], "medium")
+        self.assertAlmostEqual(state["projected_a1c"], 6.4, delta=0.1)
+
+    def test_truly_stale_data_drops_to_low_confidence(self):
+        # Latest reading >30 days old → no longer a current trajectory → low,
+        # number withheld.
+        from apps.health.models import GlucoseEntry
+        now = datetime.now(timezone.utc)
+        for i in range(90):
+            GlucoseEntry.objects.create(
+                user=self.user, value=Decimal("130"), unit="mg/dL",
+                recorded_at=now - timedelta(days=45 + i * 0.5),
+            )
+        state = build_health_state(self.user)
+        self.assertEqual(state["projected_a1c_confidence"], "low")
         self.assertIsNone(state["projected_a1c"])
 
     def test_improving_trend_detected(self):

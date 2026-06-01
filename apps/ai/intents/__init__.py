@@ -100,6 +100,7 @@ INTENT_HANDLERS = {
     'create_routine_task': 'life',
     'complete_task': 'life',
     'skip_task': 'life',
+    'skip_routine': 'life',
     'read_task': 'life',
     'mutate_task': 'life',
     'create_event': 'life',

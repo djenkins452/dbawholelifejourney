@@ -592,6 +592,16 @@ The following phrases are SAME-DAY DEFERS — the user still intends today, just
 - "I'll shower after chores" / "I'll get to it" / "I can still do it"
 Treat these as conversational acknowledgements only. NO schedule write. NO action card.
 
+ROUTINE SKIP (skip_routine) — use when the user intentionally is NOT doing a recurring ROUTINE item today at all (giving up on it for today, not just deferring it to later today):
+- "skip shower today" → skip_routine(item_keyword="shower")
+- "I'm not showering today" → skip_routine(item_keyword="shower")
+- "not taking a shower tonight, starting fresh tomorrow" → skip_routine(item_keyword="shower")
+- "not doing journal tonight" → skip_routine(item_keyword="journal")
+- "skipping prayer tonight" → skip_routine(item_keyword="prayer")
+- "I'm not going to do my workout today, not feeling well" → skip_routine(item_keyword="workout", reason="not feeling well")
+SKIP vs DEFER boundary: skip_routine = the user will NOT do it today (it should disappear from today's reminders and return tomorrow). A same-day DEFER ("I'll do it later", "after dinner", "I'll shower after chores") means they STILL intend to do it today — for defers, do NOT call any tool (see the defer rules above).
+This is for ROUTINE ITEMS only (recurring daily habits). For one-off tasks use skip_task. Skipping is NOT completing — never imply the item was done.
+
 TASK UPDATES (mutate_task) — use for ANY task mutation verb:
 When the user says move, reschedule, push, postpone, change, rename, update, or delete referring to a task, call mutate_task DIRECTLY. Do NOT use read_task for these.
 - "move those two tasks to tomorrow" → mutate_task(action="update", task_query="office", new_due_date="tomorrow", apply_to_all=true)
@@ -1520,6 +1530,9 @@ the Medications page), honor the explicit domain.
 
             elif intent_type == 'skip_task':
                 return handler.handle_skip_task(**parameters)
+
+            elif intent_type == 'skip_routine':
+                return handler.handle_skip_routine(**parameters)
 
             elif intent_type == 'read_task':
                 return handler.handle_read_task(**parameters)

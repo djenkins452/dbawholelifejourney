@@ -1079,6 +1079,8 @@ class Command(BaseCommand):
         self._reset_mission_a1c_truth_release_notes(DataLoadConfig, force, verbosity)
         # Phase 6.5 — manual-entry signal freshness (journal + nutrition) release note (PK 209)
         self._reset_mission_signal_freshness_release_notes(DataLoadConfig, force, verbosity)
+        # Natural-language routine skip + check-in honoring (PK 210)
+        self._reset_nl_routine_skip_release_notes(DataLoadConfig, force, verbosity)
 
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
@@ -7265,6 +7267,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Mission signal freshness release notes FAILED: {e}'))
+
+    def _reset_nl_routine_skip_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes after adding PK 210 (natural-
+        language routine skip in chat + Today Engine honoring skip status so
+        skipped routines drop out of check-ins).
+        """
+        reset_tracker_name = 'reset_nl_routine_skip_2026_05_31'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for NL routine skip (PK 210)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for NL routine skip',
+                'command',
+                'One-time reset: added PK 210 for natural-language routine skip + check-in honoring'
+            )
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset NL routine skip release notes FAILED: {e}'))
 
     def _reset_action_center_vocabulary_release_notes(self, DataLoadConfig, force=False, verbosity=1):
         """

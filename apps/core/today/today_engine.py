@@ -197,6 +197,14 @@ def _collect_routine_items(truth: dict, user_now) -> list:
             if not name:
                 continue
 
+            # Intentionally skipped routines are resolved for the day — they
+            # are neither actionable nor completed. Drop them so they never
+            # surface in overdue/coming_up/later (or inflate the day's total).
+            # Completion truth/streaks read RoutineLog directly, so this does
+            # not affect adherence. See trust investigation 2026-05-31.
+            if (item.get("status") or "").lower() == "skipped":
+                continue
+
             time_str = item.get("scheduled_time")
             sched = None
             if time_str:

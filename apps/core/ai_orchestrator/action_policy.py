@@ -201,6 +201,8 @@ _r('complete_task', ActionCategory.MUTATE, RiskLevel.MEDIUM, AuthorityLevel.CONF
    label='Complete task')
 _r('skip_task', ActionCategory.MUTATE, RiskLevel.MEDIUM, AuthorityLevel.CONFIRM,
    label='Skip task')
+_r('skip_routine', ActionCategory.MUTATE, RiskLevel.MEDIUM, AuthorityLevel.CONFIRM,
+   label='Skip routine item')
 _r('mark_prayer_answered', ActionCategory.MUTATE, RiskLevel.MEDIUM, AuthorityLevel.CONFIRM,
    label='Mark prayer answered')
 _r('update_goal_progress', ActionCategory.MUTATE, RiskLevel.MEDIUM, AuthorityLevel.CONFIRM,

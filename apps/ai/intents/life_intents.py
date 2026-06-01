@@ -417,4 +417,34 @@ LIFE_INTENT_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "skip_routine",
+            "description": (
+                "Skip a routine item for today (intentionally not doing it). "
+                "Use when the user says they are skipping, passing on, or not "
+                "doing a recurring routine item today/tonight — e.g. shower, "
+                "journal, prayer, quiet time, stretching. This is for ROUTINE "
+                "items, NOT one-off tasks (use skip_task for tasks). Skipping "
+                "is NOT completing. The routine returns normally tomorrow. "
+                "Examples: 'skip shower today', \"I'm not showering today\", "
+                "'not doing journal tonight', 'skipping prayer tonight'."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "item_keyword": {
+                        "type": "string",
+                        "description": "Keywords identifying the routine item to skip (e.g., 'shower', 'journal', 'prayer', 'quiet time')",
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Optional reason the user gave for skipping",
+                    },
+                },
+                "required": ["item_keyword"],
+            },
+        },
+    },
 ]

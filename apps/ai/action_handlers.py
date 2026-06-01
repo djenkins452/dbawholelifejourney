@@ -5209,6 +5209,116 @@ class ActionHandler:
                 action_type='reschedule_routine_item',
             )
 
+    def handle_skip_routine(self, item_keyword: str, reason: str = "",
+                            **kwargs) -> ActionResult:
+        """
+        Skip a routine item for today via the existing deterministic skip path.
+
+        Exposes routine_helpers.skip_routine() — which writes a
+        RoutineLog(log_status='skipped') — to natural language. Confirmation
+        is returned ONLY after the mutation succeeds; resolution failures
+        return honest errors (never a fake acknowledgment).
+        """
+        from apps.life.models import RoutineSchedule
+        from apps.life.services.routine_helpers import skip_routine
+
+        try:
+            today = self._get_user_today()
+
+            keyword_lower = (item_keyword or "").lower().strip()
+            if not keyword_lower:
+                return ActionResult(
+                    success=False,
+                    message="Which routine would you like me to skip for today?",
+                    error='item_not_found',
+                    action_type='skip_routine',
+                )
+
+            active_schedules = RoutineSchedule.objects.filter(
+                routine__user=self.user,
+                routine__is_active=True,
+                is_active=True,
+            ).select_related('routine')
+
+            weekday = today.weekday()
+            matches = []
+            for sched in active_schedules:
+                if sched.specific_date:
+                    if sched.specific_date != today:
+                        continue
+                elif not sched.applies_to_day(weekday):
+                    continue
+                if keyword_lower in sched.name.lower():
+                    matches.append(sched)
+
+            if not matches:
+                return ActionResult(
+                    success=False,
+                    message=f"I couldn't find a routine item matching '{item_keyword}' for today.",
+                    error='item_not_found',
+                    action_type='skip_routine',
+                )
+
+            if len(matches) > 1:
+                titles = "\n".join(f"• {s.name}" for s in matches[:5])
+                return ActionResult(
+                    success=False,
+                    message=(
+                        f"I found {len(matches)} routine items matching "
+                        f"'{item_keyword}':\n{titles}\nWhich one should I skip?"
+                    ),
+                    error='multiple_matches',
+                    action_type='skip_routine',
+                    created_object={'candidates': [
+                        {'schedule_id': s.id, 'name': s.name} for s in matches[:5]
+                    ]},
+                )
+
+            match = matches[0]
+            skip_routine(self.user, match, today)
+
+            # Invalidate CoS and execution truth caches so the Today Engine
+            # and check-ins reflect the skip immediately.
+            try:
+                from apps.ai.readiness_cache import invalidate_cos_context_on_action
+                invalidate_cos_context_on_action(self.user)
+            except Exception:
+                pass
+            try:
+                from apps.core.events.domain_events import (
+                    safe_emit_event, EventTypes,
+                )
+                safe_emit_event(EventTypes.TASK_UPDATED, self.user, {
+                    "source": "skip_routine",
+                    "schedule_id": match.id,
+                })
+            except Exception:
+                pass
+
+            return ActionResult(
+                success=True,
+                message=(
+                    f"Got it — I'll skip {match.name} for today and "
+                    f"start fresh tomorrow."
+                ),
+                created_object={
+                    'model': 'RoutineLog',
+                    'schedule_id': match.id,
+                    'item_name': match.name,
+                    'completion_status': 'skipped',
+                },
+                action_type='skip_routine',
+            )
+
+        except Exception as e:
+            logger.error("Error skipping routine item: %s", e, exc_info=True)
+            return ActionResult(
+                success=False,
+                message="I wasn't able to skip that routine item.",
+                error='internal_error',
+                action_type='skip_routine',
+            )
+
     # =========================================================================
     # FITNESS HANDLERS
     # =========================================================================

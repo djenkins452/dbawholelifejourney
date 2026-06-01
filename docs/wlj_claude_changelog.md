@@ -3,8 +3,41 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-31 (fix: Phase 6.5 hotfix — Primary Mission card regression + resilience)
+# Last Updated: 2026-05-31 (fix: natural-language routine skip + honor skips in check-ins)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-31 — fix(cos): Natural-language routine skip + honor skips in check-ins (shower trust failure)
+
+**The trust failure.** User told the assistant "I am not taking a shower today. Will start fresh tomorrow." The assistant verbally acknowledged ("I'll make sure not to include the shower in upcoming reminders") — but the shower kept reappearing in every subsequent "check in" response. The assistant implied a system action that never occurred.
+
+**Root cause (proven, not guessed) — two independent defects:**
+- **#1 No NL path to skip a routine.** `skip_task` is Task-only. The deterministic `skip_routine()` helper (`apps/life/services/routine_helpers.py`) existed but was button-only — it requires a resolved `RoutineSchedule`/`schedule_id` and had no chat intent wired to it. So the LLM had no tool to call and improvised an acknowledgment with ZERO state mutation (no `RoutineLog` written).
+- **#2 Check-ins ignored skip status.** `apps/core/today/today_engine.py::_collect_routine_items` never inspected `RoutineLog.log_status`, so even a *button*-skipped routine (`status='skipped'`) still surfaced in overdue/coming_up/later and inflated the day's total.
+
+**Fix #1 — new `skip_routine` CoS intent (registered across all 8 points):**
+1. Tool def — `apps/ai/intents/life_intents.py`
+2. Handler map — `apps/ai/intents/__init__.py` (`INTENT_HANDLERS`)
+3. Engine category — `apps/core/ai_orchestrator/intent_engine.py` (`LIFE_INTENTS`)
+4. Dispatcher — `apps/ai/intent_service.py::execute_intent` (elif branch)
+5. Action policy — `apps/core/ai_orchestrator/action_policy.py` (MUTATE / MEDIUM / CONFIRM) — *gate test caught this as missing*
+6. System prompt — `apps/ai/intent_service.py::_build_intent_system_prompt` (examples + explicit SKIP-vs-DEFER boundary)
+7. `NON_TIME_INTENTS` — `apps/ai/tests/test_intent_registration.py`
+8. Handler — `apps/ai/action_handlers.py::handle_skip_routine`
+
+The handler resolves today's matching `RoutineSchedule` (mirrors `reschedule_routine_item`'s applies_to_day/specific_date logic), returns honest `item_not_found` / `multiple_matches` when it can't, calls the EXISTING `skip_routine()` helper, invalidates the CoS cache + emits `TASK_UPDATED`. **Confirmation is returned ONLY after the mutation persists** — capability honesty: never "I'll skip it" without a real skipped `RoutineLog`.
+
+**Fix #2 — honor skips in check-ins.** `_collect_routine_items` now drops items whose `status == 'skipped'` so they never appear in overdue/coming_up/later or inflate the day's total. Completion truth and streaks read `RoutineLog` directly, so adherence is unaffected (skipped is NOT marked completed — Visual Truth Contract preserved).
+
+**Blast radius (verified before implementing).** Streaks / health / drift / compliance read `RoutineLog` directly, not today_engine buckets; `morning_reconciliation` already counts skipped as resolved; recurrence is task-only; next-day reset is natural (RoutineLog is per `scheduled_date`); no external consumer reads `ctx["all_items"]`. Safe.
+
+**Files Modified:** `apps/core/today/today_engine.py`, `apps/ai/intents/life_intents.py`, `apps/ai/intents/__init__.py`, `apps/core/ai_orchestrator/intent_engine.py`, `apps/ai/intent_service.py`, `apps/core/ai_orchestrator/action_policy.py`, `apps/ai/tests/test_intent_registration.py`, `apps/ai/action_handlers.py`, `apps/core/fixtures/release_notes.json`, `apps/core/management/commands/load_initial_data.py`, `docs/ENGINE_COS_REFERENCE.md`.
+
+**Files Created:** `apps/ai/tests/test_skip_routine.py` (8 regression tests).
+
+**Verification.** 8 new tests pass; 78 tests across today_engine + same_day_defer + routine_move + intent_registration pass. `makemigrations --check` = "No changes detected" (no model changes → no migration). `manage.py check` clean (only pre-existing djstripe warnings). **Unexpected finding:** an initial test used `date.today()` (server UTC) where the engine uses `get_user_today(user)` (Chicago tz) — a test-authoring bug, not a code bug; the production button path already uses `get_user_today` correctly. Fixed the test.
+
+**Why.** Closes a P1 trust failure: the assistant must never imply a system action occurred when it did not. The user now has a real deterministic way to skip a routine by voice, and a skipped routine actually disappears from check-ins and returns fresh tomorrow.
 
 
 ## 2026-05-31 — fix(dashboard_v3): Phase 6.5 hotfix — Primary Mission card disappeared; make card resilient to optional-signal failures

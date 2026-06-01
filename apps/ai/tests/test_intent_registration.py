@@ -137,6 +137,7 @@ NON_TIME_INTENTS = {
     'read_task',               # Read-only query, no recorded_at
     'read_calendar_events',    # Read-only query, no recorded_at
     'skip_task',               # Skips a task, no date/time component
+    'skip_routine',            # Skips today's routine item, "today" implicit — no date/time param
     'mutate_task',             # Uses new_due_date/new_scheduled_time, not recorded_at
     'mutate_calendar_event',   # Uses start_date/start_time, not recorded_at
     'add_reminder',            # Reminders have a trigger time, not recorded_at

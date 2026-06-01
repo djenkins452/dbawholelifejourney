@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 210,
+    "fields": {
+      "title": "Tell your Chief of Staff you're skipping a routine — and it actually sticks",
+      "description": "You can now skip a routine item for the day just by saying so in chat. Tell your Chief of Staff \"I'm not showering today\", \"skip journal tonight\", or \"not doing my stretches today, starting fresh tomorrow\" and it will mark that routine as skipped for today — a real change, not just a polite reply. The skipped item immediately drops out of your check-ins, so when you ask for a check-in it won't keep listing something you've already decided not to do. It's only for today: the routine returns as normal tomorrow. Skipping is never treated as completing, and if your assistant can't find the routine you mentioned, it tells you honestly instead of pretending it did something.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-05-31",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-06-01T05:00:00Z",
+      "updated_at": "2026-06-01T05:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 207,
     "fields": {
       "title": "Your Projected A1C (GMI) now always tells you where it stands",

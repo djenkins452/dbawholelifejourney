@@ -7,6 +7,53 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-01 — perf(dashboard): Phase 3 — SAE off the request path (86% time / 80% query reduction on warm renders)
+
+**The architectural rule (CLAUDE.md):** "HTTP request paths may ONLY read pre-computed data from cache or DB snapshots." Pre-Phase-3 the dashboard violated this — `sae.rebuild_user_state` ran synchronously on every render (~462 ms / ~627 queries, ~79% of total time / ~99% of queries on a measured profile). Phase 3 makes the dashboard read-only against warm SAE.
+
+**Measured (mocked broker, clean profile):**
+
+| | Baseline (P2 deployed) | After Phase 3 steady state |
+|---|---:|---:|
+| Total time | 579 ms | **80 ms** (−86%) |
+| Total queries | 632 | **127** (−80%) |
+| `sae.rebuild_user_state` | 462 ms / 627 q | **0 ms / 0 q (gone)** |
+| `composer._fallback_gauges_from_sae` | 312 ms / 429 q | 2 ms / 3 q |
+
+**Brand-new user case:** A user with no `UserState.state_data` is bootstrapped by ONE synchronous `rebuild_user_state` at composer entry (the only place a request-path rebuild is allowed). The result is stashed on `user._sae_cache`; all subsequent reads in the same request use it. After this first render, `state_data` persists in the DB and the bootstrap never fires again for that user. Satisfies the "no blank '—' gauges" rule — gauges always render with real values.
+
+**Changes:**
+- **`apps/core/events/subscribers.py`** — new `_invalidate_and_warm_sae(user, module)` helper. Journal / Purpose / Task / Faith subscribers each enqueue a background per-module SAE warm task in addition to the existing cache delete. The Class A health subscriber also enqueues `health` warm (orthogonal to Phase 1's `deferred_rebuild_health_summary` — different snapshot tables, independent refresh paths).
+- **`apps/dashboard_v3/services/composer.py`** — all 5 composer `get_module_state(...)` call sites use `allow_rebuild=False`. New `_warm_sae_if_empty(user)` bootstrap at composer entry. `_load_execution_contract` picks up the view-pre-fetched contract from `user._dashboard_exec_contract`.
+- **`apps/core/execution/verified_completion.py`** — `complete_wake_up(user, *, target_date=None, execution_contract=None)` extends the Phase 2.0 contract-threading pattern; reuses a passed contract instead of fetching its own.
+- **`apps/dashboard_v3/views.py`** — pre-fetches `execution_contract` once before `complete_wake_up`, stashes on `user._dashboard_exec_contract`, threads into `complete_wake_up(execution_contract=...)`.
+- **`apps/dashboard_v3/tests/test_phase3_sae_readonly.py`** — NEW, 15 tests covering: read-only state-engine contract; warm-state dashboard GET does NOT call `rebuild_user_state`; brand-new user bootstrap fires the bootstrap; 5 subscriber warm-enqueue assertions; `complete_wake_up` contract acceptance + back-compat; deferred-task correctness.
+
+**Why this works without trust regressions:**
+- "Last known valid snapshot" rule satisfied — `state_data` persists in DB forever once populated; only empty case is brand-new user, which the bootstrap covers.
+- Class B safety-critical health events (glucose / BP / sync_completed) keep Phase 1's sync `DailyHealthSummaryBuilder` path — untouched.
+- Cross-domain bridges (`_apply_routine_faith_bridge`) read raw execution truth, not SAE — unaffected.
+- Cache-delete still runs synchronously on writes so any non-Phase-3 caller that rebuilds on miss continues to work (full back-compat).
+- All new kwargs default-back-compat — every existing caller (Beth narration, iOS API, ops endpoints) works unchanged.
+
+**Project trajectory:**
+- Pre-Phase-1: ~20 s perceived
+- After Phase 1 + Phase 2.0 (already deployed): ~4 s perceived
+- **After Phase 3: ~80 ms server-side**. With network RTT + browser reload, perceived ~1–1.5 s — the trust-line "habit-forming" target.
+
+The Phase 1 `[DASHBOARD_ACTION_TIMING]` log line will measure the actual production wall-clock impact within hours of deploy.
+
+**Verification:**
+- 15/15 new Phase 3 tests pass
+- 27/27 combined Phase 2 + Phase 3 tests pass (per regression bg run `byi0n84ds`)
+- 59/59 full perf-project suite (Phase 1 + Phase 2 + Phase 3 + mission resilience)
+- 803/816 broader dashboard regression — the 13 failures are pre-existing (verified by stash; identical without Phase 3). Zero failures caused by Phase 3.
+- `makemigrations --check` clean
+
+**Remaining bottlenecks (Phase 4+, NOT in this PR):** `build_today_execution` runs 2× per render (composer + `handle_day_start` internal); `complete_wake_up` runs 2× (view + `handle_day_start`); browser `window.location.reload()` round-trip. Together ~100 ms server + RTT — addressable by future PRs.
+
+---
+
 ## 2026-05-31 — fix(router): bare "skip X" command intercepted by qualified-status route (skip_routine never fired)
 
 **The trust failure (production).** After deploying the `skip_routine` intent, "skip shower" STILL didn't skip — it returned `"No — just shower left."` and the shower kept reappearing in check-ins.

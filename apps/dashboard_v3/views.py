@@ -44,9 +44,22 @@ class DashboardV3View(HelpContextMixin, LoginRequiredMixin, TemplateView):
         # (first-write-wins) and completes whatever the dashboard actually
         # shows as the Wake Up item, so this is the authoritative trigger
         # for the surface the user is looking at.
+        # Phase 2/3 — fetch the execution contract ONCE up front; thread it
+        # to complete_wake_up + the composer. Eliminates 2 of the 5 redundant
+        # build_today_execution calls on the render path.
+        _exec_contract = None
+        try:
+            from apps.core.execution.today_execution import build_today_execution
+            _exec_contract = build_today_execution(self.request.user)
+            # Stash on the user so the composer's _load_execution_contract
+            # picks it up without an explicit kwarg chain.
+            self.request.user._dashboard_exec_contract = _exec_contract
+        except Exception:
+            logger.debug("v3: pre-fetch execution_contract failed", exc_info=True)
+
         try:
             from apps.core.execution.verified_completion import complete_wake_up
-            complete_wake_up(self.request.user)
+            complete_wake_up(self.request.user, execution_contract=_exec_contract)
         except Exception:
             logger.debug("v3: wake-up completion skipped", exc_info=True)
 

@@ -71,6 +71,18 @@ def build_dashboard_v3_context(user) -> dict[str, Any]:
     ``cockpit_data`` kwargs. No cache, no hidden state — pure
     intra-request deduplication.
     """
+    # ── Phase 3: bootstrap SAE for brand-new users (one-shot). ──
+    # Downstream gauge readers use allow_rebuild=False (Phase 3 read-
+    # only contract). If state_data is entirely empty (a brand-new
+    # user) those reads would return {} and the gauges would render
+    # as "—". To honor the "no blank gauges" rule we do ONE sync
+    # rebuild here for that case only and stash on user._sae_cache so
+    # every subsequent get_module_state() in the same request reuses
+    # it. After this first render, write-time subscribers keep
+    # state_data warm — so the bootstrap path never fires again for
+    # the same user.
+    _safe(_warm_sae_if_empty, user, default=None)
+
     # ── Phase 2: fetch the two deterministic hot inputs once. ──
     # Any failure here is non-fatal; downstream builders fall back to
     # fetching their own copy (preserves Phase 1 behavior + back-compat).
@@ -644,10 +656,14 @@ def _read_mission_states(user) -> dict:
         )
 
     # Each read is independently guarded so one module's failure can't
-    # lose the others.
+    # lose the others. Phase 3: allow_rebuild=False — request-path
+    # readers never trigger a synchronous SAE rebuild. If state_data
+    # is missing the gauge falls back to "—"; the composer's
+    # _warm_sae_if_empty bootstrap protects brand-new users from
+    # that case on first render.
     def _read(module):
         try:
-            return get_module_state(user, module) or {}
+            return get_module_state(user, module, allow_rebuild=False) or {}
         except Exception:
             logger.warning(
                 "MISSION user=%s module=%s — state read failed",
@@ -1235,9 +1251,12 @@ def _fallback_gauges_from_sae(user, execution_contract=None) -> list[dict]:
 
     gauges: list[dict] = []
 
+    # Phase 3: all SAE reads use allow_rebuild=False — request path
+    # never triggers a sync rebuild. Brand-new users are bootstrapped
+    # by _warm_sae_if_empty at composer entry (one-time cost).
     # ── Health ────────────────────────────────────────────────────
     try:
-        health = get_module_state(user, "health") or {}
+        health = get_module_state(user, "health", allow_rebuild=False) or {}
         gauges.append(_status_gauge(
             slug="health",
             label="Health",
@@ -1254,7 +1273,7 @@ def _fallback_gauges_from_sae(user, execution_contract=None) -> list[dict]:
 
     # ── Faith ─────────────────────────────────────────────────────
     try:
-        faith = get_module_state(user, "faith") or {}
+        faith = get_module_state(user, "faith", allow_rebuild=False) or {}
         streak = faith.get("reading_streak") or 0
         plans = faith.get("active_reading_plans") or 0
         # Streak-driven 0-100; capped at 21-day plateau.
@@ -1315,7 +1334,7 @@ def _fallback_gauges_from_sae(user, execution_contract=None) -> list[dict]:
 
     # ── Purpose ───────────────────────────────────────────────────
     try:
-        goals = get_module_state(user, "goals") or {}
+        goals = get_module_state(user, "goals", allow_rebuild=False) or {}
         count = goals.get("active_goal_count") or 0
         # Presence-driven: 0 goals → no score; 1+ goals → 50 + 10/goal cap 90.
         score = None if count == 0 else min(90, 50 + count * 10)
@@ -1369,6 +1388,54 @@ def _status_gauge(slug, label, icon, statuses):
     }
 
 
+def _warm_sae_if_empty(user) -> None:
+    """Phase 3 bootstrap — when ``UserState.state_data`` is entirely
+    empty for this user (brand-new account, never had a write fire a
+    warm task), do ONE synchronous rebuild and stash the result on
+    ``user._sae_cache`` so every downstream ``get_module_state`` in
+    this request reuses it.
+
+    This is the trade-off that lets us honor BOTH:
+      - "No blank '—' gauges" (a populated _sae_cache makes the
+        gauge readers find real values)
+      - "Dashboard request path read-only against warm SAE"
+        (after this first render the state_data persists in the DB
+        and subsequent renders never enter this branch).
+
+    Fast path (the common case): state_data exists → noop, returns
+    immediately, the downstream readers (which use allow_rebuild=
+    False) read straight from the DB row.
+
+    Slow path (first ever render only): one rebuild_user_state on
+    the request thread. Same cost users used to pay on every render
+    pre-Phase-3 — but now only ONCE per user.
+    """
+    try:
+        from apps.core.ai_state.models import UserState
+        # Fast existence check: do we have populated state_data?
+        row = UserState.objects.filter(user=user).only("state_data").first()
+        if row is not None and row.state_data:
+            return  # Common path — already warm.
+
+        # Brand-new user — bootstrap once. allow_rebuild=True is the
+        # default; this is the ONE place in the request path that's
+        # intentionally allowed to rebuild. The result is stashed on
+        # user._sae_cache so the rest of the render is read-only.
+        from apps.core.ai_state.state_engine import rebuild_user_state
+        state = rebuild_user_state(user)
+        try:
+            user._sae_cache = state
+        except Exception:
+            pass
+    except Exception:
+        logger.warning(
+            "SAE bootstrap (Phase 3) failed user=%s — downstream readers "
+            "may show empty gauges this render; next domain write will "
+            "queue a warm task",
+            getattr(user, "id", "?"), exc_info=True,
+        )
+
+
 def _load_execution_contract(user) -> dict | None:
     """Phase 2 dedup — fetch today's execution contract ONCE per render.
 
@@ -1377,7 +1444,15 @@ def _load_execution_contract(user) -> dict | None:
     consumer reuses the same 30-40 queries instead of refetching.
     Returns ``None`` on failure — downstream builders fall back to
     fetching their own copy (full back-compat).
+
+    Phase 3: if the view layer has already pre-fetched the contract
+    and stashed it on ``user._dashboard_exec_contract`` (see
+    ``DashboardV3View.get_context_data``), reuse it — saves the 4th
+    fetch.
     """
+    cached = getattr(user, "_dashboard_exec_contract", None)
+    if cached is not None:
+        return cached
     from apps.core.execution.today_execution import build_today_execution
     return build_today_execution(user)
 
@@ -1428,9 +1503,10 @@ def _build_accountability_cards(user) -> list[dict]:
     # The accountability card reads persisted Insight rows. If an Insight's
     # underlying condition has cleared in SAE, suppress it here so the
     # dashboard never tells the user something Beth contradicts.
+    # Phase 3: read-only against SAE on the request path.
     try:
         from apps.core.ai_state.state_engine import get_module_state
-        _health = get_module_state(user, "health") or {}
+        _health = get_module_state(user, "health", allow_rebuild=False) or {}
         if not _health.get("weight_sync_stale", True):
             _gap = _health.get("weight_sync_gap_days")
             if _gap is not None and _gap < 3:

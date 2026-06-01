@@ -115,53 +115,68 @@ def on_health_event_invalidate_state(event):
                     event.event_type, event.user.id, exc_info=True,
                 )
 
+    # Phase 3: also warm the SAE 'health' module in the background
+    # (separate from DailyHealthSummary above — different snapshot).
+    # This is what lets the dashboard's read-only path see fresh
+    # health gauges on the next render after a water / med / weight
+    # write. Fail-safe; runs for both Class A and Class B.
+    try:
+        from apps.core.ai_state.tasks import enqueue_module_warm
+        enqueue_module_warm(event.user, "health")
+    except Exception:
+        pass
 
-@subscribe("journal.*")
-def on_journal_event_invalidate_state(event):
-    """Invalidate SAE cached state when journal data changes."""
-    if not event.user:
+
+def _invalidate_and_warm_sae(user, module):
+    """Phase 3 — invalidate the SAE cache key and enqueue a background
+    per-module warm task so the dashboard's read-only path
+    (allow_rebuild=False) sees fresh state on the NEXT render WITHOUT
+    a request-path rebuild.
+
+    Replaces the old "delete only" pattern: the delete preserves
+    correctness for any non-dashboard caller that still rebuilds on
+    cache miss; the background warm ensures the dashboard never has
+    to. Fail-safe — never raises into the subscriber.
+    """
+    if not user:
         return
     try:
         from django.core.cache import cache
-        cache.delete(f"wlj:user_state:{event.user.id}")
+        cache.delete(f"wlj:user_state:{user.id}")
     except Exception:
         pass
+    try:
+        from apps.core.ai_state.tasks import enqueue_module_warm
+        enqueue_module_warm(user, module)
+    except Exception:
+        logger.warning(
+            "SAE warm enqueue failed (user=%s module=%s)",
+            getattr(user, "id", "?"), module, exc_info=True,
+        )
+
+
+@subscribe("journal.*")
+def on_journal_event_invalidate_state(event):
+    """Invalidate SAE + warm 'journal' module in background (Phase 3)."""
+    _invalidate_and_warm_sae(event.user, "journal")
 
 
 @subscribe("purpose.*")
 def on_purpose_event_invalidate_state(event):
-    """Invalidate SAE cached state when purpose/habit data changes."""
-    if not event.user:
-        return
-    try:
-        from django.core.cache import cache
-        cache.delete(f"wlj:user_state:{event.user.id}")
-    except Exception:
-        pass
+    """Invalidate SAE + warm 'goals' module in background (Phase 3)."""
+    _invalidate_and_warm_sae(event.user, "goals")
 
 
 @subscribe("task.*")
 def on_task_event_invalidate_state(event):
-    """Invalidate SAE cached state when task data changes."""
-    if not event.user:
-        return
-    try:
-        from django.core.cache import cache
-        cache.delete(f"wlj:user_state:{event.user.id}")
-    except Exception:
-        pass
+    """Invalidate SAE + warm 'tasks' module in background (Phase 3)."""
+    _invalidate_and_warm_sae(event.user, "tasks")
 
 
 @subscribe("faith.*")
 def on_faith_event_invalidate_state(event):
-    """Invalidate SAE cached state when faith data changes."""
-    if not event.user:
-        return
-    try:
-        from django.core.cache import cache
-        cache.delete(f"wlj:user_state:{event.user.id}")
-    except Exception:
-        pass
+    """Invalidate SAE + warm 'faith' module in background (Phase 3)."""
+    _invalidate_and_warm_sae(event.user, "faith")
 
 
 # =========================================================================

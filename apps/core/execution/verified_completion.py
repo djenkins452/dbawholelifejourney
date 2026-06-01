@@ -175,7 +175,7 @@ def on_authenticated_presence(user) -> dict[str, Any]:
 _WAKE_UP_TOKENS = ("wake up", "wake-up", "wakeup")
 
 
-def complete_wake_up(user, *, target_date=None) -> dict[str, Any]:
+def complete_wake_up(user, *, target_date=None, execution_contract=None) -> dict[str, Any]:
     """Deterministically complete today's Wake Up item.
 
     Strategy: locate the Wake Up item in the canonical execution contract
@@ -194,8 +194,11 @@ def complete_wake_up(user, *, target_date=None) -> dict[str, Any]:
     matched: list[dict] = []
 
     try:
-        from apps.core.execution.today_execution import build_today_execution
-        contract = build_today_execution(user)
+        if execution_contract is not None:
+            contract = execution_contract
+        else:
+            from apps.core.execution.today_execution import build_today_execution
+            contract = build_today_execution(user)
         items = contract.get("items", []) or []
     except Exception:
         logger.warning(

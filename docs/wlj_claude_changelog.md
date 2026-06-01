@@ -3,8 +3,34 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-31 (fix: Mission Phase 6.3 — Projected A1C (GMI) never silently disappears)
+# Last Updated: 2026-05-31 (fix: Mission Phase 6.4 — A1C/GMI truth model + nutrition link)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-31 — fix(dashboard_v3): Phase 6.4 — Projected A1C (GMI) truth model + trend-aware classification + nutrition link
+
+**Two problems.** (1) The Mission card's Nutrition driver still resolved to the wrong route. (2) The Projected A1C math was correct but its *representation* overstated certainty — it read like a lab A1C and was auto-classified as "Helping" purely on level, ignoring trend (false reassurance).
+
+**Problem 1 — Nutrition link (verified by actual route resolution, not guessed).**
+- `apps/dashboard_v3/services/composer.py` — `_DRIVER_DEST["nutrition"]` changed from `meals:dashboard` (→ `/meals/`) to `health:nutrition_home`. Confirmed via `reverse("health:nutrition_home")` → `/health/physical/nutrition/` (the correct destination). Route confirmed in `apps/health/urls.py`: `path("physical/nutrition/", views.NutritionHomeView.as_view(), name="nutrition_home")`.
+- Regression guard: `test_nutrition_driver_points_to_nutrition_home`.
+
+**Problem 2 — A1C/GMI truth model (medical accuracy).**
+- **The number is GMI, not lab A1C.** Formula unchanged and correct: `GMI(%) = 3.31 + 0.02392 × mean glucose mg/dL` (Bergenstal 2018 / ADA / Dexcom CGM standard) in `apps/core/ai_state/state_builder.py :: _gmi_from_mean_mgdl`. A value of 6.5% corresponds to a ~133.8 mg/dL mean. We do NOT invent or approximate a custom formula.
+- **Representation made honest** (`composer.py`):
+  - Removed trend arrows (↓/↑/→) from the displayed value — the spec renders only `6.5%` / `~6.5%`; trend is conveyed by column placement, not fake-precision glyphs.
+  - High note "High confidence" → **"Estimated from CGM data"**; medium note "Waiting for recent glucose sync" → **"Using recent available glucose data"**. The label is always "Projected A1C (GMI)" and the note/tooltip make the CGM-estimate basis explicit — the UI never implies an actual lab A1C.
+- **Trend-aware classification** (uses BOTH level AND direction — never auto-Helping):
+  - improving → **Helping**
+  - stable → **Worth Watching** (neutral) — holding steady is not a win to celebrate
+  - worsening & in-target (≤7.0) → **Worth Watching** (neutral, not punitive)
+  - worsening & above-target (>7.0) → **Needs Attention**
+  - This avoids false reassurance: e.g. 6.5% stable or worsening is Worth Watching, not Helping.
+
+**Files.** `apps/dashboard_v3/services/composer.py` (nutrition dest + A1C block rewrite), `apps/dashboard_v3/tests/test_composer.py` (classification + note + nutrition-href tests), `apps/core/fixtures/release_notes.json` (PK 208), `apps/core/management/commands/load_initial_data.py` (`_reset_mission_a1c_truth_release_notes`).
+
+**Verification.** `apps.dashboard_v3.tests.test_composer.MissionCardTests` — 69 tests pass. No model changes (no migration). Screenshot note: no production CLI/SSH access exists, so verification is test-based render confirmation rather than a live prod screenshot.
+
 
 
 ## 2026-05-31 — fix(dashboard_v3): Phase 6.3 — Projected A1C (GMI) mission slot must NEVER silently disappear

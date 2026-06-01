@@ -1395,7 +1395,9 @@ class MissionCardTests(TestCase):
         status = self._status()
         helping = [d for d in status["helping"] if d["label"] == "Projected A1C (GMI)"]
         self.assertTrue(helping)
-        self.assertEqual(helping[0]["value"], "8.1% ↓")
+        # Phase 6.4 — value is the GMI percent only (no trend arrow); the
+        # estimate basis is stated in the note, the trend drives the column.
+        self.assertEqual(helping[0]["value"], "8.1%")
 
     def test_a1c_stable_above_target_is_worth_watching(self):
         self._goal(title="Steady high")
@@ -1408,8 +1410,9 @@ class MissionCardTests(TestCase):
         self.assertIn("Projected A1C (GMI)", [d["label"] for d in status["watching"]])
         self.assertNotIn("Projected A1C (GMI)", [d["label"] for d in status["helping"]])
 
-    def test_a1c_stable_in_target_is_helping(self):
-        # An in-target A1C holding steady is maintenance — genuinely Helping.
+    def test_a1c_stable_in_target_is_worth_watching_not_helping(self):
+        # Phase 6.4 — a steady A1C must NOT be auto-placed in Helping. Holding
+        # level is "worth watching", never false reassurance, even in-target.
         self._goal(title="In control")
         self._seed_state(health={
             "projected_a1c": 6.2,
@@ -1417,7 +1420,8 @@ class MissionCardTests(TestCase):
             "projected_a1c_confidence": "high",
         })
         status = self._status()
-        self.assertIn("Projected A1C (GMI)", [d["label"] for d in status["helping"]])
+        self.assertIn("Projected A1C (GMI)", [d["label"] for d in status["watching"]])
+        self.assertNotIn("Projected A1C (GMI)", [d["label"] for d in status["helping"]])
 
     def test_a1c_worsening_above_target_needs_attention(self):
         self._goal(title="Drifting up")
@@ -1457,11 +1461,11 @@ class MissionCardTests(TestCase):
         self.assertTrue(match)
         self.assertIn("6.5%", match[0]["value"])
         self.assertIn("~", match[0]["value"])
-        self.assertEqual(match[0]["note"], "Waiting for recent glucose sync")
+        self.assertEqual(match[0]["note"], "Using recent available glucose data")
 
     def test_a1c_high_confidence_carries_confidence_note(self):
-        # High confidence states its confidence in the note (truthful context),
-        # never a completion-resembling visual.
+        # High confidence states its CGM-derived basis in the note (truthful
+        # context), never a completion-resembling visual or "actual lab A1C" claim.
         self._goal(title="Dense data")
         self._seed_state(health={
             "projected_a1c": 6.2,
@@ -1472,7 +1476,7 @@ class MissionCardTests(TestCase):
         match = [d for col in ("helping", "watching", "needs")
                  for d in status[col] if d["label"] == "Projected A1C (GMI)"]
         self.assertTrue(match)
-        self.assertEqual(match[0]["note"], "High confidence")
+        self.assertEqual(match[0]["note"], "Estimated from CGM data")
 
     def test_a1c_low_insufficient_renders_dash_with_history_note(self):
         # Low confidence from THIN history must NOT be silently hidden — it shows
@@ -1558,6 +1562,19 @@ class MissionCardTests(TestCase):
         a1c = next(d for d in status["helping"] if d["label"] == "Projected A1C (GMI)")
         self.assertEqual(a1c["dest"]["href"], "/health/physical/glucose/")
         self.assertFalse(a1c["dest"]["is_log"])
+
+    def test_nutrition_driver_points_to_nutrition_home(self):
+        # The nutrition driver must resolve to the canonical nutrition page
+        # (health:nutrition_home → /health/physical/nutrition/), never the
+        # legacy meals route. Regression guard for the wrong-link bug.
+        self._goal(title="Nutrition route")
+        self._seed_state(nutrition={"enabled": True, "macro_compliance_score": 80})
+        status = self._status()
+        nutri = next(
+            d for col in ("helping", "watching", "needs")
+            for d in status[col] if d["label"] == "Nutrition"
+        )
+        self.assertEqual(nutri["dest"]["href"], "/health/physical/nutrition/")
 
 
 class WeatherTileTests(TestCase):

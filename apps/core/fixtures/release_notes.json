@@ -3286,5 +3286,21 @@
       "created_at": "2026-03-07T23:00:00Z",
       "updated_at": "2026-03-07T23:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 208,
+    "fields": {
+      "title": "Projected A1C is now honestly labeled — and reads your trend, not just your number",
+      "description": "Your Mission card's Projected A1C is an estimate calculated from your CGM glucose data using the industry-standard GMI formula (the same one used by the ADA and Dexcom) — it is not a laboratory A1C, and the app now makes that clear at every step. High-confidence readings show the number with an \"Estimated from CGM data\" note, and recent-data estimates read \"Using recent available glucose data\" — no more overstating precision. The bigger change is how the metric is classified: it now weighs both your current level and your trend together, so an in-range number that's drifting the wrong way is shown as \"Worth Watching\" rather than quietly celebrated. That avoids false reassurance and tells you the truth about your trajectory. We also fixed the Nutrition link on your Mission card so it opens your nutrition page directly.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-05-31",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-06-01T04:00:00Z",
+      "updated_at": "2026-06-01T04:00:00Z"
+    }
   }
 ]

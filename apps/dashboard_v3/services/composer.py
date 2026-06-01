@@ -192,7 +192,7 @@ _DRIVER_DEST = {
     "steps":     ("health:fitness_home",      "Open your activity",         False),
     "sleep":     ("health:sleep_list",        "Open your sleep insights",   False),
     "journal":   ("journal:home",             "Open your journal",          True),
-    "nutrition": ("meals:dashboard",          "Open nutrition",             True),
+    "nutrition": ("health:nutrition_home",    "Open nutrition",             True),
     "a1c":       ("health:glucose_dashboard", "Based on CGM glucose history — not a lab A1C. Open glucose insights", False),
 }
 
@@ -866,19 +866,33 @@ def _evaluate_mission_signals(states: dict, phase: str = "foundation") -> list[d
     # builder, never here. The displayed number is the standard GMI equation on
     # the simple mean (the builder never blends or trend-adjusts it).
     #
-    # TRUTH RULE (Phase 6.3): for a glucose-tracking user the A1C slot must
+    # TRUTH RULE (Phase 6.3/6.4): for a glucose-tracking user the A1C slot must
     # NEVER silently disappear. "No signal" is itself a signal — the user must
     # always be able to tell apart: a real number / sync lag / thin history /
     # engine failure. So whenever confidence is set (i.e. any glucose history or
     # a connected CGM exists), we ALWAYS emit a driver, varying only the value
     # and the second-line ``note``:
-    #   high   → "6.5% ↓"     note "High confidence"
-    #   medium → "~6.5% ↓"    note "Waiting for recent glucose sync"
-    #   low+stale_sync → "—"  note "Waiting for glucose sync"
-    #   low+thin       → "—"  note "Need more glucose history"
+    #   high   → "6.5%"        note "Estimated from CGM data"
+    #   medium → "~6.5%"       note "Using recent available glucose data"
+    #   low+stale_sync → "—"   note "Waiting for glucose sync"
+    #   low+thin       → "—"   note "Need more glucose history"
     #   error          → "Unavailable" note "Glucose insights temporarily unavailable"
     # Confidence is None only when there's genuinely no CGM/history — then (and
     # only then) the slot is absent, which is itself truthful.
+    #
+    # WHAT THIS IS (medical truth — Phase 6.4): the number is the CGM-derived
+    # GMI (Glucose Management Indicator), GMI(%) = 3.31 + 0.02392 × mean glucose
+    # mg/dL (ADA / Dexcom CGM standard). It is an ESTIMATE from CGM data, NOT a
+    # laboratory A1C. The label always reads "Projected A1C (GMI)" and the note +
+    # tooltip make the CGM-estimate basis explicit so the UI never implies a lab
+    # value.
+    #
+    # CLASSIFICATION (Phase 6.4): polarity uses BOTH the current level AND the
+    # trend — never auto-Helping — to avoid false reassurance:
+    #   improving                     → Helping
+    #   stable                        → Worth Watching (neutral)
+    #   worsening & in-target (≤7.0)  → Worth Watching (neutral, not punitive)
+    #   worsening & above-target      → Needs Attention
     a1c = health.get("projected_a1c")
     a1c_conf = health.get("projected_a1c_confidence")
     if a1c_conf == "error":
@@ -892,23 +906,20 @@ def _evaluate_mission_signals(states: dict, phase: str = "foundation") -> list[d
         a1c_trend = health.get("projected_a1c_trend") or "stable"
         if a1c_trend == "improving":
             polarity = "helping"
-            arrow = "↓"
         elif a1c_trend == "worsening":
             polarity = "needs" if a1c > 7.0 else "neutral"
-            arrow = "↑"
-        else:  # stable
-            polarity = "helping" if a1c <= 7.0 else "neutral"
-            arrow = "→"
+        else:  # stable — holding steady is "worth watching", never auto-helping
+            polarity = "neutral"
         if a1c_conf == "medium":
             # Tilde signals an estimate on possibly-delayed sync; the note and
             # tooltip explain the basis without sounding like user failure.
-            value = f"~{a1c}% {arrow}"
-            tooltip = "Sync may be delayed. Estimate uses available glucose history."
-            note = "Waiting for recent glucose sync"
+            value = f"~{a1c}%"
+            tooltip = "Estimated from recent available CGM glucose data — not a lab A1C."
+            note = "Using recent available glucose data"
         else:
-            value = f"{a1c}% {arrow}"
+            value = f"{a1c}%"
             tooltip = None  # keep the default "not a lab A1C" destination tooltip
-            note = "High confidence"
+            note = "Estimated from CGM data"
         emit("a1c", "Projected A1C (GMI)", value, polarity, tooltip=tooltip, note=note)
     elif a1c_conf == "low":
         # Glucose history (or a connected CGM) exists but it is too stale/sparse

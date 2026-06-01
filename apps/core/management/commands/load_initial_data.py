@@ -1075,6 +1075,8 @@ class Command(BaseCommand):
         self._reset_mission_gmi_accuracy_release_notes(DataLoadConfig, force, verbosity)
         # Phase 6.3 — A1C (GMI) slot never silently disappears release note (PK 207)
         self._reset_mission_a1c_always_visible_release_notes(DataLoadConfig, force, verbosity)
+        # Phase 6.4 — A1C (GMI) truth model + trend classification + nutrition link (PK 208)
+        self._reset_mission_a1c_truth_release_notes(DataLoadConfig, force, verbosity)
 
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
@@ -7201,6 +7203,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Mission A1C always-visible release notes FAILED: {e}'))
+
+    def _reset_mission_a1c_truth_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes after adding PK 208 (Mission
+        Phase 6.4 — Projected A1C (GMI) honestly labeled as a CGM-derived
+        estimate, trend-aware classification, and the Nutrition link fix).
+        """
+        reset_tracker_name = 'reset_mission_a1c_truth_2026_05_31'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for A1C truth model (PK 208)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for A1C truth model',
+                'command',
+                'One-time reset: added PK 208 for Mission Phase 6.4 A1C/GMI truth model + nutrition link'
+            )
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Mission A1C truth release notes FAILED: {e}'))
 
     def _reset_action_center_vocabulary_release_notes(self, DataLoadConfig, force=False, verbosity=1):
         """

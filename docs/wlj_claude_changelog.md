@@ -3,8 +3,23 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-31 (fix: natural-language routine skip + honor skips in check-ins)
+# Last Updated: 2026-05-31 (fix: bare "skip X" command intercepted by qualified-status router route)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-31 — fix(router): bare "skip X" command intercepted by qualified-status route (skip_routine never fired)
+
+**The trust failure (production).** After deploying the `skip_routine` intent, "skip shower" STILL didn't skip — it returned `"No — just shower left."` and the shower kept reappearing in check-ins.
+
+**Root cause (proven by tracing, not guessed).** `'skip '` is a member of `QUALIFIED_STATUS_PREFIXES` in `apps/ai/deterministic_router.py` — added for exclusion-filter status questions like `"skip workout, am I done?"`. But `is_qualified_status_query()` matched the prefix with **no requirement that a status-question closer be present**, so a *bare* imperative `"skip shower"` also matched. That route (`classify_and_route` Phase 0a.1) is **terminal and runs before intent recognition**, so `personal_assistant.send_message` set the response from `_build_qualified_status_response()` (`"No — just shower left."`) and **never reached intent classification or `handle_skip_routine`**. The interception was stateless — NOT a check-in/end-of-day context issue (the check-in prefilter actually *excludes* qualified-status queries). Contradiction in one sentence: the same router lists `'skip'` as a mutation action verb worthy of intent recognition (`_MUTATION_VERBS`) AND as a status-query exclusion prefix that short-circuits it first.
+
+**The fix (surgical, one function).** `is_qualified_status_query()` now treats the imperative-exclusion prefixes that collide with real commands (`skip`, `skipping`, `forget`, `ignore`, `leave out`, `take away`, …) as a status query ONLY when a status closer is also present — a `?`, a yes/no status question (`am I done`), or a distinctive remaining-fragment (`anything left`, `what's remaining`, …). Prepositional prefixes (`other than`, `besides`, …) stay permissive since they never stand alone as commands. Net effect: `"skip workout, am I done?"` still answers the status question; `"skip shower"` falls through every deterministic route to intent recognition → `skip_routine` fires and actually skips.
+
+**Why it's sufficient (verified).** `_try_checkin_prefilter` won't grab it (not in `CHECKIN_PATTERNS`), and the fallthrough intent-bypass keeps it because `has_action_signal("skip shower")` is True (`'skip' ∈ _MUTATION_VERBS`).
+
+**Files Modified:** `apps/ai/deterministic_router.py` (`is_qualified_status_query` + new `_IMPERATIVE_COMMAND_PREFIXES` / `_STATUS_CLOSER_PHRASES` / `_has_status_closer`), `apps/ai/tests/test_skip_routine.py` (2 new router regression tests).
+
+**Verification.** 23 tests pass across `test_skip_routine` + `test_intent_registration`. New tests assert bare `skip/ignore/forget` commands are NOT qualified-status queries while genuine exclusion-filter questions still are. The 8 unrelated failures in `test_deterministic_router`/`test_router_integration` are pre-existing (confirmed identical on baseline via stash) — workout/medication renderer drift from other sessions, untouched by this change. No model changes, no migration.
 
 
 ## 2026-06-01 — fix(mission): Phase C — journal + nutrition mission signals read canonical activity, not gated metrics

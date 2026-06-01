@@ -165,3 +165,34 @@ class TestTomorrowResetAfterSkip(SkipRoutineTestMixin, TestCase):
                 schedule=self.shower, scheduled_date=tomorrow,
             ).exists()
         )
+
+
+class TestSkipCommandNotIntercepted(TestCase):
+    """A bare "skip X" command must NOT be eaten by the qualified-status
+    router route, which previously intercepted it before intent
+    recognition and returned a "what's left" answer instead of skipping.
+
+    Production trust failure 2026-05-31: "skip shower" → "No — just shower
+    left." because 'skip ' is a QUALIFIED_STATUS_PREFIXES member. Bare
+    imperative skip commands must fall through to the skip_routine intent.
+    """
+
+    def test_bare_skip_command_is_not_a_status_query(self):
+        from apps.ai.deterministic_router import is_qualified_status_query
+        for cmd in ('skip shower', 'skip my workout', 'ignore prayer',
+                    'forget the journal', 'skipping breakfast'):
+            self.assertFalse(
+                is_qualified_status_query(cmd),
+                f"Bare skip command leaked into qualified-status: {cmd!r}",
+            )
+
+    def test_exclusion_filter_status_question_still_qualifies(self):
+        from apps.ai.deterministic_router import is_qualified_status_query
+        for q in ('skip workout, am i done?', 'skip workout am i done',
+                  'skip nutrition, anything left?',
+                  'other than nutrition, anything left?',
+                  'am i done?'):
+            self.assertTrue(
+                is_qualified_status_query(q),
+                f"Genuine status question lost qualification: {q!r}",
+            )

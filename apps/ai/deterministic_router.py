@@ -183,14 +183,67 @@ QUALIFIED_STATUS_QUESTIONS = (
 )
 
 
+# Imperative-exclusion prefixes that ALSO read as standalone commands
+# ("skip shower", "ignore prayer"). For these, a qualified-status match
+# is only valid when a status closer is ALSO present — otherwise the
+# message is a bare command that must reach intent recognition (e.g.
+# skip_routine). The prepositional prefixes ("other than", "besides")
+# are NOT in this set because they never stand alone as commands.
+_IMPERATIVE_COMMAND_PREFIXES = frozenset({
+    'skip ', 'skipping ',
+    'forget ', 'forget about ', 'forgetting ',
+    'ignore ', 'ignoring ',
+    'leave out ', 'leaving out ',
+    'take away ', 'taking away ',
+})
+
+# Unpunctuated status-question fragments. These confirm the message is a
+# QUESTION about state, not a command. Kept to distinctive multi-word
+# fragments so they can never collide with a real skip target.
+_STATUS_CLOSER_PHRASES = (
+    'anything left', 'anything else', 'anything remaining',
+    "what's left", 'whats left', 'what is left', 'what remains',
+    "what's remaining", 'whats remaining', 'left to do', 'still left',
+)
+
+
+def _has_status_closer(msg_lower: str) -> bool:
+    """True when the message carries a status-question component.
+
+    Distinguishes an exclusion-FILTER status question
+    ("skip workout, am I done?") from a bare imperative command
+    ("skip shower"). A closer is a "?", a yes/no status question, or a
+    distinctive remaining-fragment.
+    """
+    if '?' in msg_lower:
+        return True
+    if any(q in msg_lower for q in QUALIFIED_STATUS_QUESTIONS):
+        return True
+    return any(ph in msg_lower for ph in _STATUS_CLOSER_PHRASES)
+
+
 def is_qualified_status_query(msg_lower: str) -> bool:
     """Detect if a message is a filtered/follow-up status question.
 
     Returns True for: "other than nutrition, anything left?",
     "am I done?", "besides meds, what's remaining?"
+
+    Bare imperative commands that merely START with an exclusion verb
+    ("skip shower", "ignore prayer") are NOT status queries — they must
+    reach intent recognition (e.g. skip_routine). Such prefixes only
+    qualify when a status closer is also present. See trust investigation
+    2026-05-31 (skip-routine interception).
     """
-    if any(msg_lower.startswith(p) or (', ' + p) in msg_lower or (' ' + p) in msg_lower
-           for p in QUALIFIED_STATUS_PREFIXES):
+    for p in QUALIFIED_STATUS_PREFIXES:
+        matched = (
+            msg_lower.startswith(p)
+            or (', ' + p) in msg_lower
+            or (' ' + p) in msg_lower
+        )
+        if not matched:
+            continue
+        if p in _IMPERATIVE_COMMAND_PREFIXES and not _has_status_closer(msg_lower):
+            continue
         return True
     return any(p in msg_lower for p in QUALIFIED_STATUS_QUESTIONS)
 

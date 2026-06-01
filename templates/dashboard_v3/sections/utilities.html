@@ -1,8 +1,10 @@
-{# Utilities — small inline strip at the bottom.
-   Phase 4: this <section> self-refreshes on dashboard:water-changed
-   (emitted by the home.html JS after a successful hydration POST) —
-   no full dashboard reload. Trust contract preserved: the partial
-   endpoint re-renders this same template with canonical _build_utilities. #}
+{% comment %}
+    Utilities — small inline strip at the bottom.
+    Phase 4: this <section> self-refreshes on dashboard:water-changed
+    (emitted by the home.html JS after a successful hydration POST) —
+    no full dashboard reload. Trust contract preserved: the partial
+    endpoint re-renders this same template with canonical _build_utilities.
+{% endcomment %}
 {% if utilities.water %}
 <section id="v3-utilities" class="v3-utilities"
          hx-get="{% url 'dashboard_v3:section_utilities' %}"

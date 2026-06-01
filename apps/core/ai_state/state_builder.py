@@ -1720,6 +1720,15 @@ def build_journal_state(user):
     # Do not reuse for general truth evaluation
     _MOOD_SCORES = {'great': 5, 'good': 4, 'okay': 3, 'low': 2, 'difficult': 1}
     cutoff_7d = now - timedelta(days=7)
+    # entries_7d is the JOURNALING-ACTIVITY signal: EVERY journal entry in the
+    # last 7 days, not just mood-tagged ones. Bug fix 2026-05-31: it previously
+    # reused the mood-filtered list below (len(moods_7d)), so an entry logged
+    # without a mood was invisible — the mission card / CoS / cockpit showed
+    # "0/wk" right after the user journaled. Mood trend below still uses only
+    # mood-bearing entries.
+    state["entries_7d"] = JournalEntry.objects.filter(
+        user=user, entry_date__gte=cutoff_7d.date()
+    ).count()
     moods_7d = list(
         JournalEntry.objects.filter(
             user=user,
@@ -1730,7 +1739,6 @@ def build_journal_state(user):
         .order_by("entry_date")
         .values_list("mood", flat=True)
     )
-    state["entries_7d"] = len(moods_7d)
     if len(moods_7d) >= 3:
         scores = [_MOOD_SCORES.get(m, 3) for m in moods_7d]
         avg = sum(scores) / len(scores)

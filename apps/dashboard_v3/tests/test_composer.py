@@ -1583,6 +1583,82 @@ class MissionCardTests(TestCase):
         )
         self.assertEqual(nutri["dest"]["href"], "/health/physical/nutrition/")
 
+    # ── Phase C: nutrition logging signal when no macro goals are set ─────
+    # Regression (2026-05-31): mission read the GOAL-GATED macro_compliance_score
+    # only. A user who logs food but never set macro targets had macros=None →
+    # the card showed "Not tracked"/"0% macros" right after they logged. The fix
+    # falls back to the canonical LOGGING signal (food_entries_today / _7d).
+
+    def test_nutrition_logging_without_macro_goals_is_not_a_need(self):
+        # Food logged today, no macro targets → tracked (neutral), never a Need.
+        self._goal(title="Logging only")
+        self._seed_state(nutrition={
+            "enabled": True,
+            "macro_compliance_score": None,
+            "food_entries_today": 2,
+        })
+        status = self._status()
+        self.assertFalse(
+            any(d["label"] == "Nutrition" for d in status["needs"]),
+            "actively-logged nutrition must not be an objective Need",
+        )
+        nutri = next(
+            d for col in ("helping", "watching", "needs")
+            for d in status[col] if d["label"] == "Nutrition"
+        )
+        self.assertEqual(nutri["value"], "2 items today")
+
+    def test_nutrition_driver_reflects_today_logging_without_goals(self):
+        self._goal(title="Driver logging")
+        self._seed_state(nutrition={
+            "enabled": True,
+            "macro_compliance_score": None,
+            "food_entries_today": 1,
+        })
+        drivers = build_dashboard_v3_context(self.user)["mission"]["drivers"]
+        nutri = next(d for d in drivers if d["key"] == "nutrition")
+        self.assertEqual(nutri["value"], "1 item today")
+
+    def test_nutrition_weekly_logging_shown_when_none_today(self):
+        self._goal(title="Weekly logging")
+        self._seed_state(nutrition={
+            "enabled": True,
+            "macro_compliance_score": None,
+            "food_entries_today": 0,
+            "food_entries_7d": 5,
+        })
+        nutri = next(
+            d for col in ("helping", "watching", "needs")
+            for d in self._status()[col] if d["label"] == "Nutrition"
+        )
+        self.assertEqual(nutri["value"], "5/wk logged")
+
+    def test_nutrition_truly_untracked_remains_a_need(self):
+        # No macro score AND no logging at all → still an honest objective Need.
+        self._goal(title="Untracked")
+        self._seed_state(nutrition={
+            "enabled": True,
+            "macro_compliance_score": None,
+            "food_entries_today": 0,
+            "food_entries_7d": 0,
+        })
+        self.assertTrue(
+            any(d["label"] == "Nutrition" for d in self._status()["needs"])
+        )
+
+    def test_nutrition_macro_score_still_preferred_when_present(self):
+        # When macro targets ARE set, the compliance score still wins over the
+        # raw logging signal — the fallback is only for the goal-less case.
+        self._goal(title="Macro driven")
+        self._seed_state(nutrition={
+            "enabled": True,
+            "macro_compliance_score": 82,
+            "food_entries_today": 3,
+        })
+        drivers = build_dashboard_v3_context(self.user)["mission"]["drivers"]
+        nutri = next(d for d in drivers if d["key"] == "nutrition")
+        self.assertEqual(nutri["value"], "82% macros")
+
 
 class MissionCardResilienceTests(TestCase):
     """The Primary Mission hero card must NEVER disappear because an OPTIONAL

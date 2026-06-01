@@ -7,6 +7,33 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-01 — fix(mission): Phase C — journal + nutrition mission signals read canonical activity, not gated metrics
+
+**Symptom:** Right after the user journaled (tonight) and logged food (today), the Primary Mission card still showed `Journal → 0/wk` and `Nutrition → "Not tracked" / 0% macros`. The freshness guard was already working (card renders, A1C appears) — this was a DATA-SOURCE / SIGNAL-MAPPING bug, not a staleness bug.
+
+**Root cause (two independent gated-metric mismatches, same class):**
+1. **Journal** — `build_journal_state` set `entries_7d = len(moods_7d)`, where `moods_7d` is filtered to entries with a non-empty `mood`. An entry logged WITHOUT a mood was invisible to the journaling-activity signal, so the mission read `0/wk`. `entries_7d` is consumed as an *activity* count by the mission card, CoS context, signal trust, and the v2 cockpit — none of them want it mood-gated.
+2. **Nutrition** — the mission read only `macro_compliance_score`, which `build_nutrition_state` populates ONLY when the user has active `NutritionGoal`s with macro targets. A user who logs food but never set macro targets had `macro_compliance_score = None`, so the mission classified Nutrition as an objective *Need* ("Not tracked") even though they'd logged. The canonical LOGGING signals `food_entries_today` / `food_entries_7d` were already on the state but unused by the mission.
+
+**Fix (canonical signal source; raw → signal → narrative preserved):**
+- `apps/core/ai_state/state_builder.py :: build_journal_state` — `entries_7d` now counts EVERY `JournalEntry` in the last 7 days, not just mood-bearing ones. `moods_7d` (and the mood-trend derivation) is unchanged and still mood-filtered. Fix is in the builder so all four consumers benefit identically — no duplicate logic.
+- `apps/dashboard_v3/services/composer.py` (already committed in `bcfeb174`) — `_build_mission_drivers` and `_evaluate_mission_signals` fall back to the canonical logging signal when `macro_compliance_score` is `None`: `food_entries_today > 0` → "N items today" (neutral/Worth-Watching), else `food_entries_7d > 0` → "N/wk logged" (neutral), else "Not tracked" (Need). When macro targets ARE set, the compliance score still wins. No special-casing, no fabricated values.
+
+**State keys:** journal mission row reads `journal.entries_7d`; nutrition mission row reads `nutrition.macro_compliance_score` (goal-gated) → falls back to `nutrition.food_entries_today` / `nutrition.food_entries_7d` (canonical logging).
+
+**Tests added:**
+- `apps/core/ai_state/tests.py :: TestJournalStateBuilder` — `test_entries_7d_counts_moodless_entries`, `test_entries_7d_counts_mixed_mood_and_moodless` (7-day window respected).
+- `apps/dashboard_v3/tests/test_composer.py :: MissionCardTests` — nutrition: logging-without-goals is not a Need, driver shows "N items today", weekly fallback "N/wk logged", truly-untracked remains a Need, macro score still preferred when present.
+- Result: 79 affected tests pass (`TestJournalStateBuilder` + `MissionCardTests`). `makemigrations --check` → no changes (no model fields touched).
+
+**Production confirmation note:** No direct prod DB/CLI access (Railway token expired), so the user's live account values were not literally inspected. The fix is a deterministic code-level signal-mapping correction, proven by the regression tests above. On deploy, a fresh dashboard render will read the corrected `entries_7d` and the nutrition logging fallback immediately (manual-entry freshness guard already repairs both modules on the request path).
+
+**Files Modified:**
+- `apps/core/ai_state/state_builder.py` — `build_journal_state.entries_7d` counts all entries
+- `apps/core/ai_state/tests.py` — 2 journal-builder regression tests
+- `apps/dashboard_v3/tests/test_composer.py` — 5 nutrition signal/driver regression tests
+
+
 ## 2026-06-01 — perf(dashboard): Phase 2.0 — composer dedup of execution_contract + cockpit fetches
 
 **What ships:** The dashboard_v3 composer used to call `build_today_execution()` three times per render (composer's fallback gauge, executive_summary's `_collect_focus_now`, rhythm builder) and `GoalCockpitService.get_cockpit_data()` twice. Both functions are deterministic for `(user, today)`. Phase 2.0 fetches each ONCE up front and threads them through downstream builders as explicit kwargs.

@@ -610,6 +610,51 @@ class TestJournalStateBuilder(TestCase):
         # ~10 entries in 30 days = ~2.3 per week
         self.assertGreater(state["entry_frequency"], 2.0)
 
+    def test_entries_7d_counts_moodless_entries(self):
+        # Regression (2026-05-31): entries_7d is the JOURNALING-ACTIVITY signal
+        # consumed by the mission card / CoS / cockpit. It previously reused the
+        # mood-filtered list, so an entry logged WITHOUT a mood was invisible —
+        # the mission card showed "0/wk" right after the user journaled.
+        from apps.journal.models import JournalEntry
+
+        from apps.core.ai_state.state_builder import build_journal_state
+
+        JournalEntry.objects.create(
+            user=self.user,
+            title="No mood tonight",
+            body="Just writing, no mood selected.",
+            entry_date=date.today(),
+        )
+
+        state = build_journal_state(self.user)
+        self.assertEqual(state["entries_7d"], 1)
+
+    def test_entries_7d_counts_mixed_mood_and_moodless(self):
+        from apps.journal.models import JournalEntry
+
+        from apps.core.ai_state.state_builder import build_journal_state
+
+        JournalEntry.objects.create(
+            user=self.user, title="A", body="x",
+            entry_date=date.today(), mood="great",
+        )
+        JournalEntry.objects.create(
+            user=self.user, title="B", body="y",
+            entry_date=date.today() - timedelta(days=2),
+        )
+        JournalEntry.objects.create(
+            user=self.user, title="C", body="z",
+            entry_date=date.today() - timedelta(days=4), mood="",
+        )
+        # Outside the 7-day window — must NOT count.
+        JournalEntry.objects.create(
+            user=self.user, title="Old", body="w",
+            entry_date=date.today() - timedelta(days=10), mood="good",
+        )
+
+        state = build_journal_state(self.user)
+        self.assertEqual(state["entries_7d"], 3)
+
 
 class TestStateReader(TestCase):
     """Test state reader (PRIE integration)."""

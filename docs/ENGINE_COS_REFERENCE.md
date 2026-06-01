@@ -548,7 +548,7 @@ DNE (delivery_engine.py) → DeliveredNotification (in-app / email / SMS)
 | `health` | `build_health_state()` | weight_current, weight_trend, weight_entries_90d, body_fat_current, sleep_avg_7d, **sleep_avg_hours_7d, sleep_good_nights_7d, sleep_consistency_score**, bp_systolic, bp_diastolic, heart_rate_avg_7d, glucose_avg_7d, blood_oxygen_avg_7d, heart_rate_events_7d, weight_goal, weight_goal_unit, weight_goal_target_date, weight_goal_remaining, weight_goal_on_track, **water_avg_oz_7d, water_good_days_7d, water_tracked_days_7d, water_goal_oz, water_consistency_score** |
 | `goals` | `build_goal_state()` | active_goal_count, next_deadline, completion_rate |
 | `habits` | `build_habit_state()` | active_habit_count, longest_streak, avg_completion_rate |
-| `journal` | `build_journal_state()` | last_entry, entry_frequency, mood_distribution |
+| `journal` | `build_journal_state()` | last_entry, entry_frequency, mood_distribution, **entries_7d** (journaling-activity count — EVERY entry in last 7d, NOT mood-gated; consumed by mission card / CoS / cockpit), moods_7d/mood_trend (mood-filtered, trend only) |
 | `faith` | `build_faith_state()` | reading_streak, last_scripture_read, answered_prayers, recent_prayer_titles, urgent_prayers, bible_plan_name |
 | `nutrition` | `build_nutrition_state()` | calorie_avg_7d, protein_avg_7d, macro_compliance |
 | `fasting` | `build_fasting_state()` | rolling_7d_hours, avg_fast_duration, compliance_score |

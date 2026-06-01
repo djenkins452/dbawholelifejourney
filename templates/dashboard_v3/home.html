@@ -102,6 +102,19 @@
         });
     });
 
+    // ── Latency: tag v3-toggle HTMX requests so the server can 204 ──
+    // The action endpoints (water log, intake group log, task toggle,
+    // routine toggle, block complete, etc.) return v2 HTML that the
+    // v3 client discards anyway. Adding X-V3-Toggle lets the server
+    // short-circuit with 204 No Content — saves ~5–8s of v2 dashboard
+    // render per click. Phase 1 of the dashboard-action latency fix.
+    document.body.addEventListener('htmx:configRequest', function(evt) {
+        var trig = evt.target;
+        if (trig && trig.hasAttribute && trig.hasAttribute('data-v3-toggle')) {
+            evt.detail.headers['X-V3-Toggle'] = '1';
+        }
+    });
+
     // ── Task completion via canonical v2 toggle endpoints ──
     // Every [data-v3-toggle] button HTMX-POSTs to the EXACT same
     // canonical mutation endpoint v2 uses. We discard v2's response

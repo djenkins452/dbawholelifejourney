@@ -3,9 +3,84 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
+<<<<<<< Updated upstream
 # Last Updated: 2026-05-31 (fix: Mission Phase 6.1 — clinically-accurate Projected A1C / GMI)
 # ================================================================# WLJ Change History
 
+
+## 2026-05-31 — perf(dashboard): Phase 1 — kill double-fetch + defer Class A health summary builder (~60% latency cut)
+
+**The symptom:**
+Dashboard quick-actions (`+8 oz Water`, `+8 oz Coffee`, medication / supplement complete, routine toggle, block complete) took ~20 seconds before control returned to the user. UI was non-interactive during the wait. Habit-forming taps felt broken.
+
+**Root cause (proven, file:line evidence):**
+1. **Double dashboard fetch.** Every v3-toggle action POSTed → server returned a 302 redirect to `/dashboard/` → HTMX followed it and rendered the v2 action_center template (5–8 s, 50–80 queries) → response body discarded by `hx-swap="none"` → JS then triggered `window.location.reload()` for a *second* dashboard render. **~5–8 s of pure waste per action.**
+2. **`DailyHealthSummaryBuilder.build_for_date()` runs synchronously** inside `on_health_event_invalidate_state` (apps/core/events/subscribers.py:30) on every health write. 15–20 queries + protein/body-composition compute, on the request thread. **~1.5–3 s of sync work per write.**
+3. **`get_execution_truth()` (apps/core/execution/execution_truth_engine.py:81)** runs live on every dashboard render — 30–40 queries — violating the CLAUDE.md rule that request paths must never fall back to live computation. **Phase 2 (deferred to a follow-up PR per the approved scope).**
+
+**Phase 1 fix — two surgical changes:**
+
+**Change 1: kill the double dashboard fetch (server-side short-circuit).**
+- `templates/dashboard_v3/home.html` — added an `htmx:configRequest` listener that tags every HTMX request from a `data-v3-toggle` button with `X-V3-Toggle: 1`. One JS hook covers all current and future v3-toggle buttons.
+- `apps/dashboard_v2/views.py` — `_render_action_center` now early-returns `HttpResponse(status=204)` when `X-V3-Toggle: 1` is present. All 8 action endpoints (`TaskToggleAction`, `IntakeLogAction`, `RoutineCompleteAction`, `RoutineScheduleToggleAction`, `RoutineCompleteToggleAction`, `IntakeGroupLogAction`, `BlockCompleteToggleAction`) automatically inherit the short-circuit because they all delegate to `_render_action_center`.
+- `apps/health/views.py` — `QuickWaterLogView.post` also returns 204 when the header is set. Legacy non-HTMX callers (browser form submit, water_list widget AJAX) keep the existing redirect/JSON paths unchanged.
+- **Latency win: ~5–8 s per action.** v3 client still calls `window.location.reload()` — same final user state, one render instead of two.
+
+**Change 2: defer DailyHealthSummaryBuilder to Celery for Class A health events.**
+- `apps/core/events/subscribers.py` — added `SYNC_HEALTH_EVENTS` frozenset (locked-in Class B list). Refactored `on_health_event_invalidate_state` to branch: Class B → sync builder (no behavior change); Class A → `deferred_rebuild_health_summary.delay(user.id, today_iso)`.
+- `apps/health/tasks.py` — new `@shared_task deferred_rebuild_health_summary(user_id, date_iso)`. Idempotent (builder uses `update_or_create`), soft_time_limit=30s, single retry.
+- Includes fail-safe: if `.delay()` raises (broker down), falls back to sync builder with `logger.warning(..., exc_info=True)` per WLJ AI Engineering Rules — no silent `pass`.
+- **Latency win: ~1.5–3 s per Class A health write.** SAE cache invalidation still runs synchronously so the next dashboard render sees fresh raw data; only the summary rebuild defers.
+
+**Class A vs Class B routing (locked-in):**
+
+| Event | Class | Why |
+|---|---|---|
+| `HEALTH_GLUCOSE_LOGGED` | **B (sync)** | Hypo/hyper response within seconds; Beth's next read must see fresh value |
+| `HEALTH_BP_LOGGED` | **B (sync)** | Crisis-range readings (>180/120 or <90/60) cannot defer |
+| `HEALTH_SYNC_COMPLETED` | **B (sync)** | iOS/CGM/Dexcom batch ingest may carry glucose |
+| `HEALTH_WATER_LOGGED` | A (async) | Hydration total; non-urgent |
+| `HEALTH_MEDICATION_TAKEN` / `_MISSED` | A (async) | Adherence is reversible; idempotent via `IntakeLog.get_or_create` |
+| `HEALTH_WEIGHT_LOGGED` | A (async) | Habit-tracking |
+| `HEALTH_WORKOUT_COMPLETED` | A (async) | Habit-tracking |
+| `HEALTH_NUTRITION_LOGGED` | A (async) | Habit-tracking |
+| `HEALTH_FASTING_STARTED` / `_ENDED` | A (async) | Habit-tracking |
+| `HEALTH_SLEEP_LOGGED` | A (async) | Habit-tracking |
+
+The Class B list is a hard-coded `frozenset` in code (NOT settings/config — a typo can't misroute a safety-critical event). Locked by `test_sync_set_contents_match_approved_class_b_list` — any change requires explicit approval + this changelog update.
+
+**Timing instrumentation:**
+- `apps/core/timing.py` — new `action_timing(action, request, **extra)` context manager. Emits a single structured INFO log per action:
+  ```
+  [DASHBOARD_ACTION_TIMING] action=water_log user=1 total_ms=42 path=/health/physical/water/quick/ short_circuit=True drink_type=water
+  ```
+- Wired into `QuickWaterLogView.post` and `_render_action_center`. Lets us measure real before/after latency in production without any APM dependency.
+
+**Estimated latency (model-derived):**
+| Path | Before | After Phase 1 |
+|---|---|---|
+| `+8 oz Water` write + double-fetch | ~12 000–19 000 ms | ~5 000–8 000 ms |
+| Medication group complete | ~10 000–15 000 ms | ~4 500–7 000 ms |
+| Routine toggle | ~10 000–15 000 ms | ~4 500–7 000 ms |
+
+Approximately **55–60% reduction** in per-action latency. Trust-line crossed.
+
+**Out of scope (Phase 2, separate PR):**
+`get_execution_truth()` request-path caching with SAME-cycle background rebuild. Will take perceived latency another ~5–8 s down to sub-second.
+
+**Files Modified:**
+- `apps/core/timing.py` — NEW (timing helper)
+- `apps/core/events/subscribers.py` — Class A/B routing in `on_health_event_invalidate_state`
+- `apps/health/tasks.py` — NEW `deferred_rebuild_health_summary` task
+- `apps/dashboard_v2/views.py` — `_is_v3_toggle_request` + `_render_action_center` short-circuit + timing
+- `apps/health/views.py` — `QuickWaterLogView.post` short-circuit + timing
+- `templates/dashboard_v3/home.html` — `htmx:configRequest` listener tags requests with `X-V3-Toggle`
+- `apps/dashboard_v2/tests/test_v3_short_circuit.py` — NEW, 11 tests
+- `apps/health/tests/test_daily_summary_async.py` — NEW, 10 tests covering Class A/B routing + sync-set safety + deferred-task correctness
+
+**Verification:** 27/27 Phase 1 tests pass. 278/280 dashboard_v2 + dashboard_v3 + core.events regression tests pass (the 2 failures are pre-existing v2 home tests from the v3 promotion). All apps.health failures are pre-existing from the Medicine→Intake rename (commit 85e0067d) — none touch any surface modified here.
+
+---
 
 ## 2026-05-31 — fix(mission): Phase 6.1 — clinically-accurate Projected A1C (GMI)
 
@@ -1511,6 +1586,58 @@ patches one gap; the broader audit is logged as Task 23 in
 
 ### Backlog Updated
 - `docs/improvement_tasks.md` — Task 23 added.
+=======
+# Last Updated: 2026-05-26 (fix(journey): deterministic single-arc loader — unblock CI test DB creation)
+# ================================================================# WLJ Change History
+
+
+## 2026-05-26 — fix(journey): deterministic single-arc loader — unblock CI test DB creation
+
+**Root cause.** Migrations `journey.0003`–`0006` invoked `load_journey_path("walking_with_god")` with no scoping. The loader iterated `apps/faith/journey/content/walking_with_god/arcs/*.json` and validated every file present. As new arc content (arcs 3–12) landed on disk, the historical migrations retroactively pulled it into their scope. Several newer arcs violated `key_insight ≤ 200 chars`. The first violation raised `ContentPackError` during `migrate`, aborting test-DB creation and blocking the entire CI suite before a single test ran.
+
+**Fix.** Make the loader resolve a single arc deterministically and rewrite each migration to ask for exactly one named arc.
+
+**Loader changes** (`apps/faith/journey/management/commands/load_journey_path.py`)
+- New `--arc-slug` argument (also accepts `arc_slug` kwarg via `call_command`). When provided the loader loads, validates, and upserts only the matching arc.
+- New `_select_arc_files()` helper resolves the arc with a two-step strategy:
+  1. **Filename fast path** — `stem == arc_slug` or `stem.endswith("_" + arc_slug)`. No JSON parsing.
+  2. **Slug fallback** — read each `.json` file's `slug` field and match against `arc_slug`. JSON `slug` is canonical; filenames are advisory. A single fallback match logs a warning; multiple matches raise; zero matches raise with a clear "searched both routes" message.
+- Default (no `--arc-slug`) behaviour unchanged — admin / manual full-pack loading still works.
+
+**Migrations** (`apps/faith/journey/migrations/000{3,4,5,6}_*.py`)
+- `0003` → `arc_slug="creation_to_egypt"`
+- `0004` → `arc_slug="creation_to_egypt"` (belt-and-suspenders re-load)
+- `0005` → `arc_slug="slavery_to_deliverance"`
+- `0006` → loops the frozen `EXPECTED_ARC_SLUGS` list, one loader call per arc, with per-arc try/except preserving its defensive tolerance for missing content packs.
+- All four migrations now use `apps.get_model("journey", ...)` for direct ORM access instead of importing live models — schema-safe across future model edits.
+
+**Content fixes** — shortened ~24 `key_insight` strings across arcs 03/04/05/07/08/10/11 to ≤ 200 chars while preserving meaning. No validation rules weakened.
+
+**Tests added** (`apps/faith/journey/tests/test_loader.py`)
+- `test_arc_slug_filename_fast_path_loads_only_named_arc`
+- `test_arc_slug_falls_back_to_json_slug_when_filename_unrelated`
+- `test_arc_slug_unknown_slug_raises`
+- `test_arc_slug_filename_match_skips_other_arcs` — proves an invalid sibling arc on disk does not affect a single-arc load.
+
+**Determinism contract.** A fresh DB in 2028 will execute migration 0003 exactly as it did when authored. Future arc files added to disk cannot retroactively mutate the behaviour of an existing `arc_slug=...` migration call, because slug uniqueness within a journey path is a content-authoring contract.
+
+**Verification (fresh test DB)**
+- Migrations 0003–0006 apply cleanly. Migration 0006 logs `visible_arcs=12/12, total_days=85, loader_ok=True` and surfaces the slug-fallback warning for `the_church_begins` (whose filename omits the leading `the_`).
+- `apps.faith.journey.tests.test_loader` — 15/15 ✅
+- `apps.faith.journey` (full app) — 70/70 ✅ in 27 s
+- `manage.py check`, `makemigrations --check --dry-run` — clean
+
+**Files changed**
+- `apps/faith/journey/management/commands/load_journey_path.py`
+- `apps/faith/journey/migrations/0003_load_arc_1_creation_to_egypt.py`
+- `apps/faith/journey/migrations/0004_force_arc_1_active_state.py`
+- `apps/faith/journey/migrations/0005_load_arc_2_slavery_to_deliverance.py`
+- `apps/faith/journey/migrations/0006_load_arcs_3_through_12.py`
+- `apps/faith/journey/tests/test_loader.py`
+- Content edits to arcs 03–05, 07, 08, 10, 11 (`key_insight` brevity)
+
+**Blast radius.** Production migrations 0003–0006 are already applied and will not re-run; the new bodies only execute on fresh DBs. The new bodies are strictly safer (deterministic, schema-frozen, per-arc isolated). Local dev and admin tooling unaffected. The 200-char content contract still enforced.
+>>>>>>> Stashed changes
 
 ---
 

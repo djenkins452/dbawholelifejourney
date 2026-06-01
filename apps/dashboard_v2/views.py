@@ -628,27 +628,59 @@ class ReconciliationRespondView(LoginRequiredMixin, View):
 # ── Action Endpoints ─────────────────────────────────────────────────
 
 
+def _is_v3_toggle_request(request) -> bool:
+    """True when the request came from a dashboard_v3 `data-v3-toggle`
+    button.
+
+    The v3 client uses `hx-swap="none"` + `window.location.reload()` —
+    so any HTML we render here is *discarded* before the user sees
+    anything. Re-rendering the v2 action_center template (50–80
+    queries, 5–8s) is pure waste in that flow. The v3 home.html
+    `htmx:configRequest` listener tags these requests with
+    `X-V3-Toggle: 1` so the server can short-circuit with a 204.
+
+    Non-HTMX callers and the v2 dashboard (which actually uses the
+    returned HTML) are unaffected.
+    """
+    return request.headers.get("X-V3-Toggle") == "1"
+
+
 def _render_action_center(request):
     """Shared helper: invalidate cache, rebuild execution context,
     render the unified action center template.
 
     All toggle actions (task, routine, medicine) use this to return
     the full action center as a single HTMX swap target.
-    """
-    DashboardV2CacheService.invalidate(request.user.pk, "execution")
-    service = DashboardV2Service(request.user)
-    # Ensure daily progress is available for binary domain items
-    from .services.daily_progress_service import DailyProgressService
-    progress_service = DailyProgressService(request.user)
-    service._daily_progress = progress_service.get_today()
 
-    exec_ctx = service.get_execution_context()
-    html = render_to_string(
-        "dashboard_v2/partials/action_center.html",
-        {**exec_ctx, "request": request},
-        request=request,
-    )
-    return HttpResponse(html)
+    SHORT-CIRCUIT: when the request originates from a dashboard_v3
+    data-v3-toggle button (X-V3-Toggle: 1 header), skip the heavy
+    render entirely — the response body is discarded by the client
+    anyway and a 204 lets the JS reload fire ~5–8s sooner. See
+    `_is_v3_toggle_request` for the gate.
+    """
+    from apps.core.timing import action_timing
+
+    action_name = getattr(request, "resolver_match", None)
+    action_name = action_name.url_name if action_name else "action_center"
+    short_circuit = _is_v3_toggle_request(request)
+    with action_timing(action_name, request, short_circuit=short_circuit):
+        if short_circuit:
+            return HttpResponse(status=204)
+
+        DashboardV2CacheService.invalidate(request.user.pk, "execution")
+        service = DashboardV2Service(request.user)
+        # Ensure daily progress is available for binary domain items
+        from .services.daily_progress_service import DailyProgressService
+        progress_service = DailyProgressService(request.user)
+        service._daily_progress = progress_service.get_today()
+
+        exec_ctx = service.get_execution_context()
+        html = render_to_string(
+            "dashboard_v2/partials/action_center.html",
+            {**exec_ctx, "request": request},
+            request=request,
+        )
+        return HttpResponse(html)
 
 
 class TaskToggleAction(LoginRequiredMixin, View):

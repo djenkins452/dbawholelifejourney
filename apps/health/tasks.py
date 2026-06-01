@@ -85,6 +85,73 @@ def build_nightly_health_summaries(self):
 
 
 @shared_task(
+    name="health.deferred_rebuild_health_summary",
+    bind=True,
+    max_retries=1,
+    soft_time_limit=30,
+    time_limit=45,
+    acks_late=True,
+)
+def deferred_rebuild_health_summary(self, user_id, date_iso):
+    """Class A post-write hook — defer DailyHealthSummaryBuilder off
+    the request thread.
+
+    Called via `.delay()` from `on_health_event_invalidate_state` for
+    Class A health events (water, weight, medication, workout, etc.)
+    so the user's dashboard reload doesn't block on the summary rebuild
+    (was ~1.5–3s synchronous; now <50ms enqueue from the request).
+
+    Class B health events (glucose, BP, sync_completed) still run the
+    builder synchronously — see `SYNC_HEALTH_EVENTS` in
+    `apps/core/events/subscribers.py` for the safety-critical list.
+
+    Idempotent: the underlying builder uses update_or_create on
+    DailyHealthSummary. Safe to retry; safe if the row already exists.
+
+    Args:
+        user_id: User PK
+        date_iso: ISO date string ("YYYY-MM-DD") to build for —
+                  callers pass today's date in the user's timezone.
+    """
+    from datetime import date as _date
+    from django.contrib.auth import get_user_model
+
+    from apps.health.services.daily_summary_builder import DailyHealthSummaryBuilder
+
+    User = get_user_model()
+    user = User.objects.filter(pk=user_id, is_active=True).first()
+    if user is None:
+        return {"status": "user_not_found", "user_id": user_id}
+
+    try:
+        target = _date.fromisoformat(date_iso)
+    except (TypeError, ValueError):
+        return {"status": "bad_date", "date_iso": date_iso}
+
+    try:
+        DailyHealthSummaryBuilder().build_for_date(user, target)
+        return {"status": "ok", "user_id": user_id, "date": date_iso}
+    except SoftTimeLimitExceeded:
+        logger.warning(
+            "deferred_rebuild_health_summary soft-time-limit: user=%s date=%s",
+            user_id, date_iso,
+        )
+        return {"status": "soft_timeout", "user_id": user_id, "date": date_iso}
+    except Exception as exc:
+        logger.error(
+            "deferred_rebuild_health_summary failed: user=%s date=%s",
+            user_id, date_iso, exc_info=True,
+        )
+        # Single retry — if it fails again, log and move on. The next
+        # health event will re-enqueue, and the nightly job is the
+        # ultimate safety net.
+        try:
+            raise self.retry(exc=exc, countdown=20)
+        except Exception:
+            return {"status": "failed", "user_id": user_id, "date": date_iso}
+
+
+@shared_task(
     name="health.build_user_health_summary",
     bind=True,
     max_retries=2,

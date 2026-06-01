@@ -22,7 +22,7 @@ from django.views.generic import (
     View,
 )
 
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 
 from apps.core.events.domain_events import safe_emit_event, EventTypes
@@ -1444,60 +1444,74 @@ class QuickWaterLogView(LoginRequiredMixin, View):
     """
 
     def post(self, request):
+        from apps.core.timing import action_timing
+
         preset = request.POST.get("preset", "8")
         drink_type = request.POST.get("drink_type", "water")
+        v3_toggle = request.headers.get("X-V3-Toggle") == "1"
 
-        try:
-            amount = float(preset)
-        except ValueError:
-            amount = 8.0
+        with action_timing(
+            "water_log", request,
+            short_circuit=v3_toggle, drink_type=drink_type,
+        ):
+            try:
+                amount = float(preset)
+            except ValueError:
+                amount = 8.0
 
-        # Validate drink_type
-        valid_types = [c[0] for c in WaterEntry.DRINK_TYPE_CHOICES]
-        if drink_type not in valid_types:
-            drink_type = "water"
+            # Validate drink_type
+            valid_types = [c[0] for c in WaterEntry.DRINK_TYPE_CHOICES]
+            if drink_type not in valid_types:
+                drink_type = "water"
 
-        # Smart container selection based on drink type
-        if drink_type in ("coffee", "tea"):
-            container = "cup"
-        elif amount <= 12:
-            container = "glass"
-        elif amount >= 32:
-            container = "large_bottle"
-        else:
-            container = "bottle"
+            # Smart container selection based on drink type
+            if drink_type in ("coffee", "tea"):
+                container = "cup"
+            elif amount <= 12:
+                container = "glass"
+            elif amount >= 32:
+                container = "large_bottle"
+            else:
+                container = "bottle"
 
-        entry = WaterEntry.objects.create(
-            user=request.user,
-            amount=amount,
-            unit="oz",
-            drink_type=drink_type,
-            container=container,
-            logged_date=get_user_today(request.user),
-        )
-        safe_emit_event(EventTypes.HEALTH_WATER_LOGGED, request.user, {
-            "entry_id": entry.id, "amount": amount, "source": "web_view_quick",
-        })
-
-        type_label = dict(WaterEntry.DRINK_TYPE_CHOICES).get(drink_type, "Drink")
-        messages.success(request, f"Logged {amount:.0f}oz {type_label}!")
-
-        # Handle AJAX requests
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            today_progress = WaterEntry.get_daily_goal_progress(
-                request.user,
-                get_user_today(request.user)
+            entry = WaterEntry.objects.create(
+                user=request.user,
+                amount=amount,
+                unit="oz",
+                drink_type=drink_type,
+                container=container,
+                logged_date=get_user_today(request.user),
             )
-            return JsonResponse({
-                "success": True,
-                "total_oz": today_progress["total_oz"],
-                "percentage": today_progress["percentage"],
-                "goal_met": today_progress["goal_met"],
-                "drink_type": drink_type,
-                "type_label": type_label,
+            safe_emit_event(EventTypes.HEALTH_WATER_LOGGED, request.user, {
+                "entry_id": entry.id, "amount": amount, "source": "web_view_quick",
             })
 
-        return redirect(request.POST.get("next", "health:water_list"))
+            type_label = dict(WaterEntry.DRINK_TYPE_CHOICES).get(drink_type, "Drink")
+            messages.success(request, f"Logged {amount:.0f}oz {type_label}!")
+
+            # dashboard_v3 short-circuit. The button's data-v3-toggle
+            # listener discards the response and runs window.location.
+            # reload() itself — so a 204 saves ~5–8s by not rendering a
+            # full dashboard that would be discarded anyway.
+            if v3_toggle:
+                return HttpResponse(status=204)
+
+            # Handle AJAX requests (legacy water_list widget — unchanged).
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                today_progress = WaterEntry.get_daily_goal_progress(
+                    request.user,
+                    get_user_today(request.user)
+                )
+                return JsonResponse({
+                    "success": True,
+                    "total_oz": today_progress["total_oz"],
+                    "percentage": today_progress["percentage"],
+                    "goal_met": today_progress["goal_met"],
+                    "drink_type": drink_type,
+                    "type_label": type_label,
+                })
+
+            return redirect(request.POST.get("next", "health:water_list"))
 
 
 # NOTE: Glucose views moved to end of file with Dexcom integration views

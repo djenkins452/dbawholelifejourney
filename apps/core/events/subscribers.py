@@ -18,9 +18,32 @@ Copyright:
 
 import logging
 
-from apps.core.events.domain_events import subscribe
+from apps.core.events.domain_events import EventTypes, subscribe
 
 logger = logging.getLogger(__name__)
+
+
+# =========================================================================
+# Class A vs Class B health-event routing (latency Phase 1)
+# =========================================================================
+#
+# Class B = safety-sensitive / reasoning-critical writes. The
+# DailyHealthSummaryBuilder MUST run synchronously so the next CoS or
+# Beth reasoning pass sees the just-written value. These stay on the
+# request thread.
+#
+# Class A = everything else under health.*. The builder is deferred to a
+# Celery task so the user's dashboard reload doesn't block on a 1.5–3s
+# rebuild. The SAE cache is still invalidated synchronously; the
+# summary catches up asynchronously (~1–2s after).
+#
+# Hard-coded (not config) so a misroute can't happen via a settings
+# typo. New safety-critical event types must be added here explicitly.
+SYNC_HEALTH_EVENTS = frozenset({
+    EventTypes.HEALTH_GLUCOSE_LOGGED,
+    EventTypes.HEALTH_BP_LOGGED,          # treat all BP as Class B (crisis-range possible)
+    EventTypes.HEALTH_SYNC_COMPLETED,     # iOS/CGM/Dexcom batch — may include glucose
+})
 
 
 # =========================================================================
@@ -29,7 +52,13 @@ logger = logging.getLogger(__name__)
 
 @subscribe("health.*")
 def on_health_event_invalidate_state(event):
-    """Invalidate SAE cached state and rebuild today's health summary."""
+    """Invalidate SAE cached state and rebuild today's health summary.
+
+    Cache invalidation always runs synchronously so the next request
+    sees fresh state. The DailyHealthSummaryBuilder runs sync for
+    Class B (safety-sensitive) events and is deferred to Celery for
+    Class A (habit-tracking) events — see SYNC_HEALTH_EVENTS above.
+    """
     if not event.user:
         return
     try:
@@ -43,16 +72,48 @@ def on_health_event_invalidate_state(event):
     except Exception as e:
         logger.debug("SAE cache invalidation skipped: %s", e)
 
-    # Rebuild today's DailyHealthSummary so the next SAE cycle picks up
-    # the new data in HealthScoreService.compute(). Without this, health
-    # score would lag until the nightly Celery build.
-    try:
-        from datetime import date
-
-        from apps.health.services.daily_summary_builder import DailyHealthSummaryBuilder
-        DailyHealthSummaryBuilder().build_for_date(event.user, date.today())
-    except Exception:
-        logger.debug("Health summary rebuild on event skipped", exc_info=True)
+    # Class A vs B routing.
+    is_class_b = event.event_type in SYNC_HEALTH_EVENTS
+    if is_class_b:
+        # Class B — sync rebuild. Trust contract: glucose / BP / sync
+        # ingestion drive safety reasoning; the next read must see
+        # fresh summary data.
+        try:
+            from datetime import date
+            from apps.health.services.daily_summary_builder import DailyHealthSummaryBuilder
+            DailyHealthSummaryBuilder().build_for_date(event.user, date.today())
+        except Exception:
+            logger.warning(
+                "Class B health summary rebuild failed (event=%s user=%s)",
+                event.event_type, event.user.id, exc_info=True,
+            )
+    else:
+        # Class A — defer to Celery. Eliminates ~1.5–3s of
+        # request-thread cost per water/coffee/medication/etc.
+        try:
+            from datetime import date
+            from apps.health.tasks import deferred_rebuild_health_summary
+            deferred_rebuild_health_summary.delay(
+                event.user.id, date.today().isoformat(),
+            )
+        except Exception:
+            logger.warning(
+                "Class A health summary defer failed (event=%s user=%s) — "
+                "falling back to sync rebuild for correctness",
+                event.event_type, event.user.id, exc_info=True,
+            )
+            # Fail-safe: if Celery enqueue fails (broker down, etc.),
+            # fall back to sync so we don't lose the summary update
+            # entirely. Worst case: same latency as before this change.
+            try:
+                from datetime import date as _d
+                from apps.health.services.daily_summary_builder import DailyHealthSummaryBuilder
+                DailyHealthSummaryBuilder().build_for_date(event.user, _d.today())
+            except Exception:
+                logger.error(
+                    "Class A sync fallback ALSO failed (event=%s user=%s)",
+                    event.event_type, event.user.id, exc_info=True,
+                )
 
 
 @subscribe("journal.*")

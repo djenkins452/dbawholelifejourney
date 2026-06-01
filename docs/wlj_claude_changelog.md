@@ -3,8 +3,32 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-31 (fix: Mission Phase 6.4 — A1C/GMI truth model + nutrition link)
+# Last Updated: 2026-05-31 (fix: Mission Phase 6.5 — stale manual-entry signals freshness guard)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-31 — fix(dashboard_v3): Phase 6.5 — manual-entry mission signals must feel near real-time (journal + nutrition staleness)
+
+**The problem.** The Mission card showed stale signals: a journal entry logged 5 minutes ago still read `Journal → 0/wk`, and a logged meal still read `Nutrition → 0% macros`. This breaks dashboard trust — the user is left wondering "did my data save?".
+
+**Root cause (verified against the actual runtime path, not guessed).**
+- Mission signals are sourced (C) **from the persisted SAE snapshot** (`UserState.state_data`), read via `get_module_state()` in `composer._read_mission_states()`. The dashboard never live-queries raw rows (correct — that's the architecture).
+- The snapshot is normally refreshed after a write by a post_save signal (`apps/ai/signals.py`) → `_refresh_sae_module()` → `_defer_sae_refresh()` → **Celery** `deferred_sae_refresh.delay()`.
+- That dispatch is **fire-and-forget**: the synchronous fallback only runs if `.delay()` itself raises (broker unreachable). If the broker accepts the task but the worker is backed up or down, the task is queued and never consumed — the snapshot silently lags until the nightly full rebuild. The mission card then shows last-night's `0/wk` / `0% macros`.
+
+**Architecture chosen — request-path freshness guard for manual-entry signals only.** New module `apps/core/ai_state/state_freshness.py :: ensure_fresh(user, modules)`:
+- Before the mission card reads journal/nutrition, does ONE cheap indexed `.exists()` per module: "is there a raw write (`updated_at`) newer than the snapshot's `last_updated`?".
+- Only when stale, runs a **targeted single-module rebuild** via the module's own SAE builder (`update_user_state`) — journal ~5 queries, nutrition ~10. This rebuilds the **signal**, then the composer reads the signal: `raw → signal → narrative` is preserved (never reads raw rows into narrative logic).
+- Self-healing & idempotent: the rebuild bumps `last_updated` past the raw write, so the next load is a no-op. Resilient to Celery being down — guarantees freshness on the one path the user is looking at.
+- Registry-driven (`_MANUAL_MODULE_SOURCES`, keyed by module) so future manual domains (medicine, habits, check-ins) promote with a single line once a request-path reader consumes their signal.
+- Device/aggregate modules (health 69-query builder, fitness) are deliberately EXCLUDED — they stay on the nightly / SAME-cycle background path per the no-heavy-compute-on-request-path rule.
+
+**Performance impact.** Clean load (no new manual entry): +2 indexed `.exists()` queries (journal + nutrition), no rebuild. Right after a manual entry that Celery hasn't yet processed: +1 cheap single-module rebuild (~5–10 queries, measured <10ms in tests). The heavy health builder and all system analytics are untouched.
+
+**Files.** `apps/core/ai_state/state_freshness.py` (new guard), `apps/dashboard_v3/services/composer.py` (`_read_mission_states` calls `ensure_fresh(["journal","nutrition"])`), `apps/core/ai_state/tests_state_freshness.py` (new, 6 tests), `apps/core/fixtures/release_notes.json` (PK 209), `apps/core/management/commands/load_initial_data.py` (loader reset), `docs/ENGINE_COS_REFERENCE.md`.
+
+**Verification.** `apps.core.ai_state.tests_state_freshness` — 6 pass (stale journal/nutrition → repaired on read; fresh → no recompute; non-manual modules ignored; missing snapshot safe; `_sae_cache` cleared). `apps.dashboard_v3.tests.test_composer.MissionCardTests` — 69 pass (no regression). No model changes (no migration).
+
 
 
 ## 2026-05-31 — fix(today_engine): exclude informational deadline markers from actionable check-ins (P1 trust)

@@ -1077,6 +1077,8 @@ class Command(BaseCommand):
         self._reset_mission_a1c_always_visible_release_notes(DataLoadConfig, force, verbosity)
         # Phase 6.4 — A1C (GMI) truth model + trend classification + nutrition link (PK 208)
         self._reset_mission_a1c_truth_release_notes(DataLoadConfig, force, verbosity)
+        # Phase 6.5 — manual-entry signal freshness (journal + nutrition) release note (PK 209)
+        self._reset_mission_signal_freshness_release_notes(DataLoadConfig, force, verbosity)
 
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
@@ -7233,6 +7235,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Mission A1C truth release notes FAILED: {e}'))
+
+    def _reset_mission_signal_freshness_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes after adding PK 209 (Mission
+        Phase 6.5 — manual-entry mission signals (journal + nutrition) refresh
+        on dashboard load instead of lagging until the nightly rebuild).
+        """
+        reset_tracker_name = 'reset_mission_signal_freshness_2026_05_31'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for manual-entry signal freshness (PK 209)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for manual-entry signal freshness',
+                'command',
+                'One-time reset: added PK 209 for Mission Phase 6.5 manual-entry signal freshness'
+            )
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Mission signal freshness release notes FAILED: {e}'))
 
     def _reset_action_center_vocabulary_release_notes(self, DataLoadConfig, force=False, verbosity=1):
         """

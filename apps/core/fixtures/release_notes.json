@@ -3302,5 +3302,21 @@
       "created_at": "2026-06-01T04:00:00Z",
       "updated_at": "2026-06-01T04:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 209,
+    "fields": {
+      "title": "Your Mission card now reflects journal and nutrition entries right away",
+      "description": "When you write a journal entry or log a meal, your Mission card now updates within moments instead of waiting until the next day. Previously these signals could lag behind — you might log dinner and still see \"0% macros,\" or journal in the morning and still see \"0/wk\" — which left you wondering whether your entry actually saved. The dashboard now checks for your latest journal and nutrition activity as it loads and refreshes just those signals if they're behind, so what you see matches what you just did. It's a targeted, lightweight refresh that keeps the rest of the dashboard fast.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-05-31",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-06-01T05:00:00Z",
+      "updated_at": "2026-06-01T05:00:00Z"
+    }
   }
 ]

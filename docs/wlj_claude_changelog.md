@@ -3,8 +3,25 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-31 (fix: Mission Phase 6.5 — stale manual-entry signals freshness guard)
+# Last Updated: 2026-05-31 (fix: Phase 6.5 hotfix — Primary Mission card regression + resilience)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-31 — fix(dashboard_v3): Phase 6.5 hotfix — Primary Mission card disappeared; make card resilient to optional-signal failures
+
+**The regression.** Commit `37601a7e` (Phase 6.5 freshness guard) accidentally bundled a parallel session's in-flight `composer.py` edits — request-path SAE reads switched to `get_module_state(user, module, allow_rebuild=False)` and a new `_ensure_sae_warm_enqueued()` importing `apps.core.ai_state.tasks` — but the dependencies those calls require were NOT in the commit. In production `get_module_state()` had no `allow_rebuild` parameter and `apps/core/ai_state/tasks.py` did not exist.
+
+**Failure path (traced, not guessed).** `_build_mission_card` → `_read_mission_states(user)` → `get_module_state(user, "health", allow_rebuild=False)` → **TypeError: unexpected keyword argument 'allow_rebuild'**. `_build_mission_card` is wrapped in `_safe(..., default=None)` (composer line 91), so the exception was swallowed and the entire Primary Mission section silently vanished. Health/Faith/Purpose gauges call the same way but each is inside its own `try/except`, so they degraded individually and still rendered — exactly matching the reported symptom (everything renders except the mission hero).
+
+**Root-cause fix.** Committed the two orphaned dependencies the deployed caller needs:
+- `apps/core/ai_state/state_engine.py` — `get_user_state`/`get_module_state` gain the additive, backward-compatible `allow_rebuild=True` kwarg (Phase 3 read-only contract; default preserves every existing caller).
+- `apps/core/ai_state/tasks.py` (new) — `deferred_warm_sae_module` / `deferred_rebuild_full_sae` + fail-safe `enqueue_module_warm` / `enqueue_full_sae_warm` wrappers.
+
+**Resilience fix (the durable guarantee).** The mission hero card must NEVER depend on optional supporting signals. Its core (goal, focus, momentum, panel, progress, why, victories) derives from the `LifeGoal` + momentum snapshots — only the Key Drivers row and status classifier read SAE state. In `_build_mission_card` the entire `_read_mission_states` → drivers → status block is now wrapped in defensive degradation: any failure logs a warning and falls back to an empty drivers row + neutral status, and the card still renders. `_read_mission_states` is additionally hardened — `ensure_fresh` is guarded, and each `get_module_state` read is independently guarded so one module's failure can't lose the others.
+
+**Files.** `apps/dashboard_v3/services/composer.py` (resilience wrap + per-read guards), `apps/core/ai_state/state_engine.py` (allow_rebuild kwarg), `apps/core/ai_state/tasks.py` (new SAE warm tasks), `apps/dashboard_v3/tests/test_composer.py` (new `MissionCardResilienceTests`, 7 tests).
+
+**Verification.** `apps.dashboard_v3.tests.test_composer.MissionCardResilienceTests` (7) + `MissionCardTests` (69) — 76 pass. New tests prove the card renders when: the freshness guard raises, journal refresh fails, nutrition refresh fails, A1C is unavailable, the snapshot is stale, EVERY signal read raises (the exact `allow_rebuild` TypeError), and the drivers builder raises. No model changes (no migration).
 
 
 ## 2026-05-31 — fix(dashboard_v3): Phase 6.5 — manual-entry mission signals must feel near real-time (journal + nutrition staleness)

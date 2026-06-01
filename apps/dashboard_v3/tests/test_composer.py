@@ -9,9 +9,16 @@ Goals:
 """
 
 from datetime import time as dtime
+from unittest import mock
 
 from django.conf import settings
 from django.test import TestCase
+
+# Saved before any patching so resilience tests can delegate to the real
+# implementation from inside a ``side_effect``.
+from apps.core.ai_state.state_engine import (
+    get_module_state as _REAL_GET_MODULE_STATE,
+)
 
 from apps.core.cos_briefing.executive_summary import (
     _derive_headline,
@@ -1575,6 +1582,155 @@ class MissionCardTests(TestCase):
             for d in status[col] if d["label"] == "Nutrition"
         )
         self.assertEqual(nutri["dest"]["href"], "/health/physical/nutrition/")
+
+
+class MissionCardResilienceTests(TestCase):
+    """The Primary Mission hero card must NEVER disappear because an OPTIONAL
+    supporting signal (journal/nutrition freshness, A1C, any SAE read) failed.
+
+    Regression origin: Phase 6.5 (2026-05-31). A request-path read inside
+    ``_read_mission_states`` raised — the exception propagated through
+    ``_build_mission_card``, which is wrapped in ``_safe(default=None)``, so
+    the entire mission section silently vanished. The hero core (goal, focus,
+    momentum, panel, progress, why) does not depend on those signals; only the
+    Key Drivers row and the status classifier do. A signal failure must degrade
+    to an empty drivers row + neutral status, never a missing card.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="v3-mission-resilience@test.com", password="testpass123"
+        )
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"),
+        )
+
+    def _goal(self, **kw):
+        from apps.purpose.models import LifeGoal
+        defaults = {
+            "user": self.user,
+            "title": "Resilient Mission",
+            "status": "active",
+            "is_primary_mission": True,
+        }
+        defaults.update(kw)
+        return LifeGoal.objects.create(**defaults)
+
+    def _seed_state(self, **modules):
+        from apps.core.ai_state.models import UserState
+        UserState.objects.update_or_create(
+            user=self.user, defaults={"state_data": modules}
+        )
+
+    def _assert_hero_intact(self, mission):
+        # Core hero fields are derived from the goal, NOT from optional signals.
+        self.assertIsNotNone(mission, "mission hero card must not disappear")
+        self.assertEqual(mission["title"], "Resilient Mission")
+        self.assertTrue(mission["is_primary"])
+        self.assertIsNotNone(mission["panel"])     # always present for a mission
+        self.assertIsNotNone(mission["progress"])  # milestone ring always built
+
+    def test_mission_renders_when_freshness_guard_raises(self):
+        # The freshness guard (ensure_fresh) blowing up — e.g. broker error —
+        # must not take the card down.
+        self._goal()
+        self._seed_state(journal={"entries_7d": 2})
+        with mock.patch(
+            "apps.core.ai_state.state_freshness.ensure_fresh",
+            side_effect=RuntimeError("broker unreachable"),
+        ):
+            mission = build_dashboard_v3_context(self.user)["mission"]
+        self._assert_hero_intact(mission)
+
+    def test_mission_renders_when_journal_refresh_fails(self):
+        # Journal SAE read raising must not remove the card; drivers degrade.
+        self._goal()
+        self._seed_state(journal={"entries_7d": 1}, health={})
+
+        def boom(user, module, *a, **k):
+            if module == "journal":
+                raise RuntimeError("journal builder exploded")
+            return _REAL_GET_MODULE_STATE(user, module, *a, **k)
+
+        with mock.patch(
+            "apps.core.ai_state.state_engine.get_module_state", side_effect=boom
+        ):
+            mission = build_dashboard_v3_context(self.user)["mission"]
+        self._assert_hero_intact(mission)
+
+    def test_mission_renders_when_nutrition_refresh_fails(self):
+        self._goal()
+        self._seed_state(nutrition={"enabled": True}, health={})
+
+        def boom(user, module, *a, **k):
+            if module == "nutrition":
+                raise RuntimeError("nutrition builder exploded")
+            return _REAL_GET_MODULE_STATE(user, module, *a, **k)
+
+        with mock.patch(
+            "apps.core.ai_state.state_engine.get_module_state", side_effect=boom
+        ):
+            mission = build_dashboard_v3_context(self.user)["mission"]
+        self._assert_hero_intact(mission)
+
+    def test_mission_renders_when_a1c_unavailable(self):
+        # A1C is an OPTIONAL health-state signal. When absent, the card renders
+        # and simply omits the A1C driver — never a fabricated value, never a
+        # vanished card.
+        self._goal()
+        self._seed_state(health={"weight_change_30d": -2})  # no glucose / a1c
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self._assert_hero_intact(mission)
+        driver_keys = {d["key"] for d in mission["drivers"]}
+        self.assertNotIn("a1c", driver_keys)
+
+    def test_mission_renders_with_stale_snapshot(self):
+        # A snapshot older than a fresh manual write must still render the card
+        # (the freshness guard repairs the signal; the card never waits on it).
+        from datetime import date, timedelta
+        from django.utils import timezone
+        from apps.core.ai_state.models import UserState
+        from apps.journal.models import JournalEntry
+
+        self._goal()
+        JournalEntry.objects.create(
+            user=self.user, title="Today", body="A real entry",
+            entry_date=date.today(), mood="good",
+        )
+        self._seed_state(journal={"entries_7d": 0})
+        UserState.objects.filter(user=self.user).update(
+            last_updated=timezone.now() - timedelta(minutes=90)
+        )
+        mission = build_dashboard_v3_context(self.user)["mission"]
+        self._assert_hero_intact(mission)
+
+    def test_mission_renders_when_every_signal_read_raises(self):
+        # Reproduces the EXACT production incident: get_module_state raising a
+        # TypeError (the orphaned ``allow_rebuild`` kwarg). Every signal read
+        # fails — the hero card must still render with an empty drivers row.
+        self._goal()
+        self._seed_state(health={"weight_change_30d": -2})
+        with mock.patch(
+            "apps.core.ai_state.state_engine.get_module_state",
+            side_effect=TypeError(
+                "get_module_state() got an unexpected keyword argument 'allow_rebuild'"
+            ),
+        ):
+            mission = build_dashboard_v3_context(self.user)["mission"]
+        self._assert_hero_intact(mission)
+        self.assertEqual(mission["drivers"], [])  # degraded, not fabricated
+
+    def test_mission_renders_when_drivers_builder_raises(self):
+        self._goal()
+        self._seed_state(health={})
+        with mock.patch(
+            "apps.dashboard_v3.services.composer._build_mission_drivers",
+            side_effect=RuntimeError("driver formatting bug"),
+        ):
+            mission = build_dashboard_v3_context(self.user)["mission"]
+        self._assert_hero_intact(mission)
+        self.assertEqual(mission["drivers"], [])
 
 
 class WeatherTileTests(TestCase):

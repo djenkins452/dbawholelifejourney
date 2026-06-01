@@ -515,22 +515,33 @@ def _build_mission_card(user) -> dict | None:
     # Short tagline under the title — the user's own description, if any.
     subtitle = (goal.description or "").strip() or None
 
-    # Read the pre-computed SAE module states ONCE (read-only) and reuse them
-    # for both the deterministic drivers row and the mission-status classifier.
-    states = _read_mission_states(user)
-
-    # Key Drivers — deterministic behaviour signals, read-only, gracefully
-    # omitted when unavailable. Kept for back-compat with existing consumers.
-    drivers = _build_mission_drivers(states)
-
-    # Phase 3 — Mission Intelligence. Deterministic state classification +
-    # grounded coaching narrative + helping/needs split. Built from the same
-    # SAE signals (no extra queries) and the persisted momentum trend only.
-    # Phase 3.5 — the mission's milestone PHASE shapes how movement is judged
-    # (early phases reward consistency over step volume).
-    phase = _mission_movement_phase(goal)
-    signals = _evaluate_mission_signals(states, phase)
-    status = _build_mission_status(goal, snap, signals, today)
+    # Key Drivers + status classifier are OPTIONAL supporting signals. The
+    # mission hero card must NEVER disappear because a signal read failed —
+    # its core (goal, focus, momentum, panel, progress, why, victories) does
+    # not depend on SAE module state. A failure anywhere in the freshness
+    # guard / signal read / classifier degrades to an empty drivers row and a
+    # neutral status, and the card still renders. (Regression origin: Phase 6.5
+    # — a request-path read raised and the whole card vanished.)
+    drivers: list[dict] = []
+    status = None
+    try:
+        # Read the pre-computed SAE module states ONCE (read-only) and reuse
+        # them for both the drivers row and the mission-status classifier.
+        states = _read_mission_states(user)
+        drivers = _build_mission_drivers(states)
+        # Phase 3 — Mission Intelligence: deterministic state classification +
+        # grounded coaching narrative + helping/needs split, from the same SAE
+        # signals (no extra queries) and the persisted momentum trend only.
+        # Phase 3.5 — the milestone PHASE shapes how movement is judged.
+        phase = _mission_movement_phase(goal)
+        signals = _evaluate_mission_signals(states, phase)
+        status = _build_mission_status(goal, snap, signals, today)
+    except Exception:
+        logger.warning(
+            "MISSION user=%s — optional signal read failed; rendering hero "
+            "card without drivers/status",
+            getattr(user, "id", "?"), exc_info=True,
+        )
 
     # Phase 5 — emotional motivation layer. Read-only metadata, no scoring.
     # These touch a SINGLE mission goal's relations (links + wins), so it is a
@@ -631,17 +642,35 @@ def _read_mission_states(user) -> dict:
     # NOTE: ensure_fresh is allowed to do single-module rebuilds for manual
     # signals (journal / nutrition) — it's deterministic and cheap. The
     # Phase 3 read-only contract applies to the gauge reads below, NOT to
-    # the targeted ensure_fresh repair.
-    ensure_fresh(user, ["journal", "nutrition"])
+    # the targeted ensure_fresh repair. ensure_fresh never raises, but guard
+    # it anyway so the mission card never depends on it.
+    try:
+        ensure_fresh(user, ["journal", "nutrition"])
+    except Exception:
+        logger.warning(
+            "MISSION user=%s — freshness guard raised; reading stale snapshot",
+            getattr(user, "id", "?"), exc_info=True,
+        )
 
     # Phase 3: read-only against SAE — never trigger full rebuild on the
     # request path. If state is empty, downstream gauges display "—"
-    # for that domain until the background warm task lands.
+    # for that domain until the background warm task lands. Each read is
+    # independently guarded so one module's failure can't lose the others.
+    def _read(module):
+        try:
+            return get_module_state(user, module, allow_rebuild=False) or {}
+        except Exception:
+            logger.warning(
+                "MISSION user=%s module=%s — state read failed",
+                getattr(user, "id", "?"), module, exc_info=True,
+            )
+            return {}
+
     return {
-        "health":    get_module_state(user, "health",    allow_rebuild=False) or {},
-        "fitness":   get_module_state(user, "fitness",   allow_rebuild=False) or {},
-        "journal":   get_module_state(user, "journal",   allow_rebuild=False) or {},
-        "nutrition": get_module_state(user, "nutrition", allow_rebuild=False) or {},
+        "health":    _read("health"),
+        "fitness":   _read("fitness"),
+        "journal":   _read("journal"),
+        "nutrition": _read("nutrition"),
     }
 
 
@@ -1368,7 +1397,15 @@ def _load_execution_contract(user) -> dict | None:
     consumer reuses the same 30-40 queries instead of refetching.
     Returns ``None`` on failure — downstream builders fall back to
     fetching their own copy (full back-compat).
+
+    Phase 3: if the view layer has already pre-fetched the contract
+    and stashed it on ``user._dashboard_exec_contract`` (see
+    ``DashboardV3View.get_context_data``), reuse it — saves another
+    ~30 queries per render.
     """
+    cached = getattr(user, "_dashboard_exec_contract", None)
+    if cached is not None:
+        return cached
     from apps.core.execution.today_execution import build_today_execution
     return build_today_execution(user)
 

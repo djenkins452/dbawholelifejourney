@@ -43,7 +43,7 @@ from collections import defaultdict
 logger = logging.getLogger(__name__)
 
 
-def build_execution_state(user, now=None) -> dict:
+def build_execution_state(user, now=None, execution_contract=None) -> dict:
     """
     Build the unified execution state dict consumed by all CoS modes.
 
@@ -51,6 +51,12 @@ def build_execution_state(user, now=None) -> dict:
         user: User instance.
         now: datetime.datetime or datetime.time. Defaults to user's local
              current time (resolved via get_user_now).
+        execution_contract: Optional pre-fetched dict from
+            ``build_today_execution(user)``. Passed by the v3 dashboard
+            composer so the rhythm + executive_summary + gauges all
+            share ONE truth fetch per request (Phase 2 dedup — saves
+            ~60 redundant queries per dashboard render). When omitted
+            (any other caller) the function fetches its own contract.
 
     Returns:
         dict — see module docstring for shape.
@@ -79,7 +85,7 @@ def build_execution_state(user, now=None) -> dict:
     else:
         now_time = now
 
-    exec_contract = build_today_execution(user)
+    exec_contract = execution_contract if execution_contract is not None else build_today_execution(user)
     items = exec_contract.get('items', []) or []
     summaries = exec_contract.get('summaries', {}) or {}
 

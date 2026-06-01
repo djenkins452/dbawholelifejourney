@@ -62,10 +62,19 @@ MAX_FOLLOW_ON = 5            # how many "coming up" hints next to focus_now
 INSIGHT_WINDOW_DAYS = 7      # only fresh insights count toward the briefing
 
 
-def build_executive_summary(user) -> dict[str, Any]:
+def build_executive_summary(user, execution_contract=None) -> dict[str, Any]:
     """Compose the executive briefing from canonical sources.
 
     Read-only. Safe on the request path.
+
+    Args:
+        user: User instance.
+        execution_contract: Optional pre-fetched dict from
+            ``build_today_execution(user)``. Passed by the v3 dashboard
+            composer so the executive summary + rhythm + gauges share
+            ONE truth fetch per request (Phase 2 dedup). Threaded into
+            ``build_execution_state`` via ``_collect_focus_now``. When
+            omitted (any other caller) the function fetches its own.
     """
     try:
         going_well = _collect_going_well(user)
@@ -80,7 +89,9 @@ def build_executive_summary(user) -> dict[str, Any]:
         needs_attention = []
 
     try:
-        focus_now, follow_on, exec_state = _collect_focus_now(user)
+        focus_now, follow_on, exec_state = _collect_focus_now(
+            user, execution_contract=execution_contract,
+        )
     except Exception:
         logger.warning("exec_summary: focus_now failed", exc_info=True)
         focus_now, follow_on, exec_state = None, [], None
@@ -185,17 +196,21 @@ def _collect_needs_attention(user) -> list[dict[str, Any]]:
 # ── Focus Now (selector reuse) ─────────────────────────────────────────
 
 
-def _collect_focus_now(user):
+def _collect_focus_now(user, execution_contract=None):
     """Reuse canonical execution selectors. No re-ranking.
 
     Returns (focus_dict|None, follow_on_list, exec_state_dict) — state is
     returned so downstream callers (biggest_risk, headline) can read from
     the SAME built state instead of building it twice.
+
+    Optional ``execution_contract`` is forwarded into
+    ``build_execution_state`` so a v3-dashboard render can share one
+    canonical truth fetch across all consumers (Phase 2 dedup).
     """
     from apps.core.execution.execution_state import build_execution_state
     from apps.core.execution.selectors import get_next_action
 
-    state = build_execution_state(user)
+    state = build_execution_state(user, execution_contract=execution_contract)
     payload = get_next_action(state) or {}
     primary = payload.get("primary_action")
 

@@ -77,12 +77,6 @@ def build_dashboard_v3_context(user) -> dict[str, Any]:
     execution_contract = _safe(_load_execution_contract, user, default=None)
     cockpit_domains = _safe(_build_cockpit_domains_raw, user, default=[])
 
-    # ── Phase 3: ensure background SAE warm task is queued for
-    # brand-new users (no state_data yet). The downstream gauge
-    # readers use allow_rebuild=False — without this nudge a
-    # first-ever render would show "—" forever. Idempotent; fail-safe.
-    _safe(_ensure_sae_warm_enqueued, user, default=None)
-
     context: dict[str, Any] = {
         # Raw canonical dial data — matches v2 cockpit_dial.html contract.
         "cockpit_domains": cockpit_domains,
@@ -639,11 +633,8 @@ def _read_mission_states(user) -> dict:
     from apps.core.ai_state.state_freshness import ensure_fresh
 
     # Repair only the manual-entry signals; health/fitness stay background-only.
-    # NOTE: ensure_fresh is allowed to do single-module rebuilds for manual
-    # signals (journal / nutrition) — it's deterministic and cheap. The
-    # Phase 3 read-only contract applies to the gauge reads below, NOT to
-    # the targeted ensure_fresh repair. ensure_fresh never raises, but guard
-    # it anyway so the mission card never depends on it.
+    # ensure_fresh never raises, but guard it anyway so the mission card
+    # never depends on it.
     try:
         ensure_fresh(user, ["journal", "nutrition"])
     except Exception:
@@ -652,13 +643,11 @@ def _read_mission_states(user) -> dict:
             getattr(user, "id", "?"), exc_info=True,
         )
 
-    # Phase 3: read-only against SAE — never trigger full rebuild on the
-    # request path. If state is empty, downstream gauges display "—"
-    # for that domain until the background warm task lands. Each read is
-    # independently guarded so one module's failure can't lose the others.
+    # Each read is independently guarded so one module's failure can't
+    # lose the others.
     def _read(module):
         try:
-            return get_module_state(user, module, allow_rebuild=False) or {}
+            return get_module_state(user, module) or {}
         except Exception:
             logger.warning(
                 "MISSION user=%s module=%s — state read failed",
@@ -731,11 +720,18 @@ def _build_mission_drivers(states: dict) -> list[dict]:
     if entries is not None:
         add("journal", "Journal", f"{entries}/wk")
 
-    # Nutrition consistency.
+    # Nutrition consistency. Prefer macro compliance when the user has macro
+    # targets set; otherwise fall back to the canonical logging signal so an
+    # actively-logging user (no goals configured) is reflected, never blanked.
     if nutrition.get("enabled"):
         macros = nutrition.get("macro_compliance_score")
         if macros is not None:
             add("nutrition", "Nutrition", f"{macros:.0f}% macros")
+        else:
+            logged_today = nutrition.get("food_entries_today") or 0
+            if logged_today > 0:
+                noun = "item" if logged_today == 1 else "items"
+                add("nutrition", "Nutrition", f"{logged_today} {noun} today")
 
     return drivers
 
@@ -1007,17 +1003,28 @@ def _evaluate_mission_signals(states: dict, phase: str = "foundation") -> list[d
         polarity = _band_polarity(entries, band)
         emit("journal", "Journal", f"{entries}/wk", polarity)
 
-    # Nutrition — untracked is an objective need (the next lever), not a guess.
+    # Nutrition — prefer macro compliance when targets exist. With no targets,
+    # reflect the canonical logging signal (food_entries_today / _7d): an
+    # actively-logging user is "tracked" (neutral), never an objective "need".
+    # Only a user with NO logging at all is the untracked need.
     if nutrition.get("enabled"):
         macros = nutrition.get("macro_compliance_score")
-        if macros is None:
-            emit("nutrition", "Nutrition", "Not tracked", "needs")
-        else:
+        if macros is not None:
             band = _SIGNAL_BANDS["nutrition"]
             # One-sided band (no numeric "need" floor): >=help helping, else a
             # neutral Worth-Watching signal (tracked but not yet strong).
             polarity = "helping" if macros >= band["help"] else "neutral"
             emit("nutrition", "Nutrition", f"{macros:.0f}% macros", polarity)
+        else:
+            logged_today = nutrition.get("food_entries_today") or 0
+            logged_7d = nutrition.get("food_entries_7d") or 0
+            if logged_today > 0:
+                noun = "item" if logged_today == 1 else "items"
+                emit("nutrition", "Nutrition", f"{logged_today} {noun} today", "neutral")
+            elif logged_7d > 0:
+                emit("nutrition", "Nutrition", f"{logged_7d}/wk logged", "neutral")
+            else:
+                emit("nutrition", "Nutrition", "Not tracked", "needs")
 
     return signals
 
@@ -1229,9 +1236,8 @@ def _fallback_gauges_from_sae(user, execution_contract=None) -> list[dict]:
     gauges: list[dict] = []
 
     # ── Health ────────────────────────────────────────────────────
-    # Phase 3: read-only against SAE — see get_module_state docstring.
     try:
-        health = get_module_state(user, "health", allow_rebuild=False) or {}
+        health = get_module_state(user, "health") or {}
         gauges.append(_status_gauge(
             slug="health",
             label="Health",
@@ -1248,7 +1254,7 @@ def _fallback_gauges_from_sae(user, execution_contract=None) -> list[dict]:
 
     # ── Faith ─────────────────────────────────────────────────────
     try:
-        faith = get_module_state(user, "faith", allow_rebuild=False) or {}
+        faith = get_module_state(user, "faith") or {}
         streak = faith.get("reading_streak") or 0
         plans = faith.get("active_reading_plans") or 0
         # Streak-driven 0-100; capped at 21-day plateau.
@@ -1309,7 +1315,7 @@ def _fallback_gauges_from_sae(user, execution_contract=None) -> list[dict]:
 
     # ── Purpose ───────────────────────────────────────────────────
     try:
-        goals = get_module_state(user, "goals", allow_rebuild=False) or {}
+        goals = get_module_state(user, "goals") or {}
         count = goals.get("active_goal_count") or 0
         # Presence-driven: 0 goals → no score; 1+ goals → 50 + 10/goal cap 90.
         score = None if count == 0 else min(90, 50 + count * 10)
@@ -1363,32 +1369,6 @@ def _status_gauge(slug, label, icon, statuses):
     }
 
 
-def _ensure_sae_warm_enqueued(user) -> None:
-    """Phase 3 — when SAE state_data is empty for this user, enqueue a
-    background full-rebuild so the next render finds warm state.
-
-    The dashboard composer now reads SAE with ``allow_rebuild=False``
-    (Phase 3 read-only contract). For brand-new users (no SAE state
-    ever built) or users whose SAE was wiped, this would otherwise
-    show "—" gauges forever. We avoid that by enqueueing one Celery
-    task per-render-when-empty. Idempotent: the underlying
-    ``rebuild_user_state`` is safe to call concurrently (last writer
-    wins on the same UserState row).
-
-    No-op when state_data already exists (the cheap, common path).
-    """
-    try:
-        from apps.core.ai_state.models import UserState
-        from apps.core.ai_state.tasks import enqueue_full_sae_warm
-
-        row = UserState.objects.filter(user=user).only("state_data").first()
-        if row is None or not row.state_data:
-            enqueue_full_sae_warm(user)
-    except Exception:
-        # Fail-safe — never block the dashboard render on this.
-        logger.debug("SAE warm enqueue check failed", exc_info=True)
-
-
 def _load_execution_contract(user) -> dict | None:
     """Phase 2 dedup — fetch today's execution contract ONCE per render.
 
@@ -1397,15 +1377,7 @@ def _load_execution_contract(user) -> dict | None:
     consumer reuses the same 30-40 queries instead of refetching.
     Returns ``None`` on failure — downstream builders fall back to
     fetching their own copy (full back-compat).
-
-    Phase 3: if the view layer has already pre-fetched the contract
-    and stashed it on ``user._dashboard_exec_contract`` (see
-    ``DashboardV3View.get_context_data``), reuse it — saves another
-    ~30 queries per render.
     """
-    cached = getattr(user, "_dashboard_exec_contract", None)
-    if cached is not None:
-        return cached
     from apps.core.execution.today_execution import build_today_execution
     return build_today_execution(user)
 
@@ -1456,11 +1428,9 @@ def _build_accountability_cards(user) -> list[dict]:
     # The accountability card reads persisted Insight rows. If an Insight's
     # underlying condition has cleared in SAE, suppress it here so the
     # dashboard never tells the user something Beth contradicts.
-    #
-    # Phase 3: read-only — never trigger rebuild on the request path.
     try:
         from apps.core.ai_state.state_engine import get_module_state
-        _health = get_module_state(user, "health", allow_rebuild=False) or {}
+        _health = get_module_state(user, "health") or {}
         if not _health.get("weight_sync_stale", True):
             _gap = _health.get("weight_sync_gap_days")
             if _gap is not None and _gap < 3:

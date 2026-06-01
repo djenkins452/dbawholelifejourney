@@ -7,6 +7,47 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-01 — perf(dashboard): Phase 2.0 — composer dedup of execution_contract + cockpit fetches
+
+**What ships:** The dashboard_v3 composer used to call `build_today_execution()` three times per render (composer's fallback gauge, executive_summary's `_collect_focus_now`, rhythm builder) and `GoalCockpitService.get_cockpit_data()` twice. Both functions are deterministic for `(user, today)`. Phase 2.0 fetches each ONCE up front and threads them through downstream builders as explicit kwargs.
+
+**Approach (pure intra-request deduplication — no cache, no hidden state):**
+- `build_dashboard_v3_context(user)` pre-fetches `execution_contract` + `cockpit_domains` at the top
+- New `_load_execution_contract(user)` helper
+- `_safe(...)` updated to forward `**kwargs` (regression-guarded by a dedicated test)
+- `_build_executive_summary`, `_build_rhythm`, `_build_gauges`, `_fallback_gauges_from_sae` all accept optional kwargs
+- `build_executive_summary(user, execution_contract=None)` in `apps/core/cos_briefing/executive_summary.py` — threads to `_collect_focus_now`
+- `build_execution_state(user, now=None, execution_contract=None)` in `apps/core/execution/execution_state.py` — uses passed contract or fetches
+
+All new kwargs default to `None`, so every other caller (Beth narration, iOS API, ops endpoints) keeps working unchanged.
+
+**Why Phase 2.0 alone (Phase 3 deferred):** The biggest remaining bottleneck is `sae.rebuild_user_state` running on the request path (~79% of dashboard time). Phase 3 (SAE off the request path + background warm tasks on writes) is the larger architectural fix and ships separately. Phase 2.0 is the minimal, low-risk intra-request cleanup that's a precondition for Phase 3.
+
+**Measured (clean profile, mocked broker):**
+
+| | Before Phase 2 | After Phase 2.0 |
+|---|---:|---:|
+| `build_today_execution` calls per render | 3× | 1× |
+| `get_cockpit_data` calls per render | 2× | 1× |
+| Test-env total render time | 584 ms | ~560 ms |
+
+The wall-clock impact in test is small because the test env has empty SAE state (so the dominant cost is SAE rebuild, not the deduplicated functions). Phase 2.0's headline metric is the call-count reduction — the latency win compounds with Phase 3 when SAE leaves the request path.
+
+**Files Modified:**
+- `apps/dashboard_v3/services/composer.py` — orchestrator pre-fetches both inputs once; downstream `_safe` forwarding; `_load_execution_contract`
+- `apps/core/cos_briefing/executive_summary.py` — `build_executive_summary(user, execution_contract=None)` threads contract to `_collect_focus_now`
+- `apps/core/execution/execution_state.py` — `build_execution_state(user, now=None, execution_contract=None)`
+- `apps/dashboard_v3/tests/test_phase2_dedup.py` — NEW, 12 tests
+
+**Tests:**
+- 12/12 new Phase 2 dedup tests pass
+- `MissionCardResilienceTests` (7 tests) — all pass (kwargs threading honored through existing exception fallbacks)
+- All existing Phase 1 perf tests pass (49/49 combined perf-project suite)
+
+**Trust contract:** No new cache, no TTL, no invalidation rule. The contract is fetched ONCE per render — same data Beth would have seen with three live fetches, but with one. Within a single request the consistency property is now explicit rather than incidental.
+
+---
+
 ## 2026-05-31 — fix(cos): Natural-language routine skip + honor skips in check-ins (shower trust failure)
 
 **The trust failure.** User told the assistant "I am not taking a shower today. Will start fresh tomorrow." The assistant verbally acknowledged ("I'll make sure not to include the shower in upcoming reminders") — but the shower kept reappearing in every subsequent "check in" response. The assistant implied a system action that never occurred.

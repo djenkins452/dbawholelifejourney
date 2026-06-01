@@ -11,6 +11,8 @@ from __future__ import annotations
 import logging
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.shortcuts import render
+from django.views import View
 from django.views.generic import TemplateView
 
 from apps.help.mixins import HelpContextMixin
@@ -32,6 +34,17 @@ class DashboardV3View(HelpContextMixin, LoginRequiredMixin, TemplateView):
     help_context_id = "DASHBOARD_V2_HOME"
 
     def get_context_data(self, **kwargs):
+        # Phase 4 step 1 — production GET timing. Same instrumentation
+        # surface Phase 1 added for action endpoints; emits
+        #   [DASHBOARD_ACTION_TIMING] action=dashboard_v3_get user=... total_ms=...
+        # exactly once per dashboard render. Lets us confirm in prod
+        # logs whether the Phase 3 server-side win (lab profile: ~60 ms)
+        # actually holds for real users.
+        from apps.core.timing import action_timing
+        with action_timing("dashboard_v3_get", self.request):
+            return self._build_context(**kwargs)
+
+    def _build_context(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
 
         # VERIFIED AUTO-COMPLETION (Rule 1 — authenticated presence proves
@@ -141,3 +154,42 @@ class DashboardV3View(HelpContextMixin, LoginRequiredMixin, TemplateView):
             ctx["greeting"] = "Welcome back"
 
         return ctx
+
+
+class UtilitiesSectionView(LoginRequiredMixin, View):
+    """HTMX partial — re-renders ONLY the utilities (hydration) section.
+
+    Used by the Phase 4 hydration POC: after a "+8 oz Water" / "+8 oz
+    Coffee" / "+16 oz Electrolytes" POST succeeds, the home.html JS
+    dispatches ``dashboard:water-changed`` and the utilities <section>
+    self-refreshes via ``hx-get`` to this endpoint — NO full dashboard
+    reload, NO 258 KB HTML payload, NO browser teardown.
+
+    Reads canonical state via the same ``_build_utilities`` the full
+    composer uses — no optimistic data, no JS-side mutation. Server is
+    still the source of truth.
+
+    Trust contract preserved:
+      - Same data path as full dashboard (composer._build_utilities)
+      - No SAE rebuild on request path (Phase 3 contract held)
+      - Cheap (~1.4 ms / 2 queries in profile)
+    """
+
+    def get(self, request):
+        from apps.core.timing import action_timing
+        from apps.dashboard_v3.services.composer import _build_utilities
+
+        with action_timing("dashboard_v3_section_utilities", request):
+            try:
+                utilities = _build_utilities(request.user) or {}
+            except Exception:
+                logger.warning(
+                    "Phase 4: partial utilities render failed for user=%s",
+                    request.user.pk, exc_info=True,
+                )
+                utilities = {}
+            return render(
+                request,
+                "dashboard_v3/sections/utilities.html",
+                {"utilities": utilities},
+            )

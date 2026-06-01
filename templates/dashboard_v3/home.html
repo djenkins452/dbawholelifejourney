@@ -102,30 +102,63 @@
         });
     });
 
-    // ── Latency: tag v3-toggle HTMX requests so the server can 204 ──
-    // The action endpoints (water log, intake group log, task toggle,
-    // routine toggle, block complete, etc.) return v2 HTML that the
-    // v3 client discards anyway. Adding X-V3-Toggle lets the server
-    // short-circuit with 204 No Content — saves ~5–8s of v2 dashboard
-    // render per click. Phase 1 of the dashboard-action latency fix.
+    // ── Latency: tag v3-toggle / v3-partial HTMX requests so the
+    // server can 204 ── The action endpoints (water log, intake group
+    // log, task toggle, routine toggle, block complete, etc.) return
+    // v2 HTML that the v3 client discards anyway. Adding X-V3-Toggle
+    // lets the server short-circuit with 204 No Content — saves
+    // ~5–8s of v2 dashboard render per click. Phase 1 of the
+    // dashboard-action latency fix; Phase 4 extends the same header
+    // path to hydration partial-refresh buttons.
     document.body.addEventListener('htmx:configRequest', function(evt) {
         var trig = evt.target;
-        if (trig && trig.hasAttribute && trig.hasAttribute('data-v3-toggle')) {
+        if (!trig || !trig.hasAttribute) return;
+        if (trig.hasAttribute('data-v3-toggle')
+            || trig.hasAttribute('data-v3-partial')) {
             evt.detail.headers['X-V3-Toggle'] = '1';
         }
     });
 
-    // ── Task completion via canonical v2 toggle endpoints ──
-    // Every [data-v3-toggle] button HTMX-POSTs to the EXACT same
-    // canonical mutation endpoint v2 uses. We discard v2's response
-    // (it targets v2 markup) and reload the v3 page so gauges, exec
-    // briefing, focus_now, accountability, and rhythm all refresh from
-    // freshly-rebuilt canonical state. Single write path, single truth.
+    // ── Action completion handler ──
+    // [data-v3-toggle]   → full dashboard reload (legacy behavior;
+    //                      every non-hydration action — medication,
+    //                      supplement, routine, task, etc.).
+    // [data-v3-partial]  → Phase 4 POC: emit a custom event so a
+    //                      target <section> with hx-trigger can
+    //                      self-refresh. NO full reload, NO 258 KB
+    //                      payload. Currently scoped strictly to the
+    //                      3 hydration buttons (water / coffee /
+    //                      electrolytes). The section being refreshed
+    //                      reads canonical state from the same
+    //                      composer the full dashboard uses — no
+    //                      optimistic data, no JS-side mutation.
     document.body.addEventListener('htmx:afterRequest', function(evt) {
         var trig = evt.target;
-        if (!trig || !trig.hasAttribute || !trig.hasAttribute('data-v3-toggle')) {
+        if (!trig || !trig.hasAttribute) return;
+
+        // Phase 4 path — hydration partial refresh.
+        if (trig.hasAttribute('data-v3-partial')) {
+            if (evt.detail && evt.detail.successful) {
+                var section = trig.getAttribute('data-v3-partial');
+                // For the hydration POC the section is 'utilities' and
+                // the established trigger name is 'water-changed' (the
+                // utilities <section>'s hx-trigger listens for this).
+                // Hard-coded for the POC; will generalize when Phase 5
+                // expands to other partials.
+                document.body.dispatchEvent(
+                    new CustomEvent('dashboard:water-changed', {
+                        detail: { section: section },
+                    })
+                );
+            } else {
+                console.warn('v3 partial action failed', evt.detail);
+                trig.disabled = false;
+            }
             return;
         }
+
+        // Legacy path — full reload for everything else.
+        if (!trig.hasAttribute('data-v3-toggle')) return;
         if (evt.detail && evt.detail.successful) {
             // Optimistic visual: dim the row immediately so the click feels
             // instant; the full reload follows in a tick.

@@ -7,6 +7,57 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-01 — perf(dashboard): Phase 4 — hydration partial refresh POC (eliminate full reload for 3 buttons)
+
+**Context:** Phase 1–3 made the dashboard server render genuinely fast (~60 ms / 127 queries on a measured profile, no SAE rebuild on request path). But the user still perceived ~4 s per tap. Truth investigation proved the remaining bottleneck is the `window.location.reload()` that follows every tap: 258 KB HTML re-download, browser teardown, script re-execution, layout, paint. Server isn't the problem anymore.
+
+**Phase 4 (POC, strictly hydration-scoped):**
+- 3 buttons (`+8 oz Water`, `+8 oz Coffee`, `+16 oz Electrolytes`) carry a new marker `data-v3-partial="utilities"` instead of `data-v3-toggle`
+- `home.html` JS detects the new marker, dispatches `dashboard:water-changed`, **SKIPS** `window.location.reload()`
+- The utilities `<section id="v3-utilities">` self-refreshes via `hx-get` to a new partial endpoint `/dashboard-v3/section/utilities/` (renders only that small section)
+- Server cost: ~5 ms / ~37 queries for the partial vs ~60 ms / 127 queries for the full dashboard
+- Wire weight: ~3–5 KB partial HTML vs 258 KB full dashboard HTML
+
+**Trust contract preserved:**
+- Button label number = stored `WaterEntry.amount` (Phase 1 contract intact)
+- Hydration coefficient (`effective_oz`) unchanged — still display-only
+- Partial endpoint reads canonical state via `composer._build_utilities` — same code path the full dashboard uses; no optimistic data, no JS-side mutation
+- No SAE rebuild on the partial path (Phase 3 contract held; verified by test)
+
+**Production observability (Step 1 of Phase 4):**
+Added the existing `action_timing` instrumentation to `DashboardV3View.get_context_data`. Production now logs `[DASHBOARD_ACTION_TIMING] action=dashboard_v3_get user=… total_ms=…` on every full GET — confirms within hours of deploy whether Phase 3's lab numbers (60 ms) match production reality. The partial endpoint logs `action=dashboard_v3_section_utilities` separately so the two surfaces are distinguishable in log analysis.
+
+**Estimated user-perceived impact:**
+- Before Phase 4: tap → ~3–4 s (full reload-dominated)
+- After Phase 4 (hydration only): tap → ~200–400 ms (POST + small partial GET, dashboard stays interactive)
+
+**Files Modified:**
+- `apps/dashboard_v3/views.py` — `get_context_data` wrapped with `action_timing("dashboard_v3_get", ...)`; NEW `UtilitiesSectionView` (LoginRequiredMixin, ~30 lines including timing + canonical `_build_utilities` read)
+- `apps/dashboard_v3/urls.py` — NEW `section/utilities/` route → `UtilitiesSectionView`, name `section_utilities`
+- `templates/dashboard_v3/sections/utilities.html` — added `id="v3-utilities" hx-get hx-trigger="dashboard:water-changed from:body" hx-swap="outerHTML"` on the `<section>`; swapped 3 hydration button markers from `data-v3-toggle` → `data-v3-partial="utilities"`
+- `templates/dashboard_v3/home.html` — extended `htmx:configRequest` listener to add `X-V3-Toggle` for partial buttons too (so server still 204s); split `htmx:afterRequest` listener into partial path (dispatch event, skip reload) + legacy path (full reload, unchanged for every other action)
+- `apps/dashboard_v3/tests/test_phase4_hydration_partial.py` — NEW, 9 tests covering URL reverse, 200 response with section id + hx-trigger, canonical state reflection (16 oz electrolyte → 16.8 oz total), query count cap (≤60), no SAE rebuild on partial path, all 3 hydration buttons carry partial marker (not legacy toggle), full-dashboard + partial both emit timing logs
+
+**Blast radius (strict POC):**
+- Only 3 buttons affected: water / coffee / electrolytes
+- Every other action (medication, supplement, routine, Bible, task, focus, wake-up) still uses the legacy `data-v3-toggle` → full-reload path UNCHANGED
+- Rollback: single-commit revert restores pre-Phase-4 behavior for the 3 buttons
+- No new framework, no generalization — if the POC feels instant in prod, the same pattern extends in a follow-up Phase 5
+
+**Verification:**
+- 9/9 new Phase 4 tests pass
+- 61/61 combined Phase 1+2+3+4 perf-project suite passes
+- `makemigrations --check` clean
+- All other dashboard tests unaffected (legacy path untouched)
+
+**Project trajectory:**
+- Pre-Phase-1: ~20 s perceived
+- After Phase 1+2.0: ~4 s
+- After Phase 3 (deployed): ~3–4 s (browser-bound)
+- After Phase 4 (deployed today, hydration only): **~300–400 ms perceived for water/coffee/electrolytes**
+
+---
+
 ## 2026-06-01 — fix(dashboard_v3): Mission Card Phase D — remove signal loss + canonical nutrition truth
 
 **Production symptoms:** (1) Journal signal vanished from the mission card after recent journaling. (2) Projected A1C visually crowded out / demoted. (3) Nutrition still showed "0% macros" despite logged food (prod evidence: 1120 cal, 101g protein, 101g carbs, 47g fat the prior day). (4) Suspected fixed 3-per-column cap causing displacement.

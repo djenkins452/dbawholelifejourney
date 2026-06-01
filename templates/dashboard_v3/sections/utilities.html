@@ -1,6 +1,13 @@
-{# Utilities — small inline strip at the bottom. #}
+{# Utilities — small inline strip at the bottom.
+   Phase 4: this <section> self-refreshes on dashboard:water-changed
+   (emitted by the home.html JS after a successful hydration POST) —
+   no full dashboard reload. Trust contract preserved: the partial
+   endpoint re-renders this same template with canonical _build_utilities. #}
 {% if utilities.water %}
-<section class="v3-utilities">
+<section id="v3-utilities" class="v3-utilities"
+         hx-get="{% url 'dashboard_v3:section_utilities' %}"
+         hx-trigger="dashboard:water-changed from:body"
+         hx-swap="outerHTML">
     <div class="v3-utility-row">
         <article class="v3-utility">
             <span class="v3-utility-icon" aria-hidden="true">💧</span>
@@ -19,16 +26,19 @@
 
     {% comment %}
        Quick-log buttons — one tap to log a beverage. Reuses the existing
-       health:water_quick_log endpoint. The data-v3-toggle attribute pairs
-       with home.html's htmx:afterRequest listener for the page-reload
-       refresh pattern. Trust rule: the label number equals the stored
-       amount exactly. Hydration coefficient (effective_oz) only adjusts
-       the displayed total.
+       health:water_quick_log endpoint. Phase 4: data-v3-partial="utilities"
+       pairs with home.html's htmx:afterRequest listener to dispatch a
+       custom event ('dashboard:water-changed') that triggers the
+       utilities <section> to self-refresh — NO full dashboard reload.
+       Trust rule: the label number equals the stored amount exactly.
+       Hydration coefficient (effective_oz) only adjusts the displayed
+       total. The partial endpoint reads canonical state (composer.
+       _build_utilities); no optimistic data, no JS-side mutation.
     {% endcomment %}
     <div class="v3-quick-log-row" role="group" aria-label="Quick log beverage">
         <button type="button"
                 class="v3-quick-log-btn"
-                data-v3-toggle
+                data-v3-partial="utilities"
                 hx-post="{% url 'health:water_quick_log' %}"
                 hx-vals='{"preset": "8", "drink_type": "water", "next": "{% url 'dashboard_v2:home' %}"}'
                 hx-swap="none"
@@ -37,7 +47,7 @@
         </button>
         <button type="button"
                 class="v3-quick-log-btn"
-                data-v3-toggle
+                data-v3-partial="utilities"
                 hx-post="{% url 'health:water_quick_log' %}"
                 hx-vals='{"preset": "8", "drink_type": "coffee", "next": "{% url 'dashboard_v2:home' %}"}'
                 hx-swap="none"
@@ -46,7 +56,7 @@
         </button>
         <button type="button"
                 class="v3-quick-log-btn"
-                data-v3-toggle
+                data-v3-partial="utilities"
                 hx-post="{% url 'health:water_quick_log' %}"
                 hx-vals='{"preset": "16", "drink_type": "electrolyte", "next": "{% url 'dashboard_v2:home' %}"}'
                 hx-swap="none"

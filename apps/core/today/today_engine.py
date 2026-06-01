@@ -290,6 +290,12 @@ def _collect_calendar_items(user, user_now) -> list:
             .filter(user=user, start_dt__date=today)
             .exclude(status=CalendarEvent.STATUS_CANCELED)
             .exclude(source_type__in=_EXCLUDED_SOURCES)
+            # Deadline markers (goal-due, milestone target dates) are
+            # informational all-day date pins, not actionable work. They
+            # must not surface in the actionable check-in flow. Deadline
+            # awareness lives on the calendar, dashboard schedule, and
+            # proactive goal check-ins. See trust investigation 2026-05-31.
+            .exclude(event_kind=CalendarEvent.KIND_DEADLINE_MARKER)
         )
 
         for event in events:

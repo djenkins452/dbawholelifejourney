@@ -7,6 +7,25 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-05-31 — fix(today_engine): exclude informational deadline markers from actionable check-ins (P1 trust)
+
+**Root cause (proven via 4-phase forensic investigation).** A stale goal milestone — "Milestone: Take writing lessons in April in May" — surfaced in the evening check-in's "Coming up you have:" list, reading as fabricated. It was NOT a hallucination: the check-in is fully deterministic (`check in` → `_try_checkin_prefilter` → `render_checkin_for_time`, no LLM). The item is canonical data: a `GoalMilestone` projected by `apps/calendar_engine/services/projection.py::_upsert_milestone_marker` into an all-day `CalendarEvent` deadline marker (`event_kind=KIND_DEADLINE_MARKER`) pinned to 23:59 on the target date. `today_engine._collect_calendar_items` ingested it because it filtered only by `source_type` and **dropped `event_kind`/`is_all_day`**, so the informational date pin was treated as a timed actionable item.
+
+**Creation forensics.** No AI path creates `GoalMilestone`s — the only non-test creators are the manual UI form (`apps/purpose/views.py` `MilestoneCreateView`/`MilestoneUpdateView`) and Django admin; titles are raw user input. `handle_create_goal` creates only a `LifeGoal`; the sole milestone intent (`add_faith_milestone`) creates a different model (`FaithMilestone`, not calendar-projected). The malformed title was human-entered, stored verbatim — not AI-generated.
+
+**Blast-radius audit (proven safe before changing behavior).** `KIND_DEADLINE_MARKER` is emitted only for task due dates (`SOURCE_TASK`, already excluded here), goal due dates (`SOURCE_GOAL`, "Goal Due:"), and milestone targets (`SOURCE_GOAL_MILESTONE`, "Milestone:"). Excluding them strips no actionable item (user-created events are `KIND_MANUAL`; execution blocks/external events untouched). Deadline awareness is already delivered by three other surfaces: the calendar view, the dashboard daily schedule (`DailyScheduleService`, which preserves `event_kind`), and proactive goal check-ins (`apps/ai/proactive_checkins.py::generate_goal_check_ins_for_user`, 7-day deadline + stalling). No blind spot.
+
+**Fix (surgical, 1 line).**
+- `apps/core/today/today_engine.py :: _collect_calendar_items` — added `.exclude(event_kind=CalendarEvent.KIND_DEADLINE_MARKER)` so informational deadline pins never enter the actionable check-in buckets.
+
+**Regression protection.**
+- `apps/core/today/tests/test_today_engine.py :: TestDeadlineMarkerExclusion` (3 DB-backed tests): milestone marker excluded (guards against any `Milestone:` 23:59 pin leaking), goal-due marker excluded, manual appointments/meetings preserved.
+
+**Files:** `apps/core/today/today_engine.py`, `apps/core/today/tests/test_today_engine.py`.
+**Verification:** `apps.core.today.tests.test_today_engine` — 30/30 pass. `makemigrations --check` clean. The 5 pre-existing failures in `test_beth_checkin_renderer` are unrelated (fail identically without this change).
+**Not bundled (deferred):** a separate non-actionable "Important dates" check-in section (would require carrying `event_kind`/`is_all_day` through the Today Engine) and lifecycle cleanup for stale milestones.
+
+
 ## 2026-05-31 — fix(dashboard_v3): Phase 6.4 — Projected A1C (GMI) truth model + trend-aware classification + nutrition link
 
 **Two problems.** (1) The Mission card's Nutrition driver still resolved to the wrong route. (2) The Projected A1C math was correct but its *representation* overstated certainty — it read like a lab A1C and was auto-classified as "Helping" purely on level, ignoring trend (false reassurance).

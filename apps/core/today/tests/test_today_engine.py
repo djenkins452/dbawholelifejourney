@@ -14,7 +14,7 @@ Covers:
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
 from apps.core.today.today_engine import (
@@ -690,3 +690,115 @@ class TestNextActionOverduePriority(SimpleTestCase):
         ctx = get_today_context(MagicMock(id=1))
 
         self.assertEqual(ctx["next"], "Start with Workout.")
+
+
+class TestDeadlineMarkerExclusion(TestCase):
+    """Regression: informational deadline markers (goal-due, milestone
+    target dates) must NEVER surface in the actionable check-in flow.
+
+    Origin: trust investigation 2026-05-31 — a stale milestone
+    "Milestone: Take writing lessons in April in May" appeared in the
+    evening check-in's "Coming up you have:" list because
+    _collect_calendar_items dropped event_kind and treated the all-day
+    23:59 marker as a timed actionable item.
+
+    Deadline awareness lives on the calendar, dashboard schedule, and
+    proactive goal check-ins — not the daily check-in.
+    """
+
+    def setUp(self):
+        from apps.users.models import User
+
+        self.user = User.objects.create_user(
+            email="marker-test@example.com", password="pw12345!",
+        )
+        self.tz = timezone.get_current_timezone()
+        # Anchor "today" to a fixed date so events land on the same day.
+        self.user_now = timezone.localtime(timezone.now(), self.tz).replace(
+            hour=8, minute=0, second=0, microsecond=0,
+        )
+        self.today = self.user_now.date()
+
+    def _make_event(self, title, hour, minute, **overrides):
+        from uuid import uuid4
+
+        from apps.calendar_engine.models import CalendarEvent
+        import datetime as _dt
+
+        start = timezone.make_aware(
+            _dt.datetime.combine(self.today, _dt.time(hour, minute)), self.tz,
+        )
+        defaults = dict(
+            user=self.user,
+            title=title,
+            start_dt=start,
+            end_dt=start + timedelta(minutes=30),
+            event_kind=CalendarEvent.KIND_MANUAL,
+            source_type=CalendarEvent.SOURCE_NONE,
+            status=CalendarEvent.STATUS_SCHEDULED,
+            idempotency_key=uuid4().hex,
+        )
+        defaults.update(overrides)
+        return CalendarEvent.objects.create(**defaults)
+
+    def test_milestone_marker_excluded_from_check_in(self):
+        from apps.calendar_engine.models import CalendarEvent
+        from apps.core.today.today_engine import _collect_calendar_items
+
+        self._make_event(
+            "Milestone: Take writing lessons in April in May",
+            23, 59,
+            event_kind=CalendarEvent.KIND_DEADLINE_MARKER,
+            source_type=CalendarEvent.SOURCE_GOAL_MILESTONE,
+            is_all_day=True,
+        )
+
+        items = _collect_calendar_items(self.user, self.user_now)
+        names = [i["name"] for i in items]
+        self.assertNotIn(
+            "Milestone: Take writing lessons in April in May", names,
+        )
+        # Guard the exact failure mode: no "Milestone:" deadline pin leaks.
+        self.assertFalse(
+            any(n.startswith("Milestone:") for n in names),
+            f"Milestone deadline marker leaked into check-in: {names}",
+        )
+
+    def test_goal_due_marker_excluded_from_check_in(self):
+        from apps.calendar_engine.models import CalendarEvent
+        from apps.core.today.today_engine import _collect_calendar_items
+
+        self._make_event(
+            "Goal Due: Launch the book",
+            23, 59,
+            event_kind=CalendarEvent.KIND_DEADLINE_MARKER,
+            source_type=CalendarEvent.SOURCE_GOAL,
+            is_all_day=True,
+        )
+
+        items = _collect_calendar_items(self.user, self.user_now)
+        names = [i["name"] for i in items]
+        self.assertNotIn("Goal Due: Launch the book", names)
+
+    def test_actionable_events_preserved(self):
+        from apps.calendar_engine.models import CalendarEvent
+        from apps.core.today.today_engine import _collect_calendar_items
+
+        # User-created manual calendar events (the kind this collector
+        # owns) — a deadline marker must not collateral-drop them.
+        self._make_event("Dentist appointment", 14, 0)
+        self._make_event("Team meeting", 9, 0)
+        # A deadline marker alongside them — must be dropped.
+        self._make_event(
+            "Milestone: Finish outline",
+            23, 59,
+            event_kind=CalendarEvent.KIND_DEADLINE_MARKER,
+            source_type=CalendarEvent.SOURCE_GOAL_MILESTONE,
+            is_all_day=True,
+        )
+
+        items = _collect_calendar_items(self.user, self.user_now)
+        names = [i["name"] for i in items]
+        self.assertIn("Dentist appointment", names)
+        self.assertIn("Team meeting", names)
+        self.assertNotIn("Milestone: Finish outline", names)

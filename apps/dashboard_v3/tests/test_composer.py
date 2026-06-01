@@ -1009,7 +1009,8 @@ class MissionCardTests(TestCase):
             },
             fitness={"workouts_7d": 4},
             journal={"entries_7d": 5},
-            nutrition={"enabled": True, "macro_compliance_score": 82},
+            # macro score is meaningful only with real intake today
+            nutrition={"enabled": True, "macro_compliance_score": 82, "food_entries_today": 4},
         )
         drivers = build_dashboard_v3_context(self.user)["mission"]["drivers"]
         keys = [d["key"] for d in drivers]
@@ -1160,7 +1161,8 @@ class MissionCardTests(TestCase):
                 "steps_avg_7d": 5500,        # low steps must NOT bury Movement
             },
             journal={"entries_7d": 0},       # objective absence → need
-            nutrition={"enabled": True, "macro_compliance_score": 55},  # tracked, low → watch
+            # tracked, low macros (intake logged today) → watch
+            nutrition={"enabled": True, "macro_compliance_score": 55, "food_entries_today": 3},
         )
         status = self._status()
         help_labels = [d["label"] for d in status["helping"]]
@@ -1283,7 +1285,10 @@ class MissionCardTests(TestCase):
         movement = next(d for d in status["helping"] if d["label"] == "Movement")
         self.assertEqual(movement["value"], "180 min/wk")
 
-    def test_helping_and_needs_capped_at_three(self):
+    def test_no_per_column_cap_all_signals_shown(self):
+        # Phase D — the hard 3-per-column cap is removed. Mission truth beats
+        # layout neatness: every real signal surfaces. Here FIVE signals are all
+        # helping; none may be silently dropped.
         goal = self._goal(title="Lots of signals")
         self._momentum(goal, trend="rising")
         self._seed_state(
@@ -1294,17 +1299,20 @@ class MissionCardTests(TestCase):
                 "weight_change_30d": -2.0,
                 "weight_trend": "decreasing",
             },
-            nutrition={"enabled": True, "macro_compliance_score": 90},
+            nutrition={"enabled": True, "macro_compliance_score": 90, "food_entries_today": 4},
         )
         status = self._status()
-        self.assertLessEqual(len(status["helping"]), 3)
-        self.assertLessEqual(len(status["needs"]), 3)
+        help_labels = [d["label"] for d in status["helping"]]
+        self.assertGreater(len(help_labels), 3)  # no cap — more than three show
+        self.assertEqual(
+            set(help_labels),
+            {"Workouts", "Movement", "Weight", "Sleep", "Nutrition"},
+        )
 
-    def test_a1c_survives_column_cap_for_health_mission(self):
-        # Phase 6.3 — for a metabolic (health-domain) mission, Projected A1C must
-        # outrank lifestyle fillers and survive the 3-per-column cap. Here four
-        # "neutral" signals compete for the watching column; A1C must NOT be the
-        # one silently dropped.
+    def test_a1c_never_vanishes_and_leads_for_health_mission(self):
+        # Phase 6.3 + Phase D — for a metabolic (health-domain) mission, Projected
+        # A1C must lead its column AND, with the cap removed, every competing
+        # neutral signal also stays visible. A1C can never be silently dropped.
         from apps.purpose.models import LifeDomain
         domain = LifeDomain.objects.create(name="Health", slug="health")
         goal = self._goal(title="Metabolic mission", domain=domain)
@@ -1312,8 +1320,7 @@ class MissionCardTests(TestCase):
         # All of these land in "watching" (neutral): a worsening-but-in-target
         # A1C (not punitive), 6h sleep, stable weight, partial nutrition. Weight
         # is emitted BEFORE A1C in natural order, so only pinning can make A1C
-        # the front of the column — and pinning is what keeps it from being the
-        # one dropped by the 3-per-column cap.
+        # the FRONT of the column.
         self._seed_state(
             health={
                 "projected_a1c": 6.4,
@@ -1323,14 +1330,15 @@ class MissionCardTests(TestCase):
                 "weight_change_30d": 0.0,
                 "weight_trend": "stable",
             },
-            nutrition={"enabled": True, "macro_compliance_score": 50},
+            nutrition={"enabled": True, "macro_compliance_score": 50, "food_entries_today": 3},
         )
         status = self._status()
         watching_labels = [d["label"] for d in status["watching"]]
-        self.assertLessEqual(len(status["watching"]), 3)
+        # No cap — all four neutral signals are present.
+        self.assertEqual(len(watching_labels), 4)
         self.assertIn("Projected A1C (GMI)", watching_labels)
-        # And it is lifted to the FRONT of its column (highest priority) — proof
-        # the priority resolver reordered ahead of the earlier-emitted Weight.
+        # And A1C is lifted to the FRONT of its column (highest mission priority),
+        # ahead of the earlier-emitted Weight.
         self.assertEqual(watching_labels[0], "Projected A1C (GMI)")
 
     # ── Phase 5: emotional motivation layer (read-only metadata) ─────────
@@ -1575,7 +1583,7 @@ class MissionCardTests(TestCase):
         # (health:nutrition_home → /health/physical/nutrition/), never the
         # legacy meals route. Regression guard for the wrong-link bug.
         self._goal(title="Nutrition route")
-        self._seed_state(nutrition={"enabled": True, "macro_compliance_score": 80})
+        self._seed_state(nutrition={"enabled": True, "macro_compliance_score": 80, "food_entries_today": 3})
         status = self._status()
         nutri = next(
             d for col in ("helping", "watching", "needs")
@@ -1658,6 +1666,65 @@ class MissionCardTests(TestCase):
         drivers = build_dashboard_v3_context(self.user)["mission"]["drivers"]
         nutri = next(d for d in drivers if d["key"] == "nutrition")
         self.assertEqual(nutri["value"], "82% macros")
+
+    # ── Phase D: zero-intake-day "0% macros" bug + no-vanish guarantees ───
+
+    def test_zero_intake_day_with_goal_shows_weekly_logging_not_zero_percent(self):
+        # Production bug (2026-06-01): a user with macro targets who has logged
+        # recently but not YET today had macro_compliance_score = 0.0 (today's
+        # intake / target = 0), which rendered a misleading "0% macros". The
+        # macro % must NOT show when there is no intake today; the canonical
+        # weekly logging signal surfaces instead.
+        self._goal(title="Logged yesterday")
+        self._seed_state(nutrition={
+            "enabled": True,
+            "macro_compliance_score": 0.0,   # floored — no intake today yet
+            "food_entries_today": 0,
+            "food_entries_7d": 6,
+        })
+        nutri = next(
+            d for col in ("helping", "watching", "needs")
+            for d in self._status()[col] if d["label"] == "Nutrition"
+        )
+        self.assertEqual(nutri["value"], "6/wk logged")
+        self.assertNotIn(
+            "%", nutri["value"], "must never render a misleading 0% macros"
+        )
+
+    def test_zero_intake_day_no_weekly_logging_is_a_need(self):
+        # Macro score 0 AND no logging at all (today or this week) → honest Need.
+        self._goal(title="Nothing logged")
+        self._seed_state(nutrition={
+            "enabled": True,
+            "macro_compliance_score": 0.0,
+            "food_entries_today": 0,
+            "food_entries_7d": 0,
+        })
+        self.assertTrue(
+            any(d["label"] == "Nutrition" for d in self._status()["needs"])
+        )
+
+    def test_journal_never_vanishes_behind_higher_priority_signals(self):
+        # Phase D no-cap guarantee: even with several higher-priority helping
+        # signals, a real journal signal can never be silently dropped.
+        goal = self._goal(title="Busy helping column")
+        self._momentum(goal, trend="rising")
+        self._seed_state(
+            fitness={"workouts_7d": 5},
+            health={
+                "weight_change_30d": -2.0, "weight_trend": "decreasing",
+                "sleep_avg_hours_7d": 8.0,
+            },
+            journal={"entries_7d": 4},   # helping, but lowest mission priority
+            nutrition={"enabled": True, "macro_compliance_score": 90, "food_entries_today": 4},
+        )
+        status = self._status()
+        all_labels = [
+            d["label"]
+            for col in ("helping", "watching", "needs")
+            for d in status[col]
+        ]
+        self.assertIn("Journal", all_labels)
 
 
 class MissionCardResilienceTests(TestCase):

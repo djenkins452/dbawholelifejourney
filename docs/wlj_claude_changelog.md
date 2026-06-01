@@ -3,8 +3,28 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-05-31 (fix: bare "skip X" command intercepted by qualified-status router route)
+# Last Updated: 2026-06-01 (fix(dashboard_v3): Mission Card Phase D — remove signal loss + canonical nutrition truth)
 # ================================================================# WLJ Change History
+
+
+## 2026-06-01 — fix(dashboard_v3): Mission Card Phase D — remove signal loss + canonical nutrition truth
+
+**Production symptoms:** (1) Journal signal vanished from the mission card after recent journaling. (2) Projected A1C visually crowded out / demoted. (3) Nutrition still showed "0% macros" despite logged food (prod evidence: 1120 cal, 101g protein, 101g carbs, 47g fat the prior day). (4) Suspected fixed 3-per-column cap causing displacement.
+
+**Root cause — nutrition "0% macros":** `build_nutrition_state.macro_compliance_score` is computed from **today's** intake vs the user's macro targets, and is set (not None) whenever a `NutritionGoals` row with targets exists. On a zero-intake day (logged yesterday, nothing yet today) the score **floors at 0.0**, which the mission card rendered verbatim as "0% macros". The Phase C fallback only fired when the score was `None`, so it never triggered for goal-having users — explaining why the earlier fix "passed tests" but production still showed 0%. NOT a staleness bug (freshness guard verified correct).
+
+**Root cause — journal vanish:** the fixed 3-items-per-column cap displaced the lowest-priority signal (journal). `entries_7d` itself was already corrected in Phase C (counts all entries, not mood-gated).
+
+**Fixes (`apps/dashboard_v3/services/composer.py`):**
+- **Removed the per-column cap.** `_trim` → `_shape` (display-only shaping; no longer slices `[:3]`). All helping / watching / needs signals now render. Classification logic was always computed on the full lists, so this is purely a display change — no signal can be silenced by layout.
+- **Nutrition gate** (`_evaluate_mission_signals` + `_build_mission_drivers`): show `"{macros}% macros"` ONLY when `macro_compliance_score is not None AND food_entries_today > 0`. Else fall back to canonical logging truth — `"{n} item(s) today"`, then `"{n}/wk logged"`. Only a user with zero logging at all is the "Not tracked" need. Users without macro targets are never punished with a fake 0%.
+- **Priority pinning** (`_MISSION_PRIORITY_BY_DOMAIN["health"]`): `a1c, workouts, movement, weight, sleep, nutrition, journal` — A1C leads its polarity column; journal can never be capped out. A1C category remains truth-based (Worth Watching when trend is stable/neutral, Helping only when improving) per the authorized "(or truthful categorization)" — guaranteed never to vanish, not force-promoted.
+
+**Template / CSS:** empty NEEDS column now renders a subtle "✅ No major concerns" badge (`.v3-mission-drivers-none--ok`) instead of reserving a large empty block; responsive stacking unchanged.
+
+**Tests (`apps/dashboard_v3/tests/test_composer.py`):** replaced cap tests with `test_no_per_column_cap_all_signals_shown` and `test_a1c_never_vanishes_and_leads_for_health_mission`; added `test_zero_intake_day_with_goal_shows_weekly_logging_not_zero_percent`, `test_zero_intake_day_no_weekly_logging_is_a_need`, `test_journal_never_vanishes_behind_higher_priority_signals`. Synthetic macro seeds updated with realistic `food_entries_today` (a non-zero compliance score implies intake today). 84 mission tests + 132 (composer + visual truth contract) pass.
+
+**Files:** `apps/dashboard_v3/services/composer.py`, `apps/dashboard_v3/tests/test_composer.py`, `templates/dashboard_v3/sections/mission.html`, `static/dashboard_v3/css/dashboard_v3.css`.
 
 
 ## 2026-06-01 — perf(dashboard): Phase 3 — SAE off the request path (86% time / 80% query reduction on warm renders)

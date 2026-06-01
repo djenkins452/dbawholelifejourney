@@ -235,8 +235,13 @@ def _resolve_driver_dest(key):
 # different signals without touching the cap logic. The mapping is keyed by the
 # goal's LifeDomain slug; a goal in an un-mapped domain pins nothing and falls
 # back to the default fixed signal order.
+# For a metabolic-health mission the full deterministic priority is pinned so
+# the highest-value signals lead their column. Projected A1C and conditioning
+# outrank generic lifestyle signals; journal is last but — since the display
+# cap is removed (Phase D) — it can never VANISH, only sort to the end. Keys
+# not present as signals are skipped, so a pin never reserves an empty slot.
 _MISSION_PRIORITY_BY_DOMAIN = {
-    "health": ("a1c",),
+    "health": ("a1c", "workouts", "movement", "weight", "sleep", "nutrition", "journal"),
 }
 
 
@@ -736,18 +741,22 @@ def _build_mission_drivers(states: dict) -> list[dict]:
     if entries is not None:
         add("journal", "Journal", f"{entries}/wk")
 
-    # Nutrition consistency. Prefer macro compliance when the user has macro
-    # targets set; otherwise fall back to the canonical logging signal so an
-    # actively-logging user (no goals configured) is reflected, never blanked.
+    # Nutrition consistency. Show macro compliance ONLY when there is real intake
+    # today (macro_compliance_score floors at 0.0 on a zero-intake day, which is
+    # not a meaningful "0% macros" — see _evaluate_mission_signals). Otherwise
+    # fall back to the canonical logging signal so an actively-logging user is
+    # reflected, never blanked or shown a misleading 0%.
     if nutrition.get("enabled"):
         macros = nutrition.get("macro_compliance_score")
-        if macros is not None:
+        logged_today = nutrition.get("food_entries_today") or 0
+        logged_7d = nutrition.get("food_entries_7d") or 0
+        if macros is not None and logged_today > 0:
             add("nutrition", "Nutrition", f"{macros:.0f}% macros")
-        else:
-            logged_today = nutrition.get("food_entries_today") or 0
-            if logged_today > 0:
-                noun = "item" if logged_today == 1 else "items"
-                add("nutrition", "Nutrition", f"{logged_today} {noun} today")
+        elif logged_today > 0:
+            noun = "item" if logged_today == 1 else "items"
+            add("nutrition", "Nutrition", f"{logged_today} {noun} today")
+        elif logged_7d > 0:
+            add("nutrition", "Nutrition", f"{logged_7d}/wk logged")
 
     return drivers
 
@@ -1025,22 +1034,29 @@ def _evaluate_mission_signals(states: dict, phase: str = "foundation") -> list[d
     # Only a user with NO logging at all is the untracked need.
     if nutrition.get("enabled"):
         macros = nutrition.get("macro_compliance_score")
-        if macros is not None:
+        logged_today = nutrition.get("food_entries_today") or 0
+        logged_7d = nutrition.get("food_entries_7d") or 0
+        # macro_compliance_score is computed from TODAY's intake vs the user's
+        # macro targets. On a zero-intake day (e.g. before logging, or a stale
+        # snapshot) it floors at 0.0 — NOT None — which previously rendered a
+        # misleading "0% macros" even for a user who logs daily. Phase D: the
+        # macro % is shown ONLY when there is real intake today to be compliant
+        # about (food_entries_today > 0). Otherwise we lead with the canonical
+        # LOGGING signal so an actively-logging user is reflected, never blanked
+        # or punished for not having eaten yet today / not having macro targets.
+        if macros is not None and logged_today > 0:
             band = _SIGNAL_BANDS["nutrition"]
             # One-sided band (no numeric "need" floor): >=help helping, else a
             # neutral Worth-Watching signal (tracked but not yet strong).
             polarity = "helping" if macros >= band["help"] else "neutral"
             emit("nutrition", "Nutrition", f"{macros:.0f}% macros", polarity)
+        elif logged_today > 0:
+            noun = "item" if logged_today == 1 else "items"
+            emit("nutrition", "Nutrition", f"{logged_today} {noun} today", "neutral")
+        elif logged_7d > 0:
+            emit("nutrition", "Nutrition", f"{logged_7d}/wk logged", "neutral")
         else:
-            logged_today = nutrition.get("food_entries_today") or 0
-            logged_7d = nutrition.get("food_entries_7d") or 0
-            if logged_today > 0:
-                noun = "item" if logged_today == 1 else "items"
-                emit("nutrition", "Nutrition", f"{logged_today} {noun} today", "neutral")
-            elif logged_7d > 0:
-                emit("nutrition", "Nutrition", f"{logged_7d}/wk logged", "neutral")
-            else:
-                emit("nutrition", "Nutrition", "Not tracked", "needs")
+            emit("nutrition", "Nutrition", "Not tracked", "needs")
 
     return signals
 
@@ -1113,15 +1129,18 @@ def _build_mission_status(goal, snap, signals: list[dict], today) -> dict:
         parts.append(watching[0]["watch_frag"])
     narrative = " ".join(parts)
 
-    # Display — one column per polarity, each capped at 3 and in the fixed
-    # priority order from _evaluate_mission_signals. Strong signals can never be
-    # displaced by neutral fillers because the columns no longer share slots.
+    # Display — one column per polarity, in the mission-priority order from
+    # _apply_priority (pinned signals first) then the fixed signal order. Phase D:
+    # NO per-column cap. Mission truth > layout neatness — a real signal (Journal,
+    # Projected A1C) may never be silently dropped because a column already holds
+    # three higher-priority signals. Signals can move columns (by polarity); they
+    # can never vanish. Layout wrapping is the template/CSS's job, not data loss.
     # Phase 6 — each displayed driver may carry ONE clickable destination
     # (resolved read-only, crash-safe). A driver with no meaningful action,
     # or whose URL cannot be resolved, renders as plain text (dest=None).
-    def _trim(items):
+    def _shape(items):
         out = []
-        for s in items[:3]:
+        for s in items:
             dest = _resolve_driver_dest(s.get("key"))
             # A signal may override the destination's hover text (e.g. the
             # A1C tooltip varies with confidence). The destination href stays
@@ -1143,9 +1162,9 @@ def _build_mission_status(goal, snap, signals: list[dict], today) -> dict:
         "state_label": _STATE_LABEL[state],
         "tone": _STATE_TONE[state],
         "narrative": narrative,
-        "helping": _trim(helping),
-        "watching": _trim(watching),
-        "needs": _trim(needs),
+        "helping": _shape(helping),
+        "watching": _shape(watching),
+        "needs": _shape(needs),
     }
 
 

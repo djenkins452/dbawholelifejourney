@@ -1406,6 +1406,15 @@
     padding: 4px 0;
 }
 
+/* Empty "Needs attention" — a subtle reassurance badge, never a reserved void. */
+.v3-mission-drivers-none--ok {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--v3-positive);
+    font-weight: 600;
+}
+
 .v3-mission-drivers-row {
     display: flex;
     flex-direction: column;

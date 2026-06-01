@@ -61,7 +61,20 @@ def build_dashboard_v3_context(user) -> dict[str, Any]:
 
     Read-only. Safe on the request path. Returns a dict that the template
     consumes directly — no further compute happens in templates.
+
+    Phase 2 dedup: ``build_today_execution`` and
+    ``GoalCockpitService.get_cockpit_data`` are deterministic for
+    ``(user, today)``. Before this change the v3 composer called each
+    multiple times per render (3× and 2× respectively, ~90–120 redundant
+    queries). We now fetch each ONCE up front and thread them through
+    the downstream builders as explicit ``execution_contract`` /
+    ``cockpit_data`` kwargs. No cache, no hidden state — pure
+    intra-request deduplication.
     """
+    # ── Phase 2: fetch the two deterministic hot inputs once. ──
+    # Any failure here is non-fatal; downstream builders fall back to
+    # fetching their own copy (preserves Phase 1 behavior + back-compat).
+    execution_contract = _safe(_load_execution_contract, user, default=None)
     cockpit_domains = _safe(_build_cockpit_domains_raw, user, default=[])
 
     context: dict[str, Any] = {
@@ -71,14 +84,27 @@ def build_dashboard_v3_context(user) -> dict[str, Any]:
         # None when no foundational goal qualifies (section renders nothing).
         "mission": _safe(_build_mission_card, user, default=None),
         # Composed/fallback gauges (used only when cockpit is empty).
-        "gauges": _safe(_build_gauges, user, default=[]),
-        "executive_summary": _safe(_build_executive_summary, user, default={}),
+        "gauges": _safe(
+            _build_gauges, user,
+            cockpit_data=cockpit_domains,
+            execution_contract=execution_contract,
+            default=[],
+        ),
+        "executive_summary": _safe(
+            _build_executive_summary, user,
+            execution_contract=execution_contract,
+            default={},
+        ),
         "focus_now": None,        # filled below from executive_summary
         "follow_on": [],          # filled below from executive_summary
         "accountability_cards": _safe(
             _build_accountability_cards, user, default=[]
         ),
-        "rhythm": _safe(_build_rhythm, user, default={"sections": [], "totals": {}}),
+        "rhythm": _safe(
+            _build_rhythm, user,
+            execution_contract=execution_contract,
+            default={"sections": [], "totals": {}},
+        ),
         "utilities": _safe(_build_utilities, user, default={}),
     }
 
@@ -186,6 +212,44 @@ def _resolve_driver_dest(key):
         return {"href": reverse(name), "tooltip": tooltip, "is_log": is_log}
     except Exception:
         return None
+
+
+# ── Per-mission signal priority (Phase 6.3) ──────────────────────────────────
+# Some missions make a particular metric disproportionately important. For a
+# metabolic-health mission, Projected A1C (GMI) is the headline trajectory and
+# MUST outrank generic lifestyle signals (sleep / steps / nutrition) so the
+# 3-per-column display cap can never silently drop it. This is resolved PER
+# GOAL — never hardcoded as a global winner — so future missions can pin
+# different signals without touching the cap logic. The mapping is keyed by the
+# goal's LifeDomain slug; a goal in an un-mapped domain pins nothing and falls
+# back to the default fixed signal order.
+_MISSION_PRIORITY_BY_DOMAIN = {
+    "health": ("a1c",),
+}
+
+
+def _mission_priority_keys(goal, signals) -> tuple:
+    """Ordered tuple of signal keys to lift to the front of their polarity
+    column for THIS goal, before the per-column cap is applied.
+
+    Read-only and crash-safe. Only keys that are actually present as signals
+    are returned, so a pin never reserves a slot for a metric that isn't there.
+    """
+    present = {s.get("key") for s in signals}
+    domain = getattr(goal, "domain", None)
+    slug = getattr(domain, "slug", None)
+    keys = _MISSION_PRIORITY_BY_DOMAIN.get(slug, ()) if slug else ()
+    return tuple(k for k in keys if k in present)
+
+
+def _apply_priority(column: list[dict], pinned: tuple) -> list[dict]:
+    """Reorder one polarity column so pinned keys come first (in pin order),
+    preserving the relative order of everything else. Pure, no mutation."""
+    if not pinned:
+        return column
+    head = [s for k in pinned for s in column if s.get("key") == k]
+    tail = [s for s in column if s.get("key") not in pinned]
+    return head + tail
 
 # ── Phase 3: Mission Intelligence ────────────────────────────────────────
 # Deterministic, explainable mission state. NO percentages, NO hidden scoring.
@@ -737,11 +801,15 @@ def _evaluate_mission_signals(states: dict, phase: str = "foundation") -> list[d
 
     signals: list[dict] = []
 
-    def emit(key, label, value, polarity):
+    def emit(key, label, value, polarity, tooltip=None, note=None):
         # Each signal carries all three grounded clauses (help / watch / need);
         # the status builder picks the one matching the column it lands in. A
         # "neutral" signal is a genuine middle state — Worth Watching — not a
-        # weaker need, so it is never folded into the needs column.
+        # weaker need, so it is never folded into the needs column. ``tooltip``
+        # optionally overrides the static per-key destination tooltip (used to
+        # make the A1C hover text confidence-aware). ``note`` is an optional
+        # second-line sub-label rendered under the value (used by A1C to state
+        # confidence / sync-status truthfully — e.g. "Waiting for glucose sync").
         frags = _SIGNAL_FRAGMENTS.get(key, {})
         signals.append(
             {
@@ -750,6 +818,8 @@ def _evaluate_mission_signals(states: dict, phase: str = "foundation") -> list[d
                 "label": label,
                 "value": value,
                 "polarity": polarity,
+                "tooltip": tooltip,
+                "note": note,
                 "help_frag": frags.get("help", ""),
                 "watch_frag": frags.get("watch", ""),
                 "need_frag": frags.get("need", ""),
@@ -791,20 +861,34 @@ def _evaluate_mission_signals(states: dict, phase: str = "foundation") -> list[d
     if movement is not None:
         signals.append(movement)
 
-    # Projected A1C / GMI (Phase 6.1) — metabolic trajectory. Read-only: the
-    # number, confidence, and trend are pre-computed in the nightly health
-    # state builder, never here. The displayed number is the standard GMI
-    # equation on the simple mean (the builder never blends or trend-adjusts
-    # it). Confidence governs presentation, not the value:
-    #   high/medium → show the number; medium carries a softer caveat via the
-    #                 tooltip ("recent available data").
-    #   low         → show a "need more glucose data" nudge, never a number.
-    # Trend drives polarity — a falling A1C reads as encouraging even while
-    # still elevated — with the ADA target band (≤7.0%) guarding against a
-    # punitive "needs" on someone already in healthy control.
+    # Projected A1C / GMI (Phase 6.1 + 6.3) — metabolic trajectory. Read-only:
+    # number, confidence, trend are pre-computed in the nightly health state
+    # builder, never here. The displayed number is the standard GMI equation on
+    # the simple mean (the builder never blends or trend-adjusts it).
+    #
+    # TRUTH RULE (Phase 6.3): for a glucose-tracking user the A1C slot must
+    # NEVER silently disappear. "No signal" is itself a signal — the user must
+    # always be able to tell apart: a real number / sync lag / thin history /
+    # engine failure. So whenever confidence is set (i.e. any glucose history or
+    # a connected CGM exists), we ALWAYS emit a driver, varying only the value
+    # and the second-line ``note``:
+    #   high   → "6.5% ↓"     note "High confidence"
+    #   medium → "~6.5% ↓"    note "Waiting for recent glucose sync"
+    #   low+stale_sync → "—"  note "Waiting for glucose sync"
+    #   low+thin       → "—"  note "Need more glucose history"
+    #   error          → "Unavailable" note "Glucose insights temporarily unavailable"
+    # Confidence is None only when there's genuinely no CGM/history — then (and
+    # only then) the slot is absent, which is itself truthful.
     a1c = health.get("projected_a1c")
     a1c_conf = health.get("projected_a1c_confidence")
-    if a1c is not None and a1c_conf in ("high", "medium"):
+    if a1c_conf == "error":
+        # Engine failure must be visible, never mistaken for "no data".
+        emit(
+            "a1c", "Projected A1C (GMI)", "Unavailable", "neutral",
+            tooltip="Glucose insights are temporarily unavailable. We're on it.",
+            note="Glucose insights temporarily unavailable",
+        )
+    elif a1c is not None and a1c_conf in ("high", "medium"):
         a1c_trend = health.get("projected_a1c_trend") or "stable"
         if a1c_trend == "improving":
             polarity = "helping"
@@ -815,12 +899,34 @@ def _evaluate_mission_signals(states: dict, phase: str = "foundation") -> list[d
         else:  # stable
             polarity = "helping" if a1c <= 7.0 else "neutral"
             arrow = "→"
-        caveat = " · recent data" if a1c_conf == "medium" else ""
-        emit("a1c", "Projected A1C (GMI)", f"{a1c}% {arrow}{caveat}", polarity)
+        if a1c_conf == "medium":
+            # Tilde signals an estimate on possibly-delayed sync; the note and
+            # tooltip explain the basis without sounding like user failure.
+            value = f"~{a1c}% {arrow}"
+            tooltip = "Sync may be delayed. Estimate uses available glucose history."
+            note = "Waiting for recent glucose sync"
+        else:
+            value = f"{a1c}% {arrow}"
+            tooltip = None  # keep the default "not a lab A1C" destination tooltip
+            note = "High confidence"
+        emit("a1c", "Projected A1C (GMI)", value, polarity, tooltip=tooltip, note=note)
     elif a1c_conf == "low":
-        # Some glucose history exists but it is too sparse/stale to publish a
-        # defensible number — surface the gap rather than hide the metric.
-        emit("a1c", "Projected A1C (GMI)", "Need more glucose data", "neutral")
+        # Glucose history (or a connected CGM) exists but it is too stale/sparse
+        # to publish a defensible number. Show the slot with an em-dash value and
+        # an honest note. Distinguish sync lag (not a failure) from thin history —
+        # never silently disappear when any history/connection exists.
+        if health.get("projected_a1c_low_reason") == "stale_sync":
+            emit(
+                "a1c", "Projected A1C (GMI)", "—", "neutral",
+                tooltip="WLJ has glucose history, but recent CGM data has not synced.",
+                note="Waiting for glucose sync",
+            )
+        else:
+            emit(
+                "a1c", "Projected A1C (GMI)", "—", "neutral",
+                tooltip="A few more days of glucose readings will unlock your GMI.",
+                note="Need more glucose history",
+            )
 
     # Sleep — recovery lever.
     sleep = health.get("sleep_avg_hours_7d")
@@ -878,6 +984,14 @@ def _build_mission_status(goal, snap, signals: list[dict], today) -> dict:
     helping = [s for s in signals if s["polarity"] == "helping"]
     watching = [s for s in signals if s["polarity"] == "neutral"]
     needs = [s for s in signals if s["polarity"] == "needs"]
+    # Phase 6.3 — lift any mission-priority signal (e.g. Projected A1C for a
+    # metabolic mission) to the front of whichever column it lands in, BEFORE
+    # the 3-per-column cap, so a high-value metric can never be silently
+    # displaced by lower-value fillers.
+    pinned = _mission_priority_keys(goal, signals)
+    helping = _apply_priority(helping, pinned)
+    watching = _apply_priority(watching, pinned)
+    needs = _apply_priority(needs, pinned)
     trend = snap.momentum_trend if snap and snap.momentum_trend else None
 
     if trend == "rising":
@@ -921,10 +1035,16 @@ def _build_mission_status(goal, snap, signals: list[dict], today) -> dict:
         out = []
         for s in items[:3]:
             dest = _resolve_driver_dest(s.get("key"))
+            # A signal may override the destination's hover text (e.g. the
+            # A1C tooltip varies with confidence). The destination href stays
+            # the same — only the tooltip copy changes.
+            if dest and s.get("tooltip"):
+                dest = {**dest, "tooltip": s["tooltip"]}
             out.append({
                 "icon": s["icon"],
                 "label": s["label"],
                 "value": s["value"],
+                "note": s.get("note"),
                 "dest": dest,
             })
         return out
@@ -962,7 +1082,7 @@ def _build_mission_progress(goal) -> dict:
     }
 
 
-def _build_gauges(user) -> list[dict]:
+def _build_gauges(user, cockpit_data=None, execution_contract=None) -> list[dict]:
     """Reuse GoalCockpitService — deterministic, goal-driven domain scores.
 
     Decorates each entry with a 'trend_label' and a short 'drivers' list
@@ -972,12 +1092,20 @@ def _build_gauges(user) -> list[dict]:
     is empty. We don't show a "no domains" empty state — we render a
     canonical baseline (Health / Faith / Life Execution / Purpose) built
     READ-ONLY from existing SAE state. No new metric computation, no LLM.
-    """
-    from apps.dashboard_v2.services.cockpit_service import GoalCockpitService
 
-    raw = GoalCockpitService(user).get_cockpit_data() or []
+    Phase 2 dedup: ``cockpit_data`` and ``execution_contract`` may be
+    pre-fetched at the top of ``build_dashboard_v3_context``. When
+    provided we reuse them — saves a second GoalCockpitService call and
+    a third build_today_execution call per render. When omitted (any
+    other caller / Phase 1 path) we fetch our own.
+    """
+    if cockpit_data is None:
+        from apps.dashboard_v2.services.cockpit_service import GoalCockpitService
+        raw = GoalCockpitService(user).get_cockpit_data() or []
+    else:
+        raw = cockpit_data or []
     if not raw:
-        return _fallback_gauges_from_sae(user)
+        return _fallback_gauges_from_sae(user, execution_contract=execution_contract)
 
     out = []
     for d in raw:
@@ -1018,13 +1146,18 @@ def _build_gauges(user) -> list[dict]:
 # ── Fallback gauges (canonical SAE-driven, no fabrication) ────────────
 
 
-def _fallback_gauges_from_sae(user) -> list[dict]:
+def _fallback_gauges_from_sae(user, execution_contract=None) -> list[dict]:
     """Baseline gauges derived from already-built SAE state.
 
     Every value comes from an existing canonical field — no aggregation
     or recomputation happens here. If a domain has no data, its gauge
     shows "—" instead of being hidden, so the dashboard always feels
     populated.
+
+    Phase 2 dedup: when ``execution_contract`` is provided (composer
+    pre-fetched it), the Life Execution gauge reuses it instead of
+    calling ``build_today_execution`` a second time. When omitted (any
+    other caller) we fetch our own — full back-compat.
     """
     from apps.core.ai_state.state_engine import get_module_state
 
@@ -1072,8 +1205,11 @@ def _fallback_gauges_from_sae(user) -> list[dict]:
 
     # ── Life Execution — completion% of today's actionable items ──
     try:
-        from apps.core.execution.today_execution import build_today_execution
-        contract = build_today_execution(user)
+        if execution_contract is None:
+            from apps.core.execution.today_execution import build_today_execution
+            contract = build_today_execution(user)
+        else:
+            contract = execution_contract
         items = contract.get("items", []) or []
         actionable = [i for i in items if i.get("is_actionable")]
         completed = sum(1 for i in actionable if i.get("completed_today"))
@@ -1161,14 +1297,27 @@ def _status_gauge(slug, label, icon, statuses):
     }
 
 
-def _build_executive_summary(user) -> dict:
+def _load_execution_contract(user) -> dict | None:
+    """Phase 2 dedup — fetch today's execution contract ONCE per render.
+
+    Returned dict is threaded to ``_build_executive_summary``,
+    ``_build_rhythm``, and ``_fallback_gauges_from_sae`` so each
+    consumer reuses the same 30-40 queries instead of refetching.
+    Returns ``None`` on failure — downstream builders fall back to
+    fetching their own copy (full back-compat).
+    """
+    from apps.core.execution.today_execution import build_today_execution
+    return build_today_execution(user)
+
+
+def _build_executive_summary(user, execution_contract=None) -> dict:
     from apps.core.cos_briefing import build_executive_summary
-    return build_executive_summary(user)
+    return build_executive_summary(user, execution_contract=execution_contract)
 
 
-def _build_rhythm(user) -> dict:
+def _build_rhythm(user, execution_contract=None) -> dict:
     from apps.core.cos_briefing import build_rhythm_sections
-    return build_rhythm_sections(user)
+    return build_rhythm_sections(user, execution_contract=execution_contract)
 
 
 def _build_accountability_cards(user) -> list[dict]:
@@ -1356,10 +1505,14 @@ def _build_utilities(user) -> dict:
 # ── Internals ─────────────────────────────────────────────────────────
 
 
-def _safe(fn, *args, default):
-    """Run a section builder and degrade gracefully on failure."""
+def _safe(fn, *args, default, **kwargs):
+    """Run a section builder and degrade gracefully on failure.
+
+    Accepts kwargs (Phase 2: pre-fetched ``execution_contract`` /
+    ``cockpit_data`` are passed to downstream builders).
+    """
     try:
-        return fn(*args)
+        return fn(*args, **kwargs)
     except Exception:
         logger.warning("dashboard_v3 section build failed: %s", fn.__name__,
                        exc_info=True)

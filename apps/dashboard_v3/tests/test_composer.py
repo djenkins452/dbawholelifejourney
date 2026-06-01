@@ -1293,6 +1293,39 @@ class MissionCardTests(TestCase):
         self.assertLessEqual(len(status["helping"]), 3)
         self.assertLessEqual(len(status["needs"]), 3)
 
+    def test_a1c_survives_column_cap_for_health_mission(self):
+        # Phase 6.3 — for a metabolic (health-domain) mission, Projected A1C must
+        # outrank lifestyle fillers and survive the 3-per-column cap. Here four
+        # "neutral" signals compete for the watching column; A1C must NOT be the
+        # one silently dropped.
+        from apps.purpose.models import LifeDomain
+        domain = LifeDomain.objects.create(name="Health", slug="health")
+        goal = self._goal(title="Metabolic mission", domain=domain)
+        self._momentum(goal, trend="stable")
+        # All of these land in "watching" (neutral): a worsening-but-in-target
+        # A1C (not punitive), 6h sleep, stable weight, partial nutrition. Weight
+        # is emitted BEFORE A1C in natural order, so only pinning can make A1C
+        # the front of the column — and pinning is what keeps it from being the
+        # one dropped by the 3-per-column cap.
+        self._seed_state(
+            health={
+                "projected_a1c": 6.4,
+                "projected_a1c_trend": "worsening",
+                "projected_a1c_confidence": "high",
+                "sleep_avg_hours_7d": 6.0,
+                "weight_change_30d": 0.0,
+                "weight_trend": "stable",
+            },
+            nutrition={"enabled": True, "macro_compliance_score": 50},
+        )
+        status = self._status()
+        watching_labels = [d["label"] for d in status["watching"]]
+        self.assertLessEqual(len(status["watching"]), 3)
+        self.assertIn("Projected A1C (GMI)", watching_labels)
+        # And it is lifted to the FRONT of its column (highest priority) — proof
+        # the priority resolver reordered ahead of the earlier-emitted Weight.
+        self.assertEqual(watching_labels[0], "Projected A1C (GMI)")
+
     # ── Phase 5: emotional motivation layer (read-only metadata) ─────────
 
     def test_mission_links_exposed_in_order(self):
@@ -1410,8 +1443,8 @@ class MissionCardTests(TestCase):
         self.assertIn("Projected A1C (GMI)", [d["label"] for d in status["watching"]])
 
     def test_a1c_medium_confidence_renders_with_caveat(self):
-        # Medium confidence still shows the standard GMI number, but flags the
-        # softer basis ("recent data") rather than hiding the metric.
+        # Medium confidence still shows the standard GMI number (tilde-marked),
+        # and states the softer basis in the note rather than hiding the metric.
         self._goal(title="Recent only")
         self._seed_state(health={
             "projected_a1c": 6.5,
@@ -1423,25 +1456,74 @@ class MissionCardTests(TestCase):
                  for d in status[col] if d["label"] == "Projected A1C (GMI)"]
         self.assertTrue(match)
         self.assertIn("6.5%", match[0]["value"])
-        self.assertIn("recent data", match[0]["value"])
+        self.assertIn("~", match[0]["value"])
+        self.assertEqual(match[0]["note"], "Waiting for recent glucose sync")
 
-    def test_a1c_low_confidence_renders_nudge_not_number(self):
-        # Low confidence must NOT be silently hidden — it surfaces a prompt for
-        # more sync data, and must never show a fabricated number.
+    def test_a1c_high_confidence_carries_confidence_note(self):
+        # High confidence states its confidence in the note (truthful context),
+        # never a completion-resembling visual.
+        self._goal(title="Dense data")
+        self._seed_state(health={
+            "projected_a1c": 6.2,
+            "projected_a1c_trend": "stable",
+            "projected_a1c_confidence": "high",
+        })
+        status = self._status()
+        match = [d for col in ("helping", "watching", "needs")
+                 for d in status[col] if d["label"] == "Projected A1C (GMI)"]
+        self.assertTrue(match)
+        self.assertEqual(match[0]["note"], "High confidence")
+
+    def test_a1c_low_insufficient_renders_dash_with_history_note(self):
+        # Low confidence from THIN history must NOT be silently hidden — it shows
+        # an em-dash with a "need more history" note, never a fabricated number.
         self._goal(title="Sparse glucose")
         self._seed_state(health={
             "projected_a1c": None,
             "projected_a1c_confidence": "low",
+            "projected_a1c_low_reason": "insufficient_data",
             "glucose_reading_count_90d": 12,
         })
         status = self._status()
         match = [d for col in ("helping", "watching", "needs")
                  for d in status[col] if d["label"] == "Projected A1C (GMI)"]
         self.assertTrue(match)
-        self.assertEqual(match[0]["value"], "Need more glucose data")
+        self.assertEqual(match[0]["value"], "—")
+        self.assertEqual(match[0]["note"], "Need more glucose history")
         self.assertNotIn("%", match[0]["value"])
 
-    def test_a1c_hidden_when_absent(self):
+    def test_a1c_low_stale_sync_renders_dash_with_sync_note(self):
+        # Low confidence from SYNC LAG (real history, just not synced) reads as a
+        # sync state, never user failure — em-dash value + "Waiting for glucose sync".
+        self._goal(title="Synced stale")
+        self._seed_state(health={
+            "projected_a1c": None,
+            "projected_a1c_confidence": "low",
+            "projected_a1c_low_reason": "stale_sync",
+            "glucose_reading_count_90d": 80,
+        })
+        status = self._status()
+        match = [d for col in ("helping", "watching", "needs")
+                 for d in status[col] if d["label"] == "Projected A1C (GMI)"]
+        self.assertTrue(match)
+        self.assertEqual(match[0]["value"], "—")
+        self.assertEqual(match[0]["note"], "Waiting for glucose sync")
+
+    def test_a1c_engine_error_renders_unavailable_not_silent(self):
+        # Phase 6.3 — an engine failure (error sentinel) must render visibly as
+        # "Unavailable", never vanish, so the user can tell breakage from no-data.
+        self._goal(title="Broken engine")
+        self._seed_state(health={"projected_a1c_confidence": "error"})
+        status = self._status()
+        match = [d for col in ("helping", "watching", "needs")
+                 for d in status[col] if d["label"] == "Projected A1C (GMI)"]
+        self.assertTrue(match)
+        self.assertEqual(match[0]["value"], "Unavailable")
+        self.assertEqual(match[0]["note"], "Glucose insights temporarily unavailable")
+
+    def test_a1c_hidden_only_when_truly_no_glucose(self):
+        # Confidence None (no CGM, no history) is the ONLY case where the slot is
+        # legitimately absent — itself a truthful "no data" state.
         self._goal(title="No glucose")
         self._seed_state(health={})
         status = self._status()

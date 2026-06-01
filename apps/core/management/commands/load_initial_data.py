@@ -1073,6 +1073,8 @@ class Command(BaseCommand):
         self._reset_mission_actionable_a1c_release_notes(DataLoadConfig, force, verbosity)
         # Phase 6.1 — clinically-accurate Projected A1C (GMI) release note (PK 206)
         self._reset_mission_gmi_accuracy_release_notes(DataLoadConfig, force, verbosity)
+        # Phase 6.3 — A1C (GMI) slot never silently disappears release note (PK 207)
+        self._reset_mission_a1c_always_visible_release_notes(DataLoadConfig, force, verbosity)
 
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
@@ -7169,6 +7171,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Mission GMI accuracy release notes FAILED: {e}'))
+
+    def _reset_mission_a1c_always_visible_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes after adding PK 207 (Mission
+        Phase 6.3 — Projected A1C (GMI) slot always renders an honest state and
+        never silently disappears).
+        """
+        reset_tracker_name = 'reset_mission_a1c_always_visible_2026_05_31'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for A1C always-visible (PK 207)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for A1C always-visible',
+                'command',
+                'One-time reset: added PK 207 for Mission Phase 6.3 always-visible Projected A1C'
+            )
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Mission A1C always-visible release notes FAILED: {e}'))
 
     def _reset_action_center_vocabulary_release_notes(self, DataLoadConfig, force=False, verbosity=1):
         """

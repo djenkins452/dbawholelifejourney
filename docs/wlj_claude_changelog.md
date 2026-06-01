@@ -3,9 +3,52 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-<<<<<<< Updated upstream
-# Last Updated: 2026-05-31 (fix: Mission Phase 6.1 — clinically-accurate Projected A1C / GMI)
+# Last Updated: 2026-05-31 (fix: Mission Phase 6.3 — Projected A1C (GMI) never silently disappears)
 # ================================================================# WLJ Change History
+
+
+## 2026-05-31 — fix(dashboard_v3): Phase 6.3 — Projected A1C (GMI) mission slot must NEVER silently disappear
+
+**The problem.** On a diabetes-focused mission the Projected A1C (GMI) driver could vanish from the mission card entirely. Silent disappearance is a Visual-Truth violation: the user cannot tell apart *no glucose data* / *sync lag* / *engine failure* / *render-cap drop* / *confidence suppression*. "No signal" is itself a signal.
+
+**Root cause (verified against the render pipeline, not guessed).** Four independent silent-loss paths:
+1. **Engine had no failure sentinel** — any exception in `_project_a1c` left every A1C key None, indistinguishable from "no data".
+2. **Connected CGM, zero readings** — a user with a connected Dexcom but no synced readings hit `if not latest: return`, emitting nothing.
+3. **Low confidence emitted thin copy only** — low/sparse fell back to a generic nudge with no sync-vs-history distinction.
+4. **3-per-column display cap** — A1C is emitted 4th in signal order, so on a busy column it could be the one dropped by `items[:3]`.
+
+**The fix (always render the slot when any glucose history or CGM connection exists):**
+
+*Engine — `apps/core/ai_state/state_builder.py :: _project_a1c`*
+- Added an explicit `projected_a1c_confidence = "error"` sentinel in the `except` block so engine failure is visible, never silent.
+- Added a connected-CGM-with-zero-readings branch: when `DexcomCredential` is connected but no readings exist, set `glucose_reading_count_90d=0`, `confidence="low"`, `low_reason="stale_sync"` so the card shows "Waiting for glucose sync".
+
+*Composer — `apps/dashboard_v3/services/composer.py`*
+- `emit()` now carries an optional `note` (second-line sub-label). The A1C block ALWAYS emits when confidence is set, across five honest render states:
+  - **high** → `6.5% ↓` · note "High confidence"
+  - **medium** → `~6.5% ↓` · note "Waiting for recent glucose sync"
+  - **low / stale_sync** → `—` · note "Waiting for glucose sync"
+  - **low / insufficient_data** → `—` · note "Need more glucose history"
+  - **error** → `Unavailable` · note "Glucose insights temporarily unavailable"
+  - Confidence `None` (no CGM, no history) is the ONLY case where the slot is legitimately absent.
+- Added `_mission_priority_keys(goal, signals)` + `_apply_priority()`: a per-goal priority resolver (keyed by `LifeDomain.slug` via `_MISSION_PRIORITY_BY_DOMAIN`, default `{"health": ("a1c",)}`) that lifts a high-value signal to the front of its polarity column BEFORE the 3-per-column cap. Resolved per goal — never a hardcoded global winner — so future missions can pin different signals without touching the cap logic.
+
+*Template / CSS*
+- `templates/dashboard_v3/sections/mission.html` — renders `d.note` as a `.v3-mission-driver-note` sub-label in all three columns (link + plain variants).
+- `static/dashboard_v3/css/dashboard_v3.css` — muted `.v3-mission-driver-note` style; deliberately NOT completion-resembling (Visual Truth Contract).
+
+**Verification.**
+- `apps.core.ai_state.tests_health_contract_glucose_extensions.ProjectedA1CEngineTests` — all pass (added: connected-CGM-zero-readings, engine-error sentinel, low-reason distinction; reseeded the stale-data test to ≥50 days for the 14/45-day thresholds).
+- `apps.dashboard_v3.tests.test_composer.MissionCardTests` — 68/68 pass (added: high/medium/low-stale/low-thin/error render states, note sub-labels, and a priority-pinning test proving A1C survives the column cap for a health-domain mission).
+- `makemigrations --check --dry-run` — no changes (contract dict only).
+
+**Files changed**
+- `apps/core/ai_state/state_builder.py`
+- `apps/dashboard_v3/services/composer.py`
+- `templates/dashboard_v3/sections/mission.html`
+- `static/dashboard_v3/css/dashboard_v3.css`
+- `apps/core/ai_state/tests_health_contract_glucose_extensions.py`
+- `apps/dashboard_v3/tests/test_composer.py`
 
 
 ## 2026-05-31 — perf(dashboard): Phase 1 — kill double-fetch + defer Class A health summary builder (~60% latency cut)
@@ -1586,9 +1629,6 @@ patches one gap; the broader audit is logged as Task 23 in
 
 ### Backlog Updated
 - `docs/improvement_tasks.md` — Task 23 added.
-=======
-# Last Updated: 2026-05-26 (fix(journey): deterministic single-arc loader — unblock CI test DB creation)
-# ================================================================# WLJ Change History
 
 
 ## 2026-05-26 — fix(journey): deterministic single-arc loader — unblock CI test DB creation
@@ -1637,7 +1677,6 @@ patches one gap; the broader audit is logged as Task 23 in
 - Content edits to arcs 03–05, 07, 08, 10, 11 (`key_insight` brevity)
 
 **Blast radius.** Production migrations 0003–0006 are already applied and will not re-run; the new bodies only execute on fresh DBs. The new bodies are strictly safer (deterministic, schema-frozen, per-arc isolated). Local dev and admin tooling unaffected. The 200-char content contract still enforced.
->>>>>>> Stashed changes
 
 ---
 

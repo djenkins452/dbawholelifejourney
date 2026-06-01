@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 207,
+    "fields": {
+      "title": "Your Projected A1C (GMI) now always tells you where it stands",
+      "description": "If you track glucose, the Projected A1C (GMI) on your Mission card will no longer quietly disappear. It now always shows you exactly where things stand. When your data is fresh and dense, you see the number with a \"High confidence\" note. When your CGM sync is running a little behind, you still see the estimate, marked with a tilde and \"Waiting for recent glucose sync\". If there genuinely isn't enough recent data yet, you'll see an honest \"Need more glucose history\" prompt instead of a guessed figure — and if your monitor is connected but readings haven't come through, it says \"Waiting for glucose sync\" so you know it's a sync delay, not you. In the rare case the estimate can't be calculated, it says \"Unavailable\" rather than vanishing. On a health-focused mission, this metric is also given priority so it's never crowded out by other signals.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-05-31",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-06-01T03:00:00Z",
+      "updated_at": "2026-06-01T03:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 206,
     "fields": {
       "title": "Projected A1C is now an industry-standard estimate — and more dependable",

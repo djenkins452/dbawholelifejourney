@@ -293,8 +293,47 @@ class ProjectedA1CEngineTests(TestCase):
         state = build_health_state(self.user)
         self.assertIsNone(state["projected_a1c"])
         self.assertEqual(state["projected_a1c_confidence"], "low")
+        # Thin history (not stale sync) → the card says "Need more glucose history".
+        self.assertEqual(state["projected_a1c_low_reason"], "insufficient_data")
         # The raw count is still surfaced for transparency/confidence.
         self.assertEqual(state["glucose_reading_count_90d"], 10)
+
+    def test_connected_cgm_with_zero_readings_renders_sync_state(self):
+        # Phase 6.3 — a user with a CONNECTED Dexcom but no synced readings must
+        # NOT silently lose the A1C slot. The engine surfaces a low/stale_sync
+        # state so the card can say "Waiting for glucose sync", never go dark.
+        from apps.health.models import DexcomCredential
+        DexcomCredential.objects.create(user=self.user, access_token="enc-token")
+        state = build_health_state(self.user)
+        self.assertEqual(state["projected_a1c_confidence"], "low")
+        self.assertEqual(state["projected_a1c_low_reason"], "stale_sync")
+        self.assertEqual(state["glucose_reading_count_90d"], 0)
+        self.assertIsNone(state["projected_a1c"])
+
+    def test_no_cgm_and_no_readings_leaves_slot_absent(self):
+        # No CGM connection AND no glucose history → genuinely nothing to show.
+        # Confidence stays None so the composer omits the slot (itself truthful).
+        state = build_health_state(self.user)
+        self.assertIsNone(state["projected_a1c_confidence"])
+        self.assertIsNone(state["projected_a1c"])
+
+    def test_engine_failure_sets_error_sentinel_not_silent(self):
+        # Phase 6.3 — an exception inside the A1C build must surface an explicit
+        # 'error' sentinel so the card can render "Unavailable", never leaving
+        # the user unable to tell breakage from absence of data.
+        from unittest.mock import patch
+        from apps.health.models import GlucoseEntry
+        now = datetime.now(timezone.utc)
+        GlucoseEntry.objects.create(
+            user=self.user, value=Decimal("130"), unit="mg/dL",
+            recorded_at=now - timedelta(days=1),
+        )
+        with patch(
+            "apps.core.ai_state.state_builder._gmi_from_mean_mgdl",
+            side_effect=RuntimeError("boom"),
+        ):
+            state = build_health_state(self.user)
+        self.assertEqual(state["projected_a1c_confidence"], "error")
 
     def test_sync_lag_keeps_metric_at_medium_confidence(self):
         # Dense history whose latest reading is ~20 days old (Dexcom sync lag).
@@ -312,17 +351,19 @@ class ProjectedA1CEngineTests(TestCase):
         self.assertAlmostEqual(state["projected_a1c"], 6.4, delta=0.1)
 
     def test_truly_stale_data_drops_to_low_confidence(self):
-        # Latest reading >30 days old → no longer a current trajectory → low,
-        # number withheld.
+        # Latest reading >45 days old → no longer a current trajectory → low,
+        # number withheld. With real history behind it, the WHY is sync lag
+        # (stale_sync), not thin data — the card says "Waiting for glucose sync".
         from apps.health.models import GlucoseEntry
         now = datetime.now(timezone.utc)
         for i in range(90):
             GlucoseEntry.objects.create(
                 user=self.user, value=Decimal("130"), unit="mg/dL",
-                recorded_at=now - timedelta(days=45 + i * 0.5),
+                recorded_at=now - timedelta(days=50 + i * 0.5),
             )
         state = build_health_state(self.user)
         self.assertEqual(state["projected_a1c_confidence"], "low")
+        self.assertEqual(state["projected_a1c_low_reason"], "stale_sync")
         self.assertIsNone(state["projected_a1c"])
 
     def test_improving_trend_detected(self):

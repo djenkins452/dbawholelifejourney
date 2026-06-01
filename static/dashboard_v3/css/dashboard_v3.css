@@ -1503,6 +1503,18 @@
     text-overflow: ellipsis;
 }
 
+/* Phase 6.3 — truthful second line under the value (e.g. confidence / sync
+   status for Projected A1C). Muted + smaller so it reads as context, never as
+   a completion/achievement state (Visual Truth Contract). */
+.v3-mission-driver-note {
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+    color: var(--v3-text-soft);
+    white-space: normal;
+}
+
 .v3-mission-driver-up   { color: var(--v3-opp); }
 .v3-mission-driver-down { color: var(--v3-warn); }
 

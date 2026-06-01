@@ -87,7 +87,25 @@ def _project_a1c(state, user, now):
             .first()
         )
         if not latest:
-            return  # no glucose history at all — nothing to render
+            # No glucose rows at all. Distinguish two truths:
+            #   • A user with a CONNECTED CGM (Dexcom) but zero synced readings
+            #     is a sync-lag/pipeline case — the card must still show the
+            #     slot ("Waiting for glucose sync"), never go silent.
+            #   • A user with no CGM connection has genuinely no glucose data;
+            #     leave the keys None so no slot is rendered.
+            try:
+                from apps.health.models import DexcomCredential
+                connected = (
+                    DexcomCredential.objects.filter(user=user)
+                    .exclude(access_token="").exists()
+                )
+            except Exception:
+                connected = False
+            if connected:
+                state["glucose_reading_count_90d"] = 0
+                state["projected_a1c_confidence"] = "low"
+                state["projected_a1c_low_reason"] = "stale_sync"
+            return
         latest_at, latest_unit = latest
         unit = latest_unit or "mg/dL"
         to_mgdl = (lambda v: v * 18.0) if unit == "mmol/L" else (lambda v: v)
@@ -116,18 +134,26 @@ def _project_a1c(state, user, now):
         state["projected_a1c_mean_glucose"] = round(mean_mgdl, 1)
 
         # ── CONFIDENCE — separate from the number ───────────────────────────
-        if count >= 70 and distinct_days >= 14 and days_since_last <= 7:
+        # Freshness thresholds are deliberately generous: normal Dexcom→WLJ
+        # sync can lag a week or more, and that lag must not make a real
+        # trajectory feel unreliable. high ≤14d, medium ≤45d.
+        if count >= 70 and distinct_days >= 14 and days_since_last <= 14:
             confidence = "high"
-        elif count >= 30 and distinct_days >= 7 and days_since_last <= 30:
+        elif count >= 30 and distinct_days >= 7 and days_since_last <= 45:
             confidence = "medium"
         else:
             confidence = "low"
         state["projected_a1c_confidence"] = confidence
 
         if confidence == "low":
-            # Not enough data to publish a defensible number. Surface the
-            # confidence so the card can prompt for more sync, but never
-            # show a number that could be misread as clinical truth.
+            # Not enough confidence to publish a defensible number. Distinguish
+            # WHY so the card can speak honestly: a user with real history whose
+            # CGM simply hasn't synced recently is a sync-lag case (not failure),
+            # whereas thin history is genuinely "need more data".
+            if count >= 30 and days_since_last > 45:
+                state["projected_a1c_low_reason"] = "stale_sync"
+            else:
+                state["projected_a1c_low_reason"] = "insufficient_data"
             return
 
         # ── TREND — fully separate from the displayed number ────────────────
@@ -149,7 +175,11 @@ def _project_a1c(state, user, now):
         state["projected_a1c"] = gmi
         state["projected_a1c_trend"] = trend
     except Exception:
+        # Engine failure must be VISIBLE, never silent. Set an explicit
+        # error sentinel so the card can render "Unavailable" instead of
+        # leaving the user unable to tell breakage from absence of data.
         logger.error("SAE: projected A1C build failed", exc_info=True)
+        state["projected_a1c_confidence"] = "error"
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -229,7 +259,8 @@ HEALTH_CONTRACT = {
     # Computed nightly here, read-only on the request path.
     'projected_a1c':             None,   # GMI % — None at low/insufficient data
     'projected_a1c_trend':       None,   # 'improving' | 'stable' | 'worsening'
-    'projected_a1c_confidence':  None,   # 'high' | 'medium' | 'low'
+    'projected_a1c_confidence':  None,   # 'high' | 'medium' | 'low' | 'error'
+    'projected_a1c_low_reason':  None,   # 'stale_sync' | 'insufficient_data' (low only)
     'projected_a1c_mean_glucose': None,  # mean mg/dL behind the GMI (transparency)
     'glucose_reading_count_90d': None,
     # ── Steps ─────────────────────────────────────────────────

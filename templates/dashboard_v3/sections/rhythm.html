@@ -5,7 +5,7 @@
             <span class="v3-rhythm-grand">
                 {{ rhythm.totals.completed }}/{{ rhythm.totals.total }} complete
                 {% if rhythm.totals.at_risk %}· {{ rhythm.totals.at_risk }} at risk{% endif %}
-                {% if rhythm.totals.overdue %}· {{ rhythm.totals.overdue }} overdue{% endif %}
+                {% if rhythm.totals.overdue %}· {{ rhythm.totals.overdue }} behind{% endif %}
             </span>
         {% endif %}
     </header>
@@ -97,7 +97,7 @@
                                                 <span class="v3-ritem-title">{{ item.title }}</span>
                                             {% endif %}
                                             {% if item.time_display %}<span class="v3-ritem-time">{{ item.time_display }}</span>{% endif %}
-                                            {% if item.urgency == 'overdue' %}<span class="v3-ritem-badge v3-ritem-badge-overdue">PAST DUE</span>
+                                            {% if item.urgency == 'overdue' %}<span class="v3-ritem-badge v3-ritem-badge-overdue">BEHIND</span>
                                             {% elif item.execution_status == 'AT_RISK' %}<span class="v3-ritem-badge v3-ritem-badge-risk">AT RISK</span>
                                             {% elif item.execution_status == 'LATE_OPEN' %}<span class="v3-ritem-badge v3-ritem-badge-late">LATE</span>
                                             {% elif item.urgency == 'now' %}<span class="v3-ritem-badge v3-ritem-badge-now">NOW</span>{% endif %}
@@ -143,6 +143,36 @@
 
                     {# ── SUMMARY mode (past rhythm) ── #}
                     {% elif s.interaction_mode == 'summary' %}
+                        {# A day is not over until midnight: past-today blocks #}
+                        {# keep their mass-complete buttons. Same controls as #}
+                        {# full mode, never hidden just because the clock moved. #}
+                        {% if s.dose_groups %}
+                            <div class="v3-rhythm-dose-groups" role="group" aria-label="Group complete">
+                                {% for g in s.dose_groups %}
+                                    {% if g.open_count %}
+                                        <button type="button"
+                                                class="v3-group-complete-btn v3-group-{{ g.kind }}"
+                                                data-v3-toggle
+                                                hx-post="{% url 'dashboard_v2:intake_group_log_action' time_of_day=g.time_of_day kind=g.kind action='take' %}"
+                                                hx-swap="none"
+                                                title="Take the {{ g.open_count }} remaining {{ g.label|lower }}">
+                                            ✓ Complete {{ g.label }} ({{ g.open_count }})
+                                        </button>
+                                    {% endif %}
+                                    {% if g.completed_count %}
+                                        <button type="button"
+                                                class="v3-group-complete-btn v3-group-{{ g.kind }} v3-group-done"
+                                                data-v3-toggle
+                                                hx-post="{% url 'dashboard_v2:intake_group_log_action' time_of_day=g.time_of_day kind=g.kind action='undo' %}"
+                                                hx-swap="none"
+                                                title="Undo the {{ g.completed_count }} completed {{ g.label|lower }}">
+                                            ↺ Undo {{ g.label }} ({{ g.completed_count }})
+                                        </button>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
                         {% if s.open_count %}
                             <p class="v3-rhythm-open-label">{{ s.open_label }}</p>
                             <ul class="v3-rhythm-open">

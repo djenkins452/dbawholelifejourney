@@ -69,6 +69,32 @@ RHYTHM_BUCKET_FOR_WINDOW = {
 }
 
 
+# ── Actionability window (decoupled from scheduled time) ───────────────
+# Scheduled time drives ordering / momentum / "behind" status ONLY. It does
+# NOT decide whether an item can still be completed. A day is not over until
+# local midnight, so every block belonging to TODAY stays actionable —
+# current AND already-past — through 11:59 PM. Only FUTURE blocks (later today
+# than the user is now) remain preview-only.
+#
+# Expiration mode is the scalable seam for this:
+#   END_OF_DAY (default) — completable until midnight (current + past today).
+#   TIME_WINDOWED        — RESERVED groundwork: a per-item hard cutoff (meds
+#                          windows, departure/meeting/fasting). NOT implemented;
+#                          do not branch on it yet.
+RHYTHM_EXPIRATION_MODE_DEFAULT = "END_OF_DAY"
+
+
+def _block_actionable(is_future: bool, expiration_mode: str = RHYTHM_EXPIRATION_MODE_DEFAULT) -> bool:
+    """Whether a today rhythm block still accepts completion / mass-complete.
+
+    Pure function. Under the default END_OF_DAY mode every non-future block
+    (current + past) is actionable until midnight; future blocks are not.
+    TIME_WINDOWED is reserved future groundwork and currently behaves as the
+    safe default (never MORE restrictive than END_OF_DAY for past items).
+    """
+    return not is_future
+
+
 def _classify_item(item: dict) -> str:
     """Map an execution item's scheduled_time / time_of_day to a rhythm key.
 
@@ -196,6 +222,10 @@ def build_rhythm_sections(user, execution_contract: dict | None = None) -> dict:
         bucket_idx = _bucket_index(bucket["key"])
         current_idx = _bucket_index(current_key)
         is_past = bucket_idx < current_idx
+        is_future = not is_current and not is_past
+        # Decoupled from scheduled time: today's current + past blocks stay
+        # completable until midnight (END_OF_DAY). Only future blocks are not.
+        block_actionable = _block_actionable(is_future)
         # PREVIEW only the rhythm IMMEDIATELY after current. Farther
         # futures stay collapsed by default — the dashboard should fill
         # whitespace, not grow tall just because content exists.
@@ -237,7 +267,8 @@ def build_rhythm_sections(user, execution_contract: dict | None = None) -> dict:
         if is_current:
             open_label = "Still Open" if open_count else ""
         elif is_past:
-            open_label = "Still Open (recoverable)" if open_count else ""
+            # Encouraging, not punitive: the day is still open, so is the item.
+            open_label = "Behind — still available today" if open_count else ""
         else:
             open_label = "Coming Later" if open_count else ""
 
@@ -254,10 +285,13 @@ def build_rhythm_sections(user, execution_contract: dict | None = None) -> dict:
             "open_count": open_count,
             "open_label": open_label,
             "block_start_time": block_start_time,
-            # Group-complete buttons (full mode only) — one per
-            # (intake_type, time_of_day) cluster of doses.
+            # Group-complete (mass-complete) buttons — one per
+            # (intake_type, time_of_day) cluster of doses. Built for any
+            # actionable block (current OR past today), never for future
+            # blocks. This is what keeps "Complete Morning Medications" alive
+            # at 10 PM for a morning dose — no disappearing buttons.
             "dose_groups": (
-                _build_dose_groups(bucket_items) if is_current else []
+                _build_dose_groups(bucket_items) if block_actionable else []
             ),
             # Compact preview groups (preview AND empty-with-items modes) —
             # list of doses and tasks grouped by scheduled_time, no checkboxes.
@@ -432,9 +466,9 @@ def _momentum_label(
     if pct >= 1.0:
         return "Complete — great execution."
     if overdue >= 2:
-        return f"{overdue} past due — let's recover the rhythm."
+        return f"{overdue} behind — still time to recover the rhythm."
     if overdue == 1:
-        return "1 past due — close the loop."
+        return "1 behind — still time to close the loop."
     if at_risk >= 2:
         return f"{at_risk} at risk — small actions now."
 

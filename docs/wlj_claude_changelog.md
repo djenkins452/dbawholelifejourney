@@ -3,8 +3,28 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-06-01 (fix(dashboard_v3): Mission Card Phase D — remove signal loss + canonical nutrition truth)
+# Last Updated: 2026-06-02 (fix(rhythm): rhythms stay completable until midnight — mass-complete no longer vanishes on past blocks)
 # ================================================================# WLJ Change History
+
+
+## 2026-06-02 — fix(rhythm): rhythms stay actionable until midnight (no disappearing mass-complete)
+
+**Problem (production trust issue):** Rhythm blocks felt "missed / unavailable" once their scheduled window passed — most concretely, the group **mass-complete** buttons ("Complete Morning Medications (N)") disappeared once the block moved into the past, even though the user could still legitimately complete the items late in the day.
+
+**Investigation (proof, no assumptions):**
+- **Backend was never the blocker.** All four completion endpoints — `TaskToggleAction`, `IntakeLogAction`, `IntakeGroupLogAction`, `RoutineScheduleToggleAction` (`apps/dashboard_v2/views.py`) — gate only on `get_user_today()` + `applies_to_day(weekday)`. None reject by scheduled *time*. Late completion already worked at the data layer.
+- **Individual completion already survived.** Routine items (`today_execution.py:280`) and meds (`:385`) always set `toggle_url`, and the template renders the ○ button in `summary` (past) mode. A 7 AM item at 10 PM already showed an individual complete button.
+- **The one real disappearing-button bug was mass-complete.** `dose_groups` were built only `if is_current` (`apps/core/cos_briefing/rhythm.py:259`) and rendered only in `full` mode (`rhythm.html:46`). Once a block became past, the group buttons vanished.
+
+**Architecture (scheduled time ≠ actionability):** Added an explicit *expiration window* seam in `rhythm.py`: `RHYTHM_EXPIRATION_MODE_DEFAULT = "END_OF_DAY"` + pure helper `_block_actionable(is_future)`. Under END_OF_DAY every non-future block (current **and** past today) is actionable until midnight; future blocks stay preview-only. `TIME_WINDOWED` is documented, reserved groundwork — **not** implemented. Scheduled time continues to drive ordering / momentum / "behind" status only.
+
+**Changes:**
+- `apps/core/cos_briefing/rhythm.py` — expiration-mode constant + `_block_actionable` helper; `dose_groups` built for `block_actionable` (current OR past) instead of `is_current`; past `open_label` → "Behind — still available today"; momentum "past due" → "behind — still time to …".
+- `templates/dashboard_v3/sections/rhythm.html` — render the mass-complete dose_groups block in `summary` mode too; "PAST DUE" badge → "BEHIND"; header totals "overdue" → "behind".
+- `apps/dashboard_v3/tests/test_rhythm_actionability.py` — NEW, 8 tests.
+- `apps/core/fixtures/release_notes.json` (PK 211) + `load_initial_data.py` reset (`_reset_rhythm_end_of_day_release_notes`).
+
+**Scope honesty:** Scoped to today's PAST blocks (the actual complaint and every example/success-criterion in the request). Future blocks intentionally remain preview-only. The literal "7 AM unavailable at 8 AM" example isn't reproducible (at 8 AM the morning block is still current/full); the real loss occurred once a block became past. Verified: 36 tests (rhythm actionability + views + dedup) + 3 Visual Truth Contract — all pass.
 
 
 ## 2026-06-01 — perf(dashboard): Phase 4 — hydration partial refresh POC (eliminate full reload for 3 buttons)

@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 211,
+    "fields": {
+      "title": "Your daily rhythms stay completable all the way to midnight",
+      "description": "A rhythm is no longer \"too late\" just because its scheduled time has passed. If something was set for 7:00 AM and you get to it at 10:00 PM, it's still fully available today — you can tick it off, undo it, or use the group \"Complete\" button for a whole batch of medications or supplements. Those mass-complete buttons no longer disappear once a block moves into the past; everything scheduled for today stays actionable right up to midnight. The scheduled time still shapes your ordering and reminders, and items you haven't gotten to yet are now labelled \"Behind — still available today\" instead of anything that feels like failure. Tomorrow's items remain previewed as coming up, and past days stay locked as history.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-06-02",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-06-02T18:00:00Z",
+      "updated_at": "2026-06-02T18:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 210,
     "fields": {
       "title": "Tell your Chief of Staff you're skipping a routine — and it actually sticks",

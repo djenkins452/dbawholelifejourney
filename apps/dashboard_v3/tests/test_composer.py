@@ -22,7 +22,7 @@ from apps.core.ai_state.state_engine import (
 
 from apps.core.cos_briefing.executive_summary import (
     _derive_headline,
-    _derive_trajectory,
+    _derive_overall_state,
     build_executive_summary,
 )
 from apps.core.cos_briefing.rhythm import (
@@ -102,17 +102,18 @@ class CoSBriefingExecutiveSummaryTests(TestCase):
         self.assertEqual(summary["needs_attention"][0]["severity"], "critical")
 
     def test_trajectory_logic(self):
-        # Pure unit tests on the derivation rule — no DB.
-        self.assertEqual(_derive_trajectory([], [], None), "unknown")
+        # Pure unit tests on the dominant-state rule — no DB. With no exec
+        # pressure (exec_state=None) this collapses to the insight-count trend.
+        self.assertEqual(_derive_overall_state([], [], None, None), "unknown")
         # One positive is "steady" — not enough to claim a trend.
-        self.assertEqual(_derive_trajectory([{}], [], None), "steady")
+        self.assertEqual(_derive_overall_state([{}], [], None, None), "steady")
         # Two positives, no negatives → improving.
-        self.assertEqual(_derive_trajectory([{}, {}], [], None), "improving")
-        self.assertEqual(_derive_trajectory([], [{}], None), "slipping")
+        self.assertEqual(_derive_overall_state([{}, {}], [], None, None), "improving")
+        self.assertEqual(_derive_overall_state([], [{}], None, None), "slipping")
         self.assertEqual(
-            _derive_trajectory([{}], [{}, {}], {"title": "x"}), "slipping"
+            _derive_overall_state([{}], [{}, {}], {"title": "x"}, None), "slipping"
         )
-        self.assertEqual(_derive_trajectory([{}, {}, {}], [{}], None), "improving")
+        self.assertEqual(_derive_overall_state([{}, {}, {}], [{}], None, None), "improving")
 
 
 class CoSBriefingRhythmTests(TestCase):
@@ -234,25 +235,28 @@ class SelfCritiqueFixTests(TestCase):
     def test_biggest_opportunity_uses_explanation_not_slug(self):
         from datetime import date, timedelta
         from apps.core.ai_predictions.models import Prediction
+        # Positive prediction: the Biggest Opportunity slot is positive-only
+        # (risk-type predictions are filtered out — see coherence fix). This
+        # test verifies the explanation-vs-slug humanization, not polarity.
         Prediction.objects.create(
             user=self.user,
-            prediction_type="emotional_overload_7d",
-            module="journal",
+            prediction_type="weight_projection_30d",
+            module="health",
             predicted_value=0.0,
-            predicted_date=date.today() + timedelta(days=7),
+            predicted_date=date.today() + timedelta(days=30),
             confidence_score=0.85,
-            explanation="Sleep deficit is compounding emotional overload risk this week. Address before Friday.",
-            evidence={},
+            explanation="Consistent logging is putting your goal weight in reach this month. Keep the streak going.",
+            evidence={"outlook": "on track"},
             status="active",
             dedupe_key="opp-1",
         )
         summary = build_executive_summary(self.user)
         opp = summary["biggest_opportunity"]
         self.assertIsNotNone(opp)
-        # No raw slug leak. The headline should be the first clause of the
-        # explanation, not "Emotional Overload 7D".
-        self.assertNotIn("7D", opp["title"])
-        self.assertIn("Sleep deficit", opp["title"])
+        # No raw slug leak. The title should be the first clause of the
+        # explanation, not "Weight Projection 30D".
+        self.assertNotIn("30D", opp["title"])
+        self.assertIn("goal weight", opp["title"].lower())
 
     def test_humanize_focus_reason_replaces_selector_noise(self):
         from apps.core.cos_briefing.executive_summary import _humanize_focus_reason
@@ -650,21 +654,26 @@ class HeadlineAndMomentumTests(TestCase):
         self.assertIn("trending up", line.lower())
 
     def test_headline_for_recovery_mode(self):
+        # Recovery/stabilize mode resolves to the dominant "at_risk" state;
+        # both badge and headline derive from that single verdict.
         state = {
             "recovery_state": {"mode": "RECOVERY"},
             "overdue_actions": [],
             "at_risk_actions": [],
         }
-        line = _derive_headline("mixed", [], [], state, {"title": "x"})
+        self.assertEqual(_derive_overall_state([], [], None, state), "at_risk")
+        line = _derive_headline("at_risk", [], [], state, {"title": "x"})
         self.assertIn("recover", line.lower())
 
     def test_headline_for_many_overdue(self):
+        # 3+ overdue items resolve to the dominant "at_risk" state.
         state = {
             "recovery_state": {"mode": "NORMAL"},
             "overdue_actions": [{}, {}, {}, {}],
             "at_risk_actions": [],
         }
-        line = _derive_headline("slipping", [], [], state, None)
+        self.assertEqual(_derive_overall_state([], [], None, state), "at_risk")
+        line = _derive_headline("at_risk", [], [], state, None)
         self.assertIn("past due", line)
 
     def test_summary_emits_headline_key(self):
@@ -678,8 +687,11 @@ class HeadlineAndMomentumTests(TestCase):
         self.assertIn("Complete", _momentum_label(8, 8, 0, 0, False, True))
 
     def test_momentum_for_overdue(self):
+        # End-of-day actionability: overdue rhythm items read as "behind"
+        # (still recoverable today), never punitive "past due".
         line = _momentum_label(2, 5, 0, 2, True, False)
-        self.assertIn("past due", line.lower())
+        self.assertIn("behind", line.lower())
+        self.assertNotIn("past due", line.lower())
 
     def test_momentum_for_strong_progress(self):
         line = _momentum_label(6, 8, 0, 0, True, False)

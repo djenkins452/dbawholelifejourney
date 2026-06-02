@@ -1083,6 +1083,7 @@ class Command(BaseCommand):
         self._reset_nl_routine_skip_release_notes(DataLoadConfig, force, verbosity)
         # Rhythms stay completable until midnight (PK 211)
         self._reset_rhythm_end_of_day_release_notes(DataLoadConfig, force, verbosity)
+        self._reset_exec_briefing_coherence_release_notes(DataLoadConfig, force, verbosity)
 
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
@@ -7329,6 +7330,37 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset rhythm end-of-day release notes FAILED: {e}'))
+
+    def _reset_exec_briefing_coherence_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes after adding PK 212 (Executive
+        Briefing coherence — single dominant-state verdict feeds both badge and
+        headline; "All clear" gated; risk predictions kept out of the
+        opportunity slot).
+        """
+        reset_tracker_name = 'reset_exec_briefing_coherence_2026_06_02'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for executive briefing coherence (PK 212)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for executive briefing coherence',
+                'command',
+                'One-time reset: added PK 212 for executive briefing coherence fix'
+            )
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset exec briefing coherence release notes FAILED: {e}'))
 
     def _reset_action_center_vocabulary_release_notes(self, DataLoadConfig, force=False, verbosity=1):
         """

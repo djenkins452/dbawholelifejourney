@@ -3,8 +3,34 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-06-02 (fix(rhythm): rhythms stay completable until midnight — mass-complete no longer vanishes on past blocks)
+# Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
+
+
+## 2026-06-02 — fix(briefing): Executive Briefing coherence — stop contradictory executive messaging
+
+**Problem (P1 trust + coherence):** The Executive Briefing contradicted itself. A real production render showed simultaneously: headline "You're slipping behind your current rhythm" / state badge "STEADY" / Needs Attention "All clear." / Biggest Opportunity "…overload risk…" / plateau + calorie focus pills. These cannot all be true at one priority level — the briefing had no single dominant narrative.
+
+**Root cause (proven, not theory — mixed failure, primarily "no orchestration layer"):**
+- **Badge vs headline were two independent scoring systems.** Badge came from `_derive_trajectory(going_well, needs_attention, biggest_risk)` (long-window Insight counts only). Headline came from `_derive_headline(...)` which independently injected *execution now-pressure* (`overdue_actions` / `at_risk_actions` / `recovery_state`). Insights net to "steady" while real items were overdue → "STEADY" badge beside a "you're slipping" headline (`executive_summary.py` old lines 461/518).
+- **"All clear" ignored execution pressure.** `_collect_needs_attention` reads only warning/critical Insights, so the column showed "All clear." even while items were overdue right now (and a Biggest Risk callout rendered).
+- **Risk predictions were mislabeled as opportunities.** `_collect_biggest_opportunity` grabbed the top-confidence active `Prediction` regardless of polarity → a `task_overdue_risk` / "overload" prediction surfaced under "Biggest Opportunity".
+
+**Fix (minimum safe — single orchestration layer):**
+- **One dominant-state selection.** New `_derive_overall_state(going_well, needs_attention, biggest_risk, exec_state)` folds current execution pressure into the verdict and is the SINGLE source both the badge (`trajectory`) and the headline derive from — they can no longer disagree. Now-pressure (overdue / at-risk today) outranks the weekly insight trend; recovery mode / 3+ overdue → new `at_risk` state.
+- **RISK vs CURRENT STATE.** Forward-risk predictions are deliberately NOT read by the state selector — a future "burnout/overload risk" can never flip a stable *current* state. Only current signals (insights + now-pressure) set the state.
+- **"All clear" coherence gate.** `_augment_attention_with_execution` surfaces one current-pressure concern row into Needs Attention when insights are empty but items are overdue/at-risk, so "All clear" can never coexist with real concerns.
+- **Opportunity is positive-only.** `_is_risk_prediction` filters risk-type predictions (slug keywords + evidence outlook/direction) out of the Biggest Opportunity slot.
+
+**Changes:**
+- `apps/core/cos_briefing/executive_summary.py` — `_derive_overall_state` (replaces `_derive_trajectory`); state-driven `_derive_headline`; `_execution_pressure` shared reader; `_augment_attention_with_execution`; `_is_risk_prediction` + positive-only opportunity.
+- `templates/dashboard_v3/sections/executive_summary.html` + `static/dashboard_v3/css/dashboard_v3.css` — new `at_risk` badge ("⚠ At Risk") + style.
+- `apps/dashboard_v3/tests/test_executive_briefing_coherence.py` — NEW, 19 tests covering all 8 required coherence guarantees.
+- `apps/dashboard_v3/tests/test_composer.py` — updated to the renamed dominant-state function.
+- `apps/core/fixtures/release_notes.json` + `load_initial_data.py` reset.
+
+**Scope honesty:** No redesign, no visual polish, no speculative tuning — pure signal orchestration. Zero LLM (briefing stays deterministic). The dominant state reads the same execution truth the rest of the dashboard uses; lower-priority slots (opportunity, recommendations) render beneath the state but can no longer override it.
+
 
 
 ## 2026-06-02 — fix(rhythm): rhythms stay actionable until midnight (no disappearing mass-complete)

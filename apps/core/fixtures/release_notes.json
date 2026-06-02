@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 212,
+    "fields": {
+      "title": "Your Executive Briefing now tells one clear story",
+      "description": "The Executive Briefing at the top of your dashboard used to occasionally contradict itself — for example showing a \"Steady\" status badge next to a headline that said you were slipping, or \"All clear\" right beside a real concern. We've added a single guiding read of your day: the status badge and the headline now come from the same underlying assessment, so they always agree. \"All clear\" only appears when there genuinely is nothing behind, anything still open today is surfaced as a concern, and a forward-looking risk (like \"overload risk if this keeps up\") never gets mislabelled as your \"Biggest Opportunity\" or quietly flips a stable day into a bad one. The result is one coherent narrative: a clear current state on top, with opportunities and risks supporting it underneath rather than fighting it.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-06-02",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-06-02T19:00:00Z",
+      "updated_at": "2026-06-02T19:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 211,
     "fields": {
       "title": "Your daily rhythms stay completable all the way to midnight",

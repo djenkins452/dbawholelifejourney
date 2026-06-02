@@ -114,9 +114,23 @@ def build_executive_summary(user, execution_contract=None) -> dict[str, Any]:
         logger.warning("exec_summary: recommendations failed", exc_info=True)
         recommendations = []
 
-    trajectory = _derive_trajectory(going_well, needs_attention, biggest_risk)
+    # Coherence gate: current execution pressure (overdue / at-risk items
+    # right now) IS a current-state concern. Surface it into needs_attention
+    # so the briefing can never say "All clear" while real items are behind.
+    needs_attention = _augment_attention_with_execution(needs_attention, exec_state)
+
+    # ── Orchestration layer ──────────────────────────────────────────────
+    # ONE dominant-state selection. Both the badge (trajectory) and the
+    # headline derive from this single verdict, so they can never contradict
+    # ("STEADY" badge + "you're slipping" headline). Lower-priority slots
+    # (opportunity, recommendations) render beneath this state but may not
+    # override it.
+    overall_state = _derive_overall_state(
+        going_well, needs_attention, biggest_risk, exec_state,
+    )
+    trajectory = overall_state
     headline = _derive_headline(
-        trajectory, going_well, needs_attention, exec_state, focus_now,
+        overall_state, going_well, needs_attention, exec_state, focus_now,
     )
 
     return {
@@ -191,6 +205,48 @@ def _collect_needs_attention(user) -> list[dict[str, Any]]:
         }
         for i in ordered
     ]
+
+
+def _augment_attention_with_execution(needs_attention, exec_state):
+    """Coherence gate for the "Needs Attention" column.
+
+    The column reads only warning/critical Insights, so it can be empty
+    while items are overdue or at-risk RIGHT NOW — which would render the
+    contradictory "All clear." beside a "you're slipping" headline. When
+    insights are empty but current execution pressure exists, surface ONE
+    summarizing concern row so "All clear" can never coexist with real
+    behind-the-rhythm work.
+
+    These are CURRENT-state concerns (overdue today / at risk this block),
+    not future-risk predictions. If insights already populated the column we
+    leave it untouched — no duplication.
+    """
+    if needs_attention:
+        return needs_attention
+    _, overdue_count, at_risk_count = _execution_pressure(exec_state)
+    if overdue_count > 0:
+        overdue = exec_state.get("overdue_actions") or []
+        if overdue_count == 1:
+            title = f"{overdue[0].get('title')} is past its scheduled time"
+        else:
+            title = f"{overdue_count} items past their scheduled time today"
+        return [{
+            "title": title,
+            "message": "Still completable — recover before it stacks up.",
+            "module": "execution",
+            "severity": "warning",
+            "insight_type": "execution_overdue",
+        }]
+    if at_risk_count >= 1:
+        plural = "s" if at_risk_count > 1 else ""
+        return [{
+            "title": f"{at_risk_count} item{plural} at risk in this block",
+            "message": "Small actions now keep the day intact.",
+            "module": "execution",
+            "severity": "warning",
+            "insight_type": "execution_at_risk",
+        }]
+    return needs_attention
 
 
 # ── Focus Now (selector reuse) ─────────────────────────────────────────
@@ -383,22 +439,56 @@ def _collect_biggest_risk(user, needs_attention, exec_state=None):
 # ── Biggest Opportunity ────────────────────────────────────────────────
 
 
-def _collect_biggest_opportunity(user) -> dict | None:
-    """Strongest near-term positive prediction.
+_RISK_TYPE_KEYWORDS = (
+    "risk", "overload", "overdue", "miss", "drop", "decline",
+    "burnout", "plateau", "stall", "regress",
+)
+_RISK_OUTLOOK_KEYWORDS = (
+    "at risk", "needs attention", "low", "dropping", "decline",
+    "off track", "behind",
+)
 
-    Uses ``explanation`` as the visible title (it's the human-written
-    sentence) and falls back to a humanized prediction_type only when no
-    explanation exists. Prevents raw type leaks like "Emotional Overload 7D"
-    showing as the "Biggest Opportunity" headline.
+
+def _is_risk_prediction(p) -> bool:
+    """A prediction is forward-RISK (not an opportunity) when its type slug
+    or evidence outlook reads as decline/risk.
+
+    Forward risk must never be mislabeled as "Biggest Opportunity" — that is
+    the narrative-mismatch that put "overload risk" under the Opportunity
+    heading. Risk predictions are future-oriented and belong nowhere near a
+    positive slot; they are simply excluded here.
+    """
+    slug = (getattr(p, "prediction_type", "") or "").lower()
+    if any(k in slug for k in _RISK_TYPE_KEYWORDS):
+        return True
+    ev = getattr(p, "evidence", None) or {}
+    outlook = str(ev.get("outlook", "")).lower()
+    if any(k in outlook for k in _RISK_OUTLOOK_KEYWORDS):
+        return True
+    direction = str(ev.get("direction", "")).lower()
+    if direction in ("down", "declining", "worsening", "negative"):
+        return True
+    return False
+
+
+def _collect_biggest_opportunity(user) -> dict | None:
+    """Strongest near-term POSITIVE prediction.
+
+    Forward-risk predictions are filtered out (see ``_is_risk_prediction``)
+    so a risk never surfaces under the "Biggest Opportunity" heading. Uses
+    ``explanation`` as the visible title (the human-written sentence) and
+    falls back to a humanized prediction_type only when no explanation
+    exists. Prevents raw type leaks like "Emotional Overload 7D" showing as
+    the "Biggest Opportunity" headline.
     """
     from apps.core.ai_predictions.models import Prediction
 
-    candidate = (
+    pool = (
         Prediction.objects.filter(user=user, status="active")
         .filter(confidence_score__gte=0.6)
-        .order_by("-confidence_score", "-created_at")
-        .first()
+        .order_by("-confidence_score", "-created_at")[:10]
     )
+    candidate = next((p for p in pool if not _is_risk_prediction(p)), None)
     if not candidate:
         return None
 
@@ -458,75 +548,54 @@ def _collect_recommendations(user) -> list[dict[str, Any]]:
 # ── Trajectory ─────────────────────────────────────────────────────────
 
 
-def _derive_headline(trajectory, going_well, needs_attention, exec_state, focus_now) -> str:
-    """One-sentence opener that frames the briefing. Deterministic.
+def _execution_pressure(exec_state):
+    """Read CURRENT-state execution pressure from built exec_state.
 
-    Composed from:
-      - trajectory label (improving/steady/slipping/mixed/unknown)
-      - recovery_state.mode (NORMAL / RECOVERY / STABILIZE etc.)
-      - presence of overdue/at-risk items right now
-      - presence of focus action
-
-    Each combination maps to one of ~8 pre-written sentences. No
-    free-text generation, no LLM. The point is to give the page a
-    *voice* without inventing facts.
+    Returns (recovery_mode, overdue_count, at_risk_count). These are
+    *current* concerns (items overdue today / at risk in this block) — NOT
+    future-risk predictions. Used by both the dominant-state selection and
+    the headline so they read identical numbers.
     """
-    recovery_mode = ""
-    overdue_count = 0
-    at_risk_count = 0
-    if exec_state:
-        rs = exec_state.get("recovery_state") or {}
-        recovery_mode = (rs.get("mode") or "").upper()
-        overdue_count = len(exec_state.get("overdue_actions") or [])
-        at_risk_count = len(exec_state.get("at_risk_actions") or [])
-
-    pos = len(going_well or [])
-    neg = len(needs_attention or [])
-
-    # Recovery modes carry the strongest signal — speak to them first.
-    if recovery_mode in ("RECOVERY", "STABILIZE"):
-        if focus_now:
-            return "Today's drifted — let's recover the next step and rebuild momentum."
-        return "Today's behind schedule. Reset with one small action."
-
-    # Now-state pressure beats long-window trend.
-    if overdue_count >= 3:
-        return f"{overdue_count} items past due — let's protect the rest of the day."
-    if overdue_count > 0 and focus_now:
-        return "You're slipping behind your current rhythm — let's get back on track."
-    if at_risk_count >= 2:
-        return f"{at_risk_count} things are at risk in this block — small actions now keep the day intact."
-
-    # Trend-driven openers.
-    if trajectory == "improving":
-        return "You're trending up — protect what's working and keep the rhythm consistent."
-    if trajectory == "slipping":
-        if neg > 0:
-            return f"A few things are slipping — {needs_attention[0]['title'].lower()} needs attention first."
-        return "Drift detected this week. One focused action turns this around."
-    if trajectory == "mixed":
-        return "Mixed signals this week — real wins, real drift. Keep the wins; address the drift."
-    if trajectory == "steady":
-        return "Steady today. Hold the line and keep the rhythm."
-
-    # Unknown / no signal.
-    if focus_now:
-        return "Light data so far — one small action and the picture sharpens."
-    return "Light data so far — log a few things and the briefing fills in."
+    if not exec_state:
+        return "", 0, 0
+    rs = exec_state.get("recovery_state") or {}
+    recovery_mode = (rs.get("mode") or "").upper()
+    overdue_count = len(exec_state.get("overdue_actions") or [])
+    at_risk_count = len(exec_state.get("at_risk_actions") or [])
+    return recovery_mode, overdue_count, at_risk_count
 
 
-def _derive_trajectory(going_well, needs_attention, biggest_risk) -> str:
-    """Cheap deterministic mood label — purely from counts + risk flag.
+def _derive_overall_state(going_well, needs_attention, biggest_risk, exec_state) -> str:
+    """THE dominant-state selection — the single source both the badge and
+    the headline derive from. Deterministic, no LLM.
 
-    Threshold: "improving" requires at least 2 positive signals AND no
-    needs_attention; a single positive insight is not enough to claim
-    upward trajectory (avoids the over-optimistic "Improving" label the
-    user flagged in the v3 review).
+    Folds two signal families into ONE current-state verdict:
+      - now-state execution pressure (overdue / at-risk items today)
+      - long-window Insight counts (going_well vs needs_attention)
+
+    Execution pressure is *current* and outranks the slower insight trend:
+    if real items are overdue right now you are not "steady" no matter how
+    the week's insights net out. This is what stops the "STEADY" badge from
+    appearing next to a "you're slipping behind" headline.
+
+    Future-oriented risk (overload/burnout predictions) is deliberately NOT
+    read here — a forward risk must never override a stable *current* state.
+
+    Returns: improving | steady | slipping | at_risk | mixed | unknown
     """
+    recovery_mode, overdue_count, at_risk_count = _execution_pressure(exec_state)
+
     pos = len(going_well or [])
     neg = len(needs_attention or [])
     has_risk = bool(biggest_risk)
 
+    # Now-state pressure dominates — it is the current reality of the day.
+    if recovery_mode in ("RECOVERY", "STABILIZE") or overdue_count >= 3:
+        return "at_risk"
+    if overdue_count > 0 or at_risk_count >= 2:
+        return "slipping"
+
+    # No now-pressure → fall back to the insight-count trend.
     if pos == 0 and neg == 0 and not has_risk:
         return "unknown"
     if pos >= 2 and neg == 0:
@@ -542,3 +611,48 @@ def _derive_trajectory(going_well, needs_attention, biggest_risk) -> str:
     if pos == neg:
         return "steady"
     return "mixed"
+
+
+def _derive_headline(overall_state, going_well, needs_attention, exec_state, focus_now) -> str:
+    """One-sentence opener, chosen WITHIN the dominant state.
+
+    The headline may pick more specific wording inside a state, but it can
+    NEVER select a sentence that contradicts the state. ``overall_state`` is
+    the same verdict the badge shows, so badge and headline always agree.
+
+    No free-text generation, no LLM — each branch is a pre-written sentence.
+    """
+    recovery_mode, overdue_count, at_risk_count = _execution_pressure(exec_state)
+    neg = len(needs_attention or [])
+
+    if overall_state == "at_risk":
+        if recovery_mode in ("RECOVERY", "STABILIZE"):
+            if focus_now:
+                return "Today's drifted — let's recover the next step and rebuild momentum."
+            return "Today's behind schedule. Reset with one small action."
+        if overdue_count >= 3:
+            return f"{overdue_count} items past due — let's protect the rest of the day."
+        return "Several things need attention right now — small actions keep the day intact."
+
+    if overall_state == "slipping":
+        if overdue_count > 0 and focus_now:
+            return "You're slipping behind your current rhythm — let's get back on track."
+        if at_risk_count >= 2:
+            return f"{at_risk_count} things are at risk in this block — small actions now keep the day intact."
+        if neg > 0:
+            return f"A few things are slipping — {needs_attention[0]['title'].lower()} needs attention first."
+        return "Drift detected this week. One focused action turns this around."
+
+    if overall_state == "improving":
+        return "You're trending up — protect what's working and keep the rhythm consistent."
+
+    if overall_state == "mixed":
+        return "Mixed signals this week — real wins, real drift. Keep the wins; address the drift."
+
+    if overall_state == "steady":
+        return "Steady today. Hold the line and keep the rhythm."
+
+    # Unknown / no signal.
+    if focus_now:
+        return "Light data so far — one small action and the picture sharpens."
+    return "Light data so far — log a few things and the briefing fills in."

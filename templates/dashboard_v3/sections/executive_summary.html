@@ -4,6 +4,7 @@
             <h2 class="v3-h2">Executive Briefing</h2>
             <span class="v3-trajectory v3-trajectory-{{ summary.trajectory|default:'unknown' }}">
                 {% if summary.trajectory == 'improving' %}↑ Improving
+                {% elif summary.trajectory == 'at_risk' %}⚠ At Risk
                 {% elif summary.trajectory == 'slipping' %}↓ Slipping
                 {% elif summary.trajectory == 'steady' %}→ Steady
                 {% elif summary.trajectory == 'mixed' %}↔ Mixed

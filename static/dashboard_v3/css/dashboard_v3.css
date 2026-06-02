@@ -212,6 +212,7 @@
     letter-spacing: 0.06em;
 }
 .v3-trajectory-improving { background: rgba(22, 101, 52, 0.10); color: var(--v3-positive); }
+.v3-trajectory-at_risk   { background: rgba(185, 28, 28, 0.14); color: var(--v3-risk); }
 .v3-trajectory-slipping  { background: rgba(185, 28, 28, 0.10); color: var(--v3-risk); }
 .v3-trajectory-steady    { background: rgba(67, 56, 202, 0.10); color: var(--v3-accent); }
 .v3-trajectory-mixed     { background: rgba(161, 98, 7, 0.10);  color: var(--v3-warn); }

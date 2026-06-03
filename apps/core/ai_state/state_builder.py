@@ -1882,8 +1882,14 @@ def build_nutrition_state(user):
     if not _nutrition_enabled_for(user):
         return {"enabled": False}
 
+    from apps.core.utils import get_user_today
+
     now = get_current_time()
-    today = now.date()
+    # FIX 2 (Phase 5): ground "today" in the USER's timezone, not the server's.
+    # get_current_time() uses settings.TIME_ZONE; near midnight that disagrees
+    # with the dashboard (which uses get_user_today), making Beth report a
+    # different day's intake. Both must share one definition of "today".
+    today = get_user_today(user)
     state = {"enabled": True}
 
     # ── Today's intake (canonical contract) ──────────────────────

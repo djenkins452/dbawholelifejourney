@@ -2896,9 +2896,47 @@ def _handle_body_composition_query(user):
     )
 
 
+# Consumption phrasing — the user is reporting/asking about a SPECIFIC food
+# they ate, not their daily nutrition status. These must fall through to the
+# log_food / estimate path, never the deterministic status route.
+_FOOD_CONSUMPTION_PHRASES = (
+    'i had ', 'i ate ', 'i just had ', 'i just ate ', 'i consumed ',
+    'i drank ', 'i just drank ', "i've had ", "i've eaten ", 'i had a ',
+    'i had an ', 'i had some ', 'i ate a ', 'i ate an ', 'i ate some ',
+    'ate a ', 'ate an ', 'ate some ', 'had a serving',
+)
+# "<macro> in/of <food>" estimate phrasing — asking the nutrient content of a
+# named food, not a status summary.
+_FOOD_ESTIMATE_PHRASES = (
+    'protein in ', 'calories in ', 'carbs in ', 'carbohydrates in ',
+    'fat in ', 'macros in ', 'fiber in ', 'sugar in ', 'sodium in ',
+    'protein of ', 'calories of ', 'carbs of ', 'macros of ',
+    'how much protein is in ', 'how many calories in ',
+    'how many calories are in ', 'how many calories does ',
+)
+
+
+def _is_food_estimate_query(msg_lower):
+    """True when the user is asking about a SPECIFIC food's macros or reporting
+    that they ate something — an estimate/log request, not a status query.
+
+    Phase 5 FIX 1: food-entity + quantity awareness. Prevents substring hijack
+    (e.g. 'how much protein' inside 'I had 8 oysters how much protein') from
+    routing a logging/estimate intent into the deterministic status responder.
+    """
+    if any(p in msg_lower for p in _FOOD_CONSUMPTION_PHRASES):
+        return True
+    if any(p in msg_lower for p in _FOOD_ESTIMATE_PHRASES):
+        return True
+    return False
+
+
 def _match_nutrition_query(msg_lower):
     """Match nutrition / macro / calorie status questions."""
     if _is_future_tense_query(msg_lower):
+        return False
+    # FIX 1: a specific-food estimate / consumption report is NOT a status query.
+    if _is_food_estimate_query(msg_lower):
         return False
     _NUT_INTENT = frozenset([
         'how is my nutrition', "how's my nutrition", 'my nutrition',
@@ -2916,6 +2954,15 @@ def _match_nutrition_query(msg_lower):
 
 def _handle_nutrition_query(user):
     """Phase 4.5 — deterministic nutrition response."""
+    # FIX 3 (nutrition-only): refresh the nutrition snapshot from raw FoodEntry
+    # writes before reading it, so Beth and the dashboard cannot diverge on
+    # "today". Scoped to nutrition deliberately — NOT a global freshness change.
+    try:
+        from apps.core.ai_state.state_freshness import ensure_fresh
+        ensure_fresh(user, ["nutrition"])
+    except Exception as e:
+        logger.warning("nutrition query: freshness refresh failed: %s", e)
+
     try:
         from apps.core.ai_state.state_engine import get_module_state
         nut = get_module_state(user, 'nutrition') or {}
@@ -2928,9 +2975,30 @@ def _handle_nutrition_query(user):
     cal_target = nut.get('calorie_target')
     macro_score = nut.get('macro_compliance_score')
     food_entries_7d = nut.get('food_entries_7d', 0)
+    food_entries_today = nut.get('food_entries_today')
 
     if cal is None and food_entries_7d == 0:
         return None  # No data → fall through
+
+    # Confidence guard: never state a confident "0 calories today" when the
+    # snapshot contradicts itself (food logged today, but no calories), or is
+    # missing today's count while weekly entries exist. A stale/contradictory
+    # snapshot must refuse the status answer rather than assert a falsehood.
+    today_count = food_entries_today if food_entries_today is not None else None
+    contradictory = (cal in (None, 0)) and (today_count or 0) > 0
+    suspicious = (
+        cal in (None, 0)
+        and food_entries_today is None
+        and (food_entries_7d or 0) > 0
+    )
+    if contradictory or suspicious:
+        logger.warning(
+            "nutrition query: refusing confident zero — cal=%s "
+            "food_entries_today=%s food_entries_7d=%s (contradictory=%s "
+            "suspicious=%s)",
+            cal, food_entries_today, food_entries_7d, contradictory, suspicious,
+        )
+        return None  # Refuse confident falsehood → fall through
 
     # ── Situation ──
     parts = []

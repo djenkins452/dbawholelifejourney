@@ -7,6 +7,32 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-03 — fix(nutrition): Beth trust — food estimates no longer hijack status route; user-tz grounding; confidence guard
+
+**The trust break:** "I had 8 raw oysters. how much protein?" returned a confident **0 cal / 0 protein** while the dashboard showed **1418 cal / 136g** for the same day. Three independent defects combined into a single confident falsehood.
+
+**Root causes (proven via read-only audit):**
+- **Routing (FIX 1):** `_match_nutrition_query()` matched the `'how much protein'` substring *inside* a food-estimate sentence, hijacking the deterministic nutrition STATUS route before the log/estimate path could run.
+- **Grounding (FIX 2):** `build_nutrition_state()` computed "today" from the **server** timezone (`get_current_time().date()`) while the dashboard uses the **user's** timezone (`get_user_today`). Near midnight they disagree on which day's intake to show.
+- **Confidence (FIX 3):** the status handler read an unguarded SAE snapshot — its only bail was `cal is None and food_entries_7d == 0`, so a stale/mis-dated snapshot asserted "0 calories today" with full confidence.
+
+**Fixes (nutrition-only, scope-controlled):**
+
+| Change | File | Effect |
+|---|---|---|
+| Food-entity + quantity awareness | `apps/ai/deterministic_router.py` — new `_is_food_estimate_query()` + guard in `_match_nutrition_query()` | Consumption phrasing ("I had/ate X") and `<macro> in/of <food>` estimates fall through to the log/estimate path instead of the status responder. |
+| User-timezone grounding | `apps/core/ai_state/state_builder.py:1886` (`build_nutrition_state`) | "today" now `get_user_today(user)`. `cutoff_7d` derives from it, so the 7-day window stays consistent. Beth and dashboard share one definition of today. |
+| Freshness + confidence guard | `apps/ai/deterministic_router.py` (`_handle_nutrition_query`) | Calls `ensure_fresh(user, ["nutrition"])` before reading the snapshot (same pattern as the dashboard composer). Refuses a confident "0 today" when the snapshot is contradictory (`cal==0` but `food_entries_today>0`) or suspicious (zero cal, no today-count, but weekly entries exist). |
+
+**Hard invariant added (test):** after logging food, dashboard total `==` Beth/SAE total. `apps/ai/tests/test_nutrition_trust.py` (9 tests: routing suppression, grounding invariant, confidence refusal, legit-zero still answers).
+
+**Explicitly NOT in this PR (per spec — deferred to a separate, validated Phase B):**
+- ❌ Promoting freshness into `get_module_state()` for **all** manual-entry modules — unknown blast radius; the `ensure_fresh` call here is nutrition-scoped and reversible.
+
+**Blast radius:** contained to nutrition. No intent/schema/migration/fixture changes. FIX 1 only narrows one matcher (fewer status routes fire; worst case a query falls through to the LLM). Pre-existing router/SAE test failures (workout/medication/rhythm/sleep renderer work from other sessions) confirmed identical on baseline via stash — zero new failures.
+
+---
+
 ## 2026-06-03 — fix(dashboard_v3): Accountability Cards Phase A trust fix — neutral storage + render-time greeting strip + inline expand
 
 **The trust break:** A Health domain accountability card on the dashboard rendered "Good morning! You've been training consistently…" **at 8:07 PM**. The dashboard surfaced stale time-of-day phrasing because guidance message text was being persisted to `GuidanceItem.message` with a baked-in persona greeting that doesn't update with the clock. Separately, long recommendations truncated to "…" with no affordance to read the rest.

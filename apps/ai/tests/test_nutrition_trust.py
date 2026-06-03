@@ -315,3 +315,98 @@ class TestNutritionStatusRoutePrecedence(NutritionUserMixin, TestCase):
             self._route_name('I had 8 oysters how much protein?'),
             'nutrition_query',
         )
+
+
+# ── Trust repair 2026-06-02: answer-first / response-shape contract ──
+
+
+class TestNutritionAnswerFirstContract(NutritionUserMixin, TestCase):
+    """A direct factual nutrition status question gets an ANSWER-FIRST
+    response: grounded totals only. No cross-domain priority note, no
+    macro-score interpretation, no execution coaching. The decision/coaching
+    template is reserved for explicit "what should I do" requests.
+
+    Production defect: "How am I doing on protein today?" returned a full
+    Situation/Interpretation/Action decision block with a "Priority note:
+    sleep" cross-domain overlay and "Macro compliance 23/100 — well off
+    target" coaching, instead of just answering the protein question.
+    """
+
+    SNAPSHOT = {
+        'daily_calories': 1418,
+        'daily_protein_g': 136,
+        'calorie_target': 2200,
+        'protein_target': 180,
+        'macro_compliance_score': 23,
+        'food_entries_today': 3,
+        'food_entries_7d': 18,
+    }
+
+    FACTUAL = [
+        'how am i doing on protein today?',
+        'protein today',
+        'calories today',
+        'how are my calories today?',
+        'nutrition today',
+        'how much protein have i had?',
+    ]
+
+    CONTAMINANTS = [
+        'priority note', 'sleep', 'bike', 'macro compliance',
+        '**action**', '**interpretation**', '**situation**',
+    ]
+
+    def _answer(self, msg_lower, snapshot=None):
+        snap = self.SNAPSHOT if snapshot is None else snapshot
+        with patch(
+            'apps.core.ai_state.state_freshness.ensure_fresh',
+        ) as mock_fresh, patch(
+            'apps.core.ai_state.state_engine.get_module_state',
+            return_value=snap,
+        ):
+            mock_fresh.return_value = {'nutrition'}
+            return _handle_nutrition_query(self.user, msg_lower)
+
+    def test_factual_query_has_no_contamination(self):
+        for q in self.FACTUAL:
+            resp = self._answer(q)
+            self.assertIsNotNone(resp, f"no answer produced for {q!r}")
+            low = resp.lower()
+            for bad in self.CONTAMINANTS:
+                self.assertNotIn(
+                    bad, low,
+                    f"contamination {bad!r} leaked into answer for {q!r}: {resp!r}",
+                )
+
+    def test_protein_query_answers_factually(self):
+        resp = self._answer('how am i doing on protein today?')
+        self.assertIn('136g', resp)   # grounded protein total
+        self.assertIn('180g', resp)   # target comparison when grounded
+        self.assertNotIn('1418', resp)  # narrow question: no calorie noise
+
+    def test_calorie_query_answers_factually(self):
+        resp = self._answer('calories today')
+        self.assertIn('1418', resp)
+        self.assertNotIn('136g', resp)  # narrow question: no protein noise
+
+    def test_generic_nutrition_query_reports_both(self):
+        resp = self._answer('nutrition today')
+        self.assertIn('136g', resp)
+        self.assertIn('1418', resp)
+
+    def test_legitimate_zero_still_answers_without_coaching(self):
+        resp = self._answer('calories today', snapshot={
+            'daily_calories': 0,
+            'food_entries_today': 0,
+            'food_entries_7d': 5,
+        })
+        self.assertIsNotNone(resp)
+        self.assertIn('0', resp)
+        self.assertNotIn('**action**', resp.lower())
+
+    def test_explicit_coaching_request_keeps_decision_template(self):
+        # An explicit guidance request is NOT a bare factual question — it may
+        # still use the Situation/Interpretation/Action coaching template.
+        resp = self._answer('what should i do about my macros today?')
+        self.assertIsNotNone(resp)
+        self.assertIn('**Action**', resp)

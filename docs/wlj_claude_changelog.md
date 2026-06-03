@@ -7,6 +7,28 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-03 — fix(nutrition): answer-first contract — factual status query no longer gets coaching/cross-domain overlay
+
+**The trust break:** routing and state were now correct, but the *response shape* was wrong. "How am I doing on protein today?" returned the full CoS decision template — a **"Priority note: sleep"** cross-domain overlay, **"Macro compliance 23/100 — well off target"** interpretation, and an **Action** coaching line — when the user asked one narrow factual question. Defect class: *correct routing + correct nutrition state + wrong response assembly.*
+
+**Root cause (`apps/ai/deterministic_router.py :: _handle_nutrition_query`):** the handler unconditionally rendered `_format_decision_response(situation, interpretation, action, trust, priority_note=_get_high_priority_note(user, exclude_domain='nutrition'))`. The decision/coaching template plus an always-on cross-domain priority note is the wrong UX contract for a direct factual status question.
+
+**Fix (Problem 1 only — answer-first):**
+
+| Change | Effect |
+|---|---|
+| New `_nutrition_fact_response(nut, msg_lower)` | Returns grounded totals only — the asked nutrient (protein/calorie detected from the message; generic phrasing reports both), plus a neutral over/under target delta when a target is grounded. No priority note, no macro-score verdict, no Interpretation/Action, no cross-domain content. |
+| New `_is_nutrition_coaching_request(msg_lower)` | Fact mode is the **default**; the full Situation/Interpretation/Action template is reserved for explicit guidance asks ("what should I do about my macros?"). |
+| `_handle_nutrition_query(user, msg_lower=None)` + early return after the confidence guard | Factual queries return the fact response (or None → fall through, never to the coaching template). Phase 0a.2 call site passes `msg_lower`; the Phase 1 dispatcher auto-passes it via signature inspection; validator-regenerate (`msg_lower=None`) defaults to answer-first. |
+
+**Scope held to Problem 1 deliberately.** Untouched (separate PRs): protein target source, `NutritionGoals`, macro-compliance formula, calorie-burn grounding, exercise attribution, workout timezone.
+
+**Before → after** for "How am I doing on protein today?": a 4-section decision block with a sleep priority note and macro-compliance coaching → `You're at **136g** protein today. / Target: **180g**. / That's **44g under** target.`
+
+**Tests:** +6 in `apps/ai/tests/test_nutrition_trust.py` (`TestNutritionAnswerFirstContract`) — factual queries contain no `priority note`/`sleep`/`bike`/`macro compliance`/`**action**`/`**interpretation**`; narrow queries answer only the asked nutrient; legitimate zero still answers; explicit coaching request keeps the decision template. 19/19 nutrition-trust tests pass. Pre-existing router failures (workout/medication/domain-inference work from other sessions) confirmed identical on baseline via `git stash` — zero new failures. No model/schema/migration changes.
+
+---
+
 ## 2026-06-03 — fix(nutrition): routing precedence — nutrition STATUS now beats execution coaching (regression follow-up)
 
 **The regression:** After the trust fix below shipped (`a80f228e`), food estimates correctly bypassed coaching, but **"How am I doing on protein today?"** routed into execution coaching ("Go straight into Bike Ride/Pickleball — you're behind…") instead of a nutrition status answer.

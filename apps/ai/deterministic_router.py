@@ -720,7 +720,7 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
         and _match_nutrition_query(msg_lower)
     ):
         try:
-            _nut_resp = _handle_nutrition_query(user)
+            _nut_resp = _handle_nutrition_query(user, msg_lower)
             if _nut_resp:
                 result = RouteResult(
                     category=RouteCategory.DETERMINISTIC_DATA,
@@ -3022,8 +3022,83 @@ def _match_nutrition_query(msg_lower):
     return False
 
 
-def _handle_nutrition_query(user):
-    """Phase 4.5 — deterministic nutrition response."""
+_NUTRITION_COACHING_REQUEST = (
+    'what should i', 'what do i do', 'how do i', 'how can i',
+    'help me', 'what can i do', 'should i eat', 'give me advice',
+    'recommend', 'fix my', 'improve my', 'what next', 'what now',
+)
+
+
+def _is_nutrition_coaching_request(msg_lower):
+    """True only when the user explicitly asks for guidance/coaching rather
+    than a bare factual status question. Fact mode (answer-first) is the
+    default; the full decision/coaching template is the exception."""
+    if not msg_lower:
+        return False
+    return any(p in msg_lower for p in _NUTRITION_COACHING_REQUEST)
+
+
+def _nutrition_fact_response(nut, msg_lower):
+    """Answer-first response for a direct factual nutrition status question.
+
+    Trust contract (2026-06-02): a narrow factual question gets a grounded
+    answer ONLY — no cross-domain priority note, no macro-score
+    interpretation, no execution coaching. Just the totals the user asked
+    for plus a neutral target comparison when a target exists. Same-domain
+    only. Returns None when the asked nutrient has no groundable value so the
+    caller falls through rather than emitting the coaching template.
+    """
+    cal = nut.get('daily_calories')
+    protein = nut.get('daily_protein_g')
+    cal_target = nut.get('calorie_target')
+    protein_target = nut.get('protein_target')
+
+    text = msg_lower or ''
+    asked_protein = 'protein' in text
+    asked_calories = 'calorie' in text  # covers 'calorie' and 'calories'
+    # Generic phrasing ("nutrition today", "my macros") → report both.
+    if not asked_protein and not asked_calories:
+        show_protein = show_calories = True
+    else:
+        show_protein, show_calories = asked_protein, asked_calories
+
+    blocks = []
+
+    if show_protein and protein is not None:
+        block = [f"You're at **{int(protein)}g** protein today."]
+        if protein_target:
+            delta = int(protein) - int(protein_target)
+            block.append(f"Target: **{int(protein_target)}g**.")
+            if delta >= 0:
+                block.append(f"That's **{delta}g over** target.")
+            else:
+                block.append(f"That's **{abs(delta)}g under** target.")
+        blocks.append('\n'.join(block))
+
+    if show_calories and cal is not None:
+        block = [f"You're at **{int(cal)}** calories today."]
+        if cal_target:
+            delta = int(cal) - int(cal_target)
+            block.append(f"Target: **{int(cal_target)}**.")
+            if delta >= 0:
+                block.append(f"That's **{delta} over** target.")
+            else:
+                block.append(f"That's **{abs(delta)} under** target.")
+        blocks.append('\n'.join(block))
+
+    if not blocks:
+        return None  # Nothing grounded for the asked nutrient → fall through
+    return '\n\n'.join(blocks)
+
+
+def _handle_nutrition_query(user, msg_lower=None):
+    """Phase 4.5 — deterministic nutrition response.
+
+    Answer-first by default (``msg_lower`` factual status question) → grounded
+    totals only. The Situation/Interpretation/Action decision template is
+    reserved for explicit coaching requests ("what should I do about my
+    macros?"). See _nutrition_fact_response / _is_nutrition_coaching_request.
+    """
     # FIX 3 (nutrition-only): refresh the nutrition snapshot from raw FoodEntry
     # writes before reading it, so Beth and the dashboard cannot diverge on
     # "today". Scoped to nutrition deliberately — NOT a global freshness change.
@@ -3069,6 +3144,18 @@ def _handle_nutrition_query(user):
             cal, food_entries_today, food_entries_7d, contradictory, suspicious,
         )
         return None  # Refuse confident falsehood → fall through
+
+    # ── Answer-first contract (trust repair 2026-06-02) ──
+    # A direct factual nutrition status question ("How am I doing on protein
+    # today?", "Calories today?") gets a grounded answer ONLY: no cross-domain
+    # priority note, no macro-score interpretation, no execution coaching. The
+    # full Situation/Interpretation/Action decision template below is reserved
+    # for explicit coaching requests. The user asked a narrow question; answer
+    # the narrow question. Fact mode returns None only when the asked nutrient
+    # has no groundable value, in which case we fall through to the pipeline
+    # (never to the coaching template).
+    if not _is_nutrition_coaching_request(msg_lower):
+        return _nutrition_fact_response(nut, msg_lower)
 
     # ── Situation ──
     parts = []

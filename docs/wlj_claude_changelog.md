@@ -7,6 +7,28 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-03 — fix(nutrition): nutrition status asks beat the cos_mode execution shortcut (routing interception)
+
+**The trust break:** the answer-first fix shipped, but `"How am I doing on protein today?"` still returned an execution decision (`"Nothing pending right now."`) instead of the protein total. CoS was returning *false information* for a direct nutrition question.
+
+**Root cause:** in the non-streaming `send_message`, `_cos_mode_shortcut` (`apps/ai/personal_assistant.py:1029`) runs `resolve_cos_mode(message)` **before** `classify_and_route` (line 1507). `resolve_cos_mode` matches `_EXECUTION_PATTERNS` `r"\bhow am i doing\b"`, so the phrase resolved to `mode='execution'`, the shortcut built an execution-selector answer and returned — the Phase 0a.2 nutrition route never ran. Short-form `"Protein today"` matched no execution pattern, so it fell through and answered correctly; that asymmetry was the whole bug. The streaming path has no shortcut, so it already routed to nutrition (parity gap).
+
+**Fix (`apps/ai/personal_assistant.py :: _cos_mode_shortcut`):** guard at the top of the try block, before `resolve_cos_mode`:
+```python
+from apps.ai.deterministic_router import _match_nutrition_query
+if _match_nutrition_query((message or '').lower()):
+    return None  # nutrition status wins → defer to classify_and_route Phase 0a.2
+```
+Fixed at the call site, **not** in `cos_mode_router.py` (shared with the JSON CoS API — wider blast radius). `_match_nutrition_query` already excludes food estimates, logging verbs, and burn/burned/burnt, so genuine execution asks (`"how am i doing today"`, `"what now"`) are unaffected. All 7 nutrition-status phrases now resolve deterministically to `_handle_nutrition_query()`.
+
+**Files:** `apps/ai/personal_assistant.py` (guard), `apps/ai/tests/test_nutrition_trust.py` (new `TestNutritionStatusBeatsCosModeShortcut` — 2 tests: all 7 phrases bypass the shortcut; nutrient-free status ask still resolves to execution).
+
+**Verification:** `apps.ai.tests.test_nutrition_trust` → 21/21 pass. No model changes (no migration).
+
+**Separate issue (investigate-only, NOT fixed here):** `"Target: 40g protein"` is a stored value in Danny's `NutritionGoals.daily_protein_target_g` (no code default; `state_builder.py:1937-1938`). There are two divergent protein-target systems — `NutritionGoals` (what Beth reads) vs `protein_service.calculate_target()` (bodyweight-derived). Flagged for a separate goal-grounding PR.
+
+---
+
 ## 2026-06-03 — fix(nutrition): answer-first contract — factual status query no longer gets coaching/cross-domain overlay
 
 **The trust break:** routing and state were now correct, but the *response shape* was wrong. "How am I doing on protein today?" returned the full CoS decision template — a **"Priority note: sleep"** cross-domain overlay, **"Macro compliance 23/100 — well off target"** interpretation, and an **Action** coaching line — when the user asked one narrow factual question. Defect class: *correct routing + correct nutrition state + wrong response assembly.*

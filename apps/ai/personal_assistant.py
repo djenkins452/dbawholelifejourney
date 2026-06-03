@@ -692,10 +692,19 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
         """
         try:
             from apps.ai.cos_mode_router import resolve_cos_mode
+            from apps.ai.deterministic_router import _match_nutrition_query
             from apps.core.execution.execution_state import (
                 build_execution_state,
             )
             from apps.core.execution.selectors import select as run_selector
+
+            # Nutrition status asks ("how am i doing on protein today?")
+            # match the generic execution keyword "how am i doing", but they
+            # are direct factual nutrition queries — they must reach the
+            # nutrition route (classify_and_route Phase 0a.2), never the
+            # execution selector. Defer so nutrition wins.
+            if _match_nutrition_query((message or '').lower()):
+                return None
 
             mode = resolve_cos_mode(message)
             if mode is None:

@@ -410,3 +410,49 @@ class TestNutritionAnswerFirstContract(NutritionUserMixin, TestCase):
         resp = self._answer('what should i do about my macros today?')
         self.assertIsNotNone(resp)
         self.assertIn('**Action**', resp)
+
+
+class TestNutritionStatusBeatsCosModeShortcut(NutritionUserMixin, TestCase):
+    """In non-streaming send_message, _cos_mode_shortcut runs BEFORE
+    classify_and_route. "How am I doing on protein today?" matches the generic
+    execution keyword "how am i doing", so the shortcut intercepted it and
+    answered with the execution selector ("Nothing pending right now.")
+    instead of the protein total.
+
+    Production defect: short-form "Protein today" answered factually (no
+    shortcut match) but the conversational "How am I doing on protein today?"
+    was intercepted by the execution shortcut. Nutrition status asks must
+    defer to the nutrition route — nutrition wins.
+    """
+
+    NUTRITION_PHRASES = [
+        'How am I doing on protein today?',
+        'Nutrition today',
+        'How are my calories today?',
+        'Calories today',
+        'How much protein have I had?',
+        'Macro intake today',
+        'Protein today',
+    ]
+
+    def _shortcut(self, message):
+        from apps.ai.personal_assistant import PersonalAssistant
+        from apps.ai.models import AssistantConversation
+        pa = PersonalAssistant(self.user)
+        conv = AssistantConversation.objects.create(user=self.user)
+        return pa._cos_mode_shortcut(message, conv)
+
+    def test_nutrition_status_asks_bypass_execution_shortcut(self):
+        for phrase in self.NUTRITION_PHRASES:
+            self.assertIsNone(
+                self._shortcut(phrase),
+                f"nutrition status ask {phrase!r} was intercepted by the "
+                f"cos_mode_shortcut instead of deferring to the nutrition route",
+            )
+
+    def test_non_nutrition_status_still_resolves_to_execution(self):
+        # Guard against over-suppression: a status ask with NO nutrient term
+        # must still reach the execution selector via the shortcut.
+        result = self._shortcut('how am i doing today')
+        self.assertIsNotNone(result)
+        self.assertTrue(result.get('deterministic'))

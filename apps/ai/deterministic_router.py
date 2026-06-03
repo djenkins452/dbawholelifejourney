@@ -701,6 +701,43 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
                 e, exc_info=True,
             )
 
+    # ── Phase 0a.2: Nutrition status query — HARD DETERMINISTIC ──
+    # Nutrition status MUST win over generic decision/focus/execution
+    # routing. "How am I doing on protein today?" embeds "how am i
+    # doing", which Phase 11.1 (_is_decision_query) / Phase 4
+    # (_is_focus_query) would otherwise grab and route to execution
+    # coaching ("Go straight into Bike Ride…"). A nutrient + status
+    # query is unambiguously a nutrition status request and is answered
+    # deterministically from the same FoodEntry-derived state the
+    # dashboard reads. Food-estimate / logging phrasing is excluded
+    # inside _match_nutrition_query, so "I had 8 oysters, how much
+    # protein?" still falls through to the log/estimate path. If the
+    # handler returns None (no data, or the confidence guard refuses a
+    # contradictory snapshot), we fall through to the normal pipeline.
+    if (
+        user is not None
+        and _is_data_routes_enabled()
+        and _match_nutrition_query(msg_lower)
+    ):
+        try:
+            _nut_resp = _handle_nutrition_query(user)
+            if _nut_resp:
+                result = RouteResult(
+                    category=RouteCategory.DETERMINISTIC_DATA,
+                    response=_nut_resp,
+                    route_name='nutrition_query',
+                    domain='health',
+                    is_terminal=True,
+                )
+                result.elapsed_ms = (time.monotonic() - t_start) * 1000
+                _log_route_decision(result, user, message)
+                return result
+        except Exception as e:
+            logger.warning(
+                "Nutrition status route failed, falling through: %s",
+                e, exc_info=True,
+            )
+
     # ── Phase 11.1: Decision query — RUNS FIRST (before focus query)
     # _is_decision_query is a SUPERSET of _is_focus_query. If we let
     # the Phase 4 focus route fire first, it catches "biggest risk"
@@ -2932,22 +2969,55 @@ def _is_food_estimate_query(msg_lower):
 
 
 def _match_nutrition_query(msg_lower):
-    """Match nutrition / macro / calorie status questions."""
+    """Match nutrition / macro / calorie STATUS questions.
+
+    Two-tier match:
+      1. Established exact-phrase anchors (``_NUT_INTENT``).
+      2. Compositional — a nutrient keyword + a status anchor
+         ("protein today", "how am I doing on protein", "macro
+         compliance", "nutrition today"). This tier is REQUIRED because
+         status phrasing like "how am I doing on protein today?" embeds
+         "how am i doing", which the decision/focus routers (Phase 11.1 /
+         Phase 4) would otherwise grab and send to execution coaching.
+
+    Food-estimate / logging / "calories burned" phrasing is excluded so
+    "I had 8 oysters, how much protein?" still falls through to the
+    log/estimate path.
+    """
     if _is_future_tense_query(msg_lower):
         return False
     # FIX 1: a specific-food estimate / consumption report is NOT a status query.
     if _is_food_estimate_query(msg_lower):
         return False
-    _NUT_INTENT = frozenset([
+
+    # Logging intent or exercise-calorie phrasing is never a status read.
+    _EXCLUDE = ('log', 'record', 'add', 'set', 'enter', 'track ',
+                'burn', 'burned', 'burnt')
+    if any(e in msg_lower for e in _EXCLUDE):
+        return False
+
+    _NUT_INTENT = (
         'how is my nutrition', "how's my nutrition", 'my nutrition',
         'my macros', 'macro status', 'how are my macros',
         'my calories', 'calorie count', 'how many calories',
         'nutrition status', 'nutrition summary', 'nutrition this week',
         'macros today', 'calories today', 'how much protein',
-    ])
+    )
     if any(p in msg_lower for p in _NUT_INTENT):
-        _EXCLUDE = ['log', 'record', 'add', 'set', 'enter', 'track ']
-        if not any(e in msg_lower for e in _EXCLUDE):
+        return True
+
+    # Compositional: nutrient keyword + status framing.
+    _NUTRIENT_KEYWORDS = (
+        'protein', 'calorie', 'calories', 'macro', 'macros',
+        'carb', 'carbs', 'carbohydrate', 'nutrition', 'fiber',
+    )
+    _STATUS_ANCHORS = (
+        'today', 'how am i doing', 'how are my', 'how is my',
+        "how's my", 'how much', 'status', 'compliance', 'this week',
+        'so far', 'have i had', 'am i at', 'where am i',
+    )
+    if any(k in msg_lower for k in _NUTRIENT_KEYWORDS):
+        if any(a in msg_lower for a in _STATUS_ANCHORS):
             return True
     return False
 

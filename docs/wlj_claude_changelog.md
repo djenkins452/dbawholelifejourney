@@ -7,6 +7,27 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-03 — fix(nutrition): routing precedence — nutrition STATUS now beats execution coaching (regression follow-up)
+
+**The regression:** After the trust fix below shipped (`a80f228e`), food estimates correctly bypassed coaching, but **"How am I doing on protein today?"** routed into execution coaching ("Go straight into Bike Ride/Pickleball — you're behind…") instead of a nutrition status answer.
+
+**Root cause (traced through `classify_and_route`):**
+- **Precedence inversion:** the nutrition data route lives in **Phase 1** (`_try_deterministic_data_routes`, router line ~785), but the **decision/focus routers run earlier** — Phase 11.1 `_try_decision_query_route` (line ~714) and Phase 4 `_try_focus_query_route` (line ~725). "How am I doing on protein today?" contains `'how am i doing'`, a member of `_FOCUS_QUERY_PHRASES` → `_is_focus_query` → `_is_decision_query` → Phase 11.1 fired and returned an execution-coaching response **before** Phase 1 ever ran. Nutrition never got a turn.
+- **Matcher coverage gap:** even with correct precedence, `_match_nutrition_query` only knew a hand-curated phrase list — `'protein today'`, `'nutrition today'`, `'macro compliance'`, `'how am I doing on protein…'` matched **nothing** and would have fallen through to the LLM.
+
+**Fix (two parts, `apps/ai/deterministic_router.py`):**
+
+| Change | Effect |
+|---|---|
+| New **Phase 0a.2 hard nutrition-status route** in `classify_and_route`, inserted *before* Phase 11.1 | A nutrition status query is answered deterministically and is no longer preemptable by decision/focus/execution routing. Food-estimate/logging phrasing is excluded inside the matcher, so "I had 8 oysters…" still falls through. If the handler returns None (no data / confidence guard refusal), routing falls through to the normal pipeline unchanged. |
+| `_match_nutrition_query` rewritten as **two-tier** | Tier 1 keeps the exact-phrase anchors; Tier 2 is compositional — a nutrient keyword (`protein/calorie(s)/macro(s)/carb(s)/carbohydrate/nutrition/fiber`) **+** a status anchor (`today / how am i doing / how are my / how much / status / compliance / this week / have i had / where am i / …`). Logging verbs and **`burn/burned/burnt`** (exercise calories) are excluded. |
+
+**Routing now (verified):** `How am I doing on protein today?`, `How are my calories today?`, `Protein today`, `Calories today`, `Nutrition today`, `Macro compliance`, `How much protein have I had?` → all resolve to `_handle_nutrition_query` (`route_name='nutrition_query'`). `I had 8 oysters how much protein?`, `I ate 2 eggs`, `how many calories did I burn today`, `log my protein for today`, `what's left today`, `other than nutrition, anything left?` → correctly do **not**.
+
+**Tests:** +4 in `apps/ai/tests/test_nutrition_trust.py` (matcher coverage MUST_MATCH/MUST_NOT_MATCH; end-to-end `classify_and_route` precedence proving nutrition beats the decision router; food-estimate still bypasses). 13/13 nutrition-trust tests pass; pre-existing router failures (workout/medication/domain-inference renderer work from other sessions) confirmed identical on baseline — zero new failures. No model/schema/migration changes.
+
+---
+
 ## 2026-06-03 — fix(nutrition): Beth trust — food estimates no longer hijack status route; user-tz grounding; confidence guard
 
 **The trust break:** "I had 8 raw oysters. how much protein?" returned a confident **0 cal / 0 protein** while the dashboard showed **1418 cal / 136g** for the same day. Three independent defects combined into a single confident falsehood.

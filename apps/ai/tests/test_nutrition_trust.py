@@ -226,3 +226,92 @@ class TestNutritionConfidenceGuard(NutritionUserMixin, TestCase):
             mock_fresh.assert_called_once()
             args, _ = mock_fresh.call_args
             self.assertIn('nutrition', args[1])
+
+
+# ── Regression 2026-06-03: nutrition status routing precedence ──────
+
+
+class TestNutritionStatusMatcherCoverage(TestCase):
+    """The status matcher must recognise nutrient + status phrasing, not just
+    a hand-curated phrase list. Regression: 'protein today' / 'nutrition today'
+    / 'macro compliance' / 'how am I doing on protein today?' previously matched
+    NOTHING and fell through to the LLM or execution coaching."""
+
+    MUST_MATCH = [
+        'how am i doing on protein today?',
+        'how are my calories today?',
+        'protein today',
+        'calories today',
+        'nutrition today',
+        'macro compliance',
+        'how much protein have i had?',
+        'how am i doing on macros',
+        'where am i on calories',
+    ]
+
+    # Not nutrition status — must NOT be hijacked by the broadened matcher.
+    MUST_NOT_MATCH = [
+        'i had 8 oysters how much protein',   # food estimate → log path
+        'i ate 2 eggs',                       # consumption report
+        'how many calories did i burn today',  # exercise, not intake
+        'log my protein for today',           # logging intent
+        "what's left today",                  # generic status
+        'how am i doing today',               # no nutrient → not nutrition
+        'other than nutrition, anything left?',  # qualified status
+    ]
+
+    def test_status_phrases_match(self):
+        for q in self.MUST_MATCH:
+            self.assertTrue(
+                _match_nutrition_query(q),
+                f"nutrition status query lost its route: {q!r}",
+            )
+
+    def test_non_status_phrases_do_not_match(self):
+        for q in self.MUST_NOT_MATCH:
+            self.assertFalse(
+                _match_nutrition_query(q),
+                f"non-nutrition query hijacked by status matcher: {q!r}",
+            )
+
+
+class TestNutritionStatusRoutePrecedence(NutritionUserMixin, TestCase):
+    """End-to-end: a nutrition status query must resolve to the nutrition_query
+    route, BEATING the decision/focus/execution routers.
+
+    Production regression 2026-06-03: "How am I doing on protein today?" routed
+    into execution coaching ("Go straight into Bike Ride…") because Phase 11.1
+    (decision query, triggered by the embedded 'how am i doing') ran before the
+    Phase 1 nutrition data route. Nutrition status now runs first.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from apps.core.utils import get_user_today
+        # Real food today so _handle_nutrition_query returns a response.
+        self._log_food(calories=900, protein=80, on_date=get_user_today(self.user))
+
+    def _route_name(self, message):
+        from apps.ai.deterministic_router import classify_and_route
+        result = classify_and_route(message, self.user, conversation=None)
+        return result.route_name
+
+    def test_status_queries_route_to_nutrition(self):
+        for q in (
+            'How am I doing on protein today?',
+            'How are my calories today?',
+            'Protein today',
+            'Calories today',
+            'Nutrition today',
+        ):
+            self.assertEqual(
+                self._route_name(q), 'nutrition_query',
+                f"nutrition status query did not win routing: {q!r}",
+            )
+
+    def test_food_estimate_does_not_route_to_nutrition_status(self):
+        # Must still bypass the status route → goes to log/estimate path.
+        self.assertNotEqual(
+            self._route_name('I had 8 oysters how much protein?'),
+            'nutrition_query',
+        )

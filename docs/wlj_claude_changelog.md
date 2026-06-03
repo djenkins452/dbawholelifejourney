@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-03 — fix(nutrition): Preferences nutrition goals now write the gram store the CoS/SAE reads (single source of truth)
+
+**The trust break:** the assistant grounded protein guidance on `"Target: 40g"` — a stored value the user could no longer correct. Two disconnected nutrition-goal stores existed: `UserPreferences` holds macro **percentages** (`protein_percentage`/`carbs_percentage`/`fat_percentage` + `daily_calorie_goal`), edited via the Preferences "Nutrition Goals" accordion; `NutritionGoals` holds macro **grams** (`daily_protein_target_g` etc.), which is what `build_nutrition_state` (`apps/core/ai_state/state_builder.py:1937-1938`) and the dashboard actually read. Editing Preferences never touched the gram store, so the two drifted and the stale 40g target persisted.
+
+**Compounding UI failure:** the Preferences "Nutrition Goals" accordion would not open. Root cause: the SMS block in `templates/users/preferences.html` wrapped three *structural* closing `</div>` tags (notifications-subsections accordion, notifications accordion-body, notifications module group) inside `{% if SMS_FEATURE_ENABLED %}`. With SMS disabled those closes vanished, so the Notifications group never closed and swallowed every later module group; the deeply-nested health-subsections was then discovered twice by `accordion.js`'s recursive descendant query → click handler bound twice → single click toggled twice → silent no-op.
+
+**Fixes:**
+- **`templates/users/preferences.html`** — moved `{% endif %}` up past the three structural closes so they always render. DOM nesting restored; nested accordions (fasting/nutrition/cycle) toggle on a single click again.
+- **`apps/users/models.py`** — extracted `UserPreferences.get_macro_goal_grams()` (single percentage→grams formula: protein/carbs ÷4 cal/g, fat ÷9 cal/g) and refactored `get_nutrition_progress()` to use it, killing the inline re-derivation (calc-reuse rule).
+- **`apps/users/views.py :: PreferencesView`** — after a successful save, `_sync_nutrition_goals()` upserts the active `NutritionGoals` row (`effective_until__isnull=True`) from the saved calorie goal + macro percentages. Only the 4 macro/calorie fields are written, so fiber/sodium/sugar/dietary micronutrients are preserved. No row is created when no calorie goal is set.
+
+**Scope guardrails honored:** did NOT touch Beth routing, nutrition response formatting, or macro scoring logic. No model field changes (no migration).
+
+**Verification:** `apps.users.tests.test_users` (NutritionGoalsSyncTest + PreferencesViewTest) → 7/7 pass. Live-DB check via the real `PreferencesView.form_valid`: saving 2200 cal / 30-40-30% wrote NutritionGoals = 2200 cal / 165p / 220c / 73f, and `build_nutrition_state` then read `protein_target=165.0` (no longer 40). Browser-confirmed: Nutrition Goals accordion expands and macro fields render.
+
+---
+
 ## 2026-06-03 — fix(nutrition): nutrition status asks beat the cos_mode execution shortcut (routing interception)
 
 **The trust break:** the answer-first fix shipped, but `"How am I doing on protein today?"` still returned an execution decision (`"Nothing pending right now."`) instead of the protein total. CoS was returning *false information* for a direct nutrition question.

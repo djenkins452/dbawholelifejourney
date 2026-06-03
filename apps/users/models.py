@@ -1234,6 +1234,27 @@ class UserPreferences(models.Model):
         total = (self.protein_percentage or 0) + (self.carbs_percentage or 0) + (self.fat_percentage or 0)
         return total == 100
 
+    def get_macro_goal_grams(self):
+        """Derive daily macro targets in grams from the calorie goal + macro
+        percentages. Single source of the percentage->grams formula so the
+        Preferences editor, NutritionGoals sync, and progress display never
+        drift. Returns dict with calorie_goal and per-macro grams (None when a
+        percentage is unset)."""
+        calorie_goal = self.daily_calorie_goal or 2000
+        protein_g = carbs_g = fat_g = None
+        if self.protein_percentage is not None:
+            protein_g = round((calorie_goal * self.protein_percentage / 100) / 4)
+        if self.carbs_percentage is not None:
+            carbs_g = round((calorie_goal * self.carbs_percentage / 100) / 4)
+        if self.fat_percentage is not None:
+            fat_g = round((calorie_goal * self.fat_percentage / 100) / 9)
+        return {
+            'calorie_goal': calorie_goal,
+            'protein_g': protein_g,
+            'carbs_g': carbs_g,
+            'fat_g': fat_g,
+        }
+
     def get_weight_progress(self):
         """Delegates to HealthProfile.get_weight_progress()."""
         from apps.health.models import HealthProfile
@@ -1281,21 +1302,12 @@ class UserPreferences(models.Model):
             total_carbs_g = float(summary.total_carbohydrates_g)
             total_fat_g = float(summary.total_fat_g)
 
-        # Calculate goal targets in grams from percentages
-        calorie_goal = self.daily_calorie_goal or 2000
-        protein_goal_g = None
-        carbs_goal_g = None
-        fat_goal_g = None
-
-        if self.protein_percentage is not None:
-            # Protein: 4 calories per gram
-            protein_goal_g = round((calorie_goal * self.protein_percentage / 100) / 4)
-        if self.carbs_percentage is not None:
-            # Carbs: 4 calories per gram
-            carbs_goal_g = round((calorie_goal * self.carbs_percentage / 100) / 4)
-        if self.fat_percentage is not None:
-            # Fat: 9 calories per gram
-            fat_goal_g = round((calorie_goal * self.fat_percentage / 100) / 9)
+        # Calculate goal targets in grams from percentages (shared formula)
+        macro_grams = self.get_macro_goal_grams()
+        calorie_goal = macro_grams['calorie_goal']
+        protein_goal_g = macro_grams['protein_g']
+        carbs_goal_g = macro_grams['carbs_g']
+        fat_goal_g = macro_grams['fat_g']
 
         # Calculate progress percentages
         calorie_progress = round((total_calories / calorie_goal) * 100, 1) if calorie_goal else 0

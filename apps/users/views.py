@@ -351,7 +351,44 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
         instance.ai_personal_context = ai_personal_context
 
         messages.success(self.request, "Preferences saved successfully.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+
+        # Sync nutrition goals (grams) so the CoS/SAE and dashboard read what the
+        # user edits here. The Preferences accordion stores macro PERCENTAGES on
+        # UserPreferences, but Beth/SAE read gram targets from NutritionGoals.
+        # Without this sync the two stores drift and the assistant grounds on a
+        # stale stored gram target.
+        self._sync_nutrition_goals(instance)
+
+        return response
+
+    def _sync_nutrition_goals(self, prefs):
+        """Mirror the saved calorie goal + macro percentages into the active
+        NutritionGoals row (the gram store Beth/SAE/dashboard read from)."""
+        if not prefs.has_nutrition_goals:
+            return
+
+        from apps.health.models import NutritionGoals
+        from apps.core.utils import get_user_today
+
+        grams = prefs.get_macro_goal_grams()
+
+        goal = NutritionGoals.objects.filter(
+            user=self.request.user,
+            effective_until__isnull=True,
+        ).order_by('-effective_from').first()
+
+        if goal is None:
+            goal = NutritionGoals(
+                user=self.request.user,
+                effective_from=get_user_today(self.request.user),
+            )
+
+        goal.daily_calorie_target = grams['calorie_goal']
+        goal.daily_protein_target_g = grams['protein_g']
+        goal.daily_carb_target_g = grams['carbs_g']
+        goal.daily_fat_target_g = grams['fat_g']
+        goal.save()
 
 
 class ThemeSelectionView(LoginRequiredMixin, TemplateView):

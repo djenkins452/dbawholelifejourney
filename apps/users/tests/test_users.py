@@ -251,3 +251,111 @@ class PreferencesViewTest(TestCase):
             'midnight',
             f"Theme should be 'midnight', got '{self.user.preferences.theme}'"
         )
+
+
+class NutritionGoalsSyncTest(TestCase):
+    """Preferences nutrition goals (percentages) must sync to the NutritionGoals
+    gram store that the CoS/SAE and dashboard read from."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            email='nutsync@example.com',
+            password='testpass123',
+        )
+        from django.conf import settings
+        from apps.users.models import TermsAcceptance
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0'),
+        )
+        self.user.preferences.has_completed_onboarding = True
+        self.user.preferences.save()
+
+    def _post_prefs(self, **overrides):
+        data = {
+            'theme': 'midnight',
+            'accent_color': '',
+            'journal_enabled': 'on',
+            'faith_enabled': 'on',
+            'health_enabled': 'on',
+            'life_enabled': 'on',
+            'purpose_enabled': 'on',
+            'ai_coaching_style': 'supportive',
+            'cos_response_style': 'balanced',
+            'timezone': 'US/Eastern',
+            'default_fasting_type': '16:8',
+            'sms_quiet_start': '22:00',
+            'sms_quiet_end': '08:00',
+            'notification_reminder_time': '07:00',
+            'email_notification_frequency': 'daily_digest',
+            'daily_calorie_goal': '2000',
+            'protein_percentage': '30',
+            'carbs_percentage': '40',
+            'fat_percentage': '30',
+        }
+        data.update(overrides)
+        self.client.login(email='nutsync@example.com', password='testpass123')
+        return self.client.post(reverse('users:preferences'), data, follow=True)
+
+    def test_get_macro_goal_grams_formula(self):
+        """Grams derive from calorie goal + macro % (protein/carbs ÷4, fat ÷9)."""
+        prefs = self.user.preferences
+        prefs.daily_calorie_goal = 2000
+        prefs.protein_percentage = 30
+        prefs.carbs_percentage = 40
+        prefs.fat_percentage = 30
+        grams = prefs.get_macro_goal_grams()
+        self.assertEqual(grams['calorie_goal'], 2000)
+        self.assertEqual(grams['protein_g'], 150)   # 2000*0.30/4
+        self.assertEqual(grams['carbs_g'], 200)     # 2000*0.40/4
+        self.assertEqual(grams['fat_g'], 67)        # round(2000*0.30/9)
+
+    def test_save_creates_nutrition_goals_row(self):
+        """Saving Preferences writes a NutritionGoals row Beth/SAE can read."""
+        from apps.health.models import NutritionGoals
+        self._post_prefs()
+        goal = NutritionGoals.objects.filter(
+            user=self.user, effective_until__isnull=True,
+        ).order_by('-effective_from').first()
+        self.assertIsNotNone(goal, "Preferences save should create a NutritionGoals row")
+        self.assertEqual(goal.daily_calorie_target, 2000)
+        self.assertEqual(goal.daily_protein_target_g, 150)
+        self.assertEqual(goal.daily_carb_target_g, 200)
+        self.assertEqual(goal.daily_fat_target_g, 67)
+
+    def test_resave_updates_existing_and_preserves_micronutrients(self):
+        """Re-saving updates macros in place without clobbering fiber/sodium etc."""
+        from apps.health.models import NutritionGoals
+        from apps.core.utils import get_user_today
+        existing = NutritionGoals.objects.create(
+            user=self.user,
+            effective_from=get_user_today(self.user),
+            daily_calorie_target=1800,
+            daily_protein_target_g=40,
+            daily_fiber_target_g=30,
+            daily_sodium_limit_mg=2300,
+        )
+        self._post_prefs(daily_calorie_goal='2500', protein_percentage='25',
+                         carbs_percentage='50', fat_percentage='25')
+        existing.refresh_from_db()
+        self.assertEqual(existing.daily_calorie_target, 2500)
+        self.assertEqual(existing.daily_protein_target_g, 156)  # 2500*0.25/4
+        # Micronutrients untouched
+        self.assertEqual(existing.daily_fiber_target_g, 30)
+        self.assertEqual(existing.daily_sodium_limit_mg, 2300)
+        # No duplicate active row created
+        self.assertEqual(
+            NutritionGoals.objects.filter(user=self.user, effective_until__isnull=True).count(),
+            1,
+        )
+
+    def test_save_without_calorie_goal_skips_sync(self):
+        """No NutritionGoals row is created when no calorie goal is set."""
+        from apps.health.models import NutritionGoals
+        self._post_prefs(daily_calorie_goal='', protein_percentage='',
+                         carbs_percentage='', fat_percentage='')
+        self.assertFalse(
+            NutritionGoals.objects.filter(user=self.user).exists(),
+            "No nutrition goal set should not create a NutritionGoals row",
+        )

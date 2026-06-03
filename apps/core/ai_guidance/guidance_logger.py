@@ -81,9 +81,15 @@ def _upsert_guidance(user, candidate, default_expiry):
     if existing:
         # Update existing — refresh message/priority/evidence
         existing.title = candidate.get("title", existing.title)
-        existing.message = _apply_persona(
-            user, candidate.get("message", existing.message), candidate
-        )
+        # Trust contract (2026-06-01): accountability cards are
+        # signal → recommendation → action — NOT persona surfaces.
+        # Persisting persona greetings ("Good morning!") into
+        # GuidanceItem.message caused stale time-of-day phrasing to
+        # show up hours later on the dashboard. The persisted text is
+        # now neutral; any contextual framing is a render-layer
+        # concern. See apps/dashboard_v3/services/composer.py for the
+        # defensive strip that cleans rows pre-dating this change.
+        existing.message = candidate.get("message", existing.message)
         existing.priority = candidate.get("priority", existing.priority)
         existing.confidence_score = candidate.get(
             "confidence_score", existing.confidence_score
@@ -104,11 +110,13 @@ def _upsert_guidance(user, candidate, default_expiry):
         logger.debug(f"PGE: Updated guidance {existing.id} ({dedupe_key[:16]}...)")
         return existing
 
-    # Create new guidance item with clean lifecycle state
+    # Create new guidance item with clean lifecycle state.
+    # Trust contract: persisted message is neutral (no greetings) —
+    # see existing-branch comment above.
     item = GuidanceItem.objects.create(
         user=user,
         title=candidate.get("title", ""),
-        message=_apply_persona(user, candidate.get("message", ""), candidate),
+        message=candidate.get("message", ""),
         priority=candidate.get("priority", 3),
         guidance_type=candidate.get("guidance_type", ""),
         source=candidate.get("source", "composite"),
@@ -130,19 +138,14 @@ def _upsert_guidance(user, candidate, default_expiry):
     return item
 
 
-def _apply_persona(user, message, candidate):
-    """Apply PIL persona rendering to guidance message (non-blocking)."""
-    if not message:
-        return message
-    try:
-        from apps.core.ai_persona.persona_engine import render_with_persona
-
-        return render_with_persona(
-            user=user,
-            base_message=message,
-            message_type="guidance",
-            domain=candidate.get("module"),
-            priority=candidate.get("priority"),
-        )
-    except Exception:
-        return message  # fail-safe
+# NOTE (2026-06-01 trust fix): A previous `_apply_persona(...)` helper
+# lived here that called `apps.core.ai_persona.persona_engine.
+# render_with_persona(... message_type="guidance" ...)`. That helper
+# prepended a non-time-aware greeting ("Good morning!" / "Good
+# afternoon!" / "Good evening!") into GuidanceItem.message at storage
+# time. Hours later, the dashboard would render "Good morning!" at
+# 8 PM. The helper was removed (not just unwired) to prevent future
+# re-introduction. Accountability cards are signal → recommendation
+# → action surfaces, NOT persona surfaces. If a future requirement
+# brings persona-flavoured guidance back, it must happen at the
+# RENDER layer using the user's current local time — never persisted.

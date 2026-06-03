@@ -67,6 +67,37 @@
             btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
         });
     });
+    // Accountability card "Read more / Show less" — mirrors the
+    // rhythm-tile expand pattern (data-expanded + aria-expanded) so
+    // dashboard interactions feel consistent. Pure presentation: full
+    // text is already in the DOM (hidden via [hidden]); toggling
+    // swaps which span is shown. No fetch, no reload, no modal.
+    document.querySelectorAll('.v3-acc-readmore').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var key = btn.getAttribute('data-acc-expand-toggle');
+            var p = document.querySelector(
+                '.v3-card-slot-rec-text[data-acc-key="' + key + '"]'
+            );
+            if (!p) return;
+            var expanded = p.getAttribute('data-expanded') === 'true';
+            var shortEl = p.querySelector('.v3-acc-msg-short');
+            var fullEl = p.querySelector('.v3-acc-msg-full');
+            if (!shortEl || !fullEl) return;
+            if (expanded) {
+                shortEl.removeAttribute('hidden');
+                fullEl.setAttribute('hidden', '');
+                p.setAttribute('data-expanded', 'false');
+                btn.setAttribute('aria-expanded', 'false');
+                btn.textContent = btn.getAttribute('data-collapsed-label');
+            } else {
+                shortEl.setAttribute('hidden', '');
+                fullEl.removeAttribute('hidden');
+                p.setAttribute('data-expanded', 'true');
+                btn.setAttribute('aria-expanded', 'true');
+                btn.textContent = btn.getAttribute('data-expanded-label');
+            }
+        });
+    });
     // "View N completed" toggle inside a tile
     document.querySelectorAll('.v3-rhythm-show-completed').forEach(function(btn) {
         btn.addEventListener('click', function() {

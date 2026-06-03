@@ -7,6 +7,54 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-03 — fix(dashboard_v3): Accountability Cards Phase A trust fix — neutral storage + render-time greeting strip + inline expand
+
+**The trust break:** A Health domain accountability card on the dashboard rendered "Good morning! You've been training consistently…" **at 8:07 PM**. The dashboard surfaced stale time-of-day phrasing because guidance message text was being persisted to `GuidanceItem.message` with a baked-in persona greeting that doesn't update with the clock. Separately, long recommendations truncated to "…" with no affordance to read the rest.
+
+**Root cause (proven via read-only investigation):**
+- `apps/core/ai_guidance/guidance_logger.py:84, 111` called `_apply_persona(...)` at the storage path, which invoked `apps.core.ai_persona.persona_engine.render_with_persona` → `apps/core/ai_persona/persona_renderer.py:51-53` prepended a deterministic-per-message greeting from the user's persona profile (NOT time-aware) into `GuidanceItem.message`. The greeted text was written to the DB and survived hours later unchanged.
+- `templates/dashboard_v3/sections/accountability_cards.html:46` applied `|truncatewords:18` with no expand affordance; full text existed in DB but was unreachable from the dashboard.
+
+**Phase A fix (this PR — scope-controlled):**
+
+| Change | File | Effect |
+|---|---|---|
+| Remove `_apply_persona` from log path (storage-side fix) | `apps/core/ai_guidance/guidance_logger.py:84, 111` | All new GuidanceItem rows persist NEUTRAL text — no greeting baked in. Also removed the now-dead `_apply_persona` helper + replaced with a tombstone comment so future contributors don't reintroduce the bug. |
+| Defensive `_strip_leading_greeting` at render | `apps/dashboard_v3/services/composer.py` (`_build_accountability_cards`) | Existing pre-fix DB rows still carrying greetings get a leading "Good morning/afternoon/evening/Hey/Hi/Hello" prefix stripped before rendering. Permanent defensive layer; ~6 lines + a compiled regex. |
+| Inline expand affordance | `templates/dashboard_v3/sections/accountability_cards.html` + `templates/dashboard_v3/home.html` JS + `static/dashboard_v3/css/dashboard_v3.css` | Long recommendations now render with both truncated + full message in the DOM, hidden via `[hidden]`. A "Read more →" button toggles `data-expanded` / `aria-expanded` (mirrors existing rhythm-tile pattern). NO `<details>` (explicitly forbidden per spec — visual consistency with v3). No fetch, no reload, no modal. |
+
+**Explicitly NOT in this PR (per spec):**
+- ❌ TTL change (`DEFAULT_EXPIRY_DAYS` stays at 7) — was considered, rejected as a product behavior change that doesn't solve the actual freshness problem
+- ❌ Event-driven freshness convergence (workout-completed → deactivate workout guidance, etc.) — the larger architectural fix belongs in a focused Phase B
+- ❌ Beth chat / briefings / weekly reports — untouched; their own local `_apply_persona` helpers in `briefing_engine.py` / `report_engine.py` are unaffected
+
+**Trust contract preserved:**
+- Storage-side fix prevents future drift
+- Render-side defensive strip cleans existing rows already in the DB (cheap, deterministic, never alters body content beyond a leading greeting prefix)
+- Regex anchored to `^\s*` + bounded word list + explicit `[!,.\s]+` separator — verified by test that "good morning routine intact" (mid-sentence) is NOT stripped
+
+**Files Modified:**
+- `apps/core/ai_guidance/guidance_logger.py` — neutral storage + tombstone removing `_apply_persona`
+- `apps/dashboard_v3/services/composer.py` — `_LEADING_GREETING_RE` + `_strip_leading_greeting` + applied in `_build_accountability_cards`
+- `templates/dashboard_v3/sections/accountability_cards.html` — expand markup with both spans + conditional Read-more button (gated on `wordcount > 18`)
+- `templates/dashboard_v3/home.html` — CSP-safe `addEventListener` block mirroring the rhythm-tile expand pattern
+- `static/dashboard_v3/css/dashboard_v3.css` — `.v3-acc-readmore` (subtle accent link-look + `:focus-visible`)
+- `apps/dashboard_v3/tests/test_accountability_trust_fix.py` — NEW, 8 tests across 4 classes
+
+**Verification:**
+- 8/8 new Phase A trust fix tests pass
+- 51/51 combined Phase A + Phase 2/3/4 + MissionCardResilience dashboard suite passes
+- `makemigrations --check` clean
+- Regression guard test (`test_no_browser_native_details_in_accountability_cards`) prevents reverting to `<details>`
+
+**Project trust trajectory:**
+- Pre-Phase-A: "Good morning! …" at 8 PM (trust break); recommendations end in "…" dead end
+- Post-Phase-A: neutral persistence; existing-row greetings stripped at render; inline expand reuses v3 patterns; <details> explicitly forbidden
+
+**Phase B (next, separate PR):** event-driven freshness convergence — workout completion / routine completion / Bible reading / journal entry events should each deactivate matching guidance items, mirroring the existing weight-sync resolver pattern (`apps/health/services/weight_sync.py`). Drops worst-case staleness from "up to 7 days" to "immediate." Designed carefully with per-rule freshness predicates.
+
+---
+
 ## 2026-06-02 — fix(briefing): Executive Briefing coherence — stop contradictory executive messaging
 
 **Problem (P1 trust + coherence):** The Executive Briefing contradicted itself. A real production render showed simultaneously: headline "You're slipping behind your current rhythm" / state badge "STEADY" / Needs Attention "All clear." / Biggest Opportunity "…overload risk…" / plateau + calorie focus pills. These cannot all be true at one priority level — the briefing had no single dominant narrative.

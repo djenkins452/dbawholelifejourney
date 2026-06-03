@@ -42,9 +42,24 @@
                     {% if card.recommendation %}
                         <div class="v3-card-slot">
                             <span class="v3-card-slot-label v3-card-slot-rec">Recommendation</span>
-                            <p class="v3-card-slot-text v3-card-slot-rec-text">
-                                <strong>{{ card.recommendation.title }}</strong>{% if card.recommendation.message %} — {{ card.recommendation.message|truncatewords:18 }}{% endif %}
-                            </p>
+                            {% with msg=card.recommendation.message words=card.recommendation.message|wordcount %}
+                                <p class="v3-card-slot-text v3-card-slot-rec-text"
+                                   data-acc-key="{{ card.recommendation.id|default:card.slug }}"
+                                   data-expanded="false">
+                                    <strong>{{ card.recommendation.title }}</strong>{% if msg %} —
+                                        <span class="v3-acc-msg-short">{{ msg|truncatewords:18 }}</span>
+                                        <span class="v3-acc-msg-full" hidden>{{ msg }}</span>
+                                    {% endif %}
+                                </p>
+                                {% if words > 18 %}
+                                    <button type="button"
+                                            class="v3-acc-readmore"
+                                            data-acc-expand-toggle="{{ card.recommendation.id|default:card.slug }}"
+                                            data-collapsed-label="Read more →"
+                                            data-expanded-label="Show less ↑"
+                                            aria-expanded="false">Read more →</button>
+                                {% endif %}
+                            {% endwith %}
                         </div>
                     {% endif %}
                 </article>

@@ -1486,6 +1486,37 @@ def _build_rhythm(user, execution_contract=None) -> dict:
     return build_rhythm_sections(user, execution_contract=execution_contract)
 
 
+# ── Phase A trust fix: defensive greeting strip ──────────────────────
+# Pre-fix GuidanceItem rows were stored with persona greetings baked
+# into the body ("Good morning! You've been training consistently…").
+# Hours later, the dashboard surfaced "Good morning!" at 8 PM. The
+# fix at storage time (apps/core/ai_guidance/guidance_logger.py) stops
+# new rows from carrying greetings; this defensive sanitizer cleans
+# existing rows already in the DB and protects against future drift.
+# Strips ONLY a leading greeting phrase — never aggressive enough to
+# clip substantive content.
+_LEADING_GREETING_RE = re.compile(
+    r"""^\s*
+        (?:Good\s+morning|Good\s+afternoon|Good\s+evening
+           |Good\s+day|Hey|Hi|Hello)
+        [!,.\s]+
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def _strip_leading_greeting(text: str) -> str:
+    """Remove a leading persona greeting from a guidance message.
+
+    No-op when no greeting is present (common case for new rows post
+    the storage-side fix). Cheap, deterministic, never alters body
+    content beyond the greeting prefix.
+    """
+    if not text:
+        return text
+    return _LEADING_GREETING_RE.sub("", text, count=1).strip()
+
+
 def _build_accountability_cards(user) -> list[dict]:
     """For each enabled domain, compose a card from SAE state + insights.
 
@@ -1562,8 +1593,17 @@ def _build_accountability_cards(user) -> list[dict]:
         if domain_guidance:
             top = domain_guidance[0]
             recommendation = {
+                "id": top.id,
                 "title": top.title,
-                "message": top.message,
+                # Defensive greeting strip (2026-06-01 trust fix).
+                # Pre-Phase-A rows in production carry baked-in persona
+                # greetings ("Good morning! …") that go stale within
+                # hours. We strip a leading greeting at render time so
+                # the dashboard never surfaces time-of-day phrasing
+                # inside an accountability card. New rows (post-fix in
+                # guidance_logger.py) are stored neutral; this filter
+                # protects existing rows + future regressions.
+                "message": _strip_leading_greeting(top.message),
                 "priority": top.priority,
             }
 

@@ -7,6 +7,74 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-06 — fix(cos_briefing): Executive Briefing Phase A trust fix — time-aware headlines + dedupe + calorie synthesis
+
+**The trust break (production evidence):** At 8:07 AM the dashboard Executive Briefing rendered:
+
+> "4 items past due — let's protect the rest of the day."
+>
+> Needs Attention: Overtraining Risk · Overtraining Risk · Poor sleep · Calories under target by 30% · Calories under target by 27% · Calories under target by 35%
+
+Three failure modes:
+1. **Wrong morning framing.** "Protect the rest of the day" is salvage / damage-control language. At 8 AM the day is highly recoverable — the wording violated the WLJ "missed ≠ failed" principle.
+2. **Duplicate concerns.** Two identical "Overtraining Risk" rows (different `dedupe_key` from rolling time-window encoding).
+3. **Fragmented calorie alerts.** Three rows for the same underlying concern with shifting percentages — felt noisy and contradictory.
+
+**Root cause (proven, file:line):**
+- `apps/core/cos_briefing/executive_summary.py:634` — the headline was hard-coded per `overall_state` with NO time-of-day branching. The same string fired at 8 AM and 6 PM.
+- `apps/core/cos_briefing/executive_summary.py:181-207` (`_collect_needs_attention`) — the briefing reader deduped only by row identity, not by title. Insight rows with different `dedupe_key`s but identical titles both rendered.
+- `apps/core/ai_insights/rules_transformation.py:29-92` (`NutritionCalorieTrendRule`) — dedupe key includes a rolling `(window_start, window_end)`, so daily re-evaluation produced multiple "Calories under target by N%" rows with slightly different percentages.
+
+**Phase A fix (three changes, presentation-layer only):**
+
+**A1 — Time-aware headline matrix.**
+- New `_time_band(user_now)` classifier — 5 bands: `early_morning` (4-10), `morning` (10-12), `midday` (12-17), `evening` (17-21), `late_evening` (21-4).
+- New `_HEADLINE_MATRIX: dict[str, dict[str, str]]` — 6 overall_states × 5 bands = 30 deterministic strings. Pure data table; copy can be tuned without touching logic.
+- `_derive_headline(...)` now takes `user_now=None` and reads from the matrix. Existing RECOVERY/STABILIZE special branches still take precedence (they encode a different conversation).
+- The entry function `build_executive_summary` threads `get_user_now(user)` into the headline. Fail-soft: if `user_now` is None, defaults to "midday" — preserves back-compat for any caller that hasn't been updated.
+- Morning + at-risk wording satisfies the WLJ "missed ≠ failed" principle: *"You're behind this morning, but the day is fully recoverable. A strong reset now rebuilds momentum."*
+
+**A2 — Dedupe by title in `_collect_needs_attention`.**
+- After severity-ordered fetch, the reader walks the list and skips rows whose lowercase-stripped title was already seen. First occurrence wins (most recent in each severity bucket).
+- DB rows are NEVER modified — this is purely a presentation-layer collapse. PIE/PRIE/Beth still see raw rows.
+
+**A3 — Calorie synthesis.**
+- New `_synthesize_calorie_alerts` helper — matches calorie-trend rows via `insight_type` containing "calorie" OR title starting with "Calories ", picks the most-recent as the representative, lifts its percentage, replaces title with `"Calorie trend"` and message with: *"Calories have averaged ~30% below target recently. This may be contributing to elevated recovery strain."*
+- Other calorie rows are dropped from the rendered list; non-calorie insights pass through untouched.
+
+**Production preview at 8:07 AM, 4 overdue + 2 overtraining rows + 3 calorie rows:**
+
+Before:
+> "4 items past due — let's protect the rest of the day."
+> Needs Attention: Overtraining Risk · Overtraining Risk · Poor sleep · Calories under target by 30% · Calories under target by 27%
+
+After:
+> "You're behind this morning, but the day is fully recoverable. A strong reset now rebuilds momentum."
+> Needs Attention: Overtraining Risk · Poor sleep · Calorie trend (Calories have averaged ~30% below target recently. This may be contributing to elevated recovery strain.)
+
+**Files Modified:**
+- `apps/core/cos_briefing/executive_summary.py` — `_time_band`, `_HEADLINE_MATRIX`, `_derive_headline` (matrix consumption), `_collect_needs_attention` (dedup), `_synthesize_calorie_alerts` (new), entry function threads `user_now`
+- `apps/core/cos_briefing/tests/__init__.py` — NEW (package marker)
+- `apps/core/cos_briefing/tests/test_executive_summary_phase_a.py` — NEW, 20 tests across 6 classes
+
+**Verification:**
+- 20/20 new Phase A tests pass
+- 78/78 combined regression: full `cos_briefing` suite + Phase 1 milestone + Phase 2 dedup + Phase 3 SAE read-only + Phase 4 hydration partial + Accountability Phase A pass
+- `makemigrations --check` clean — no schema changes
+
+**Explicitly NOT in this PR (Phase B):**
+- Risk-aware action reconciliation ("Do This Now" considering the risk panel) — bigger behavioral change, deserves isolated validation
+- Recoverability classification per overdue item
+- Schema changes
+- Beth chat / weekly report wording
+
+**Trust trajectory:**
+- Pre-Phase-A: morning briefings felt like salvage operations; duplicate concerns; fragmented numbers
+- Post-Phase-A: morning briefings reinforce *recoverable / reset / momentum*; same-title rows collapse; calorie alerts read as one executive-level signal
+- Phase B (separate PR) will close the remaining coherence gap — action panel reading the risk panel
+
+---
+
 ## 2026-06-06 — fix(purpose): Phase 1 trust fix — objective weight milestones auto-converge bidirectionally
 
 **The trust break:** Production dashboard showed `France 2027 Family 10K Mission · 0 / 12 milestones`. Next milestone: "Goal Weight of 289.9". User's latest weight: 288.8 lbs. Beth's response: *"There might be a need to manually update or confirm this milestone in the system."*

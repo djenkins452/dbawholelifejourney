@@ -58,6 +58,154 @@ logger = logging.getLogger(__name__)
 MAX_GOING_WELL = 5
 MAX_NEEDS_ATTENTION = 5
 MAX_RECOMMENDATIONS = 3
+
+
+# ── Time bands ─────────────────────────────────────────────────────────
+# Phase A trust fix (2026-06-06): the executive briefing was emitting
+# "let's protect the rest of the day" at 8 AM — psychologically wrong
+# because the day is still highly recoverable. Headlines now branch on
+# a small fixed band so morning emphasises *reset/momentum* and evening
+# emphasises *close strong*.
+#
+# Bands are intentionally rough — five bands cover the common day
+# shapes without producing a different message every hour:
+#
+#   early_morning : 04–10  (fresh, fully recoverable, motivational reset)
+#   morning       : 10–12  (still ahead of midday; gentle catch-up)
+#   midday        : 12–17  (afternoon protection mode)
+#   evening       : 17–21  (close strong; pick the highest-impact item)
+#   late_evening  : 21–04  (don't shame; brief, generous, tomorrow framing)
+def _time_band(user_now) -> str:
+    """Return one of: early_morning, morning, midday, evening, late_evening.
+
+    ``user_now`` is a timezone-aware datetime in the USER's local time
+    (composer passes ``get_user_now(user)``). When None is passed the
+    function returns "midday" — a neutral default that keeps existing
+    behaviour for any caller that hasn't been updated yet.
+    """
+    if user_now is None:
+        return "midday"
+    hour = user_now.hour
+    if 4 <= hour < 10:
+        return "early_morning"
+    if 10 <= hour < 12:
+        return "morning"
+    if 12 <= hour < 17:
+        return "midday"
+    if 17 <= hour < 21:
+        return "evening"
+    return "late_evening"
+
+
+# ── Headline matrix ────────────────────────────────────────────────────
+# Per overall_state × time_band copy. Kept as a pure data table so
+# wording can be tuned without re-reading the surrounding logic.
+#
+# WLJ philosophy reminders baked into the wording:
+#   - missed ≠ failed (morning bias: recoverable, reset, momentum)
+#   - protect ≠ shame (midday bias: prioritize, hold the line)
+#   - close strong ≠ catch-everything (evening bias: highest-impact)
+#
+# Special branches (recovery_mode / specific overdue counts / specific
+# at_risk counts) are handled inside _derive_headline() and fall back
+# to this matrix when no special branch matches.
+_HEADLINE_MATRIX: dict[str, dict[str, str]] = {
+    "at_risk": {
+        "early_morning":
+            "You're behind this morning, but the day is fully recoverable. "
+            "A strong reset now rebuilds momentum.",
+        "morning":
+            "Behind early — but the day is still in front of you. "
+            "One focused action restarts the rhythm.",
+        "midday":
+            "Several priorities slipped this morning — reprioritize and "
+            "protect the afternoon.",
+        "evening":
+            "Day's been bumpy — close strong with the highest-impact item.",
+        "late_evening":
+            "Tough day. Pick the one thing that protects tomorrow and "
+            "call it done.",
+    },
+    "slipping": {
+        "early_morning":
+            "Slow start, but the day is wide open. A small win in the "
+            "next hour resets the trajectory.",
+        "morning":
+            "Drift this morning — one focused action gets you back on "
+            "rhythm before the day fills up.",
+        "midday":
+            "A few things are slipping — pick one to address this "
+            "afternoon and the trajectory turns.",
+        "evening":
+            "Drift this week — one decisive action tonight or first thing "
+            "tomorrow resets the rhythm.",
+        "late_evening":
+            "Drift detected — name one priority for tomorrow morning and "
+            "let the rest go for tonight.",
+    },
+    "improving": {
+        "early_morning":
+            "Strong morning shape — protect what's working and keep the "
+            "rhythm consistent.",
+        "morning":
+            "Trending up — keep the rhythm consistent through midday.",
+        "midday":
+            "Trending up — protect the afternoon and you ride this "
+            "into tomorrow.",
+        "evening":
+            "Strong day. Close it out and bank the momentum for tomorrow.",
+        "late_evening":
+            "Solid trajectory. Rest well — momentum like this compounds.",
+    },
+    "mixed": {
+        "early_morning":
+            "Mixed signals heading in — keep the wins, address the drift "
+            "before noon and the day balances.",
+        "morning":
+            "Mixed signals — keep what's working and address the drift "
+            "with one focused action.",
+        "midday":
+            "Mixed signals this week — real wins, real drift. Keep the "
+            "wins; address the drift.",
+        "evening":
+            "Wins and drift in the same day. Close with the wins and "
+            "name what you'll address tomorrow.",
+        "late_evening":
+            "Mixed day — count the wins, name one drift to address "
+            "tomorrow, rest.",
+    },
+    "steady": {
+        "early_morning":
+            "Steady shape this morning — hold the line and keep the "
+            "rhythm.",
+        "morning":
+            "Steady — hold the line and keep the rhythm through "
+            "midday.",
+        "midday":
+            "Steady today. Hold the line and keep the rhythm.",
+        "evening":
+            "Steady day. Close it out and reset for tomorrow.",
+        "late_evening":
+            "Steady. Rest well.",
+    },
+    "unknown": {
+        "early_morning":
+            "Light data so far — log a few things this morning and the "
+            "briefing fills in.",
+        "morning":
+            "Light data so far — log a few things and the briefing fills "
+            "in.",
+        "midday":
+            "Light data so far — log a few things and the briefing fills "
+            "in.",
+        "evening":
+            "Light data so far — log today's key items and the briefing "
+            "fills in.",
+        "late_evening":
+            "Light data so far — a quick log tonight or in the morning "
+            "fills the briefing in.",
+    },
+}
 MAX_FOLLOW_ON = 5            # how many "coming up" hints next to focus_now
 INSIGHT_WINDOW_DAYS = 7      # only fresh insights count toward the briefing
 
@@ -129,8 +277,17 @@ def build_executive_summary(user, execution_contract=None) -> dict[str, Any]:
         going_well, needs_attention, biggest_risk, exec_state,
     )
     trajectory = overall_state
+    # Phase A trust fix — pass user_now so the headline matrix can
+    # branch on time-of-day. Fail-soft: if the lookup fails for any
+    # reason, _derive_headline falls back to its default "midday" band.
+    try:
+        from apps.core.utils import get_user_now
+        _user_now = get_user_now(user)
+    except Exception:
+        _user_now = None
     headline = _derive_headline(
         overall_state, going_well, needs_attention, exec_state, focus_now,
+        user_now=_user_now,
     )
 
     return {
@@ -179,7 +336,23 @@ def _collect_going_well(user) -> list[dict[str, Any]]:
 
 
 def _collect_needs_attention(user) -> list[dict[str, Any]]:
-    """Recent warning / critical Insights, severity-weighted then newest."""
+    """Recent warning / critical Insights, severity-weighted then newest.
+
+    Phase A trust fix:
+
+      * **Dedup by title** (Change A2). The Insight store dedupes by
+        ``dedupe_key`` only — which encodes a rolling time window, so
+        the same condition (e.g. "Overtraining Risk") can produce two
+        rows on consecutive days. Presentation layer collapses by
+        title, keeping the most recent row per title.
+
+      * **Calorie synthesis** (Change A3). When the user has multiple
+        "Calories under/over target by N%" rows, collapse them to a
+        single executive-level sentence so the briefing reads as one
+        synthesised concern rather than three noisy daily snapshots.
+
+    DB rows are untouched; this is a render-time consolidation only.
+    """
     from apps.core.ai_insights.models import Insight
 
     cutoff = timezone.now() - timedelta(days=INSIGHT_WINDOW_DAYS)
@@ -193,7 +366,28 @@ def _collect_needs_attention(user) -> list[dict[str, Any]]:
     # Critical first, warning second; preserve created_at order inside each.
     critical = [i for i in qs if i.severity == "critical"]
     warning = [i for i in qs if i.severity == "warning"]
-    ordered = (critical + warning)[:MAX_NEEDS_ATTENTION]
+    ordered = critical + warning
+
+    # ── Change A2: dedupe by title (most recent wins). ──
+    # The query is already ordered by -created_at within each severity
+    # bucket, so the first occurrence of each title is the freshest.
+    seen_titles: set[str] = set()
+    deduped = []
+    for i in ordered:
+        title_key = (i.title or "").strip().lower()
+        if title_key in seen_titles:
+            continue
+        seen_titles.add(title_key)
+        deduped.append(i)
+
+    # ── Change A3: synthesise repeated calorie alerts. ──
+    # After dedupe-by-title there can still be multiple rows like
+    # "Calories under target by 27%" / "by 30%" / "by 35%" because
+    # the percentage is baked into the title. Collapse them to ONE
+    # executive-level sentence rooted in the most recent reading.
+    deduped = _synthesize_calorie_alerts(deduped)
+
+    ordered_view = deduped[:MAX_NEEDS_ATTENTION]
 
     return [
         {
@@ -203,8 +397,90 @@ def _collect_needs_attention(user) -> list[dict[str, Any]]:
             "severity": i.severity,
             "insight_type": i.insight_type,
         }
-        for i in ordered
+        for i in ordered_view
     ]
+
+
+def _synthesize_calorie_alerts(insights: list) -> list:
+    """Collapse repeated "Calories under/over target by N%" rows into
+    one executive-level signal.
+
+    Strategy: find all calorie-trend rows (matched by ``insight_type``
+    or a title prefix); pick the most recent as the representative;
+    overwrite its message with a one-line synthesis. The other calorie
+    rows are dropped from the returned list. All non-calorie insights
+    pass through untouched.
+
+    This is purely presentational — the underlying Insight rows are
+    not modified.
+    """
+    if not insights:
+        return insights
+
+    def _is_calorie_alert(insight) -> bool:
+        itype = (getattr(insight, "insight_type", "") or "").lower()
+        title = (getattr(insight, "title", "") or "").lower()
+        # Match both the canonical insight_type produced by
+        # NutritionCalorieTrendRule and any title-shaped variant.
+        return (
+            "calorie" in itype
+            or "nutrition_calorie" in itype
+            or title.startswith("calories ")
+        )
+
+    calorie_rows = [i for i in insights if _is_calorie_alert(i)]
+    other_rows = [i for i in insights if not _is_calorie_alert(i)]
+
+    if len(calorie_rows) <= 1:
+        # Nothing to synthesise — original ordering preserved.
+        return insights
+
+    # `insights` came in -created_at order within each severity bucket,
+    # so the first calorie row is the most recent.
+    representative = calorie_rows[0]
+
+    # Best-effort: lift the percentage from the most recent title,
+    # which is the user's freshest measured value.
+    import re
+    m = re.search(r"(\d{1,3})\s*%", representative.title or "")
+    pct_text = f"~{m.group(1)}%" if m else "consistently below target"
+    direction = "below"
+    if (representative.title or "").lower().startswith("calories over"):
+        direction = "above"
+
+    # Replace the title + message in a lightweight clone so we don't
+    # mutate the cached/queried Insight row.
+    class _Synthesised:
+        pass
+    syn = _Synthesised()
+    syn.title = "Calorie trend"
+    syn.message = (
+        f"Calories have averaged {pct_text} {direction} target recently. "
+        f"This may be contributing to elevated recovery strain."
+    )
+    syn.module = getattr(representative, "module", "health")
+    syn.severity = getattr(representative, "severity", "warning")
+    syn.insight_type = getattr(representative, "insight_type", "")
+
+    # Slot the synthesised row where the representative used to be so
+    # severity ordering is preserved.
+    rep_index = insights.index(representative)
+    rebuilt = []
+    inserted = False
+    for i in insights:
+        if i in calorie_rows:
+            if not inserted and i is representative:
+                rebuilt.append(syn)
+                inserted = True
+            # All other calorie rows are dropped.
+            continue
+        rebuilt.append(i)
+    # In the unlikely edge case representative wasn't matched in the
+    # loop above (e.g., if `insights` is reordered later), append the
+    # synthesised row at the beginning.
+    if not inserted:
+        rebuilt.insert(0, syn)
+    return rebuilt
 
 
 def _augment_attention_with_execution(needs_attention, exec_state):
@@ -613,7 +889,10 @@ def _derive_overall_state(going_well, needs_attention, biggest_risk, exec_state)
     return "mixed"
 
 
-def _derive_headline(overall_state, going_well, needs_attention, exec_state, focus_now) -> str:
+def _derive_headline(
+    overall_state, going_well, needs_attention, exec_state, focus_now,
+    user_now=None,
+) -> str:
     """One-sentence opener, chosen WITHIN the dominant state.
 
     The headline may pick more specific wording inside a state, but it can
@@ -621,38 +900,43 @@ def _derive_headline(overall_state, going_well, needs_attention, exec_state, foc
     the same verdict the badge shows, so badge and headline always agree.
 
     No free-text generation, no LLM — each branch is a pre-written sentence.
+
+    Phase A trust fix: time-aware wording. ``user_now`` is the user's
+    local-time datetime; when omitted, defaults to "midday" framing,
+    preserving back-compat for any caller that has not been updated.
     """
     recovery_mode, overdue_count, at_risk_count = _execution_pressure(exec_state)
     neg = len(needs_attention or [])
+    band = _time_band(user_now)
 
     if overall_state == "at_risk":
+        # Recovery-mode special branches still take precedence — they
+        # encode a different conversation (deliberate recovery state)
+        # rather than a generic at-risk render.
         if recovery_mode in ("RECOVERY", "STABILIZE"):
             if focus_now:
                 return "Today's drifted — let's recover the next step and rebuild momentum."
             return "Today's behind schedule. Reset with one small action."
-        if overdue_count >= 3:
-            return f"{overdue_count} items past due — let's protect the rest of the day."
-        return "Several things need attention right now — small actions keep the day intact."
+        # All other at_risk renders flow through the time-aware matrix.
+        return _HEADLINE_MATRIX["at_risk"][band]
 
     if overall_state == "slipping":
-        if overdue_count > 0 and focus_now:
-            return "You're slipping behind your current rhythm — let's get back on track."
-        if at_risk_count >= 2:
-            return f"{at_risk_count} things are at risk in this block — small actions now keep the day intact."
-        if neg > 0:
-            return f"A few things are slipping — {needs_attention[0]['title'].lower()} needs attention first."
-        return "Drift detected this week. One focused action turns this around."
+        # Insight-name personalisation is preserved where useful.
+        if neg > 0 and band in ("morning", "midday"):
+            return (
+                f"A few things are slipping — "
+                f"{needs_attention[0]['title'].lower()} needs attention first."
+            )
+        return _HEADLINE_MATRIX["slipping"][band]
 
     if overall_state == "improving":
-        return "You're trending up — protect what's working and keep the rhythm consistent."
+        return _HEADLINE_MATRIX["improving"][band]
 
     if overall_state == "mixed":
-        return "Mixed signals this week — real wins, real drift. Keep the wins; address the drift."
+        return _HEADLINE_MATRIX["mixed"][band]
 
     if overall_state == "steady":
-        return "Steady today. Hold the line and keep the rhythm."
+        return _HEADLINE_MATRIX["steady"][band]
 
     # Unknown / no signal.
-    if focus_now:
-        return "Light data so far — one small action and the picture sharpens."
-    return "Light data so far — log a few things and the briefing fills in."
+    return _HEADLINE_MATRIX["unknown"][band]

@@ -527,7 +527,25 @@ class GoalMilestone(models.Model):
     Milestones are optional intermediate steps toward completing a goal.
     Research shows people who break goals into milestones are 42% more likely
     to achieve them (Dominican University study).
+
+    Phase 1 trust fix (2026-06-03): adds three optional ``objective_*``
+    fields so a weight-loss milestone like "Goal Weight of 289.9" can
+    auto-evaluate against the user's latest WeightEntry (bidirectional —
+    reality wins). When ``objective_metric`` is null, the milestone
+    behaves exactly as before: manual + one-way (achievement). When set
+    to ``weight_lb`` with an ``lte`` operator, the row is owned by the
+    evaluator in ``apps/purpose/services/objective_weight_milestones.py``.
+    Scope is deliberately tiny — Phase 2 will add other metrics.
     """
+    # Phase 1 objective-milestone choice lists. Intentionally NOT
+    # registries; we are proving the pattern, not building a framework.
+    OBJECTIVE_METRIC_CHOICES = [
+        ("weight_lb", "Weight (lbs)"),
+    ]
+    OBJECTIVE_OPERATOR_CHOICES = [
+        ("lte", "≤"),
+    ]
+
     goal = models.ForeignKey(
         LifeGoal,
         on_delete=models.CASCADE,
@@ -554,6 +572,36 @@ class GoalMilestone(models.Model):
     # Completion tracking
     completed = models.BooleanField(default=False)
     completed_date = models.DateField(null=True, blank=True)
+
+    # ── Phase 1: optional objective-metric wiring. ──
+    # When null → milestone is an achievement (manual toggle, one-way).
+    # When set → milestone is owned by the objective evaluator and
+    # auto-converges bidirectionally against canonical data.
+    objective_metric = models.CharField(
+        max_length=16,
+        choices=OBJECTIVE_METRIC_CHOICES,
+        null=True,
+        blank=True,
+        help_text=(
+            "When set, this milestone auto-completes / uncompletes "
+            "bidirectionally based on the named canonical metric. "
+            "When null, the milestone behaves as an achievement (manual)."
+        ),
+    )
+    objective_target_value = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Numeric target. Paired with objective_metric.",
+    )
+    objective_operator = models.CharField(
+        max_length=4,
+        choices=OBJECTIVE_OPERATOR_CHOICES,
+        null=True,
+        blank=True,
+        help_text="Comparison operator. Phase 1 supports 'lte' only.",
+    )
 
     # Ordering
     sort_order = models.PositiveIntegerField(default=0)

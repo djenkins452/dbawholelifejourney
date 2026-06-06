@@ -7,6 +7,73 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-06 — fix(purpose): Phase 1 trust fix — objective weight milestones auto-converge bidirectionally
+
+**The trust break:** Production dashboard showed `France 2027 Family 10K Mission · 0 / 12 milestones`. Next milestone: "Goal Weight of 289.9". User's latest weight: 288.8 lbs. Beth's response: *"There might be a need to manually update or confirm this milestone in the system."*
+
+288.8 ≤ 289.9 is a deterministic complete — no manual confirmation should ever be required for an objective measurement.
+
+**Root cause (proven via read-only investigation):**
+- `GoalMilestone` model (`apps/purpose/models.py:523`) had only text fields: `title`, `description`, `target_date`, `completed`, `completed_date`. **No numeric target, no metric source, no comparison operator. No evaluation engine. No write-time trigger.**
+- The 289.9 milestone was metadata only — the system had no idea its title represented a measurable weight target.
+- Beth's "manually update" response wasn't a chat bug — it was a context bug. Her state dict had `milestone.completed=False` and no weight signal to reason from.
+
+**Phase 1 fix — STRICTLY scoped to `weight_lb` + `lte`:**
+
+1. **3 nullable fields on `GoalMilestone`** — `objective_metric` (only `"weight_lb"`), `objective_target_value` (Decimal max_digits=8, decimal_places=2 — full 289.9 precision), `objective_operator` (only `"lte"`). All default `null`; existing rows behave exactly as before (manual, one-way achievement).
+2. **Evaluator** at `apps/purpose/services/objective_weight_milestones.py` — `evaluate_weight_milestones(user)` does bidirectional `current_weight ≤ target` against the latest `WeightEntry.value_in_lb`. Idempotent: no DB write when state already matches. Achievement milestones (no `objective_metric`) filtered out at the query level — never touched.
+3. **Signal trigger** — `WeightEntry.post_save` (create OR update) calls the evaluator. Wrapped in try/except + log; never breaks `WeightEntry.save()`.
+4. **Wiring data migration** — narrowly targeted: `goal.title icontains "France"` + `milestone.title icontains "289.9"`. No email / user filter (environment-agnostic). Sets `objective_metric=weight_lb`, `objective_target_value=Decimal("289.9")`, `objective_operator=lte`, then runs initial evaluation against existing WeightEntry data so the milestone converges immediately on deploy (does NOT wait for the next weight save).
+5. **Operational repair utility** — `recompute_objective_milestones(user)` mirrors SAE-rebuild philosophy. Callable from views/tasks/management commands for deterministic milestone-state repair if anything ever drifts. Fail-soft.
+
+**Bidirectional convergence — the headline trust contract:**
+- 288.8 ≤ 289.9 → `completed=True`, `completed_date=today`
+- Weight climbs to 292 → `completed=False`, `completed_date=None` (cleared)
+- Weight drops back to 285 → `completed=True` again
+- Reality wins. Always.
+
+**Boundary semantics confirmed:** 289.9 ≤ 289.9 with `lte` operator → complete (tested).
+
+**Files Modified:**
+- `apps/purpose/models.py` — 3 nullable fields on `GoalMilestone` + choice constants + Phase 1 docstring
+- `apps/purpose/migrations/0017_objective_weight_milestone.py` — NEW schema migration
+- `apps/purpose/migrations/0018_wire_france_289_9_milestone.py` — NEW targeted wiring + initial eval
+- `apps/purpose/services/objective_weight_milestones.py` — NEW evaluator + repair utility (142 lines)
+- `apps/health/signals.py` — `WeightEntry.post_save` calls evaluator (fail-soft, ~25 lines)
+- `apps/purpose/tests/test_objective_weight_milestone.py` — NEW, 14 tests across 8 classes
+
+**Verification:**
+- 14/14 new Phase 1 tests pass
+- 48/48 combined regression (Phase 1 + Phase 3 + Phase 4 + Phase A daily-summary) passes
+- `makemigrations --check` clean
+
+**Blast radius (strict):**
+- Achievement milestones (the existing universe — Ran 10K, Visited France, etc.) untouched: evaluator filters on `objective_metric="weight_lb"`, achievement rows have it `null`.
+- Wiring migration scope: narrow string filter; matches only the documented production-evidence row.
+- Signal cost: ~1 indexed SELECT + small qs SELECT + 0–N small UPDATEs per WeightEntry save. Sub-millisecond.
+- Rollback: schema fields nullable so leaving them after revert is harmless; wiring migration has `reverse_code`; signal handler is one block.
+
+**Explicitly NOT in this PR (Phase 1 scope discipline):**
+- ❌ Other metrics (body fat, steps, A1C, BP) — Phase 2+
+- ❌ Other operators (gte, eq)
+- ❌ Regex parsing of arbitrary milestone titles
+- ❌ Generalized milestone framework / metric registry / compare-op abstraction
+- ❌ Beth narration changes (truth first; once `completed=True` persists, her existing readers see the truth automatically)
+- ❌ UI changes
+- ❌ Purpose redesign
+
+**Before / after:**
+
+| | Before | After deploy |
+|---|---|---|
+| Dashboard mission card | `0 / 12 milestones` | `1 / 12 milestones` (next render) |
+| 289.9 milestone state | `completed=False` (forever) | `completed=True` (288.8 ≤ 289.9) |
+| Future regression to 292 | (nothing happens) | Auto-uncompletes |
+| Future recovery to 285 | (nothing happens) | Auto-re-completes |
+| Beth's response | "manually update or confirm" (context-starved hallucination) | reads `completed=True` from state — no manual workflow surfaced |
+
+---
+
 ## 2026-06-03 — fix(nutrition): Preferences nutrition goals now write the gram store the CoS/SAE reads (single source of truth)
 
 **The trust break:** the assistant grounded protein guidance on `"Target: 40g"` — a stored value the user could no longer correct. Two disconnected nutrition-goal stores existed: `UserPreferences` holds macro **percentages** (`protein_percentage`/`carbs_percentage`/`fat_percentage` + `daily_calorie_goal`), edited via the Preferences "Nutrition Goals" accordion; `NutritionGoals` holds macro **grams** (`daily_protein_target_g` etc.), which is what `build_nutrition_state` (`apps/core/ai_state/state_builder.py:1937-1938`) and the dashboard actually read. Editing Preferences never touched the gram store, so the two drifted and the stale 40g target persisted.

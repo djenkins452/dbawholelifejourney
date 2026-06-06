@@ -108,6 +108,37 @@ def resolve_stale_weight_insights_on_new_entry(sender, instance, created, **kwar
         )
 
 
+@receiver(post_save, sender='health.WeightEntry')
+def evaluate_objective_weight_milestones_on_save(sender, instance, **kwargs):
+    """Phase 1 — bidirectional weight milestone convergence.
+
+    Every WeightEntry write (create OR update) re-evaluates the user's
+    objective weight milestones so the goal layer reflects reality
+    immediately. The evaluator filters on objective_metric="weight_lb"
+    + objective_operator="lte" so achievement milestones are never
+    touched.
+
+    Fires on both create AND update so a weight CORRECTION also
+    converges. Idempotent on the evaluator side (no DB write if state
+    already matches). Fail-soft: never raises into the caller —
+    WeightEntry.save() is the trust contract here.
+    """
+    if not instance.user_id:
+        return
+    try:
+        from apps.purpose.services.objective_weight_milestones import (
+            evaluate_weight_milestones,
+        )
+        evaluate_weight_milestones(instance.user)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "objective weight milestone re-eval skipped "
+            "(user=%s entry=%s): %s",
+            instance.user_id, instance.id, e, exc_info=True,
+        )
+
+
 @receiver(post_save, sender='health.WorkoutSession')
 def handle_workout_session_completed(sender, instance, **kwargs):
     """

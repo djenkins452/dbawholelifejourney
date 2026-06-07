@@ -341,6 +341,7 @@ urlpatterns = [
     # Body Composition
     path("physical/body-composition/", views_body_composition.BodyCompositionListView.as_view(), name="body_composition_list"),
     path("physical/body-composition/log/", views_body_composition.BodyCompositionCreateView.as_view(), name="body_composition_create"),
+    path("physical/body-composition/export/", views_body_composition.BodyCompositionExportView.as_view(), name="body_composition_export"),
     path("physical/body-composition/<int:pk>/edit/", views_body_composition.BodyCompositionUpdateView.as_view(), name="body_composition_update"),
     path("physical/body-composition/<int:pk>/delete/", views_body_composition.BodyCompositionDeleteView.as_view(), name="body_composition_delete"),
 

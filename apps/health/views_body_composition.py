@@ -2,10 +2,15 @@
 Body Composition & Health Profile Views.
 """
 
+import csv
+from datetime import datetime, timedelta
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy
+from django.utils import timezone
 from django.views.generic import CreateView, ListView, UpdateView, View
 
 from apps.core.views import SaveAddAnotherMixin, UndoDeleteMixin
@@ -17,6 +22,7 @@ from .models import (
     BodyCompositionEntry,
     HealthProfile,
 )
+from .services.body_composition_snapshot import METRIC_LABELS
 
 
 class BodyCompositionListView(HelpContextMixin, LoginRequiredMixin, ListView):
@@ -120,6 +126,142 @@ class BodyCompositionDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
             BodyCompositionEntry.objects.filter(user=self.request.user),
             pk=self.kwargs["pk"],
         )
+
+
+class BodyCompositionExportView(LoginRequiredMixin, View):
+    """Export body composition entries as CSV or Excel.
+
+    Query params:
+        format:    'csv' (default) or 'xlsx'
+        from_date: ISO date — inclusive lower bound (optional)
+        to_date:   ISO date — inclusive upper bound (optional)
+
+    When no date range is supplied, exports ALL entries. Read-only.
+    Soft-deleted rows are excluded by the default SoftDeleteManager
+    (the BodyCompositionEntry queryset already excludes status="deleted"
+    in production paths).
+
+    Columns: Date, Metric, Value, Unit, Source, Notes — plus optional
+    Previous Value / Difference / Percent Change. Order is fixed.
+    """
+
+    COLUMNS = [
+        "Date", "Metric", "Value", "Unit", "Source", "Notes",
+        "Previous Value", "Difference", "Percent Change",
+    ]
+
+    def _parse_date(self, raw):
+        if not raw:
+            return None
+        try:
+            return datetime.strptime(raw, "%Y-%m-%d").date()
+        except (TypeError, ValueError):
+            return None
+
+    def _build_rows(self, user, from_date, to_date):
+        """Return list[dict] in column order. Deterministic."""
+        qs = BodyCompositionEntry.objects.filter(user=user)
+        if from_date is not None:
+            qs = qs.filter(measurement_date__gte=from_date)
+        if to_date is not None:
+            qs = qs.filter(measurement_date__lte=to_date)
+        # Group by metric to compute Previous Value / Difference /
+        # Percent Change row-by-row. We iterate in chronological order so
+        # the "previous" reference is the most recent earlier value for
+        # that same metric.
+        entries = list(qs.order_by("measurement_date", "created_at"))
+        last_per_metric = {}
+        rows = []
+        for e in entries:
+            metric_label = METRIC_LABELS.get(e.metric_name, e.metric_name)
+            prior = last_per_metric.get(e.metric_name)
+            if prior is not None:
+                diff = float(e.value) - float(prior)
+                pct = (
+                    round((diff / float(prior)) * 100, 1)
+                    if float(prior) != 0 else ""
+                )
+                prior_val = float(prior)
+            else:
+                diff = ""
+                pct = ""
+                prior_val = ""
+            rows.append({
+                "Date": e.measurement_date.isoformat(),
+                "Metric": metric_label,
+                "Value": float(e.value),
+                "Unit": e.unit,
+                "Source": e.get_source_display() if e.source else "",
+                "Notes": (e.notes or "").replace("\n", " ").strip(),
+                "Previous Value": prior_val,
+                "Difference": diff if diff == "" else round(diff, 2),
+                "Percent Change": pct,
+            })
+            last_per_metric[e.metric_name] = e.value
+        return rows
+
+    def _filename_stem(self, from_date, to_date):
+        today = timezone.now().date().isoformat()
+        if from_date and to_date:
+            return f"body-composition-{from_date}-to-{to_date}"
+        if from_date:
+            return f"body-composition-from-{from_date}"
+        if to_date:
+            return f"body-composition-through-{to_date}"
+        return f"body-composition-{today}"
+
+    def get(self, request, *args, **kwargs):
+        fmt = (request.GET.get("format") or "csv").lower()
+        from_date = self._parse_date(request.GET.get("from_date"))
+        to_date = self._parse_date(request.GET.get("to_date"))
+
+        rows = self._build_rows(request.user, from_date, to_date)
+        stem = self._filename_stem(from_date, to_date)
+
+        if fmt in ("xlsx", "excel"):
+            return self._respond_xlsx(rows, stem)
+        return self._respond_csv(rows, stem)
+
+    def _respond_csv(self, rows, stem):
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = (
+            f'attachment; filename="{stem}.csv"'
+        )
+        writer = csv.writer(response)
+        writer.writerow(self.COLUMNS)
+        for r in rows:
+            writer.writerow([r[col] for col in self.COLUMNS])
+        return response
+
+    def _respond_xlsx(self, rows, stem):
+        """Best-effort Excel export. Falls back to CSV when openpyxl
+        is unavailable so the export button never errors out."""
+        try:
+            from openpyxl import Workbook
+        except ImportError:
+            # Graceful degradation — exact same data, .csv extension.
+            return self._respond_csv(rows, stem)
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Body Composition"
+        ws.append(self.COLUMNS)
+        for r in rows:
+            ws.append([r[col] for col in self.COLUMNS])
+        from io import BytesIO
+        buf = BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        response = HttpResponse(
+            buf.read(),
+            content_type=(
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            ),
+        )
+        response["Content-Disposition"] = (
+            f'attachment; filename="{stem}.xlsx"'
+        )
+        return response
 
 
 class HealthProfileView(HelpContextMixin, LoginRequiredMixin, UpdateView):

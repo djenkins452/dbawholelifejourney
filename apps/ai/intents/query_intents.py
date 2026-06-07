@@ -67,7 +67,7 @@ QUERY_INTENT_TOOLS = [
                             "sleep", "weight", "glucose", "blood_pressure",
                             "heart_rate", "steps", "water", "nutrition",
                             "fasting", "journal", "faith", "habits",
-                            "finance", "all",
+                            "finance", "body_composition", "all",
                         ],
                         "description": (
                             "Which domain to query. Match to data type: "
@@ -86,6 +86,12 @@ QUERY_INTENT_TOOLS = [
                             "'faith' for prayer/Bible reading, "
                             "'habits' for habit tracking, "
                             "'finance' for spending/transactions/budget, "
+                            "'body_composition' for body measurements: "
+                            "waist, chest, arms, forearms, thighs, calves, "
+                            "hips, neck, shoulders, body fat %, lean mass, "
+                            "fat mass, BMI, BMR. Use for 'measurements', "
+                            "'compare to last time', 'how did my waist change?', "
+                            "'what are my latest measurements?'. "
                             "'all' for cross-domain or unclear."
                         ),
                     },

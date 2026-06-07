@@ -6673,6 +6673,23 @@ class ActionHandler:
                         action_type='query_event_history',
                     )
 
+                # 2026-06-07 — Body composition routes through the
+                # canonical snapshot for deterministic "latest vs previous"
+                # answers. NEVER falls back to "I don't have access"
+                # when first-party measurements exist in WLJ.
+                # The comparison message is built in the body-composition
+                # adapter from the SAE-grade snapshot — Beth NEVER queries
+                # BodyCompositionEntry directly.
+                if domain == 'body_composition':
+                    from apps.core.ai_events.adapters import (
+                        body_composition as bc_adapter,
+                    )
+                    message = bc_adapter.get_comparison_message(self.user)
+                    return ActionResult(
+                        success=True, message=message,
+                        action_type='query_event_history',
+                    )
+
                 # If target_date specified, get events for that date.
                 # The adapter is date-aware: past/today → logged truth,
                 # future → planned truth. Handler stays domain-agnostic.

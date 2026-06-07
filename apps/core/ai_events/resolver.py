@@ -29,6 +29,11 @@ _DOMAIN_ADAPTERS = {
     # Health — vitals & measurements
     'sleep': 'apps.core.ai_events.adapters.sleep',
     'weight': 'apps.core.ai_events.adapters.weight',
+    # 2026-06-07 — Body composition: waist / chest / arms / thighs /
+    # body fat / lean mass / BMI. Routes "compare to last time" via
+    # the deterministic snapshot, never via direct table queries
+    # inside Beth.
+    'body_composition': 'apps.core.ai_events.adapters.body_composition',
     'glucose': 'apps.core.ai_events.adapters.glucose',
     'blood_pressure': 'apps.core.ai_events.adapters.blood_pressure',
     'heart_rate': 'apps.core.ai_events.adapters.heart_rate',

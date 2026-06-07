@@ -19,6 +19,26 @@
         <a href="{% url 'health:body_composition_create' %}" class="btn btn-primary">Log Measurement</a>
     </div>
 
+    {# ── Export bar (2026-06-07) ──────────────────────────────────── #}
+    {% if total_count > 0 %}
+    <form method="get" action="{% url 'health:body_composition_export' %}"
+          class="bc-export-bar mb-4"
+          style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:10px 12px; background:var(--color-surface, #f9fafb); border:1px solid var(--color-border, #e5e7eb); border-radius:8px;">
+        <span class="bc-export-label" style="font-size:0.78rem; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:var(--color-text-mute, #4b5563);">Export</span>
+        <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.85rem;">
+            <span>From</span>
+            <input type="date" name="from_date" value="{{ request.GET.from_date|default:'' }}" style="font-size:16px; padding:4px 8px; border:1px solid var(--color-border, #d1d5db); border-radius:6px;">
+        </label>
+        <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.85rem;">
+            <span>Through</span>
+            <input type="date" name="to_date" value="{{ request.GET.to_date|default:'' }}" style="font-size:16px; padding:4px 8px; border:1px solid var(--color-border, #d1d5db); border-radius:6px;">
+        </label>
+        <button type="submit" name="format" value="csv" class="btn btn-secondary" style="padding:6px 14px;">Export CSV</button>
+        <button type="submit" name="format" value="xlsx" class="btn btn-secondary" style="padding:6px 14px;">Export Excel</button>
+        <span class="bc-export-hint" style="font-size:0.75rem; color:var(--color-text-soft, #6b7280);">Leave dates blank to export everything.</span>
+    </form>
+    {% endif %}
+
     {% if metrics_summary %}
         <!-- Latest Values Summary -->
         <div class="stats-bar mb-6">

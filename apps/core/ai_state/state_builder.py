@@ -499,6 +499,38 @@ def build_health_state(user):
         state["fat_mass_current"] = float(latest_fm[0])
         state["last_fat_mass_entry"] = latest_fm[1].isoformat()
 
+    # ── Canonical body composition snapshot ────────────────────
+    # 2026-06-07 — Beth must NEVER directly query BodyCompositionEntry.
+    # Single deterministic snapshot covers latest measurements per
+    # metric, prior values, deltas, biggest improvement, and a
+    # human-readable trend summary. Used by:
+    #   - Beth body-composition adapter (read-only; no LLM math)
+    #   - "Compare to last time" intents
+    #   - Future dashboard surfaces (mission card, etc.)
+    # Read-only, defensive — any failure leaves the field absent and
+    # downstream consumers degrade gracefully.
+    try:
+        from apps.health.services.body_composition_snapshot import (
+            build_body_composition_snapshot,
+        )
+        bc_snap = build_body_composition_snapshot(user)
+        if bc_snap is not None:
+            # Dates → isoformat strings so the snapshot survives JSON
+            # round-trips in SAE storage.
+            bc_serialized = dict(bc_snap)
+            if bc_serialized.get("latest_date") is not None:
+                bc_serialized["latest_date"] = bc_serialized["latest_date"].isoformat()
+            if bc_serialized.get("previous_date") is not None:
+                bc_serialized["previous_date"] = (
+                    bc_serialized["previous_date"].isoformat()
+                )
+            state["body_composition"] = bc_serialized
+    except Exception:
+        logger.warning(
+            "health state: body_composition snapshot failed for user=%s",
+            getattr(user, "id", "?"), exc_info=True,
+        )
+
     # BMI
     latest_bmi = (
         BodyCompositionEntry.objects.filter(

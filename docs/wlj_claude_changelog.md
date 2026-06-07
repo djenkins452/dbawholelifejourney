@@ -7,6 +7,140 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-07 — feat(health): Body Composition Snapshot + Beth grounding fix + CSV/Excel export
+
+**The trust break (production evidence):** User logged a full body-comp scan (chest, waist, arms L/R, forearms L/R, thighs L/R, calves L/R, BMI, body fat %, etc.) and asked Beth "give me the differences between now and last time I logged them." Beth replied "I don't have your latest measurements in my current view." Unacceptable — the measurements existed in WLJ, the user had just entered them, Beth should NEVER behave like an external chatbot toward first-party WLJ data.
+
+**The fix — canonical Body Composition Snapshot in SAE health state:**
+
+New deterministic service `apps/health/services/body_composition_snapshot.py` builds a single canonical `body_composition` block on the SAE health state. Comparison rule is locked: **latest measurement date vs the most recent PRIOR measurement date** — per metric. NOT average. NOT rolling window. The literal eyeball comparison the user would make. Beth consumes this snapshot via a new EventResolver adapter — Beth NEVER queries `BodyCompositionEntry` directly.
+
+**Snapshot shape (consumed by SAE health state + Beth body-comp adapter):**
+```python
+{
+  "latest_date":   date, "previous_date": date, "days_between": int,
+  "latest":   {metric_name: float, ...},
+  "previous": {metric_name: float, ...},   # value at PREVIOUS DATE per metric
+  "units":    {metric_name: str,   ...},
+  "delta":    {metric_name: float | None, ...},
+  "delta_pct":{metric_name: float | None, ...},
+  "metric_labels": {metric_name: human_label},
+  "largest_improvement": {metric, delta, label} | None,
+  "largest_regression":  {metric, delta, label} | None,
+  "trend_summary": [human-readable verdict, ...],
+  "sync_stale": bool, "total_metrics_tracked": int,
+}
+```
+
+**Direction-of-improvement is strict and deterministic.** Waist / hips / thighs / body fat / fat mass / visceral fat / BMI / metabolic age = down is good. Lean mass / skeletal muscle / bone mass = up is good. Chest / arms / forearms / calves / shoulders / neck / BMR = **neutral** — direction depends on phase, never auto-classified. No fabricated "good news" — the service never invents goal context. `largest_improvement` can never be chest going up.
+
+**Per-metric noise thresholds** keep tape-measure/scale jitter out of the human verdicts ("Waist stable" vs "Waist trending down (improving)") but are NEVER applied to the raw delta — the user always sees the literal number.
+
+**Beth routing — new body_composition domain:**
+Added to `query_event_history` intent enum + handler dispatch + EventResolver registry. When the user asks "compare my measurements", "what changed since last time?", "how did my waist change?", etc., Beth routes to the body-composition adapter, which calls the snapshot's `render_comparison_message()` — returning a grounded, specific, deterministic message. The "I don't have access" failure mode is now structurally impossible while data exists.
+
+Example renders:
+```
+You logged new body measurements on Jun 7, 2026.
+
+Compared to your previous measurement on May 18, 2026:
+Arm (Left): +0.18in
+Arm (Right): +0.2in
+Chest: +0.8in
+Thigh (Left): -0.47in
+Thigh (Right): +0.05in
+Waist: -1.4in
+
+Biggest win: Waist moved -1.4in — a meaningful step in the right direction.
+```
+
+**Body Composition export (CSV / Excel):**
+New `BodyCompositionExportView` at `/health/physical/body-composition/export/`. Date-range filtering (`from_date`, `to_date`), deterministic columns: Date, Metric, Value, Unit, Source, Notes, Previous Value, Difference, Percent Change. Excel format degrades gracefully to CSV when openpyxl isn't installed. Date selectors + Export CSV / Export Excel buttons added to the body composition list page, near "Log Measurement", with the existing WLJ button styling. No JS — pure GET form, CSP-clean.
+
+**Files Added:**
+- `apps/health/services/body_composition_snapshot.py` — pure-Python snapshot builder + `render_comparison_message()` + `render_latest_message()` + display/improvement/noise tables
+- `apps/core/ai_events/adapters/body_composition.py` — EventResolver adapter for body_composition domain
+- `apps/health/tests/test_body_composition_snapshot.py` — 24 tests covering empty state, latest-vs-previous contract, first-entry edge case, partial overlap, neutral-metric protection, SAE wiring, Beth handler routing, EventResolver registration, latest-message helper, export view (CSV + Excel + date range), stale flag
+
+**Files Modified:**
+- `apps/core/ai_state/state_builder.py` — wire `build_body_composition_snapshot()` into `build_health_state()`; serialize dates to ISO strings; defensive try/except so any failure leaves the field absent without breaking the broader health state
+- `apps/core/ai_events/resolver.py` — register `body_composition` in `_DOMAIN_ADAPTERS`
+- `apps/ai/intents/query_intents.py` — add `body_composition` to the domain enum + description listing the trigger phrases
+- `apps/ai/action_handlers.py` — `handle_query_event_history()` now routes `body_composition` lookup through the adapter's deterministic comparison message
+- `apps/health/views_body_composition.py` — new `BodyCompositionExportView` (CSV + XLSX with fallback)
+- `apps/health/urls.py` — `body_composition_export` URL
+- `templates/health/body_composition_list.html` — date-range + export buttons (rendered only when total_count > 0)
+
+**Untouched on purpose:**
+- `BodyCompositionEntry` model — no schema change, no migration
+- `apps/health/services/body_composition_intelligence.py` — different scope (fat-loss-quality / plateau / muscle-loss-risk at daily-rollup time). Snapshot serves the "what changed?" question; intelligence service serves the "is my fat loss healthy?" question
+- Existing `body_fat_current` / `waist_current` SAE fields — kept as-is for back-compat; the new `body_composition` block is additive
+- Beth's chat code path — no direct DB query added; all routing through the deterministic snapshot
+
+**Why:** First-party WLJ data should never make Beth sound like a stranger. The user's failure mode ("I don't have your latest measurements") is structurally impossible now: when data exists, the snapshot exists, the adapter routes through it, and Beth gets a grounded answer. PRs are still detected; PRs are NEVER the framing for body-comp answers.
+
+**Test results:** `apps.health.tests.test_body_composition_snapshot` 24/24 passing in 8.3s. Scoped regression (`health.test_body_composition_snapshot + core.ai_events + health.test_pr_detection + ai.tests`): 57/58 passing — 1 pre-existing failure in `core.ai_events.tests.test_followup.test_existing_routes_still_work_with_conversation` (unrelated; FollowUpRouter; verified pre-existing at `22d57c90` by stash/test/restore). `makemigrations --check`: clean. `python manage.py check`: clean.
+
+## 2026-06-07 — feat(health): Double Progression Strength Intelligence — replace PR-chasing with earned progression
+
+**The trust break (production evidence):** The Health accountability card surfaced "You've been training consistently but haven't set new PRs. Try increasing weight by 5%, adding an extra set, or switching to a different exercise variation to break through the plateau." This generic advice contradicts the user's training philosophy: at 55 with type-II diabetes, supporting weight loss + the France 2027 10K mission, the goal is sustainable progression and joint longevity — not PR chasing. The system also could not distinguish "completed comfortably" from "barely survived."
+
+**The fix — earned progression based on real workout history:**
+
+New deterministic service `apps/health/services/double_progression.py` (~400 lines, pure Python) replaces the PR-centric framing across the entire pipeline. PRs are still detected upstream (unchanged) but stop being the trigger word for advice — they become a byproduct, not the goal.
+
+**Ladder model (approved spec):**
+- Compound / heavier movements: `10 → 12 → +5 lb` (joint cost high — chest press, leg press, rows, squat, deadlift variants, overhead press)
+- Isolation / safer movements: `10 → 12 → 15 → +2.5 lb` (lower systemic fatigue — curls, pushdowns, raises, machine accessories)
+
+**Path A classification (no migration):**
+Pattern-table lookup over existing `Exercise.name` + `muscle_group` + `load_type`. Isolation patterns checked first ("leg extension" beats "leg" + compound fallback). Unknown defaults to **isolation** — the safer ladder, smaller step. Reversible at any time.
+
+**Readiness gate (the explicit user-added contract — "completion = earned, NOT survival = earned"):**
+In the absence of RPE, the service uses six deterministic proxies. ALL must be clear for any progression rec to fire:
+1. ALL working sets at the top weight hit the target reps (one short set = not earned)
+2. No failure-note substrings in ExerciseSet.notes OR WorkoutExercise.notes ("failed", "form broke", "shaky", "struggled", etc.)
+3. SAE `fitness.workouts_7d >= 1` AND `workouts_30d >= 8`
+4. SAE `health.sleep_status != "poor"` AND last-night ≥ 5h
+5. SAE `fitness.recovery_score_today >= 50` (when present)
+6. SAE `health.illness_active != True`
+
+Any single failure → stage forced to `HOLDING` with `safety_holds` reasons listed. Fail-closed by design: when uncertain, "stay consistent" beats "increase load." Same rule even when SAE state is absent entirely.
+
+**Logic ≠ copy contract:**
+The service emits a structured `(stage, rationale_key, current numbers, next_target numbers)` dict per exercise. The renderer (`render_recommendation_copy()`) is the single canonical mapping from rationale_key → user-facing copy. Detection logic NEVER embeds coaching strings. PIE and Guidance rules dispatch on rationale_key, never on plateau-status strings.
+
+**Example output (earned reps, compound):**
+> "You've been consistent on chest press at 50 lb — three sessions at 10 reps. Consider moving toward 12 reps before increasing weight."
+
+**Example output (earned weight, isolation):**
+> "Three clean sessions on lateral raise at 15 lb × 15 reps. Consider a small increase — 17.5 or 20 lb — and return to 10 reps."
+
+**Example output (safety hold):**
+> "Stay consistent on shoulder press — recovery and sleep appear to be catching up."
+
+**Files Added:**
+- `apps/health/services/double_progression.py` — pure-Python service + classifier + copy builder
+- `apps/health/tests/test_double_progression.py` — 33 tests covering classification, ladder transitions per type, readiness gate (all 6 proxies + multi-hold stacking + fail-closed on missing state), idempotency, scoping, copy contract (PR never appears), constants pinning approved spec
+
+**Files Modified:**
+- `apps/core/ai_insights/rules_transformation.py` — `StrengthPlateauRule._evaluate_per_exercise()` rewritten to call `evaluate_double_progression()` + `render_recommendation_copy()` and surface only actionable + previously-momentum HOLDING recs; global-fallback message + title reframed to "Progression check-in" / stay-consistent (no PR framing, no aggressive default)
+- `apps/core/ai_guidance/guidance_rules_transformation.py` — `WorkoutFrequencyAdjustmentRule` strength_plateau branch now surfaces `insight.message` verbatim (the upstream pre-built earned rec) instead of pasting the offending "haven't set new PRs … Try increasing weight by 5%" string
+- `apps/health/tests/test_pr_detection.py` — two pinned tests updated to assert the new contract (per-exercise messaging requires real DB history; no fabrication from stub state) + global-fallback test updated for "progression" framing + assertion that "personal record", "plateau", and "5%" are absent from message
+- `apps/core/ai_insights/tests_transformation.py` — older per-exercise stub-state tests collapsed into one explicit contract test ("no fabricated advice from stub state"); auto-resolution test for active plateau now adds real 3-session DB history so Double Progression can ground the rec
+- `apps/dashboard_v3/tests/test_accountability_trust_fix.py` — long-body fixtures updated to the new neutral copy; trust contract under test (no greeting prepended, accordion expand) unchanged
+
+**Untouched on purpose:**
+- `apps/health/pr_utils.py` — PRs keep being detected; just stop being the trigger word
+- `Exercise` schema — no migration (Path A)
+- `apps/health/services/fitness_progression.py` — workout-prefill consumer; cosmetic Phase 2 cleanup deferred
+- Dashboard v3 composer / mission card / weight status — entirely separate surface
+- Beth / CoS briefing — never directly consulted; reads composed deterministic state
+
+**Why:** Generic PR-chasing advice contradicted the user's actual goals. Earned, deterministic progression based on real workout history honors the philosophy: consistency and sustainable progression > PR chasing. The readiness gate explicitly distinguishes completion from survival — multiple SAE-grounded proxies that fail closed when uncertain.
+
+**Test results:** `apps.health.tests.test_double_progression` 33/33 passing. Combined `test_pr_detection + test_double_progression + tests_transformation + ai_guidance + test_accountability_trust_fix` regression: **270/270 passing.** `makemigrations --check`: clean. `python manage.py check`: clean.
+
 ## 2026-06-06 — feat(dashboard_v3): Mission Card always-on Weight Status block
 
 **The visibility break:** On the France 2027 mission card, current weight was effectively hidden inside a milestone *title* ("Goal Weight of 289.9"). To know "am I closer or further from my next milestone right now?" the user had to mentally compute the delta from a string. With weight as the central mission lever, that violates the truth-first contract — every truthful state (improving, stalled, trending up, no weigh-in, sync stale, at-target) must be visible at a glance.

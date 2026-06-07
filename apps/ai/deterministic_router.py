@@ -4348,42 +4348,157 @@ def _handle_sleep_query(user):
     return response
 
 
-def _match_glucose_query(msg_lower):
-    """Match direct glucose/blood sugar status questions."""
+# ── Glucose query routing — Layer B trust fix (2026-06-07) ──────────
+#
+# Hard split between event-style ("what was my last reading?") and
+# summary-style ("how is my glucose this week?") questions. LATEST
+# wins on overlap so a question like "what was my last glucose" is
+# never answered with the 7-day average.
+#
+# Ambiguity rules (locked by test_glucose_routing.py):
+#   "this week" / "this month" / "average" / "trend" / "a1c" /
+#   "time in range" / "how is" / "how have" → SUMMARY anchors (win
+#   even when "glucose" appears).
+#   "last" / "latest" / "most recent" / "right now" / "current" /
+#   "what time" / "when was" → LATEST anchors.
+#   Bare "my glucose" / "my blood sugar" → SUMMARY (conservative
+#   default — never claims to be latest).
+
+_GLUCOSE_LATEST_TRIGGERS = frozenset([
+    "last glucose", "last blood sugar", "last reading",
+    "latest glucose", "latest blood sugar", "latest reading",
+    "most recent glucose", "most recent blood sugar",
+    "most recent reading",
+    "what was my last", "what was the last",
+    "when was my glucose", "when was my last glucose",
+    "what time was my glucose", "what time was my last reading",
+    "what time was that reading", "what time was that",
+    "glucose right now", "blood sugar right now",
+    "current glucose", "current blood sugar",
+])
+
+# Phrases that, when present, force SUMMARY interpretation regardless
+# of any LATEST trigger that might also appear. Example:
+# "what was my glucose this week" → "this week" wins → SUMMARY.
+_GLUCOSE_SUMMARY_ANCHORS = frozenset([
+    "this week", "this month", "last week", "last month",
+    "average", "trend", "a1c", "time in range",
+    "how is my glucose", "how is my blood sugar",
+    "how have my numbers", "how have i been",
+    "weekly", "monthly",
+])
+
+_GLUCOSE_SUMMARY_TRIGGERS = frozenset([
+    "what's my glucose", 'whats my glucose', 'what is my glucose',
+    'my glucose', 'glucose level', 'blood sugar',
+    'glucose average', 'glucose this week', 'glucose this month',
+    'glucose trend', 'weekly glucose', 'monthly glucose',
+    'estimated a1c', 'a1c', 'time in range',
+    'show my glucose', 'glucose check', 'glucose stats',
+    'my blood sugar', "what's my blood sugar", 'whats my blood sugar',
+    'how is my glucose', 'how is my blood sugar',
+    'how have my numbers been', 'how have my numbers',
+])
+
+
+def _match_glucose_latest_query(msg_lower):
+    """Match event-style ("what was my LAST reading?") glucose queries."""
     if _is_future_tense_query(msg_lower):
         return False
-    _GLUCOSE_INTENT = frozenset([
-        "what's my glucose", 'whats my glucose', 'what is my glucose',
-        'my glucose', 'glucose level', 'blood sugar',
-        'glucose average', 'glucose this week',
-        'show my glucose', 'glucose check', 'glucose stats',
-        'my blood sugar', "what's my blood sugar", 'whats my blood sugar',
-    ])
-    if any(p in msg_lower for p in _GLUCOSE_INTENT):
-        _EXCLUDE = ['log', 'record', 'set', 'enter']
-        if not any(e in msg_lower for e in _EXCLUDE):
-            return True
+    if any(e in msg_lower for e in ('log', 'record', 'enter')):
+        return False
+    # Summary anchors override LATEST triggers — "what was my glucose
+    # THIS WEEK" is a summary question even though it contains "last".
+    if any(a in msg_lower for a in _GLUCOSE_SUMMARY_ANCHORS):
+        return False
+    return any(p in msg_lower for p in _GLUCOSE_LATEST_TRIGGERS)
+
+
+def _match_glucose_query(msg_lower):
+    """Match summary-style glucose questions (averages, A1C, TIR).
+
+    Kept under the original name so any external caller continues to
+    work. Latest-style queries are matched separately by
+    ``_match_glucose_latest_query`` and dispatched first.
+    """
+    if _is_future_tense_query(msg_lower):
+        return False
+    # If the message is a LATEST-style question, leave it for the
+    # latest matcher — don't double-match.
+    if _match_glucose_latest_query(msg_lower):
+        return False
+    _EXCLUDE = ['log ', 'record ', 'enter ']
+    if any(e in msg_lower for e in _EXCLUDE):
+        return False
+    if any(p in msg_lower for p in _GLUCOSE_SUMMARY_TRIGGERS):
+        return True
+    # Catch-all: any summary anchor + any glucose/blood-sugar token
+    # is a summary question, even if the exact phrase isn't in the
+    # trigger list. Examples: "average glucose", "a1c trend",
+    # "weekly blood sugar".
+    has_glucose_token = (
+        "glucose" in msg_lower
+        or "blood sugar" in msg_lower
+        or "a1c" in msg_lower
+    )
+    if has_glucose_token and any(
+        a in msg_lower for a in _GLUCOSE_SUMMARY_ANCHORS
+    ):
+        return True
     return False
 
 
+def _handle_glucose_latest_query(user):
+    """Return the deterministic LATEST glucose event response.
+
+    Routes through the canonical snapshot — NEVER queries GlucoseEntry
+    directly. Returns the trust-preserving copy when only summary data
+    is available. Returns ``None`` only when NO glucose data exists at
+    all (so the LLM can take over with a generic empty-state answer if
+    appropriate).
+    """
+    try:
+        from apps.core.ai_events.adapters.glucose import get_latest_message
+        return get_latest_message(user)
+    except Exception:
+        logger.warning("Glucose latest handler failed", exc_info=True)
+        return None
+
+
 def _handle_glucose_query(user):
-    """Build a deterministic glucose response from SAE state."""
+    """Build a deterministic glucose SUMMARY response from SAE state.
+
+    2026-06-07: rewritten to route through the canonical glucose
+    snapshot. The response is ALWAYS explicitly framed as average /
+    trend / estimate — NEVER labels itself as "latest" or "most
+    recent." That separation is the architectural fix locked at
+    Layer A; this is the surface that enforces it at the router level.
+    Falls back to the legacy SAE-keyed response only when the snapshot
+    has nothing (true no-data case).
+    """
+    try:
+        from apps.core.ai_events.adapters.glucose import get_summary_message
+        from apps.health.services.glucose_snapshot import build_glucose_summary
+        if build_glucose_summary(user) is not None:
+            return get_summary_message(user)
+    except Exception:
+        logger.warning("Glucose summary snapshot failed", exc_info=True)
+
+    # Legacy fallback — SAE flat keys. Preserved so no-data /
+    # snapshot-error users still get a deterministic reply rather than
+    # a generic "no data" string.
     from apps.core.ai_state.state_engine import get_module_state
     health = get_module_state(user, 'health') or {}
-
     glucose = health.get('glucose_avg_7d')
     if glucose is None:
-        return None  # No data → fall through
-
-    response = f"Your 7-day average glucose is **{int(glucose)} mg/dL**."
-
+        return None
+    response = f"Your **7-day average glucose** is **{int(glucose)} mg/dL**."
     if glucose < 100:
         response += " That's in the normal range."
     elif glucose < 126:
         response += " That's in the pre-diabetic range — worth watching."
     else:
         response += " That's elevated — something to discuss with your doctor."
-
     return response
 
 
@@ -4639,6 +4754,16 @@ def _register_builtin_routes():
     register_data_route('weight_query', _match_weight_query, _handle_weight_query, 'health')
     register_data_route('workout_query', _match_workout_query, _handle_workout_query, 'health')
     register_data_route('sleep_query', _match_sleep_query, _handle_sleep_query, 'health')
+    # 2026-06-07 — glucose LATEST event route registered BEFORE the
+    # summary route so it's checked first. Latest-style questions
+    # ("what was my last reading?", "what time?", "glucose right now")
+    # MUST never fall into the summary handler.
+    register_data_route(
+        'glucose_latest_query',
+        _match_glucose_latest_query,
+        _handle_glucose_latest_query,
+        'health',
+    )
     register_data_route('glucose_query', _match_glucose_query, _handle_glucose_query, 'health')
     register_data_route('medication_query', _match_medication_query, _handle_medication_query, 'health')
     register_data_route('steps_query', _match_steps_query, _handle_steps_query, 'health')

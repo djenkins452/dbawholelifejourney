@@ -227,13 +227,31 @@ def _format_single_lookup(event):
         return f"Your latest weight is **{detail.get('value')} {detail.get('unit', 'lb')}** ({date_str})."
 
     elif domain == 'glucose':
+        # 2026-06-07: glucose is time-sensitive. Preserve time-of-day +
+        # relative-age so the user can answer "what time was that?" at
+        # a glance. The prior render stripped both, which broke the
+        # trust contract when the follow-up question ("what time?")
+        # had no anchor in the response.
         val = detail.get('value')
         unit = detail.get('unit', 'mg/dL')
         ctx = detail.get('context', '')
-        resp = f"Your latest glucose reading is **{val} {unit}**"
+        ts = event.timestamp
+        when = _format_datetime(ts) if ts else date_str
+        age = _format_relative_age(ts) if ts else ""
+        resp = f"Your most recent glucose reading was **{val} {unit}**"
         if ctx:
             resp += f" ({ctx})"
-        resp += f" — {date_str}."
+        if age:
+            resp += f" at **{when}** ({age})."
+        else:
+            resp += f" at **{when}**."
+        # Surface Dexcom trend arrow when present — never invented.
+        trend = detail.get('trend', '')
+        if trend and trend not in ("none", "notComputable", "rateOutOfRange"):
+            from apps.health.services.glucose_snapshot import TREND_DISPLAY
+            t_label, t_arrow = TREND_DISPLAY.get(trend, ("", ""))
+            if t_label:
+                resp += f"\nTrend: {t_label} {t_arrow}"
         return resp
 
     elif domain == 'blood_pressure':
@@ -365,6 +383,95 @@ def _format_date(date_str):
             return d.strftime("%B %-d")  # "March 20"
     except (ValueError, TypeError):
         return str(date_str)
+
+
+def _format_datetime(dt_value):
+    """Format a datetime into "2:11 PM today" / "9:42 AM yesterday" /
+    "Mon 7:33 PM" / "Mar 20 4:15 PM".
+
+    Time-of-day preserved — unlike ``_format_date()``. Use this for
+    time-sensitive vitals (glucose, blood pressure, heart rate, SpO2).
+    Glucose specifically required this because the prior formatter
+    stripped time and the user's "what time was my reading?" question
+    had no anchor to bind to.
+    """
+    from datetime import datetime as _datetime
+    from django.utils import timezone as _tz
+    if dt_value is None:
+        return "unknown time"
+    if isinstance(dt_value, str):
+        try:
+            dt_value = _datetime.fromisoformat(dt_value)
+        except (TypeError, ValueError):
+            return str(dt_value)
+    if not hasattr(dt_value, "hour"):
+        return str(dt_value)
+    if dt_value.tzinfo is None:
+        try:
+            dt_value = _tz.make_aware(dt_value, _tz.get_current_timezone())
+        except Exception:
+            pass
+    try:
+        local_dt = _tz.localtime(dt_value)
+    except Exception:
+        local_dt = dt_value
+    now_local = _tz.localtime(_tz.now())
+    today = now_local.date()
+    target = local_dt.date()
+    time_part = local_dt.strftime("%-I:%M %p")
+    delta_days = (today - target).days
+    if delta_days == 0:
+        return f"{time_part} today"
+    if delta_days == 1:
+        return f"{time_part} yesterday"
+    if 0 < delta_days < 7:
+        return f"{local_dt.strftime('%a')} {time_part}"
+    return f"{local_dt.strftime('%b %-d')} {time_part}"
+
+
+def _format_relative_age(dt_value):
+    """Format "7 minutes ago" / "3 hours ago" / "yesterday" / "5 days ago".
+
+    Companion to ``_format_datetime``. Vitals are time-sensitive — the
+    user wants to know "how fresh is this number?" at a glance.
+    """
+    from datetime import datetime as _datetime
+    from django.utils import timezone as _tz
+    if dt_value is None:
+        return ""
+    if isinstance(dt_value, str):
+        try:
+            dt_value = _datetime.fromisoformat(dt_value)
+        except (TypeError, ValueError):
+            return ""
+    if not hasattr(dt_value, "hour"):
+        return ""
+    if dt_value.tzinfo is None:
+        try:
+            dt_value = _tz.make_aware(dt_value, _tz.get_current_timezone())
+        except Exception:
+            pass
+    try:
+        delta = _tz.now() - dt_value
+    except Exception:
+        return ""
+    minutes_ago = max(0, int(round(delta.total_seconds() / 60)))
+    if minutes_ago < 1:
+        return "just now"
+    if minutes_ago < 60:
+        return f"{minutes_ago} minute{'s' if minutes_ago != 1 else ''} ago"
+    hours = minutes_ago // 60
+    if hours < 24:
+        return f"{hours} hour{'s' if hours != 1 else ''} ago"
+    days = hours // 24
+    if days == 1:
+        return "yesterday"
+    if days < 7:
+        return f"{days} days ago"
+    weeks = days // 7
+    if weeks == 1:
+        return "1 week ago"
+    return f"{weeks} weeks ago"
 
 
 def _status_icon(status):

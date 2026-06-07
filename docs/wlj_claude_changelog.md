@@ -7,6 +7,76 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-07 — feat(health): Glucose Event Grounding — hard split between latest event and summary state
+
+**The trust break (production evidence):**
+> User: *"What was my last blood glucose reading and when?"*
+> Beth: *"Your last blood glucose reading was 119 mg/dL..."* ← the 7-day average
+> User: *"What time was that reading?"*
+> Beth: *"I don't have the exact time in my current view..."*
+
+119 mg/dL was the weekly average (`glucose_avg_7d`), NOT a timestamped reading. Beth confidently substituted summary data for an event answer — a hallucination that is unacceptable for health data. Two converging defects: (1) the LLM saw the summary scalar in COS context and mistook it for "latest"; (2) the formatter stripped time-of-day even when the correct adapter path fired.
+
+**The fix — four-layer architectural split:**
+
+**Layer A — SAE Split.** New `apps/health/services/glucose_snapshot.py`. Hard-separated blocks on the health state:
+- `health.glucose_latest` — single timestamped event (value, unit, ISO timestamp, context, source, trend label + arrow, trend_rate, minutes_ago, stale flag)
+- `health.glucose_summary` — aggregates (7d/30d/90d averages, time-in-range, projected A1C with confidence, trend_7d_vs_30d, reading_count_90d, overnight_avg, sync_stale)
+
+Each is built independently — one missing NEVER falls back to the other. Legacy SAE keys (`latest_glucose`, `glucose_avg_7d`, `glucose_context`, `projected_a1c`, etc.) preserved for back-compat. Every existing consumer (health_briefing, intelligence, metric_registry, assistant data_service) continues working unchanged.
+
+**Layer B — Deterministic Router Split.**
+- `_match_glucose_latest_query` matches event-style triggers: `"last glucose"`, `"latest reading"`, `"most recent glucose"`, `"what was my last"`, `"when was my glucose"`, `"what time was my glucose"`, `"glucose right now"`, `"current glucose"`, etc.
+- `_match_glucose_query` (existing name, refactored) matches summary triggers: `"average glucose"`, `"glucose this week"`, `"trend"`, `"a1c"`, `"time in range"`, etc.
+- LATEST route registered BEFORE summary route so it wins on overlap.
+- **Summary anchors override LATEST triggers.** "What was my glucose **this week**" → SUMMARY (because "this week" is a summary anchor). "What's my glucose **right now**" → LATEST. Bare "my glucose" → SUMMARY (conservative default — never claims to be latest).
+- New `_handle_glucose_latest_query` reads ONLY `state["glucose_latest"]`, renders time + relative-age + trend + source. Returns the trust-preserving copy when summary exists but latest is None.
+
+**Layer C — Formatter Fix.** Added `_format_datetime()` and `_format_relative_age()` to `apps/core/ai_events/formatters.py`. Time-of-day preserved ("2:11 PM today" / "Mon 7:33 PM" / "Mar 20 4:15 PM"). Relative-age phrase always present ("7 minutes ago" / "3 hours ago"). Glucose is time-sensitive — freshness matters. Glucose branch in `_format_single_lookup` now uses both helpers + surfaces Dexcom trend arrow.
+
+**Layer D — COS Context Smuggling Fix.** In `apps/core/ai_orchestrator/cos_context.py`, the LLM-facing dict key renamed:
+```python
+health_signals['glucose_avg_7d'] = ...   →   health_signals['glucose_summary_avg_7d'] = ...
+```
+Added `health_signals['glucose_latest_age_minutes']` as the only valid latest-event anchor the LLM can see. Internal SAE key `health.glucose_avg_7d` stays unchanged — only the LLM-facing surface gets the unambiguous name. The renderer at L7656 reads the new key first, falls back to legacy.
+
+**Example production output (after fix):**
+```
+Your most recent glucose reading was **143 mg/dL** (cgm) at **2:11 PM today** (7 minutes ago).
+
+Trend: steady →
+Source: Dexcom CGM
+```
+
+**Trust-preserving copy when only summary exists:**
+> "I can see your glucose summary, but I don't currently have access to the latest timestamped Dexcom reading."
+
+Never the generic "I don't have your latest measurements in my current view."
+
+**Files Added:**
+- `apps/health/services/glucose_snapshot.py` — pure-Python snapshot service + renderers + display tables (~450 lines)
+- `apps/health/tests/test_glucose_snapshot.py` — 27 tests (empty state, latest/summary build, hard separation, trend mapping for all 11 Dexcom codes, render contracts, trust copy, SAE wiring, adapter routing, action handler dispatch)
+- `apps/ai/tests/test_glucose_routing.py` — 26 tests (latest matcher, summary anchors, ambiguity rules including the "this week" override, handler responses never mix framing, COS context smuggling closed)
+
+**Files Modified:**
+- `apps/core/ai_state/state_builder.py` — wire `build_glucose_latest()` + `build_glucose_summary()` into `build_health_state()`; legacy keys preserved
+- `apps/core/ai_events/adapters/glucose.py` — `get_latest_message(user)` + `get_summary_message(user)` route through snapshot
+- `apps/core/ai_events/formatters.py` — new `_format_datetime()` and `_format_relative_age()`; glucose branch upgraded
+- `apps/ai/deterministic_router.py` — `_match_glucose_latest_query` + `_handle_glucose_latest_query`; existing `_match_glucose_query` / `_handle_glucose_query` rerouted through snapshot
+- `apps/ai/action_handlers.py` — `handle_query_event_history(domain='glucose')` routes through adapter (mirrors body_composition fix)
+- `apps/core/ai_orchestrator/cos_context.py` — key rename + latest_age_minutes anchor
+
+**Untouched on purpose (scope discipline):**
+- `GlucoseEntry` model — no schema change, no migration
+- `pr_utils` / strength progression — entirely separate surface
+- Other vitals (blood pressure, heart rate, SpO2) — same pattern queued for Phase B, deferred per spec
+- Dashboard / mission card / template / CSS — backend-only fix
+- iOS payload shape unchanged
+
+**Why:** Beth must never confuse summary metric with event answer for health data. The architectural fix makes the failure mode structurally impossible — latest and summary are independent blocks, separate router paths, separate render contracts (each forbidden from using the other's framing words), separate LLM context keys.
+
+**Test results:** `apps.health.tests.test_glucose_snapshot + apps.ai.tests.test_glucose_routing` 53/53 passing in 22s. Combined scoped regression (per spec): 82/87 passing; 5 pre-existing failures in `apps.core.ai_events.tests.test_followup / test_resolver / test_router_integration` verified pre-existing at HEAD `180f2bc4` via stash/test/restore (unrelated to this change). `makemigrations --check`: clean. `python manage.py check`: clean.
+
 ## 2026-06-07 — feat(health): Body Composition Snapshot + Beth grounding fix + CSV/Excel export
 
 **The trust break (production evidence):** User logged a full body-comp scan (chest, waist, arms L/R, forearms L/R, thighs L/R, calves L/R, BMI, body fat %, etc.) and asked Beth "give me the differences between now and last time I logged them." Beth replied "I don't have your latest measurements in my current view." Unacceptable — the measurements existed in WLJ, the user had just entered them, Beth should NEVER behave like an external chatbot toward first-party WLJ data.

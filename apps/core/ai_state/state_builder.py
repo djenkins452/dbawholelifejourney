@@ -997,6 +997,34 @@ def build_health_state(user):
     except Exception:
         logger.error("SAE: glucose state build failed", exc_info=True)
 
+    # ── Canonical glucose snapshot — Layer A trust fix (2026-06-07) ──
+    # Hard architectural split between LATEST timestamped event and
+    # SUMMARY aggregate state. Beth's deterministic router + EventResolver
+    # adapter route through these blocks; Beth NEVER queries GlucoseEntry
+    # directly. The legacy fields above (latest_glucose, glucose_avg_7d,
+    # projected_a1c, etc.) stay populated for back-compat.
+    #
+    # This block exists because the prior failure mode was Beth confidently
+    # answering "what was my last glucose reading?" with the 7-day average,
+    # because both lived in the same flat namespace. The split makes that
+    # mistake structurally impossible.
+    try:
+        from apps.health.services.glucose_snapshot import (
+            build_glucose_latest,
+            build_glucose_summary,
+        )
+        latest_block = build_glucose_latest(user)
+        if latest_block is not None:
+            state["glucose_latest"] = latest_block
+        summary_block = build_glucose_summary(user)
+        if summary_block is not None:
+            state["glucose_summary"] = summary_block
+    except Exception:
+        logger.warning(
+            "health state: glucose_snapshot blocks failed for user=%s",
+            getattr(user, "id", "?"), exc_info=True,
+        )
+
     # ── Blood Oxygen (7-day avg + latest) ─────────────────────
     try:
         from django.db.models import Avg

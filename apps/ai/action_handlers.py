@@ -6690,6 +6690,22 @@ class ActionHandler:
                         action_type='query_event_history',
                     )
 
+                # 2026-06-07 — Glucose: same architectural pattern as
+                # body composition. Hard split between LATEST event and
+                # SUMMARY aggregate. Routed through the snapshot adapter
+                # so Beth NEVER queries GlucoseEntry directly and NEVER
+                # substitutes a 7-day average for a "what was my last
+                # reading?" answer.
+                if domain == 'glucose':
+                    from apps.core.ai_events.adapters import (
+                        glucose as glucose_adapter,
+                    )
+                    message = glucose_adapter.get_latest_message(self.user)
+                    return ActionResult(
+                        success=True, message=message,
+                        action_type='query_event_history',
+                    )
+
                 # If target_date specified, get events for that date.
                 # The adapter is date-aware: past/today → logged truth,
                 # future → planned truth. Handler stays domain-agnostic.

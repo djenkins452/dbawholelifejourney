@@ -675,7 +675,28 @@ def _build_health_and_vitals(user):
 
             glucose_avg = get_state_value(user, 'health.glucose_avg_7d')
             if glucose_avg:
-                health_signals['glucose_avg_7d'] = round(float(glucose_avg))
+                # 2026-06-07 — Layer D: rename the LLM-facing key from
+                # `glucose_avg_7d` (which the LLM repeatedly mistook
+                # for a "latest reading" in production) to a name that
+                # makes its summary nature unambiguous. The SAE key on
+                # the health state stays as-is for legacy consumers.
+                health_signals['glucose_summary_avg_7d'] = round(float(glucose_avg))
+
+            # The only valid "latest event" anchor in this dict.
+            # Mirrors `health.glucose_latest.minutes_ago` from the
+            # canonical snapshot — provides the LLM with the
+            # timestamped freshness without exposing the raw value
+            # (which would invite re-fabrication). Beth's actual
+            # latest-event answer comes through the deterministic
+            # router / EventResolver adapter, not this surface.
+            try:
+                latest_block = get_state_value(user, 'health.glucose_latest')
+                if latest_block and isinstance(latest_block, dict):
+                    mins = latest_block.get('minutes_ago')
+                    if mins is not None:
+                        health_signals['glucose_latest_age_minutes'] = int(mins)
+            except Exception:
+                pass
 
             spo2_avg = get_state_value(user, 'health.blood_oxygen_avg_7d')
             if spo2_avg:
@@ -7653,7 +7674,7 @@ def format_cos_system_injection(context, user_message=None):
         bp = health_sig.get('bp_latest')
         if bp:
             health_lines.append(f"Blood Pressure: {bp}")
-        glucose = health_sig.get('glucose_avg_7d')
+        glucose = health_sig.get('glucose_summary_avg_7d') or health_sig.get('glucose_avg_7d')
         if glucose:
             health_lines.append(f"Glucose: {glucose} mg/dL avg")
         spo2 = health_sig.get('blood_oxygen_avg_7d')

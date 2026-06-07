@@ -33,6 +33,40 @@ def get_day_events(user, target_date):
     return get_events(user, target_date, target_date)
 
 
+def get_latest_message(user) -> str:
+    """Deterministic 'most recent glucose reading' answer.
+
+    2026-06-07 — Beth's body-composition adapter pattern applied to
+    glucose. Reads ``state["glucose_latest"]`` via the snapshot
+    builder, renders the time-grounded sentence. NEVER queries
+    GlucoseEntry from chat code path; NEVER substitutes summary data
+    for an event answer.
+    """
+    from apps.health.services.glucose_snapshot import (
+        build_glucose_latest,
+        build_glucose_summary,
+        render_latest_message,
+    )
+    latest = build_glucose_latest(user)
+    summary = build_glucose_summary(user) if latest is None else None
+    return render_latest_message(latest, summary)
+
+
+def get_summary_message(user) -> str:
+    """Deterministic 'how is my blood sugar this week?' answer.
+
+    Routes to the SUMMARY snapshot — NEVER labels itself as a "latest
+    reading." This is the hard split between event and aggregate
+    state that the Layer A architecture guarantees.
+    """
+    from apps.health.services.glucose_snapshot import (
+        build_glucose_summary,
+        render_summary_message,
+    )
+    summary = build_glucose_summary(user)
+    return render_summary_message(summary)
+
+
 def _to_event(entry):
     context = entry.context or ''
     label = f"Glucose — {entry.value} {entry.unit}"

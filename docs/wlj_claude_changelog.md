@@ -7,6 +7,42 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-06 — feat(dashboard_v3): Mission Card always-on Weight Status block
+
+**The visibility break:** On the France 2027 mission card, current weight was effectively hidden inside a milestone *title* ("Goal Weight of 289.9"). To know "am I closer or further from my next milestone right now?" the user had to mentally compute the delta from a string. With weight as the central mission lever, that violates the truth-first contract — every truthful state (improving, stalled, trending up, no weigh-in, sync stale, at-target) must be visible at a glance.
+
+**The fix — always-on Weight Status block (no hiding, no softening):**
+
+A new dedicated block renders on every weight-driven mission card, between "How things are going" and "Next milestone", in the natural reading order *State → Current Weight → Next Step*. The block renders in every state — Visual Truth Contract: only the `--ok` tone (current ≤ target by canonical SAE data) may use the ✓ glyph.
+
+**Tone matrix (truth follows direction of travel, not distance):**
+- `--ok`   → current ≤ target ⇒ "At milestone target" + ✓ in subline (ONLY completion-resembling case)
+- `--down` → above target + decreasing trend ⇒ green tonal accent (encouraging, no ✓)
+- `--flat` → above target + stable / insufficient data ⇒ neutral
+- `--up`   → above target + increasing trend ⇒ red tonal accent (no softening, even close to target)
+
+Sync stale overlays as a badge — it does NOT replace the truth.
+
+**Zero new queries.** Helper consumes two values already loaded by `_build_mission_card`:
+- `next_milestone` (already evaluated at composer L488 for `current_focus`)
+- `states["health"]` (already read at composer L541 by `_read_mission_states`)
+
+Reads `weight_current`, `weight_unit`, `weight_trend`, `weight_change_30d`, `weight_sync_stale` from the SAE health snapshot, and `objective_target_value` from the Phase 1 objective-weight milestone — the mission's own milestone chain is the canonical target source. NEVER calls `HealthProfile.get_weight_progress()` (avoids cross-app coupling + duplicate WeightEntry query).
+
+Non-weight missions: block returns `None` and is omitted in the template — never forced.
+
+**Files Modified:**
+- `apps/dashboard_v3/services/composer.py` — new `_build_mission_weight_status(goal, health_state, next_milestone)` helper (~190 lines, all pure-Python); wired into `_build_mission_card` inside the existing `try:` that already reads SAE states; attached as `mission["weight_status"]`
+- `templates/dashboard_v3/sections/mission.html` — new `<div class="v3-mission-weight v3-mission-weight--{tone}">…</div>` block, gated on `mission.weight_status`, placed between `v3-mission-going` and `v3-mission-milestone`
+- `static/dashboard_v3/css/dashboard_v3.css` — `.v3-mission-weight` + four tone variants (`--ok`, `--down`, `--flat`, `--up`), trend/change/stale pill styles, mobile breakpoint at 480px
+
+**Files Added:**
+- `apps/dashboard_v3/tests/test_mission_weight_status.py` — 18 tests covering the full truth matrix: trending down, stalled (0.0 30d delta still rendered), trending up (no softening), at-target boundary at exact 289.9, below-target, no recent weigh-in (target still visible), empty SAE dict (defensive), sync-stale overlay (with + without data), non-weight mission omits the block, achievement-milestone fallback to weight milestone, tone-follows-trend (close-to-target-but-increasing = `up`; far-from-target-but-decreasing = `down`), Visual Truth Contract (✓ glyph never appears outside `ok` tone), zero-query contract (`assertNumQueries(0)` for happy path, `≤1` for fallback scan)
+
+**Why:** The user's challenge was scannability under truth. Hiding weight inside a milestone title fails the truth contract because the worst trajectory states (trending up, stalled, no weigh-in) blend into formatted progress and disappear. Always-on visibility — with truthful tone that follows trend not distance — ensures the user sees reality first, encouragement second.
+
+**Test results:** 18/18 new tests passing. Full `apps.dashboard_v3.tests.test_composer` + `test_views` regression: 1 pre-existing failure (`test_headline_for_many_overdue`, unrelated to this change — leftover from Phase A executive briefing matrix work, was already failing on `main` before this change; verified by stash/test/restore).
+
 ## 2026-06-06 — fix(cos_briefing): Executive Briefing Phase A trust fix — time-aware headlines + dedupe + calorie synthesis
 
 **The trust break (production evidence):** At 8:07 AM the dashboard Executive Briefing rendered:

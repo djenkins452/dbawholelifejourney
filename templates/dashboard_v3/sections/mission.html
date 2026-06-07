@@ -85,6 +85,47 @@ has not selected an active Primary Mission (renders nothing — no placeholder).
                 </div>
                 {% endif %}
 
+                {% comment %}
+                Always-on Weight Status block (2026-06-06). Renders for every
+                weight-driven mission in every truth state: trending down,
+                stable, trending up, no recent weigh-in, sync stale, at-target.
+                Visual Truth Contract: only the "ok" tone (current ≤ target
+                from canonical data) may use the ✓ glyph; every other state
+                uses tonal accents only.
+                {% endcomment %}
+                {% if mission.weight_status %}
+                <div class="v3-mission-weight v3-mission-weight--{{ mission.weight_status.tone }}" aria-label="Current weight status">
+                    <div class="v3-mission-weight-head">
+                        <span class="v3-mission-weight-label">
+                            <span class="v3-mission-weight-glyph" aria-hidden="true">⚖️</span> Current Weight
+                        </span>
+                        {% if mission.weight_status.has_data %}
+                        <span class="v3-mission-weight-trend v3-mission-weight-trend--{{ mission.weight_status.trend }}">
+                            <span aria-hidden="true">{{ mission.weight_status.trend_glyph }}</span> {{ mission.weight_status.trend_label }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% if mission.weight_status.has_data %}
+                    <div class="v3-mission-weight-now">
+                        <span class="v3-mission-weight-value">{{ mission.weight_status.current }}</span>
+                        <span class="v3-mission-weight-unit">{{ mission.weight_status.unit }}</span>
+                        {% if mission.weight_status.change_display %}
+                        <span class="v3-mission-weight-change v3-mission-weight-change--{{ mission.weight_status.change_sign }}">{{ mission.weight_status.change_display }}</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    <p class="v3-mission-weight-headline">
+                        {% if mission.weight_status.tone == 'ok' %}<span class="v3-mission-weight-check" aria-hidden="true">✓</span> {% endif %}{{ mission.weight_status.headline }}
+                    </p>
+                    <p class="v3-mission-weight-subline">{{ mission.weight_status.subline }}</p>
+                    {% if mission.weight_status.sync_stale %}
+                    <span class="v3-mission-weight-stale" title="Apple Health weight sync hasn't delivered recently">
+                        Sync stale
+                    </span>
+                    {% endif %}
+                </div>
+                {% endif %}
+
                 {% if mission.next_milestone_date or mission.current_focus %}
                 <div class="v3-mission-milestone">
                     <span class="v3-mission-milestone-label">Next milestone</span>

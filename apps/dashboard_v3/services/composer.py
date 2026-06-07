@@ -535,6 +535,7 @@ def _build_mission_card(user) -> dict | None:
     # — a request-path read raised and the whole card vanished.)
     drivers: list[dict] = []
     status = None
+    weight_status = None
     try:
         # Read the pre-computed SAE module states ONCE (read-only) and reuse
         # them for both the drivers row and the mission-status classifier.
@@ -547,6 +548,12 @@ def _build_mission_card(user) -> dict | None:
         phase = _mission_movement_phase(goal)
         signals = _evaluate_mission_signals(states, phase)
         status = _build_mission_status(goal, snap, signals, today)
+        # Always-on Weight Status block — read-only over the SAE health snapshot
+        # already read above + the next milestone already evaluated above.
+        # Returns None for non-weight missions; that omits the block in
+        # template. Zero new queries; defensive (any read failure degrades the
+        # block, never the whole card).
+        weight_status = _build_mission_weight_status(goal, states.get("health", {}), nm)
     except Exception:
         logger.warning(
             "MISSION user=%s — optional signal read failed; rendering hero "
@@ -582,6 +589,7 @@ def _build_mission_card(user) -> dict | None:
         "panel": panel,
         "drivers": drivers,
         "status": status,
+        "weight_status": weight_status,
         "days_remaining": days_remaining,
         "progress": progress,
         "why": why,
@@ -1186,6 +1194,195 @@ def _build_mission_progress(goal) -> dict:
         "completed": completed,
         "total": total,
         "filled": max(0, min(100, filled)),
+    }
+
+
+# ── Mission Weight Status — always-on truth block ─────────────────────────
+#
+# Truth contract: weight must be visible in every state — good, bad, stalled,
+# sync-stale, no-data. The only state that may use completion-resembling
+# styling ("--ok" tone with the ✓ glyph) is when the data layer confirms
+# `current <= next_target`. Every other state uses tonal accents only, never
+# completion visuals (Visual Truth Contract, docs/WLJ_VISUAL_TRUTH_CONTRACT.md).
+#
+# Zero new queries: consumes only data already loaded by `_build_mission_card`
+# (the next_milestone evaluated for `current_focus` + the `states["health"]`
+# dict already returned by `_read_mission_states`). NEVER calls
+# HealthProfile.get_weight_progress() — that would re-query WeightEntry and
+# couple the mission card to HealthProfile shape; the mission's own milestone
+# chain is the canonical target source (Phase 1 objective milestones).
+def _build_mission_weight_status(goal, health_state: dict, next_milestone) -> dict | None:
+    """Always-on weight status block — read-only over already-loaded data.
+
+    Returns ``None`` when the mission has no objective-weight milestone at
+    all (non-weight missions skip cleanly — the block is not forced into
+    contexts where it has nothing to say).
+
+    When the mission IS weight-driven, the block ALWAYS renders — even with
+    no weigh-ins, stale sync, or upward trend. No hiding, no softening.
+
+    Output shape (consumed by templates/dashboard_v3/sections/mission.html):
+
+      ``{ has_data, current, unit, target, to_next, trend, trend_glyph,
+          change_30d, change_sign, sync_stale, tone, headline, subline }``
+
+    Tone vocabulary:
+      - ``"ok"``   — current <= target (the ONLY completion-resembling state)
+      - ``"down"`` — above target, trending toward goal (encouraging accent
+                     only, no ✓ glyph)
+      - ``"flat"`` — stable or insufficient data (neutral)
+      - ``"up"``   — above target, trending away from goal (truthful red)
+    """
+    # Find an objective-weight target on this goal. Prefer the next incomplete
+    # milestone (matches the "Next milestone" row directly above us). Fall
+    # back to ANY objective-weight milestone on the goal so we still render
+    # for fully-completed weight missions (the at-target state).
+    target = None
+    if (
+        next_milestone is not None
+        and getattr(next_milestone, "objective_metric", None) == "weight_lb"
+        and getattr(next_milestone, "objective_target_value", None) is not None
+    ):
+        target = float(next_milestone.objective_target_value)
+    else:
+        # Reuse the milestones reverse relation already iterated for the ring;
+        # this filter hits the cached queryset if Django has it. One bounded
+        # scan over the goal's own milestones (typically <20 rows).
+        for m in goal.milestones.all():
+            if (
+                getattr(m, "objective_metric", None) == "weight_lb"
+                and getattr(m, "objective_target_value", None) is not None
+            ):
+                # Lowest target value = the ultimate weight goal for this mission.
+                tv = float(m.objective_target_value)
+                if target is None or tv < target:
+                    target = tv
+
+    if target is None:
+        # Mission isn't weight-driven. Block is omitted in template.
+        return None
+
+    current = health_state.get("weight_current")
+    unit = health_state.get("weight_unit") or "lb"
+    trend_raw = health_state.get("weight_trend") or "insufficient_data"
+    change_30d = health_state.get("weight_change_30d")
+    sync_stale = bool(health_state.get("weight_sync_stale"))
+
+    # Map SAE trend → display.
+    trend_label = {
+        "decreasing": "Trending down",
+        "stable": "Stable",
+        "increasing": "Trending up",
+        "insufficient_data": "Not enough data",
+    }.get(trend_raw, "Not enough data")
+    trend_glyph = {
+        "decreasing": "↓",
+        "stable": "→",
+        "increasing": "↑",
+        "insufficient_data": "·",
+    }.get(trend_raw, "·")
+
+    # Format 30-day delta with explicit sign — truth requires the direction
+    # be unmistakable. "0.0 lb (30d)" for genuine stability is fine.
+    change_sign = None
+    change_display = None
+    if change_30d is not None:
+        try:
+            cv = float(change_30d)
+            if cv > 0.05:
+                change_sign = "up"
+                change_display = f"+{cv:.1f} {unit} (30d)"
+            elif cv < -0.05:
+                change_sign = "down"
+                change_display = f"{cv:.1f} {unit} (30d)"
+            else:
+                change_sign = "flat"
+                change_display = f"0.0 {unit} (30d)"
+        except (TypeError, ValueError):
+            change_display = None
+
+    # ── No recent weigh-in branch ─────────────────────────────────────
+    if current is None:
+        return {
+            "has_data": False,
+            "current": None,
+            "unit": unit,
+            "target": round(target, 1),
+            "to_next": None,
+            "trend": trend_raw,
+            "trend_label": trend_label,
+            "trend_glyph": trend_glyph,
+            "change_30d": None,
+            "change_sign": None,
+            "change_display": None,
+            "sync_stale": sync_stale,
+            "tone": "flat",
+            "headline": "No recent weigh-in",
+            "subline": f"Next milestone target: {target:.1f} {unit}",
+        }
+
+    # ── Real data branches ────────────────────────────────────────────
+    try:
+        current_f = float(current)
+    except (TypeError, ValueError):
+        # Defensive: malformed SAE value. Degrade to no-data branch shape.
+        return {
+            "has_data": False,
+            "current": None,
+            "unit": unit,
+            "target": round(target, 1),
+            "to_next": None,
+            "trend": trend_raw,
+            "trend_label": trend_label,
+            "trend_glyph": trend_glyph,
+            "change_30d": None,
+            "change_sign": None,
+            "change_display": None,
+            "sync_stale": sync_stale,
+            "tone": "flat",
+            "headline": "No recent weigh-in",
+            "subline": f"Next milestone target: {target:.1f} {unit}",
+        }
+
+    # Phase 1 milestone operator is `lte` — target is a ceiling. Distance
+    # remaining is current - target (positive = above target).
+    to_next = round(current_f - target, 1)
+
+    if to_next <= 0:
+        # At-or-under-target: the ONLY completion-resembling state. The user
+        # has objectively reached the target by canonical data.
+        tone = "ok"
+        headline = "At milestone target"
+        subline = f"Target: {target:.1f} {unit} ✓"
+    else:
+        # Above target — tone follows trend, NOT distance. Truth before
+        # encouragement: trending up gets the truthful "up" tone even close
+        # to target; trending down gets the "down" tone even far from target.
+        if trend_raw == "decreasing":
+            tone = "down"
+        elif trend_raw == "increasing":
+            tone = "up"
+        else:
+            tone = "flat"  # stable OR insufficient_data
+        headline = f"{to_next:.1f} {unit} to next milestone"
+        subline = f"Target: {target:.1f} {unit}"
+
+    return {
+        "has_data": True,
+        "current": round(current_f, 1),
+        "unit": unit,
+        "target": round(target, 1),
+        "to_next": to_next,
+        "trend": trend_raw,
+        "trend_label": trend_label,
+        "trend_glyph": trend_glyph,
+        "change_30d": change_30d,
+        "change_sign": change_sign,
+        "change_display": change_display,
+        "sync_stale": sync_stale,
+        "tone": tone,
+        "headline": headline,
+        "subline": subline,
     }
 
 

@@ -1332,6 +1332,163 @@
     color: var(--v3-ink);
 }
 
+/* ── Always-on Weight Status block (2026-06-06) ──────────────────────
+   Truth contract: renders for EVERY weight-driven mission in every
+   state. Visual Truth Contract: only `--ok` may use completion-resembling
+   styling (check + green); every other tone is tonal accent only.
+*/
+.v3-mission-weight {
+    margin-top: 12px;
+    padding: 13px 15px;
+    background: var(--v3-surface);
+    border: 1px solid var(--v3-border-strong);
+    border-radius: 12px;
+    position: relative;
+}
+
+.v3-mission-weight--ok {
+    background: linear-gradient(180deg, rgba(34, 134, 58, 0.10) 0%, rgba(34, 134, 58, 0.04) 100%);
+    border-color: rgba(34, 134, 58, 0.28);
+}
+
+.v3-mission-weight--down {
+    background: linear-gradient(180deg, rgba(34, 134, 58, 0.06) 0%, rgba(34, 134, 58, 0.02) 100%);
+    border-color: rgba(34, 134, 58, 0.18);
+}
+
+.v3-mission-weight--flat {
+    background: var(--v3-surface);
+    border-color: var(--v3-border-strong);
+}
+
+.v3-mission-weight--up {
+    background: linear-gradient(180deg, rgba(176, 50, 50, 0.07) 0%, rgba(176, 50, 50, 0.02) 100%);
+    border-color: rgba(176, 50, 50, 0.24);
+}
+
+.v3-mission-weight-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.v3-mission-weight-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--v3-text-soft);
+}
+
+.v3-mission-weight-glyph { font-size: 0.9rem; line-height: 1; }
+
+.v3-mission-weight-trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.74rem;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--v3-surface);
+    border: 1px solid var(--v3-border);
+    white-space: nowrap;
+    color: var(--v3-text-mute);
+}
+
+.v3-mission-weight-trend--decreasing { color: #1f7a3a; border-color: rgba(34, 134, 58, 0.35); }
+.v3-mission-weight-trend--increasing { color: #a73a3a; border-color: rgba(176, 50, 50, 0.35); }
+.v3-mission-weight-trend--stable { color: var(--v3-text-mute); }
+.v3-mission-weight-trend--insufficient_data { color: var(--v3-text-mute); font-style: italic; }
+
+.v3-mission-weight-now {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+
+.v3-mission-weight-value {
+    font-size: 1.55rem;
+    font-weight: 800;
+    color: var(--v3-ink);
+    letter-spacing: -0.02em;
+    line-height: 1;
+}
+
+.v3-mission-weight-unit {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--v3-text-mute);
+}
+
+.v3-mission-weight-change {
+    margin-left: 6px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--v3-text-mute);
+}
+
+.v3-mission-weight-change--down { color: #1f7a3a; }
+.v3-mission-weight-change--up   { color: #a73a3a; }
+.v3-mission-weight-change--flat { color: var(--v3-text-mute); }
+
+.v3-mission-weight-headline {
+    margin: 0 0 2px 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--v3-ink);
+    line-height: 1.4;
+}
+
+/* Visual Truth Contract: the ✓ glyph appears ONLY inside `--ok` because
+   the template only renders it when `weight_status.tone == 'ok'`, which
+   is set ONLY when canonical data confirms `current <= target`. */
+.v3-mission-weight-check {
+    color: #1f7a3a;
+    font-weight: 900;
+    margin-right: 2px;
+}
+
+.v3-mission-weight-subline {
+    margin: 0;
+    font-size: 0.83rem;
+    color: var(--v3-text-mute);
+    line-height: 1.4;
+}
+
+.v3-mission-weight-stale {
+    position: absolute;
+    top: 11px;
+    right: 13px;
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(176, 130, 50, 0.12);
+    border: 1px solid rgba(176, 130, 50, 0.30);
+    color: #8a5a1a;
+}
+
+@media (max-width: 480px) {
+    .v3-mission-weight { padding: 11px 12px; }
+    .v3-mission-weight-value { font-size: 1.35rem; }
+    .v3-mission-weight-head { flex-wrap: wrap; }
+    .v3-mission-weight-stale {
+        position: static;
+        display: inline-block;
+        margin-top: 6px;
+    }
+}
+
 /* ── Next milestone block — timing should feel like it matters ── */
 .v3-mission-milestone {
     margin-top: 16px;

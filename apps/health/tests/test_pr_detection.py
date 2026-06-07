@@ -626,7 +626,13 @@ class PlateauRuleIntegrationTest(PRTestMixin, TestCase):
         self.assertEqual(result, [])
 
     def test_plateau_rule_fires_with_stable_trend_and_no_prs(self):
-        """Global fallback: fires when no PRs AND trend is stable/decreasing."""
+        """Global fallback: fires when no PRs AND trend is stable/decreasing.
+
+        2026-06-07: title + body updated to the new Double Progression
+        framing. PRs are NEVER the trigger word; "plateau" / "personal
+        record" / "increase weight by 5%" never appear in the rendered
+        message. Trust contract: framing is "progression check-in" with
+        a stay-consistent default — not PR-chasing."""
         from apps.core.ai_insights.rules_transformation import StrengthPlateauRule
 
         rule = StrengthPlateauRule()
@@ -643,10 +649,23 @@ class PlateauRuleIntegrationTest(PRTestMixin, TestCase):
         user = self.create_user()
         result = rule.evaluate(user, event)
         self.assertEqual(len(result), 1)
-        self.assertIn("plateau", result[0]["title"].lower())
+        # New framing — never PR-chasing.
+        self.assertIn("progression", result[0]["title"].lower())
+        msg = result[0]["message"].lower()
+        self.assertNotIn("personal record", msg)
+        self.assertNotIn("plateau", msg)
+        self.assertNotIn("5%", msg)
 
-    def test_exercise_specific_plateau_names_exercise(self):
-        """Exercise-specific: insight should name the specific plateauing exercise."""
+    def test_exercise_specific_plateau_requires_grounded_history(self):
+        """2026-06-07: Per-exercise messaging is now produced by the
+        Double Progression service, which REQUIRES real ExerciseSet
+        history. Stub `exercise_progress` injected directly into SAE
+        state — with no underlying DB workout records — must produce
+        ZERO insights. This locks the trust contract: no fabricated
+        per-exercise advice from stub state.
+
+        End-to-end Double Progression behaviour is covered by
+        apps.health.tests.test_double_progression."""
         from apps.core.ai_insights.rules_transformation import StrengthPlateauRule
 
         rule = StrengthPlateauRule()
@@ -661,21 +680,17 @@ class PlateauRuleIntegrationTest(PRTestMixin, TestCase):
                          "sets_30d": 18, "prs_30d": 0, "best_e1rm": 208,
                          "recent_e1rm": 208, "prior_e1rm": 208,
                          "trend": "flat", "status": "plateau"},
-                        {"exercise": "Squat", "sessions_30d": 5,
-                         "sets_30d": 15, "prs_30d": 2, "best_e1rm": 300,
-                         "recent_e1rm": 300, "prior_e1rm": 280,
-                         "trend": "up", "status": "improving"},
                     ],
                 }
             }
         }
         user = self.create_user()
+        # No ExerciseSet history → Double Progression can't ground a
+        # recommendation → no insight emitted. PRs are NEVER the trigger
+        # word; per-exercise advice ONLY surfaces when real workout data
+        # supports it.
         result = rule.evaluate(user, event)
-        self.assertEqual(len(result), 1)
-        msg = result[0]["message"].lower()
-        self.assertIn("bench press", msg)
-        self.assertIn("squat", msg)
-        self.assertIn("progressing", msg)
+        self.assertEqual(result, [])
 
     def test_exercise_specific_no_plateau_when_all_improving(self):
         """Exercise-specific: no insight when all exercises are improving."""

@@ -83,10 +83,15 @@ class GuidanceLoggerPersistsNeutralMessageTests(TestCase):
 
     def test_new_guidance_row_has_no_greeting_prefix(self):
         """The user-reported failure mode: 'Good morning!' baked into
-        a stored row. This must never happen again for new rows."""
+        a stored row. This must never happen again for new rows.
+
+        2026-06-07: body updated to the new neutral Double Progression
+        copy; the trust contract under test (no greeting prepended)
+        is unchanged."""
         body = (
-            "You've been training consistently but haven't set new PRs "
-            "in three weeks — consider adjusting your program."
+            "You've been consistent on chest press at 50 lb — three "
+            "sessions at 10 reps. Consider moving toward 12 reps "
+            "before increasing weight."
         )
         self._log(body, dedupe_key="test:no-greeting:1")
         row = GuidanceItem.objects.filter(user=self.user).first()
@@ -205,11 +210,12 @@ class ExpandAffordanceTests(TestCase):
         self.client = Client()
         self.client.force_login(self.user)
         # Long-enough body to trigger truncation (>18 words).
+        # 2026-06-07: neutral Double Progression copy — no PR framing.
         long_body = (
-            "You've been training consistently but haven't set new PRs "
-            "in three weeks — consider varying intensity, increasing "
-            "load progression, or scheduling a deload week to allow "
-            "recovery and adaptation before the next training block."
+            "You've been consistent on chest press at 50 lb for "
+            "several sessions at 10 reps. Consider moving toward 12 "
+            "reps before increasing weight; stay focused on form and "
+            "consistent execution for the next training block."
         )
         GuidanceItem.objects.create(
             user=self.user,
@@ -247,7 +253,7 @@ class ExpandAffordanceTests(TestCase):
         # if only the truncated version were in the DOM, this would
         # be missing.
         self.assertIn(
-            "before the next training block", body,
+            "for the next training block", body,
             "full message must be rendered (hidden) so the expand "
             "affordance can reveal it client-side without a fetch",
         )

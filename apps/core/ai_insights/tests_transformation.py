@@ -293,7 +293,12 @@ class TestStrengthPlateauRule(TestCase):
     # ── Global fallback tests (no exercise_progress in state) ──
 
     def test_triggers_plateau_detected(self):
-        """Global fallback: fires when 0 PRs and no exercise_progress."""
+        """Global fallback: fires when 0 PRs and no exercise_progress.
+
+        2026-06-07: title/copy reframed to Double Progression — no
+        PR-chasing, no 'plateau' framing. The trust contract is that
+        the rule still fires (consistency-only context); the framing
+        is "progression check-in" + stay-consistent default."""
         event = {
             "module": "health",
             "user_state": {
@@ -306,7 +311,10 @@ class TestStrengthPlateauRule(TestCase):
         insights = self.rule.evaluate(self.user, event)
         self.assertEqual(len(insights), 1)
         self.assertEqual(insights[0]["severity"], "info")
-        self.assertIn("plateau", insights[0]["title"].lower())
+        self.assertIn("progression", insights[0]["title"].lower())
+        msg = insights[0]["message"].lower()
+        self.assertNotIn("personal record", msg)
+        self.assertNotIn("plateau", msg)
 
     def test_no_trigger_has_prs(self):
         event = {
@@ -348,25 +356,31 @@ class TestStrengthPlateauRule(TestCase):
             },
         }
 
-    def test_one_exercise_plateau_one_improving(self):
-        """Insight should fire and name only the plateauing exercise."""
+    # 2026-06-07: Per-exercise messaging migrated to the Double
+    # Progression service, which REQUIRES real ExerciseSet history.
+    # Stub `exercise_progress` injected directly into SAE state with
+    # no underlying DB workout records can no longer fabricate
+    # per-exercise advice — this is the corrected trust contract.
+    # End-to-end Double Progression coverage lives in
+    # apps.health.tests.test_double_progression.
+
+    def test_stub_exercise_progress_without_db_history_produces_no_insight(self):
+        """No fabricated per-exercise advice from stub state."""
         progress = [
             {"exercise": "Bench Press", "sessions_30d": 6, "sets_30d": 18,
              "prs_30d": 0, "best_e1rm": 208, "recent_e1rm": 208,
              "prior_e1rm": 208, "trend": "flat", "status": "plateau"},
-            {"exercise": "Squat", "sessions_30d": 5, "sets_30d": 15,
-             "prs_30d": 2, "best_e1rm": 300, "recent_e1rm": 300,
-             "prior_e1rm": 285, "trend": "up", "status": "improving"},
         ]
         insights = self.rule.evaluate(self.user, self._make_event(progress))
-        self.assertEqual(len(insights), 1)
-        msg = insights[0]["message"].lower()
-        self.assertIn("bench press", msg)
-        self.assertIn("squat", msg)
-        self.assertIn("progressing", msg)
+        self.assertEqual(
+            insights, [],
+            "stub exercise_progress without real workout history must NOT "
+            "fabricate per-exercise advice — Double Progression service "
+            "grounds itself in real ExerciseSet data, never injected stubs",
+        )
 
     def test_all_exercises_improving_no_insight(self):
-        """No insight when all exercises are improving."""
+        """No insight when all exercises are improving (back-compat)."""
         progress = [
             {"exercise": "Bench Press", "sessions_30d": 6, "sets_30d": 18,
              "prs_30d": 2, "best_e1rm": 220, "recent_e1rm": 220,
@@ -378,41 +392,13 @@ class TestStrengthPlateauRule(TestCase):
         insights = self.rule.evaluate(self.user, self._make_event(progress))
         self.assertEqual(len(insights), 0)
 
-    def test_all_exercises_plateau(self):
-        """Insight should name all plateauing exercises."""
-        progress = [
-            {"exercise": "Bench Press", "sessions_30d": 6, "sets_30d": 18,
-             "prs_30d": 0, "best_e1rm": 208, "recent_e1rm": 208,
-             "prior_e1rm": 208, "trend": "flat", "status": "plateau"},
-            {"exercise": "Overhead Press", "sessions_30d": 4, "sets_30d": 12,
-             "prs_30d": 0, "best_e1rm": 130, "recent_e1rm": 130,
-             "prior_e1rm": 130, "trend": "flat", "status": "plateau"},
-        ]
-        insights = self.rule.evaluate(self.user, self._make_event(progress))
-        self.assertEqual(len(insights), 1)
-        msg = insights[0]["message"].lower()
-        self.assertIn("bench press", msg)
-        self.assertIn("overhead press", msg)
-
-    def test_regressing_exercise_triggers_insight(self):
-        """Regressing exercises should also trigger the insight."""
-        progress = [
-            {"exercise": "Bench Press", "sessions_30d": 6, "sets_30d": 18,
-             "prs_30d": 0, "best_e1rm": 208, "recent_e1rm": 195,
-             "prior_e1rm": 208, "trend": "down", "status": "regressing"},
-        ]
-        insights = self.rule.evaluate(self.user, self._make_event(progress))
-        self.assertEqual(len(insights), 1)
-        msg = insights[0]["message"].lower()
-        self.assertIn("bench press", msg)
-
     def test_empty_exercise_progress_no_insight(self):
         """Empty exercise_progress list means no exercises meet threshold."""
         insights = self.rule.evaluate(self.user, self._make_event([]))
         self.assertEqual(len(insights), 0)
 
     def test_only_new_exercises_no_insight(self):
-        """Exercises with status='new' should not trigger plateau."""
+        """Exercises with status='new' should not trigger advice."""
         progress = [
             {"exercise": "Romanian Deadlift", "sessions_30d": 2, "sets_30d": 6,
              "prs_30d": 1, "best_e1rm": 200, "recent_e1rm": 200,
@@ -420,30 +406,6 @@ class TestStrengthPlateauRule(TestCase):
         ]
         insights = self.rule.evaluate(self.user, self._make_event(progress))
         self.assertEqual(len(insights), 0)
-
-    def test_evidence_includes_exercise_progress(self):
-        """Evidence should contain the full exercise_progress data."""
-        progress = [
-            {"exercise": "Bench Press", "sessions_30d": 6, "sets_30d": 18,
-             "prs_30d": 0, "best_e1rm": 208, "recent_e1rm": 208,
-             "prior_e1rm": 208, "trend": "flat", "status": "plateau"},
-        ]
-        insights = self.rule.evaluate(self.user, self._make_event(progress))
-        self.assertEqual(len(insights), 1)
-        evidence = insights[0]["evidence"]
-        self.assertIn("exercise_progress", evidence)
-        self.assertEqual(evidence["plateauing"], ["Bench Press"])
-        self.assertEqual(evidence["improving"], [])
-
-    def test_title_says_exercise_plateau(self):
-        """Title should say 'Exercise plateau' not generic 'Strength plateau'."""
-        progress = [
-            {"exercise": "Squat", "sessions_30d": 6, "sets_30d": 18,
-             "prs_30d": 0, "best_e1rm": 300, "recent_e1rm": 300,
-             "prior_e1rm": 300, "trend": "flat", "status": "plateau"},
-        ]
-        insights = self.rule.evaluate(self.user, self._make_event(progress))
-        self.assertEqual(insights[0]["title"], "Exercise plateau detected")
 
 
 # ── TransformationMomentumRule ─────────────────────────────────
@@ -558,17 +520,53 @@ class TestStrengthPlateauAutoResolution(TestCase):
         self.plateau_insight.refresh_from_db()
         self.assertEqual(self.plateau_insight.status, "dismissed")
 
-    def test_plateau_still_active_keeps_insight(self):
-        """Plateau insight is NOT dismissed when plateau still exists."""
+    def test_plateau_with_db_history_keeps_insight(self):
+        """When Double Progression has real history to ground a rec,
+        the existing insight is preserved (not dismissed).
+
+        2026-06-07: the new architecture requires real ExerciseSet
+        data — stub state alone no longer keeps insights alive.
+        The test sets up real DB history at the same weight × reps
+        across 3 sessions so Double Progression can act on it.
+        """
+        from datetime import timedelta
+        from decimal import Decimal
+        from django.utils import timezone
+        from apps.health.models import (
+            Exercise, ExerciseSet, WorkoutExercise, WorkoutSession,
+        )
+        exercise = Exercise.objects.create(
+            name="Bench Press", muscle_group="chest",
+            category="resistance", movement_type="weighted",
+            load_type="external",
+        )
+        now = timezone.now()
+        for d in (10, 5, 0):
+            sess = WorkoutSession.objects.create(
+                user=self.user, date=(now - timedelta(days=d)).date(),
+                completed_at=now - timedelta(days=d), status="active",
+            )
+            we = WorkoutExercise.objects.create(
+                session=sess, exercise=exercise, order=0,
+            )
+            for n in (1, 2, 3):
+                ExerciseSet.objects.create(
+                    workout_exercise=we, set_number=n,
+                    weight=Decimal("100"), reps=10, is_warmup=False,
+                )
         progress = [
             {"exercise": "Bench Press", "sessions_30d": 6, "sets_30d": 18,
              "prs_30d": 0, "best_e1rm": 208, "recent_e1rm": 208,
              "prior_e1rm": 208, "trend": "flat", "status": "plateau"},
         ]
         insights = self.rule.evaluate(self.user, self._make_event(progress))
-        self.assertEqual(len(insights), 1)
+        self.assertEqual(
+            len(insights), 1,
+            "Double Progression with real 3-session history at same weight "
+            "× reps should produce a grounded earned-reps rec",
+        )
         self.plateau_insight.refresh_from_db()
-        # The existing insight is updated via dedupe, NOT dismissed
+        # The existing insight is updated via dedupe, NOT dismissed.
         self.assertIn(self.plateau_insight.status, ["new", "read"])
 
     def test_dismissed_insight_not_re_dismissed(self):

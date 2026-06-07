@@ -211,14 +211,14 @@ class WorkoutFrequencyAdjustmentRule(BaseGuidanceRule):
 
         for insight in workout_insights[:1]:
             if insight.insight_type == "strength_plateau":
+                # 2026-06-07: copy is now produced by the upstream PIE rule
+                # via the Double Progression service (logic ≠ copy contract).
+                # PRs are NEVER the trigger word. The Insight.message is
+                # already an earned, per-exercise, rationale-keyed sentence
+                # built from real workout history — surface it verbatim.
                 results.append({
-                    "title": "Consider adjusting your program",
-                    "message": (
-                        "You've been training consistently but haven't set new PRs. "
-                        "Try increasing weight by 5%, adding an extra set, or "
-                        "switching to a different exercise variation to break "
-                        "through the plateau."
-                    ),
+                    "title": insight.title or "Progression check-in",
+                    "message": insight.message,
                     "priority": 3,
                     "guidance_type": self.rule_name,
                     "source": "pie_insight",

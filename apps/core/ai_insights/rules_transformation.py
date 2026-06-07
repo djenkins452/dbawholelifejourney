@@ -478,43 +478,86 @@ class StrengthPlateauRule(BaseInsightRule):
         return self._evaluate_global_fallback(user, fitness)
 
     def _evaluate_per_exercise(self, user, fitness, exercise_progress):
-        """Exercise-specific plateau detection."""
-        plateauing = [e for e in exercise_progress if e["status"] == "plateau"]
-        improving = [e for e in exercise_progress if e["status"] == "improving"]
-        regressing = [e for e in exercise_progress if e["status"] == "regressing"]
+        """Per-exercise progression analysis via the Double Progression service.
 
-        if not plateauing and not regressing:
-            # No plateau or regression — resolve any stale plateau insights
+        2026-06-07 — replaces the prior PR-centric "plateau" framing with
+        earned, per-exercise rationale. PRs remain detected upstream; they
+        just stop being the trigger word for advice. Copy is built from
+        (rationale_key + numbers) — never hardcoded inside this rule
+        (logic ≠ copy contract).
+        """
+        from apps.health.services.double_progression import (
+            evaluate_double_progression,
+            render_recommendation_copy,
+            STAGE_EARNED_REPS,
+            STAGE_REP_RANGE_TRANSITION,
+            STAGE_EARNED_WEIGHT,
+            STAGE_HOLDING,
+        )
+
+        user_state = {} if exercise_progress is None else None  # marker only
+        user_state_dict = self._safe_user_state_for_health(user)
+        health_dict = user_state_dict.get("health", {})
+
+        recs = evaluate_double_progression(
+            user,
+            fitness_state=fitness,
+            health_state=health_dict,
+        )
+
+        # Surface only the actionable progression rec(s). HOLDING entries
+        # are honest middle states but we only emit an insight when the
+        # user can act on it: rep progression, range transition, or
+        # weight increase. Safety-hold HOLDING insights are emitted ONLY
+        # when the user previously had momentum (an exercise that was
+        # plateau/regressing in SAE state) — that's the case where they
+        # need to hear "stay consistent, you're not stuck."
+        actionable = [
+            r for r in recs
+            if r["stage"] in (STAGE_EARNED_REPS, STAGE_REP_RANGE_TRANSITION,
+                              STAGE_EARNED_WEIGHT)
+        ]
+        plateau_names = {
+            e["exercise"].lower() for e in exercise_progress
+            if e.get("status") in ("plateau", "regressing")
+        }
+        hold_recs = [
+            r for r in recs
+            if r["stage"] == STAGE_HOLDING and r["safety_holds"]
+            and r["exercise_name"].lower() in plateau_names
+        ]
+        surfaced = actionable + hold_recs
+
+        if not surfaced:
+            # Service has nothing earned to say AND nothing to soothe.
+            # Resolve any stale plateau insights from the prior wording.
             self._resolve_stale_insights(user)
             return []
 
+        # Build one combined coach message naming the specific exercise(s).
+        message = " ".join(render_recommendation_copy(r) for r in surfaced[:3])
+
         window_start, window_end = get_time_window(days=30)
 
-        # Build exercise-specific message
-        stalled = plateauing + regressing
-        stalled_names = [e["exercise"].lower() for e in stalled]
-        improving_names = [e["exercise"].lower() for e in improving]
-
-        message = self._build_message(stalled, improving, stalled_names, improving_names)
+        # Title carries no PR/plateau framing — it's a header, not a verdict.
+        title = "Progression check-in"
 
         return [
             {
                 "severity": "info",
-                "title": "Exercise plateau detected",
+                "title": title,
                 "message": message,
-                "confidence_score": 0.75,
+                "confidence_score": 0.78,
                 "explain_why": (
                     f"Rule: {self.rule_name}. "
-                    f"Plateauing: {', '.join(e['exercise'] for e in plateauing) or 'none'}. "
-                    f"Regressing: {', '.join(e['exercise'] for e in regressing) or 'none'}. "
-                    f"Improving: {', '.join(e['exercise'] for e in improving) or 'none'}."
+                    f"Double Progression evaluated {len(recs)} exercise(s); "
+                    f"actionable={len(actionable)}, safety_hold={len(hold_recs)}."
                 ),
                 "evidence": {
                     "rule_name": self.rule_name,
+                    "recommendations": surfaced,
+                    "all_recommendations": recs,
                     "exercise_progress": exercise_progress,
-                    "plateauing": [e["exercise"] for e in plateauing],
-                    "improving": [e["exercise"] for e in improving],
-                    "regressing": [e["exercise"] for e in regressing],
                     "window_start": str(window_start.date()),
                     "window_end": str(window_end.date()),
                 },
@@ -526,6 +569,20 @@ class StrengthPlateauRule(BaseInsightRule):
                 ),
             }
         ]
+
+    @staticmethod
+    def _safe_user_state_for_health(user):
+        """Read the user's full state dict so the Double Progression
+        readiness gate can consult ``health.sleep_status`` etc. Read-only,
+        defensive; returns ``{}`` on any failure (fail-closed → service
+        treats absence as "unknown" which biases toward HOLDING, never
+        toward advancement).
+        """
+        try:
+            from apps.core.ai_state.state_engine import get_user_state
+            return get_user_state(user) or {}
+        except Exception:
+            return {}
 
     @staticmethod
     def _build_message(stalled, improving, stalled_names, improving_names):
@@ -648,22 +705,23 @@ class StrengthPlateauRule(BaseInsightRule):
         return [
             {
                 "severity": "info",
-                "title": "Strength plateau detected",
+                "title": "Progression check-in",
                 "message": (
-                    f"You've completed {workouts_30d} workouts in the last 30 days "
-                    f"without setting any personal records. "
-                    f"Consider adjusting your programming — progressive overload, "
-                    f"deload weeks, or exercise variations may help break through."
+                    f"You've trained consistently — {workouts_30d} workouts "
+                    f"in the last 30 days. Your strength signals are still "
+                    f"settling; stay consistent at your current loads and "
+                    f"earn the next rep before adding weight."
                 ),
                 "confidence_score": 0.72,
                 "explain_why": (
                     f"Rule: {self.rule_name}. 30-day workouts: {workouts_30d}, "
-                    f"30-day PRs: 0, strength trend: {strength_trend}."
+                    f"strength trend: {strength_trend}. Per-exercise progression "
+                    f"data unavailable — fell back to consistency-only message "
+                    f"(no PR framing, no aggressive default)."
                 ),
                 "evidence": {
                     "rule_name": self.rule_name,
                     "workouts_30d": workouts_30d,
-                    "prs_30d": 0,
                     "strength_trend": strength_trend,
                     "window_start": str(window_start.date()),
                     "window_end": str(window_end.date()),

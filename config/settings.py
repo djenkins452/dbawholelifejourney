@@ -1404,6 +1404,10 @@ WLJ_DOMAIN_SCOPED_CONTEXT_ENABLED = env.bool('WLJ_DOMAIN_SCOPED_CONTEXT_ENABLED'
 WLJ_MEMORY_GATING_ENABLED = env.bool('WLJ_MEMORY_GATING_ENABLED', default=True)
 # Skip intent recognition LLM call when router detects no action signals
 WLJ_INTENT_BYPASS_ENABLED = env.bool('WLJ_INTENT_BYPASS_ENABLED', default=True)
+# Beth Stabilization Sprint — surgical Analyze override + execute/mutation guards
+# + Health Analyze v0. Master kill switch (default ON); set False to revert
+# instantly without a code change. See docs/wlj_claude_changelog.md (2026-06-07).
+WLJ_BETH_STABILIZATION_ENABLED = env.bool('WLJ_BETH_STABILIZATION_ENABLED', default=True)
 # Only inject COGNITIVE_PRECISION / PROACTIVE_INTELLIGENCE frameworks when needed
 WLJ_CONDITIONAL_FRAMEWORKS_ENABLED = env.bool('WLJ_CONDITIONAL_FRAMEWORKS_ENABLED', default=True)
 # Load only domain-relevant tool schemas for intent recognition

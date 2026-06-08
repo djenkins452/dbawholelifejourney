@@ -671,6 +671,46 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
     # the Response Governor at the absolute top of this function.
     # The governor handles both REFLECTIVE and ALERT types centrally.
 
+    # ══════════════════════════════════════════════════════════
+    # STABILIZATION SPRINT — Analyze intent override (Fix 1 + Fix 4)
+    # High-confidence Analyze phrasing ("what do you think about my
+    # weight history", "how am I doing overall") must NOT be swallowed
+    # by the greedy status/data/retrieve routes below, must NEVER reach
+    # task mutation, and must NOT contaminate into Execute. We intercept
+    # here, before all of those.
+    # ══════════════════════════════════════════════════════════
+    try:
+        from apps.ai.cognitive_mode import stabilization as _stab
+        if _stab.stabilization_enabled() and _stab.is_analyze_request(msg_lower):
+            _stab_health = _stab.is_health_context(msg_lower)
+            # Fix 4: deterministic, grounded Health Analyze v0 (no LLM).
+            if _stab_health and user is not None:
+                _hv0 = _stab.build_health_analyze_v0(user)
+                if _hv0:
+                    result = RouteResult(
+                        category=RouteCategory.DETERMINISTIC_HEALTH_SUMMARY,
+                        response=_hv0,
+                        route_name='analyze_health_v0',
+                        domain='health',
+                        is_terminal=True,
+                    )
+                    result.elapsed_ms = (time.monotonic() - t_start) * 1000
+                    _log_route_decision(result, user, message)
+                    return result
+            # Analyze without a terminal package: skip the intent classifier
+            # entirely (no mutation, no execute), answer via LLM with a domain
+            # hint. skip_intent is the same mechanism the governor uses.
+            result = RouteResult(
+                route_name='analyze_override',
+                domain='health' if _stab_health else None,
+                skip_intent=True,
+            )
+            result.elapsed_ms = (time.monotonic() - t_start) * 1000
+            _log_route_decision(result, user, message)
+            return result
+    except Exception as _stab_err:
+        logger.warning("STABILIZATION analyze override failed (fail-open): %s", _stab_err)
+
     # ── Phase 0a: Today status query (bypasses LLM entirely) ──────
     result = _try_status_query_route(msg_lower, user)
     if result is not None:

@@ -7,6 +7,30 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-08 — fix(ai): Beth Stabilization Sprint — Analyze override + execute/mutation guards + Health Analyze v0
+
+**Why:** Real-world testing surfaced five trust breaks while the broader cognitive architecture is still being designed. This is a surgical, reversible stabilization pass — NOT a rewrite, no migration, no model swap. Everything is gated by one kill switch `WLJ_BETH_STABILIZATION_ENABLED` (default ON; set False to revert instantly).
+
+**Failures fixed:**
+1. "What do you think about my weight history?" → returned Retrieve (current/goal/pounds-left) instead of analysis.
+2. Analyze follow-up collapsed into generic filler ("keep focusing on your goals").
+3. "How am I doing overall with my health?" → routed to Execute ("go tighten Harley handlebars") — catastrophic contamination.
+4. "Do you think I need to change anything?" → triggered a task mutation ("Update task: tasks") — dangerous accidental write.
+5. (Noted, not fully fixed) "What was my last workout?" → glucose answer — sticky-domain bleed; see remaining gaps.
+
+**The 4 guards (all in new `apps/ai/cognitive_mode/stabilization.py`):**
+- **Fix 1 — Analyze override** (`deterministic_router.classify_and_route`): high-confidence analyze phrasing intercepts BEFORE greedy status/data/retrieve routes. Non-health analyze → `skip_intent=True` route (no classifier, no mutation, no execute; answers via LLM with domain hint).
+- **Fix 2 — Execute-contamination guard** (`personal_assistant._cos_mode_shortcut`): health-context messages can't enter the execution selector unless the user explicitly asks for the next action.
+- **Fix 3 — Accidental-mutation guard** (`personal_assistant.send_message`): mutation intents that are question-form AND lack explicit mutation phrasing are suppressed. Imperative mutations ("push my 3pm to 4", "delete that task") untouched.
+- **Fix 4 — Health Analyze v0** (deterministic composer): for Analyze+Health, reads canonical SAE state (weight trend/velocity, glucose summary, workouts_7d, sleep, body-comp deltas, protein compliance) and returns a grounded Situation / What I notice / Recommendation shape. Returns None on no data (falls through) — invents nothing, no LLM.
+
+**Files changed:** `apps/ai/cognitive_mode/stabilization.py` (new); `apps/ai/deterministic_router.py` (+~35 lines, one guarded block); `apps/ai/personal_assistant.py` (two guarded blocks: `_cos_mode_shortcut`, mutation filter); `config/settings.py` (+1 flag); `apps/ai/tests/test_stabilization_guards.py` (new, 19 tests).
+
+**Verification:** 40/40 new tests pass (19 stabilization + 21 Phase 0). Regression: ran 7 router/intent/glucose/nutrition suites (289 tests). 8 pre-existing failures confirmed identical with the flag OFF (MagicMock/fixture env issues in `test_deterministic_router`/`test_cos_decision_shortcut`) — **zero new failures introduced**. `manage.py check` clean; no migrations.
+
+**Remaining gaps (out of sprint scope):** Example 5 (workout→glucose sticky-domain bleed) is a domain-inference bug in the router, not addressed by these 4 guards. Health Analyze v0 is deterministic/templated (good enough for v0, not the full bounded-reasoning lane). Pre-existing router test failures remain (separate cleanup).
+
+
 ## 2026-06-07 — chore(ai): Beth Cognitive Mode — Phase 0 inert build (shadow classifier + A/B scaffold)
 
 **What & why:** Architecture review found the root cause of Beth's "robotic"/misrouting failures is a *missing Analyze reasoning lane*, not excess determinism. The existing `is_asking_for_analysis` branch (`personal_assistant.py:3960`) is domain-blind: when it fires it assembles a daily-execution checklist (tasks/goals/streak/prayers), not a health-trend package — which is literally why "what do you think about my weight history?" returns a task list. Phase 0 builds the *instrument* to measure this with evidence before any behavior change.

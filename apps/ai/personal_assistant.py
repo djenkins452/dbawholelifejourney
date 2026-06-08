@@ -706,6 +706,26 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
             if _match_nutrition_query((message or '').lower()):
                 return None
 
+            # ── STABILIZATION SPRINT — Execute-contamination guard (Fix 2) ──
+            # Health-analysis questions ("how am I doing overall with my
+            # health") must NEVER fall into the execution selector and return
+            # an unrelated task ("tighten Harley handlebars"). Block the execute
+            # shortcut for health-context messages unless the user explicitly
+            # asks for the next action.
+            try:
+                from apps.ai.cognitive_mode.stabilization import (
+                    stabilization_enabled,
+                    is_health_context,
+                    is_explicit_execute_request,
+                )
+                _msg_lower = (message or '').lower()
+                if (stabilization_enabled()
+                        and is_health_context(_msg_lower)
+                        and not is_explicit_execute_request(_msg_lower)):
+                    return None
+            except Exception:
+                pass  # fail-open: never break the shortcut path
+
             mode = resolve_cos_mode(message)
             if mode is None:
                 return None
@@ -1639,6 +1659,28 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
 
                     # Filter out no_action results
                     actionable_intents = [ir for ir in intent_results if ir.intent_type != 'no_action']
+
+                    # ── STABILIZATION SPRINT — accidental-mutation guard (Fix 3) ──
+                    # Natural coaching/question language ("do you think I need to
+                    # change anything?") must NEVER mutate state. Suppress mutation
+                    # intents that are question-form AND lack explicit mutation
+                    # phrasing. Imperative mutations are untouched.
+                    try:
+                        from apps.ai.cognitive_mode.stabilization import (
+                            stabilization_enabled, filter_unsafe_mutations,
+                        )
+                        if stabilization_enabled() and actionable_intents:
+                            actionable_intents, _suppressed_muts = filter_unsafe_mutations(
+                                actionable_intents, message)
+                            if _suppressed_muts:
+                                logger.warning(
+                                    "MUTATION_GUARD user=%s suppressed=%s msg=%r",
+                                    self.user.id,
+                                    [getattr(i, 'intent_type', '?') for i in _suppressed_muts],
+                                    message[:80],
+                                )
+                    except Exception:
+                        logger.debug("mutation guard skipped (non-fatal)", exc_info=True)
 
                     # ── Inject proactive entity context into intent parameters ──
                     # When the user responds to a proactive check-in with a complex

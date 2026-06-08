@@ -7,6 +7,26 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-08 — fix(ai): P1 weight-contradiction guard (Layer 1) + diagnostic — one canonical weight to the LLM
+
+**The trust break (production):** "What do you think about my weight history?" → 289.9 lb (correct), then minutes later "Am I losing weight too quickly?" → 287.3 lb (stale). Two different current weights = trust collapse.
+
+**Investigation finding (important):** This is NOT where it looked. Every *deterministic* health path already reads canonical SAE `weight_current` (289.9): `_handle_weight_query`, `build_health_summary_response`, Health Analyze v0, and cos_context `health_signals`. Three weight *sources* do exist (SAE/`WeightEntry` [canonical] vs `BodyCompositionEntry` vs `DailyHealthSummary`), but the obvious LLM-facing blocks (`build_cos_health_summary_text`, `health_intelligence`) inject **no weight number at all**. The 287.3 reaches the model on the coaching-question **LLM fallthrough** from an as-yet-unconfirmed emitter (insight window or conversation-history parroting). So the reliable fix must be **source-agnostic**.
+
+**Layer 1 — truth-validator guard (source-agnostic):**
+- `cos_fact_statements.build_locked_facts` now locks canonical `weight_current` (read once from SAE).
+- `cos_truth_validator.validate_locked_facts` corrects, in place, any CURRENT-weight assertion in Beth's reply that differs from canonical by >1.0 — regardless of where the stale number came from. Precise by design: only "current weight" phrasings are touched; goal weights, lifted weights, and historical/trend numbers are left intact.
+- New `apps/ai/cognitive_mode/health_truth.py` holds the guard + diagnostic (gated: `WLJ_BETH_WEIGHT_GUARD_ENABLED`, `WLJ_BETH_WEIGHT_DIAG_ENABLED`, both default ON).
+
+**Diagnostic (log-only):** `log_weight_diagnostic` records canonical weight, all weight-like numbers in the assembled LLM **context** vs the **draft** response, the route, and a message **hash** (no raw text). The `stale_in_context` flag tells us whether the bad number entered via context assembly or LLM generation — so Layer 2 can target the real emitter precisely. Captured at the validator call site (draft, pre-correction); the assembled context is stashed transiently in `_generate_response`.
+
+**Files:** `apps/ai/cognitive_mode/health_truth.py` (new); `apps/ai/cos_fact_statements.py` (+lock canonical weight); `apps/ai/cos_truth_validator.py` (+weight correction); `apps/ai/personal_assistant.py` (context stash + diagnostic call); `config/settings.py` (+2 flags); `apps/ai/tests/test_health_truth_guard.py` (new, 15 tests).
+
+**Verification:** 15/15 guard tests pass — incl. "draft 287.3 → corrected to 289.9", "draft 289.9 → passes", and goal/lift/historical numbers preserved. The 6 `test_cos_truth_enforcement` failures are PRE-EXISTING (confirmed identical with my changes fully removed — MagicMock `timezone_iana` env issue). `manage.py check` clean; no migrations.
+
+**Deferred — Layer 2 (NOT done, by direction):** consolidate `BodyCompositionEntry`/`DailyHealthSummary` current-weight reads onto SAE. We will use the diagnostic logs to pin the exact 287.3 emitter first, then fix it precisely.
+
+
 ## 2026-06-08 — fix(ai): Beth Stabilization Sprint — Analyze override + execute/mutation guards + Health Analyze v0
 
 **Why:** Real-world testing surfaced five trust breaks while the broader cognitive architecture is still being designed. This is a surgical, reversible stabilization pass — NOT a rewrite, no migration, no model swap. Everything is gated by one kill switch `WLJ_BETH_STABILIZATION_ENABLED` (default ON; set False to revert instantly).

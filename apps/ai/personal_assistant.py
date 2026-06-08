@@ -1951,6 +1951,28 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
             )
             log_cos_debug_state(self.user)
             _locked = build_locked_facts(self.user)
+
+            # ── Weight diagnostic (log-only) — capture DRAFT pre-correction ──
+            # Pins where a stale weight enters: context assembly vs LLM gen.
+            try:
+                from apps.ai.cognitive_mode.health_truth import (
+                    log_weight_diagnostic,
+                )
+                try:
+                    _diag_route = _route_result.route_name
+                except Exception:
+                    _diag_route = None
+                log_weight_diagnostic(
+                    self.user,
+                    _diag_route,
+                    message,
+                    getattr(self, '_last_llm_context', ''),
+                    response,
+                    (_locked or {}).get('_raw', {}).get('weight_current'),
+                )
+            except Exception:
+                logger.debug("weight diagnostic skipped (non-fatal)", exc_info=True)
+
             _validated, _truth_violations = validate_locked_facts(
                 response, _locked, self.user, allow_regenerate=True,
             )
@@ -3708,6 +3730,14 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
 
         except Exception as cos_err:
             logger.error("CoS prompt assembly failed (total context loss): %s", cos_err, exc_info=True)
+
+        # Stash the assembled LLM context for the weight diagnostic probe — lets
+        # us see whether a stale weight entered via context assembly vs LLM
+        # generation. Transient per-request; overwritten each call.
+        try:
+            self._last_llm_context = system_prompt
+        except Exception:
+            pass
 
         # Executive Briefing (replaces simple greeting injection)
         # Delivers morning briefing, gap detection, life events, health gates,

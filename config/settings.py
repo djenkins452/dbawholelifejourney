@@ -1408,6 +1408,11 @@ WLJ_INTENT_BYPASS_ENABLED = env.bool('WLJ_INTENT_BYPASS_ENABLED', default=True)
 # + Health Analyze v0. Master kill switch (default ON); set False to revert
 # instantly without a code change. See docs/wlj_claude_changelog.md (2026-06-07).
 WLJ_BETH_STABILIZATION_ENABLED = env.bool('WLJ_BETH_STABILIZATION_ENABLED', default=True)
+# P1 weight-contradiction fix (Layer 1): truth-validator guard that corrects any
+# current-weight figure in Beth's reply that contradicts canonical SAE
+# weight_current, plus log-only diagnostic to pin the stale-value source.
+WLJ_BETH_WEIGHT_GUARD_ENABLED = env.bool('WLJ_BETH_WEIGHT_GUARD_ENABLED', default=True)
+WLJ_BETH_WEIGHT_DIAG_ENABLED = env.bool('WLJ_BETH_WEIGHT_DIAG_ENABLED', default=True)
 # Only inject COGNITIVE_PRECISION / PROACTIVE_INTELLIGENCE frameworks when needed
 WLJ_CONDITIONAL_FRAMEWORKS_ENABLED = env.bool('WLJ_CONDITIONAL_FRAMEWORKS_ENABLED', default=True)
 # Load only domain-relevant tool schemas for intent recognition

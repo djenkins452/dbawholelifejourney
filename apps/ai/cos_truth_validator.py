@@ -408,6 +408,30 @@ def validate_locked_facts(response_text, locked_facts, user,
     raw = locked_facts.get('_raw', {})
     violations = []
 
+    # ── P1 weight-contradiction guard (source-agnostic) ──────────
+    # Beth must never state a CURRENT weight different from canonical SAE
+    # weight_current. Correct in place (precise: only current-weight
+    # assertions; goal/lift/historical numbers untouched). Applied to
+    # response_text so every downstream return uses the corrected copy.
+    _canon_weight = raw.get('weight_current')
+    if _canon_weight is not None:
+        try:
+            from apps.ai.cognitive_mode.health_truth import (
+                correct_weight_contradictions,
+            )
+            response_text, _w_corrections = correct_weight_contradictions(
+                response_text, float(_canon_weight),
+                raw.get('weight_unit', 'lb'),
+            )
+            if _w_corrections:
+                logger.error(
+                    "[CoS WEIGHT GUARD] user=%s corrected current-weight "
+                    "%s -> %.1f",
+                    user.id, _w_corrections, float(_canon_weight),
+                )
+        except Exception:
+            logger.debug("weight guard skipped (non-fatal)", exc_info=True)
+
     # Check each NOT-done domain for false completion claims
     _domain_checks = [
         ('prayer', raw.get('prayer_done', False), 'prayer'),

@@ -7,6 +7,24 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-07 — chore(ai): Beth Cognitive Mode — Phase 0 inert build (shadow classifier + A/B scaffold)
+
+**What & why:** Architecture review found the root cause of Beth's "robotic"/misrouting failures is a *missing Analyze reasoning lane*, not excess determinism. The existing `is_asking_for_analysis` branch (`personal_assistant.py:3960`) is domain-blind: when it fires it assembles a daily-execution checklist (tasks/goals/streak/prayers), not a health-trend package — which is literally why "what do you think about my weight history?" returns a task list. Phase 0 builds the *instrument* to measure this with evidence before any behavior change.
+
+**This commit is INERT** — log-only, flag-off, no migration, no live-path hook, no model API calls. Nothing changes any response Beth gives.
+
+**Files added:**
+- `apps/ai/cognitive_mode/{__init__,taxonomy,shadow_classifier,golden_corpus,telemetry,model_ab}.py` — pure cognitive-mode taxonomy (4 lanes: Retrieve/Analyze/Execute/Reflect + coach_tail flag), deterministic rule-based shadow classifier, labeled golden corpus from real failures, telemetry stub (no DB write), and model-A/B scaffold with a hard safety stop (`generate_candidate` refuses to call any API without explicit approval + flag).
+- `apps/ai/management/commands/beth_mode_report.py` — read-only golden-corpus accuracy report + (future) live aggregates.
+- `apps/ai/management/commands/beth_model_ab.py` — A/B runner scaffold; lists prompts, never calls the API.
+- `apps/ai/tests/test_shadow_classifier.py`, `apps/ai/tests/test_cognitive_mode_telemetry.py` — 21 tests.
+- `docs/BETH_PHASE0_SHADOW_CLASSIFIER_PLAN.md` — full Phase 0 plan (data model, flags, privacy, metrics, approval boundary).
+
+**Results:** 21/21 tests pass. Golden-corpus MODE accuracy **15/15 = 100%** (gate ≥85%); domain accuracy 87% (2 misses are context-dependent follow-ups with no in-message domain token — reported, not gated). `manage.py check` clean; `makemigrations --check ai` → no changes (zero models added).
+
+**Held for approval (NOT in this work):** DB migration for `CognitiveModeObservation`/`ModelABResult`, the one-line probe hook into `personal_assistant.py`, any flag flip, and any candidate-model API run.
+
+
 ## 2026-06-07 — feat(health): Glucose Event Grounding — hard split between latest event and summary state
 
 **The trust break (production evidence):**

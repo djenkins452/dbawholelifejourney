@@ -248,12 +248,15 @@ class SleepQueryHandlerTests(TestCase):
 
     @patch('apps.core.ai_state.state_engine.get_module_state')
     def test_returns_sleep_average(self, mock_gms):
+        # Summary-intent phrasing uses the 7-day average (latest-vs-summary fix:
+        # "how did i sleep?" now leads with last night — see test_health_retrieval).
         mock_gms.return_value = {
             'sleep_avg_duration_7d': 420.0,  # 7 hours
+            'sleep_avg_hours_7d': 7.0,
             'sleep_trend': 'stable',
         }
         user = MagicMock()
-        result = classify_and_route("how did i sleep?", user)
+        result = classify_and_route("how has my sleep been this week?", user)
         self.assertEqual(result.category, RouteCategory.DETERMINISTIC_DATA)
         self.assertIn('7.0 hours', result.response)
         self.assertIn('consistent', result.response)
@@ -262,9 +265,10 @@ class SleepQueryHandlerTests(TestCase):
     def test_below_target(self, mock_gms):
         mock_gms.return_value = {
             'sleep_avg_duration_7d': 360.0,  # 6 hours
+            'sleep_avg_hours_7d': 6.0,
         }
         user = MagicMock()
-        result = classify_and_route("how did i sleep?", user)
+        result = classify_and_route("how has my sleep been this week?", user)
         self.assertIn('6.0 hours', result.response)
         self.assertIn('below the 7-hour target', result.response)
 

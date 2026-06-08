@@ -4237,6 +4237,63 @@ def _handle_routine_time_query(user, item_keyword=None):
     return None
 
 
+_LAST_WORKOUT_TRIGGERS = (
+    'last workout', 'latest workout', 'most recent workout',
+    'what was my last workout', 'my last workout', 'previous workout',
+    'last training session', 'last gym session', 'last lift', 'last session',
+    'last exercise session',
+)
+
+
+def _match_last_workout_query(msg_lower):
+    """Match event-style 'what was my LAST workout?' queries (vs aggregates)."""
+    if _is_future_tense_query(msg_lower):
+        return False
+    if any(e in msg_lower for e in ('log', 'record', 'start', 'begin', 'create', 'add', 'plan')):
+        return False
+    return any(p in msg_lower for p in _LAST_WORKOUT_TRIGGERS)
+
+
+def _handle_last_workout_query(user):
+    """Deterministic LATEST workout from canonical SAE `fitness.last_workout`.
+
+    Pure retrieval — never the LLM, so journal/conversation memory can NEVER
+    contaminate this answer.
+    """
+    from apps.core.ai_state.state_engine import get_module_state
+    fitness = get_module_state(user, 'fitness') or {}
+    lw = fitness.get('last_workout') or {}
+    name = lw.get('name')
+    if not name:
+        return None  # No canonical last workout → fall through
+
+    when = ''
+    date_str = lw.get('date')
+    if date_str:
+        try:
+            from datetime import date as _date
+            d = _date.fromisoformat(date_str)
+            when = f" on {d.strftime('%b')} {d.day}"
+        except Exception:
+            when = f" on {date_str}"
+
+    resp = f"Your last workout was **{name}**{when}."
+
+    detail = []
+    ex = lw.get('exercise_count')
+    sets = lw.get('set_count')
+    mins = lw.get('minutes')
+    if ex:
+        detail.append(f"{ex} exercise{'s' if ex != 1 else ''}")
+    if sets:
+        detail.append(f"{sets} set{'s' if sets != 1 else ''}")
+    if mins:
+        detail.append(f"{mins} min")
+    if detail:
+        resp += " It included " + ", ".join(detail) + "."
+    return resp
+
+
 def _match_workout_query(msg_lower):
     """Match direct workout status questions."""
     if _is_future_tense_query(msg_lower):
@@ -4358,34 +4415,68 @@ def _match_sleep_query(msg_lower):
     return False
 
 
-def _handle_sleep_query(user):
-    """Build a deterministic sleep response from SAE state."""
+_SLEEP_SUMMARY_ANCHORS = (
+    'this week', 'average', 'avg', 'how has', 'how have', 'lately',
+    'trend', 'past week', 'last 7', 'weekly', 'on average', 'been sleeping',
+)
+
+
+def _handle_sleep_query(user, msg_lower=None):
+    """Deterministic sleep response from SAE state.
+
+    Latest-vs-summary discipline:
+      - "how did I sleep" / "last night" → LAST NIGHT event first, with the
+        7-day average as context.
+      - "this week" / "average" / "how have I been sleeping" → 7-day summary.
+    Reads canonical SAE fields; never a direct DB query.
+    """
     from apps.core.ai_state.state_engine import get_module_state
     health = get_module_state(user, 'health') or {}
 
-    sleep_min = health.get('sleep_avg_duration_7d')
-    if sleep_min is None:
-        return None  # No data → fall through
-
-    sleep_hrs = round(float(sleep_min) / 60, 1)
+    avg_min = health.get('sleep_avg_duration_7d')
+    avg_hrs = round(float(avg_min) / 60, 1) if avg_min is not None else None
     trend = health.get('sleep_trend', '')
+    trend_str = {
+        'improving': ' and improving',
+        'declining': ' and declining',
+        'stable': ' and consistent',
+    }.get(trend, '')
 
-    trend_str = ''
-    if trend == 'improving':
-        trend_str = ' and improving'
-    elif trend == 'declining':
-        trend_str = ' and declining'
-    elif trend == 'stable':
-        trend_str = ' and consistent'
+    m = msg_lower or ''
+    summary_intent = any(a in m for a in _SLEEP_SUMMARY_ANCHORS)
 
-    response = f"You're averaging **{sleep_hrs} hours** of sleep this week{trend_str}."
+    # ── Summary path ("how has my sleep been this week?") ──
+    if summary_intent:
+        if avg_hrs is None:
+            return None
+        resp = f"You're averaging **{avg_hrs} hours** of sleep this week{trend_str}."
+        resp += (" That's below the 7-hour target." if avg_hrs < 7
+                 else " That's in a solid range.")
+        return resp
 
-    if sleep_hrs < 7:
-        response += " That's below the 7-hour target."
-    elif sleep_hrs >= 7:
-        response += " That's in a solid range."
+    # ── Latest path ("how did I sleep?" / "last night") ──
+    last_hrs = health.get('sleep_last_night_hours')
+    last_q = health.get('sleep_last_night_quality')
+    if last_hrs is None:
+        # No last-night event yet — fall back to the 7d summary (don't invent).
+        if avg_hrs is None:
+            return None
+        return (f"I don't have last night's sleep logged yet. Your 7-day "
+                f"average is **{avg_hrs} hours**.")
 
-    return response
+    resp = f"You slept **{last_hrs} hours** last night"
+    if last_q is not None:
+        resp += f" with a quality score of **{last_q}**"
+    resp += "."
+    if last_q is not None and last_q >= 85:
+        resp += " That was a solid night."
+    elif last_hrs < 6:
+        resp += " That was a short night."
+    if avg_hrs is not None:
+        resp += (f" Your 7-day average is {avg_hrs} hours"
+                 + (", still below your 7-hour target." if avg_hrs < 7
+                    else " — right on target."))
+    return resp
 
 
 # ── Glucose query routing — Layer B trust fix (2026-06-07) ──────────
@@ -4792,6 +4883,9 @@ def _register_builtin_routes():
 
     # ── Summary-level routes (Truth Depth: SUMMARY) ──
     register_data_route('weight_query', _match_weight_query, _handle_weight_query, 'health')
+    # Last-workout (event) MUST register before the aggregate workout route so
+    # "what was my last workout" hits the latest-event handler, not the summary.
+    register_data_route('last_workout_query', _match_last_workout_query, _handle_last_workout_query, 'health')
     register_data_route('workout_query', _match_workout_query, _handle_workout_query, 'health')
     register_data_route('sleep_query', _match_sleep_query, _handle_sleep_query, 'health')
     # 2026-06-07 — glucose LATEST event route registered BEFORE the

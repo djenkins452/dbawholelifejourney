@@ -2354,6 +2354,29 @@ def build_fitness_state(user):
         # yesterday, etc.
         state["last_workout_days_ago"] = (now.date() - last_workout).days
 
+    # ── Canonical LATEST workout event (for "what was my last workout") ──
+    # Single most-recent completed session regardless of the 7d window, with
+    # exercise + set counts. This is the *_latest event block (distinct from the
+    # 7d aggregates above) so retrieval questions read ONE canonical source.
+    _latest_session = (
+        WorkoutQueries.completed_in_range(
+            user, cutoff_30d.date() - timedelta(days=365), now.date(),
+        )
+        .order_by("-date", "-id")
+        .prefetch_related("workout_exercises__sets")
+        .first()
+    )
+    if _latest_session is not None:
+        _exs = list(_latest_session.workout_exercises.all())
+        state["last_workout"] = {
+            "name": _latest_session.name,
+            "type": _latest_session.workout_type,
+            "date": str(_latest_session.date),
+            "minutes": _latest_session.duration_minutes,
+            "exercise_count": len(_exs),
+            "set_count": sum(len(we.sets.all()) for we in _exs),
+        }
+
     # ── Personal records (30d) ───────────────────────────────────
     state["prs_30d"] = PersonalRecord.objects.filter(
         user=user, achieved_date__gte=cutoff_30d.date()

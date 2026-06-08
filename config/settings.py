@@ -1413,6 +1413,9 @@ WLJ_BETH_STABILIZATION_ENABLED = env.bool('WLJ_BETH_STABILIZATION_ENABLED', defa
 # weight_current, plus log-only diagnostic to pin the stale-value source.
 WLJ_BETH_WEIGHT_GUARD_ENABLED = env.bool('WLJ_BETH_WEIGHT_GUARD_ENABLED', default=True)
 WLJ_BETH_WEIGHT_DIAG_ENABLED = env.bool('WLJ_BETH_WEIGHT_DIAG_ENABLED', default=True)
+# Phase 0 health-retrieval probe (log-only): records route fired + canonical
+# latest/summary vs Beth's answer to pin glucose/nutrition stale-value sources.
+WLJ_BETH_HEALTH_PROBE_ENABLED = env.bool('WLJ_BETH_HEALTH_PROBE_ENABLED', default=True)
 # Only inject COGNITIVE_PRECISION / PROACTIVE_INTELLIGENCE frameworks when needed
 WLJ_CONDITIONAL_FRAMEWORKS_ENABLED = env.bool('WLJ_CONDITIONAL_FRAMEWORKS_ENABLED', default=True)
 # Load only domain-relevant tool schemas for intent recognition

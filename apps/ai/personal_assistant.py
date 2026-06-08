@@ -1026,6 +1026,11 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
         import time as _t
         _t_total_start = _t.monotonic()
 
+        # Per-request signals for the health-retrieval probe (reset each turn so
+        # terminal-route turns don't inherit a prior turn's memory/context).
+        self._memory_injected = False
+        self._last_llm_context = ''
+
         # ── Latency tracer (diagnostic instrumentation) ──
         try:
             from apps.core.ai_observability.latency_trace import LatencyTrace
@@ -2012,6 +2017,32 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                     response = _validated
             elif _truth_violations:
                 response = _validated
+
+            # ── Phase 0 Health Retrieval Probe (LOG-ONLY) ──
+            # Records which route fired + canonical latest/summary vs what Beth
+            # said, to pin why glucose/nutrition return stale values. No effect.
+            try:
+                from apps.ai.cognitive_mode.health_retrieval_probe import (
+                    log_health_retrieval,
+                )
+                try:
+                    _probe_route = _route_result.route_name
+                    _probe_fired = bool(
+                        _route_result.is_terminal and _route_result.response
+                    )
+                except Exception:
+                    _probe_route, _probe_fired = None, False
+                log_health_retrieval(
+                    self.user, message,
+                    route_name=_probe_route,
+                    route_fired=_probe_fired,
+                    handler=_probe_route,
+                    response=response,
+                    memory_injected=getattr(self, '_memory_injected', False),
+                    llm_context=getattr(self, '_last_llm_context', ''),
+                )
+            except Exception:
+                logger.debug("health retrieval probe call skipped", exc_info=True)
 
             # ── Narration Contract enforcement (5a — soft) ──
             # Inspect the (possibly regenerated) response for state
@@ -4195,6 +4226,7 @@ USER IS ASKING ABOUT THEIR TASKS/PRIORITIES - provide this information:
                 memory_block = get_memory_context_block(self.user, message)
                 if memory_block:
                     system_prompt += memory_block
+                    self._memory_injected = True  # health-retrieval probe signal
             except Exception as mem_err:
                 logger.debug("Memory retrieval skipped: %s", mem_err)
 

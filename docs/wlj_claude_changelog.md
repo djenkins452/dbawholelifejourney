@@ -7,6 +7,29 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-08 — fix(ai): Health retrieval — sleep latest-vs-summary + last-workout route + Phase 0 probe
+
+**Context:** P1 health-trust audit found Beth gives wrong/shallow health answers across domains (glucose avg instead of latest; nutrition stale; sleep shallow; workout memory-contaminated). This ships the **two confirmed deterministic fixes** + **observability** for the uncertain ones. Glucose/nutrition rewrites are **deliberately held** until the probe pins their true emitter (audit showed those routes *should* already work).
+
+**1. Sleep latest-vs-summary fix** (`deterministic_router._handle_sleep_query`):
+- "How did I sleep?" now leads with **last night** (`sleep_last_night_hours`/`quality`) plus the 7-day average as context — no longer answers with only the 7-day average.
+- "How has my sleep been this week?" (summary anchors) uses the 7-day average.
+- Reads canonical SAE fields; falls back gracefully when last-night isn't logged.
+
+**2. Last-workout deterministic route** (`deterministic_router` + `state_builder`):
+- New canonical `fitness.last_workout` SAE block (name, type, date, exercise_count, set_count, minutes) — the most-recent completed session regardless of the 7-day window (additive, no migration).
+- New `_match_last_workout_query` / `_handle_last_workout_query`, registered **before** the aggregate workout route. "What was my last workout?" → "Your last workout was **Adjusted Upper Body** on Jun 5. It included 4 exercises, 12 sets." Pure retrieval = the LLM is never called, so journal/conversation **memory can't contaminate** it.
+
+**3. Phase 0 Health Retrieval Probe (LOG-ONLY)** (`apps/ai/cognitive_mode/health_retrieval_probe.py`):
+- For every health question logs: domain, question-class (latest/today/summary), route fired + name, canonical latest vs summary value, numbers in the answer, whether the summary value is in the LLM context, whether memory was injected, a stale-contradiction flag, and a message **hash** (no raw text). Flag `WLJ_BETH_HEALTH_PROBE_ENABLED` (default ON). Zero behavior change. This is how we'll pin the glucose/nutrition emitters before fixing them.
+
+**Files:** `apps/ai/cognitive_mode/health_retrieval_probe.py` (new); `apps/core/ai_state/state_builder.py` (+`last_workout` block); `apps/ai/deterministic_router.py` (sleep handler rewrite, last-workout route); `apps/ai/personal_assistant.py` (probe wiring: per-turn reset, memory-injected signal, probe call); `config/settings.py` (+1 flag); `apps/ai/tests/test_health_retrieval.py` (new, 14 tests); `apps/ai/tests/test_deterministic_router.py` (2 obsolete sleep tests updated to the new contract).
+
+**Verification:** 14/14 new tests pass. Router regression: the 6 pre-existing `test_deterministic_router` failures are unchanged (MagicMock/fixture env issues, confirmed earlier); the only 2 that moved were the obsolete sleep tests, now updated to assert the corrected behavior. `check` clean; no migrations.
+
+**Still HELD (by direction):** glucose route rewrite, nutrition route rewrite, broad SAE refactor, contracts framework, global memory suppression, cross-domain output guard. The probe will tell us where glucose/nutrition stale values originate first.
+
+
 ## 2026-06-08 — fix(ai): P1 weight-contradiction guard (Layer 1) + diagnostic — one canonical weight to the LLM
 
 **The trust break (production):** "What do you think about my weight history?" → 289.9 lb (correct), then minutes later "Am I losing weight too quickly?" → 287.3 lb (stale). Two different current weights = trust collapse.

@@ -7,6 +7,26 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-09 — feat(ai): Beth Page Awareness v1 — gated, humble, structured screen awareness
+
+**Why:** Beth lost the "feels present" quality during stabilization — on a Faith reading page with scripture visible, "Can you see the scripture?" returned "I can't directly see…". Investigation found WLJ ALREADY has a full structured page-context mechanism (web client extracts `url`/`module`/`page_title`/typed `page_content` incl. scripture text up to 4000 chars → server → injected into the LLM prompt). The gap: the prompt never AUTHORIZED page perception, so for a meta-question the LLM defaulted to the safe "I can't see" disclaimer. This is a finish-and-harden, NOT a rebuild. No screenshots, no vision, no guessing.
+
+**v1 Step 1 (only):** new `personal_assistant._build_page_awareness_instruction(page_context)` — a gated, humble instruction appended inside the existing `if page_context:` block:
+- References "the page context WLJ provided" / "you're on the X page" — **never** "I can see your screen".
+- **Confident + specific** only about fields actually present (e.g. "I can see today's reading is Exodus 14:5-31"; for weight/sleep/nutrition uses canonical figures already in context).
+- **Honest partial** when only the page location came through (content missing/iOS): "I can tell you're on the Faith reading page, but I don't see the scripture content coming through — want to tell me what it says?"
+- Always carries the guard: "NEVER claim to see anything not listed in PAGE CONTEXT or your canonical data."
+- Returns '' when no page_context → cannot affect any other path.
+
+**Trust guarantee:** awareness claims are gated on structured presence — Beth references only what WLJ explicitly knows is on the page. Vision-style hallucination is structurally impossible.
+
+**Files:** `apps/ai/personal_assistant.py` (helper + one guarded injection line), `apps/ai/tests/test_page_awareness.py` (new, 8 tests).
+
+**Blast radius / no-regress:** the instruction lives in the page_context prompt block, which terminal deterministic routes (health coaching, continuity, retrieval, leverage ranking) NEVER reach — so those are untouched. Verified: 8/8 page-awareness tests; coaching/router regression unchanged (same pre-existing 6, zero new). check clean; no migrations.
+
+**Held (NOT in v1):** Step 2 (pass page_context to the router) — only if testing proves router-bypass is real. iOS sending page_context — a separate Swift change.
+
+
 ## 2026-06-09 — polish(ai): Beth v1.7.1 — concern→why de-overlap + more practical action layer
 
 Tight refinement. No routing/retrieval/leverage/continuity-architecture changes.

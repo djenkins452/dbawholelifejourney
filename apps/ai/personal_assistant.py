@@ -135,6 +135,55 @@ GROUNDED_HEALTH_DOMAINS = frozenset([
 ])
 
 
+def _build_page_awareness_instruction(page_context) -> str:
+    """Gated, humble page-awareness instruction (Beth Page Awareness v1).
+
+    Lets Beth reference what WLJ reports is on the user's screen WITHOUT claiming
+    vision or inventing content. Structured awareness only:
+      - Confident + specific ONLY about fields actually present in page_context.
+      - Honest when only the page LOCATION came through (content missing).
+      - Never "I can see your screen" — always "the page context WLJ provided".
+    Returns '' when there is no page_context (so it cannot affect anything else).
+    """
+    if not page_context:
+        return ""
+    module = (page_context.get('module') or '').strip()
+    title = (page_context.get('page_title') or '').strip()
+    content = page_context.get('page_content') or {}
+    _content_fields = (
+        'scripture_text', 'scriptures', 'reading_title', 'title', 'body',
+        'current_weight', 'workout_info', 'mood', 'progress', 'content',
+        'active_fast_type', 'milestones', 'description',
+    )
+    has_content = bool(content) and any(content.get(k) for k in _content_fields)
+    where = title or (f"{module} page" if module else "this page")
+
+    parts = [
+        "PAGE AWARENESS (how to talk about what's on the user's screen):",
+        ("The PAGE CONTEXT above is what WLJ reports the user is currently viewing. "
+         "You may reference it as something you can see — but stay humble and precise. "
+         "Say \"I can see the page context WLJ provided\" or "
+         f"\"I can see you're on the {where}\" — NEVER \"I can see your screen\"."),
+    ]
+    if has_content:
+        parts.append(
+            "Be specific and confident about what's listed. If the user asks whether "
+            "you can see the page, say yes and describe it (e.g. \"I can see today's "
+            "reading is Exodus 14:5-31\", or \"I can see you're on the weight page — "
+            "your current weight is 289.9 and trending down\"). For weight / sleep / "
+            "nutrition pages, use the canonical figures already in your context.")
+    else:
+        _missing = "the scripture content" if module == "faith" else "the page details"
+        parts.append(
+            f"Only the page location came through, not its content. Be honest, e.g. "
+            f"\"I can tell you're on the {where}, but I don't see {_missing} coming "
+            f"through — want to tell me what it says?\"")
+    parts.append(
+        "NEVER claim to see anything not listed in PAGE CONTEXT above or already in "
+        "your canonical data. If it isn't there, say you can't see it and offer to help.")
+    return "\n".join(parts) + "\n"
+
+
 def _build_missing_data_context(personal_data_result: dict) -> str:
     """Build a structured context block for personal data queries with no direct data.
 
@@ -4439,6 +4488,14 @@ When the user asks about "this page", "this scripture", "this entry", etc., they
 Use this context to provide relevant, contextual help. For scripture questions, explain the passage and its meaning.
 {"DOMAIN GROUNDING: Active domain: " + _domain_hint + ". When the user references visible entities using pronouns or deictic language ('those', 'them', 'the ones listed', 'still pending', 'mark them'), resolve against the current page domain first. Only cross domains if the user explicitly names a different domain." if _domain_hint else ""}
 """
+
+            # ── Beth Page Awareness v1 (gated, humble, anti-hallucination) ──
+            # Fires whenever page_context exists — even if page_content didn't
+            # come through — so Beth confidently references what WLJ provided and
+            # is honest when content is partial. Lives in the page_context block,
+            # so it can NEVER affect terminal deterministic routes (health
+            # coaching, retrieval) — those never reach this LLM prompt.
+            system_prompt += _build_page_awareness_instruction(page_context)
 
             # Voice mode: user is speaking via microphone, response will be read aloud
             if page_context.get('voice_input'):

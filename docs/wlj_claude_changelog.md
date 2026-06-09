@@ -7,6 +7,27 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-09 — fix(ai): Beth v1.6 health coach — fix coaching overfitting, continuity, situational judgment
+
+**ROOT CAUSE (Failures 1 & 2):** v1.5's leverage ranking + continuity were correct but **never reached** for coaching questions. The analyze override gated coaching routing on `_is_coaching and (health_context or active_thread)` — so a standalone "what concerns you most?" / "if you picked one thing?" / "should I change anything?" (no health token, no thread) fell through to the nutrition **decision route** (`deterministic_router.py:3255`) which emits "Macro compliance 0/100". Because the first coaching turn never hit v1, no thread context was stored → follow-ups also restarted.
+
+**Fix A (root):** coaching questions now route to v1's leverage lane by DEFAULT, excluded only when they clearly target another domain (`mentions_non_health_domain`: finance/tasks/faith/etc.). v1 returns None on no health data → graceful fallback. This makes the leverage ranking (muscle preservation ≫ macros) and continuity actually fire. "should I change anything?" added to coaching triggers.
+
+**Fix B (Failure 2 depth):** `build_deepen` now gives substantive, lever-specific depth on "go deeper" (e.g. muscle-loss-with-age → metabolism/glucose/sustainability) instead of a one-liner.
+
+**Fix C (Failure 3):** new `intensity_check` composer for "should I work out harder?" — thoughtful pushback grounded in signals ("I'm not convinced harder is the bottleneck right now… consistency and muscle preservation ahead of intensity"), not reflexive agreement. Routed via the judgment triggers.
+
+**Fix D (Failure 4):** bounded deterministic phrase variation (`_variant`, seeded by message hash) on the highest-frequency openers (concern, weight-history) — same question → same wording, different questions → varied. No randomness, no LLM freedom.
+
+**Files:** `apps/ai/cognitive_mode/health_analyze_v1.py` (triggers, non-health guard, intensity composer, deepen depth, variation), `apps/ai/deterministic_router.py` (coaching routing default), `apps/ai/tests/test_health_analyze_v1.py` (+v1.6 tests).
+
+**Verification:** 31/31 v1 tests pass incl. standalone "what concerns you most?" → muscle leverage (no "0.0"/"/100"); "should I work out harder?" → pushback; "go deeper" → muscle depth; other-domain coaching excluded. Router regression: same pre-existing 6, zero new. check clean; no migrations.
+
+**Protected (no regression):** weight/glucose/calories/protein/sleep/workout retrieval, routing, reduced hallucination.
+
+**Limitations:** variation is light (2 openers); deeper situational reasoning is still bounded-deterministic by design (no LLM).
+
+
 ## 2026-06-09 — fix(ai): SAE health staleness — fresh-by-design source fix (demotes weight guard to safety net)
 
 **Why:** The v1.5 P1 fix made the *visible* weight correct via the guard reading live WeightEntry, but the underlying SAE `health` snapshot still went stale (it's not invalidated on weight/glucose/sleep writes), so background reasoning (cos_context / LLM context, dashboards) could still use a stale value. This makes canonical health state **fresh by design**, with the guard as a safety net only.

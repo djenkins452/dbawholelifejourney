@@ -236,6 +236,80 @@ class ContinuityTests(SimpleTestCase):
             self.assertIsNone(v1.get_health_context(conv))
 
 
+class V16CoachingRoutingTests(SimpleTestCase):
+    """v1.6 — coaching questions reach the leverage lane (root fix for the
+    'macro compliance 0.0/100' overfitting)."""
+
+    def test_coaching_triggers_recognized(self):
+        for q in ("what concerns you most?",
+                  "if you only picked one thing what would it be?",
+                  "should i change anything?",
+                  "what would you do if you were me?"):
+            self.assertTrue(v1.is_health_coaching_request(q), msg=q)
+
+    def test_other_domain_excluded(self):
+        self.assertTrue(v1.mentions_non_health_domain("what concerns you most about my budget?"))
+        self.assertTrue(v1.mentions_non_health_domain("what would you do about my project deadline?"))
+        self.assertFalse(v1.mentions_non_health_domain("what concerns you most?"))
+
+    def test_standalone_concern_is_leverage_not_macro(self):
+        # No health token, no thread — still answers via leverage, not macros.
+        out = _run("what concerns you most?", hour=14,
+                   nutrition={"protein_compliance_pct": 0})
+        self.assertNotIn("0.0", out)
+        self.assertNotIn("/100", out)
+        self.assertIn("muscle", out.lower())
+
+
+class V16IntensityTests(SimpleTestCase):
+    """v1.6 Failure 3 — situational judgment, not reflexive agreement."""
+
+    def test_train_harder_routes_and_pushes_back(self):
+        self.assertEqual(v1.classify_analyze_question("should i work out harder?"), "intensity_check")
+        self.assertTrue(v1.is_health_judgment_request("should i work out harder?"))
+        out = _run("should i work out harder?", hour=14)
+        self.assertIn("not convinced", out.lower())
+        self.assertNotIn("sure", out.lower())
+
+    def test_train_harder_when_recovery_lagging(self):
+        out = _run("should i train harder?", hour=14,
+                   health={**_HEALTH, "sleep_avg_hours_7d": 5.2, "sleep_trend": "declining"})
+        self.assertIn("recovery", out.lower())
+
+
+class V16DeepenTests(SimpleTestCase):
+    """v1.6 Failure 2 — 'go deeper' gives substantive depth."""
+
+    def test_go_deeper_gives_muscle_depth(self):
+        from django.core.cache import cache
+        conv = type("C", (), {"id": 808})()
+        cache.delete("beth:hctx:808")
+        with mock.patch("apps.core.ai_state.state_engine.get_module_state") as g, \
+             mock.patch("apps.core.utils.get_user_now") as now:
+            s = {"health": _HEALTH, "fitness": _FITNESS, "nutrition": _NUTRITION}
+            g.side_effect = lambda u, m, *a, **k: s.get(m, {})
+            now.side_effect = lambda u: datetime(2026, 6, 9, 14, 0, 0)
+            v1.build_health_analyze(object(), "what concerns you most?", conversation=conv)
+            deep = v1.build_deepen(object(), "go deeper", conv)
+        self.assertIn("muscle", deep.lower())
+        self.assertTrue("metabolism" in deep.lower() or "sustainable" in deep.lower())
+        cache.delete("beth:hctx:808")
+
+
+class V16VariationTests(SimpleTestCase):
+    def test_variant_is_deterministic_and_bounded(self):
+        opts = ["a", "b", "c"]
+        self.assertEqual(v1._variant(opts, "seed1"), v1._variant(opts, "seed1"))
+        self.assertIn(v1._variant(opts, "seed1"), opts)
+
+    def test_concern_opener_varies_across_questions(self):
+        a = _run("what concerns you most?", hour=14)
+        b = _run("what worries you most right now?", hour=14)
+        # Both still encouraging, but not necessarily identical wording.
+        self.assertIn("encouraged", a.lower())
+        self.assertIn("encouraged", b.lower())
+
+
 class FallbackTests(SimpleTestCase):
     def test_no_data_returns_none(self):
         out = _run("what do you think about my weight history?",

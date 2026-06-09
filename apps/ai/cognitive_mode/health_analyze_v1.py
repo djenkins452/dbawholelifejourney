@@ -18,9 +18,23 @@ Gated by WLJ_BETH_HEALTH_ANALYZE_V1 (default on).
 
 from __future__ import annotations
 
+import hashlib
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _variant(options, seed):
+    """Deterministic bounded variation: pick one phrasing by a stable hash of the
+    seed (same question → same wording; different questions → varied). Avoids
+    robotic repetition without any randomness or LLM freedom."""
+    if not options:
+        return ""
+    try:
+        idx = int(hashlib.sha256((seed or "").encode("utf-8")).hexdigest(), 16) % len(options)
+    except Exception:
+        idx = 0
+    return options[idx]
 
 
 def analyze_v1_enabled() -> bool:
@@ -36,6 +50,9 @@ def analyze_v1_enabled() -> bool:
 _JUDGMENT_TRIGGERS = (
     "too quickly", "too fast", "losing too", "overtraining",
     "training too much", "overdoing", "pushing too hard", "too hard",
+    # 'should I train harder?' — situational-judgment questions reach v1 too.
+    "work out harder", "workout harder", "train harder", "exercise harder",
+    "push harder", "go harder", "train more", "work out more", "push myself harder",
 )
 
 
@@ -51,14 +68,34 @@ _CONCERN_TRIGGERS = ("concerns you", "concern you", "worried about", "what worri
                      "biggest concern", "most concerned", "what concerns")
 _ONE_THING_TRIGGERS = ("one thing", "picked one", "pick one", "single most",
                        "if you were me", "what would you do", "most important thing")
+_CHANGE_TRIGGERS = ("change anything", "need to change", "do differently",
+                    "anything differently", "should i adjust", "be doing differently")
+_INTENSITY_TRIGGERS = ("work out harder", "workout harder", "train harder",
+                       "exercise harder", "push harder", "go harder", "train more",
+                       "work out more", "push myself harder")
+
+# If a coaching question clearly references another life domain, it is NOT a
+# health-coaching question — keep it out of the v1 health lane.
+_NON_HEALTH_TOKENS = (" work ", "my job", "deadline", "meeting", "project",
+                      "task", "to-do", "to do list", "calendar", "money",
+                      "spend", "spending", "budget", "finance", "net worth",
+                      "invest", "prayer", "scripture", "bible", "journal entry",
+                      "my wife", "my kids", "marriage")
 
 
 def is_health_coaching_request(msg_lower: str) -> bool:
     """Coaching-style phrasings ('what concerns you most', 'if you picked one
-    thing') that should route to v1 leverage reasoning."""
+    thing', 'should I change anything') that route to v1 leverage reasoning."""
     if not msg_lower:
         return False
-    return any(t in msg_lower for t in _CONCERN_TRIGGERS + _ONE_THING_TRIGGERS)
+    return any(t in msg_lower
+               for t in _CONCERN_TRIGGERS + _ONE_THING_TRIGGERS + _CHANGE_TRIGGERS)
+
+
+def mentions_non_health_domain(msg_lower: str) -> bool:
+    """True if a (coaching) question clearly targets another domain, so it should
+    NOT be answered by the health lane."""
+    return any(t in (msg_lower or "") for t in _NON_HEALTH_TOKENS)
 
 
 def classify_analyze_question(msg_lower: str) -> str:
@@ -68,13 +105,13 @@ def classify_analyze_question(msg_lower: str) -> str:
     if any(t in m for t in ("overtraining", "training too much", "overdoing",
                             "pushing too hard", "too hard")):
         return "overtraining"
+    if any(t in m for t in _INTENSITY_TRIGGERS):
+        return "intensity_check"
     if any(t in m for t in _CONCERN_TRIGGERS):
         return "concern"
     if any(t in m for t in _ONE_THING_TRIGGERS):
         return "one_thing"
-    if any(t in m for t in ("change anything", "need to change", "do differently",
-                            "anything differently", "should i adjust",
-                            "be doing differently")):
+    if any(t in m for t in _CHANGE_TRIGGERS):
         return "one_thing"
     if any(t in m for t in ("pattern", "patterns", "notice", "stands out",
                             "noticing")):
@@ -317,7 +354,7 @@ def _has_min_data(signals):
     return any(k in signals for k in ("weight", "glucose", "workouts", "sleep"))
 
 
-def _compose_weight_history(signals):
+def _compose_weight_history(signals, seed=None):
     w = signals.get("weight")
     if not w:
         return None
@@ -325,7 +362,11 @@ def _compose_weight_history(signals):
     unit = w["unit"]
     parts = []
     if verdict == "sustainable":
-        parts.append("Your weight trend looks sustainable.")
+        parts.append(_variant([
+            "Your weight trend looks sustainable.",
+            "Your weight trend looks healthy and sustainable.",
+            "The way your weight is trending looks sustainable to me.",
+        ], seed))
         vel = w.get("vel_wk")
         chg = w.get("change_30d")
         if chg is not None:
@@ -441,7 +482,7 @@ def _compose_one_thing(signals, band):
     return " ".join(parts)
 
 
-def _compose_concern(signals, band):
+def _compose_concern(signals, band, seed=None):
     """'What concerns you most?' — prioritizes the highest-leverage PROTECT, with
     encouragement when the overall trend is positive. NOT 'lowest metric wins'."""
     if not _has_min_data(signals):
@@ -452,8 +493,11 @@ def _compose_concern(signals, band):
     ranked = leverage_ranked(signals, band)
     parts = []
     if positive:
-        parts.append("Honestly, I'm more encouraged than concerned right now — "
-                     "your trend is working.")
+        parts.append(_variant([
+            "Honestly, I'm more encouraged than concerned right now — your trend is working.",
+            "Honestly, there's more to be encouraged about than concerned about — the direction is solid.",
+            "I'd say I'm more encouraged than worried right now; the overall trend is heading the right way.",
+        ], seed))
     if ranked:
         top = ranked[0]
         parts.append(f"The thing I'd focus on most is {top[1]}, because {top[2]}.")
@@ -515,14 +559,39 @@ def _compose_overtraining(signals):
             "those are the first things to dip if you're overdoing it.")
 
 
+def _compose_intensity_check(signals):
+    """'Should I work out harder?' — thoughtful pushback, not reflexive agreement.
+    Harder is rarely the bottleneck when weight is already trending well."""
+    w = signals.get("weight")
+    sl = signals.get("sleep")
+    losing = bool(w and w.get("trend") == "decreasing"
+                  and (w.get("pct_wk") is None or w["pct_wk"] <= 1.25))
+    recovery_lagging = bool(sl and (sl.get("trend") == "declining"
+                            or (sl.get("avg") is not None and sl["avg"] < 6)))
+    if recovery_lagging:
+        return ("I'd be careful about training harder right now — your sleep and "
+                "recovery are lagging, and adding intensity on top of that usually "
+                "backfires. I'd shore up recovery first, then push.")
+    if losing:
+        return ("Honestly, I'm not convinced harder is the bottleneck right now. "
+                "You're already losing steadily and recovery looks reasonable. I'd "
+                "put consistency and muscle preservation ahead of pushing intensity "
+                "— harder isn't what moves the needle here.")
+    return ("If progress has flattened, a modest bump in intensity can help — but "
+            "I'd raise it gradually and keep protein and recovery steady so it stays "
+            "sustainable rather than chasing hard sessions.")
+
+
+# Composers take (signals, band, seed); seed drives bounded phrase variation.
 _COMPOSERS = {
-    "weight_history": lambda s, b: _compose_weight_history(s),
-    "overall": lambda s, b: _compose_overall(s),
-    "patterns": lambda s, b: _compose_patterns(s),
-    "one_thing": lambda s, b: _compose_one_thing(s, b),
-    "concern": lambda s, b: _compose_concern(s, b),
-    "pace_check": lambda s, b: _compose_pace_check(s),
-    "overtraining": lambda s, b: _compose_overtraining(s),
+    "weight_history": lambda s, b, seed: _compose_weight_history(s, seed),
+    "overall": lambda s, b, seed: _compose_overall(s),
+    "patterns": lambda s, b, seed: _compose_patterns(s),
+    "one_thing": lambda s, b, seed: _compose_one_thing(s, b),
+    "concern": lambda s, b, seed: _compose_concern(s, b, seed),
+    "pace_check": lambda s, b, seed: _compose_pace_check(s),
+    "overtraining": lambda s, b, seed: _compose_overtraining(s),
+    "intensity_check": lambda s, b, seed: _compose_intensity_check(s),
 }
 
 
@@ -620,14 +689,39 @@ def build_deepen(user, msg_lower, conversation) -> str | None:
                     f"{top[1]} ahead of fine-tuning anything else right now.")
         return ("Mostly because your trend is already working — there's no urgent "
                 "problem to fix, so consistency matters more than changes.")
-    # tell me more / go deeper / expand
+    # tell me more / go deeper / expand → substantive depth, not a one-liner
     parts = []
     if top:
-        parts.append(f"The main thing is {top[1]} — {top[2]}.")
+        parts.append(f"The main thing is {top[1]}.")
+        parts.append(_deep_rationale(top[1]))
     nxt = ctx.get("next_lever")
     if nxt:
         parts.append(f"After that, the next lever would be {nxt[1]}.")
     return " ".join(parts) if parts else None
+
+
+def _deep_rationale(phrase) -> str:
+    """Extended 'why this matters' for a 'go deeper' follow-up, keyed to the lever."""
+    p = (phrase or "").lower()
+    if "muscle" in p:
+        return ("The hidden risk in successful weight loss is shedding muscle along "
+                "with fat — and that matters more as we get older. Muscle drives "
+                "metabolism, strength, and glucose control, so protecting it with "
+                "protein and resistance training is what keeps the loss sustainable "
+                "rather than something that rebounds.")
+    if "sleep" in p:
+        return ("Sleep sits upstream of almost everything — recovery, appetite, "
+                "glucose stability, and training quality all follow it. Tightening "
+                "consistency there tends to lift the other areas without extra effort.")
+    if "workout" in p or "training" in p:
+        return ("Consistent training is what protects muscle and keeps the weight "
+                "trend moving — frequency matters more than any single hard session.")
+    if "glucose" in p:
+        return ("Catching glucose drift early stops it compounding, and it responds "
+                "well to the basics you're already doing — movement, protein, and "
+                "steady meals.")
+    return ("It's the change with the biggest downstream effect right now, which is "
+            "why I'd focus there before fine-tuning anything else.")
 
 
 def build_health_analyze(user, msg_lower, conversation=None) -> str | None:
@@ -642,7 +736,7 @@ def build_health_analyze(user, msg_lower, conversation=None) -> str | None:
         if not _has_min_data(signals):
             return None
         composer = _COMPOSERS.get(qtype, _COMPOSERS["overall"])
-        resp = composer(signals, band)
+        resp = composer(signals, band, msg_lower)
         if resp and conversation is not None:
             store_health_context(conversation, qtype, signals, band)
         return resp

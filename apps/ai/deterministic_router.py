@@ -703,9 +703,12 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
             _is_judgment = _hv1.is_health_judgment_request(msg_lower)
             _is_coaching = _hv1.is_health_coaching_request(msg_lower)
             _health_ctx = _stab.is_health_context(msg_lower)
-            # Coaching phrasings ("what concerns you most", "if you picked one
-            # thing") route to v1 only with health context or an active thread.
-            _coaching_ok = _is_coaching and (_health_ctx or _hctx is not None)
+            # Beth is a health coach: coaching phrasings ("what concerns you most",
+            # "if you picked one thing", "should I change anything") route to v1's
+            # leverage reasoning by DEFAULT — unless the question clearly targets
+            # another domain (finance/tasks/faith/...). This is the root fix for
+            # coaching falling through to the macro-compliance decision route.
+            _coaching_ok = _is_coaching and not _hv1.mentions_non_health_domain(msg_lower)
             if _is_analyze or _is_judgment or _coaching_ok:
                 _stab_health = _health_ctx or _is_judgment or _coaching_ok
                 if _stab_health:

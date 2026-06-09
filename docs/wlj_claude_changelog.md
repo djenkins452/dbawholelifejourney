@@ -7,6 +7,11 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-09 — polish(ai): Health Analyze concern composer — fix double-word phrasing
+
+Cosmetic: `_compose_concern` said "The one thing I'd protect most is protecting muscle…" (double protect/protecting). Now "The thing I'd focus on most is…". Deterministic, no behavior change beyond wording. 23/23 v1 tests pass.
+
+
 ## 2026-06-09 — fix(ai): Beth v1.5 health coach — P1 stale-weight root fix + leverage ranking + time-aware coaching + continuity
 
 Four higher-order coaching/trust failures from live testing. All deterministic, small blast radius, flag-gated.

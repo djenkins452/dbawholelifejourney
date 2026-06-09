@@ -456,7 +456,7 @@ def _compose_concern(signals, band):
                      "your trend is working.")
     if ranked:
         top = ranked[0]
-        parts.append(f"The one thing I'd protect most is {top[1]}, because {top[2]}.")
+        parts.append(f"The thing I'd focus on most is {top[1]}, because {top[2]}.")
     else:
         parts.append("Nothing really stands out as a concern — it's mostly about "
                      "staying consistent.")

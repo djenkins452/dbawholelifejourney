@@ -1416,6 +1416,9 @@ WLJ_BETH_WEIGHT_DIAG_ENABLED = env.bool('WLJ_BETH_WEIGHT_DIAG_ENABLED', default=
 # Phase 0 health-retrieval probe (log-only): records route fired + canonical
 # latest/summary vs Beth's answer to pin glucose/nutrition stale-value sources.
 WLJ_BETH_HEALTH_PROBE_ENABLED = env.bool('WLJ_BETH_HEALTH_PROBE_ENABLED', default=True)
+# Health Analyze v1: question-differentiated deterministic reasoning (weight
+# history / overall / patterns / change / pace / overtraining). Falls back to v0.
+WLJ_BETH_HEALTH_ANALYZE_V1 = env.bool('WLJ_BETH_HEALTH_ANALYZE_V1', default=True)
 # Only inject COGNITIVE_PRECISION / PROACTIVE_INTELLIGENCE frameworks when needed
 WLJ_CONDITIONAL_FRAMEWORKS_ENABLED = env.bool('WLJ_CONDITIONAL_FRAMEWORKS_ENABLED', default=True)
 # Load only domain-relevant tool schemas for intent recognition

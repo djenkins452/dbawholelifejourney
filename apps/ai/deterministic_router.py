@@ -681,16 +681,25 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
     # ══════════════════════════════════════════════════════════
     try:
         from apps.ai.cognitive_mode import stabilization as _stab
-        if _stab.stabilization_enabled() and _stab.is_analyze_request(msg_lower):
-            _stab_health = _stab.is_health_context(msg_lower)
-            # Fix 4: deterministic, grounded Health Analyze v0 (no LLM).
+        from apps.ai.cognitive_mode import health_analyze_v1 as _hv1
+        _is_analyze = _stab.is_analyze_request(msg_lower)
+        _is_judgment = _hv1.is_health_judgment_request(msg_lower)
+        if _stab.stabilization_enabled() and (_is_analyze or _is_judgment):
+            # Health-judgment phrasings ("too fast", "overtraining") count as
+            # health context even without an explicit body-domain token.
+            _stab_health = _stab.is_health_context(msg_lower) or _is_judgment
+            # Health Analyze v1 (question-differentiated) → fall back to v0.
             if _stab_health and user is not None:
-                _hv0 = _stab.build_health_analyze_v0(user)
-                if _hv0:
+                _resp = _hv1.build_health_analyze(user, msg_lower)
+                _rname = 'analyze_health_v1'
+                if _resp is None:
+                    _resp = _stab.build_health_analyze_v0(user)
+                    _rname = 'analyze_health_v0'
+                if _resp:
                     result = RouteResult(
                         category=RouteCategory.DETERMINISTIC_HEALTH_SUMMARY,
-                        response=_hv0,
-                        route_name='analyze_health_v0',
+                        response=_resp,
+                        route_name=_rname,
                         domain='health',
                         is_terminal=True,
                     )

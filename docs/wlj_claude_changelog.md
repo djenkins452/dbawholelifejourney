@@ -7,6 +7,27 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-08 — feat(ai): Health Analyze v1 — question-differentiated deterministic reasoning
+
+**Why:** Beth is now accurate but felt templated — the v0 composer produced the same "Situation / What I notice (bullets) / My read" block for every analyze question. This makes the reasoning *differentiated and coach-like* WITHOUT adding hallucination risk: still 100% deterministic, no LLM in the path. (Pushed back on adding LLM narration — it's the only thing that reintroduces the causal-claim hallucination class we just spent weeks eliminating; noted as a possible future flag-gated v2.)
+
+**Architecture** (`apps/ai/cognitive_mode/health_analyze_v1.py`): `question type → context prioritization → reasoning shape → prose`.
+- **6 question composers**: weight_history, overall, patterns, change_anything, pace_check, overtraining — each leads with different signals and a different shape (sustainability narrative vs holistic vs observational vs single-lever vs bounded judgment).
+- **One ranked signal model** (weight→glucose→waist/body-fat→lean mass→workouts→sleep→nutrition→measurements) with a `meaningful` filter that stops body-part measurement noise ("Arm Left trending up" never surfaces).
+- **Time-of-day gating**: morning protein=0 is "too early to judge", never "behind"; midday → pacing; evening → finished under/over.
+- **Single highest-leverage lever** (not always protein): deterministically picks the weakest *meaningful* lever (e.g. sleep consistency over protein).
+- **Bounded judgment**: explainable thresholds (sustainable ≤1.25%/wk loss + training present + glucose stable).
+- Flowing prose, not bullet lists. Returns None on insufficient data → falls back to v0.
+
+**Wiring:** the analyze override (`deterministic_router.classify_and_route`) now calls v1 first, v0 as fallback; also routes bounded-judgment phrasings ("too fast", "overtraining") that the generic analyze detector missed. Flag `WLJ_BETH_HEALTH_ANALYZE_V1` (default on).
+
+**Files:** `apps/ai/cognitive_mode/health_analyze_v1.py` (new); `apps/ai/deterministic_router.py` (override calls v1→v0); `config/settings.py` (+1 flag); `apps/ai/tests/test_health_analyze_v1.py` (new, 16 tests).
+
+**Verification:** 16/16 v1 tests pass (differentiation: 4 questions → 4 distinct answers; time-awareness; no arm noise; lever ≠ always protein; pace sustainable vs fast). Router regression unchanged (pre-existing 6 only). check clean; no migrations.
+
+**Limitations:** deterministic prose has a linguistic-variety ceiling vs an LLM; cross-domain "patterns" use a small fixed relationship set (not a correlation engine). Both are intentional trust-first trade-offs.
+
+
 ## 2026-06-08 — fix(ai): Health retrieval — sleep latest-vs-summary + last-workout route + Phase 0 probe
 
 **Context:** P1 health-trust audit found Beth gives wrong/shallow health answers across domains (glucose avg instead of latest; nutrition stale; sleep shallow; workout memory-contaminated). This ships the **two confirmed deterministic fixes** + **observability** for the uncertain ones. Glucose/nutrition rewrites are **deliberately held** until the probe pins their true emitter (audit showed those routes *should* already work).

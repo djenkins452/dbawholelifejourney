@@ -5,7 +5,7 @@ Proves: canonical=289.9, a draft saying 287.3 is corrected; a draft saying
 diagnostic never raises and logs no raw message text.
 """
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from apps.ai.cognitive_mode import health_truth as ht
 
@@ -117,4 +117,39 @@ class CanonicalWeightLockTests(SimpleTestCase):
             id = 1
         # No SAE state for a bare mock user -> (None, None), never raises.
         val, unit = ht.get_canonical_weight(_U())
+        self.assertIsNone(val)
+
+
+class FreshWeightP1Tests(TestCase):
+    """Failure 1 regression: the guard's canonical weight must read the LIVE
+    WeightEntry, not a stale SAE snapshot (root cause of 287.3 vs 289.9)."""
+
+    def _user(self):
+        from apps.users.models import User
+        return User.objects.create_user(email="fresh_wt@test.com", password="x")
+
+    def test_canonical_prefers_live_weight_over_stale_sae(self):
+        from unittest import mock
+        from apps.health.models import WeightEntry
+        u = self._user()
+        WeightEntry.objects.create(user=u, value=289.9, unit="lb")
+        # SAE snapshot is stale at 287.3.
+        with mock.patch("apps.core.ai_state.state_engine.get_module_state",
+                        return_value={"weight_current": 287.3, "weight_unit": "lb"}):
+            val, unit = ht.get_canonical_weight(u)
+        self.assertEqual(val, 289.9)   # live wins over stale SAE
+
+    def test_guard_corrects_stale_number_against_live_weight(self):
+        from apps.health.models import WeightEntry
+        u = self._user()
+        WeightEntry.objects.create(user=u, value=289.9, unit="lb")
+        canonical, _ = ht.get_canonical_weight(u)
+        out, corr = ht.correct_weight_contradictions(
+            "Your weight is currently at 287.3 lbs.", canonical)
+        self.assertIn("289.9", out)
+        self.assertNotIn("287.3", out)
+
+    def test_fresh_weight_none_when_no_entries(self):
+        u = self._user()
+        val, unit = ht.get_fresh_weight(u)
         self.assertIsNone(val)

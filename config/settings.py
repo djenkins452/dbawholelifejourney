@@ -1419,6 +1419,9 @@ WLJ_BETH_HEALTH_PROBE_ENABLED = env.bool('WLJ_BETH_HEALTH_PROBE_ENABLED', defaul
 # Health Analyze v1: question-differentiated deterministic reasoning (weight
 # history / overall / patterns / change / pace / overtraining). Falls back to v0.
 WLJ_BETH_HEALTH_ANALYZE_V1 = env.bool('WLJ_BETH_HEALTH_ANALYZE_V1', default=True)
+# Bounded conversational continuity for the health analyze lane (follow-ups like
+# "why?" / "tell me more" inherit the active thread; cache-based, 30-min TTL).
+WLJ_BETH_HEALTH_CONTINUITY = env.bool('WLJ_BETH_HEALTH_CONTINUITY', default=True)
 # Only inject COGNITIVE_PRECISION / PROACTIVE_INTELLIGENCE frameworks when needed
 WLJ_CONDITIONAL_FRAMEWORKS_ENABLED = env.bool('WLJ_CONDITIONAL_FRAMEWORKS_ENABLED', default=True)
 # Load only domain-relevant tool schemas for intent recognition

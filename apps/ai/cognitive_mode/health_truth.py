@@ -63,18 +63,57 @@ def weight_diag_enabled() -> bool:
     return _flag("WLJ_BETH_WEIGHT_DIAG_ENABLED", True)
 
 
+def get_fresh_weight(user):
+    """Live latest WeightEntry — the authoritative source the UI and
+    build_health_state read. Never stale. (value, unit) or (None, None).
+
+    Root cause of the 287.3-vs-289.9 regression: the SAE health snapshot is NOT
+    invalidated when a WeightEntry is written (no post_save fire_intelligence,
+    and 'health' isn't an ensure_fresh module), so SAE.weight_current can lag.
+    The truth guard must reference the LIVE table, not the stale snapshot.
+    """
+    try:
+        from apps.health.models import WeightEntry
+        row = (
+            WeightEntry.objects.filter(user=user)
+            .order_by("-recorded_at")
+            .values_list("value", "unit")
+            .first()
+        )
+        if row and row[0] is not None:
+            return float(row[0]), (row[1] or "lb")
+    except Exception:
+        logger.debug("get_fresh_weight failed", exc_info=True)
+    return None, None
+
+
 def get_canonical_weight(user):
-    """(value, unit) of canonical current weight from SAE, or (None, None)."""
+    """Canonical current weight. Prefers the LIVE latest WeightEntry so the truth
+    guard is never defeated by a stale SAE snapshot. Logs SAE drift for telemetry.
+    Falls back to SAE only if the live read fails."""
+    fresh, unit = get_fresh_weight(user)
+    if fresh is not None:
+        try:
+            from apps.core.ai_state.state_engine import get_module_state
+            sae = (get_module_state(user, "health") or {}).get("weight_current")
+            if isinstance(sae, (int, float)) and abs(float(sae) - fresh) > 1.0:
+                logger.warning(
+                    "WEIGHT_STALE_SAE user=%s sae=%.1f live=%.1f — guard using live",
+                    getattr(user, "id", "?"), float(sae), fresh,
+                )
+        except Exception:
+            pass
+        return fresh, unit
+    # Fallback: SAE snapshot (live read failed).
     try:
         from apps.core.ai_state.state_engine import get_module_state
         h = get_module_state(user, "health") or {}
         w = h.get("weight_current")
-        if w is None:
-            return None, None
-        return float(w), h.get("weight_unit", "lb")
+        if w is not None:
+            return float(w), h.get("weight_unit", "lb")
     except Exception:
-        logger.debug("get_canonical_weight failed", exc_info=True)
-        return None, None
+        logger.debug("get_canonical_weight SAE fallback failed", exc_info=True)
+    return None, None
 
 
 def correct_weight_contradictions(text, canonical, unit="lb", tol=_DEFAULT_TOL):

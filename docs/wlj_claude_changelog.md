@@ -7,6 +7,27 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-09 — fix(ai): Beth v1.5 health coach — P1 stale-weight root fix + leverage ranking + time-aware coaching + continuity
+
+Four higher-order coaching/trust failures from live testing. All deterministic, small blast radius, flag-gated.
+
+**Failure 1 (P1) — stale 287.3 returned again. ROOT CAUSE FOUND:** SAE's `health` snapshot is NOT invalidated when a WeightEntry is written (no `post_save` fire_intelligence; 'health' isn't an `ensure_fresh` module). So the LLM context AND the guard's canonical both read the same stale SAE value → the guard saw agreement and corrected nothing, while the UI reads `WeightEntry` live. **Precise fix (not broad consolidation):** `health_truth.get_canonical_weight` (and `build_locked_facts`, and v1's weight signal) now read the LIVE latest `WeightEntry` — the source the UI uses — so the guard's truth is never stale. Added `WEIGHT_STALE_SAE` telemetry that logs whenever SAE has drifted from live. Guard patterns already matched the phrasing; terminal routes already reach the validator.
+
+**Failure 2 — time-insensitive coaching** (macro compliance at 5 AM): v1 already had time bands; this routes the coaching questions to v1 and the leverage model now suppresses nutrition before ~11 AM ("this early in the day, I'm less worried about nutrition compliance — you've got the whole day ahead").
+
+**Failure 3 — metric parroting → leverage ranking:** replaced "lowest-score wins" with a coach-priority `leverage_ranked()` (muscle preservation during a cut → sleep → workouts → glucose → nutrition refinement LAST). New `concern` ("what concerns you most") and `one_thing` ("if you picked one thing") composers lead with the highest-leverage PROTECT and encouragement, not the lowest metric.
+
+**Failure 4 — continuity:** bounded, cache-based thread context (`beth:hctx:<conv_id>`, 30-min TTL, no migration). Follow-ups ("why?", "tell me more", "what would you do?") inherit the active analysis and deepen it instead of restarting. Bare "why" only triggers on short messages; gated by `WLJ_BETH_HEALTH_CONTINUITY` (default on).
+
+**Routing:** the analyze override now also routes coaching phrasings (with health context or an active thread) and handles follow-ups first.
+
+**Files:** `health_truth.py` (live weight + telemetry), `cos_fact_statements.py` (locked weight = live), `health_analyze_v1.py` (leverage ranking, concern/one_thing composers, continuity), `deterministic_router.py` (override restructure: continuity + coaching), `config/settings.py` (+`WLJ_BETH_HEALTH_CONTINUITY`), tests (`test_health_analyze_v1.py` +leverage/time/continuity, `test_health_truth_guard.py` +DB-backed live-weight P1 tests).
+
+**Verification:** 41/41 new cognitive_mode tests pass incl. a DB-backed test proving the guard prefers live 289.9 over stale-SAE 287.3. Router regression: same pre-existing 6 failures, zero new. check clean; no migrations.
+
+**Did NOT do (held):** broad SAE/Layer-2 consolidation, post_save SAE rebuild (too broad/expensive), global memory suppression. The proper source-fix (invalidate SAE health on weight write) is noted for a separate scoped change.
+
+
 ## 2026-06-08 — feat(ai): Health Analyze v1 — question-differentiated deterministic reasoning
 
 **Why:** Beth is now accurate but felt templated — the v0 composer produced the same "Situation / What I notice (bullets) / My read" block for every analyze question. This makes the reasoning *differentiated and coach-like* WITHOUT adding hallucination risk: still 100% deterministic, no LLM in the path. (Pushed back on adding LLM narration — it's the only thing that reintroduces the causal-claim hallucination class we just spent weeks eliminating; noted as a possible future flag-gated v2.)

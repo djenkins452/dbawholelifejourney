@@ -95,16 +95,16 @@ def build_locked_facts(user) -> dict:
     raw['meds_skipped'] = meds.get('skipped', 0)
     raw['meds_all_taken'] = meds.get('all_taken', True)
 
-    # Canonical current weight (P1 weight-contradiction guard). Read ONCE from
-    # SAE — the single source of truth — so the validator can reject any reply
-    # that states a different current weight. Supplementary, not execution-
-    # critical, so guarded (never break the locked-fact build over weight).
+    # Canonical current weight (P1 weight-contradiction guard). Reads the LIVE
+    # latest WeightEntry — NOT the SAE snapshot, which can lag when a weight
+    # write doesn't invalidate it (root cause of the 287.3-vs-289.9 regression).
+    # Supplementary, so guarded (never break the locked-fact build over weight).
     try:
-        from apps.core.ai_state.state_engine import get_module_state
-        _h = get_module_state(user, 'health') or {}
-        if _h.get('weight_current') is not None:
-            raw['weight_current'] = float(_h['weight_current'])
-            raw['weight_unit'] = _h.get('weight_unit', 'lb')
+        from apps.ai.cognitive_mode.health_truth import get_canonical_weight
+        _wv, _wu = get_canonical_weight(user)
+        if _wv is not None:
+            raw['weight_current'] = _wv
+            raw['weight_unit'] = _wu
     except Exception:
         logger.debug("locked facts: canonical weight read failed", exc_info=True)
 

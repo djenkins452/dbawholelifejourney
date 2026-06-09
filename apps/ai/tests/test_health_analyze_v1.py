@@ -60,7 +60,9 @@ class ClassificationTests(SimpleTestCase):
         self.assertEqual(v1.classify_analyze_question("what do you think about my weight history?"), "weight_history")
         self.assertEqual(v1.classify_analyze_question("how am i doing overall with my health?"), "overall")
         self.assertEqual(v1.classify_analyze_question("what patterns do you notice lately?"), "patterns")
-        self.assertEqual(v1.classify_analyze_question("do you think i need to change anything?"), "change_anything")
+        self.assertEqual(v1.classify_analyze_question("do you think i need to change anything?"), "one_thing")
+        self.assertEqual(v1.classify_analyze_question("if you only picked one thing what would it be?"), "one_thing")
+        self.assertEqual(v1.classify_analyze_question("what concerns you most?"), "concern")
         self.assertEqual(v1.classify_analyze_question("am i losing weight too quickly?"), "pace_check")
         self.assertEqual(v1.classify_analyze_question("am i overtraining?"), "overtraining")
 
@@ -108,33 +110,40 @@ class SignalPrioritizationTests(SimpleTestCase):
 
 
 class TimeAwarenessTests(SimpleTestCase):
-    def test_morning_does_not_pick_protein_lever(self):
-        # Morning + protein 0% must NOT yield a "behind on protein" lever.
+    def test_morning_no_compliance_guilt(self):
+        # Morning + protein 0% must NOT produce a raw metric / "behind" guilt.
         out = _run("do you think i need to change anything?", hour=7,
                    nutrition={"protein_compliance_pct": 0})
-        self.assertNotIn("protein", out.lower())
+        for bad in ("0.0", "/100", "behind", "under target"):
+            self.assertNotIn(bad, out.lower())
+        self.assertIn("early in the day", out.lower())
 
-    def test_evening_can_judge_protein(self):
-        out = _run("do you think i need to change anything?", hour=20,
-                   nutrition={"protein_compliance_pct": 40},
-                   fitness={"workouts_7d": 4}, health={**_HEALTH, "sleep_consistency_score": 80, "sleep_avg_hours_7d": 7.2})
-        # With sleep fine, protein under target in the evening becomes the lever.
-        self.assertIn("protein", out.lower())
+    def test_nutrition_lever_eligibility_by_time(self):
+        # Nutrition refinement is excluded in the morning, eligible in the evening.
+        sigs = {"weight": {"trend": "stable"}, "nutrition": {"protein_pct": 40}}
+        morning = v1.leverage_ranked(sigs, "morning")
+        evening = v1.leverage_ranked(sigs, "evening")
+        self.assertFalse(any("protein" in p for _, p, _ in morning))
+        self.assertTrue(any("protein" in p for _, p, _ in evening))
 
 
 class LeverSelectionTests(SimpleTestCase):
-    def test_not_always_protein(self):
-        # Zero workouts should outrank protein as the lever.
+    def test_lever_is_not_a_raw_metric(self):
+        # The lever must be a coaching behavior, never a dashboard metric.
         out = _run("do you think i need to change anything?", hour=20,
                    fitness={"workouts_7d": 0},
                    nutrition={"protein_compliance_pct": 40})
-        self.assertIn("workout", out.lower())
+        self.assertNotIn("compliance", out.lower())
+        self.assertNotIn("0.0", out)
+        self.assertIn("muscle", out.lower())  # highest-leverage during a cut
 
-    def test_no_lever_when_all_good(self):
+    def test_no_lever_when_stable_and_all_good(self):
+        # Not in a cut (stable) + everything good → no change needed.
         out = _run("do you think i need to change anything?", hour=20,
                    fitness={"workouts_7d": 5},
                    nutrition={"protein_compliance_pct": 95},
-                   health={**_HEALTH, "sleep_avg_hours_7d": 7.5,
+                   health={**_HEALTH, "weight_trend": "stable",
+                           "sleep_avg_hours_7d": 7.5,
                            "sleep_consistency_score": 85, "sleep_trend": "stable"})
         self.assertIn("wouldn't change anything", out.lower())
 
@@ -153,6 +162,78 @@ class BoundedJudgmentTests(SimpleTestCase):
     def test_overtraining_low_risk(self):
         out = _run("am i overtraining?", fitness={"workouts_7d": 3})
         self.assertIn("overtraining", out.lower())
+
+
+class LeverageCoachingTests(SimpleTestCase):
+    """Failure 2/3 — leverage ranking (not lowest-score) + time-aware coaching."""
+
+    def test_concern_leads_with_protect_not_lowest_metric(self):
+        # protein 0 (the 'lowest metric') must NOT be the headline concern.
+        out = _run("what concerns you most?", hour=20,
+                   nutrition={"protein_compliance_pct": 0})
+        self.assertNotIn("0.0", out)
+        self.assertNotIn("compliance", out.lower())
+        self.assertIn("encouraged", out.lower())  # positive framing
+        self.assertIn("muscle", out.lower())       # highest-leverage protect
+
+    def test_one_thing_at_5am_skips_nutrition(self):
+        # Failure 2: a raw "macro compliance 0.0/100" must NOT be the answer.
+        out = _run("if you only picked one thing, what would it be?", hour=5,
+                   nutrition={"protein_compliance_pct": 0})
+        for bad in ("0.0", "/100", "behind", "under target"):
+            self.assertNotIn(bad, out.lower())
+        self.assertIn("early in the day", out.lower())  # temporal awareness
+        self.assertIn("muscle", out.lower())            # high-leverage lever
+
+    def test_muscle_preservation_is_top_lever_when_losing_well(self):
+        # Lean mass dropping → muscle preservation must rank first.
+        out = _run("if you picked one thing?", hour=14,
+                   health={**_HEALTH, "body_composition": {
+                       "delta": {"lean_mass": -1.2}, "largest_improvement": {},
+                       "largest_regression": {}}})
+        self.assertIn("muscle", out.lower())
+
+
+class ContinuityTests(SimpleTestCase):
+    """Failure 4 — bounded thread continuity."""
+
+    def test_followup_detection(self):
+        self.assertTrue(v1.is_health_followup("why?"))
+        self.assertTrue(v1.is_health_followup("tell me more"))
+        self.assertTrue(v1.is_health_followup("what would you do?"))
+        self.assertFalse(v1.is_health_followup("what is my weight?"))
+        # bare 'why' only on short messages
+        self.assertFalse(v1.is_health_followup(
+            "why does the app keep logging me out when i open the journal page"))
+
+    def test_store_and_deepen_round_trip(self):
+        from django.core.cache import cache
+        conv = type("C", (), {"id": 99})()
+        cache.delete("beth:hctx:99")
+        # Produce an analysis (stores context)
+        with mock.patch("apps.core.ai_state.state_engine.get_module_state") as g, \
+             mock.patch("apps.core.utils.get_user_now") as now:
+            s = {"health": _HEALTH, "fitness": _FITNESS, "nutrition": _NUTRITION}
+            g.side_effect = lambda u, m, *a, **k: s.get(m, {})
+            now.side_effect = lambda u: datetime(2026, 6, 8, 14, 0, 0)
+            v1.build_health_analyze(object(), "what concerns you most?", conversation=conv)
+            # Follow-up inherits the thread
+            deep = v1.build_deepen(object(), "why?", conv)
+        self.assertTrue(deep)
+        self.assertNotIn("what concerns", deep.lower())  # not a restart
+        cache.delete("beth:hctx:99")
+
+    def test_deepen_without_context_returns_none(self):
+        conv = type("C", (), {"id": 12345})()
+        from django.core.cache import cache
+        cache.delete("beth:hctx:12345")
+        self.assertIsNone(v1.build_deepen(object(), "why?", conv))
+
+    def test_continuity_disabled(self):
+        conv = type("C", (), {"id": 77})()
+        with self.settings(WLJ_BETH_HEALTH_CONTINUITY=False):
+            v1.store_health_context(conv, "concern", {}, "midday")
+            self.assertIsNone(v1.get_health_context(conv))
 
 
 class FallbackTests(SimpleTestCase):

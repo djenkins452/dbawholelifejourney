@@ -682,41 +682,60 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
     try:
         from apps.ai.cognitive_mode import stabilization as _stab
         from apps.ai.cognitive_mode import health_analyze_v1 as _hv1
-        _is_analyze = _stab.is_analyze_request(msg_lower)
-        _is_judgment = _hv1.is_health_judgment_request(msg_lower)
-        if _stab.stabilization_enabled() and (_is_analyze or _is_judgment):
-            # Health-judgment phrasings ("too fast", "overtraining") count as
-            # health context even without an explicit body-domain token.
-            _stab_health = _stab.is_health_context(msg_lower) or _is_judgment
-            # Health Analyze v1 (question-differentiated) → fall back to v0.
-            if _stab_health and user is not None:
-                _resp = _hv1.build_health_analyze(user, msg_lower)
-                _rname = 'analyze_health_v1'
-                if _resp is None:
-                    _resp = _stab.build_health_analyze_v0(user)
-                    _rname = 'analyze_health_v0'
-                if _resp:
+        if _stab.stabilization_enabled() and user is not None:
+            # Continuity: a follow-up ("why?", "tell me more", "what would you
+            # do?") within an active health thread deepens it instead of
+            # restarting. Bounded: only fires when a fresh thread context exists.
+            _hctx = _hv1.get_health_context(conversation) if conversation is not None else None
+            if _hctx and _hv1.is_health_followup(msg_lower):
+                _dresp = _hv1.build_deepen(user, msg_lower, conversation)
+                if _dresp:
                     result = RouteResult(
                         category=RouteCategory.DETERMINISTIC_HEALTH_SUMMARY,
-                        response=_resp,
-                        route_name=_rname,
-                        domain='health',
-                        is_terminal=True,
+                        response=_dresp, route_name='analyze_health_followup',
+                        domain='health', is_terminal=True,
                     )
                     result.elapsed_ms = (time.monotonic() - t_start) * 1000
                     _log_route_decision(result, user, message)
                     return result
-            # Analyze without a terminal package: skip the intent classifier
-            # entirely (no mutation, no execute), answer via LLM with a domain
-            # hint. skip_intent is the same mechanism the governor uses.
-            result = RouteResult(
-                route_name='analyze_override',
-                domain='health' if _stab_health else None,
-                skip_intent=True,
-            )
-            result.elapsed_ms = (time.monotonic() - t_start) * 1000
-            _log_route_decision(result, user, message)
-            return result
+
+            _is_analyze = _stab.is_analyze_request(msg_lower)
+            _is_judgment = _hv1.is_health_judgment_request(msg_lower)
+            _is_coaching = _hv1.is_health_coaching_request(msg_lower)
+            _health_ctx = _stab.is_health_context(msg_lower)
+            # Coaching phrasings ("what concerns you most", "if you picked one
+            # thing") route to v1 only with health context or an active thread.
+            _coaching_ok = _is_coaching and (_health_ctx or _hctx is not None)
+            if _is_analyze or _is_judgment or _coaching_ok:
+                _stab_health = _health_ctx or _is_judgment or _coaching_ok
+                if _stab_health:
+                    _resp = _hv1.build_health_analyze(user, msg_lower, conversation=conversation)
+                    _rname = 'analyze_health_v1'
+                    if _resp is None:
+                        _resp = _stab.build_health_analyze_v0(user)
+                        _rname = 'analyze_health_v0'
+                    if _resp:
+                        result = RouteResult(
+                            category=RouteCategory.DETERMINISTIC_HEALTH_SUMMARY,
+                            response=_resp,
+                            route_name=_rname,
+                            domain='health',
+                            is_terminal=True,
+                        )
+                        result.elapsed_ms = (time.monotonic() - t_start) * 1000
+                        _log_route_decision(result, user, message)
+                        return result
+                # Analyze without a terminal package (non-health, or health
+                # returned nothing): skip the intent classifier (no mutation, no
+                # execute) and answer via LLM with a domain hint.
+                result = RouteResult(
+                    route_name='analyze_override',
+                    domain='health' if _stab_health else None,
+                    skip_intent=True,
+                )
+                result.elapsed_ms = (time.monotonic() - t_start) * 1000
+                _log_route_decision(result, user, message)
+                return result
     except Exception as _stab_err:
         logger.warning("STABILIZATION analyze override failed (fail-open): %s", _stab_err)
 

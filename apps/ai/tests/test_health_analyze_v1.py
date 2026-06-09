@@ -296,6 +296,59 @@ class V16DeepenTests(SimpleTestCase):
         cache.delete("beth:hctx:808")
 
 
+class V17ProgressiveDeepeningTests(SimpleTestCase):
+    """v1.7 — follow-ups serve NEW reasoning layers, never repeat the same one."""
+
+    def _thread(self, conv_id):
+        from django.core.cache import cache
+        conv = type("C", (), {"id": conv_id})()
+        cache.delete(f"beth:hctx:{conv_id}")
+        with mock.patch("apps.core.ai_state.state_engine.get_module_state") as g, \
+             mock.patch("apps.core.utils.get_user_now") as now:
+            s = {"health": _HEALTH, "fitness": _FITNESS, "nutrition": _NUTRITION}
+            g.side_effect = lambda u, m, *a, **k: s.get(m, {})
+            now.side_effect = lambda u: datetime(2026, 6, 9, 14, 0, 0)
+            concern = v1.build_health_analyze(object(), "what concerns you most?", conversation=conv)
+            seq = [v1.build_deepen(object(), q, conv) for q in
+                   ("why?", "what would you do?", "go deeper", "go deeper")]
+        cache.delete(f"beth:hctx:{conv_id}")
+        return concern, seq
+
+    def test_each_followup_is_distinct(self):
+        _, seq = self._thread(1710)
+        # The four follow-up answers must all differ — no looped sentence.
+        self.assertEqual(len(set(seq)), 4, msg=seq)
+
+    def test_layers_progress_in_order(self):
+        _, seq = self._thread(1711)
+        why, action, deeper, longterm = seq
+        self.assertIn("cost muscle", why.lower())
+        self.assertIn("resistance training", action.lower())
+        self.assertIn("insulin", deeper.lower())
+        self.assertTrue("rebound" in longterm.lower() or "long term" in longterm.lower())
+
+    def test_exhaustion_synthesizes_not_repeats(self):
+        from django.core.cache import cache
+        conv = type("C", (), {"id": 1712})()
+        cache.delete("beth:hctx:1712")
+        with mock.patch("apps.core.ai_state.state_engine.get_module_state") as g, \
+             mock.patch("apps.core.utils.get_user_now") as now:
+            s = {"health": _HEALTH, "fitness": _FITNESS, "nutrition": _NUTRITION}
+            g.side_effect = lambda u, m, *a, **k: s.get(m, {})
+            now.side_effect = lambda u: datetime(2026, 6, 9, 14, 0, 0)
+            v1.build_health_analyze(object(), "what concerns you most?", conversation=conv)
+            for q in ("why?", "what would you do?", "go deeper", "go deeper"):
+                v1.build_deepen(object(), q, conv)
+            final = v1.build_deepen(object(), "go deeper", conv)
+        self.assertIn("core of it", final.lower())
+        cache.delete("beth:hctx:1712")
+
+    def test_lever_key_mapping(self):
+        self.assertEqual(v1._lever_key("protecting muscle while the weight comes down"), "muscle")
+        self.assertEqual(v1._lever_key("improving sleep consistency"), "sleep")
+        self.assertEqual(v1._lever_key("getting workout frequency back up"), "workout")
+
+
 class V16VariationTests(SimpleTestCase):
     def test_variant_is_deterministic_and_bounded(self):
         opts = ["a", "b", "c"]

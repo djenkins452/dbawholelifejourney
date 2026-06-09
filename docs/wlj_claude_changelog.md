@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-09 — fix(ai): Beth v1.7 — progressive deepening (kill repetition) + workout-harder root cause
+
+**Failure 2 (workout-harder regression) — ROOT CAUSE: deploy lag, NOT a code bug.** Proven: `is_health_judgment_request("should i work out harder?")` → True, `classify` → `intensity_check`; `resolve_cos_mode` returns None (no cos-mode-shortcut interception); no earlier route matches; the streaming path (personal_assistant.py:6211) honors terminal routes identically to non-streaming; and the old "increasing intensity" phrasing is LLM output, not a deterministic string. The intensity_check path is correct and unbypassed on both paths — it shipped in v1.6 (b79c33e1) and the test predated its deploy. Added an end-to-end locking test. (Also fixed a latent `_NON_HEALTH_TOKENS` bug where " work " matched "work out" — now uses "my work"/"at work"/"for work".)
+
+**Failures 1/3/4 — progressive deepening (the real work):** replaced the single-rationale deepen (which looped "muscle is at risk…") with a **layered reasoning tree** per lever, tracked in the thread context. Layers: `why` (mechanism) → `action` (what I'd do) → `deeper` (downstream effects) → `long_term` (sustainability). Each is served at most once; "why?" → why layer, "what would you do?" → action layer, "go deeper" → next *unserved* layer; when exhausted → a one-line synthesis, never a repeat. `served_layers` lives in the existing 30-min cache context — no new memory.
+
+Example progression now: concern (high-level) → "why?" (muscle-loss mechanism) → "what would you do?" (resistance training + protein) → "go deeper" (insulin/energy/independence) → "go deeper" (rebound/metabolism long-term) → "go deeper" (synthesis). Each turn adds new information.
+
+**Files:** `apps/ai/cognitive_mode/health_analyze_v1.py` (_LEVER_LAYERS, layered build_deepen, served_layers, token fix), `apps/ai/tests/test_health_analyze_v1.py` (+v1.7 tests).
+
+**Verification:** 35/35 v1 tests incl. progressive-deepening (4 follow-ups all distinct; layers in order; exhaustion synthesizes). Router regression: same pre-existing 6, zero new. check clean; no migrations.
+
+**Limitations:** layered content is per-lever deterministic (muscle/sleep/workout/glucose/generic) — a lever outside that set falls to the generic tree; depth is 4 layers then synthesis.
+
+
 ## 2026-06-09 — fix(ai): Beth v1.6 health coach — fix coaching overfitting, continuity, situational judgment
 
 **ROOT CAUSE (Failures 1 & 2):** v1.5's leverage ranking + continuity were correct but **never reached** for coaching questions. The analyze override gated coaching routing on `_is_coaching and (health_context or active_thread)` — so a standalone "what concerns you most?" / "if you picked one thing?" / "should I change anything?" (no health token, no thread) fell through to the nutrition **decision route** (`deterministic_router.py:3255`) which emits "Macro compliance 0/100". Because the first coaching turn never hit v1, no thread context was stored → follow-ups also restarted.

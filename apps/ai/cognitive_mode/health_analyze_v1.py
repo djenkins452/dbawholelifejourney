@@ -75,12 +75,13 @@ _INTENSITY_TRIGGERS = ("work out harder", "workout harder", "train harder",
                        "work out more", "push myself harder")
 
 # If a coaching question clearly references another life domain, it is NOT a
-# health-coaching question — keep it out of the v1 health lane.
-_NON_HEALTH_TOKENS = (" work ", "my job", "deadline", "meeting", "project",
-                      "task", "to-do", "to do list", "calendar", "money",
-                      "spend", "spending", "budget", "finance", "net worth",
-                      "invest", "prayer", "scripture", "bible", "journal entry",
-                      "my wife", "my kids", "marriage")
+# health-coaching question — keep it out of the v1 health lane. (Tokens are
+# specific so "work out" / "workout" never trips the "work" exclusion.)
+_NON_HEALTH_TOKENS = ("my work", "at work", "for work", "my job", "deadline",
+                      "meeting", "project", "task", "to-do", "to do list",
+                      "calendar", "money", "spend", "spending", "budget",
+                      "finance", "net worth", "invest", "prayer", "scripture",
+                      "bible", "journal entry", "my wife", "my kids", "marriage")
 
 
 def is_health_coaching_request(msg_lower: str) -> bool:
@@ -653,9 +654,25 @@ def store_health_context(conversation, qtype, signals, band):
             "top_lever": ranked[0] if ranked else None,
             "next_lever": ranked[1] if len(ranked) > 1 else None,
             "positive": bool(w and w.get("trend") == "decreasing"),
+            # Progressive-deepening state: which reasoning layers have been
+            # served on this thread, so follow-ups ADD depth instead of repeating.
+            "served_layers": [],
         }, 1800)
     except Exception:
         logger.debug("store_health_context failed", exc_info=True)
+
+
+def _save_served(conversation, ctx, served):
+    try:
+        from django.core.cache import cache
+        key = _ctx_key(conversation)
+        if not key:
+            return
+        ctx = dict(ctx)
+        ctx["served_layers"] = list(served)
+        cache.set(key, ctx, 1800)
+    except Exception:
+        logger.debug("_save_served failed", exc_info=True)
 
 
 def get_health_context(conversation):
@@ -669,59 +686,115 @@ def get_health_context(conversation):
         return None
 
 
+# Progressive reasoning layers per lever. Each layer is served at most once per
+# thread, so follow-ups expand the reasoning tree instead of looping the same
+# sentence. Order: why (mechanism) → action → deeper (downstream) → long_term.
+_LEVER_LAYERS = {
+    "muscle": {
+        "why": ("Because successful weight loss can quietly cost muscle along with "
+                "fat, and the muscle you keep is what protects your metabolism, "
+                "strength, and glucose stability while the scale drops."),
+        "action": ("I'd prioritize consistent resistance training and enough protein "
+                   "rather than trying to accelerate the weight loss — that's what "
+                   "steers the loss toward fat, not muscle."),
+        "deeper": ("The hidden part — and it matters more as we get older — is that "
+                   "muscle drives insulin sensitivity, energy, and long-term "
+                   "independence, not just strength. People who keep weight off "
+                   "almost always preserved muscle while they lost fat."),
+        "long_term": ("Long term, the muscle you hold onto now is what makes the lower "
+                      "weight stick — it guards against rebound and keeps your "
+                      "metabolism from sagging as the weight comes down."),
+    },
+    "sleep": {
+        "why": ("Because sleep sits upstream of recovery, appetite, and glucose "
+                "stability — when it's inconsistent, everything else gets harder."),
+        "action": ("I'd protect a consistent sleep window first, before adding any "
+                   "training load on top."),
+        "deeper": ("Short or erratic sleep nudges appetite hormones up, blunts glucose "
+                   "control, and slows recovery — so it quietly undermines the rest of "
+                   "the work you're putting in."),
+        "long_term": ("Consistent sleep is the lever that compounds — fix it and weight, "
+                      "glucose, and training all get easier over the following months."),
+    },
+    "workout": {
+        "why": ("Because consistent training is what protects muscle and keeps the "
+                "weight trend moving."),
+        "action": ("I'd focus on simply showing up regularly rather than chasing hard "
+                   "sessions."),
+        "deeper": ("Frequency drives the adaptation; gradual progressive overload and "
+                   "recovery matter more than raw intensity, and they keep injury risk "
+                   "low so you don't lose weeks to setbacks."),
+        "long_term": ("The habit of consistent training is what sustains the results "
+                      "long after the initial weight comes off."),
+    },
+    "glucose": {
+        "why": ("Because catching glucose drift early keeps it from compounding."),
+        "action": ("I'd keep movement, protein, and steady meal timing consistent."),
+        "deeper": ("Glucose stability ties back to muscle, sleep, and meal timing — "
+                   "improving those usually steadies it without anything extra."),
+        "long_term": ("Stable glucose now lowers long-term risk and makes the whole "
+                      "plan more durable."),
+    },
+    "generic": {
+        "why": ("Because it's the change with the biggest downstream effect right now."),
+        "action": ("I'd put your energy there and keep everything else steady."),
+        "deeper": ("It tends to pull the other areas along with it, which is why it's "
+                   "higher leverage than fine-tuning the smaller stuff."),
+        "long_term": ("Getting it consistent is what makes the rest of the plan hold "
+                      "together over time."),
+    },
+}
+
+_LAYER_ORDER = ("why", "action", "deeper", "long_term")
+
+
+def _lever_key(phrase) -> str:
+    p = (phrase or "").lower()
+    if "muscle" in p:
+        return "muscle"
+    if "sleep" in p:
+        return "sleep"
+    if "workout" in p or "training" in p or "frequency" in p:
+        return "workout"
+    if "glucose" in p:
+        return "glucose"
+    return "generic"
+
+
 def build_deepen(user, msg_lower, conversation) -> str | None:
-    """Continue the active health thread for a follow-up. None if no context."""
+    """Continue the active health thread, serving the NEXT unserved reasoning
+    layer so each follow-up adds depth instead of repeating. None if no context."""
     ctx = get_health_context(conversation)
     if not ctx:
         return None
-    m = msg_lower or ""
+    m = (msg_lower or "")
     top = ctx.get("top_lever")  # (rank, phrase, why)
-    if "what would you do" in m or "if you were me" in m:
-        if top:
-            return f"If I were you, I'd focus on {top[1]}. {top[2][:1].upper()}{top[2][1:]}."
-        return ("If I were you, I'd mostly keep doing what's working — the trend "
-                "is fine, so consistency matters more than changes.")
+    lever = _lever_key(top[1] if top else "")
+    layers = _LEVER_LAYERS.get(lever, _LEVER_LAYERS["generic"])
+    served = set(ctx.get("served_layers") or [])
+
+    # Map the follow-up intent to a preferred layer.
     bare = m.strip().rstrip("?.! ")
-    if bare in ("why", "why is that", "why that", "why do you think that") or \
-            "why do you think" in m or "what do you mean" in m:
-        if top:
-            return (f"{top[2][:1].upper()}{top[2][1:]}. That's why I'd put "
-                    f"{top[1]} ahead of fine-tuning anything else right now.")
-        return ("Mostly because your trend is already working — there's no urgent "
-                "problem to fix, so consistency matters more than changes.")
-    # tell me more / go deeper / expand → substantive depth, not a one-liner
-    parts = []
-    if top:
-        parts.append(f"The main thing is {top[1]}.")
-        parts.append(_deep_rationale(top[1]))
-    nxt = ctx.get("next_lever")
-    if nxt:
-        parts.append(f"After that, the next lever would be {nxt[1]}.")
-    return " ".join(parts) if parts else None
+    if "what would you do" in m or "if you were me" in m:
+        preferred = "action"
+    elif (bare in ("why", "why is that", "why that", "why do you think that")
+          or "why do you think" in m or "what do you mean" in m or "why do you say" in m):
+        preferred = "why"
+    else:  # tell me more / go deeper / expand → next unserved deeper layer
+        preferred = None
 
+    # Pick the preferred layer if unserved; otherwise the next unserved in order.
+    layer = preferred if (preferred and preferred not in served) else None
+    if layer is None:
+        layer = next((l for l in _LAYER_ORDER if l not in served), None)
+    if layer is None:
+        # Reasoning tree exhausted — synthesize, never repeat a layer.
+        return ("That's really the core of it — from here it's mostly execution: stay "
+                "consistent and let the trend keep doing the work.")
 
-def _deep_rationale(phrase) -> str:
-    """Extended 'why this matters' for a 'go deeper' follow-up, keyed to the lever."""
-    p = (phrase or "").lower()
-    if "muscle" in p:
-        return ("The hidden risk in successful weight loss is shedding muscle along "
-                "with fat — and that matters more as we get older. Muscle drives "
-                "metabolism, strength, and glucose control, so protecting it with "
-                "protein and resistance training is what keeps the loss sustainable "
-                "rather than something that rebounds.")
-    if "sleep" in p:
-        return ("Sleep sits upstream of almost everything — recovery, appetite, "
-                "glucose stability, and training quality all follow it. Tightening "
-                "consistency there tends to lift the other areas without extra effort.")
-    if "workout" in p or "training" in p:
-        return ("Consistent training is what protects muscle and keeps the weight "
-                "trend moving — frequency matters more than any single hard session.")
-    if "glucose" in p:
-        return ("Catching glucose drift early stops it compounding, and it responds "
-                "well to the basics you're already doing — movement, protein, and "
-                "steady meals.")
-    return ("It's the change with the biggest downstream effect right now, which is "
-            "why I'd focus there before fine-tuning anything else.")
+    served.add(layer)
+    _save_served(conversation, ctx, served)
+    return layers[layer]
 
 
 def build_health_analyze(user, msg_lower, conversation=None) -> str | None:

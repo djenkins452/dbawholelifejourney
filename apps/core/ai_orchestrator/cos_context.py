@@ -3567,6 +3567,15 @@ def build_cos_context(user, scoped_builders=None):
     import time as _time
     start = _time.monotonic()
 
+    # Repair a stale health snapshot BEFORE preloading the per-request SAE cache,
+    # so every builder reads fresh weight/glucose/sleep. Fresh-by-design — the
+    # weight guard remains only a safety net. Conditional + never raises.
+    try:
+        from apps.ai.cognitive_mode.health_truth import ensure_health_fresh
+        ensure_health_fresh(user)
+    except Exception:
+        pass
+
     # Pre-load SAE snapshot so all builders share one DB hit
     try:
         from apps.core.ai_state.state_engine import get_user_state

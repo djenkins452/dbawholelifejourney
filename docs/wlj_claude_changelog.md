@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-09 — fix(ai): SAE health staleness — fresh-by-design source fix (demotes weight guard to safety net)
+
+**Why:** The v1.5 P1 fix made the *visible* weight correct via the guard reading live WeightEntry, but the underlying SAE `health` snapshot still went stale (it's not invalidated on weight/glucose/sleep writes), so background reasoning (cos_context / LLM context, dashboards) could still use a stale value. This makes canonical health state **fresh by design**, with the guard as a safety net only.
+
+**Mechanism (extends the proven `ensure_fresh` pattern, no migration):**
+- `state_freshness._MANUAL_MODULE_SOURCES` now supports a LIST of sources per module; `health` is registered against WeightEntry + GlucoseEntry + SleepEntry (all `recorded_at`). The `ensure_fresh` loop handles single-tuple (journal/nutrition) and multi-source (health) registrations. A write to any of those tables newer than the snapshot triggers a targeted single-module health rebuild — conditional (one `.exists()` per source on a clean load), bounded, never raises.
+- New `health_truth.ensure_health_fresh(user)` wrapper, called at the read chokepoints: `build_cos_context` (before the per-request SAE cache preload → fixes the LLM-context staleness that produced 287.3), the analyze override, and the deterministic weight/sleep handlers.
+
+**Result:** weight/glucose/sleep questions, the analyze lane, coaching follow-ups, cos_context, and dashboard-derived health reasoning all read the same current value. The weight guard + WEIGHT_STALE_SAE telemetry remain as a safety net / drift monitor.
+
+**Files:** `apps/core/ai_state/state_freshness.py` (multi-source registry + loop), `apps/ai/cognitive_mode/health_truth.py` (`ensure_health_fresh`), `apps/core/ai_orchestrator/cos_context.py` (refresh before SAE preload), `apps/ai/deterministic_router.py` (analyze override + weight/sleep handlers), `apps/ai/tests/test_health_freshness.py` (new).
+
+**Verification:** new freshness tests prove health rebuilds on a newer weight/glucose/sleep row and does NOT on no-new-rows; nutrition (single-source) path unaffected. check clean; no migrations.
+
+**Not done (still held):** push-based invalidation on write (post_save), broad SAE consolidation. The pull-based ensure_fresh is the smaller, proven, request-path-safe choice.
+
+
 ## 2026-06-09 — polish(ai): Health Analyze concern composer — fix double-word phrasing
 
 Cosmetic: `_compose_concern` said "The one thing I'd protect most is protecting muscle…" (double protect/protecting). Now "The thing I'd focus on most is…". Deterministic, no behavior change beyond wording. 23/23 v1 tests pass.

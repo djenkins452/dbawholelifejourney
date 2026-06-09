@@ -709,6 +709,11 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
             if _is_analyze or _is_judgment or _coaching_ok:
                 _stab_health = _health_ctx or _is_judgment or _coaching_ok
                 if _stab_health:
+                    try:
+                        from apps.ai.cognitive_mode.health_truth import ensure_health_fresh
+                        ensure_health_fresh(user)  # fresh-by-design before analysis
+                    except Exception:
+                        pass
                     _resp = _hv1.build_health_analyze(user, msg_lower, conversation=conversation)
                     _rname = 'analyze_health_v1'
                     if _resp is None:
@@ -4164,6 +4169,11 @@ def _match_weight_query(msg_lower):
 
 def _handle_weight_query(user):
     """Build a deterministic weight response from SAE state."""
+    try:
+        from apps.ai.cognitive_mode.health_truth import ensure_health_fresh
+        ensure_health_fresh(user)
+    except Exception:
+        pass
     from apps.core.ai_state.state_engine import get_module_state
     health = get_module_state(user, 'health') or {}
 
@@ -4458,6 +4468,11 @@ def _handle_sleep_query(user, msg_lower=None):
       - "this week" / "average" / "how have I been sleeping" → 7-day summary.
     Reads canonical SAE fields; never a direct DB query.
     """
+    try:
+        from apps.ai.cognitive_mode.health_truth import ensure_health_fresh
+        ensure_health_fresh(user)
+    except Exception:
+        pass
     from apps.core.ai_state.state_engine import get_module_state
     health = get_module_state(user, 'health') or {}
 

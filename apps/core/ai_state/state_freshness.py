@@ -50,6 +50,15 @@ logger = logging.getLogger(__name__)
 _MANUAL_MODULE_SOURCES = {
     "journal": ("apps.journal.models.JournalEntry", "updated_at"),
     "nutrition": ("apps.health.models.FoodEntry", "updated_at"),
+    # Health is synced from several device/manual tables (HealthKit weight,
+    # glucose, sleep). A write to ANY of them means the cached health snapshot
+    # is stale — the snapshot is not invalidated on these writes, which is the
+    # root cause of the stale-weight regression. A list of sources is supported.
+    "health": [
+        ("apps.health.models.WeightEntry", "recorded_at"),
+        ("apps.health.models.GlucoseEntry", "recorded_at"),
+        ("apps.health.models.SleepEntry", "recorded_at"),
+    ],
 }
 
 
@@ -101,13 +110,18 @@ def ensure_fresh(user, modules):
         return refreshed
 
     for module in eligible:
-        dotted_path, ts_field = _MANUAL_MODULE_SOURCES[module]
+        sources = _MANUAL_MODULE_SOURCES[module]
+        if isinstance(sources, tuple):
+            sources = (sources,)  # normalize single-source to a 1-tuple
         try:
-            model = _resolve_model(dotted_path)
-            is_stale = (
-                model.objects.filter(user=user, **{f"{ts_field}__gt": reference_ts})
-                .exists()
-            )
+            is_stale = False
+            for dotted_path, ts_field in sources:
+                model = _resolve_model(dotted_path)
+                if model.objects.filter(
+                    user=user, **{f"{ts_field}__gt": reference_ts}
+                ).exists():
+                    is_stale = True
+                    break
             if not is_stale:
                 continue
 

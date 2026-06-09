@@ -63,6 +63,22 @@ def weight_diag_enabled() -> bool:
     return _flag("WLJ_BETH_WEIGHT_DIAG_ENABLED", True)
 
 
+def ensure_health_fresh(user):
+    """Repair a stale SAE health snapshot before a request-path read.
+
+    Makes canonical health state fresh BY DESIGN (not corrected after the fact):
+    if a weight/glucose/sleep row is newer than the snapshot, rebuild the health
+    module so every consumer (cos_context, analyze lane, deterministic routes,
+    dashboard reasoning) reads the same current value. Never raises.
+    """
+    try:
+        from apps.core.ai_state.state_freshness import ensure_fresh
+        return ensure_fresh(user, ["health"])
+    except Exception:
+        logger.debug("ensure_health_fresh failed (non-fatal)", exc_info=True)
+        return set()
+
+
 def get_fresh_weight(user):
     """Live latest WeightEntry — the authoritative source the UI and
     build_health_state read. Never stale. (value, unit) or (None, None).

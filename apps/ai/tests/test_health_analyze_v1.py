@@ -323,7 +323,9 @@ class V17ProgressiveDeepeningTests(SimpleTestCase):
         _, seq = self._thread(1711)
         why, action, deeper, longterm = seq
         self.assertIn("cost muscle", why.lower())
-        self.assertIn("resistance training", action.lower())
+        # action layer is now practical/specific (lifting + protein, not abstract)
+        self.assertIn("lifting", action.lower())
+        self.assertIn("protein", action.lower())
         self.assertIn("insulin", deeper.lower())
         self.assertTrue("rebound" in longterm.lower() or "long term" in longterm.lower())
 
@@ -347,6 +349,30 @@ class V17ProgressiveDeepeningTests(SimpleTestCase):
         self.assertEqual(v1._lever_key("protecting muscle while the weight comes down"), "muscle")
         self.assertEqual(v1._lever_key("improving sleep consistency"), "sleep")
         self.assertEqual(v1._lever_key("getting workout frequency back up"), "workout")
+
+    def test_concern_is_high_level_not_mechanism(self):
+        # v1.7.1: concern stays high-level so 'Why?' adds the mechanism (no overlap).
+        out = _run("what concerns you most?", hour=14)
+        self.assertIn("muscle", out.lower())
+        self.assertNotIn("because", out.lower())  # mechanism moved to the Why? layer
+
+    def test_why_after_concern_adds_mechanism(self):
+        from django.core.cache import cache
+        conv = type("C", (), {"id": 1720})()
+        cache.delete("beth:hctx:1720")
+        with mock.patch("apps.core.ai_state.state_engine.get_module_state") as g, \
+             mock.patch("apps.core.utils.get_user_now") as now:
+            s = {"health": _HEALTH, "fitness": _FITNESS, "nutrition": _NUTRITION}
+            g.side_effect = lambda u, m, *a, **k: s.get(m, {})
+            now.side_effect = lambda u: datetime(2026, 6, 9, 14, 0, 0)
+            concern = v1.build_health_analyze(object(), "what concerns you most?", conversation=conv)
+            why = v1.build_deepen(object(), "why?", conv)
+            first_deeper = v1.build_deepen(object(), "go deeper", conv)
+        # Why adds mechanism; first 'go deeper' advances (action), not a why repeat.
+        self.assertIn("cost muscle", why.lower())
+        self.assertNotEqual(why, first_deeper)
+        self.assertIn("lifting", first_deeper.lower())  # action layer, not why again
+        cache.delete("beth:hctx:1720")
 
 
 class V16VariationTests(SimpleTestCase):

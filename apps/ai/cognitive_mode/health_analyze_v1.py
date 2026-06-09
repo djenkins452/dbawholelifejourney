@@ -501,7 +501,9 @@ def _compose_concern(signals, band, seed=None):
         ], seed))
     if ranked:
         top = ranked[0]
-        parts.append(f"The thing I'd focus on most is {top[1]}, because {top[2]}.")
+        # High-level here; the mechanism ("why") is saved for the follow-up so
+        # "Why?" adds new information instead of restating the concern.
+        parts.append(f"The thing I'd focus on most is {top[1]}.")
     else:
         parts.append("Nothing really stands out as a concern — it's mostly about "
                      "staying consistent.")
@@ -694,9 +696,10 @@ _LEVER_LAYERS = {
         "why": ("Because successful weight loss can quietly cost muscle along with "
                 "fat, and the muscle you keep is what protects your metabolism, "
                 "strength, and glucose stability while the scale drops."),
-        "action": ("I'd prioritize consistent resistance training and enough protein "
-                   "rather than trying to accelerate the weight loss — that's what "
-                   "steers the loss toward fat, not muscle."),
+        "action": ("If I were you, I wouldn't try to lose faster. I'd keep lifting "
+                   "consistently a few times a week, keep protein reasonably high, "
+                   "and let the steady trend keep working — consistency beats "
+                   "intensity right now."),
         "deeper": ("The hidden part — and it matters more as we get older — is that "
                    "muscle drives insulin sensitivity, energy, and long-term "
                    "independence, not just strength. People who keep weight off "
@@ -708,8 +711,9 @@ _LEVER_LAYERS = {
     "sleep": {
         "why": ("Because sleep sits upstream of recovery, appetite, and glucose "
                 "stability — when it's inconsistent, everything else gets harder."),
-        "action": ("I'd protect a consistent sleep window first, before adding any "
-                   "training load on top."),
+        "action": ("I'd aim for a steadier sleep and wake time most nights before "
+                   "adding anything else — even getting the window consistent does "
+                   "a lot, and it makes the training and nutrition easier to hold."),
         "deeper": ("Short or erratic sleep nudges appetite hormones up, blunts glucose "
                    "control, and slows recovery — so it quietly undermines the rest of "
                    "the work you're putting in."),
@@ -719,8 +723,9 @@ _LEVER_LAYERS = {
     "workout": {
         "why": ("Because consistent training is what protects muscle and keeps the "
                 "weight trend moving."),
-        "action": ("I'd focus on simply showing up regularly rather than chasing hard "
-                   "sessions."),
+        "action": ("I'd aim to just show up a few times a week and keep it "
+                   "repeatable — a couple of solid, consistent sessions beat "
+                   "chasing the occasional hard one."),
         "deeper": ("Frequency drives the adaptation; gradual progressive overload and "
                    "recovery matter more than raw intensity, and they keep injury risk "
                    "low so you don't lose weeks to setbacks."),
@@ -729,7 +734,9 @@ _LEVER_LAYERS = {
     },
     "glucose": {
         "why": ("Because catching glucose drift early keeps it from compounding."),
-        "action": ("I'd keep movement, protein, and steady meal timing consistent."),
+        "action": ("I'd keep meals steady and get a short walk in after the bigger "
+                   "ones — small, repeatable habits move glucose more than big "
+                   "changes do."),
         "deeper": ("Glucose stability ties back to muscle, sleep, and meal timing — "
                    "improving those usually steadies it without anything extra."),
         "long_term": ("Stable glucose now lowers long-term risk and makes the whole "

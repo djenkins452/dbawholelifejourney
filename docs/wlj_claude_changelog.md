@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-09 — polish(ai): Beth v1.7.1 — concern→why de-overlap + more practical action layer
+
+Tight refinement. No routing/retrieval/leverage/continuity-architecture changes.
+
+**Failure 1 (deepen off-by-one) — ROOT CAUSE: not a logic bug.** The v1.7 deepen logic is correct (proven: the exact why→go-deeper sequence advances `served_layers` every turn — `['why']`→`['why','action']`→…), and production uses shared Redis (SafeRedisCache), so `served_layers` persists across workers. The *perceived* repeat came from the concern composer already stating the mechanism in its because-clause ("…because muscle protects your metabolism and glucose"), which the "Why?" layer then restated — plus deploy lag (the test predated v1.7's deploy). **Fix:** the concern is now **high-level** (drops the because; mechanism moves to the "Why?" layer), matching the desired progression and removing the overlap regardless of deploy/cache state.
+
+**Failure 2 (shallow action):** the muscle/sleep/workout/glucose **action layers** are now practical-but-bounded, e.g. "I wouldn't try to lose faster. I'd keep lifting consistently a few times a week, keep protein reasonably high, and let the steady trend keep working — consistency beats intensity." Grounded next-action, not a task list, not overfit to specific numbers.
+
+Resulting progression: concern (high-level) → Why? (mechanism) → What would you do? (practical action) → Go deeper (downstream) → Go deeper (long-term) → synthesis. Each turn adds new, non-overlapping information.
+
+**Files:** `apps/ai/cognitive_mode/health_analyze_v1.py` (concern trim + action-layer content), `apps/ai/tests/test_health_analyze_v1.py` (+concern-high-level / why-adds-mechanism tests; action assertion updated).
+
+**Verification:** 37/37 v1 tests pass. Router regression: same pre-existing 6, zero new. check clean; no migrations.
+
+
 ## 2026-06-09 — fix(ai): Beth v1.7 — progressive deepening (kill repetition) + workout-harder root cause
 
 **Failure 2 (workout-harder regression) — ROOT CAUSE: deploy lag, NOT a code bug.** Proven: `is_health_judgment_request("should i work out harder?")` → True, `classify` → `intensity_check`; `resolve_cos_mode` returns None (no cos-mode-shortcut interception); no earlier route matches; the streaming path (personal_assistant.py:6211) honors terminal routes identically to non-streaming; and the old "increasing intensity" phrasing is LLM output, not a deterministic string. The intensity_check path is correct and unbypassed on both paths — it shipped in v1.6 (b79c33e1) and the test predated its deploy. Added an end-to-end locking test. (Also fixed a latent `_NON_HEALTH_TOKENS` bug where " work " matched "work out" — now uses "my work"/"at work"/"for work".)

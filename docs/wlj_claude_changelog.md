@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-10 — polish(ai): Thread-aware progress framing + varied health-status framing
+
+Two scoped polish refinements. No routing redesign; explicit-health routing, continuity, page awareness, scripture grounding, and leverage logic all untouched.
+
+**1. "How is my progress?" is now thread-aware.**
+Root cause (proven from code): a bare progress question matches NO deterministic route (`is_analyze_request`, `is_health_context`, `is_explicit_health_intent`, `_is_focus_query`, `_is_decision_query`, `is_status_query`, `is_health_summary_query`, `resolve_cos_mode`, `_infer_domain` all return False/None) — it falls through (`route_name='no_match'`, `domain=None`) to the LLM, which defaulted to a health reading because of Beth's health-coaching context. Not rigidly mapped to health in code; an LLM default bias.
+Fix (smallest safe, NO routing change): new `is_ambiguous_progress_query()` (narrow — excludes anything naming a domain) + `_build_progress_framing_instruction()` injected into BOTH prompt builders. Gated on the SAME deterministic health-thread signal the router uses (`get_health_context(conversation)`): health thread active → "read as HEALTH progress"; no thread → "interpret HOLISTICALLY across health, faith, work, goals, momentum — not health alone." Deterministic, bounded, no new facts. Explicit-health phrasings never reach it (they route deterministically first).
+
+**2. Reduced robotic repetition across health-status phrasings.**
+Root cause: all four ("how am I doing with my health", "how is my health", "how am I doing physically", "am I healthy") classify to `qtype="overall"` → the same `_compose_overall(signals)`, which ignored the message. The `_COMPOSERS["overall"]` lambda already received `msg_lower` (as `seed`) but discarded it.
+Fix: `_overall_frame(msg_lower)` picks one of 4 deterministic frames; `_compose_overall(signals, frame)` varies only the LEAD/emphasis — executive read / broader state & momentum / physical (body, training, recovery) / evaluative ("healthier than you were… but not finished"). The underlying facts (improving-signal set, recovery/consistency opportunity, "no dramatic changes" closing) are IDENTICAL across frames. No randomness, no hallucination. The evaluative "healthier than you were" verdict is gated on momentum actually being present (grounded), else "stable shape".
+
+Files: `apps/ai/cognitive_mode/health_analyze_v1.py`, `apps/ai/personal_assistant.py`, `apps/ai/tests/test_health_analyze_v1.py`. check clean; no migrations. Note: "how is my progress?" with no domain is intentionally NOT forced to health — that was the point.
+
+
 ## 2026-06-10 — fix(ai): Explicit health intent must outrank continuity/operational routing
 
 **Regression:** After "check in", asking "How am I doing with my health?" returned the operational task backlog ("Go straight into Prayer Time — you're behind…") instead of a health assessment.

@@ -115,6 +115,32 @@ _EXPLICIT_HEALTH_INTENT = (
 )
 
 
+# Ambiguous "progress" questions — NOT inherently health. They should be read
+# as health progress only when health is the active thread; otherwise holistic
+# (health / faith / work / goals / momentum). Deliberately narrow so it can't
+# swallow specific queries.
+_AMBIGUOUS_PROGRESS = (
+    "how is my progress", "how's my progress", "hows my progress",
+    "how am i progressing", "am i making progress", "how's my progress going",
+    "how is my progress going", "where am i making progress",
+)
+
+
+def is_ambiguous_progress_query(msg_lower: str) -> bool:
+    """True for bare 'how is my progress?' style questions that are NOT tied to a
+    specific domain. Excludes anything that already names a domain (health/faith/
+    work/etc.) so it only catches the genuinely ambiguous case."""
+    m = msg_lower or ""
+    if not any(p in m for p in _AMBIGUOUS_PROGRESS):
+        return False
+    # If it explicitly names a domain, it isn't ambiguous — let the normal lanes win.
+    if is_explicit_health_intent(m) or mentions_non_health_domain(m):
+        return False
+    if any(t in m for t in ("health", "weight", "workout", "fitness", "physical")):
+        return False
+    return True
+
+
 def is_explicit_health_intent(msg_lower: str) -> bool:
     """True for messages that explicitly express health-status intent
     ('how am I doing with my health?', 'how is my health?', 'am I healthy?',
@@ -432,10 +458,24 @@ def _compose_weight_history(signals, seed=None):
     return " ".join(parts)
 
 
-def _compose_overall(signals):
+def _overall_frame(msg_lower: str) -> str:
+    """Deterministic framing variant for the 'overall' health-status answer. The
+    FACTS are identical across frames — only the lead-in and emphasis change, so
+    near-identical phrasings ('how is my health?' vs 'am I healthy?') don't feel
+    robotically repeated. No randomness, no new facts."""
+    m = msg_lower or ""
+    if "physically" in m or "physical" in m or "my body" in m or "how's my body" in m:
+        return "physical"
+    if "am i healthy" in m or "healthy" in m or "good health" in m:
+        return "evaluative"
+    if "how is my health" in m or "how's my health" in m or "hows my health" in m:
+        return "state"
+    return "executive"  # 'how am I doing with my health' + default
+
+
+def _compose_overall(signals, frame: str = "executive"):
     if not _has_min_data(signals):
         return None
-    parts = []
     w = signals.get("weight")
     g = signals.get("glucose")
     momentum = []
@@ -446,13 +486,46 @@ def _compose_overall(signals):
     wk = signals.get("workouts")
     if wk and wk.get("count", 0) >= 3:
         momentum.append("workout consistency")
-    if momentum:
-        joined = ", ".join(momentum[:-1]) + (" and " + momentum[-1] if len(momentum) > 1 else momentum[0])
-        parts.append(f"Overall, you're moving in a positive direction — {joined} "
-                     f"{'are' if len(momentum) > 1 else 'is'} improving.")
+    has_mom = bool(momentum)
+    if has_mom:
+        clause = ", ".join(momentum[:-1]) + (
+            " and " + momentum[-1] if len(momentum) > 1 else momentum[0])
+        verb = "are" if len(momentum) > 1 else "is"
+        mom_clause = f"{clause} {verb} improving"  # shared fact, reused per frame
     else:
-        parts.append("Overall, your health signals are holding steady right now.")
-    # The opportunity (recovery/consistency, not effort)
+        mom_clause = None
+
+    # Frame-specific lead — same underlying signal, different emphasis.
+    if frame == "physical":
+        if has_mom:
+            lead = (f"Physically — your body, training, and recovery — you're in "
+                    f"good shape and trending up: {mom_clause}.")
+        else:
+            lead = ("Physically — your body, training, and recovery — you're holding "
+                    "steady right now.")
+    elif frame == "evaluative":
+        if has_mom:
+            lead = (f"Honestly? Healthier than you were, and moving the right "
+                    f"direction — but not finished. {mom_clause[0].upper()}{mom_clause[1:]}.")
+        else:
+            lead = ("Honestly? You're in stable shape — not slipping, but not yet "
+                    "where you're aiming.")
+    elif frame == "state":
+        if has_mom:
+            lead = (f"Stepping back at the whole picture, your health is trending "
+                    f"well — {mom_clause}, and the momentum is in your favor.")
+        else:
+            lead = ("Stepping back at the whole picture, your health is holding "
+                    "steady — stable rather than slipping.")
+    else:  # executive
+        if has_mom:
+            lead = (f"Overall — here's the executive read: you're moving in a positive "
+                    f"direction, {mom_clause}.")
+        else:
+            lead = "Overall — here's the executive read: your health signals are holding steady right now."
+
+    parts = [lead]
+    # The opportunity (recovery/consistency, not effort) — identical across frames.
     opp = []
     sl = signals.get("sleep")
     if sl and sl.get("avg") is not None and sl["avg"] < 7:
@@ -617,7 +690,7 @@ def _compose_intensity_check(signals):
 # Composers take (signals, band, seed); seed drives bounded phrase variation.
 _COMPOSERS = {
     "weight_history": lambda s, b, seed: _compose_weight_history(s, seed),
-    "overall": lambda s, b, seed: _compose_overall(s),
+    "overall": lambda s, b, seed: _compose_overall(s, _overall_frame(seed)),
     "patterns": lambda s, b, seed: _compose_patterns(s),
     "one_thing": lambda s, b, seed: _compose_one_thing(s, b),
     "concern": lambda s, b, seed: _compose_concern(s, b, seed),

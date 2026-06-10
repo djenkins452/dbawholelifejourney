@@ -297,6 +297,77 @@ class ExplicitHealthIntentTests(SimpleTestCase):
         self.assertIn("not _explicit_health", src)
 
 
+class OverallFrameVariationTests(SimpleTestCase):
+    """Polish: near-identical health phrasings get distinct FRAMING but the same
+    facts (deterministic, no randomness, no new data)."""
+
+    SIG = {"weight": {"trend": "decreasing"}, "glucose": {"trend": "improving"},
+           "workouts": {"count": 4}, "sleep": {"avg": 6.4},
+           "nutrition": {"band": "midday", "protein_pct": 70}}
+
+    def test_frame_classification(self):
+        self.assertEqual(v1._overall_frame("how am i doing with my health"), "executive")
+        self.assertEqual(v1._overall_frame("how is my health"), "state")
+        self.assertEqual(v1._overall_frame("how am i doing physically"), "physical")
+        self.assertEqual(v1._overall_frame("am i healthy"), "evaluative")
+
+    def test_four_phrasings_produce_distinct_leads(self):
+        outs = {f: v1._compose_overall(self.SIG, f)
+                for f in ("executive", "state", "physical", "evaluative")}
+        leads = {o.split(".")[0] for o in outs.values()}
+        self.assertEqual(len(leads), 4, "framing must differ across the 4 phrasings")
+        self.assertIn("executive read", outs["executive"])
+        self.assertIn("Physically", outs["physical"])
+        self.assertIn("Healthier than you were", outs["evaluative"])
+
+    def test_same_facts_across_frames(self):
+        # The underlying signal facts (improving set, opportunity, closing) are
+        # identical — only framing changes.
+        for f in ("executive", "state", "physical", "evaluative"):
+            out = v1._compose_overall(self.SIG, f)
+            self.assertIn("weight, glucose and workout consistency are improving", out.lower())
+            self.assertIn("recovery and consistency", out)
+            self.assertIn("don't think you need dramatic changes", out)
+
+    def test_evaluative_verdict_gated_on_momentum(self):
+        # No momentum -> must NOT claim 'healthier than you were' (ungrounded).
+        flat = {"weight": {"trend": "stable"}, "glucose": {"trend": "stable"},
+                "workouts": {"count": 1}, "sleep": {"avg": 7.5}}
+        out = v1._compose_overall(flat, "evaluative")
+        self.assertNotIn("Healthier than you were", out)
+        self.assertIn("stable shape", out)
+
+
+class AmbiguousProgressTests(SimpleTestCase):
+    """Polish: 'how is my progress?' is thread-aware, not rigidly health."""
+
+    def test_ambiguous_detected(self):
+        for q in ("how is my progress?", "how am i progressing?",
+                  "am i making progress?"):
+            self.assertTrue(v1.is_ambiguous_progress_query(q), msg=q)
+
+    def test_domain_specific_progress_not_ambiguous(self):
+        for q in ("how is my health progress?", "how is my weight progress",
+                  "how is my work progress?", "how am i doing with my health?"):
+            self.assertFalse(v1.is_ambiguous_progress_query(q), msg=q)
+
+    def test_thread_aware_framing_instruction(self):
+        from django.core.cache import cache
+        from apps.ai.personal_assistant import _build_progress_framing_instruction as f
+
+        class _C:
+            id = 9911
+        cache.clear()
+        conv = _C()
+        # No health thread -> holistic
+        self.assertIn("HOLISTICALLY", f("how is my progress?", conv))
+        # Health thread active -> health progress
+        v1.store_health_context(conv, "overall", {"weight": {"trend": "decreasing"}}, "midday")
+        self.assertIn("HEALTH progress", f("how is my progress?", conv))
+        # Non-progress question -> no instruction
+        self.assertEqual(f("how is my health?", conv), "")
+
+
 class V16IntensityTests(SimpleTestCase):
     """v1.6 Failure 3 — situational judgment, not reflexive agreement."""
 

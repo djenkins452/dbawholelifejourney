@@ -246,6 +246,38 @@ def _build_page_awareness_instruction(page_context, source="", content_available
     return "\n".join(parts) + "\n"
 
 
+def _build_progress_framing_instruction(message, conversation) -> str:
+    """Make an ambiguous 'how is my progress?' question thread-aware.
+
+    Root cause it addresses: a bare progress question matches no deterministic
+    route and falls through to the LLM, which (given Beth's health-coaching
+    context) defaults to a health reading even when health wasn't the topic.
+    This injects a small, deterministic, bounded hint using the SAME health-thread
+    signal the router uses (get_health_context) — no routing change, no new facts.
+    Explicit-health phrasings never reach here (they route deterministically)."""
+    try:
+        from apps.ai.cognitive_mode.health_analyze_v1 import (
+            is_ambiguous_progress_query, get_health_context,
+        )
+    except Exception:
+        return ""
+    if not is_ambiguous_progress_query((message or "").lower()):
+        return ""
+    in_health_thread = False
+    try:
+        in_health_thread = get_health_context(conversation) is not None
+    except Exception:
+        in_health_thread = False
+    if in_health_thread:
+        return ("PROGRESS FRAMING: health has been the recent topic, so read this "
+                "progress question as HEALTH progress — weight, glucose, workouts, "
+                "sleep, momentum — staying consistent with the current thread.\n")
+    return ("PROGRESS FRAMING: this is an ambiguous progress question with no recent "
+            "health focus. Interpret it HOLISTICALLY across the user's whole life — "
+            "health, faith, work, goals, consistency, and overall momentum — NOT "
+            "health alone. Lead with the 2-3 areas where there's the most signal.\n")
+
+
 def _build_missing_data_context(personal_data_result: dict) -> str:
     """Build a structured context block for personal data queries with no direct data.
 
@@ -4969,6 +5001,10 @@ Then give your response."""
                 except Exception:
                     pass
 
+        # Thread-aware framing for ambiguous 'how is my progress?' (not gated on
+        # page_context — holistic unless health is the active thread).
+        system_prompt += _build_progress_framing_instruction(message, conversation)
+
         # For strict health intel + brief, suppress conversational instructions
         if _is_health_intel_query and response_mode == 'brief':
             _conversational_rules = ""
@@ -5616,6 +5652,9 @@ Then give your response."""
             system_prompt += _build_page_awareness_instruction(
                 page_context, source="fast",
                 content_available=bool(scripture_context_block))
+            # Thread-aware framing for ambiguous 'how is my progress?' (parity
+            # with _generate_response). Holistic unless health is the active thread.
+            system_prompt += _build_progress_framing_instruction(message, conversation)
             # Remember an active CONTENT page (scripture present) so follow-ups
             # stay page-grounded vs a stale health thread. Faith-scoped: only the
             # scripture block populates this, so health pages never set it.

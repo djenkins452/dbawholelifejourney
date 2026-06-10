@@ -704,6 +704,31 @@ class SessionStartView(LoginRequiredMixin, AssistantMixin, View):
 # CONVERSATION / CHAT
 # =============================================================================
 
+def _log_page_context_diag(source, page_context, user):
+    """LOG-ONLY diagnostic — proves exactly what page_context arrives at the chat
+    endpoint (Page Awareness H1). Runs before any routing, on BOTH endpoints. No
+    behavior change; never raises. Logs shape/flags only, not raw scripture text.
+    """
+    try:
+        pc = page_context if isinstance(page_context, dict) else {}
+        content = pc.get('page_content')
+        content = content if isinstance(content, dict) else {}
+        logger.info(
+            "PAGE_CTX_DIAG source=%s user=%s present=%s keys=%s module=%s url=%s "
+            "content_present=%s content_type=%s has_scriptures=%s "
+            "has_scripture_text=%s scripture_text_len=%s title=%s",
+            source, getattr(user, 'id', '?'),
+            bool(pc), sorted(pc.keys()),
+            pc.get('module'), (pc.get('url') or '')[:80],
+            bool(content), content.get('type'),
+            bool(content.get('scriptures')), bool(content.get('scripture_text')),
+            len(content.get('scripture_text') or ''),
+            (pc.get('page_title') or '')[:60],
+        )
+    except Exception:
+        logger.debug("PAGE_CTX_DIAG failed", exc_info=True)
+
+
 class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
     """
     Send a message to the assistant and get a response.
@@ -807,6 +832,7 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
 
             assistant = self.get_assistant()
             conversation = assistant.get_or_create_conversation()
+            _log_page_context_diag('chat', page_context, request.user)
             result = assistant.send_message(
                 message,
                 conversation,
@@ -992,6 +1018,7 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
                 token_count = 0
 
                 try:
+                    _log_page_context_diag('stream', page_context, request.user)
                     for event in assistant.send_message_stream(
                         message, conversation, page_context=page_context,
                     ):

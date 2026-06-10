@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-09 — diag(ai): Page Awareness H1 — log-only page_context arrival diagnostic
+
+Adds a LOG-ONLY diagnostic (`apps/ai/views._log_page_context_diag`) called before routing on BOTH chat endpoints (`/api/chat/`, `/api/chat/stream/`). Logs the exact shape of the page_context that arrives — `present`, `keys`, `module`, `url`, `content_present`, `content_type`, `has_scriptures`, `has_scripture_text`, `scripture_text_len`, `title` — so we can PROVE whether the Faith page actually sends scripture (Hypothesis 1), which can't be determined from the repo. No behavior change; never raises; logs flags/lengths only (not raw scripture text).
+
+Context: the "page awareness didn't activate" root cause was already proven + fixed in 2d2687ea (streaming parity — the instruction wasn't in `_build_fast_context`, the web's fast prompt path). This diagnostic closes the remaining unproven hypothesis (does page_context arrive with scripture at all).
+
+**Verification plan:** deploy, reproduce on the Faith reading page, grep logs for `PAGE_CTX_DIAG source=stream` — it shows exactly what the client sent.
+
+Files: `apps/ai/views.py` (+helper, +2 guarded call sites), `apps/ai/tests/test_page_context_diag.py` (new, 3 tests). 12/12 pass; check clean; no migrations.
+
+
 ## 2026-06-09 — fix(ai): Page Awareness v1.1 — streaming parity (the instruction never ran on web)
 
 **ROOT CAUSE — proven from code, not deploy lag.** Page Awareness v1 added `_build_page_awareness_instruction` to `_generate_response()` (the non-streaming prompt builder). But the web UI **streams** (`/api/chat/stream/`), and `_generate_response_stream()` builds its prompt via the **`_build_fast_context()`** fast path (line 5638, "PHASE 1: cache-only TTFB"), falling back to `_generate_response(_return_context_only=True)` only when fast context returns None. `_build_fast_context` has its OWN page_context block (line 5445) — with scripture handling and even a server-side reading-plan DB fallback — but it **never called the awareness helper**. So the instruction physically could not run on web. Classic streaming/non-streaming parity gap (the one CLAUDE.md explicitly warns about).

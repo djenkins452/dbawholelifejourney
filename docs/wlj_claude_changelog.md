@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-10 — fix+diag(ai): Page identity vs content + latency instrumentation
+
+**1. Page identity vs content:** "What page am I on?" was answered with scripture content ("Exodus 14:5-31") instead of the page identity. The page-awareness instruction now separates IDENTITY (which page — derived from url/module/title; e.g. "today's Faith Journey reading") from CONTENT (the scripture), and tells Beth to answer "what page am I on?" with identity first then content ("You're on today's Faith Journey page, reading Exodus 14:5-31"), not the reference alone. Prompt-only; gated in the existing page_context block.
+
+**2. Latency instrumentation (instrument-first, no blind optimization):** the streaming path already emits a per-message `BETH_LATENCY_REPORT` (via `_ltrace_s.report()`, line 6960) with per-stage + per-CoS-builder timings and `prompt_tokens` — but the synchronous `build_cos_context` fallback (line 6122, fired on a readiness-cache MISS) was NOT traced, hiding the prime suspect. Added `cos_cache=hit|miss` meta + a `COS_CONTEXT_BUILD_STREAM` stage around it, so the report now attributes a cache-miss full rebuild (the code's own example shows COS_CONTEXT_BUILD_TOTAL ≈ 14800ms of a 31200ms total). Log-only.
+
+**Findings (proven from code):** CoS context is readiness-cached (90s TTL) and background-warmed after responses (`prewarm_cos_context` in `_run_deferred_context`); on a cache HIT the request is fast (LLM-bound), on a MISS it does a full 18-builder synchronous rebuild on the request path (~15s) — the likely source of 10-20s responses, and a violation of the "never compute heavy on the request path" rule. NOT yet optimized — pending a real `BETH_LATENCY_REPORT` line to confirm the dominant stage before the smallest safe fix.
+
+Files: `apps/ai/personal_assistant.py` (identity wording + cos-build trace), `apps/ai/tests/test_page_awareness.py`. No behavior change beyond the prompt wording; no routing/coaching/health changes; check clean; no migrations.
+
+
 ## 2026-06-10 — feat(ai): Page Awareness continuity — keep follow-ups grounded in the active page
 
 **Investigation (proven from code):**

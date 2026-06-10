@@ -190,9 +190,25 @@ def _build_page_awareness_instruction(page_context, source="", content_available
     # the journey/reading scripture in the SCRIPTURE CONTEXT block) and therefore
     # isn't in page_content. Either source means Beth genuinely has the content.
     has_content = has_content or bool(content_available)
+    url = (page_context.get('url') or '').strip()
     where = title or (f"{module} page" if module else "this page")
+    # Page IDENTITY (which page) is distinct from page CONTENT (what's on it).
+    if '/faith/journey/' in url:
+        page_identity = "today's Faith Journey reading"
+    elif '/faith/reading-plans/' in url:
+        page_identity = title or "a Bible reading plan"
+    elif title and module:
+        page_identity = f"the {title} page ({module})"
+    else:
+        page_identity = where
 
     parts = ["PAGE AWARENESS — this OVERRIDES any generic \"I can't see\" disclaimer:"]
+    parts.append(
+        f"Page IDENTITY (which page): {page_identity}" + (f" [{url}]" if url else "")
+        + ". This is the page the user is ON — separate from the CONTENT on it "
+        "(the SCRIPTURE / PAGE CONTEXT above). If the user asks \"what page am I on?\", "
+        "answer with the identity first, then the content — e.g. \"You're on today's "
+        "Faith Journey page, reading Exodus 14:5-31\" — NOT the scripture reference alone.")
     if has_content:
         parts.append(
             "WLJ has handed you the content of the page the user is viewing (in the "
@@ -6119,7 +6135,15 @@ Rules for this response:
                 except Exception:
                     pass
 
+                # Latency instrumentation: record whether the CoS context was
+                # served from cache (fast) or required a full synchronous rebuild
+                # on the request path (often the dominant cost). Visible in
+                # BETH_LATENCY_REPORT as cos_cache=hit|miss + COS_CONTEXT_BUILD_STREAM.
+                if _ltrace_s:
+                    _ltrace_s.set_meta('cos_cache', 'hit' if _cos_context_cache else 'miss')
                 if not _cos_context_cache:
+                    if _ltrace_s:
+                        _ltrace_s.start('COS_CONTEXT_BUILD_STREAM')
                     try:
                         from apps.core.ai_orchestrator.cos_context import (
                             build_cos_context as _stream_build_cos,
@@ -6127,6 +6151,9 @@ Rules for this response:
                         _cos_context_cache = _stream_build_cos(self.user)
                     except Exception as e:
                         logger.warning("Streaming CoS context build failed: %s", e, exc_info=True)
+                    finally:
+                        if _ltrace_s:
+                            _ltrace_s.end('COS_CONTEXT_BUILD_STREAM')
 
                 # ECC check (explicit commitment contract)
                 try:

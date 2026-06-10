@@ -61,6 +61,17 @@ class PageAwarenessTests(SimpleTestCase):
         self.assertIn('Do NOT say', out)
         self.assertIn("answer YES", out)
 
+    def test_page_identity_distinct_from_content(self):
+        # "What page am I on?" must get identity (Faith Journey page), not just
+        # the scripture reference.
+        out = build({"module": "faith", "page_title": "Today's Reading",
+                     "url": "/faith/journey/today/", "page_content": None},
+                    content_available=True)
+        self.assertIn("Page IDENTITY", out)
+        self.assertIn("Faith Journey", out)
+        self.assertIn("what page am I on", out)
+        self.assertIn("NOT the scripture reference alone", out)
+
     def test_content_available_forces_confident_branch(self):
         # Journey route: page_content empty, but scripture retrieved server-side →
         # confident branch must fire (no "content isn't coming through" contradiction).

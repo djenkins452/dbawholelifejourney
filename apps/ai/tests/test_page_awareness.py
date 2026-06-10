@@ -46,12 +46,28 @@ class PageAwarenessTests(SimpleTestCase):
         self.assertEqual(build(None), "")
         self.assertEqual(build({}), "")
 
-    def test_prohibits_visual_screen_claim(self):
-        # The phrase appears ONLY inside the prohibition ("NEVER 'I can see your
-        # screen'") — Beth is told not to say it.
+    def test_prohibits_literal_screen_vision(self):
+        # Beth is told she's working from what WLJ handed her, not a live screen view.
         for ctx in (self.FAITH_FULL, self.FAITH_LOCATION_ONLY, self.WEIGHT_PAGE):
             out = build(ctx).lower()
-            self.assertIn('never "i can see your screen"', out)
+            self.assertIn("literally see their screen", out)
+            self.assertIn("not a live", out)
+
+    def test_overrides_generic_disclaimer(self):
+        # Authority: the instruction must explicitly forbid the "I can't see" reflex
+        # and tell Beth to answer affirmatively when content is present.
+        out = build(self.FAITH_FULL)
+        self.assertIn("OVERRIDES", out)
+        self.assertIn('Do NOT say', out)
+        self.assertIn("answer YES", out)
+
+    def test_content_available_forces_confident_branch(self):
+        # Journey route: page_content empty, but scripture retrieved server-side →
+        # confident branch must fire (no "content isn't coming through" contradiction).
+        out = build({"module": "faith", "page_title": "Today's Reading",
+                     "page_content": None}, content_available=True)
+        self.assertIn("you genuinely HAVE it", out)
+        self.assertNotIn("isn't coming through to me", out)
 
     def test_humility_framing_present(self):
         out = build(self.FAITH_FULL).lower()
@@ -61,7 +77,7 @@ class PageAwarenessTests(SimpleTestCase):
     def test_always_carries_anti_hallucination_guard(self):
         for ctx in (self.FAITH_FULL, self.FAITH_LOCATION_ONLY, self.WEIGHT_PAGE):
             out = build(ctx).lower()
-            self.assertIn("never claim to see anything not listed", out)
+            self.assertIn("don't invent details", out)
 
     def test_faith_full_is_confident_and_specific(self):
         out = build(self.FAITH_FULL)
@@ -71,7 +87,7 @@ class PageAwarenessTests(SimpleTestCase):
     def test_faith_location_only_is_honest_partial(self):
         out = build(self.FAITH_LOCATION_ONLY).lower()
         self.assertIn("you're on the today's reading", out)
-        self.assertIn("don't see the scripture content", out)
+        self.assertIn("scripture text isn't coming through", out)
         # Must NOT use the confident scripture example when content is missing.
         self.assertNotIn("i can see today's reading is", out)
 
@@ -83,7 +99,7 @@ class PageAwarenessTests(SimpleTestCase):
     def test_location_only_for_unknown_module(self):
         out = build({"module": "", "page_title": "", "page_content": None}).lower()
         self.assertIn("this page", out)
-        self.assertIn("don't see the page details", out)
+        self.assertIn("page's details isn't coming through", out)
 
 
 class JourneyScriptureLookupTests(SimpleTestCase):

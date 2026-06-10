@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-10 — fix(ai): Page Awareness — prompt authority (stop the "I can't see" disclaimer)
+
+Scripture retrieval now works (Beth references Exodus 14:5-31), but she still prepended "I can't directly see the scripture… but I understand you're reading Exodus 14:5-31." TWO precise causes, both fixed:
+
+**1. Self-contradiction (the real mechanism).** The awareness helper's `has_content` only checked `page_context.page_content`, but on the journey/reading routes the scripture arrives via the server-side SCRIPTURE CONTEXT block, NOT page_content. So `has_content=False` → the helper emitted the *partial* branch ("I don't see the scripture content coming through") which **contradicted** the scripture already in the prompt → the model split the difference and disclaimed. Fix: new `content_available` signal — both prompt builders pass `bool(scripture_context_block)`, so the journey route uses the *confident* branch. (In `_generate_response` the helper call moved to after the scripture block so the signal is accurate; in `_build_fast_context` it already ran after it.)
+
+**2. Weak authority.** The instruction was hedgy ("stay humble"; and it prominently said NEVER "I can see your screen", which *primed* the disclaimer reflex). Rewritten to lead with "this OVERRIDES any generic 'I can't see' disclaimer", explicitly forbid "I can't directly see"/"I can't see the page" when context is present, and mandate "answer YES and name it." No-vision truthfulness kept as a positive framing ("you're working from what WLJ handed you, not a live view of their screen — don't claim to literally see their screen, and don't invent details").
+
+Trust preserved: confident only when content is actually present (page_content OR server-side scripture); honest partial when it genuinely didn't arrive; never invents.
+
+Files: `apps/ai/personal_assistant.py` (helper rewrite + content_available + relocate call in _generate_response), `apps/ai/tests/test_page_awareness.py`. Blast radius: page_context/scripture blocks only — no routing/coaching/health/continuity changes. 18/18 page-awareness tests; router regression unchanged; check clean; no migrations.
+
+
 ## 2026-06-10 — fix(ai): Page Awareness — Faith JOURNEY route scripture (the real root cause)
 
 **ROOT CAUSE — proven from code.** The user was on `/faith/journey/today/`, NOT `/faith/reading-plans/progress/<pk>/`. The client extractor `extractPageContent()` (assistant_panel.html) has branches for reading-plans/prayers/journal/tasks/goals/habits/health — but **none for `/faith/journey/`** — so `page_content` came back EMPTY (no scripture). The journey template (`templates/faith/journey/day.html`) also uses different DOM classes (`.journey-scripture .verse-text`, not `.scripture-text`). AND the server-side scripture fallback keyed on `/faith/reading-plans/progress/`, so it missed this route too. Net: Beth had no scripture for the journey route from any source — so "I can't see the scripture" was literally correct.

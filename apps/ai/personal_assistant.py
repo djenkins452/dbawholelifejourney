@@ -163,7 +163,7 @@ def _lookup_journey_scripture(user):
         return [], ''
 
 
-def _build_page_awareness_instruction(page_context, source="") -> str:
+def _build_page_awareness_instruction(page_context, source="", content_available=None) -> str:
     """Gated, humble page-awareness instruction (Beth Page Awareness v1).
 
     Lets Beth reference what WLJ reports is on the user's screen WITHOUT claiming
@@ -186,31 +186,37 @@ def _build_page_awareness_instruction(page_context, source="") -> str:
         'active_fast_type', 'milestones', 'description',
     )
     has_content = bool(content) and any(content.get(k) for k in _content_fields)
+    # content_available lets a caller signal content that arrived SERVER-SIDE (e.g.
+    # the journey/reading scripture in the SCRIPTURE CONTEXT block) and therefore
+    # isn't in page_content. Either source means Beth genuinely has the content.
+    has_content = has_content or bool(content_available)
     where = title or (f"{module} page" if module else "this page")
 
-    parts = [
-        "PAGE AWARENESS (how to talk about what's on the user's screen):",
-        ("The PAGE CONTEXT above is what WLJ reports the user is currently viewing. "
-         "You may reference it as something you can see — but stay humble and precise. "
-         "Say \"I can see the page context WLJ provided\" or "
-         f"\"I can see you're on the {where}\" — NEVER \"I can see your screen\"."),
-    ]
+    parts = ["PAGE AWARENESS — this OVERRIDES any generic \"I can't see\" disclaimer:"]
     if has_content:
         parts.append(
-            "Be specific and confident about what's listed. If the user asks whether "
-            "you can see the page, say yes and describe it (e.g. \"I can see today's "
-            "reading is Exodus 14:5-31\", or \"I can see you're on the weight page — "
-            "your current weight is 289.9 and trending down\"). For weight / sleep / "
-            "nutrition pages, use the canonical figures already in your context.")
+            "WLJ has handed you the content of the page the user is viewing (in the "
+            "PAGE CONTEXT / SCRIPTURE CONTEXT above) — you genuinely HAVE it, so "
+            "reference it directly and confidently. If the user asks whether you can "
+            "see the page or scripture, answer YES and name it — e.g. \"Yes — I can "
+            "see today's reading is Exodus 14:5-31.\" or \"I can see you're on the "
+            "weight page — your current weight is 289.9, trending down.\" Do NOT say "
+            "\"I can't directly see\", \"I can't see the page\", or any similar "
+            "disclaimer: that is FALSE when this context is present and it breaks the "
+            "user's trust. For weight / sleep / nutrition pages, use the canonical "
+            "figures already in your context.")
     else:
-        _missing = "the scripture content" if module == "faith" else "the page details"
+        _missing = "the scripture text" if module == "faith" else "the page's details"
         parts.append(
-            f"Only the page location came through, not its content. Be honest, e.g. "
-            f"\"I can tell you're on the {where}, but I don't see {_missing} coming "
-            f"through — want to tell me what it says?\"")
+            f"You can confirm WHERE the user is, but the detailed content didn't reach "
+            f"you. Be straightforward — e.g. \"I can see you're on the {where}, but "
+            f"{_missing} isn't coming through to me — want to paste it?\" Don't pretend "
+            f"to have content you weren't given.")
     parts.append(
-        "NEVER claim to see anything not listed in PAGE CONTEXT above or already in "
-        "your canonical data. If it isn't there, say you can't see it and offer to help.")
+        "Truthfulness: reference only what's in PAGE CONTEXT / SCRIPTURE CONTEXT above "
+        "or your canonical data. You're working from what WLJ handed you, not a live "
+        "view of their screen — so don't claim to literally see their screen, and "
+        "don't invent details that aren't provided.")
     # Execution diagnostic (v1.2): proves the helper RAN, on which prompt path,
     # and which branch — so a single reproduction isolates deploy-lag vs path
     # bypass vs LLM-ignore. Marker string is greppable; never affects output.
@@ -4529,13 +4535,9 @@ Use this context to provide relevant, contextual help. For scripture questions, 
 {"DOMAIN GROUNDING: Active domain: " + _domain_hint + ". When the user references visible entities using pronouns or deictic language ('those', 'them', 'the ones listed', 'still pending', 'mark them'), resolve against the current page domain first. Only cross domains if the user explicitly names a different domain." if _domain_hint else ""}
 """
 
-            # ── Beth Page Awareness v1 (gated, humble, anti-hallucination) ──
-            # Fires whenever page_context exists — even if page_content didn't
-            # come through — so Beth confidently references what WLJ provided and
-            # is honest when content is partial. Lives in the page_context block,
-            # so it can NEVER affect terminal deterministic routes (health
-            # coaching, retrieval) — those never reach this LLM prompt.
-            system_prompt += _build_page_awareness_instruction(page_context, source="full")
+            # ── Beth Page Awareness v1 ──
+            # NOTE: injected LATER (after the SCRIPTURE CONTEXT block is built) so
+            # it can pass content_available — see below near scripture_context_block.
 
             # Voice mode: user is speaking via microphone, response will be read aloud
             if page_context.get('voice_input'):
@@ -4928,6 +4930,14 @@ Then give your response."""
                             f"\n[SCRIPTURE TEXT:\n"
                             f"{scripture_text[:3000]}]"
                         )
+
+        # ── Beth Page Awareness v1 (moved here so content_available reflects the
+        # server-side SCRIPTURE CONTEXT, not just page_content). Gated; returns ''
+        # without page_context, so it never affects terminal deterministic routes.
+        if page_context:
+            system_prompt += _build_page_awareness_instruction(
+                page_context, source="full",
+                content_available=bool(scripture_context_block))
 
         # For strict health intel + brief, suppress conversational instructions
         if _is_health_intel_query and response_mode == 'brief':
@@ -5571,7 +5581,11 @@ Then give your response."""
             # The web UI streams via this fast-context path, so the same gated
             # awareness instruction added to _generate_response() must live here
             # too (root cause of "page awareness did not activate" on web).
-            system_prompt += _build_page_awareness_instruction(page_context, source="fast")
+            # content_available reflects server-side scripture (journey/reading)
+            # that isn't in page_content — so the confident branch fires.
+            system_prompt += _build_page_awareness_instruction(
+                page_context, source="fast",
+                content_available=bool(scripture_context_block))
 
         user_name = self.user.first_name or self.user.get_short_name() or ""
         user_prompt = f"""{"The user's name is " + user_name + ". " if user_name else ""}{message}{scripture_context_block}

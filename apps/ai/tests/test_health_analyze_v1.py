@@ -261,6 +261,42 @@ class V16CoachingRoutingTests(SimpleTestCase):
         self.assertIn("muscle", out.lower())
 
 
+class ExplicitHealthIntentTests(SimpleTestCase):
+    """Regression: explicit health-status intent must hard-route to the health
+    analyze lane, outranking continuity / check-in / operational routing.
+    (Bug: 'How am I doing with my health?' returned the operational task
+    backlog because is_analyze_request didn't recognize the phrasing.)"""
+
+    def test_explicit_health_phrasings_recognized(self):
+        for q in ("how am i doing with my health?",
+                  "how is my health?",
+                  "how am i doing physically?",
+                  "am i healthy?",
+                  "am i in good health?",
+                  "what concerns you about my health?"):
+            self.assertTrue(v1.is_explicit_health_intent(q), msg=q)
+
+    def test_operational_and_cross_domain_not_hijacked(self):
+        # Must NOT trip on operational, ambiguous, or other-domain phrasings.
+        for q in ("check in",
+                  "what should i do next?",
+                  "how is my progress?",          # ambiguous (goals) — defer
+                  "how am i doing on protein today?",  # nutrition route owns this
+                  "how am i doing with my work?",
+                  "how am i doing with my prayer life?",
+                  "tell me more",
+                  "how am i doing"):
+            self.assertFalse(v1.is_explicit_health_intent(q), msg=q)
+
+    def test_router_wires_explicit_health_ahead_of_continuity(self):
+        import inspect
+        from apps.ai import deterministic_router as dr
+        src = inspect.getsource(dr.classify_and_route)
+        self.assertIn("is_explicit_health_intent", src)
+        # continuity follow-up must yield to explicit health intent
+        self.assertIn("not _explicit_health", src)
+
+
 class V16IntensityTests(SimpleTestCase):
     """v1.6 Failure 3 — situational judgment, not reflexive agreement."""
 

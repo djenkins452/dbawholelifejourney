@@ -690,13 +690,22 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
             # (Faith reading/journey), a generic follow-up should stay grounded in
             # the PAGE, not be hijacked by an earlier health thread — so defer to
             # the page-aware LLM path (which still has health data anyway).
+            # Explicit health-status intent ("how am I doing with my health?",
+            # "how is my health?", "am I healthy?", "how am I doing physically?")
+            # ALWAYS outranks continuity / check-in / operational routing. Without
+            # this, these phrasings miss the analyze detector (is_analyze_request)
+            # and fall through to the CoS execution / status routes, which answer
+            # with the operational task backlog. Continuity enriches — never hijacks
+            # the domain.
+            _explicit_health = _hv1.is_explicit_health_intent(msg_lower)
             _hctx = _hv1.get_health_context(conversation) if conversation is not None else None
             try:
                 from apps.ai.page_context_state import active_page_present as _page_active
                 _on_content_page = _page_active(conversation)
             except Exception:
                 _on_content_page = False
-            if _hctx and _hv1.is_health_followup(msg_lower) and not _on_content_page:
+            if (_hctx and _hv1.is_health_followup(msg_lower)
+                    and not _on_content_page and not _explicit_health):
                 _dresp = _hv1.build_deepen(user, msg_lower, conversation)
                 if _dresp:
                     result = RouteResult(
@@ -718,8 +727,9 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
             # another domain (finance/tasks/faith/...). This is the root fix for
             # coaching falling through to the macro-compliance decision route.
             _coaching_ok = _is_coaching and not _hv1.mentions_non_health_domain(msg_lower)
-            if _is_analyze or _is_judgment or _coaching_ok:
-                _stab_health = _health_ctx or _is_judgment or _coaching_ok
+            if _is_analyze or _is_judgment or _coaching_ok or _explicit_health:
+                _stab_health = (_health_ctx or _is_judgment or _coaching_ok
+                                or _explicit_health)
                 if _stab_health:
                     try:
                         from apps.ai.cognitive_mode.health_truth import ensure_health_fresh

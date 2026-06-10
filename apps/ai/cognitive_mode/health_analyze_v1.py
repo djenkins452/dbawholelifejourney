@@ -99,6 +99,35 @@ def mentions_non_health_domain(msg_lower: str) -> bool:
     return any(t in (msg_lower or "") for t in _NON_HEALTH_TOKENS)
 
 
+# Explicit, unambiguous health-status intent. These phrasings name health /
+# physical condition directly, so they MUST hard-route to the health analyze
+# lane and outrank continuity / check-in / operational routing — even when a
+# prior check-in or page thread is active. Kept health-EXPLICIT on purpose:
+# generic phrasings like "how is my progress" / "how am I doing" are excluded
+# because they're cross-domain (goals, projects) and would hijack other lanes.
+_EXPLICIT_HEALTH_INTENT = (
+    "with my health", "how is my health", "how's my health", "hows my health",
+    "how am i doing health", "doing healthwise", "health wise", "health-wise",
+    "healthwise", "am i healthy", "am i in good health", "in good health",
+    "is my health", "about my health", "for my health", "my health overall",
+    "overall health", "my physical health", "how am i doing physically",
+    "doing physically", "how's my body", "how is my body", "how am i health",
+)
+
+
+def is_explicit_health_intent(msg_lower: str) -> bool:
+    """True for messages that explicitly express health-status intent
+    ('how am I doing with my health?', 'how is my health?', 'am I healthy?',
+    'how am I doing physically?'). These must route to health analyze ahead of
+    any continuity / operational route — explicit intent outranks thread context.
+    Returns False if the message also clearly targets another domain."""
+    if not msg_lower:
+        return False
+    if not any(t in msg_lower for t in _EXPLICIT_HEALTH_INTENT):
+        return False
+    return not mentions_non_health_domain(msg_lower)
+
+
 def classify_analyze_question(msg_lower: str) -> str:
     m = msg_lower or ""
     if any(t in m for t in ("too quickly", "too fast", "losing too")):

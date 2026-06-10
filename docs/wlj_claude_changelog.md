@@ -7,6 +7,22 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-10 — fix(ai): Explicit health intent must outrank continuity/operational routing
+
+**Regression:** After "check in", asking "How am I doing with my health?" returned the operational task backlog ("Go straight into Prayer Time — you're behind…") instead of a health assessment.
+
+**Root cause (proven from code, not assumed):** The phrasing was never recognized as health-analyze intent. `is_analyze_request("how am i doing with my health")` = False (the analyze list only has "how am i doing **overall**"), so the router's analyze-override condition (`is_analyze OR is_judgment OR coaching`) was False → `health_analyze_v1` was never invoked. Meanwhile `resolve_cos_mode(...)` = "execution", so the CoS-mode shortcut (which runs BEFORE `classify_and_route`) fired the execution selector → task backlog. For "how am i doing physically?", `is_health_context` is also False (no health token), so the stabilization Fix-2 guard didn't even block the execution shortcut. NOT a continuity hijack — explicit health-status intent simply wasn't recognized, so operational routing won by default.
+
+**Fix (surgical, 3 points):**
+1. New `is_explicit_health_intent()` in `health_analyze_v1.py` — health-EXPLICIT phrasings only ("with my health", "how is my health", "am i healthy", "how am i doing physically", "about my health", …), excluded if another domain is mentioned. Generic/ambiguous phrasings ("how is my progress", bare "how am i doing", "on protein") are intentionally NOT matched, so goals/nutrition/other lanes are not hijacked.
+2. `deterministic_router.classify_and_route` — `_explicit_health` is checked at the TOP of the stabilization block: it's added to the analyze-route condition AND `_stab_health`, and the continuity follow-up branch now yields to it (`and not _explicit_health`). Explicit health intent therefore routes to `build_health_analyze` ahead of continuity, status, next-action, and decision routes.
+3. `personal_assistant._cos_mode_shortcut` — blocks (returns None) when `is_explicit_health_intent`, so phrasings without a health token ("physically") can't reach the execution selector before the router runs.
+
+Continuity still enriches the answer — it just can't hijack the domain. No change to health retrieval, coaching depth, page awareness, scripture grounding, or the continuity mechanism itself.
+
+Files: `apps/ai/cognitive_mode/health_analyze_v1.py`, `apps/ai/deterministic_router.py`, `apps/ai/personal_assistant.py`, `apps/ai/tests/test_health_analyze_v1.py`. check clean; no migrations.
+
+
 ## 2026-06-10 — fix+diag(ai): Page identity vs content + latency instrumentation
 
 **1. Page identity vs content:** "What page am I on?" was answered with scripture content ("Exodus 14:5-31") instead of the page identity. The page-awareness instruction now separates IDENTITY (which page — derived from url/module/title; e.g. "today's Faith Journey reading") from CONTENT (the scripture), and tells Beth to answer "what page am I on?" with identity first then content ("You're on today's Faith Journey page, reading Exodus 14:5-31"), not the reference alone. Prompt-only; gated in the existing page_context block.

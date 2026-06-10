@@ -829,7 +829,15 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                     is_health_context,
                     is_explicit_execute_request,
                 )
+                from apps.ai.cognitive_mode.health_analyze_v1 import (
+                    is_explicit_health_intent,
+                )
                 _msg_lower = (message or '').lower()
+                # Explicit health-status intent ("how am I doing physically?")
+                # may lack a health *token* yet must never hit the execution
+                # selector — block it outright so the router's analyze lane wins.
+                if stabilization_enabled() and is_explicit_health_intent(_msg_lower):
+                    return None
                 if (stabilization_enabled()
                         and is_health_context(_msg_lower)
                         and not is_explicit_execute_request(_msg_lower)):

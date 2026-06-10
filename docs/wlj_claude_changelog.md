@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-09 — fix(ai): Page Awareness v1.1 — streaming parity (the instruction never ran on web)
+
+**ROOT CAUSE — proven from code, not deploy lag.** Page Awareness v1 added `_build_page_awareness_instruction` to `_generate_response()` (the non-streaming prompt builder). But the web UI **streams** (`/api/chat/stream/`), and `_generate_response_stream()` builds its prompt via the **`_build_fast_context()`** fast path (line 5638, "PHASE 1: cache-only TTFB"), falling back to `_generate_response(_return_context_only=True)` only when fast context returns None. `_build_fast_context` has its OWN page_context block (line 5445) — with scripture handling and even a server-side reading-plan DB fallback — but it **never called the awareness helper**. So the instruction physically could not run on web. Classic streaming/non-streaming parity gap (the one CLAUDE.md explicitly warns about).
+
+**Also verified (ruling out other hypotheses):** the Faith route `/faith/reading-plans/progress/<pk>/` DOES match the client extractor regex and the DOM selectors (`.scripture-ref-text`, `.scripture-text`) match the template — so URL/selectors are NOT stale. The one real frontend nuance: `.scripture-text` is lazy-loaded (empty until the user expands a reference), so only the scripture *reference* is reliably extracted client-side — but `_build_fast_context` already mitigates this with a DB fallback that looks up the day's scripture from `UserReadingPlan`/`ReadingPlanDay` by URL.
+
+**Smallest safe fix:** one line in `_build_fast_context` — `system_prompt += _build_page_awareness_instruction(page_context)` — mirroring `_generate_response` line 4498. Plus a `StreamingParityTests` guard asserting BOTH prompt builders reference the helper, so the gap can't silently return.
+
+**Blast radius:** identical to v1 — the instruction lives in a page_context-gated block; terminal deterministic routes (health coaching/continuity/retrieval) never reach it. **No routing/coaching/health changes.**
+
+**Verification:** 9/9 page-awareness tests (incl. parity guard); coaching/router regression unchanged. check clean; no migrations.
+
+
 ## 2026-06-09 — feat(ai): Beth Page Awareness v1 — gated, humble, structured screen awareness
 
 **Why:** Beth lost the "feels present" quality during stabilization — on a Faith reading page with scripture visible, "Can you see the scripture?" returned "I can't directly see…". Investigation found WLJ ALREADY has a full structured page-context mechanism (web client extracts `url`/`module`/`page_title`/typed `page_content` incl. scripture text up to 4000 chars → server → injected into the LLM prompt). The gap: the prompt never AUTHORIZED page perception, so for a meta-question the LLM defaulted to the safe "I can't see" disclaimer. This is a finish-and-harden, NOT a rebuild. No screenshots, no vision, no guessing.

@@ -78,3 +78,19 @@ class PageAwarenessTests(SimpleTestCase):
         out = build({"module": "", "page_title": "", "page_content": None}).lower()
         self.assertIn("this page", out)
         self.assertIn("don't see the page details", out)
+
+
+class StreamingParityTests(SimpleTestCase):
+    """Both prompt-assembly paths must inject page awareness. The web UI streams
+    via _build_fast_context; if only _generate_response had it, awareness would
+    never activate on web (the v1 regression we just root-caused)."""
+
+    def test_both_prompt_paths_inject_awareness(self):
+        import inspect
+        from apps.ai.personal_assistant import PersonalAssistant
+        fast = inspect.getsource(PersonalAssistant._build_fast_context)
+        full = inspect.getsource(PersonalAssistant._generate_response)
+        self.assertIn("_build_page_awareness_instruction", fast,
+                      "fast/streaming path lost the page-awareness instruction")
+        self.assertIn("_build_page_awareness_instruction", full,
+                      "non-streaming path lost the page-awareness instruction")

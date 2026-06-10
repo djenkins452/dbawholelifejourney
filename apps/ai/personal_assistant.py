@@ -5513,6 +5513,12 @@ Then give your response."""
                 if _fast_domain_hint:
                     system_prompt += f"DOMAIN GROUNDING: Active domain: {_fast_domain_hint}. When the user references visible entities using pronouns or deictic language ('those', 'them', 'the ones listed', 'still pending', 'mark them'), resolve against the current page domain first. Only cross domains if the user explicitly names a different domain.\n"
 
+            # ── Page Awareness v1 — STREAMING PARITY ──
+            # The web UI streams via this fast-context path, so the same gated
+            # awareness instruction added to _generate_response() must live here
+            # too (root cause of "page awareness did not activate" on web).
+            system_prompt += _build_page_awareness_instruction(page_context)
+
         user_name = self.user.first_name or self.user.get_short_name() or ""
         user_prompt = f"""{"The user's name is " + user_name + ". " if user_name else ""}{message}{scripture_context_block}
 {reasoning_instruction}

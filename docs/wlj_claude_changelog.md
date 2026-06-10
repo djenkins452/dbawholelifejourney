@@ -7,6 +7,15 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-10 — diag(ai): Page Awareness v1.2 — helper-execution diagnostic (isolate deploy-lag vs bypass)
+
+After the parity fix + arrival diagnostic, the Faith page STILL showed the old disclaimer. Provable deduction: the web client always sends `module`/`url` (getFullPageContext), so if the awareness helper had executed it would emit at least the humility fallback ("I can tell you're on the Faith reading page…"). Beth showed neither → the awareness instruction was NOT in the prompt for that request → deploy lag of `2d2687ea` OR a path bypass OR the client (iOS native chat) not sending page_context. These can only be distinguished with production logs, which can't be read from the repo.
+
+Adds an execution diagnostic: `_build_page_awareness_instruction` now logs `PAGE_AWARENESS_BUILT v=1.2 source=full|fast has_content=… module=…` whenever it RUNS (greppable version marker + which prompt path + which branch). Combined with the existing `PAGE_CTX_DIAG` (what arrived), a single reproduction now isolates: deploy-lag (neither log) vs client-not-sending (PAGE_CTX_DIAG present=False) vs path-bypass (PAGE_CTX_DIAG present, no PAGE_AWARENESS_BUILT) vs LLM-ignore (both logs present, still disclaims).
+
+No behavior change (log-only + an optional `source` param). Files: `apps/ai/personal_assistant.py`. 12/12 tests; check clean; no migrations.
+
+
 ## 2026-06-09 — diag(ai): Page Awareness H1 — log-only page_context arrival diagnostic
 
 Adds a LOG-ONLY diagnostic (`apps/ai/views._log_page_context_diag`) called before routing on BOTH chat endpoints (`/api/chat/`, `/api/chat/stream/`). Logs the exact shape of the page_context that arrives — `present`, `keys`, `module`, `url`, `content_present`, `content_type`, `has_scriptures`, `has_scripture_text`, `scripture_text_len`, `title` — so we can PROVE whether the Faith page actually sends scripture (Hypothesis 1), which can't be determined from the repo. No behavior change; never raises; logs flags/lengths only (not raw scripture text).

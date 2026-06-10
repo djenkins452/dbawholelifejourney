@@ -135,7 +135,7 @@ GROUNDED_HEALTH_DOMAINS = frozenset([
 ])
 
 
-def _build_page_awareness_instruction(page_context) -> str:
+def _build_page_awareness_instruction(page_context, source="") -> str:
     """Gated, humble page-awareness instruction (Beth Page Awareness v1).
 
     Lets Beth reference what WLJ reports is on the user's screen WITHOUT claiming
@@ -144,6 +144,8 @@ def _build_page_awareness_instruction(page_context) -> str:
       - Honest when only the page LOCATION came through (content missing).
       - Never "I can see your screen" — always "the page context WLJ provided".
     Returns '' when there is no page_context (so it cannot affect anything else).
+
+    `source` is for the execution diagnostic only (which prompt path called this).
     """
     if not page_context:
         return ""
@@ -181,6 +183,16 @@ def _build_page_awareness_instruction(page_context) -> str:
     parts.append(
         "NEVER claim to see anything not listed in PAGE CONTEXT above or already in "
         "your canonical data. If it isn't there, say you can't see it and offer to help.")
+    # Execution diagnostic (v1.2): proves the helper RAN, on which prompt path,
+    # and which branch — so a single reproduction isolates deploy-lag vs path
+    # bypass vs LLM-ignore. Marker string is greppable; never affects output.
+    try:
+        logger.info(
+            "PAGE_AWARENESS_BUILT v=1.2 source=%s has_content=%s module=%s",
+            source or "?", has_content, module or "?",
+        )
+    except Exception:
+        pass
     return "\n".join(parts) + "\n"
 
 
@@ -4495,7 +4507,7 @@ Use this context to provide relevant, contextual help. For scripture questions, 
             # is honest when content is partial. Lives in the page_context block,
             # so it can NEVER affect terminal deterministic routes (health
             # coaching, retrieval) — those never reach this LLM prompt.
-            system_prompt += _build_page_awareness_instruction(page_context)
+            system_prompt += _build_page_awareness_instruction(page_context, source="full")
 
             # Voice mode: user is speaking via microphone, response will be read aloud
             if page_context.get('voice_input'):
@@ -5517,7 +5529,7 @@ Then give your response."""
             # The web UI streams via this fast-context path, so the same gated
             # awareness instruction added to _generate_response() must live here
             # too (root cause of "page awareness did not activate" on web).
-            system_prompt += _build_page_awareness_instruction(page_context)
+            system_prompt += _build_page_awareness_instruction(page_context, source="fast")
 
         user_name = self.user.first_name or self.user.get_short_name() or ""
         user_prompt = f"""{"The user's name is " + user_name + ". " if user_name else ""}{message}{scripture_context_block}

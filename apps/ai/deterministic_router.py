@@ -686,8 +686,17 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
             # Continuity: a follow-up ("why?", "tell me more", "what would you
             # do?") within an active health thread deepens it instead of
             # restarting. Bounded: only fires when a fresh thread context exists.
+            # Page-awareness precedence: if the user is actively on a content page
+            # (Faith reading/journey), a generic follow-up should stay grounded in
+            # the PAGE, not be hijacked by an earlier health thread — so defer to
+            # the page-aware LLM path (which still has health data anyway).
             _hctx = _hv1.get_health_context(conversation) if conversation is not None else None
-            if _hctx and _hv1.is_health_followup(msg_lower):
+            try:
+                from apps.ai.page_context_state import active_page_present as _page_active
+                _on_content_page = _page_active(conversation)
+            except Exception:
+                _on_content_page = False
+            if _hctx and _hv1.is_health_followup(msg_lower) and not _on_content_page:
                 _dresp = _hv1.build_deepen(user, msg_lower, conversation)
                 if _dresp:
                     result = RouteResult(

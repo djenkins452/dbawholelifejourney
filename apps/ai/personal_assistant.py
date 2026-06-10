@@ -4938,6 +4938,12 @@ Then give your response."""
             system_prompt += _build_page_awareness_instruction(
                 page_context, source="full",
                 content_available=bool(scripture_context_block))
+            if scripture_context_block:
+                try:
+                    from apps.ai.page_context_state import remember_active_page
+                    remember_active_page(conversation)
+                except Exception:
+                    pass
 
         # For strict health intel + brief, suppress conversational instructions
         if _is_health_intel_query and response_mode == 'brief':
@@ -5586,6 +5592,15 @@ Then give your response."""
             system_prompt += _build_page_awareness_instruction(
                 page_context, source="fast",
                 content_available=bool(scripture_context_block))
+            # Remember an active CONTENT page (scripture present) so follow-ups
+            # stay page-grounded vs a stale health thread. Faith-scoped: only the
+            # scripture block populates this, so health pages never set it.
+            if scripture_context_block:
+                try:
+                    from apps.ai.page_context_state import remember_active_page
+                    remember_active_page(conversation)
+                except Exception:
+                    pass
 
         user_name = self.user.first_name or self.user.get_short_name() or ""
         user_prompt = f"""{"The user's name is " + user_name + ". " if user_name else ""}{message}{scripture_context_block}

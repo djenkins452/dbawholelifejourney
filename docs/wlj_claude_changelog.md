@@ -7,6 +7,22 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-10 — feat(ai): Page Awareness continuity — keep follow-ups grounded in the active page
+
+**Investigation (proven from code):**
+- `page_context` IS sent on every turn — the web `sendMessage` calls `getFullPageContext()` fresh each time (assistant_panel.html). So it is NOT discarded between turns; transport persistence is fine.
+- The reported pure-faith inconsistency ("what do you see now?" → "I can't see…") is the **self-contradiction fixed in 449b97f1** (the journey route was emitting the partial branch alongside the scripture, so the LLM oscillated). That's deploy-pending, not a new bug.
+- The one real **persistence gap**: the health-continuity branch (`if _hctx and is_health_followup`) hijacks page follow-ups ("tell me more", "go deeper", "explain that") to the HEALTH deepen path in mixed conversations — exactly the follow-ups the user wants kept page-grounded.
+
+**Smallest safe fix:** a bounded, conversation-scoped page-awareness continuity (`apps/ai/page_context_state.py`, 15-min cache marker, flag `WLJ_BETH_PAGE_CONTINUITY`). The prompt builders set the marker when an active CONTENT page is present (faith scripture — `scripture_context_block`; never set on health pages). The router's health-continuity branch now defers (`and not _on_content_page`) when that marker is set, so generic follow-ups stay grounded in the current page (the page-aware LLM still has health data). 
+
+**Safety:** the marker NEVER asserts content by itself — it only signals "user is on a content page", so the page-aware prompt path (which fetches the real, current scripture each turn) wins; cannot introduce stale/hallucinated content. Scoped to faith scripture pages, so pure health coaching/continuity is untouched (no marker → unchanged). Flag-gated, never raises.
+
+**Files:** `apps/ai/page_context_state.py` (new), `apps/ai/deterministic_router.py` (one gated condition on the health-continuity branch), `apps/ai/personal_assistant.py` (set marker when scripture present, both prompt builders), `config/settings.py` (+flag), `apps/ai/tests/test_page_continuity.py` (new).
+
+**Verification:** 24/24 page tests; router regression unchanged (same pre-existing 6, zero new — health continuity intact since no marker is set in those tests). check clean; no migrations.
+
+
 ## 2026-06-10 — fix(ai): Page Awareness — prompt authority (stop the "I can't see" disclaimer)
 
 Scripture retrieval now works (Beth references Exodus 14:5-31), but she still prepended "I can't directly see the scripture… but I understand you're reading Exodus 14:5-31." TWO precise causes, both fixed:

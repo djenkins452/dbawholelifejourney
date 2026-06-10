@@ -8,9 +8,15 @@ The instruction must:
   - return '' when there's no page_context (so it can't affect anything else)
 """
 
+import types
+from unittest import mock
+
 from django.test import SimpleTestCase
 
-from apps.ai.personal_assistant import _build_page_awareness_instruction as build
+from apps.ai.personal_assistant import (
+    _build_page_awareness_instruction as build,
+    _lookup_journey_scripture,
+)
 
 
 class PageAwarenessTests(SimpleTestCase):
@@ -78,6 +84,45 @@ class PageAwarenessTests(SimpleTestCase):
         out = build({"module": "", "page_title": "", "page_content": None}).lower()
         self.assertIn("this page", out)
         self.assertIn("don't see the page details", out)
+
+
+class JourneyScriptureLookupTests(SimpleTestCase):
+    """/faith/journey/today/ — the client extractor has no branch for this route,
+    so scripture comes from a server-side lookup (mirrors reading-plans)."""
+
+    def test_no_active_journey_returns_empty(self):
+        with mock.patch("apps.faith.journey.services.get_active_journey", return_value=None):
+            refs, text = _lookup_journey_scripture(object())
+        self.assertEqual(refs, [])
+        self.assertEqual(text, "")
+
+    def test_parses_scripture_refs_and_blocks(self):
+        day = types.SimpleNamespace(
+            scripture_refs=["Exodus 14:5-31"],
+            scripture_content={"translation": "WEB",
+                               "blocks": [{"text": "And it was told the king..."},
+                                          {"text": "So he made ready his chariot."}]})
+        with mock.patch("apps.faith.journey.services.get_active_journey", return_value=object()), \
+             mock.patch("apps.faith.journey.services.get_current_day", return_value=day):
+            refs, text = _lookup_journey_scripture(object())
+        self.assertEqual(refs, ["Exodus 14:5-31"])
+        self.assertIn("And it was told the king", text)
+        self.assertIn("made ready his chariot", text)
+
+    def test_lookup_never_raises(self):
+        with mock.patch("apps.faith.journey.services.get_active_journey",
+                        side_effect=RuntimeError("boom")):
+            refs, text = _lookup_journey_scripture(object())
+        self.assertEqual((refs, text), ([], ""))
+
+    def test_both_paths_wire_journey_lookup(self):
+        # Parity: both prompt builders must perform the journey scripture lookup.
+        import inspect
+        from apps.ai.personal_assistant import PersonalAssistant
+        fast = inspect.getsource(PersonalAssistant._build_fast_context)
+        full = inspect.getsource(PersonalAssistant._generate_response)
+        self.assertIn("_lookup_journey_scripture", fast)
+        self.assertIn("_lookup_journey_scripture", full)
 
 
 class StreamingParityTests(SimpleTestCase):

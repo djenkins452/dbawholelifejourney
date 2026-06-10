@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-10 — fix(ai): Page Awareness — Faith JOURNEY route scripture (the real root cause)
+
+**ROOT CAUSE — proven from code.** The user was on `/faith/journey/today/`, NOT `/faith/reading-plans/progress/<pk>/`. The client extractor `extractPageContent()` (assistant_panel.html) has branches for reading-plans/prayers/journal/tasks/goals/habits/health — but **none for `/faith/journey/`** — so `page_content` came back EMPTY (no scripture). The journey template (`templates/faith/journey/day.html`) also uses different DOM classes (`.journey-scripture .verse-text`, not `.scripture-text`). AND the server-side scripture fallback keyed on `/faith/reading-plans/progress/`, so it missed this route too. Net: Beth had no scripture for the journey route from any source — so "I can't see the scripture" was literally correct.
+
+**Smallest safe fix:** server-side journey scripture lookup, mirroring the existing reading-plans fallback. New `_lookup_journey_scripture(user)` uses `apps.faith.journey.services.get_active_journey` + `get_current_day` → `JourneyDay.scripture_refs` + `scripture_content['blocks'][].text`. Wired into the faith scripture block of **both** prompt builders (`_generate_response` and `_build_fast_context`) — extending the `/faith/journey/` URL match and the scripture-block build. Robust (no DOM/lazy-load/JS dependency), and parity-safe by construction (shared helper + a test asserting both paths call it).
+
+**Blast radius:** the faith scripture block only (runs only for `/faith/reading-plans/progress/` or `/faith/journey/` URLs). No routing/coaching/health/continuity changes. Never raises (returns ([], '') on any error).
+
+**Verification:** 16/16 page-awareness tests (incl. journey lookup parses refs/blocks, never raises, both-paths-wired). check clean; no migrations. Note: the page-awareness instruction + execution diagnostic from prior commits remain; once deployed, the journey page should surface `PAGE_AWARENESS_BUILT` + a populated `[SCRIPTURE CONTEXT: …]` block.
+
+
 ## 2026-06-10 — diag(ai): Page Awareness v1.2 — helper-execution diagnostic (isolate deploy-lag vs bypass)
 
 After the parity fix + arrival diagnostic, the Faith page STILL showed the old disclaimer. Provable deduction: the web client always sends `module`/`url` (getFullPageContext), so if the awareness helper had executed it would emit at least the humility fallback ("I can tell you're on the Faith reading page…"). Beth showed neither → the awareness instruction was NOT in the prompt for that request → deploy lag of `2d2687ea` OR a path bypass OR the client (iOS native chat) not sending page_context. These can only be distinguished with production logs, which can't be read from the repo.

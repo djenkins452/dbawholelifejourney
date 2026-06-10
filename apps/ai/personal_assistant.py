@@ -135,6 +135,34 @@ GROUNDED_HEALTH_DOMAINS = frozenset([
 ])
 
 
+def _lookup_journey_scripture(user):
+    """Server-side scripture for the /faith/journey/ route. The client page-context
+    extractor has NO branch for /faith/journey/today/ (it only handles
+    /faith/reading-plans/progress/), so without this Beth gets no scripture there.
+    Mirrors the reading-plans server-side fallback. Returns (refs, text) or ([], '').
+    """
+    try:
+        from apps.faith.journey.services import get_active_journey, get_current_day
+        uj = get_active_journey(user)
+        day = get_current_day(uj) if uj else None
+        if not day:
+            return [], ''
+        refs = list(day.scripture_refs or [])
+        text = ''
+        sc = day.scripture_content
+        if isinstance(sc, dict):
+            blocks = sc.get('blocks') or []
+            texts = [b.get('text', '') for b in blocks
+                     if isinstance(b, dict) and b.get('text')]
+            if texts:
+                text = '\n\n'.join(texts)[:3000]
+        logger.info("Journey scripture lookup: refs=%s has_text=%s", refs, bool(text))
+        return refs, text
+    except Exception:
+        logger.warning("Journey scripture lookup failed", exc_info=True)
+        return [], ''
+
+
 def _build_page_awareness_instruction(page_context, source="") -> str:
     """Gated, humble page-awareness instruction (Beth Page Awareness v1).
 
@@ -4832,12 +4860,19 @@ Then give your response."""
             _pc_url = page_context.get('url', '')
 
             if _pc_type == 'reading_plan_progress' or (
-                not _pc_type and _pc_url
-                and '/faith/reading-plans/progress/' in _pc_url
+                not _pc_type and _pc_url and (
+                    '/faith/reading-plans/progress/' in _pc_url
+                    or '/faith/journey/' in _pc_url
+                )
             ):
                 # Get references from client-side context first
                 scripture_refs = _pc.get('scriptures', [])
                 scripture_text = _pc.get('scripture_text', '')
+
+                # Journey route (/faith/journey/) — extractor has no branch for it,
+                # so look up the current day's scripture server-side.
+                if not scripture_refs and _pc_url and '/faith/journey/' in _pc_url:
+                    scripture_refs, scripture_text = _lookup_journey_scripture(self.user)
 
                 # Server-side fallback: look up from database if JS missed them
                 if not scripture_refs:
@@ -5460,11 +5495,18 @@ Then give your response."""
             _pc_url = page_context.get('url', '')
 
             if _pc_type == 'reading_plan_progress' or (
-                not _pc_type and _pc_url
-                and '/faith/reading-plans/progress/' in _pc_url
+                not _pc_type and _pc_url and (
+                    '/faith/reading-plans/progress/' in _pc_url
+                    or '/faith/journey/' in _pc_url
+                )
             ):
                 scripture_refs = _pc.get('scriptures', [])
                 scripture_text = _pc.get('scripture_text', '')
+
+                # Journey route (/faith/journey/) — extractor has no branch for it,
+                # so look up the current day's scripture server-side.
+                if not scripture_refs and _pc_url and '/faith/journey/' in _pc_url:
+                    scripture_refs, scripture_text = _lookup_journey_scripture(self.user)
 
                 # Server-side fallback: look up from database if JS missed them
                 if not scripture_refs:

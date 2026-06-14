@@ -3366,5 +3366,21 @@
       "created_at": "2026-06-01T05:00:00Z",
       "updated_at": "2026-06-01T05:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 210,
+    "fields": {
+      "title": "Forgot to check off a routine? Routine History lets you set the record straight",
+      "description": "If you did your prayer time, workout, or evening journaling but forgot to mark it complete, your adherence used to count it as missed — and your Chief of Staff coached from that wrong data. The new Routine History screen fixes that. Open it from the History link on the Routines page, pick any past day with the arrows or date picker, and mark items you actually did — choosing \"On time\" or \"Late\" so the record stays truthful. You can also skip an item or undo a mistaken completion. Anything you log after the fact is clearly badged \"Corrected later\" instead of a clean real-time \"Completed,\" so your genuine in-the-moment consistency stays distinguishable from later catch-up. Corrections flow into your streaks, adherence score, and your Chief of Staff's understanding immediately.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-06-14",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-06-14T12:00:00Z",
+      "updated_at": "2026-06-14T12:00:00Z"
+    }
   }
 ]

@@ -3587,14 +3587,20 @@ class RoutineToggleView(LifeAccessMixin, View):
             return JsonResponse({'success': False, 'error': 'Missing schedule_id'}, status=400)
 
         from apps.core.utils import get_user_today
+        user_today = get_user_today(request.user)
         if date_str:
             from datetime import date as _date_cls
             try:
                 target_date = _date_cls.fromisoformat(date_str)
             except ValueError:
                 return JsonResponse({'success': False, 'error': 'Invalid date'}, status=400)
+            if target_date > user_today:
+                return JsonResponse(
+                    {'success': False, 'error': 'Cannot complete a future date'},
+                    status=400,
+                )
         else:
-            target_date = get_user_today(request.user)
+            target_date = user_today
 
         schedule = get_object_or_404(
             RoutineSchedule.objects.select_related('routine'),
@@ -3621,6 +3627,7 @@ class RoutineToggleView(LifeAccessMixin, View):
             'is_completed': result['is_completed'],
             'completed_as_scheduled': result.get('completed_as_scheduled', False),
             'timing': result.get('timing', ''),
+            'is_user_corrected': result.get('is_user_corrected', False),
         }
 
         # Include maintenance bridge config when item is completed and bridge
@@ -3727,6 +3734,54 @@ class RoutineAdherenceView(HelpContextMixin, LifeAccessMixin, TemplateView):
         return context
 
 
+class RoutineHistoryView(HelpContextMixin, LifeAccessMixin, TemplateView):
+    """Date-navigable routine history with retroactive CRUD.
+
+    Reconstructs the routine items that applied on a chosen past day and lets
+    the user mark complete / undo / skip via the existing toggle + skip
+    endpoints (which accept a `date` param). Retroactive completions are flagged
+    is_user_corrected so historical truth is preserved — the UI distinguishes
+    real-time completions from later corrections.
+    """
+    template_name = "life/routine_history.html"
+    help_context_id = "ROUTINE_HISTORY"
+
+    def get_context_data(self, **kwargs):
+        from datetime import date as _date_cls, timedelta
+        from apps.core.utils import get_user_today
+        from apps.life.services.routine_helpers import get_routine_items_for_date
+
+        context = super().get_context_data(**kwargs)
+        user_today = get_user_today(self.request.user)
+
+        date_str = self.request.GET.get('date')
+        if date_str:
+            try:
+                target_date = _date_cls.fromisoformat(date_str)
+            except ValueError:
+                target_date = user_today - timedelta(days=1)
+        else:
+            target_date = user_today - timedelta(days=1)
+
+        # Never let the history screen target a future day.
+        if target_date > user_today:
+            target_date = user_today
+
+        history = get_routine_items_for_date(self.request.user, target_date)
+
+        context['history'] = history
+        context['target_date'] = target_date
+        context['user_today'] = user_today
+        context['is_today'] = target_date == user_today
+        context['prev_date'] = target_date - timedelta(days=1)
+        # next_date is only navigable up to today.
+        context['next_date'] = (
+            target_date + timedelta(days=1) if target_date < user_today else None
+        )
+        context['max_date'] = user_today.isoformat()
+        return context
+
+
 class RoutineSkipView(LifeAccessMixin, View):
     """Mark a routine schedule as skipped for a given date.
 
@@ -3742,14 +3797,20 @@ class RoutineSkipView(LifeAccessMixin, View):
             return JsonResponse({'success': False, 'error': 'Missing schedule_id'}, status=400)
 
         from apps.core.utils import get_user_today
+        user_today = get_user_today(request.user)
         if date_str:
             from datetime import date as _date_cls
             try:
                 target_date = _date_cls.fromisoformat(date_str)
             except ValueError:
                 return JsonResponse({'success': False, 'error': 'Invalid date'}, status=400)
+            if target_date > user_today:
+                return JsonResponse(
+                    {'success': False, 'error': 'Cannot skip a future date'},
+                    status=400,
+                )
         else:
-            target_date = get_user_today(request.user)
+            target_date = user_today
 
         schedule = get_object_or_404(
             RoutineSchedule.objects.select_related('routine'),

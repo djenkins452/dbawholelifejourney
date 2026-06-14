@@ -35,6 +35,7 @@
         {% if today_missed > 0 %}
         <span style="font-size: var(--font-size-sm); color: var(--color-warning, #e67e22);">{{ today_missed }} late</span>
         {% endif %}
+        <a href="{% url 'life:routine_history' %}" class="btn btn-sm btn-ghost" data-testid="routine-history-btn">History</a>
         <a href="#" class="btn btn-sm btn-ghost" id="manage-routines-toggle" data-testid="manage-routines-btn">Manage</a>
     </div>
 

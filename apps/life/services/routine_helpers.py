@@ -164,18 +164,27 @@ def toggle_routine_completion(user, schedule, target_date, completion_mode=None)
     user_today = get_user_today(user)
     now = timezone.now()
 
+    # A completion logged for a PAST day is a retroactive correction. We flag it
+    # (is_user_corrected) so behavioral analytics and the Chief of Staff can tell
+    # "completed but logged late" apart from genuine real-time adherence, and we
+    # anchor performed_at to the TARGET day (never "now", which is a different
+    # day) so execution truth stays on the correct calendar date.
+    is_correction = target_date < user_today
+    sched_dt = _get_scheduled_datetime(user, schedule, target_date)
+
     # ── Compute performed_at, timing, completion_source based on mode ──
     if completion_mode == 'scheduled':
         # "Done at Scheduled Time" — user asserts on-time
-        sched_dt = _get_scheduled_datetime(user, schedule, target_date)
         performed_at = sched_dt or now
         timing = RoutineLog.TIMING_ON_TIME
         log_status = 'completed'
         as_scheduled = True
         source = RoutineLog.SOURCE_SCHEDULED_OVERRIDE
     elif completion_mode == 'late':
-        # User explicitly says completing late
-        performed_at = now
+        # User explicitly says completing late. For a same-day late completion,
+        # "now" IS the performed time; for a retroactive correction we don't know
+        # the exact time, so anchor to the scheduled datetime on the target day.
+        performed_at = (sched_dt or now) if is_correction else now
         timing = RoutineLog.TIMING_LATE
         log_status = 'completed_late'
         as_scheduled = False
@@ -193,13 +202,17 @@ def toggle_routine_completion(user, schedule, target_date, completion_mode=None)
                 log_status = 'completed'
                 as_scheduled = True
         else:
-            performed_at = now
+            # No explicit mode (e.g. past day defaulting): treat as on-time but
+            # anchor performed_at to the target day, not "now".
+            performed_at = sched_dt or now
             timing = RoutineLog.TIMING_ON_TIME
             log_status = 'completed'
             as_scheduled = True
         source = RoutineLog.SOURCE_MANUAL
 
     if existing_log:
+        # Preserve an existing correction flag; set it when editing a past day.
+        corrected = bool(existing_log.is_user_corrected) or is_correction
         if existing_log.log_status in ('completed', 'completed_late'):
             if completion_mode == 'scheduled':
                 # Re-click override: overwrite to on_time
@@ -209,17 +222,21 @@ def toggle_routine_completion(user, schedule, target_date, completion_mode=None)
                 existing_log.performed_at = performed_at
                 existing_log.timing = timing
                 existing_log.completion_source = source
+                existing_log.is_user_corrected = corrected
                 existing_log.save(update_fields=[
                     'log_status', 'completed_at', 'completed_as_scheduled',
-                    'performed_at', 'timing', 'completion_source', 'updated_at',
+                    'performed_at', 'timing', 'completion_source',
+                    'is_user_corrected', 'updated_at',
                 ])
                 return {'status': log_status, 'is_completed': True,
-                        'completed_as_scheduled': as_scheduled, 'timing': timing}
+                        'completed_as_scheduled': as_scheduled, 'timing': timing,
+                        'is_user_corrected': corrected}
             else:
                 # Un-check: delete log → pending
                 existing_log.delete()
                 return {'status': 'pending', 'is_completed': False,
-                        'completed_as_scheduled': False, 'timing': ''}
+                        'completed_as_scheduled': False, 'timing': '',
+                        'is_user_corrected': False}
         elif existing_log.log_status == 'skipped':
             existing_log.log_status = log_status
             existing_log.completed_at = now
@@ -227,12 +244,15 @@ def toggle_routine_completion(user, schedule, target_date, completion_mode=None)
             existing_log.performed_at = performed_at
             existing_log.timing = timing
             existing_log.completion_source = source
+            existing_log.is_user_corrected = corrected
             existing_log.save(update_fields=[
                 'log_status', 'completed_at', 'completed_as_scheduled',
-                'performed_at', 'timing', 'completion_source', 'updated_at',
+                'performed_at', 'timing', 'completion_source',
+                'is_user_corrected', 'updated_at',
             ])
             return {'status': log_status, 'is_completed': True,
-                    'completed_as_scheduled': as_scheduled, 'timing': timing}
+                    'completed_as_scheduled': as_scheduled, 'timing': timing,
+                    'is_user_corrected': corrected}
         elif existing_log.log_status == 'rescheduled':
             existing_log.log_status = log_status
             existing_log.completed_at = now
@@ -240,17 +260,21 @@ def toggle_routine_completion(user, schedule, target_date, completion_mode=None)
             existing_log.performed_at = performed_at
             existing_log.timing = timing
             existing_log.completion_source = source
+            existing_log.is_user_corrected = corrected
             existing_log.save(update_fields=[
                 'log_status', 'completed_at', 'completed_as_scheduled',
-                'performed_at', 'timing', 'completion_source', 'updated_at',
+                'performed_at', 'timing', 'completion_source',
+                'is_user_corrected', 'updated_at',
             ])
             return {
                 'status': existing_log.log_status, 'is_completed': True,
                 'completed_as_scheduled': as_scheduled, 'timing': timing,
+                'is_user_corrected': corrected,
             }
         else:
             return {'status': existing_log.log_status, 'is_completed': False,
-                    'completed_as_scheduled': False, 'timing': ''}
+                    'completed_as_scheduled': False, 'timing': '',
+                    'is_user_corrected': bool(existing_log.is_user_corrected)}
     else:
         RoutineLog.objects.create(
             user=user,
@@ -262,10 +286,12 @@ def toggle_routine_completion(user, schedule, target_date, completion_mode=None)
             performed_at=performed_at,
             timing=timing,
             completion_source=source,
+            is_user_corrected=is_correction,
             routine_at_time=schedule.routine,
         )
         return {'status': log_status, 'is_completed': True,
-                'completed_as_scheduled': as_scheduled, 'timing': timing}
+                'completed_as_scheduled': as_scheduled, 'timing': timing,
+                'is_user_corrected': is_correction}
 
 
 def auto_complete_routine_schedules(user, keyword, source, completion_time=None,
@@ -446,6 +472,145 @@ def skip_routine(user, schedule, target_date):
         _log.routine_at_time = schedule.routine
         _log.save(update_fields=['routine_at_time'])
     return {'status': 'skipped'}
+
+
+def get_routine_items_for_date(user, target_date):
+    """
+    Reconstruct the routine items that APPLIED on a specific date, with their
+    completion status — the read model for the Routine History screen.
+
+    Honors days_of_week / specific_date / is_active and never invents items
+    that did not apply that day. Each returned item carries a `display_state`
+    that preserves historical truth for the UI:
+
+        completed   — completed in real time (✓ Completed)
+        corrected   — completed/late but logged retroactively (✓ Corrected later)
+        late        — completed late in real time, not a correction
+        skipped     — explicitly skipped (⊘ Skipped)
+        missed      — no log and the day is in the past
+        pending     — no log and the day is today/future (still actionable)
+
+    Args:
+        user: User instance
+        target_date: date
+
+    Returns:
+        dict: {
+            'date': date,
+            'windows': [ {'time_of_day': str, 'label': str, 'items': [...]} ],
+            'total': int, 'completed': int, 'skipped': int, 'missed': int,
+        }
+    """
+    from apps.life.models import Routine, RoutineLog
+
+    user_today = None
+    try:
+        from apps.core.utils import get_user_today
+        user_today = get_user_today(user)
+    except Exception:
+        user_today = timezone.now().date()
+
+    is_past = target_date < user_today
+    weekday = target_date.weekday()
+
+    routines = (
+        Routine.objects.filter(user=user, is_active=True, status='active')
+        .prefetch_related('items')
+        .order_by('sort_order', 'name')
+    )
+
+    # Collect applicable schedule items, then fetch their logs in one query.
+    applicable = []  # list of (routine, schedule)
+    for routine in routines:
+        for sched in routine.items.filter(is_active=True).order_by('sort_order'):
+            if sched.specific_date:
+                applies = sched.specific_date == target_date
+            else:
+                applies = sched.applies_to_day(weekday)
+            if applies:
+                applicable.append((routine, sched))
+
+    schedule_ids = [s.pk for _r, s in applicable]
+    logs_by_schedule = {
+        log.schedule_id: log
+        for log in RoutineLog.objects.filter(
+            schedule_id__in=schedule_ids, scheduled_date=target_date,
+        )
+    }
+
+    TIME_LABELS = {
+        'morning': 'Morning', 'mid_morning': 'Mid-Morning', 'lunch': 'Lunch',
+        'afternoon': 'Afternoon', 'evening': 'Evening', 'nightly': 'Night',
+    }
+    TIME_ORDER = ['morning', 'mid_morning', 'lunch', 'afternoon', 'evening', 'nightly']
+
+    windows = {}
+    total = completed = skipped = missed = 0
+
+    for routine, sched in applicable:
+        log = logs_by_schedule.get(sched.pk)
+        if log is None:
+            display_state = 'missed' if is_past else 'pending'
+            logged_at = None
+        elif log.log_status in (RoutineLog.STATUS_COMPLETED,
+                                RoutineLog.STATUS_COMPLETED_LATE):
+            if log.is_user_corrected:
+                display_state = 'corrected'
+            elif log.log_status == RoutineLog.STATUS_COMPLETED_LATE:
+                display_state = 'late'
+            else:
+                display_state = 'completed'
+            logged_at = log.completed_at
+        elif log.log_status == RoutineLog.STATUS_SKIPPED:
+            display_state = 'skipped'
+            logged_at = None
+        elif log.log_status == RoutineLog.STATUS_RESCHEDULED:
+            display_state = 'pending'
+            logged_at = None
+        else:
+            display_state = 'pending'
+            logged_at = None
+
+        is_completed = display_state in ('completed', 'corrected', 'late')
+        total += 1
+        if is_completed:
+            completed += 1
+        elif display_state == 'skipped':
+            skipped += 1
+        elif display_state == 'missed':
+            missed += 1
+
+        tod = routine.time_of_day or 'morning'
+        windows.setdefault(tod, [])
+        windows[tod].append({
+            'schedule_id': sched.pk,
+            'routine_name': routine.name,
+            'name': sched.name,
+            'scheduled_time': sched.scheduled_time,
+            'display_state': display_state,
+            'is_completed': is_completed,
+            'completed_as_scheduled': bool(log.completed_as_scheduled) if log else False,
+            'is_user_corrected': bool(log.is_user_corrected) if log else False,
+            'logged_at': logged_at,
+        })
+
+    ordered_windows = []
+    for tod in TIME_ORDER:
+        if tod in windows:
+            ordered_windows.append({
+                'time_of_day': tod,
+                'label': TIME_LABELS.get(tod, tod.title()),
+                'items': windows[tod],
+            })
+
+    return {
+        'date': target_date,
+        'windows': ordered_windows,
+        'total': total,
+        'completed': completed,
+        'skipped': skipped,
+        'missed': missed,
+    }
 
 
 def _get_applicable_items(routine, target_date):

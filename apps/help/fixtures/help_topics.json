@@ -1,6 +1,22 @@
 [
   {
     "model": "help.helptopic",
+    "pk": 157,
+    "fields": {
+      "context_id": "ROUTINE_HISTORY",
+      "help_id": "routine-history",
+      "title": "Routine History",
+      "description": "Review past days and retroactively mark routines you forgot to log.",
+      "content": "## Routine History\n\nForgot to check something off yesterday? Routine History lets you go back to any past day and set the record straight — so your adherence stats and your Chief of Staff coach from accurate data.\n\n### How It Works\n\n1. **Pick a day** — Use the arrows or the date picker to jump to any past day. The page rebuilds exactly which routine items were scheduled for that day.\n\n2. **Mark what you did:**\n   - **On time** — You completed it at (or near) its scheduled time.\n   - **Late** — You did it, but later than scheduled.\n   - **Skip** — You intentionally didn't do it.\n   - **Undo** — Remove a completion you logged by mistake.\n\n3. **Truth is preserved** — Anything you log after the fact is marked **Corrected later** rather than a clean real-time **Completed**. Both count toward your adherence, but the badge keeps the distinction visible so you can tell genuine in-the-moment consistency from later catch-up.\n\n### Status Badges\n\n- **✓ Completed** — checked off in real time\n- **✓ Corrected later** — you did it, but logged it afterward\n- **✓ Late** — completed after the scheduled time\n- **⊘ Skipped** — intentionally skipped\n- **✕ Missed** — no log on a past day\n- **○ Pending** — still actionable (today)\n\n### Tips\n\n- You can't mark a future day — only today and the past.\n- Reach History from the **History** link on the Routines page or the Adherence page.\n- Correcting a past day immediately updates your streaks, adherence score, and what your Chief of Staff knows.",
+      "app_name": "life",
+      "order": 201,
+      "is_active": true,
+      "created_at": "2026-06-14T12:00:00Z",
+      "updated_at": "2026-06-14T12:00:00Z"
+    }
+  },
+  {
+    "model": "help.helptopic",
     "pk": 156,
     "fields": {
       "context_id": "SIGNALS_HOME",

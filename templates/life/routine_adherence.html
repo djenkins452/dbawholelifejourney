@@ -10,7 +10,10 @@
             <h1 style="margin: 0; font-size: var(--font-size-xl);">Adherence Details</h1>
             <p class="text-muted" style="margin: var(--space-1) 0 0;">Last 7 days</p>
         </div>
-        <a href="{% url 'life:routine_list' %}" class="btn btn-sm btn-secondary">Back to Routines</a>
+        <div style="display: flex; gap: var(--space-2);">
+            <a href="{% url 'life:routine_history' %}" class="btn btn-sm btn-secondary">History</a>
+            <a href="{% url 'life:routine_list' %}" class="btn btn-sm btn-secondary">Back to Routines</a>
+        </div>
     </div>
 
     {% if adherence.score != None %}

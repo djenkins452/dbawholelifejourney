@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Routine History — Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: var(--content-max-width, 800px); margin: 0 auto; padding: var(--space-4);">
+
+    {# ── Hidden CSRF source for fetch() ── #}
+    <form style="display:none;">{% csrf_token %}</form>
+
+    <div class="page-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-5); gap: var(--space-3);">
+        <div>
+            <h1 style="margin: 0; font-size: var(--font-size-xl);">Routine History</h1>
+            <p class="text-muted" style="margin: var(--space-1) 0 0; font-size: var(--font-size-sm);">
+                Forgot to check something off? Set the record straight.
+            </p>
+        </div>
+        <a href="{% url 'life:routine_list' %}" class="btn btn-sm btn-secondary">Back to Routines</a>
+    </div>
+
+    {# ── Date navigator ── #}
+    <div class="card" style="padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);">
+        <a href="?date={{ prev_date|date:'Y-m-d' }}" class="btn btn-sm btn-secondary" aria-label="Previous day" style="min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center;">&#8592;</a>
+
+        <div style="text-align: center; flex: 1; min-width: 0;">
+            <div style="font-weight: 700; font-size: var(--font-size-base);">
+                {% if is_today %}Today{% else %}{{ target_date|date:"l" }}{% endif %}
+            </div>
+            <div class="text-muted" style="font-size: var(--font-size-sm);">{{ target_date|date:"M j, Y" }}</div>
+            <input type="date" id="rh-date-picker" value="{{ target_date|date:'Y-m-d' }}" max="{{ max_date }}"
+                   style="margin-top: var(--space-2); font-size: 16px; padding: 4px 6px; border: 1px solid var(--color-border); border-radius: var(--radius-md, 6px); background: var(--color-bg); color: var(--color-text);">
+        </div>
+
+        {% if next_date %}
+        <a href="?date={{ next_date|date:'Y-m-d' }}" class="btn btn-sm btn-secondary" aria-label="Next day" style="min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center;">&#8594;</a>
+        {% else %}
+        <span class="btn btn-sm btn-secondary" aria-disabled="true" style="min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; opacity: 0.4; cursor: default;">&#8594;</span>
+        {% endif %}
+    </div>
+
+    {# ── Day summary ── #}
+    <div style="display: flex; gap: var(--space-3); margin-bottom: var(--space-4); font-size: var(--font-size-sm);">
+        <span style="color: var(--color-success); font-weight: 600;">{{ history.completed }} done</span>
+        <span class="text-muted">&bull;</span>
+        <span class="text-muted">{{ history.skipped }} skipped</span>
+        <span class="text-muted">&bull;</span>
+        <span style="color: var(--color-error); font-weight: 600;">{{ history.missed }} missed</span>
+        <span class="text-muted" style="margin-left: auto;">{{ history.total }} scheduled</span>
+    </div>
+
+    {% if history.windows %}
+    <div id="rh-list" data-date="{{ target_date|date:'Y-m-d' }}">
+        {% for window in history.windows %}
+        <div class="card" style="margin-bottom: var(--space-3); padding: 0; overflow: hidden;">
+            <div style="padding: var(--space-2) var(--space-4); background: var(--color-surface-raised, var(--color-bg)); border-bottom: 1px solid var(--color-border); font-weight: 600; font-size: var(--font-size-sm);">
+                {{ window.label }}
+            </div>
+            {% for item in window.items %}
+            <div class="rh-row" data-schedule-id="{{ item.schedule_id }}"
+                 style="display: flex; align-items: center; padding: var(--space-3) var(--space-4); gap: var(--space-3); flex-wrap: wrap;
+                 {% if not forloop.last %}border-bottom: 1px solid var(--color-border);{% endif %}">
+
+                {# ── State badge — preserves historical truth ── #}
+                {% if item.display_state == 'completed' %}
+                <span class="rh-badge" style="font-size: var(--font-size-xs); font-weight: 600; padding: 2px 8px; border-radius: 4px; white-space: nowrap; background: rgba(34,197,94,0.12); color: var(--color-success);">&#10003; Completed</span>
+                {% elif item.display_state == 'corrected' %}
+                <span class="rh-badge" style="font-size: var(--font-size-xs); font-weight: 600; padding: 2px 8px; border-radius: 4px; white-space: nowrap; background: rgba(59,130,246,0.12); color: var(--color-info, #2563eb);">&#10003; Corrected later</span>
+                {% elif item.display_state == 'late' %}
+                <span class="rh-badge" style="font-size: var(--font-size-xs); font-weight: 600; padding: 2px 8px; border-radius: 4px; white-space: nowrap; background: rgba(234,179,8,0.14); color: var(--color-warning, #e67e22);">&#10003; Late</span>
+                {% elif item.display_state == 'skipped' %}
+                <span class="rh-badge" style="font-size: var(--font-size-xs); font-weight: 600; padding: 2px 8px; border-radius: 4px; white-space: nowrap; background: rgba(107,114,128,0.12); color: var(--color-text-muted);">&#8856; Skipped</span>
+                {% elif item.display_state == 'missed' %}
+                <span class="rh-badge" style="font-size: var(--font-size-xs); font-weight: 600; padding: 2px 8px; border-radius: 4px; white-space: nowrap; background: rgba(239,68,68,0.1); color: var(--color-error);">&#10005; Missed</span>
+                {% else %}
+                <span class="rh-badge" style="font-size: var(--font-size-xs); font-weight: 600; padding: 2px 8px; border-radius: 4px; white-space: nowrap; background: var(--color-surface-raised, var(--color-bg)); color: var(--color-text-muted); border: 1px solid var(--color-border);">&#9675; Pending</span>
+                {% endif %}
+
+                {# ── Item details ── #}
+                <div style="flex: 1; min-width: 120px;">
+                    <div style="font-size: var(--font-size-sm); font-weight: 500;">{{ item.name }}</div>
+                    <div style="font-size: var(--font-size-xs); color: var(--color-text-muted);">
+                        {{ item.routine_name }}{% if item.scheduled_time %} &bull; {{ item.scheduled_time|time:"g:i A" }}{% endif %}{% if item.display_state == 'corrected' and item.logged_at %} &bull; logged {{ item.logged_at|date:"M j, g:i A" }}{% endif %}
+                    </div>
+                </div>
+
+                {# ── Actions ── #}
+                <div style="display: flex; gap: var(--space-2); flex-shrink: 0;">
+                    {% if item.is_completed %}
+                    <button type="button" class="rh-action btn btn-sm btn-secondary" data-action="undo" data-schedule-id="{{ item.schedule_id }}" style="min-height: 36px;">Undo</button>
+                    {% elif item.display_state == 'skipped' %}
+                    <button type="button" class="rh-action btn btn-sm btn-secondary" data-action="ontime" data-schedule-id="{{ item.schedule_id }}" style="min-height: 36px;">On time</button>
+                    <button type="button" class="rh-action btn btn-sm btn-secondary" data-action="late" data-schedule-id="{{ item.schedule_id }}" style="min-height: 36px;">Late</button>
+                    {% else %}
+                    <button type="button" class="rh-action btn btn-sm btn-primary" data-action="ontime" data-schedule-id="{{ item.schedule_id }}" style="min-height: 36px;">On time</button>
+                    <button type="button" class="rh-action btn btn-sm btn-secondary" data-action="late" data-schedule-id="{{ item.schedule_id }}" style="min-height: 36px;">Late</button>
+                    <button type="button" class="rh-action btn btn-sm btn-secondary" data-action="skip" data-schedule-id="{{ item.schedule_id }}" style="min-height: 36px;">Skip</button>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card" style="padding: var(--space-6); text-align: center;">
+        <p class="text-muted" style="margin: 0;">No routine items were scheduled for this day.</p>
+    </div>
+    {% endif %}
+
+    <p class="text-muted" style="font-size: var(--font-size-xs); margin-top: var(--space-4); line-height: 1.5;">
+        &#10003; <strong>Completed</strong> = checked off in real time.
+        &#10003; <strong>Corrected later</strong> = you did it, but logged it after the fact.
+        Your Chief of Staff and adherence stats treat both as done while preserving the difference.
+    </p>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function () {
+    var list = document.getElementById('rh-list');
+    var targetDate = list ? list.getAttribute('data-date') : '';
+
+    function getCsrf() {
+        var el = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (el) return el.value;
+        var cookies = document.cookie.split(';');
+        for (var i = 0; i < cookies.length; i++) {
+            var c = cookies[i].trim();
+            if (c.indexOf('csrftoken=') === 0) return decodeURIComponent(c.substring(10));
+        }
+        return '';
+    }
+
+    function post(url, scheduleId, completionMode) {
+        var formData = new FormData();
+        formData.append('schedule_id', scheduleId);
+        formData.append('date', targetDate);
+        if (completionMode) formData.append('completion_mode', completionMode);
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
+            body: formData,
+        }).then(function (r) { return r.json(); });
+    }
+
+    // Date picker → navigate
+    var picker = document.getElementById('rh-date-picker');
+    if (picker) {
+        picker.addEventListener('change', function () {
+            if (this.value) window.location.search = '?date=' + this.value;
+        });
+    }
+
+    // Action buttons (event delegation, no inline handlers)
+    if (list) {
+        list.addEventListener('click', function (e) {
+            var btn = e.target.closest('.rh-action');
+            if (!btn) return;
+            var action = btn.getAttribute('data-action');
+            var scheduleId = btn.getAttribute('data-schedule-id');
+            if (!scheduleId) return;
+
+            // Prevent double-submit
+            var buttons = btn.parentNode.querySelectorAll('button');
+            buttons.forEach(function (b) { b.disabled = true; });
+
+            var req;
+            if (action === 'skip') {
+                req = post('{% url "life:routine_skip" %}', scheduleId, null);
+            } else if (action === 'ontime') {
+                req = post('{% url "life:routine_toggle" %}', scheduleId, 'scheduled');
+            } else if (action === 'late') {
+                req = post('{% url "life:routine_toggle" %}', scheduleId, 'late');
+            } else { // undo
+                req = post('{% url "life:routine_toggle" %}', scheduleId, null);
+            }
+
+            req.then(function (data) {
+                if (data && data.success) {
+                    window.location.reload();
+                } else {
+                    buttons.forEach(function (b) { b.disabled = false; });
+                    alert((data && data.error) || 'Could not update. Please try again.');
+                }
+            }).catch(function () {
+                buttons.forEach(function (b) { b.disabled = false; });
+                alert('Network error. Please try again.');
+            });
+        });
+    }
+})();
+</script>
+{% endblock %}

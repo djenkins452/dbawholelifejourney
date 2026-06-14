@@ -52,6 +52,23 @@
   },
   {
     "model": "help.teachingdestination",
+    "pk": 187,
+    "fields": {
+      "destination_id": "routine-history",
+      "name": "Routine History",
+      "path_description": "Organize - Routines - History",
+      "explanation": "Review any past day's routines and retroactively mark items complete that you forgot to log. Completions logged after the fact are flagged as corrections so your adherence stays honest.",
+      "url": "/life/routines/history/",
+      "keywords": "routine history,retroactive,backdate,adjust yesterday,forgot,correct,missed,catch up,mark complete later",
+      "module": "life",
+      "sort_order": 182,
+      "is_active": true,
+      "created_at": "2026-06-14T12:00:00Z",
+      "updated_at": "2026-06-14T12:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
     "pk": 183,
     "fields": {
       "destination_id": "routine-adherence",

@@ -7,6 +7,28 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-14 — feat(life): Routine History — retroactive completion CRUD with truthful correction labeling
+
+**Problem:** If a user forgot to mark routines complete (especially yesterday), there was no user-facing way to review historical routine execution and retroactively correct it. The backend already supported it (the toggle endpoint accepts a `date` param; `RoutineLog` already has `completed_at`/`performed_at`/`completion_source`/`is_user_corrected`), but nothing exposed it to non-admin users — so adherence stats and the Chief of Staff coached from "skipped" when the user had actually done the item.
+
+**Investigation finding:** Functionality existed at the data + backend layer; the gap was (1) no UI and (2) a trust-correctness hole — the user toggle path, when given a past date, wrote `performed_at=now / timing=on_time / completed_as_scheduled=True` and did NOT set `is_user_corrected`, mislabeling a retroactive log as a clean real-time completion. The admin correction path set the flag correctly; the user path did not.
+
+**Changes:**
+- **Trust fix** — `apps/life/services/routine_helpers.py :: toggle_routine_completion()`: a completion for a past day (`target_date < user_today`) is now flagged `is_user_corrected=True` and anchors `performed_at` to the target day (never "now", a different calendar day). Same-day behavior is byte-for-byte unchanged (strictly gated). Result dict now returns `is_user_corrected`.
+- **History read model** — new `get_routine_items_for_date(user, target_date)`: reconstructs the items that applied on any past day (honors `days_of_week`/`specific_date`/`is_active`) with a `display_state` per item (`completed` / `corrected` / `late` / `skipped` / `missed` / `pending`) for the visual-truth badges.
+- **New page** — `RoutineHistoryView` at `/life/routines/history/?date=YYYY-MM-DD` (default yesterday). Date arrows + date picker reach any past day; future dates are clamped/rejected. Per-item CRUD via the EXISTING toggle + skip endpoints (no new write API): On time (`completion_mode=scheduled`), Late (`completion_mode=late`), Skip, Undo (delete).
+- **Safety guard** — `RoutineToggleView` and `RoutineSkipView` now reject future dates (400).
+- **Visual distinction** — history badges separate real-time `✓ Completed` from retroactive `✓ Corrected later` (and `✓ Late`, `⊘ Skipped`, `✕ Missed`, `○ Pending`). Both completed and corrected count toward adherence; the badge preserves the difference. Visual Truth Contract respected (✓/green reserved for actual completions; missed/skipped use non-completion visuals).
+- **Discoverability** — "History" link added to the Routines page summary bar and the Adherence page header.
+- **Docs/fixtures** — release note PK 210 (feature, major), help topic PK 157 (`ROUTINE_HISTORY`), teaching destination PK 187 (`routine-history`), plus `_reset_routine_history_fixtures` loader reset.
+
+**Files:** `apps/life/services/routine_helpers.py`, `apps/life/views.py`, `apps/life/urls.py`, `templates/life/routine_history.html` (new), `templates/life/routine_list.html`, `templates/life/routine_adherence.html`, `apps/core/fixtures/release_notes.json`, `apps/help/fixtures/help_topics.json`, `apps/help/fixtures/teaching_destinations.json`, `apps/core/management/commands/load_initial_data.py`, `apps/life/tests/test_routine_history.py` (new, 15 tests).
+
+**Blast radius:** Verified safe — all downstream consumers (behavior/adherence, execution truth, compliance, PIE events/trends, drift, CoS/SAE, dashboards) query by date range or exact date and invalidate caches on `RoutineLog.post_save`. Correcting a past day flows into stats immediately; no double-counting (status enum). No model/schema change → no migration.
+
+**Tests:** `apps.life.tests.test_routine_history` (15) pass; existing routine suite (77) pass; Visual Truth Contract + help tests (106) pass.
+
+
 ## 2026-06-10 — polish(ai): Thread-aware progress framing + varied health-status framing
 
 Two scoped polish refinements. No routing redesign; explicit-health routing, continuity, page awareness, scripture grounding, and leverage logic all untouched.

@@ -1085,6 +1085,10 @@ class Command(BaseCommand):
         self._reset_rhythm_end_of_day_release_notes(DataLoadConfig, force, verbosity)
         self._reset_exec_briefing_coherence_release_notes(DataLoadConfig, force, verbosity)
 
+        # One-time: Reload fixtures for Routine History (release note PK 210,
+        # help topic PK 157, teaching destination PK 187)
+        self._reset_routine_history_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -1922,6 +1926,37 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset PIE fixtures FAILED: {e}'))
+
+    def _reset_routine_history_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures for the Routine History feature.
+        Resets release_notes (PK 210), help_topics (PK 157), and
+        teaching_destinations (PK 187).
+        """
+        reset_tracker_name = 'reset_routine_history_fixtures_2026_06_14'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            for loader_name in ('release_notes', 'teaching_destinations', 'help_topics'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    config.reset()
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Reset {loader_name} loader for Routine History')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Routine History (Jun 2026)',
+                'command', 'One-time reset to reload release note, teaching destination, and help topic for Routine History'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Routine History fixtures FAILED: {e}'))
 
     def _reset_pge_dashboard_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """

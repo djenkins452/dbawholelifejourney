@@ -3267,13 +3267,22 @@ The Routines system (`apps/life/` models, `/life/routines/` URL) lets users defi
 - Time-window grouping (Morning, Midday, Evening, Anytime)
 - Activity routines fire Django signals on completion for downstream consumers
 
+### Routine History (Retroactive Completion) *(Jun 2026)*
+If a user forgets to check off a routine, the **Routine History** screen (`/life/routines/history/`, link on the Routines and Adherence pages) lets them review any past day and correct it — so adherence stats and the Chief of Staff coach from accurate behavioral data.
+
+- **Date navigation** — Arrows + a date picker reach any past day; future dates are rejected. `RoutineHistoryView` rebuilds exactly which items applied on the chosen day via `get_routine_items_for_date()` (honors `days_of_week` / `specific_date` / `is_active`).
+- **Per-item CRUD** — Reuses the existing toggle + skip endpoints with a `date` param (no new write API): **On time** (`completion_mode=scheduled`), **Late** (`completion_mode=late`), **Skip**, **Undo** (delete the log).
+- **Trust contract** — A completion logged for a past day is flagged `is_user_corrected=True` and anchors `performed_at` to the target day (never "now"). Beth/analytics can tell "did it, logged late" apart from genuine real-time adherence. Same-day completions are unaffected.
+- **Visual truth** — Badges distinguish `✓ Completed` (real time) from `✓ Corrected later` (retroactive), plus `✓ Late`, `⊘ Skipped`, `✕ Missed`, `○ Pending`. Both completed and corrected count toward adherence; the badge preserves the difference. Compliant with the Visual Truth Contract (✓/green reserved for actual completions).
+
 ### Key Files
 | File | Purpose |
 |------|---------|
 | `apps/life/models.py` | Routine, RoutineSchedule, RoutineLog models |
-| `apps/life/views.py` | Routine CRUD and log views |
-| `apps/life/urls.py` | `/life/routines/` URL patterns |
-| `templates/life/routines/` | Routine templates |
+| `apps/life/views.py` | Routine CRUD, log views, `RoutineHistoryView` |
+| `apps/life/services/routine_helpers.py` | `toggle_routine_completion()`, `get_routine_items_for_date()` |
+| `apps/life/urls.py` | `/life/routines/` URL patterns (incl. `routine_history`) |
+| `templates/life/routine_list.html`, `routine_history.html`, `routine_adherence.html` | Routine templates |
 
 ---
 

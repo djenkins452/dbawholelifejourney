@@ -7,6 +7,28 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-14 — fix(ai): fail-closed guard against impossible weight-delta hallucinations (trust)
+
+**Problem:** Beth told the user "Over the last 14 days, your weight decreased by about **286.2 lbs**" — 286.2 is the *current* weight, not the 14-day change (actually −1.2 lbs). Asked again, she answered correctly. Obvious trust break.
+
+**Root cause (proven from code):**
+- The first response + offer "Want me to break down what's driving the trend?" is deterministic ([deterministic_router.py `_handle_weight_query`](apps/ai/deterministic_router.py:4192)).
+- The "yes" breakdown is **LLM-narrated**. The chat health context ([cos_context.py `format_cos_system_injection`](apps/core/ai_orchestrator/cos_context.py)) supplies only `Weight: 286.2 lb … trend: decreasing` — the **current weight + a trend word, but NO labeled delta**. `weight_change_30d` is computed in SAE state ([state_builder.py](apps/core/ai_state/state_builder.py)) but never injected into the LLM block, and there is no `weight_change_14d`.
+- The prompt instructs the LLM to narrate "Over the last 14 days your weight is down [delta] lbs" ([personal_assistant.py:608](apps/ai/personal_assistant.py:608)). With no labeled delta available, the LLM filled `[delta]` with the only weight number present — the current weight (286.2). The correct retry was just LLM-sampling luck → classic "first wrong, second right" (non-determinism, not two code branches).
+
+**Fix (smallest safe, deterministic guardrail):** Added `correct_implausible_weight_delta()` to [apps/ai/cognitive_mode/health_truth.py](apps/ai/cognitive_mode/health_truth.py) — a sentence-level fail-closed guard that replaces any physiologically impossible weight-change statement with safe wording ("I'm seeing conflicting weight-trend signals right now — let me recalculate."). Two precise triggers: (1) the stated change ≈ the current weight (the exact hallucination signature), or (2) a short-window sentence ("last 14 days", "this week"…) stating a change > 20 lb. Legitimate small deltas ("down 1.2 lbs"), long-haul statements ("lost 40 lbs since last year"), and non-weight numbers ("squat up 45 lbs") are left untouched.
+
+Wired into [cos_truth_validator.py `validate_locked_facts`](apps/ai/cos_truth_validator.py) right after the existing P1 current-weight guard, appending a `should_reject=False` violation so the corrected text propagates through **both** the streaming (line 6726) and non-streaming (line 2132) callers — guaranteeing **retry parity** (no "first wrong, second right") without forcing a regeneration that could hallucinate again.
+
+**Blast radius:** Zero engine/data changes — purely an output-validation guard in the trust layer that already runs on every chat response. Only acts on sentences containing an *impossible* weight change; valid weight/glucose/sleep/coaching/continuity narration is untouched. Deterministic. No model/migration. Guarded by the existing `WLJ_BETH_WEIGHT_GUARD_ENABLED` flag; never raises.
+
+**Why it can't recur:** Regardless of which path or LLM sampling produces it, an absurd weight delta is now caught and replaced before it reaches the user, on both response paths. (Follow-up, tracked separately: inject the labeled `weight_change_30d` into the LLM weight context so the LLM has the real delta and the guard rarely needs to fire — root-cause hardening, not required for the trust fix.)
+
+**Files:** `apps/ai/cognitive_mode/health_truth.py`, `apps/ai/cos_truth_validator.py`, `apps/ai/tests/test_weight_delta_guard.py` (new, 12 tests).
+
+**Tests:** New `test_weight_delta_guard.py` (12) — normal trend untouched, current-weight-as-delta caught, missing-prior substitution caught, implausible short-window delta caught, long-haul/non-weight not clobbered, streaming + non-streaming + retry parity, valid response passes through. `test_health_truth_guard`, `test_narration_contract_validator`, `test_cos_state_revalidator` pass. (Pre-existing, unrelated: 6 failures in `test_cos_truth_enforcement` — narration-contract prompt-copy drift; proven pre-existing by stashing this change; flagged separately.)
+
+
 ## 2026-06-14 — fix(journal): rhythm completion anchors to entry_date, not the created day (behavioral truth)
 
 **Problem:** Journaling today *about* yesterday (entry_date=June 13, created June 14) marked the **June 14** Evening Journal rhythm complete instead of **June 13**. That corrupts adherence, streaks, rhythm compliance, behavioral analytics, and CoS coaching — the system was crediting "today" for work the user did for a different calendar day.

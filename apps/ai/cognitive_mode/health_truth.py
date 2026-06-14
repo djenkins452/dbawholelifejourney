@@ -169,6 +169,100 @@ def correct_weight_contradictions(text, canonical, unit="lb", tol=_DEFAULT_TOL):
     return out, corrections
 
 
+# ── Weight-DELTA sanity guard ───────────────────────────────────────────
+# Distinct from the CURRENT-weight guard above. This fail-closes when Beth
+# states a weight CHANGE that is physiologically impossible — the exact class
+# of bug where the LLM, lacking a labeled delta in context, substituted the
+# CURRENT weight as the 14-day change ("your weight decreased by 286.2 lbs").
+# We never confidently state an absurd physiological value; we say we need to
+# recalculate instead.
+_SAFE_DELTA_FALLBACK = (
+    "I'm seeing conflicting weight-trend signals right now — let me recalculate."
+)
+# Max plausible weight change over a short (≈2-week) window, in lb. Losing or
+# gaining more than this in two weeks is not physiologically real.
+_DEFAULT_MAX_DELTA = 20.0
+# A stated change matched to a change verb/preposition + magnitude + unit.
+_WEIGHT_DELTA_RE = re.compile(
+    r"\b(?:decreased|increased|dropped|declined|fell|lost|gained|"
+    r"down|up|decrease|increase|changed|change|lower|higher)\b"
+    r"[^.!?\n]{0,40}?"
+    r"(\d{1,4}(?:\.\d+)?)\s*(?:lbs?|pounds|kg|kilograms?)\b",
+    re.I,
+)
+# Only apply the >max_delta rule when the sentence asserts a SHORT window;
+# legitimate long-haul statements ("down 40 lbs since last year") are left alone.
+_SHORT_WINDOW_MARKERS = (
+    "14 day", "14-day", "two weeks", "2 weeks", "this week", "last week",
+    "past week", "last 7 day", "last 14 day", "last seven day",
+    "last fourteen day", "past two weeks", "last few days",
+    "last several days",
+)
+
+
+def _is_implausible_weight_delta(sentence, current, max_delta, tol):
+    """True when ``sentence`` states a physiologically impossible weight change.
+
+    Two precise triggers (either fires):
+      1. The stated change ≈ the CURRENT weight (the exact hallucination
+         signature — current weight reported as the delta).
+      2. A SHORT-window sentence states a change greater than ``max_delta``.
+    """
+    low = sentence.lower()
+    if "weight" not in low and "weigh" not in low:
+        return False
+    m = _WEIGHT_DELTA_RE.search(sentence)
+    if not m:
+        return False
+    try:
+        val = abs(float(m.group(1)))
+    except (TypeError, ValueError):
+        return False
+    if not (val > 0):
+        return False
+    if current is not None and abs(val - abs(current)) <= tol:
+        return True  # delta == current weight → impossible
+    if val > max_delta and any(k in low for k in _SHORT_WINDOW_MARKERS):
+        return True  # > plausible bound over a short window
+    return False
+
+
+def correct_implausible_weight_delta(text, current_weight=None, unit="lb",
+                                     max_delta=_DEFAULT_MAX_DELTA,
+                                     tol=_DEFAULT_TOL):
+    """Fail closed on any physiologically impossible weight-change statement.
+
+    Operates sentence by sentence so unrelated content is preserved. Each
+    sentence asserting an impossible delta is replaced with a safe
+    "let me recalculate" message (emitted once); further offending sentences
+    are dropped. Returns (corrected_text, num_flagged). Never raises.
+    """
+    if not text or not weight_guard_enabled():
+        return text, 0
+    cur = None
+    if current_weight is not None:
+        try:
+            cur = float(current_weight)
+        except (TypeError, ValueError):
+            cur = None
+
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    out = []
+    flagged = 0
+    safe_emitted = False
+    for s in sentences:
+        if _is_implausible_weight_delta(s, cur, max_delta, tol):
+            flagged += 1
+            if not safe_emitted:
+                out.append(_SAFE_DELTA_FALLBACK)
+                safe_emitted = True
+            continue  # drop the impossible statement
+        out.append(s)
+    if not flagged:
+        return text, 0
+    return " ".join(p for p in out if p).strip(), flagged
+
+
 def extract_all_weight_values(text):
     """All weight-like numeric values in plausible body-weight range."""
     vals = []

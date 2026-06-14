@@ -432,6 +432,42 @@ def validate_locked_facts(response_text, locked_facts, user,
         except Exception:
             logger.debug("weight guard skipped (non-fatal)", exc_info=True)
 
+    # ── Weight-DELTA sanity guard (fail-closed) ──────────────────
+    # Beth must never confidently state a physiologically impossible weight
+    # change (e.g. "decreased by 286.2 lbs" — the current weight reported as
+    # the delta). Replace the impossible statement with safe wording. Appends
+    # a violation (should_reject=False) so the corrected text is applied by
+    # BOTH the streaming and non-streaming callers — without triggering a
+    # regeneration that could hallucinate again. Runs even when weight_current
+    # is unknown (the >bound short-window rule needs no current value).
+    try:
+        from apps.ai.cognitive_mode.health_truth import (
+            correct_implausible_weight_delta,
+        )
+        _cur_for_delta = None
+        if _canon_weight is not None:
+            try:
+                _cur_for_delta = float(_canon_weight)
+            except (TypeError, ValueError):
+                _cur_for_delta = None
+        response_text, _delta_flagged = correct_implausible_weight_delta(
+            response_text, _cur_for_delta, raw.get('weight_unit', 'lb'),
+        )
+        if _delta_flagged:
+            logger.error(
+                "[CoS WEIGHT DELTA GUARD] user=%s fail-closed on %d "
+                "implausible weight-delta statement(s) (current=%s)",
+                user.id, _delta_flagged, _canon_weight,
+            )
+            violations.append({
+                'domain': 'weight_delta',
+                'type': 'implausible_weight_delta',
+                'locked_statement': '',
+                'should_reject': False,
+            })
+    except Exception:
+        logger.debug("weight delta guard skipped (non-fatal)", exc_info=True)
+
     # Check each NOT-done domain for false completion claims
     _domain_checks = [
         ('prayer', raw.get('prayer_done', False), 'prayer'),

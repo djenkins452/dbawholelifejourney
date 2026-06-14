@@ -7,6 +7,26 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-14 — fix(journal): rhythm completion anchors to entry_date, not the created day (behavioral truth)
+
+**Problem:** Journaling today *about* yesterday (entry_date=June 13, created June 14) marked the **June 14** Evening Journal rhythm complete instead of **June 13**. That corrupts adherence, streaks, rhythm compliance, behavioral analytics, and CoS coaching — the system was crediting "today" for work the user did for a different calendar day.
+
+**Root cause (proven):** [apps/journal/signals.py](apps/journal/signals.py) fired `auto_complete_routine_schedules(user, 'journal', 'journal', completion_time=instance.created_at, source_object_id=instance.pk)` **without `target_date`**. In [auto_complete_routine_schedules](apps/life/services/routine_helpers.py:333), `user_today = target_date or get_user_today(user)` then defaults to **today** — so the RoutineLog was written against the created day, not `journal.entry_date`. The function already supported `target_date` (its docstring says "Callers should pass the activity's actual date to prevent cross-day mismatch bugs"); the journal caller simply omitted it. (Workout/faith/bible callers were unaffected — their activities are same-day.)
+
+**Fix (one-line anchor):** Pass `target_date=instance.entry_date` from the journal signal. The rhythm now completes for the day being journaled about.
+
+**Why it's safe / blast radius:**
+- `entry_date` is always set (`DateField(default=timezone.now)`); same-day entries have `entry_date == created date` → **identical behavior, zero regression**.
+- Auto-complete only runs on creation (`if not created: return`), so **editing a historical entry never completes today** (requirement 3 — already held, now covered by a test).
+- `auto_complete_routine_schedules` is idempotent per `(schedule, scheduled_date)`, so repeated saves can't double-complete (requirement 5).
+- Downstream consumers (adherence, streaks, execution truth, CoS/Beth) read RoutineLog by `scheduled_date` — they now receive the correct day. No model change, no migration. Beth untouched (she reads the corrected logs).
+- Backdated entries classify as `completed_late` (truthful — the journal was written the next day); they still count as complete for the journaled day.
+
+**Files:** `apps/journal/signals.py`, `apps/journal/tests/test_journal_rhythm_anchor.py` (new, 5 tests).
+
+**Tests:** New `test_journal_rhythm_anchor.py` (5) — backdated (yesterday complete / today open), same-day (no regression), historical edit (today untouched), catch-up (both days independent), repeated same-day (no double completion). Existing journal/routine suites pass (51).
+
+
 ## 2026-06-14 — feat(briefing): Biggest Opportunity → highest-leverage ACTION + dedup Recommended Focus
 
 **Problem:** The Executive Briefing "Biggest Opportunity" tile read like analytics, not decision support — it surfaced an *observation* ("…on pace to reach your goal weight") and never told the user what to DO. Separately, "Recommended Focus" could show the same chip ("Progression check-in") three times — a trust failure.

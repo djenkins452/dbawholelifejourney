@@ -70,13 +70,22 @@ def extract_people_from_journal(sender, instance, created, **kwargs):
         logger.warning("Journal people extraction failed: %s", e)
 
     # --- Auto-complete matching RoutineSchedule items ---
-    # When a journal entry is created, auto-complete today's journal-type routine items.
+    # Behavioral truth: the journal rhythm completes for the day the entry is
+    # ABOUT (``entry_date``), not the day it was physically created. A user who
+    # journals on June 14 about June 13 completes the June 13 Evening Journal
+    # rhythm — June 14 stays open because they did not actually journal for
+    # today. Anchoring to entry_date keeps adherence, streaks, rhythm
+    # compliance, and CoS coaching truthful. Same-day entries (entry_date ==
+    # created date) are unaffected. ``auto_complete_routine_schedules`` is
+    # idempotent per (schedule, scheduled_date), so repeated saves can't
+    # double-complete.
     try:
         from apps.life.services.routine_helpers import auto_complete_routine_schedules
         auto_complete_routine_schedules(
             user, 'journal', 'journal',
             completion_time=instance.created_at,
             source_object_id=instance.pk,
+            target_date=instance.entry_date,
         )
     except Exception as e:
         logger.warning("Journal routine auto-complete failed: %s", e)

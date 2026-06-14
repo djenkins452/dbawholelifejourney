@@ -276,6 +276,7 @@
     margin-bottom: 2px;
 }
 .v3-callout-title { margin: 0; font-size: 0.84rem; font-weight: 600; color: var(--v3-text); line-height: 1.3; }
+.v3-callout-why { margin: 3px 0 0; font-size: 0.74rem; font-weight: 400; color: var(--v3-text-soft); line-height: 1.35; }
 
 .v3-exec-recs {
     margin-top: 10px;

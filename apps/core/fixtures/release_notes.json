@@ -3382,5 +3382,21 @@
       "created_at": "2026-06-14T12:00:00Z",
       "updated_at": "2026-06-14T12:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 211,
+    "fields": {
+      "title": "Your Executive Briefing now tells you the single smartest move — not just a pattern",
+      "description": "The \"Biggest Opportunity\" tile used to describe a pattern in your data (\"recovery is needed\"). Now it names the one highest-leverage thing to do — a clear action plus a one-line why, like \"Prioritize sleep tonight — better sleep lifts your energy, recovery, and glucose all at once.\" When several things need attention, it surfaces the move that lifts the most areas at once (sleep and recovery rank highest because they improve everything downstream), so you always know the smartest next step rather than a list. We also fixed a glitch where \"Recommended Focus\" could show the same suggestion two or three times — recommendations are now de-duplicated and ranked by value, so you only ever see distinct, useful focuses.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-06-14",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-06-14T13:00:00Z",
+      "updated_at": "2026-06-14T13:00:00Z"
+    }
   }
 ]

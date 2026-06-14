@@ -30,7 +30,7 @@ Returned shape (stable; treat as a soft public contract — keep additive):
         "going_well":      [ {title, module, evidence}, ... ],
         "needs_attention": [ {title, module, severity, evidence}, ... ],
         "biggest_risk":    {title, message, module, source} | None,
-        "biggest_opportunity": {title, message, module, source} | None,
+        "biggest_opportunity": {headline, why, title, message, lever, kind, module, source} | None,
         "focus_now":       {title, reason, time_display, source} | None,
         "follow_on":       [ {title, time_display}, ... ],
         "recommendations": [ {title, message, priority, module}, ... ],
@@ -251,7 +251,11 @@ def build_executive_summary(user, execution_contract=None) -> dict[str, Any]:
         biggest_risk = None
 
     try:
-        biggest_opportunity = _collect_biggest_opportunity(user)
+        # Pass the insight-based concerns so the highest-leverage selection can
+        # consider weaknesses (sleep/recovery/nutrition…), not just positive
+        # predictions. Pre-augment list — execution-pressure rows belong to
+        # focus_now, not the leverage tile.
+        biggest_opportunity = _collect_biggest_opportunity(user, needs_attention)
     except Exception:
         logger.warning("exec_summary: biggest_opportunity failed", exc_info=True)
         biggest_opportunity = None
@@ -747,44 +751,205 @@ def _is_risk_prediction(p) -> bool:
     return False
 
 
-def _collect_biggest_opportunity(user) -> dict | None:
-    """Strongest near-term POSITIVE prediction.
+# ── Leverage taxonomy ──────────────────────────────────────────────────
+# The "Biggest Opportunity" tile answers ONE question: *what is the smartest
+# thing to do next?* — not "what pattern exists in my data?". Each lever maps
+# a detected signal to ONE constructive, today-oriented ACTION (the headline)
+# plus a one-sentence rationale (the why).
+#
+# ``rank`` encodes LEVERAGE — how much moving this lever lifts the others.
+# Sleep and recovery sit at the top because they compound into energy,
+# glucose, training, and mood simultaneously (the canonical highest-leverage
+# levers — "fix sleep and the rest improves"). The tile therefore surfaces
+# the move that lifts the MOST areas, not merely the loudest signal.
+#
+# Pure data table — wording is tunable without touching the selection logic.
+# Headlines are ALWAYS constructive/imperative, so a weakness is reframed as
+# the action to take, never echoed as a raw risk statement (honors the prior
+# "no risk text under Opportunity" coherence contract).
+_LEVER_ORDER = [
+    ("sleep", 100, "Prioritize sleep tonight",
+     "Better sleep lifts your energy, recovery, and glucose all at once."),
+    ("recovery", 95, "Prioritize recovery today",
+     "Easing off now lets your body rebuild and protects the whole week."),
+    ("stress", 90, "Protect your recovery today",
+     "High stress is amplifying fatigue — a calmer, lighter day resets it."),
+    ("nutrition", 80, "Tighten up your fueling today",
+     "Steadier nutrition stabilizes energy, training, and weight together."),
+    ("muscle", 78, "Protect muscle while you lose weight",
+     "Protein and resistance work preserve metabolism as the weight comes off."),
+    ("glucose", 75, "Steady your glucose today",
+     "Smoother glucose means steadier energy and easier recovery."),
+    ("hydration", 60, "Hydrate well today",
+     "Good hydration sharpens energy, training, and recovery."),
+    ("training", 55, "Keep your training steady",
+     "Right now, consistency matters more than intensity."),
+    ("weight", 50, "Lock in your weight-loss pace",
+     "Staying consistent now carries the trend the rest of the way."),
+    ("habit", 45, "Protect the streak you're building",
+     "Each repeat makes the next one easier — don't break the chain."),
+    ("faith", 42, "Keep your faith rhythm steady",
+     "Showing up consistently is what compounds here."),
+    ("momentum", 30, "Build on what's working",
+     "You've got real momentum — keep doing what's working."),
+]
+_LEVERS = {k: {"rank": r, "headline": h, "why": w} for k, r, h, w in _LEVER_ORDER}
 
-    Forward-risk predictions are filtered out (see ``_is_risk_prediction``)
-    so a risk never surfaces under the "Biggest Opportunity" heading. Uses
-    ``explanation`` as the visible title (the human-written sentence) and
-    falls back to a humanized prediction_type only when no explanation
-    exists. Prevents raw type leaks like "Emotional Overload 7D" showing as
-    the "Biggest Opportunity" headline.
+# First keyword hit wins, in lever-rank order — so a signal mentioning both
+# "sleep" and "weight" classifies to the higher-leverage lever (sleep).
+_LEVER_KEYWORDS = [
+    ("sleep", ("sleep", "insomnia", "bedtime", "sleep debt", "restless")),
+    ("recovery", ("recovery", "overtrain", "strain", "rest day", "fatigue",
+                  "exhaust", "burnout", "overload", "overreach")),
+    ("stress", ("stress", "emotional", "anxiet", "tension", "overwhelm")),
+    ("nutrition", ("calorie", "nutrition", "eating", "meal", "diet", "fuel",
+                   "under target", "over target", "macro")),
+    ("muscle", ("muscle", "lean mass", "lean_mass", "protein")),
+    ("glucose", ("glucose", "a1c", "blood sugar", "cgm", "gmi", "spike")),
+    ("hydration", ("hydrat", "water intake", "dehydrat")),
+    ("training", ("workout", "training", "strength", "exercise", "progression",
+                  "lift", "cardio")),
+    ("weight", ("weight", "fat loss", "fat-loss", "body fat", "body_fat",
+                "scale", "plateau")),
+    ("habit", ("habit", "streak", "routine", "consistency", "adherence",
+               "continuation", "missed")),
+    ("faith", ("faith", "prayer", "bible", "devotion", "journal", "gratitude")),
+]
+
+
+def _classify_lever(*texts) -> str | None:
+    """Map free-text signal fields to a single lever key, or None."""
+    blob = " ".join(t for t in texts if t).lower()
+    if not blob.strip():
+        return None
+    for lever, kws in _LEVER_KEYWORDS:
+        if any(kw in blob for kw in kws):
+            return lever
+    return None
+
+
+def _clip_sentence(text: str, max_len: int = 140) -> str:
+    """Keep the why to one short sentence — the tile is executive, not a paragraph."""
+    text = (text or "").strip()
+    if len(text) <= max_len:
+        return text
+    cut = text[:max_len].rsplit(" ", 1)[0].rstrip(",.;:")
+    return cut + "…"
+
+
+def _collect_biggest_opportunity(user, needs_attention=None) -> dict | None:
+    """The single HIGHEST-LEVERAGE action — "the smartest thing to do next".
+
+    Deterministic, no LLM. Ranks candidate *levers* and returns the one with
+    the most leverage as a constructive ACTION (``headline``) plus a
+    one-sentence rationale (``why``):
+
+      - **Weakness levers** come from current warning/critical Insights
+        (``needs_attention``). A weakness is reframed as the constructive
+        action to take — never the raw risk statement, so the "no risk text
+        under Opportunity" contract still holds.
+      - **The positive lever** comes from the strongest non-risk Prediction —
+        used when nothing higher-leverage needs fixing ("protect what's
+        working").
+
+    Leverage ``rank`` dominates (sleep/recovery > nutrition > weight > habit…),
+    so the tile names the move that lifts the most areas rather than the
+    loudest signal. Stable and safe on the request path.
+
+    Back-compat: ``title``/``message`` are retained (the positive path keeps
+    the prediction's explanation, as before). New additive keys: ``headline``,
+    ``why``, ``kind``, ``lever``.
     """
     from apps.core.ai_predictions.models import Prediction
 
+    if needs_attention is None:
+        try:
+            needs_attention = _collect_needs_attention(user)
+        except Exception:
+            needs_attention = []
+
+    # (score, tie_bias, kind, payload) — higher score wins.
+    candidates: list[tuple[int, int, str, dict]] = []
+
+    # ── Weakness levers from current concerns ──
+    for idx, item in enumerate(needs_attention or []):
+        lever = _classify_lever(
+            item.get("title"), item.get("message"),
+            item.get("insight_type"), item.get("module"),
+        )
+        if not lever:
+            continue
+        rank = _LEVERS[lever]["rank"]
+        sev_bonus = 8 if item.get("severity") == "critical" else 4
+        candidates.append((rank + sev_bonus, -idx, "weakness", {
+            "lever": lever,
+            "module": item.get("module"),
+        }))
+
+    # ── Positive lever from the strongest non-risk prediction ──
     pool = (
         Prediction.objects.filter(user=user, status="active")
         .filter(confidence_score__gte=0.6)
         .order_by("-confidence_score", "-created_at")[:10]
     )
-    candidate = next((p for p in pool if not _is_risk_prediction(p)), None)
-    if not candidate:
+    pred = next((p for p in pool if not _is_risk_prediction(p)), None)
+    if pred is not None:
+        explanation = (pred.explanation or "").strip()
+        if explanation:
+            first_clause = explanation.split(". ")[0].rstrip(".") + "."
+            rest = explanation[len(first_clause):].strip()
+        else:
+            first_clause = _humanize_type(pred.prediction_type)
+            rest = ""
+        lever = _classify_lever(
+            pred.prediction_type, explanation, pred.module,
+        ) or "momentum"
+        candidates.append((_LEVERS[lever]["rank"] + 2, 0, "positive", {
+            "lever": lever,
+            "module": pred.module,
+            "confidence": round(pred.confidence_score, 2),
+            "title": first_clause,
+            "message": rest or "Trajectory looks favorable.",
+        }))
+
+    if not candidates:
         return None
 
-    explanation = (candidate.explanation or "").strip()
-    if explanation:
-        # First clause becomes the title; the rest is supporting text.
-        first_clause = explanation.split(". ")[0].rstrip(".") + "."
-        rest = explanation[len(first_clause):].strip()
-        title = first_clause
-        message = rest or "Trajectory looks favorable."
-    else:
-        title = _humanize_type(candidate.prediction_type)
-        message = "Trajectory looks favorable."
+    # Highest leverage wins; ties → fixing a weakness before protecting a
+    # positive, then original ordering. Fully deterministic.
+    _KIND_PRIORITY = {"weakness": 1, "positive": 0}
+    candidates.sort(
+        key=lambda c: (c[0], _KIND_PRIORITY[c[2]], c[1]), reverse=True,
+    )
+    _score, _bias, kind, payload = candidates[0]
+    lever = _LEVERS[payload["lever"]]
 
+    if kind == "positive":
+        return {
+            "headline": lever["headline"],
+            # Prefer the grounded explanation sentence as the rationale; it's
+            # specific to the user. Fall back to the lever's generic why.
+            "why": _clip_sentence(payload["title"]) or lever["why"],
+            # Back-compat: explanation observation stays in title/message.
+            "title": payload["title"],
+            "message": payload["message"],
+            "module": payload.get("module"),
+            "confidence": payload.get("confidence"),
+            "lever": payload["lever"],
+            "kind": "positive",
+            "source": "prediction",
+        }
+
+    # Weakness path — constructive action + curated rationale.
     return {
-        "title": title,
-        "message": message,
-        "module": candidate.module,
-        "confidence": round(candidate.confidence_score, 2),
-        "source": "prediction",
+        "headline": lever["headline"],
+        "why": lever["why"],
+        "title": lever["headline"],
+        "message": lever["why"],
+        "module": payload.get("module"),
+        "lever": payload["lever"],
+        "kind": "weakness",
+        "source": "insight",
     }
 
 
@@ -802,23 +967,41 @@ def _humanize_type(s: str) -> str:
 
 
 def _collect_recommendations(user) -> list[dict[str, Any]]:
-    """Top deterministic guidance — small set, priority first."""
+    """Top deterministic guidance — value-ranked, de-duplicated by title.
+
+    Guidance rows dedupe in storage by ``dedupe_key`` (which encodes a
+    rolling time window), so the SAME recommendation (e.g. "Progression
+    check-in") can persist as several active rows. A repeated chip reads as
+    an unintelligent system, so we collapse by normalized title — keeping the
+    highest-priority / newest instance — BEFORE capping. On low-signal weeks
+    this yields FEWER chips rather than padded repeats; it never shows the
+    same recommendation twice.
+    """
     from apps.core.ai_guidance.models import GuidanceItem
 
+    # Pull a wider pool than we'll show so dedup can collapse repeats without
+    # starving the row of distinct items. order_by priority (value) first.
     qs = (
         GuidanceItem.objects.filter(user=user, is_active=True)
-        .order_by("priority", "-created_at")[:MAX_RECOMMENDATIONS]
+        .order_by("priority", "-created_at")[: MAX_RECOMMENDATIONS * 5]
     )
-    return [
-        {
+    seen_titles: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for g in qs:
+        key = (g.title or "").strip().lower()
+        if not key or key in seen_titles:
+            continue
+        seen_titles.add(key)
+        out.append({
             "title": g.title,
             "message": g.message,
             "priority": g.priority,
             "module": g.module,
             "guidance_type": g.guidance_type,
-        }
-        for g in qs
-    ]
+        })
+        if len(out) >= MAX_RECOMMENDATIONS:
+            break
+    return out
 
 
 # ── Trajectory ─────────────────────────────────────────────────────────

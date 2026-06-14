@@ -7,6 +7,27 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-14 — feat(briefing): Biggest Opportunity → highest-leverage ACTION + dedup Recommended Focus
+
+**Problem:** The Executive Briefing "Biggest Opportunity" tile read like analytics, not decision support — it surfaced an *observation* ("…on pace to reach your goal weight") and never told the user what to DO. Separately, "Recommended Focus" could show the same chip ("Progression check-in") three times — a trust failure.
+
+**Audit / root cause (both deterministic, no LLM involved):**
+- *Opportunity:* `_collect_biggest_opportunity()` set the tile `title` to the first sentence of a Prediction's `explanation` (an observation) and the template rendered only that. The action half sat unrendered in `message`. **Presentation/data-contract gap — the action-translation layer was never built.** Not a scoring/prompt/LLM issue.
+- *Duplicate chips:* `_collect_recommendations()` sliced the top-3 GuidanceItems by priority with **no dedup by title**, and capped *before* deduping. Guidance rows dedupe in storage by `dedupe_key` (rolling window), so the same recommendation persists as several rows → identical chips.
+
+**Changes (`apps/core/cos_briefing/executive_summary.py`):**
+- **Highest-leverage opportunity.** `_collect_biggest_opportunity()` now ranks candidate *levers* by LEVERAGE (sleep/recovery > nutrition/muscle > glucose > training > weight > habit…) across BOTH weakness signals (warning/critical Insights via `needs_attention`) and the strongest non-risk Prediction, and returns the single highest-leverage move as a constructive ACTION `headline` + one-sentence `why`. A weakness is reframed as the action to take ("Prioritize sleep tonight"), never echoed as a raw risk statement — so the prior "no risk text under Opportunity" coherence contract still holds. Deterministic; sleep/recovery rank highest because they compound into the other domains. Per user decision, the tile sources from the highest-leverage lever even when it addresses a weakness.
+- **Back-compat:** `title`/`message` retained (positive path keeps the prediction explanation); new additive keys `headline`, `why`, `lever`, `kind`.
+- **Dedup Recommended Focus.** `_collect_recommendations()` now pulls a wider pool, collapses by normalized title (highest-priority/newest wins), THEN caps at 3 — never repeats a chip; low-signal weeks naturally show fewer, not padded repeats. Mirrors the existing `_collect_needs_attention` dedup.
+- **Template/CSS:** `templates/dashboard_v3/sections/executive_summary.html` renders `headline` (bold) + `why` (subtext); new `.v3-callout-why` style in `static/dashboard_v3/css/dashboard_v3.css`.
+
+**Trust/safety:** Zero LLM added (module stays deterministic — the no-LLM guard test still passes). Beth is unaffected — she consumes this dict; keys are additive. Selection is stable/deterministic (leverage rank + severity, deterministic tie-breaks). The positive-prediction path and the "all-risk → None" behavior are preserved.
+
+**Tests:** New `apps/core/cos_briefing/tests/test_biggest_opportunity_leverage.py` (14) — action-oriented wording, highest-leverage prioritization, weakness-outranks-positive, positive fallback, no-duplicate chips, low-signal graceful, short-form length caps. Existing briefing/coherence/composer suites pass (70 run; 1 pre-existing unrelated failure `test_headline_for_many_overdue` — stale "past due" assertion from the Phase A headline rework, proven pre-existing by stashing this change; flagged for separate fix).
+
+**Files:** `apps/core/cos_briefing/executive_summary.py`, `templates/dashboard_v3/sections/executive_summary.html`, `static/dashboard_v3/css/dashboard_v3.css`, `apps/core/cos_briefing/tests/test_biggest_opportunity_leverage.py` (new). No model change/migration.
+
+
 ## 2026-06-14 — feat(life): Routine History — retroactive completion CRUD with truthful correction labeling
 
 **Problem:** If a user forgot to mark routines complete (especially yesterday), there was no user-facing way to review historical routine execution and retroactively correct it. The backend already supported it (the toggle endpoint accepts a `date` param; `RoutineLog` already has `completed_at`/`performed_at`/`completion_source`/`is_user_corrected`), but nothing exposed it to non-admin users — so adherence stats and the Chief of Staff coached from "skipped" when the user had actually done the item.

@@ -49,7 +49,10 @@
             {% if summary.biggest_opportunity %}
                 <div class="v3-callout v3-callout-opp">
                     <span class="v3-callout-label">Biggest Opportunity</span>
-                    <p class="v3-callout-title">{{ summary.biggest_opportunity.title }}</p>
+                    <p class="v3-callout-title">{{ summary.biggest_opportunity.headline|default:summary.biggest_opportunity.title }}</p>
+                    {% if summary.biggest_opportunity.why %}
+                        <p class="v3-callout-why">{{ summary.biggest_opportunity.why }}</p>
+                    {% endif %}
                 </div>
             {% endif %}
             {% if not summary.biggest_risk and not summary.biggest_opportunity %}

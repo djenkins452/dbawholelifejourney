@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-14 — test(briefing): reconcile stale at-risk headline assertion with approved Phase A copy
+
+Phase A of the Executive Briefing trust fix (A1 time-aware headline matrix, A2 dedupe-by-title, A3 calorie synthesis) was already implemented and shipped in commit `47a0cee8` (2026-06-06) and is live on main. On stakeholder approval of the Phase A morning/at-risk framing ("recover, don't shame" — no "past due"/damage-control wording), the one remaining inconsistency was a stale unit test.
+
+`apps/dashboard_v3/tests/test_composer.py::HeadlineAndMomentumTests::test_headline_for_many_overdue` still asserted the OLD `"past due"` copy, which the Phase A `_HEADLINE_MATRIX` deliberately removed (at_risk/midday now reads "Several priorities slipped this morning — reprioritize and protect the afternoon."). Updated the assertion to lock in the approved framing: asserts the headline is constructive (`"reprioritize"`) and explicitly does NOT contain `"past due"`. Test-only change; no behavior/copy change.
+
+Scope discipline: Phase B (risk-aware action reconciliation — health risks ↔ "Do This Now") remains deferred and untouched.
+
+**Files:** `apps/dashboard_v3/tests/test_composer.py`.
+
+**Tests:** `HeadlineAndMomentumTests` (12) pass; `test_executive_summary_phase_a` (Phase A spec) passes. (Unrelated, pre-existing, time-of-day-dependent flake: `RhythmInteractionModeTests::test_preview_mode_groups_future_items_by_time_no_checkboxes` — fails in isolation regardless of this change; flagged separately.)
+
+
 ## 2026-06-14 — fix(ai): fail-closed guard against impossible weight-delta hallucinations (trust)
 
 **Problem:** Beth told the user "Over the last 14 days, your weight decreased by about **286.2 lbs**" — 286.2 is the *current* weight, not the 14-day change (actually −1.2 lbs). Asked again, she answered correctly. Obvious trust break.

@@ -673,8 +673,12 @@ class HeadlineAndMomentumTests(TestCase):
             "at_risk_actions": [],
         }
         self.assertEqual(_derive_overall_state([], [], None, state), "at_risk")
+        # user_now=None → midday band. Phase A trust framing is constructive
+        # (reprioritize / protect the afternoon), NOT the old shaming "past
+        # due" / damage-control wording. Lock both in.
         line = _derive_headline("at_risk", [], [], state, None)
-        self.assertIn("past due", line)
+        self.assertNotIn("past due", line.lower())
+        self.assertIn("reprioritize", line.lower())
 
     def test_summary_emits_headline_key(self):
         summary = build_executive_summary(self.user)

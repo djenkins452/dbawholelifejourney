@@ -143,11 +143,24 @@ def get_today_context(user) -> dict:
     # Priority: overdue items ALWAYS take precedence over the locked-next
     # pipeline. If meds or other items are overdue, the user needs to
     # handle those first — regardless of what the prioritizer says.
+    # Overdue precedence is for items that are still ACTIONABLE NOW — not
+    # long-stale ones. A 5:30 AM routine still open at 1:48 PM must not be the
+    # "next action" (trust bug 2026-06-15). Pick the earliest overdue item
+    # that is still execution-eligible (active or immediately-preceding block);
+    # if none qualify, defer to the block-gated locked next action.
     next_action = ""
     if overdue:
-        first_overdue = overdue[0].get('label', '')
-        if first_overdue:
-            next_action = f"Start with {first_overdue}."
+        try:
+            from apps.core.execution.active_block import (
+                get_active_block, first_eligible_overdue,
+            )
+            ab = get_active_block(user, now=user_now)
+            entry = first_eligible_overdue(overdue, ab, user_now.time())
+            if entry and entry.get('label'):
+                next_action = f"Start with {entry['label']}."
+        except Exception:
+            logger.debug(
+                "today_engine next_action overdue gate failed", exc_info=True)
     if not next_action:
         next_action = facts.get("next_action", "")
     if not next_action or next_action == "Unable to determine.":

@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-15 — fix(ai): three proven live trust failures — count coherence, stale next-action, empty-nutrition honesty
+
+Targeted fixes for three production trust breaks. Root-caused from code, smallest safe deterministic change each, no architecture changes.
+
+**F1 — Check-in count vs "how many left" divergence.** Live: midday check-in implied ~11 remaining ("Still ahead" + "+5 more"), then "How many things do I have left?" answered "5 tasks left". Root cause: "how many … left" matched NO deterministic route (`is_qualified_status_query` only knew "am I done?"/"anything left?" forms), so it fell through to the LLM, which guessed 5. Fix: new `_is_remaining_count_query()` in `apps/ai/deterministic_router.py` (matches "how many things/tasks/items … left/remaining/to do", excludes domain counts like calories/steps/workouts/doses) ORed into `is_qualified_status_query` → routes to the existing `_build_qualified_status_response`, which answers from the canonical Today-Engine remaining set (count == listed items, grounded, no LLM guess).
+
+**F2 — Invalid next action ("Start with Prayer Time (5:30 AM)" at 1:48 PM).** Root cause: `apps/core/today/today_engine.py` next_action picked `overdue[0]` — the EARLIEST (stalest) overdue item — with no staleness/block gate, so an 8-hour-old 5:30 AM routine became "next". Fix: new shared helper `first_eligible_overdue()` in `apps/core/execution/active_block.py` reuses the existing `is_item_in_active_block` gate (overdue eligible only in the active or immediately-preceding block); today_engine now picks the earliest STILL-actionable overdue item, else defers to the block-gated locked next action. Same gate applied to the sibling interactive next-action route (`_build_next_action_response`) so the identical bug can't recur via "what should I do next?". Stale items still surface in Risk/Fix, just not as "next".
+
+**F3 — "0 calories today" when nothing logged.** Root cause: `_nutrition_fact_response` emitted "You're at 0 calories today" because `daily_calories` is 0 (not None) on an empty log. Fix: when `food_entries_today == 0` and the value is 0, answer honestly — "I don't see nutrition logged today yet, so I'm currently showing 0 tracked calories." (same for protein). Preserves truth, no inference; a real logged total is unaffected. The existing contradictory/suspicious-snapshot refusal upstream is unchanged.
+
+**Verification:** 9 new regression tests in `apps/ai/tests/test_trust_repair_20260615.py` (one set per failure) pass. Regression sweep of 8 affected suites (316 tests): the 11 failures are confirmed PRE-EXISTING (identical on baseline via `git stash` — MagicMock-user tz/DB issues), zero new failures from this change.
+
+**Files:** `apps/ai/deterministic_router.py` (F1 matcher + F2 sibling gate + F3 wording), `apps/core/today/today_engine.py` (F2), `apps/core/execution/active_block.py` (F2 helper), `apps/ai/tests/test_trust_repair_20260615.py` (new). No model/schema/migration changes.
+
+
 ## 2026-06-15 — feat(ai): grounded glucose proxy reasoning (no silent metric substitution)
 
 **Problem:** asked for "approximate fasting blood glucose over the last several months" Beth said "I don't have the exact fasting data"; immediately after, asked for "average blood glucose shortly after I wake up" she returned the all-day 7-day average (129). Two trust breaks: (1) she didn't pivot to the closest grounded proxy, and (2) she silently answered a different metric than asked.

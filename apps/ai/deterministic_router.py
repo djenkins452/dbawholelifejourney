@@ -222,11 +222,37 @@ def _has_status_closer(msg_lower: str) -> bool:
     return any(ph in msg_lower for ph in _STATUS_CLOSER_PHRASES)
 
 
+# "How many do I have left?" style COUNT questions. Routed deterministically
+# so the count is grounded in canonical state (count == listed items) instead
+# of an LLM guess — the check-in-vs-followup divergence (trust bug 2026-06-15:
+# check-in implied 11 ahead, LLM said "5 tasks left"). Domain-specific counts
+# (calories/steps/workouts/…) are excluded — they have their own routes.
+_REMAINING_COUNT_CUES = (
+    'left', 'remaining', 'to do', 'to go', 'still have', 'have left',
+    'still got', 'outstanding',
+)
+_REMAINING_COUNT_DOMAIN_EXCL = (
+    'calorie', 'protein', 'carb', 'fat ', 'fiber', 'sugar', 'step',
+    'workout', 'glucose', 'blood sugar', 'dose', 'medication', 'medicine',
+    'water', 'fast', 'mile', 'rep', 'set ', 'prayer request',
+)
+
+
+def _is_remaining_count_query(msg_lower: str) -> bool:
+    """True for 'how many things/tasks/items do I have left' style questions."""
+    if 'how many' not in msg_lower and 'how much' not in msg_lower:
+        return False
+    if any(d in msg_lower for d in _REMAINING_COUNT_DOMAIN_EXCL):
+        return False
+    return any(c in msg_lower for c in _REMAINING_COUNT_CUES)
+
+
 def is_qualified_status_query(msg_lower: str) -> bool:
     """Detect if a message is a filtered/follow-up status question.
 
     Returns True for: "other than nutrition, anything left?",
-    "am I done?", "besides meds, what's remaining?"
+    "am I done?", "besides meds, what's remaining?", and grounded
+    remaining-count questions ("how many things do I have left?").
 
     Bare imperative commands that merely START with an exclusion verb
     ("skip shower", "ignore prayer") are NOT status queries — they must
@@ -245,7 +271,9 @@ def is_qualified_status_query(msg_lower: str) -> bool:
         if p in _IMPERATIVE_COMMAND_PREFIXES and not _has_status_closer(msg_lower):
             continue
         return True
-    return any(p in msg_lower for p in QUALIFIED_STATUS_QUESTIONS)
+    if any(p in msg_lower for p in QUALIFIED_STATUS_QUESTIONS):
+        return True
+    return _is_remaining_count_query(msg_lower)
 
 
 def _extract_exclusion_term(msg_lower: str):
@@ -3157,29 +3185,44 @@ def _nutrition_fact_response(nut, msg_lower):
     else:
         show_protein, show_calories = asked_protein, asked_calories
 
+    # Distinguish "logged 0" from "nothing logged yet" — a 0 with no food
+    # entries is an empty log, not a tracked zero. Preserve truth, no inference
+    # (trust bug 2026-06-15: "0 calories today" read as a real measurement).
+    food_count = nut.get('food_entries_today', 0) or 0
+
     blocks = []
 
     if show_protein and protein is not None:
-        block = [f"You're at **{int(protein)}g** protein today."]
-        if protein_target:
-            delta = int(protein) - int(protein_target)
-            block.append(f"Target: **{int(protein_target)}g**.")
-            if delta >= 0:
-                block.append(f"That's **{delta}g over** target.")
-            else:
-                block.append(f"That's **{abs(delta)}g under** target.")
-        blocks.append('\n'.join(block))
+        if not food_count and int(protein) == 0:
+            blocks.append(
+                "I don't see nutrition logged today yet, so I'm currently "
+                "showing 0g tracked protein.")
+        else:
+            block = [f"You're at **{int(protein)}g** protein today."]
+            if protein_target:
+                delta = int(protein) - int(protein_target)
+                block.append(f"Target: **{int(protein_target)}g**.")
+                if delta >= 0:
+                    block.append(f"That's **{delta}g over** target.")
+                else:
+                    block.append(f"That's **{abs(delta)}g under** target.")
+            blocks.append('\n'.join(block))
 
     if show_calories and cal is not None:
-        block = [f"You're at **{int(cal)}** calories today."]
-        if cal_target:
-            delta = int(cal) - int(cal_target)
-            block.append(f"Target: **{int(cal_target)}**.")
-            if delta >= 0:
-                block.append(f"That's **{delta} over** target.")
-            else:
-                block.append(f"That's **{abs(delta)} under** target.")
-        blocks.append('\n'.join(block))
+        if not food_count and int(cal) == 0:
+            blocks.append(
+                "I don't see nutrition logged today yet, so I'm currently "
+                "showing 0 tracked calories.")
+        else:
+            block = [f"You're at **{int(cal)}** calories today."]
+            if cal_target:
+                delta = int(cal) - int(cal_target)
+                block.append(f"Target: **{int(cal_target)}**.")
+                if delta >= 0:
+                    block.append(f"That's **{delta} over** target.")
+                else:
+                    block.append(f"That's **{abs(delta)} under** target.")
+            blocks.append('\n'.join(block))
 
     if not blocks:
         return None  # Nothing grounded for the asked nutrient → fall through
@@ -3675,18 +3718,33 @@ def _build_next_action_response(user):
 
         ctx = get_today_context(user)
 
-        # PRIORITY 1: Overdue — return FIRST (earliest) immediately
+        # PRIORITY 1: Overdue — earliest still-ACTIONABLE item only.
+        # A long-stale overdue item (e.g. 5:30 AM routine at 1:48 PM) must
+        # not be surfaced as "next" — it belongs in Risk/Fix (trust bug
+        # 2026-06-15). Same block-eligibility gate as the check-in path.
         overdue = ctx.get("overdue", [])
         if overdue:
-            # Already sorted by sort_time ASC from Today Engine,
-            # but enforce defensive sort for absolute correctness
             overdue = sorted(overdue, key=lambda e: e["sort_time"])
-            selected = overdue[0]["label"]
-            logger.info(
-                "[NEXT ACTION] user=%s OVERDUE selected=%s from=%d",
-                user.id, selected, len(overdue),
-            )
-            return f"Start {selected}."
+            selected = None
+            try:
+                from apps.core.execution.active_block import (
+                    get_active_block, first_eligible_overdue,
+                )
+                from apps.core.utils import get_user_now
+                _now = get_user_now(user)
+                ab = get_active_block(user, now=_now)
+                entry = first_eligible_overdue(overdue, ab, _now.time())
+                if entry:
+                    selected = entry["label"]
+            except Exception:
+                logger.debug("[NEXT ACTION] overdue gate failed", exc_info=True)
+            if selected:
+                logger.info(
+                    "[NEXT ACTION] user=%s OVERDUE selected=%s from=%d",
+                    user.id, selected, len(overdue),
+                )
+                return f"Start {selected}."
+            # No actionable overdue → fall through to coming-up / later.
 
         # PRIORITY 2: Coming up next — return FIRST immediately
         coming_up = ctx.get("coming_up", [])

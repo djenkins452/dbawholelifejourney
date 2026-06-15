@@ -265,6 +265,34 @@ def get_active_block(user, now=None, execution_items=None):
     }
 
 
+def first_eligible_overdue(overdue_entries, active_block, now_time):
+    """Earliest overdue Today-Engine entry that is still EXECUTION-eligible.
+
+    `overdue_entries` are today_engine bucket entries ({sort_time, label,
+    item}) sorted earliest-first. Returns the first entry whose item passes
+    `is_item_in_active_block` (active or immediately-preceding block), or None.
+
+    Purpose: a long-stale overdue item (e.g. a 5:30 AM routine still open at
+    1:48 PM) must NEVER be presented as the "next action" — it belongs in
+    Risk/Fix. This filter is the single rule both next-action selectors use so
+    they cannot diverge. Never raises.
+    """
+    for entry in overdue_entries or []:
+        if not isinstance(entry, dict):
+            continue
+        it = entry.get('item') or {}
+        try:
+            if is_item_in_active_block(
+                {'scheduled_time': it.get('time_str'),
+                 'time_status': 'overdue'},
+                active_block, now_time,
+            ):
+                return entry
+        except Exception:
+            continue
+    return None
+
+
 def is_item_in_active_block(item, active_block, now_time):
     """
     Decide whether an execution item is eligible for **EXECUTION mode**.

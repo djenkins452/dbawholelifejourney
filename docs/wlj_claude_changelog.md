@@ -7,6 +7,39 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-15 — feat(ai): grounded glucose proxy reasoning (no silent metric substitution)
+
+**Problem:** asked for "approximate fasting blood glucose over the last several months" Beth said "I don't have the exact fasting data"; immediately after, asked for "average blood glucose shortly after I wake up" she returned the all-day 7-day average (129). Two trust breaks: (1) she didn't pivot to the closest grounded proxy, and (2) she silently answered a different metric than asked.
+
+**Root cause:** the deterministic glucose summary handler (`_handle_glucose_query`) had no access to the requested concept (`msg_lower`) and always returned the 7-day average; the matcher didn't recognize "fasting" / "wake-up" / multi-month phrasing, so the fasting question fell through to the LLM. The data needed already existed — `GlucoseEntry.context="fasting"` and `build_glucose_summary().overnight_avg` (midnight–6am).
+
+**Fix (grounded proxy, no LLM guessing):**
+- New `build_glucose_proxy_answer(user, concept)` + `render_glucose_proxy_message()` in `apps/health/services/glucose_snapshot.py`. concept ∈ {fasting, wake_up, general}. fasting → prefer fasting-tagged readings (≥3 over 90d), else pivot to the overnight average as an EXPLICIT proxy, else honest limitation. wake_up → overnight average (or fasting-tagged) as proxy, else honest limitation — NEVER the all-day average. general → the 7-day average (unchanged).
+- Proxy answers are ALWAYS acknowledged ("I don't have a strict fasting glucose metric, but using your overnight readings (midnight–6am) as a proxy…"). No grounded data → "I don't have enough … readings to give you a grounded number, so I won't guess." Never silently substitutes.
+- `apps/ai/deterministic_router.py`: added `_glucose_concept()` + fasting/wake-up/overnight/month anchors so these questions route deterministically; `_handle_glucose_query(user, msg_lower=None)` (dispatcher auto-passes msg_lower) calls the proxy path for concept-specific questions. No collision with the "am I fasting?" duration route (distinct phrases). General glucose path unchanged.
+
+**Tests:** `apps/health/tests/test_glucose_proxy.py` (15) — the 4 required cases (exact→use it, absent-but-proxy→pivot, no-proxy→honest, never-substitute), render acknowledgments, concept detection, deterministic routing of the two failing queries, + a real-DB exact-fasting check.
+
+**Files:** `apps/health/services/glucose_snapshot.py`, `apps/ai/deterministic_router.py`, `apps/health/tests/test_glucose_proxy.py`. No model/schema/migration changes.
+
+
+## 2026-06-15 — feat(ai): Beth trust hardening Phase 2 — ENFORCE count + entity guards, fix calorie source
+
+Promotes the Phase 1 observe-only detectors to fail-closed enforcement for the two user-facing trust-critical guards, and fixes the calorie two-truths problem at its source. Surgical — no routing/Beth/faith/page-awareness changes.
+
+**1. Count coherence — ENFORCE (`WLJ_BETH_COUNT_GUARD_ENABLED` default True).** Fires ONLY when canonical state is itself incoherent (`routine_total − routine_done != len(pending_names)`). Two layers: (a) source — `_build_routine_summary` (cos_fact_statements) returns fail-closed wording listing the ACTUAL pending items instead of a confident "X of Y"; (b) post-LLM — `enforce_count_coherence` (cos_coherence_guards) replaces any routine/checklist count claim in Beth's reply ("19 of 25", "6 items remaining") with the same safe wording + real items. Medication-dose sentences ("4 of 6 doses") are explicitly excluded so a routine mismatch never clobbers them. When counts reconcile, the reply is untouched — Beth answers naturally. No invented sixth item ever reaches the user.
+
+**2. Operational entity hallucination — ENFORCE (`WLJ_BETH_ENTITY_GUARD_ENABLED` default True).** `enforce_entity_hallucination` strips invented medication GROUP labels ("Nightly Medications" → "your medications") — meds have no grouping entity, so the time-of-day prefix is fabricated. A phrase that IS a real entity name (e.g. a routine literally called "Morning Vitamins") is left intact (checked against `build_canonical_entity_set`). Both guards correct IN PLACE (append a `should_reject=False` violation → applied on streaming AND non-streaming paths, no regeneration), the proven weight-delta-guard pattern.
+
+**3. Canonical calorie truth — FIX SOURCE (proven, not just logged).** Root cause proof: the dashboard "Calories under target by N%" chip comes from `NutritionCalorieTrendRule` (`apps/core/ai_insights/rules_transformation.py`) computed over `rolling_7d_calories_avg` (7-DAY average), while Beth reports `calorie_compliance_pct` = TODAY's `daily_calories / target` (`build_nutrition_state`). Genuinely different concepts (7-day trend vs today) sharing one label — that is the "22% vs 26%" break. Fix: relabeled the rule title to `"Calories trending {over/under} target by N% (7-day avg)"` so the trend value can never read as today's point-in-time truth (same-label-same-value). Updated `_synthesize_calorie_alerts` direction detection (executive_summary) to read over/under from title content, not a prefix. The TODAY concept already has one canonical reader (`calorie_compliance_pct` / `get_canonical_nutrition`) consumed by both the dashboard nutrition metric chip and Beth — no duplicate today-percentage exists. Nutrition divergence detector stays observe-only (the fix is the relabel, not text correction).
+
+**Blast radius:** guards act only on a real defect (incoherent canonical count / fabricated entity); coherent, entity-clean replies are byte-identical. Flag-gated kill switches per guard. No model/schema/migration changes.
+
+**Files:** `apps/ai/cos_coherence_guards.py` (enforce_count_coherence, enforce_entity_hallucination), `apps/ai/cos_truth_validator.py` (wiring), `apps/ai/cos_fact_statements.py` (source fail-closed + routine_pending_names), `apps/core/ai_insights/rules_transformation.py` (calorie title relabel), `apps/core/cos_briefing/executive_summary.py` (direction detection), `config/settings.py` (flags default ON), `apps/ai/tests/test_cos_coherence_guards.py` (+enforcement tests), `apps/core/ai_insights/tests_transformation.py` (+title assertion).
+
+**Tests:** see test run in commit. Count enforcement (mismatch → fail-closed, coherent → untouched, med-dose not clobbered, guard-off → observe), entity enforcement (strip invented label, keep real entity, guard-off → observe), calorie title relabel.
+
+
 ## 2026-06-14 — feat(ai): Beth trust hardening Phase 1 — three coherence detectors (OBSERVE-ONLY)
 
 **Context:** Trust-first architecture pass. Beth occasionally "sounds smart while being wrong" — narrating around incomplete/inconsistent state. Rather than rebuild her, we extend the existing trust architecture (locked facts → cos_truth_validator → health_truth guards) with three new detectors that QUANTIFY the failure classes on real traffic before we enforce. Phase 1 is observe-only: detectors log when they fire but never alter Beth's output (byte-identical) and never raise.

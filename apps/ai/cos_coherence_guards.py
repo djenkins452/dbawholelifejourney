@@ -133,6 +133,100 @@ def check_count_coherence(user, *, routine_total, routine_done, pending_names,
     return mismatches
 
 
+# Fail-closed wording when checklist counts don't reconcile — never narrate a
+# broken count, never invent an item; surface the actual canonical items only.
+_COUNT_MISMATCH_FALLBACK = (
+    "I'm seeing a mismatch in your checklist counts, so I don't want to guess."
+)
+
+# Routine/checklist completion-count claims in a reply: "19 of 25", "6 items
+# remaining", "5 left". Medication-dose claims are deliberately excluded so a
+# routine mismatch never clobbers a correct "4 of 6 doses" sentence.
+_COUNT_OF_RE = re.compile(r"\b\d{1,3}\s+of\s+\d{1,3}\b", re.I)
+# Up to 3 filler words between the number and the "remaining" cue so real
+# phrasing like "6 routine items remaining" / "5 things still to do" matches.
+# Over-matching ("20 minutes left") is gated downstream by _LIST_CONTEXT_RE
+# (must mention routine/item/task) and the medication exclusion.
+_COUNT_REMAINING_RE = re.compile(
+    r"\b\d{1,3}\s+(?:[\w'-]+\s+){0,3}?"
+    r"(?:remaining|left|to\s+go|outstanding|still\s+(?:pending|left|to\s+do))\b",
+    re.I,
+)
+_LIST_CONTEXT_RE = re.compile(r"\b(routine|checklist|item|task|to-?do)s?\b", re.I)
+_MED_CONTEXT_RE = re.compile(
+    r"\b(dose|medication|medicine|supplement|pill|vitamin)s?\b", re.I)
+
+
+def enforce_count_coherence(response_text, user, *, routine_total,
+                            routine_done, pending_names):
+    """Fail closed on incoherent routine/checklist counts (G1 enforcement).
+
+    Fires ONLY when canonical state is itself incoherent
+    (`routine_total − routine_done != len(pending_names)`). In that case any
+    sentence in the reply that states a routine completion count is replaced
+    (once) with safe wording that lists the ACTUAL pending items — so Beth
+    never narrates the broken count and never invents a missing item. When the
+    counts reconcile, the reply is returned untouched (Beth answers naturally).
+
+    When the guard flag is off, falls back to observe-only logging. Returns
+    (text, num_flagged). Never raises.
+    """
+    if not response_text:
+        return response_text, 0
+    if not count_guard_enforced():
+        # observe-only fallback at the response stage
+        check_count_coherence(
+            user, routine_total=routine_total, routine_done=routine_done,
+            pending_names=pending_names,
+        )
+        return response_text, 0
+    try:
+        try:
+            total = int(routine_total or 0)
+            done = int(routine_done or 0)
+        except (TypeError, ValueError):
+            return response_text, 0
+        listed = len(pending_names or [])
+        if total <= 0 or (total - done) == listed:
+            return response_text, 0  # coherent — leave the reply natural
+
+        sentences = re.split(r"(?<=[.!?])\s+", response_text)
+        out = []
+        flagged = 0
+        emitted = False
+        for s in sentences:
+            states_count = bool(
+                _COUNT_OF_RE.search(s) or _COUNT_REMAINING_RE.search(s))
+            is_list_ctx = bool(_LIST_CONTEXT_RE.search(s))
+            is_med_ctx = bool(_MED_CONTEXT_RE.search(s))
+            if states_count and is_list_ctx and not is_med_ctx:
+                flagged += 1
+                if not emitted:
+                    items = (
+                        ", ".join(pending_names[:8]) if pending_names
+                        else "none that I can confirm right now"
+                    )
+                    out.append(
+                        f"{_COUNT_MISMATCH_FALLBACK} The remaining items I can "
+                        f"see are: {items}."
+                    )
+                    emitted = True
+                continue
+            out.append(s)
+        if not flagged:
+            return response_text, 0
+        logger.error(
+            "[CoS COUNT GUARD] user=%s FAIL-CLOSED enforce=True corrected=%d "
+            "claim(s) (canonical total=%d done=%d listed=%d)",
+            getattr(user, "id", "?"), flagged, total, done, listed,
+        )
+        return " ".join(p for p in out if p).strip(), flagged
+    except Exception:
+        logger.debug("count coherence enforcement skipped (non-fatal)",
+                     exc_info=True)
+        return response_text, 0
+
+
 # ── G2 — Operational Entity Hallucination (medication group labels) ──────
 
 # Invented grouping labels: a time-of-day word glued to a medication noun.
@@ -223,6 +317,53 @@ def detect_operational_entity_hallucination(user, response_text,
         logger.debug("entity hallucination check skipped (non-fatal)",
                      exc_info=True)
     return findings
+
+
+def enforce_entity_hallucination(response_text, user, entity_set=None):
+    """Strip invented medication GROUP labels from the reply (G2 enforcement).
+
+    A phrase like "Nightly Medications" is a fabricated abstraction (meds have
+    no grouping entity). When enforcement is on, the time-of-day prefix is
+    removed so the fabricated grouping becomes a plain, source-true noun
+    ("your Nightly Medications" → "your medications"); the invented entity
+    never reaches the user. A phrase that IS a real entity name (e.g. a routine
+    literally called "Morning Vitamins") is left intact.
+
+    When the guard flag is off, falls back to observe-only logging. Returns
+    (text, num_flagged). Never raises.
+    """
+    if not response_text:
+        return response_text, 0
+    if not entity_guard_enforced():
+        detect_operational_entity_hallucination(user, response_text, entity_set)
+        return response_text, 0
+    try:
+        if not _MED_GROUP_RE.search(response_text):
+            return response_text, 0
+        if entity_set is None:
+            entity_set = build_canonical_entity_set(user)
+        flagged_phrases = []
+
+        def _repl(m):
+            phrase = m.group(0)
+            if phrase.strip().lower() in entity_set:
+                return phrase  # a real entity carries this label — keep it
+            flagged_phrases.append(phrase)
+            return m.group(2).lower()  # drop the fabricated time-of-day prefix
+
+        corrected = _MED_GROUP_RE.sub(_repl, response_text)
+        if not flagged_phrases:
+            return response_text, 0
+        logger.error(
+            "[CoS ENTITY GUARD] user=%s FAIL-CLOSED enforce=True stripped "
+            "invented med-group label(s)=%s (canonical entities=%d)",
+            getattr(user, "id", "?"), flagged_phrases, len(entity_set or []),
+        )
+        return corrected, len(flagged_phrases)
+    except Exception:
+        logger.debug("entity hallucination enforcement skipped (non-fatal)",
+                     exc_info=True)
+        return response_text, 0
 
 
 # ── G3 — Metric Coherence (calories) ────────────────────────────────────

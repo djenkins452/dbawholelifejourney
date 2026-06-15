@@ -204,3 +204,101 @@ class CanonicalNutritionTests(SimpleTestCase):
         ):
             out = g.get_canonical_nutrition(USER)
         self.assertFalse(out["available"])
+
+
+@override_settings(
+    WLJ_BETH_COHERENCE_DIAG_ENABLED=True, WLJ_BETH_COUNT_GUARD_ENABLED=True)
+class EnforceCountCoherenceTests(SimpleTestCase):
+    def test_incoherent_count_claim_failclosed(self):
+        # Canonical: 25 total, 19 done → 6 remaining, but only 5 real items.
+        text = (
+            "You're at 19 of 25 routine items complete. "
+            "Keep going — you've got this!"
+        )
+        out, n = g.enforce_count_coherence(
+            text, USER, routine_total=25, routine_done=19,
+            pending_names=["Shower", "Stretch", "Vitamins", "Walk", "Read"],
+        )
+        self.assertEqual(n, 1)
+        self.assertNotIn("19 of 25", out)
+        self.assertIn("mismatch in your checklist counts", out)
+        # Lists the ACTUAL items, invents nothing.
+        self.assertIn("Shower", out)
+        self.assertIn("Read", out)
+        # Untouched sentence preserved.
+        self.assertIn("you've got this", out)
+
+    def test_remaining_phrasing_failclosed(self):
+        out, n = g.enforce_count_coherence(
+            "You have 6 routine items remaining today.",
+            USER, routine_total=25, routine_done=19,
+            pending_names=["A", "B", "C", "D", "E"],
+        )
+        self.assertEqual(n, 1)
+        self.assertNotIn("6 routine items remaining", out)
+
+    def test_coherent_count_untouched(self):
+        # 25 total, 20 done → 5 remaining, 5 listed → natural, no correction.
+        text = "You're at 20 of 25 routine items complete. Nice momentum."
+        out, n = g.enforce_count_coherence(
+            text, USER, routine_total=25, routine_done=20,
+            pending_names=["A", "B", "C", "D", "E"],
+        )
+        self.assertEqual(n, 0)
+        self.assertEqual(out, text)
+
+    def test_medication_sentence_not_clobbered(self):
+        # Routine counts incoherent, but the count claim is about DOSES.
+        text = "You've taken 4 of 6 medication doses today."
+        out, n = g.enforce_count_coherence(
+            text, USER, routine_total=25, routine_done=19,
+            pending_names=["A", "B", "C", "D", "E"],
+        )
+        self.assertEqual(n, 0)
+        self.assertEqual(out, text)
+
+    @override_settings(WLJ_BETH_COUNT_GUARD_ENABLED=False)
+    def test_guard_off_observe_only(self):
+        text = "You're at 19 of 25 routine items complete."
+        out, n = g.enforce_count_coherence(
+            text, USER, routine_total=25, routine_done=19,
+            pending_names=["A", "B", "C", "D", "E"],
+        )
+        self.assertEqual(n, 0)
+        self.assertEqual(out, text)  # observe-only: not altered
+
+
+@override_settings(
+    WLJ_BETH_COHERENCE_DIAG_ENABLED=True, WLJ_BETH_ENTITY_GUARD_ENABLED=True)
+class EnforceEntityHallucinationTests(SimpleTestCase):
+    def test_invented_group_label_stripped(self):
+        out, n = g.enforce_entity_hallucination(
+            "Don't forget your Nightly Medications before bed.",
+            USER, entity_set={"metformin hcl er", "magnesium glycinate"},
+        )
+        self.assertEqual(n, 1)
+        self.assertNotIn("Nightly Medications", out)
+        self.assertIn("your medications before bed", out)
+
+    def test_real_entity_label_kept(self):
+        out, n = g.enforce_entity_hallucination(
+            "Take your Morning Vitamins.",
+            USER, entity_set={"morning vitamins"},
+        )
+        self.assertEqual(n, 0)
+        self.assertIn("Morning Vitamins", out)
+
+    def test_individual_med_names_untouched(self):
+        text = "Take Metformin HCL ER and Magnesium glycinate tonight."
+        out, n = g.enforce_entity_hallucination(
+            text, USER, entity_set={"metformin hcl er", "magnesium glycinate"},
+        )
+        self.assertEqual(n, 0)
+        self.assertEqual(out, text)
+
+    @override_settings(WLJ_BETH_ENTITY_GUARD_ENABLED=False)
+    def test_guard_off_observe_only(self):
+        text = "Don't forget your Nightly Medications."
+        out, n = g.enforce_entity_hallucination(text, USER, entity_set=set())
+        self.assertEqual(n, 0)
+        self.assertEqual(out, text)  # observe-only: not altered

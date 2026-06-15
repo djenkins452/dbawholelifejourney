@@ -468,21 +468,47 @@ def validate_locked_facts(response_text, locked_facts, user,
     except Exception:
         logger.debug("weight delta guard skipped (non-fatal)", exc_info=True)
 
-    # ── Phase 1 coherence detectors (OBSERVE-ONLY) ───────────────
-    # Entity-hallucination (invented med group labels like "Nightly
-    # Medications") and calorie-metric divergence ("26% under target" vs the
-    # canonical reader). Pure logging — they MUST NOT touch response_text or
-    # append violations in Phase 1, so output stays byte-identical. Lazy and
-    # flag-gated; never raise. Phase 2 promotes them to fail-closed.
+    # ── Coherence guards (FAIL-CLOSED when enabled) ──────────────
+    # G2 entity-hallucination (invented med group labels like "Nightly
+    # Medications") and G1 count coherence (broken "X of Y / N remaining"
+    # checklist counts) correct the reply IN PLACE — same pattern as the
+    # weight-delta guard: a should_reject=False violation is appended so the
+    # corrected text is applied on BOTH streaming and non-streaming paths
+    # without triggering a regeneration. Each fires ONLY on a real problem
+    # (fabricated entity / incoherent canonical count) so normal replies are
+    # untouched. Calorie divergence stays observe-only (the calorie fix is the
+    # 7-day source relabel, not text correction). Flag-gated; never raise.
     try:
         from apps.ai.cos_coherence_guards import (
             detect_calorie_divergence,
-            detect_operational_entity_hallucination,
+            enforce_count_coherence,
+            enforce_entity_hallucination,
         )
-        detect_operational_entity_hallucination(user, response_text)
+        response_text, _ent_fixed = enforce_entity_hallucination(
+            response_text, user)
+        if _ent_fixed:
+            violations.append({
+                'domain': 'medications',
+                'type': 'invented_entity_corrected',
+                'locked_statement': '',
+                'should_reject': False,
+            })
+        response_text, _count_fixed = enforce_count_coherence(
+            response_text, user,
+            routine_total=raw.get('routine_total', 0),
+            routine_done=raw.get('routine_done', 0),
+            pending_names=raw.get('routine_pending_names', []),
+        )
+        if _count_fixed:
+            violations.append({
+                'domain': 'routines',
+                'type': 'count_mismatch_corrected',
+                'locked_statement': '',
+                'should_reject': False,
+            })
         detect_calorie_divergence(user, response_text)
     except Exception:
-        logger.debug("phase-1 coherence detectors skipped", exc_info=True)
+        logger.debug("coherence guards skipped (non-fatal)", exc_info=True)
 
     # Check each NOT-done domain for false completion claims
     _domain_checks = [

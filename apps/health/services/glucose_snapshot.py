@@ -288,6 +288,167 @@ def build_glucose_summary(user) -> dict | None:
     }
 
 
+# Minimum context-tagged readings before we'll report a context-specific
+# average as grounded truth (below this, the sample is too thin to trust).
+_MIN_CONTEXT_READINGS = 3
+
+
+def _context_avg_90d(user, context):
+    """(avg int, count) of glucose readings tagged `context` over 90 days.
+
+    Returns (None, 0) when fewer than _MIN_CONTEXT_READINGS exist. Pure
+    aggregation over GlucoseEntry; never raises here (caller guards).
+    """
+    from django.db.models import Avg
+
+    from apps.health.models import GlucoseEntry
+
+    cutoff_90d = timezone.now() - timedelta(days=90)
+    qs = GlucoseEntry.objects.filter(
+        user=user, recorded_at__gte=cutoff_90d, context=context,
+    )
+    n = qs.count()
+    if n < _MIN_CONTEXT_READINGS:
+        return None, n
+    avg = qs.aggregate(a=Avg("value"))["a"]
+    if avg is None:
+        return None, n
+    return int(round(float(avg))), n
+
+
+def build_glucose_proxy_answer(user, concept: str) -> dict | None:
+    """Grounded answer for the glucose *concept* the user asked about, using
+    the closest REAL data and never silently substituting a different metric.
+
+    `concept` ∈ {"fasting", "wake_up", "general"}.
+
+    Returns None only when there is NO glucose data at all (caller falls
+    through). Otherwise a dict:
+        {
+          "concept": str,           # what the user asked for
+          "available": bool,        # did we find a grounded number?
+          "value": int | None,      # mg/dL
+          "metric_label": str,      # what the number actually IS
+          "is_proxy": bool,         # True when value stands in for `concept`
+          "proxy_basis": str|None,  # phrase naming the proxy source
+          "sample_size": int|None,
+        }
+
+    Grounding rules (no LLM, no guessing):
+      - fasting → prefer fasting-tagged readings; else pivot to the overnight
+        (midnight–6am) average as an explicit fasting PROXY; else unavailable.
+      - wake_up → prefer the overnight (early-morning) average; else
+        fasting-tagged readings as a proxy; else unavailable. NEVER the
+        all-day 7-day average (that was the silent-substitution bug).
+      - general → the 7-day average (the existing summary metric).
+    """
+    summary = build_glucose_summary(user)
+    if summary is None:
+        return None  # no glucose data at all
+
+    def _unavailable():
+        return {
+            "concept": concept, "available": False, "value": None,
+            "metric_label": "", "is_proxy": False, "proxy_basis": None,
+            "sample_size": None,
+        }
+
+    overnight = summary.get("overnight_avg")
+
+    if concept == "fasting":
+        fasting_avg, n = _context_avg_90d(user, "fasting")
+        if fasting_avg is not None:
+            return {
+                "concept": concept, "available": True, "value": fasting_avg,
+                "metric_label": "fasting glucose average (last 90 days)",
+                "is_proxy": False, "proxy_basis": None, "sample_size": n,
+            }
+        if overnight is not None:
+            return {
+                "concept": concept, "available": True,
+                "value": int(round(overnight)),
+                "metric_label": "overnight glucose average",
+                "is_proxy": True,
+                "proxy_basis": "your overnight readings (midnight–6am)",
+                "sample_size": None,
+            }
+        return _unavailable()
+
+    if concept == "wake_up":
+        if overnight is not None:
+            return {
+                "concept": concept, "available": True,
+                "value": int(round(overnight)),
+                "metric_label": "overnight glucose average (midnight–6am)",
+                "is_proxy": True,
+                "proxy_basis": "your overnight readings (midnight–6am), the "
+                               "closest signal to your wake-up level",
+                "sample_size": None,
+            }
+        fasting_avg, n = _context_avg_90d(user, "fasting")
+        if fasting_avg is not None:
+            return {
+                "concept": concept, "available": True, "value": fasting_avg,
+                "metric_label": "fasting glucose average",
+                "is_proxy": True,
+                "proxy_basis": "your fasting-tagged readings",
+                "sample_size": n,
+            }
+        return _unavailable()
+
+    # general
+    avg_7d = summary.get("average_7d")
+    if avg_7d is not None:
+        return {
+            "concept": concept, "available": True, "value": int(avg_7d),
+            "metric_label": "7-day average glucose", "is_proxy": False,
+            "proxy_basis": None, "sample_size": None,
+        }
+    return _unavailable()
+
+
+def _glucose_range_note(value) -> str:
+    """Deterministic clinical-range note for a glucose value (mg/dL)."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return ""
+    if v < 100:
+        return " That's in the normal range."
+    if v < 126:
+        return " That's in the pre-diabetic range — worth watching."
+    return " That's elevated — something to discuss with your doctor."
+
+
+def render_glucose_proxy_message(answer: dict | None,
+                                 concept_phrase: str) -> str | None:
+    """Render the grounded-proxy answer. `concept_phrase` is the user-facing
+    name of what they asked for (e.g. "fasting glucose", "wake-up glucose").
+
+    - is_proxy → explicitly acknowledge the proxy before giving the number.
+    - unavailable → honest limitation, never a guess.
+    - None (no data at all) → None, so the caller can fall through.
+    """
+    if answer is None:
+        return None
+    if not answer.get("available"):
+        return (
+            f"I don't have enough {concept_phrase} readings to give you a "
+            f"grounded number, so I won't guess. If you log a few "
+            f"{concept_phrase} readings I can track this for you."
+        )
+    value = answer["value"]
+    label = answer["metric_label"]
+    note = _glucose_range_note(value)
+    if answer.get("is_proxy"):
+        return (
+            f"I don't have a strict {concept_phrase} metric, but using "
+            f"{answer['proxy_basis']} as a proxy, your **{label}** is "
+            f"**{value} mg/dL**.{note}"
+        )
+    return f"Your **{label}** is **{value} mg/dL**.{note}"
+
+
 def render_latest_message(latest: dict | None, summary: dict | None = None) -> str:
     """Render the deterministic "your most recent glucose reading" sentence.
 

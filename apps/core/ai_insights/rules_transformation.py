@@ -60,7 +60,11 @@ class NutritionCalorieTrendRule(BaseInsightRule):
         return [
             {
                 "severity": severity,
-                "title": f"Calories {over_under} target by {deviation_pct:.0f}%",
+                # Title makes the 7-day window EXPLICIT so this trend value can
+                # never be read as today's "calories vs target" (which Beth
+                # reports from `calorie_compliance_pct`). Same-label-same-value:
+                # a trend percentage must not masquerade as a point-in-time one.
+                "title": f"Calories trending {over_under} target by {deviation_pct:.0f}% (7-day avg)",
                 "message": (
                     f"Your 7-day average calorie intake is {rolling_cal:.0f} kcal, "
                     f"which is {deviation_pct:.0f}% {over_under} your target of {target} kcal. "

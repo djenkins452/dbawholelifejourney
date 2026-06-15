@@ -4582,7 +4582,42 @@ _GLUCOSE_SUMMARY_ANCHORS = frozenset([
     "how is my glucose", "how is my blood sugar",
     "how have my numbers", "how have i been",
     "weekly", "monthly",
+    # Concept/timeframe anchors so fasting / wake-up / multi-month glucose
+    # questions route deterministically to the grounded-proxy summary handler
+    # instead of falling through to the LLM (the "fasting over several months"
+    # trust gap). Each still requires a glucose token via the catch-all.
+    "fasting", "wake up", "wake-up", "waking", "overnight", "months",
 ])
+
+# Markers that tell us WHICH glucose concept the user asked for, so the
+# handler returns the closest grounded metric (or an explicit proxy) instead
+# of silently substituting the all-day average.
+_GLUCOSE_FASTING_MARKERS = (
+    "fasting", "fasted", "before eating", "before breakfast",
+    "empty stomach", "before food",
+)
+_GLUCOSE_WAKEUP_MARKERS = (
+    "wake up", "wake-up", "waking", "when i wake", "after i wake",
+    "shortly after i wake", "first thing", "morning glucose",
+    "glucose in the morning", "overnight", "before i get up",
+)
+
+
+def _glucose_concept(msg_lower):
+    """Classify the glucose concept asked about: fasting | wake_up | general."""
+    if any(m in msg_lower for m in _GLUCOSE_FASTING_MARKERS):
+        return "fasting"
+    if any(m in msg_lower for m in _GLUCOSE_WAKEUP_MARKERS):
+        return "wake_up"
+    return "general"
+
+
+# User-facing phrase for each concept, used in proxy acknowledgment copy.
+_GLUCOSE_CONCEPT_PHRASE = {
+    "fasting": "fasting glucose",
+    "wake_up": "wake-up glucose",
+    "general": "glucose",
+}
 
 _GLUCOSE_SUMMARY_TRIGGERS = frozenset([
     "what's my glucose", 'whats my glucose', 'what is my glucose',
@@ -4661,7 +4696,7 @@ def _handle_glucose_latest_query(user):
         return None
 
 
-def _handle_glucose_query(user):
+def _handle_glucose_query(user, msg_lower=None):
     """Build a deterministic glucose SUMMARY response from SAE state.
 
     2026-06-07: rewritten to route through the canonical glucose
@@ -4671,7 +4706,31 @@ def _handle_glucose_query(user):
     Layer A; this is the surface that enforces it at the router level.
     Falls back to the legacy SAE-keyed response only when the snapshot
     has nothing (true no-data case).
+
+    2026-06-15 (grounded proxy): when the user asks for a SPECIFIC glucose
+    concept (fasting / wake-up), answer with the closest grounded metric and
+    EXPLICITLY acknowledge any proxy — never silently substitute the all-day
+    average. The generic "how's my glucose this week" path is unchanged.
     """
+    # Grounded-proxy path for concept-specific questions (fasting / wake-up).
+    concept = _glucose_concept(msg_lower or "")
+    if concept != "general":
+        try:
+            from apps.health.services.glucose_snapshot import (
+                build_glucose_proxy_answer,
+                render_glucose_proxy_message,
+            )
+            answer = build_glucose_proxy_answer(user, concept)
+            if answer is not None:
+                msg = render_glucose_proxy_message(
+                    answer, _GLUCOSE_CONCEPT_PHRASE[concept],
+                )
+                if msg:
+                    return msg
+        except Exception:
+            logger.warning("Glucose proxy handler failed", exc_info=True)
+        # answer is None → no glucose data at all → fall through to generic.
+
     try:
         from apps.core.ai_events.adapters.glucose import get_summary_message
         from apps.health.services.glucose_snapshot import build_glucose_summary

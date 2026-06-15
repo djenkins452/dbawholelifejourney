@@ -1419,14 +1419,17 @@ WLJ_BETH_HEALTH_PROBE_ENABLED = env.bool('WLJ_BETH_HEALTH_PROBE_ENABLED', defaul
 # Health Analyze v1: question-differentiated deterministic reasoning (weight
 # history / overall / patterns / change / pace / overtraining). Falls back to v0.
 WLJ_BETH_HEALTH_ANALYZE_V1 = env.bool('WLJ_BETH_HEALTH_ANALYZE_V1', default=True)
-# CoS coherence guards — Phase 1 (observe-only). DIAG master switch logs three
-# trust detectors (count coherence, invented med-group labels, calorie-metric
-# divergence) without altering Beth's output. The per-guard *_GUARD flags
-# (default OFF) are flipped on in Phase 2 to make each detector fail closed.
-# See docs/wlj_claude_changelog.md (2026-06-14) + apps/ai/cos_coherence_guards.py.
+# CoS coherence guards. DIAG master switch logs the trust detectors without
+# altering output. The per-guard *_GUARD flags make each detector FAIL CLOSED
+# (correct Beth's reply in place). Phase 2 (2026-06-15): count + entity guards
+# default ON — these are user-facing trust-critical and correct surgically only
+# when canonical state is incoherent / an entity is fabricated (no effect when
+# facts reconcile). Nutrition divergence stays observe-only: the calorie fix is
+# a SOURCE relabel (NutritionCalorieTrendRule 7-day title), not text correction.
+# See docs/wlj_claude_changelog.md (2026-06-14, 2026-06-15) + cos_coherence_guards.py.
 WLJ_BETH_COHERENCE_DIAG_ENABLED = env.bool('WLJ_BETH_COHERENCE_DIAG_ENABLED', default=True)
-WLJ_BETH_COUNT_GUARD_ENABLED = env.bool('WLJ_BETH_COUNT_GUARD_ENABLED', default=False)
-WLJ_BETH_ENTITY_GUARD_ENABLED = env.bool('WLJ_BETH_ENTITY_GUARD_ENABLED', default=False)
+WLJ_BETH_COUNT_GUARD_ENABLED = env.bool('WLJ_BETH_COUNT_GUARD_ENABLED', default=True)
+WLJ_BETH_ENTITY_GUARD_ENABLED = env.bool('WLJ_BETH_ENTITY_GUARD_ENABLED', default=True)
 WLJ_BETH_NUTRITION_GUARD_ENABLED = env.bool('WLJ_BETH_NUTRITION_GUARD_ENABLED', default=False)
 # Bounded conversational continuity for the health analyze lane (follow-ups like
 # "why?" / "tell me more" inherit the active thread; cache-based, 30-min TTL).

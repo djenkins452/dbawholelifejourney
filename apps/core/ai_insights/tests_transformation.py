@@ -68,6 +68,10 @@ class TestNutritionCalorieTrendRule(TestCase):
         self.assertIn("confidence_score", insights[0])
         self.assertIn("dedupe_key", insights[0])
         self.assertIn("evidence", insights[0])
+        # Title must make the 7-day window explicit so this trend value can
+        # never be read as today's "calories vs target" (same-label-same-value).
+        self.assertIn("7-day avg", insights[0]["title"])
+        self.assertIn("trending", insights[0]["title"].lower())
 
     def test_no_trigger_within_range(self):
         event = {

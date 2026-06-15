@@ -448,9 +448,11 @@ def _synthesize_calorie_alerts(insights: list) -> list:
     import re
     m = re.search(r"(\d{1,3})\s*%", representative.title or "")
     pct_text = f"~{m.group(1)}%" if m else "consistently below target"
-    direction = "below"
-    if (representative.title or "").lower().startswith("calories over"):
-        direction = "above"
+    # Direction by content, not prefix — the rule title now reads "Calories
+    # trending over/under target by N% (7-day avg)", so a startswith check on
+    # "calories over" would misclassify every row as below.
+    _title_lc = (representative.title or "").lower()
+    direction = "above" if (" over " in _title_lc or "over target" in _title_lc) else "below"
 
     # Replace the title + message in a lightweight clone so we don't
     # mutate the cached/queried Insight row.

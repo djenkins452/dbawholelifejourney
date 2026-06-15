@@ -114,6 +114,11 @@ def build_locked_facts(user) -> dict:
             if not item.get('is_completed'):
                 pending_names.append(item.get('item_name', 'Unknown'))
 
+    # Expose the canonical pending list to the post-LLM count-coherence guard
+    # (cos_truth_validator) so it can list the ACTUAL remaining items when the
+    # count and the list disagree, instead of letting Beth narrate a broken count.
+    raw['routine_pending_names'] = list(pending_names)
+
     # G1 count-coherence detector (Phase 1, OBSERVE-ONLY). Logs when the stated
     # remaining count diverges from the number of pending items actually
     # collected — the "19 of 25 complete, 5 listed" trust break. Never alters
@@ -199,6 +204,24 @@ def _build_routine_summary(done, total, pending_names):
 
     if done >= total:
         return f"All {total} routine items completed."
+
+    # Count-coherence fail-closed (G1, source level): if the remaining count
+    # (total − done) doesn't match the actual pending item list, don't assert a
+    # confident count — the locked fact itself would be internally inconsistent
+    # and invite Beth to invent a missing item. State the real items instead.
+    if pending_names is not None and (total - done) != len(pending_names):
+        try:
+            from apps.ai.cos_coherence_guards import count_guard_enforced
+            enforce = count_guard_enforced()
+        except Exception:
+            enforce = False
+        if enforce:
+            items = ", ".join(pending_names) if pending_names else (
+                "none I can confirm right now")
+            return (
+                "I'm seeing a mismatch in your checklist counts, so I don't "
+                f"want to guess. The remaining items I can see are: {items}."
+            )
 
     base = f"{done} of {total} routine items completed."
     if pending_names:

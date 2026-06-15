@@ -639,13 +639,19 @@ class TestNextActionOverduePriority(SimpleTestCase):
     @patch("apps.core.utils.get_user_now")
     @patch("apps.core.execution.execution_truth_engine.get_execution_truth")
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
-    def test_overdue_item_becomes_next(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
-        """When items are overdue, next should point to the first overdue item."""
+    def test_next_comes_from_single_canonical_selector(self, mock_facts, mock_truth, mock_now, _t, _c, _m):
+        """Unification (2026-06-15): today_engine no longer runs its OWN overdue
+        prioritizer. `next` is the SINGLE canonical execution selector
+        (facts['next_action'] = build_locked_next_action), so the check-in and
+        "what should I do next?" cannot disagree. Overdue+now precedence is the
+        selector's job (block-gated) — a separate today_engine override was the
+        competing-engines trust bug. Here the canonical selector already
+        resolves the overdue med, and today_engine surfaces it verbatim.
+        """
         now = _fixed_now(9, 30)
         mock_now.return_value = now
-        # Locked facts says "Evening Medications" but meds are overdue
         mock_facts.return_value = _make_locked_facts(
-            next_action="Start with Evening Medications.",
+            next_action="Next: Atorvastatin. Do this now.",
         )
         mock_truth.return_value = _make_truth({
             "morning": [
@@ -653,11 +659,6 @@ class TestNextActionOverduePriority(SimpleTestCase):
             ],
         })
 
-        # Add an overdue medication via the meds mock
-        # We need to make the overdue item appear in the overdue bucket
-        # The Today Engine collects from truth + tasks + meds
-        # Since we're testing the next-action override, let's use tasks
-        # to create an overdue item
         with patch(_P_TASKS) as mock_tasks_inner:
             mock_tasks_inner.return_value = [
                 _norm_item(
@@ -666,12 +667,11 @@ class TestNextActionOverduePriority(SimpleTestCase):
                     priority="important", source="medication",
                 ),
             ]
-
             ctx = get_today_context(MagicMock(id=1))
 
-        # The overdue medication should be "next", not "Evening Medications"
+        # next == the canonical selector verbatim — no separate override.
+        self.assertEqual(ctx["next"], "Next: Atorvastatin. Do this now.")
         self.assertIn("Atorvastatin", ctx["next"])
-        self.assertNotIn("Evening", ctx["next"])
 
     @patch(_P_MEDS, return_value=[])
     @patch(_P_CAL, return_value=[])

@@ -276,6 +276,29 @@ def is_qualified_status_query(msg_lower: str) -> bool:
     return _is_remaining_count_query(msg_lower)
 
 
+# "List everything still remaining today" — an EXHAUSTIVE enumeration request,
+# distinct from the count/qualified routes. Must list every item (no "+N more").
+_ENUMERATE_VERBS = ('list ', 'show ', 'show me ', 'enumerate', 'give me a list',
+                    'what are all', 'tell me everything')
+_ENUMERATE_REMAINING_CUES = ('remaining', 'left', 'still', 'everything',
+                             'to do', 'to-do', 'outstanding', 'all my')
+
+
+def _is_enumerate_remaining_query(msg_lower: str) -> bool:
+    """True for 'list everything still remaining today' style requests."""
+    if not msg_lower:
+        return False
+    # Domain-specific list requests have their own handling — don't hijack.
+    if any(d in msg_lower for d in (
+        'calorie', 'protein', 'macro', 'step', 'workout', 'glucose',
+        'medication', 'medicine', 'dose', 'prayer request', 'goal',
+    )):
+        return False
+    has_verb = any(v in msg_lower for v in _ENUMERATE_VERBS)
+    has_cue = any(c in msg_lower for c in _ENUMERATE_REMAINING_CUES)
+    return has_verb and has_cue
+
+
 def _extract_exclusion_term(msg_lower: str):
     """Extract the excluded domain/item from a filtered status query.
 
@@ -315,6 +338,62 @@ def _extract_exclusion_term(msg_lower: str):
     return None
 
 
+def _canonical_remaining_items(user):
+    """THE canonical list of incomplete items remaining today, from Today
+    Engine (overdue + coming_up + later + foundation), deduped, order-preserved.
+
+    Single source for BOTH the remaining-count answer and the enumerate-all
+    answer so the count and the list can never diverge (trust contract:
+    count == len(list)). Returns a list of item names, or None on failure.
+    """
+    try:
+        from apps.core.today.today_engine import get_today_context
+    except ImportError:
+        return None
+    try:
+        ctx = get_today_context(user)
+    except Exception:
+        logger.warning(
+            "[REMAINING ITEMS] Today Engine failed for user=%s",
+            getattr(user, 'id', '?'), exc_info=True,
+        )
+        return None
+
+    remaining = []
+    for bucket in ('overdue', 'coming_up', 'later', 'foundation'):
+        for entry in ctx.get(bucket, []):
+            item = entry.get('item', entry)
+            name = item.get('name', entry.get('label', ''))
+            if name and not item.get('completed', False):
+                remaining.append(name)
+
+    seen = set()
+    unique = []
+    for name in remaining:
+        if name.lower() not in seen:
+            seen.add(name.lower())
+            unique.append(name)
+    return unique
+
+
+def _build_enumerate_remaining_response(user):
+    """Deterministic EXHAUSTIVE enumeration of everything remaining today.
+
+    "List everything still remaining today." must list ALL items — no
+    summarization, no "+N more", no generic check-in copy (trust bug
+    2026-06-15). Shares `_canonical_remaining_items` with the count route so
+    the count and the list reconcile exactly. Returns a string or None.
+    """
+    items = _canonical_remaining_items(user)
+    if items is None:
+        return None
+    if not items:
+        return "You're all clear — nothing remaining today."
+    n = len(items)
+    header = f"You have {n} item{'s' if n != 1 else ''} remaining today:"
+    return header + "\n" + "\n".join(f"• {name}" for name in items)
+
+
 def _build_qualified_status_response(msg_lower: str, user):
     """Build a deterministic response for qualified status queries.
 
@@ -327,37 +406,9 @@ def _build_qualified_status_response(msg_lower: str, user):
 
     Returns a 1-2 sentence response string, or None on failure.
     """
-    try:
-        from apps.core.today.today_engine import get_today_context
-    except ImportError:
+    remaining = _canonical_remaining_items(user)
+    if remaining is None:
         return None
-
-    try:
-        ctx = get_today_context(user)
-    except Exception:
-        logger.warning(
-            "[QUALIFIED STATUS] Today Engine failed for user=%s",
-            user.id, exc_info=True,
-        )
-        return None
-
-    # Collect all remaining (incomplete) items
-    remaining = []
-    for bucket in ('overdue', 'coming_up', 'later', 'foundation'):
-        for entry in ctx.get(bucket, []):
-            item = entry.get('item', entry)
-            name = item.get('name', entry.get('label', ''))
-            if name and not item.get('completed', False):
-                remaining.append(name)
-
-    # Deduplicate while preserving order
-    seen = set()
-    unique_remaining = []
-    for name in remaining:
-        if name.lower() not in seen:
-            seen.add(name.lower())
-            unique_remaining.append(name)
-    remaining = unique_remaining
 
     total_remaining = len(remaining)
 
@@ -801,6 +852,31 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
         _log_route_decision(result, user, message)
         return result
 
+    # ── Enumerate-remaining query (deterministic, exhaustive) ────
+    # "List everything still remaining today." → list ALL items from the same
+    # canonical Today-Engine source as the count route (count == list), never a
+    # summarized check-in with "+N more" (trust bug 2026-06-15). Runs before the
+    # qualified-status route and before the LLM check-in prefilter.
+    if _is_enumerate_remaining_query(msg_lower) and user is not None:
+        try:
+            response = _build_enumerate_remaining_response(user)
+            if response:
+                result = RouteResult(
+                    category=RouteCategory.DETERMINISTIC_DATA,
+                    response=response,
+                    route_name='enumerate_remaining',
+                    domain='execution',
+                    is_terminal=True,
+                )
+                result.elapsed_ms = (time.monotonic() - t_start) * 1000
+                _log_route_decision(result, user, message)
+                return result
+        except Exception as e:
+            logger.warning(
+                "Enumerate-remaining route failed, falling through: %s",
+                e, exc_info=True,
+            )
+
     # ── Phase 0a.1: Qualified status query (deterministic) ───────
     # "other than X, anything left?", "am I done?", "anything else?"
     # Answered directly from Today Engine — no LLM involvement.
@@ -858,6 +934,34 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
         except Exception as e:
             logger.warning(
                 "Nutrition status route failed, falling through: %s",
+                e, exc_info=True,
+            )
+
+    # ── Canonical next-step route (unified selector) ────────────
+    # "What should I do next?" / "Next step" answer from the SAME selector the
+    # check-in uses (build_locked_next_action → get_next_action over
+    # build_execution_state). Runs BEFORE the decision route so a pure
+    # next-step query is never answered by a different engine (right_now_focus)
+    # than the check-in — they must agree (trust bug 2026-06-15). Decision
+    # queries (biggest risk / fix first / focus) still fall through below.
+    if _is_next_step_query(msg_lower) and user is not None:
+        try:
+            from apps.ai.cos_fact_statements import build_locked_next_action
+            _resp = build_locked_next_action(user)
+            if _resp:
+                result = RouteResult(
+                    category=RouteCategory.DETERMINISTIC_DATA,
+                    response=_resp,
+                    route_name='next_action_canonical',
+                    domain='execution',
+                    is_terminal=True,
+                )
+                result.elapsed_ms = (time.monotonic() - t_start) * 1000
+                _log_route_decision(result, user, message)
+                return result
+        except Exception as e:
+            logger.warning(
+                "Canonical next-step route failed, falling through: %s",
                 e, exc_info=True,
             )
 
@@ -1022,6 +1126,27 @@ _NEXT_ACTION_PHRASES = (
 def _is_next_action_query(msg_lower):
     """Detect if message is asking for next action recommendation."""
     return any(phrase in msg_lower for phrase in _NEXT_ACTION_PHRASES)
+
+
+# Pure "what is the single next step?" phrases. These are unified onto the ONE
+# canonical execution selector (build_locked_next_action) so the answer matches
+# the check-in exactly (trust bug 2026-06-15: competing next-action engines).
+# Deliberately tighter than _NEXT_ACTION_PHRASES — focus/priority phrasing is
+# left to the decision/focus route so its broader behavior is unchanged.
+_NEXT_STEP_CANONICAL_PHRASES = (
+    'what should i do next', 'what do i do next', 'what to do next',
+    "what's next", 'whats next', 'what is next', 'what next',
+    'next step', 'next action', 'give me my next action',
+    'what should i start', 'where should i start', 'what should i tackle',
+    'what should i work on',
+)
+
+
+def _is_next_step_query(msg_lower):
+    """True for a pure 'what's my next step?' question (unified selector)."""
+    if not msg_lower:
+        return False
+    return any(p in msg_lower for p in _NEXT_STEP_CANONICAL_PHRASES)
 
 
 # =============================================================================

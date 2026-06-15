@@ -8,8 +8,9 @@ F3 — "How am I doing on calories today?" → "You're at 0 calories today" when
      nothing was logged. Now distinguishes empty-log from a tracked zero.
 """
 from datetime import time as dt_time
+from unittest.mock import patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 
 class F1RemainingCountRouting(SimpleTestCase):
@@ -94,3 +95,82 @@ class F3NutritionEmptyLog(SimpleTestCase):
         out = _nutrition_fact_response(nut, "protein today")
         self.assertIn("don't see nutrition logged today yet", out)
         self.assertNotIn("at **0g** protein", out)
+
+
+# ── Second sprint: enumerate-remaining + unified next-action ──────────
+
+_MOD = "apps.ai.deterministic_router"
+
+
+class EnumerateRemainingRouting(SimpleTestCase):
+    def test_enumerate_matcher(self):
+        from apps.ai.deterministic_router import _is_enumerate_remaining_query
+        for q in (
+            "list everything still remaining today",
+            "show me everything left",
+            "list all remaining",
+            "list everything left for today",
+        ):
+            self.assertTrue(_is_enumerate_remaining_query(q), q)
+
+    def test_enumerate_excludes_domain_and_bare(self):
+        from apps.ai.deterministic_router import _is_enumerate_remaining_query
+        for q in ("list my medications", "show my calories", "what's left"):
+            self.assertFalse(_is_enumerate_remaining_query(q), q)
+
+    def test_count_and_list_reconcile(self):
+        # Same canonical source → count == len(listed items), exhaustive.
+        from apps.ai import deterministic_router as dr
+        items = ["Log Nutrition", "Study for SHRM", "Magnesium citrate",
+                 "Fish Oil", "Empty Dishwasher", "Charge Watch"]
+        with patch.object(dr, "_canonical_remaining_items", return_value=items):
+            enum = dr._build_enumerate_remaining_response(object())
+            count_resp = dr._build_qualified_status_response(
+                "how many things do i have left", object())
+        listed = [ln for ln in enum.splitlines() if ln.startswith("• ")]
+        self.assertEqual(len(listed), 6)          # exhaustive, no "+N more"
+        self.assertNotIn("more", enum.lower())
+        self.assertIn("6 item", enum)
+        self.assertTrue(count_resp.startswith("6 "))  # count agrees with list
+
+
+class NextStepUnification(SimpleTestCase):
+    def test_next_step_matcher(self):
+        from apps.ai.deterministic_router import _is_next_step_query
+        for q in ("what should i do next", "what's next", "next step",
+                  "what should i tackle"):
+            self.assertTrue(_is_next_step_query(q), q)
+
+    def test_focus_priority_left_to_decision_route(self):
+        # These keep their existing (decision/focus) behavior — not hijacked.
+        from apps.ai.deterministic_router import _is_next_step_query
+        for q in ("what's my biggest risk", "am i behind", "what's not working"):
+            self.assertFalse(_is_next_step_query(q), q)
+
+
+class NextActionSingleSource(TestCase):
+    """Check-in next == canonical execution selector == 'what should I do next'.
+
+    today_engine.next now sources facts['next_action'] (= build_locked_next_action),
+    and the canonical next-step route returns build_locked_next_action — so all
+    next-action surfaces resolve to ONE selector.
+    """
+    def setUp(self):
+        from django.conf import settings
+        from django.contrib.auth import get_user_model
+        from apps.users.models import TermsAcceptance
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            email="nextsrc@test.com", password="x" * 20)
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"))
+        self.user.preferences.has_completed_onboarding = True
+        self.user.preferences.save()
+
+    def test_checkin_next_equals_canonical_selector(self):
+        from apps.core.today.today_engine import get_today_context
+        from apps.ai.cos_fact_statements import build_locked_next_action
+        canonical = build_locked_next_action(self.user)
+        checkin_next = get_today_context(self.user)["next"]
+        self.assertEqual(checkin_next, canonical)

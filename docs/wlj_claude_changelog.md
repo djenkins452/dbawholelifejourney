@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-15 — fix(ai): two more live trust failures — exhaustive enumerate + unified next-action source
+
+Follow-up to the same-day trust-repair sprint. Two proven failures, smallest deterministic fix each, no architecture redesign.
+
+**F1 — "List everything still remaining today" returned a summarized check-in with "+5 more".** Root cause: the enumerate request matched no deterministic route and fell to the LLM check-in path. Fix: extracted `_canonical_remaining_items(user)` (the Today-Engine overdue+coming_up+later+foundation deduped set) as the SINGLE source shared by the count route and a new `_build_enumerate_remaining_response` (exhaustive — lists every item, no "+N more"). New `_is_enumerate_remaining_query` matcher + route runs before the qualified-status route and the LLM check-in prefilter. Representative output: "how many left" → "6 items left"; "list everything still remaining today" → all 6 bulleted. Count == list by construction.
+
+**F2 — Competing next-action engines.** Check-in said "Start with 10X Optimize (1:00 PM)" (today_engine's own overdue prioritizer) while "What should I do next?" said "Go straight into Prayer Time" (decision route via `compute_right_now_focus`) — two truths. Fix: ONE canonical selector. (a) today_engine `next` now sources `facts['next_action']` (= `build_locked_next_action` → `get_next_action(build_execution_state)`) and the separate overdue-override branch is removed — overdue+now precedence is the block-gated selector's job, so a stale item is never chosen AND there's one truth. (b) New `_is_next_step_query` + canonical route returns `build_locked_next_action(user)` for "what should I do next?"/"next step", running before the decision route so a pure next-step query is answered by the SAME selector as the check-in. Decision queries (biggest risk / fix first / focus) are untouched. Representative output: check-in `ctx['next']` == `build_locked_next_action(user)` (equal), and the next-step route returns the same.
+
+**Verification:** 6 new regression tests (15 total in `test_trust_repair_20260615.py`) incl. a DB test asserting `get_today_context(user)['next'] == build_locked_next_action(user)` (single source) and count==list reconciliation. Updated one stale test (`test_today_engine.py::test_overdue_item_becomes_next` → `test_next_comes_from_single_canonical_selector`) that asserted the REMOVED competing-prioritizer behavior. 316-test regression sweep across 8 affected suites: back to the 11 pre-existing failures (identical to baseline via `git stash`), zero new. Count/calorie/glucose fixes from earlier sprints preserved.
+
+**Files:** `apps/ai/deterministic_router.py` (enumerate route + shared remaining helper + canonical next-step route/matcher), `apps/core/today/today_engine.py` (unified next source), `apps/core/today/tests/test_today_engine.py` (stale test updated), `apps/ai/tests/test_trust_repair_20260615.py` (+6 tests). No model/schema/migration changes.
+
+
 ## 2026-06-15 — fix(ai): three proven live trust failures — count coherence, stale next-action, empty-nutrition honesty
 
 Targeted fixes for three production trust breaks. Root-caused from code, smallest safe deterministic change each, no architecture changes.

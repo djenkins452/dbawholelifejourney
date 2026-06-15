@@ -587,8 +587,16 @@ class CosMedicationFactTest(TestCase):
 
     # --- format_locked_facts_block includes Medications line ---
 
-    def test_locked_facts_block_contains_medications_line(self):
-        """The formatted locked facts block must include a Medications line."""
+    def test_locked_facts_block_is_next_action_only(self):
+        """STRICT MODE ISOLATION contract: the formatted block contains ONLY
+        the system next action — NOT domain summaries (faith/routine/meds).
+
+        Updated 2026-06-14: format_locked_facts_block was deliberately
+        narrowed to next-action-only so the LLM has no domain summaries to
+        blend into a multi-mode response. The richer dict still reaches the
+        truth validator unchanged. This test enforces the current contract;
+        the prior assertion (a 'Medications:' line) checked removed behavior.
+        """
         from apps.ai.cos_fact_statements import (
             format_locked_facts_block, _build_medication_summary,
             _build_faith_summary, _build_routine_summary,
@@ -608,8 +616,12 @@ class CosMedicationFactTest(TestCase):
             '_raw': raw,
         }
         block = format_locked_facts_block(facts)
-        self.assertIn('Medications:', block)
-        self.assertIn('4 of 6 medication doses taken', block)
+        # The next action IS surfaced...
+        self.assertIn('Start with Evening Medications.', block)
+        self.assertIn('CURRENT NEXT ACTION', block)
+        # ...but domain summaries are intentionally excluded.
+        self.assertNotIn('Medications:', block)
+        self.assertNotIn('4 of 6 medication doses taken', block)
 
     # --- Integration: build_locked_facts includes medication data ---
 

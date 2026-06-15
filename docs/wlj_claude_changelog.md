@@ -7,6 +7,24 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-14 — feat(ai): Beth trust hardening Phase 1 — three coherence detectors (OBSERVE-ONLY)
+
+**Context:** Trust-first architecture pass. Beth occasionally "sounds smart while being wrong" — narrating around incomplete/inconsistent state. Rather than rebuild her, we extend the existing trust architecture (locked facts → cos_truth_validator → health_truth guards) with three new detectors that QUANTIFY the failure classes on real traffic before we enforce. Phase 1 is observe-only: detectors log when they fire but never alter Beth's output (byte-identical) and never raise.
+
+**The three detectors** (`apps/ai/cos_coherence_guards.py`, new):
+- **G1 — Count coherence.** Logs when the stated remaining count diverges from the number of pending items actually listed (the "19 of 25 complete, 5 listed → invented 6th task" break). Invariant: `routine_total − routine_done == len(pending_names)`; also flags impossible med counts (taken > expected / negative remaining). Wired into `build_locked_facts()` after pending-name collection.
+- **G2 — Operational entity hallucination.** Logs invented medication GROUP labels ("Nightly Medications") — meds have no grouping entity in the data model (Intake groups only by per-schedule time_of_day), so any time-word+med-noun phrase not matching a real Intake/routine name is fabricated. Lazy: builds the canonical entity set only on a candidate match. Wired into `validate_locked_facts()` (pure logging).
+- **G3 — Calorie metric coherence.** Establishes `get_canonical_nutrition()` — the single authoritative "today calories vs target" reader (live FoodEntry ÷ target). Logs when a "N% under/over target" calorie claim in Beth's reply diverges >2pp from canonical (the "dashboard 22% vs Beth 26%" two-truths break). Wired into `validate_locked_facts()` (pure logging).
+
+**Flags** (`config/settings.py`): `WLJ_BETH_COHERENCE_DIAG_ENABLED` (master observe-only switch, default True); `WLJ_BETH_COUNT_GUARD_ENABLED` / `WLJ_BETH_ENTITY_GUARD_ENABLED` / `WLJ_BETH_NUTRITION_GUARD_ENABLED` (Phase 2 fail-closed enforcement, default False). Conventions mirror the existing weight-guard flags.
+
+**Blast radius:** Zero user-visible change. Detectors are additive, flag-gated, lazy (near-zero cost on the common clean path), wrapped to never raise, and touch neither `response_text` nor the `violations` list. Phase 2 flips the per-guard flags + adds enforcement/reconciliation wiring once telemetry confirms low false-positive rates.
+
+**Files:** `apps/ai/cos_coherence_guards.py` (new), `config/settings.py`, `apps/ai/cos_fact_statements.py` (G1 wiring), `apps/ai/cos_truth_validator.py` (G2/G3 wiring), `apps/ai/tests/test_cos_coherence_guards.py` (new, 18 tests), `apps/ai/tests/test_cos_truth_enforcement.py` (fixed a stale test that asserted pre-refactor `format_locked_facts_block` behavior).
+
+**Tests:** `apps.ai.tests.test_cos_coherence_guards` — 18 pass. Pre-existing failures in `CosTruthPromptStructureTest` (5) confirmed present on the committed tree before this change (stale tests in `cos_context.py` prompt-structure, not touched here) — flagged for separate follow-up.
+
+
 ## 2026-06-14 — test(briefing): reconcile stale at-risk headline assertion with approved Phase A copy
 
 Phase A of the Executive Briefing trust fix (A1 time-aware headline matrix, A2 dedupe-by-title, A3 calorie synthesis) was already implemented and shipped in commit `47a0cee8` (2026-06-06) and is live on main. On stakeholder approval of the Phase A morning/at-risk framing ("recover, don't shame" — no "past due"/damage-control wording), the one remaining inconsistency was a stale unit test.

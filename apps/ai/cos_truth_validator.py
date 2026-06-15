@@ -468,6 +468,22 @@ def validate_locked_facts(response_text, locked_facts, user,
     except Exception:
         logger.debug("weight delta guard skipped (non-fatal)", exc_info=True)
 
+    # ── Phase 1 coherence detectors (OBSERVE-ONLY) ───────────────
+    # Entity-hallucination (invented med group labels like "Nightly
+    # Medications") and calorie-metric divergence ("26% under target" vs the
+    # canonical reader). Pure logging — they MUST NOT touch response_text or
+    # append violations in Phase 1, so output stays byte-identical. Lazy and
+    # flag-gated; never raise. Phase 2 promotes them to fail-closed.
+    try:
+        from apps.ai.cos_coherence_guards import (
+            detect_calorie_divergence,
+            detect_operational_entity_hallucination,
+        )
+        detect_operational_entity_hallucination(user, response_text)
+        detect_calorie_divergence(user, response_text)
+    except Exception:
+        logger.debug("phase-1 coherence detectors skipped", exc_info=True)
+
     # Check each NOT-done domain for false completion claims
     _domain_checks = [
         ('prayer', raw.get('prayer_done', False), 'prayer'),

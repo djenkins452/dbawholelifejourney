@@ -114,6 +114,24 @@ def build_locked_facts(user) -> dict:
             if not item.get('is_completed'):
                 pending_names.append(item.get('item_name', 'Unknown'))
 
+    # G1 count-coherence detector (Phase 1, OBSERVE-ONLY). Logs when the stated
+    # remaining count diverges from the number of pending items actually
+    # collected — the "19 of 25 complete, 5 listed" trust break. Never alters
+    # the locked facts; never raises.
+    try:
+        from apps.ai.cos_coherence_guards import check_count_coherence
+        check_count_coherence(
+            user,
+            routine_total=raw['routine_total'],
+            routine_done=raw['routine_done'],
+            pending_names=pending_names,
+            meds_expected=raw['meds_expected'],
+            meds_taken=raw['meds_taken'],
+            meds_skipped=raw['meds_skipped'],
+        )
+    except Exception:
+        logger.debug("count coherence detector skipped", exc_info=True)
+
     # Significant events — deterministic, from DB
     event_summary, event_signals = _build_significant_event_summary(user)
 

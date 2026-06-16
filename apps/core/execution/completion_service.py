@@ -62,11 +62,14 @@ def is_bible_reading_complete(user, target_date: date) -> bool:
     """
     Has the user completed Bible reading on this date?
 
-    Truth: UserReadingProgress with is_completed=True for date.
+    Canonical truth across BOTH sources — reading plan AND the routine→faith
+    bridge — via FaithQueries.is_bible_complete_on, so it can never diverge
+    from execution truth / the dashboard (trust contract 2026-06-16).
+    Previously plan-only, which missed routine-based reading.
     """
     try:
         from apps.faith.services.faith_queries import FaithQueries
-        return FaithQueries.has_reading_on(user, target_date)
+        return FaithQueries.is_bible_complete_on(user, target_date)
     except ImportError:
         return False
 

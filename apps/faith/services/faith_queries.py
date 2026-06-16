@@ -77,6 +77,35 @@ class FaithQueries:
         )
 
     @classmethod
+    def _routine_bible_completed_on(cls, user, target_date):
+        """True if a routine→faith-bridge Bible item was completed on a date."""
+        try:
+            from apps.core.execution.execution_truth_engine import (
+                FAITH_BIBLE_NAMES,
+            )
+            from apps.life.models import RoutineLog
+            names = RoutineLog.objects.filter(
+                user=user, scheduled_date=target_date,
+                log_status__in=[
+                    RoutineLog.STATUS_COMPLETED, RoutineLog.STATUS_COMPLETED_LATE],
+            ).values_list('schedule__name', flat=True)
+            return any(
+                n and n.strip().lower() in FAITH_BIBLE_NAMES for n in names)
+        except Exception:
+            return False
+
+    @classmethod
+    def is_bible_complete_on(cls, user, target_date):
+        """CANONICAL per-date Bible-reading completion across BOTH sources
+        (reading plan + routine→faith bridge). Every consumer that needs
+        "was Bible reading done on date X?" must use this so they cannot
+        diverge from execution truth / the dashboard (trust contract 2026-06-16)."""
+        return (
+            cls.has_reading_on(user, target_date)
+            or cls._routine_bible_completed_on(user, target_date)
+        )
+
+    @classmethod
     def bible_completion_dates(cls, user, limit=90):
         """THE single canonical set of dates Bible reading was completed.
 

@@ -53,6 +53,43 @@ _DOMAIN_ORDER = [
 _PRIORITY_RANK = {"high": 3, "medium": 2, "low": 1}
 
 
+# ── Structured focus-override framework ──────────────────────────────
+# A completed-today domain may ONLY be surfaced as a focus when the report
+# carries a structured, grounded override:
+#     {"rule_overridden": str, "evidence": [str, ...], "explanation": str}
+# Evidence is mandatory — an override with no evidence is rejected (no silent
+# or hallucinated overrides). Trust contract 2026-06-16.
+
+def _valid_override(o: Any) -> bool:
+    """True only for a fully-grounded structured override (evidence required)."""
+    if not isinstance(o, dict):
+        return False
+    evidence = o.get("evidence")
+    has_evidence = isinstance(evidence, (list, tuple)) and any(
+        isinstance(e, str) and e.strip() for e in evidence
+    )
+    return bool(
+        has_evidence
+        and (o.get("explanation") or "").strip()
+        and (o.get("rule_overridden") or "").strip()
+    )
+
+
+def build_focus_override(rule_overridden: str, evidence, explanation: str):
+    """Construct a structured focus override. Returns the dict ONLY when it has
+    real grounded evidence; otherwise None (callers must supply evidence — a
+    rationale without an evidence source is rejected)."""
+    o = {
+        "rule_overridden": (rule_overridden or "").strip(),
+        "evidence": [
+            e.strip() for e in (evidence or [])
+            if isinstance(e, str) and e.strip()
+        ],
+        "explanation": (explanation or "").strip(),
+    }
+    return o if _valid_override(o) else None
+
+
 def _eligible(report: Dict[str, Any]) -> bool:
     """Phase 3 eligibility gate for right_now selection."""
     if not isinstance(report, dict):
@@ -115,11 +152,11 @@ def compute_right_now_focus(
             continue
         if not _eligible(report):
             continue
-        # Grounding gate: a domain completed today is NOT a gap/focus, unless
-        # the report carries explicit grounded evidence to override completion
-        # (e.g. a declining trend / journal sentiment). Silent overrides are
-        # prohibited — see the reason-citing below (trust bug 2026-06-16).
-        if domain in completed_today and not report.get("grounded_override_reason"):
+        # Grounding gate: a domain completed today is NOT a gap/focus unless the
+        # report carries a VALID structured override (rule + grounded evidence +
+        # explanation). An override without evidence is rejected → falls back to
+        # normal prioritization. No silent / hallucinated overrides (2026-06-16).
+        if domain in completed_today and not _valid_override(report.get("focus_override")):
             continue
         eligible.append((domain, report))
 
@@ -148,15 +185,19 @@ def compute_right_now_focus(
     eligible.sort(key=sort_key)
     chosen_domain, chosen_report = eligible[0]
 
-    reason = chosen_report.get("priority_reason", f"Focus on {chosen_domain}")
-    overridden = chosen_domain in completed_today
+    override = chosen_report.get("focus_override")
+    overridden = chosen_domain in completed_today and _valid_override(override)
     if overridden:
-        # Surfacing a completed domain — MUST cite the grounded override reason.
-        override_reason = chosen_report.get("grounded_override_reason") or reason
+        # Surfacing a completed domain — render the structured override so the
+        # user always sees rule + grounded evidence + explanation (never silent).
+        ev = "; ".join(override["evidence"])
         reason = (
-            f"{chosen_domain.replace('_', ' ').title()} is completed today, but "
-            f"I'm surfacing it because {override_reason}"
+            f"{chosen_domain.replace('_', ' ').title()} is completed today "
+            f"({override['rule_overridden']}), but I'm surfacing it because "
+            f"{override['explanation']} (grounded in: {ev})."
         )
+    else:
+        reason = chosen_report.get("priority_reason", f"Focus on {chosen_domain}")
 
     return {
         "status": "focused",
@@ -165,4 +206,5 @@ def compute_right_now_focus(
         "confidence": chosen_report.get("confidence"),
         "reason": reason,
         "completed_override": overridden,
+        "override": override if overridden else None,
     }

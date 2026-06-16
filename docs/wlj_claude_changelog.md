@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-16 — refactor(ai): canonical faith truth + structured focus overrides (approved modifications)
+
+Two approved architectural modifications on top of the Phases 1+2 work — done as first-class architecture, not symptom patches.
+
+**Mod 1 — One faith truth, one source (no suppression).** Established the canonical per-date resolver `FaithQueries.is_bible_complete_on(user, date)` and the history reader `bible_completion_dates` (both = reading plan ∪ routine→faith bridge, matching `get_execution_truth`). Audited ALL faith-completion consumers (17): 14 were already unified; refactored the 3 plan-only stragglers that could diverge — (1) `apps/core/execution/completion_service.py::is_bible_reading_complete` (was plan-only `has_reading_on` → now `is_bible_complete_on`), (2) `apps/core/ai_insights/rules_scripture.py::ScriptureReadingDropOffRule` (the competing "scripture paused" insight producer — was plan-only `UserReadingProgress` → now `bible_completion_dates`, so it can never contradict execution truth / fire while reading daily via a routine). days-since, streak, dashboard, adherence, Beth grounding, and prioritization now all derive from the single union. No `if completed: suppress` logic anywhere. Late backfills reconcile automatically (all readers are live queries; no per-date snapshot blocks it).
+
+**Mod 2 — Structured, evidence-required focus overrides (no silent overrides).** Replaced the single `grounded_override_reason` string with a structured override on the trust report: `focus_override = {rule_overridden, evidence: [...], explanation}`. New `right_now.py::_valid_override` (evidence is MANDATORY — empty/missing evidence ⇒ invalid) and `build_focus_override` (returns None without grounded evidence). A completed-today domain is surfaced ONLY with a valid override, and the rendered reason cites all three parts ("Faith is completed today (rule), but I'm surfacing it because <explanation> (grounded in: <evidence>)."). Override without evidence → blocked → normal prioritization; hallucinated rationale (no evidence source) → rejected.
+
+**Canonical truth mapping (realized):** `RoutineLog/UserReadingProgress` → `FaithQueries.is_bible_complete_on` / `bible_completion_dates` (the resolver) → { execution_truth · completion_service · dashboard/adherence · SAE days_since/streak · signal_trust · dropoff insight · Beth grounding }. One source, no alternate interpretations.
+
+**Files:** `apps/faith/services/faith_queries.py` (resolver + `_routine_bible_completed_on`), `apps/core/execution/completion_service.py`, `apps/core/ai_insights/rules_scripture.py`, `apps/core/ai_state/right_now.py` (structured override framework), `apps/ai/tests/test_trust_recovery_mods.py` (new), `apps/ai/tests/test_trust_recovery_phase12.py` (override test updated).
+
+**Tests:** `test_trust_recovery_mods.py` — Scenario A (read today via routine → all readers agree, days_since 0), B (22-day gap consistent), C (late backfill reconciles); override tests 1–4 (normal / valid-with-evidence / no-evidence-blocked / hallucinated-rejected). Regression sweep vs `git stash` baseline: zero new failures.
+
+**Remaining risk / caveats:** The faith **events adapter** (`apps/core/ai_events/adapters/faith.py`, a historical reading-event timeline) was left plan-only — it's an event log, not a truth/gap claim, and unioning routine logs needs a different event shape; flagged as a separate low-risk follow-on. `focus_override` is a ready mechanism with no assessor populating it yet, so completed domains currently suppress (safe default) until evidence-based overrides are wired. Verified against deterministic paths; no production LLM-reply capture.
+
+
 ## 2026-06-16 — fix(ai): Beth trust recovery Phases 1+2 — ground first, reason second
 
 Three proven "confidently contradicts known facts" failures. Approved plan (Phases 1+2 only); both stakeholder modifications incorporated (faith = one canonical source not suppression; focus gate must cite any override).

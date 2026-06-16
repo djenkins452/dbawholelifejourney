@@ -118,16 +118,23 @@ class FocusGate(SimpleTestCase):
             {"faith": self._report()}, completed_today={"faith"})
         self.assertEqual(out["status"], "steady")  # suppressed, not surfaced
 
-    def test_completed_domain_surfaced_must_cite_override(self):
+    def test_completed_domain_surfaced_must_cite_structured_override(self):
         from apps.core.ai_state.right_now import compute_right_now_focus
         out = compute_right_now_focus(
-            {"faith": self._report(
-                grounded_override_reason="your journal themes suggest drift")},
+            {"faith": self._report(focus_override={
+                "rule_overridden": "Faith is complete today",
+                "evidence": ["recurring journal theme: spiritual consistency"],
+                "explanation": "your recent journal themes suggest you want "
+                               "deeper consistency",
+            })},
             completed_today={"faith"})
         self.assertEqual(out["status"], "focused")
         self.assertTrue(out["completed_override"])
         self.assertIn("completed today", out["reason"].lower())
-        self.assertIn("journal themes suggest drift", out["reason"])
+        self.assertIn("Faith is complete today", out["reason"])      # rule cited
+        self.assertIn("journal themes suggest", out["reason"])       # explanation
+        self.assertIn("recurring journal theme", out["reason"])      # evidence
+        self.assertIsNotNone(out["override"])
 
     def test_not_completed_domain_surfaces_normally(self):
         from apps.core.ai_state.right_now import compute_right_now_focus

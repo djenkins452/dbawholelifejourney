@@ -21,39 +21,30 @@ class ScriptureReadingDropOffRule(BaseInsightRule):
         return event.get("event_type") == "scheduled_check"
 
     def evaluate(self, user, event):
-        from apps.faith.models import UserReadingProgress
+        from apps.faith.services.faith_queries import FaithQueries
 
         now = get_current_time()
-        # Check last 12 days for daily reading, then 5-day gap
-        recent_window = now - timedelta(days=12)
-        recent_completions = (
-            UserReadingProgress.objects.filter(
-                user=user,
-                is_completed=True,
-                completed_at__gte=recent_window,
-                completed_at__lte=now - timedelta(days=3),
-            )
-            .values_list("completed_at__date", flat=True)
-            .distinct()
-        )
+        today = now.date()
+        # Canonical unified completion dates (plan + routine→faith bridge) so
+        # this "paused" insight can never contradict execution truth — e.g. it
+        # never fires when the user is reading daily via a routine (trust
+        # contract 2026-06-16). Previously plan-only (UserReadingProgress).
+        dates = FaithQueries.bible_completion_dates(user, limit=30)
+        if not dates:
+            return []
 
+        # Reading days in the 3–12-days-ago window (a prior streak to contrast).
+        recent_completions = [
+            d for d in dates
+            if (today - timedelta(days=12)) <= d <= (today - timedelta(days=3))
+        ]
         daily_count = len(set(recent_completions))
         if daily_count < 1:
             return []
 
-        # Check if there's been a 5-day gap
-        latest = (
-            UserReadingProgress.objects.filter(
-                user=user, is_completed=True
-            )
-            .order_by("-completed_at")
-            .first()
-        )
-
-        if not latest or not latest.completed_at:
-            return []
-
-        gap_days = (now - latest.completed_at).days
+        # Gap since the most recent completion (ANY canonical source).
+        latest = dates[0]
+        gap_days = (today - latest).days
         if gap_days < 1:
             return []
 
@@ -77,7 +68,7 @@ class ScriptureReadingDropOffRule(BaseInsightRule):
                     "rule_name": self.rule_name,
                     "daily_reading_count": daily_count,
                     "gap_days": gap_days,
-                    "last_reading_date": str(latest.completed_at.date()),
+                    "last_reading_date": str(latest),
                 },
                 "dedupe_key": build_dedupe_key(
                     user.id,

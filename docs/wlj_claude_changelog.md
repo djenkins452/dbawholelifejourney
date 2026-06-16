@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-16 — feat(ai): deterministic faith-status recognition route (no LLM-dependent recognition)
+
+Validation-sprint finding: "what time did I wake up?" is deterministic (proven), but the faith-recognition questions ("do you see I've completed my Bible reading recently?", "how is my faith lately?", "am I on track spiritually?") **fall through to the LLM** — confirmed by driving the real `classify_and_route`: those questions hit the Response Governor's REFLECTIVE branch → LLM, so factual recognition depended on the LLM behaving correctly. Per the standard "factual recognition must not depend on the LLM," added a deterministic grounded route.
+
+**Change:** new `_is_faith_status_query` + `_handle_faith_status_query` (`apps/ai/deterministic_router.py`). Resolves from canonical execution truth — `get_execution_truth` (bible/prayer completion, incl. routine→faith bridge) + `FaithQueries.bible_completion_dates` (last-7 consistency) + the shared streak calc — and answers confidently: "Yes — you've completed your Bible reading today. Over the last 7 days you've read on N days, and you're on a K-day streak. Prayer is complete today." Honest absence when no data ("I don't see any Bible reading logged recently") — never claims unverifiable completion, never "I don't have visibility".
+
+**Routing:** because these questions are classified REFLECTIVE by the Response Governor (the absolute-first authority), the deterministic answer is wired INTO the governor's REFLECTIVE branch — the governor stays the single authority but routes a factual faith-recognition to the grounded answer instead of an LLM turn. A second guard sits before the decision/focus route (faith-status questions can contain "how am I doing"). Matcher requires a faith token + a status cue and excludes logging/reminders, so it never hijacks the synthesis questions ("what do I need to work on overall") or non-faith routes.
+
+**Scope honesty:** this covers faith-status RECOGNITION (Scenario 3 + family). The broad synthesis questions (Scenario 1/4, "what do I need to work on/differently overall") remain LLM-narrated by design — their grounding is correct (faith can't be fed as a deficit: days_since=0, right_now_focus suppresses completed faith, the dropoff insight can't fire) but the final wording is the LLM's. Wake-time (S2) and faith-recognition (S3) are now deterministic and provable.
+
+**Files:** `apps/ai/deterministic_router.py`. **Tests:** `apps/ai/tests/test_faith_status_route.py` (5) — matcher include/exclude, confident recognition of recent completion (DB), deterministic routing past the governor, honest no-data. Sweep vs `git stash` baseline: zero new failures. No model/schema/migration changes.
+
+
 ## 2026-06-16 — refactor(ai): canonical faith truth + structured focus overrides (approved modifications)
 
 Two approved architectural modifications on top of the Phases 1+2 work — done as first-class architecture, not symptom patches.

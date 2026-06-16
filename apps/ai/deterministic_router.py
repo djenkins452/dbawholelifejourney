@@ -834,6 +834,25 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
         _governor_type = resolve_response_type(user, message)
 
         if _governor_type == ResponseType.REFLECTIVE:
+            # Factual faith-status recognition ("do you see I've been reading?")
+            # must be answered from canonical execution truth, NOT handed to the
+            # reflective/LLM turn — recognition must never depend on the LLM, and
+            # Beth must never contradict completion history (trust contract
+            # 2026-06-16). The governor stays the authority; it just routes a
+            # factual recognition to the deterministic grounded answer.
+            if _is_faith_status_query(msg_lower) and user is not None:
+                _faith_resp = _handle_faith_status_query(user, msg_lower)
+                if _faith_resp:
+                    result = RouteResult(
+                        category=RouteCategory.DETERMINISTIC_DATA,
+                        response=_faith_resp,
+                        route_name='faith_status',
+                        domain='faith',
+                        is_terminal=True,
+                    )
+                    result.elapsed_ms = (time.monotonic() - t_start) * 1000
+                    _log_route_decision(result, user, message)
+                    return result
             result = RouteResult(
                 route_name='governor_reflective',
                 skip_intent=True,
@@ -1058,6 +1077,28 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
                 "Nutrition status route failed, falling through: %s",
                 e, exc_info=True,
             )
+
+    # ── Faith-status recognition (deterministic, canonical-first) ──
+    # "Do you see I've been reading?" / "how consistent have I been with Bible
+    # reading?" / "how is my faith lately?" / "am I on track spiritually?".
+    # Trust-critical factual recognition must NOT depend on LLM synthesis — it
+    # resolves from canonical execution truth (the same source as dashboard /
+    # adherence / routine completion) so Beth can never contradict completion
+    # history (trust contract 2026-06-16). Runs BEFORE the decision/focus route
+    # because these can contain "how am I doing".
+    if _is_faith_status_query(msg_lower) and user is not None:
+        _faith_resp = _handle_faith_status_query(user, msg_lower)
+        if _faith_resp:
+            result = RouteResult(
+                category=RouteCategory.DETERMINISTIC_DATA,
+                response=_faith_resp,
+                route_name='faith_status',
+                domain='faith',
+                is_terminal=True,
+            )
+            result.elapsed_ms = (time.monotonic() - t_start) * 1000
+            _log_route_decision(result, user, message)
+            return result
 
     # ── Canonical next-step route (unified selector) ────────────
     # "What should I do next?" / "Next step" answer from the SAME selector the
@@ -1293,6 +1334,93 @@ _NEXT_ACTION_PHRASES = (
 def _is_next_action_query(msg_lower):
     """Detect if message is asking for next action recommendation."""
     return any(phrase in msg_lower for phrase in _NEXT_ACTION_PHRASES)
+
+
+# Faith-status recognition. Trust-critical factual questions answered from
+# canonical execution truth (NOT LLM synthesis) so Beth never contradicts
+# completion history (trust contract 2026-06-16).
+_FAITH_STATUS_TOKENS = (
+    'bible', 'scripture', 'devotional', 'faith', 'prayer', 'pray',
+    'spiritual', 'gospel', 'quiet time', 'reading',
+)
+_FAITH_STATUS_CUES = (
+    'do you see', 'do you know', 'have i been', 'have i read', 'have i completed',
+    "i've completed", "i've been", 'did i', 'how consistent', 'how is my',
+    "how's my", 'how has my', 'how have i', 'how am i doing', 'how am i tracking',
+    'lately', 'recently', 'on track', 'staying on track', 'this week',
+    'these days', 'been doing', 'keeping up',
+)
+
+
+def _is_faith_status_query(msg_lower):
+    """True for a faith-status RECOGNITION question (not logging/mutation)."""
+    if not msg_lower:
+        return False
+    if any(x in msg_lower for x in ('log ', 'record ', 'mark ', 'add ', 'remind')):
+        return False
+    return (
+        any(t in msg_lower for t in _FAITH_STATUS_TOKENS)
+        and any(c in msg_lower for c in _FAITH_STATUS_CUES)
+    )
+
+
+def _handle_faith_status_query(user, msg_lower=None):
+    """Deterministic faith-status answer from canonical execution truth.
+
+    Recognizes Bible-reading + prayer completion + recent consistency from the
+    SAME source as dashboard/adherence/routine completion, so the answer can
+    never contradict completion history. Returns a grounded string, or None.
+    """
+    from datetime import timedelta
+
+    from apps.core.utils import get_user_now, get_user_today
+    from apps.faith.services.faith_queries import FaithQueries
+
+    try:
+        today = get_user_today(user)
+    except Exception:
+        return None
+    try:
+        from apps.core.execution.execution_truth_engine import get_execution_truth
+        faith = (get_execution_truth(user) or {}).get('domains', {}).get('faith', {})
+    except Exception:
+        faith = {}
+    bible_today = bool(faith.get('bible_reading_completed'))
+    prayer_today = bool(faith.get('prayer_completed'))
+
+    dates = FaithQueries.bible_completion_dates(user, limit=30)
+    last7 = sum(1 for d in dates if d and d >= today - timedelta(days=7))
+    try:
+        from apps.core.ai_state.state_builder import _calculate_reading_streak
+        streak = _calculate_reading_streak(user, get_user_now(user))
+    except Exception:
+        streak = 0
+
+    parts = []
+    if bible_today:
+        parts.append("Yes — you've completed your Bible reading today.")
+    elif dates and (today - dates[0]).days <= 1:
+        parts.append(
+            "You haven't logged Bible reading yet today, but you read yesterday.")
+    elif dates:
+        parts.append(
+            f"Your most recent Bible reading was {(today - dates[0]).days} days "
+            f"ago ({dates[0].isoformat()})."
+        )
+    else:
+        parts.append("I don't see any Bible reading logged recently.")
+
+    if dates:
+        c = f"Over the last 7 days you've read on {last7} day{'s' if last7 != 1 else ''}"
+        if streak >= 2:
+            c += f", and you're on a {streak}-day streak"
+        parts.append(c + ".")
+
+    if any(k in (msg_lower or '') for k in ('faith', 'prayer', 'pray', 'spiritual', 'on track')):
+        parts.append(
+            "Prayer is complete today." if prayer_today
+            else "Prayer isn't logged yet today.")
+    return " ".join(parts)
 
 
 # Pure "what is the single next step?" phrases. These are unified onto the ONE

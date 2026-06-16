@@ -1350,7 +1350,9 @@ def _build_triage_structured(
         # Nothing actionable — check for later items
         next_action = ctx.get('next', '')
         if next_action and next_action != "Start with your next planned item.":
-            result['text'] = f"Start with {next_action}."
+            # next_action is the canonical directive ("Next: X. Do this now.")
+            # — render verbatim, never re-wrap (trust bug 2026-06-15).
+            result['text'] = next_action
             result['sequence'] = [next_action]
         return result
 
@@ -1510,7 +1512,7 @@ def _build_triage_structured(
     elif not move_later:
         next_action = ctx.get('next', '')
         if next_action:
-            parts.append(f"Start with {next_action}.")
+            parts.append(next_action)  # canonical directive, verbatim
 
     # Only suggest rescheduling when clearly behind AND escalation warrants it.
     #
@@ -1640,11 +1642,11 @@ def _render_midday(ctx, user, user_now) -> str:
         if len(remaining) > 6:
             lines.append(f"• +{len(remaining) - 6} more")
 
-    # Next action
+    # Next action — canonical directive, rendered verbatim (no re-wrap).
     next_action = ctx.get('next', '')
     if next_action and next_action != "Start with your next planned item.":
         lines.append("")
-        lines.append(f"Focus on {next_action} next.")
+        lines.append(next_action)
 
     return "\n".join(lines)
 

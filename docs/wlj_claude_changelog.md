@@ -7,6 +7,24 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-15 — fix(ai): respect explicit user deferrals ("not today") + fix duplicated "Next: Next:"
+
+**Primary — Beth ignored explicit "I won't do X today" decisions, then contradicted herself.** Proven root cause: a deferral statement ("I won't be studying for SHRM today, getting too late") matched NO deterministic route, fell to the LLM (empathetic text), and changed NO execution state — so the next message ("how am I doing?") still saw SHRM as overdue and recommended it. Two gaps fixed, smallest deterministic scope:
+
+- **Deterministic defer route** (`apps/ai/deterministic_router.py`, runs before the LLM check-in prefilter). `_is_defer_today_intent` detects a declarative defer cue + today/tonight/tomorrow scope (excludes questions and emotion like "I hate studying"). `_resolve_defer_target` grounds the target in today's REAL incomplete items (`all_items`) and only acts on an UNAMBIGUOUS single match. `_handle_defer_today`: a **task** → reschedule `due_date` to tomorrow (returns naturally tomorrow, stays `pending` — NOT completed/skipped-forever); a **routine** → `skip_routine` for today (recurs tomorrow). Truthful ack ("I've moved SHRM to tomorrow … Deferred, not done."). Returns None when no unambiguous match → falls through (no false action). User agency outranks optimization; temporary + expires at user-day rollover; adherence never inflated.
+- **Gap A — today_engine dropped skipped routines but NOT skipped tasks** (`_collect_task_items` checked only `== "completed"`). Added the skipped-task drop (mirrors routines) so any recorded deferral/skip actually sticks across check-in / next-action / progress.
+
+**Secondary — "Next: Next: Study for SHRM. Do this now."** Root cause: the unified canonical next-action value is the self-contained directive "Next: X. Do this now." (`build_locked_next_action`), but `beth_day_renderer`, `beth_status_renderer`, and `beth_checkin_renderer` re-wrapped it ("Next: {value}" / "Start with {value}." / "Focus on {value} next."). Fix: the labeled renderers (day/status) strip a redundant leading "Next: " before applying their section label (no double, label preserved); the check-in renders the directive verbatim. Updated 2 status-renderer tests that mocked the old bare format.
+
+**Blast radius:** defer route is additive + terminal + grounded (no mutation unless an unambiguous real item matches); Gap A mirrors existing routine handling; renderer fix is label-preserving. 427-test sweep across 12 affected suites: only the 11 known pre-existing (MagicMock tz/DB) failures, **zero new** (verified via `comm` against baseline). No model/schema/migration changes.
+
+**Tests:** `apps/ai/tests/test_defer_today.py` (8: matcher over/under-trigger, resolver single/ambiguous/none/completed, end-to-end task reschedule = pending+tomorrow+gone-from-today, Gap A skipped-task drop). Renderer double-"Next:" covered by updated `test_beth_status_renderer.py` (asserts no "Next: Next:").
+
+**Files:** `apps/ai/deterministic_router.py`, `apps/core/today/today_engine.py`, `apps/ai/beth_day_renderer.py`, `apps/ai/beth_status_renderer.py`, `apps/ai/beth_checkin_renderer.py`, `apps/ai/tests/test_defer_today.py` (new), `apps/ai/tests/test_beth_status_renderer.py`.
+
+**Caveats:** scoped to tasks + routines (today_engine items) — the proven case and where the contradiction lives; goals/habits-not-in-today are out of scope for this minimal fix. The "disagree once then respect" conversational nuance is not implemented — this deterministically honors the deferral immediately (agency-first); Beth can still encourage in narration but the execution state is updated.
+
+
 ## 2026-06-15 — fix(ai): two more live trust failures — exhaustive enumerate + unified next-action source
 
 Follow-up to the same-day trust-repair sprint. Two proven failures, smallest deterministic fix each, no architecture redesign.

@@ -247,6 +247,14 @@ def _collect_task_items(user, user_now, truth=None) -> list:
             if is_task_blocked(task, truth):
                 continue
 
+            # Intentionally skipped tasks are resolved for today — drop them so
+            # they never surface in overdue/coming_up/later or inflate the day's
+            # total (mirrors the routine handling above). This makes an explicit
+            # user deferral that marks a task skipped actually stick in the
+            # check-in / next-action / progress surfaces (trust bug 2026-06-15).
+            if task.completion_status == "skipped":
+                continue
+
             sched = None
             time_str = None
             if task.scheduled_time:

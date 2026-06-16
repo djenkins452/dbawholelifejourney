@@ -394,6 +394,128 @@ def _build_enumerate_remaining_response(user):
     return header + "\n" + "\n".join(f"• {name}" for name in items)
 
 
+# ── Explicit user deferral ("I won't do X today") — temporary, today-only ──
+# Detect a declarative decision to defer an activity for today. Tight by
+# design: requires a defer cue AND a today/tonight/tomorrow scope, excludes
+# questions, and only ACTS on an unambiguous match against today's real
+# incomplete items — so "I hate studying" (no defer cue) and ambiguous
+# references never trigger a mutation.
+_DEFER_CUES = (
+    "won't", "wont", "will not", "not going to", "not gonna", "won't be",
+    "wont be", "not doing", "can't do", "cant do", "cannot do", "not able to",
+    "skip", "skipping", "not happening", "no time for", "too late",
+    "getting late", "not today", "not tonight", "maybe tomorrow",
+    "do it tomorrow", "do that tomorrow", "tomorrow instead",
+    "leave it for tomorrow", "leave that for tomorrow", "push it to tomorrow",
+    "save it for tomorrow", "save that for tomorrow", "put off",
+)
+_DEFER_SCOPE = ("today", "tonight", "tomorrow", "late", "this morning",
+                "this afternoon", "this evening")
+
+
+def _is_defer_today_intent(msg_lower):
+    """True for an explicit statement deferring an activity for today."""
+    if not msg_lower or "?" in msg_lower:
+        return False  # a question is not a deferral command
+    if not any(c in msg_lower for c in _DEFER_CUES):
+        return False
+    return any(s in msg_lower for s in _DEFER_SCOPE)
+
+
+def _resolve_defer_target(user, msg_lower):
+    """Find the SINGLE today-incomplete item the user is deferring, grounded in
+    canonical state. Returns the today_engine item dict or None (0 / ambiguous)."""
+    try:
+        from apps.core.today.today_engine import get_today_context
+        ctx = get_today_context(user)
+    except Exception:
+        return None
+    # Scan all_items (not just time buckets) so an unscheduled task — which
+    # never enters overdue/coming_up/later/foundation — is still deferrable.
+    candidates = {}
+    for item in ctx.get('all_items', []):
+        if not isinstance(item, dict) or item.get('completed'):
+            continue
+        name = (item.get('name') or '').strip()
+        if name:
+            candidates.setdefault(name.lower(), item)
+    matches = []
+    for key, item in candidates.items():
+        if key in msg_lower:
+            matches.append(item)
+            continue
+        tokens = [t for t in re.split(r'[^a-z0-9]+', key) if len(t) >= 4]
+        if any(t in msg_lower for t in tokens):
+            matches.append(item)
+    return matches[0] if len(matches) == 1 else None
+
+
+def _invalidate_cos(user):
+    try:
+        from apps.ai.readiness_cache import invalidate_cos_context_on_action
+        invalidate_cos_context_on_action(user)
+    except Exception:
+        logger.debug("defer: CoS cache invalidation skipped", exc_info=True)
+
+
+def _handle_defer_today(user, msg_lower):
+    """Apply a today-only deferral and return a truthful acknowledgement.
+
+    Task → reschedule due_date to tomorrow (returns naturally tomorrow, stays
+    'pending' — NOT completed/skipped-forever). Routine → skip today's log (it
+    recurs tomorrow). Returns None when no unambiguous target (caller falls
+    through to the normal pipeline). Never inflates adherence.
+    """
+    item = _resolve_defer_target(user, msg_lower)
+    if not item:
+        return None
+    name = (item.get('name') or '').strip()
+    source = item.get('source')
+    item_id = item.get('id') or ''
+    try:
+        from datetime import timedelta
+        from apps.core.utils import get_user_today
+        today = get_user_today(user)
+        tomorrow = today + timedelta(days=1)
+
+        if source == 'task' and item_id.startswith('task:'):
+            from apps.life.models import Task
+            task = Task.objects.filter(
+                user=user, pk=item_id.split(':', 1)[1]).first()
+            if not task:
+                return None
+            task.due_date = tomorrow
+            task.save(update_fields=['due_date', 'updated_at'])
+            _invalidate_cos(user)
+            logger.info("[DEFER] user=%s task='%s' → tomorrow", user.id, name)
+            return (
+                f"Got it — I've moved **{name}** to tomorrow. It's off today's "
+                f"list, so I won't nudge you on it tonight. We'll pick it back "
+                f"up tomorrow. (Deferred, not done.)"
+            )
+
+        if source == 'routine' and item_id.startswith('routine:'):
+            from apps.life.models import RoutineSchedule
+            from apps.life.services.routine_helpers import skip_routine
+            sched = RoutineSchedule.objects.filter(
+                id=item_id.split(':', 1)[1], routine__user=user).first()
+            if not sched:
+                return None
+            skip_routine(user, sched, today)
+            _invalidate_cos(user)
+            logger.info("[DEFER] user=%s routine='%s' skipped today", user.id, name)
+            return (
+                f"Got it — **{name}** is off for today. It'll come back around "
+                f"tomorrow. (Deferred for tonight, not skipped for good.)"
+            )
+    except Exception:
+        logger.warning(
+            "[DEFER] failed for user=%s item='%s'",
+            getattr(user, 'id', '?'), name, exc_info=True)
+        return None
+    return None
+
+
 def _build_qualified_status_response(msg_lower: str, user):
     """Build a deterministic response for qualified status queries.
 
@@ -1044,6 +1166,32 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
         result.elapsed_ms = (time.monotonic() - t_start) * 1000
         _log_route_decision(result, user, message)
         return result
+
+    # ── Explicit deferral ("I won't do X today") — terminal ──────
+    # User agency outranks optimization: an explicit decision to defer an
+    # activity for today must MODIFY today's plan deterministically (reschedule
+    # the task to tomorrow / skip the routine for today), not just produce
+    # empathetic text that the execution engines then ignore (trust bug
+    # 2026-06-15). Runs before the LLM check-in prefilter. Grounded + bounded:
+    # only acts on an unambiguous single match against today's incomplete items;
+    # otherwise returns None and falls through (no false action).
+    if _is_defer_today_intent(msg_lower) and user is not None:
+        try:
+            response = _handle_defer_today(user, msg_lower)
+            if response:
+                result = RouteResult(
+                    category=RouteCategory.DETERMINISTIC_DATA,
+                    response=response,
+                    route_name='defer_today',
+                    domain='execution',
+                    is_terminal=True,
+                )
+                result.elapsed_ms = (time.monotonic() - t_start) * 1000
+                _log_route_decision(result, user, message)
+                return result
+        except Exception as e:
+            logger.warning(
+                "Defer-today route failed, falling through: %s", e, exc_info=True)
 
     # ── Phase 4: Check-in — deterministic renderer (terminal) ────
     result = _try_checkin_prefilter(msg_lower, user=user)

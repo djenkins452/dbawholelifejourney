@@ -61,6 +61,12 @@ def _format_day_output(ctx: dict) -> str:
             return "• None"
         return "\n".join(f"• {entry['label']}" for entry in bucket)
 
+    # The renderer owns the "Next:" label; strip a redundant leading "Next: "
+    # from the canonical directive so we never emit "Next: Next: …"
+    # (trust bug 2026-06-15).
+    _nx = ctx.get('next', '') or ''
+    _next_line = f"Next: {_nx[6:]}" if _nx.startswith("Next: ") else f"Next: {_nx}"
+
     lines = [
         "Today",
         "",
@@ -79,7 +85,7 @@ def _format_day_output(ctx: dict) -> str:
         "Completed:",
         _fmt(ctx["completed"]),
         "",
-        f"Next: {ctx['next']}",
+        _next_line,
     ]
 
     output = "\n".join(lines)

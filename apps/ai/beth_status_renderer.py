@@ -246,9 +246,13 @@ def build_status_response(user) -> str:
     else:
         sections.append("You've completed everything for today.")
 
-    # Section 2 — NEXT (REQUIRED)
+    # Section 2 — NEXT (REQUIRED). The renderer owns the "Next:" label, but
+    # the canonical value may already be the directive "Next: X. Do this now."
+    # — strip a redundant leading "Next: " so we never emit "Next: Next: …"
+    # (trust bug 2026-06-15) while preserving the section label.
     if remaining_items:
-        sections.append(f"Next: {next_action}")
+        _na = next_action[6:] if next_action.startswith("Next: ") else next_action
+        sections.append(f"Next: {_na}")
     else:
         sections.append("Next: You're all set. No remaining actions.")
 

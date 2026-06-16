@@ -330,7 +330,7 @@ class TestNextAction(SimpleTestCase):
                 "routine_done": 0, "routine_total": 0,
                 "tasks_done": 0,
             },
-            "next_action": "Start with Prayer.",
+            "next_action": "Next: Prayer. Do this now.",
         }
         mock_exec.return_value = {"items": [], "summaries": {"domains": {}, "expected": {}}}
 
@@ -338,13 +338,15 @@ class TestNextAction(SimpleTestCase):
         user.id = 1
         response = build_status_response(user)
 
-        self.assertIn("Next: Start with Prayer.", response)
+        # Canonical directive printed verbatim — never re-prefixed ("Next: Next:").
+        self.assertIn("Next: Prayer. Do this now.", response)
+        self.assertNotIn("Next: Next:", response)
 
     @patch("apps.ai.cos_fact_statements.build_locked_facts")
     @patch("apps.core.execution.today_execution.build_today_execution")
     def test_next_action_not_modified(self, mock_exec, mock_facts):
         """Next action must be passed through verbatim."""
-        next_text = "Start with Spay Weeds. Then move to Shower."
+        next_text = "Next: Spay Weeds. Do this now."
         mock_facts.return_value = {
             "_raw": {
                 "prayer_done": False, "prayer_expected": True,
@@ -362,7 +364,8 @@ class TestNextAction(SimpleTestCase):
         user.id = 1
         response = build_status_response(user)
 
-        self.assertIn(f"Next: {next_text}", response)
+        self.assertIn(next_text, response)
+        self.assertNotIn("Next: Next:", response)
 
 
 # ---------------------------------------------------------------------------

@@ -1636,14 +1636,16 @@ def build_faith_state(user):
     active_plans = FaithQueries.active_reading_plans(user)
     state["active_reading_plans"] = active_plans.count()
 
-    # Last scripture reading (canonical contract)
-    last_reading_obj = FaithQueries.last_reading(user)
-    last_reading = last_reading_obj.completed_at if last_reading_obj else None
-    if last_reading:
-        state["last_scripture_read"] = last_reading.isoformat()
-        # Use date comparison, not datetime, to prevent a reading at 9pm
-        # yesterday showing as "0 days since reading" at 6am today.
-        state["days_since_reading"] = (now.date() - last_reading.date()).days
+    # Last scripture reading — derived from the SINGLE canonical completion
+    # source (plan + routine→faith bridge), so days-since can never diverge
+    # from execution truth / the dashboard (the "22 days while reading daily
+    # via a routine" trust bug, 2026-06-16). Date-level to avoid a 9pm reading
+    # showing "0 days" wrong at 6am the next day.
+    bible_dates = FaithQueries.bible_completion_dates(user, limit=90)
+    if bible_dates:
+        last_date = bible_dates[0]
+        state["last_scripture_read"] = last_date.isoformat()
+        state["days_since_reading"] = (now.date() - last_date).days
 
     # Reading streak (consecutive days with completions)
     streak = _calculate_reading_streak(user, now)
@@ -1692,11 +1694,15 @@ def build_faith_state(user):
 
 
 def _calculate_reading_streak(user, now):
-    """Calculate consecutive days of scripture reading ending at today/yesterday."""
+    """Calculate consecutive days of scripture reading ending at today/yesterday.
+
+    Uses the canonical unified completion set (plan + routine→faith bridge) so
+    the streak matches execution truth, not a plan-only view (2026-06-16).
+    """
     from apps.faith.services.faith_queries import FaithQueries
 
-    # Get distinct completion dates in reverse order (canonical contract)
-    completion_dates = FaithQueries.reading_completion_dates(user, limit=60)
+    # Canonical unified completion dates, newest-first.
+    completion_dates = FaithQueries.bible_completion_dates(user, limit=60)
 
     if not completion_dates:
         return 0

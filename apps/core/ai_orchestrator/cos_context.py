@@ -3912,7 +3912,11 @@ def build_cos_context(user, scoped_builders=None):
 
         if trust_reports:
             context['trust_reports'] = trust_reports
-            context['right_now_focus'] = compute_right_now_focus(trust_reports)
+            from apps.core.ai_state.right_now import _execution_completed_domains
+            context['right_now_focus'] = compute_right_now_focus(
+                trust_reports,
+                completed_today=_execution_completed_domains(user),
+            )
         else:
             # Surface the steady state explicitly so CoS / LLM know
             # the focus resolver was reached but found nothing urgent.

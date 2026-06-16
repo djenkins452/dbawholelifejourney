@@ -1136,6 +1136,25 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
             _log_route_decision(result, user, message)
             return result
 
+    # ── Phase 1a2: Actual wake-time ("what time did I wake up?") ──
+    # Past-tense ACTUAL wake question. Answers from Tier-1 truth (wake-routine
+    # performed_at / sleep wake_time), NEVER the scheduled time, and states
+    # uncertainty when unverifiable (trust bug 2026-06-16: scheduled answered
+    # as actual). Distinct from the present-tense routine-time route below.
+    if _match_actual_wake_query(msg_lower) and user is not None:
+        _wake_resp = _handle_actual_wake_query(user)
+        if _wake_resp:
+            result = RouteResult(
+                category=RouteCategory.DETERMINISTIC_DATA,
+                response=_wake_resp,
+                route_name='actual_wake_time',
+                domain='execution',
+                is_terminal=True,
+            )
+            result.elapsed_ms = (time.monotonic() - t_start) * 1000
+            _log_route_decision(result, user, message)
+            return result
+
     # ── Phase 1b: Routine time queries ("when is my workout?") ───
     # Must run BEFORE check-in prefilter to prevent misclassification.
     _item_kw = _match_routine_time_query(msg_lower)
@@ -2780,7 +2799,11 @@ def _build_focus_query_response(user):
                     if v:
                         trust_reports[k] = v
 
-            focus = compute_right_now_focus(trust_reports)
+            from apps.core.ai_state.right_now import _execution_completed_domains
+            focus = compute_right_now_focus(
+                trust_reports,
+                completed_today=_execution_completed_domains(user),
+            )
         except Exception as e:
             logger.warning(
                 "[FOCUS_QUERY] right_now_focus failed for user=%s: %s",
@@ -3170,9 +3193,12 @@ def _get_high_priority_note(user, exclude_domain=None):
     domain."
     """
     try:
-        from apps.core.ai_state.right_now import compute_right_now_focus
+        from apps.core.ai_state.right_now import (
+            compute_right_now_focus, _execution_completed_domains,
+        )
         reports = _get_all_trust_reports(user)
-        focus = compute_right_now_focus(reports)
+        focus = compute_right_now_focus(
+            reports, completed_today=_execution_completed_domains(user))
     except Exception:
         return None
     if not focus or focus.get('status') != 'focused':
@@ -3966,7 +3992,11 @@ def _build_next_action_response(user):
                 if v:
                     trust_reports[k] = v
 
-        focus = compute_right_now_focus(trust_reports)
+        from apps.core.ai_state.right_now import _execution_completed_domains
+        focus = compute_right_now_focus(
+            trust_reports,
+            completed_today=_execution_completed_domains(user),
+        )
         if (
             focus
             and focus.get('status') == 'focused'
@@ -4569,6 +4599,115 @@ def _handle_weight_query(user):
         )
 
     return response
+
+
+# Past-tense ACTUAL wake-time questions. Distinct from the present-tense
+# routine-time matcher (which answers scheduled time). These ask what actually
+# happened and must be answered from Tier-1 truth, never the scheduled value.
+_ACTUAL_WAKE_PATTERNS = (
+    "what time did i wake", "when did i wake", "what time did i get up",
+    "when did i get up", "what time did i actually wake", "how early did i wake",
+    "what time was i up", "time i woke up", "when i woke up", "what time i woke",
+    "did i wake up at", "what time did i rise",
+)
+
+
+def _match_actual_wake_query(msg_lower):
+    """Match a past-tense 'what time did I actually wake up?' question."""
+    return bool(msg_lower) and any(p in msg_lower for p in _ACTUAL_WAKE_PATTERNS)
+
+
+def _handle_actual_wake_query(user):
+    """Deterministic ACTUAL wake-time answer — Tier-1 truth, never scheduled.
+
+    Source hierarchy: (1) wake-routine completion timestamp
+    (RoutineLog.performed_at), (2) sleep wake_time. States scheduled-vs-actual
+    transparently, and honest uncertainty when no actual signal exists (never
+    substitutes the scheduled time). Returns a string, or None on hard failure.
+    """
+    from django.utils import timezone
+
+    from apps.core.utils import get_user_today
+
+    def _fmt(dt):
+        try:
+            dt = timezone.localtime(dt)
+        except Exception:
+            pass
+        try:
+            return dt.strftime("%I:%M %p").lstrip("0")
+        except Exception:
+            return None
+
+    try:
+        today = get_user_today(user)
+    except Exception:
+        return None
+
+    actual = None
+    source = None
+    scheduled = None
+
+    # Source 1 — wake routine completion (performed_at = when it happened).
+    try:
+        from apps.life.models import RoutineLog
+        log = (
+            RoutineLog.objects.filter(
+                user=user, scheduled_date=today,
+                log_status__in=[
+                    RoutineLog.STATUS_COMPLETED, RoutineLog.STATUS_COMPLETED_LATE],
+                schedule__name__iregex=r'wake|get up|rise',
+            )
+            .select_related('schedule')
+            .order_by('performed_at', 'completed_at')
+            .first()
+        )
+        if log:
+            if log.schedule and log.schedule.scheduled_time:
+                scheduled = log.schedule.scheduled_time.strftime(
+                    "%I:%M %p").lstrip("0")
+            ts = log.performed_at or log.completed_at
+            if ts:
+                actual = _fmt(ts)
+                source = "your wake-up routine completion"
+    except Exception:
+        logger.debug("wake query: routine source failed", exc_info=True)
+
+    # Source 2 — sleep wake timestamp.
+    if actual is None:
+        try:
+            from apps.health.models import SleepEntry
+            se = (
+                SleepEntry.objects.filter(user=user, sleep_date=today)
+                .exclude(wake_time__isnull=True)
+                .order_by('-recorded_at')
+                .first()
+            )
+            if se and se.wake_time:
+                actual = _fmt(se.wake_time)
+                source = "your sleep data"
+        except Exception:
+            logger.debug("wake query: sleep source failed", exc_info=True)
+
+    # Honest uncertainty — never substitute scheduled for actual.
+    if actual is None:
+        if scheduled:
+            return (
+                f"I don't have a confirmed actual wake-up time logged for today "
+                f"— you were scheduled for {scheduled}, but I can't verify when "
+                f"you actually woke, so I won't guess."
+            )
+        return (
+            "I don't have a confirmed wake-up time for today — nothing's logged "
+            "from a wake routine or sleep data, so I'd be guessing."
+        )
+
+    if scheduled and scheduled != actual:
+        return (
+            f"You were scheduled to wake at {scheduled}, and based on {source} "
+            f"you actually woke around {actual}."
+        )
+    return f"Based on {source}, you woke around {actual} today."
 
 
 def _match_routine_time_query(msg_lower):

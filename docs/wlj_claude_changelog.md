@@ -7,6 +7,25 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-16 — fix(ai): Beth trust recovery Phases 1+2 — ground first, reason second
+
+Three proven "confidently contradicts known facts" failures. Approved plan (Phases 1+2 only); both stakeholder modifications incorporated (faith = one canonical source not suppression; focus gate must cite any override).
+
+**Phase 1A — Faith single source of truth (kills "22 days since scripture").** Root cause was a source divergence: `days_since_reading`/streak read **plan-only** `UserReadingProgress` ([state_builder.py:1640+](apps/core/ai_state/state_builder.py), [faith_queries.py:56](apps/faith/services/faith_queries.py)), while canonical `get_execution_truth` also counts the **routine→faith bridge** + faith tasks — so reading Bible daily via a *routine* left `days_since` climbing to 22. Fix (one truth, one source): new `FaithQueries.bible_completion_dates` unions plan + routine-bridge dates; `build_faith_state` derives `last_scripture_read`/`days_since_reading` and `_calculate_reading_streak` from it. Plan-only and execution-truth views can no longer diverge.
+
+**Phase 1B — Wake-time canonical answer.** Root cause: no deterministic route for past-tense "what time did I wake up" (`_match_routine_time_query` is present-tense only); it fell to the LLM, which answered scheduled 5:00. Fix: new terminal route `_match_actual_wake_query` + `_handle_actual_wake_query` using the hierarchy — (1) wake-routine `RoutineLog.performed_at`, (2) `SleepEntry.wake_time` — stating scheduled-vs-actual ("scheduled 5:00, you actually woke ~5:50"). When no actual signal exists it says so; NEVER substitutes scheduled for actual.
+
+**Phase 2 — Recommendation grounding gate (cite-the-override).** Root cause: `compute_right_now_focus` ([right_now.py:71](apps/core/ai_state/right_now.py)) ranks pre-computed trust reports and never checks completion, so a domain done today could surface as the focus/gap. Fix: callers pass `completed_today` (from `get_execution_truth` via new `_execution_completed_domains`); a completed-today domain is **ineligible** UNLESS its report carries `grounded_override_reason` — and if surfaced anyway, the reason MUST cite it ("Faith is completed today, but I'm surfacing it because your journal themes suggest drift"). Silent overrides impossible. Wired into all 4 `compute_right_now_focus` call sites (cos_context + 3 router handlers).
+
+**Source hierarchy:** Tier-1 canonical execution truth wins; Tier-2 derived metrics only if Tier-1 absent; Tier-3 inference never overrides. Unknown > hallucinated (wake-time + faith fall to explicit uncertainty when data missing).
+
+**Blast radius:** all additive/skip-only; faith swaps a narrower source for the canonical superset; wake route is new + terminal (past-tense-only matcher); focus gate only suppresses completed-today (or surfaces with cited reason); `compute_right_now_focus` without `completed_today` behaves exactly as before. No model/schema/migration changes. Regression sweep across 9 affected suites (387 tests): only the 11 known pre-existing failures, **zero new** (verified via `comm` vs `git stash` baseline).
+
+**Tests:** `apps/ai/tests/test_trust_recovery_phase12.py` (11) — faith unified-source DB test, wake matcher/actual-vs-scheduled/honest-uncertainty, focus gate (suppressed / cited-override / normal / backward-compat), `_execution_completed_domains` mapping.
+
+**Honest caveats:** Phase 3 (pre-LLM canonical resolver / source registry) intentionally not built. `grounded_override_reason` is a ready mechanism — no assessor sets it yet, so completed domains currently suppress (safe default); evidence-based overrides are a follow-on. Verified against deterministic paths with representative state; no production LLM-reply capture.
+
+
 ## 2026-06-15 — fix(ai): respect explicit user deferrals ("not today") + fix duplicated "Next: Next:"
 
 **Primary — Beth ignored explicit "I won't do X today" decisions, then contradicted herself.** Proven root cause: a deferral statement ("I won't be studying for SHRM today, getting too late") matched NO deterministic route, fell to the LLM (empathetic text), and changed NO execution state — so the next message ("how am I doing?") still saw SHRM as overdue and recommended it. Two gaps fixed, smallest deterministic scope:

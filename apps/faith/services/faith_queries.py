@@ -61,7 +61,12 @@ class FaithQueries:
 
     @classmethod
     def reading_completion_dates(cls, user, limit=60):
-        """Distinct completion dates in reverse order (for streak calc)."""
+        """Distinct PLAN completion dates in reverse order.
+
+        Plan-only. For canonical faith history (days-since / streak) use
+        ``bible_completion_dates`` instead — it also folds in the
+        routine→faith bridge so it cannot diverge from execution truth.
+        """
         return list(
             UserReadingProgress.objects.filter(
                 user_plan__user=user, is_completed=True,
@@ -70,6 +75,48 @@ class FaithQueries:
                 'completed_at__date', flat=True,
             ).distinct().order_by('-completed_at__date')[:limit]
         )
+
+    @classmethod
+    def bible_completion_dates(cls, user, limit=90):
+        """THE single canonical set of dates Bible reading was completed.
+
+        Unions BOTH canonical sources that execution_truth_engine counts:
+          1. reading-plan progress (UserReadingProgress.is_completed)
+          2. the routine→faith bridge — a completed routine item named like
+             "Bible Reading" (FAITH_BIBLE_NAMES)
+
+        This exists so faith history metrics (days-since, streak) derive from
+        the SAME truth as the dashboard / adherence / routine engine and can
+        never diverge (the "22 days since scripture while reading daily via a
+        routine" trust bug, 2026-06-16). Returns dates newest-first. Never
+        raises (routine source is best-effort).
+        """
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        dates = set(cls.reading_completion_dates(user, limit=limit))
+        try:
+            from apps.core.execution.execution_truth_engine import (
+                FAITH_BIBLE_NAMES,
+            )
+            from apps.life.models import RoutineLog
+
+            cutoff = timezone.now().date() - timedelta(days=limit)
+            rows = RoutineLog.objects.filter(
+                user=user,
+                scheduled_date__gte=cutoff,
+                log_status__in=[
+                    RoutineLog.STATUS_COMPLETED,
+                    RoutineLog.STATUS_COMPLETED_LATE,
+                ],
+            ).values_list('schedule__name', 'scheduled_date')
+            for name, d in rows:
+                if d and name and name.strip().lower() in FAITH_BIBLE_NAMES:
+                    dates.add(d)
+        except Exception:
+            pass  # routine bridge best-effort; plan dates still returned
+        return sorted((d for d in dates if d), reverse=True)[:limit]
 
     # ── Prayer Requests ──────────────────────────────────────────
 

@@ -5120,13 +5120,105 @@ def _handle_sleep_coaching_query(user, msg_lower=None):
     return None  # not the constraint / no data → LLM gives general sleep tips
 
 
-def _match_sleep_query(msg_lower):
-    """Match direct sleep STATUS questions (coaching is handled separately)."""
+# Sleep DIAGNOSTIC intent — "why is my sleep holding me back?" / "what's
+# causing my poor sleep?" — recognized as a CATEGORY (cause-seeking), not the
+# literal example phrases (2026-06-17). Coaching (action verbs) takes precedence
+# when both appear ("why is my sleep bad and how do I fix it" → coaching).
+_SLEEP_DIAGNOSTIC_CUES = (
+    'why', "what's causing", 'what is causing', 'whats causing', 'causing my',
+    'cause of', "what's behind", 'what is behind', "what's limiting",
+    'what is limiting', 'limiting my', 'holding me back', 'holding my',
+    'struggling with', "what's wrong", 'what is wrong', 'whats wrong',
+    'reason for', 'reason my', "why can't i", 'why cant i', 'root cause',
+    'what is hurting', "what's hurting",
+)
+
+
+def _is_sleep_diagnostic_request(msg_lower):
+    """True for a cause-seeking ('why/what's causing/what's limiting') question
+    about sleep — the DIAGNOSTIC category. Coaching wins when an action verb is
+    present (handled by excluding coaching here)."""
+    if not msg_lower or 'sleep' not in msg_lower:
+        return False
+    if _is_sleep_coaching_request(msg_lower):
+        return False  # action intent → coaching, not diagnostic
+    return any(c in msg_lower for c in _SLEEP_DIAGNOSTIC_CUES)
+
+
+def _match_sleep_diagnostic_query(msg_lower):
+    """Match sleep diagnostic/root-cause requests (before coaching & status)."""
     if _is_future_tense_query(msg_lower):
         return False
-    # Coaching/action questions are NOT status — let the coaching route handle
-    # them so "how can I improve my sleep" never returns bare metrics (F4).
-    if _is_sleep_coaching_request(msg_lower):
+    return _is_sleep_diagnostic_request(msg_lower)
+
+
+def _handle_sleep_diagnostic_query(user, msg_lower=None):
+    """Grounded sleep root-cause: names the actual limiting factor(s) from real
+    signals (duration deficit, quality-vs-quantity, consistency, trend) via
+    HealthTrendAnalyzer. NO speculative psychology — only signals that exist.
+    Honest uncertainty when there isn't enough data (never falls to a guess)."""
+    try:
+        from apps.core.utils import get_user_today
+        from apps.health.services.trend_analyzer import HealthTrendAnalyzer
+        res = HealthTrendAnalyzer.analyze(user, get_user_today(user)) or {}
+        rolling = res.get("rolling_7d") or {}
+        avg = rolling.get("sleep_hours")
+        if avg is None:
+            return (
+                "I don't have enough recent sleep data to pinpoint what's "
+                "holding your sleep back yet — log a few more nights and I can "
+                "break down the limiting factors."
+            )
+        avg = float(avg)
+        weaknesses = res.get("weaknesses") or []
+        trends = res.get("trends") or {}
+        factors = []
+        if avg < 7:
+            gap_min = round((7.0 - avg) * 60)
+            factors.append(
+                f"the main constraint is **duration** — you're averaging "
+                f"{avg:.1f}h against a 7-hour target (about {gap_min} minutes "
+                f"short each night)"
+            )
+        else:
+            factors.append(f"your sleep duration is on target ({avg:.1f}h)")
+        # Quality vs quantity — grounded only when a quality score exists.
+        try:
+            from apps.core.ai_state.state_engine import get_module_state
+            _h = get_module_state(user, 'health') or {}
+            q = _h.get('sleep_quality_avg_7d')
+            if q is None:
+                q = _h.get('sleep_last_night_quality')
+            if q is not None:
+                q = float(q)
+                if avg < 7 and q >= 80:
+                    factors.append(
+                        f"quality isn't the issue (score ~{int(q)}) — it's quantity")
+                elif q < 70:
+                    factors.append(f"sleep quality is also low (score ~{int(q)})")
+        except Exception:
+            pass
+        if any('inconsistent' in (w or '').lower() and 'sleep' in (w or '').lower()
+               for w in weaknesses):
+            factors.append("your nightly duration has also been inconsistent recently")
+        if trends.get('sleep') == 'declining':
+            factors.append("and the trend is declining")
+        return "Looking at your sleep data, " + "; ".join(factors) + "."
+    except Exception:
+        logger.debug("sleep diagnostic route failed", exc_info=True)
+        return (
+            "I don't have enough recent sleep data to diagnose what's holding "
+            "your sleep back yet."
+        )
+
+
+def _match_sleep_query(msg_lower):
+    """Match direct sleep STATUS questions (coaching/diagnostic handled separately)."""
+    if _is_future_tense_query(msg_lower):
+        return False
+    # Coaching (action) and diagnostic (cause-seeking) are NOT status — let
+    # their routes handle them so neither returns bare metrics (F4 + diagnostic).
+    if _is_sleep_coaching_request(msg_lower) or _is_sleep_diagnostic_request(msg_lower):
         return False
     _SLEEP_INTENT = frozenset([
         'how did i sleep', "how's my sleep", 'how is my sleep',
@@ -5677,9 +5769,11 @@ def _register_builtin_routes():
     # "what was my last workout" hits the latest-event handler, not the summary.
     register_data_route('last_workout_query', _match_last_workout_query, _handle_last_workout_query, 'health')
     register_data_route('workout_query', _match_workout_query, _handle_workout_query, 'health')
-    # Sleep COACHING must be checked BEFORE the sleep STATUS route so an
-    # "improve my sleep" question never returns bare metrics (F4, 2026-06-17).
+    # Sleep intent precedence: COACHING (action) → DIAGNOSTIC (cause-seeking) →
+    # STATUS (metrics). Coaching/diagnostic must be checked BEFORE status so
+    # neither returns bare metrics (F4 + diagnostic, 2026-06-17).
     register_data_route('sleep_coaching_query', _match_sleep_coaching_query, _handle_sleep_coaching_query, 'health')
+    register_data_route('sleep_diagnostic_query', _match_sleep_diagnostic_query, _handle_sleep_diagnostic_query, 'health')
     register_data_route('sleep_query', _match_sleep_query, _handle_sleep_query, 'health')
     # 2026-06-07 — glucose LATEST event route registered BEFORE the
     # summary route so it's checked first. Latest-style questions

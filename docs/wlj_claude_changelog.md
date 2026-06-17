@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-17 — feat(ai): sleep DIAGNOSTIC intent (third sleep intent) — category, not phrases
+
+Live production after the F4 deploy confirmed coaching now works ("how can I improve my sleep" → actions), but a third intent leaked: "Why is my sleep holding me back?" still returned status metrics. Root cause = the same domain-before-intent pattern, one intent over: diagnostic (cause-seeking) questions matched no coaching phrase, so they weren't excluded from the status matcher and "my sleep" routed them to metrics.
+
+Fix (sleep-only, reuses the F4 pattern; no universal intent engine): the diagnostic intent is recognized as a **CATEGORY**, not the literal example phrases — `_is_sleep_diagnostic_request` keys on cause-seeking cues (why / what's causing / what's behind / what's limiting / holding me back / struggling with / root cause …) + a sleep token, and **coaching takes precedence** when an action verb is present ("why is my sleep bad and how do I fix it" → coaching). New `sleep_diagnostic_query` route registered with explicit precedence **coaching → diagnostic → status**; the status matcher now excludes both. `_handle_sleep_diagnostic_query` returns a **grounded** root-cause from `HealthTrendAnalyzer` signals only — duration deficit (avg vs 7h), quality-vs-quantity (when a quality score exists), consistency (±variance weakness), trend — with **no speculative psychology** and honest uncertainty when data is thin (never a guess).
+
+**Representative output** — "Why is my sleep holding me back?" → *"Looking at your sleep data, the main constraint is duration — you're averaging 5.6h against a 7-hour target (about 84 minutes short each night); quality isn't the issue (score ~94) — it's quantity; your nightly duration has also been inconsistent recently; and the trend is declining."*
+
+**Intent-precedence regression tests** (per request — prove the CATEGORY generalizes, not memorized wording): paraphrases NOT in the examples classify to exactly one of status/coaching/diagnostic ("why don't I sleep well", "what's behind my poor sleep", "root cause of my bad sleep" → diagnostic; "any tips for better sleep", "ways to sleep better" → coaching; "how did I sleep", "what's my sleep quality" → status); precedence (action verb beats cause cue); mutual exclusion across the three matchers; grounded-no-speculation handler output; honest no-data; diagnostic routes to `sleep_diagnostic_query`, never `sleep_query`.
+
+**Blast radius:** sleep only; diagnostic/coaching/status phrase sets are mutually exclusive (tested); coaching behavior unchanged. **Files:** `apps/ai/deterministic_router.py`, `apps/ai/tests/test_sleep_intent_routing.py` (+8 tests). Sweep vs `git stash` baseline: zero new failures. No model/schema/migration changes. Generalization to other domains deliberately NOT done — this validates the status/coaching/diagnostic pattern on sleep first.
+
+
 ## 2026-06-17 — fix(ai): wake sleep-date window (F1) + sleep intent routing (F4)
 
 Follow-up after live production validation showed F1 still failing and surfaced F4 (intent ignored).

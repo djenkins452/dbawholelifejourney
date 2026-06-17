@@ -43,8 +43,11 @@ class WakeTimePrecedence(TestCase):
         from apps.health.models import SleepEntry
         wake = timezone.now().replace(
             hour=wake_hour, minute=wake_min, second=0, microsecond=0)
+        # Realistic "night-of" convention: last night's sleep is dated
+        # YESTERDAY even though you woke this morning. The prior test used
+        # sleep_date=today and so missed the production bug (2026-06-17).
         SleepEntry.objects.create(
-            user=self.user, sleep_date=self.today,
+            user=self.user, sleep_date=self.today - timedelta(days=1),
             bedtime=wake - timedelta(hours=7), wake_time=wake)
 
     def test_sleep_beats_routine_marked_time(self):

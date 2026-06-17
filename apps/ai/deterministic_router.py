@@ -4805,15 +4805,24 @@ def _handle_actual_wake_query(user):
         logger.debug("wake query: routine source failed", exc_info=True)
 
     # Sleep wake timestamp — the real biometric; PREFERRED actual source.
+    # CRITICAL: SleepEntry.sleep_date is the NIGHT-OF (e.g. last night = 16th
+    # when you wake on the 17th), so a `sleep_date=today` filter MISSES this
+    # morning's wake (2026-06-17 fix — the bug behind the prod 5:00 answer).
+    # Search the night-of window (yesterday + today) and take the most recent
+    # wake within ~36h.
     try:
+        from datetime import timedelta
+
         from apps.health.models import SleepEntry
+        cutoff = timezone.now() - timedelta(hours=36)
         se = (
-            SleepEntry.objects.filter(user=user, sleep_date=today)
+            SleepEntry.objects.filter(
+                user=user, sleep_date__in=[today, today - timedelta(days=1)])
             .exclude(wake_time__isnull=True)
-            .order_by('-recorded_at')
+            .order_by('-wake_time')
             .first()
         )
-        if se and se.wake_time:
+        if se and se.wake_time and se.wake_time >= cutoff:
             sleep_actual = _fmt(se.wake_time)
     except Exception:
         logger.debug("wake query: sleep source failed", exc_info=True)
@@ -5065,9 +5074,59 @@ def _handle_workout_query(user):
     )
 
 
-def _match_sleep_query(msg_lower):
-    """Match direct sleep status questions."""
+# Sleep COACHING intent — "how to improve my sleep" — distinct from a STATUS
+# question ("how did I sleep"). Routing must key on INTENT, not just the
+# "sleep" keyword (F4, 2026-06-17). Mirrors the nutrition fact-vs-coaching split.
+_SLEEP_COACHING_REQUEST = (
+    'what should i', 'how do i', 'how can i', 'help me', 'what can i do',
+    'give me advice', 'recommend', 'improve my', 'best way', 'tips',
+    'ways to', 'how to improve', 'what actions', 'sleep better',
+    'better sleep', 'fix my sleep', 'what do i do',
+)
+
+
+def _is_sleep_coaching_request(msg_lower):
+    """True when the user asks HOW TO IMPROVE sleep (coaching), not status."""
+    if not msg_lower or 'sleep' not in msg_lower:
+        return False
+    return any(p in msg_lower for p in _SLEEP_COACHING_REQUEST)
+
+
+def _match_sleep_coaching_query(msg_lower):
+    """Match sleep coaching/action requests (checked BEFORE the status route)."""
     if _is_future_tense_query(msg_lower):
+        return False
+    return _is_sleep_coaching_request(msg_lower)
+
+
+def _handle_sleep_coaching_query(user, msg_lower=None):
+    """Deterministic sleep coaching when sleep is the identified constraint,
+    from the existing HealthTrendAnalyzer (severity-scored, grounded). Returns
+    None when sleep isn't the primary constraint → falls through to the LLM
+    coaching path (per approved F4 plan). Never returns status-only metrics."""
+    try:
+        from apps.core.utils import get_user_today
+        from apps.health.services.trend_analyzer import HealthTrendAnalyzer
+        res = HealthTrendAnalyzer.analyze(user, get_user_today(user)) or {}
+        coaching = res.get("coaching") or {}
+        if coaching.get("primary_constraint") == "sleep":
+            parts = [coaching.get("insight"), coaching.get("primary_action"),
+                     coaching.get("secondary_action")]
+            msg = " ".join(p for p in parts if p)
+            if msg.strip():
+                return msg
+    except Exception:
+        logger.debug("sleep coaching route failed", exc_info=True)
+    return None  # not the constraint / no data → LLM gives general sleep tips
+
+
+def _match_sleep_query(msg_lower):
+    """Match direct sleep STATUS questions (coaching is handled separately)."""
+    if _is_future_tense_query(msg_lower):
+        return False
+    # Coaching/action questions are NOT status — let the coaching route handle
+    # them so "how can I improve my sleep" never returns bare metrics (F4).
+    if _is_sleep_coaching_request(msg_lower):
         return False
     _SLEEP_INTENT = frozenset([
         'how did i sleep', "how's my sleep", 'how is my sleep',
@@ -5618,6 +5677,9 @@ def _register_builtin_routes():
     # "what was my last workout" hits the latest-event handler, not the summary.
     register_data_route('last_workout_query', _match_last_workout_query, _handle_last_workout_query, 'health')
     register_data_route('workout_query', _match_workout_query, _handle_workout_query, 'health')
+    # Sleep COACHING must be checked BEFORE the sleep STATUS route so an
+    # "improve my sleep" question never returns bare metrics (F4, 2026-06-17).
+    register_data_route('sleep_coaching_query', _match_sleep_coaching_query, _handle_sleep_coaching_query, 'health')
     register_data_route('sleep_query', _match_sleep_query, _handle_sleep_query, 'health')
     # 2026-06-07 — glucose LATEST event route registered BEFORE the
     # summary route so it's checked first. Latest-style questions

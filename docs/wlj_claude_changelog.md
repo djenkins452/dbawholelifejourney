@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-17 — fix(ai): wake sleep-date window (F1) + sleep intent routing (F4)
+
+Follow-up after live production validation showed F1 still failing and surfaced F4 (intent ignored).
+
+**F1 — wake time (the test-missed bug).** The prior precedence fix (sleep wins) was necessary but INSUFFICIENT: `_handle_actual_wake_query` queried `SleepEntry.objects.filter(sleep_date=today)`, but `SleepEntry.sleep_date` is the **night-of** ([models.py:4203](apps/health/models.py): "sleep on Jan 5 night is Jan 5"). Waking the morning of the 17th means last night's sleep is `sleep_date=16` (**yesterday**) — so `sleep_date=today` found nothing, sleep returned empty, and routine `performed_at` (the marked 5:00) or the LLM still answered 5:00. (My earlier test passed only because it stored the entry with `sleep_date=today`.) Fix: query the night-of window `sleep_date__in=[today, yesterday]`, most recent `wake_time` within ~36h. Sleep still wins; routine `performed_at` fallback; scheduled shown separately; honest uncertainty when neither. Representative output: *"You were scheduled to wake at 5:00 AM, but based on your sleep/wake data you actually woke around 5:50 AM."*
+
+**F4 — sleep intent routing (domain-before-intent bug).** `_match_sleep_query` fired on the "my sleep" keyword regardless of intent and `_handle_sleep_query` returned status only — so "how can I improve my sleep" returned the same metrics as "what was my sleep score". Fix (mirrors the existing nutrition fact-vs-coaching split): new `_is_sleep_coaching_request` (improve/best way/tips/what actions/how do I…) excludes coaching from the STATUS matcher; new `sleep_coaching_query` route (registered BEFORE `sleep_query`) returns deterministic coaching from `HealthTrendAnalyzer` when sleep is the identified constraint, else returns None → falls through to the LLM coaching path. Status questions still return metrics; coaching never returns bare metrics. Representative output: *"Sleep is your primary limiter right now. Increase sleep by ~45 minutes tonight — wind down earlier. Reduce screen time 30 minutes before bed."* Not a universal intent router — scoped to sleep, reusing the nutrition pattern.
+
+**Blast radius:** F1 — one handler; nap-guard via 36h window + most-recent wake. F4 — coaching phrases don't overlap status phrases (tests cover both); coaching falls through safely when sleep isn't the constraint. No model/schema/migration changes.
+
+**Tests:** `apps/ai/tests/test_wake_time_precedence.py` (5; now uses the realistic night-of `sleep_date=yesterday` the prior test missed) + `apps/ai/tests/test_sleep_intent_routing.py` (6). Sweep vs `git stash` baseline: zero new failures.
+
+**F2/F3 (glucose) — deliberately NOT changed.** In the current code "129" is unreachable for an overnight question when glucose data exists (the proxy intercepts), so the prod "129" is LLM narration from cos_context, implying the concept-proxy isn't live on the tested instance OR a prod-specific data condition. Per the no-speculative-fix constraint, awaiting deploy-state confirmation / a glucose data sample before any change.
+
+
 ## 2026-06-16 — fix(ai): wake-time source precedence — sleep beats routine performed_at (F1)
 
 Production: "what time did I wake up today?" → "5:00 AM" (the scheduled/marked time) when actual ≈ 5:50 (sleep data). Root cause (confirmed): `_handle_actual_wake_query` preferred routine `RoutineLog.performed_at` over `SleepEntry.wake_time`, but `performed_at` auto-fills from the click/marked time ([models.py:2882](apps/life/models.py)) so it can equal the scheduled time — the unreliable source was winning over the real biometric.

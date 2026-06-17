@@ -7,6 +7,15 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-16 — fix(ai): wake-time source precedence — sleep beats routine performed_at (F1)
+
+Production: "what time did I wake up today?" → "5:00 AM" (the scheduled/marked time) when actual ≈ 5:50 (sleep data). Root cause (confirmed): `_handle_actual_wake_query` preferred routine `RoutineLog.performed_at` over `SleepEntry.wake_time`, but `performed_at` auto-fills from the click/marked time ([models.py:2882](apps/life/models.py)) so it can equal the scheduled time — the unreliable source was winning over the real biometric.
+
+Fix (smallest, one handler): **sleep `wake_time` wins; routine `performed_at` is the fallback**; scheduled time shown separately for transparency; honest uncertainty when neither exists (never substitutes scheduled). Representative output: *"You were scheduled to wake at 5:00 AM, but based on your sleep/wake data you actually woke around 5:50 AM."*
+
+**Files:** `apps/ai/deterministic_router.py`. **Tests:** `apps/ai/tests/test_wake_time_precedence.py` (5) — sleep beats routine-marked time, routine fallback, sleep-only, honest uncertainty, deterministic routing. No model/schema/migration changes.
+
+
 ## 2026-06-16 — feat(ai): deterministic faith-status recognition route (no LLM-dependent recognition)
 
 Validation-sprint finding: "what time did I wake up?" is deterministic (proven), but the faith-recognition questions ("do you see I've completed my Bible reading recently?", "how is my faith lately?", "am I on track spiritually?") **fall through to the LLM** — confirmed by driving the real `classify_and_route`: those questions hit the Response Governor's REFLECTIVE branch → LLM, so factual recognition depended on the LLM behaving correctly. Per the standard "factual recognition must not depend on the LLM," added a deterministic grounded route.

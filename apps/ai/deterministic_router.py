@@ -4748,10 +4748,12 @@ def _match_actual_wake_query(msg_lower):
 def _handle_actual_wake_query(user):
     """Deterministic ACTUAL wake-time answer — Tier-1 truth, never scheduled.
 
-    Source hierarchy: (1) wake-routine completion timestamp
-    (RoutineLog.performed_at), (2) sleep wake_time. States scheduled-vs-actual
-    transparently, and honest uncertainty when no actual signal exists (never
-    substitutes the scheduled time). Returns a string, or None on hard failure.
+    Source precedence (2026-06-16 fix): SLEEP `wake_time` is the real biometric
+    and WINS; wake-routine `RoutineLog.performed_at` is only a FALLBACK because
+    it auto-fills from the click/marked time (which can equal the scheduled
+    time, so it must never beat sleep). The scheduled time is shown separately
+    for transparency. Honest uncertainty when neither actual source exists —
+    never substitutes scheduled for actual. Returns a string, or None.
     """
     from django.utils import timezone
 
@@ -4772,11 +4774,13 @@ def _handle_actual_wake_query(user):
     except Exception:
         return None
 
-    actual = None
-    source = None
     scheduled = None
+    routine_actual = None
+    sleep_actual = None
 
-    # Source 1 — wake routine completion (performed_at = when it happened).
+    # Scheduled wake time + routine completion. performed_at is the marked/click
+    # time (auto-filled from completed_at) — NOT reliable as actual wake, so it
+    # is only a fallback below.
     try:
         from apps.life.models import RoutineLog
         log = (
@@ -4796,26 +4800,31 @@ def _handle_actual_wake_query(user):
                     "%I:%M %p").lstrip("0")
             ts = log.performed_at or log.completed_at
             if ts:
-                actual = _fmt(ts)
-                source = "your wake-up routine completion"
+                routine_actual = _fmt(ts)
     except Exception:
         logger.debug("wake query: routine source failed", exc_info=True)
 
-    # Source 2 — sleep wake timestamp.
-    if actual is None:
-        try:
-            from apps.health.models import SleepEntry
-            se = (
-                SleepEntry.objects.filter(user=user, sleep_date=today)
-                .exclude(wake_time__isnull=True)
-                .order_by('-recorded_at')
-                .first()
-            )
-            if se and se.wake_time:
-                actual = _fmt(se.wake_time)
-                source = "your sleep data"
-        except Exception:
-            logger.debug("wake query: sleep source failed", exc_info=True)
+    # Sleep wake timestamp — the real biometric; PREFERRED actual source.
+    try:
+        from apps.health.models import SleepEntry
+        se = (
+            SleepEntry.objects.filter(user=user, sleep_date=today)
+            .exclude(wake_time__isnull=True)
+            .order_by('-recorded_at')
+            .first()
+        )
+        if se and se.wake_time:
+            sleep_actual = _fmt(se.wake_time)
+    except Exception:
+        logger.debug("wake query: sleep source failed", exc_info=True)
+
+    # Precedence: sleep wins; routine performed_at is the fallback.
+    if sleep_actual:
+        actual, source = sleep_actual, "your sleep/wake data"
+    elif routine_actual:
+        actual, source = routine_actual, "your wake-up routine completion"
+    else:
+        actual, source = None, None
 
     # Honest uncertainty — never substitute scheduled for actual.
     if actual is None:
@@ -4827,12 +4836,12 @@ def _handle_actual_wake_query(user):
             )
         return (
             "I don't have a confirmed wake-up time for today — nothing's logged "
-            "from a wake routine or sleep data, so I'd be guessing."
+            "from sleep data or a wake routine, so I'd be guessing."
         )
 
     if scheduled and scheduled != actual:
         return (
-            f"You were scheduled to wake at {scheduled}, and based on {source} "
+            f"You were scheduled to wake at {scheduled}, but based on {source} "
             f"you actually woke around {actual}."
         )
     return f"Based on {source}, you woke around {actual} today."

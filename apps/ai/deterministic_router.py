@@ -1100,6 +1100,27 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
             _log_route_decision(result, user, message)
             return result
 
+    # ── PLANNING intent (Goals/Life) — RUNS BEFORE the execution gates ──
+    # Long-range planning ("what should I focus on next month / this quarter /
+    # be building toward?") is NOT execution and must NEVER be answered with
+    # today's overdue tasks. Intercept planning-category questions here, ahead of
+    # the next-step / decision / focus gates, and answer from grounded goal
+    # strategy only (Phase 1, 2026-06-18). Always terminal once matched — a
+    # planning question never falls through to the execution path.
+    if user is not None and _match_planning_query(msg_lower):
+        _resp = _handle_planning_query(user, msg_lower)
+        if _resp:
+            result = RouteResult(
+                category=RouteCategory.DETERMINISTIC_DATA,
+                response=_resp,
+                route_name='planning_query',
+                domain='purpose',
+                is_terminal=True,
+            )
+            result.elapsed_ms = (time.monotonic() - t_start) * 1000
+            _log_route_decision(result, user, message)
+            return result
+
     # ── Canonical next-step route (unified selector) ────────────
     # "What should I do next?" / "Next step" answer from the SAME selector the
     # check-in uses (build_locked_next_action → get_next_action over
@@ -5164,6 +5185,123 @@ def classify_query_intent(msg_lower):
     if any(c in m for c in _EXECUTION_CUES):
         return 'execution'
     return 'status'
+
+
+# ─────────────────────────────────────────────────────────────────────
+# PLANNING intent (Phase 1, 2026-06-18) — Goals/Life long-range direction.
+#
+# "What should I focus on next month / this quarter / be building toward?" is a
+# PLANNING question, NOT execution. The trust bug: these matched the decision /
+# focus / next-step gates and were answered with TODAY's overdue tasks. This
+# route intercepts planning-category questions (via the shared classifier)
+# BEFORE those gates and answers from grounded goal sources only — the active
+# Primary Mission + its next milestone + the nightly momentum snapshot — never
+# today's task list.
+# ─────────────────────────────────────────────────────────────────────
+
+# Planning-horizon questions scoped to a specific tracked DOMAIN (sleep, glucose,
+# weight, …) are out of Phase 1 scope — they are NOT goal planning, so we let the
+# domain / LLM handle them rather than answering with goal strategy.
+_PLANNING_DOMAIN_EXCLUSIONS = (
+    'sleep', 'glucose', 'blood sugar', 'a1c', 'weight', 'nutrition', 'calorie',
+    'macro', 'workout', 'exercise', 'training', 'running', 'steps',
+    'prayer', 'bible', 'scripture', 'devotion', 'medication',
+    'blood pressure', 'heart rate',
+)
+
+
+def _match_planning_query(msg_lower):
+    """Match GENERAL life-direction PLANNING questions (future horizon), so they
+    are answered from goal strategy — never today's tasks. Domain-scoped planning
+    ("improve my sleep next month") is excluded (Phase 1 scope)."""
+    if not msg_lower:
+        return False
+    if classify_query_intent(msg_lower) != 'planning':
+        return False
+    if any(t in msg_lower for t in _PLANNING_DOMAIN_EXCLUSIONS):
+        return False
+    return True
+
+
+def _handle_planning_query(user, msg_lower=None):
+    """Grounded long-range planning answer: strategic priority → why it matters →
+    near-term milestone → next practical step. Reads canonical sources only (the
+    same Primary-Mission selector the dashboard/CoS use; momentum is the persisted
+    nightly snapshot trend, no request-path compute). NEVER uses today's task
+    list. Honest when no mission is set; never guesses a direction."""
+    try:
+        from apps.purpose.mission_selection import select_active_mission_goal
+        from apps.core.utils import get_user_today
+        goal = select_active_mission_goal(user)
+        if goal is None:
+            return (
+                "You don't have a Primary Mission set right now, so I can't point "
+                "you at a strategic focus yet. Pick the goal that matters most in "
+                "Goals and mark it your Primary Mission — then I can map out what "
+                "to build toward over the coming weeks."
+            )
+        today = get_user_today(user)
+        # 1) Strategic priority — the mission itself.
+        parts = [
+            f"Over the longer arc, your highest-leverage focus is your mission: "
+            f"**{goal.title}**."
+        ]
+        # 2) Why it matters — the user's OWN words (never generated); else the
+        #    target-date framing.
+        why = (goal.why_it_matters or "").strip()
+        if why:
+            parts.append(f"Why it matters: {why}")
+        elif goal.target_date and goal.target_date > today:
+            days = (goal.target_date - today).days
+            parts.append(
+                f"You set a target date of {goal.target_date:%b %d, %Y} — about "
+                f"{days} days out — so that's the horizon to steer by."
+            )
+        # Momentum — persisted nightly snapshot trend only (no live compute).
+        snap = goal.momentum_snapshots.first()
+        trend_word = {
+            'rising': 'building', 'stable': 'steady', 'falling': 'slipping',
+        }.get(getattr(snap, 'momentum_trend', None) or '', '')
+        # 3) Near-term milestone — the next incomplete checkpoint.
+        nm = goal.next_milestone
+        if nm:
+            ms = f"Your near-term milestone is **{nm.title}**"
+            if nm.target_date:
+                ms += f", targeted for {nm.target_date:%b %d}"
+                if nm.target_date > today:
+                    ms += f" ({(nm.target_date - today).days} days out)"
+            ms += "."
+            if trend_word:
+                ms += f" Momentum on the mission is {trend_word}."
+            parts.append(ms)
+            # 4) Next practical step — tied to the milestone (its own detail when
+            #    present), never today's unrelated task list.
+            step = (nm.description or "").strip()
+            if step:
+                parts.append(f"Practical next step: {step}")
+            else:
+                parts.append(
+                    f"Practical next step: put your effort into moving "
+                    f"\"{nm.title}\" forward — that's the concrete thing that "
+                    f"advances the mission."
+                )
+        else:
+            if trend_word:
+                parts.append(f"Momentum on the mission is {trend_word}.")
+            parts.append(
+                "You haven't broken this mission into milestones yet — the most "
+                "useful planning step is to define the next concrete milestone so "
+                "there's a checkpoint to aim at."
+            )
+        return " ".join(parts)
+    except Exception:
+        logger.warning("planning route failed", exc_info=True)
+        # Fail SAFE, not wrong: honest uncertainty, never today's task list.
+        return (
+            "I can't pull your mission and milestones together right now to give "
+            "you a grounded plan — try again in a moment. (I won't guess at a "
+            "direction from today's task list.)"
+        )
 
 
 # Sleep COACHING intent — "how to improve my sleep" — distinct from a STATUS

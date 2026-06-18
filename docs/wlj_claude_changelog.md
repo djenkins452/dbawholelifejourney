@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-18 — feat(ai): Phase 1 — Goals/Life PLANNING route (long-range ≠ today's tasks)
+
+**Trust bug:** long-range planning questions — "what should I focus on next month?", "what should I work on over the next few weeks?", "what should I prioritize this quarter?", "what should I be building toward?" — were answered with TODAY's overdue tasks. Root cause: they hit the decision/focus/next-step EXECUTION gates (`_is_decision_query`'s semantic path matches `what`+`should`+`focus`/`prioritize`), so a future-horizon question got today's execution answer.
+
+**Fix (Phase 1, builds on the Phase 0 classifier):** a new PLANNING gate runs in `classify_and_route` BEFORE the next-step/decision/focus gates. It fires only when the shared classifier returns `planning` AND the question isn't scoped to a specific tracked domain (`_PLANNING_DOMAIN_EXCLUSIONS` — sleep/glucose/weight/… stay out of Phase 1 scope). Once matched it is **always terminal** — a planning question never falls through to the execution path. `_handle_planning_query` answers from **grounded goal sources only**, the same canonical Primary-Mission selector the dashboard/CoS use (`select_active_mission_goal`) + its `next_milestone` + the nightly `GoalMomentumSnapshot` trend (read-only, no request-path compute). It NEVER reads today's task list.
+
+**Four-part planning answer (per spec):** (1) strategic priority = the active mission; (2) why it matters = the user's OWN `why_it_matters` words (never generated), else the target-date framing; (3) near-term milestone = next incomplete milestone + its date; (4) next practical step = the milestone's own detail (or "move \"<milestone>\" forward"), tied to the recommendation — not an unrelated task. Honest when no Primary Mission is set ("pick one in Goals and I'll map what to build toward"); fails SAFE (honest uncertainty, never today's tasks) on any error.
+
+**Representative output** — "what should I focus on next month?" → *"Over the longer arc, your highest-leverage focus is your mission: **Reach 185 lbs and run a half marathon**. Why it matters: So I can keep up with my kids without getting winded. Your near-term milestone is **Run 5 miles without stopping**, targeted for Jul 08 (20 days out). Practical next step: Build base mileage to 5 miles at an easy pace."*
+
+**Regression:** new `test_planning_route.py` (matcher: general planning matches, execution + domain-scoped excluded; handler: 4-part grounded plan, momentum trend, honest no-mission, target-date framing; routing: planning_query NOT next_action/focus, intercepts even with no mission, execution questions still route to execution). `git stash`/checkout baseline of `test_deterministic_router`: pre-existing failures unchanged, **zero new failures**. No model/schema/migration changes. **Blast radius:** adds one terminal gate ahead of the execution gates; execution/decision/focus routing for non-planning queries is unchanged (a question with no future horizon never classifies as planning). **Files:** `apps/ai/deterministic_router.py`, `apps/ai/tests/test_planning_route.py` (new).
+
+
 ## 2026-06-18 — feat(ai): Phase 0 — shared deterministic intent classifier (`classify_query_intent`)
 
 Beth must recognise WHAT KIND of question is being asked before deciding HOW to answer it. The sleep status/coaching/diagnostic split (F4 + diagnostic) proved the pattern but duplicated cue sets per domain. Phase 0 lifts those cues into ONE shared, deterministic, pure helper — `classify_query_intent(msg_lower)` in `apps/ai/deterministic_router.py` — that returns a single intent CATEGORY. This is a shared **convention, not a router**: routing order in `classify_and_route()` is unchanged, there is no LLM planner and no central dispatcher; domain routes consult the classifier (as the sleep routes now do) and dispatch to their own grounded handlers.

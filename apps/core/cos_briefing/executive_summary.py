@@ -224,11 +224,27 @@ def build_executive_summary(user, execution_contract=None) -> dict[str, Any]:
             ``build_execution_state`` via ``_collect_focus_now``. When
             omitted (any other caller) the function fetches its own.
     """
+    # State-based executive signals (standing truths) — read ONCE, supplement
+    # the event-based collectors below. Never raises (adapter is defensive).
+    try:
+        state_signals = _collect_state_signals(user)
+    except Exception:
+        logger.warning("exec_summary: state_signals failed", exc_info=True)
+        state_signals = []
+
     try:
         going_well = _collect_going_well(user)
     except Exception:
         logger.warning("exec_summary: going_well failed", exc_info=True)
         going_well = []
+
+    # Standing wins must not depend on a 7-day Insight window: merge current
+    # positive STATE (e.g. "down 14 lbs since start") into going_well so real
+    # achievements aren't invisible once their triggering Insight ages out.
+    try:
+        going_well = _merge_standing_wins(going_well, state_signals)
+    except Exception:
+        logger.warning("exec_summary: standing-win merge failed", exc_info=True)
 
     try:
         needs_attention = _collect_needs_attention(user)
@@ -294,6 +310,16 @@ def build_executive_summary(user, execution_contract=None) -> dict[str, Any]:
         user_now=_user_now,
     )
 
+    # State-based executive lenses (additive to the contract). These read
+    # STANDING state, not events, so distinct questions get distinct answers
+    # and wins/improvements are first-class. Anti-fixation guard inside.
+    try:
+        lenses = _collect_state_lenses(state_signals)
+    except Exception:
+        logger.warning("exec_summary: state lenses failed", exc_info=True)
+        lenses = {"biggest_win": None, "biggest_improvement": None,
+                  "biggest_decline": None, "most_important_trend": None}
+
     return {
         "trajectory": trajectory,
         "headline": headline,
@@ -304,6 +330,11 @@ def build_executive_summary(user, execution_contract=None) -> dict[str, Any]:
         "focus_now": focus_now,
         "follow_on": follow_on,
         "recommendations": recommendations,
+        # ── State-based lenses (standing truths; additive) ──
+        "biggest_win": lenses["biggest_win"],
+        "biggest_improvement": lenses["biggest_improvement"],
+        "biggest_decline": lenses["biggest_decline"],
+        "most_important_trend": lenses["most_important_trend"],
         "as_of": timezone.now().isoformat(),
     }
 
@@ -334,6 +365,71 @@ def _collect_going_well(user) -> list[dict[str, Any]]:
         }
         for i in qs
     ]
+
+
+# ── State-based executive signals (standing truths) ─────────────────────
+
+
+def _collect_state_signals(user) -> list:
+    """Standing-state executive signals via the thin state adapter. Read-only,
+    deterministic, never raises (adapter is defensive)."""
+    from apps.core.cos_briefing.executive_state import (
+        build_executive_state_signals,
+    )
+    return build_executive_state_signals(user)
+
+
+def _merge_standing_wins(going_well, state_signals):
+    """Prepend current positive STANDING state (down N lbs, glucose improving,
+    a long reading streak) to going_well so achievements aren't invisible once
+    their triggering Insight ages out of the 7-day window. Deduped by title;
+    capped at MAX_GOING_WELL. Standing truths lead (prepended)."""
+    from apps.core.cos_briefing.executive_state import _ordered
+    wins = _ordered([s for s in (state_signals or [])
+                     if s.direction == "improving"])
+    if not wins:
+        return going_well
+    existing = {g.get("title") for g in going_well}
+    merged = list(going_well)
+    for s in wins:
+        if s.title in existing:
+            continue
+        merged.insert(0, {
+            "title": s.title,
+            "message": s.message,
+            "module": s.domain,
+            "insight_type": "standing_state",
+        })
+        existing.add(s.title)
+    return merged[:MAX_GOING_WELL]
+
+
+def _collect_state_lenses(state_signals) -> dict:
+    """Win / improvement / decline / most-important-trend from STANDING state,
+    with the anti-fixation guard (a domain leads at most one lens unless it's
+    the only signal). Values are plain dicts (or None)."""
+    from apps.core.cos_briefing.executive_state import (
+        select_executive_lenses,
+        to_dict,
+    )
+    picked = select_executive_lenses(state_signals or [])
+    return {k: to_dict(v) for k, v in picked.items()}
+
+
+def _collect_biggest_win(state_signals) -> dict | None:
+    return _collect_state_lenses(state_signals)["biggest_win"]
+
+
+def _collect_biggest_improvement(state_signals) -> dict | None:
+    return _collect_state_lenses(state_signals)["biggest_improvement"]
+
+
+def _collect_biggest_decline(state_signals) -> dict | None:
+    return _collect_state_lenses(state_signals)["biggest_decline"]
+
+
+def _collect_most_important_trend(state_signals) -> dict | None:
+    return _collect_state_lenses(state_signals)["most_important_trend"]
 
 
 # ── Needs Attention ────────────────────────────────────────────────────

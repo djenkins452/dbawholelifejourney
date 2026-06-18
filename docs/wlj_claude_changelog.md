@@ -7,6 +7,26 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-18 — feat(ai): State-based executive reasoning adapter (standing truths, not just events)
+
+**Root cause (proven from his real data):** Beth's executive briefing read EVENTS (positive `Insight`s, 7-day-windowed) to answer STANDING-STATE questions. His 103 positive insights all aged out of the window, so `going_well=[]` and his real −14 lb loss / glucose improvement were invisible — while ongoing deficits (declining sleep) stayed perpetually fresh because they re-fire daily. The standing state already exists (SAE module state, canonical glucose summary, weight entries, GoalMomentumSnapshot, faith/medicine state) but the briefing didn't read it.
+
+**Fix (smallest state adapter; no rewrite, Insights untouched):** new thin `apps/core/cos_briefing/executive_state.py` reads EXISTING standing state and normalizes it into `ExecutiveStateSignal(domain, lens, direction, magnitude, confidence, title, message, evidence, source)`. Domains: weight (cumulative loss + trend), glucose (trend via canonical summary), sleep (trend/consistency), medication (adherence), faith (reading streak), goals (mission momentum). It reads state ONLY — omits any signal whose grounding is unavailable (honest degradation, never fabrication); no new scoring system (ranking = coarse confidence tier + a deterministic domain tiebreak; magnitudes are display-only, never cross-compared).
+
+**Integrated additively into `executive_summary.py`:** (1) standing positive state is merged into `going_well` so wins aren't invisible once their Insight ages out; (2) four new lens keys — `biggest_win`, `biggest_improvement`, `biggest_decline`, `most_important_trend` — each reading state, with an **anti-fixation guard** (a domain leads at most one lens unless it's the only signal; never forces fake diversity). Events (Insight/Prediction/GuidanceItem) still flow exactly as before — state supplements them.
+
+**Representative output (his real local data, through 2026‑04‑07):**
+- *going_well* (was `[]`): "Bible reading streak: 15 days", "Medication adherence strong", "Weight down 12.7 lb".
+- *Biggest win* → "Down 12.7 lb since you started tracking (311 → 298 lb). 58 lb to your goal."
+- *Biggest improvement* → "You've taken your medications 100% of the time this week." (glucose trend was unavailable locally → honestly omitted, not fabricated.)
+- *Biggest decline* → "Your sleep is trending down (averaging 6.7h, consistency 43/100)."
+- *Most important trend* → weight (the −12.7 lb standing win). Sleep no longer hides the weight/faith/medication wins.
+
+**Regression:** new `test_executive_state.py` (24 tests) proving — standing state appears when positive Insights are >7 days old; weight loss → biggest win; glucose improvement → improvement; sleep decline → decline; sleep does NOT hide weight/glucose wins (anti-fixation); `going_well` non-empty with standing state; thin-data degrades without fabrication; existing event Insights still work; deterministic. Full `apps.core.cos_briefing` suite green; `git stash` baseline diff: **zero new failures**. No model/schema/migration changes.
+
+**Blast radius:** additive only — new module + a state-read in `executive_summary.py`; event pipeline, Insight generation, and existing keys unchanged (contract kept additive). **Caveats:** "cumulative loss since you started tracking" uses the earliest active weight entry (not a stored peak) — labeled honestly; cross-domain lens ordering is a deterministic tiebreak, not a salience model (a real user-relative scoring system is deliberately deferred); glucose/goal-momentum signals omit when their trend/mission grounding is absent. **Files:** `apps/core/cos_briefing/executive_state.py` (new), `apps/core/cos_briefing/executive_summary.py`, `apps/core/cos_briefing/tests/test_executive_state.py` (new).
+
+
 ## 2026-06-18 — feat(ai): Phase 2a — Glucose DIAGNOSTIC intent (grounded cause, never a bare number)
 
 **Trust bug:** "Why is my fasting glucose elevated?" / "What's causing my blood sugar to be high overnight?" matched the glucose STATUS route (glucose token + a "fasting"/"overnight" summary anchor) and returned a bare number — answering *what* when the user asked *why*. Same status-shadows-diagnostic class the sleep work fixed.

@@ -5074,22 +5074,107 @@ def _handle_workout_query(user):
     )
 
 
-# Sleep COACHING intent — "how to improve my sleep" — distinct from a STATUS
-# question ("how did I sleep"). Routing must key on INTENT, not just the
-# "sleep" keyword (F4, 2026-06-17). Mirrors the nutrition fact-vs-coaching split.
-_SLEEP_COACHING_REQUEST = (
-    'what should i', 'how do i', 'how can i', 'help me', 'what can i do',
-    'give me advice', 'recommend', 'improve my', 'best way', 'tips',
-    'ways to', 'how to improve', 'what actions', 'sleep better',
-    'better sleep', 'fix my sleep', 'what do i do',
+# ─────────────────────────────────────────────────────────────────────
+# Shared deterministic intent classifier (Phase 0, 2026-06-18).
+#
+# Beth must recognise WHAT KIND of question is being asked before deciding HOW
+# to answer it. This is a shared CONVENTION, not a router: it returns the single
+# intent CATEGORY for a message, and domain routes consult it (as the sleep
+# routes do below) before dispatching to their own grounded handlers. It is NOT
+# a universal router, an LLM planner, or a central dispatcher — routing order in
+# classify_and_route() is unchanged; this only de-duplicates the cue sets that
+# previously lived per-domain (sleep / nutrition / health-analyze / decision).
+#
+# Categories, highest precedence first (order of the checks below IS the
+# precedence — approved 2026-06-17/18):
+#   recognition — "do you see I've…", "have I been…"   (factual acknowledgement)
+#   planning    — future horizon: "next month", "this quarter", "build toward"
+#   coaching    — action / how-to: "how can I improve…", "best way", "tips"
+#   diagnostic  — cause-seeking: "why…", "what's causing…", "what's limiting…"
+#   execution   — immediate next step: "what should I do next", "what's next"
+#   status      — default floor: factual current-state lookup
+#
+# Approved precedence rules: PLANNING beats EXECUTION when a future horizon
+# exists; COACHING (action verb) beats DIAGNOSTIC; RECOGNITION beats STATUS;
+# STATUS is the floor.
+# ─────────────────────────────────────────────────────────────────────
+
+_RECOGNITION_CUES = (
+    'do you see', 'do you notice', 'did you notice', 'do you know that',
+    'can you see i', 'can you tell i', 'do you recognize', 'do you acknowledge',
+    'have i been', "i've been doing", 'am i staying on track',
+    'how consistent have i',
+)
+
+# Future-horizon cues ONLY — deliberately excludes "this week" / "this month",
+# which are STATUS windows (e.g. "how is my sleep this week").
+_PLANNING_CUES = (
+    'next month', 'next week', 'next quarter', 'this quarter', 'next year',
+    'over the next', 'in the coming', 'coming weeks', 'coming months',
+    'few weeks', 'next few weeks', 'few months', 'weeks ahead', 'months ahead',
+    'long term', 'long-term', 'longer term', 'going forward', 'down the road',
+    'build toward', 'building toward', 'work toward', 'working toward',
+    'be building', 'should i be building',
+)
+
+# Action / how-to verbs. Intentionally excludes the bare "what should I do" /
+# "what should I" stems, which collide with the EXECUTION next-step phrasings.
+_COACHING_CUES = (
+    'how can i', 'how do i', 'how to improve', 'how should i', 'improve my',
+    'best way', 'tips', 'ways to', 'recommend', 'give me advice', 'help me',
+    'what can i do', 'what actions', 'fix my', 'what should i change',
+    'do differently', 'should i change', 'should i adjust', 'what would you do',
+    'what should i do to', 'what should i do about',
+)
+
+# Cause-seeking ("why / what's causing / what's limiting").
+_DIAGNOSTIC_CUES = (
+    'why', "what's causing", 'what is causing', 'whats causing', 'causing my',
+    'cause of', "what's behind", 'what is behind', "what's limiting",
+    'what is limiting', 'limiting my', 'holding me back', 'holding my',
+    'struggling with', "what's wrong", 'what is wrong', 'whats wrong',
+    'reason for', 'reason my', "why can't i", 'why cant i', 'root cause',
+    'what is hurting', "what's hurting",
+)
+
+# Immediate next-step ("what now / what's next / next action").
+_EXECUTION_CUES = (
+    'what should i do next', 'what do i do next', 'what to do next',
+    "what's next", 'whats next', 'what is next', 'what next', 'next step',
+    'next action', 'right now', 'what now', 'what should i start',
+    'where should i start', 'what should i tackle', 'what should i work on',
 )
 
 
+def classify_query_intent(msg_lower):
+    """Return the single intent CATEGORY for a message (precedence as documented
+    above). Pure and deterministic — no DB, no LLM. Domain routes consult this
+    and then dispatch to their own grounded handlers."""
+    if not msg_lower:
+        return 'status'
+    m = msg_lower
+    if any(c in m for c in _RECOGNITION_CUES):
+        return 'recognition'
+    if any(c in m for c in _PLANNING_CUES):
+        return 'planning'
+    if any(c in m for c in _COACHING_CUES):
+        return 'coaching'
+    if any(c in m for c in _DIAGNOSTIC_CUES):
+        return 'diagnostic'
+    if any(c in m for c in _EXECUTION_CUES):
+        return 'execution'
+    return 'status'
+
+
+# Sleep COACHING intent — "how to improve my sleep" — distinct from a STATUS
+# question ("how did I sleep"). Routing keys on INTENT, not just the "sleep"
+# keyword (F4, 2026-06-17). Now delegates category recognition to the shared
+# classifier above (Phase 0); behaviour is unchanged for sleep.
 def _is_sleep_coaching_request(msg_lower):
     """True when the user asks HOW TO IMPROVE sleep (coaching), not status."""
     if not msg_lower or 'sleep' not in msg_lower:
         return False
-    return any(p in msg_lower for p in _SLEEP_COACHING_REQUEST)
+    return classify_query_intent(msg_lower) == 'coaching'
 
 
 def _match_sleep_coaching_query(msg_lower):
@@ -5123,26 +5208,15 @@ def _handle_sleep_coaching_query(user, msg_lower=None):
 # Sleep DIAGNOSTIC intent — "why is my sleep holding me back?" / "what's
 # causing my poor sleep?" — recognized as a CATEGORY (cause-seeking), not the
 # literal example phrases (2026-06-17). Coaching (action verbs) takes precedence
-# when both appear ("why is my sleep bad and how do I fix it" → coaching).
-_SLEEP_DIAGNOSTIC_CUES = (
-    'why', "what's causing", 'what is causing', 'whats causing', 'causing my',
-    'cause of', "what's behind", 'what is behind', "what's limiting",
-    'what is limiting', 'limiting my', 'holding me back', 'holding my',
-    'struggling with', "what's wrong", 'what is wrong', 'whats wrong',
-    'reason for', 'reason my', "why can't i", 'why cant i', 'root cause',
-    'what is hurting', "what's hurting",
-)
-
-
+# when both appear ("why is my sleep bad and how do I fix it" → coaching); the
+# shared classifier enforces that precedence (Phase 0).
 def _is_sleep_diagnostic_request(msg_lower):
     """True for a cause-seeking ('why/what's causing/what's limiting') question
     about sleep — the DIAGNOSTIC category. Coaching wins when an action verb is
-    present (handled by excluding coaching here)."""
+    present (classifier precedence: coaching is checked before diagnostic)."""
     if not msg_lower or 'sleep' not in msg_lower:
         return False
-    if _is_sleep_coaching_request(msg_lower):
-        return False  # action intent → coaching, not diagnostic
-    return any(c in msg_lower for c in _SLEEP_DIAGNOSTIC_CUES)
+    return classify_query_intent(msg_lower) == 'diagnostic'
 
 
 def _match_sleep_diagnostic_query(msg_lower):

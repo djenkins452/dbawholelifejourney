@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-18 — feat(ai): Phase 0 — shared deterministic intent classifier (`classify_query_intent`)
+
+Beth must recognise WHAT KIND of question is being asked before deciding HOW to answer it. The sleep status/coaching/diagnostic split (F4 + diagnostic) proved the pattern but duplicated cue sets per domain. Phase 0 lifts those cues into ONE shared, deterministic, pure helper — `classify_query_intent(msg_lower)` in `apps/ai/deterministic_router.py` — that returns a single intent CATEGORY. This is a shared **convention, not a router**: routing order in `classify_and_route()` is unchanged, there is no LLM planner and no central dispatcher; domain routes consult the classifier (as the sleep routes now do) and dispatch to their own grounded handlers.
+
+**Six categories, by precedence (order of checks IS the precedence):** recognition → planning → coaching → diagnostic → execution → status. **Approved precedence rules, all tested:** PLANNING beats EXECUTION when a future horizon exists ("what should I work on" = execution; "…over the next few weeks" = planning); COACHING (action verb) beats DIAGNOSTIC ("why is my sleep bad and how can I fix it" = coaching); RECOGNITION beats STATUS; STATUS is the floor. Future-horizon cues deliberately exclude "this week"/"this month" (those are STATUS windows).
+
+**Sleep parity (required):** `_is_sleep_coaching_request` / `_is_sleep_diagnostic_request` now delegate category recognition to the shared classifier (`'sleep' in msg AND classify == coaching/diagnostic`). All existing sleep status/coaching/diagnostic tests pass UNCHANGED — sleep behaviour is identical; only the source of the cue sets moved.
+
+**Representative classifier output:** status←"what is my sleep score"; coaching←"how can I improve my sleep"; diagnostic←"why is my sleep holding me back"; recognition←"do you see I've been reading every day"; planning←"what should I focus on next month"; execution←"what should I do next".
+
+**Regression:** 35 targeted tests green (new `test_intent_classifier.py` matrix + precedence, plus `test_sleep_intent_routing`, `test_wake_time_precedence`, `test_faith_status_route`). `git stash` baseline sweep of `test_deterministic_router` + `test_intent_registration`: 6 pre-existing failures before == 6 after, **zero new failures**. No model/schema/migration changes. **Blast radius:** sleep is the only consumer wired in Phase 0; nutrition/glucose/faith/goals unchanged (those arrive in later phases). **Files:** `apps/ai/deterministic_router.py`, `apps/ai/tests/test_intent_classifier.py` (new, +11 tests).
+
+
 ## 2026-06-17 — feat(ai): sleep DIAGNOSTIC intent (third sleep intent) — category, not phrases
 
 Live production after the F4 deploy confirmed coaching now works ("how can I improve my sleep" → actions), but a third intent leaked: "Why is my sleep holding me back?" still returned status metrics. Root cause = the same domain-before-intent pattern, one intent over: diagnostic (cause-seeking) questions matched no coaching phrase, so they weren't excluded from the status matcher and "my sleep" routed them to metrics.

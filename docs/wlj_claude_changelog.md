@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-18 — feat(ai): Phase 2a — Glucose DIAGNOSTIC intent (grounded cause, never a bare number)
+
+**Trust bug:** "Why is my fasting glucose elevated?" / "What's causing my blood sugar to be high overnight?" matched the glucose STATUS route (glucose token + a "fasting"/"overnight" summary anchor) and returned a bare number — answering *what* when the user asked *why*. Same status-shadows-diagnostic class the sleep work fixed.
+
+**Fix (Phase 2a, builds on the Phase 0 classifier; mirrors the sleep diagnostic split):** glucose now has a DIAGNOSTIC route recognized as a CATEGORY via the shared `classify_query_intent` — `_is_glucose_diagnostic_request` = glucose token AND `classify == 'diagnostic'`. New `glucose_diagnostic_query` route registered **before** the latest/summary status routes; `_match_glucose_query` and `_match_glucose_latest_query` now **exclude** the diagnostic category. Added `'what is driving'/'driving my'` to the shared `_DIAGNOSTIC_CUES` (additive; sleep behaviour unchanged). Also threaded the route through the Response Governor's REFLECTIVE branch (same carve-out pattern as faith-status recognition) so a grounded cause-seeking glucose question is answered deterministically, not handed to the reflective LLM — the governor stays the authority. **The Health Analyze override was NOT touched** (it does not fire for these diagnostic phrasings — verified `is_analyze_request`/`is_health_coaching_request`/`is_explicit_health_intent`/`is_health_judgment_request` all return False).
+
+**Grounded handler (`_handle_glucose_diagnostic_query`):** explains from the actual `build_glucose_summary` signals ONLY — trend direction (7d vs 30d), overnight (midnight–6am, the closest grounded fasting proxy) and whether elevation is concentrated overnight, time-in-range, and a sample-size caveat. **No speculative physiology** — never invents stress / hormones / dawn-phenomenon as a cause. When there's no grounded trend it explicitly declines to attribute a cause; with no data it is honest ("I don't have enough grounded glucose signal to explain the cause confidently").
+
+**Representative output:**
+- "Why is my fasting glucose elevated?" → *"Looking at your glucose data, the recent direction is upward — your 7-day average (150 mg/dL) is running above your 30-day average (133 mg/dL); your overnight average (midnight–6am, the closest grounded fasting signal) is 150 mg/dL; you're in range (70–180) 100% of the time over the last week."*
+- "What's causing my blood sugar to be high overnight?" → same grounded overnight-anchored explanation, route `glucose_diagnostic_query`.
+- No data → *"I don't have enough grounded glucose signal to explain the cause confidently. Log a few more readings over a week or so — including some overnight — and I can break down what's driving it."*
+- Thin data (no trend) → *"I can see your 7-day average is 132 mg/dL … but I don't have a strong enough trend signal yet to pin down WHY it's elevated with confidence."*
+
+**Regression:** new `test_glucose_intent_routing.py` — matcher matrix (diagnostic detected; status + latest still match; non-glucose excluded), grounded-no-speculation handler output, honest no-data + thin-data, route-level (diagnostic → `glucose_diagnostic_query`, NOT `glucose_query`/governor_reflective; status glucose still `glucose_query`). `classify_query_intent` shape unchanged (only additive cues) — sleep/classifier/faith tests pass unchanged. `git`-baseline diff of `test_deterministic_router`: zero new failures. No model/schema/migration changes. **Held:** glucose coaching / recognition / planning and the Health Analyze override remain untouched (later phases). **Files:** `apps/ai/deterministic_router.py`, `apps/ai/tests/test_glucose_intent_routing.py` (new).
+
+
 ## 2026-06-18 — feat(ai): Phase 1 — Goals/Life PLANNING route (long-range ≠ today's tasks)
 
 **Trust bug:** long-range planning questions — "what should I focus on next month?", "what should I work on over the next few weeks?", "what should I prioritize this quarter?", "what should I be building toward?" — were answered with TODAY's overdue tasks. Root cause: they hit the decision/focus/next-step EXECUTION gates (`_is_decision_query`'s semantic path matches `what`+`should`+`focus`/`prioritize`), so a future-horizon question got today's execution answer.

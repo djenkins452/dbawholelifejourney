@@ -853,6 +853,25 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
                     result.elapsed_ms = (time.monotonic() - t_start) * 1000
                     _log_route_decision(result, user, message)
                     return result
+            # A grounded GLUCOSE diagnostic ("what's causing my blood sugar to be
+            # high overnight?") is cause-seeking but must be answered from real
+            # glucose signals, not handed to the reflective LLM — same principle
+            # as faith-status recognition (Phase 2a, 2026-06-18). The governor
+            # stays the authority; it just routes a grounded diagnostic to the
+            # deterministic handler.
+            if _match_glucose_diagnostic_query(msg_lower) and user is not None:
+                _glu_resp = _handle_glucose_diagnostic_query(user, msg_lower)
+                if _glu_resp:
+                    result = RouteResult(
+                        category=RouteCategory.DETERMINISTIC_DATA,
+                        response=_glu_resp,
+                        route_name='glucose_diagnostic_query',
+                        domain='health',
+                        is_terminal=True,
+                    )
+                    result.elapsed_ms = (time.monotonic() - t_start) * 1000
+                    _log_route_decision(result, user, message)
+                    return result
             result = RouteResult(
                 route_name='governor_reflective',
                 skip_intent=True,
@@ -5148,14 +5167,15 @@ _COACHING_CUES = (
     'what should i do to', 'what should i do about',
 )
 
-# Cause-seeking ("why / what's causing / what's limiting").
+# Cause-seeking ("why / what's causing / what's limiting / what's driving").
 _DIAGNOSTIC_CUES = (
     'why', "what's causing", 'what is causing', 'whats causing', 'causing my',
     'cause of', "what's behind", 'what is behind', "what's limiting",
     'what is limiting', 'limiting my', 'holding me back', 'holding my',
     'struggling with', "what's wrong", 'what is wrong', 'whats wrong',
     'reason for', 'reason my', "why can't i", 'why cant i', 'root cause',
-    'what is hurting', "what's hurting",
+    'what is hurting', "what's hurting", 'what is driving', "what's driving",
+    'whats driving', 'driving my',
 )
 
 # Immediate next-step ("what now / what's next / next action").
@@ -5602,9 +5622,41 @@ _GLUCOSE_SUMMARY_TRIGGERS = frozenset([
 ])
 
 
+# ─────────────────────────────────────────────────────────────────────
+# Glucose DIAGNOSTIC intent (Phase 2a, 2026-06-18) — "why is my fasting
+# glucose elevated?" / "what's causing my blood sugar to be high overnight?".
+# A cause-seeking question, NOT a status lookup. The trust bug: these matched
+# the glucose STATUS route (glucose token + "fasting"/"overnight" summary
+# anchor) and returned a bare number. Recognized as the DIAGNOSTIC CATEGORY via
+# the shared classifier (mirrors sleep). Status/latest now exclude it.
+# ─────────────────────────────────────────────────────────────────────
+def _has_glucose_token(msg_lower):
+    return bool(msg_lower) and (
+        'glucose' in msg_lower or 'blood sugar' in msg_lower or 'a1c' in msg_lower
+    )
+
+
+def _is_glucose_diagnostic_request(msg_lower):
+    """True for a cause-seeking ('why/what's causing/what's driving') question
+    about glucose — the DIAGNOSTIC category. Keys on the shared classifier."""
+    if not _has_glucose_token(msg_lower):
+        return False
+    return classify_query_intent(msg_lower) == 'diagnostic'
+
+
+def _match_glucose_diagnostic_query(msg_lower):
+    """Match glucose diagnostic/root-cause requests (before status & latest)."""
+    if _is_future_tense_query(msg_lower):
+        return False
+    return _is_glucose_diagnostic_request(msg_lower)
+
+
 def _match_glucose_latest_query(msg_lower):
     """Match event-style ("what was my LAST reading?") glucose queries."""
     if _is_future_tense_query(msg_lower):
+        return False
+    # Diagnostic (cause-seeking) is NOT a latest-reading lookup.
+    if _is_glucose_diagnostic_request(msg_lower):
         return False
     if any(e in msg_lower for e in ('log', 'record', 'enter')):
         return False
@@ -5623,6 +5675,11 @@ def _match_glucose_query(msg_lower):
     ``_match_glucose_latest_query`` and dispatched first.
     """
     if _is_future_tense_query(msg_lower):
+        return False
+    # Diagnostic (cause-seeking) is NOT a status summary — let its dedicated
+    # route answer so "why is my fasting glucose elevated" never returns a
+    # bare number (Phase 2a).
+    if _is_glucose_diagnostic_request(msg_lower):
         return False
     # If the message is a LATEST-style question, leave it for the
     # latest matcher — don't double-match.
@@ -5664,6 +5721,106 @@ def _handle_glucose_latest_query(user):
     except Exception:
         logger.warning("Glucose latest handler failed", exc_info=True)
         return None
+
+
+def _handle_glucose_diagnostic_query(user, msg_lower=None):
+    """Grounded glucose root-cause: explains an elevated / abnormal level from
+    the actual glucose SUMMARY signals ONLY — trend direction (7d vs 30d),
+    overnight (fasting-proxy) level and whether the elevation is concentrated
+    overnight, time-in-range, and a sample-size caveat. NO speculative
+    physiology — never invents stress / hormones / dawn-phenomenon as a cause.
+    Honest uncertainty when the grounded signal is too thin to explain a cause
+    (never returns a bare number / status summary)."""
+    insufficient = (
+        "I don't have enough grounded glucose signal to explain the cause "
+        "confidently. Log a few more readings over a week or so — including "
+        "some overnight — and I can break down what's driving it."
+    )
+    try:
+        from apps.health.services.glucose_snapshot import build_glucose_summary
+        summary = build_glucose_summary(user)
+    except Exception:
+        logger.warning("glucose diagnostic route failed", exc_info=True)
+        return insufficient
+
+    if not summary:
+        return insufficient
+
+    avg7 = summary.get("average_7d")
+    avg30 = summary.get("average_30d")
+    trend = summary.get("trend_7d_vs_30d") or ""
+    tir7 = summary.get("time_in_range_pct_7d")
+    overnight = summary.get("overnight_avg")
+    count90 = summary.get("reading_count_90d") or 0
+    concept = _glucose_concept(msg_lower or "")
+    fasting_ctx = concept in ("fasting", "wake_up")
+
+    # Without a grounded recent level there's nothing to explain.
+    if avg7 is None and overnight is None:
+        return insufficient
+
+    # The backbone of a "why is it elevated" answer is the grounded TREND. With
+    # no trend signal we cannot attribute a CAUSE — be honest, give the grounded
+    # context, and explicitly decline to claim causation.
+    if not trend:
+        ctx = []
+        if avg7 is not None:
+            ctx.append(f"your 7-day average is {avg7} mg/dL")
+        if fasting_ctx and overnight is not None:
+            ctx.append(
+                f"your overnight readings (midnight–6am, the closest grounded "
+                f"signal to fasting) average {overnight:.0f} mg/dL")
+        if tir7 is not None:
+            ctx.append(f"you're in range (70–180) {tir7:.0f}% of the time")
+        if not ctx:
+            return insufficient
+        return (
+            "I can see " + ", ".join(ctx) + ", but I don't have a strong enough "
+            "trend signal yet to pin down WHY it's elevated with confidence. A "
+            "bit more data — especially overnight readings — would let me explain "
+            "the driver rather than just the level."
+        )
+
+    # Trend present → grounded explanation.
+    factors = []
+    if trend == "worsening" and avg7 is not None and avg30 is not None:
+        factors.append(
+            f"the recent direction is upward — your 7-day average ({avg7} mg/dL) "
+            f"is running above your 30-day average ({avg30} mg/dL)")
+    elif trend == "improving" and avg7 is not None and avg30 is not None:
+        factors.append(
+            f"the recent trend is actually downward, not up — your 7-day average "
+            f"({avg7} mg/dL) is below your 30-day average ({avg30} mg/dL)")
+    elif trend == "stable" and avg7 is not None:
+        factors.append(
+            f"your levels have been steady (7-day average {avg7} mg/dL), so this "
+            f"reads as your baseline rather than a recent spike")
+
+    # Overnight / fasting — grounded, and whether elevation is concentrated there.
+    if overnight is not None:
+        if fasting_ctx:
+            factors.append(
+                f"your overnight average (midnight–6am, the closest grounded "
+                f"fasting signal) is {overnight:.0f} mg/dL")
+        if avg7 is not None and (overnight - avg7) >= 8:
+            factors.append(
+                "and it's running higher overnight than during the day, so the "
+                "elevation is concentrated in the fasting window")
+
+    if tir7 is not None:
+        factors.append(
+            f"you're in range (70–180) {tir7:.0f}% of the time over the last week")
+
+    if not factors:
+        return insufficient
+
+    caveat = ""
+    if count90 < 14:
+        caveat = (
+            " One caveat: this is based on a small number of readings, so treat "
+            "it as a provisional read rather than a firm cause.")
+
+    return "Looking at your glucose data, " + "; ".join(factors) + "." + caveat
 
 
 def _handle_glucose_query(user, msg_lower=None):
@@ -5987,6 +6144,16 @@ def _register_builtin_routes():
     register_data_route('sleep_coaching_query', _match_sleep_coaching_query, _handle_sleep_coaching_query, 'health')
     register_data_route('sleep_diagnostic_query', _match_sleep_diagnostic_query, _handle_sleep_diagnostic_query, 'health')
     register_data_route('sleep_query', _match_sleep_query, _handle_sleep_query, 'health')
+    # 2026-06-18 (Phase 2a) — glucose DIAGNOSTIC ("why is my fasting glucose
+    # elevated?") registered BEFORE the latest/summary status routes so a
+    # cause-seeking question is answered with a grounded explanation, never a
+    # bare number. Status/latest matchers exclude the diagnostic category.
+    register_data_route(
+        'glucose_diagnostic_query',
+        _match_glucose_diagnostic_query,
+        _handle_glucose_diagnostic_query,
+        'health',
+    )
     # 2026-06-07 — glucose LATEST event route registered BEFORE the
     # summary route so it's checked first. Latest-style questions
     # ("what was my last reading?", "what time?", "glucose right now")

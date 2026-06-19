@@ -104,3 +104,6 @@ chatgpt_journal_import.json
 **/xcuserdata/
 *.xcuserstate
 *.xcuserdatad/
+
+# Local Claude Code agent worktrees (never commit — they are gitlinks)
+.claude/worktrees/

@@ -187,22 +187,33 @@ class TestNutritionConfidenceGuard(NutritionUserMixin, TestCase):
             mock_fresh.return_value = {'nutrition'}
             return _handle_nutrition_query(self.user)
 
-    def test_contradictory_snapshot_refuses_answer(self):
-        # Food logged today but zero calories → impossible → refuse.
+    def test_contradictory_snapshot_answers_honestly_not_abstain(self):
+        # Food logged today but zero calories. No-abstain (Phase 1, 2026-06-19):
+        # the handler must NOT return None (which drops to the LLM and the
+        # rolling 7-day average). It states the inconsistency honestly — never a
+        # bare confident "0", never the average.
         result = self._run_with_snapshot({
             'daily_calories': 0,
             'food_entries_today': 3,
             'food_entries_7d': 21,
+            'rolling_7d_calories_avg': 1800,
         })
-        self.assertIsNone(result)
+        self.assertIsNotNone(result)              # no-abstain
+        self.assertNotIn('1800', result)          # never the rolling average
+        self.assertIn('item', result.lower())     # names the logged entries
+        self.assertIn('0', result)
 
-    def test_suspicious_snapshot_refuses_answer(self):
-        # No today-count key, zero calories, but weekly entries exist → suspect.
+    def test_suspicious_snapshot_answers_honestly_not_abstain(self):
+        # No today-count key, zero calories, weekly entries exist. No-abstain:
+        # answer the grounded "nothing logged today", not the rolling average.
         result = self._run_with_snapshot({
             'daily_calories': 0,
             'food_entries_7d': 21,
+            'rolling_7d_calories_avg': 1800,
         })
-        self.assertIsNone(result)
+        self.assertIsNotNone(result)              # no-abstain
+        self.assertNotIn('1800', result)
+        self.assertIn('today', result.lower())
 
     def test_legitimate_zero_today_still_answers(self):
         # Genuine "nothing logged yet today" — keys agree → answer truthfully.

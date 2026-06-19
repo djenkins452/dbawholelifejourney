@@ -3612,14 +3612,28 @@ def _match_nutrition_query(msg_lower):
     """
     if _is_future_tense_query(msg_lower):
         return False
-    # FIX 1: a specific-food estimate / consumption report is NOT a status query.
-    if _is_food_estimate_query(msg_lower):
-        return False
 
     # Logging intent or exercise-calorie phrasing is never a status read.
     _EXCLUDE = ('log', 'record', 'add', 'set', 'enter', 'track ',
                 'burn', 'burned', 'burnt')
     if any(e in msg_lower for e in _EXCLUDE):
+        return False
+
+    # A clear logged-total STATUS question ("how many calories today / so far",
+    # "protein today", "calories right now") is never a food estimate — answer it
+    # deterministically even when the food-estimate heuristic would trip on
+    # "have I had" (Phase 1 matcher fix, 2026-06-19). Without this, "how many
+    # calories have I had today?" fell through to the LLM and was answered with
+    # the rolling 7-day average. Checked BEFORE the food-estimate exclusion.
+    _STATUS_TODAY = ('today', 'so far', 'this week', 'right now', 'currently')
+    if (any(k in msg_lower for k in (
+                'calorie', 'calories', 'protein', 'macro', 'macros',
+                'carb', 'carbs', 'nutrition'))
+            and any(t in msg_lower for t in _STATUS_TODAY)):
+        return True
+
+    # FIX 1: a specific-food estimate / consumption report is NOT a status query.
+    if _is_food_estimate_query(msg_lower):
         return False
 
     _NUT_INTENT = (
@@ -3700,6 +3714,13 @@ def _nutrition_fact_response(nut, msg_lower):
             blocks.append(
                 "I don't see nutrition logged today yet, so I'm currently "
                 "showing 0g tracked protein.")
+        elif food_count and int(protein) == 0:
+            # Entries exist today but total 0 — honest about the inconsistency,
+            # never a bare confident 0, never abstain to the LLM (Phase 1).
+            blocks.append(
+                f"You've logged {food_count} item{'s' if food_count != 1 else ''} "
+                f"today, but they total **0g** protein so far — the entries may "
+                f"not have macro data yet.")
         else:
             block = [f"You're at **{int(protein)}g** protein today."]
             if protein_target:
@@ -3716,6 +3737,13 @@ def _nutrition_fact_response(nut, msg_lower):
             blocks.append(
                 "I don't see nutrition logged today yet, so I'm currently "
                 "showing 0 tracked calories.")
+        elif food_count and int(cal) == 0:
+            # Entries exist today but total 0 — honest about the inconsistency,
+            # never a bare confident 0, never abstain to the LLM (Phase 1).
+            blocks.append(
+                f"You've logged {food_count} item{'s' if food_count != 1 else ''} "
+                f"today, but they total **0** calories so far — the entries may "
+                f"not have calorie data yet.")
         else:
             block = [f"You're at **{int(cal)}** calories today."]
             if cal_target:
@@ -3763,40 +3791,30 @@ def _handle_nutrition_query(user, msg_lower=None):
     food_entries_7d = nut.get('food_entries_7d', 0)
     food_entries_today = nut.get('food_entries_today')
 
-    if cal is None and food_entries_7d == 0:
-        return None  # No data → fall through
-
-    # Confidence guard: never state a confident "0 calories today" when the
-    # snapshot contradicts itself (food logged today, but no calories), or is
-    # missing today's count while weekly entries exist. A stale/contradictory
-    # snapshot must refuse the status answer rather than assert a falsehood.
-    today_count = food_entries_today if food_entries_today is not None else None
-    contradictory = (cal in (None, 0)) and (today_count or 0) > 0
-    suspicious = (
-        cal in (None, 0)
-        and food_entries_today is None
-        and (food_entries_7d or 0) > 0
-    )
-    if contradictory or suspicious:
-        logger.warning(
-            "nutrition query: refusing confident zero — cal=%s "
-            "food_entries_today=%s food_entries_7d=%s (contradictory=%s "
-            "suspicious=%s)",
-            cal, food_entries_today, food_entries_7d, contradictory, suspicious,
-        )
-        return None  # Refuse confident falsehood → fall through
-
-    # ── Answer-first contract (trust repair 2026-06-02) ──
-    # A direct factual nutrition status question ("How am I doing on protein
-    # today?", "Calories today?") gets a grounded answer ONLY: no cross-domain
-    # priority note, no macro-score interpretation, no execution coaching. The
-    # full Situation/Interpretation/Action decision template below is reserved
-    # for explicit coaching requests. The user asked a narrow question; answer
-    # the narrow question. Fact mode returns None only when the asked nutrient
-    # has no groundable value, in which case we fall through to the pipeline
-    # (never to the coaching template).
+    # ── No-abstain for trust-critical factual retrieval (Phase 1, 2026-06-19) ──
+    # A direct factual nutrition status question ("calories today?", "protein
+    # today?") MUST return a grounded today answer or an honest "nothing logged
+    # today" — NEVER None. Returning None drops the question to the LLM, where
+    # the rolling 7-day average lives and gets parroted as "today" (the 0-vs-1355
+    # trust bug). The snapshot was refreshed from raw FoodEntry above
+    # (ensure_fresh), so daily_calories is canonical and matches the nutrition
+    # page. _nutrition_fact_response already distinguishes "logged 0" from
+    # "nothing logged today yet" — it does NOT substitute the rolling average.
+    # (Replaces the prior contradictory/suspicious "refuse → fall through" guard,
+    # which abstained to the LLM exactly when it should have said 0.)
     if not _is_nutrition_coaching_request(msg_lower):
-        return _nutrition_fact_response(nut, msg_lower)
+        resp = _nutrition_fact_response(nut, msg_lower)
+        if resp:
+            return resp
+        return (
+            "I don't see any nutrition logged today yet — nothing is tracked "
+            "so far today."
+        )
+
+    # Coaching path is non-factual (Situation/Interpretation/Action). With
+    # genuinely no data it may defer to the coaching pipeline.
+    if cal is None and food_entries_7d == 0:
+        return None
 
     # ── Situation ──
     parts = []
@@ -5015,9 +5033,37 @@ def _handle_last_workout_query(user):
     from apps.core.ai_state.state_engine import get_module_state
     fitness = get_module_state(user, 'fitness') or {}
     lw = fitness.get('last_workout') or {}
+    if not lw.get('name'):
+        # No-abstain (Phase 1, 2026-06-19): the SAE snapshot hasn't captured the
+        # latest session — read it LIVE from WorkoutSession (the same source the
+        # workout page shows), mirroring the SAE last_workout computation. A
+        # "last workout" question must never drop to the LLM, which narrates
+        # contaminated journal/conversation memory ("you got up early…").
+        try:
+            from datetime import timedelta as _td
+            from apps.core.utils import get_user_now
+            from apps.health.services.workout_queries import WorkoutQueries
+            _now = get_user_now(user)
+            sess = (WorkoutQueries.completed_in_range(
+                        user, _now.date() - _td(days=365), _now.date())
+                    .order_by("-date", "-id")
+                    .prefetch_related("workout_exercises__sets").first())
+            if sess is not None:
+                _exs = list(sess.workout_exercises.all())
+                lw = {
+                    "name": sess.name,
+                    "date": str(sess.date),
+                    "minutes": sess.duration_minutes,
+                    "exercise_count": len(_exs),
+                    "set_count": sum(len(we.sets.all()) for we in _exs),
+                }
+        except Exception:
+            logger.warning("last workout live fallback failed", exc_info=True)
     name = lw.get('name')
     if not name:
-        return None  # No canonical last workout → fall through
+        # Truly no workout logged — honest, never abstain to the LLM.
+        return ("I don't see any completed workouts logged yet — log one and "
+                "I'll keep track of it.")
 
     when = ''
     date_str = lw.get('date')
@@ -5719,14 +5765,34 @@ def _handle_sleep_query(user, msg_lower=None):
     # ── Latest path ("how did I sleep?" / "last night") ──
     last_hrs = health.get('sleep_last_night_hours')
     last_q = health.get('sleep_last_night_quality')
+    last_label = "last night"
     if last_hrs is None:
-        # No last-night event yet — fall back to the 7d summary (don't invent).
+        # No-abstain (Phase 1, 2026-06-19): the SAE snapshot hasn't captured the
+        # latest night — read the newest SleepEntry LIVE (the same row the sleep
+        # page shows) BEFORE degrading to an average. A "last night" question
+        # must never be answered with the 7-day mean.
+        try:
+            from apps.health.models import SleepEntry
+            from apps.core.utils import get_user_today
+            se = (SleepEntry.objects.filter(user=user)
+                  .order_by('-sleep_date', '-created_at').first())
+            if se and se.total_duration_minutes:
+                last_hrs = round(float(se.total_duration_minutes) / 60, 1)
+                last_q = se.quality_score
+                _days = (get_user_today(user) - se.sleep_date).days
+                last_label = ("last night" if _days <= 1
+                              else f"your most recent night ({se.sleep_date:%b %d})")
+        except Exception:
+            logger.warning("sleep live fallback failed", exc_info=True)
+    if last_hrs is None:
+        # Truly no sleep data — honest, never abstain to the LLM.
         if avg_hrs is None:
-            return None
+            return ("I don't see any sleep logged yet — log a night and I can "
+                    "break it down for you.")
         return (f"I don't have last night's sleep logged yet. Your 7-day "
                 f"average is **{avg_hrs} hours**.")
 
-    resp = f"You slept **{last_hrs} hours** last night"
+    resp = f"You slept **{last_hrs} hours** {last_label}"
     if last_q is not None:
         resp += f" with a quality score of **{last_q}**"
     resp += "."

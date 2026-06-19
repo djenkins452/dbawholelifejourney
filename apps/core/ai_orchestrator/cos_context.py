@@ -624,6 +624,13 @@ def _build_health_and_vitals(user):
         fresh_fitness = _fresh_module_state(user, 'fitness')
 
         health_signals = {
+            # Context hygiene (Phase 1, 2026-06-19): inject the LATEST/last-night
+            # values alongside the (already clearly-labelled) 7-day averages, so
+            # the LLM can never mistake the average for "last night". Keys are
+            # self-labelling: *_last_night_* vs *_avg_7d. Deterministic handlers
+            # still own the factual answer; this is defence-in-depth.
+            'sleep_last_night_hours': fresh_health.get('sleep_last_night_hours'),
+            'sleep_last_night_quality': fresh_health.get('sleep_last_night_quality'),
             'sleep_avg_7d': fresh_health.get('sleep_avg_hours_7d'),
             'sleep_trend': fresh_health.get('sleep_trend') or 'stable',
             'sleep_quality_avg_7d': fresh_health.get('sleep_quality_avg_7d'),

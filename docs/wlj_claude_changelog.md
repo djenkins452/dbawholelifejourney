@@ -7,6 +7,22 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-19 — fix(ai): P1 health-retrieval consistency Phase 1 — no-abstain + context hygiene
+
+**Trust bug:** Beth answered health questions with a hidden secondary source — when a deterministic handler ABSTAINED (returned None) or a matcher missed, the question fell to the LLM, whose injected context carried rolling 7-day AVERAGES that got parroted as "latest/today" ("calories today" → 1355 [the 7d avg] when the page showed 0; "how did I sleep" → 6.3 [avg] not 6.7 [last night]; "last workout" → narrative memory not the structured session). Diagnosis: the handlers mostly read the right (live) sources, but **abstaining handed the mic to the average-biased LLM context**.
+
+**Phase 1 fix (no routing rewrite; no new cache; deterministic path made authoritative):**
+- **No-abstain for trust-critical factual retrieval.** Nutrition: removed the "contradictory/suspicious snapshot → return None" poison pill (it abstained to the LLM exactly when it should have said 0). `_handle_nutrition_query` now always returns a grounded today answer or an honest "nothing logged today" — never None. `_nutrition_fact_response` adds an honest inconsistency line ("you've logged N items today but they total 0 … so far") instead of a bare confident 0 or abstaining.
+- **Sleep:** when SAE `sleep_last_night_hours` is missing, read the newest `SleepEntry` LIVE (the same row the sleep page shows) before degrading to the 7-day average; honest no-data otherwise. A "last night" question never returns the mean.
+- **Workout:** when SAE `fitness.last_workout` is empty, read the latest `WorkoutSession` LIVE (mirrors the SAE computation: name/date/exercise_count/set_count) so "last workout" returns the structured session, never the LLM's contaminated journal narrative; honest no-data otherwise.
+- **Matcher fix:** "how many calories have I had today?" fell through to the LLM because the food-estimate heuristic tripped on "have I had." A clear temporal status question (nutrient + today/so-far/this-week/right-now/currently) now matches BEFORE the food-estimate exclusion.
+- **Context hygiene (additive, low blast radius):** inject `sleep_last_night_hours`/`sleep_last_night_quality` alongside the (already clearly-labelled) `sleep_avg_7d`, so the LLM can never mistake the average for last night. Glucose already labels its average `glucose_summary_avg_7d` and deliberately withholds the raw latest value (anti-fabrication) — left intact; the no-abstain latest handler owns it.
+
+**Representative output (real handlers):** "what is my glucose right now" → latest reading + timestamp + stale note (not the avg); "7 day glucose average" → summary (unchanged); "how many calories today" → "I don't see nutrition logged today yet… 0 tracked calories" (not the rolling avg); "how much protein today" → "…0g tracked protein"; "how did I sleep last night" → "You slept 6.7 hours last night, quality 90 …" (last night, avg clearly labelled as context); "last workout" → "Your last workout was **Adjusted Upper Body** on Jun 19" (structured).
+
+**Regression:** new `test_health_retrieval_consistency.py` (11 tests: glucose-now≠avg, last-glucose+timestamp, calories/protein today≠rolling-avg, calories-today matcher fires, sleep last-night via live, workout structured via live, honest no-data, explicit 7-day average still summary). Updated 2 `test_nutrition_trust` expectations from abstain→no-abstain (intended behavior change per the no-abstain rule). `git`-baseline diff across 5 router/nutrition/glucose/sleep/trust suites: 6 pre-existing failures before == 6 after, **zero new**. No model/schema/migration changes. **Held:** full Domain Retrieval Contracts (Phase 2) and post-generation truth correction (Phase 3). **Files:** `apps/ai/deterministic_router.py`, `apps/core/ai_orchestrator/cos_context.py`, `apps/ai/tests/test_health_retrieval_consistency.py` (new), `apps/ai/tests/test_nutrition_trust.py`.
+
+
 ## 2026-06-18 — feat(ai): Phase 1 — wire executive-lens chat questions to the single executive layer
 
 **Problem (proven by audit):** executive-style chat questions were answered by 3–4 unrelated subsystems chosen by wording — "biggest win" → LLM (grabbed a task), "give me a Chief of Staff briefing" → check-in renderer ("18 of 24 done"), "how am I doing overall" → execution engine, "most important things" → health-analyze — and the `executive_summary` state layer (the one the dashboard uses) had **zero callers under `apps/ai/`**, so it never reached chat at all.

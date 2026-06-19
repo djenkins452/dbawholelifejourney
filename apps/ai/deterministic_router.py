@@ -872,6 +872,23 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
                     result.elapsed_ms = (time.monotonic() - t_start) * 1000
                     _log_route_decision(result, user, message)
                     return result
+            # A strategic / executive-lens question must be answered from the
+            # single executive layer (build_executive_summary), not the reflective
+            # LLM — same carve-out pattern as faith / glucose (Phase 1). Standalone
+            # risk stays on the decision engine.
+            if _match_executive_query(msg_lower) and user is not None:
+                _exec_resp = _handle_executive_query(user, msg_lower)
+                if _exec_resp:
+                    result = RouteResult(
+                        category=RouteCategory.DETERMINISTIC_DATA,
+                        response=_exec_resp,
+                        route_name='executive_summary_query',
+                        domain='executive',
+                        is_terminal=True,
+                    )
+                    result.elapsed_ms = (time.monotonic() - t_start) * 1000
+                    _log_route_decision(result, user, message)
+                    return result
             result = RouteResult(
                 route_name='governor_reflective',
                 skip_intent=True,
@@ -886,6 +903,25 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
             "RESPONSE_GOVERNOR failed: %s — proceeding (fail-open)",
             gov_err,
         )
+
+    # ── EXECUTIVE-LENS route (Phase 1) — single executive reasoning layer ──
+    # Strategic / executive-lens questions answered from build_executive_summary
+    # (the layer the dashboard uses) BEFORE the daily-briefing / health-analyze /
+    # decision / focus / check-in gates can grab them by wording. Execution and
+    # standalone-risk questions are NOT matched (Phase 1 boundary). (2026-06-18)
+    if user is not None and _match_executive_query(msg_lower):
+        _exec_resp = _handle_executive_query(user, msg_lower)
+        if _exec_resp:
+            result = RouteResult(
+                category=RouteCategory.DETERMINISTIC_DATA,
+                response=_exec_resp,
+                route_name='executive_summary_query',
+                domain='executive',
+                is_terminal=True,
+            )
+            result.elapsed_ms = (time.monotonic() - t_start) * 1000
+            _log_route_decision(result, user, message)
+            return result
 
     # ── Phase -2: DAILY BRIEFING — first-of-day hard override ─────
     # If this is the user's first interaction today, render a full
@@ -5322,6 +5358,177 @@ def _handle_planning_query(user, msg_lower=None):
             "you a grounded plan — try again in a moment. (I won't guess at a "
             "direction from today's task list.)"
         )
+
+
+# ─────────────────────────────────────────────────────────────────────
+# EXECUTIVE-LENS route (Phase 1, 2026-06-18) — single executive layer.
+#
+# Strategic / executive-lens questions (biggest win / opportunity / improvement
+# / decline, most important trend, what to protect, the story, overall &
+# strategic status, executive / Chief-of-Staff briefing) are answered from the
+# ONE executive reasoning layer the dashboard uses — build_executive_summary —
+# so they stop scattering across the decision engine / health-analyze / check-in
+# / LLM by wording. EXECUTION questions (next step, am I behind, check in, list
+# remaining, daily checklist) are NOT matched and stay on the execution path.
+# Standalone "biggest risk" / "fix first" / "what needs attention" remain on the
+# decision engine (Phase 1 boundary — risk reconciliation is Phase 2).
+# ─────────────────────────────────────────────────────────────────────
+_EXECUTIVE_LENS_PHRASES = (
+    'biggest win', 'biggest opportunity', 'biggest improvement',
+    'biggest decline', 'most important trend', 'most important improvement',
+    'what should i protect', 'protect the most', 'what do i protect',
+    'what story do the data', 'story do the data', 'what story does the data',
+    'story the data tell', 'story of my life',
+    'how am i doing overall', 'how am i doing in life', 'overall how am i',
+    "how's my life overall", 'how is my life going', 'how is my life overall',
+    'most important things happening', 'most important things in my life',
+    'things happening in my life', 'most important things right now',
+    'executive briefing', 'chief of staff briefing', 'strategic briefing',
+    'executive summary', 'strategic status', 'strategic overview',
+    'overall strategic',
+)
+
+
+def _match_executive_query(msg_lower):
+    """Match strategic / executive-lens questions (answered from the single
+    executive_summary layer). Deliberately excludes standalone risk / fix-first /
+    attention (decision engine) and all execution / check-in phrasings."""
+    if not msg_lower:
+        return False
+    return any(p in msg_lower for p in _EXECUTIVE_LENS_PHRASES)
+
+
+def _executive_lens_for(msg_lower):
+    m = msg_lower or ''
+    if 'biggest win' in m:
+        return 'biggest_win'
+    if 'biggest improvement' in m or 'most important improvement' in m:
+        return 'biggest_improvement'
+    if 'biggest decline' in m:
+        return 'biggest_decline'
+    if 'biggest opportunity' in m:
+        return 'biggest_opportunity'
+    if 'most important trend' in m:
+        return 'most_important_trend'
+    if 'protect' in m:
+        return 'protect'
+    if 'story' in m:
+        return 'story'
+    return 'overall'  # overall / strategic / briefing / most-important-things
+
+
+def _exec_field_msg(d):
+    if not isinstance(d, dict):
+        return None
+    return (d.get('message') or d.get('why') or d.get('headline')
+            or d.get('title'))
+
+
+_EXEC_TRAJECTORY = {
+    'improving': "Your trajectory is improving.",
+    'steady': "Your trajectory is steady.",
+    'slipping': "Your trajectory is slipping.",
+    'mixed': "Your trajectory is mixed — moving in more than one direction.",
+    'at_risk': "Your trajectory is under pressure right now.",
+}
+
+
+def _render_executive_overall(es):
+    """Overall / strategic / executive (CoS) briefing synthesis: trajectory →
+    Win → Watch → also-going-well, from the executive_summary fields only. The
+    briefing MAY reference biggest_risk (allowed in synthesis). Omits any part
+    with no grounded signal; honest when nothing is available yet."""
+    win_d = es.get('biggest_win') or {}
+    win = _exec_field_msg(win_d)
+    decline = _exec_field_msg(es.get('biggest_decline'))
+    risk = _exec_field_msg(es.get('biggest_risk'))
+    traj = es.get('trajectory')
+    gw = [g.get('title') for g in (es.get('going_well') or []) if g.get('title')]
+    extra = [t for t in gw if t != win_d.get('title')][:3]
+    parts = []
+    if _EXEC_TRAJECTORY.get(traj):
+        parts.append(_EXEC_TRAJECTORY[traj])
+    if win:
+        parts.append(f"Win: {win}")
+    if decline:
+        parts.append(f"Watch: {decline}")
+    elif risk:
+        parts.append(f"Watch: {risk}")
+    if extra:
+        parts.append("Also going well: " + "; ".join(extra) + ".")
+    if not parts:
+        return ("I don't have enough grounded standing signal to give you a "
+                "strategic read yet — keep logging and the picture will fill in.")
+    return " ".join(parts)
+
+
+def _render_executive_protect(es):
+    """What to protect = the strongest standing positive to sustain + the decline
+    that threatens it. Grounded only; honest when there's no win."""
+    win = _exec_field_msg(es.get('biggest_win'))
+    decline = _exec_field_msg(es.get('biggest_decline'))
+    if not win and not decline:
+        return ("I don't have a clear standing win or risk to point to yet — "
+                "keep logging and I'll tell you what's most worth protecting.")
+    if win:
+        msg = f"Protect your momentum here: {win}"
+        if decline:
+            msg += f" The main thing that could undercut it: {decline}"
+        return msg
+    return f"What's most at risk of slipping: {decline}"
+
+
+def _render_executive_story(es):
+    """The story the data tell = trajectory framing + the win + the watch, as a
+    short grounded narrative. No speculation; only fields that exist."""
+    win = _exec_field_msg(es.get('biggest_win'))
+    decline = _exec_field_msg(es.get('biggest_decline'))
+    trend = _exec_field_msg(es.get('most_important_trend'))
+    traj = es.get('trajectory')
+    bits = [b for b in (win, decline) if b] or ([trend] if trend else [])
+    if not bits:
+        return ("The data don't yet tell a clear story — keep logging and the "
+                "throughline will emerge.")
+    lead = {
+        'improving': "The throughline right now is positive: ",
+        'mixed': "The story is mixed: ",
+        'slipping': "The throughline right now is concerning: ",
+        'at_risk': "The story right now is one of pressure: ",
+        'steady': "The story right now is steady: ",
+    }.get(traj, "Here's the throughline right now: ")
+    return lead + " ".join(bits)
+
+
+def _handle_executive_query(user, msg_lower=None):
+    """Answer an executive-lens question from build_executive_summary — the one
+    executive reasoning layer the dashboard uses. Read-only over cached SAE
+    state; never raises; honest when a lens has no grounded signal yet."""
+    try:
+        from apps.core.cos_briefing import build_executive_summary
+        es = build_executive_summary(user) or {}
+    except Exception:
+        logger.warning("executive route failed", exc_info=True)
+        return None
+    lens = _executive_lens_for(msg_lower)
+    _SINGLE = {
+        'biggest_win': "a clear standing win",
+        'biggest_improvement': "a clear improvement",
+        'biggest_decline': "a clear decline",
+        'biggest_opportunity': "a clear opportunity",
+        'most_important_trend': "a single most-important trend",
+    }
+    if lens in _SINGLE:
+        msg = _exec_field_msg(es.get(lens))
+        if msg:
+            return msg
+        return (f"I don't have enough grounded standing signal to name "
+                f"{_SINGLE[lens]} right now — keep logging and I'll surface it "
+                f"as the data builds.")
+    if lens == 'protect':
+        return _render_executive_protect(es)
+    if lens == 'story':
+        return _render_executive_story(es)
+    return _render_executive_overall(es)
 
 
 # Sleep COACHING intent — "how to improve my sleep" — distinct from a STATUS

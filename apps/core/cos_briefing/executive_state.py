@@ -51,6 +51,18 @@ class ExecutiveStateSignal:
     message: str
     evidence: list = field(default_factory=list)
     source: str = ""
+    # Leverage = improving THIS domain cascades into others (sleep → weight,
+    # glucose, energy). Drives the OPPORTUNITY lens ("where does one unit of
+    # effort create the largest return?"). A simple deterministic flag — NOT a
+    # scoring engine. Approved leverage domains: sleep/recovery, nutrition/
+    # protein, activity/fitness, medication adherence.
+    leverage: bool = False
+
+
+_LEVERAGE_DOMAINS = frozenset({
+    "sleep", "recovery", "nutrition", "protein", "fitness", "activity",
+    "medication",
+})
 
 
 def to_dict(signal):
@@ -67,6 +79,7 @@ def to_dict(signal):
         "message": signal.message,
         "evidence": list(signal.evidence or []),
         "source": signal.source,
+        "leverage": signal.leverage,
     }
 
 
@@ -282,6 +295,36 @@ def _goal_signals(user):
     return out
 
 
+def _relationship_signals(user):
+    """Relationship-drift signal from the EXISTING relationships standing
+    contract (neglected_count / days_since_contact). Grounded only — omitted
+    honestly when the contract has no data. Never fabricates relationship risk."""
+    out = []
+    try:
+        rel = _module(user, "relationships")
+        contract = rel.get("_contract") or {}
+        summary = contract.get("summary") or {}
+        neglected_count = summary.get("neglected_count") or 0
+        if neglected_count <= 0:
+            return out
+        neglected = (contract.get("alerts") or {}).get("neglected") or []
+        names = [n.get("name") for n in neglected[:2] if n.get("name")]
+        who = (" — e.g. " + ", ".join(names)) if names else ""
+        out.append(ExecutiveStateSignal(
+            domain="relationships", lens="decline", direction="declining",
+            magnitude=float(neglected_count), confidence="medium",
+            title=f"{neglected_count} relationship"
+                  f"{'s' if neglected_count != 1 else ''} drifting",
+            message=(f"{neglected_count} connection"
+                     f"{'s' if neglected_count != 1 else ''} you haven't "
+                     f"reached out to in a while{who}."),
+            evidence=[f"neglected_count {neglected_count}"],
+            source="relationships_contract"))
+    except Exception:
+        logger.debug("state adapter: relationship signal failed", exc_info=True)
+    return out
+
+
 def build_executive_state_signals(user):
     """Read existing standing state and return normalized ExecutiveStateSignals.
 
@@ -295,6 +338,12 @@ def build_executive_state_signals(user):
     signals += _medication_signals(user)
     signals += _faith_signals(user)
     signals += _goal_signals(user)
+    signals += _relationship_signals(user)
+    # Tag leverage centrally (one place) — improving these domains cascades
+    # into others, so they drive the OPPORTUNITY lens.
+    for s in signals:
+        if s.domain in _LEVERAGE_DOMAINS:
+            s.leverage = True
     return signals
 
 
@@ -309,13 +358,20 @@ def _ordered(signals):
 
 
 def select_executive_lenses(signals):
-    """Assign distinct standing signals to win / improvement / decline / trend.
+    """Select the signal-level picks for each executive lens — DISTINCT
+    judgments, not one signal reused.
 
-    Anti-fixation guard: a domain leads AT MOST ONE of win/improvement/decline
-    unless it's the only signal — this prevents one domain (e.g. sleep) filling
-    every executive slot. The guard never fabricates diversity: if there's only
-    one signal, lenses honestly coincide / stay empty. ``most_important_trend``
-    is a meta-pick (the single highest-confidence signal) and may reuse a domain.
+      win         — top realized achievement (lens=='win')
+      improvement — top positive TREND (lens=='improvement'), distinct domain
+      decline     — top deteriorating signal
+      opportunity — top LEVERAGE constraint (where one unit of effort returns
+                    the most); MAY share Decline's domain — the worsening
+                    leverage area is often the highest-return fix (allowed).
+
+    Anti-fixation: a domain leads AT MOST ONE of win/improvement/decline unless
+    it's the only signal. Opportunity is exempt (intentional overlap with
+    Decline). ``most_important_trend`` is NOT a pick here — it is synthesized in
+    executive_summary (a two-part trajectory statement), never a lone signal.
     """
     improving = _ordered([s for s in signals if s.direction == "improving"])
     declining = _ordered(
@@ -329,17 +385,21 @@ def select_executive_lenses(signals):
                 return s
         return None
 
-    win = take(improving)
+    win = take([s for s in improving if s.lens == "win"]) or take(improving)
     # Prefer a trend-type improvement for the improvement lens; else next
     # distinct improving signal.
     improvement = (take([s for s in improving if s.lens == "improvement"])
                    or take(improving))
     decline = take(declining)
-    allo = _ordered(signals)
-    trend = allo[0] if allo else None
+    # Opportunity = highest-leverage area to improve (the gating constraint).
+    # NOT subject to the anti-fixation `used` set — it may equal Decline.
+    leverage_pool = _ordered([
+        s for s in signals
+        if s.direction in ("declining", "risk") and s.leverage])
+    opportunity = leverage_pool[0] if leverage_pool else None
     return {
         "biggest_win": win,
         "biggest_improvement": improvement,
         "biggest_decline": decline,
-        "most_important_trend": trend,
+        "biggest_opportunity": opportunity,
     }

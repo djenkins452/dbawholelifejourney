@@ -26,12 +26,13 @@ from apps.core.cos_briefing.executive_state import ExecutiveStateSignal
 User = get_user_model()
 
 
-def _sig(domain, lens, direction, conf="high", title=None, mag=None):
+def _sig(domain, lens, direction, conf="high", title=None, mag=None,
+         leverage=False):
     return ExecutiveStateSignal(
         domain=domain, lens=lens, direction=direction, magnitude=mag,
         confidence=conf, title=title or f"{domain} {lens}",
         message=f"{domain} {lens} msg", evidence=[f"{domain} evidence"],
-        source=f"{domain}_state")
+        source=f"{domain}_state", leverage=leverage)
 
 
 # ── Pure selection logic (no DB) ────────────────────────────────────────
@@ -66,25 +67,29 @@ class StateLensSelection(SimpleTestCase):
         self.assertNotEqual(L["biggest_win"].domain, L["biggest_decline"].domain)
 
     def test_thin_data_does_not_fabricate(self):
-        # Only one signal → win is set, improvement/decline honestly empty.
+        # Only one signal → win is set, improvement/decline/opportunity empty.
         sigs = [_sig("weight", "win", "improving")]
         L = es_adapter.select_executive_lenses(sigs)
         self.assertEqual(L["biggest_win"].domain, "weight")
         self.assertIsNone(L["biggest_improvement"])   # no fabricated 2nd win
         self.assertIsNone(L["biggest_decline"])       # no fabricated decline
-        self.assertEqual(L["most_important_trend"].domain, "weight")
+        self.assertIsNone(L["biggest_opportunity"])   # no leverage signal
 
     def test_no_signals_all_none(self):
         L = es_adapter.select_executive_lenses([])
         self.assertTrue(all(v is None for v in L.values()))
 
-    def test_most_important_trend_is_highest_confidence(self):
+    def test_opportunity_is_the_leverage_constraint(self):
+        # Opportunity = top declining LEVERAGE signal; may share Decline's
+        # domain (sleep is both the decline and the highest-leverage fix).
         sigs = [
-            _sig("faith", "win", "improving", conf="low"),
-            _sig("sleep", "decline", "declining", conf="high"),
+            _sig("weight", "win", "improving"),
+            _sig("sleep", "decline", "declining", leverage=True),
+            _sig("relationships", "decline", "declining"),  # not leverage
         ]
         L = es_adapter.select_executive_lenses(sigs)
-        self.assertEqual(L["most_important_trend"].domain, "sleep")
+        self.assertEqual(L["biggest_opportunity"].domain, "sleep")
+        self.assertEqual(L["biggest_decline"].domain, "sleep")   # overlap allowed
 
     def test_deterministic(self):
         sigs = [

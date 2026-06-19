@@ -310,15 +310,14 @@ def build_executive_summary(user, execution_contract=None) -> dict[str, Any]:
         user_now=_user_now,
     )
 
-    # State-based executive lenses (additive to the contract). These read
-    # STANDING state, not events, so distinct questions get distinct answers
-    # and wins/improvements are first-class. Anti-fixation guard inside.
+    # State-based executive lenses (additive to the contract). DISTINCT
+    # judgments per lens (win / improvement / decline / opportunity / trend /
+    # protect / story / overall / briefing) — not one selected signal reused.
     try:
-        lenses = _collect_state_lenses(state_signals)
+        lenses = build_executive_lenses(state_signals, biggest_risk=biggest_risk)
     except Exception:
         logger.warning("exec_summary: state lenses failed", exc_info=True)
-        lenses = {"biggest_win": None, "biggest_improvement": None,
-                  "biggest_decline": None, "most_important_trend": None}
+        lenses = _empty_lenses()
 
     return {
         "trajectory": trajectory,
@@ -326,7 +325,7 @@ def build_executive_summary(user, execution_contract=None) -> dict[str, Any]:
         "going_well": going_well,
         "needs_attention": needs_attention,
         "biggest_risk": biggest_risk,
-        "biggest_opportunity": biggest_opportunity,
+        "biggest_opportunity": biggest_opportunity,   # event-based (dashboard) — unchanged
         "focus_now": focus_now,
         "follow_on": follow_on,
         "recommendations": recommendations,
@@ -334,7 +333,15 @@ def build_executive_summary(user, execution_contract=None) -> dict[str, Any]:
         "biggest_win": lenses["biggest_win"],
         "biggest_improvement": lenses["biggest_improvement"],
         "biggest_decline": lenses["biggest_decline"],
-        "most_important_trend": lenses["most_important_trend"],
+        # most_important_trend is now a SYNTHESIS (two-part trajectory), wrapped
+        # as a dict so existing message-readers keep working.
+        "most_important_trend": (
+            {"domain": "synthesis", "lens": "trend",
+             "message": lenses["most_important_trend"]}
+            if lenses.get("most_important_trend") else None),
+        # Full differentiated lens set (trend/opportunity/protect/story/overall/
+        # briefing) — the single place distinct executive judgments live.
+        "executive_lenses": lenses,
         "as_of": timezone.now().isoformat(),
     }
 
@@ -404,32 +411,175 @@ def _merge_standing_wins(going_well, state_signals):
     return merged[:MAX_GOING_WELL]
 
 
-def _collect_state_lenses(state_signals) -> dict:
-    """Win / improvement / decline / most-important-trend from STANDING state,
-    with the anti-fixation guard (a domain leads at most one lens unless it's
-    the only signal). Values are plain dicts (or None)."""
+# ── Executive lens DIFFERENTIATION (distinct judgments, not templates) ──
+# Each lens answers its own question. Selection (win/improvement/decline/
+# opportunity) lives in executive_state.select_executive_lenses; the SYNTHESES
+# (trend / protect / story / overall / briefing) are composed here from the
+# selected signals + the full signal set. No scoring engine — deterministic
+# filters, the existing `lens` tags, a `leverage` flag, and same-unit ordering.
+
+_DOMAIN_NOUN = {
+    'weight': 'your weight', 'glucose': 'your glucose', 'sleep': 'your sleep',
+    'medication': 'your medication adherence', 'faith': 'your faith consistency',
+    'goals': 'your goal momentum', 'relationships': 'your relationships',
+    'nutrition': 'your nutrition', 'fitness': 'your training',
+}
+
+
+def _noun(sig):
+    return _DOMAIN_NOUN.get(getattr(sig, 'domain', ''), 'this area') if sig else None
+
+
+def _phrase(sig):
+    return (getattr(sig, 'title', None) or getattr(sig, 'message', None)) if sig else None
+
+
+def _msg(sig):
+    return (getattr(sig, 'message', None) or getattr(sig, 'title', None)) if sig else None
+
+
+def _empty_lenses() -> dict:
+    return {k: None for k in (
+        "biggest_win", "biggest_improvement", "biggest_decline",
+        "biggest_opportunity", "most_important_trend", "protect", "story",
+        "overall", "chief_of_staff_briefing")}
+
+
+def _synthesize_trend(win, improvement, decline, opportunity):
+    """Most important TREND = a two-part trajectory (dominant positive + the
+    gating constraint). NEVER a lone signal / never equals Win's message."""
+    positive = win or improvement
+    constraint = decline or opportunity
+    if positive and constraint:
+        return (f"{(_noun(positive) or 'this area').capitalize()} is improving — "
+                f"but {_noun(constraint)} is the gating constraint that will "
+                f"decide whether that continues.")
+    if positive:
+        return (f"{(_noun(positive) or 'this area').capitalize()} is the "
+                f"trajectory to watch — improving, with no clear constraint yet.")
+    if constraint:
+        return (f"{(_noun(constraint) or 'this area').capitalize()} is the "
+                f"trajectory most likely to shape what's ahead.")
+    return None
+
+
+def _synthesize_protect(state_signals, win, decline):
+    """PROTECT = value × vulnerability: the most valuable standing asset(s) that
+    are at risk — not Win+Decline restated. Assets = the 'win'-type standing
+    positives (weight momentum, faith, medication adherence)."""
+    from apps.core.cos_briefing.executive_state import _ordered
+    assets = _ordered([s for s in (state_signals or []) if s.lens == "win"])
+    if not assets:
+        if decline:
+            return (f"What's most at risk of slipping is {_noun(decline)} — "
+                    f"guard it before it compounds.")
+        return None
+    primary = assets[0]
+    secondary = next((s for s in assets if s.domain != primary.domain), None)
+    head = f"Protect {_noun(primary)}"
+    if secondary:
+        head += f" and {_noun(secondary)}"
+    threat = decline
+    if threat and threat.domain not in (
+            primary.domain, getattr(secondary, 'domain', None)):
+        them = "them" if secondary else "it"
+        return f"{head} — the thing quietly eroding {them} is {_noun(threat)}."
+    return f"{head} — {'these are' if secondary else 'it is'} your strongest momentum."
+
+
+def _synthesize_story(state_signals):
+    """STORY = cross-domain narrative pulling ≥3 domains when available."""
+    from apps.core.cos_briefing.executive_state import _ordered
+    seen, pos, neg = set(), [], []
+    for s in _ordered([x for x in (state_signals or []) if x.direction == "improving"]):
+        if s.domain not in seen:
+            seen.add(s.domain)
+            pos.append(_phrase(s))
+    for s in _ordered([x for x in (state_signals or [])
+                       if x.direction in ("declining", "risk")]):
+        if s.domain not in seen:
+            seen.add(s.domain)
+            neg.append(_phrase(s))
+    if not pos and not neg:
+        return None
+    bits = []
+    if pos:
+        bits.append("On the upside: " + "; ".join(pos[:3]) + ".")
+    if neg:
+        bits.append("The drag: " + "; ".join(neg[:2]) + ".")
+    return " ".join(bits)
+
+
+def _synthesize_overall(state_signals, win, decline):
+    """OVERALL = balanced net read — leads with the net trajectory, not the win."""
+    sigs = state_signals or []
+    n_pos = len([s for s in sigs if s.direction == "improving"])
+    n_neg = len([s for s in sigs if s.direction in ("declining", "risk")])
+    if n_pos and n_neg:
+        lead = "Net: mostly positive but with real pressure"
+    elif n_pos:
+        lead = "Net: trending well"
+    elif n_neg:
+        lead = "Net: under pressure right now"
+    else:
+        return None
+    tail = []
+    if win:
+        tail.append(f"{_noun(win)} is your strongest gain")
+    if decline:
+        tail.append(f"{_noun(decline)} is the area to watch")
+    return (lead + " — " + ", ".join(tail) + ".") if tail else (lead + ".")
+
+
+def _synthesize_briefing(win, decline, opportunity, protect, biggest_risk):
+    """CHIEF OF STAFF BRIEFING = Win / Risk / Opportunity / Protect / Action."""
+    lines = []
+    if win:
+        lines.append(f"Win: {_msg(win)}")
+    risk_msg = ((biggest_risk or {}).get("message")
+                or (biggest_risk or {}).get("title"))
+    if not risk_msg and decline:
+        risk_msg = _msg(decline)
+    if risk_msg:
+        lines.append(f"Risk: {risk_msg}")
+    if opportunity:
+        lines.append(
+            f"Opportunity: {_noun(opportunity)} is your highest-leverage fix — "
+            f"improving it lifts several areas at once.")
+    if protect:
+        lines.append(f"Protect: {protect}")
+    action_src = opportunity or decline
+    if action_src:
+        lines.append(f"Action: put your effort into {_noun(action_src)} this week.")
+    return " ".join(lines) if lines else None
+
+
+def build_executive_lenses(state_signals, biggest_risk=None) -> dict:
+    """The single place distinct executive judgments are composed. Returns
+    signal-dicts for win/improvement/decline/opportunity and synthesis STRINGS
+    for trend/protect/story/overall/chief_of_staff_briefing."""
     from apps.core.cos_briefing.executive_state import (
-        select_executive_lenses,
-        to_dict,
+        select_executive_lenses, to_dict,
     )
-    picked = select_executive_lenses(state_signals or [])
-    return {k: to_dict(v) for k, v in picked.items()}
-
-
-def _collect_biggest_win(state_signals) -> dict | None:
-    return _collect_state_lenses(state_signals)["biggest_win"]
-
-
-def _collect_biggest_improvement(state_signals) -> dict | None:
-    return _collect_state_lenses(state_signals)["biggest_improvement"]
-
-
-def _collect_biggest_decline(state_signals) -> dict | None:
-    return _collect_state_lenses(state_signals)["biggest_decline"]
-
-
-def _collect_most_important_trend(state_signals) -> dict | None:
-    return _collect_state_lenses(state_signals)["most_important_trend"]
+    sigs = state_signals or []
+    picks = select_executive_lenses(sigs)
+    win = picks["biggest_win"]
+    imp = picks["biggest_improvement"]
+    dec = picks["biggest_decline"]
+    opp = picks["biggest_opportunity"]
+    protect = _synthesize_protect(sigs, win, dec)
+    return {
+        "biggest_win": to_dict(win),
+        "biggest_improvement": to_dict(imp),
+        "biggest_decline": to_dict(dec),
+        "biggest_opportunity": to_dict(opp),
+        "most_important_trend": _synthesize_trend(win, imp, dec, opp),
+        "protect": protect,
+        "story": _synthesize_story(sigs),
+        "overall": _synthesize_overall(sigs, win, dec),
+        "chief_of_staff_briefing": _synthesize_briefing(
+            win, dec, opp, protect, biggest_risk),
+    }
 
 
 # ── Needs Attention ────────────────────────────────────────────────────

@@ -7,6 +7,27 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-19 — feat(ai): executive lens differentiation — distinct judgments, not templates
+
+**Problem (audited):** executive lenses had collapsed onto two signals (weight win, sleep decline). Win and Trend shared one selector (`_ordered(signals)[0]`), and Protect/Story/Overall/Briefing were render templates over `win + decline` — so five lenses returned the same underlying signal reworded. Relationships weren't modeled; faith only surfaced in the "also going well" tail; Opportunity read a usually-empty event field.
+
+**Fix (within `executive_state.py` + `executive_summary.py` only; no routing/scoring engine):**
+- **`select_executive_lenses`** now picks DISTINCT signals: win (top realized achievement, `lens=='win'`), improvement (top positive trend, `lens=='improvement'`, distinct domain), decline (top deteriorating), and **opportunity** (top declining **leverage** signal — *where one unit of effort returns the most*; may share Decline's domain, which is intentional, not collapse). Removed the single-pick `most_important_trend`.
+- **`leverage` flag** on `ExecutiveStateSignal`, tagged centrally for the approved cascade domains (sleep/recovery, nutrition/protein, fitness/activity, medication). Drives Opportunity. Not a scoring engine — a deterministic flag.
+- **Relationship-drift signal** from the EXISTING relationships standing contract (`_contract.summary.neglected_count` / `alerts.neglected`). Grounded only — omitted honestly when absent; never fabricated.
+- **Syntheses in `executive_summary.py`** (`build_executive_lenses`): **Trend** = two-part trajectory ("X is improving — but Y is the gating constraint…"), never equal to Win; **Protect** = value × vulnerability (the valuable standing assets at risk, incl. **faith**, + the threat); **Story** = cross-domain narrative pulling ≥3 domains; **Overall** = net read that does NOT lead with the win; **Chief-of-Staff briefing** = Win / Risk / Opportunity / Protect / Action (all five). Exposed via a new additive `executive_lenses` key; `most_important_trend` upgraded to the synthesis (wrapped as a dict for message-readers). The event-based `biggest_opportunity` and `biggest_risk` keys (dashboard-consumed) are untouched.
+
+**Representative output (fixture: weight win, glucose improvement, sleep decline, faith streak, relationship drift):**
+- Win → "Weight down 14.1 lb"; Improvement → "Glucose improving"; Decline → "Sleep consistency slipping"; Opportunity → "Sleep — highest-leverage fix" (shares Decline's domain by design).
+- Trend → "Your weight is improving — but your sleep is the gating constraint that will decide whether that continues." (≠ Win)
+- Protect → "Protect your weight and your faith consistency — the thing quietly eroding them is your sleep." (value × vulnerability, faith included)
+- Story → "On the upside: weight; glucose; Bible reading streak. The drag: sleep; 2 relationships drifting." (5 domains)
+- Overall → "Net: mostly positive but with real pressure — your weight is your strongest gain, your sleep is the area to watch." (not win-led)
+- Briefing → Win / Risk / Opportunity / Protect / Action — all five dimensions.
+
+**Regression:** new `test_executive_lenses.py` (15 tests: win=weight, improvement=glucose, decline=sleep, opportunity=sleep w/ leverage, trend is synthesis ≠ win, protect value×vuln incl. faith, story ≥3 domains, overall not-win-led, briefing all-five, relationship grounded/omitted, thin-data honest, deterministic, all-lenses-distinct). Updated `test_executive_state.py` (`select_executive_lenses` now returns opportunity not the single-pick trend). `git`-baseline diff (cos_briefing + dashboard composer/coherence/dedup + chat-exec): **zero new failures** (2 pre-existing dashboard failures unrelated: execution-contract dedup + rhythm preview). Dashboard never consumed the chat-only lens keys (verified) → shape change is safe. No model/schema/migration changes. **Scope held:** chat handler wiring (routing) untouched — the differentiated lenses live in the executive layer; `most_important_trend` improves in chat automatically (read via message), the synthesis lenses are exposed for the dashboard/follow-up wiring. **Files:** `apps/core/cos_briefing/executive_state.py`, `apps/core/cos_briefing/executive_summary.py`, `apps/core/cos_briefing/tests/test_executive_lenses.py` (new), `apps/core/cos_briefing/tests/test_executive_state.py`.
+
+
 ## 2026-06-19 — fix(ai): P1 health-retrieval consistency Phase 1 — no-abstain + context hygiene
 
 **Trust bug:** Beth answered health questions with a hidden secondary source — when a deterministic handler ABSTAINED (returned None) or a matcher missed, the question fell to the LLM, whose injected context carried rolling 7-day AVERAGES that got parroted as "latest/today" ("calories today" → 1355 [the 7d avg] when the page showed 0; "how did I sleep" → 6.3 [avg] not 6.7 [last night]; "last workout" → narrative memory not the structured session). Diagnosis: the handlers mostly read the right (live) sources, but **abstaining handed the mic to the average-biased LLM context**.

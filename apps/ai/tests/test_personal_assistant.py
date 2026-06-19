@@ -967,8 +967,12 @@ class PersonalDataQueryIntegrationTests(TestCase, AssistantTestMixin):
         assistant = PersonalAssistant(self.user)
         conversation = assistant.get_or_create_conversation()
 
-        # Call _generate_response with a non-personal query
-        assistant._generate_response("What should I focus on today?", conversation)
+        # Call _generate_response with a non-personal, non-deterministic query.
+        # (Task/priority/"focus on today" phrasings are now intercepted by the
+        # deterministic executive-briefing route and never reach the LLM path,
+        # so use a neutral factual question that still flows through
+        # process_assistant_message.)
+        assistant._generate_response("What does resilience mean?", conversation)
 
         # Verify process_assistant_message was called but returned no personal data
         mock_process.assert_called_once()

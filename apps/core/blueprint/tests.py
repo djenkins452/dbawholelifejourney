@@ -666,7 +666,7 @@ class CommandBriefTests(TestCase):
         self.assertIsNone(plan)
 
         # Load dashboard
-        response = self.client.get('/v2/')
+        response = self.client.get('/dashboard/legacy/classic/')
         self.assertEqual(response.status_code, 200)
 
         # Command brief should be in context
@@ -676,7 +676,7 @@ class CommandBriefTests(TestCase):
 
     def test_no_plan_text_absent(self):
         """'No plan for today' should never appear in dashboard response."""
-        response = self.client.get('/v2/')
+        response = self.client.get('/dashboard/legacy/classic/')
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'No plan for today')
 
@@ -684,7 +684,7 @@ class CommandBriefTests(TestCase):
         """Command Brief context should be populated for PA-enabled user.
         Note: When Command Mode is active, Command Brief is hidden in HTML
         but still present in context."""
-        response = self.client.get('/v2/')
+        response = self.client.get('/dashboard/legacy/classic/')
         self.assertEqual(response.status_code, 200)
         command_brief = response.context.get('command_brief')
         self.assertIsNotNone(command_brief)
@@ -699,7 +699,7 @@ class CommandBriefTests(TestCase):
 
     def test_command_brief_has_drift_risk(self):
         """Command Brief should include drift risk value."""
-        response = self.client.get('/v2/')
+        response = self.client.get('/dashboard/legacy/classic/')
         command_brief = response.context.get('command_brief')
         self.assertIsNotNone(command_brief)
         self.assertIn('drift_risk_24h', command_brief)
@@ -707,7 +707,7 @@ class CommandBriefTests(TestCase):
 
     def test_command_brief_has_capacity(self):
         """Command Brief should include capacity percentage."""
-        response = self.client.get('/v2/')
+        response = self.client.get('/dashboard/legacy/classic/')
         command_brief = response.context.get('command_brief')
         self.assertIsNotNone(command_brief)
         self.assertIn('capacity_pct', command_brief)
@@ -732,7 +732,7 @@ class CommandBriefTests(TestCase):
             behavior_key='faith_prayer',
         )
 
-        response = self.client.get('/v2/')
+        response = self.client.get('/dashboard/legacy/classic/')
         command_brief = response.context.get('command_brief')
         self.assertIsNotNone(command_brief)
         self.assertGreater(len(command_brief['tier1_items']), 0)
@@ -743,7 +743,7 @@ class CommandBriefTests(TestCase):
         self.user.preferences.personal_assistant_enabled = False
         self.user.preferences.save()
 
-        response = self.client.get('/v2/')
+        response = self.client.get('/dashboard/legacy/classic/')
         command_brief = response.context.get('command_brief')
         self.assertIsNone(command_brief)
         self.assertNotContains(response, 'command-brief')
@@ -760,14 +760,14 @@ class CommandBriefTests(TestCase):
 
     def test_sidebar_shows_monitoring_status(self):
         """Sidebar status text should describe what CoS is doing."""
-        response = self.client.get('/v2/')
+        response = self.client.get('/dashboard/legacy/classic/')
         self.assertEqual(response.status_code, 200)
         # The panel renders with meaningful status
         self.assertContains(response, 'Monitoring your day')
 
     def test_alignment_score_calculated(self):
         """Alignment score should be present in command brief."""
-        response = self.client.get('/v2/')
+        response = self.client.get('/dashboard/legacy/classic/')
         command_brief = response.context.get('command_brief')
         self.assertIsNotNone(command_brief)
         self.assertIn('alignment_score', command_brief)
@@ -2144,7 +2144,7 @@ class CommandModeTests(TestCase):
 
     def test_command_mode_in_context(self):
         """Command Mode dict should be in dashboard context."""
-        response = self.client.get('/v2/')
+        response = self.client.get('/dashboard/legacy/classic/')
         self.assertEqual(response.status_code, 200)
         command_mode = response.context.get('command_mode')
         self.assertIsNotNone(command_mode)
@@ -2152,20 +2152,20 @@ class CommandModeTests(TestCase):
 
     def test_command_mode_has_greeting(self):
         """Command Mode should have a greeting line."""
-        response = self.client.get('/v2/')
+        response = self.client.get('/dashboard/legacy/classic/')
         command_mode = response.context.get('command_mode')
         self.assertIn('greeting_line', command_mode)
         self.assertIn(self.user.get_short_name(), command_mode['greeting_line'])
 
     def test_command_mode_has_risk_level(self):
         """Command Mode should have risk level (green/amber/red)."""
-        response = self.client.get('/v2/')
+        response = self.client.get('/dashboard/legacy/classic/')
         command_mode = response.context.get('command_mode')
         self.assertIn(command_mode['risk_level'], ['green', 'amber', 'red'])
 
     def test_command_mode_has_day_summary(self):
         """Command Mode should have a human-language day summary."""
-        response = self.client.get('/v2/')
+        response = self.client.get('/dashboard/legacy/classic/')
         command_mode = response.context.get('command_mode')
         self.assertIn('day_summary', command_mode)
         self.assertIsInstance(command_mode['day_summary'], str)
@@ -2173,7 +2173,7 @@ class CommandModeTests(TestCase):
 
     def test_command_mode_has_recommended_moves(self):
         """Command Mode should have 0-3 recommended moves."""
-        response = self.client.get('/v2/')
+        response = self.client.get('/dashboard/legacy/classic/')
         command_mode = response.context.get('command_mode')
         moves = command_mode.get('recommended_moves', [])
         self.assertLessEqual(len(moves), 3)
@@ -2183,19 +2183,19 @@ class CommandModeTests(TestCase):
 
     def test_command_mode_has_status_line(self):
         """Command Mode should have a status line."""
-        response = self.client.get('/v2/')
+        response = self.client.get('/dashboard/legacy/classic/')
         command_mode = response.context.get('command_mode')
         self.assertIn('status_line', command_mode)
         self.assertIsInstance(command_mode['status_line'], str)
 
     def test_command_mode_renders_greeting_banner(self):
         """Command Mode greeting banner should render on dashboard."""
-        response = self.client.get('/v2/')
+        response = self.client.get('/dashboard/legacy/classic/')
         self.assertContains(response, 'cos-greeting-banner')
 
     def test_command_mode_hides_arrival_briefing(self):
         """When Command Mode is active, arrival briefing should not render."""
-        response = self.client.get('/v2/')
+        response = self.client.get('/dashboard/legacy/classic/')
         content = response.content.decode()
         # Greeting banner should be present
         self.assertIn('cos-greeting-banner', content)
@@ -2206,7 +2206,7 @@ class CommandModeTests(TestCase):
         """Command Mode should not render when PA is disabled."""
         self.user.preferences.personal_assistant_enabled = False
         self.user.preferences.save()
-        response = self.client.get('/v2/')
+        response = self.client.get('/dashboard/legacy/classic/')
         command_mode = response.context.get('command_mode')
         self.assertIsNone(command_mode)
         self.assertNotContains(response, 'cos-greeting-banner')

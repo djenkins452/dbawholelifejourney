@@ -263,19 +263,26 @@ class MedicalStateGlycemicLabsTests(TestCase):
     def test_glycemic_labs_populated_from_lab_results(self):
         from apps.medical.models import LabResult, LabTestCatalog
 
-        hba1c_catalog = LabTestCatalog.objects.create(
+        # get_or_create: the seed migration (medical/0002) already
+        # inserts these catalog rows, so creating them outright raises a
+        # UNIQUE violation on name. Take the seeded row when present.
+        hba1c_catalog, _ = LabTestCatalog.objects.get_or_create(
             name="Hemoglobin A1c",
-            short_name="HbA1c",
-            category="diabetes",
-            default_unit="%",
+            defaults={
+                "short_name": "HbA1c",
+                "category": "diabetes",
+                "default_unit": "%",
+            },
         )
         # One glycemic lab + one non-glycemic lab; only the glycemic
         # one should appear.
-        lipid_catalog = LabTestCatalog.objects.create(
+        lipid_catalog, _ = LabTestCatalog.objects.get_or_create(
             name="LDL Cholesterol",
-            short_name="LDL",
-            category="lipids",
-            default_unit="mg/dL",
+            defaults={
+                "short_name": "LDL",
+                "category": "lipids",
+                "default_unit": "mg/dL",
+            },
         )
         LabResult.objects.create(
             id=uuid.uuid4(),

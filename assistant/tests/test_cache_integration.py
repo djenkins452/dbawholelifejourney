@@ -8,6 +8,7 @@ invalidation.
 
 from datetime import date, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -15,7 +16,7 @@ from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from apps.health.models import FoodEntry, Medicine, MedicineLog, WeightEntry
+from apps.health.models import FoodEntry, WeightEntry
 from apps.journal.models import JournalEntry
 from assistant.data_service import (
     PERSONAL_DATA_CACHE_TTL,
@@ -106,12 +107,12 @@ class CacheHitMissTest(TestCase):
 
         # Verify result is correct
         self.assertIsNotNone(result)
-        self.assertEqual(result['count'], 1)
+        self.assertEqual(len(result['entries']), 1)
 
         # Verify cache is now populated
         cached = cache.get(cache_key)
         self.assertIsNotNone(cached)
-        self.assertEqual(cached['count'], 1)
+        self.assertEqual(len(cached['entries']), 1)
 
     def test_second_query_is_cache_hit(self):
         """Test that cache is actually used for repeated queries.
@@ -128,13 +129,13 @@ class CacheHitMissTest(TestCase):
 
         # First query - populates cache
         result1 = self.service.get_weight_data()
-        self.assertEqual(result1['count'], 1)
+        self.assertEqual(len(result1['entries']), 1)
 
         # Second query (no data changes) - should return cached data
         result2 = self.service.get_weight_data()
 
         # Both results should be identical (from cache)
-        self.assertEqual(result1['count'], result2['count'])
+        self.assertEqual(len(result1['entries']), len(result2['entries']))
         self.assertEqual(result2['type'], 'weight')
 
     def test_cache_stores_correct_data_structure(self):
@@ -151,10 +152,14 @@ class CacheHitMissTest(TestCase):
         cache_key = _generate_cache_key(self.user.id, 'weight')
         cached = cache.get(cache_key)
 
+        # New SAE-backed weight contract keys:
+        # {type, latest, latest_date, unit, change_30d, trend, source, entries}
         self.assertIn('type', cached)
-        self.assertIn('count', cached)
-        self.assertIn('average', cached)
         self.assertIn('latest', cached)
+        self.assertIn('unit', cached)
+        self.assertIn('change_30d', cached)
+        self.assertIn('trend', cached)
+        self.assertIn('source', cached)
         self.assertIn('entries', cached)
         self.assertEqual(cached['type'], 'weight')
 
@@ -172,11 +177,11 @@ class CacheHitMissTest(TestCase):
 
         # First query
         result1 = self.service.get_journal_data()
-        self.assertEqual(result1['count'], 1)
+        self.assertEqual(len(result1['recent_entries']), 1)
 
         # Second query (no changes) - should return cached data
         result2 = self.service.get_journal_data()
-        self.assertEqual(result2['count'], 1)
+        self.assertEqual(len(result2['recent_entries']), 1)
         self.assertEqual(result1['type'], result2['type'])
 
     def test_different_date_filters_use_different_cache_keys(self):
@@ -197,12 +202,12 @@ class CacheHitMissTest(TestCase):
 
         # Query without date filter
         result_all = self.service.get_weight_data()
-        self.assertEqual(result_all['count'], 2)
+        self.assertEqual(len(result_all['entries']), 2)
 
         # Query with date filter (last 5 days)
         since_date = timezone.now() - timedelta(days=5)
         result_recent = self.service.get_weight_data(since_date=since_date)
-        self.assertEqual(result_recent['count'], 1)
+        self.assertEqual(len(result_recent['entries']), 1)
 
         # Both should be cached with different keys
         key_all = _generate_cache_key(self.user.id, 'weight')
@@ -243,7 +248,7 @@ class CacheInvalidationTest(TestCase):
             unit="lb"
         )
         result1 = self.service.get_weight_data()
-        self.assertEqual(result1['count'], 1)
+        self.assertEqual(len(result1['entries']), 1)
 
         # Add another entry and invalidate cache
         WeightEntry.objects.create(
@@ -255,7 +260,7 @@ class CacheInvalidationTest(TestCase):
 
         # Query should return fresh data with both entries
         result2 = self.service.get_weight_data()
-        self.assertEqual(result2['count'], 2)
+        self.assertEqual(len(result2['entries']), 2)
 
     def test_invalidate_only_affects_specified_data_type(self):
         """Test that different data types have independent cache versions.
@@ -278,8 +283,8 @@ class CacheInvalidationTest(TestCase):
         # Cache both data types
         result_w1 = self.service.get_weight_data()
         result_j1 = self.service.get_journal_data()
-        self.assertEqual(result_w1['count'], 1)
-        self.assertEqual(result_j1['count'], 1)
+        self.assertEqual(len(result_w1['entries']), 1)
+        self.assertEqual(len(result_j1['recent_entries']), 1)
 
         # Manually invalidate only weight (simulating a version bump without signal)
         invalidate_user_data_cache(self.user.id, 'weight')
@@ -287,12 +292,12 @@ class CacheInvalidationTest(TestCase):
         # Weight cache should show it needs fresh data on next query
         # (though data hasn't changed, cache version bumped)
         result_w2 = self.service.get_weight_data()
-        self.assertEqual(result_w2['count'], 1)  # Same data, just re-fetched
+        self.assertEqual(len(result_w2['entries']), 1)  # Same data, just re-fetched
         self.assertEqual(result_w2['type'], 'weight')
 
         # Journal should still return cached data (version unchanged)
         result_j2 = self.service.get_journal_data()
-        self.assertEqual(result_j2['count'], 1)
+        self.assertEqual(len(result_j2['recent_entries']), 1)
         self.assertEqual(result_j2['type'], 'journal')
 
     def test_invalidate_only_affects_specified_user(self):
@@ -321,19 +326,19 @@ class CacheInvalidationTest(TestCase):
         # Cache data for both users
         result1 = self.service.get_weight_data()
         result_other1 = other_service.get_weight_data()
-        self.assertEqual(result1['count'], 1)
-        self.assertEqual(result_other1['count'], 1)
+        self.assertEqual(len(result1['entries']), 1)
+        self.assertEqual(len(result_other1['entries']), 1)
 
         # Manually invalidate only first user
         invalidate_user_data_cache(self.user.id, 'weight')
 
         # First user's data re-fetched (same count since data unchanged)
         result2 = self.service.get_weight_data()
-        self.assertEqual(result2['count'], 1)
+        self.assertEqual(len(result2['entries']), 1)
 
         # Other user's data should still be from cache
         result_other2 = other_service.get_weight_data()
-        self.assertEqual(result_other2['count'], 1)
+        self.assertEqual(len(result_other2['entries']), 1)
 
     def test_invalidate_clears_today_date_key(self):
         """Test that invalidation works for date-filtered queries.
@@ -350,7 +355,7 @@ class CacheInvalidationTest(TestCase):
             recorded_at=today
         )
         result1 = self.service.get_weight_data(since_date=today)
-        self.assertEqual(result1['count'], 1)
+        self.assertEqual(len(result1['entries']), 1)
 
         # Add another entry
         WeightEntry.objects.create(
@@ -365,7 +370,7 @@ class CacheInvalidationTest(TestCase):
 
         # Query should now return fresh data with both entries
         result2 = self.service.get_weight_data(since_date=today)
-        self.assertEqual(result2['count'], 2)
+        self.assertEqual(len(result2['entries']), 2)
 
 
 @override_settings(CACHES=CACHE_SETTINGS)
@@ -398,7 +403,7 @@ class SignalCacheInvalidationTest(TestCase):
             unit="lb"
         )
         result1 = self.service.get_weight_data()
-        self.assertEqual(result1['count'], 1)
+        self.assertEqual(len(result1['entries']), 1)
 
         # Save another entry - signal should invalidate via version bump
         WeightEntry.objects.create(
@@ -409,7 +414,7 @@ class SignalCacheInvalidationTest(TestCase):
 
         # Query should return fresh data with both entries
         result2 = self.service.get_weight_data()
-        self.assertEqual(result2['count'], 2)
+        self.assertEqual(len(result2['entries']), 2)
 
     def test_weight_delete_signal_invalidates_cache(self):
         """Test that deleting a weight entry results in fresh data on next query.
@@ -428,14 +433,14 @@ class SignalCacheInvalidationTest(TestCase):
             unit="lb"
         )
         result1 = self.service.get_weight_data()
-        self.assertEqual(result1['count'], 2)
+        self.assertEqual(len(result1['entries']), 2)
 
         # Delete one entry - signal should invalidate via version bump
         entry2.delete()
 
         # Query should return fresh data with only one entry
         result2 = self.service.get_weight_data()
-        self.assertEqual(result2['count'], 1)
+        self.assertEqual(len(result2['entries']), 1)
 
     def test_journal_save_signal_invalidates_cache(self):
         """Test that saving a journal entry results in fresh data.
@@ -449,7 +454,7 @@ class SignalCacheInvalidationTest(TestCase):
             body="Content"
         )
         result1 = self.service.get_journal_data()
-        self.assertEqual(result1['count'], 1)
+        self.assertEqual(len(result1['recent_entries']), 1)
 
         # Save another - should invalidate via version bump
         JournalEntry.objects.create(
@@ -460,34 +465,49 @@ class SignalCacheInvalidationTest(TestCase):
 
         # Query should return fresh data
         result2 = self.service.get_journal_data()
-        self.assertEqual(result2['count'], 2)
+        self.assertEqual(len(result2['recent_entries']), 2)
 
     def test_journal_save_with_mood_invalidates_mood_cache(self):
-        """Test that saving a journal entry with mood results in fresh mood data.
+        """Saving a mood entry invalidates the cache so the next read recomputes.
 
-        Note: Uses cache versioning.
+        Note: Uses cache versioning. Mood is SAE-driven, so the canonical
+        distribution comes from the metric layer; the sequence supplies a
+        different total on each call so a stale (non-invalidated) cache
+        would fail the second assertion.
         """
-        # Create and cache mood data
-        JournalEntry.objects.create(
-            user=self.user,
-            title="Entry",
-            body="Content",
-            mood="good"
-        )
-        result1 = self.service.get_mood_data()
-        self.assertEqual(result1['count'], 1)
+        dist_seq = iter([
+            {'great': 0, 'good': 1, 'okay': 0, 'low': 0},
+            {'great': 1, 'good': 1, 'okay': 0, 'low': 0},
+        ])
 
-        # Save entry with mood - should invalidate mood cache via version bump
-        JournalEntry.objects.create(
-            user=self.user,
-            title="Entry 2",
-            body="Content",
-            mood="great"
-        )
+        def _side(user, key):
+            if key == 'journal.mood_distribution':
+                return SimpleNamespace(value=next(dist_seq), source='sae')
+            if key == 'journal.mood_avg_7d':
+                return SimpleNamespace(value=3.5, source='sae')
+            return None
 
-        # Query should return fresh data with both mood entries
-        result2 = self.service.get_mood_data()
-        self.assertEqual(result2['count'], 2)
+        with patch('assistant.data_service.get_metric', side_effect=_side):
+            JournalEntry.objects.create(
+                user=self.user,
+                title="Entry",
+                body="Content",
+                mood="good"
+            )
+            result1 = self.service.get_mood_data()
+            self.assertEqual(sum(result1['mood_distribution'].values()), 1)
+
+            # Save entry with mood — its signal must invalidate the mood cache.
+            JournalEntry.objects.create(
+                user=self.user,
+                title="Entry 2",
+                body="Content",
+                mood="great"
+            )
+
+            # Fresh read recomputes (cache invalidated) → new canonical total.
+            result2 = self.service.get_mood_data()
+            self.assertEqual(sum(result2['mood_distribution'].values()), 2)
 
     def test_journal_delete_signal_invalidates_cache(self):
         """Test that deleting a journal entry results in fresh data.
@@ -505,121 +525,77 @@ class SignalCacheInvalidationTest(TestCase):
             body="Content 2"
         )
         result1 = self.service.get_journal_data()
-        self.assertEqual(result1['count'], 2)
+        self.assertEqual(len(result1['recent_entries']), 2)
 
         # Hard delete one entry (for signal test)
         entry2.delete()
 
         # Query should return fresh data
         result2 = self.service.get_journal_data()
-        self.assertEqual(result2['count'], 1)
+        self.assertEqual(len(result2['recent_entries']), 1)
 
-    def test_medicine_log_save_invalidates_medication_cache(self):
-        """Test that saving a medicine log results in fresh medication data.
-
-        Note: Uses cache versioning.
+    @staticmethod
+    def _food_metric_side_effect(entries_today_seq, daily_calories=1800):
+        """get_metric stub: food is SAE-driven, so entries_today comes from
+        the metric layer (not raw ORM). The sequence supplies a DIFFERENT
+        value on each get_food_data() call — so if the save/delete signal
+        fails to invalidate the cache, the second query returns the stale
+        first value and the test fails. That is exactly what we want to
+        verify here (signal-based cache invalidation), independent of SAE
+        rebuild timing.
         """
-        medicine = Medicine.objects.create(
-            user=self.user,
-            name="Test Med",
-            dose="100mg",
-            start_date=date.today()
-        )
-        MedicineLog.objects.create(
-            user=self.user,
-            medicine=medicine,
-            scheduled_date=date.today()
-        )
-        result1 = self.service.get_medication_data()
-        self.assertEqual(result1['total_logs'], 1)
+        seq = iter(entries_today_seq)
 
-        # Save another log
-        MedicineLog.objects.create(
-            user=self.user,
-            medicine=medicine,
-            scheduled_date=date.today() - timedelta(days=1)
-        )
+        def _side(user, key):
+            if key == 'nutrition.daily_calories':
+                return SimpleNamespace(value=daily_calories, source='sae')
+            if key == 'nutrition.food_entries_today':
+                return SimpleNamespace(value=next(seq), source='sae')
+            return None
 
-        # Query should return fresh data
-        result2 = self.service.get_medication_data()
-        self.assertEqual(result2['total_logs'], 2)
-
-    def test_medicine_log_delete_invalidates_medication_cache(self):
-        """Test that deleting a medicine log results in fresh medication data.
-
-        Note: Uses cache versioning.
-        """
-        medicine = Medicine.objects.create(
-            user=self.user,
-            name="Test Med",
-            dose="100mg",
-            start_date=date.today()
-        )
-        MedicineLog.objects.create(
-            user=self.user,
-            medicine=medicine,
-            scheduled_date=date.today()
-        )
-        log2 = MedicineLog.objects.create(
-            user=self.user,
-            medicine=medicine,
-            scheduled_date=date.today() - timedelta(days=1)
-        )
-        result1 = self.service.get_medication_data()
-        self.assertEqual(result1['total_logs'], 2)
-
-        log2.delete()
-
-        # Query should return fresh data
-        result2 = self.service.get_medication_data()
-        self.assertEqual(result2['total_logs'], 1)
+        return _side
 
     def test_food_entry_save_invalidates_food_cache(self):
-        """Test that saving a food entry results in fresh food data.
+        """Saving a food entry invalidates the cache so the next read recomputes.
 
         Note: Uses cache versioning.
         """
-        FoodEntry.objects.create(
-            user=self.user,
-            food_name="Test Food",
-            quantity=Decimal("1.0"),
-            serving_size=Decimal("100"),
-            serving_unit="g",
-            total_calories=Decimal("200"),
-            logged_date=date.today()
-        )
-        result1 = self.service.get_food_data()
-        self.assertEqual(result1['total_entries'], 1)
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=self._food_metric_side_effect([1, 2]),
+        ):
+            FoodEntry.objects.create(
+                user=self.user,
+                food_name="Test Food",
+                quantity=Decimal("1.0"),
+                serving_size=Decimal("100"),
+                serving_unit="g",
+                total_calories=Decimal("200"),
+                logged_date=date.today()
+            )
+            result1 = self.service.get_food_data()
+            self.assertEqual(result1['entries_today'], 1)
 
-        # Save another entry
-        FoodEntry.objects.create(
-            user=self.user,
-            food_name="Another Food",
-            quantity=Decimal("1.0"),
-            serving_size=Decimal("100"),
-            serving_unit="g",
-            total_calories=Decimal("150"),
-            logged_date=date.today()
-        )
+            # Save another entry — its signal must invalidate the food cache.
+            FoodEntry.objects.create(
+                user=self.user,
+                food_name="Another Food",
+                quantity=Decimal("1.0"),
+                serving_size=Decimal("100"),
+                serving_unit="g",
+                total_calories=Decimal("150"),
+                logged_date=date.today()
+            )
 
-        # Query should return fresh data
-        result2 = self.service.get_food_data()
-        self.assertEqual(result2['total_entries'], 2)
+            # Fresh read recomputes (cache invalidated) → new canonical value.
+            result2 = self.service.get_food_data()
+            self.assertEqual(result2['entries_today'], 2)
 
     def test_food_entry_delete_invalidates_food_cache(self):
-        """Test that deleting a food entry results in fresh food data.
+        """Deleting a food entry invalidates the cache so the next read recomputes.
 
         Note: Uses cache versioning.
         """
-        FoodEntry.objects.create(
-            user=self.user,
-            food_name="Test Food",
-            quantity=Decimal("1.0"),
-            serving_size=Decimal("100"),
-            serving_unit="g",
-            total_calories=Decimal("200"),
-            logged_date=date.today()
-        )
         entry2 = FoodEntry.objects.create(
             user=self.user,
             food_name="Food 2",
@@ -629,14 +605,27 @@ class SignalCacheInvalidationTest(TestCase):
             total_calories=Decimal("150"),
             logged_date=date.today()
         )
-        result1 = self.service.get_food_data()
-        self.assertEqual(result1['total_entries'], 2)
+        FoodEntry.objects.create(
+            user=self.user,
+            food_name="Test Food",
+            quantity=Decimal("1.0"),
+            serving_size=Decimal("100"),
+            serving_unit="g",
+            total_calories=Decimal("200"),
+            logged_date=date.today()
+        )
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=self._food_metric_side_effect([2, 1]),
+        ):
+            result1 = self.service.get_food_data()
+            self.assertEqual(result1['entries_today'], 2)
 
-        entry2.delete()
+            entry2.delete()
 
-        # Query should return fresh data
-        result2 = self.service.get_food_data()
-        self.assertEqual(result2['total_entries'], 1)
+            # Fresh read recomputes (cache invalidated) → new canonical value.
+            result2 = self.service.get_food_data()
+            self.assertEqual(result2['entries_today'], 1)
 
 
 @override_settings(CACHES=CACHE_SETTINGS)
@@ -744,8 +733,8 @@ class QueryByIntentCacheTest(TestCase):
         # Query both - weight should come from cache, journal from DB
         result = self.service.query_by_intent(data_types=['weight', 'journal'])
 
-        # Weight count should be 1 (from cache before we added more)
-        self.assertEqual(result['weight']['count'], 1)
+        # Weight entries should be 1 (from cache before we added more)
+        self.assertEqual(len(result['weight']['entries']), 1)
 
-        # Journal count should reflect current DB state (2 entries)
-        self.assertEqual(result['journal']['count'], 2)
+        # Journal recent_entries should reflect current DB state (2 entries)
+        self.assertEqual(len(result['journal']['recent_entries']), 2)

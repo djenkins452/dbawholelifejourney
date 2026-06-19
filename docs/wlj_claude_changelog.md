@@ -7,6 +7,40 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-19 — fix(ci): green main — repair ~3 weeks of accumulated test failures + restore two integrity guarantees
+
+**Context:** `main` CI had been red for 60+ consecutive runs (~3 weeks). The latest failure log surfaced 100+ failing tests across many apps, stemming from several independent root causes that accumulated unnoticed. This change repairs them and restores two silently-regressed integrity guarantees.
+
+**Root causes fixed:**
+1. **`_route_result` UnboundLocalError** (`apps/ai/personal_assistant.py`) — the shared router result was referenced on the common (post if/else) path but only assigned inside the AI-available `else` branch, so the AI-unavailable path raised `UnboundLocalError` at the state guard. Hoisted `_route_result = None` to method scope.
+2. **Faith services packaging shadow** — `apps/faith/services.py` (module) and `apps/faith/services/` (package) coexisted; the package shadowed the module, making `get_faith_metrics` unreachable and breaking every consumer (state assessment, priorities, reflection). Moved the module to `apps/faith/services/faith_metrics.py` and re-exported it from the package `__init__.py`; removed the dead `services.py`.
+3. **`Medicine`/`MedicineLog` → `Intake`/`IntakeLog` rename fallout** — `apps/health/tests/test_medicine_adherence.py` used the removed `medicine_status` kwarg (now `intake_status`); `apps/sms/signals.py` referenced removed `.status`/`.medicine_status` attributes (now `intake_status`); the legacy top-level `assistant/` test suite imported the removed models.
+4. **Pattern taxonomy registry gap** (`apps/core/ai_eae/signal_aggregation.py`) — `supplement_consistency_pattern` and `supplement_outcome_correlation` were in `PATTERN_TYPES` but missing from `SIGNAL_TYPE_DOMAIN`, raising KeyError in the governance test. Added both → `health`.
+5. **CoS decision risk selector** — the `_fake_state` test helper omitted `at_risk_actions`/`expired_items`, which `get_biggest_risk()` reads exclusively, so every risk-mode payload returned `primary_action=None`. Helper now derives `at_risk_actions` via `compute_at_risk()` exactly like `build_execution_state`.
+6. **LabTestCatalog UNIQUE collisions** — medical tests created catalog rows whose names the seed migration already inserts; switched to `get_or_create`.
+7. **Dashboard `TemplateDoesNotExist`** — the V1 dashboard tile config + `home.html` still referenced `medicine_schedule` after the template was renamed to `intake_schedule.html`; aligned the tile id and added a direct `dashboard:classic` route so the Command-Brief/Command-Mode V1 dashboard is reachable for validation.
+8. **Legacy `assistant/` data-service tests** — `assistant/data_service.py` was refactored to read canonical metrics from SAE (`get_metric`); its weight/food/mood/medication tests still asserted the old direct-ORM contract. Rewrote them to the SAE contract (mocking `get_metric`), preserving each test's intent and the cache-invalidation coverage.
+
+**Integrity guarantees restored (production regressions, not test relaxations):**
+- **Anti-fabrication prompt rules** — commit `abec4030` (CoS pipeline unification) dropped the `ANTI-FABRICATION RULES` system-prompt block; restored it in the unified context-assembly path of `personal_assistant.py`.
+- **Visual Truth Contract in the evening briefing** — `beth_checkin_renderer._render_evening` was lumping genuinely-missed (`overdue`) items together with not-yet-due (`coming_up`/`later`) items under one "Coming up" header (never emitting "Missed", and risking future items reading as missed). Split into a named **Missed:** list and a **Still ahead:** list.
+- **Deterministic router regressions** — restored grounded zero-workout answer, singular "session" wording, the training-insight invitation, adherence rounding (93% not 92%), and domain inference on reflective fallthroughs.
+
+**Verification:** scoped module runs (per WLJ policy — no full-suite run). 346 tests across the 7 AI modules + the health-priority, blueprint, lab-catalog, pattern-engine, medicine-adherence, and legacy `assistant/` modules all pass (0 failures, 0 errors).
+
+**Files (primary):** `apps/ai/personal_assistant.py`, `apps/ai/deterministic_router.py`, `apps/ai/beth_checkin_renderer.py`, `apps/faith/services/{__init__,faith_metrics}.py` (services.py removed), `apps/core/ai_eae/signal_aggregation.py`, `apps/sms/signals.py`, `apps/dashboard/{urls.py,services/config_service.py}`, `templates/dashboard/home.html`, and the corresponding test modules.
+
+
+## 2026-06-19 — chore(repo): stop tracking `.claude/worktrees/*` gitlinks (fixes Security Checks job)
+
+78 local agent worktrees under `.claude/worktrees/` had been committed as bare gitlinks (mode 160000) with no `.gitmodules` entry, so CI's `git submodule` step failed with exit code 128 (breaking the Security Checks and Lint checkout). Untracked them with `git rm --cached` and added `.claude/worktrees/` to `.gitignore`. Working-tree directories are untouched.
+
+
+## 2026-06-19 — style: whitespace-only flake8 cleanup (W291/W293/W292/W391) across apps/ and config/
+
+Mechanical, whitespace-only autopep8 pass (trailing whitespace, blank-line whitespace, end-of-file newline) to reduce the long-standing Lint-job backlog. Verified whitespace-only via `git diff -w` (no logical change). Non-whitespace flake8 debt (E402/F401/F841/E303/E265) remains for a dedicated follow-up pass.
+
+
 ## 2026-06-19 — fix(ai): executive lens consumption — chat now renders the differentiated layer
 
 **Render-consumption fix (no architecture/selector change).** The differentiated executive lenses already existed in `executive_summary.build_executive_lenses` and were exposed on `es['executive_lenses']`, but the chat handler still rendered four lenses from legacy templates: Protect/Story/Overall via `_render_executive_*` (reading `biggest_win`+`biggest_decline`), Briefing shared the Overall renderer (so Overall == Briefing, with no Win/Risk/Opportunity/Protect/Action), and Opportunity read the legacy event field. Win/Improvement/Decline/Trend already consumed the differentiated fields.

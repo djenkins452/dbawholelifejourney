@@ -167,9 +167,16 @@ class SignalHandlerDispatchTests(TestCase):
         import uuid
         from apps.medical.models import LabResult, LabTestCatalog
 
-        catalog = LabTestCatalog.objects.create(
-            name="Hemoglobin A1c", short_name="HbA1c",
-            category="diabetes", default_unit="%",
+        # get_or_create: the seed migration (medical/0002) already
+        # inserts this catalog row, so creating it outright raises a
+        # UNIQUE violation on name. Take the seeded row when present.
+        catalog, _ = LabTestCatalog.objects.get_or_create(
+            name="Hemoglobin A1c",
+            defaults={
+                "short_name": "HbA1c",
+                "category": "diabetes",
+                "default_unit": "%",
+            },
         )
         with patch(
             "apps.core.health_briefing.tasks."

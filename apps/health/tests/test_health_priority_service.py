@@ -27,11 +27,71 @@ def _fresh(dt=None, hours_ago=1):
     return (base - timedelta(hours=hours_ago)).isoformat()
 
 
+def _resolve_sleep_status(state):
+    """Mirror build_health_state's canonical sleep_status resolution.
+
+    The priority service (Phase 17) reads the resolved sleep_status, not
+    raw sleep_avg_duration_7d. Tests supply duration; this derives the
+    same status SAE would, so the service is exercised on its real path.
+    Only fills when not explicitly provided.
+    """
+    if "sleep_status" in state:
+        return
+    avg_dur = state.get("sleep_avg_duration_7d")
+    if avg_dur is None:
+        return
+    if avg_dur >= 420:
+        state["sleep_status"] = "excellent"
+    elif avg_dur >= 360:
+        state["sleep_status"] = "good"
+    else:
+        state["sleep_status"] = "fair"
+
+
 def _health_state(**overrides):
     """Build a minimal health state dict."""
     base = {}
     base.update(overrides)
+    _resolve_sleep_status(base)
     return base
+
+
+def _resolve_medication_status(state):
+    """Mirror build_medicine_state's Phase-18 canonical medication_status.
+
+    The priority service reads medication_status / medication_status_reason,
+    not _contract.alerts.overdue. Tests supply the contract; this derives
+    the same verdict SAE would so the service is exercised on its real path.
+    Only fills when not explicitly provided.
+    """
+    if "medication_status" in state:
+        return
+    active = state.get("active_count", 0)
+    expected = state.get("expected_today", 0)
+    taken = state.get("today_taken", 0)
+    adherence = state.get("adherence_7d")
+    overdue = (state.get("_contract") or {}).get("alerts", {}).get("overdue", [])
+
+    if not active:
+        state["medication_status"] = "no_data"
+        state["medication_status_reason"] = "No active medications."
+    elif overdue:
+        n = len(overdue)
+        s = "s" if n != 1 else ""
+        state["medication_status"] = "overdue"
+        state["medication_status_reason"] = f"{n} medication{s} overdue"
+    elif (expected > 0 and taken < expected) or (
+        adherence is not None and adherence < 70
+    ):
+        # Incomplete today, or trailing 7d adherence below target.
+        state["medication_status"] = "incomplete"
+        state["medication_status_reason"] = "Medication adherence is low"
+    elif expected > 0 and taken >= expected:
+        state["medication_status"] = "on_track"
+        state["medication_status_reason"] = "Medications are on track"
+    else:
+        state["medication_status"] = "on_track"
+        state["medication_status_reason"] = "No doses scheduled today."
 
 
 def _medicine_state(**overrides):
@@ -49,6 +109,7 @@ def _medicine_state(**overrides):
         },
     }
     base.update(overrides)
+    _resolve_medication_status(base)
     return base
 
 

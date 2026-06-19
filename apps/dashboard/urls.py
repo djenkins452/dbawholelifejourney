@@ -30,6 +30,10 @@ app_name = "dashboard"
 urlpatterns = [
     # Redirect /dashboard/ to V2 cockpit (V2 is now the primary dashboard)
     path("", RedirectView.as_view(pattern_name='dashboard_v2:home', permanent=False), name="home"),
+    # Preserved V1 Command-Mode dashboard — direct access for validation +
+    # rollback target. Owns the Command Brief / Command Mode greeting banner
+    # builders (_get_command_brief / _get_command_mode) and their templates.
+    path("classic/", views.DashboardView.as_view(), name="classic"),
     path("configure/", views.ConfigureDashboardView.as_view(), name="configure"),
     path("debug/", views.DashboardDebugView.as_view(), name="debug"),  # Temporary
 

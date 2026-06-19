@@ -24,7 +24,25 @@ User = get_user_model()
 
 
 class CosTruthPromptStructureTest(TestCase):
-    """Verify the prompt Beth receives has correct truth enforcement."""
+    """Verify the prompt Beth receives has correct truth enforcement.
+
+    Contract updated 2026-06-14: the system-generated locked block was
+    deliberately narrowed to a next-action-only block titled
+    ``CURRENT NEXT ACTION (SYSTEM-GENERATED — DO NOT BLEND)`` under the
+    STRICT MODE ISOLATION contract (see
+    ``apps/ai/cos_fact_statements.py::format_locked_facts_block`` and the
+    sibling test ``test_locked_facts_block_is_next_action_only``). The
+    guarantees these tests enforce are unchanged — a system-generated,
+    truth-locked block must appear early in the prompt, before the advisory
+    PATTERNS section, be repeated (protected from truncation) at the end,
+    and carry verbatim-use enforcement rules. Only the marker string and
+    rule wording changed, so the assertions below target the new marker.
+    """
+
+    #: Marker that opens the system-generated truth-locked block. This
+    #: replaced the legacy ``LOCKED FACT STATEMENTS`` header in the
+    #: 2026-06-14 STRICT MODE ISOLATION refactor.
+    LOCKED_BLOCK_MARKER = 'CURRENT NEXT ACTION (SYSTEM-GENERATED'
 
     def setUp(self):
         self.user = User.objects.create_user(
@@ -51,32 +69,56 @@ class CosTruthPromptStructureTest(TestCase):
         return format_cos_system_injection(context)
 
     def test_locked_facts_at_top(self):
-        """LOCKED FACT STATEMENTS must be the first section in the prompt."""
+        """The system-generated locked block must appear early, ahead of
+        the advisory PATTERNS section."""
         injection = self._build_cos_injection()
-        facts_pos = injection.find('LOCKED FACT STATEMENTS')
+        facts_pos = injection.find(self.LOCKED_BLOCK_MARKER)
         self.assertGreater(
             facts_pos, -1,
-            "LOCKED FACT STATEMENTS not found in prompt",
+            f"{self.LOCKED_BLOCK_MARKER} not found in prompt",
         )
+        patterns_pos = injection.find('PATTERNS & SIGNALS')
+        self.assertGreater(patterns_pos, -1)
+        # "Near top" = in the leading portion of the prompt and strictly
+        # before the advisory PATTERNS section. A fixed narration-contract
+        # preamble now precedes it, so an absolute char offset is no longer
+        # the right invariant — ordering relative to PATTERNS is.
         self.assertLess(
-            facts_pos, 200,
-            f"LOCKED FACTS at position {facts_pos} — should be near top",
+            facts_pos, patterns_pos,
+            f"Locked block at {facts_pos} — should precede PATTERNS",
         )
 
     def test_locked_facts_contain_status(self):
-        """With no completions and no routines, locked facts must show
-        'not scheduled' for domains without routine items."""
+        """The system-generated locked block must be present and carry the
+        deterministic next-action status line.
+
+        Under STRICT MODE ISOLATION (2026-06-14) the per-domain summaries
+        no longer reach the LLM block — they still flow to the truth
+        validator via ``context['_locked_facts']``. The block surfaces the
+        single system-determined next action as the status.
+        """
         injection = self._build_cos_injection()
-        # User has no routines, so domains should say "not scheduled"
-        # OR "not yet completed" depending on other config (e.g., Bible plan)
-        # At minimum, the facts block must exist
-        self.assertIn('LOCKED FACT STATEMENTS', injection)
+        # The block must exist...
+        self.assertIn(self.LOCKED_BLOCK_MARKER, injection)
+        # ...and carry the next-action status line for a user with nothing
+        # pending.
+        self.assertIn('Nothing pending right now.', injection)
 
     def test_locked_facts_rules_present(self):
-        """Locked facts must contain enforcement rules."""
+        """The locked block must contain verbatim-use enforcement rules.
+
+        Legacy wording ('MUST NOT change their wording, meaning, or
+        completion status') was replaced by the STRICT MODE ISOLATION
+        rules block, which binds the LLM to the system-determined next
+        action and forbids inventing or augmenting it.
+        """
         injection = self._build_cos_injection()
         self.assertIn(
-            'MUST NOT change their wording, meaning, or completion status',
+            'This is the system-determined next action. Quote it verbatim',
+            injection,
+        )
+        self.assertIn(
+            'The system decides priority — you communicate it.',
             injection,
         )
 
@@ -89,13 +131,14 @@ class CosTruthPromptStructureTest(TestCase):
         )
 
     def test_locked_facts_anchor_at_end(self):
-        """Locked facts must be repeated at the end."""
+        """The locked block must be repeated (truncation-protected anchor)
+        at the end of the prompt."""
         injection = self._build_cos_injection()
-        first = injection.find('LOCKED FACT STATEMENTS')
-        second = injection.find('LOCKED FACT STATEMENTS', first + 100)
+        first = injection.find(self.LOCKED_BLOCK_MARKER)
+        second = injection.find(self.LOCKED_BLOCK_MARKER, first + 100)
         self.assertGreater(
             second, -1,
-            "Locked facts not repeated at end of prompt",
+            "Locked block not repeated at end of prompt",
         )
         total_len = len(injection)
         self.assertGreater(
@@ -104,9 +147,9 @@ class CosTruthPromptStructureTest(TestCase):
         )
 
     def test_locked_facts_before_patterns(self):
-        """LOCKED FACTS must appear before PATTERNS in the prompt."""
+        """The locked block must appear before PATTERNS in the prompt."""
         injection = self._build_cos_injection()
-        facts_pos = injection.find('LOCKED FACT STATEMENTS')
+        facts_pos = injection.find(self.LOCKED_BLOCK_MARKER)
         patterns_pos = injection.find('PATTERNS & SIGNALS')
         self.assertGreater(facts_pos, -1)
         self.assertGreater(patterns_pos, -1)

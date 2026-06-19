@@ -717,8 +717,11 @@ class DomainInferenceTests(TestCase):
     def test_ambiguous_domain_returns_none(self, mock_gms):
         mock_gms.return_value = {}
         user = MagicMock()
-        result = classify_and_route("how am I doing today?", user)
-        # "today" doesn't clearly map to one domain
+        # A message with no domain keywords falls through with no inferred
+        # domain. (Note: "how am I doing today?" is now a recognized execution
+        # decision query, so it no longer falls through — see the decision
+        # route tests.)
+        result = classify_and_route("tell me a joke", user)
         self.assertIsNone(result.domain)
 
 

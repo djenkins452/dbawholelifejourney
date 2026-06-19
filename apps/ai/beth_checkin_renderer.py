@@ -1207,7 +1207,7 @@ _BEHIND_PHRASES = (
 _AHEAD_PHRASES = (
     "You're ahead — solid position.",
     "Ahead of schedule. Nice work.",
-    "Strong start — you've got margin.",
+    "Strong start — you're ahead with margin to spare.",
 )
 
 _CLOSING_PHRASES_DEFAULT = (
@@ -1705,23 +1705,42 @@ def _render_evening(ctx, user, user_now) -> str:
     else:
         lines.append("Haven't gotten to anything yet today.")
 
-    # Coming up — bullet list
+    # Split remaining into genuinely-missed (overdue, past schedule) vs
+    # still-ahead (coming_up / later, not yet due). Visual Truth Contract:
+    # future / not-yet-due items must NEVER read as "missed". Only items
+    # past their scheduled window are named as missed.
     overdue = ctx.get("overdue", [])
     coming_up = ctx.get("coming_up", [])
     later = ctx.get("later", [])
-    remaining = overdue + coming_up + later
-    if remaining:
+
+    # Missed — name them explicitly (never a bare count).
+    if overdue:
         lines.append("")
-        lines.append("Coming up you have:")
-        for item in remaining[:8]:
+        lines.append("Missed:")
+        for item in overdue[:8]:
             label = item['label']
             time_str = item.get('time', '')
             if time_str:
                 lines.append(f"• {label} ({time_str})")
             else:
                 lines.append(f"• {label}")
-        if len(remaining) > 8:
-            lines.append(f"• +{len(remaining) - 8} more")
+        if len(overdue) > 8:
+            lines.append(f"• +{len(overdue) - 8} more")
+
+    # Still ahead — future / not-yet-due items.
+    upcoming = coming_up + later
+    if upcoming:
+        lines.append("")
+        lines.append("Still ahead:")
+        for item in upcoming[:8]:
+            label = item['label']
+            time_str = item.get('time', '')
+            if time_str:
+                lines.append(f"• {label} ({time_str})")
+            else:
+                lines.append(f"• {label}")
+        if len(upcoming) > 8:
+            lines.append(f"• +{len(upcoming) - 8} more")
 
     # Tomorrow preview
     try:

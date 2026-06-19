@@ -1287,6 +1287,12 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
         except Exception:
             pass  # Mode tracking must never break chat
 
+        # Shared router result for domain scoping / memory gating.
+        # Initialised at method scope so common-path references (e.g. the
+        # state guard below) stay bound even when the AI-unavailable branch
+        # skips the else block that normally assigns it.
+        _route_result = None
+
         # Check if AI is available
         if not ai_service.is_available or not AIService.check_user_consent(self.user):
             response = self._get_fallback_response(message)
@@ -1302,7 +1308,6 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
             _ecc_closure_handled = False
             _ecc_closure_response = ''
             _cos_context_cache = None  # Cache cos_context from ECC to avoid recomputing
-            _route_result = None  # Shared router result for domain scoping / memory gating
             try:
                 from apps.core.ai_orchestrator.commitment_contract import (
                     Commitment as EccCommitment,
@@ -3840,6 +3845,45 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                         append_layers.append(_locked_state)
                     except Exception:
                         pass  # LOCKED CoS STATE is advisory; must never break chat
+
+                    # ── ANTI-FABRICATION RULES ───────────────────────────
+                    # Core WLJ integrity guardrail. Restored after the CoS
+                    # pipeline unification (commit abec4030) inadvertently
+                    # dropped it. These rules are ABSOLUTE: the LLM must
+                    # never invent priorities, tasks, or completion claims
+                    # that are not present word-for-word in the structured
+                    # data above. Always appended so the unified path keeps
+                    # the same anti-hallucination protection the legacy
+                    # check-in path had.
+                    append_layers.append(
+                        "ANTI-FABRICATION RULES (ABSOLUTE — VIOLATION IS A "
+                        "CRITICAL ERROR):\n"
+                        "- NEVER claim an activity is completed unless it "
+                        "EXPLICITLY appears under COMPLETED, ALREADY TAKEN, "
+                        "[DONE], or [VERIFIED COMPLETED] sections above.\n"
+                        "- Workout status is ONLY determined by the "
+                        "\"Workout:\" line in HEALTH & ROUTINES. If it says "
+                        "\"not yet logged\", the user has NOT worked out — "
+                        "regardless of what any routine task says. DO NOT say "
+                        "\"workout done\" if it says \"not yet logged\".\n"
+                        "- A task being PAST its scheduled time does NOT mean "
+                        "it was completed. Past time = MISSED or still "
+                        "pending. Only completion_status='completed' means "
+                        "done.\n"
+                        "- If you are not 100% certain something was completed "
+                        "based on the data above, do NOT claim it was "
+                        "completed. Say you don't see a log for it.\n"
+                        "- You may ONLY reference task names, goal names, "
+                        "medication names, and calendar events that are "
+                        "EXPLICITLY listed in the structured data above. "
+                        "NEVER invent, derive, or infer a task or priority item"
+                        " that does not appear word-for-word in the data "
+                        "sections.\n"
+                        "- If no priority tasks are provided in TOP "
+                        "PRIORITIES, say \"No urgent priorities right now.\" "
+                        "Do NOT fabricate a priority from context, summaries, "
+                        "or conversation history."
+                    )
 
                 except Exception as cos_ctx_err:
                     logger.warning("CoS context (Layer 6) failed: %s", cos_ctx_err, exc_info=True)

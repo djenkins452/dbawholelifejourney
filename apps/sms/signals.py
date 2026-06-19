@@ -49,7 +49,7 @@ def schedule_medicine_sms_for_today(medicine):
         return 0
 
     # Only schedule for active medicines
-    if medicine.status != 'active' or medicine.medicine_status != medicine.STATUS_ACTIVE:
+    if medicine.intake_status != medicine.STATUS_ACTIVE:
         return 0
 
     scheduler = SMSScheduler()

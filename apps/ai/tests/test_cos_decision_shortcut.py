@@ -59,6 +59,13 @@ def _routine_action(title, urgency, *, time_display='', is_foundational=False):
 
 
 def _fake_state(actions, *, now=time(8, 0), blocked=None):
+    # Mirror build_execution_state(): at_risk_actions is derived from the
+    # prioritized action list via compute_at_risk(), not hand-set. The risk
+    # selector reads exclusively from this key, so omitting it (as an older
+    # version of this helper did) makes every risk-mode payload come back
+    # with primary_action=None.
+    from apps.core.decision_engine.action_prioritizer import compute_at_risk
+    blocked_dependents = blocked or {}
     return {
         'now': now,
         'active_block': {
@@ -77,7 +84,9 @@ def _fake_state(actions, *, now=time(8, 0), blocked=None):
         'now_actions':     [a for a in actions if a['urgency'] == 'now'],
         'next_actions':    [a for a in actions if a['urgency'] == 'next'],
         'upcoming_actions':[a for a in actions if a['urgency'] == 'upcoming'],
-        'blocked_dependents': blocked or {},
+        'expired_items': [],
+        'at_risk_actions': compute_at_risk(actions, blocked_dependents, now),
+        'blocked_dependents': blocked_dependents,
     }
 
 

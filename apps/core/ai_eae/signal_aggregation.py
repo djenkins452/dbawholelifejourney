@@ -69,6 +69,8 @@ SIGNAL_TYPE_DOMAIN = {
     'holistic_momentum': 'purpose',           # 3+ signals across 2+ domains → life purpose
     'domain_neglect': 'life',                 # domain-level decline → organize/life management
     'compliance_drift': 'health',             # medication_adherence + health_biometrics
+    'supplement_consistency_pattern': 'health',  # supplement_adherence sustained
+    'supplement_outcome_correlation': 'health',  # supplement_adherence + health_biometrics
     'wellbeing_convergence': 'journal',       # reflection + relational + faith → inner life
     'faith_significance': 'faith',             # biblical calendar day detection (derived_pattern)
     # Emotion-derived signal types (deterministic, from structured journal emotion selections)

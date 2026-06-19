@@ -892,6 +892,9 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
             result = RouteResult(
                 route_name='governor_reflective',
                 skip_intent=True,
+                # Still infer the domain so downstream context scoping works on a
+                # reflective fallthrough (mirrors the final no_match fallthrough).
+                domain=_infer_domain(msg_lower),
             )
             result.elapsed_ms = (time.monotonic() - t_start) * 1000
             _log_route_decision(result, user, message)
@@ -5128,7 +5131,17 @@ def _handle_workout_query(user):
     last_workout = fitness.get('last_workout_date')
 
     if workouts_7d == 0 and expected_7d == 0 and not last_workout:
-        return None  # No fitness data at all → fall through
+        if not fitness:
+            return None  # No fitness data at all → fall through
+        # Has fitness state but zero activity this week → explicit zero answer
+        # (deterministic, never a fallthrough) so the query is always grounded.
+        return _format_decision_response(
+            situation="No workouts logged this week yet.",
+            interpretation="No training activity recorded in the last 7 days.",
+            action="Log a short session today to restart the rhythm.",
+            trust=_get_domain_trust(user, 'workouts'),
+            priority_note=_get_high_priority_note(user, exclude_domain='workouts'),
+        )
 
     # ── Situation ──
     parts = []
@@ -5160,11 +5173,11 @@ def _handle_workout_query(user):
         else:
             interp_bits.append(f"Well behind plan ({int(adherence)}% adherence)")
     elif workouts_7d >= 5:
-        interp_bits.append(f"Strong week — {workouts_7d} sessions")
+        interp_bits.append(f"Strong week — {workouts_7d} {session_word}")
     elif workouts_7d >= 3:
-        interp_bits.append(f"On track — {workouts_7d} sessions")
+        interp_bits.append(f"On track — {workouts_7d} {session_word}")
     else:
-        interp_bits.append(f"Limited activity this week — {workouts_7d} sessions")
+        interp_bits.append(f"Limited activity this week — {workouts_7d} {session_word}")
 
     strength_trend = fitness.get('strength_trend_score')
     if strength_trend is not None:
@@ -5187,13 +5200,23 @@ def _handle_workout_query(user):
     else:
         action = "Keep the cadence — your next session is on track."
 
-    return _format_decision_response(
+    response = _format_decision_response(
         situation=situation,
         interpretation=interpretation,
         action=action,
         trust=trust,
         priority_note=_get_high_priority_note(user, exclude_domain='workouts'),
     )
+
+    # Insight invitation for an active training week (progress domain) —
+    # mirrors the weight-trend invitation. Only offered when there is enough
+    # activity to make a pattern read meaningful.
+    if workouts_7d >= 3 or (completed_7d and completed_7d >= 3):
+        response += (
+            "\n\nWant me to look at your training patterns and recovery?"
+        )
+
+    return response
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -6260,7 +6283,7 @@ def _handle_medication_query(user):
     trust = _get_domain_trust(user, 'medication')
     interp_bits = []
     if adherence_7d is not None:
-        rate_pct = int(adherence_7d * 100)
+        rate_pct = round(adherence_7d * 100)
         if rate_pct >= 95:
             interp_bits.append(f"Excellent adherence ({rate_pct}%)")
         elif rate_pct >= 85:

@@ -8,13 +8,15 @@ date filtering.
 
 from datetime import date, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.health.models import FoodEntry, Medicine, MedicineLog, WeightEntry
+from apps.health.models import FoodEntry, WeightEntry
 from apps.journal.models import JournalEntry
 from assistant.data_service import PersonalDataService
 from assistant.views import process_assistant_message
@@ -31,8 +33,38 @@ class CacheClearingTestCase(TestCase):
         super().setUp()
 
 
+def _weight_metric_stub(current_value, unit='lb', change_30d=None, trend=None,
+                        source='SAE:health.weight_current', last_entry=None):
+    """Build a side_effect for get_metric that supplies canonical weight metrics.
+
+    get_weight_data() reads the latest weight, unit, 30-day change, trend and
+    last-entry timestamp from SAE via get_metric(); the recent ``entries`` list
+    is still queried from the WeightEntry ORM. This helper mocks only the SAE
+    half so the tests are deterministic regardless of SAE rebuild state.
+    """
+    def _side_effect(user, key):
+        if key == 'health.weight_current':
+            return SimpleNamespace(value=current_value, source=source)
+        if key == 'health.weight_unit':
+            return SimpleNamespace(value=unit, source=source)
+        if key == 'health.last_weight_entry':
+            return SimpleNamespace(value=last_entry, source=source) if last_entry else None
+        if key == 'health.weight_change_30d':
+            return SimpleNamespace(value=change_30d, source=source) if change_30d is not None else None
+        if key == 'health.weight_trend':
+            return SimpleNamespace(value=trend, source=source) if trend is not None else None
+        return None
+    return _side_effect
+
+
 class WeightDataIntegrationTest(CacheClearingTestCase):
-    """Integration tests for get_weight_data() with actual WeightEntry records."""
+    """Integration tests for get_weight_data().
+
+    Canonical weight values (latest, unit, 30-day change, trend) now come
+    from the SAE metric access layer via get_metric(); only the recent
+    ``entries`` list is still read from the WeightEntry ORM. These tests mock
+    the SAE half and exercise the ORM half with real records.
+    """
 
     def setUp(self):
         """Create test user and weight entries."""
@@ -48,13 +80,13 @@ class WeightDataIntegrationTest(CacheClearingTestCase):
         self.service = PersonalDataService(self.user)
 
     def test_get_weight_data_returns_none_for_empty_data(self):
-        """Test that get_weight_data returns None when no entries exist."""
-        result = self.service.get_weight_data()
+        """Test that get_weight_data returns None when SAE has no current weight."""
+        with patch('assistant.data_service.get_metric', return_value=None):
+            result = self.service.get_weight_data()
         self.assertIsNone(result)
 
-    def test_get_weight_data_returns_correct_count(self):
-        """Test that get_weight_data returns correct count of entries."""
-        # Create 3 weight entries
+    def test_get_weight_data_returns_entries_list(self):
+        """The recent ORM entries list reflects all of the user's records."""
         for i in range(3):
             WeightEntry.objects.create(
                 user=self.user,
@@ -63,13 +95,17 @@ class WeightDataIntegrationTest(CacheClearingTestCase):
                 recorded_at=timezone.now() - timedelta(days=i)
             )
 
-        result = self.service.get_weight_data()
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_weight_metric_stub(172.0),
+        ):
+            result = self.service.get_weight_data()
         self.assertIsNotNone(result)
-        self.assertEqual(result['count'], 3)
         self.assertEqual(result['type'], 'weight')
+        self.assertEqual(len(result['entries']), 3)
 
-    def test_get_weight_data_calculates_average(self):
-        """Test that get_weight_data calculates correct average."""
+    def test_get_weight_data_surfaces_canonical_change_and_trend(self):
+        """30-day change and trend are surfaced from SAE, not re-derived."""
         WeightEntry.objects.create(
             user=self.user,
             value=Decimal("170.0"),
@@ -83,11 +119,18 @@ class WeightDataIntegrationTest(CacheClearingTestCase):
             recorded_at=timezone.now() - timedelta(days=1)
         )
 
-        result = self.service.get_weight_data()
-        self.assertEqual(result['average'], 175.0)
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_weight_metric_stub(
+                180.0, change_30d=-2.5, trend='decreasing'
+            ),
+        ):
+            result = self.service.get_weight_data()
+        self.assertEqual(result['change_30d'], -2.5)
+        self.assertEqual(result['trend'], 'decreasing')
 
     def test_get_weight_data_returns_latest_entry(self):
-        """Test that get_weight_data returns most recent entry info."""
+        """Test that get_weight_data surfaces the canonical latest weight."""
         WeightEntry.objects.create(
             user=self.user,
             value=Decimal("170.0"),
@@ -101,12 +144,17 @@ class WeightDataIntegrationTest(CacheClearingTestCase):
             recorded_at=timezone.now()
         )
 
-        result = self.service.get_weight_data()
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_weight_metric_stub(175.5),
+        ):
+            result = self.service.get_weight_data()
         self.assertEqual(result['latest'], 175.5)
         self.assertEqual(result['unit'], 'lb')
+        self.assertEqual(result['source'], 'SAE:health.weight_current')
 
-    def test_get_weight_data_only_returns_user_data(self):
-        """Test that get_weight_data only returns data for the current user."""
+    def test_get_weight_data_only_returns_user_entries(self):
+        """The ORM entries list is scoped to the current user only."""
         # Create entry for current user
         WeightEntry.objects.create(
             user=self.user,
@@ -120,12 +168,17 @@ class WeightDataIntegrationTest(CacheClearingTestCase):
             unit="lb"
         )
 
-        result = self.service.get_weight_data()
-        self.assertEqual(result['count'], 1)
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_weight_metric_stub(170.0),
+        ):
+            result = self.service.get_weight_data()
+        self.assertEqual(len(result['entries']), 1)
+        self.assertEqual(result['entries'][0]['value'], 170.0)
         self.assertEqual(result['latest'], 170.0)
 
     def test_get_weight_data_date_filtering(self):
-        """Test that date filtering works correctly."""
+        """Test that date filtering restricts the ORM entries list."""
         # Create old entry (10 days ago)
         WeightEntry.objects.create(
             user=self.user,
@@ -143,11 +196,15 @@ class WeightDataIntegrationTest(CacheClearingTestCase):
 
         # Query with date filter (last 5 days)
         since_date = timezone.now() - timedelta(days=5)
-        result = self.service.get_weight_data(since_date=since_date)
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_weight_metric_stub(175.0),
+        ):
+            result = self.service.get_weight_data(since_date=since_date)
 
-        # Should only include the recent entry
-        self.assertEqual(result['count'], 1)
-        self.assertEqual(result['latest'], 175.0)
+        # Should only include the recent entry in the ORM list
+        self.assertEqual(len(result['entries']), 1)
+        self.assertEqual(result['entries'][0]['value'], 175.0)
 
     def test_get_weight_data_entries_list(self):
         """Test that entries list is properly formatted."""
@@ -158,15 +215,47 @@ class WeightDataIntegrationTest(CacheClearingTestCase):
             notes="Morning weight"
         )
 
-        result = self.service.get_weight_data()
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_weight_metric_stub(170.5),
+        ):
+            result = self.service.get_weight_data()
         self.assertEqual(len(result['entries']), 1)
         self.assertEqual(result['entries'][0]['value'], 170.5)
         self.assertEqual(result['entries'][0]['unit'], 'lb')
         self.assertEqual(result['entries'][0]['notes'], 'Morning weight')
 
 
+def _journal_metric_stub(entries_7d=None, entries_30d=None, days_since=None,
+                         last_entry=None, source='SAE:journal.entries_7d'):
+    """Build a side_effect for get_metric that supplies canonical journal metrics.
+
+    get_journal_data() reads entry counts and the last-entry timestamp from SAE;
+    the ``recent_entries`` preview list is still queried from the JournalEntry
+    ORM. This helper mocks the SAE half so tests are deterministic. The method
+    returns None only when entries_7d, entries_30d and last_entry are all None.
+    """
+    def _side_effect(user, key):
+        if key == 'journal.entries_7d':
+            return SimpleNamespace(value=entries_7d, source=source) if entries_7d is not None else None
+        if key == 'journal.entries_30d':
+            return SimpleNamespace(value=entries_30d, source=source) if entries_30d is not None else None
+        if key == 'journal.days_since_entry':
+            return SimpleNamespace(value=days_since, source=source) if days_since is not None else None
+        if key == 'journal.last_entry':
+            return SimpleNamespace(value=last_entry, source=source) if last_entry is not None else None
+        return None
+    return _side_effect
+
+
 class JournalDataIntegrationTest(CacheClearingTestCase):
-    """Integration tests for get_journal_data() with actual JournalEntry records."""
+    """Integration tests for get_journal_data().
+
+    Canonical journal counts and the last-entry date now come from SAE via
+    get_metric(); only the ``recent_entries`` preview list is read from the
+    JournalEntry ORM. These tests mock the SAE half and exercise the ORM half
+    with real records.
+    """
 
     def setUp(self):
         """Create test user."""
@@ -178,12 +267,13 @@ class JournalDataIntegrationTest(CacheClearingTestCase):
         self.service = PersonalDataService(self.user)
 
     def test_get_journal_data_returns_none_for_empty_data(self):
-        """Test that get_journal_data returns None when no entries exist."""
-        result = self.service.get_journal_data()
+        """Test that get_journal_data returns None when SAE has no journal state."""
+        with patch('assistant.data_service.get_metric', return_value=None):
+            result = self.service.get_journal_data()
         self.assertIsNone(result)
 
-    def test_get_journal_data_returns_correct_count(self):
-        """Test that get_journal_data returns correct count of entries."""
+    def test_get_journal_data_returns_recent_entries(self):
+        """The recent_entries list reflects the user's ORM records."""
         for i in range(5):
             JournalEntry.objects.create(
                 user=self.user,
@@ -192,13 +282,18 @@ class JournalDataIntegrationTest(CacheClearingTestCase):
                 entry_date=date.today() - timedelta(days=i)
             )
 
-        result = self.service.get_journal_data()
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_journal_metric_stub(entries_7d=5, entries_30d=5),
+        ):
+            result = self.service.get_journal_data()
         self.assertIsNotNone(result)
-        self.assertEqual(result['count'], 5)
         self.assertEqual(result['type'], 'journal')
+        self.assertEqual(result['entries_7d'], 5)
+        self.assertEqual(len(result['recent_entries']), 5)
 
     def test_get_journal_data_returns_latest_date(self):
-        """Test that get_journal_data returns most recent entry date."""
+        """Test that get_journal_data surfaces the canonical last-entry date."""
         JournalEntry.objects.create(
             user=self.user,
             title="Old Entry",
@@ -212,11 +307,17 @@ class JournalDataIntegrationTest(CacheClearingTestCase):
             entry_date=date.today()
         )
 
-        result = self.service.get_journal_data()
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_journal_metric_stub(
+                entries_7d=2, last_entry=date.today()
+            ),
+        ):
+            result = self.service.get_journal_data()
         self.assertEqual(result['latest_date'], date.today())
 
     def test_get_journal_data_date_filtering(self):
-        """Test that date filtering works correctly for journal entries."""
+        """Test that date filtering restricts the recent_entries list."""
         # Create old entry (10 days ago)
         JournalEntry.objects.create(
             user=self.user,
@@ -234,12 +335,16 @@ class JournalDataIntegrationTest(CacheClearingTestCase):
 
         # Query with date filter (last 5 days)
         since_date = date.today() - timedelta(days=5)
-        result = self.service.get_journal_data(since_date=since_date)
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_journal_metric_stub(entries_7d=1),
+        ):
+            result = self.service.get_journal_data(since_date=since_date)
 
-        self.assertEqual(result['count'], 1)
+        self.assertEqual(len(result['recent_entries']), 1)
 
     def test_get_journal_data_excludes_soft_deleted(self):
-        """Test that soft-deleted entries are excluded from results."""
+        """Test that soft-deleted entries are excluded from recent_entries."""
         # Create active entry
         JournalEntry.objects.create(
             user=self.user,
@@ -256,135 +361,114 @@ class JournalDataIntegrationTest(CacheClearingTestCase):
         )
         deleted_entry.soft_delete()
 
-        result = self.service.get_journal_data()
-        self.assertEqual(result['count'], 1)  # Only the active entry
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_journal_metric_stub(entries_7d=1),
+        ):
+            result = self.service.get_journal_data()
+        self.assertEqual(len(result['recent_entries']), 1)  # Only the active entry
 
 
 class MedicationDataIntegrationTest(CacheClearingTestCase):
-    """Integration tests for get_medication_data() with actual MedicineLog records."""
+    """Integration tests for get_medication_data().
+
+    Canonical medication status is owned by the SAE medicine state
+    builder and read via ``get_metric('health.medication_status')``. The
+    legacy MedicineLog consistency-% calculation was removed when the
+    Medicine model was unified into Intake, so these tests exercise the
+    SAE-backed contract rather than raw log counts.
+    """
 
     def setUp(self):
-        """Create test user and medicine."""
         super().setUp()
         self.user = User.objects.create_user(
             email="test@example.com",
-            password="testpass123"
-        )
-        self.medicine = Medicine.objects.create(
-            user=self.user,
-            name="Test Medicine",
-            dose="500mg",
-            frequency="daily",
-            start_date=date.today()
+            password="testpass123",
         )
         self.service = PersonalDataService(self.user)
 
-    def test_get_medication_data_returns_none_for_empty_data(self):
-        """Test that get_medication_data returns None when no logs exist."""
-        result = self.service.get_medication_data()
+    def test_returns_none_when_no_status(self):
+        """No SAE medication status → None."""
+        with patch('assistant.data_service.get_metric', return_value=None):
+            result = self.service.get_medication_data()
         self.assertIsNone(result)
 
-    def test_get_medication_data_returns_correct_counts(self):
-        """Test that get_medication_data returns correct log counts."""
-        # Create logs for 3 different days
-        for i in range(3):
-            MedicineLog.objects.create(
-                user=self.user,
-                medicine=self.medicine,
-                scheduled_date=date.today() - timedelta(days=i),
-                log_status='taken'
-            )
+    def test_returns_status_payload_from_sae(self):
+        """SAE medication status is surfaced as the medication payload."""
+        status = SimpleNamespace(value='on_track', source='sae')
+        reason = SimpleNamespace(value='all doses taken')
 
-        result = self.service.get_medication_data()
+        def _fake_get_metric(user, key):
+            if key == 'health.medication_status':
+                return status
+            if key == 'health.medication_status_reason':
+                return reason
+            return None
+
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_fake_get_metric,
+        ):
+            result = self.service.get_medication_data()
+
         self.assertIsNotNone(result)
-        self.assertEqual(result['total_logs'], 3)
-        self.assertEqual(result['days_logged'], 3)
         self.assertEqual(result['type'], 'medication')
+        self.assertEqual(result['status'], 'on_track')
+        self.assertEqual(result['status_reason'], 'all doses taken')
+        self.assertEqual(result['source'], 'sae')
 
-    def test_get_medication_data_multiple_logs_same_day(self):
-        """Test that multiple logs on the same day count as one day logged."""
-        today = date.today()
-        # Create 2 logs for the same day
-        MedicineLog.objects.create(
-            user=self.user,
-            medicine=self.medicine,
-            scheduled_date=today,
-            log_status='taken'
-        )
-        MedicineLog.objects.create(
-            user=self.user,
-            medicine=self.medicine,
-            scheduled_date=today,
-            log_status='taken'
-        )
+    def test_status_reason_optional(self):
+        """A missing status_reason is tolerated (None)."""
+        status = SimpleNamespace(value='behind', source='sae')
 
-        result = self.service.get_medication_data()
-        self.assertEqual(result['total_logs'], 2)
-        self.assertEqual(result['days_logged'], 1)
+        def _fake_get_metric(user, key):
+            if key == 'health.medication_status':
+                return status
+            return None
 
-    def test_get_medication_data_consistency_calculation(self):
-        """Test that consistency percentage is calculated correctly."""
-        # Create logs for 3 consecutive days (today, yesterday, day before)
-        for i in range(3):
-            MedicineLog.objects.create(
-                user=self.user,
-                medicine=self.medicine,
-                scheduled_date=date.today() - timedelta(days=i),
-                log_status='taken'
-            )
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_fake_get_metric,
+        ):
+            result = self.service.get_medication_data()
 
-        result = self.service.get_medication_data()
-        # With since_date=None, it uses earliest log date, so 3 days logged out of 3 total = 100%
-        self.assertEqual(result['days_logged'], 3)
-        self.assertEqual(result['total_days'], 3)
-        self.assertEqual(result['consistency_percent'], 100.0)
+        self.assertEqual(result['status'], 'behind')
+        self.assertIsNone(result['status_reason'])
 
-    def test_get_medication_data_date_filtering(self):
-        """Test that date filtering works correctly for medication logs."""
-        # Create old log (10 days ago)
-        MedicineLog.objects.create(
-            user=self.user,
-            medicine=self.medicine,
-            scheduled_date=date.today() - timedelta(days=10),
-            log_status='taken'
-        )
-        # Create recent log (2 days ago)
-        MedicineLog.objects.create(
-            user=self.user,
-            medicine=self.medicine,
-            scheduled_date=date.today() - timedelta(days=2),
-            log_status='taken'
-        )
 
-        # Query with date filter (last 5 days)
-        since_date = date.today() - timedelta(days=5)
-        result = self.service.get_medication_data(since_date=since_date)
+def _food_metric_stub(daily_calories=None, rolling_avg=None, entries_today=None,
+                      entries_7d=None, last_entry=None,
+                      source='SAE:nutrition.rolling_7d_calories_avg'):
+    """Build a side_effect for get_metric that supplies canonical food metrics.
 
-        self.assertEqual(result['total_logs'], 1)
-        self.assertEqual(result['days_logged'], 1)
-
-    def test_get_medication_data_excludes_soft_deleted(self):
-        """Test that soft-deleted medication logs are excluded."""
-        MedicineLog.objects.create(
-            user=self.user,
-            medicine=self.medicine,
-            scheduled_date=date.today(),
-            log_status='taken'
-        )
-        deleted_log = MedicineLog.objects.create(
-            user=self.user,
-            medicine=self.medicine,
-            scheduled_date=date.today() - timedelta(days=1),
-            log_status='taken'
-        )
-        deleted_log.soft_delete()
-
-        result = self.service.get_medication_data()
-        self.assertEqual(result['total_logs'], 1)
+    get_food_data() is fully SAE-driven: daily calories, the 7-day rolling
+    average, today/7-day entry counts and the last-entry timestamp all come
+    from get_metric(); raw FoodEntry aggregation was removed. The method returns
+    None only when daily_calories, rolling_avg and last_entry are all None.
+    """
+    def _side_effect(user, key):
+        if key == 'nutrition.daily_calories':
+            return SimpleNamespace(value=daily_calories, source=source) if daily_calories is not None else None
+        if key == 'nutrition.rolling_7d_calories_avg':
+            return SimpleNamespace(value=rolling_avg, source=source) if rolling_avg is not None else None
+        if key == 'nutrition.food_entries_today':
+            return SimpleNamespace(value=entries_today, source=source) if entries_today is not None else None
+        if key == 'nutrition.food_entries_7d':
+            return SimpleNamespace(value=entries_7d, source=source) if entries_7d is not None else None
+        if key == 'health.last_food_entry':
+            return SimpleNamespace(value=last_entry, source=source) if last_entry is not None else None
+        return None
+    return _side_effect
 
 
 class FoodDataIntegrationTest(CacheClearingTestCase):
-    """Integration tests for get_food_data() with actual FoodEntry records."""
+    """Integration tests for get_food_data().
+
+    get_food_data() is now fully SAE-driven (canonical daily calories, 7-day
+    rolling average, entry counts, last-entry date); raw FoodEntry aggregation
+    was removed. These tests mock get_metric() and assert the canonical
+    contract rather than re-derived totals.
+    """
 
     def setUp(self):
         """Create test user."""
@@ -395,86 +479,92 @@ class FoodDataIntegrationTest(CacheClearingTestCase):
         )
         self.service = PersonalDataService(self.user)
 
-    def _create_food_entry(self, calories, logged_date=None):
-        """Helper to create a food entry with required fields."""
-        if logged_date is None:
-            logged_date = date.today()
-        return FoodEntry.objects.create(
-            user=self.user,
-            food_name="Test Food",
-            quantity=Decimal("1.0"),
-            serving_size=Decimal("100"),
-            serving_unit="g",
-            total_calories=Decimal(str(calories)),
-            logged_date=logged_date
-        )
-
     def test_get_food_data_returns_none_for_empty_data(self):
-        """Test that get_food_data returns None when no entries exist."""
-        result = self.service.get_food_data()
+        """Test that get_food_data returns None when SAE has no nutrition state."""
+        with patch('assistant.data_service.get_metric', return_value=None):
+            result = self.service.get_food_data()
         self.assertIsNone(result)
 
-    def test_get_food_data_returns_correct_counts(self):
-        """Test that get_food_data returns correct entry counts."""
-        self._create_food_entry(500)
-        self._create_food_entry(600)
-        self._create_food_entry(400)
-
-        result = self.service.get_food_data()
+    def test_get_food_data_returns_canonical_entry_counts(self):
+        """Test that entry counts are surfaced from SAE."""
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_food_metric_stub(
+                daily_calories=1500.0, entries_today=3, entries_7d=12
+            ),
+        ):
+            result = self.service.get_food_data()
         self.assertIsNotNone(result)
-        self.assertEqual(result['total_entries'], 3)
         self.assertEqual(result['type'], 'food')
+        self.assertEqual(result['entries_today'], 3)
+        self.assertEqual(result['entries_7d'], 12)
 
-    def test_get_food_data_calculates_total_calories(self):
-        """Test that total calories are summed correctly."""
-        self._create_food_entry(500)
-        self._create_food_entry(600)
-        self._create_food_entry(400)
+    def test_get_food_data_surfaces_daily_calories(self):
+        """Test that today's daily calories are surfaced from SAE."""
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_food_metric_stub(daily_calories=1500.0),
+        ):
+            result = self.service.get_food_data()
+        self.assertEqual(result['daily_calories'], 1500.0)
 
-        result = self.service.get_food_data()
-        self.assertEqual(result['total_calories'], 1500.0)
-
-    def test_get_food_data_calculates_daily_average(self):
-        """Test that average daily calories are calculated correctly."""
-        today = date.today()
-        yesterday = today - timedelta(days=1)
-
-        # 1000 calories today
-        self._create_food_entry(500, today)
-        self._create_food_entry(500, today)
-
-        # 500 calories yesterday
-        self._create_food_entry(500, yesterday)
-
-        result = self.service.get_food_data()
-        # Total: 1500, Days: 2, Average: 750
+    def test_get_food_data_surfaces_rolling_average(self):
+        """Test that the canonical 7-day rolling average is surfaced."""
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_food_metric_stub(rolling_avg=750.0),
+        ):
+            result = self.service.get_food_data()
+        # average_daily_calories is the 7-day rolling average from SAE
         self.assertEqual(result['average_daily_calories'], 750.0)
+        self.assertEqual(result['average_window'], '7d_rolling')
 
     def test_get_food_data_returns_latest_date(self):
-        """Test that latest entry date is returned."""
-        self._create_food_entry(500, date.today() - timedelta(days=5))
-        self._create_food_entry(600, date.today())
-
-        result = self.service.get_food_data()
+        """Test that the canonical last-entry date is surfaced."""
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_food_metric_stub(
+                daily_calories=600.0, last_entry=date.today()
+            ),
+        ):
+            result = self.service.get_food_data()
         self.assertEqual(result['latest_date'], date.today())
 
-    def test_get_food_data_date_filtering(self):
-        """Test that date filtering works correctly."""
-        # Create old entry (10 days ago)
-        self._create_food_entry(1000, date.today() - timedelta(days=10))
-        # Create recent entry (2 days ago)
-        self._create_food_entry(500, date.today() - timedelta(days=2))
 
-        # Query with date filter (last 5 days)
-        since_date = date.today() - timedelta(days=5)
-        result = self.service.get_food_data(since_date=since_date)
+def _mood_metric_stub(mood_avg_7d=None, mood_trend=None, distribution=None,
+                      latest_mood=None, last_entry=None,
+                      source='SAE:journal.mood_distribution'):
+    """Build a side_effect for get_metric that supplies canonical mood metrics.
 
-        self.assertEqual(result['total_entries'], 1)
-        self.assertEqual(result['total_calories'], 500.0)
+    get_mood_data() is fully SAE-driven: the 7-day mood average, trend,
+    distribution, latest mood and last-entry timestamp all come from
+    get_metric(); raw JournalEntry mood aggregation was removed. ``most_common``
+    is derived in the method from the distribution dict. The method returns None
+    only when mood_avg_7d, distribution and latest_mood are all None.
+    """
+    def _side_effect(user, key):
+        if key == 'journal.mood_avg_7d':
+            return SimpleNamespace(value=mood_avg_7d, source=source) if mood_avg_7d is not None else None
+        if key == 'journal.mood_trend':
+            return SimpleNamespace(value=mood_trend, source=source) if mood_trend is not None else None
+        if key == 'journal.mood_distribution':
+            return SimpleNamespace(value=distribution, source=source) if distribution is not None else None
+        if key == 'journal.last_mood':
+            return SimpleNamespace(value=latest_mood, source=source) if latest_mood is not None else None
+        if key == 'journal.last_entry':
+            return SimpleNamespace(value=last_entry, source=source) if last_entry is not None else None
+        return None
+    return _side_effect
 
 
 class MoodDataIntegrationTest(CacheClearingTestCase):
-    """Integration tests for get_mood_data() with actual JournalEntry mood records."""
+    """Integration tests for get_mood_data().
+
+    get_mood_data() is now fully SAE-driven (canonical mood distribution,
+    trend, 7-day average, latest mood); raw JournalEntry mood aggregation was
+    removed. These tests mock get_metric() and assert the canonical contract.
+    ``most_common`` is still derived in the method from the distribution dict.
+    """
 
     def setUp(self):
         """Create test user."""
@@ -485,120 +575,61 @@ class MoodDataIntegrationTest(CacheClearingTestCase):
         )
         self.service = PersonalDataService(self.user)
 
-    def test_get_mood_data_returns_none_for_no_mood_entries(self):
-        """Test that get_mood_data returns None when no entries have mood."""
-        # Create entry without mood
-        JournalEntry.objects.create(
-            user=self.user,
-            title="No mood",
-            body="Content",
-            mood=""
-        )
-        result = self.service.get_mood_data()
+    def test_get_mood_data_returns_none_for_no_mood_state(self):
+        """Test that get_mood_data returns None when SAE has no mood state."""
+        with patch('assistant.data_service.get_metric', return_value=None):
+            result = self.service.get_mood_data()
         self.assertIsNone(result)
 
-    def test_get_mood_data_returns_correct_count(self):
-        """Test that get_mood_data returns correct count of entries with mood."""
-        JournalEntry.objects.create(
-            user=self.user,
-            title="Entry 1",
-            body="Content",
-            mood="good"
-        )
-        JournalEntry.objects.create(
-            user=self.user,
-            title="Entry 2",
-            body="Content",
-            mood="great"
-        )
-        # Entry without mood (should not be counted)
-        JournalEntry.objects.create(
-            user=self.user,
-            title="No mood",
-            body="Content",
-            mood=""
-        )
-
-        result = self.service.get_mood_data()
+    def test_get_mood_data_returns_distribution_and_type(self):
+        """Test that the canonical mood distribution is surfaced."""
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_mood_metric_stub(
+                distribution={'good': 2, 'great': 1, 'low': 1}
+            ),
+        ):
+            result = self.service.get_mood_data()
         self.assertIsNotNone(result)
-        self.assertEqual(result['count'], 2)
         self.assertEqual(result['type'], 'mood')
-
-    def test_get_mood_data_calculates_distribution(self):
-        """Test that mood distribution is calculated correctly."""
-        JournalEntry.objects.create(
-            user=self.user, title="1", body="c", mood="good"
-        )
-        JournalEntry.objects.create(
-            user=self.user, title="2", body="c", mood="good"
-        )
-        JournalEntry.objects.create(
-            user=self.user, title="3", body="c", mood="great"
-        )
-        JournalEntry.objects.create(
-            user=self.user, title="4", body="c", mood="low"
-        )
-
-        result = self.service.get_mood_data()
         self.assertEqual(result['mood_distribution']['good'], 2)
         self.assertEqual(result['mood_distribution']['great'], 1)
         self.assertEqual(result['mood_distribution']['low'], 1)
 
     def test_get_mood_data_identifies_most_common(self):
-        """Test that most common mood is identified correctly."""
-        JournalEntry.objects.create(
-            user=self.user, title="1", body="c", mood="okay"
-        )
-        JournalEntry.objects.create(
-            user=self.user, title="2", body="c", mood="okay"
-        )
-        JournalEntry.objects.create(
-            user=self.user, title="3", body="c", mood="good"
-        )
-
-        result = self.service.get_mood_data()
+        """Test that most common mood is derived from the SAE distribution."""
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_mood_metric_stub(
+                distribution={'okay': 2, 'good': 1}
+            ),
+        ):
+            result = self.service.get_mood_data()
         self.assertEqual(result['most_common'], 'okay')
 
-    def test_get_mood_data_returns_latest(self):
-        """Test that latest mood and date are returned correctly."""
-        JournalEntry.objects.create(
-            user=self.user,
-            title="Old",
-            body="content",
-            mood="low",
-            entry_date=date.today() - timedelta(days=5)
-        )
-        JournalEntry.objects.create(
-            user=self.user,
-            title="Latest",
-            body="content",
-            mood="great",
-            entry_date=date.today()
-        )
+    def test_get_mood_data_surfaces_avg_and_trend(self):
+        """Test that the 7-day mood average and trend are surfaced from SAE."""
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_mood_metric_stub(
+                mood_avg_7d=4.2, mood_trend='improving'
+            ),
+        ):
+            result = self.service.get_mood_data()
+        self.assertEqual(result['mood_avg_7d'], 4.2)
+        self.assertEqual(result['mood_trend'], 'improving')
 
-        result = self.service.get_mood_data()
+    def test_get_mood_data_returns_latest(self):
+        """Test that latest mood and date are surfaced from SAE."""
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_mood_metric_stub(
+                latest_mood='great', last_entry=date.today()
+            ),
+        ):
+            result = self.service.get_mood_data()
         self.assertEqual(result['latest_mood'], 'great')
         self.assertEqual(result['latest_date'], date.today())
-
-    def test_get_mood_data_excludes_soft_deleted(self):
-        """Test that soft-deleted entries with mood are excluded."""
-        JournalEntry.objects.create(
-            user=self.user,
-            title="Active",
-            body="content",
-            mood="good"
-        )
-        deleted = JournalEntry.objects.create(
-            user=self.user,
-            title="Deleted",
-            body="content",
-            mood="great"
-        )
-        deleted.soft_delete()
-
-        result = self.service.get_mood_data()
-        self.assertEqual(result['count'], 1)
-        self.assertEqual(result['latest_mood'], 'good')
 
 
 class SoftDeleteBehaviorIntegrationTest(CacheClearingTestCase):
@@ -628,30 +659,7 @@ class SoftDeleteBehaviorIntegrationTest(CacheClearingTestCase):
         deleted.soft_delete()
 
         result = self.service.get_journal_data()
-        self.assertEqual(result['count'], 1)
-
-    def test_soft_deleted_medicine_logs_excluded(self):
-        """Test that soft-deleted medicine logs are not returned."""
-        medicine = Medicine.objects.create(
-            user=self.user,
-            name="Test Med",
-            dose="100mg",
-            start_date=date.today()
-        )
-        MedicineLog.objects.create(
-            user=self.user,
-            medicine=medicine,
-            scheduled_date=date.today()
-        )
-        deleted = MedicineLog.objects.create(
-            user=self.user,
-            medicine=medicine,
-            scheduled_date=date.today() - timedelta(days=1)
-        )
-        deleted.soft_delete()
-
-        result = self.service.get_medication_data()
-        self.assertEqual(result['total_logs'], 1)
+        self.assertEqual(len(result['recent_entries']), 1)
 
     def test_archived_entries_are_excluded(self):
         """Test that archived entries are excluded from normal queries.
@@ -674,7 +682,7 @@ class SoftDeleteBehaviorIntegrationTest(CacheClearingTestCase):
 
         result = self.service.get_journal_data()
         # Archived entries are excluded by the SoftDeleteManager
-        self.assertEqual(result['count'], 1)
+        self.assertEqual(len(result['recent_entries']), 1)
 
 
 class QueryByIntentIntegrationTest(CacheClearingTestCase):
@@ -737,8 +745,9 @@ class QueryByIntentIntegrationTest(CacheClearingTestCase):
             since_date=since_date
         )
 
-        # Should only get 1 entry (the one from setUp, not the 10-day-old one)
-        self.assertEqual(result['weight']['count'], 1)
+        # Should only get 1 entry in the ORM list (the one from setUp,
+        # not the 10-day-old one) because date filtering applies to entries.
+        self.assertEqual(len(result['weight']['entries']), 1)
 
     def test_query_returns_none_for_no_data(self):
         """Test that query_by_intent returns None when no data matches."""
@@ -841,8 +850,16 @@ class ProcessAssistantMessageIntegrationTest(CacheClearingTestCase):
         self.assertFalse(result['has_data'])
         self.assertEqual(result['system_prompt'], base_prompt)
 
-    def test_query_with_no_data_returns_no_data_flag(self):
-        """Test that query for data type with no records returns has_data=False."""
+    def test_food_query_is_recognised_as_personal(self):
+        """A food query is recognised and routed to the food data type.
+
+        Under the SAE contract get_food_data() surfaces a canonical (possibly
+        zero-valued) nutrition payload rather than returning None when the user
+        has no FoodEntry rows — SAE owns the "no intake today" truth. So the
+        end-to-end path reports has_data=True with a zeroed payload rather than
+        the old has_data=False clarification branch. We assert the routing and
+        food-context injection, which is the behaviour callers depend on.
+        """
         result = process_assistant_message(
             user=self.user,
             message="What did I eat today?",
@@ -851,7 +868,8 @@ class ProcessAssistantMessageIntegrationTest(CacheClearingTestCase):
 
         self.assertTrue(result['is_personal_query'])
         self.assertIn('food', result['data_types'])
-        self.assertFalse(result['has_data'])
+        self.assertTrue(result['has_data'])
+        self.assertIn('Food Data', result['system_prompt'])
 
     def test_combined_query_returns_multiple_data_types(self):
         """Test that query mentioning multiple data types returns all."""
@@ -901,7 +919,11 @@ class DateFilteringIntegrationTest(CacheClearingTestCase):
         self.service = PersonalDataService(self.user)
 
     def test_weight_date_filtering_with_datetime(self):
-        """Test weight filtering with datetime object."""
+        """Test that since_date restricts the weight ORM entries list.
+
+        The canonical latest/average come from SAE, but the recent ``entries``
+        list is still ORM-backed and date-filtered, so since_date narrows it.
+        """
         WeightEntry.objects.create(
             user=self.user,
             value=Decimal("180.0"),
@@ -916,13 +938,20 @@ class DateFilteringIntegrationTest(CacheClearingTestCase):
         )
 
         since = timezone.now() - timedelta(days=7)
-        result = self.service.get_weight_data(since_date=since)
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_weight_metric_stub(175.0),
+        ):
+            result = self.service.get_weight_data(since_date=since)
 
-        self.assertEqual(result['count'], 1)
-        self.assertEqual(result['latest'], 175.0)
+        self.assertEqual(len(result['entries']), 1)
+        self.assertEqual(result['entries'][0]['value'], 175.0)
 
     def test_journal_date_filtering_with_date(self):
-        """Test journal filtering with date object."""
+        """Test that since_date restricts the journal recent_entries list.
+
+        The recent_entries preview list is still ORM-backed and date-filtered.
+        """
         JournalEntry.objects.create(
             user=self.user,
             title="Old",
@@ -937,59 +966,13 @@ class DateFilteringIntegrationTest(CacheClearingTestCase):
         )
 
         since = date.today() - timedelta(days=7)
-        result = self.service.get_journal_data(since_date=since)
+        with patch(
+            'assistant.data_service.get_metric',
+            side_effect=_journal_metric_stub(entries_7d=1),
+        ):
+            result = self.service.get_journal_data(since_date=since)
 
-        self.assertEqual(result['count'], 1)
-
-    def test_food_date_filtering(self):
-        """Test food entry date filtering."""
-        FoodEntry.objects.create(
-            user=self.user,
-            food_name="Old Food",
-            quantity=Decimal("1.0"),
-            serving_size=Decimal("100"),
-            serving_unit="g",
-            total_calories=Decimal("500"),
-            logged_date=date.today() - timedelta(days=15)
-        )
-        FoodEntry.objects.create(
-            user=self.user,
-            food_name="Recent Food",
-            quantity=Decimal("1.0"),
-            serving_size=Decimal("100"),
-            serving_unit="g",
-            total_calories=Decimal("300"),
-            logged_date=date.today() - timedelta(days=3)
-        )
-
-        since = date.today() - timedelta(days=7)
-        result = self.service.get_food_data(since_date=since)
-
-        self.assertEqual(result['total_entries'], 1)
-        self.assertEqual(result['total_calories'], 300.0)
-
-    def test_mood_date_filtering(self):
-        """Test mood data date filtering."""
-        JournalEntry.objects.create(
-            user=self.user,
-            title="Old",
-            body="Content",
-            mood="low",
-            entry_date=date.today() - timedelta(days=15)
-        )
-        JournalEntry.objects.create(
-            user=self.user,
-            title="Recent",
-            body="Content",
-            mood="great",
-            entry_date=date.today() - timedelta(days=3)
-        )
-
-        since = date.today() - timedelta(days=7)
-        result = self.service.get_mood_data(since_date=since)
-
-        self.assertEqual(result['count'], 1)
-        self.assertEqual(result['latest_mood'], 'great')
+        self.assertEqual(len(result['recent_entries']), 1)
 
 
 # ==============================================================================

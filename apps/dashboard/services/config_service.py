@@ -168,10 +168,10 @@ TILE_DEFINITIONS = {
         'mandatory': False,
         'default_order': 12,
     },
-    'medicine_schedule': {
-        'id': 'medicine_schedule',
-        'name': "Today's Medicine",
-        'description': 'Your medication schedule for today with status tracking.',
+    'intake_schedule': {
+        'id': 'intake_schedule',
+        'name': "Today's Intake",
+        'description': 'Your medication and supplement schedule for today with status tracking.',
         'icon': 'pill',
         'module_dependency': 'health_enabled',
         'default_visible': True,

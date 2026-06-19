@@ -46,7 +46,7 @@ class AdherenceTestMixin:
             "dose": "10mg",
             "frequency": "daily",
             "start_date": date(2026, 1, 1),
-            "medicine_status": Intake.STATUS_ACTIVE,
+            "intake_status": Intake.STATUS_ACTIVE,
         }
         defaults.update(kwargs)
         return Intake.objects.create(**defaults)

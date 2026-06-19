@@ -47,7 +47,7 @@ class ReflectionPromptAdmin(admin.ModelAdmin):
     list_filter = ['prompt_type', 'is_active']
     search_fields = ['question', 'description']
     ordering = ['prompt_type', 'sort_order']
-    
+
     def question_preview(self, obj):
         return obj.question[:75] + '...' if len(obj.question) > 75 else obj.question
     question_preview.short_description = 'Question'
@@ -163,7 +163,7 @@ class PlanningActionAdmin(admin.ModelAdmin):
     search_fields = ['description', 'user__email']
     ordering = ['-created_at']
     raw_id_fields = ['user', 'annual_direction']
-    
+
     def description_preview(self, obj):
         return obj.description[:50] + '...' if len(obj.description) > 50 else obj.description
     description_preview.short_description = 'Description'

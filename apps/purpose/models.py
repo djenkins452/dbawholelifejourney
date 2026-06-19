@@ -54,15 +54,15 @@ class LifeDomain(models.Model):
     )
     sort_order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         ordering = ['sort_order', 'name']
         verbose_name = "Life Domain"
         verbose_name_plural = "Life Domains"
-    
+
     def __str__(self):
         return self.name
 
@@ -80,7 +80,7 @@ class ReflectionPrompt(models.Model):
         ('monthly', 'Monthly Check-in'),
         ('custom', 'Custom'),
     ]
-    
+
     prompt_type = models.CharField(
         max_length=20,
         choices=PROMPT_TYPE_CHOICES,
@@ -95,15 +95,15 @@ class ReflectionPrompt(models.Model):
     )
     sort_order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         ordering = ['prompt_type', 'sort_order']
         verbose_name = "Reflection Prompt"
         verbose_name_plural = "Reflection Prompts"
-    
+
     def __str__(self):
         return f"{self.get_prompt_type_display()}: {self.question[:50]}..."
 
@@ -122,7 +122,7 @@ class AnnualDirection(UserOwnedModel):
     year = models.PositiveIntegerField(
         help_text="The year this direction applies to"
     )
-    
+
     # Word of the Year
     word_of_year = models.CharField(
         max_length=50,
@@ -132,7 +132,7 @@ class AnnualDirection(UserOwnedModel):
         blank=True,
         help_text="Why did you choose this word? What does it mean to you?"
     )
-    
+
     # Annual Theme
     theme = models.CharField(
         max_length=200,
@@ -143,7 +143,7 @@ class AnnualDirection(UserOwnedModel):
         blank=True,
         help_text="Expand on your theme"
     )
-    
+
     # Anchor - Scripture or Quote
     anchor_text = models.TextField(
         blank=True,
@@ -154,25 +154,25 @@ class AnnualDirection(UserOwnedModel):
         blank=True,
         help_text="Source of the anchor (e.g., Proverbs 3:5-6, Author name)"
     )
-    
+
     # Status
     is_current = models.BooleanField(
         default=False,
         help_text="Is this the current year's direction?"
     )
-    
+
     class Meta:
         ordering = ['-year']
         unique_together = ['user', 'year']
         verbose_name = "Annual Direction"
         verbose_name_plural = "Annual Directions"
-    
+
     def __str__(self):
         return f"{self.year}: {self.word_of_year}"
-    
+
     def get_absolute_url(self):
         return reverse('purpose:direction_detail', kwargs={'pk': self.pk})
-    
+
     def save(self, *args, **kwargs):
         # If marking as current, unset other current directions for this user
         if self.is_current:
@@ -200,33 +200,33 @@ class LifeGoal(UserOwnedModel):
         ('completed', 'Completed'),
         ('released', 'Released'),  # Intentionally let go
     ]
-    
+
     TIMEFRAME_CHOICES = [
         ('year_1', 'Within 1 Year'),
         ('year_2', '1-2 Years'),
         ('year_3', '2-3 Years'),
         ('ongoing', 'Ongoing'),
     ]
-    
+
     # Core
     title = models.CharField(max_length=200)
     description = models.TextField(
         blank=True,
         help_text="What is this goal about?"
     )
-    
+
     # Why it matters
     why_it_matters = models.TextField(
         blank=True,
         help_text="Why is this goal important to you?"
     )
-    
+
     # Success definition
     success_looks_like = models.TextField(
         blank=True,
         help_text="What does success look like? How will you know you've achieved this?"
     )
-    
+
     # Organization
     domain = models.ForeignKey(
         LifeDomain,
@@ -236,7 +236,7 @@ class LifeGoal(UserOwnedModel):
         related_name='goals',
         help_text="Which life area does this goal belong to?"
     )
-    
+
     # Timeframe
     timeframe = models.CharField(
         max_length=20,
@@ -248,7 +248,7 @@ class LifeGoal(UserOwnedModel):
         blank=True,
         help_text="Optional target completion date"
     )
-    
+
     # Status
     status = models.CharField(
         max_length=20,
@@ -310,7 +310,7 @@ class LifeGoal(UserOwnedModel):
         blank=True,
         help_text="Reflection after completing or releasing this goal"
     )
-    
+
     # Link to annual direction
     annual_direction = models.ForeignKey(
         AnnualDirection,
@@ -320,10 +320,10 @@ class LifeGoal(UserOwnedModel):
         related_name='goals',
         help_text="Link this goal to a year's direction"
     )
-    
+
     # Ordering
     sort_order = models.PositiveIntegerField(default=0)
-    
+
     class Meta:
         ordering = ['domain', 'sort_order', '-created_at']
         verbose_name = "Life Goal"
@@ -367,13 +367,13 @@ class LifeGoal(UserOwnedModel):
         if self.is_primary_mission:
             self.is_primary_mission = False
             self.save(update_fields=['is_primary_mission', 'updated_at'])
-    
+
     def mark_complete(self):
         """Mark goal as completed."""
         self.status = 'completed'
         self.completed_date = timezone.now().date()
         self.save(update_fields=['status', 'completed_date', 'updated_at'])
-    
+
     def mark_released(self):
         """Mark goal as intentionally released."""
         self.status = 'released'
@@ -780,7 +780,7 @@ class ChangeIntention(UserOwnedModel):
         ('paused', 'Paused'),
         ('released', 'Released'),
     ]
-    
+
     # Core
     intention = models.CharField(
         max_length=200,
@@ -790,20 +790,20 @@ class ChangeIntention(UserOwnedModel):
         blank=True,
         help_text="What does this look like in practice?"
     )
-    
+
     # Why
     motivation = models.TextField(
         blank=True,
         help_text="Why is this change important to you?"
     )
-    
+
     # Status
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
         default='active'
     )
-    
+
     # Link to annual direction
     annual_direction = models.ForeignKey(
         AnnualDirection,
@@ -813,18 +813,18 @@ class ChangeIntention(UserOwnedModel):
         related_name='intentions',
         help_text="Link this intention to a year's direction"
     )
-    
+
     # Ordering
     sort_order = models.PositiveIntegerField(default=0)
-    
+
     class Meta:
         ordering = ['sort_order', '-created_at']
         verbose_name = "Change Intention"
         verbose_name_plural = "Change Intentions"
-    
+
     def __str__(self):
         return self.intention
-    
+
     def get_absolute_url(self):
         return reverse('purpose:intention_detail', kwargs={'pk': self.pk})
 
@@ -845,7 +845,7 @@ class Reflection(UserOwnedModel):
         ('quarterly', 'Quarterly'),
         ('custom', 'Custom'),
     ]
-    
+
     # Type and timing
     reflection_type = models.CharField(
         max_length=20,
@@ -860,40 +860,40 @@ class Reflection(UserOwnedModel):
         blank=True,
         help_text="Quarter (1-4) if quarterly reflection"
     )
-    
+
     # Title for custom reflections
     title = models.CharField(
         max_length=200,
         blank=True,
         help_text="Optional title for this reflection"
     )
-    
+
     # Status
     is_complete = models.BooleanField(
         default=False,
         help_text="Have you finished this reflection?"
     )
     completed_at = models.DateTimeField(null=True, blank=True)
-    
+
     # AI Summary (future-ready)
     ai_summary = models.TextField(
         blank=True,
         help_text="AI-generated summary of this reflection"
     )
-    
+
     class Meta:
         ordering = ['-year', '-created_at']
         verbose_name = "Reflection"
         verbose_name_plural = "Reflections"
-    
+
     def __str__(self):
         if self.title:
             return f"{self.title} ({self.year})"
         return f"{self.get_reflection_type_display()} {self.year}"
-    
+
     def get_absolute_url(self):
         return reverse('purpose:reflection_detail', kwargs={'pk': self.pk})
-    
+
     def mark_complete(self):
         """Mark reflection as complete."""
         self.is_complete = True
@@ -917,30 +917,30 @@ class ReflectionResponse(models.Model):
         blank=True,
         related_name='responses'
     )
-    
+
     # If prompt is deleted or custom question
     question_text = models.TextField(
         help_text="The question that was asked"
     )
-    
+
     # Response
     response = models.TextField(
         blank=True,
         help_text="Your response to this prompt"
     )
-    
+
     # Ordering
     sort_order = models.PositiveIntegerField(default=0)
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         ordering = ['sort_order', 'created_at']
-    
+
     def __str__(self):
         return f"Response to: {self.question_text[:50]}..."
-    
+
     def save(self, *args, **kwargs):
         # Copy prompt question text if prompt exists
         if self.prompt and not self.question_text:
@@ -964,36 +964,36 @@ class PlanningAction(UserOwnedModel):
         ('start', 'Start'),
         ('simplify', 'Simplify'),
     ]
-    
+
     annual_direction = models.ForeignKey(
         AnnualDirection,
         on_delete=models.CASCADE,
         related_name='planning_actions'
     )
-    
+
     action_type = models.CharField(
         max_length=20,
         choices=ACTION_TYPE_CHOICES
     )
-    
+
     description = models.TextField(
         help_text="What will you keep/stop/start/simplify?"
     )
-    
+
     # Why
     reason = models.TextField(
         blank=True,
         help_text="Why is this important?"
     )
-    
+
     # Ordering
     sort_order = models.PositiveIntegerField(default=0)
-    
+
     class Meta:
         ordering = ['action_type', 'sort_order']
         verbose_name = "Planning Action"
         verbose_name_plural = "Planning Actions"
-    
+
     def __str__(self):
         return f"{self.get_action_type_display()}: {self.description[:50]}..."
 

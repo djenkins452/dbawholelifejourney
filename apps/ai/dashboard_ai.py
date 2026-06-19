@@ -39,7 +39,7 @@ class DashboardAI:
     AI services specifically for dashboard insights.
     Uses the user's preferred coaching style.
     """
-    
+
     def __init__(self, user):
         self.user = user
         # Refresh preferences from database to ensure we have the latest values
@@ -52,7 +52,7 @@ class DashboardAI:
         self.user_profile = getattr(self.prefs, 'ai_profile', '') or ''
         # AI-learned personal context for empathetic responses
         self.personal_context = getattr(self.prefs, 'ai_personal_context', '') or ''
-    
+
     def _get_time_period(self) -> str:
         """Get current time period for cache segmentation."""
         from apps.core.utils import get_user_now
@@ -187,7 +187,7 @@ class DashboardAI:
             )
 
         return content
-    
+
     def get_nudge_message(self, nudge_type: str, context: dict) -> str:
         """
         Generate a coaching-style-appropriate nudge message.
@@ -201,13 +201,13 @@ class DashboardAI:
             'days_since': context.get('days', 0),
             'item_name': context.get('item_name', ''),
         }
-        
+
         return ai_service.generate_accountability_nudge(
             gap_data,
             self.faith_enabled,
             self.coaching_style
         )
-    
+
     def get_celebration_message(self, achievement_type: str, details: str) -> str:
         """
         Generate a coaching-style-appropriate celebration message.
@@ -216,24 +216,24 @@ class DashboardAI:
             'achievement_type': achievement_type,
             'details': details,
         }
-        
+
         return ai_service.generate_celebration(
             achievement_data,
             self.faith_enabled,
             self.coaching_style
         )
-    
+
     def get_reflection_prompt(self) -> str:
         """
         Get a personalized reflection prompt for journaling.
         """
         user_data = self._gather_reflection_data()
         return ai_service.generate_weekly_reflection_prompt(
-            user_data, 
+            user_data,
             self.faith_enabled,
             self.coaching_style
         )
-    
+
     def _gather_user_data(self) -> dict:
         """Gather comprehensive user data for daily insight generation."""
         from apps.journal.models import JournalEntry
@@ -641,26 +641,26 @@ class DashboardAI:
             logger.debug(f"Could not load scan data for AI context: {e}")
 
         return data
-    
+
     def _gather_reflection_data(self) -> dict:
         """Gather data for reflection prompt generation."""
         from apps.journal.models import JournalEntry
-        
+
         week_ago = timezone.now() - timedelta(days=7)
         entries = JournalEntry.objects.filter(
             user=self.user,
             created_at__gte=week_ago
         )
-        
+
         data = {}
-        
+
         # Most common mood
         moods = entries.exclude(mood='').values('mood').annotate(
             count=Count('mood')
         ).order_by('-count')
         if moods:
             data['top_mood'] = moods[0]['mood']
-        
+
         # Goals worked on
         if self.prefs.purpose_enabled:
             try:
@@ -673,19 +673,19 @@ class DashboardAI:
                 data['goals_worked_on'] = list(recent_goals)
             except Exception as e:
                 logger.debug(f"Could not load goals for reflection: {e}")
-        
+
         return data
-    
+
     def _get_journal_entries(self, days: int = 7) -> list:
         """Get journal entries for summary."""
         from apps.journal.models import JournalEntry
-        
+
         since = timezone.now() - timedelta(days=days)
         entries = JournalEntry.objects.filter(
             user=self.user,
             created_at__gte=since
         ).order_by('-entry_date')[:10]
-        
+
         return [
             {
                 'title': e.title,
@@ -695,7 +695,7 @@ class DashboardAI:
             }
             for e in entries
         ]
-    
+
     def _calculate_journal_streak(self) -> int:
         """Calculate current journal streak in days (excludes today)."""
         from apps.journal.models import JournalEntry
@@ -721,7 +721,7 @@ class DashboardAI:
                 break
 
         return streak
-    
+
     def _get_fallback_insight(self) -> str:
         """Fallback insight when AI is unavailable."""
         fallbacks = {
@@ -741,7 +741,7 @@ class DashboardAI:
                 "You've got what it takes. Now prove it.",
             ]
         }
-        
+
         import random
         style_fallbacks = fallbacks.get(self.coaching_style, fallbacks['supportive'])
         return random.choice(style_fallbacks)
@@ -759,9 +759,9 @@ def get_dashboard_insight(user) -> dict:
             'daily_insight': None,
             'weekly_summary': None,
         }
-    
+
     dashboard_ai = DashboardAI(user)
-    
+
     return {
         'available': True,
         'daily_insight': dashboard_ai.get_daily_insight(),

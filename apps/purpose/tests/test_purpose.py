@@ -17,13 +17,13 @@ User = get_user_model()
 
 class AnnualDirectionModelTest(TestCase):
     """Tests for the AnnualDirection model."""
-    
+
     def setUp(self):
         self.user = User.objects.create_user(
             email='test@example.com',
             password='testpass123'
         )
-    
+
     def test_create_annual_direction(self):
         """Annual direction can be created."""
         direction = AnnualDirection.objects.create(
@@ -33,7 +33,7 @@ class AnnualDirectionModelTest(TestCase):
         )
         self.assertEqual(direction.year, 2025)
         self.assertEqual(direction.word_of_year, 'Growth')
-    
+
     def test_annual_direction_str(self):
         """Annual direction string representation."""
         direction = AnnualDirection.objects.create(
@@ -47,13 +47,13 @@ class AnnualDirectionModelTest(TestCase):
 
 class LifeGoalModelTest(TestCase):
     """Tests for the LifeGoal model."""
-    
+
     def setUp(self):
         self.user = User.objects.create_user(
             email='test@example.com',
             password='testpass123'
         )
-    
+
     def test_create_goal(self):
         """Goal can be created."""
         goal = LifeGoal.objects.create(
@@ -62,7 +62,7 @@ class LifeGoalModelTest(TestCase):
             description='Become conversational in Spanish'
         )
         self.assertEqual(goal.title, 'Learn Spanish')
-    
+
     def test_goal_str(self):
         """Goal string is the title."""
         goal = LifeGoal.objects.create(
@@ -70,7 +70,7 @@ class LifeGoalModelTest(TestCase):
             title='Read 24 Books'
         )
         self.assertIn('Read 24 Books', str(goal))
-    
+
     def test_goal_status_choices(self):
         """Goal can have different statuses."""
         goal = LifeGoal.objects.create(
@@ -79,7 +79,7 @@ class LifeGoalModelTest(TestCase):
             status='active'
         )
         self.assertEqual(goal.status, 'active')
-        
+
         goal.status = 'completed'
         goal.save()
         goal.refresh_from_db()
@@ -88,13 +88,13 @@ class LifeGoalModelTest(TestCase):
 
 class ReflectionModelTest(TestCase):
     """Tests for the Reflection model."""
-    
+
     def setUp(self):
         self.user = User.objects.create_user(
             email='test@example.com',
             password='testpass123'
         )
-    
+
     def test_create_reflection(self):
         """Reflection can be created."""
         reflection = Reflection.objects.create(
@@ -134,36 +134,36 @@ class PurposeViewTest(TestCase):
         """Mark user onboarding as complete."""
         user.preferences.has_completed_onboarding = True
         user.preferences.save()
-    
+
     def test_purpose_home_requires_login(self):
         """Purpose home requires authentication."""
         response = self.client.get(reverse('purpose:home'))
         self.assertEqual(response.status_code, 302)
-    
+
     def test_purpose_home_loads(self):
         """Purpose home page loads for authenticated user."""
         self.client.login(email='test@example.com', password='testpass123')
         response = self.client.get(reverse('purpose:home'))
         self.assertEqual(response.status_code, 200)
-    
+
     def test_goal_list_loads(self):
         """Goal list page loads."""
         self.client.login(email='test@example.com', password='testpass123')
         response = self.client.get(reverse('purpose:goal_list'))
         self.assertEqual(response.status_code, 200)
-    
+
     def test_goal_create_page_loads(self):
         """Goal create page loads."""
         self.client.login(email='test@example.com', password='testpass123')
         response = self.client.get(reverse('purpose:goal_create'))
         self.assertEqual(response.status_code, 200)
-    
+
     def test_direction_list_loads(self):
         """Direction list page loads."""
         self.client.login(email='test@example.com', password='testpass123')
         response = self.client.get(reverse('purpose:direction_list'))
         self.assertEqual(response.status_code, 200)
-    
+
     def test_reflection_list_loads(self):
         """Reflection list page loads."""
         self.client.login(email='test@example.com', password='testpass123')
@@ -217,15 +217,15 @@ class PurposeDataIsolationTest(TestCase):
         """Mark user onboarding as complete."""
         user.preferences.has_completed_onboarding = True
         user.preferences.save()
-    
+
     def test_user_a_sees_only_their_goals(self):
         """User A only sees their own goals."""
         self.client.login(email='usera@example.com', password='testpass123')
         response = self.client.get(reverse('purpose:goal_list'))
-        
+
         self.assertContains(response, 'User A Goal')
         self.assertNotContains(response, 'User B Goal')
-    
+
     def test_user_cannot_edit_other_users_goal(self):
         """User A cannot edit User B's goal."""
         self.client.login(email='usera@example.com', password='testpass123')
@@ -233,7 +233,7 @@ class PurposeDataIsolationTest(TestCase):
             reverse('purpose:goal_update', kwargs={'pk': self.goal_b.pk})
         )
         self.assertEqual(response.status_code, 404)
-    
+
     def test_user_cannot_delete_other_users_goal(self):
         """User A cannot delete User B's goal."""
         self.client.login(email='usera@example.com', password='testpass123')

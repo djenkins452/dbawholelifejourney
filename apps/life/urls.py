@@ -127,14 +127,14 @@ app_name = "life"
 urlpatterns = [
     # Home
     path("", LifeHomeView.as_view(), name="home"),
-    
+
     # Projects
     path("projects/", ProjectListView.as_view(), name="project_list"),
     path("projects/new/", ProjectCreateView.as_view(), name="project_create"),
     path("projects/<int:pk>/", ProjectDetailView.as_view(), name="project_detail"),
     path("projects/<int:pk>/edit/", ProjectUpdateView.as_view(), name="project_update"),
     path("projects/<int:pk>/delete/", ProjectDeleteView.as_view(), name="project_delete"),
-    
+
     # Tasks
     path("tasks/", TaskListView.as_view(), name="task_list"),
     path("tasks/new/", TaskCreateView.as_view(), name="task_create"),
@@ -163,7 +163,7 @@ urlpatterns = [
     path("events/new/", EventCreateView.as_view(), name="event_create"),
     path("events/<int:pk>/edit/", EventUpdateView.as_view(), name="event_update"),
     path("events/<int:pk>/delete/", EventDeleteView.as_view(), name="event_delete"),
-    
+
     # Inventory
     path("inventory/", InventoryListView.as_view(), name="inventory_list"),
     path("inventory/new/", InventoryCreateView.as_view(), name="inventory_create"),
@@ -171,12 +171,12 @@ urlpatterns = [
     path("inventory/<int:pk>/edit/", InventoryUpdateView.as_view(), name="inventory_update"),
     path("inventory/<int:pk>/delete/", InventoryDeleteView.as_view(), name="inventory_delete"),
     path("inventory/bulk/delete/", BulkDeleteInventoryView.as_view(), name="inventory_bulk_delete"),
-    
+
     # Inventory Photos
     path("inventory/<int:item_pk>/photos/new/", InventoryPhotoCreateView.as_view(), name="inventory_photo_create"),
     path("inventory/photos/<int:pk>/delete/", InventoryPhotoDeleteView.as_view(), name="inventory_photo_delete"),
     path("inventory/photos/<int:pk>/set-primary/", InventoryPhotoSetPrimaryView.as_view(), name="inventory_photo_set_primary"),
-    
+
     # Pets
     path("pets/", PetListView.as_view(), name="pet_list"),
     path("pets/new/", PetCreateView.as_view(), name="pet_create"),
@@ -188,7 +188,7 @@ urlpatterns = [
     path("pets/<int:pet_pk>/records/new/", PetRecordCreateView.as_view(), name="pet_record_create"),
     path("pets/records/<int:pk>/edit/", PetRecordUpdateView.as_view(), name="pet_record_update"),
     path("pets/records/<int:pk>/delete/", PetRecordDeleteView.as_view(), name="pet_record_delete"),
-    
+
     # Recipes
     path("recipes/", RecipeListView.as_view(), name="recipe_list"),
     path("recipes/new/", RecipeCreateView.as_view(), name="recipe_create"),
@@ -207,7 +207,7 @@ urlpatterns = [
     path("recipes/<int:pk>/delete/", RecipeDeleteView.as_view(), name="recipe_delete"),
     path("recipes/<int:pk>/favorite/", RecipeToggleFavoriteView.as_view(), name="recipe_toggle_favorite"),
     path("recipes/bulk/delete/", BulkDeleteRecipesView.as_view(), name="recipe_bulk_delete"),
-    
+
     # Maintenance Logs
     path("maintenance/", MaintenanceLogListView.as_view(), name="maintenance_list"),
     path("maintenance/new/", MaintenanceLogCreateView.as_view(), name="maintenance_create"),
@@ -217,7 +217,7 @@ urlpatterns = [
     path("maintenance/bulk/delete/", BulkDeleteMaintenanceView.as_view(), name="maintenance_bulk_delete"),
     path("maintenance/<int:pk>/match-review/", MaintenanceMatchReviewView.as_view(), name="maintenance_match_review"),
     path("maintenance/<int:pk>/sync-routine/<int:schedule_id>/", MaintenanceSyncRoutineView.as_view(), name="maintenance_sync_routine"),
-    
+
     # Documents
     path("documents/", DocumentListView.as_view(), name="document_list"),
     path("documents/new/", DocumentCreateView.as_view(), name="document_create"),

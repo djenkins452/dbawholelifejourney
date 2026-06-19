@@ -14,7 +14,7 @@ class ProfileForm(forms.ModelForm):
     """
     Form for editing user profile (name, email, avatar).
     """
-    
+
     # Add a clear avatar checkbox
     clear_avatar = forms.BooleanField(
         required=False,
@@ -48,7 +48,7 @@ class ProfileForm(forms.ModelForm):
             "email": "Changing your email will update your login credentials.",
             "avatar": "Upload a profile picture (JPG, PNG, GIF). Max 2MB.",
         }
-    
+
     def clean_avatar(self):
         avatar = self.cleaned_data.get('avatar')
         if avatar:
@@ -59,17 +59,17 @@ class ProfileForm(forms.ModelForm):
             if not avatar.content_type.startswith('image/'):
                 raise forms.ValidationError("Please upload an image file.")
         return avatar
-    
+
     def save(self, commit=True):
         user = super().save(commit=False)
-        
+
         # Handle clear avatar checkbox
         if self.cleaned_data.get('clear_avatar'):
             # Delete old avatar file if it exists
             if user.avatar:
                 user.avatar.delete(save=False)
             user.avatar = None
-        
+
         if commit:
             user.save()
         return user

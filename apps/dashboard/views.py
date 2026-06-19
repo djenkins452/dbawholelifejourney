@@ -189,7 +189,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         except Exception as e:
             logger.error(f"Dashboard error for {user_log_id(self.request.user)}: {e}", exc_info=True)
             raise
-    
+
     def _get_greeting(self):
         """Get time-appropriate greeting in user's timezone."""
         import pytz
@@ -203,7 +203,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             return "Good afternoon"
         else:
             return "Good evening"
-    
+
     def _get_command_brief(self, user, prefs):
         """
         Build the Chief of Staff Command Brief for the dashboard.
@@ -686,24 +686,24 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         """Get daily encouragement message."""
         today = timezone.now()
         queryset = DailyEncouragement.objects.filter(is_active=True)
-        
+
         if not faith_enabled:
             queryset = queryset.filter(is_faith_specific=False)
-        
+
         # Try to match day of week or month
         targeted = queryset.filter(
             models.Q(day_of_week=today.weekday()) |
             models.Q(month=today.month)
         )
-        
+
         if targeted.exists():
             return random.choice(list(targeted))
-        
+
         if queryset.exists():
             return random.choice(list(queryset))
-        
+
         return None
-    
+
     def _gather_comprehensive_data(self, user, prefs):
         """
         Gather all user data for AI analysis.
@@ -761,7 +761,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             data.update(self._get_capture_data(user))
 
         return data
-    
+
     def _get_journal_data(self, user, today, week_ago, month_ago, sae_state=None):
         """
         Get journal-related data.
@@ -832,7 +832,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "top_mood_this_week": top_mood,
             "recent_entries": recent_entries,
         }
-    
+
     def _calculate_journal_streak(self, user, today):
         """Calculate consecutive days of journaling (includes today).
 
@@ -859,7 +859,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 break
 
         return streak
-    
+
     def _get_faith_data(self, user, sae_state=None):
         """
         Get faith-related data.
@@ -903,7 +903,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "reading_completed_today": faith_truth['bible_reading_completed'],
             "faith_task_completed_today": faith_truth['prayer_completed'],
         }
-    
+
     def _get_health_data(self, user, today, month_ago, sae_state=None):
         """
         Get health-related data with optimized caching.
@@ -1328,7 +1328,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "upcoming_significant_events": upcoming_significant,
             "upcoming_significant_count": len(upcoming_significant),
         }
-    
+
     def _get_purpose_data(self, user, sae_state=None):
         """
         Get purpose-related data.
@@ -1404,7 +1404,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "active_intentions": intentions.count(),
             "active_habit_goals": habit_goals_data,
         }
-    
+
     def _get_ai_insights(self, user, prefs, user_data):
         """
         Get AI insights from engine-stored data (no OpenAI calls).
@@ -1564,7 +1564,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 <p><strong>4. Write Your First Journal Entry</strong> — Even a few sentences helps the AI learn your voice and patterns. Go to <strong>Journal → New Entry</strong>.</p>
 
 <p>Once you've done these, your daily insights will become deeply personal and actionable. The more you share, the smarter your AI coach becomes!</p>"""
-    
+
     def _check_for_celebrations(self, user_data, prefs):
         """Check for things worth celebrating. Only includes celebrations for enabled modules."""
         celebrations = []
@@ -1697,7 +1697,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 })
 
         return celebrations[:3]  # Max 3 celebrations
-    
+
     def _check_for_nudges(self, user_data, prefs):
         """Check for gentle accountability nudges. Only includes nudges for enabled modules."""
         nudges = []
@@ -2235,32 +2235,32 @@ class WeightChartDataView(LoginRequiredMixin, View):
 class JournalSummaryTileView(LoginRequiredMixin, TemplateView):
     """HTMX endpoint for journal summary tile."""
     template_name = "dashboard/tiles/journal_summary.html"
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         from apps.journal.models import JournalEntry
-        
+
         user = self.request.user
         entries = JournalEntry.objects.filter(user=user)
-        
+
         context["recent_entries"] = entries.order_by("-entry_date")[:3]
         context["total_count"] = entries.count()
-        
+
         return context
 
 
 class EncouragementTileView(LoginRequiredMixin, TemplateView):
     """HTMX endpoint for encouragement tile."""
     template_name = "dashboard/tiles/encouragement.html"
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         faith_enabled = self.request.user.preferences.faith_enabled
-        
+
         queryset = DailyEncouragement.objects.filter(is_active=True)
         if not faith_enabled:
             queryset = queryset.filter(is_faith_specific=False)
-        
+
         if queryset.exists():
             context["encouragement"] = random.choice(list(queryset))
         else:

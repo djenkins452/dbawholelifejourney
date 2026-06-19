@@ -51,20 +51,20 @@ class Project(UserOwnedModel):
     Projects are about meaning, not speed. They can represent
     home projects, trips, learning goals, family legacy work, etc.
     """
-    
+
     STATUS_CHOICES = [
         ('active', 'Active'),
         ('paused', 'Paused'),
         ('completed', 'Completed'),
         ('archived', 'Archived'),
     ]
-    
+
     PRIORITY_CHOICES = [
         ('now', 'Now'),
         ('soon', 'Soon'),
         ('someday', 'Someday'),
     ]
-    
+
     title = models.CharField(max_length=200)
     description = models.TextField(
         blank=True,
@@ -74,7 +74,7 @@ class Project(UserOwnedModel):
         blank=True,
         help_text="Why does this project matter to you?"
     )
-    
+
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
@@ -85,16 +85,16 @@ class Project(UserOwnedModel):
         choices=PRIORITY_CHOICES,
         default='someday'
     )
-    
+
     # Dates
     start_date = models.DateField(null=True, blank=True)
     target_date = models.DateField(
-        null=True, 
+        null=True,
         blank=True,
         help_text="When would you like to complete this?"
     )
     completed_date = models.DateField(null=True, blank=True)
-    
+
     # Organization
     category = models.CharField(
         max_length=50,
@@ -106,46 +106,46 @@ class Project(UserOwnedModel):
         blank=True,
         help_text="Tags for organization"
     )
-    
+
     # Optional cover image
     cover_image = models.ImageField(
         upload_to='life/projects/',
         blank=True,
         null=True
     )
-    
+
     # Reflection after completion
     reflection = models.TextField(
         blank=True,
         help_text="What did you learn? How did it go?"
     )
-    
+
     class Meta:
         ordering = ['-created_at']
         verbose_name = "Project"
         verbose_name_plural = "Projects"
-    
+
     def __str__(self):
         return self.title
-    
+
     def get_absolute_url(self):
         return reverse('life:project_detail', kwargs={'pk': self.pk})
-    
+
     @property
     def is_overdue(self):
         if self.target_date and self.status == 'active':
             user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
             return self.target_date < user_today
         return False
-    
+
     @property
     def task_count(self):
         return self.tasks.count()
-    
+
     @property
     def completed_task_count(self):
         return self.tasks.filter(completion_status='completed').count()
-    
+
     @property
     def progress_percentage(self):
         total = self.task_count
@@ -376,12 +376,12 @@ class Task(UserOwnedModel):
         blank=True,
         help_text="Original email date"
     )
-    
+
     class Meta:
         ordering = ['completion_status', 'priority', 'due_date', 'scheduled_time', '-created_at']
         verbose_name = "Task"
         verbose_name_plural = "Tasks"
-    
+
     def __str__(self):
         return self.title
 
@@ -615,7 +615,7 @@ class LifeEvent(UserOwnedModel):
     
     Time is the backbone of the Life Module.
     """
-    
+
     EVENT_TYPE_CHOICES = [
         ('personal', 'Personal'),
         ('family', 'Family'),
@@ -627,26 +627,26 @@ class LifeEvent(UserOwnedModel):
         ('travel', 'Travel'),
         ('other', 'Other'),
     ]
-    
+
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    
+
     event_type = models.CharField(
         max_length=20,
         choices=EVENT_TYPE_CHOICES,
         default='personal'
     )
-    
+
     # Timing
     start_date = models.DateField()
     start_time = models.TimeField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
     end_time = models.TimeField(null=True, blank=True)
     is_all_day = models.BooleanField(default=False)
-    
+
     # Location
     location = models.CharField(max_length=300, blank=True)
-    
+
     # Recurrence
     is_recurring = models.BooleanField(default=False)
     recurrence_pattern = models.CharField(
@@ -655,7 +655,7 @@ class LifeEvent(UserOwnedModel):
         help_text="e.g., 'daily', 'weekly', 'monthly', 'yearly'"
     )
     recurrence_end_date = models.DateField(null=True, blank=True)
-    
+
     # Linking
     project = models.ForeignKey(
         Project,
@@ -664,7 +664,7 @@ class LifeEvent(UserOwnedModel):
         null=True,
         blank=True
     )
-    
+
     # External calendar sync
     external_id = models.CharField(
         max_length=255,
@@ -676,19 +676,19 @@ class LifeEvent(UserOwnedModel):
         blank=True,
         help_text="Source calendar provider"
     )
-    
+
     # Reminders
     reminder_minutes = models.PositiveIntegerField(
         null=True,
         blank=True,
         help_text="Minutes before event to send reminder"
     )
-    
+
     class Meta:
         ordering = ['start_date', 'start_time']
         verbose_name = "Life Event"
         verbose_name_plural = "Life Events"
-    
+
     def __str__(self):
         return f"{self.title} ({self.start_date})"
 
@@ -725,7 +725,7 @@ class InventoryItem(UserOwnedModel):
     """
     Household items documented for insurance and peace of mind.
     """
-    
+
     CONDITION_CHOICES = [
         ('new', 'New'),
         ('excellent', 'Excellent'),
@@ -733,10 +733,10 @@ class InventoryItem(UserOwnedModel):
         ('fair', 'Fair'),
         ('poor', 'Poor'),
     ]
-    
+
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    
+
     # Categorization
     category = models.CharField(
         max_length=100,
@@ -747,7 +747,7 @@ class InventoryItem(UserOwnedModel):
         blank=True,
         help_text="e.g., Living Room, Garage, Master Bedroom"
     )
-    
+
     # Value & Purchase
     purchase_date = models.DateField(null=True, blank=True)
     purchase_price = models.DecimalField(
@@ -763,40 +763,40 @@ class InventoryItem(UserOwnedModel):
         blank=True,
         help_text="Current estimated value"
     )
-    
+
     condition = models.CharField(
         max_length=20,
         choices=CONDITION_CHOICES,
         default='good'
     )
-    
+
     # Details
     brand = models.CharField(max_length=100, blank=True)
     model_number = models.CharField(max_length=100, blank=True)
     serial_number = models.CharField(max_length=100, blank=True)
-    
+
     # Warranty
     warranty_expiration = models.DateField(null=True, blank=True)
     warranty_info = models.TextField(blank=True)
-    
+
     # Notes
     notes = models.TextField(blank=True)
-    
+
     class Meta:
         ordering = ['category', 'name']
         verbose_name = "Inventory Item"
         verbose_name_plural = "Inventory Items"
-    
+
     def __str__(self):
         return f"{self.name} ({self.category})"
-    
+
     def get_absolute_url(self):
         return reverse('life:inventory_detail', kwargs={'pk': self.pk})
 
 
 class InventoryPhoto(models.Model):
     """Photos for inventory items."""
-    
+
     item = models.ForeignKey(
         InventoryItem,
         on_delete=models.CASCADE,
@@ -806,10 +806,10 @@ class InventoryPhoto(models.Model):
     caption = models.CharField(max_length=200, blank=True)
     is_primary = models.BooleanField(default=False)
     uploaded_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         ordering = ['-is_primary', '-uploaded_at']
-    
+
     def __str__(self):
         return f"Photo for {self.item.name}"
 
@@ -824,7 +824,7 @@ class MaintenanceLog(UserOwnedModel):
     
     Homes have memory. This preserves it.
     """
-    
+
     LOG_TYPE_CHOICES = [
         ('repair', 'Repair'),
         ('maintenance', 'Maintenance'),
@@ -834,25 +834,25 @@ class MaintenanceLog(UserOwnedModel):
         ('inspection', 'Inspection'),
         ('other', 'Other'),
     ]
-    
+
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    
+
     log_type = models.CharField(
         max_length=20,
         choices=LOG_TYPE_CHOICES,
         default='maintenance'
     )
-    
+
     # What was worked on
     area = models.CharField(
         max_length=100,
         help_text="e.g., HVAC, Plumbing, Roof, Kitchen"
     )
-    
+
     # When
     date = models.DateField()
-    
+
     # Cost
     cost = models.DecimalField(
         max_digits=10,
@@ -860,7 +860,7 @@ class MaintenanceLog(UserOwnedModel):
         null=True,
         blank=True
     )
-    
+
     # Service provider
     provider = models.CharField(
         max_length=200,
@@ -868,7 +868,7 @@ class MaintenanceLog(UserOwnedModel):
         help_text="Who did the work?"
     )
     provider_contact = models.CharField(max_length=200, blank=True)
-    
+
     # Related items
     inventory_item = models.ForeignKey(
         InventoryItem,
@@ -877,7 +877,7 @@ class MaintenanceLog(UserOwnedModel):
         null=True,
         blank=True
     )
-    
+
     # Notes and follow-up
     notes = models.TextField(blank=True)
     follow_up_date = models.DateField(
@@ -898,10 +898,10 @@ class MaintenanceLog(UserOwnedModel):
         ordering = ['-date']
         verbose_name = "Maintenance Log"
         verbose_name_plural = "Maintenance Logs"
-    
+
     def __str__(self):
         return f"{self.title} ({self.date})"
-    
+
     def get_absolute_url(self):
         return reverse('life:maintenance_detail', kwargs={'pk': self.pk})
 
@@ -914,7 +914,7 @@ class Pet(UserOwnedModel):
     """
     Pet profiles - treating pets as family members.
     """
-    
+
     SPECIES_CHOICES = [
         ('dog', 'Dog'),
         ('cat', 'Cat'),
@@ -925,7 +925,7 @@ class Pet(UserOwnedModel):
         ('reptile', 'Reptile'),
         ('other', 'Other'),
     ]
-    
+
     name = models.CharField(max_length=100)
     species = models.CharField(
         max_length=20,
@@ -933,7 +933,7 @@ class Pet(UserOwnedModel):
         default='dog'
     )
     breed = models.CharField(max_length=100, blank=True)
-    
+
     # Details
     birth_date = models.DateField(null=True, blank=True)
     adoption_date = models.DateField(null=True, blank=True)
@@ -945,39 +945,39 @@ class Pet(UserOwnedModel):
         blank=True,
         help_text="Weight in pounds"
     )
-    
+
     # Medical
     microchip_id = models.CharField(max_length=100, blank=True)
     veterinarian = models.CharField(max_length=200, blank=True)
     vet_phone = models.CharField(max_length=20, blank=True)
-    
+
     # Status
     is_active = models.BooleanField(
         default=True,
         help_text="Uncheck if pet has passed away"
     )
     passed_date = models.DateField(null=True, blank=True)
-    
+
     # Photo
     photo = models.ImageField(
         upload_to='life/pets/',
         blank=True,
         null=True
     )
-    
+
     notes = models.TextField(blank=True)
-    
+
     class Meta:
         ordering = ['-is_active', 'name']
         verbose_name = "Pet"
         verbose_name_plural = "Pets"
-    
+
     def __str__(self):
         return self.name
-    
+
     def get_absolute_url(self):
         return reverse('life:pet_detail', kwargs={'pk': self.pk})
-    
+
     @property
     def age(self):
         if self.birth_date:
@@ -1062,7 +1062,7 @@ class PetRecord(models.Model):
     """
     Vet visits, medications, and care records for pets.
     """
-    
+
     RECORD_TYPE_CHOICES = [
         ('vet_visit', 'Vet Visit'),
         ('vaccination', 'Vaccination'),
@@ -1071,23 +1071,23 @@ class PetRecord(models.Model):
         ('weight', 'Weight Check'),
         ('other', 'Other'),
     ]
-    
+
     pet = models.ForeignKey(
         Pet,
         on_delete=models.CASCADE,
         related_name='records'
     )
-    
+
     record_type = models.CharField(
         max_length=20,
         choices=RECORD_TYPE_CHOICES,
         default='vet_visit'
     )
-    
+
     date = models.DateField()
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    
+
     # Cost
     cost = models.DecimalField(
         max_digits=8,
@@ -1095,19 +1095,19 @@ class PetRecord(models.Model):
         null=True,
         blank=True
     )
-    
+
     # Follow-up
     next_due_date = models.DateField(
         null=True,
         blank=True,
         help_text="When is this needed again?"
     )
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         ordering = ['-date']
-    
+
     def __str__(self):
         return f"{self.pet.name}: {self.title} ({self.date})"
 
@@ -1122,23 +1122,23 @@ class Recipe(UserOwnedModel):
     
     About preserving family culture, not just storing instructions.
     """
-    
+
     DIFFICULTY_CHOICES = [
         ('easy', 'Easy'),
         ('medium', 'Medium'),
         ('hard', 'Hard'),
     ]
-    
+
     title = models.CharField(max_length=200)
     description = models.TextField(
         blank=True,
         help_text="Brief description or story behind this recipe"
     )
-    
+
     # Recipe details
     ingredients = models.TextField(help_text="One ingredient per line")
     instructions = models.TextField()
-    
+
     # Metadata
     prep_time_minutes = models.PositiveIntegerField(
         null=True,
@@ -1156,7 +1156,7 @@ class Recipe(UserOwnedModel):
         choices=DIFFICULTY_CHOICES,
         blank=True
     )
-    
+
     # Organization
     category = models.CharField(
         max_length=50,
@@ -1168,7 +1168,7 @@ class Recipe(UserOwnedModel):
         blank=True,
         help_text="Tags like 'vegetarian', 'quick', 'family-favorite'"
     )
-    
+
     # Source
     source = models.CharField(
         max_length=200,
@@ -1176,34 +1176,34 @@ class Recipe(UserOwnedModel):
         help_text="Where did this recipe come from?"
     )
     source_url = models.URLField(blank=True)
-    
+
     # Image
     image = models.ImageField(
         upload_to='life/recipes/',
         blank=True,
         null=True
     )
-    
+
     # Personal notes
     notes = models.TextField(
         blank=True,
         help_text="Your variations, tips, or memories"
     )
-    
+
     # Favorites
     is_favorite = models.BooleanField(default=False)
-    
+
     class Meta:
         ordering = ['-is_favorite', 'title']
         verbose_name = "Recipe"
         verbose_name_plural = "Recipes"
-    
+
     def __str__(self):
         return self.title
-    
+
     def get_absolute_url(self):
         return reverse('life:recipe_detail', kwargs={'pk': self.pk})
-    
+
     @property
     def total_time_minutes(self):
         prep = self.prep_time_minutes or 0
@@ -1222,7 +1222,7 @@ class Document(UserOwnedModel):
     For storing and organizing important family/household documents
     like insurance policies, warranties, contracts, manuals, etc.
     """
-    
+
     CATEGORY_CHOICES = [
         ('insurance', 'Insurance'),
         ('legal', 'Legal Documents'),
@@ -1236,16 +1236,16 @@ class Document(UserOwnedModel):
         ('tax', 'Tax Documents'),
         ('other', 'Other'),
     ]
-    
+
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    
+
     category = models.CharField(
         max_length=30,
         choices=CATEGORY_CHOICES,
         default='other'
     )
-    
+
     # File upload - uses RawMediaCloudinaryStorage for PDFs and raw files
     file = models.FileField(
         upload_to='life/documents/%Y/%m/',
@@ -1262,7 +1262,7 @@ class Document(UserOwnedModel):
         blank=True,
         help_text="File size in bytes"
     )
-    
+
     # Dates
     document_date = models.DateField(
         null=True,
@@ -1274,13 +1274,13 @@ class Document(UserOwnedModel):
         blank=True,
         help_text="When does this document expire?"
     )
-    
+
     # Organization
     tags = models.JSONField(
         default=list,
         blank=True
     )
-    
+
     # Related items
     related_inventory_item = models.ForeignKey(
         'InventoryItem',
@@ -1298,7 +1298,7 @@ class Document(UserOwnedModel):
         related_name='documents',
         help_text="Link to pet (e.g., vaccination records)"
     )
-    
+
     # Phase 6B: Source tracking for auto-created documents
     SOURCE_CHOICES = [
         ('upload', 'User Upload'),
@@ -1370,7 +1370,7 @@ class Document(UserOwnedModel):
         default='',
         help_text="SHA-256 hash of file content for dedup/change detection",
     )
-    
+
     class Meta:
         ordering = ['-created_at']
         verbose_name = "Document"
@@ -1382,13 +1382,13 @@ class Document(UserOwnedModel):
                 name='unique_email_source_document',
             ),
         ]
-    
+
     def __str__(self):
         return self.title
-    
+
     def get_absolute_url(self):
         return reverse('life:document_detail', kwargs={'pk': self.pk})
-    
+
     def save(self, *args, **kwargs):
         # Auto-detect file type and size
         if self.file:
@@ -1412,7 +1412,7 @@ class Document(UserOwnedModel):
             if self.file_type not in extractable and not self.pk:
                 self.extraction_status = 'not_applicable'
         super().save(*args, **kwargs)
-    
+
     @property
     def is_expiring_soon(self):
         """Check if document expires within 30 days."""
@@ -1429,7 +1429,7 @@ class Document(UserOwnedModel):
             user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
             return self.expiration_date < user_today
         return False
-    
+
     @property
     def file_size_display(self):
         """Human-readable file size."""
@@ -1529,19 +1529,19 @@ class GoogleCalendarCredential(models.Model):
     token_uri = models.CharField(max_length=500, default='https://oauth2.googleapis.com/token')
     client_id = models.CharField(max_length=500)
     client_secret = models.CharField(max_length=500, help_text="Encrypted client secret")
-    
+
     # Token expiration
     token_expiry = models.DateTimeField(null=True, blank=True)
-    
+
     # Scopes granted
     scopes = models.TextField(
         blank=True,
         help_text="JSON list of OAuth scopes"
     )
-    
+
     # Sync settings
     selected_calendar_id = models.CharField(
-        max_length=500, 
+        max_length=500,
         default='primary',
         help_text="Google Calendar ID to sync with"
     )
@@ -1550,7 +1550,7 @@ class GoogleCalendarCredential(models.Model):
         blank=True,
         help_text="Display name of selected calendar"
     )
-    
+
     SYNC_DIRECTION_CHOICES = [
         ('import', 'Import Only (Google → App)'),
         ('export', 'Export Only (App → Google)'),
@@ -1561,7 +1561,7 @@ class GoogleCalendarCredential(models.Model):
         choices=SYNC_DIRECTION_CHOICES,
         default='import'
     )
-    
+
     days_past = models.PositiveIntegerField(
         default=0,
         help_text="Days in the past to sync"
@@ -1570,33 +1570,33 @@ class GoogleCalendarCredential(models.Model):
         default=30,
         help_text="Days in the future to sync"
     )
-    
+
     # Which event types to sync
     sync_event_types = models.TextField(
         default='["personal", "family", "work", "health", "social", "travel"]',
         help_text="JSON list of event types to sync"
     )
-    
+
     auto_sync_enabled = models.BooleanField(
         default=False,
         help_text="Automatically sync on page load"
     )
-    
+
     # Tracking
     last_sync = models.DateTimeField(null=True, blank=True)
     last_sync_status = models.CharField(max_length=50, blank=True)
     last_sync_message = models.TextField(blank=True)
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         verbose_name = "Google Calendar Credential"
         verbose_name_plural = "Google Calendar Credentials"
-    
+
     def __str__(self):
         return f"Google Calendar for {self.user}"
-    
+
     @property
     def is_token_expired(self):
         """Check if the access token has expired."""
@@ -1711,7 +1711,7 @@ class GoogleCalendarCredential(models.Model):
             self.set_scopes_list(credentials_dict['scopes'])
 
         self.save()
-    
+
     def get_scopes_list(self):
         """Get scopes as a Python list."""
         if not self.scopes:
@@ -1720,22 +1720,22 @@ class GoogleCalendarCredential(models.Model):
             return json.loads(self.scopes)
         except json.JSONDecodeError:
             return []
-    
+
     def set_scopes_list(self, scopes_list):
         """Set scopes from a Python list."""
         self.scopes = json.dumps(scopes_list)
-    
+
     def get_sync_event_types(self):
         """Get sync event types as a Python list."""
         try:
             return json.loads(self.sync_event_types)
         except json.JSONDecodeError:
             return ['personal', 'family', 'work', 'health', 'social', 'travel']
-    
+
     def set_sync_event_types(self, types_list):
         """Set sync event types from a Python list."""
         self.sync_event_types = json.dumps(types_list)
-    
+
     def record_sync(self, success=True, message=''):
         """Record the result of a sync operation."""
         self.last_sync = timezone.now()

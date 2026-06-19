@@ -48,10 +48,10 @@ class CoreTestMixin:
         """Mark user onboarding as complete."""
         user.preferences.has_completed_onboarding = True
         user.preferences.save()
-    
+
     def login_user(self, email='test@example.com', password='testpass123'):
         return self.client.login(email=email, password=password)
-    
+
     def create_tag(self, user, name='Test Tag', **kwargs):
         """Helper to create a tag."""
         return Tag.objects.create(user=user, name=name, **kwargs)
@@ -63,10 +63,10 @@ class CoreTestMixin:
 
 class SoftDeleteModelTest(CoreTestMixin, TestCase):
     """Tests for SoftDeleteModel behavior using JournalEntry."""
-    
+
     def setUp(self):
         self.user = self.create_user()
-    
+
     def test_default_status_is_active(self):
         """New records have 'active' status by default."""
         entry = JournalEntry.objects.create(
@@ -76,7 +76,7 @@ class SoftDeleteModelTest(CoreTestMixin, TestCase):
             entry_date=date.today()
         )
         self.assertEqual(entry.status, 'active')
-    
+
     def test_soft_delete_changes_status(self):
         """Soft delete changes status to 'deleted'."""
         entry = JournalEntry.objects.create(
@@ -87,10 +87,10 @@ class SoftDeleteModelTest(CoreTestMixin, TestCase):
         )
         entry.status = 'deleted'
         entry.save()
-        
+
         entry.refresh_from_db()
         self.assertEqual(entry.status, 'deleted')
-    
+
     def test_archive_changes_status(self):
         """Archive changes status to 'archived'."""
         entry = JournalEntry.objects.create(
@@ -101,10 +101,10 @@ class SoftDeleteModelTest(CoreTestMixin, TestCase):
         )
         entry.status = 'archived'
         entry.save()
-        
+
         entry.refresh_from_db()
         self.assertEqual(entry.status, 'archived')
-    
+
     def test_default_manager_excludes_deleted(self):
         """Default manager excludes deleted records."""
         JournalEntry.objects.create(
@@ -120,12 +120,12 @@ class SoftDeleteModelTest(CoreTestMixin, TestCase):
             entry_date=date.today(),
             status='deleted'
         )
-        
+
         # Default manager should only return active
         entries = JournalEntry.objects.filter(user=self.user)
         self.assertEqual(entries.count(), 1)
         self.assertEqual(entries.first().title, 'Active')
-    
+
     def test_all_objects_includes_deleted(self):
         """all_objects manager includes deleted records."""
         JournalEntry.objects.create(
@@ -141,11 +141,11 @@ class SoftDeleteModelTest(CoreTestMixin, TestCase):
             entry_date=date.today(),
             status='deleted'
         )
-        
+
         # all_objects should return both
         entries = JournalEntry.all_objects.filter(user=self.user)
         self.assertEqual(entries.count(), 2)
-    
+
     def test_status_choices(self):
         """Status field accepts valid choices."""
         for status in ['active', 'archived', 'deleted']:
@@ -165,10 +165,10 @@ class SoftDeleteModelTest(CoreTestMixin, TestCase):
 
 class TimeStampedModelTest(CoreTestMixin, TestCase):
     """Tests for TimeStampedModel behavior."""
-    
+
     def setUp(self):
         self.user = self.create_user()
-    
+
     def test_created_at_set_on_create(self):
         """created_at is automatically set on creation."""
         entry = JournalEntry.objects.create(
@@ -178,7 +178,7 @@ class TimeStampedModelTest(CoreTestMixin, TestCase):
             entry_date=date.today()
         )
         self.assertIsNotNone(entry.created_at)
-    
+
     def test_updated_at_set_on_create(self):
         """updated_at is automatically set on creation."""
         entry = JournalEntry.objects.create(
@@ -188,7 +188,7 @@ class TimeStampedModelTest(CoreTestMixin, TestCase):
             entry_date=date.today()
         )
         self.assertIsNotNone(entry.updated_at)
-    
+
     def test_updated_at_changes_on_save(self):
         """updated_at changes when record is modified."""
         entry = JournalEntry.objects.create(
@@ -198,13 +198,13 @@ class TimeStampedModelTest(CoreTestMixin, TestCase):
             entry_date=date.today()
         )
         original_updated = entry.updated_at
-        
+
         # Modify and save
         entry.title = 'Modified'
         entry.save()
-        
+
         self.assertGreater(entry.updated_at, original_updated)
-    
+
     def test_created_at_does_not_change(self):
         """created_at does not change on subsequent saves."""
         entry = JournalEntry.objects.create(
@@ -214,11 +214,11 @@ class TimeStampedModelTest(CoreTestMixin, TestCase):
             entry_date=date.today()
         )
         original_created = entry.created_at
-        
+
         # Modify and save
         entry.title = 'Modified'
         entry.save()
-        
+
         self.assertEqual(entry.created_at, original_created)
 
 
@@ -228,11 +228,11 @@ class TimeStampedModelTest(CoreTestMixin, TestCase):
 
 class UserOwnedModelTest(CoreTestMixin, TestCase):
     """Tests for UserOwnedModel behavior."""
-    
+
     def setUp(self):
         self.user_a = self.create_user(email='usera@example.com')
         self.user_b = self.create_user(email='userb@example.com')
-    
+
     def test_user_field_required(self):
         """User field is required for user-owned models."""
         with self.assertRaises(Exception):
@@ -241,7 +241,7 @@ class UserOwnedModelTest(CoreTestMixin, TestCase):
                 body='Content',
                 entry_date=date.today()
             )
-    
+
     def test_records_belong_to_user(self):
         """Records are correctly associated with user."""
         entry = JournalEntry.objects.create(
@@ -251,7 +251,7 @@ class UserOwnedModelTest(CoreTestMixin, TestCase):
             entry_date=date.today()
         )
         self.assertEqual(entry.user, self.user_a)
-    
+
     def test_filter_by_user(self):
         """Can filter records by user."""
         JournalEntry.objects.create(
@@ -266,11 +266,11 @@ class UserOwnedModelTest(CoreTestMixin, TestCase):
             body='Content',
             entry_date=date.today()
         )
-        
+
         a_entries = JournalEntry.objects.filter(user=self.user_a)
         self.assertEqual(a_entries.count(), 1)
         self.assertEqual(a_entries.first().title, 'User A')
-    
+
     def test_cascade_delete_with_user(self):
         """Records are deleted when user is deleted."""
         entry = JournalEntry.objects.create(
@@ -300,48 +300,48 @@ class UserOwnedModelTest(CoreTestMixin, TestCase):
 
 class TagModelTest(CoreTestMixin, TestCase):
     """Tests for the Tag model."""
-    
+
     def setUp(self):
         self.user = self.create_user()
-    
+
     def test_create_tag(self):
         """Tag can be created."""
         tag = self.create_tag(self.user)
         self.assertEqual(tag.name, 'Test Tag')
-    
+
     def test_tag_str(self):
         """Tag string is the name."""
         tag = self.create_tag(self.user, name='Personal')
         self.assertEqual(str(tag), 'Personal')
-    
+
     def test_tag_with_color(self):
         """Tag can have a color."""
         tag = self.create_tag(self.user, color='#FF5733')
         self.assertEqual(tag.color, '#FF5733')
-    
+
     def test_tag_belongs_to_user(self):
         """Tags belong to specific users."""
         tag = self.create_tag(self.user)
         self.assertEqual(tag.user, self.user)
-    
+
     def test_users_have_separate_tags(self):
         """Different users have separate tag namespaces."""
         user_b = self.create_user(email='userb@example.com')
-        
+
         tag_a = self.create_tag(self.user, name='Work')
         tag_b = self.create_tag(user_b, name='Work')
-        
+
         self.assertNotEqual(tag_a.pk, tag_b.pk)
-        
+
         user_tags = Tag.objects.filter(user=self.user)
         self.assertEqual(user_tags.count(), 1)
-    
+
     def test_tag_ordering(self):
         """Tags are ordered alphabetically or by creation."""
         self.create_tag(self.user, name='Charlie')
         self.create_tag(self.user, name='Alpha')
         self.create_tag(self.user, name='Beta')
-        
+
         tags = Tag.objects.filter(user=self.user)
         # Just verify we get all 3
         self.assertEqual(tags.count(), 3)
@@ -353,41 +353,41 @@ class TagModelTest(CoreTestMixin, TestCase):
 
 class SiteConfigurationTest(TestCase):
     """Tests for SiteConfiguration singleton model."""
-    
+
     def test_get_or_create_config(self):
         """Can get or create site configuration."""
         config, created = SiteConfiguration.objects.get_or_create(pk=1)
         self.assertIsNotNone(config)
-    
+
     def test_default_values(self):
         """Configuration has sensible defaults."""
         config, _ = SiteConfiguration.objects.get_or_create(pk=1)
-        
+
         self.assertEqual(config.site_name, 'Whole Life Journey')
         self.assertTrue(config.allow_registration)
-    
+
     def test_config_str(self):
         """Configuration string representation."""
         config, _ = SiteConfiguration.objects.get_or_create(pk=1)
         self.assertIn('Configuration', str(config))
-    
+
     def test_update_config(self):
         """Configuration can be updated."""
         config, _ = SiteConfiguration.objects.get_or_create(pk=1)
         config.site_name = 'My Custom App'
         config.save()
-        
+
         config.refresh_from_db()
         self.assertEqual(config.site_name, 'My Custom App')
-    
+
     def test_feature_toggles(self):
         """Feature toggles can be changed."""
         config, _ = SiteConfiguration.objects.get_or_create(pk=1)
-        
+
         config.allow_registration = False
         config.require_email_verification = True
         config.save()
-        
+
         config.refresh_from_db()
         self.assertFalse(config.allow_registration)
         self.assertTrue(config.require_email_verification)
@@ -399,27 +399,27 @@ class SiteConfigurationTest(TestCase):
 
 class SoftDeleteManagerTest(CoreTestMixin, TestCase):
     """Tests for custom managers on SoftDeleteModel."""
-    
+
     def setUp(self):
         self.user = self.create_user()
-    
+
     def test_objects_manager_filters_active(self):
         """Default objects manager returns only active records."""
         JournalEntry.objects.create(
             user=self.user, title='Active', body='x', entry_date=date.today()
         )
         JournalEntry.objects.create(
-            user=self.user, title='Archived', body='x', 
+            user=self.user, title='Archived', body='x',
             entry_date=date.today(), status='archived'
         )
         JournalEntry.objects.create(
-            user=self.user, title='Deleted', body='x', 
+            user=self.user, title='Deleted', body='x',
             entry_date=date.today(), status='deleted'
         )
-        
+
         results = JournalEntry.objects.filter(user=self.user)
         self.assertEqual(results.count(), 1)
-    
+
     def test_all_objects_returns_everything(self):
         """all_objects manager returns all records."""
         for status in ['active', 'archived', 'deleted']:
@@ -427,10 +427,10 @@ class SoftDeleteManagerTest(CoreTestMixin, TestCase):
                 user=self.user, title=status, body='x',
                 entry_date=date.today(), status=status
             )
-        
+
         results = JournalEntry.all_objects.filter(user=self.user)
         self.assertEqual(results.count(), 3)
-    
+
     def test_filter_archived_only(self):
         """Can filter to get only archived records."""
         JournalEntry.objects.create(
@@ -440,13 +440,13 @@ class SoftDeleteManagerTest(CoreTestMixin, TestCase):
             user=self.user, title='Archived', body='x',
             entry_date=date.today(), status='archived'
         )
-        
+
         results = JournalEntry.all_objects.filter(
             user=self.user, status='archived'
         )
         self.assertEqual(results.count(), 1)
         self.assertEqual(results.first().title, 'Archived')
-    
+
     def test_filter_deleted_only(self):
         """Can filter to get only deleted records."""
         JournalEntry.objects.create(
@@ -456,7 +456,7 @@ class SoftDeleteManagerTest(CoreTestMixin, TestCase):
             user=self.user, title='Deleted', body='x',
             entry_date=date.today(), status='deleted'
         )
-        
+
         results = JournalEntry.all_objects.filter(
             user=self.user, status='deleted'
         )
@@ -470,10 +470,10 @@ class SoftDeleteManagerTest(CoreTestMixin, TestCase):
 
 class CoreEdgeCaseTest(CoreTestMixin, TestCase):
     """Edge case tests for core functionality."""
-    
+
     def setUp(self):
         self.user = self.create_user()
-    
+
     def test_empty_tag_name(self):
         """Tag with empty name handling."""
         # Should either fail or work depending on model constraints
@@ -484,18 +484,18 @@ class CoreEdgeCaseTest(CoreTestMixin, TestCase):
         except Exception:
             # If it fails, that's also acceptable
             pass
-    
+
     def test_very_long_tag_name(self):
         """Tag handles long names."""
         long_name = 'A' * 100
         tag = self.create_tag(self.user, name=long_name)
         self.assertTrue(len(tag.name) > 0)
-    
+
     def test_special_characters_in_tag(self):
         """Tag handles special characters."""
         tag = self.create_tag(self.user, name='Work & Life <Balance>')
         self.assertIn('&', tag.name)
-    
+
     def test_unicode_in_tag(self):
         """Tag handles unicode characters."""
         tag = self.create_tag(self.user, name='日本語タグ')

@@ -221,7 +221,7 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             user=user,
             ended_at__isnull=True,
         ).first()
-        
+
         # Recent fasting stats
         recent_fasts = FastingWindow.objects.filter(
             user=user,
@@ -232,7 +232,7 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             context["fasts_this_month"] = recent_fasts.count()
             avg_duration = sum(f.duration_hours for f in recent_fasts) / recent_fasts.count()
             context["avg_fast_duration"] = round(avg_duration, 1)
-        
+
         if not _sae_loaded:
             # Heart rate summary (fallback only)
             hr_entries = HeartRateEntry.objects.filter(user=user)
@@ -963,16 +963,16 @@ class StartFastView(LoginRequiredMixin, CreateView):
             user=self.request.user,
             ended_at__isnull=True,
         ).exists()
-        
+
         if active:
             messages.warning(
                 self.request,
                 "You already have an active fast. End it first."
             )
             return redirect("health:fasting_list")
-        
+
         form.instance.user = self.request.user
-        
+
         # Set target hours based on fasting type
         fasting_type = form.cleaned_data.get("fasting_type")
         targets = {
@@ -984,7 +984,7 @@ class StartFastView(LoginRequiredMixin, CreateView):
             "36h": 36,
         }
         form.instance.target_hours = targets.get(fasting_type)
-        
+
         messages.success(self.request, "Fast started. Stay strong!")
         response = super().form_valid(form)
         from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
@@ -1070,10 +1070,10 @@ class HeartRateListView(HelpContextMixin, LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         entries = self.get_queryset()
-        
+
         if entries.exists():
             context["latest"] = entries.first()
-            
+
             # Resting HR stats
             resting = entries.filter(context__in=["resting", "morning"])
             if resting.exists():
@@ -1085,7 +1085,7 @@ class HeartRateListView(HelpContextMixin, LoginRequiredMixin, ListView):
                 context["resting_avg"] = round(stats["avg"])
                 context["resting_min"] = stats["min"]
                 context["resting_max"] = stats["max"]
-        
+
         return context
 
 

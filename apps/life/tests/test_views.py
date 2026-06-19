@@ -48,37 +48,37 @@ class CalendarViewTest(TestCase):
             user.preferences.save()
         except Exception:
             pass
-    
+
     def test_calendar_requires_login(self):
         """Calendar page requires authentication."""
         response = self.client.get(reverse('life:calendar'))
         self.assertEqual(response.status_code, 302)
-    
+
     def test_calendar_loads_for_authenticated_user(self):
         """Authenticated user can access calendar."""
         self.client.login(email='test@example.com', password='testpass123')
         response = self.client.get(reverse('life:calendar'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Calendar')
-    
+
     def test_calendar_shows_current_month_events(self):
         """Calendar shows events for the current month."""
         self.client.login(email='test@example.com', password='testpass123')
-        
+
         # Create an event for today
         LifeEvent.objects.create(
             user=self.user,
             title='Test Event Today',
             start_date=date.today()
         )
-        
+
         response = self.client.get(reverse('life:calendar'))
         self.assertContains(response, 'Test Event Today')
-    
+
     def test_calendar_month_navigation(self):
         """Calendar can navigate to different months."""
         self.client.login(email='test@example.com', password='testpass123')
-        
+
         # Go to a specific month
         response = self.client.get(reverse('life:calendar') + '?year=2025&month=6')
         self.assertEqual(response.status_code, 200)
@@ -116,12 +116,12 @@ class EventViewTest(TestCase):
             user.preferences.save()
         except Exception:
             pass
-    
+
     def test_event_create_page_loads(self):
         """Event creation page loads."""
         response = self.client.get(reverse('life:event_create'))
         self.assertEqual(response.status_code, 200)
-    
+
     def test_event_can_be_created(self):
         """User can create an event."""
         response = self.client.post(reverse('life:event_create'), {
@@ -130,15 +130,15 @@ class EventViewTest(TestCase):
             'event_type': 'personal',
             'is_all_day': 'on',
         })
-        
+
         # Should redirect after creation
         self.assertEqual(response.status_code, 302)
-        
+
         # Event should exist
         self.assertTrue(
             LifeEvent.objects.filter(user=self.user, title='New Event').exists()
         )
-    
+
     def test_event_update_page_loads(self):
         """Event edit page loads."""
         event = LifeEvent.objects.create(
@@ -148,7 +148,7 @@ class EventViewTest(TestCase):
         )
         response = self.client.get(reverse('life:event_update', kwargs={'pk': event.pk}))
         self.assertEqual(response.status_code, 200)
-    
+
     def test_event_can_be_updated(self):
         """User can update their event."""
         event = LifeEvent.objects.create(
@@ -156,7 +156,7 @@ class EventViewTest(TestCase):
             title='Original Title',
             start_date=date.today()
         )
-        
+
         self.client.post(
             reverse('life:event_update', kwargs={'pk': event.pk}),
             {
@@ -166,10 +166,10 @@ class EventViewTest(TestCase):
                 'is_all_day': 'on',
             }
         )
-        
+
         event.refresh_from_db()
         self.assertEqual(event.title, 'Updated Title')
-    
+
     def test_event_can_be_deleted(self):
         """User can delete their event."""
         event = LifeEvent.objects.create(
@@ -177,11 +177,11 @@ class EventViewTest(TestCase):
             title='Delete Me',
             start_date=date.today()
         )
-        
+
         self.client.post(
             reverse('life:event_delete', kwargs={'pk': event.pk})
         )
-        
+
         self.assertFalse(LifeEvent.objects.filter(pk=event.pk).exists())
 
 
@@ -217,19 +217,19 @@ class TaskViewTest(TestCase):
             user.preferences.save()
         except Exception:
             pass
-    
+
     def test_task_list_loads(self):
         """Task list page loads."""
         response = self.client.get(reverse('life:task_list'))
         self.assertEqual(response.status_code, 200)
-    
+
     def test_task_list_shows_user_tasks(self):
         """Task list shows the user's tasks."""
         Task.objects.create(user=self.user, title='My Task')
-        
+
         response = self.client.get(reverse('life:task_list'))
         self.assertContains(response, 'My Task')
-    
+
     def test_task_can_be_created(self):
         """User can create a task."""
         self.client.post(reverse('life:task_create'), {
@@ -547,12 +547,12 @@ class ProjectViewTest(TestCase):
             user.preferences.save()
         except Exception:
             pass
-    
+
     def test_project_list_loads(self):
         """Project list page loads."""
         response = self.client.get(reverse('life:project_list'))
         self.assertEqual(response.status_code, 200)
-    
+
     def test_project_detail_loads(self):
         """Project detail page loads."""
         project = Project.objects.create(
@@ -628,43 +628,43 @@ class DataIsolationTest(TestCase):
             user.preferences.save()
         except Exception:
             pass
-    
+
     def test_user_a_sees_only_their_events(self):
         """User A only sees their own events on calendar."""
         self.client.login(email='usera@example.com', password='testpass123')
         response = self.client.get(reverse('life:calendar'))
-        
+
         self.assertContains(response, 'User A Event')
         self.assertNotContains(response, 'User B Event')
-    
+
     def test_user_b_sees_only_their_events(self):
         """User B only sees their own events on calendar."""
         self.client.login(email='userb@example.com', password='testpass123')
         response = self.client.get(reverse('life:calendar'))
-        
+
         self.assertContains(response, 'User B Event')
         self.assertNotContains(response, 'User A Event')
-    
+
     def test_user_a_sees_only_their_tasks(self):
         """User A only sees their own tasks."""
         self.client.login(email='usera@example.com', password='testpass123')
         response = self.client.get(reverse('life:task_list'))
-        
+
         self.assertContains(response, 'User A Task')
         self.assertNotContains(response, 'User B Task')
-    
+
     def test_user_cannot_edit_other_users_event(self):
         """User A cannot edit User B's event."""
         self.client.login(email='usera@example.com', password='testpass123')
-        
+
         # Try to access User B's event edit page
         response = self.client.get(
             reverse('life:event_update', kwargs={'pk': self.event_b.pk})
         )
-        
+
         # Should get 404 (not found) because queryset filters by user
         self.assertEqual(response.status_code, 404)
-    
+
     def test_user_cannot_delete_other_users_event(self):
         """User A cannot delete User B's event."""
         self.client.login(email='usera@example.com', password='testpass123')

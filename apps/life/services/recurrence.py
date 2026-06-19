@@ -271,14 +271,14 @@ class RecurrencePattern:
                     return from_date + timedelta(weeks=self.interval)
             else:
                 return from_date + timedelta(weeks=self.interval)
-        
+
         elif self.pattern_type == 'monthly':
             if self.day_of_month == 'last':
                 # Last day of next month
                 next_month = from_date + relativedelta(months=self.interval)
                 next_month = next_month.replace(day=1) + relativedelta(months=1) - timedelta(days=1)
                 return next_month
-            
+
             elif self.day_of_month:
                 # Specific day of month
                 next_month = from_date + relativedelta(months=self.interval)
@@ -289,13 +289,13 @@ class RecurrencePattern:
                     # Use last day of month instead
                     next_month = next_month.replace(day=1) + relativedelta(months=1) - timedelta(days=1)
                     return next_month
-            
+
             elif self.week_of_month and self.weekdays:
                 # e.g., First Monday of month
                 next_month = from_date + relativedelta(months=self.interval)
                 first_of_month = next_month.replace(day=1)
                 target_weekday = self.weekdays[0]
-                
+
                 if self.week_of_month == -1:  # Last occurrence
                     # Start from end of month
                     last_of_month = first_of_month + relativedelta(months=1) - timedelta(days=1)
@@ -311,16 +311,16 @@ class RecurrencePattern:
                     # Add weeks for nth occurrence
                     current += timedelta(weeks=self.week_of_month - 1)
                     return current
-            
+
             else:
                 # Same day next month
                 return from_date + relativedelta(months=self.interval)
-        
+
         elif self.pattern_type == 'yearly':
             return from_date + relativedelta(years=self.interval)
-        
+
         return None
-    
+
     def get_occurrences(self, start_date, end_date, max_count=100):
         """
         Generate all occurrences between start_date and end_date.
@@ -335,14 +335,14 @@ class RecurrencePattern:
         """
         occurrences = []
         current = start_date
-        
+
         while current <= end_date and len(occurrences) < max_count:
             occurrences.append(current)
             next_date = self.get_next_occurrence(current)
             if not next_date or next_date <= current:
                 break
             current = next_date
-        
+
         return occurrences
 
 
@@ -567,7 +567,7 @@ class RecurrenceService:
             new_task.save()
 
         return new_task
-    
+
     @staticmethod
     def generate_recurring_events(event, start_date, end_date):
         """
@@ -586,23 +586,23 @@ class RecurrenceService:
         """
         if not event.is_recurring or not event.recurrence_pattern:
             return []
-        
+
         pattern = RecurrencePattern(event.recurrence_pattern)
-        
+
         # Respect recurrence end date if set
         if event.recurrence_end_date and event.recurrence_end_date < end_date:
             end_date = event.recurrence_end_date
-        
+
         occurrences = pattern.get_occurrences(event.start_date, end_date)
-        
+
         # Filter to requested range
         occurrences = [d for d in occurrences if d >= start_date]
-        
+
         events = []
         for occurrence_date in occurrences:
             # Calculate offset from original date
             date_offset = occurrence_date - event.start_date
-            
+
             event_data = {
                 'id': event.id,
                 'title': event.title,
@@ -620,9 +620,9 @@ class RecurrenceService:
                 'get_event_type_display': event.get_event_type_display,
             }
             events.append(event_data)
-        
+
         return events
-    
+
     @staticmethod
     def get_events_for_range(user, start_date, end_date):
         """
@@ -638,7 +638,7 @@ class RecurrenceService:
         """
         from django.db.models import Q
         from apps.life.models import LifeEvent
-        
+
         # Get non-recurring events in range
         regular_events = list(LifeEvent.objects.filter(
             user=user,
@@ -646,7 +646,7 @@ class RecurrenceService:
             start_date__gte=start_date,
             start_date__lte=end_date
         ))
-        
+
         # Get recurring events that could have instances in range
         # (started before or during the range)
         recurring_events = LifeEvent.objects.filter(
@@ -654,25 +654,25 @@ class RecurrenceService:
             is_recurring=True,
             start_date__lte=end_date
         ).filter(
-            Q(recurrence_end_date__isnull=True) | 
+            Q(recurrence_end_date__isnull=True) |
             Q(recurrence_end_date__gte=start_date)
         )
-        
+
         # Generate virtual instances for recurring events
         all_events = regular_events.copy()
-        
+
         for event in recurring_events:
             virtual_instances = RecurrenceService.generate_recurring_events(
                 event, start_date, end_date
             )
             all_events.extend(virtual_instances)
-        
+
         # Sort by date and time
         all_events.sort(key=lambda e: (
             e.start_date if hasattr(e, 'start_date') else e['start_date'],
             e.start_time if hasattr(e, 'start_time') else e.get('start_time') or ''
         ))
-        
+
         return all_events
 
 
@@ -690,9 +690,9 @@ def process_overdue_recurring_tasks():
         Number of new tasks created
     """
     from apps.life.models import Task
-    
+
     today = timezone.now().date()
-    
+
     # Find completed or skipped recurring tasks that need a new instance
     completed_recurring = Task.objects.filter(
         is_recurring=True,
@@ -713,10 +713,10 @@ def process_overdue_recurring_tasks():
             completion_status='pending',
             due_date__gte=today
         ).exists()
-        
+
         if not future_exists:
             new_task = RecurrenceService.process_completed_recurring_task(task)
             if new_task:
                 created_count += 1
-    
+
     return created_count

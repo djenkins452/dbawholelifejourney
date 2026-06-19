@@ -23,7 +23,7 @@ class BaseTestCase(TestCase):
     - Login helpers
     - Common assertions
     """
-    
+
     @classmethod
     def setUpTestData(cls):
         """
@@ -32,7 +32,7 @@ class BaseTestCase(TestCase):
         Use for data that won't be modified by tests.
         """
         pass
-    
+
     def setUp(self):
         """
         Set up for each test method.
@@ -40,7 +40,7 @@ class BaseTestCase(TestCase):
         """
         self.client = Client()
         self.user = self.create_user()
-    
+
     def create_user(self, email='testuser@example.com', password='testpass123', **kwargs):
         """
         Create a test user with optional customization.
@@ -60,11 +60,11 @@ class BaseTestCase(TestCase):
         password = defaults.pop('password')
         user = User.objects.create_user(password=password, **defaults)
         return user
-    
+
     def create_other_user(self, email='otheruser@example.com', **kwargs):
         """Create a second user for isolation tests."""
         return self.create_user(email=email, **kwargs)
-    
+
     def login(self, user=None, password='testpass123'):
         """
         Log in a user.
@@ -78,11 +78,11 @@ class BaseTestCase(TestCase):
         result = self.client.login(email=user.email, password=password)
         self.assertTrue(result, f"Failed to log in user {user.email}")
         return result
-    
+
     def logout(self):
         """Log out the current user."""
         self.client.logout()
-    
+
     def get(self, url_name, *args, **kwargs):
         """
         Make a GET request using URL name.
@@ -93,7 +93,7 @@ class BaseTestCase(TestCase):
         """
         url = reverse(url_name, args=args, kwargs=kwargs) if isinstance(url_name, str) and ':' in url_name else url_name
         return self.client.get(url)
-    
+
     def post(self, url_name, data=None, *args, **kwargs):
         """
         Make a POST request using URL name.
@@ -103,7 +103,7 @@ class BaseTestCase(TestCase):
         """
         url = reverse(url_name, args=args, kwargs=kwargs) if isinstance(url_name, str) and ':' in url_name else url_name
         return self.client.post(url, data or {})
-    
+
     def assertLoginRequired(self, url_name, *args, **kwargs):
         """
         Assert that a URL requires login.
@@ -118,7 +118,7 @@ class BaseTestCase(TestCase):
         # Should redirect to login page
         self.assertEqual(response.status_code, 302)
         self.assertIn('/login/', response.url)
-    
+
     def assertPageLoads(self, url_name, *args, **kwargs):
         """
         Assert that a page loads successfully (200 OK).
@@ -130,12 +130,12 @@ class BaseTestCase(TestCase):
         url = reverse(url_name, args=args, kwargs=kwargs)
         response = self.client.get(url)
         self.assertEqual(
-            response.status_code, 
-            200, 
+            response.status_code,
+            200,
             f"Expected 200 for {url}, got {response.status_code}"
         )
         return response
-    
+
     def assertPageContains(self, url_name, text, *args, **kwargs):
         """
         Assert that a page contains specific text.
@@ -155,7 +155,7 @@ class AuthenticatedTestCase(BaseTestCase):
     
     Use this for tests where every test method needs an authenticated user.
     """
-    
+
     def setUp(self):
         super().setUp()
         self.login()
@@ -167,16 +167,16 @@ class TwoUserTestCase(BaseTestCase):
     
     Use this to ensure User A cannot see User B's data.
     """
-    
+
     def setUp(self):
         super().setUp()
         self.user_a = self.user  # From BaseTestCase
         self.user_b = self.create_other_user()
-    
+
     def login_as_a(self):
         """Log in as User A."""
         self.login(self.user_a)
-    
+
     def login_as_b(self):
         """Log in as User B."""
         self.login(self.user_b)

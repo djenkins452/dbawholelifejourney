@@ -81,7 +81,7 @@ class ScriptureVerse(models.Model):
         choices=TRANSLATION_CHOICES,
         default="ESV",
     )
-    
+
     # Book details for ordering
     book_name = models.CharField(max_length=50)
     book_order = models.PositiveIntegerField(
@@ -90,7 +90,7 @@ class ScriptureVerse(models.Model):
     chapter = models.PositiveIntegerField()
     verse_start = models.PositiveIntegerField()
     verse_end = models.PositiveIntegerField(null=True, blank=True)
-    
+
     # Categorization for intelligent selection
     themes = models.JSONField(
         default=list,
@@ -100,7 +100,7 @@ class ScriptureVerse(models.Model):
         default=list,
         help_text="Contexts like 'anxiety', 'grief', 'gratitude', 'morning', 'evening'",
     )
-    
+
     # Usage tracking
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -163,7 +163,7 @@ class PrayerRequest(UserOwnedModel):
 
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    
+
     # Prayer categories
     is_personal = models.BooleanField(
         default=True,
@@ -174,13 +174,13 @@ class PrayerRequest(UserOwnedModel):
         blank=True,
         help_text="Who or what you're praying for",
     )
-    
+
     priority = models.CharField(
         max_length=10,
         choices=PRIORITY_CHOICES,
         default="normal",
     )
-    
+
     # Answered prayer tracking
     is_answered = models.BooleanField(default=False)
     answered_at = models.DateTimeField(null=True, blank=True)
@@ -188,7 +188,7 @@ class PrayerRequest(UserOwnedModel):
         blank=True,
         help_text="How God answered this prayer",
     )
-    
+
     # Reminders
     remind_daily = models.BooleanField(
         default=False,

@@ -175,27 +175,27 @@ class ProfileView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
     template_name = "users/profile.html"
     help_context_id = "SETTINGS_PROFILE"
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
-        
+
         # Get stats for the profile page
         from apps.journal.models import JournalEntry
         context["journal_count"] = JournalEntry.objects.filter(user=user).count()
-        
+
         # Faith stats (if enabled)
         if user.preferences.faith_enabled:
             from apps.faith.models import PrayerRequest
             context["prayer_count"] = PrayerRequest.objects.filter(user=user).count()
-        
+
         # Health stats
         from apps.health.models import WeightEntry, HeartRateEntry, GlucoseEntry
         weight_count = WeightEntry.objects.filter(user=user).count()
         hr_count = HeartRateEntry.objects.filter(user=user).count()
         glucose_count = GlucoseEntry.objects.filter(user=user).count()
         context["weight_count"] = weight_count + hr_count + glucose_count
-        
+
         return context
 
 
@@ -495,12 +495,12 @@ class AcceptTermsView(LoginRequiredMixin, TemplateView):
                 user_agent=request.META.get("HTTP_USER_AGENT", ""),
             )
             messages.success(request, "Thank you for accepting the Terms of Service.")
-            
+
             # Redirect to onboarding if first time, otherwise dashboard
             if not request.user.preferences.has_completed_onboarding:
                 return redirect("users:onboarding")
             return redirect("dashboard:home")
-        
+
         messages.error(request, "You must accept the Terms of Service to continue.")
         return self.get(request, *args, **kwargs)
 

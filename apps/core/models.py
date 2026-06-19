@@ -284,7 +284,7 @@ class SiteConfiguration(models.Model):
     
     Only one instance should exist. Use SiteConfiguration.get_solo() to access.
     """
-    
+
     # Branding
     site_name = models.CharField(
         max_length=100,
@@ -309,14 +309,14 @@ class SiteConfiguration(models.Model):
         null=True,
         help_text="Favicon (recommended: 32x32 PNG)"
     )
-    
+
     # Default Settings
     default_theme = models.CharField(
         max_length=50,
         default="minimal",
         help_text="Default theme for new users"
     )
-    
+
     # Feature Toggles
     allow_registration = models.BooleanField(
         default=True,
@@ -326,13 +326,13 @@ class SiteConfiguration(models.Model):
         default=False,
         help_text="Require email verification for new accounts"
     )
-    
+
     # Module Defaults
     faith_enabled_by_default = models.BooleanField(
         default=True,
         help_text="Enable Faith module by default for new users"
     )
-    
+
     # Footer & Legal
     footer_text = models.CharField(
         max_length=200,
@@ -347,17 +347,17 @@ class SiteConfiguration(models.Model):
         blank=True,
         help_text="Link to terms of service"
     )
-    
+
     # Metadata
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         verbose_name = "Site Configuration"
         verbose_name_plural = "Site Configuration"
-    
+
     def __str__(self):
         return "Site Configuration"
-    
+
     def save(self, *args, **kwargs):
         # Ensure only one instance exists
         self.pk = 1
@@ -387,7 +387,7 @@ class SiteConfiguration(models.Model):
                 )
                 return cls()
         return config
-    
+
     @classmethod
     def get_logo_url(cls):
         """Get the logo URL, falling back to static file if not set."""
@@ -403,7 +403,7 @@ class Theme(models.Model):
     
     Allows admins to create and modify themes without code changes.
     """
-    
+
     # Identity
     slug = models.SlugField(
         max_length=50,
@@ -419,7 +419,7 @@ class Theme(models.Model):
         blank=True,
         help_text="Short description of the theme's feel"
     )
-    
+
     # Colors - Light Mode
     color_primary = models.CharField(
         max_length=7,
@@ -461,7 +461,7 @@ class Theme(models.Model):
         default="#e5e7eb",
         help_text="Border color"
     )
-    
+
     # Colors - Dark Mode
     dark_color_primary = models.CharField(
         max_length=7,
@@ -503,7 +503,7 @@ class Theme(models.Model):
         default="#374151",
         help_text="Border color in dark mode"
     )
-    
+
     # Status
     is_active = models.BooleanField(
         default=True,
@@ -513,25 +513,25 @@ class Theme(models.Model):
         default=False,
         help_text="Use as default theme for new users"
     )
-    
+
     # Ordering
     sort_order = models.PositiveIntegerField(
         default=0,
         help_text="Order in theme selector (lower = first)"
     )
-    
+
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         ordering = ['sort_order', 'name']
         verbose_name = "Theme"
         verbose_name_plural = "Themes"
-    
+
     def __str__(self):
         return self.name
-    
+
     def save(self, *args, **kwargs):
         # If this is set as default, unset others
         if self.is_default:
@@ -540,7 +540,7 @@ class Theme(models.Model):
         # Clear theme cache
         cache.delete('active_themes')
         cache.delete(f'theme_{self.slug}')
-    
+
     @classmethod
     def get_active_themes(cls):
         """Get all active themes, cached."""
@@ -549,12 +549,12 @@ class Theme(models.Model):
             themes = list(cls.objects.filter(is_active=True))
             cache.set('active_themes', themes, 60 * 60)
         return themes
-    
+
     @classmethod
     def get_default_theme(cls):
         """Get the default theme."""
         return cls.objects.filter(is_default=True).first()
-    
+
     @classmethod
     def get_by_slug(cls, slug):
         """Get a theme by slug, cached."""
@@ -565,7 +565,7 @@ class Theme(models.Model):
             if theme:
                 cache.set(cache_key, theme, 60 * 60)
         return theme
-    
+
     def get_css_variables(self, dark_mode=False):
         """Generate CSS custom properties for this theme."""
         if dark_mode:
@@ -606,7 +606,7 @@ class ChoiceCategory(models.Model):
     
     Examples: mood, milestone_type, prayer_priority, health_metric
     """
-    
+
     slug = models.SlugField(
         max_length=50,
         unique=True,
@@ -620,34 +620,34 @@ class ChoiceCategory(models.Model):
         blank=True,
         help_text="Description of what this category is for"
     )
-    
+
     # Which app/model uses this
     app_label = models.CharField(
         max_length=50,
         blank=True,
         help_text="App that uses this (e.g., 'journal', 'faith', 'health')"
     )
-    
+
     # Is this a system category that shouldn't be deleted?
     is_system = models.BooleanField(
         default=False,
         help_text="System categories cannot be deleted"
     )
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         ordering = ['name']
         verbose_name = "Choice Category"
         verbose_name_plural = "Choice Categories"
-    
+
     def __str__(self):
         return self.name
-    
+
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         cache.delete(f'choices_{self.slug}')
-    
+
     @classmethod
     def get_choices_for(cls, slug):
         """Get all active choices for a category slug."""
@@ -671,13 +671,13 @@ class ChoiceOption(models.Model):
     """
     Individual choice options within a category.
     """
-    
+
     category = models.ForeignKey(
         ChoiceCategory,
         on_delete=models.CASCADE,
         related_name='options'
     )
-    
+
     value = models.CharField(
         max_length=50,
         help_text="Value stored in database (e.g., 'happy', 'urgent')"
@@ -686,7 +686,7 @@ class ChoiceOption(models.Model):
         max_length=100,
         help_text="Display label (e.g., 'Happy 😊', 'Urgent')"
     )
-    
+
     # Optional styling
     icon = models.CharField(
         max_length=50,
@@ -698,7 +698,7 @@ class ChoiceOption(models.Model):
         blank=True,
         help_text="Color hex code (e.g., '#10b981')"
     )
-    
+
     # Ordering and status
     sort_order = models.PositiveIntegerField(
         default=0,
@@ -712,18 +712,18 @@ class ChoiceOption(models.Model):
         default=False,
         help_text="Pre-selected option"
     )
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         ordering = ['category', 'sort_order', 'label']
         unique_together = ['category', 'value']
         verbose_name = "Choice Option"
         verbose_name_plural = "Choice Options"
-    
+
     def __str__(self):
         return f"{self.category.name}: {self.label}"
-    
+
     def save(self, *args, **kwargs):
         # If this is set as default, unset others in same category
         if self.is_default:
@@ -811,43 +811,43 @@ class TestRun(models.Model):
     
     Stores historical test results for tracking over time.
     """
-    
+
     STATUS_CHOICES = [
         ('passed', 'All Passed'),
         ('failed', 'Some Failed'),
         ('error', 'Has Errors'),
     ]
-    
+
     # Run metadata
     run_at = models.DateTimeField(auto_now_add=True)
     duration_seconds = models.FloatField(default=0, help_text="Total run time in seconds")
-    
+
     # Overall results
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='passed')
     total_tests = models.PositiveIntegerField(default=0)
     passed = models.PositiveIntegerField(default=0)
     failed = models.PositiveIntegerField(default=0)
     errors = models.PositiveIntegerField(default=0)
-    
+
     # Apps tested
     apps_tested = models.TextField(help_text="Comma-separated list of apps tested")
-    
+
     # Pass rate
     pass_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0,
                                      help_text="Pass rate as percentage")
-    
+
     # Git info (optional)
     git_branch = models.CharField(max_length=100, blank=True)
     git_commit = models.CharField(max_length=40, blank=True)
-    
+
     class Meta:
         ordering = ['-run_at']
         verbose_name = "Test Run"
         verbose_name_plural = "Test Runs"
-    
+
     def __str__(self):
         return f"Test Run {self.run_at.strftime('%Y-%m-%d %H:%M')} - {self.status}"
-    
+
     @property
     def apps_list(self):
         """Return apps_tested as a list."""
@@ -858,31 +858,31 @@ class TestRunDetail(models.Model):
     """
     Detailed results for each app in a test run.
     """
-    
+
     test_run = models.ForeignKey(TestRun, on_delete=models.CASCADE, related_name='details')
-    
+
     # App info
     app_name = models.CharField(max_length=100)
-    
+
     # Results
     passed = models.PositiveIntegerField(default=0)
     failed = models.PositiveIntegerField(default=0)
     errors = models.PositiveIntegerField(default=0)
     total = models.PositiveIntegerField(default=0)
-    
+
     # Failed/error test names (JSON list)
     failed_tests = models.TextField(blank=True, help_text="JSON list of failed test names")
     error_tests = models.TextField(blank=True, help_text="JSON list of error test names")
-    
+
     # Error details (full traceback)
     error_details = models.TextField(blank=True, help_text="Full error tracebacks")
-    
+
     class Meta:
         ordering = ['app_name']
-    
+
     def __str__(self):
         return f"{self.app_name} - {self.passed}/{self.total} passed"
-    
+
     @property
     def status(self):
         """Get status string for this app."""

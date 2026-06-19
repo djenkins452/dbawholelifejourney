@@ -20,13 +20,13 @@ User = get_user_model()
 
 class WeightEntryModelTest(TestCase):
     """Tests for the WeightEntry model."""
-    
+
     def setUp(self):
         self.user = User.objects.create_user(
             email='test@example.com',
             password='testpass123'
         )
-    
+
     def test_create_weight_entry(self):
         """Weight entry can be created."""
         entry = WeightEntry.objects.create(
@@ -36,7 +36,7 @@ class WeightEntryModelTest(TestCase):
         )
         self.assertEqual(entry.value, Decimal('185.5'))
         self.assertEqual(entry.user, self.user)
-    
+
     def test_weight_entry_str(self):
         """Weight entry string representation."""
         entry = WeightEntry.objects.create(
@@ -45,7 +45,7 @@ class WeightEntryModelTest(TestCase):
             unit='lb'
         )
         self.assertIn('180', str(entry))
-    
+
     def test_weight_entry_ordering(self):
         """Weight entries are ordered by most recent first."""
         WeightEntry.objects.create(
@@ -64,13 +64,13 @@ class WeightEntryModelTest(TestCase):
 
 class FastingWindowModelTest(TestCase):
     """Tests for the FastingWindow model."""
-    
+
     def setUp(self):
         self.user = User.objects.create_user(
             email='test@example.com',
             password='testpass123'
         )
-    
+
     def test_create_fasting_window(self):
         """Fasting window can be created."""
         fast = FastingWindow.objects.create(
@@ -79,7 +79,7 @@ class FastingWindowModelTest(TestCase):
         )
         self.assertEqual(fast.user, self.user)
         self.assertIsNone(fast.ended_at)
-    
+
     def test_fasting_is_active(self):
         """Active fasting window has no end time."""
         fast = FastingWindow.objects.create(
@@ -87,7 +87,7 @@ class FastingWindowModelTest(TestCase):
             started_at=timezone.now()
         )
         self.assertTrue(fast.is_active)
-    
+
     def test_fasting_end(self):
         """Fasting window can be ended."""
         fast = FastingWindow.objects.create(
@@ -96,34 +96,34 @@ class FastingWindowModelTest(TestCase):
         )
         fast.ended_at = timezone.now()
         fast.save()
-        
+
         self.assertFalse(fast.is_active)
         self.assertIsNotNone(fast.ended_at)
-    
+
     def test_fasting_duration(self):
         """Fasting duration is calculated correctly."""
         start = timezone.now() - timedelta(hours=18)
         end = timezone.now()
-        
+
         fast = FastingWindow.objects.create(
             user=self.user,
             started_at=start,
             ended_at=end
         )
-        
+
         # Duration should be approximately 18 hours
         self.assertAlmostEqual(fast.duration_hours, 18, delta=0.1)
 
 
 class GlucoseEntryModelTest(TestCase):
     """Tests for the GlucoseEntry model."""
-    
+
     def setUp(self):
         self.user = User.objects.create_user(
             email='test@example.com',
             password='testpass123'
         )
-    
+
     def test_create_glucose_entry(self):
         """Glucose entry can be created."""
         entry = GlucoseEntry.objects.create(
@@ -131,7 +131,7 @@ class GlucoseEntryModelTest(TestCase):
             value=95
         )
         self.assertEqual(entry.value, 95)
-    
+
     def test_glucose_in_normal_range(self):
         """Glucose entry recognizes normal range."""
         entry = GlucoseEntry.objects.create(
@@ -170,23 +170,23 @@ class HealthViewTest(TestCase):
         """Mark user onboarding as complete."""
         user.preferences.has_completed_onboarding = True
         user.preferences.save()
-    
+
     def test_health_home_requires_login(self):
         """Health home requires authentication."""
         self.client.logout()
         response = self.client.get(reverse('health:home'))
         self.assertEqual(response.status_code, 302)
-    
+
     def test_health_home_loads(self):
         """Health home page loads for authenticated user."""
         response = self.client.get(reverse('health:home'))
         self.assertEqual(response.status_code, 200)
-    
+
     def test_weight_list_loads(self):
         """Weight list page loads."""
         response = self.client.get(reverse('health:weight_list'))
         self.assertEqual(response.status_code, 200)
-    
+
     def test_weight_can_be_logged(self):
         """User can log a weight entry via form."""
         # Create entry directly to test model works
@@ -196,12 +196,12 @@ class HealthViewTest(TestCase):
             unit='lb'
         )
         self.assertTrue(WeightEntry.objects.filter(user=self.user).exists())
-    
+
     def test_fasting_list_loads(self):
         """Fasting list page loads."""
         response = self.client.get(reverse('health:fasting_list'))
         self.assertEqual(response.status_code, 200)
-    
+
     def test_fasting_can_be_created(self):
         """Fasting window can be created."""
         FastingWindow.objects.create(
@@ -261,19 +261,19 @@ class HealthDataIsolationTest(TestCase):
         """Mark user onboarding as complete."""
         user.preferences.has_completed_onboarding = True
         user.preferences.save()
-    
+
     def test_user_a_sees_only_their_weights(self):
         """User A only sees their own weight entries."""
         self.client.login(email='usera@example.com', password='testpass123')
         response = self.client.get(reverse('health:weight_list'))
-        
+
         self.assertContains(response, '185')
         self.assertNotContains(response, '165')
-    
+
     def test_user_cannot_access_other_users_weight(self):
         """User A cannot access User B's weight entry."""
         self.client.login(email='usera@example.com', password='testpass123')
-        
+
         # Try to access User B's weight detail if that URL exists
         # Most health apps don't have individual weight detail pages
         # so this test checks the list filtering works

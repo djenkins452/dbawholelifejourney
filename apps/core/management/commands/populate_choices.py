@@ -113,15 +113,15 @@ class Command(BaseCommand):
 
         for cat_data in categories_data:
             options_data = cat_data.pop('options', [])
-            
+
             category, created = ChoiceCategory.objects.update_or_create(
                 slug=cat_data["slug"],
                 defaults=cat_data
             )
-            
+
             action = "Created" if created else "Updated"
             self.stdout.write(f"{action} category: {category.name}")
-            
+
             for opt_data in options_data:
                 opt_data['is_active'] = True
                 option, opt_created = ChoiceOption.objects.update_or_create(

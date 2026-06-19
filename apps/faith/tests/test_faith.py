@@ -18,7 +18,7 @@ User = get_user_model()
 
 class ScriptureVerseModelTest(TestCase):
     """Tests for the ScriptureVerse model."""
-    
+
     def test_create_verse(self):
         """Scripture verse can be created."""
         verse = ScriptureVerse.objects.create(
@@ -34,7 +34,7 @@ class ScriptureVerseModelTest(TestCase):
         )
         self.assertEqual(verse.reference, 'John 3:16')
         self.assertTrue(verse.is_active)
-    
+
     def test_verse_str(self):
         """Verse string includes reference and translation."""
         verse = ScriptureVerse.objects.create(
@@ -52,13 +52,13 @@ class ScriptureVerseModelTest(TestCase):
 
 class PrayerRequestModelTest(TestCase):
     """Tests for the PrayerRequest model."""
-    
+
     def setUp(self):
         self.user = User.objects.create_user(
             email='test@example.com',
             password='testpass123'
         )
-    
+
     def test_create_prayer_request(self):
         """Prayer request can be created."""
         prayer = PrayerRequest.objects.create(
@@ -69,7 +69,7 @@ class PrayerRequestModelTest(TestCase):
         self.assertEqual(prayer.title, 'Healing for Mom')
         self.assertFalse(prayer.is_answered)
         self.assertEqual(prayer.priority, 'normal')
-    
+
     def test_prayer_request_str(self):
         """Prayer request string is the title."""
         prayer = PrayerRequest.objects.create(
@@ -77,7 +77,7 @@ class PrayerRequestModelTest(TestCase):
             title='Job Interview'
         )
         self.assertEqual(str(prayer), 'Job Interview')
-    
+
     def test_mark_answered(self):
         """mark_answered() sets answered status and timestamp."""
         prayer = PrayerRequest.objects.create(
@@ -85,11 +85,11 @@ class PrayerRequestModelTest(TestCase):
             title='Test Prayer'
         )
         prayer.mark_answered(notes='God provided!')
-        
+
         self.assertTrue(prayer.is_answered)
         self.assertIsNotNone(prayer.answered_at)
         self.assertEqual(prayer.answer_notes, 'God provided!')
-    
+
     def test_urgent_priority(self):
         """Prayer request can have urgent priority."""
         prayer = PrayerRequest.objects.create(
@@ -102,13 +102,13 @@ class PrayerRequestModelTest(TestCase):
 
 class FaithMilestoneModelTest(TestCase):
     """Tests for the FaithMilestone model."""
-    
+
     def setUp(self):
         self.user = User.objects.create_user(
             email='test@example.com',
             password='testpass123'
         )
-    
+
     def test_create_milestone(self):
         """Faith milestone can be created."""
         milestone = FaithMilestone.objects.create(
@@ -120,7 +120,7 @@ class FaithMilestoneModelTest(TestCase):
         )
         self.assertEqual(milestone.title, 'Baptism')
         self.assertEqual(milestone.milestone_type, 'baptism')
-    
+
     def test_milestone_str(self):
         """Milestone string includes title and date."""
         milestone = FaithMilestone.objects.create(
@@ -160,28 +160,28 @@ class FaithViewTest(TestCase):
         """Mark user onboarding as complete."""
         user.preferences.has_completed_onboarding = True
         user.preferences.save()
-    
+
     def test_faith_home_requires_login(self):
         """Faith home requires authentication."""
         response = self.client.get(reverse('faith:home'))
         self.assertEqual(response.status_code, 302)
-    
+
     def test_faith_home_loads(self):
         """Faith home page loads for authenticated user."""
         self.client.login(email='test@example.com', password='testpass123')
         response = self.client.get(reverse('faith:home'))
         self.assertEqual(response.status_code, 200)
-    
+
     def test_prayer_list_loads(self):
         """Prayer list page loads."""
         self.client.login(email='test@example.com', password='testpass123')
         response = self.client.get(reverse('faith:prayer_list'))
         self.assertEqual(response.status_code, 200)
-    
+
     def test_prayer_can_be_created(self):
         """User can create a prayer request."""
         self.client.login(email='test@example.com', password='testpass123')
-        
+
         # Create directly to test model
         PrayerRequest.objects.create(
             user=self.user,
@@ -192,7 +192,7 @@ class FaithViewTest(TestCase):
         self.assertTrue(
             PrayerRequest.objects.filter(user=self.user, title='New Prayer').exists()
         )
-    
+
     def test_milestone_list_loads(self):
         """Milestone list page loads."""
         self.client.login(email='test@example.com', password='testpass123')
@@ -246,15 +246,15 @@ class FaithDataIsolationTest(TestCase):
         """Mark user onboarding as complete."""
         user.preferences.has_completed_onboarding = True
         user.preferences.save()
-    
+
     def test_user_a_sees_only_their_prayers(self):
         """User A only sees their own prayers."""
         self.client.login(email='usera@example.com', password='testpass123')
         response = self.client.get(reverse('faith:prayer_list'))
-        
+
         self.assertContains(response, 'User A Prayer')
         self.assertNotContains(response, 'User B Prayer')
-    
+
     def test_user_cannot_edit_other_users_prayer(self):
         """User A cannot edit User B's prayer."""
         self.client.login(email='usera@example.com', password='testpass123')

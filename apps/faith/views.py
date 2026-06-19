@@ -112,22 +112,22 @@ class FaithHomeView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMixin, Te
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
-        
+
         # Today's verse
         context["todays_verse"] = self.get_todays_verse()
-        
+
         # Active prayer requests
         context["active_prayers"] = PrayerRequest.objects.filter(
             user=user,
             is_answered=False,
         ).order_by("-priority", "-created_at")[:5]
-        
+
         # Recent answered prayers
         context["answered_prayers_count"] = PrayerRequest.objects.filter(
             user=user,
             is_answered=True,
         ).count()
-        
+
         # Faith reflections (journal entries with faith category)
         faith_category = Category.objects.filter(slug="faith").first()
         if faith_category:
@@ -135,7 +135,7 @@ class FaithHomeView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMixin, Te
                 user=user,
                 categories=faith_category,
             ).order_by("-entry_date")[:3]
-        
+
         # Milestones
         context["milestones"] = FaithMilestone.objects.filter(user=user)[:5]
 
@@ -706,15 +706,15 @@ class ReflectionCreateView(LoginRequiredMixin, FaithRequiredMixin, CreateView):
             from apps.core.utils import get_user_today
             entry_date = form.cleaned_data.get('entry_date', get_user_today(self.request.user))
             form.instance.title = entry_date.strftime("%A, %B %d, %Y")
-        
+
         # Save first to get the instance
         response = super().form_valid(form)
-        
+
         # Ensure Faith category is added
         faith_category = Category.objects.filter(slug="faith").first()
         if faith_category:
             self.object.categories.add(faith_category)
-        
+
         messages.success(self.request, "Faith reflection saved.")
         return response
 

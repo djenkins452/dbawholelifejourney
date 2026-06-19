@@ -47,13 +47,13 @@ def url_or(primary_url, fallback_url, *args, **kwargs):
         return reverse(primary_url, args=args, kwargs=kwargs)
     except NoReverseMatch:
         pass
-    
+
     # Try fallback URL
     try:
         return reverse(fallback_url, args=args, kwargs=kwargs)
     except NoReverseMatch:
         pass
-    
+
     # Neither worked
     return '#'
 
@@ -110,7 +110,7 @@ def safe_link(url_name, text, fallback_url='#', css_class='', *args, **kwargs):
     except NoReverseMatch:
         url = fallback_url
         exists = False
-    
+
     return {
         'url': url,
         'text': text,
@@ -128,11 +128,11 @@ URL_ALIASES = {
     # Life module
     'life:calendar_settings': ['life:google_calendar_settings', 'life:calendar', 'life:home'],
     'life:settings': ['life:google_calendar_settings', 'life:home'],
-    
+
     # User module
     'user:settings': ['users:preferences', 'users:profile'],
     'user:profile': ['users:profile', 'users:preferences'],
-    
+
     # Dashboard
     'home': ['dashboard:home', 'dashboard:index', '/'],
 }
@@ -151,17 +151,17 @@ def aliased_url(alias_name, *args, **kwargs):
     """
     # Get the list of URLs to try
     url_list = URL_ALIASES.get(alias_name, [alias_name])
-    
+
     # If it's not a list, make it one
     if isinstance(url_list, str):
         url_list = [url_list]
-    
+
     # Try each URL
     for url_name in url_list:
         try:
             return reverse(url_name, args=args, kwargs=kwargs)
         except NoReverseMatch:
             continue
-    
+
     # Nothing worked
     return '#'

@@ -20,13 +20,13 @@ User = get_user_model()
 
 class ProjectModelTest(TestCase):
     """Tests for the Project model."""
-    
+
     def setUp(self):
         self.user = User.objects.create_user(
             email='test@example.com',
             password='testpass123'
         )
-    
+
     def test_create_project(self):
         """Project can be created with required fields."""
         project = Project.objects.create(
@@ -37,7 +37,7 @@ class ProjectModelTest(TestCase):
         self.assertEqual(project.title, 'Home Renovation')
         self.assertEqual(project.user, self.user)
         self.assertEqual(project.status, 'active')  # default
-    
+
     def test_project_str(self):
         """Project string representation is title."""
         project = Project.objects.create(
@@ -45,7 +45,7 @@ class ProjectModelTest(TestCase):
             title='Test Project'
         )
         self.assertEqual(str(project), 'Test Project')
-    
+
     def test_project_is_overdue(self):
         """is_overdue returns True when past target date."""
         project = Project.objects.create(
@@ -55,7 +55,7 @@ class ProjectModelTest(TestCase):
             target_date=date.today() - timedelta(days=1)
         )
         self.assertTrue(project.is_overdue)
-    
+
     def test_project_not_overdue_when_completed(self):
         """Completed projects are not overdue."""
         project = Project.objects.create(
@@ -65,7 +65,7 @@ class ProjectModelTest(TestCase):
             target_date=date.today() - timedelta(days=1)
         )
         self.assertFalse(project.is_overdue)
-    
+
     def test_project_progress_with_no_tasks(self):
         """Progress is 0 when no tasks."""
         project = Project.objects.create(
@@ -73,7 +73,7 @@ class ProjectModelTest(TestCase):
             title='Empty Project'
         )
         self.assertEqual(project.progress_percentage, 0)
-    
+
     def test_project_progress_with_tasks(self):
         """Progress calculated correctly from tasks."""
         project = Project.objects.create(
@@ -93,13 +93,13 @@ class ProjectModelTest(TestCase):
 
 class TaskModelTest(TestCase):
     """Tests for the Task model."""
-    
+
     def setUp(self):
         self.user = User.objects.create_user(
             email='test@example.com',
             password='testpass123'
         )
-    
+
     def test_create_task(self):
         """Task can be created with required fields."""
         task = Task.objects.create(
@@ -108,7 +108,7 @@ class TaskModelTest(TestCase):
         )
         self.assertEqual(task.title, 'Buy groceries')
         self.assertFalse(task.is_completed)
-    
+
     def test_task_str(self):
         """Task string representation is title."""
         task = Task.objects.create(
@@ -116,7 +116,7 @@ class TaskModelTest(TestCase):
             title='Test Task'
         )
         self.assertEqual(str(task), 'Test Task')
-    
+
     def test_mark_complete(self):
         """mark_complete() sets completion status and timestamp."""
         task = Task.objects.create(
@@ -124,10 +124,10 @@ class TaskModelTest(TestCase):
             title='Complete me'
         )
         task.mark_complete()
-        
+
         self.assertTrue(task.is_completed)
         self.assertIsNotNone(task.completed_at)
-    
+
     def test_mark_incomplete(self):
         """mark_incomplete() clears completion status."""
         task = Task.objects.create(
@@ -137,10 +137,10 @@ class TaskModelTest(TestCase):
             completed_at=timezone.now()
         )
         task.mark_incomplete()
-        
+
         self.assertFalse(task.is_completed)
         self.assertIsNone(task.completed_at)
-    
+
     def test_task_is_overdue(self):
         """is_overdue returns True when past due date."""
         task = Task.objects.create(
@@ -149,7 +149,7 @@ class TaskModelTest(TestCase):
             due_date=date.today() - timedelta(days=1)
         )
         self.assertTrue(task.is_overdue)
-    
+
     def test_completed_task_not_overdue(self):
         """Completed tasks are not overdue."""
         task = Task.objects.create(
@@ -244,13 +244,13 @@ class TaskModelTest(TestCase):
 
 class LifeEventModelTest(TestCase):
     """Tests for the LifeEvent model."""
-    
+
     def setUp(self):
         self.user = User.objects.create_user(
             email='test@example.com',
             password='testpass123'
         )
-    
+
     def test_create_event(self):
         """Event can be created with required fields."""
         event = LifeEvent.objects.create(
@@ -260,7 +260,7 @@ class LifeEventModelTest(TestCase):
         )
         self.assertEqual(event.title, 'Doctor Appointment')
         self.assertEqual(event.event_type, 'personal')  # default
-    
+
     def test_event_str(self):
         """Event string representation includes title and date."""
         event = LifeEvent.objects.create(
@@ -270,7 +270,7 @@ class LifeEventModelTest(TestCase):
         )
         self.assertIn('Meeting', str(event))
         self.assertIn('2025-01-15', str(event))
-    
+
     def test_event_is_today(self):
         """is_today returns True for today's events."""
         from django.utils import timezone
@@ -281,7 +281,7 @@ class LifeEventModelTest(TestCase):
             start_date=timezone.now().date()
         )
         self.assertTrue(event.is_today)
-    
+
     def test_event_is_past(self):
         """is_past returns True for past events."""
         event = LifeEvent.objects.create(
@@ -290,7 +290,7 @@ class LifeEventModelTest(TestCase):
             start_date=date.today() - timedelta(days=1)
         )
         self.assertTrue(event.is_past)
-    
+
     def test_all_day_event(self):
         """All day events have no specific time."""
         event = LifeEvent.objects.create(
@@ -301,7 +301,7 @@ class LifeEventModelTest(TestCase):
         )
         self.assertTrue(event.is_all_day)
         self.assertIsNone(event.start_time)
-    
+
     def test_event_with_time(self):
         """Events can have specific start and end times."""
         event = LifeEvent.objects.create(
@@ -317,13 +317,13 @@ class LifeEventModelTest(TestCase):
 
 class RecipeModelTest(TestCase):
     """Tests for the Recipe model."""
-    
+
     def setUp(self):
         self.user = User.objects.create_user(
             email='test@example.com',
             password='testpass123'
         )
-    
+
     def test_create_recipe(self):
         """Recipe can be created with required fields."""
         recipe = Recipe.objects.create(
@@ -333,7 +333,7 @@ class RecipeModelTest(TestCase):
             instructions='Mix and bake'
         )
         self.assertEqual(recipe.title, 'Chocolate Cake')
-    
+
     def test_recipe_total_time(self):
         """total_time_minutes calculates correctly."""
         recipe = Recipe.objects.create(
@@ -345,7 +345,7 @@ class RecipeModelTest(TestCase):
             cook_time_minutes=20
         )
         self.assertEqual(recipe.total_time_minutes, 30)
-    
+
     def test_recipe_total_time_with_missing_values(self):
         """total_time_minutes handles missing values."""
         recipe = Recipe.objects.create(
@@ -359,13 +359,13 @@ class RecipeModelTest(TestCase):
 
 class PetModelTest(TestCase):
     """Tests for the Pet model."""
-    
+
     def setUp(self):
         self.user = User.objects.create_user(
             email='test@example.com',
             password='testpass123'
         )
-    
+
     def test_create_pet(self):
         """Pet can be created with required fields."""
         pet = Pet.objects.create(
@@ -375,13 +375,13 @@ class PetModelTest(TestCase):
         )
         self.assertEqual(pet.name, 'Max')
         self.assertTrue(pet.is_active)
-    
+
     def test_pet_age_calculation(self):
         """Pet age is calculated from birth date."""
         # Use a date that's definitely 3 full years ago
         from dateutil.relativedelta import relativedelta
         three_years_ago = date.today() - relativedelta(years=3)
-        
+
         pet = Pet.objects.create(
             user=self.user,
             name='Buddy',
@@ -389,7 +389,7 @@ class PetModelTest(TestCase):
             birth_date=three_years_ago
         )
         self.assertEqual(pet.age, 3)
-    
+
     def test_pet_age_none_without_birth_date(self):
         """Pet age is None when no birth date."""
         pet = Pet.objects.create(

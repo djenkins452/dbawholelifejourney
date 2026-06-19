@@ -70,7 +70,7 @@ class JournalPrompt(models.Model):
         blank=True,
         related_name="prompts",
     )
-    
+
     # Faith-specific prompts
     is_faith_specific = models.BooleanField(
         default=False,
@@ -78,7 +78,7 @@ class JournalPrompt(models.Model):
     )
     scripture_reference = models.CharField(max_length=100, blank=True)
     scripture_text = models.TextField(blank=True)
-    
+
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -112,24 +112,24 @@ class JournalEntry(UserOwnedModel):
     # Core content
     title = models.CharField(max_length=200)
     body = models.TextField()
-    
+
     # The date this entry is "about" (may differ from created_at)
     entry_date = models.DateField(default=timezone.now)
-    
+
     # Optional mood tracking (lightweight)
     mood = models.CharField(
         max_length=20,
         choices=MOOD_CHOICES,
         blank=True,
     )
-    
+
     # Categories (multi-select)
     categories = models.ManyToManyField(
         Category,
         blank=True,
         related_name="journal_entries",
     )
-    
+
     # User-defined tags
     tags = models.ManyToManyField(
         Tag,
@@ -153,7 +153,7 @@ class JournalEntry(UserOwnedModel):
         blank=True,
         related_name="entries",
     )
-    
+
     # Word count (computed on save)
     word_count = models.PositiveIntegerField(default=0)
 
@@ -169,11 +169,11 @@ class JournalEntry(UserOwnedModel):
         # Compute word count
         if self.body:
             self.word_count = len(self.body.split())
-        
+
         # Set default title if not provided
         if not self.title:
             self.title = self.entry_date.strftime("%A, %B %d, %Y")
-        
+
         super().save(*args, **kwargs)
 
     def get_absolute_url(self):

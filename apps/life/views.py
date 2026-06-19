@@ -85,7 +85,7 @@ class LifeHomeView(HelpContextMixin, LifeAccessMixin, TemplateView):
     """
     template_name = "life/home.html"
     help_context_id = "LIFE_HOME"
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
@@ -100,7 +100,7 @@ class LifeHomeView(HelpContextMixin, LifeAccessMixin, TemplateView):
             user=user,
             status='active'
         ).order_by('priority', '-updated_at')[:5]
-        
+
         # Tasks by priority
         context['now_tasks'] = Task.objects.filter(
             user=user,
@@ -113,7 +113,7 @@ class LifeHomeView(HelpContextMixin, LifeAccessMixin, TemplateView):
             completion_status='pending',
             priority='soon'
         )[:5]
-        
+
         # Upcoming events (next 7 days)
         week_ahead = today + timezone.timedelta(days=7)
         context['upcoming_events'] = LifeEvent.objects.filter(
@@ -121,13 +121,13 @@ class LifeHomeView(HelpContextMixin, LifeAccessMixin, TemplateView):
             start_date__gte=today,
             start_date__lte=week_ahead
         ).order_by('start_date', 'start_time')[:5]
-        
+
         # Today's events
         context['todays_events'] = LifeEvent.objects.filter(
             user=user,
             start_date=today
         ).order_by('start_time')
-        
+
         # Quick stats
         context['stats'] = {
             'active_projects': Project.objects.filter(user=user, status='active').count(),
@@ -138,7 +138,7 @@ class LifeHomeView(HelpContextMixin, LifeAccessMixin, TemplateView):
             'maintenance_logs': MaintenanceLog.objects.filter(user=user).count(),
             'recipes': Recipe.objects.filter(user=user).count(),
         }
-        
+
         # Overdue tasks
         context['overdue_tasks'] = Task.objects.filter(
             user=user,
@@ -195,10 +195,10 @@ class ProjectListView(LifeAccessMixin, ListView):
     model = Project
     template_name = "life/project_list.html"
     context_object_name = "projects"
-    
+
     def get_queryset(self):
         queryset = Project.objects.filter(user=self.request.user)
-        
+
         # Filter by status
         status = self.request.GET.get('status')
         if status:
@@ -206,17 +206,17 @@ class ProjectListView(LifeAccessMixin, ListView):
         else:
             # Default: show active and paused
             queryset = queryset.filter(status__in=['active', 'paused'])
-        
+
         # Filter by priority
         priority = self.request.GET.get('priority')
         if priority:
             queryset = queryset.filter(priority=priority)
-        
+
         return queryset.annotate(
             task_total=Count('tasks'),
             task_done=Count('tasks', filter=Q(tasks__completion_status='completed'))
         ).order_by('priority', '-updated_at')
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['current_status'] = self.request.GET.get('status', '')
@@ -287,10 +287,10 @@ class ProjectUpdateView(LifeAccessMixin, UpdateView):
         'start_date', 'target_date', 'completed_date', 'category',
         'cover_image', 'reflection'
     ]
-    
+
     def get_queryset(self):
         return Project.objects.filter(user=self.request.user)
-    
+
     def form_valid(self, form):
         messages.success(self.request, f"Project '{form.instance.title}' updated.")
         return super().form_valid(form)
@@ -301,10 +301,10 @@ class ProjectDeleteView(LifeAccessMixin, DeleteView):
     model = Project
     template_name = "life/project_confirm_delete.html"
     success_url = reverse_lazy('life:project_list')
-    
+
     def get_queryset(self):
         return Project.objects.filter(user=self.request.user)
-    
+
     def form_valid(self, form):
         messages.success(self.request, f"Project '{self.object.title}' deleted.")
         return super().form_valid(form)
@@ -802,17 +802,17 @@ class EventUpdateView(LifeAccessMixin, UpdateView):
         'title', 'description', 'event_type', 'start_date', 'start_time',
         'end_date', 'end_time', 'is_all_day', 'location', 'project'
     ]
-    
+
     def get_queryset(self):
         return LifeEvent.objects.filter(user=self.request.user)
-    
+
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
         form.fields['project'].queryset = Project.objects.filter(
             user=self.request.user, status='active'
         )
         return form
-    
+
     def get_success_url(self):
         return reverse_lazy('life:calendar')
 
@@ -822,7 +822,7 @@ class EventDeleteView(LifeAccessMixin, DeleteView):
     model = LifeEvent
     template_name = "life/event_confirm_delete.html"
     success_url = reverse_lazy('life:calendar')
-    
+
     def get_queryset(self):
         return LifeEvent.objects.filter(user=self.request.user)
 
@@ -836,20 +836,20 @@ class InventoryListView(LifeAccessMixin, ListView):
     model = InventoryItem
     template_name = "life/inventory_list.html"
     context_object_name = "items"
-    
+
     def get_queryset(self):
         queryset = InventoryItem.objects.filter(user=self.request.user)
-        
+
         # Filter by category
         category = self.request.GET.get('category')
         if category:
             queryset = queryset.filter(category=category)
-        
+
         # Filter by location
         location = self.request.GET.get('location')
         if location:
             queryset = queryset.filter(location=location)
-        
+
         # Search
         search = self.request.GET.get('q')
         if search:
@@ -858,13 +858,13 @@ class InventoryListView(LifeAccessMixin, ListView):
                 Q(description__icontains=search) |
                 Q(brand__icontains=search)
             )
-        
+
         return queryset.order_by('category', 'name')
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user_items = InventoryItem.objects.filter(user=self.request.user)
-        
+
         # Get unique categories and locations for filters
         context['categories'] = user_items.values_list(
             'category', flat=True
@@ -872,12 +872,12 @@ class InventoryListView(LifeAccessMixin, ListView):
         context['locations'] = user_items.values_list(
             'location', flat=True
         ).exclude(location='').distinct().order_by('location')
-        
+
         # Total value
         context['total_value'] = user_items.aggregate(
             total=Sum('estimated_value')
         )['total'] or 0
-        
+
         return context
 
 
@@ -886,7 +886,7 @@ class InventoryDetailView(LifeAccessMixin, DetailView):
     model = InventoryItem
     template_name = "life/inventory_detail.html"
     context_object_name = "item"
-    
+
     def get_queryset(self):
         return InventoryItem.objects.filter(user=self.request.user)
 
@@ -1013,10 +1013,10 @@ class InventoryUpdateView(LifeAccessMixin, UpdateView):
         'condition', 'brand', 'model_number', 'serial_number',
         'warranty_expiration', 'warranty_info', 'notes'
     ]
-    
+
     def get_queryset(self):
         return InventoryItem.objects.filter(user=self.request.user)
-    
+
     def get_success_url(self):
         return reverse_lazy('life:inventory_detail', kwargs={'pk': self.object.pk})
 
@@ -1026,7 +1026,7 @@ class InventoryDeleteView(LifeAccessMixin, DeleteView):
     model = InventoryItem
     template_name = "life/inventory_confirm_delete.html"
     success_url = reverse_lazy('life:inventory_list')
-    
+
     def get_queryset(self):
         return InventoryItem.objects.filter(user=self.request.user)
 
@@ -1040,26 +1040,26 @@ class InventoryPhotoCreateView(LifeAccessMixin, CreateView):
     model = InventoryPhoto
     template_name = "life/inventory_photo_form.html"
     fields = ['image', 'caption', 'is_primary']
-    
+
     def dispatch(self, request, *args, **kwargs):
         self.item = get_object_or_404(InventoryItem, pk=kwargs['item_pk'], user=request.user)
         return super().dispatch(request, *args, **kwargs)
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['item'] = self.item
         return context
-    
+
     def form_valid(self, form):
         form.instance.item = self.item
-        
+
         # If marked as primary, unset other primary photos
         if form.cleaned_data.get('is_primary'):
             InventoryPhoto.objects.filter(item=self.item, is_primary=True).update(is_primary=False)
-        
+
         messages.success(self.request, "Photo added.")
         return super().form_valid(form)
-    
+
     def get_success_url(self):
         return reverse('life:inventory_detail', kwargs={'pk': self.item.pk})
 
@@ -1068,27 +1068,27 @@ class InventoryPhotoDeleteView(LifeAccessMixin, DeleteView):
     """Delete an inventory photo."""
     model = InventoryPhoto
     template_name = "life/inventory_photo_confirm_delete.html"
-    
+
     def get_queryset(self):
         return InventoryPhoto.objects.filter(item__user=self.request.user)
-    
+
     def get_success_url(self):
         return reverse('life:inventory_detail', kwargs={'pk': self.object.item.pk})
 
 
 class InventoryPhotoSetPrimaryView(LifeAccessMixin, View):
     """Set a photo as the primary photo for an item."""
-    
+
     def post(self, request, pk):
         photo = get_object_or_404(InventoryPhoto, pk=pk, item__user=request.user)
-        
+
         # Unset all other primary photos
         InventoryPhoto.objects.filter(item=photo.item, is_primary=True).update(is_primary=False)
-        
+
         # Set this one as primary
         photo.is_primary = True
         photo.save()
-        
+
         messages.success(request, "Primary photo updated.")
         return redirect('life:inventory_detail', pk=photo.item.pk)
 
@@ -1102,7 +1102,7 @@ class PetListView(LifeAccessMixin, ListView):
     model = Pet
     template_name = "life/pet_list.html"
     context_object_name = "pets"
-    
+
     def get_queryset(self):
         return Pet.objects.filter(user=self.request.user)
 
@@ -1112,10 +1112,10 @@ class PetDetailView(LifeAccessMixin, DetailView):
     model = Pet
     template_name = "life/pet_detail.html"
     context_object_name = "pet"
-    
+
     def get_queryset(self):
         return Pet.objects.filter(user=self.request.user)
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['records'] = self.object.records.order_by('-date')[:10]
@@ -1229,15 +1229,15 @@ class PetRecordUpdateView(LifeAccessMixin, UpdateView):
     model = PetRecord
     template_name = "life/pet_record_form.html"
     fields = ['record_type', 'date', 'title', 'description', 'cost', 'next_due_date']
-    
+
     def get_queryset(self):
         return PetRecord.objects.filter(pet__user=self.request.user)
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['pet'] = self.object.pet
         return context
-    
+
     def get_success_url(self):
         return reverse('life:pet_detail', kwargs={'pk': self.object.pet.pk})
 
@@ -1246,10 +1246,10 @@ class PetRecordDeleteView(LifeAccessMixin, DeleteView):
     """Delete a pet record."""
     model = PetRecord
     template_name = "life/pet_record_confirm_delete.html"
-    
+
     def get_queryset(self):
         return PetRecord.objects.filter(pet__user=self.request.user)
-    
+
     def get_success_url(self):
         return reverse('life:pet_detail', kwargs={'pk': self.object.pet.pk})
 
@@ -1263,19 +1263,19 @@ class RecipeListView(LifeAccessMixin, ListView):
     model = Recipe
     template_name = "life/recipe_list.html"
     context_object_name = "recipes"
-    
+
     def get_queryset(self):
         queryset = Recipe.objects.filter(user=self.request.user)
-        
+
         # Filter by category
         category = self.request.GET.get('category')
         if category:
             queryset = queryset.filter(category=category)
-        
+
         # Filter favorites
         if self.request.GET.get('favorites'):
             queryset = queryset.filter(is_favorite=True)
-        
+
         # Search
         search = self.request.GET.get('q')
         if search:
@@ -1284,9 +1284,9 @@ class RecipeListView(LifeAccessMixin, ListView):
                 Q(description__icontains=search) |
                 Q(ingredients__icontains=search)
             )
-        
+
         return queryset.order_by('-is_favorite', 'title')
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['categories'] = Recipe.objects.filter(
@@ -1302,7 +1302,7 @@ class RecipeDetailView(LifeAccessMixin, DetailView):
     model = Recipe
     template_name = "life/recipe_detail.html"
     context_object_name = "recipe"
-    
+
     def get_queryset(self):
         return Recipe.objects.filter(user=self.request.user)
 
@@ -1353,7 +1353,7 @@ class RecipeUpdateView(LifeAccessMixin, UpdateView):
         'difficulty', 'category', 'source', 'source_url',
         'image', 'notes', 'is_favorite'
     ]
-    
+
     def get_queryset(self):
         return Recipe.objects.filter(user=self.request.user)
 
@@ -1363,7 +1363,7 @@ class RecipeDeleteView(LifeAccessMixin, DeleteView):
     model = Recipe
     template_name = "life/recipe_confirm_delete.html"
     success_url = reverse_lazy('life:recipe_list')
-    
+
     def get_queryset(self):
         return Recipe.objects.filter(user=self.request.user)
 
@@ -1946,20 +1946,20 @@ class MaintenanceLogListView(LifeAccessMixin, ListView):
     model = MaintenanceLog
     template_name = "life/maintenance_list.html"
     context_object_name = "logs"
-    
+
     def get_queryset(self):
         queryset = MaintenanceLog.objects.filter(user=self.request.user)
-        
+
         # Filter by type
         log_type = self.request.GET.get('type')
         if log_type:
             queryset = queryset.filter(log_type=log_type)
-        
+
         # Filter by area
         area = self.request.GET.get('area')
         if area:
             queryset = queryset.filter(area=area)
-        
+
         # Search
         search = self.request.GET.get('q')
         if search:
@@ -1968,9 +1968,9 @@ class MaintenanceLogListView(LifeAccessMixin, ListView):
                 Q(description__icontains=search) |
                 Q(area__icontains=search)
             )
-        
+
         return queryset.order_by('-date')
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         from apps.core.utils import get_user_today
@@ -2000,7 +2000,7 @@ class MaintenanceLogDetailView(LifeAccessMixin, DetailView):
     model = MaintenanceLog
     template_name = "life/maintenance_detail.html"
     context_object_name = "log"
-    
+
     def get_queryset(self):
         return MaintenanceLog.objects.filter(user=self.request.user)
 
@@ -2110,17 +2110,17 @@ class MaintenanceLogUpdateView(LifeAccessMixin, UpdateView):
         'cost', 'provider', 'provider_contact', 'inventory_item',
         'notes', 'follow_up_date'
     ]
-    
+
     def get_queryset(self):
         return MaintenanceLog.objects.filter(user=self.request.user)
-    
+
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
         form.fields['inventory_item'].queryset = InventoryItem.objects.filter(
             user=self.request.user
         )
         return form
-    
+
     def get_success_url(self):
         return reverse('life:maintenance_detail', kwargs={'pk': self.object.pk})
 
@@ -2130,7 +2130,7 @@ class MaintenanceLogDeleteView(LifeAccessMixin, DeleteView):
     model = MaintenanceLog
     template_name = "life/maintenance_confirm_delete.html"
     success_url = reverse_lazy('life:maintenance_list')
-    
+
     def get_queryset(self):
         return MaintenanceLog.objects.filter(user=self.request.user)
 
@@ -2189,20 +2189,20 @@ class DocumentListView(LifeAccessMixin, ListView):
     model = Document
     template_name = "life/document_list.html"
     context_object_name = "documents"
-    
+
     def get_queryset(self):
         queryset = Document.objects.filter(user=self.request.user)
-        
+
         # Filter by archived
         show_archived = self.request.GET.get('archived')
         if not show_archived:
             queryset = queryset.filter(is_archived=False)
-        
+
         # Filter by category
         category = self.request.GET.get('category')
         if category:
             queryset = queryset.filter(category=category)
-        
+
         # Search
         search = self.request.GET.get('q')
         if search:
@@ -2211,9 +2211,9 @@ class DocumentListView(LifeAccessMixin, ListView):
                 Q(description__icontains=search) |
                 Q(notes__icontains=search)
             )
-        
+
         return queryset.order_by('-created_at')
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         from apps.core.utils import get_user_today
@@ -2240,7 +2240,7 @@ class DocumentDetailView(LifeAccessMixin, DetailView):
     model = Document
     template_name = "life/document_detail.html"
     context_object_name = "document"
-    
+
     def get_queryset(self):
         return Document.objects.filter(user=self.request.user)
 
@@ -2337,10 +2337,10 @@ class DocumentDeleteView(LifeAccessMixin, DeleteView):
     model = Document
     template_name = "life/document_confirm_delete.html"
     success_url = reverse_lazy('life:document_list')
-    
+
     def get_queryset(self):
         return Document.objects.filter(user=self.request.user)
-    
+
     def form_valid(self, form):
         # Delete the file from storage
         if self.object.file:
@@ -2546,20 +2546,20 @@ def get_user_google_credential(user):
 class GoogleCalendarSettingsView(LifeAccessMixin, TemplateView):
     """Settings page for Google Calendar integration."""
     template_name = "life/google_calendar_settings.html"
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         # Check if Google is configured in settings
         from django.conf import settings as django_settings
         context['is_configured'] = bool(
             getattr(django_settings, 'GOOGLE_CALENDAR_CLIENT_ID', None)
         )
-        
+
         # Get credentials from database
         credential = get_user_google_credential(self.request.user)
         context['is_connected'] = credential is not None and credential.is_connected
-        
+
         if context['is_connected'] and context['is_configured']:
             # Check for decryption errors (key rotation, etc.)
             if credential.has_decryption_error():
@@ -2586,7 +2586,7 @@ class GoogleCalendarSettingsView(LifeAccessMixin, TemplateView):
                 except Exception as e:
                     context['calendars'] = []
                     messages.warning(self.request, f"Could not load calendars: {str(e)}")
-            
+
             # Get sync settings from database
             context['selected_calendar'] = credential.selected_calendar_id
             context['selected_calendar_name'] = credential.selected_calendar_name
@@ -2597,7 +2597,7 @@ class GoogleCalendarSettingsView(LifeAccessMixin, TemplateView):
             context['auto_sync'] = credential.auto_sync_enabled
             context['last_sync'] = credential.last_sync
             context['last_sync_status'] = credential.last_sync_status
-        
+
         # Available event types for the form
         context['available_event_types'] = [
             ('personal', 'Personal'),
@@ -2610,9 +2610,9 @@ class GoogleCalendarSettingsView(LifeAccessMixin, TemplateView):
             ('faith', 'Faith'),
             ('other', 'Other'),
         ]
-        
+
         return context
-    
+
     def _refresh_token(self, credential):
         """Refresh an expired access token."""
         from apps.life.services.google_calendar import GoogleCalendarService
@@ -2624,10 +2624,10 @@ class GoogleCalendarSettingsView(LifeAccessMixin, TemplateView):
 
 class GoogleCalendarSaveSettingsView(LifeAccessMixin, View):
     """Save Google Calendar sync settings to database."""
-    
+
     def post(self, request):
         credential = get_user_google_credential(request.user)
-        
+
         if not credential:
             messages.error(request, "Please connect Google Calendar first.")
             return redirect('life:google_calendar_settings')
@@ -2647,12 +2647,12 @@ class GoogleCalendarSaveSettingsView(LifeAccessMixin, View):
         credential.days_past = int(request.POST.get('days_past', 0))
         credential.days_future = int(request.POST.get('days_future', 30))
         credential.auto_sync_enabled = request.POST.get('auto_sync') == 'on'
-        
+
         # Sync types (checkboxes)
         sync_types = request.POST.getlist('sync_types')
         if sync_types:
             credential.set_sync_event_types(sync_types)
-        
+
         # Get calendar name for display
         try:
             from apps.life.services.google_calendar import GoogleCalendarService
@@ -2664,27 +2664,27 @@ class GoogleCalendarSaveSettingsView(LifeAccessMixin, View):
                     break
         except Exception:
             pass
-        
+
         credential.save()
         messages.success(request, "Google Calendar settings saved.")
-        
+
         return redirect('life:google_calendar_settings')
 
 
 class GoogleCalendarConnectView(LifeAccessMixin, View):
     """Initiate Google Calendar OAuth2 flow."""
-    
+
     def get(self, request):
         try:
             from apps.life.services.google_calendar import GoogleCalendarService
-            
+
             service = GoogleCalendarService()
             state = secrets.token_urlsafe(32)
             request.session['google_oauth_state'] = state
-            
+
             authorization_url, _ = service.get_authorization_url(state=state)
             return redirect(authorization_url)
-            
+
         except ImportError as e:
             messages.error(request, str(e))
             return redirect('life:google_calendar_settings')
@@ -2695,33 +2695,33 @@ class GoogleCalendarConnectView(LifeAccessMixin, View):
 
 class GoogleCalendarCallbackView(LifeAccessMixin, View):
     """Handle Google Calendar OAuth2 callback and store credentials in database."""
-    
+
     def get(self, request):
         from apps.life.models import GoogleCalendarCredential
-        
+
         state = request.GET.get('state')
         stored_state = request.session.get('google_oauth_state')
-        
+
         if state != stored_state:
             messages.error(request, "Invalid OAuth state. Please try again.")
             return redirect('life:google_calendar_settings')
-        
+
         error = request.GET.get('error')
         if error:
             messages.error(request, f"Google Calendar authorization failed: {error}")
             return redirect('life:google_calendar_settings')
-        
+
         code = request.GET.get('code')
         if not code:
             messages.error(request, "No authorization code received.")
             return redirect('life:google_calendar_settings')
-        
+
         try:
             from apps.life.services.google_calendar import GoogleCalendarService
-            
+
             service = GoogleCalendarService()
             credentials_dict = service.exchange_code_for_credentials(code)
-            
+
             # Store credentials in database (create or update)
             credential, created = GoogleCalendarCredential.objects.update_or_create(
                 user=request.user,
@@ -2733,23 +2733,23 @@ class GoogleCalendarCallbackView(LifeAccessMixin, View):
                     'client_secret': credentials_dict.get('client_secret', ''),
                 }
             )
-            
+
             # Set expiry if available
             if credentials_dict.get('expiry'):
                 credential.token_expiry = credentials_dict['expiry']
-            
+
             if credentials_dict.get('scopes'):
                 credential.set_scopes_list(credentials_dict['scopes'])
-            
+
             credential.save()
-            
+
             # Clear OAuth state from session
             if 'google_oauth_state' in request.session:
                 del request.session['google_oauth_state']
-            
+
             messages.success(request, "Google Calendar connected successfully! Configure your sync settings below.")
             return redirect('life:google_calendar_settings')
-            
+
         except Exception as e:
             messages.error(request, f"Failed to connect Google Calendar: {str(e)}")
             return redirect('life:google_calendar_settings')
@@ -2757,23 +2757,23 @@ class GoogleCalendarCallbackView(LifeAccessMixin, View):
 
 class GoogleCalendarDisconnectView(LifeAccessMixin, View):
     """Disconnect Google Calendar by removing credentials from database."""
-    
+
     def post(self, request):
         from apps.life.models import GoogleCalendarCredential
-        
+
         # Delete credentials from database
         GoogleCalendarCredential.objects.filter(user=request.user).delete()
-        
+
         messages.success(request, "Google Calendar disconnected.")
         return redirect('life:google_calendar_settings')
 
 
 class GoogleCalendarSyncView(LifeAccessMixin, View):
     """Sync events with Google Calendar using database-stored credentials."""
-    
+
     def post(self, request):
         credential = get_user_google_credential(request.user)
-        
+
         if not credential or not credential.is_connected:
             messages.error(request, "Please connect Google Calendar first.")
             return redirect('life:google_calendar_settings')
@@ -2798,21 +2798,21 @@ class GoogleCalendarSyncView(LifeAccessMixin, View):
             except Exception as e:
                 messages.error(request, f"Could not refresh token: {str(e)}")
                 return redirect('life:google_calendar_settings')
-        
+
         # Get sync settings from database
         credentials_dict = credential.get_credentials_dict()
         sync_action = request.POST.get('sync_action', credential.sync_direction)
         calendar_id = credential.selected_calendar_id
         days_past = credential.days_past
         days_future = credential.days_future
-        
+
         stats = {'imported': 0, 'exported': 0, 'updated': 0}
-        
+
         try:
             from apps.life.services.google_calendar import CalendarSyncService
-            
+
             sync_service = CalendarSyncService(request.user)
-            
+
             # Import from Google
             if sync_action in ('import', 'both'):
                 created, updated = sync_service.sync_from_google(
@@ -2823,7 +2823,7 @@ class GoogleCalendarSyncView(LifeAccessMixin, View):
                 )
                 stats['imported'] = created
                 stats['updated'] += updated
-            
+
             # Export to Google
             if sync_action in ('export', 'both'):
                 exported = sync_service.sync_to_google_bulk(
@@ -2834,7 +2834,7 @@ class GoogleCalendarSyncView(LifeAccessMixin, View):
                     event_types=credential.get_sync_event_types()
                 )
                 stats['exported'] = exported
-            
+
             # Record sync in database
             msg_parts = []
             if stats['imported']:
@@ -2843,30 +2843,30 @@ class GoogleCalendarSyncView(LifeAccessMixin, View):
                 msg_parts.append(f"{stats['exported']} exported")
             if stats['updated']:
                 msg_parts.append(f"{stats['updated']} updated")
-            
+
             credential.record_sync(
                 success=True,
                 message=', '.join(msg_parts) if msg_parts else 'No changes'
             )
-            
+
             if msg_parts:
                 messages.success(request, f"Sync complete: {', '.join(msg_parts)}.")
             else:
                 messages.info(request, "Sync complete. No changes needed.")
-            
+
         except Exception as e:
             credential.record_sync(success=False, message=str(e))
             messages.error(request, f"Sync failed: {str(e)}")
-        
+
         return redirect('life:google_calendar_settings')
 
 
 class GoogleCalendarPushEventView(LifeAccessMixin, View):
     """Push a single event to Google Calendar."""
-    
+
     def post(self, request, pk):
         credential = get_user_google_credential(request.user)
-        
+
         if not credential or not credential.is_connected:
             messages.error(request, "Please connect Google Calendar first.")
             return redirect('life:event_update', pk=pk)
@@ -2889,12 +2889,12 @@ class GoogleCalendarPushEventView(LifeAccessMixin, View):
 
             sync_service = CalendarSyncService(request.user)
             result = sync_service.sync_to_google(event, credential.get_credentials_dict(), calendar_id)
-            
+
             if result:
                 messages.success(request, "Event synced to Google Calendar.")
             else:
                 messages.error(request, "Failed to sync event.")
-            
+
         except LifeEvent.DoesNotExist:
             messages.error(request, "Event not found.")
         except Exception as e:

@@ -11,12 +11,12 @@ from apps.purpose.models import LifeDomain, ReflectionPrompt
 
 class Command(BaseCommand):
     help = 'Set up default Purpose module data (Life Domains and Reflection Prompts)'
-    
+
     def handle(self, *args, **options):
         self.setup_life_domains()
         self.setup_reflection_prompts()
         self.stdout.write(self.style.SUCCESS('Purpose module defaults created successfully!'))
-    
+
     def setup_life_domains(self):
         """Create default life domains."""
         domains = [
@@ -85,7 +85,7 @@ class Command(BaseCommand):
                 'sort_order': 8,
             },
         ]
-        
+
         created_count = 0
         for domain_data in domains:
             domain, created = LifeDomain.objects.get_or_create(
@@ -97,9 +97,9 @@ class Command(BaseCommand):
                 self.stdout.write(f"  Created domain: {domain.name}")
             else:
                 self.stdout.write(f"  Domain exists: {domain.name}")
-        
+
         self.stdout.write(f"Life Domains: {created_count} created, {len(domains) - created_count} existed")
-    
+
     def setup_reflection_prompts(self):
         """Create default reflection prompts."""
         year_end_prompts = [
@@ -114,7 +114,7 @@ class Command(BaseCommand):
             "What relationships deepened? Which ones faded?",
             "If I could go back to January 1st, what advice would I give myself?",
         ]
-        
+
         year_start_prompts = [
             "What word or theme do I want to guide this year?",
             "What do I want to feel more of this year?",
@@ -125,7 +125,7 @@ class Command(BaseCommand):
             "What relationships do I want to invest in?",
             "What would make this year meaningful?",
         ]
-        
+
         quarterly_prompts = [
             "How am I progressing toward my annual direction?",
             "What adjustments do I need to make?",
@@ -133,9 +133,9 @@ class Command(BaseCommand):
             "Am I living in alignment with my word of the year?",
             "What do I need to start, stop, or continue?",
         ]
-        
+
         created_count = 0
-        
+
         # Year End prompts
         for i, question in enumerate(year_end_prompts):
             prompt, created = ReflectionPrompt.objects.get_or_create(
@@ -145,7 +145,7 @@ class Command(BaseCommand):
             )
             if created:
                 created_count += 1
-        
+
         # Year Start prompts
         for i, question in enumerate(year_start_prompts):
             prompt, created = ReflectionPrompt.objects.get_or_create(
@@ -155,7 +155,7 @@ class Command(BaseCommand):
             )
             if created:
                 created_count += 1
-        
+
         # Quarterly prompts
         for i, question in enumerate(quarterly_prompts):
             prompt, created = ReflectionPrompt.objects.get_or_create(
@@ -165,6 +165,6 @@ class Command(BaseCommand):
             )
             if created:
                 created_count += 1
-        
+
         total = len(year_end_prompts) + len(year_start_prompts) + len(quarterly_prompts)
         self.stdout.write(f"Reflection Prompts: {created_count} created, {total - created_count} existed")

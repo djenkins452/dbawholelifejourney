@@ -77,22 +77,22 @@ def interpret_as_user_timezone(dt, user):
     """
     if dt is None:
         return None
-    
+
     user_tz = get_user_timezone(user)
-    
+
     # Strip timezone info to get naive datetime with same numbers
     # e.g., 17:42+00:00 becomes naive 17:42
     if timezone.is_aware(dt):
         naive_dt = dt.replace(tzinfo=None)
     else:
         naive_dt = dt
-    
+
     # Now localize to user's timezone (17:42 Eastern)
     local_dt = user_tz.localize(naive_dt)
-    
+
     # Convert to UTC (17:42 Eastern = 22:42 UTC)
     utc_dt = local_dt.astimezone(pytz.UTC)
-    
+
     return utc_dt
 
 
@@ -130,7 +130,7 @@ class WeightEntryForm(forms.ModelForm):
         # Always set default for new entries
         if not self.instance.pk:
             self.initial["recorded_at"] = get_local_now_string(user)
-    
+
     def clean_recorded_at(self):
         """Convert datetime from user's timezone to UTC."""
         recorded_at = self.cleaned_data.get('recorded_at')
@@ -201,12 +201,12 @@ class FastingWindowForm(forms.ModelForm):
         else:
             # New entry - set current time as default
             self.initial["started_at"] = get_local_now_string(user)
-    
+
     def clean_started_at(self):
         """Convert datetime from user's timezone to UTC."""
         started_at = self.cleaned_data.get('started_at')
         return interpret_as_user_timezone(started_at, self.user)
-    
+
     def clean_ended_at(self):
         """Convert datetime from user's timezone to UTC."""
         ended_at = self.cleaned_data.get('ended_at')
@@ -257,7 +257,7 @@ class HeartRateEntryForm(forms.ModelForm):
         # Always set default for new entries
         if not self.instance.pk:
             self.initial["recorded_at"] = get_local_now_string(user)
-    
+
     def clean_recorded_at(self):
         """Convert datetime from user's timezone to UTC."""
         recorded_at = self.cleaned_data.get('recorded_at')

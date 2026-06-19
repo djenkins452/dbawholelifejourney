@@ -190,16 +190,16 @@ class AIService:
         prefs = user.preferences
         # Both AI must be enabled AND consent must be given
         return prefs.ai_enabled and prefs.ai_data_consent
-    
+
     def _initialize_client(self):
         """Initialize OpenAI client using the shared singleton."""
         self.client = get_openai_client()
-    
+
     @property
     def is_available(self) -> bool:
         """Check if AI service is available."""
         return self.client is not None
-    
+
     def _get_coaching_style_prompt(self, style: str) -> str:
         """Get the coaching style instructions from database."""
         try:
@@ -323,7 +323,7 @@ class AIService:
             # Use default system prompt
             system = self._get_system_prompt(faith_enabled, coaching_style, user_profile=user_profile)
             return (system, 150)  # Default max tokens
-    
+
     def _call_api(
         self,
         system_prompt: str,
@@ -707,11 +707,11 @@ class AIService:
                 )
             except Exception:
                 pass  # telemetry must never break core flow
-    
+
     # =========================================================================
     # JOURNAL INSIGHTS
     # =========================================================================
-    
+
     def analyze_journal_entry(self, entry_text: str, mood: str = None,
                               faith_enabled: bool = False,
                               coaching_style: str = 'supportive') -> Optional[str]:
@@ -842,11 +842,11 @@ Provide a warm, insightful summary that:
 Match your response to your coaching style."""
 
         return self._call_api(system, prompt, max_tokens=max_tokens)
-    
+
     # =========================================================================
     # DASHBOARD INSIGHTS
     # =========================================================================
-    
+
     def generate_daily_insight(self, user_data: dict,
                                faith_enabled: bool = False,
                                coaching_style: str = 'supportive',
@@ -1086,7 +1086,7 @@ RULES:
 Generate the message now."""
 
         return self._call_api(system, prompt, max_tokens=max_tokens)
-    
+
     def generate_accountability_nudge(self, gap_data: dict,
                                       faith_enabled: bool = False,
                                       coaching_style: str = 'supportive') -> Optional[str]:
@@ -1121,7 +1121,7 @@ Generate a nudge that acknowledges this gap.
 Match your coaching style exactly—this is important for how you frame it."""
 
         return self._call_api(system, prompt, max_tokens=max_tokens)
-    
+
     def generate_celebration(self, achievement_data: dict,
                              faith_enabled: bool = False,
                              coaching_style: str = 'supportive') -> Optional[str]:
@@ -1150,11 +1150,11 @@ Generate a celebration message.
 Match your coaching style—even Direct Coach should acknowledge wins warmly."""
 
         return self._call_api(system, prompt, max_tokens=max_tokens)
-    
+
     # =========================================================================
     # GOAL & PURPOSE INSIGHTS
     # =========================================================================
-    
+
     def analyze_goal_progress(self, goal_data: dict,
                               faith_enabled: bool = False,
                               coaching_style: str = 'supportive') -> Optional[str]:
@@ -1177,11 +1177,11 @@ Provide feedback about their goal journey.
 Match your coaching style."""
 
         return self._call_api(system, prompt, max_tokens=max_tokens)
-    
+
     # =========================================================================
     # HEALTH INSIGHTS
     # =========================================================================
-    
+
     def generate_health_encouragement(self, health_data: dict,
                                        faith_enabled: bool = False,
                                        coaching_style: str = 'supportive') -> Optional[str]:
@@ -1220,7 +1220,7 @@ Provide feedback about their health journey.
 Focus on consistency and self-care. Match your coaching style."""
 
         return self._call_api(system, prompt, max_tokens=max_tokens)
-    
+
     def generate_glucose_insight(self, glucose_data: dict,
                                   faith_enabled: bool = False,
                                   coaching_style: str = 'supportive') -> Optional[str]:

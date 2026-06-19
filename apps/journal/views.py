@@ -77,22 +77,22 @@ class EntryListView(HelpContextMixin, LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = JournalEntry.objects.filter(user=self.request.user)
-        
+
         # Filter by category if specified
         category_slug = self.request.GET.get("category")
         if category_slug:
             queryset = queryset.filter(categories__slug=category_slug)
-        
+
         # Filter by tag if specified
         tag_id = self.request.GET.get("tag")
         if tag_id:
             queryset = queryset.filter(tags__id=tag_id)
-        
+
         # Filter by mood if specified
         mood = self.request.GET.get("mood")
         if mood:
             queryset = queryset.filter(mood=mood)
-        
+
         # Search
         search = self.request.GET.get("search")
         if search:
@@ -100,7 +100,7 @@ class EntryListView(HelpContextMixin, LoginRequiredMixin, ListView):
                 models.Q(title__icontains=search) |
                 models.Q(body__icontains=search)
             )
-        
+
         return queryset.distinct()
 
     def get_context_data(self, **kwargs):
@@ -343,7 +343,7 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
         initial["entry_date"] = get_user_today(self.request.user)
         # Title will be set dynamically based on date (handled in form/template)
         initial["title"] = ""
-        
+
         # If coming from a prompt, pre-fill it and set category
         prompt_id = self.request.GET.get("prompt")
         if prompt_id:
@@ -472,14 +472,14 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
         context = super().get_context_data(**kwargs)
         context["is_edit"] = False
         context["page_title"] = "New Journal Entry"
-        
+
         # Random prompt suggestion
         prompts = JournalPrompt.objects.filter(is_active=True)
         if not self.request.user.preferences.faith_enabled:
             prompts = prompts.filter(is_faith_specific=False)
         if prompts.exists():
             context["suggested_prompt"] = random.choice(list(prompts))
-        
+
         # Pass prompt info if coming from a prompt
         prompt_id = self.request.GET.get("prompt")
         if prompt_id:
@@ -487,7 +487,7 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
                 context["selected_prompt"] = JournalPrompt.objects.get(pk=prompt_id)
             except JournalPrompt.DoesNotExist:
                 pass
-        
+
         return context
 
 
@@ -566,7 +566,7 @@ class DeleteEntryView(LoginRequiredMixin, View):
         )
         entry.soft_delete()
         messages.success(
-            request, 
+            request,
             "Entry deleted. You have 30 days to restore it from Recently Deleted."
         )
         return redirect("journal:entry_list")
@@ -600,31 +600,31 @@ class PromptListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = JournalPrompt.objects.filter(is_active=True)
-        
+
         # Filter by faith setting
         if not self.request.user.preferences.faith_enabled:
             queryset = queryset.filter(is_faith_specific=False)
-        
+
         # Filter by category if specified
         category_slug = self.request.GET.get("category")
         if category_slug:
             queryset = queryset.filter(category__slug=category_slug)
-        
+
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         # Get all categories that have prompts
         base_queryset = JournalPrompt.objects.filter(is_active=True)
         if not self.request.user.preferences.faith_enabled:
             base_queryset = base_queryset.filter(is_faith_specific=False)
-        
+
         # Get unique categories from prompts
         category_ids = base_queryset.exclude(category__isnull=True).values_list('category_id', flat=True).distinct()
         context["prompt_categories"] = Category.objects.filter(id__in=category_ids)
         context["active_category"] = self.request.GET.get("category")
-        
+
         return context
 
 
@@ -769,7 +769,7 @@ class HTMXTagCreateModalView(LoginRequiredMixin, View):
 class JournalHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     template_name = "journal/home.html"
     help_context_id = "JOURNAL_HOME"
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
@@ -792,7 +792,7 @@ class JournalHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
         context["recent_entries"] = entries.order_by("-entry_date")[:5]
         context["mood_stats"] = self._get_mood_stats(entries, week_ago)
-        
+
         # Daily writing prompt — rotate based on day of year
         try:
             from apps.journal.models import JournalPrompt
@@ -811,7 +811,7 @@ class JournalHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 context["suggested_prompt"] = None
         except Exception:
             context["suggested_prompt"] = None
-        
+
         context["popular_tags"] = Tag.objects.filter(
             user=user
         ).annotate(entry_count=Count('journal_entries')).order_by('-entry_count')[:10]
@@ -822,7 +822,7 @@ class JournalHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         context['ai_enabled'] = getattr(user.preferences, 'ai_enabled', False)
 
         return context
-    
+
     def _calculate_streak(self, entries, today):
         dates = entries.order_by('-entry_date').values_list('entry_date', flat=True).distinct()[:60]
         if not dates:
@@ -836,7 +836,7 @@ class JournalHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             elif entry_date < expected_date:
                 break
         return streak
-    
+
     def _get_mood_stats(self, entries, since):
         """Build mood stats from emotions ManyToMany field on entries."""
         from apps.journal.models import Emotion

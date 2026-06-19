@@ -47,7 +47,7 @@ class DailyEncouragement(models.Model):
         default="ESV",
         help_text="Bible translation (ESV, NIV, BSB)",
     )
-    
+
     # Categorization
     is_faith_specific = models.BooleanField(
         default=False,
@@ -58,7 +58,7 @@ class DailyEncouragement(models.Model):
         blank=True,
         help_text="Themes like 'peace', 'trust', 'gratitude', 'strength'",
     )
-    
+
     # When to show (optional targeting)
     day_of_week = models.IntegerField(
         null=True,
@@ -70,7 +70,7 @@ class DailyEncouragement(models.Model):
         blank=True,
         help_text="1=January, 12=December. Null = any month",
     )
-    
+
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

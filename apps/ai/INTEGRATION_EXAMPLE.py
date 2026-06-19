@@ -10,9 +10,9 @@ from django.conf import settings
 def get_context_data(self, **kwargs):
     context = super().get_context_data(**kwargs)
     user = self.request.user
-    
+
     # ... existing code ...
-    
+
     # Add AI insights (new code)
     if getattr(settings, 'OPENAI_API_KEY', None):
         try:
@@ -23,7 +23,7 @@ def get_context_data(self, **kwargs):
             context['ai_insights'] = {'available': False}
     else:
         context['ai_insights'] = {'available': False}
-    
+
     return context
 
 

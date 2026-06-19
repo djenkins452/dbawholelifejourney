@@ -18,13 +18,13 @@ User = get_user_model()
 
 class JournalEntryModelTest(TestCase):
     """Tests for the JournalEntry model."""
-    
+
     def setUp(self):
         self.user = User.objects.create_user(
             email='test@example.com',
             password='testpass123'
         )
-    
+
     def test_create_entry(self):
         """Entry can be created with required fields."""
         entry = JournalEntry.objects.create(
@@ -35,7 +35,7 @@ class JournalEntryModelTest(TestCase):
         )
         self.assertEqual(entry.title, 'My First Entry')
         self.assertEqual(entry.user, self.user)
-    
+
     def test_entry_str(self):
         """Entry string representation includes title."""
         entry = JournalEntry.objects.create(
@@ -45,7 +45,7 @@ class JournalEntryModelTest(TestCase):
             entry_date=date.today()
         )
         self.assertIn('Test Entry', str(entry))
-    
+
     def test_entry_has_created_at(self):
         """Entry automatically gets created_at timestamp."""
         entry = JournalEntry.objects.create(
@@ -55,7 +55,7 @@ class JournalEntryModelTest(TestCase):
             entry_date=date.today()
         )
         self.assertIsNotNone(entry.created_at)
-    
+
     def test_entry_ordering(self):
         """Entries are ordered by most recent first."""
         JournalEntry.objects.create(
@@ -76,7 +76,7 @@ class JournalEntryModelTest(TestCase):
 
 class JournalPromptModelTest(TestCase):
     """Tests for the JournalPrompt model."""
-    
+
     def test_create_prompt(self):
         """Prompt can be created."""
         prompt = JournalPrompt.objects.create(
@@ -85,7 +85,7 @@ class JournalPromptModelTest(TestCase):
         )
         self.assertEqual(prompt.text, 'What are you grateful for today?')
         self.assertTrue(prompt.is_active)
-    
+
     def test_prompt_str(self):
         """Prompt string representation is the text."""
         prompt = JournalPrompt.objects.create(
@@ -124,18 +124,18 @@ class JournalEntryViewTest(TestCase):
         """Mark user onboarding as complete."""
         user.preferences.has_completed_onboarding = True
         user.preferences.save()
-    
+
     def test_entry_list_requires_login(self):
         """Entry list requires authentication."""
         self.client.logout()
         response = self.client.get(reverse('journal:entry_list'))
         self.assertEqual(response.status_code, 302)
-    
+
     def test_entry_list_loads(self):
         """Entry list page loads for authenticated user."""
         response = self.client.get(reverse('journal:entry_list'))
         self.assertEqual(response.status_code, 200)
-    
+
     def test_entry_list_shows_user_entries(self):
         """Entry list shows the user's entries."""
         JournalEntry.objects.create(
@@ -146,12 +146,12 @@ class JournalEntryViewTest(TestCase):
         )
         response = self.client.get(reverse('journal:entry_list'))
         self.assertContains(response, 'My Entry')
-    
+
     def test_entry_create_page_loads(self):
         """Entry creation page loads."""
         response = self.client.get(reverse('journal:entry_create'))
         self.assertEqual(response.status_code, 200)
-    
+
     def test_entry_can_be_created(self):
         """User can create a journal entry."""
         self.client.post(reverse('journal:entry_create'), {
@@ -159,11 +159,11 @@ class JournalEntryViewTest(TestCase):
             'body': 'This is my journal entry content.',
             'entry_date': date.today().isoformat(),
         })
-        
+
         # Check entry was created (may redirect or show success)
         entry_exists = JournalEntry.objects.filter(user=self.user, title='New Entry').exists()
         self.assertTrue(entry_exists)
-    
+
     def test_entry_detail_loads(self):
         """Entry detail page loads."""
         entry = JournalEntry.objects.create(
@@ -177,7 +177,7 @@ class JournalEntryViewTest(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Detail Entry')
-    
+
     def test_entry_can_be_updated(self):
         """User can update their entry."""
         entry = JournalEntry.objects.create(
@@ -186,7 +186,7 @@ class JournalEntryViewTest(TestCase):
             body='Original content',
             entry_date=date.today()
         )
-        
+
         self.client.post(
             reverse('journal:entry_update', kwargs={'pk': entry.pk}),
             {
@@ -195,10 +195,10 @@ class JournalEntryViewTest(TestCase):
                 'entry_date': date.today().isoformat(),
             }
         )
-        
+
         entry.refresh_from_db()
         self.assertEqual(entry.title, 'Updated Title')
-    
+
     def test_entry_can_be_deleted(self):
         """User can delete their entry."""
         entry = JournalEntry.objects.create(
@@ -207,11 +207,11 @@ class JournalEntryViewTest(TestCase):
             body='Content',
             entry_date=date.today()
         )
-        
+
         self.client.post(
             reverse('journal:entry_delete', kwargs={'pk': entry.pk})
         )
-        
+
         self.assertFalse(JournalEntry.objects.filter(pk=entry.pk).exists())
 
 
@@ -262,15 +262,15 @@ class JournalDataIsolationTest(TestCase):
         """Mark user onboarding as complete."""
         user.preferences.has_completed_onboarding = True
         user.preferences.save()
-    
+
     def test_user_a_sees_only_their_entries(self):
         """User A only sees their own entries."""
         self.client.login(email='usera@example.com', password='testpass123')
         response = self.client.get(reverse('journal:entry_list'))
-        
+
         self.assertContains(response, 'User A Entry')
         self.assertNotContains(response, 'User B Entry')
-    
+
     def test_user_cannot_view_other_users_entry(self):
         """User A cannot view User B's entry."""
         self.client.login(email='usera@example.com', password='testpass123')
@@ -278,7 +278,7 @@ class JournalDataIsolationTest(TestCase):
             reverse('journal:entry_detail', kwargs={'pk': self.entry_b.pk})
         )
         self.assertEqual(response.status_code, 404)
-    
+
     def test_user_cannot_edit_other_users_entry(self):
         """User A cannot edit User B's entry."""
         self.client.login(email='usera@example.com', password='testpass123')
@@ -286,7 +286,7 @@ class JournalDataIsolationTest(TestCase):
             reverse('journal:entry_update', kwargs={'pk': self.entry_b.pk})
         )
         self.assertEqual(response.status_code, 404)
-    
+
     def test_user_cannot_delete_other_users_entry(self):
         """User A cannot delete User B's entry."""
         self.client.login(email='usera@example.com', password='testpass123')

@@ -206,7 +206,7 @@ class AIInsight(models.Model):
     - Allow users to see past insights
     - Enable async generation
     """
-    
+
     INSIGHT_TYPES = [
         ('daily', 'Daily Dashboard Insight'),
         ('weekly_summary', 'Weekly Journal Summary'),
@@ -223,7 +223,7 @@ class AIInsight(models.Model):
         ('life_home', 'Life Home Insight'),
         ('purpose_home', 'Purpose Home Insight'),
     ]
-    
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -231,11 +231,11 @@ class AIInsight(models.Model):
     )
     insight_type = models.CharField(max_length=30, choices=INSIGHT_TYPES)
     content = models.TextField()
-    
+
     # Optional reference to related object
     related_object_type = models.CharField(max_length=50, blank=True)
     related_object_id = models.PositiveIntegerField(null=True, blank=True)
-    
+
     # Context used to generate (for debugging/transparency)
     context_summary = models.TextField(blank=True, help_text="Summary of data used to generate")
 
@@ -254,17 +254,17 @@ class AIInsight(models.Model):
         default='',
         help_text="Time period when insight was generated (early_morning, morning, afternoon, evening)"
     )
-    
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     valid_until = models.DateTimeField(
         null=True, blank=True,
         help_text="When this insight should be refreshed"
     )
-    
+
     # User feedback
     was_helpful = models.BooleanField(null=True, blank=True)
-    
+
     class Meta:
         ordering = ['-created_at']
         indexes = [
@@ -276,7 +276,7 @@ class AIInsight(models.Model):
 
     def __str__(self):
         return f"{self.get_insight_type_display()} for {self.user} ({self.created_at.date()})"
-    
+
     @property
     def is_valid(self):
         """Check if insight is still valid (not expired)."""

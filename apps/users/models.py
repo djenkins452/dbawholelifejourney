@@ -93,7 +93,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     first_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
-    
+
     # Avatar image
     avatar = models.ImageField(
         upload_to=user_avatar_path,
@@ -108,7 +108,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         blank=True,
         help_text="Date of birth for age verification (must be 13+ to use service)",
     )
-    
+
     # App review account flag (bypasses MFA and security checks for Apple reviewers)
     is_app_review_account = models.BooleanField(
         default=False,
@@ -146,7 +146,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     def get_short_name(self):
         """Return the short name for the user."""
         return self.first_name or self.email.split("@")[0]
-    
+
     def get_initials(self):
         """Return user's initials for avatar fallback."""
         if self.first_name and self.last_name:
@@ -301,55 +301,55 @@ class UserPreferences(models.Model):
     # ===================
     # MODULE TOGGLES
     # ===================
-    
+
     # Core Modules (always available)
     journal_enabled = models.BooleanField(
         default=True,
         help_text="Enable Journal module for daily reflections and entries",
     )
-    
+
     # Faith Module
     faith_enabled = models.BooleanField(
         default=True,
         help_text="Enable Faith module with Scripture, prayers, and faith-aware content",
     )
-    
+
     # Health Module
     health_enabled = models.BooleanField(
         default=True,
         help_text="Enable Health module for tracking weight, fasting, heart rate, and glucose",
     )
-    
+
     # Life Module
     life_enabled = models.BooleanField(
         default=True,
         help_text="Enable Life module for projects, tasks, calendar, inventory, pets, recipes, and documents",
     )
-    
+
     # Purpose Module
     purpose_enabled = models.BooleanField(
         default=True,
         help_text="Enable Purpose module for annual direction, goals, intentions, and reflections",
     )
-    
+
     # Goals Module (Coming Soon)
     goals_enabled = models.BooleanField(
         default=False,
         help_text="Enable Goals module for setting and tracking personal goals",
     )
-    
+
     # Finances Module (Coming Soon)
     finances_enabled = models.BooleanField(
         default=False,
         help_text="Enable Finances module for budget tracking and financial goals",
     )
-    
+
     # Relationships Module
     relationships_enabled = models.BooleanField(
         default=True,
         help_text="Enable Relationships module for tracking connections and interactions",
     )
-    
+
     # Habits Module (Coming Soon)
     habits_enabled = models.BooleanField(
         default=False,

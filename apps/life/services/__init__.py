@@ -8,6 +8,6 @@ from .recurrence import RecurrencePattern, RecurrenceService, process_overdue_re
 
 __all__ = [
     'RecurrencePattern',
-    'RecurrenceService', 
+    'RecurrenceService',
     'process_overdue_recurring_tasks',
 ]

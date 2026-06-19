@@ -7,6 +7,20 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-19 — fix(ai): executive lens consumption — chat now renders the differentiated layer
+
+**Render-consumption fix (no architecture/selector change).** The differentiated executive lenses already existed in `executive_summary.build_executive_lenses` and were exposed on `es['executive_lenses']`, but the chat handler still rendered four lenses from legacy templates: Protect/Story/Overall via `_render_executive_*` (reading `biggest_win`+`biggest_decline`), Briefing shared the Overall renderer (so Overall == Briefing, with no Win/Risk/Opportunity/Protect/Action), and Opportunity read the legacy event field. Win/Improvement/Decline/Trend already consumed the differentiated fields.
+
+**Changes (chat render path only):**
+- `_handle_executive_query` (`deterministic_router.py`) now reads `es['executive_lenses']` for **protect / story / overall / chief_of_staff_briefing**, and the **leverage-framed `opportunity`** string (not the legacy event `biggest_opportunity`). Honest fallback per lens when a key is empty. Legacy `_render_executive_*` helpers are now unused.
+- `_executive_lens_for` distinguishes **`briefing`** (chief-of-staff / executive / strategic briefing / "brief me") from **`overall`** (how am I doing overall) — previously both → overall.
+- `executive_summary.build_executive_lenses` adds a leverage-framed **`opportunity`** string (`_synthesize_opportunity`) so chat Opportunity reads a distinct judgment, not Decline's raw status message. Dashboard-consumed keys (`biggest_opportunity` event, `biggest_risk`) untouched.
+
+**Representative output (chat handler):** Win → "Weight down 14.1 lb"; Improvement → "Glucose improving"; Decline → "Sleep consistency slipping (6.7h, 43/100)"; Opportunity → "Your sleep is your highest-leverage fix — improving it lifts several areas at once."; Trend → "Your weight is improving — but your sleep is the gating constraint…"; Protect → "Protect your weight and your faith consistency — the thing quietly eroding them is your sleep."; Story → "On the upside: Weight down…; Glucose improving; Bible reading streak. The drag: Sleep slipping; 2 relationships drifting."; Overall → "Net: mostly positive but with real pressure — your weight is your strongest gain, your sleep is the area to watch."; Briefing → Win / Risk / Opportunity / Protect / Action. **Overall ≠ Briefing.**
+
+**Regression:** `test_executive_query_route` updated (protect=value×vuln, story=multi-domain, overall=net-read≠briefing, briefing=all-five-dimensions, opportunity=leverage framing, trend=synthesis); 54 executive/lens tests green. `git`-baseline diff (executive route + cos_briefing + dashboard composer/coherence/dedup): 2 pre-existing failures before == 2 after, **zero new** (execution-contract dedup + rhythm preview, unrelated). No model/schema/migration changes. **Files:** `apps/ai/deterministic_router.py`, `apps/core/cos_briefing/executive_summary.py`, `apps/ai/tests/test_executive_query_route.py`.
+
+
 ## 2026-06-19 — feat(ai): executive lens differentiation — distinct judgments, not templates
 
 **Problem (audited):** executive lenses had collapsed onto two signals (weight win, sleep decline). Win and Trend shared one selector (`_ordered(signals)[0]`), and Protect/Story/Overall/Briefing were render templates over `win + decline` — so five lenses returned the same underlying signal reworded. Relationships weren't modeled; faith only surfaced in the "also going well" tail; Opportunity read a usually-empty event field.

@@ -5460,7 +5460,12 @@ def _executive_lens_for(msg_lower):
         return 'protect'
     if 'story' in m:
         return 'story'
-    return 'overall'  # overall / strategic / briefing / most-important-things
+    if any(p in m for p in (
+            'chief of staff briefing', 'executive briefing', 'strategic briefing',
+            'executive summary', 'strategic status', 'strategic overview',
+            'brief me')):
+        return 'briefing'
+    return 'overall'  # overall / how-am-i-doing-overall / most-important-things
 
 
 def _exec_field_msg(d):
@@ -5556,11 +5561,13 @@ def _handle_executive_query(user, msg_lower=None):
         logger.warning("executive route failed", exc_info=True)
         return None
     lens = _executive_lens_for(msg_lower)
+    lenses = es.get('executive_lenses') or {}
+
+    # Single-signal lenses read the differentiated top-level fields.
     _SINGLE = {
         'biggest_win': "a clear standing win",
         'biggest_improvement': "a clear improvement",
         'biggest_decline': "a clear decline",
-        'biggest_opportunity': "a clear opportunity",
         'most_important_trend': "a single most-important trend",
     }
     if lens in _SINGLE:
@@ -5570,11 +5577,23 @@ def _handle_executive_query(user, msg_lower=None):
         return (f"I don't have enough grounded standing signal to name "
                 f"{_SINGLE[lens]} right now — keep logging and I'll surface it "
                 f"as the data builds.")
-    if lens == 'protect':
-        return _render_executive_protect(es)
-    if lens == 'story':
-        return _render_executive_story(es)
-    return _render_executive_overall(es)
+
+    # Differentiated synthesis/leverage lenses read executive_lenses (the layer
+    # already built). Opportunity reads the LEVERAGE-framed string, NOT the
+    # legacy event field. (2026-06-19 render-consumption fix.)
+    _LENS_KEY = {
+        'biggest_opportunity': ('opportunity', "a clear opportunity"),
+        'protect': ('protect', "what's most worth protecting"),
+        'story': ('story', "the story your data tell"),
+        'overall': ('overall', "an overall read"),
+        'briefing': ('chief_of_staff_briefing', "a strategic briefing"),
+    }
+    key, label = _LENS_KEY.get(lens, ('overall', "an overall read"))
+    msg = lenses.get(key)
+    if msg:
+        return msg
+    return (f"I don't have enough grounded standing signal to give you "
+            f"{label} yet — keep logging and the picture will fill in.")
 
 
 # Sleep COACHING intent — "how to improve my sleep" — distinct from a STATUS

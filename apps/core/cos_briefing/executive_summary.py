@@ -441,8 +441,17 @@ def _msg(sig):
 def _empty_lenses() -> dict:
     return {k: None for k in (
         "biggest_win", "biggest_improvement", "biggest_decline",
-        "biggest_opportunity", "most_important_trend", "protect", "story",
-        "overall", "chief_of_staff_briefing")}
+        "biggest_opportunity", "opportunity", "most_important_trend",
+        "protect", "story", "overall", "chief_of_staff_briefing")}
+
+
+def _synthesize_opportunity(opportunity):
+    """OPPORTUNITY = leverage framing ("where one unit of effort returns the
+    most") — distinct from Decline's raw status message even when same domain."""
+    if not opportunity:
+        return None
+    return (f"{(_noun(opportunity) or 'this area').capitalize()} is your "
+            f"highest-leverage fix — improving it lifts several areas at once.")
 
 
 def _synthesize_trend(win, improvement, decline, opportunity):
@@ -572,7 +581,8 @@ def build_executive_lenses(state_signals, biggest_risk=None) -> dict:
         "biggest_win": to_dict(win),
         "biggest_improvement": to_dict(imp),
         "biggest_decline": to_dict(dec),
-        "biggest_opportunity": to_dict(opp),
+        "biggest_opportunity": to_dict(opp),       # raw signal (for inspection)
+        "opportunity": _synthesize_opportunity(opp),  # leverage-framed (chat)
         "most_important_trend": _synthesize_trend(win, imp, dec, opp),
         "protect": protect,
         "story": _synthesize_story(sigs),

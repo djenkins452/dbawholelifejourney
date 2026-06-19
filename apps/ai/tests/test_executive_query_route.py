@@ -26,9 +26,32 @@ _ES = {
                             "message": "Medications 100% this week."},
     "biggest_decline": {"domain": "sleep",
                         "message": "Sleep is trending down (6.7h, 43/100)."},
-    "most_important_trend": {"domain": "weight", "message": "Weight down 12.7 lb."},
-    "biggest_opportunity": None,
+    "most_important_trend": {"domain": "synthesis",
+                             "message": "Your weight is improving — but your "
+                                        "sleep is the gating constraint."},
+    "biggest_opportunity": None,                  # legacy event field (unused by chat now)
     "biggest_risk": {"title": "Med risk", "message": "A medication risk."},
+    # The differentiated executive layer the chat must now consume.
+    "executive_lenses": {
+        "biggest_win": {"domain": "weight", "message": "Down 12.7 lb."},
+        "biggest_improvement": {"domain": "medication", "message": "Meds 100%."},
+        "biggest_decline": {"domain": "sleep", "message": "Sleep slipping."},
+        "biggest_opportunity": {"domain": "sleep", "message": "Sleep slipping."},
+        "opportunity": "Your sleep is your highest-leverage fix — improving it "
+                       "lifts several areas at once.",
+        "most_important_trend": "Your weight is improving — but your sleep is "
+                                "the gating constraint.",
+        "protect": "Protect your weight and your faith consistency — the thing "
+                   "quietly eroding them is your sleep.",
+        "story": "On the upside: Weight down; Meds 100%; Bible streak. The "
+                 "drag: Sleep slipping; 2 relationships drifting.",
+        "overall": "Net: mostly positive but with real pressure — your weight "
+                   "is your strongest gain, your sleep is the area to watch.",
+        "chief_of_staff_briefing": "Win: Down 12.7 lb Risk: A medication risk. "
+                                   "Opportunity: your sleep is your highest-"
+                                   "leverage fix. Protect: your faith. "
+                                   "Action: put your effort into your sleep.",
+    },
 }
 
 
@@ -77,7 +100,9 @@ class ExecutiveLensMapping(SimpleTestCase):
             "what should i protect": "protect",
             "story do the data tell": "story",
             "how am i doing overall": "overall",
-            "chief of staff briefing": "overall",
+            "chief of staff briefing": "briefing",      # now distinct from overall
+            "give me an executive briefing": "briefing",
+            "strategic briefing please": "briefing",
         }
         for q, lens in cases.items():
             self.assertEqual(dr._executive_lens_for(q), lens, q)
@@ -107,34 +132,60 @@ class ExecutiveRouting(TestCase):
             ("what is my biggest win right now", "Down 12.7 lb"),
             ("what is my biggest improvement", "Medications 100%"),
             ("what is my biggest decline", "Sleep is trending down"),
-            ("what is the most important trend in my life", "Weight down"),
+            ("what is the most important trend in my life", "gating constraint"),
         ):
             res = self._route(q)
             self.assertEqual(res.route_name, "executive_summary_query", q)
             self.assertIn(needle, res.response, q)
 
-    def test_overall_and_briefing_are_synthesis_not_checklist(self):
-        for q in ("how am i doing overall", "give me a chief of staff briefing"):
-            res = self._route(q)
-            self.assertEqual(res.route_name, "executive_summary_query", q)
-            self.assertIn("Win:", res.response, q)
-            self.assertIn("Watch:", res.response, q)
-            # NOT the daily-checklist briefing.
-            self.assertNotIn("of 24", res.response)
+    def test_trend_is_differentiated_synthesis(self):
+        res = self._route("what is the most important trend in my life")
+        self.assertIn("gating constraint", res.response.lower())
+        # synthesis references both a positive and the constraint.
+        self.assertIn("weight", res.response.lower())
+        self.assertIn("sleep", res.response.lower())
 
-    def test_protect_combines_win_and_threat(self):
+    def test_opportunity_uses_leverage_framing(self):
+        res = self._route("what is my biggest opportunity right now")
+        self.assertEqual(res.route_name, "executive_summary_query")
+        self.assertIn("highest-leverage", res.response.lower())
+
+    def test_protect_is_value_times_vulnerability(self):
         res = self._route("what should i protect the most right now")
         self.assertEqual(res.route_name, "executive_summary_query")
-        self.assertIn("Down 12.7 lb", res.response)
-        self.assertIn("Sleep is trending down", res.response)
+        self.assertIn("Protect", res.response)
+        self.assertIn("faith", res.response.lower())     # a valuable asset
+        self.assertIn("sleep", res.response.lower())     # the threat
 
-    def test_story_is_grounded_narrative(self):
+    def test_story_references_multiple_domains(self):
         res = self._route("what story do the data tell about my life")
         self.assertEqual(res.route_name, "executive_summary_query")
-        self.assertIn("Down 12.7 lb", res.response)
+        self.assertIn("upside", res.response.lower())
+        n = sum(d in res.response.lower() for d in (
+            "weight", "sleep", "relationship", "meds", "bible", "streak"))
+        self.assertGreaterEqual(n, 3)
+
+    def test_overall_is_net_read_not_briefing(self):
+        res = self._route("how am i doing overall")
+        self.assertEqual(res.route_name, "executive_summary_query")
+        self.assertIn("Net:", res.response)
+        self.assertNotIn("of 24", res.response)          # not the daily checklist
+        brief = self._route("give me a chief of staff briefing")
+        self.assertNotEqual(res.response, brief.response)  # Overall != Briefing
+
+    def test_briefing_has_all_five_dimensions(self):
+        res = self._route("give me a chief of staff briefing")
+        self.assertEqual(res.route_name, "executive_summary_query")
+        for dim in ("Win:", "Risk:", "Opportunity:", "Protect:", "Action:"):
+            self.assertIn(dim, res.response, dim)
 
     def test_honest_when_lens_has_no_signal(self):
-        res = self._route("what is my biggest opportunity right now")
+        empty = dict(_ES)
+        empty["executive_lenses"] = {}
+        with patch("apps.core.cos_briefing.build_executive_summary",
+                   return_value=empty):
+            res = dr.classify_and_route(
+                "what should i protect the most right now", self.user)
         self.assertEqual(res.route_name, "executive_summary_query")
         self.assertIn("don't have enough grounded", res.response.lower())
 

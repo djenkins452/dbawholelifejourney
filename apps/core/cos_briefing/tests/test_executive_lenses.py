@@ -205,3 +205,54 @@ class BriefingRiskAltitude(SimpleTestCase):
             [_sig("sleep", "decline", "declining", leverage=True)], biggest_risk=op)
         self.assertNotIn("biggest_risk", L)             # decoupled from dashboard key
         self.assertEqual(op, self.OP_RISK)              # input not mutated
+
+
+class BriefingThesisLayer(SimpleTestCase):
+    """Briefing leads with a one-sentence thesis from existing overall/trend."""
+
+    def test_briefing_leads_with_thesis_from_overall(self):
+        sigs = [
+            _sig("weight", "win", "improving", title="Weight down 24 lb"),
+            _sig("sleep", "decline", "declining", leverage=True,
+                 title="Sleep consistency low"),
+            _sig("faith", "win", "improving", title="Bible reading streak"),
+        ]
+        L = build_executive_lenses(sigs, biggest_risk=None)
+        b = L["chief_of_staff_briefing"]
+        self.assertTrue(b.startswith("Bottom line:"), b)   # thesis leads
+        # thesis is the already-computed overall, and the 5 lines still follow
+        self.assertIn(L["overall"], b)
+        self.assertIn("Win:", b)
+        self.assertIn("Risk:", b)
+        self.assertIn("Opportunity:", b)
+        # thesis precedes Win
+        self.assertLess(b.index("Bottom line:"), b.index("Win:"))
+
+    def test_thesis_falls_back_to_trend_when_no_overall(self):
+        from apps.core.cos_briefing.executive_summary import _synthesize_briefing
+        win = _sig("weight", "win", "improving", title="Weight down 24 lb")
+        b = _synthesize_briefing(win, None, None, None, None,
+                                 state_signals=[], overall=None,
+                                 trend="Weight improving but sleep is the constraint.")
+        self.assertTrue(b.startswith("Bottom line: Weight improving but sleep"))
+
+    def test_thesis_omitted_when_no_overall_and_no_trend(self):
+        from apps.core.cos_briefing.executive_summary import _synthesize_briefing
+        win = _sig("weight", "win", "improving", title="Weight down 24 lb")
+        b = _synthesize_briefing(win, None, None, None, None,
+                                 state_signals=[], overall=None, trend=None)
+        self.assertNotIn("Bottom line:", b)               # honest omission
+        self.assertTrue(b.startswith("Win:"))
+
+    def test_thesis_does_not_replace_the_five_lines(self):
+        sigs = [
+            _sig("weight", "win", "improving", title="Weight down 24 lb"),
+            _sig("sleep", "decline", "declining", leverage=True,
+                 title="Sleep low"),
+            _sig("relationships", "decline", "declining",
+                 title="3 relationships drifting"),
+        ]
+        b = build_executive_lenses(sigs, biggest_risk=None)["chief_of_staff_briefing"]
+        for marker in ("Bottom line:", "Win:", "Risk:", "Opportunity:",
+                       "Protect:", "Action:"):
+            self.assertIn(marker, b, marker)

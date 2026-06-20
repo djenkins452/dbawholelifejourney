@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-20 — feat(ai): Chief-of-Staff briefing thesis layer (synthesis, not just a list)
+
+**Problem (audited & re-confirmed):** the briefing was a reporting layer — `_synthesize_briefing` concatenated Win/Risk/Opportunity/Protect/Action with no cross-lens reasoning, and ignored the synthesis the executive layer **already computes** (`overall`, `most_important_trend`). It listed five facts but never said what they mean together.
+
+**Narrow fix (approved scope only):** `_synthesize_briefing` now **leads with a one-sentence thesis** reusing the already-computed `overall` (net read), falling back to `most_important_trend` (the gating-constraint synthesis) when no `overall` exists. `build_executive_lenses` computes `overall`/`trend` once and passes them in. No new signal, no scoring, no new prioritization — it surfaces synthesis that was being discarded.
+
+**Representative output (Danny-like state):**
+- Before: "Win: … Risk: … Opportunity: … Protect: … Action: …" (no thesis)
+- After: "**Bottom line: Net: mostly positive but with real pressure — your weight is your strongest gain, your sleep is the area to watch.** Win: Down 24 lb … Risk: 3 relationships drifting Opportunity: sleep (highest leverage) … Protect: weight + faith, eroded by sleep Action: defend sleep this week."
+
+**Regression:** new `BriefingThesisLayer` tests (briefing leads with thesis from `overall`; falls back to `trend` when no `overall`; omitted honestly when neither exists; thesis precedes Win and does not replace the five lines). 63 executive/lens/route tests green; `git`-baseline diff (cos_briefing + dashboard + chat-exec): 1 pre-existing failure == 1 after, **zero new**. No model/schema/migration changes. **Untouched (per scope):** selectors, lenses, routing, dashboard `biggest_risk` key, execution engine; no goal-off-pace, no scoring engine, no AI planning. **Files:** `apps/core/cos_briefing/executive_summary.py`, `apps/core/cos_briefing/tests/test_executive_lenses.py`.
+
+
 ## 2026-06-20 — fix(faith): Bible Translation dropdown — YouVersion page_size=100 → HTTP 400
 
 **Symptom:** `/user/preferences` → Bible Translation dropdown showed an error instead of loading translations (reported as "Error: Failed to load translations").

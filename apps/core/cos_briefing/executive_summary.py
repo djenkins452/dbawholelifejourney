@@ -541,18 +541,29 @@ def _synthesize_overall(state_signals, win, decline):
 
 
 def _synthesize_briefing(win, decline, opportunity, protect, biggest_risk,
-                         state_signals=None):
-    """CHIEF OF STAFF BRIEFING = Win / Risk / Opportunity / Protect / Action.
+                         state_signals=None, overall=None, trend=None):
+    """CHIEF OF STAFF BRIEFING = (thesis) Win / Risk / Opportunity / Protect /
+    Action.
 
-    Risk operates at STRATEGIC altitude (2026-06-20): it prefers a strategic
-    declining/risk STATE signal — distinct from the Opportunity's domain when
-    one exists (so Risk and Opportunity don't both collapse onto sleep) — and
-    only falls back to the operational `biggest_risk` (overdue execution items)
-    when no strategic risk exists, clearly LABELLED as operational (never a bare
-    "Risk: overdue"). The dashboard `biggest_risk` key is unchanged.
+    Thesis layer (2026-06-20): leads with a one-sentence executive thesis — the
+    "what does this mean together" — reusing the ALREADY-COMPUTED `overall` (net
+    read), or `most_important_trend` (the gating-constraint synthesis) when no
+    overall exists. No new signal, no scoring — it surfaces synthesis the
+    executive layer already produces but the briefing previously discarded.
+
+    Risk operates at STRATEGIC altitude: it prefers a strategic declining/risk
+    STATE signal — distinct from the Opportunity's domain when one exists (so
+    Risk and Opportunity don't both collapse onto sleep) — and only falls back
+    to the operational `biggest_risk` when no strategic risk exists, clearly
+    LABELLED as operational (never a bare "Risk: overdue"). The dashboard
+    `biggest_risk` key is unchanged.
     """
     from apps.core.cos_briefing.executive_state import _ordered
     lines = []
+    # ── Thesis (what it means together) ──
+    thesis = overall or trend
+    if thesis:
+        lines.append(f"Bottom line: {thesis}")
     if win:
         lines.append(f"Win: {_msg(win)}")
 
@@ -599,18 +610,22 @@ def build_executive_lenses(state_signals, biggest_risk=None) -> dict:
     dec = picks["biggest_decline"]
     opp = picks["biggest_opportunity"]
     protect = _synthesize_protect(sigs, win, dec)
+    # Computed once so the briefing can lead with the existing synthesis (thesis).
+    trend = _synthesize_trend(win, imp, dec, opp)
+    overall = _synthesize_overall(sigs, win, dec)
     return {
         "biggest_win": to_dict(win),
         "biggest_improvement": to_dict(imp),
         "biggest_decline": to_dict(dec),
         "biggest_opportunity": to_dict(opp),       # raw signal (for inspection)
         "opportunity": _synthesize_opportunity(opp),  # leverage-framed (chat)
-        "most_important_trend": _synthesize_trend(win, imp, dec, opp),
+        "most_important_trend": trend,
         "protect": protect,
         "story": _synthesize_story(sigs),
-        "overall": _synthesize_overall(sigs, win, dec),
+        "overall": overall,
         "chief_of_staff_briefing": _synthesize_briefing(
-            win, dec, opp, protect, biggest_risk, sigs),
+            win, dec, opp, protect, biggest_risk, sigs,
+            overall=overall, trend=trend),
     }
 
 

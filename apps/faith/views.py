@@ -788,8 +788,18 @@ class BibleAPIProxyMixin:
             if status == 403:
                 logger.warning(f"YouVersion API 403: Access denied for {endpoint}")
                 return False, {"error": "This translation is not available for this passage. Please try a different translation.", "status_code": 403}
-            # Unexpected upstream errors - log at error level
-            logger.error(f"YouVersion API HTTP error: {status} - {error_detail} - URL: {url}")
+            # Other upstream 4xx mean WE sent a bad request (bad params/version id).
+            # Preserve the real status + provider message instead of masking it as a
+            # 502 — a 502 implies a gateway fault and gets swallowed by the edge,
+            # producing the vague "Failed to load translations" symptom.
+            if 400 <= status < 500:
+                logger.error(f"YouVersion API client error: {status} - {error_detail} - URL: {url}")
+                return False, {
+                    "error": error_detail or f"Bible API request error: {status}",
+                    "status_code": status,
+                }
+            # Genuine upstream 5xx (provider down) - surface as gateway error
+            logger.error(f"YouVersion API server error: {status} - {error_detail} - URL: {url}")
             return False, {"error": f"Bible API error: {status}", "status_code": 502}
         except requests.exceptions.RequestException as e:
             logger.error(f"YouVersion API error: {e}")
@@ -831,8 +841,8 @@ class BibleAPIBiblesView(LoginRequiredMixin, FaithRequiredMixin, BibleAPIProxyMi
         params['language_ranges[]'] = language
         # Include all translations the API key has access to (not just public domain)
         params['all_available'] = 'true'
-        # Get more results per page (default is 25)
-        params['page_size'] = '100'
+        # Get more results per page (default is 25; YouVersion max is 99 — 100 → HTTP 400)
+        params['page_size'] = '99'
 
         success, data = self.make_api_request("/bibles", params=params)
         if success:

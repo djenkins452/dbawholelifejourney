@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-20 — fix(faith): Bible Translation dropdown — YouVersion page_size=100 → HTTP 400
+
+**Symptom:** `/user/preferences` → Bible Translation dropdown showed an error instead of loading translations (reported as "Error: Failed to load translations").
+
+**Root cause (proven against the live provider):** `BibleAPIBiblesView` hardcoded `params['page_size'] = '100'` when proxying YouVersion's `/bibles` endpoint. YouVersion's max `page_size` is **99** — `100` is rejected with `HTTP 400 {"message":"page_size must be between 1 and 99"}`, so the dropdown could never populate. Broken for every user since the API.Bible→YouVersion migration (commit `d322ead0`). Verified live: `page_size=99` → `HTTP 200` with all 19 English translations in the exact shape the frontend consumes; `100` → `400`.
+
+**Secondary defect (hardening):** the `make_api_request` HTTPError handler collapsed *all* non-401/403/404 upstream errors into a client `502`. A 400 (our malformed request) became a 502 (gateway fault), which the edge (Cloudflare/Railway) can replace with an HTML page — `response.json()` then fails on the frontend and the vague generic "Failed to load translations" fallback is shown, masking the real cause. Now upstream **4xx** preserve the real status + provider message; only genuine upstream **5xx** map to 502.
+
+**Scope:** faith-only. No CoS/AI behavior touched, no models/migrations, no schema changes. The `page_size=100` pattern existed only in the `/bibles` list call.
+
+**Verification:** 245 `apps.faith` tests pass; `manage.py check` clean (pre-existing Stripe warnings only); live provider call confirmed. **Files:** `apps/faith/views.py`.
+
+
 ## 2026-06-20 — fix(ai): Chief-of-Staff briefing Risk line — strategic altitude
 
 **Problem:** the briefing's Risk line frequently read "Risk: overdue" — the operational execution engine's overdue routine item — instead of a strategic risk. Root cause (audited): `_synthesize_briefing` read the event `biggest_risk` (← `get_biggest_risk(execution_state)` → `at_risk_actions`) first, with the strategic `decline` only a fallback that almost never fired.

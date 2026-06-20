@@ -540,17 +540,39 @@ def _synthesize_overall(state_signals, win, decline):
     return (lead + " — " + ", ".join(tail) + ".") if tail else (lead + ".")
 
 
-def _synthesize_briefing(win, decline, opportunity, protect, biggest_risk):
-    """CHIEF OF STAFF BRIEFING = Win / Risk / Opportunity / Protect / Action."""
+def _synthesize_briefing(win, decline, opportunity, protect, biggest_risk,
+                         state_signals=None):
+    """CHIEF OF STAFF BRIEFING = Win / Risk / Opportunity / Protect / Action.
+
+    Risk operates at STRATEGIC altitude (2026-06-20): it prefers a strategic
+    declining/risk STATE signal — distinct from the Opportunity's domain when
+    one exists (so Risk and Opportunity don't both collapse onto sleep) — and
+    only falls back to the operational `biggest_risk` (overdue execution items)
+    when no strategic risk exists, clearly LABELLED as operational (never a bare
+    "Risk: overdue"). The dashboard `biggest_risk` key is unchanged.
+    """
+    from apps.core.cos_briefing.executive_state import _ordered
     lines = []
     if win:
         lines.append(f"Win: {_msg(win)}")
-    risk_msg = ((biggest_risk or {}).get("message")
-                or (biggest_risk or {}).get("title"))
-    if not risk_msg and decline:
-        risk_msg = _msg(decline)
-    if risk_msg:
-        lines.append(f"Risk: {risk_msg}")
+
+    # ── Strategic risk first ──
+    opp_domain = getattr(opportunity, 'domain', None)
+    strategic = _ordered([s for s in (state_signals or [])
+                          if s.direction in ("declining", "risk")])
+    risk_sig = (next((s for s in strategic if s.domain != opp_domain), None)
+                or (strategic[0] if strategic else None))
+    if risk_sig:
+        lines.append(f"Risk: {_msg(risk_sig)}")
+    elif biggest_risk:
+        # No strategic state risk → operational fallback, explicitly labelled.
+        _t = (biggest_risk or {}).get("title")
+        _m = (biggest_risk or {}).get("message")
+        if _t and _m:
+            lines.append(f"Operational risk: {_t} is {_m}.")
+        elif _m or _t:
+            lines.append(f"Operational risk: {_m or _t}.")
+
     if opportunity:
         lines.append(
             f"Opportunity: {_noun(opportunity)} is your highest-leverage fix — "
@@ -588,7 +610,7 @@ def build_executive_lenses(state_signals, biggest_risk=None) -> dict:
         "story": _synthesize_story(sigs),
         "overall": _synthesize_overall(sigs, win, dec),
         "chief_of_staff_briefing": _synthesize_briefing(
-            win, dec, opp, protect, biggest_risk),
+            win, dec, opp, protect, biggest_risk, sigs),
     }
 
 

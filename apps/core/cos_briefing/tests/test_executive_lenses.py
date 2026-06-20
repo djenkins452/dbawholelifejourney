@@ -140,3 +140,68 @@ class RelationshipSignalGrounding(SimpleTestCase):
             self.assertEqual(es_state._relationship_signals(object()), [])
         with patch.object(es_state, "_module", return_value={}):
             self.assertEqual(es_state._relationship_signals(object()), [])
+
+
+class BriefingRiskAltitude(SimpleTestCase):
+    """Risk line operates at STRATEGIC altitude (2026-06-20 narrow fix)."""
+
+    OP_RISK = {"title": "Wake up", "message": "overdue", "module": "routine_item"}
+
+    def _risk_segment(self, briefing):
+        # Extract the text of the Risk / Operational risk line.
+        for marker in ("Risk: ", "Operational risk: "):
+            if marker in briefing:
+                return briefing.split(marker, 1)[1].split(" Opportunity:", 1)[0]
+        return ""
+
+    def test_risk_uses_relationship_drift_when_present_opportunity_stays_sleep(self):
+        sigs = [
+            _sig("weight", "win", "improving", title="Weight down 24 lb"),
+            _sig("sleep", "decline", "declining", leverage=True,
+                 title="Sleep consistency low"),
+            _sig("relationships", "decline", "declining",
+                 title="3 relationships drifting"),
+        ]
+        b = build_executive_lenses(sigs, biggest_risk=self.OP_RISK)[
+            "chief_of_staff_briefing"]
+        self.assertNotIn("overdue", b.lower())          # operational NOT used
+        risk = self._risk_segment(b)
+        self.assertIn("relationship", risk.lower())     # strategic risk surfaced
+        self.assertNotIn("sleep", risk.lower())         # Risk != Opportunity
+        self.assertIn("Opportunity: your sleep", b)     # Opportunity stays sleep
+
+    def test_risk_falls_back_to_sleep_when_only_strategic_risk(self):
+        sigs = [
+            _sig("weight", "win", "improving", title="Weight down 24 lb"),
+            _sig("sleep", "decline", "declining", leverage=True,
+                 title="Sleep consistency low"),
+        ]
+        b = build_executive_lenses(sigs, biggest_risk=self.OP_RISK)[
+            "chief_of_staff_briefing"]
+        self.assertNotIn("overdue", b.lower())
+        self.assertIn("sleep", self._risk_segment(b).lower())  # sleep is the risk
+
+    def test_operational_fallback_only_when_no_strategic_risk_and_labelled(self):
+        sigs = [_sig("weight", "win", "improving", title="Weight down 24 lb"),
+                _sig("faith", "win", "improving", title="Faith streak")]
+        b = build_executive_lenses(sigs, biggest_risk=self.OP_RISK)[
+            "chief_of_staff_briefing"]
+        self.assertIn("Operational risk:", b)           # labelled operational
+        self.assertIn("Wake up", b)
+        self.assertNotIn("Risk: overdue", b)            # never a bare strategic risk
+        self.assertNotIn("Risk: ", b)                   # no bare strategic Risk line
+
+    def test_no_risk_line_when_no_strategic_and_no_operational(self):
+        sigs = [_sig("weight", "win", "improving", title="Weight down 24 lb")]
+        b = build_executive_lenses(sigs, biggest_risk=None)[
+            "chief_of_staff_briefing"]
+        self.assertNotIn("Risk", b)                     # honest omission
+
+    def test_dashboard_biggest_risk_untouched(self):
+        # The lens layer must not emit/alter a 'biggest_risk' key (the dashboard
+        # sets that separately) and must not mutate the passed operational dict.
+        op = dict(self.OP_RISK)
+        L = build_executive_lenses(
+            [_sig("sleep", "decline", "declining", leverage=True)], biggest_risk=op)
+        self.assertNotIn("biggest_risk", L)             # decoupled from dashboard key
+        self.assertEqual(op, self.OP_RISK)              # input not mutated

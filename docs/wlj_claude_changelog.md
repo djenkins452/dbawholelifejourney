@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-20 — fix(ai): Chief-of-Staff briefing Risk line — strategic altitude
+
+**Problem:** the briefing's Risk line frequently read "Risk: overdue" — the operational execution engine's overdue routine item — instead of a strategic risk. Root cause (audited): `_synthesize_briefing` read the event `biggest_risk` (← `get_biggest_risk(execution_state)` → `at_risk_actions`) first, with the strategic `decline` only a fallback that almost never fired.
+
+**Narrow fix (in `_synthesize_briefing` only):** Risk now prefers a strategic declining/risk STATE signal — chosen **distinct from the Opportunity's domain** when one exists (so Risk and Opportunity don't both collapse onto sleep), else the top strategic risk — and falls back to the operational `biggest_risk` **only when no strategic risk exists**, clearly **labelled** ("Operational risk: Wake up is overdue.") rather than a bare "Risk: overdue". `_synthesize_briefing` now receives the full signal list to make this choice.
+
+**Untouched (per scope):** the execution engine, routing, the dashboard `biggest_risk` key (set separately in `build_executive_summary`), `_collect_biggest_risk`, all selectors, and the goal-off-pace work (deferred). No scoring engine, no new signal.
+
+**Representative output (Danny-like state):**
+- Before: "… Risk: overdue …"
+- After: "Win: Down 24.0 lb … Risk: 3 relationships drifting Opportunity: your sleep is your highest-leverage fix … Protect: … Action: defend sleep this week." (Opportunity stays sleep; Risk is the distinct strategic threat.)
+
+**Regression:** new `BriefingRiskAltitude` tests (relationship-drift wins when present & distinct from Opportunity; falls back to sleep when sleep is the only strategic risk; operational fallback only when no strategic risk, and labelled — never bare "Risk: overdue"; no-risk honest omission; dashboard `biggest_risk` key not emitted/mutated by the lens layer). 59 executive/lens/route tests green; `git`-baseline diff (cos_briefing + dashboard + chat-exec): 1 pre-existing failure before == 1 after, **zero new**. No model/schema/migration changes. **Files:** `apps/core/cos_briefing/executive_summary.py`, `apps/core/cos_briefing/tests/test_executive_lenses.py`.
+
+
 ## 2026-06-19 — fix(ci): green main — repair ~3 weeks of accumulated test failures + restore two integrity guarantees
 
 **Context:** `main` CI had been red for 60+ consecutive runs (~3 weeks). The latest failure log surfaced 100+ failing tests across many apps, stemming from several independent root causes that accumulated unnoticed. This change repairs them and restores two silently-regressed integrity guarantees.

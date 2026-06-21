@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-21 — feat(ai): per-question signal reasoning — Beth weighs the board differently per question
+
+Honest reasoning audit found the core gap: every mode read ONE global signal ranking (top risk/win/opp) and reframed it, so the same signal (sleep) led nearly every answer — Beth reacted to the highest-scoring fired event instead of evaluating what matters most *for the question asked*. No new subsystem — upgraded the reasoning of the two hardest modes to weigh the relevant signal set with question-specific logic:
+
+- **Decision** now weighs EFFORT against LEVERAGE and SEQUENCES: leads with the cheap high-value move (reset the passed goal date — a *different* signal than the constraint), then the hard high-leverage work (sleep), then protect the win. "What decision would you make" no longer leads with the same thing as "what concerns you."
+- **Concerns/Risk** now reasons across the concern SET — top strategic risk + a recurring cross-domain pattern (e.g. faith routines slipping) + an accountability gap (a focus we can't yet show is working) — not just the #1 risk.
+
+Combined with the prior diversification (opportunity = strength→gap; status = portfolio scan; trajectory = pace-led), the WINNER now differs by question: trajectory→goal pace, concerns→sleep severity, decision→reset goal date (quick win), doing-well→weight/medication, status→portfolio balance. Same facts, weighted by intent.
+
+**Validation (live, Danny):** the lead signal differs across How am I doing / Trajectory / Concerns / Decision / Doing-well. **Tests:** +3 (decision effort-sequenced before the constraint, concerns multi-signal). `makemigrations --check` clean. `git`-baseline diff across 7 suites: **zero new failures**. **Files:** `apps/ai/deterministic_router.py`, `apps/ai/tests/test_cos_reasoning_modes.py`.
+
+
+
 ## 2026-06-21 — fix(ai): break sleep over-anchoring — Opportunity ≠ Risk, Status as portfolio, routing bugs
 
 Quality review found Beth overfitting answers to the strongest signal (sleep): "biggest opportunity" returned the SAME thing as "biggest risk" ("sleep is your highest-leverage fix"), and the CoS briefing listed Risk=sleep AND Opportunity=sleep. Plus two routing bugs.

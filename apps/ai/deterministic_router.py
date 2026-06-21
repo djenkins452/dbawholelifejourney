@@ -6143,10 +6143,23 @@ def _render_cos_mode(user, mode):
         return " ".join(parts) or overall or _COS_THIN
 
     if mode == 'risk':
+        # Reason across the CONCERN set, not just the top risk: strategic risks +
+        # a recurring pattern + an accountability gap (a focus we can't yet show
+        # is working is itself a concern).
         if R:
             out = f"What concerns me most: {R[0]['message']}"
+            extra = []
             if len(R) > 1:
-                out += f" I'm also watching {R[1]['domain']} ({R[1]['title'].lower()})."
+                extra.append(f"your {R[1]['domain']} ({R[1]['title'].lower()})")
+            if REC:
+                extra.append(f"a pattern of {REC[0]['domain']} items slipping "
+                             f"repeatedly")
+            if eff and any(k in eff for k in ("don't have a clean", "hasn't moved",
+                                              "different approach", "wrong way")):
+                extra.append("and that we still can't show your current focus is "
+                             "actually working")
+            if extra:
+                out += " Below that, I'm watching " + ", ".join(extra[:2]) + "."
             return out
         if gp.get('target_passed') or gp.get('on_pace') is False:
             return f"Your main strategic risk is the goal trajectory. {pace_n}"
@@ -6162,16 +6175,24 @@ def _render_cos_mode(user, mode):
         return " ".join(parts) or overall or _COS_THIN
 
     if mode == 'decision':
-        move = R[0] if R else (O[0] if O else None)
-        parts = ["If I were you, here's where I'd put my energy:"]
-        if move:
-            parts.append(f"the highest-leverage move is {move['domain']} — "
-                         f"{move['message']}")
-        if gp.get('target_passed') or gp.get('on_pace') is False:
-            parts.append(f"I'd also reset the weight plan to a realistic date — {pace_n}")
+        # Decision = weigh EFFORT against LEVERAGE and SEQUENCE it. Lead with the
+        # cheap, high-value move (a different signal than the constraint), then
+        # the hard high-leverage work, then protect what's working.
+        parts = ["If I were you, here's how I'd sequence it:"]
+        if gp.get('target_passed'):
+            parts.append(f"first, the five-minute win — reset your weight target "
+                         f"date so the goal is honest again ({pace_n})")
+        elif OD:
+            parts.append(f"first, clear what's already slipping today "
+                         f"({j(OD, 2)}) so it stops draining your attention")
+        if R:
+            parts.append(f"Then put your real energy into {R[0]['domain']} — "
+                         f"{R[0]['message']}")
+        elif O:
+            parts.append(f"Then build on {O[0]['domain']} — {O[0]['message']}")
         if W:
-            parts.append(f"And keep protecting the win that proves the system "
-                         f"works: {W[0]['title'].lower()}.")
+            parts.append(f"And don't drop the thing that's working: "
+                         f"{W[0]['title'].lower()}.")
         return " ".join(parts) if len(parts) > 1 else (overall or _COS_THIN)
 
     if mode == 'pattern':

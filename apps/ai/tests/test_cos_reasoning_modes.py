@@ -143,6 +143,28 @@ class ModeRendering(TestCase):
         self.assertIn("sleep", out)          # constraint
         self.assertIn("weight", out)         # + reset the plan (2nd domain)
 
+    def test_decision_is_effort_sequenced_not_constraint_first(self):
+        # Decision weighs effort: leads with the cheap high-value move (reset the
+        # passed goal date), THEN the hard lever — a DIFFERENT lead than risk.
+        out = self._render("decision").lower()
+        self.assertIn("sequence", out)
+        self.assertTrue(out.index("reset your weight target") < out.index("sleep"),
+                        "quick win should be sequenced before the hard lever")
+
+    def test_concerns_reasons_across_multiple_signals(self):
+        # Concerns enumerates the concern SET (risk + recurring pattern), not just
+        # the top risk. Seed a recurring pattern so there's a 2nd signal.
+        item, _ = eng.persist_event(self.user, eng.CoSEvent(
+            eng.PAST_DUE, "faith", "Prayer Time", "overdue.", "recover.", "do it.",
+            key="op:faith:prayer-recur"))
+        meta = item.metadata
+        meta["occurrence_count"] = 4
+        item.metadata = meta
+        item.save(update_fields=["metadata"])
+        out = self._render("risk").lower()
+        self.assertIn("below that", out)     # surfaces beyond the #1 risk
+        self.assertIn("pattern of", out)     # the recurring signal
+
     def test_blindspot_names_unaddressed_risk(self):
         self.assertIn("sleep", self._render("blindspot").lower())
 

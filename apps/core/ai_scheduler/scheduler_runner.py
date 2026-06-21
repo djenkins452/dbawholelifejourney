@@ -1263,3 +1263,36 @@ def run_cdce_check_ins():
 
     logger.info("ISE: CDCE check-ins processed for %d users", processed)
     return {"users_processed": processed}
+
+
+def run_health_trend_check_ins():
+    """Capability 6: Generate proactive strategic health-trend interventions —
+    goal slipping, weight stalling/reversing, recommendation effectiveness, and
+    wins. In-app + DNE delivery (no push device required); throttled to ~1/day.
+
+    Returns:
+        dict — {users_processed: int}
+    """
+    from apps.users.models import User
+
+    users = User.objects.filter(
+        is_active=True,
+        preferences__personal_assistant_enabled=True,
+    ).select_related('preferences')[:50]
+
+    processed = 0
+    for user in users:
+        try:
+            from apps.ai.proactive_checkins import (
+                generate_health_trend_check_ins_for_user,
+            )
+            generate_health_trend_check_ins_for_user(user)
+            processed += 1
+        except Exception as e:
+            logger.warning(
+                "ISE: health-trend check-in failed for user %s: %s",
+                user.pk, e,
+            )
+
+    logger.info("ISE: health-trend check-ins processed for %d users", processed)
+    return {"users_processed": processed}

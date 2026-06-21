@@ -338,6 +338,61 @@ class ProactiveCheckInService:
             }
         )
 
+    def generate_health_trend_check_in(self) -> Optional[AssistantMessage]:
+        """Capability 6 — strategic, proactive intervention when a health TREND
+        turns: goal slipping, weight stalling/reversing, a standing
+        recommendation failing, or a real win worth naming. Reuses the unified
+        CoS standing read (apps/ai/cos_intelligence.py) so proactive and
+        conversational Beth share ONE brain. Throttled to ~1/day per type;
+        in-app + DNE delivery, so it works without a registered push device."""
+        if not self.throttler.can_send('health_trend'):
+            return None
+        try:
+            from apps.ai.cos_intelligence import build_cos_intelligence
+            intel = build_cos_intelligence(self.user)
+        except Exception:
+            return None
+        content = self._select_health_trend_message(intel)
+        if not content:
+            return None
+        return self._create_proactive_message(
+            content=content,
+            quick_replies=[],
+            message_type='insight',
+            metadata={'check_in_type': 'health_trend'},
+        )
+
+    def _select_health_trend_message(self, intel) -> Optional[str]:
+        """Pick the single most important strategic intervention, or None when
+        nothing has meaningfully turned — strategic, never generic chatter."""
+        if not intel:
+            return None
+        gp = intel.get('goal_pace') or {}
+        eff = intel.get('recommendation_effectiveness') or ''
+        pace = gp.get('current_pace_lb_wk')
+        # 1) Goal trajectory slipping — highest strategic priority.
+        if gp.get('target_passed'):
+            return (f"Heads up — your weight target date ({gp.get('target_date')}) "
+                    f"has passed and you're still {gp.get('remaining')} lb out at "
+                    f"~{pace} lb/week. Worth resetting the date or tightening "
+                    f"the plan.")
+        if gp.get('on_pace') is False and gp.get('required_pace_lb_wk'):
+            return (f"Your weight goal is slipping — at ~{pace} lb/week you're "
+                    f"behind your {gp.get('target_date')} target (you'd need "
+                    f"~{gp.get('required_pace_lb_wk')}/week). Want to adjust the "
+                    f"plan or the date?")
+        # 2) Weight reversing / stalled.
+        if pace is not None and pace <= 0 and not gp.get('insufficient'):
+            return ("Your weight has stalled — it isn't trending toward your goal "
+                    "right now. Want to look at what changed this week?")
+        # 3) A standing recommendation that isn't working — needs a pivot.
+        if any(k in eff for k in ("different approach", "change tack", "wrong way")):
+            return f"Worth a rethink: {eff}"
+        # 4) A real win worth naming.
+        if "working" in eff:
+            return f"Quick positive note — {eff}"
+        return None
+
     def generate_journal_check_in(self) -> Optional[AssistantMessage]:
         """
         Generate a brief check-in about journaling today.
@@ -2413,6 +2468,23 @@ def generate_cdce_correlation_check_ins_for_user(user):
         pass
     except Exception as e:
         logger.warning("CDCE correlation check-in error: %s", e, exc_info=True)
+
+
+def generate_health_trend_check_ins_for_user(user):
+    """Capability 6 — proactive strategic health-trend intervention (goal
+    slipping, weight stalling/reversing, recommendation effectiveness, wins).
+    In-app + DNE delivery; throttled to ~1/day. Respects the proactive master
+    switch."""
+    prefs = getattr(user, 'preferences', None)
+    if prefs and not getattr(prefs, 'assistant_proactive_checkins', True):
+        return None
+    try:
+        service = get_proactive_service(user)
+        return service.generate_health_trend_check_in()
+    except Exception as e:
+        logger.warning("health-trend check-in error for user %s: %s",
+                       getattr(user, 'pk', '?'), e, exc_info=True)
+        return None
 
 
 # =============================================================================

@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-21 — feat(ai): proactive strategic health-trend interventions — Capability 6
+
+**Gap:** proactive check-ins existed only for overdue tasks / relationship drift / goal stalling — there was **no strategic HEALTH trigger** (sleep deteriorating, weight reversing, goal slipping, a recommendation failing, or a win). Beth waited to be asked.
+
+**Built (reuses the unified CoS brain — no silo):**
+- `ProactiveCheckInService.generate_health_trend_check_in()` + `_select_health_trend_message()` — reads the unified standing read (`build_cos_intelligence`) and fires the single most important strategic intervention: goal trajectory slipping (target passed / behind required pace) → weight stalled/reversing → standing recommendation not working (needs a pivot) → a real win worth naming. Returns None when nothing meaningful turned (strategic, not spam).
+- `generate_health_trend_check_ins_for_user()` orchestration (respects the proactive master switch) + `run_health_trend_check_ins()` scheduler job + registry entry `generate_health_trend_check_ins` (6h cadence; throttler caps to ~1/day/user).
+- **Delivery:** `_create_proactive_message` creates the in-app chat message AND routes through the DNE for push/SMS/email — so these interventions surface **in-app without a registered push device** (push-to-phone activates once a device is registered).
+
+**Representative (live, Danny):** target-passed → *"Heads up — your weight target date (2026-06-13) has passed and you're still 58.3 lb out at ~0.88 lb/week. Worth resetting the date or tightening the plan."* Behind-pace, stalled, recommendation-not-working, and win variants all verified; "nothing turned" → silent.
+
+**No new model** (`makemigrations --check` clean). **Regression:** new `test_health_trend_proactive.py` (12 tests). `git`-baseline diff across 5 proactive/scheduler suites: **zero new failures** (8 pre-existing renderer/scheduler failures unchanged from baseline). **Files:** `apps/ai/proactive_checkins.py`, `apps/core/ai_scheduler/scheduler_runner.py`, `apps/core/ai_scheduler/scheduler_registry.py`, `apps/ai/tests/test_health_trend_proactive.py`.
+
+
+
 ## 2026-06-21 — feat(ai): unified CoS intelligence — goal pace (Cap 5) + single-brain integration (Caps 2/7), no trigger phrase (#8)
 
 **Gap:** the new capabilities (coaching, accountability, recommendation effectiveness) lived only in deterministic routes — they required exact trigger phrases and weren't part of Beth's normal LLM conversation (failing checklist #2/#7/#8). And **goal pace (Capability 5)** didn't exist (only an `on_track` boolean).

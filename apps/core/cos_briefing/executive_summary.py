@@ -445,13 +445,26 @@ def _empty_lenses() -> dict:
         "protect", "story", "overall", "chief_of_staff_briefing")}
 
 
-def _synthesize_opportunity(opportunity):
-    """OPPORTUNITY = leverage framing ("where one unit of effort returns the
-    most") — distinct from Decline's raw status message even when same domain."""
-    if not opportunity:
+def _synthesize_opportunity(opportunity, win=None):
+    """OPPORTUNITY = the biggest UPSIDE, framed as PROVEN STRENGTH applied to the
+    gap — deliberately DISTINCT from Risk (which names the threat) so the two
+    never collapse onto the same domain. When a standing win exists, the
+    opportunity is to extend that already-proven capability to the constraint,
+    not merely 'fix the constraint'."""
+    if not opportunity and not win:
         return None
-    return (f"{(_noun(opportunity) or 'this area').capitalize()} is your "
-            f"highest-leverage fix — improving it lifts several areas at once.")
+    opp_noun = _noun(opportunity) if opportunity else None
+    win_noun = _noun(win) if win else None
+    if win_noun and opp_noun and win_noun != opp_noun:
+        return (f"The biggest upside isn't a new project — it's leverage you've "
+                f"already built. {win_noun.capitalize()} proves you can hold a "
+                f"plan; apply that same consistency to {opp_noun}, the one place "
+                f"it isn't reaching yet, and it lifts several areas at once.")
+    if opp_noun:
+        return (f"{opp_noun.capitalize()} is your highest-leverage point — one "
+                f"unit of effort there returns the most across your goals.")
+    return (f"Your clearest opportunity is to build on {win_noun} — the strength "
+            f"you've already established.")
 
 
 def _synthesize_trend(win, improvement, decline, opportunity):
@@ -585,9 +598,11 @@ def _synthesize_briefing(win, decline, opportunity, protect, biggest_risk,
             lines.append(f"Operational risk: {_m or _t}.")
 
     if opportunity:
-        lines.append(
-            f"Opportunity: {_noun(opportunity)} is your highest-leverage fix — "
-            f"improving it lifts several areas at once.")
+        # Distinct from Risk: build on the proven strength (win), not restate the
+        # constraint. Falls back to leverage framing when there's no win.
+        _opp_line = _synthesize_opportunity(opportunity, win)
+        if _opp_line:
+            lines.append(f"Opportunity: {_opp_line}")
     if protect:
         lines.append(f"Protect: {protect}")
     action_src = opportunity or decline
@@ -618,7 +633,7 @@ def build_executive_lenses(state_signals, biggest_risk=None) -> dict:
         "biggest_improvement": to_dict(imp),
         "biggest_decline": to_dict(dec),
         "biggest_opportunity": to_dict(opp),       # raw signal (for inspection)
-        "opportunity": _synthesize_opportunity(opp),  # leverage-framed (chat)
+        "opportunity": _synthesize_opportunity(opp, win),  # strength→gap (chat)
         "most_important_trend": trend,
         "protect": protect,
         "story": _synthesize_story(sigs),

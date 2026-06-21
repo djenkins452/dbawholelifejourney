@@ -6008,9 +6008,9 @@ _COS_MODE_PHRASES = {
                              'what should i do today', 'priority today',
                              'most important thing today', 'focus on right now'),
     'prioritization': ('focus on this week', 'focus this week',
-                       'what should i prioritize', 'what should i prioritise',
-                       'what deserves my attention', 'what deserves attention',
-                       'where should i put my energy'),
+                       'what should i focus on', 'what should i prioritize',
+                       'what should i prioritise', 'what deserves my attention',
+                       'what deserves attention', 'where should i put my energy'),
     'risk': ('biggest risk', 'what concerns you most', 'what concerns you',
              'what could hurt me', 'what worries you', 'what should i worry about',
              'what is my biggest risk', "what's my biggest risk"),
@@ -6029,7 +6029,8 @@ _COS_MODE_PHRASES = {
                    'where am i stuck', 'what is limiting me',
                    "what's limiting me"),
     'progress': ('where am i making progress', 'where am i progressing',
-                 'where am i winning'),
+                 'where am i winning', 'what am i doing well', 'what am i doing right',
+                 'what am i nailing', "what's going well", 'what is going well'),
     'stop': ('what should i stop doing', 'what should i stop', 'should i stop'),
     'start': ('what should i start doing', 'what should i start'),
     'honest': ('honest assessment', 'give it to me straight', 'be honest with me',
@@ -6043,6 +6044,10 @@ def _cos_mode_for(msg_lower):
     m = msg_lower or ''
     for mode, phrases in _COS_MODE_PHRASES.items():
         if any(p in m for p in phrases):
+            # Don't let the broad "what should I focus on" steal cross-domain
+            # COACHING ("…to keep losing weight") — that has its own renderer.
+            if mode == 'prioritization' and any(c in m for c in _COS_COACHING_PHRASES):
+                continue
             return mode
     return None
 
@@ -6077,8 +6082,8 @@ def _render_cos_mode(user, mode):
         if W:
             parts.append(f"The momentum is real — {W[0]['title'].lower()}.")
         if R:
-            parts.append(f"The weak point in that trajectory is {R[0]['domain']}: "
-                         f"{R[0]['message']}")
+            parts.append(f"The one factor that could slow it is {R[0]['domain']} "
+                         f"({R[0]['title'].lower()}).")
         if gp.get('target_passed') or gp.get('on_pace') is False:
             parts.append("Net read: you're moving the right way, just slower than "
                          "your original plan — the lever is the date or the pace, "
@@ -6333,28 +6338,31 @@ def _handle_executive_query(user, msg_lower=None):
 
 
 def _cos_status_enrich(user, base):
-    """Turn a net status verdict into a CoS read: headline + the one thing that
-    could undo it + a single recommendation. Reuses the event stream; never
-    raises; returns base unchanged if there's nothing grounded to add."""
+    """STATUS = a portfolio SCAN across domains (strengths / the watch-item /
+    what's slipping), not a single prescription — status reads, it doesn't
+    prescribe. Reuses the event stream; never raises; returns base unchanged when
+    there's nothing grounded to add."""
     try:
         from apps.ai.cos_event_engine import (
-            active_events, STRATEGIC_RISK, MAJOR_WIN)
+            active_events, STRATEGIC_RISK, MAJOR_WIN, STRATEGIC_OPPORTUNITY,
+            PAST_DUE, RECURRING_PROBLEM)
         evs = active_events(user)
         R = [e for e in evs if e['category'] == STRATEGIC_RISK]
-        W = [e for e in evs if e['category'] == MAJOR_WIN]
+        strengths = [e['domain'] for e in evs
+                     if e['category'] in (MAJOR_WIN, STRATEGIC_OPPORTUNITY)][:2]
+        OD = [e for e in evs if e['category'] in (PAST_DUE, RECURRING_PROBLEM)]
     except Exception:
         return base
-    parts = [base] if base else []
-    if W and R:
-        parts.append(f"The headline is that you're proving the plan works — "
-                     f"{W[0]['title'].lower()} — but {R[0]['domain']} is the thing "
-                     f"that could quietly undo it.")
-    elif R:
-        parts.append(f"The thing I'd watch is {R[0]['domain']} — {R[0]['title'].lower()}.")
+    scan = []
+    if strengths:
+        scan.append(f"your strengths are {' and '.join(dict.fromkeys(strengths))}")
     if R:
-        parts.append(f"My one piece of advice: protect {R[0]['domain']} now, "
-                     f"before it starts dragging on everything else.")
-    return " ".join(parts) if len(parts) > 1 else base
+        scan.append(f"the one thing moving the wrong way is {R[0]['domain']}")
+    if OD:
+        scan.append(f"and a few routines are slipping today ({len(OD)})")
+    if not scan:
+        return base
+    return ((base + " ") if base else "") + "Across the board: " + ", ".join(scan) + "."
 
 
 # Sleep COACHING intent — "how to improve my sleep" — distinct from a STATUS

@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-21 — fix(ai): break sleep over-anchoring — Opportunity ≠ Risk, Status as portfolio, routing bugs
+
+Quality review found Beth overfitting answers to the strongest signal (sleep): "biggest opportunity" returned the SAME thing as "biggest risk" ("sleep is your highest-leverage fix"), and the CoS briefing listed Risk=sleep AND Opportunity=sleep. Plus two routing bugs.
+
+**Fixes (answer quality only — no new modes/routes/engines):**
+- **Opportunity ≠ Risk:** `_synthesize_opportunity(opp, win)` now frames opportunity as a PROVEN STRENGTH applied to the gap — "The biggest upside isn't a new project — it's leverage you've already built. Your weight proves you can hold a plan; apply that same consistency to your sleep…" Leads with a DIFFERENT domain (the win) than Risk (the constraint). The CoS briefing's Opportunity line now uses the same synthesis, so Risk and Opportunity no longer collapse onto sleep.
+- **Status = portfolio scan:** `_cos_status_enrich` reads breadth ("your strengths are weight and medication, the one thing moving the wrong way is sleep, and a few routines are slipping today") instead of prescribing "protect sleep" — status reads, it doesn't prescribe.
+- **Trajectory:** trimmed the redundant full sleep paragraph to a one-clause factor, keeping the pace verdict as the lead.
+- **Routing bug 1:** bare "what should I focus on?" → prioritization (was the execution reminder "Go into Prayer Time"), with a coaching guard so "…to keep losing weight" still routes to cross-domain coaching.
+- **Routing bug 2:** "what am I doing well?" → progress (was falling to the LLM).
+
+**Validation (live, Danny):** biggest-risk and biggest-opportunity are now materially different and cross-domain; the briefing has distinct Risk vs Opportunity; "how am I doing" scans 4 domains. **Tests:** +5 (opportunity strength-framing distinct from risk, bare-focus routing, doing-well routing, coaching guard) and 2 briefing tests updated to the new contract. `makemigrations --check` clean. `git`-baseline diff across 9 suites: **zero new failures**. **Files:** `apps/ai/deterministic_router.py`, `apps/core/cos_briefing/executive_summary.py`, `apps/ai/tests/test_cos_reasoning_modes.py`, `apps/core/cos_briefing/tests/test_executive_lenses.py`.
+
+
+
 ## 2026-06-21 — feat(ai): Chief-of-Staff answer quality — judgment, implications, recommendations (not dashboard reporting)
 
 The reasoning modes were distinct but several still *reported* facts ("weight down 12.7 lb; sleep trending down") instead of *reasoning* like a Chief of Staff. Root cause: the thin renderers used only the event TITLE and dropped the `why_it_matters` + `what_to_do` already in the event `message`. No new modes/routes/engines — upgraded the answer quality of existing renderers to the structure: verdict → capability → concern + cross-domain implication → prioritised tradeoff/recommendation.

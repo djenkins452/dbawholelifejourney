@@ -38,6 +38,18 @@ class ModeClassifier(SimpleTestCase):
         for phrase, mode in cases.items():
             self.assertEqual(dr._cos_mode_for(phrase), mode, phrase)
 
+    def test_bare_focus_routes_to_prioritization_not_execution(self):
+        # Bug: bare "what should I focus on?" fell to the execution reminder.
+        self.assertEqual(dr._cos_mode_for("what should i focus on"), "prioritization")
+
+    def test_doing_well_routes_to_progress(self):
+        # Bug: "what am I doing well?" fell to the LLM.
+        self.assertEqual(dr._cos_mode_for("what am i doing well"), "progress")
+
+    def test_focus_to_keep_losing_stays_coaching_not_prioritization(self):
+        # The broad focus phrase must not steal cross-domain coaching.
+        self.assertIsNone(dr._cos_mode_for("what should i focus on to keep losing weight"))
+
     def test_executive_matcher_accepts_modes(self):
         for phrase in ("what is my trajectory", "what concerns you most",
                        "what would you do if you were me", "what am i ignoring"):

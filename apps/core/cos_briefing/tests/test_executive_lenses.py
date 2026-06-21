@@ -51,6 +51,14 @@ class LensDifferentiation(SimpleTestCase):
         # Opportunity may share Decline's domain — distinct JUDGMENT, not collapse.
         self.assertEqual(self.L["biggest_decline"]["domain"], "sleep")
 
+    def test_opportunity_string_is_strength_framed_distinct_from_risk(self):
+        # A CoS opportunity builds on a proven strength applied to the gap — it
+        # must NOT read like the risk ("sleep is the threat"). Leads with the win.
+        opp = self.L["opportunity"]
+        self.assertIn("leverage you've already built", opp)
+        self.assertIn("weight", opp.lower())          # the proven strength (≠ sleep)
+        self.assertNotEqual(opp, self.L["biggest_decline"]["message"])
+
     def test_trend_is_synthesis_not_equal_to_win(self):
         trend = self.L["most_important_trend"]
         self.assertIsInstance(trend, str)
@@ -168,7 +176,11 @@ class BriefingRiskAltitude(SimpleTestCase):
         risk = self._risk_segment(b)
         self.assertIn("relationship", risk.lower())     # strategic risk surfaced
         self.assertNotIn("sleep", risk.lower())         # Risk != Opportunity
-        self.assertIn("Opportunity: your sleep", b)     # Opportunity stays sleep
+        # Opportunity is now STRENGTH-framed (leads with the proven win, applied
+        # to the gap) — distinct from Risk, not a restatement of the constraint.
+        self.assertIn("Opportunity:", b)
+        self.assertIn("leverage you've already built", b)
+        self.assertIn("weight", b.split("Opportunity:")[1].lower())  # the proven strength
 
     def test_risk_falls_back_to_sleep_when_only_strategic_risk(self):
         sigs = [

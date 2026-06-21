@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-21 — feat(ai): CoS reasoning modes — one brain, distinct projections (product-level differentiation)
+
+**Product validation (25 real questions, Danny's data):** STATUS/TRAJECTORY/DIRECTION collapsed to one string ("weight good, sleep bad"); "focus this week/today" + "stop doing" were hijacked by an execution reminder ("Go into Prayer Time"); "concerns you most" / "what would you do" collapsed to a health-only analysis; 8 core modes fell through to the LLM. Beth felt like a collection of features, not one intelligence.
+
+**Fix — a reasoning-mode layer in the executive route.** Each CoS mode reads the SAME unified state (`build_cos_intelligence` + the GuidanceItem event stream) and answers a DIFFERENT question, so modes never collapse and "the same facts appear across all relevant conversations":
+- `trajectory` → goal pace (where headed); `direction` → yes/no verdict + movement + caveat; `prioritization` → fix the constraint + clear operational decks; `risk` → strategic risk (cross-domain), reclaimed from the weak operational decision-engine answer; `opportunity_soft`/`progress` → wins (confidence); `decision` → multi-domain synthesis (fix sleep + reset weight plan + protect win); `pattern` → recurring events; `blindspot` → unaddressed risks vs the wins being ridden; `constraint`/`stop`/`start` → the constraint, framed for the action; `honest` → full synthesis.
+- `_cos_mode_for` is checked first in `_handle_executive_query` and added to `_match_executive_query`, so the executive gate reclaims questions previously hijacked by execution-now / health-analyze / LLM.
+- **Correctness:** "what to fix" modes target the CONSTRAINT (risk = sleep), never a positive trend (medication) — fixed a leverage-target bug.
+
+**Before → after (Danny):** "What is my trajectory?" → pace to 2027 (was net status). "What's holding me back?" → sleep with the why (was identical net status). "What would you do if you were me?" → fix sleep + reset weight plan + protect the −12.7 lb win (was "protect muscle/protein"). "Biggest risk" → sleep declining as the constraint (was "0 missed doses + 2 overdue"). All 25 grounded + differentiated; zero fall to the LLM.
+
+**Regression:** new `test_cos_reasoning_modes.py` (13 tests: classifier, materially-different modes, fix-modes-target-constraint, trajectory-uses-pace, direction-verdict, decision-cross-domain). Updated two `test_executive_query_route.py` boundary tests to the new intended contract (biggest-risk → executive strategic mode). `makemigrations --check` clean. `git`-baseline diff across 8 executive/router/event suites: **zero new failures**. **Files:** `apps/ai/deterministic_router.py`, `apps/ai/tests/test_cos_reasoning_modes.py`, `apps/ai/tests/test_executive_query_route.py`.
+
+
+
 ## 2026-06-21 — fix(ai): route attention/late/upcoming questions to the unified event stream (consumption gap)
 
 **Trace (3 questions):** "What needs my attention right now?", "What am I late on?", "What is coming up soon?" all hit `no_match` → LLM, which answered from execution-state context (`right_now_focus` / next-action — the "Cut up boxes for trash day" leakage). **Determination: B — legacy execution state**, NOT the unified GuidanceItem event stream. The executive brain + event engine worked; these three were the gap.

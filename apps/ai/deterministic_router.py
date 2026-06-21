@@ -5547,6 +5547,8 @@ def _match_executive_query(msg_lower):
     Cross-domain CoS coaching questions also match (rendered as coaching)."""
     if not msg_lower:
         return False
+    if _cos_mode_for(msg_lower):
+        return True
     if any(p in msg_lower for p in _EXECUTIVE_LENS_PHRASES):
         return True
     if any(p in msg_lower for p in _COS_COACHING_PHRASES):
@@ -5990,10 +5992,228 @@ def _handle_upcoming_query(user, msg_lower=None):
     return "Nothing is coming up in your tracked items right now."
 
 
+# ── CoS REASONING MODES (2026-06-21) — one brain, distinct projections. ──
+# Each mode reads the SAME unified state (build_cos_intelligence + the event
+# stream) and answers a DIFFERENT executive question, so status / trajectory /
+# direction / risk / opportunity / decision / pattern / blind-spot / constraint
+# never collapse to one string. Only the BROKEN or MISSING modes are mapped here
+# — biggest_win/opportunity, highest-leverage coaching, accountability and pace
+# keep their existing (already-distinct) renderers.
+_COS_MODE_PHRASES = {
+    'trajectory': ('trajectory', 'where am i headed', 'where am i going',
+                   'headed in the right'),
+    'direction': ('moving in the right direction', 'right direction',
+                  'on the right path', 'going the right way'),
+    'prioritization': ('focus on this week', 'focus on today',
+                       'what should i prioritize', 'what should i prioritise',
+                       'what deserves my attention', 'what deserves attention',
+                       'where should i put my energy'),
+    'risk': ('biggest risk', 'what concerns you most', 'what concerns you',
+             'what could hurt me', 'what worries you', 'what should i worry about',
+             'what is my biggest risk', "what's my biggest risk"),
+    'opportunity_soft': ('gives you confidence', 'what could help me',
+                         'most optimistic about', 'what makes you optimistic'),
+    'decision': ('what would you do if you were me', 'if you were me',
+                 'in my shoes', 'what would you do in my'),
+    'pattern': ('what patterns do you see', 'what patterns', 'recurring theme',
+                'recurring themes', 'what trends do you see'),
+    'blindspot': ('what am i ignoring', 'what am i not seeing', 'what am i missing',
+                  'area of my life needs attention', 'area needs attention',
+                  'what am i overlooking', 'blind spot', 'blindspot'),
+    'constraint': ('what is holding me back', "what's holding me back",
+                   'next bottleneck', 'bottleneck', 'where am i stuck',
+                   'what is limiting me', "what's limiting me"),
+    'progress': ('where am i making progress', 'where am i progressing',
+                 'where am i winning'),
+    'stop': ('what should i stop doing', 'what should i stop', 'should i stop'),
+    'start': ('what should i start doing', 'what should i start'),
+    'honest': ('honest assessment', 'give it to me straight', 'be honest with me',
+               'your honest take', 'brutal assessment'),
+}
+_COS_THIN = ("I don't have enough grounded standing signal to give you that read "
+             "yet — keep logging and the picture will fill in.")
+
+
+def _cos_mode_for(msg_lower):
+    m = msg_lower or ''
+    for mode, phrases in _COS_MODE_PHRASES.items():
+        if any(p in m for p in phrases):
+            return mode
+    return None
+
+
+def _render_cos_mode(user, mode):
+    """Render a distinct executive answer for `mode` from ONE shared state."""
+    from apps.ai.cos_intelligence import build_cos_intelligence
+    from apps.ai.cos_event_engine import (
+        active_events, STRATEGIC_RISK, STRATEGIC_OPPORTUNITY, MAJOR_WIN,
+        PAST_DUE, RECURRING_PROBLEM)
+    intel = build_cos_intelligence(user) or {}
+    events = active_events(user)
+    overall = intel.get('overall')
+    pace_n = intel.get('goal_pace_narrative')
+    gp = intel.get('goal_pace') or {}
+    eff = intel.get('recommendation_effectiveness')
+    R = [e for e in events if e['category'] == STRATEGIC_RISK]
+    O = [e for e in events if e['category'] == STRATEGIC_OPPORTUNITY]
+    W = [e for e in events if e['category'] == MAJOR_WIN]
+    OD = [e for e in events if e['category'] in (PAST_DUE, RECURRING_PROBLEM)]
+    REC = [e for e in events if e['category'] == RECURRING_PROBLEM
+           or e.get('occurrence_count', 1) >= 3]
+    pace = gp.get('current_pace_lb_wk')
+
+    def j(lst, n=2):
+        return "; ".join(e['title'] for e in lst[:n])
+
+    if mode == 'trajectory':
+        parts = []
+        if pace_n:
+            parts.append(f"Where you're headed: {pace_n}")
+        if R:
+            parts.append(f"What's bending the curve is {R[0]['domain']} — "
+                         f"{R[0]['title'].lower()}.")
+        elif W:
+            parts.append(f"Momentum is with you — {W[0]['title'].lower()}.")
+        return " ".join(parts) or overall or _COS_THIN
+
+    if mode == 'direction':
+        good = bool(W) or (pace or 0) > 0
+        if good and not R:
+            lead = "On balance, yes — "
+        elif good and R:
+            lead = "Mostly yes, with one caveat — "
+        else:
+            lead = "Not entirely — "
+        ev = []
+        if W:
+            ev.append(W[0]['title'].lower())
+        if (pace or 0) > 0:
+            ev.append(f"weight is coming down at ~{pace} lb/week")
+        caveat = f" The thing pulling against you is {R[0]['domain']}." if R else ""
+        body = ", ".join(ev) if ev else (overall or "")
+        return (lead + body + "." + caveat).strip() if body else (overall or _COS_THIN)
+
+    if mode == 'prioritization':
+        # Leverage = the CONSTRAINT to fix (risk), not a positive trend.
+        parts = []
+        lead = R[0] if R else (O[0] if O else None)
+        if lead:
+            parts.append(f"This week's highest-leverage focus is {lead['domain']} — "
+                         f"{lead['title'].lower()}.")
+        if OD:
+            parts.append(f"Operationally, clear the decks: {j(OD, 3)}.")
+        return " ".join(parts) or overall or _COS_THIN
+
+    if mode == 'risk':
+        if R:
+            out = f"What concerns me most: {R[0]['message']}"
+            if len(R) > 1:
+                out += f" I'm also watching {R[1]['domain']} ({R[1]['title'].lower()})."
+            return out
+        if gp.get('target_passed') or gp.get('on_pace') is False:
+            return f"Your main strategic risk is the goal trajectory. {pace_n}"
+        return ("Honestly, nothing strategic is flashing red right now — your "
+                "trend is working. " + (overall or "")).strip()
+
+    if mode == 'opportunity_soft':
+        parts = []
+        if O:
+            parts.append(f"Your biggest opening: {O[0]['message']}")
+        if W:
+            parts.append(f"What gives me confidence: {j(W, 2)}.")
+        return " ".join(parts) or overall or _COS_THIN
+
+    if mode == 'decision':
+        move = R[0] if R else (O[0] if O else None)
+        parts = ["If I were you, here's where I'd put my energy:"]
+        if move:
+            parts.append(f"the highest-leverage move is to fix {move['domain']} — "
+                         f"{move['title'].lower()}.")
+        if gp.get('target_passed') or gp.get('on_pace') is False:
+            parts.append(f"I'd also reset the weight plan — {pace_n}")
+        if W:
+            parts.append(f"And keep protecting the win: {W[0]['title'].lower()}.")
+        return " ".join(parts) if len(parts) > 1 else (overall or _COS_THIN)
+
+    if mode == 'pattern':
+        if REC:
+            return (f"The recurring theme I keep flagging: {j(REC, 3)}. "
+                    + (eff or "")).strip()
+        if eff:
+            return f"The pattern across our conversations: {eff}"
+        if R:
+            return (f"The throughline lately is {R[0]['domain']} — "
+                    f"{R[0]['title'].lower()}.")
+        return "No strong recurring pattern yet — I'll flag one the moment it forms."
+
+    if mode == 'blindspot':
+        if R:
+            ride = (W[0]['title'].lower() if W else "your progress")
+            return (f"What you may be under-weighting: {j(R, 2)}. It's easy to "
+                    f"ride the wins ({ride}) and let this quietly slide.")
+        if gp.get('target_passed'):
+            return (f"The blind spot: your weight target date has passed and the "
+                    f"plan hasn't been reset. {pace_n}")
+        return ("I don't see an obvious blind spot right now — but ask again as "
+                "the week unfolds and I'll keep watching.")
+
+    if mode == 'constraint':
+        c = R[0] if R else (O[0] if O else None)
+        if c:
+            return f"The thing holding you back most is {c['domain']}: {c['message']}"
+        return overall or _COS_THIN
+
+    if mode == 'progress':
+        if W or O:
+            return "Where you're making real progress: " + j(W + O, 3) + "."
+        return ("Progress is thin in the tracked data this week — let's change "
+                "that. " + (overall or "")).strip()
+
+    if mode == 'stop':
+        if R:
+            return (f"If you're going to stop something, ease off whatever is "
+                    f"feeding {R[0]['domain']}'s slide — {R[0]['title'].lower()}. "
+                    f"That's costing you more than it's giving.")
+        return ("Nothing's clearly worth stopping right now — your habits are "
+                "mostly working for you.")
+
+    if mode == 'start':
+        s = R[0] if R else (O[0] if O else None)
+        if s:
+            return (f"The one thing worth starting: protect {s['domain']} — "
+                    f"{s['title'].lower()}. That's your highest-leverage new habit.")
+        return overall or _COS_THIN
+
+    if mode == 'honest':
+        parts = []
+        if overall:
+            parts.append(overall)
+        if R:
+            parts.append(f"Straight talk on the risk: {R[0]['title'].lower()}.")
+        if pace_n:
+            parts.append(pace_n)
+        if W:
+            parts.append(f"Credit where it's due: {W[0]['title'].lower()}.")
+        return " ".join(parts) or _COS_THIN
+
+    return None
+
+
 def _handle_executive_query(user, msg_lower=None):
     """Answer an executive-lens question from build_executive_summary — the one
     executive reasoning layer the dashboard uses. Read-only over cached SAE
     state; never raises; honest when a lens has no grounded signal yet."""
+    # CoS reasoning-mode layer first — distinct projection per mode (status /
+    # trajectory / risk / opportunity / decision / blind-spot / …) so executive
+    # questions never collapse to one answer.
+    _mode = _cos_mode_for(msg_lower)
+    if _mode:
+        try:
+            _mode_resp = _render_cos_mode(user, _mode)
+            if _mode_resp:
+                return _mode_resp
+        except Exception:
+            logger.warning("cos mode render failed (%s)", _mode, exc_info=True)
     try:
         from apps.core.cos_briefing import build_executive_summary
         es = build_executive_summary(user) or {}

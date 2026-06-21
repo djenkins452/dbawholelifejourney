@@ -104,9 +104,11 @@ class ExecutiveMatcher(SimpleTestCase):
                   "what's helping and what's hurting"):
             self.assertEqual(dr._executive_lens_for(q), "coaching", q)
 
-    def test_excludes_risk_fix_and_execution(self):
+    def test_excludes_fix_and_execution(self):
+        # NOTE: "biggest risk" / "what concerns you most" now DO route to the
+        # executive layer (strategic RISK reasoning mode) — see
+        # test_cos_reasoning_modes. Fix-first and execution phrasings stay off it.
         for q in (
-            "what is my biggest risk right now",   # decision engine (Phase 1 boundary)
             "what should i fix first",
             "what needs my attention",
             "what should i do next",
@@ -281,11 +283,13 @@ class ExecutiveBoundaryPreserved(TestCase):
     def setUp(self):
         self.user = _user("exb@test.com")
 
-    def test_standalone_risk_stays_on_decision_engine(self):
+    def test_biggest_risk_now_routes_to_executive_strategic_mode(self):
+        # Intentional change (2026-06-21): "biggest risk" gives a strategic
+        # cross-domain RISK read from the unified brain, not the operational
+        # decision-engine answer ("0 missed doses + 2 overdue").
         res = dr.classify_and_route("what is my biggest risk right now", self.user)
         self.assertIsNotNone(res)
-        self.assertNotEqual(res.route_name, "executive_summary_query")
-        self.assertTrue((res.route_name or "").startswith("decision_query"))
+        self.assertEqual(res.route_name, "executive_summary_query")
 
     def test_fix_first_stays_on_decision_engine(self):
         res = dr.classify_and_route("what should i fix first", self.user)

@@ -106,10 +106,12 @@ class ModeRendering(TestCase):
     def test_trajectory_uses_pace(self):
         self.assertIn("0.88 lb/week", self._render("trajectory"))
 
-    def test_direction_is_a_verdict(self):
+    def test_direction_is_a_verdict_with_judgment(self):
         out = self._render("direction").lower()
-        self.assertTrue(out.startswith(("on balance", "mostly yes", "not entirely")))
-        self.assertIn("sleep", out)          # the caveat (cross-domain)
+        self.assertTrue(out.startswith(("overall", "yes", "honestly")))  # verdict
+        self.assertIn("proving you can", out)        # capability framing
+        self.assertIn("sleep", out)                  # cross-domain concern
+        self.assertIn("if i were prioritising", out)  # recommendation/tradeoff
 
     def test_risk_is_strategic_not_operational(self):
         self.assertIn("concerns me most", self._render("risk").lower())
@@ -131,6 +133,21 @@ class ModeRendering(TestCase):
 
     def test_blindspot_names_unaddressed_risk(self):
         self.assertIn("sleep", self._render("blindspot").lower())
+
+    def test_modes_carry_judgment_not_just_facts(self):
+        # CoS bar: trajectory + progress must add an implication/recommendation,
+        # not just report the metric.
+        traj = self._render("trajectory").lower()
+        self.assertIn("lever is the date", traj)     # judgment, not just the number
+        prog = self._render("progress").lower()
+        self.assertIn("proves you can", prog)        # what the win means
+        self.assertIn("don't let it mask", prog)     # the caveat
+
+    def test_decision_uses_full_reasoning_chain(self):
+        # Decision must carry the constraint's WHY (from the event message),
+        # not just its title.
+        out = self._render("decision").lower()
+        self.assertIn("constrains weight loss", out)  # why_it_matters from message
 
     def test_bottleneck_is_forward_looking_and_distinct(self):
         constraint = self._render("constraint")

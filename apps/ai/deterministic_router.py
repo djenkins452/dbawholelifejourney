@@ -6074,39 +6074,54 @@ def _render_cos_mode(user, mode):
         parts = []
         if pace_n:
             parts.append(f"Where you're headed: {pace_n}")
+        if W:
+            parts.append(f"The momentum is real — {W[0]['title'].lower()}.")
         if R:
-            parts.append(f"What's bending the curve is {R[0]['domain']} — "
-                         f"{R[0]['title'].lower()}.")
-        elif W:
-            parts.append(f"Momentum is with you — {W[0]['title'].lower()}.")
+            parts.append(f"The weak point in that trajectory is {R[0]['domain']}: "
+                         f"{R[0]['message']}")
+        if gp.get('target_passed') or gp.get('on_pace') is False:
+            parts.append("Net read: you're moving the right way, just slower than "
+                         "your original plan — the lever is the date or the pace, "
+                         "not your effort.")
         return " ".join(parts) or overall or _COS_THIN
 
     if mode == 'direction':
+        if not (W or R or pace_n):
+            return overall or _COS_THIN
         good = bool(W) or (pace or 0) > 0
-        if good and not R:
-            lead = "On balance, yes — "
-        elif good and R:
-            lead = "Mostly yes, with one caveat — "
-        else:
-            lead = "Not entirely — "
-        ev = []
+        parts = ["Overall, yes." if (good and R) else
+                 ("Yes — clearly." if good else "Honestly, not yet.")]
         if W:
-            ev.append(W[0]['title'].lower())
-        if (pace or 0) > 0:
-            ev.append(f"weight is coming down at ~{pace} lb/week")
-        caveat = f" The thing pulling against you is {R[0]['domain']}." if R else ""
-        body = ", ".join(ev) if ev else (overall or "")
-        return (lead + body + "." + caveat).strip() if body else (overall or _COS_THIN)
+            cap = f"You're proving you can do this — {W[0]['title'].lower()}"
+            if any(e['domain'] == 'medication' for e in O):
+                cap += ", and you're holding your medication adherence steady"
+            parts.append(cap + ".")
+        if R:
+            parts.append(f"What concerns me is the opposite move on {R[0]['domain']}: "
+                         f"{R[0]['message']}")
+        if gp.get('target_passed') or gp.get('on_pace') is False:
+            parts.append("At this pace you'll likely still reach the goal — just "
+                         "not on the timeline you originally set.")
+        if R:
+            push = W[0]['domain'] if W else "the number"
+            parts.append(f"If I were prioritising your next move, I'd put less "
+                         f"effort into pushing {push} further and more into "
+                         f"protecting {R[0]['domain']}, so the progress you've "
+                         f"made stays sustainable.")
+        return " ".join(parts)
 
     if mode == 'prioritization':
         # WEEK = strategic-first. Leverage = the CONSTRAINT to fix (risk).
         parts = []
         lead = R[0] if R else (O[0] if O else None)
         if lead:
-            parts.append(f"This week's highest-leverage focus is {lead['domain']} — "
-                         f"{lead['title'].lower()}.")
+            parts.append(f"This week, put your energy into {lead['domain']}: "
+                         f"{lead['message']}")
         if OD:
-            parts.append(f"Operationally, clear the decks: {j(OD, 3)}.")
+            parts.append(f"Operationally, clear what's slipping: {j(OD, 3)}.")
+        if W:
+            parts.append(f"And protect what's already working ({W[0]['title'].lower()}) "
+                         f"— don't trade it away chasing the next gain.")
         return " ".join(parts) or overall or _COS_THIN
 
     if mode == 'prioritization_today':
@@ -6145,12 +6160,13 @@ def _render_cos_mode(user, mode):
         move = R[0] if R else (O[0] if O else None)
         parts = ["If I were you, here's where I'd put my energy:"]
         if move:
-            parts.append(f"the highest-leverage move is to fix {move['domain']} — "
-                         f"{move['title'].lower()}.")
+            parts.append(f"the highest-leverage move is {move['domain']} — "
+                         f"{move['message']}")
         if gp.get('target_passed') or gp.get('on_pace') is False:
-            parts.append(f"I'd also reset the weight plan — {pace_n}")
+            parts.append(f"I'd also reset the weight plan to a realistic date — {pace_n}")
         if W:
-            parts.append(f"And keep protecting the win: {W[0]['title'].lower()}.")
+            parts.append(f"And keep protecting the win that proves the system "
+                         f"works: {W[0]['title'].lower()}.")
         return " ".join(parts) if len(parts) > 1 else (overall or _COS_THIN)
 
     if mode == 'pattern':
@@ -6196,7 +6212,14 @@ def _render_cos_mode(user, mode):
 
     if mode == 'progress':
         if W or O:
-            return "Where you're making real progress: " + j(W + O, 3) + "."
+            parts = ["Where you're making real progress: " + j(W + O, 3) + "."]
+            parts.append("That matters more than the number itself — it proves "
+                         "you can hold a plan and move the metric, which is the "
+                         "hard part.")
+            if R:
+                parts.append(f"Just don't let it mask the one area that isn't "
+                             f"moving: {R[0]['domain']} — {R[0]['title'].lower()}.")
+            return " ".join(parts)
         return ("Progress is thin in the tracked data this week — let's change "
                 "that. " + (overall or "")).strip()
 
@@ -6220,11 +6243,15 @@ def _render_cos_mode(user, mode):
         if overall:
             parts.append(overall)
         if R:
-            parts.append(f"Straight talk on the risk: {R[0]['title'].lower()}.")
-        if pace_n:
+            parts.append(f"Straight talk — your real exposure is {R[0]['domain']}: "
+                         f"{R[0]['message']}")
+        elif pace_n:
             parts.append(pace_n)
         if W:
-            parts.append(f"Credit where it's due: {W[0]['title'].lower()}.")
+            parts.append(f"Credit where it's due — {W[0]['title'].lower()}.")
+        if R:
+            parts.append(f"If you do one thing, protect {R[0]['domain']}; it's the "
+                         f"hinge the rest of your goals swing on.")
         return " ".join(parts) or _COS_THIN
 
     return None
@@ -6296,9 +6323,38 @@ def _handle_executive_query(user, msg_lower=None):
     key, label = _LENS_KEY.get(lens, ('overall', "an overall read"))
     msg = lenses.get(key)
     if msg:
+        # STATUS: a net verdict alone is a dashboard. Add the cross-domain
+        # implication + the single next move from the event stream.
+        if key == 'overall':
+            return _cos_status_enrich(user, msg)
         return msg
     return (f"I don't have enough grounded standing signal to give you "
             f"{label} yet — keep logging and the picture will fill in.")
+
+
+def _cos_status_enrich(user, base):
+    """Turn a net status verdict into a CoS read: headline + the one thing that
+    could undo it + a single recommendation. Reuses the event stream; never
+    raises; returns base unchanged if there's nothing grounded to add."""
+    try:
+        from apps.ai.cos_event_engine import (
+            active_events, STRATEGIC_RISK, MAJOR_WIN)
+        evs = active_events(user)
+        R = [e for e in evs if e['category'] == STRATEGIC_RISK]
+        W = [e for e in evs if e['category'] == MAJOR_WIN]
+    except Exception:
+        return base
+    parts = [base] if base else []
+    if W and R:
+        parts.append(f"The headline is that you're proving the plan works — "
+                     f"{W[0]['title'].lower()} — but {R[0]['domain']} is the thing "
+                     f"that could quietly undo it.")
+    elif R:
+        parts.append(f"The thing I'd watch is {R[0]['domain']} — {R[0]['title'].lower()}.")
+    if R:
+        parts.append(f"My one piece of advice: protect {R[0]['domain']} now, "
+                     f"before it starts dragging on everything else.")
+    return " ".join(parts) if len(parts) > 1 else base
 
 
 # Sleep COACHING intent — "how to improve my sleep" — distinct from a STATUS

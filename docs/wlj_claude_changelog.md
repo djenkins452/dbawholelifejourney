@@ -7,6 +7,16 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-21 — feat(ai): Chief-of-Staff answer quality — judgment, implications, recommendations (not dashboard reporting)
+
+The reasoning modes were distinct but several still *reported* facts ("weight down 12.7 lb; sleep trending down") instead of *reasoning* like a Chief of Staff. Root cause: the thin renderers used only the event TITLE and dropped the `why_it_matters` + `what_to_do` already in the event `message`. No new modes/routes/engines — upgraded the answer quality of existing renderers to the structure: verdict → capability → concern + cross-domain implication → prioritised tradeoff/recommendation.
+
+Upgraded: **direction** (now matches the gold-standard CoS answer — "Overall, yes. You're proving you can do this — weight down 12.7 lb… What concerns me is the opposite move on sleep… At this pace you'll reach the goal, just not on your timeline… I'd put less effort into pushing weight and more into protecting sleep so the progress stays sustainable."), **trajectory** (adds timeline judgment — "the lever is the date or the pace, not your effort"), **status** (`_cos_status_enrich`: headline + the thing that could undo it + one recommendation), **progress** ("proves you can hold a plan and move the metric… don't let it mask sleep"), **prioritization**/**decision**/**honest** (now carry the full why-chain + a tradeoff). All reuse the event stream + cos_intelligence — no new data.
+
+**Validation (live, Danny):** all 7 marquee questions now provide judgment + implication + recommendation; direction matches the directive's "Chief of Staff answer" example. **Tests:** 17 mode tests incl. new CoS-quality bar (judgment-not-just-facts, full-reasoning-chain, verdict+recommendation). `makemigrations --check` clean. `git`-baseline diff across 7 suites: **zero new failures**. **Files:** `apps/ai/deterministic_router.py`, `apps/ai/tests/test_cos_reasoning_modes.py`.
+
+
+
 ## 2026-06-21 — feat(ai): reasoning-mode differentiation pass — today≠week, bottleneck≠constraint (validation hardening)
 
 Live 25-question validation (Danny's account) confirmed all questions grounded + cross-domain, but two pairs were textually identical where the question implied a different angle: "focus today" == "focus this week", and "next bottleneck" == "holding me back". Split both into distinct modes:

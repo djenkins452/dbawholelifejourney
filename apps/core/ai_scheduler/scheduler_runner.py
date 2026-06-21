@@ -1296,3 +1296,39 @@ def run_health_trend_check_ins():
 
     logger.info("ISE: health-trend check-ins processed for %d users", processed)
     return {"users_processed": processed}
+
+
+def run_cos_event_engine_all():
+    """Chief of Staff Event Engine: detect → persist → auto-resolve strategic
+    events (risk / opportunity / win) for all active users. Events land in the
+    notification center, Beth's context, and the standing read regardless of
+    push delivery.
+
+    Returns:
+        dict — {users_processed, created, updated, resolved}
+    """
+    from apps.users.models import User
+
+    users = User.objects.filter(
+        is_active=True,
+        preferences__personal_assistant_enabled=True,
+    ).select_related('preferences')[:50]
+
+    processed = created = updated = resolved = 0
+    for user in users:
+        try:
+            from apps.ai.cos_event_engine import run_cos_event_engine
+            r = run_cos_event_engine(user)
+            created += r.get("created", 0)
+            updated += r.get("updated", 0)
+            resolved += r.get("resolved", 0)
+            processed += 1
+        except Exception as e:
+            logger.warning(
+                "ISE: CoS event engine failed for user %s: %s", user.pk, e)
+
+    logger.info(
+        "ISE: CoS event engine — users=%d created=%d updated=%d resolved=%d",
+        processed, created, updated, resolved)
+    return {"users_processed": processed, "created": created,
+            "updated": updated, "resolved": resolved}

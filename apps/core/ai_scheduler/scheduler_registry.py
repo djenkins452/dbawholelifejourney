@@ -186,6 +186,11 @@ SCHEDULED_TASKS = {
         "interval_seconds": 21600,  # 6 hours (throttler caps to ~1/day per user)
         "description": "Proactive strategic health-trend interventions — goal slipping, weight stalling/reversing, recommendation effectiveness, wins (Capability 6).",
     },
+    "run_cos_event_engine": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_cos_event_engine_all",
+        "interval_seconds": 10800,  # 3 hours
+        "description": "Chief of Staff Event Engine — detect/persist/resolve strategic events (risk, opportunity, win) into the notification center + Beth context.",
+    },
     # --- Proactive Guidance Scheduler ---
     "run_proactive_guidance": {
         "function_path": "apps.ai.proactive_checkins.run_proactive_guidance_scheduler",

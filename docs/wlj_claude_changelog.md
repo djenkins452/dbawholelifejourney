@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-21 — feat(ai): Chief of Staff Event Engine — one engine that notices and tells Danny before he asks
+
+**Problem:** strategic intelligence only appeared when asked, while notifications were a separate task/push pipeline — two systems, not a Chief of Staff. **Audit found the substrate already exists:** `GuidanceItem` carries `dedupe_key`, `created_at`, `metadata` JSON, and full lifecycle, AND already renders in the notification center (`notifications.html`, `notification_bell.html`) and Beth's context (`active_guidance`). So NO new model.
+
+**Built `apps/ai/cos_event_engine.py`:**
+- `CoSEvent` dataclass with the mandatory three-part explanation (what happened / why it matters / what to do) + six categories (approaching, due_now, past_due, strategic_risk, strategic_opportunity, major_win).
+- `detect_events()` — strategic detectors over the unified brain (`build_cos_intelligence`) + executive state signals: goal slipping/target-passed, sleep/glucose decline, recommendation failing → RISK; improvement / recommendation working → OPPORTUNITY; biggest win / goal reached → MAJOR WIN.
+- `persist_event()` — upserts each event as a `GuidanceItem` keyed by `dedupe_key`, so it appears in the notification center, web UI, and Beth's context **for free**, decoupled from push. **Recurrence is first-class:** re-detection increments `occurrence_count` and escalates framing after ~2 weeks (*"I've been flagging this for about 3 weeks and it hasn't resolved"*).
+- `run_cos_event_engine()` — detect → persist → **auto-resolve** events no longer present (keeps the center honest). Respects the proactive switch.
+- Integrated into `build_cos_intelligence['events']` + the "CHIEF OF STAFF STANDING READ" prompt section → Beth references recent events in normal conversation (no trigger phrase). Scheduled via `run_cos_event_engine_all` (registry `run_cos_event_engine`, 3h).
+
+**Representative (live, Danny):** detected 4 — *"Your sleep is trending down (averaging 6.7h, consistency 43/100). Because sleep is a primary constraint on your weight loss and energy, a sustained dip raises the risk of a weight-loss slowdown. Protect tonight's sleep…"*, weight-target-passed risk, "Down 12.7 lb" win, medication-100% opportunity — all persisted (module=health → surface in the notification center) and present in the standing read.
+
+**No new model** (`makemigrations --check` clean). **Regression:** new `test_cos_event_engine.py` (11 tests: detection of all strategic categories, three-part message, recurrence increment + week-escalation, auto-resolve, proactive-switch gate, standing-read integration, registry). `git`-baseline diff across 8 cos/scheduler suites: **zero new failures**. **Files:** `apps/ai/cos_event_engine.py` (new), `apps/ai/cos_intelligence.py`, `apps/core/ai_scheduler/scheduler_runner.py`, `apps/core/ai_scheduler/scheduler_registry.py`, `apps/ai/tests/test_cos_event_engine.py`.
+
+
+
 ## 2026-06-21 — feat(ai): proactive strategic health-trend interventions — Capability 6
 
 **Gap:** proactive check-ins existed only for overdue tasks / relationship drift / goal stalling — there was **no strategic HEALTH trigger** (sleep deteriorating, weight reversing, goal slipping, a recommendation failing, or a win). Beth waited to be asked.

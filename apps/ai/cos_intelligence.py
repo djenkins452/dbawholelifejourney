@@ -133,6 +133,13 @@ def build_cos_intelligence(user):
             intel["briefing"] = lenses["chief_of_staff_briefing"]
     except Exception:
         logger.debug("cos_intel: executive block failed", exc_info=True)
+    try:
+        from apps.ai.cos_event_engine import recent_cos_events
+        evs = recent_cos_events(user)
+        if evs:
+            intel["events"] = evs
+    except Exception:
+        logger.debug("cos_intel: events block failed", exc_info=True)
     return intel
 
 
@@ -147,6 +154,12 @@ def cos_intelligence_narrative(intel):
         lines.append(f"- Goal pace: {intel['goal_pace_narrative']}")
     if intel.get("recommendation_effectiveness"):
         lines.append(f"- Recommendation status: {intel['recommendation_effectiveness']}")
+    for e in (intel.get("events") or [])[:3]:
+        tag = (e.get("category") or "").replace("_", " ")
+        recur = ""
+        if int(e.get("occurrence_count", 1)) >= 3:
+            recur = f" (flagged {e['occurrence_count']}x)"
+        lines.append(f"- Event [{tag}]{recur}: {e.get('message') or e.get('title')}")
     if not lines:
         return None
     return ("CHIEF OF STAFF STANDING READ (your own current assessment — use it "

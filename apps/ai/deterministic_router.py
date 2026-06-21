@@ -6004,7 +6004,10 @@ _COS_MODE_PHRASES = {
                    'headed in the right'),
     'direction': ('moving in the right direction', 'right direction',
                   'on the right path', 'going the right way'),
-    'prioritization': ('focus on this week', 'focus on today',
+    'prioritization_today': ('focus on today', 'focus today',
+                             'what should i do today', 'priority today',
+                             'most important thing today', 'focus on right now'),
+    'prioritization': ('focus on this week', 'focus this week',
                        'what should i prioritize', 'what should i prioritise',
                        'what deserves my attention', 'what deserves attention',
                        'where should i put my energy'),
@@ -6020,9 +6023,11 @@ _COS_MODE_PHRASES = {
     'blindspot': ('what am i ignoring', 'what am i not seeing', 'what am i missing',
                   'area of my life needs attention', 'area needs attention',
                   'what am i overlooking', 'blind spot', 'blindspot'),
+    'bottleneck': ('next bottleneck', 'bottleneck', 'what comes after',
+                   'what is next after'),
     'constraint': ('what is holding me back', "what's holding me back",
-                   'next bottleneck', 'bottleneck', 'where am i stuck',
-                   'what is limiting me', "what's limiting me"),
+                   'where am i stuck', 'what is limiting me',
+                   "what's limiting me"),
     'progress': ('where am i making progress', 'where am i progressing',
                  'where am i winning'),
     'stop': ('what should i stop doing', 'what should i stop', 'should i stop'),
@@ -6094,7 +6099,7 @@ def _render_cos_mode(user, mode):
         return (lead + body + "." + caveat).strip() if body else (overall or _COS_THIN)
 
     if mode == 'prioritization':
-        # Leverage = the CONSTRAINT to fix (risk), not a positive trend.
+        # WEEK = strategic-first. Leverage = the CONSTRAINT to fix (risk).
         parts = []
         lead = R[0] if R else (O[0] if O else None)
         if lead:
@@ -6102,6 +6107,19 @@ def _render_cos_mode(user, mode):
                          f"{lead['title'].lower()}.")
         if OD:
             parts.append(f"Operationally, clear the decks: {j(OD, 3)}.")
+        return " ".join(parts) or overall or _COS_THIN
+
+    if mode == 'prioritization_today':
+        # TODAY = immediate-first: clear what's slipping NOW, then tie to the
+        # strategic constraint. Distinct from the weekly strategic-first read.
+        parts = []
+        if OD:
+            parts.append(f"Today, knock out what's already slipping: {j(OD, 3)}.")
+        else:
+            parts.append("Nothing operational is overdue today — you're current.")
+        if R:
+            parts.append(f"And keep it tied to the one thing that matters most — "
+                         f"{R[0]['domain']} ({R[0]['title'].lower()}).")
         return " ".join(parts) or overall or _COS_THIN
 
     if mode == 'risk':
@@ -6161,6 +6179,19 @@ def _render_cos_mode(user, mode):
         c = R[0] if R else (O[0] if O else None)
         if c:
             return f"The thing holding you back most is {c['domain']}: {c['message']}"
+        return overall or _COS_THIN
+
+    if mode == 'bottleneck':
+        # Forward-looking: the CURRENT constraint, then what's next behind it.
+        if R:
+            out = (f"Right now the bottleneck is {R[0]['domain']} — "
+                   f"{R[0]['title'].lower()}.")
+            if len(R) > 1:
+                out += (f" Clear that and the next one waiting is {R[1]['domain']} "
+                        f"({R[1]['title'].lower()}).")
+            elif pace_n and (gp.get('target_passed') or gp.get('on_pace') is False):
+                out += f" After that, the next thing to address is your goal pace — {pace_n}"
+            return out
         return overall or _COS_THIN
 
     if mode == 'progress':

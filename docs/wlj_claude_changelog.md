@@ -7,6 +7,18 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-21 — feat(ai): reasoning-mode differentiation pass — today≠week, bottleneck≠constraint (validation hardening)
+
+Live 25-question validation (Danny's account) confirmed all questions grounded + cross-domain, but two pairs were textually identical where the question implied a different angle: "focus today" == "focus this week", and "next bottleneck" == "holding me back". Split both into distinct modes:
+- `prioritization_today` — immediate-first ("Today, knock out what's already slipping: …; keep it tied to sleep") vs the weekly strategic-first read.
+- `bottleneck` — forward-looking ("Right now the bottleneck is sleep…; clear that and the next one waiting is weight") vs the present-tense `constraint` read.
+
+Result: 21/25 textually unique; the remaining 4 identical pairs are true SYNONYMS answered consistently within one reasoning mode (status, risk, blind-spot, constraint) — correct CoS behavior, not a collapse. Zero cross-mode collapses across all 25.
+
+**Files:** `apps/ai/deterministic_router.py`, `apps/ai/tests/test_cos_reasoning_modes.py`. 16 mode tests; no migration; zero new failures across 6 suites.
+
+
+
 ## 2026-06-21 — feat(ai): CoS reasoning modes — one brain, distinct projections (product-level differentiation)
 
 **Product validation (25 real questions, Danny's data):** STATUS/TRAJECTORY/DIRECTION collapsed to one string ("weight good, sleep bad"); "focus this week/today" + "stop doing" were hijacked by an execution reminder ("Go into Prayer Time"); "concerns you most" / "what would you do" collapsed to a health-only analysis; 8 core modes fell through to the LLM. Beth felt like a collection of features, not one intelligence.

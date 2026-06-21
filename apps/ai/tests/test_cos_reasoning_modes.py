@@ -23,12 +23,14 @@ class ModeClassifier(SimpleTestCase):
             "what is my trajectory": "trajectory",
             "am i moving in the right direction": "direction",
             "what should i focus on this week": "prioritization",
+            "what should i focus on today": "prioritization_today",
             "what concerns you most about me": "risk",
             "what gives you confidence about me": "opportunity_soft",
             "what would you do if you were me": "decision",
             "what patterns do you see": "pattern",
             "what am i ignoring": "blindspot",
             "what is holding me back": "constraint",
+            "what is the next bottleneck in my life": "bottleneck",
             "where am i making progress": "progress",
             "what should i stop doing": "stop",
             "give me your honest assessment": "honest",
@@ -75,6 +77,10 @@ class ModeRendering(TestCase):
         eng.persist_event(self.user, eng.CoSEvent(
             eng.MAJOR_WIN, "weight", "Weight down 12.7 lb",
             "Down 12.7 lb.", "The goal.", "Bank it."))
+        eng.persist_event(self.user, eng.CoSEvent(
+            eng.PAST_DUE, "health", "Prayer Time",
+            "Prayer Time is overdue.", "Recover.", "Do it now.",
+            key="op:health:prayer-time"))
 
     def _render(self, mode):
         with patch("apps.ai.cos_intelligence.build_cos_intelligence",
@@ -125,6 +131,19 @@ class ModeRendering(TestCase):
 
     def test_blindspot_names_unaddressed_risk(self):
         self.assertIn("sleep", self._render("blindspot").lower())
+
+    def test_bottleneck_is_forward_looking_and_distinct(self):
+        constraint = self._render("constraint")
+        bottleneck = self._render("bottleneck")
+        self.assertNotEqual(constraint, bottleneck)
+        self.assertIn("right now the bottleneck", bottleneck.lower())
+
+    def test_today_vs_week_are_distinct(self):
+        week = self._render("prioritization")
+        today = self._render("prioritization_today")
+        self.assertNotEqual(week, today)
+        self.assertTrue(week.lower().startswith("this week"))
+        self.assertTrue(today.lower().startswith("today"))
 
 
 class RouteIntegration(TestCase):

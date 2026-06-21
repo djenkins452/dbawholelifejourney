@@ -7,6 +7,18 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-21 — feat(ai): accountability loop — Chief-of-Staff memory of progress (Priority 1)
+
+**Gap:** Beth identified constraints but never remembered whether they improved — "sleep is your constraint" every week is reporting, not coaching. **Verified the data exists:** weekly sleep/weight/glucose history is already recorded; no new model needed.
+
+**Built (no new data model):** a deterministic accountability route. "Have we made progress on my sleep / weight / glucose?" / "is my weight coming down?" / "is the sleep focus working?" now compares the metric over the **last ~week vs ~4 weeks ago** from existing history and renders a Chief-of-Staff verdict: *"Your sleep has improved over the last few weeks (5.8h → 6.6h). What you're doing is working — keep it up."* / *"…roughly flat (6.0h → 6.1h). It hasn't really moved — worth a different approach."* / *"…gone the wrong way — let's change tack."* Registered **before** the domain status routes so a progress question gets a multi-week verdict, not a single-night status. **Plausibility-guarded** (sub-3h HealthKit fragments excluded; honest "not enough clean history" instead of a false verdict). Never abstains.
+
+**Representative (live, Danny):** "is my weight coming down" → "Your weight has been roughly flat over the last few weeks (298.3 → 298.3). It hasn't really moved — worth a different approach." "have we made progress on my sleep" → honest "not enough clean sleep history" (local HealthKit fragments correctly guarded). Plain status unchanged ("how did I sleep" → sleep_query).
+
+**Regression:** new `test_accountability_loop.py` (11 tests: improving/flat/worsening verdicts, noisy-data guard, no-data honesty, routing, domain extraction, status-route guard). `git`-baseline diff across 6 router/health suites: **zero new failures**. No model/schema/migration changes. **Scope:** routing + a read-only history computation; reuses existing `SleepEntry`/`WeightEntry`/`GlucoseEntry`; no executive-lens/briefing/decision changes. **Files:** `apps/ai/deterministic_router.py`, `apps/ai/tests/test_accountability_loop.py`.
+
+
+
 ## 2026-06-21 — feat(ai): cross-domain Chief-of-Staff coaching route (the marquee CoS behavior)
 
 **Gap (proven live):** the marquee Chief-of-Staff question — "what do I need to do to continue losing 1-2 lb/week?", "what's the highest-leverage thing I can do?", "what's helping and what's hurting?" — routed to `governor_reflective` / `no_match` → the ungrounded LLM, instead of synthesising across domains. The cross-domain reasoning already existed in the executive lens layer (win=helping, decline=hurting, opportunity=highest-leverage) but these coaching questions never reached it.

@@ -5664,6 +5664,124 @@ def _render_cos_coaching(es, lenses):
     return " ".join(parts)
 
 
+# ─────────────────────────────────────────────────────────────────────
+# ACCOUNTABILITY LOOP (2026-06-21) — Chief-of-Staff memory of progress.
+# "Have we made progress on my sleep?" → compares the metric now vs ~3–4 weeks
+# ago from EXISTING history and judges whether the focus is working. Grounded;
+# NO new model, NO stored recommendations — the metric's own history is the
+# record. Plausibility-guarded so noisy/sparse data degrades to honest
+# uncertainty instead of a false verdict.
+# ─────────────────────────────────────────────────────────────────────
+_ACCT_PROGRESS_CUES = (
+    'made progress', 'making progress', 'is it improving', 'is improving',
+    'has it improved', 'have i improved', 'getting better', 'gotten better',
+    'improved over', 'improving over', 'over the last few weeks',
+    'over the past few weeks', 'better than last week',
+    'better than a few weeks', 'moving the needle', 'trending the right way',
+    'is the focus working', 'focus working', 'is this working', 'is it working',
+    'getting any better', 'going down', 'coming down', 'gone down',
+    'is it moving', 'have we improved', 'are we improving',
+)
+_ACCT_DOMAINS = {
+    'sleep': ('sleep',),
+    'weight': ('weight', 'weigh'),
+    'glucose': ('glucose', 'blood sugar', 'a1c'),
+}
+_ACCT_FLAT = {'sleep': 0.3, 'weight': 1.0, 'glucose': 5.0}
+
+
+def _accountability_domain(msg_lower):
+    for dom, toks in _ACCT_DOMAINS.items():
+        if any(t in msg_lower for t in toks):
+            return dom
+    return None
+
+
+def _match_accountability_query(msg_lower):
+    """Progress-over-time questions about a tracked metric ('have we made
+    progress on my sleep', 'is my weight coming down')."""
+    if not msg_lower or _is_future_tense_query(msg_lower):
+        return False
+    if not any(c in msg_lower for c in _ACCT_PROGRESS_CUES):
+        return False
+    return _accountability_domain(msg_lower) is not None
+
+
+def _accountability_assessment(user, domain):
+    """Grounded progress sentence for `domain` (last ~week vs ~4 weeks ago), or
+    honest uncertainty when there isn't clean history. Never raises."""
+    from datetime import timedelta
+    from django.db.models import Avg
+    from django.utils import timezone
+    now = timezone.now()
+    unit = ''
+    lower_better = False
+    recent = past = None
+    try:
+        if domain == 'sleep':
+            from apps.health.models import SleepEntry
+            unit, lower_better = 'h', False
+
+            def _savg(d0, d1):
+                qs = SleepEntry.objects.filter(
+                    user=user, sleep_date__gt=d0, sleep_date__lte=d1)
+                vals = [e.total_duration_minutes / 60 for e in qs
+                        if e.total_duration_minutes
+                        and 3.0 <= e.total_duration_minutes / 60 <= 12.0]
+                return round(sum(vals) / len(vals), 1) if vals else None
+            recent = _savg((now - timedelta(days=7)).date(), now.date())
+            past = _savg((now - timedelta(days=35)).date(),
+                         (now - timedelta(days=21)).date())
+        elif domain == 'weight':
+            from apps.health.models import WeightEntry
+            unit, lower_better = ' lb', True
+            qs = WeightEntry.objects.filter(
+                user=user, status='active').order_by('recorded_at')
+            last = qs.last()
+            recent = round(float(last.value_in_lb), 1) if last else None
+            older = qs.filter(
+                recorded_at__lte=now - timedelta(days=28)).last()
+            past = round(float(older.value_in_lb), 1) if older else None
+        elif domain == 'glucose':
+            from apps.health.models import GlucoseEntry
+            unit, lower_better = ' mg/dL', True
+
+            def _gavg(d0, d1):
+                a = GlucoseEntry.objects.filter(
+                    user=user, recorded_at__gte=d0,
+                    recorded_at__lt=d1).aggregate(a=Avg('value'))['a']
+                return round(float(a)) if a is not None else None
+            recent = _gavg(now - timedelta(days=7), now)
+            past = _gavg(now - timedelta(days=35), now - timedelta(days=28))
+    except Exception:
+        logger.warning("accountability assessment failed", exc_info=True)
+        return None
+
+    if recent is None or past is None:
+        return (f"I don't have enough clean {domain} history yet to judge "
+                f"whether it's improving — keep logging and I'll track the "
+                f"trend over the coming weeks.")
+    delta = round(recent - past, 1)
+    span = f"from {past}{unit} to {recent}{unit}"
+    if abs(delta) < _ACCT_FLAT.get(domain, 0.3):
+        return (f"Your {domain} has been roughly flat over the last few weeks "
+                f"({span}). It hasn't really moved — worth a different approach.")
+    improved = (delta < 0) if lower_better else (delta > 0)
+    if improved:
+        return (f"Your {domain} has improved over the last few weeks ({span}). "
+                f"What you're doing is working — keep it up.")
+    return (f"Your {domain} has gone the wrong way over the last few weeks "
+            f"({span}). The current approach isn't working — let's change tack.")
+
+
+def _handle_accountability_query(user, msg_lower=None):
+    dom = _accountability_domain(msg_lower or '')
+    if dom is None:
+        return ("I can track progress on your sleep, weight, and glucose over "
+                "time — which would you like a read on?")
+    return _accountability_assessment(user, dom)
+
+
 def _handle_executive_query(user, msg_lower=None):
     """Answer an executive-lens question from build_executive_summary — the one
     executive reasoning layer the dashboard uses. Read-only over cached SAE
@@ -6544,6 +6662,11 @@ def _register_builtin_routes():
     register_data_route('event_missed_query', _match_event_missed_query, _handle_event_missed_query, 'execution')
     register_data_route('event_timeline_query', _match_event_timeline_query, _handle_event_timeline_query, 'execution')
     register_data_route('event_slippage_query', _match_event_slippage_query, _handle_event_slippage_query, 'execution')
+
+    # ── Accountability (progress-over-time) — BEFORE domain status routes so
+    # "have we made progress on my sleep?" gets a multi-week verdict, not a
+    # single-night status. (2026-06-21)
+    register_data_route('accountability_query', _match_accountability_query, _handle_accountability_query, 'health')
 
     # ── Summary-level routes (Truth Depth: SUMMARY) ──
     register_data_route('weight_query', _match_weight_query, _handle_weight_query, 'health')

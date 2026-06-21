@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-21 — feat(ai): recommendation tracking + effectiveness — Beth as an OUTCOME engine
+
+**Gap (Priority highest):** Beth could recommend a focus but never remembered what she recommended or whether it worked — so the same advice repeated forever. **Verified `GuidanceItem` can support it with NO schema change** (`guidance_type` is a free CharField; `evidence` is JSON; baseline date/metric live there).
+
+**Built (new `apps/ai/cos_recommendations.py`, reuses GuidanceItem):**
+- **Record:** when Beth gives cross-domain coaching, she idempotently records the current top constraint as a `cos_constraint` GuidanceItem with a baseline metric snapshot in `evidence` (one active per domain; the ORIGINAL baseline is preserved so effectiveness is measured from when the focus began). Hooked into the coaching route (`_render_cos_coaching`), never breaks the answer.
+- **Evaluate effectiveness:** "is your recommendation working?" → compares the targeted metric now vs baseline + the cross-domain weight outcome → *"21 days ago I flagged weight as your constraint (310.0 lb); it's now 298.3 lb. This appears to be working — keep it up."* / *"…it hasn't moved — time for a different approach."* / *"…gone the wrong way — let's change tack."* Plausibility-guarded; honest when no clean before/after metric.
+- **List:** "what advice have you given me lately?" → *"Lately I've been steering you toward: sleep (since 2026-06-21)."*
+
+Two new routes (`recommendation_list_query`, `rec_effectiveness_query`) registered before the domain status routes. Reuses the executive constraint selection + the metric readers; no new lens/briefing/decision changes.
+
+**Representative (live):** coaching question records the constraint → "what advice have you given me" lists it → "is your recommendation working" evaluates the delta (honest when metric noisy). A simulated 21-day-old weight recommendation (310 → 298.3) → "This appears to be working — keep it up." (the directive's Level-4 marquee).
+
+**Regression:** new `test_cos_recommendations.py` (15 tests: record w/ baseline, idempotent baseline preservation, improving/flat/worsening verdicts, honest no-metric, list, routing) + matchers. `makemigrations --check` → **No changes detected** (no migration). `git`-baseline diff across 6 router/health suites: **zero new failures**. **Files:** `apps/ai/cos_recommendations.py` (new), `apps/ai/deterministic_router.py`, `apps/ai/tests/test_cos_recommendations.py`.
+
+
+
 ## 2026-06-21 — feat(ai): accountability loop — Chief-of-Staff memory of progress (Priority 1)
 
 **Gap:** Beth identified constraints but never remembered whether they improved — "sleep is your constraint" every week is reporting, not coaching. **Verified the data exists:** weekly sleep/weight/glucose history is already recorded; no new model needed.

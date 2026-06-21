@@ -5782,6 +5782,49 @@ def _handle_accountability_query(user, msg_lower=None):
     return _accountability_assessment(user, dom)
 
 
+# ── Recommendation tracking + effectiveness (2026-06-21) ──
+# Beth as an OUTCOME engine: she records the constraint she's steering you toward
+# and later judges whether it worked. Persistence reuses GuidanceItem (no schema
+# change); see apps/ai/cos_recommendations.py.
+_REC_EFFECTIVENESS_CUES = (
+    'is your recommendation working', 'is the recommendation working',
+    'is your advice working', 'is the advice working',
+    'is what you told me working', 'did the recommendation work',
+    'has the recommendation been effective', 'is the recommendation effective',
+    'has your advice worked', 'are your recommendations working',
+    'has the focus been effective', 'is the plan working',
+    'has your advice been working', 'is your guidance working',
+)
+_REC_LIST_CUES = (
+    'what advice have you given', 'what advice have you been giving',
+    'what have you been telling me', 'what have you recommended',
+    'what are you having me focus on', 'what recommendations have you',
+    'what have you been recommending', 'what is the plan you gave me',
+    'what advice are you giving me', 'what have you been steering me',
+    'what should i be focusing on lately',
+)
+
+
+def _match_rec_effectiveness_query(msg_lower):
+    return bool(msg_lower) and any(c in msg_lower for c in _REC_EFFECTIVENESS_CUES)
+
+
+def _match_recommendation_list_query(msg_lower):
+    return bool(msg_lower) and any(c in msg_lower for c in _REC_LIST_CUES)
+
+
+def _handle_rec_effectiveness_query(user, msg_lower=None):
+    from apps.ai.cos_recommendations import evaluate_active_recommendations
+    return evaluate_active_recommendations(user) or (
+        "I haven't been tracking a specific recommendation long enough to judge "
+        "yet — ask me what to focus on and I'll start measuring whether it works.")
+
+
+def _handle_recommendation_list_query(user, msg_lower=None):
+    from apps.ai.cos_recommendations import list_recommendations
+    return list_recommendations(user)
+
+
 def _handle_executive_query(user, msg_lower=None):
     """Answer an executive-lens question from build_executive_summary — the one
     executive reasoning layer the dashboard uses. Read-only over cached SAE
@@ -5815,6 +5858,13 @@ def _handle_executive_query(user, msg_lower=None):
     # already reason across weight / sleep / glucose / medication / faith /
     # relationships). Coaches, doesn't report. (2026-06-21)
     if lens == 'coaching':
+        # Record the constraint Beth is steering toward, so effectiveness can be
+        # judged later (idempotent, never breaks the answer).
+        try:
+            from apps.ai.cos_recommendations import record_top_recommendation
+            record_top_recommendation(user)
+        except Exception:
+            logger.debug("record_top_recommendation failed", exc_info=True)
         return _render_cos_coaching(es, lenses)
 
     # Differentiated synthesis/leverage lenses read executive_lenses (the layer
@@ -6662,6 +6712,11 @@ def _register_builtin_routes():
     register_data_route('event_missed_query', _match_event_missed_query, _handle_event_missed_query, 'execution')
     register_data_route('event_timeline_query', _match_event_timeline_query, _handle_event_timeline_query, 'execution')
     register_data_route('event_slippage_query', _match_event_slippage_query, _handle_event_slippage_query, 'execution')
+
+    # ── Recommendation tracking + effectiveness (outcome engine, 2026-06-21).
+    # "What advice have you given me?" / "is your recommendation working?"
+    register_data_route('recommendation_list_query', _match_recommendation_list_query, _handle_recommendation_list_query, 'cos')
+    register_data_route('rec_effectiveness_query', _match_rec_effectiveness_query, _handle_rec_effectiveness_query, 'cos')
 
     # ── Accountability (progress-over-time) — BEFORE domain status routes so
     # "have we made progress on my sleep?" gets a multi-week verdict, not a

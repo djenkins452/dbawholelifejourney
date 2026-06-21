@@ -5825,6 +5825,28 @@ def _handle_recommendation_list_query(user, msg_lower=None):
     return list_recommendations(user)
 
 
+# ── Goal trajectory / pace (Capability 5, 2026-06-21) ──
+_PACE_CUES = (
+    'on pace', 'on track to', 'when will i reach', 'when will i hit',
+    'reach my goal', 'hit my goal', 'hit my target', 'reach my target',
+    'what pace', 'current pace', 'pace am i', 'how fast am i losing',
+    'will i hit my target', 'am i on track for my goal', 'on track to hit',
+    'projected to reach', 'rate am i losing', 'how long until i reach',
+    'how long to reach my goal', 'am i on pace', 'still on pace',
+)
+
+
+def _match_goal_pace_query(msg_lower):
+    return bool(msg_lower) and any(c in msg_lower for c in _PACE_CUES)
+
+
+def _handle_goal_pace_query(user, msg_lower=None):
+    from apps.ai.cos_intelligence import goal_pace, goal_pace_narrative
+    return goal_pace_narrative(goal_pace(user)) or (
+        "I don't see a weight goal with enough history to project a pace yet — "
+        "set a goal with a target date and I'll track your trajectory.")
+
+
 def _handle_executive_query(user, msg_lower=None):
     """Answer an executive-lens question from build_executive_summary — the one
     executive reasoning layer the dashboard uses. Read-only over cached SAE
@@ -6717,6 +6739,7 @@ def _register_builtin_routes():
     # "What advice have you given me?" / "is your recommendation working?"
     register_data_route('recommendation_list_query', _match_recommendation_list_query, _handle_recommendation_list_query, 'cos')
     register_data_route('rec_effectiveness_query', _match_rec_effectiveness_query, _handle_rec_effectiveness_query, 'cos')
+    register_data_route('goal_pace_query', _match_goal_pace_query, _handle_goal_pace_query, 'health')
 
     # ── Accountability (progress-over-time) — BEFORE domain status routes so
     # "have we made progress on my sleep?" gets a multi-week verdict, not a

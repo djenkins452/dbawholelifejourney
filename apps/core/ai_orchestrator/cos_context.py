@@ -3970,6 +3970,16 @@ def build_cos_context(user, scoped_builders=None):
     except Exception as e:
         logger.warning("CoS context: trust + right_now build failed: %s", e)
 
+    # ── Unified Chief-of-Staff standing read ──────────────────────
+    # One brain (overall + goal pace + recommendation effectiveness) embedded in
+    # EVERY normal conversation so Beth reasons like a CoS without a trigger
+    # phrase. Composes existing engines; never raises.
+    try:
+        from apps.ai.cos_intelligence import build_cos_intelligence
+        context['cos_intelligence'] = build_cos_intelligence(user)
+    except Exception:
+        logger.debug("CoS context: cos_intelligence build failed", exc_info=True)
+
     elapsed_ms = (_time.monotonic() - start) * 1000
     try:
         from apps.ai.readiness_telemetry import log_parallel_build
@@ -6211,6 +6221,22 @@ def format_cos_system_injection(context, user_message=None):
             "without it",
             exc_info=True,
         )
+
+    # ══════════════════════════════════════════════════════════════
+    # CHIEF OF STAFF STANDING READ (single brain, no trigger phrase).
+    # Beth's own current assessment — overall, goal pace, and whether her
+    # standing recommendation is working — embedded in every conversation so
+    # coaching/accountability/pace need no special phrasing. Never breaks the
+    # prompt. See apps/ai/cos_intelligence.py.
+    # ══════════════════════════════════════════════════════════════
+    try:
+        from apps.ai.cos_intelligence import cos_intelligence_narrative
+        _cos_intel_block = cos_intelligence_narrative(context.get('cos_intelligence'))
+        if _cos_intel_block:
+            lines.append(_cos_intel_block)
+            lines.append("")
+    except Exception:
+        logger.debug("CoS standing-read section failed", exc_info=True)
 
     # ══════════════════════════════════════════════════════════════
     # SECTION 0: PHASE 4 DECISION RULES (HARD CONTRACT)

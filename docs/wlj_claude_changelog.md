@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-21 — feat(ai): unified CoS intelligence — goal pace (Cap 5) + single-brain integration (Caps 2/7), no trigger phrase (#8)
+
+**Gap:** the new capabilities (coaching, accountability, recommendation effectiveness) lived only in deterministic routes — they required exact trigger phrases and weren't part of Beth's normal LLM conversation (failing checklist #2/#7/#8). And **goal pace (Capability 5)** didn't exist (only an `on_track` boolean).
+
+**Built:**
+1. **Goal pace (Cap 5)** — new `apps/ai/cos_intelligence.py :: goal_pace()` projects trajectory from real weight history: current pace (lb/week), projected completion date, and required-vs-current pace against the target date. Live (Danny): *"Weight 298.3 → goal 240.0 lb (58.3 to go). Current pace ~0.88 lb/week; at that rate you'd reach goal around 2027-09-27 (~66.2 weeks). Your target date (2026-06-13) has already passed — worth resetting it."* New natural route `goal_pace_query` ("am I on pace?", "when will I reach my goal?", "what pace am I on?").
+2. **Single brain (Cap 7)** — `build_cos_intelligence()` composes ONE standing read (overall + goal pace + recommendation effectiveness) over the existing engines (executive_summary, cos_recommendations, weight history). No new silo.
+3. **Integration / no trigger phrase (#2/#8)** — the standing read is injected into `build_cos_context()` (`context['cos_intelligence']`) and rendered as a **"CHIEF OF STAFF STANDING READ"** section at the top of the LLM system prompt via `format_cos_system_injection`. Beth's *normal* conversation now always carries her current assessment, so coaching/pace/accountability answers need no special phrasing — verified the section renders into the live prompt.
+
+**No new model** (`makemigrations --check` clean). All additive + try-guarded (the context/formatter changes never break the prompt).
+
+**Regression:** new `test_cos_intelligence.py` (12 tests: on-pace/behind/target-passed/insufficient/no-goal, narrative shape, build + route). `git`-baseline diff across 9 router/orchestrator/cos suites (incl. `test_phase4_cos`, `test_cos_cx`, `test_cos_truth_enforcement`, `test_health_intelligence`): **zero new failures**. **Files:** `apps/ai/cos_intelligence.py` (new), `apps/ai/deterministic_router.py`, `apps/core/ai_orchestrator/cos_context.py`, `apps/ai/tests/test_cos_intelligence.py`.
+
+
+
 ## 2026-06-21 — feat(ai): recommendation tracking + effectiveness — Beth as an OUTCOME engine
 
 **Gap (Priority highest):** Beth could recommend a focus but never remembered what she recommended or whether it worked — so the same advice repeated forever. **Verified `GuidanceItem` can support it with NO schema change** (`guidance_type` is a free CharField; `evidence` is JSON; baseline date/metric live there).

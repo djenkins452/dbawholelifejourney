@@ -7,6 +7,18 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-21 — feat(ai): cross-domain Chief-of-Staff coaching route (the marquee CoS behavior)
+
+**Gap (proven live):** the marquee Chief-of-Staff question — "what do I need to do to continue losing 1-2 lb/week?", "what's the highest-leverage thing I can do?", "what's helping and what's hurting?" — routed to `governor_reflective` / `no_match` → the ungrounded LLM, instead of synthesising across domains. The cross-domain reasoning already existed in the executive lens layer (win=helping, decline=hurting, opportunity=highest-leverage) but these coaching questions never reached it.
+
+**Fix (connect existing functionality — no new architecture):** strategic/outcome coaching phrasings now match `_match_executive_query` (new `_COS_COACHING_PHRASES`), map to a `coaching` lens (`_executive_lens_for`), and `_handle_executive_query` renders cross-domain coaching via `_render_cos_coaching` — "what's working for you / what's working against you / highest-leverage move" — read from the executive lenses (weight + sleep + glucose + medication + faith). Reuses the existing executive gate + governor carve-out (no new gate). Strategic/outcome phrasings only, so single-domain coaching ("how can I improve my sleep", "improve my glucose") keeps its own route (guarded — verified `_match_executive_query` returns False for those).
+
+**Representative output (live, Danny):** "what do I need to do to continue losing 1-2 lb/week" → `executive_summary_query` → "Here's the read across your data — what's working for you: Down 12.7 lb (311→298); meds 100% this week. What's working against you: your sleep is trending down (6.7h, consistency 43/100). Highest-leverage move: sleep is your highest-leverage fix — improving it lifts several areas at once." (coaches across domains, doesn't report one.)
+
+**Regression:** `test_executive_query_route` extended (coaching matches; single-domain-coaching guard; coaching-lens mapping; route-level cross-domain render). 21 route tests green; `git`-baseline diff across 8 router/sleep/nutrition/glucose/health-analyze/cos_briefing suites: **zero new failures**. No model/schema/migration changes. **Scope:** routing/render only — executive lenses, briefing, decision/execution engines, sleep/nutrition coaching unchanged. **Files:** `apps/ai/deterministic_router.py`, `apps/ai/tests/test_executive_query_route.py`.
+
+
+
 ## 2026-06-20 — fix(ai): reclassify holistic "how am I doing?" → executive layer (guarded)
 
 **Problem (audited & confirmed at runtime):** bare "How am I doing?" routed to `decision_query_execution_now` (execution engine → overdue tasks), while "What is my trajectory?", "Am I moving in the right direction?", and "Give me an executive assessment" fell through to `no_match` → the LLM. Only the "…overall" / "how is my life going" variants reached the executive layer — a classification artifact (the executive matcher required the literal word "overall"), not a product decision.

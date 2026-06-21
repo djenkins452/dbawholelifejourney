@@ -84,8 +84,25 @@ class ExecutiveMatcher(SimpleTestCase):
             "give me a strategic assessment",
             "assess my life",
             "give me an overall assessment",
+            # 2026-06-21 cross-domain CoS coaching (the marquee question)
+            "what do i need to do to continue losing 1-2 pounds per week",
+            "what's the highest leverage thing i can do this week",
+            "what's helping and what's hurting my weight loss",
+            "what one thing should i focus on",
         ):
             self.assertTrue(dr._match_executive_query(q), q)
+
+    def test_coaching_does_not_swallow_single_domain_coaching(self):
+        # Single-domain coaching keeps its own route — NOT executive.
+        for q in ("how can i improve my sleep", "how do i improve my glucose",
+                  "what should i eat for more protein", "how do i sleep better"):
+            self.assertFalse(dr._match_executive_query(q), q)
+
+    def test_coaching_phrases_map_to_coaching_lens(self):
+        for q in ("what do i need to do to keep losing weight",
+                  "what's the highest leverage move",
+                  "what's helping and what's hurting"):
+            self.assertEqual(dr._executive_lens_for(q), "coaching", q)
 
     def test_excludes_risk_fix_and_execution(self):
         for q in (
@@ -155,6 +172,22 @@ class ExecutiveRouting(TestCase):
         with patch("apps.core.cos_briefing.build_executive_summary",
                    return_value=_ES):
             return dr.classify_and_route(q, self.user)
+
+    def test_cos_coaching_renders_cross_domain(self):
+        # The marquee CoS question: cross-domain coaching (helping/hurting/
+        # leverage), not a single-domain answer.
+        for q in ("what do i need to do to continue losing 1-2 pounds per week",
+                  "what's the highest leverage thing i can do this week",
+                  "what's helping and what's hurting my weight loss"):
+            res = self._route(q)
+            self.assertEqual(res.route_name, "executive_summary_query", q)
+            r = res.response.lower()
+            self.assertIn("what's working for you", r, q)   # helping
+            self.assertIn("working against you", r, q)       # hurting
+            self.assertIn("highest-leverage", r, q)          # leverage move
+            # draws from MULTIPLE domains (win=weight + decline=sleep)
+            self.assertIn("12.7", res.response, q)
+            self.assertIn("sleep", r, q)
 
     def test_reclassified_holistic_questions_route_executive(self):
         # 2026-06-20: bare "how am i doing" + trajectory + assessment phrasings

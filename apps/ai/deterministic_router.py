@@ -5487,16 +5487,42 @@ _EXEC_DOMAIN_GUARD_TOKENS = (
 )
 
 
+# Cross-domain Chief-of-Staff COACHING questions (2026-06-21). Outcome / goal /
+# leverage-level questions that require synthesising ACROSS domains ("what do I
+# need to do to keep losing weight?", "what's the highest-leverage thing I can
+# do?", "what's helping and what's hurting?"). The cross-domain answer already
+# exists in the executive lens layer (win=helping, decline=hurting, opportunity=
+# highest-leverage) — these phrasings just route there and render as coaching.
+# Deliberately strategic/outcome phrasings only, so single-domain coaching
+# ("how can I improve my sleep") keeps its own route.
+_COS_COACHING_PHRASES = (
+    'what do i need to do to continue', 'what do i need to do to keep',
+    'what do i need to do to lose', 'what do i need to do to hit',
+    'what do i need to do to reach', 'what do i need to do to stay',
+    'what should i do to keep', 'what should i do to continue',
+    'what should i focus on to keep', 'what should i focus on to continue',
+    'highest leverage', 'highest-leverage', 'biggest lever',
+    "what's helping and what's hurting", 'what is helping and what is hurting',
+    "what's working and what's not", "what's working and what isn't",
+    'most important thing i can do', 'most important thing i could do',
+    'what matters most for my', 'continue losing', 'keep losing weight',
+    'how do i keep losing', 'what one thing',
+)
+
+
 def _match_executive_query(msg_lower):
     """Match strategic / executive-lens questions (answered from the single
     executive_summary layer). Deliberately excludes standalone risk / fix-first /
     attention (decision engine) and all execution / check-in phrasings.
 
     Holistic "how am I doing" forms match too, but ONLY when not domain- or
-    time-qualified (guard) — so domain status questions keep their own routes."""
+    time-qualified (guard) — so domain status questions keep their own routes.
+    Cross-domain CoS coaching questions also match (rendered as coaching)."""
     if not msg_lower:
         return False
     if any(p in msg_lower for p in _EXECUTIVE_LENS_PHRASES):
+        return True
+    if any(p in msg_lower for p in _COS_COACHING_PHRASES):
         return True
     if any(p in msg_lower for p in _EXECUTIVE_HOLISTIC_AMBIGUOUS):
         return not any(t in msg_lower for t in _EXEC_DOMAIN_GUARD_TOKENS)
@@ -5505,6 +5531,8 @@ def _match_executive_query(msg_lower):
 
 def _executive_lens_for(msg_lower):
     m = msg_lower or ''
+    if any(p in m for p in _COS_COACHING_PHRASES):
+        return 'coaching'
     if 'biggest win' in m:
         return 'biggest_win'
     if 'biggest improvement' in m or 'most important improvement' in m:
@@ -5609,6 +5637,33 @@ def _render_executive_story(es):
     return lead + " ".join(bits)
 
 
+def _render_cos_coaching(es, lenses):
+    """Cross-domain Chief-of-Staff coaching from the executive lenses: what's
+    helping (win + improvement), what's working against you (decline), and the
+    highest-leverage move (opportunity, leverage-framed). Grounded only —
+    honest when there isn't enough signal to coach."""
+    win = _exec_field_msg(lenses.get('biggest_win')) or _exec_field_msg(
+        es.get('biggest_win'))
+    imp = _exec_field_msg(lenses.get('biggest_improvement'))
+    dec = _exec_field_msg(lenses.get('biggest_decline')) or _exec_field_msg(
+        es.get('biggest_decline'))
+    opp = lenses.get('opportunity')
+    helping = [h for h in (win, imp) if h]
+    parts = []
+    if helping:
+        parts.append("Here's the read across your data — what's working for "
+                     "you: " + " ".join(helping))
+    if dec:
+        parts.append("What's working against you: " + dec)
+    if opp:
+        parts.append("Highest-leverage move: " + opp)
+    if not parts:
+        return ("I don't have enough grounded signal across your data yet to "
+                "coach this well — keep logging and I'll tell you what's "
+                "helping, what's hurting, and the single highest-leverage move.")
+    return " ".join(parts)
+
+
 def _handle_executive_query(user, msg_lower=None):
     """Answer an executive-lens question from build_executive_summary — the one
     executive reasoning layer the dashboard uses. Read-only over cached SAE
@@ -5636,6 +5691,13 @@ def _handle_executive_query(user, msg_lower=None):
         return (f"I don't have enough grounded standing signal to name "
                 f"{_SINGLE[lens]} right now — keep logging and I'll surface it "
                 f"as the data builds.")
+
+    # Cross-domain Chief-of-Staff COACHING — synthesise what's helping, what's
+    # hurting, and the highest-leverage move from the executive lenses (which
+    # already reason across weight / sleep / glucose / medication / faith /
+    # relationships). Coaches, doesn't report. (2026-06-21)
+    if lens == 'coaching':
+        return _render_cos_coaching(es, lenses)
 
     # Differentiated synthesis/leverage lenses read executive_lenses (the layer
     # already built). Opportunity reads the LEVERAGE-framed string, NOT the

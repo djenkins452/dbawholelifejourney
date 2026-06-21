@@ -5455,16 +5455,52 @@ _EXECUTIVE_LENS_PHRASES = (
     'executive briefing', 'chief of staff briefing', 'strategic briefing',
     'executive summary', 'strategic status', 'strategic overview',
     'overall strategic',
+    # Trajectory / life-direction (2026-06-20 reclassification — these were
+    # falling through to the LLM).
+    'trajectory', 'where am i headed', 'moving in the right direction',
+    'right direction', 'on the right path',
+    # Strategic / executive assessment phrasings (were falling to the LLM).
+    'executive assessment', 'strategic assessment', 'assess my life',
+    'assess my trajectory', 'overall assessment', 'assess my overall',
+)
+
+# Holistic "how am I doing" / "how are things going" stems route to the
+# executive OVERALL lens — but ONLY when the question is NOT qualified by a
+# specific domain or an operational time-window. "How am I doing on protein?" /
+# "how am I doing with sleep?" / "how am I doing today?" must keep routing to
+# their domain status / execution paths (2026-06-20 reclassification, guarded).
+_EXECUTIVE_HOLISTIC_AMBIGUOUS = (
+    'how am i doing', "how'm i doing", 'how are things going',
+    'how is everything going', 'how are things',
+)
+_EXEC_DOMAIN_GUARD_TOKENS = (
+    # domain tokens — domain status questions own these
+    'protein', 'calorie', 'calories', 'macro', 'macros', 'carb', 'carbs',
+    'sleep', 'workout', 'exercise', 'training', 'lifting', 'cardio',
+    'glucose', 'blood sugar', 'a1c', 'nutrition', 'weight', 'weigh',
+    'medication', 'meds', 'supplement', 'goal', 'financ', 'money', 'budget',
+    'spending', 'net worth', 'faith', 'prayer', 'scripture', 'bible',
+    'journal', 'mood', 'steps', 'hydration', 'water', 'heart rate',
+    'blood pressure', 'vitals', 'health', 'work',
+    # operational time-windows stay on the execution / today path
+    'today', 'this week', 'right now', 'this morning',
 )
 
 
 def _match_executive_query(msg_lower):
     """Match strategic / executive-lens questions (answered from the single
     executive_summary layer). Deliberately excludes standalone risk / fix-first /
-    attention (decision engine) and all execution / check-in phrasings."""
+    attention (decision engine) and all execution / check-in phrasings.
+
+    Holistic "how am I doing" forms match too, but ONLY when not domain- or
+    time-qualified (guard) — so domain status questions keep their own routes."""
     if not msg_lower:
         return False
-    return any(p in msg_lower for p in _EXECUTIVE_LENS_PHRASES)
+    if any(p in msg_lower for p in _EXECUTIVE_LENS_PHRASES):
+        return True
+    if any(p in msg_lower for p in _EXECUTIVE_HOLISTIC_AMBIGUOUS):
+        return not any(t in msg_lower for t in _EXEC_DOMAIN_GUARD_TOKENS)
+    return False
 
 
 def _executive_lens_for(msg_lower):

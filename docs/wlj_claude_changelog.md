@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-20 — fix(ai): reclassify holistic "how am I doing?" → executive layer (guarded)
+
+**Problem (audited & confirmed at runtime):** bare "How am I doing?" routed to `decision_query_execution_now` (execution engine → overdue tasks), while "What is my trajectory?", "Am I moving in the right direction?", and "Give me an executive assessment" fell through to `no_match` → the LLM. Only the "…overall" / "how is my life going" variants reached the executive layer — a classification artifact (the executive matcher required the literal word "overall"), not a product decision.
+
+**Fix (classification only, in `_match_executive_query`):** holistic / trajectory / assessment phrasings now match the executive gate (which fires before the decision/execution and LLM-fallthrough paths), so they answer from `executive_summary` (overall lens). Added: bare "how am i doing" / "how are things going" / "how am i doing these days"; trajectory ("trajectory", "where am i headed", "moving in the right direction", "on the right path"); assessment ("executive/strategic/overall assessment", "assess my life/trajectory").
+
+**Domain + time guard (critical):** the ambiguous "how am I doing" stems match executive **only when NOT** qualified by a domain or operational time-window token — so "how am I doing **on protein** / with sleep / with glucose / financially / with my goals / with my health / **today**" keep routing to their domain status / execution / health-analyze paths, unchanged.
+
+**Untouched (per scope):** executive reasoning, lenses, briefing synthesis, trajectory logic, the decision engine, execution routing order. Only the executive matcher changed. (`_classify_decision_intent`, `_is_focus_query`, `is_explicit_health_intent` are unchanged — their unit tests still pass; the executive gate simply pre-empts at runtime for the holistic forms.)
+
+**Runtime proof:** "how am i doing" / "what is my trajectory" / "am i moving in the right direction" / "give me an executive assessment" → `executive_summary_query`. "how am i doing on protein / with sleep / with glucose / today" → NOT executive. "am i behind" → `decision_query_execution_now`; "what should i do next" → `next_action_canonical`; "what remains today" → `status_query` (all unchanged).
+
+**Regression:** `test_executive_query_route` extended (14 holistic/trajectory/assessment matches; 9-phrase domain/time guard; route-level reclassification + domain-guard + execution-unchanged). 18 route tests green; `git`-baseline diff across 9 router/decision/health-analyze/nutrition/faith suites: **zero new failures**. No model/schema/migration changes. **Final classification: artifact, not product decision.** **Files:** `apps/ai/deterministic_router.py`, `apps/ai/tests/test_executive_query_route.py`.
+
+
 ## 2026-06-20 — feat(ai): Chief-of-Staff briefing thesis layer (synthesis, not just a list)
 
 **Problem (audited & re-confirmed):** the briefing was a reporting layer — `_synthesize_briefing` concatenated Win/Risk/Opportunity/Protect/Action with no cross-lens reasoning, and ignored the synthesis the executive layer **already computes** (`overall`, `most_important_trend`). It listed five facts but never said what they mean together.

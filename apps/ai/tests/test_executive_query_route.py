@@ -70,6 +70,20 @@ class ExecutiveMatcher(SimpleTestCase):
             "give me an executive briefing",
             "strategic briefing please",
             "what are the most important things happening in my life",
+            # 2026-06-20 reclassification — holistic / trajectory / assessment
+            "how am i doing",
+            "how is my life going",
+            "how are things going",
+            "how am i doing these days",
+            "what is my trajectory",
+            "what's my trajectory",
+            "where am i headed",
+            "am i moving in the right direction",
+            "am i on the right path",
+            "give me an executive assessment",
+            "give me a strategic assessment",
+            "assess my life",
+            "give me an overall assessment",
         ):
             self.assertTrue(dr._match_executive_query(q), q)
 
@@ -82,9 +96,24 @@ class ExecutiveMatcher(SimpleTestCase):
             "am i behind",
             "check in",
             "list everything remaining today",
-            "how am i doing",                       # bare → not executive
             "give me a briefing",                   # bare → check-in, not executive
             "how did i sleep",
+        ):
+            self.assertFalse(dr._match_executive_query(q), q)
+
+    def test_domain_guard_keeps_domain_questions_off_executive(self):
+        # "How am I doing on protein?" etc. must NOT route to the executive
+        # layer — they belong to their domain status / execution routes.
+        for q in (
+            "how am i doing on protein",
+            "how am i doing with my workouts",
+            "how am i doing with sleep",
+            "how am i doing with glucose",
+            "how am i doing with nutrition",
+            "how am i doing with my goals",
+            "how am i doing financially",
+            "how am i doing today",                 # operational time-window
+            "how am i doing with my health",        # health-analyze owns this
         ):
             self.assertFalse(dr._match_executive_query(q), q)
 
@@ -126,6 +155,17 @@ class ExecutiveRouting(TestCase):
         with patch("apps.core.cos_briefing.build_executive_summary",
                    return_value=_ES):
             return dr.classify_and_route(q, self.user)
+
+    def test_reclassified_holistic_questions_route_executive(self):
+        # 2026-06-20: bare "how am i doing" + trajectory + assessment phrasings
+        # now reach the executive layer (were execution / LLM before).
+        for q in ("how am i doing",
+                  "what is my trajectory",
+                  "am i moving in the right direction",
+                  "give me an executive assessment"):
+            res = self._route(q)
+            self.assertIsNotNone(res, q)
+            self.assertEqual(res.route_name, "executive_summary_query", q)
 
     def test_single_lenses_route_to_executive_layer(self):
         for q, needle in (
@@ -221,7 +261,15 @@ class ExecutiveBoundaryPreserved(TestCase):
 
     def test_execution_questions_not_executive(self):
         for q in ("check in", "what should i do next", "am i behind",
-                  "list everything remaining today"):
+                  "list everything remaining today", "what remains today"):
+            res = dr.classify_and_route(q, self.user)
+            route = getattr(res, "route_name", None) if res else None
+            self.assertNotEqual(route, "executive_summary_query", q)
+
+    def test_domain_status_questions_not_executive(self):
+        # Domain-qualified "how am i doing" stays on its domain route (guard).
+        for q in ("how am i doing on protein", "how am i doing with sleep",
+                  "how am i doing with glucose"):
             res = dr.classify_and_route(q, self.user)
             route = getattr(res, "route_name", None) if res else None
             self.assertNotEqual(route, "executive_summary_query", q)

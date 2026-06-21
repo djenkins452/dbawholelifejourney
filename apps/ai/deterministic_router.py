@@ -926,6 +926,33 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
             _log_route_decision(result, user, message)
             return result
 
+    # ── Event-stream attention routes — answer "what needs my attention /
+    # what am I late on / what's coming up" from the unified GuidanceItem event
+    # stream FIRST (execution state is a supplemental fallback), BEFORE the
+    # legacy execution / focus / check-in handlers can grab them by wording.
+    # One coherent CoS stream for strategic + operational. (2026-06-21)
+    if user is not None:
+        _evt_handler = _evt_name = None
+        if _match_late_query(msg_lower):
+            _evt_handler, _evt_name = _handle_late_query, 'late_events_query'
+        elif _match_upcoming_query(msg_lower):
+            _evt_handler, _evt_name = _handle_upcoming_query, 'upcoming_events_query'
+        elif _match_attention_now_query(msg_lower):
+            _evt_handler, _evt_name = _handle_attention_now_query, 'attention_now_query'
+        if _evt_handler is not None:
+            _evt_resp = _evt_handler(user, msg_lower)
+            if _evt_resp:
+                result = RouteResult(
+                    category=RouteCategory.DETERMINISTIC_DATA,
+                    response=_evt_resp,
+                    route_name=_evt_name,
+                    domain='cos',
+                    is_terminal=True,
+                )
+                result.elapsed_ms = (time.monotonic() - t_start) * 1000
+                _log_route_decision(result, user, message)
+                return result
+
     # ── Phase -2: DAILY BRIEFING — first-of-day hard override ─────
     # If this is the user's first interaction today, render a full
     # Daily Briefing BEFORE any other routing. This is non-negotiable:
@@ -5845,6 +5872,122 @@ def _handle_goal_pace_query(user, msg_lower=None):
     return goal_pace_narrative(goal_pace(user)) or (
         "I don't see a weight goal with enough history to project a pace yet — "
         "set a goal with a target date and I'll track your trajectory.")
+
+
+# ── Event-stream attention routes (2026-06-21) ──
+# "What needs my attention / what am I late on / what's coming up" answer from
+# the unified GuidanceItem event stream FIRST (strategic + operational), with
+# execution state as a supplemental fallback only when the stream is empty.
+# This makes the three legacy execution questions part of the one CoS stream.
+_ATTENTION_NOW_CUES = (
+    'what needs my attention', 'needs my attention', 'need my attention',
+    'what requires my attention', 'what needs attention', 'requires attention',
+    'what should i focus on right now', 'what should i focus on now',
+    'what should i deal with', 'what should i be focused on right now',
+    'what should i be doing right now',
+)
+_LATE_CUES = (
+    'what am i late on', 'what am i behind on', "what's overdue",
+    'what is overdue', 'what have i missed', 'what am i late for',
+    'what am i overdue on', "what's late", 'what did i miss today',
+    'what have i not done', 'am i behind on anything',
+)
+_UPCOMING_CUES = (
+    'what is coming up', "what's coming up", 'coming up soon',
+    'what is coming up soon', 'what is next today', "what's next today",
+    'what is approaching', 'what do i have coming up', 'what is due soon',
+    "what's due soon", 'what is due later', 'what is on my plate',
+    "what's on my plate", 'what should i prepare for',
+)
+
+
+def _match_attention_now_query(m):
+    return bool(m) and any(c in m for c in _ATTENTION_NOW_CUES)
+
+
+def _match_late_query(m):
+    return bool(m) and any(c in m for c in _LATE_CUES)
+
+
+def _match_upcoming_query(m):
+    return bool(m) and any(c in m for c in _UPCOMING_CUES)
+
+
+def _execution_actions(user):
+    """Fallback source: (overdue, now, upcoming) action titles from the canonical
+    execution state. Used ONLY when the event stream has no relevant events."""
+    try:
+        from apps.core.execution.execution_state import build_execution_state
+        es = build_execution_state(user) or {}
+    except Exception:
+        return [], [], []
+
+    def _titles(key):
+        return [a.get('title') for a in (es.get(key) or []) if a.get('title')]
+    return (_titles('overdue_actions'), _titles('now_actions'),
+            _titles('upcoming_actions'))
+
+
+def _evt_bullets(items):
+    return "\n".join(f"• {t}" for t in items)
+
+
+def _handle_attention_now_query(user, msg_lower=None):
+    from apps.ai.cos_event_engine import (
+        active_events, STRATEGIC_RISK, DUE_NOW, PAST_DUE, RECURRING_PROBLEM)
+    evs = active_events(user)
+    strat = [e for e in evs if e['category'] == STRATEGIC_RISK]
+    oper = [e for e in evs if e['category'] in (DUE_NOW, PAST_DUE, RECURRING_PROBLEM)]
+    if strat or oper:
+        parts = []
+        if strat:
+            parts.append("Strategic attention:\n"
+                         + _evt_bullets(e['title'] for e in strat[:3]))
+        if oper:
+            parts.append("Operational attention:\n"
+                         + _evt_bullets(e['title'] for e in oper[:5]))
+        return "\n\n".join(parts)
+    overdue, now, _ = _execution_actions(user)  # fallback
+    items = overdue + now
+    if items:
+        return "Right now, focus on:\n" + _evt_bullets(items[:5])
+    return "Nothing is flagged for your attention right now — you're clear."
+
+
+def _handle_late_query(user, msg_lower=None):
+    from apps.ai.cos_event_engine import active_events, PAST_DUE, RECURRING_PROBLEM
+    evs = active_events(user)
+    late = [e for e in evs if e['category'] in (PAST_DUE, RECURRING_PROBLEM)]
+    if late:
+        def _label(e):
+            return e['title'] + (" — recurring"
+                                 if e['category'] == RECURRING_PROBLEM else "")
+        return "You're late on:\n" + _evt_bullets(_label(e) for e in late[:6])
+    overdue, _, _ = _execution_actions(user)  # fallback
+    if overdue:
+        return "You're late on:\n" + _evt_bullets(overdue[:6])
+    return "You're not late on anything tracked right now — nicely done."
+
+
+def _handle_upcoming_query(user, msg_lower=None):
+    from apps.ai.cos_event_engine import (
+        active_events, APPROACHING, DUE_NOW, STRATEGIC_RISK)
+    evs = active_events(user)
+    appr = [e for e in evs if e['category'] == APPROACHING]
+    due = [e for e in evs if e['category'] == DUE_NOW]
+    focus = [e for e in evs if e['category'] == STRATEGIC_RISK]
+    items = [e['title'] for e in (due + appr)]
+    if items or focus:
+        out = ("Coming up:\n" + _evt_bullets(items[:6])) if items \
+            else "Nothing operational is queued up shortly."
+        if focus:
+            out += (f"\n\nStrategically, {focus[0]['domain']} remains your "
+                    f"highest-leverage focus.")
+        return out
+    _, _, upcoming = _execution_actions(user)  # fallback
+    if upcoming:
+        return "Coming up:\n" + _evt_bullets(upcoming[:6])
+    return "Nothing is coming up in your tracked items right now."
 
 
 def _handle_executive_query(user, msg_lower=None):

@@ -404,6 +404,33 @@ def run_cos_event_engine(user):
     return {"created": created, "updated": updated, "resolved": resolved}
 
 
+STRATEGIC_CATS = (STRATEGIC_RISK, STRATEGIC_OPPORTUNITY, MAJOR_WIN)
+OPERATIONAL_CATS = (APPROACHING, DUE_NOW, PAST_DUE, RECURRING_PROBLEM)
+
+
+def active_events(user, limit=25):
+    """All active CoS events from the unified GuidanceItem stream (read-only,
+    lightweight — no detection). Ordered by priority then recency. The primary
+    source for the attention / late / upcoming routes."""
+    try:
+        from apps.core.ai_guidance.models import GuidanceItem
+        items = GuidanceItem.objects.filter(
+            user=user, is_active=True, dedupe_key__startswith=_PREFIX,
+            dismissed_at__isnull=True).order_by("priority", "-updated_at")[:limit]
+    except Exception:
+        return []
+    out = []
+    for g in items:
+        meta = g.metadata or {}
+        out.append({
+            "category": meta.get("category", ""),
+            "domain": meta.get("domain", g.module),
+            "title": g.title, "message": g.message, "priority": g.priority,
+            "occurrence_count": int(meta.get("occurrence_count", 1)),
+        })
+    return out
+
+
 def recent_cos_events(user, limit=5):
     """Active CoS events for the standing read (lightweight, read-only)."""
     try:

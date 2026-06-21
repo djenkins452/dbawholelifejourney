@@ -7,6 +7,26 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-21 — fix(ai): route attention/late/upcoming questions to the unified event stream (consumption gap)
+
+**Trace (3 questions):** "What needs my attention right now?", "What am I late on?", "What is coming up soon?" all hit `no_match` → LLM, which answered from execution-state context (`right_now_focus` / next-action — the "Cut up boxes for trash day" leakage). **Determination: B — legacy execution state**, NOT the unified GuidanceItem event stream. The executive brain + event engine worked; these three were the gap.
+
+**Fix — event stream becomes primary, execution becomes fallback:**
+- New `cos_event_engine.active_events(user)` — reads ALL active CoS events from the GuidanceItem stream (read-only, no detection).
+- Three deterministic routes registered as an early gate (right after the executive gate, BEFORE legacy execution/focus/check-in handlers):
+  - `attention_now_query` → Strategic attention (strategic_risk titles) + Operational attention (due_now / past_due / recurring) from the stream.
+  - `late_events_query` → past_due + recurring_problem events (recurring flagged).
+  - `upcoming_events_query` → approaching + due_now events, with the top strategic focus appended.
+- Each falls back to `build_execution_state` (overdue/now/upcoming action titles) ONLY when the stream has no relevant events — preserving existing execution behavior.
+
+**Representative (live, Danny):** "What needs my attention right now?" → *"Strategic attention: • Sleep is trending down • Weight goal target date passed. Operational attention: • Bible Reading • Prayer Time • Wake up."* "What am I late on?" → overdue events. "What is coming up soon?" → *"Coming up: • Empty Dishwasher • Log Nutrition. Strategically, sleep remains your highest-leverage focus."*
+
+**Preserves:** execution functionality (fallback), event-engine behavior, proactive behavior, executive reasoning (the executive gate still fires first for "how am I doing"). No model/migration.
+
+**Regression:** new `test_event_stream_routes.py` (11 tests: stream-used-when-events-exist, execution fallback for all three, strategic+operational coexistence, recurring marker, no cross-match). `makemigrations --check` clean. `git`-baseline diff across 7 router/execution/event suites: **zero new failures**. **Files:** `apps/ai/deterministic_router.py`, `apps/ai/cos_event_engine.py`, `apps/ai/tests/test_event_stream_routes.py`.
+
+
+
 ## 2026-06-21 — feat(ai): federate operational reminders into the CoS Event stream — one unified awareness model
 
 **Goal:** operational reminders (medication, workout, prayer, routines) lived in separate proactive detectors; strategic events lived in the GuidanceItem stream. Two awareness models, not one Chief of Staff. Federated them into the SAME stream.

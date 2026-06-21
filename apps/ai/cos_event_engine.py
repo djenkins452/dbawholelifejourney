@@ -32,12 +32,18 @@ logger = logging.getLogger(__name__)
 APPROACHING = "approaching"
 DUE_NOW = "due_now"
 PAST_DUE = "past_due"
+RECURRING_PROBLEM = "recurring_problem"
 STRATEGIC_RISK = "strategic_risk"
 STRATEGIC_OPPORTUNITY = "strategic_opportunity"
 MAJOR_WIN = "major_win"
 
-CATEGORIES = (APPROACHING, DUE_NOW, PAST_DUE, STRATEGIC_RISK,
-              STRATEGIC_OPPORTUNITY, MAJOR_WIN)
+CATEGORIES = (APPROACHING, DUE_NOW, PAST_DUE, RECURRING_PROBLEM,
+              STRATEGIC_RISK, STRATEGIC_OPPORTUNITY, MAJOR_WIN)
+
+# How many operational events to surface per category (avoid flooding the
+# notification center). active_guidance shows the top 5 by priority anyway.
+_OP_CAPS = {APPROACHING: 2, DUE_NOW: 3, PAST_DUE: 3}
+_RECURRING_THRESHOLD_DAYS = 3  # distinct overdue days in 7d → recurring_problem
 
 # Fine-grained domain -> enabled WLJ module (so the GuidanceItem surfaces).
 _DOMAIN_MODULE = {
@@ -61,9 +67,16 @@ class CoSEvent:
     why_it_matters: str
     what_to_do: str
     priority: int = 3
+    # Optional stable per-item key (operational events). When set, the event is
+    # keyed by the ITEM, not the category — so a single notification escalates
+    # as the item moves approaching → due_now → past_due → recurring_problem.
+    key: str = None
+    item_label: str = None
 
     @property
     def dedupe_key(self):
+        if self.key:
+            return f"{_PREFIX}{self.key}"
         return f"{_PREFIX}{self.category}:{self.domain}"
 
     @property
@@ -198,43 +211,139 @@ def detect_events(user):
     return events
 
 
+def _op_module(title):
+    t = (title or "").lower()
+    if any(k in t for k in ("pray", "bible", "devotion", "scripture", "worship")):
+        return "faith"
+    if "journal" in t:
+        return "journal"
+    return "health"  # workouts, medication, measurements, routines → always-on
+
+
+def _op_slug(title):
+    import re
+    return re.sub(r"[^a-z0-9]+", "-", (title or "item").lower()).strip("-")[:60] or "item"
+
+
+def _operational_event(category, action):
+    title = (action.get("title") or "").strip() or "Scheduled item"
+    when = action.get("time_display") or ""
+    module = _op_module(title)
+    if category == APPROACHING:
+        wh = f"{title} is coming up{f' at {when}' if when else ''}."
+        why = "Staying ahead of it keeps the rest of the day on track."
+        wd = "Plan to handle it shortly."
+        pr = 4
+    elif category == DUE_NOW:
+        wh = f"{title} is due now{f' ({when})' if when else ''}."
+        why = "Doing it on time keeps your routine intact."
+        wd = "Take care of it now."
+        pr = 3
+    else:  # PAST_DUE
+        wh = f"{title} is overdue{f' (was due {when})' if when else ''}."
+        why = "The longer it slips, the harder the day is to recover."
+        wd = "Knock it out now, or consciously reschedule it."
+        pr = 2 if action.get("is_foundational") else 3
+    return CoSEvent(category, module, title, wh, why, wd, priority=pr,
+                    key=f"op:{module}:{_op_slug(title)}", item_label=title)
+
+
+def detect_operational_events(user):
+    """Map the canonical execution state (build_execution_state) into operational
+    CoSEvents. Returns (events, ok) — ok=False signals detection failed so the
+    caller must NOT auto-resolve operational events (avoids false resolution).
+    Reuses the same source cos_context uses; no re-derivation of timing."""
+    try:
+        from apps.core.execution.execution_state import build_execution_state
+        es = build_execution_state(user) or {}
+    except Exception:
+        logger.warning("cos_event: execution_state failed", exc_info=True)
+        return [], False
+
+    out = []
+    for src_key, cat in (("upcoming_actions", APPROACHING),
+                         ("now_actions", DUE_NOW),
+                         ("overdue_actions", PAST_DUE)):
+        for a in (es.get(src_key) or [])[:_OP_CAPS[cat]]:
+            if a.get("completed_today") or a.get("completed"):
+                continue
+            out.append(_operational_event(cat, a))
+    return out, True
+
+
+def _within_days(iso, now, days):
+    from datetime import date
+    try:
+        return (now.date() - date.fromisoformat(iso)).days <= days
+    except Exception:
+        return False
+
+
 def persist_event(user, event):
     """Upsert the event as a GuidanceItem, keyed by dedupe_key. Returns
-    (guidance_item, created). On recurrence: increments occurrence_count, keeps
-    the original first-seen, and escalates the framing after ~2 weeks."""
+    (guidance_item, created). Strategic events escalate after ~2 weeks;
+    operational past-due events that recur on ≥3 distinct days in a week are
+    promoted to recurring_problem."""
     from apps.core.ai_guidance.models import GuidanceItem
     now = timezone.now()
     existing = GuidanceItem.objects.filter(
         user=user, dedupe_key=event.dedupe_key, is_active=True).first()
-    meta_common = {
+
+    meta = dict(existing.metadata or {}) if existing else {}
+    meta.update({
         "category": event.category, "domain": event.domain,
         "what_happened": event.what_happened,
         "why_it_matters": event.why_it_matters, "what_to_do": event.what_to_do,
         "last_seen": now.isoformat(),
-    }
-    if existing:
-        meta = existing.metadata or {}
-        count = int(meta.get("occurrence_count", 1)) + 1
-        meta.update(meta_common)
-        meta["occurrence_count"] = count
+    })
+    meta.setdefault("first_seen",
+                    existing.created_at.isoformat() if existing else now.isoformat())
+    meta["occurrence_count"] = int(meta.get("occurrence_count", 0)) + 1
+
+    category = event.category
+    priority = event.priority
+    prefix = ""
+
+    if event.category == PAST_DUE:
+        # Track distinct overdue days → promote to recurring_problem.
+        dates = set(meta.get("overdue_dates", []))
+        dates.add(now.date().isoformat())
+        recent = sorted(d for d in dates if _within_days(d, now, 30))
+        meta["overdue_dates"] = recent
+        last7 = [d for d in recent if _within_days(d, now, 7)]
+        if len(last7) >= _RECURRING_THRESHOLD_DAYS:
+            category = RECURRING_PROBLEM
+            meta["category"] = RECURRING_PROBLEM
+            priority = 2
+            label = event.item_label or event.title or "this"
+            prefix = (f"That's {len(last7)} days in the last week {label} has "
+                      f"gone overdue — it's becoming a pattern. ")
+    elif existing:
+        # Strategic recurrence — escalate framing after ~2 weeks unresolved.
         weeks = max(0, (now - existing.created_at).days) // 7
-        prefix = (f"I've been flagging this for about {weeks} weeks and it "
-                  f"hasn't resolved. ") if weeks >= 2 else ""
-        existing.message = prefix + event.message
+        if weeks >= 2:
+            prefix = (f"I've been flagging this for about {weeks} weeks and it "
+                      f"hasn't resolved. ")
+
+    message = prefix + event.message
+    guidance_type = f"{_PREFIX}{category}"
+
+    if existing:
         existing.title = event.title
-        existing.priority = event.priority
+        existing.message = message
+        existing.priority = priority
+        existing.guidance_type = guidance_type
         existing.metadata = meta
-        existing.is_read = False  # resurface a recurring event
-        existing.save(update_fields=["message", "title", "priority", "metadata",
-                                     "is_read", "updated_at"])
+        existing.is_read = False  # resurface
+        existing.save(update_fields=["title", "message", "priority",
+                                     "guidance_type", "metadata", "is_read",
+                                     "updated_at"])
         return existing, False
 
-    meta = dict(meta_common, occurrence_count=1, first_seen=now.isoformat())
     item = GuidanceItem.objects.create(
-        user=user, title=event.title, message=event.message,
-        priority=event.priority, guidance_type=f"{_PREFIX}{event.category}",
-        source="composite", module=event.module, dedupe_key=event.dedupe_key,
-        metadata=meta)
+        user=user, title=event.title, message=message, priority=priority,
+        guidance_type=guidance_type, source="composite", module=event.module,
+        dedupe_key=event.dedupe_key, metadata=meta)
     return item, True
 
 
@@ -245,9 +354,11 @@ def run_cos_event_engine(user):
     if prefs and not getattr(prefs, "assistant_proactive_checkins", True):
         return {"created": 0, "updated": 0, "resolved": 0}
 
-    events = detect_events(user)
+    strategic = detect_events(user)
+    operational, op_ok = detect_operational_events(user)
+
     created = updated = 0
-    for ev in events:
+    for ev in strategic + operational:
         try:
             _, is_new = persist_event(user, ev)
             created += int(is_new)
@@ -256,22 +367,37 @@ def run_cos_event_engine(user):
             logger.warning("cos_event: persist failed (%s)", ev.dedupe_key,
                            exc_info=True)
 
-    # Auto-resolve events that are no longer detected.
+    # Auto-resolve, keeping strategic and operational streams independent so a
+    # transient operational-detection failure can't wrongly resolve strategic
+    # events (and vice-versa).
     resolved = 0
     try:
         from apps.core.ai_guidance.models import GuidanceItem
         now = timezone.now()
-        current = {ev.dedupe_key for ev in events}
-        stale = GuidanceItem.objects.filter(
+        op_prefix = f"{_PREFIX}op:"
+
+        def _resolve(qs):
+            n = 0
+            for s in qs:
+                meta = s.metadata or {}
+                meta["resolved_at"] = now.isoformat()
+                s.metadata = meta
+                s.is_active = False
+                s.save(update_fields=["is_active", "metadata", "updated_at"])
+                n += 1
+            return n
+
+        strat_keys = {e.dedupe_key for e in strategic}
+        resolved += _resolve(GuidanceItem.objects.filter(
             user=user, is_active=True, dedupe_key__startswith=_PREFIX
-        ).exclude(dedupe_key__in=current)
-        for s in stale:
-            meta = s.metadata or {}
-            meta["resolved_at"] = now.isoformat()
-            s.metadata = meta
-            s.is_active = False
-            s.save(update_fields=["is_active", "metadata", "updated_at"])
-            resolved += 1
+        ).exclude(dedupe_key__startswith=op_prefix).exclude(
+            dedupe_key__in=strat_keys))
+
+        if op_ok:
+            op_keys = {e.dedupe_key for e in operational}
+            resolved += _resolve(GuidanceItem.objects.filter(
+                user=user, is_active=True, dedupe_key__startswith=op_prefix
+            ).exclude(dedupe_key__in=op_keys))
     except Exception:
         logger.warning("cos_event: auto-resolve failed", exc_info=True)
 

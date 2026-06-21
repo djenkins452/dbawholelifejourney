@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-21 — feat(ai): federate operational reminders into the CoS Event stream — one unified awareness model
+
+**Goal:** operational reminders (medication, workout, prayer, routines) lived in separate proactive detectors; strategic events lived in the GuidanceItem stream. Two awareness models, not one Chief of Staff. Federated them into the SAME stream.
+
+**Built (extends `apps/ai/cos_event_engine.py`, additive — existing proactive/push untouched):**
+- New category `recurring_problem` + operational detection. `detect_operational_events()` reads the canonical `build_execution_state()` (the same source cos_context uses — no re-derived timing) and maps `upcoming_actions → approaching`, `now_actions → due_now`, `overdue_actions → past_due`, each with the three-part explanation. Returns `(events, ok)` so a transient detection failure never wrongly resolves operational events.
+- **Item-keyed dedupe** (`cos_event:op:{module}:{slug}`) so ONE notification escalates as an item moves approaching → due_now → past_due (not three separate rows).
+- **recurring_problem promotion:** a past-due item that recurs on ≥3 distinct days in a week is promoted — *"That's 3 days in the last week Metformin has gone overdue — it's becoming a pattern."* (priority bumped). Tracked via `metadata.overdue_dates`.
+- **Auto-resolution:** when an item is completed it leaves `build_execution_state`, is no longer detected, and the event auto-resolves (strategic + operational streams resolved independently).
+- Persists as `GuidanceItem` → surfaces in the notification center, web UI, and Beth's standing read (`active_guidance` / `build_cos_intelligence['events']`) for free. No second notification model; no new model/migration.
+
+**Representative (live, Danny):** one stream now carries `approaching` (Log Nutrition), `past_due` (Wake up, Prayer Time→faith module, Bible Reading), alongside `strategic_risk` (sleep) and `major_win` (−12.7 lb).
+
+**Regression:** new `test_operational_events.py` (12 tests covering all 10 required areas: approaching/due_now/past_due creation, recurrence escalation, auto-resolution, dedupe, notification-center visibility, standing-read visibility, proactive untouched (no AssistantMessages created), strategic+operational coexistence). `makemigrations --check` clean. `git`-baseline diff across 7 cos/proactive/scheduler suites: **zero new failures** (3 pre-existing `test_proactive_scheduler` failures unchanged). **Files:** `apps/ai/cos_event_engine.py`, `apps/ai/tests/test_operational_events.py`.
+
+
+
 ## 2026-06-21 — feat(ai): Chief of Staff Event Engine — one engine that notices and tells Danny before he asks
 
 **Problem:** strategic intelligence only appeared when asked, while notifications were a separate task/push pipeline — two systems, not a Chief of Staff. **Audit found the substrate already exists:** `GuidanceItem` carries `dedupe_key`, `created_at`, `metadata` JSON, and full lifecycle, AND already renders in the notification center (`notifications.html`, `notification_bell.html`) and Beth's context (`active_guidance`). So NO new model.

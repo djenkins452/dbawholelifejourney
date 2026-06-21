@@ -6052,21 +6052,54 @@ def _cos_mode_for(msg_lower):
     return None
 
 
+def _life_state_signals(user):
+    """LIFE MODEL: strategic risk/opportunity/win read from the LIVE executive
+    STATE (build_executive_state_signals, recomputed from raw data every call) —
+    NOT from the persisted event stream. Beth reasons about Danny's life whether
+    or not any alert/GuidanceItem has fired. Returns (R, O, W) as event-shaped
+    dicts."""
+    try:
+        from apps.core.cos_briefing.executive_state import (
+            build_executive_state_signals, _ordered)
+        sigs = build_executive_state_signals(user) or []
+    except Exception:
+        return [], [], []
+
+    def shape(s, cat):
+        return {'domain': s.domain, 'title': s.title, 'message': s.message,
+                'category': cat, 'occurrence_count': 1}
+    R = [shape(s, 'strategic_risk') for s in
+         _ordered([s for s in sigs if s.direction in ('declining', 'risk')])]
+    W = [shape(s, 'major_win') for s in
+         _ordered([s for s in sigs if s.lens == 'win'])]
+    O = [shape(s, 'strategic_opportunity') for s in
+         _ordered([s for s in sigs if s.lens in ('improvement', 'opportunity')])]
+    return R, O, W
+
+
 def _render_cos_mode(user, mode):
-    """Render a distinct executive answer for `mode` from ONE shared state."""
+    """Render a distinct executive answer for `mode` from ONE shared state.
+    Strategic signals come from the LIVE state (event-independent); only the
+    operational queue (overdue/recurring) is read from the event stream."""
     from apps.ai.cos_intelligence import build_cos_intelligence
     from apps.ai.cos_event_engine import (
-        active_events, STRATEGIC_RISK, STRATEGIC_OPPORTUNITY, MAJOR_WIN,
-        PAST_DUE, RECURRING_PROBLEM)
+        active_events, PAST_DUE, RECURRING_PROBLEM)
     intel = build_cos_intelligence(user) or {}
     events = active_events(user)
     overall = intel.get('overall')
     pace_n = intel.get('goal_pace_narrative')
     gp = intel.get('goal_pace') or {}
     eff = intel.get('recommendation_effectiveness')
-    R = [e for e in events if e['category'] == STRATEGIC_RISK]
-    O = [e for e in events if e['category'] == STRATEGIC_OPPORTUNITY]
-    W = [e for e in events if e['category'] == MAJOR_WIN]
+    # Strategic R/O/W from the LIVE life state, not the event stream.
+    R, O, W = _life_state_signals(user)
+    # Goal pace is a live strategic risk too — merge it so trajectory risk shows
+    # even when there's no decline event.
+    if gp.get('target_passed') or gp.get('on_pace') is False:
+        R.append({'domain': 'weight',
+                  'title': ('weight goal target date passed'
+                            if gp.get('target_passed') else 'weight goal behind pace'),
+                  'message': pace_n or 'Your weight goal needs a realistic date.',
+                  'category': 'strategic_risk', 'occurrence_count': 1})
     OD = [e for e in events if e['category'] in (PAST_DUE, RECURRING_PROBLEM)]
     REC = [e for e in events if e['category'] == RECURRING_PROBLEM
            or e.get('occurrence_count', 1) >= 3]
@@ -6365,12 +6398,10 @@ def _cos_status_enrich(user, base):
     there's nothing grounded to add."""
     try:
         from apps.ai.cos_event_engine import (
-            active_events, STRATEGIC_RISK, MAJOR_WIN, STRATEGIC_OPPORTUNITY,
-            PAST_DUE, RECURRING_PROBLEM)
+            active_events, PAST_DUE, RECURRING_PROBLEM)
+        R, O, W = _life_state_signals(user)               # LIVE state
+        strengths = [e['domain'] for e in (W + O)][:2]
         evs = active_events(user)
-        R = [e for e in evs if e['category'] == STRATEGIC_RISK]
-        strengths = [e['domain'] for e in evs
-                     if e['category'] in (MAJOR_WIN, STRATEGIC_OPPORTUNITY)][:2]
         OD = [e for e in evs if e['category'] in (PAST_DUE, RECURRING_PROBLEM)]
     except Exception:
         return base

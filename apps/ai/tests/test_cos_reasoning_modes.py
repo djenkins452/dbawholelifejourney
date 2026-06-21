@@ -94,9 +94,25 @@ class ModeRendering(TestCase):
             "Prayer Time is overdue.", "Recover.", "Do it now.",
             key="op:health:prayer-time"))
 
+    # Strategic R/O/W now come from the LIVE state (not events) — inject them
+    # directly, mirroring the seeded events. OD/REC still read the event stream.
+    _STATE = (
+        [{"domain": "sleep", "title": "Sleep is trending down",
+          "message": "Sleep is trending down (6.7h). It constrains weight loss. "
+                     "Protect tonight's sleep.", "category": "strategic_risk",
+          "occurrence_count": 1}],
+        [{"domain": "medication", "title": "Medication is improving",
+          "message": "100% adherence this week.",
+          "category": "strategic_opportunity", "occurrence_count": 1}],
+        [{"domain": "weight", "title": "Weight down 12.7 lb",
+          "message": "Down 12.7 lb.", "category": "major_win",
+          "occurrence_count": 1}],
+    )
+
     def _render(self, mode):
         with patch("apps.ai.cos_intelligence.build_cos_intelligence",
-                   return_value={**_INTEL, "events": eng.recent_cos_events(self.user)}):
+                   return_value={**_INTEL, "events": eng.recent_cos_events(self.user)}), \
+             patch.object(dr, "_life_state_signals", return_value=self._STATE):
             return dr._render_cos_mode(self.user, mode)
 
     def test_fix_modes_target_constraint_not_positive_trend(self):
@@ -197,12 +213,47 @@ class ModeRendering(TestCase):
         self.assertTrue(today.lower().startswith("today"))
 
 
+class LifeModelNuclearTest(TestCase):
+    """Beth must reason from the LIVE STATE even with ZERO events (no alerts):
+    if every GuidanceItem disappeared, she still knows the constraint."""
+
+    def setUp(self):
+        self.user = _user("nuclear@test.com")  # deliberately NO events persisted
+
+    def _render_no_events(self, mode, state):
+        from apps.core.ai_guidance.models import GuidanceItem
+        self.assertEqual(GuidanceItem.objects.filter(
+            user=self.user, dedupe_key__startswith="cos_event:").count(), 0)
+        with patch("apps.ai.cos_intelligence.build_cos_intelligence",
+                   return_value={"overall": "net read"}), \
+             patch.object(dr, "_life_state_signals", return_value=state):
+            return dr._render_cos_mode(self.user, mode)
+
+    def test_concerns_surfaces_constraint_from_state_not_events(self):
+        state = ([{"domain": "sleep", "title": "Sleep trending down",
+                   "message": "Sleep is your constraint.",
+                   "category": "strategic_risk", "occurrence_count": 1}], [], [])
+        out = self._render_no_events("risk", state)
+        self.assertIn("sleep", out.lower())          # from STATE, with no events
+
+    def test_doing_well_surfaces_win_from_state_not_events(self):
+        state = ([], [], [{"domain": "weight", "title": "Weight down 12 lb",
+                           "message": "Down 12 lb.", "category": "major_win",
+                           "occurrence_count": 1}])
+        out = self._render_no_events("progress", state)
+        self.assertIn("weight", out.lower())
+
+
 class RouteIntegration(TestCase):
     def setUp(self):
         self.user = _user("moderoute@test.com")
-        eng.persist_event(self.user, eng.CoSEvent(
-            eng.STRATEGIC_RISK, "sleep", "Sleep is trending down",
-            "Sleep down.", "Constraint.", "Protect it."))
+        # Strategic reasoning reads the LIVE state — inject a sleep risk signal.
+        self._patch = patch.object(dr, "_life_state_signals", return_value=(
+            [{"domain": "sleep", "title": "Sleep is trending down",
+              "message": "Sleep down. Constraint. Protect it.",
+              "category": "strategic_risk", "occurrence_count": 1}], [], []))
+        self._patch.start()
+        self.addCleanup(self._patch.stop)
 
     def test_holding_me_back_routes_to_executive_with_sleep(self):
         res = dr.classify_and_route("what is holding me back", self.user)

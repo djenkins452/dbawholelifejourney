@@ -7,6 +7,20 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-21 — feat(ai): Life Model — reason from live state, not the event stream (event-independence)
+
+**Audit + nuclear test proved Beth was ~70% Event Model.** The strategic renderers (risk/opportunity/win in every mode) read R/O/W from the persisted GuidanceItem event stream, not the live state. Proof: deleting all events made "What concerns you?" DROP sleep and fall back to goal pace — even though the executive STATE still knew sleep was declining.
+
+**Fix (smallest change toward Life Model — reasoning inputs only, no wording/route/engine):** new `_life_state_signals(user)` sources strategic risk/opportunity/win from `build_executive_state_signals` (recomputed from raw data EVERY call) instead of `active_events`; goal pace merged in as a live risk. `_render_cos_mode` and `_cos_status_enrich` now reason from the live state; only the operational queue (overdue/recurring) still reads the event stream. Events become a delivery/notification artifact, not the reasoning input.
+
+**Nuclear test now PASSES (live, Danny, zero events):** "What concerns you?" → "sleep is trending down… below that, weight goal date passed, and we can't yet show the focus is working"; "How am I doing?" → portfolio scan; opportunity distinct. Beth understands his life with no alerts present.
+
+**Verdict shift: ~70% Event Model → ~70% Life Model.** Strategic reasoning is now event-independent. Remaining Event-Model residue: operational overdue queue (genuinely event-tracked) and the state builders still only emit for NOTABLE change (stable glucose/relationships silent) — the next gap (per-domain steady-state signals).
+
+**Tests:** new `LifeModelNuclearTest` (constraint surfaces from state with zero events) + existing mode tests updated to inject state. `makemigrations --check` clean. `git`-baseline diff across 9 suites: **zero new failures**. **Files:** `apps/ai/deterministic_router.py`, `apps/ai/tests/test_cos_reasoning_modes.py`.
+
+
+
 ## 2026-06-21 — feat(ai): per-question signal reasoning — Beth weighs the board differently per question
 
 Honest reasoning audit found the core gap: every mode read ONE global signal ranking (top risk/win/opp) and reframed it, so the same signal (sleep) led nearly every answer — Beth reacted to the highest-scoring fired event instead of evaluating what matters most *for the question asked*. No new subsystem — upgraded the reasoning of the two hardest modes to weigh the relevant signal set with question-specific logic:

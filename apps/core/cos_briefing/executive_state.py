@@ -394,6 +394,7 @@ def _emit_domain_status(user, health, domain):
                      "No sleep logged in the last week."))
     if domain == "glucose":
         try:
+            from apps.health.models import GlucoseEntry
             from apps.health.services.glucose_snapshot import build_glucose_summary
             s = build_glucose_summary(user) or {}
             a7 = s.get("average_7d")
@@ -404,10 +405,20 @@ def _emit_domain_status(user, health, domain):
                             "Glucose in range" if healthy else "Glucose steady",
                             f"Glucose is {'stable and in a healthy range' if healthy else 'stable'} "
                             f"(7-day avg {a7} mg/dL).", [f"7d avg {a7}"])
+            # No recent reading — but is there HISTORY? (neglected ≠ unknown)
+            last = GlucoseEntry.objects.filter(
+                user=user).order_by("-recorded_at").first()
+            if last:
+                return _ctx("glucose", "neglected", "medium",
+                            "Glucose not syncing",
+                            f"Glucose has history but no readings in the last 7 "
+                            f"days (last {last.recorded_at.date()}, "
+                            f"{int(last.value)} mg/dL) — check the Dexcom/Health "
+                            f"sync.", [f"last {last.recorded_at.date()}"])
         except Exception:
             pass
         return _ctx("glucose", "unknown", "low", "No glucose data",
-                    "No recent glucose readings.")
+                    "No glucose readings on record.")
     if domain == "medication":
         ms = _module(user, "medicine")
         adh = ms.get("adherence_7d")
@@ -421,18 +432,31 @@ def _emit_domain_status(user, health, domain):
     if domain == "nutrition":
         try:
             from apps.health.models import FoodEntry
+            from datetime import timedelta
             from django.utils import timezone
-            today = timezone.now().date()
-            n = FoodEntry.objects.filter(
-                user=user, status="active", created_at__date=today).count()
-            return (_ctx("nutrition", "stable", "medium", "Nutrition logged today",
-                         f"You've logged {n} food item{'s' if n != 1 else ''} today.",
-                         [f"{n} today"]) if n else
-                    _ctx("nutrition", "unknown", "low", "Nutrition not logged",
-                         "No food logged today — can't read nutrition yet."))
+            now = timezone.now()
+            recent = FoodEntry.objects.filter(
+                user=user, status="active",
+                created_at__gte=now - timedelta(days=2)).count()
+            if recent:
+                return _ctx("nutrition", "stable", "medium", "Nutrition logged",
+                            f"{recent} food item{'s' if recent != 1 else ''} "
+                            f"logged in the last couple of days.", [f"{recent}/2d"])
+            # No recent logs — but is there HISTORY? (neglected ≠ unknown)
+            last = FoodEntry.objects.filter(
+                user=user, status="active").order_by("-created_at").first()
+            if last:
+                total = FoodEntry.objects.filter(
+                    user=user, status="active").count()
+                return _ctx("nutrition", "neglected", "medium",
+                            "Nutrition logging lapsed",
+                            f"You've logged food before ({total} entries) but "
+                            f"nothing recently (last {last.created_at.date()}).",
+                            [f"last {last.created_at.date()}"])
         except Exception:
-            return _ctx("nutrition", "unknown", "low", "Nutrition unavailable",
-                        "No nutrition data available.")
+            pass
+        return _ctx("nutrition", "unknown", "low", "No nutrition data",
+                    "No food ever logged.")
     if domain == "workouts":
         try:
             from apps.health.models import WorkoutSession, WorkoutPlan
@@ -472,36 +496,35 @@ def _emit_domain_status(user, health, domain):
                      "No faith activity tracked."))
     if domain == "relationships":
         rel = _module(user, "relationships")
-        contract = rel.get("_contract") or {}
-        summary = contract.get("summary") or {}
-        total = summary.get("total_count") or summary.get("people_count")
-        if total:
+        summary = (rel.get("_contract") or {}).get("summary") or {}
+        active = summary.get("active_count")
+        if active and active > 0:
             return _ctx("relationships", "stable", "medium",
                         "Relationships steady",
-                        f"{total} relationships tracked, none currently drifting.",
-                        [f"{total} tracked"])
+                        f"{active} active relationship"
+                        f"{'s' if active != 1 else ''} tracked, none drifting.",
+                        [f"{active} active"])
         return _ctx("relationships", "unknown", "low", "No relationship data",
-                    "No relationships tracked yet.")
+                    "No active relationships tracked yet.")
     if domain == "goals":
-        try:
-            from apps.health.models import HealthProfile
-            hp = HealthProfile.objects.filter(user=user).first()
-            wp = hp.get_weight_progress() if hp else None
-            if wp and wp.get("goal"):
-                on = wp.get("on_track")
-                if on is True:
-                    return _ctx("goals", "improving", "medium", "Goal on track",
-                                "Your weight goal is on track.", ["on_track"])
-                if on is False:
-                    return _ctx("goals", "declining", "medium",
-                                "Goal behind pace",
-                                "Your weight goal is behind pace.", ["off_track"])
-                return _ctx("goals", "stable", "low", "Goal set",
-                            "A weight goal is set; pace not yet determinable.")
-        except Exception:
-            pass
+        # Real source: the purpose module (active/overdue/completion), NOT the
+        # weight goal.
+        p = _module(user, "purpose")
+        active = p.get("active_goal_count")
+        if active:
+            overdue = p.get("overdue_goal_count") or 0
+            pct = int((p.get("completion_rate") or 0) * 100)
+            if overdue > 0:
+                return _ctx("goals", "declining", "medium", "Goals slipping",
+                            f"{active} active goals, {overdue} overdue "
+                            f"({pct}% of milestones complete).",
+                            [f"{overdue} overdue", f"{pct}%"])
+            return _ctx("goals", "stable", "medium", "Goals progressing",
+                        f"{active} active goals, none overdue "
+                        f"({pct}% of milestones complete).",
+                        [f"{active} active", f"{pct}%"])
         return _ctx("goals", "unknown", "low", "No goal data",
-                    "No active goal with enough data to judge pace.")
+                    "No active goals on record.")
     if domain == "accountability":
         try:
             from apps.core.ai_guidance.models import GuidanceItem
@@ -518,11 +541,17 @@ def _emit_domain_status(user, health, domain):
                     "No standing recommendation",
                     "No recommendation is being tracked yet.")
     if domain == "routines":
-        # Light only — operational overdue is handled by the event stream; avoid
-        # the heavy build_execution_state on this (request) path.
-        return _ctx("routines", "stable", "low", "Routines tracking",
-                    "Routine commitments are being tracked; the action queue "
-                    "surfaces anything overdue.")
+        # Honest: only claim a status from a light source. The accurate read
+        # (overdue/completion) lives in build_execution_state, which is too heavy
+        # for this path — so report 'unknown' rather than a fabricated 'stable'.
+        life = _module(user, "life")
+        if life:
+            return _ctx("routines", "stable", "low", "Routines tracking",
+                        "Routine/task commitments are tracked; the action queue "
+                        "surfaces anything overdue.")
+        return _ctx("routines", "unknown", "low", "Routines not readable here",
+                    "Routine status needs the execution queue (not read on this "
+                    "path).")
     if domain == "finances":
         fin = _module(user, "finance")
         if fin:

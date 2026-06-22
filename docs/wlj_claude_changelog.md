@@ -7,6 +7,26 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-22 — fix(ai): board accuracy — distinguish neglected from unknown; goals/relationships/routines read the right source
+
+Audit of the full-board inventory found the board was COMPLETE but INACCURATE. The data exists; the classifications were wrong:
+- **Glucose** (48,834 entries) and **Nutrition** (153 entries) reported 'unknown' identically to Work (zero data) — because the steady-state used only a recent window and conflated stale history with no-data.
+- **Goals** read the WEIGHT goal (HealthProfile) and reported 'stable', ignoring the real purpose module (4 active LifeGoals, 0 overdue, 18% milestones).
+- **Relationships** queried non-existent contract keys (`total_count`/`people_count`); the real key is `active_count`.
+- **Routines** returned a fabricated 'stable' from an empty `life` module.
+
+**Fixes (board/state accuracy only — NO reasoning change; steady-state stays context-only, R/O/W unchanged):**
+- New **neglected** status: a domain with HISTORY but no recent data reports 'neglected' (negative polarity) with the last-known value/date — distinct from 'unknown' (no data ever). Applied to glucose ("history but no readings in 7 days; last <date> — check Dexcom/Health sync") and nutrition.
+- **Goals** now reads the purpose module (active/overdue/completion) → "4 active goals, none overdue (18% complete)".
+- **Relationships** uses `active_count` (correct key).
+- **Routines** reports 'unknown' honestly when the execution queue isn't read on this path, instead of a fake 'stable'.
+
+**Corrected board (live, Danny):** glucose=neglected, nutrition=neglected, workouts=declining, goals=stable(4 real goals), relationships=unknown(active_count 0), routines=unknown(honest), finances=stable, work=unknown, weight/medication/faith=strong, sleep=declining. Local DB is frozen ~April 7, so glucose/nutrition read 'neglected' locally; in production (live Dexcom/HealthKit) they read 'strong'/'stable' via the same code.
+
+**Tests:** `BoardAccuracy` (neglected-with-history, unknown-without-history, goals-from-purpose). `makemigrations --check` clean. `git`-baseline diff across 6 suites: **zero new failures**. **Files:** `apps/core/cos_briefing/executive_state.py`, `apps/core/cos_briefing/tests/test_executive_state.py`.
+
+
+
 ## 2026-06-22 — feat(ai): full-board steady-state signals — every domain reports every cycle (Life Model state layer)
 
 Beth could only reason over domains that emitted a notable signal; stable/quiet/unknown domains silently disappeared (4 of ~13 visible). Added a full-board steady-state layer in `executive_state.py`: after the notable builders run, every canonical domain that didn't fire a notable signal emits a STATUS context signal — strong / improving / stable / declining / neglected / unknown — with confidence, evidence, polarity (positive/neutral/negative/unknown), and consider_for (risk/opportunity/progress/context). `ExecutiveStateSignal` gained status/polarity/consider_for; notable signals derive theirs from their lens.

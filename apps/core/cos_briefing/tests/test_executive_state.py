@@ -329,3 +329,35 @@ class FullBoardSteadyState(TestCase):
         for v in picks.values():
             if v is not None:
                 self.assertNotEqual(getattr(v, "lens", None), "context")
+
+
+class BoardAccuracy(TestCase):
+    """A domain with HISTORY but no recent data must report 'neglected', not
+    'unknown' — the board must not conflate stale data with no data."""
+
+    def setUp(self):
+        self.user = _user("boardacc@test.com")
+
+    def test_glucose_with_stale_history_is_neglected_not_unknown(self):
+        from apps.health.models import GlucoseEntry
+        from django.utils import timezone
+        from datetime import timedelta
+        GlucoseEntry.objects.create(
+            user=self.user, value=120,
+            recorded_at=timezone.now() - timedelta(days=60))
+        sig = es_adapter._emit_domain_status(self.user, {}, "glucose")
+        self.assertEqual(sig.status, "neglected")
+        self.assertEqual(sig.polarity, "negative")
+
+    def test_glucose_with_no_history_is_unknown(self):
+        sig = es_adapter._emit_domain_status(self.user, {}, "glucose")
+        self.assertEqual(sig.status, "unknown")
+
+    def test_goals_reads_purpose_module_not_weight(self):
+        from unittest.mock import patch
+        with patch.object(es_adapter, "_module", return_value={
+                "active_goal_count": 4, "overdue_goal_count": 0,
+                "completion_rate": 0.18}):
+            sig = es_adapter._emit_domain_status(self.user, {}, "goals")
+        self.assertIn(sig.status, ("stable", "strong"))
+        self.assertIn("4 active goals", sig.message)

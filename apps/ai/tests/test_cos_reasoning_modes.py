@@ -56,6 +56,28 @@ class ModeClassifier(SimpleTestCase):
             self.assertTrue(dr._match_executive_query(phrase), phrase)
 
 
+class SignalScoring(SimpleTestCase):
+    """Concern (severity) and focus (leverage) select DIFFERENT signals when the
+    board has a high-severity/low-leverage threat AND a high-leverage one."""
+
+    def _sig(self, domain, direction, leverage, conf="high"):
+        return {"domain": domain, "direction": direction, "leverage": leverage,
+                "confidence": conf, "category": "strategic_risk",
+                "title": domain, "message": domain}
+
+    def test_concern_and_focus_can_diverge(self):
+        sigs = [self._sig("relationships", "risk", False),   # severe, low leverage
+                self._sig("sleep", "declining", True)]       # high leverage
+        concern = dr._signal_scores(sigs, "concern")
+        focus = dr._signal_scores(sigs, "focus")
+        self.assertEqual(concern[0][0]["domain"], "relationships")  # severity wins
+        self.assertEqual(focus[0][0]["domain"], "sleep")           # leverage wins
+
+    def test_only_threats_are_scored(self):
+        wins = [self._sig("weight", "improving", False)]
+        self.assertEqual(dr._signal_scores(wins, "concern"), [])
+
+
 def _user(email):
     u = User.objects.create_user(email=email, password="x" * 20)
     from apps.users.models import TermsAcceptance
@@ -100,13 +122,17 @@ class ModeRendering(TestCase):
         [{"domain": "sleep", "title": "Sleep is trending down",
           "message": "Sleep is trending down (6.7h). It constrains weight loss. "
                      "Protect tonight's sleep.", "category": "strategic_risk",
-          "occurrence_count": 1}],
+          "occurrence_count": 1, "direction": "declining", "lens": "decline",
+          "leverage": True, "magnitude": None, "confidence": "high"}],
         [{"domain": "medication", "title": "Medication is improving",
           "message": "100% adherence this week.",
-          "category": "strategic_opportunity", "occurrence_count": 1}],
+          "category": "strategic_opportunity", "occurrence_count": 1,
+          "direction": "improving", "lens": "improvement", "leverage": False,
+          "magnitude": 1.0, "confidence": "high"}],
         [{"domain": "weight", "title": "Weight down 12.7 lb",
           "message": "Down 12.7 lb.", "category": "major_win",
-          "occurrence_count": 1}],
+          "occurrence_count": 1, "direction": "improving", "lens": "win",
+          "leverage": False, "magnitude": 12.7, "confidence": "high"}],
     )
 
     def _render(self, mode):
@@ -232,7 +258,9 @@ class LifeModelNuclearTest(TestCase):
     def test_concerns_surfaces_constraint_from_state_not_events(self):
         state = ([{"domain": "sleep", "title": "Sleep trending down",
                    "message": "Sleep is your constraint.",
-                   "category": "strategic_risk", "occurrence_count": 1}], [], [])
+                   "category": "strategic_risk", "occurrence_count": 1,
+                   "direction": "declining", "lens": "decline", "leverage": True,
+                   "magnitude": None, "confidence": "high"}], [], [])
         out = self._render_no_events("risk", state)
         self.assertIn("sleep", out.lower())          # from STATE, with no events
 

@@ -7,6 +7,20 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-21 — feat(ai): explicit per-question signal scoring — concern by severity, focus by leverage
+
+Proof of question-specific SELECTION (not wording): each mode previously read a category list (R/O/W) and took [0] by one global ordering, so questions reading the same category got the same lead. Added `_signal_scores(signals, intent)` — an explicit, inspectable per-question weighting over the threat set:
+- **concern** → severity×2 + leverage + confidence (the biggest threat)
+- **focus** → leverage×3 + severity + confidence (where one unit of effort returns most)
+
+These DIVERGE under different data (test: a high-severity/low-leverage relationship risk wins 'concern'; a high-leverage sleep risk wins 'focus'). Life-state signals now carry direction/lens/leverage/magnitude/confidence so scoring is possible. Positive-framed questions (progress/opportunity/trajectory/status) select by category, not raw magnitude (magnitudes aren't comparable across domains — a deliberate, documented choice).
+
+**Proof (live, Danny):** the lead signal differs by question — concern→sleep (severity 6.0), focus→sleep (leverage 6.0), doing-well/trajectory/how-am-I→weight, decision→reset goal date. concern and focus share sleep ONLY because sleep legitimately tops BOTH severity and leverage on his current board — proven by the scores, and shown to diverge when the board differs.
+
+**Tests:** +2 (scorer divergence, threats-only). `makemigrations --check` clean. `git`-baseline diff across 7 suites: **zero new failures**. **Files:** `apps/ai/deterministic_router.py`, `apps/ai/tests/test_cos_reasoning_modes.py`.
+
+
+
 ## 2026-06-21 — feat(ai): Life Model — reason from live state, not the event stream (event-independence)
 
 **Audit + nuclear test proved Beth was ~70% Event Model.** The strategic renderers (risk/opportunity/win in every mode) read R/O/W from the persisted GuidanceItem event stream, not the live state. Proof: deleting all events made "What concerns you?" DROP sleep and fall back to goal pace — even though the executive STATE still knew sleep was declining.

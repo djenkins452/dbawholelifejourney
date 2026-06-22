@@ -6067,7 +6067,12 @@ def _life_state_signals(user):
 
     def shape(s, cat):
         return {'domain': s.domain, 'title': s.title, 'message': s.message,
-                'category': cat, 'occurrence_count': 1}
+                'category': cat, 'occurrence_count': 1,
+                'direction': getattr(s, 'direction', None),
+                'lens': getattr(s, 'lens', None),
+                'leverage': bool(getattr(s, 'leverage', False)),
+                'magnitude': getattr(s, 'magnitude', None),
+                'confidence': getattr(s, 'confidence', 'medium')}
     R = [shape(s, 'strategic_risk') for s in
          _ordered([s for s in sigs if s.direction in ('declining', 'risk')])]
     W = [shape(s, 'major_win') for s in
@@ -6075,6 +6080,40 @@ def _life_state_signals(user):
     O = [shape(s, 'strategic_opportunity') for s in
          _ordered([s for s in sigs if s.lens in ('improvement', 'opportunity')])]
     return R, O, W
+
+
+_CONF_W = {'high': 1.0, 'medium': 0.6, 'low': 0.3}
+
+
+def _signal_scores(signals, intent):
+    """EXPLICIT per-question weighting over the threat signals, so the SELECTION
+    is driven by the question's intent rather than one global ordering reused for
+    every question:
+
+      concern → SEVERITY-weighted (the biggest threat)
+      focus   → LEVERAGE-weighted (where one unit of effort returns the most)
+
+    These can diverge: a high-severity / low-leverage threat tops 'concern' while
+    a high-leverage / lower-severity one tops 'focus'. (Positive-framed questions
+    — progress / opportunity / trajectory — select by category, not this scorer:
+    raw magnitudes aren't comparable across domains.) Returns [(sig, score,
+    reason)] sorted desc."""
+    out = []
+    for s in signals:
+        if s.get('direction') not in ('declining', 'risk'):
+            continue  # threats only
+        sev = 3 if s.get('direction') == 'risk' else 2
+        lev = 1 if s.get('leverage') else 0
+        conf = _CONF_W.get(s.get('confidence', 'medium'), 0.6)
+        if intent == 'focus':
+            score = lev * 3 + sev + conf
+            reason = f"leverage {lev}×3 + severity {sev} + conf {conf}"
+        else:  # concern / risk
+            score = sev * 2 + lev + conf
+            reason = f"severity {sev}×2 + leverage {lev} + conf {conf}"
+        out.append((s, round(score, 2), reason))
+    out.sort(key=lambda x: -x[1])
+    return out
 
 
 def _render_cos_mode(user, mode):
@@ -6099,7 +6138,9 @@ def _render_cos_mode(user, mode):
                   'title': ('weight goal target date passed'
                             if gp.get('target_passed') else 'weight goal behind pace'),
                   'message': pace_n or 'Your weight goal needs a realistic date.',
-                  'category': 'strategic_risk', 'occurrence_count': 1})
+                  'category': 'strategic_risk', 'occurrence_count': 1,
+                  'direction': 'declining', 'lens': 'decline', 'leverage': False,
+                  'magnitude': None, 'confidence': 'high'})
     OD = [e for e in events if e['category'] in (PAST_DUE, RECURRING_PROBLEM)]
     REC = [e for e in events if e['category'] == RECURRING_PROBLEM
            or e.get('occurrence_count', 1) >= 3]
@@ -6149,9 +6190,11 @@ def _render_cos_mode(user, mode):
         return " ".join(parts)
 
     if mode == 'prioritization':
-        # WEEK = strategic-first. Leverage = the CONSTRAINT to fix (risk).
+        # WEEK = strategic-first. SELECT by LEVERAGE (where one unit of effort
+        # returns the most), which can differ from the highest-severity concern.
         parts = []
-        lead = R[0] if R else (O[0] if O else None)
+        _foc = [r[0] for r in _signal_scores(R + O + W, 'focus')]
+        lead = _foc[0] if _foc else (R[0] if R else (O[0] if O else None))
         if lead:
             parts.append(f"This week, put your energy into {lead['domain']}: "
                          f"{lead['message']}")
@@ -6176,14 +6219,14 @@ def _render_cos_mode(user, mode):
         return " ".join(parts) or overall or _COS_THIN
 
     if mode == 'risk':
-        # Reason across the CONCERN set, not just the top risk: strategic risks +
-        # a recurring pattern + an accountability gap (a focus we can't yet show
-        # is working is itself a concern).
-        if R:
-            out = f"What concerns me most: {R[0]['message']}"
+        # SELECT by severity (threats only) over the full signal set, then reason
+        # across the concern set: top threat + recurring pattern + accountability.
+        ranked = [r[0] for r in _signal_scores(R + O + W, 'concern')]
+        if ranked:
+            out = f"What concerns me most: {ranked[0]['message']}"
             extra = []
-            if len(R) > 1:
-                extra.append(f"your {R[1]['domain']} ({R[1]['title'].lower()})")
+            if len(ranked) > 1:
+                extra.append(f"your {ranked[1]['domain']} ({ranked[1]['title'].lower()})")
             if REC:
                 extra.append(f"a pattern of {REC[0]['domain']} items slipping "
                              f"repeatedly")

@@ -7,6 +7,20 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-22 — feat(ai): full-board steady-state signals — every domain reports every cycle (Life Model state layer)
+
+Beth could only reason over domains that emitted a notable signal; stable/quiet/unknown domains silently disappeared (4 of ~13 visible). Added a full-board steady-state layer in `executive_state.py`: after the notable builders run, every canonical domain that didn't fire a notable signal emits a STATUS context signal — strong / improving / stable / declining / neglected / unknown — with confidence, evidence, polarity (positive/neutral/negative/unknown), and consider_for (risk/opportunity/progress/context). `ExecutiveStateSignal` gained status/polarity/consider_for; notable signals derive theirs from their lens.
+
+Domains covered every cycle: weight, sleep, glucose, medication, nutrition, workouts, faith, relationships, goals, accountability, routines, finances, work. Grounded light reads (FoodEntry, WorkoutSession, glucose summary, medicine adherence, GuidanceItem, module state); honest 'unknown' when no data (finances/work) rather than disappearing.
+
+**Scope (per directive):** this step ONLY completes the board — NO scoring/renderer/routing/phrasing changes. Steady-state signals are CONTEXT signals (lens='context', direction='steady') that deliberately do NOT enter the win/decline/opportunity lenses, so existing reasoning (R/O/W) is byte-for-byte unchanged; the 5 marquee answers are identical by design. Consumption (letting consider_for='risk' context signals into the concern/blind-spot reasoning) is the next step.
+
+**Inventory (live, Danny):** 13/13 domains report — e.g. glucose=unknown (no recent readings), nutrition=unknown (no logs today), **workouts=declining (active plan, 0/7d — previously invisible)**, finances=stable, work=unknown, weight/medication/faith=strong, sleep=declining. Context did NOT leak into R/O/W (verified).
+
+**Tests:** `FullBoardSteadyState` (every domain emits; statuses valid; quiet→unknown not absent; context excluded from lenses). `makemigrations --check` clean. `git`-baseline diff across 7 executive/cos/event suites: **zero new failures**. **Files:** `apps/core/cos_briefing/executive_state.py`, `apps/core/cos_briefing/tests/test_executive_state.py`.
+
+
+
 ## 2026-06-21 — feat(ai): explicit per-question signal scoring — concern by severity, focus by leverage
 
 Proof of question-specific SELECTION (not wording): each mode previously read a category list (R/O/W) and took [0] by one global ordering, so questions reading the same category got the same lead. Added `_signal_scores(signals, intent)` — an explicit, inspectable per-question weighting over the threat set:

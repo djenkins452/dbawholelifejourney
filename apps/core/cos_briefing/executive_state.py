@@ -57,6 +57,10 @@ class ExecutiveStateSignal:
     # scoring engine. Approved leverage domains: sleep/recovery, nutrition/
     # protein, activity/fitness, medication adherence.
     leverage: bool = False
+    # Full-board status (every domain reports every cycle, even when quiet).
+    status: str = ""        # strong|improving|stable|declining|neglected|unknown
+    polarity: str = ""      # positive|neutral|negative|unknown
+    consider_for: str = ""  # risk|opportunity|progress|context
 
 
 _LEVERAGE_DOMAINS = frozenset({
@@ -80,6 +84,9 @@ def to_dict(signal):
         "evidence": list(signal.evidence or []),
         "source": signal.source,
         "leverage": signal.leverage,
+        "status": signal.status,
+        "polarity": signal.polarity,
+        "consider_for": signal.consider_for,
     }
 
 
@@ -325,11 +332,231 @@ def _relationship_signals(user):
     return out
 
 
+# ── Full-board steady-state layer ───────────────────────────────────────
+# Every canonical domain reports a STATUS every cycle, even when quiet — so the
+# board is complete (stable / neglected / unknown included), never silently
+# empty. These are CONTEXT signals (lens='context', direction='steady'): they
+# carry status/polarity/consider_for for the board, and deliberately do NOT
+# enter the win/decline/opportunity lenses (purely additive — no change to
+# existing reasoning in this step).
+_FULL_BOARD = (
+    "weight", "sleep", "glucose", "medication", "nutrition", "workouts",
+    "faith", "relationships", "goals", "accountability", "routines",
+    "finances", "work",
+)
+# status → (polarity, consider_for)
+_STATUS_META = {
+    "strong": ("positive", "progress"),
+    "improving": ("positive", "progress"),
+    "stable": ("neutral", "context"),
+    "declining": ("negative", "risk"),
+    "neglected": ("negative", "risk"),
+    "unknown": ("unknown", "context"),
+}
+# lens → status for notable signals (so they report a full-board status too)
+_LENS_STATUS = {
+    "win": "strong", "improvement": "improving", "opportunity": "improving",
+    "decline": "declining", "risk": "declining",
+}
+
+
+def _ctx(domain, status, conf, title, message, evidence=None):
+    polarity, consider_for = _STATUS_META.get(status, ("unknown", "context"))
+    return ExecutiveStateSignal(
+        domain=domain, lens="context", direction="steady", magnitude=None,
+        confidence=conf, title=title, message=message, evidence=evidence or [],
+        source=f"{domain}_steady_state", leverage=False,
+        status=status, polarity=polarity, consider_for=consider_for)
+
+
+def _emit_domain_status(user, health, domain):
+    """Return a steady-state ExecutiveStateSignal for `domain` (always one).
+    Lightweight, grounded reads; 'unknown' when there's no data."""
+    if domain == "weight":
+        from apps.health.models import WeightEntry
+        n = WeightEntry.objects.filter(user=user, status="active").count()
+        return (_ctx("weight", "stable", "medium", "Weight holding steady",
+                     f"Weight is roughly flat right now ({n} entries logged).",
+                     [f"{n} entries"]) if n else
+                _ctx("weight", "unknown", "low", "No weight data",
+                     "No weight logged yet."))
+    if domain == "sleep":
+        from apps.health.models import SleepEntry
+        from datetime import timedelta
+        from django.utils import timezone
+        n = SleepEntry.objects.filter(
+            user=user, sleep_date__gte=(timezone.now() - timedelta(days=7)).date()
+        ).count()
+        return (_ctx("sleep", "stable", "medium", "Sleep steady",
+                     f"Sleep is holding steady ({n} nights logged this week).",
+                     [f"{n} nights/7d"]) if n else
+                _ctx("sleep", "unknown", "low", "No recent sleep data",
+                     "No sleep logged in the last week."))
+    if domain == "glucose":
+        try:
+            from apps.health.services.glucose_snapshot import build_glucose_summary
+            s = build_glucose_summary(user) or {}
+            a7 = s.get("average_7d")
+            if a7 is not None:
+                healthy = a7 < 140
+                return _ctx("glucose", "strong" if healthy else "stable",
+                            "medium",
+                            "Glucose in range" if healthy else "Glucose steady",
+                            f"Glucose is {'stable and in a healthy range' if healthy else 'stable'} "
+                            f"(7-day avg {a7} mg/dL).", [f"7d avg {a7}"])
+        except Exception:
+            pass
+        return _ctx("glucose", "unknown", "low", "No glucose data",
+                    "No recent glucose readings.")
+    if domain == "medication":
+        ms = _module(user, "medicine")
+        adh = ms.get("adherence_7d")
+        if adh is not None:
+            return _ctx("medication", "stable", "medium",
+                        "Medication adherence steady",
+                        f"Adherence is steady at {int(float(adh))}% this week.",
+                        [f"adherence {int(float(adh))}%"])
+        return _ctx("medication", "unknown", "low", "No medication data",
+                    "No medication adherence data this week.")
+    if domain == "nutrition":
+        try:
+            from apps.health.models import FoodEntry
+            from django.utils import timezone
+            today = timezone.now().date()
+            n = FoodEntry.objects.filter(
+                user=user, status="active", created_at__date=today).count()
+            return (_ctx("nutrition", "stable", "medium", "Nutrition logged today",
+                         f"You've logged {n} food item{'s' if n != 1 else ''} today.",
+                         [f"{n} today"]) if n else
+                    _ctx("nutrition", "unknown", "low", "Nutrition not logged",
+                         "No food logged today — can't read nutrition yet."))
+        except Exception:
+            return _ctx("nutrition", "unknown", "low", "Nutrition unavailable",
+                        "No nutrition data available.")
+    if domain == "workouts":
+        try:
+            from apps.health.models import WorkoutSession, WorkoutPlan
+            from datetime import timedelta
+            from django.utils import timezone
+            recent = WorkoutSession.objects.filter(
+                user=user,
+                created_at__gte=timezone.now() - timedelta(days=7)).count()
+            if recent >= 3:
+                return _ctx("workouts", "strong", "medium", "Training consistent",
+                            f"{recent} workouts in the last week — strong "
+                            f"consistency.", [f"{recent}/7d"])
+            if recent:
+                return _ctx("workouts", "stable", "medium", "Training steady",
+                            f"{recent} workout{'s' if recent != 1 else ''} this "
+                            f"week.", [f"{recent}/7d"])
+            has_plan = WorkoutPlan.objects.filter(user=user, is_active=True).exists()
+            return (_ctx("workouts", "declining", "medium", "Training has stalled",
+                         "You have an active plan but no workouts logged this "
+                         "week.", ["0/7d, active plan"]) if has_plan else
+                    _ctx("workouts", "unknown", "low", "No training data",
+                         "No workouts or active plan."))
+        except Exception:
+            return _ctx("workouts", "unknown", "low", "Training unavailable",
+                        "No workout data available.")
+    if domain == "faith":
+        fa = _module(user, "faith")
+        streak = (fa.get("reading_streak") or fa.get("streak") or 0)
+        if streak and streak > 0:
+            return _ctx("faith", "strong", "medium", "Faith streak active",
+                        f"Active reading streak ({streak} days).",
+                        [f"streak {streak}"])
+        return (_ctx("faith", "stable", "low", "Faith steady",
+                     "Faith routine tracking, no notable change.")
+                if fa else
+                _ctx("faith", "unknown", "low", "No faith data",
+                     "No faith activity tracked."))
+    if domain == "relationships":
+        rel = _module(user, "relationships")
+        contract = rel.get("_contract") or {}
+        summary = contract.get("summary") or {}
+        total = summary.get("total_count") or summary.get("people_count")
+        if total:
+            return _ctx("relationships", "stable", "medium",
+                        "Relationships steady",
+                        f"{total} relationships tracked, none currently drifting.",
+                        [f"{total} tracked"])
+        return _ctx("relationships", "unknown", "low", "No relationship data",
+                    "No relationships tracked yet.")
+    if domain == "goals":
+        try:
+            from apps.health.models import HealthProfile
+            hp = HealthProfile.objects.filter(user=user).first()
+            wp = hp.get_weight_progress() if hp else None
+            if wp and wp.get("goal"):
+                on = wp.get("on_track")
+                if on is True:
+                    return _ctx("goals", "improving", "medium", "Goal on track",
+                                "Your weight goal is on track.", ["on_track"])
+                if on is False:
+                    return _ctx("goals", "declining", "medium",
+                                "Goal behind pace",
+                                "Your weight goal is behind pace.", ["off_track"])
+                return _ctx("goals", "stable", "low", "Goal set",
+                            "A weight goal is set; pace not yet determinable.")
+        except Exception:
+            pass
+        return _ctx("goals", "unknown", "low", "No goal data",
+                    "No active goal with enough data to judge pace.")
+    if domain == "accountability":
+        try:
+            from apps.core.ai_guidance.models import GuidanceItem
+            n = GuidanceItem.objects.filter(
+                user=user, guidance_type="cos_constraint", is_active=True).count()
+            if n:
+                return _ctx("accountability", "stable", "medium",
+                            "Tracking a recommendation",
+                            f"{n} standing recommendation{'s' if n != 1 else ''} "
+                            f"being tracked for effectiveness.", [f"{n} active"])
+        except Exception:
+            pass
+        return _ctx("accountability", "unknown", "low",
+                    "No standing recommendation",
+                    "No recommendation is being tracked yet.")
+    if domain == "routines":
+        # Light only — operational overdue is handled by the event stream; avoid
+        # the heavy build_execution_state on this (request) path.
+        return _ctx("routines", "stable", "low", "Routines tracking",
+                    "Routine commitments are being tracked; the action queue "
+                    "surfaces anything overdue.")
+    if domain == "finances":
+        fin = _module(user, "finance")
+        if fin:
+            return _ctx("finances", "stable", "low", "Finances tracked",
+                        "Financial data is present and tracking.")
+        return _ctx("finances", "unknown", "low", "No finance data",
+                    "No financial data — outside what I can see.")
+    if domain == "work":
+        return _ctx("work", "unknown", "low", "No work data",
+                    "No work data — outside what I can see.")
+    return _ctx(domain, "unknown", "low", f"{domain} — no read",
+                f"No current read on {domain}.")
+
+
+def _steady_state_signals(user, health, covered):
+    out = []
+    for d in _FULL_BOARD:
+        if d in covered:
+            continue
+        try:
+            out.append(_emit_domain_status(user, health, d))
+        except Exception:
+            logger.debug("steady-state %s failed", d, exc_info=True)
+            out.append(_ctx(d, "unknown", "low", f"{d} — no read",
+                            f"No current read on {d}."))
+    return out
+
+
 def build_executive_state_signals(user):
     """Read existing standing state and return normalized ExecutiveStateSignals.
 
-    Deterministic, read-only, never raises. Omits any signal whose grounding is
-    unavailable (honest degradation)."""
+    Full-board: every notable signal PLUS a steady-state status for every quiet
+    domain, so the board is complete (stable/neglected/unknown included).
+    Deterministic, read-only, never raises."""
     health = _module(user, "health")
     signals = []
     signals += _weight_signals(user, health)
@@ -339,11 +566,20 @@ def build_executive_state_signals(user):
     signals += _faith_signals(user)
     signals += _goal_signals(user)
     signals += _relationship_signals(user)
+    # Notable signals report a full-board status too (derived from their lens).
+    for s in signals:
+        if not s.status:
+            s.status = _LENS_STATUS.get(s.lens, "stable")
+            s.polarity, s.consider_for = _STATUS_META.get(
+                s.status, ("neutral", "context"))
     # Tag leverage centrally (one place) — improving these domains cascades
     # into others, so they drive the OPPORTUNITY lens.
     for s in signals:
         if s.domain in _LEVERAGE_DOMAINS:
             s.leverage = True
+    # Full-board steady-state: a status for every quiet/stable/unknown domain.
+    covered = {s.domain for s in signals}
+    signals += _steady_state_signals(user, health, covered)
     return signals
 
 

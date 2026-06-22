@@ -287,3 +287,45 @@ class ExecutiveSummaryIntegration(TestCase):
         for k in ("biggest_win", "biggest_decline", "most_important_trend"):
             self.assertEqual(
                 (a[k] or {}).get("domain"), (b[k] or {}).get("domain"))
+
+
+class FullBoardSteadyState(TestCase):
+    """Every canonical domain reports a STATUS every cycle, even when quiet —
+    and context/steady signals never leak into the win/decline lenses."""
+
+    def setUp(self):
+        self.user = _user("fullboard@test.com")  # minimal data → mostly unknown
+
+    def test_every_domain_emits_a_status(self):
+        sigs = es_adapter.build_executive_state_signals(self.user)
+        domains = {s.domain for s in sigs}
+        for d in es_adapter._FULL_BOARD:
+            self.assertIn(d, domains, f"{d} missing from the board")
+
+    def test_every_signal_has_status_polarity_consider(self):
+        sigs = es_adapter.build_executive_state_signals(self.user)
+        allowed = {"strong", "improving", "stable", "declining", "neglected",
+                   "unknown"}
+        for s in sigs:
+            self.assertIn(s.status, allowed, f"{s.domain}:{s.status}")
+            self.assertIn(s.polarity,
+                          {"positive", "neutral", "negative", "unknown"})
+            self.assertIn(s.consider_for,
+                          {"risk", "opportunity", "progress", "context"})
+
+    def test_quiet_domains_are_unknown_not_absent(self):
+        # A minimal user has no work data → 'work' must be present as 'unknown',
+        # not silently dropped.
+        sigs = {s.domain: s for s in
+                es_adapter.build_executive_state_signals(self.user)}
+        self.assertEqual(sigs["work"].status, "unknown")
+
+    def test_context_signals_excluded_from_lenses(self):
+        # Steady-state context signals must NOT be selectable as win/decline/etc.
+        from apps.core.cos_briefing.executive_state import (
+            select_executive_lenses)
+        sigs = es_adapter.build_executive_state_signals(self.user)
+        picks = select_executive_lenses(sigs)
+        for v in picks.values():
+            if v is not None:
+                self.assertNotEqual(getattr(v, "lens", None), "context")

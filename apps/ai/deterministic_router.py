@@ -6066,17 +6066,28 @@ def _life_state_signals(user):
         return [], [], []
 
     def shape(s, cat):
+        direction = getattr(s, 'direction', None)
+        # Steady-state threats (neglected/declining context signals) carry
+        # direction='steady'; normalize so the severity scorer can rank them.
+        if getattr(s, 'consider_for', '') == 'risk' and direction not in (
+                'declining', 'risk'):
+            direction = 'declining'
         return {'domain': s.domain, 'title': s.title, 'message': s.message,
-                'category': cat, 'occurrence_count': 1,
-                'direction': getattr(s, 'direction', None),
+                'category': cat, 'occurrence_count': 1, 'direction': direction,
                 'lens': getattr(s, 'lens', None),
                 'leverage': bool(getattr(s, 'leverage', False)),
                 'magnitude': getattr(s, 'magnitude', None),
-                'confidence': getattr(s, 'confidence', 'medium')}
+                'confidence': getattr(s, 'confidence', 'medium'),
+                'status': getattr(s, 'status', ''),
+                'polarity': getattr(s, 'polarity', ''),
+                'consider_for': getattr(s, 'consider_for', '')}
+    # FULL-BOARD pools — every domain competes, keyed by its CLASSIFICATION
+    # (consider_for / polarity), so neglected/declining/stable steady-state
+    # signals enter reasoning, not just notable win/decline signals.
     R = [shape(s, 'strategic_risk') for s in
-         _ordered([s for s in sigs if s.direction in ('declining', 'risk')])]
+         _ordered([s for s in sigs if getattr(s, 'consider_for', '') == 'risk'])]
     W = [shape(s, 'major_win') for s in
-         _ordered([s for s in sigs if s.lens == 'win'])]
+         _ordered([s for s in sigs if getattr(s, 'polarity', '') == 'positive'])]
     O = [shape(s, 'strategic_opportunity') for s in
          _ordered([s for s in sigs if s.lens in ('improvement', 'opportunity')])]
     return R, O, W

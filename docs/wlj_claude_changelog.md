@@ -7,6 +7,20 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-22 — fix(ai): full-board consumption — every CoS question evaluates all 13 domains, not just the 4 that fired
+
+Proof showed the board had 13 domains but reasoning saw only 4: `_life_state_signals` pooled R/O/W by NOTABLE filters (direction in declining/risk; lens==win), so steady-state context signals — glucose=neglected, nutrition=neglected, workouts=declining — were DROPPED before reasoning even though each is flagged consider_for='risk'.
+
+**Smallest change (one function):** `_life_state_signals` now pools the FULL board by CLASSIFICATION — R = consider_for=='risk' (notable declines + neglected/declining steady-state), W = polarity=='positive' (notable wins + strong steady-state). Steady-state threats carry direction='steady'; shape() normalizes them to 'declining' so the severity scorer can rank them. No scorer/renderer/wording change.
+
+**Before → after (Danny):** risk pool went from `[sleep]` → `[sleep, glucose(neglected), nutrition(neglected), workouts(declining)]`; the concern scorer now ranks all four (sleep 6.0 via leverage; glucose/nutrition/workouts 4.6). "What blind spots do you see?" now surfaces **"Glucose not syncing"** — a neglected domain influencing an answer, previously impossible.
+
+**7-question audit answers (post-fix):** (1) evaluates all 13 domains — YES; (2) selects from the full classified board — YES; (3) stable-healthy/strong domains enter W — YES; (4) neglected domains influence — YES (glucose→blind spots); (5) no-event domains influence — YES (state-derived); (6) lower-severity/higher-leverage wins — YES (sleep beats equal-severity glucose via leverage); (7) intent-scored over the full board — YES.
+
+**Tests:** `FullBoardConsumption` (neglected→risk pool + scoreable; strong→positive pool). `makemigrations --check` clean. `git`-baseline diff across 8 suites: **zero new failures**. **Files:** `apps/ai/deterministic_router.py`, `apps/ai/tests/test_cos_reasoning_modes.py`.
+
+
+
 ## 2026-06-22 — fix(ai): board accuracy — distinguish neglected from unknown; goals/relationships/routines read the right source
 
 Audit of the full-board inventory found the board was COMPLETE but INACCURATE. The data exists; the classifications were wrong:

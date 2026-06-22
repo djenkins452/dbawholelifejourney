@@ -239,6 +239,44 @@ class ModeRendering(TestCase):
         self.assertTrue(today.lower().startswith("today"))
 
 
+class FullBoardConsumption(TestCase):
+    """Reasoning must pool the FULL board (by consider_for/polarity), so a
+    neglected/declining steady-state domain — not just notable signals — can
+    enter the risk pool and influence answers."""
+
+    def setUp(self):
+        self.user = _user("fullboardconsume@test.com")
+
+    def test_neglected_domain_enters_risk_pool(self):
+        # A glucose domain with stale history reports 'neglected' (consider_for
+        # 'risk'); it must appear in R even though it's not a notable decline.
+        from apps.health.models import GlucoseEntry
+        from datetime import timedelta
+        from django.utils import timezone
+        GlucoseEntry.objects.create(
+            user=self.user, value=120,
+            recorded_at=timezone.now() - timedelta(days=60))
+        R, O, W = dr._life_state_signals(self.user)
+        self.assertIn("glucose", {s["domain"] for s in R})
+        # And it is scoreable as a concern (severity-ranked).
+        ranked = {s["domain"] for s, _, _ in dr._signal_scores(R + O + W, "concern")}
+        self.assertIn("glucose", ranked)
+
+    def test_strong_domain_enters_positive_pool(self):
+        # A healthy/strong domain enters W via polarity, not only 'win' lens.
+        from unittest.mock import patch
+        from apps.core.cos_briefing.executive_state import ExecutiveStateSignal
+        sig = ExecutiveStateSignal(
+            domain="glucose", lens="context", direction="steady", magnitude=None,
+            confidence="medium", title="Glucose in range", message="healthy",
+            evidence=[], source="x", status="strong", polarity="positive",
+            consider_for="progress")
+        with patch("apps.core.cos_briefing.executive_state."
+                   "build_executive_state_signals", return_value=[sig]):
+            R, O, W = dr._life_state_signals(self.user)
+        self.assertIn("glucose", {s["domain"] for s in W})
+
+
 class LifeModelNuclearTest(TestCase):
     """Beth must reason from the LIVE STATE even with ZERO events (no alerts):
     if every GuidanceItem disappeared, she still knows the constraint."""

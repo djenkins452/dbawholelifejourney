@@ -6127,6 +6127,102 @@ def _signal_scores(signals, intent):
     return out
 
 
+# ── Root Cause Analysis (2026-06-22) — executive judgment over the board. ──
+# A constraint's likely CAUSE is inferred from OTHER domains that are also
+# negative on the board (evidence-based co-occurrence), never invented. Each
+# rule fires only when its contributing factor is actually present; confidence
+# scales with corroboration; it degrades to an honest low-confidence fallback
+# (or nothing) when there's no supporting evidence.
+_ROOT_CAUSE_RULES = {
+    'sleep': [
+        {'factors': ('_overload', 'workouts'),
+         'cause': "competing priorities and not enough protected recovery time, "
+                  "rather than your ability to sleep",
+         'rec': "protect a fixed wind-down window and pull one commitment out of "
+                "the evening — don't just chase more hours"},
+        {'factors': ('glucose',),
+         'cause': "a shared metabolic thread — glucose and sleep tend to move "
+                  "together",
+         'rec': "tighten evening meal timing, which affects both"},
+    ],
+    'workouts': [
+        {'factors': ('sleep',),
+         'cause': "recovery — the decline tracks your sleep worsening, which "
+                  "usually pulls training adherence down with it",
+         'rec': "fix sleep first; adherence tends to recover with it, rather than "
+                "forcing more sessions"},
+        {'factors': ('nutrition',),
+         'cause': "inconsistent fueling — nutrition logging has lapsed",
+         'rec': "re-establish basic fueling before adding volume"},
+    ],
+    'glucose': [
+        {'factors': ('nutrition',),
+         'cause': "diet — nutrition tracking lapsed, so meal composition is the "
+                  "most likely driver",
+         'rec': "resume food logging for a week to see what's moving it"},
+        {'factors': ('workouts',),
+         'cause': "reduced activity — workouts are down, which lifts glucose",
+         'rec': "restore light daily movement"},
+    ],
+    'nutrition': [
+        {'factors': ('_overload',),
+         'cause': "logging friction while the day is overloaded",
+         'rec': "lower the bar — log just dinner for a week to rebuild the habit"},
+    ],
+    'weight': [
+        {'factors': ('sleep',),
+         'cause': "sleep gating the loss — poor sleep slows fat loss and recovery",
+         'rec': "protect sleep; the pace usually follows"},
+        {'factors': ('nutrition',),
+         'cause': "intake is unmonitored — nutrition logging lapsed",
+         'rec': "resume logging to find the leak"},
+    ],
+}
+_ROOT_CAUSE_FALLBACK = {
+    'sleep': ("sleep consistency itself — your timing varies night to night",
+              "anchor a consistent bedtime; consistency is the lever, not hours"),
+    'workouts': ("schedule and consistency rather than capability",
+                 "put the sessions on the calendar as fixed commitments"),
+    'glucose': ("not enough recent data to attribute a cause",
+                "get the readings flowing again first (check the sync)"),
+    'weight': ("the timeline rather than your effort",
+               "reset the target date to match your real pace"),
+}
+
+
+def _root_cause(domain, neg_domains, overdue):
+    """Likely root cause for a constraint, from co-occurring negative domains.
+    Returns {cause, rec, confidence, evidence} or None. Evidence-based only."""
+    def present(f):
+        return overdue >= 3 if f == '_overload' else f in neg_domains
+    for rule in _ROOT_CAUSE_RULES.get(domain, []):
+        hits = [f for f in rule['factors'] if present(f)]
+        if hits:
+            ev = "; ".join("your routines are slipping" if f == '_overload'
+                           else f"{f} is also down" for f in hits)
+            return {'cause': rule['cause'], 'rec': rule['rec'],
+                    'confidence': 'high' if len(hits) >= 2 else 'medium',
+                    'evidence': ev}
+    fb = _ROOT_CAUSE_FALLBACK.get(domain)
+    if fb:
+        return {'cause': fb[0], 'rec': fb[1], 'confidence': 'low', 'evidence': None}
+    return None
+
+
+def _root_cause_clause(domain, R, overdue):
+    """The appended root-cause sentence for `domain` (or '' when no judgment)."""
+    neg = {s['domain'] for s in R if s.get('domain') != domain}
+    rc = _root_cause(domain, neg, overdue)
+    if not rc:
+        return ""
+    s = f" Looking across the board, the likely root cause is {rc['cause']}"
+    if rc.get('evidence'):
+        s += f" ({rc['evidence']})"
+    s += (f" — {rc['confidence']} confidence. The move aimed at the cause: "
+          f"{rc['rec']}.")
+    return s
+
+
 def _render_cos_mode(user, mode):
     """Render a distinct executive answer for `mode` from ONE shared state.
     Strategic signals come from the LIVE state (event-independent); only the
@@ -6208,7 +6304,8 @@ def _render_cos_mode(user, mode):
         lead = _foc[0] if _foc else (R[0] if R else (O[0] if O else None))
         if lead:
             parts.append(f"This week, put your energy into {lead['domain']}: "
-                         f"{lead['message']}")
+                         f"{lead['message']}"
+                         + _root_cause_clause(lead['domain'], R, len(OD)))
         if OD:
             parts.append(f"Operationally, clear what's slipping: {j(OD, 3)}.")
         if W:
@@ -6247,6 +6344,7 @@ def _render_cos_mode(user, mode):
                              "actually working")
             if extra:
                 out += " Below that, I'm watching " + ", ".join(extra[:2]) + "."
+            out += _root_cause_clause(ranked[0]['domain'], R, len(OD))
             return out
         if gp.get('target_passed') or gp.get('on_pace') is False:
             return f"Your main strategic risk is the goal trajectory. {pace_n}"
@@ -6307,7 +6405,8 @@ def _render_cos_mode(user, mode):
     if mode == 'constraint':
         c = R[0] if R else (O[0] if O else None)
         if c:
-            return f"The thing holding you back most is {c['domain']}: {c['message']}"
+            return (f"The thing holding you back most is {c['domain']}: "
+                    f"{c['message']}" + _root_cause_clause(c['domain'], R, len(OD)))
         return overall or _COS_THIN
 
     if mode == 'bottleneck':

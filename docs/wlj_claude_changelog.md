@@ -7,6 +7,20 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-22 — feat(ai): Root Cause Analysis — executive judgment, not just symptom identification
+
+Beth named the constraint (sleep) but stopped at the symptom ("sleep is trending down, protect tonight's sleep"). Added an RCA layer that infers the LIKELY CAUSE from OTHER domains that are also negative on the board — evidence-based co-occurrence, never invented.
+
+**Added (no new event/route/scoring/inventory):** `_root_cause(domain, neg_domains, overdue)` — a deterministic rules table mapping a constraint to contributing-factor domains; a rule fires ONLY when its factor is actually negative on the board. Returns {cause, recommendation (aimed at the cause), confidence, evidence}. Confidence scales with corroboration (2+ factors → high, 1 → medium); degrades to an honest low-confidence fallback when there's no supporting evidence, and to nothing (no clause) when there's no rule. `_root_cause_clause` is appended in the three modes that name a constraint: risk (concerns), constraint (holding-me-back), prioritization (focus).
+
+**Before → after (Danny):** "What concerns you?" / "What's holding me back?" / "What should I focus on?" before: "sleep is trending down… protect tonight's sleep." After: "…**the likely root cause is competing priorities and not enough protected recovery time, rather than your ability to sleep** (your routines are slipping; workouts is also down) — **high confidence**. The move aimed at the cause: protect a fixed wind-down window and pull one commitment out of the evening — don't just chase more hours." (Workouts → "recovery — the decline tracks your sleep worsening… fix sleep first," medium confidence.)
+
+**Guarantees:** explainable (cites evidence + confidence); no hallucination (rule needs a real co-occurring negative); graceful degradation (low-confidence fallback / None); testable.
+
+**Tests:** `RootCauseAnalysis` (corroborated high-conf+evidence, cross-domain workouts←sleep, no-hallucination-without-evidence, degrade-to-fallback, degrade-to-none, clause format). `makemigrations --check` clean. `git`-baseline diff across 7 suites: **zero new failures**. **Files:** `apps/ai/deterministic_router.py`, `apps/ai/tests/test_cos_reasoning_modes.py`.
+
+
+
 ## 2026-06-22 — fix(ai): full-board consumption — every CoS question evaluates all 13 domains, not just the 4 that fired
 
 Proof showed the board had 13 domains but reasoning saw only 4: `_life_state_signals` pooled R/O/W by NOTABLE filters (direction in declining/risk; lens==win), so steady-state context signals — glucose=neglected, nutrition=neglected, workouts=declining — were DROPPED before reasoning even though each is flagged consider_for='risk'.

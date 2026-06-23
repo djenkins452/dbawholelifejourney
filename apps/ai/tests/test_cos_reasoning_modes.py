@@ -239,6 +239,45 @@ class ModeRendering(TestCase):
         self.assertTrue(today.lower().startswith("today"))
 
 
+class RootCauseAnalysis(SimpleTestCase):
+    """Executive judgment: infer the likely CAUSE of a constraint from other
+    negative domains on the board — evidence-based, confidence-rated, graceful."""
+
+    def test_corroborated_cause_is_high_confidence_with_evidence(self):
+        rc = dr._root_cause("sleep", {"workouts"}, overdue=3)  # 2 factors
+        self.assertEqual(rc["confidence"], "high")
+        self.assertIn("competing priorities", rc["cause"])
+        self.assertIn("workouts is also down", rc["evidence"])
+        self.assertTrue(rc["rec"])
+
+    def test_cross_domain_cause_workouts_from_sleep(self):
+        rc = dr._root_cause("workouts", {"sleep"}, overdue=0)
+        self.assertEqual(rc["confidence"], "medium")
+        self.assertIn("recovery", rc["cause"])
+        self.assertIn("sleep is also down", rc["evidence"])
+
+    def test_no_hallucination_rule_needs_real_evidence(self):
+        # With NO corroborating negative domains, the specific rule must NOT fire;
+        # it degrades to the honest low-confidence fallback, not an invented cause.
+        rc = dr._root_cause("sleep", set(), overdue=0)
+        self.assertEqual(rc["confidence"], "low")
+        self.assertIsNone(rc["evidence"])
+        self.assertIn("consistency", rc["cause"])
+
+    def test_degrades_to_none_without_rule_or_fallback(self):
+        self.assertIsNone(dr._root_cause("relationships", set(), overdue=0))
+
+    def test_clause_is_empty_when_no_judgment(self):
+        self.assertEqual(dr._root_cause_clause("relationships", [], 0), "")
+
+    def test_clause_names_cause_and_confidence(self):
+        R = [{"domain": "workouts"}]
+        clause = dr._root_cause_clause("sleep", R, overdue=3)
+        self.assertIn("likely root cause", clause)
+        self.assertIn("confidence", clause)
+        self.assertIn("aimed at the cause", clause)
+
+
 class FullBoardConsumption(TestCase):
     """Reasoning must pool the FULL board (by consider_for/polarity), so a
     neglected/declining steady-state domain — not just notable signals — can

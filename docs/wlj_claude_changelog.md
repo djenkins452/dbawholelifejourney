@@ -7,6 +7,20 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-22 — fix(ai): web proactive messages — deliver new CoS events to the notification center at creation
+
+**Trace (production path, by code):** scheduler→detect→GuidanceItem creation PASS; Beth chat context (active_guidance) PASS; **notification-center visibility FAIL**. The web bell/center query the `Notification` model, and a `GuidanceItem` only becomes a `Notification` via the DNE scan `_get_undelivered_guidance` — which filters `created_at >= now-24h`. But `cos_event_engine.persist_event` UPSERTS (recurring events keep their original `created_at` and are deduped after first delivery), so a standing CoS concern is delivered at most once, then ages out of the 24h window and never re-surfaces to the web. (Front-end polling is fine: `notifications.js` polls `/api/notifications/count/` every 60s.)
+
+**Fix (smallest, no redesign):** `run_cos_event_engine` now delivers each NEWLY-created strategic event to the in-app center at creation via the existing `deliver_in_app(...)`, using the same `('PGE','GuidanceItem',id)` key as the DNE scan so the two dedupe (no doubles). Independent of the 24h scan window. Operational reminders are NOT delivered here (the proactive check-ins already handle them — no double-notify).
+
+**Local end-to-end proof (Danny):** trigger → `run_cos_event_engine` created 8, delivered 4 → unread `Notification`s 0→4 ("Chief of Staff: Sleep is trending down", etc.) → `/api/notifications/count/` returns 4 (the bell's 60s poll picks it up — no manual refresh) → re-run delivered 0, unread still 4 (dedup).
+
+**Note:** no production access (Railway token expired) — evidence is code-trace + local proxy on Danny's account; the running scheduler must execute `run_cos_event_engine` + `run_delivery_cycle` for this to fire in prod.
+
+**Tests:** `InAppDelivery` (creates Notification, dedupes on re-run, operational not double-notified). `makemigrations --check` clean. `git`-baseline diff across 5 suites: **zero new failures**. **Files:** `apps/ai/cos_event_engine.py`, `apps/ai/tests/test_cos_event_engine.py`.
+
+
+
 ## 2026-06-22 — feat(ai): Root Cause Analysis — executive judgment, not just symptom identification
 
 Beth named the constraint (sleep) but stopped at the symptom ("sleep is trending down, protect tonight's sleep"). Added an RCA layer that infers the LIKELY CAUSE from OTHER domains that are also negative on the board — evidence-based co-occurrence, never invented.

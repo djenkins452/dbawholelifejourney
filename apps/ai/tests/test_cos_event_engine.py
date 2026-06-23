@@ -151,3 +151,47 @@ class Integration(TestCase):
     def test_registered_in_scheduler(self):
         from apps.core.ai_scheduler.scheduler_registry import get_registered_tasks
         self.assertIn("run_cos_event_engine", get_registered_tasks())
+
+
+class InAppDelivery(TestCase):
+    """New strategic CoS events are delivered to the in-app notification center
+    at creation, so they reach the web bell without aging out of the DNE scan."""
+
+    def setUp(self):
+        self.user = _user("delivery@test.com")
+
+    def test_new_strategic_event_creates_notification(self):
+        from unittest.mock import patch
+        from apps.core.models import Notification
+        ev = eng.CoSEvent(eng.STRATEGIC_RISK, "sleep", "Sleep is trending down",
+                          "Sleep down.", "Constraint.", "Protect it.")
+        with patch.object(eng, "detect_events", return_value=[ev]), \
+             patch.object(eng, "detect_operational_events", return_value=([], True)):
+            res = eng.run_cos_event_engine(self.user)
+        self.assertEqual(res["delivered"], 1)
+        self.assertTrue(Notification.objects.filter(
+            user=self.user, category="intelligence").exists())
+
+    def test_delivery_dedupes_on_rerun(self):
+        from unittest.mock import patch
+        from apps.core.models import Notification
+        ev = eng.CoSEvent(eng.STRATEGIC_RISK, "sleep", "Sleep is trending down",
+                          "Sleep down.", "Constraint.", "Protect it.")
+        with patch.object(eng, "detect_events", return_value=[ev]), \
+             patch.object(eng, "detect_operational_events", return_value=([], True)):
+            eng.run_cos_event_engine(self.user)
+            res2 = eng.run_cos_event_engine(self.user)   # already exists -> not new
+        self.assertEqual(res2["delivered"], 0)
+        self.assertEqual(Notification.objects.filter(
+            user=self.user, category="intelligence").count(), 1)
+
+    def test_operational_events_not_double_notified(self):
+        from unittest.mock import patch
+        from apps.core.models import Notification
+        op = eng._operational_event(eng.PAST_DUE, {"title": "Prayer Time"})
+        with patch.object(eng, "detect_events", return_value=[]), \
+             patch.object(eng, "detect_operational_events", return_value=([op], True)):
+            res = eng.run_cos_event_engine(self.user)
+        self.assertEqual(res["delivered"], 0)   # operational handled elsewhere
+        self.assertFalse(Notification.objects.filter(
+            user=self.user, category="intelligence").exists())

@@ -357,8 +357,19 @@ def run_cos_event_engine(user):
     strategic = detect_events(user)
     operational, op_ok = detect_operational_events(user)
 
-    created = updated = 0
-    for ev in strategic + operational:
+    created = updated = delivered = 0
+    new_strategic = []
+    for ev in strategic:
+        try:
+            item, is_new = persist_event(user, ev)
+            created += int(is_new)
+            updated += int(not is_new)
+            if is_new and item is not None:
+                new_strategic.append(item)
+        except Exception:
+            logger.warning("cos_event: persist failed (%s)", ev.dedupe_key,
+                           exc_info=True)
+    for ev in operational:
         try:
             _, is_new = persist_event(user, ev)
             created += int(is_new)
@@ -366,6 +377,26 @@ def run_cos_event_engine(user):
         except Exception:
             logger.warning("cos_event: persist failed (%s)", ev.dedupe_key,
                            exc_info=True)
+
+    # Deliver newly-created STRATEGIC events to the in-app notification center at
+    # creation time, so they appear in the web bell without waiting for — or
+    # aging out of — the DNE's 24h scan window. Same (engine, type, id) key as
+    # the scan, so the two dedupe (no doubles). Operational reminders are handled
+    # by the existing proactive check-ins, so they are NOT double-notified here.
+    for item in new_strategic:
+        try:
+            from apps.core.ai_delivery.delivery_router import deliver_in_app
+            deliver_in_app(
+                user,
+                {"title": f"Chief of Staff: {(item.title or '')[:70]}",
+                 "message": (item.message or item.title or "")[:300],
+                 "action_url": "/assistant/", "icon": "🧭",
+                 "priority": item.priority},
+                "PGE", "GuidanceItem", item.id)
+            delivered += 1
+        except Exception:
+            logger.warning("cos_event: in-app delivery failed (id=%s)",
+                           getattr(item, "id", "?"), exc_info=True)
 
     # Auto-resolve, keeping strategic and operational streams independent so a
     # transient operational-detection failure can't wrongly resolve strategic
@@ -401,7 +432,8 @@ def run_cos_event_engine(user):
     except Exception:
         logger.warning("cos_event: auto-resolve failed", exc_info=True)
 
-    return {"created": created, "updated": updated, "resolved": resolved}
+    return {"created": created, "updated": updated, "resolved": resolved,
+            "delivered": delivered}
 
 
 STRATEGIC_CATS = (STRATEGIC_RISK, STRATEGIC_OPPORTUNITY, MAJOR_WIN)

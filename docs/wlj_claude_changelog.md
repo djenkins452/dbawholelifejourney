@@ -7,6 +7,32 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-23 — fix(ai): final two Trust P0s — briefing precedence + canonical milestone title-match
+
+**P0-1 — first-of-day briefing stole FACT questions.** `_try_daily_briefing_gate` is the highest-priority gate and fired on the first interaction of the day regardless of content, so "What is my current weight?" returned the Midday Briefing. Fix: new `_briefing_should_yield(msg_lower)` — the gate now yields (returns None) when the message matches ANY specific deterministic matcher (weight-fact, next-milestone, weight-assessment, goal-pace, accountability, attention/late/upcoming, executive, domain status, CoS modes). Deterministic FACT/CoS routes always win; the briefing still fires for openers (greetings / vague). Verified: "what is my current weight" → yield; "good morning" → briefing.
+
+**P0-2 — milestone source divergence (proven).** The Goals UI renders the milestone via `goal.next_milestone` / `goal.milestones` REGARDLESS of title format, but Beth required `objective_metric='weight_lb'` OR a "<num> lbs" title — and the wired milestone is titled "Goal Weight of 289.9" (migration 0018; no "lbs", objective_metric not guaranteed). So the UI showed it and Beth returned "no active milestone." Fix: broadened `_nearest_weight_milestone` title detection to match the UI — a plausible body-weight number (80–500) in any milestone titled with "weight" or "lb", across all the user's goals — covering "Goal Weight of 284.9" AND "Reached 295 lbs." Value-aware selection then picks the next rung below current weight (284.9 for 286.6).
+
+**Tests:** `P0FinalFixes` (briefing yields to specific requests / fires for openers; gate returns None for a first-of-day FACT question; milestone found from a "Goal Weight of 284.9" title with objective_metric unset). `makemigrations --check` clean. `git`-baseline diff across 10 suites: **zero new failures** (5 pre-existing `test_beth_checkin_renderer` failures unchanged from baseline). **Files:** `apps/ai/deterministic_router.py`, `apps/ai/cos_intelligence.py`, `apps/ai/tests/test_beth_trust_suite.py`.
+
+
+
+## 2026-06-23 — feat(ai): Background chat generation — navigation no longer abandons the assistant response (P0)
+
+**Root cause.** The SSE streaming endpoint ran the LLM token loop *inside* the `StreamingHttpResponse` generator on a synchronous gunicorn worker. When the user navigated away / switched tab / refreshed, the browser cancelled the fetch, the TCP connection closed, and gunicorn raised `GeneratorExit` at the next `yield` (`apps/ai/personal_assistant.py:6708`). The `for chunk in _generate_response_stream(...)` loop exited early, so generation **stopped mid-answer** and only partial content was persisted. Generation was coupled to the live request.
+
+**Fix — generation is now owned by a Celery task; the request is a read-only observer.**
+- **`apps/ai/chat_stream_bus.py` (new):** cache-backed single-writer snapshot bus (text + ordered control events + status + owner). Works cross-process via Redis in prod and same-process via LocMemCache in eager/test. Short TTL (600s) + terminal `status` as the done sentinel. A *snapshot* (not a consumed queue) can be replayed from the start by unlimited readers — which is what reconnect-by-job_id needs.
+- **`apps/ai/tasks.py`:** new `run_chat_generation` task calls the existing `send_message_stream` (reasoning logic untouched) as a plain function — no `GeneratorExit` can reach it — and relays tokens/events into the snapshot. Persists the assistant message on completion (unchanged finally-block). Telemetry: `CHAT_TASK_STARTED/COMPLETED/FAILED/TIMEOUT`. Post-response intelligence moved here from the view's daemon thread. `acks_late=False`, `max_retries=0` so a crash never duplicates a reply.
+- **`apps/ai/views.py`:** the streaming POST now seeds an owned snapshot, dispatches the task, and becomes a thin relay (`_chat_relay_stream`) tailing the snapshot. New `AssistantChatResumeView` re-attaches by `job_id` with an **ownership check** (403 on mismatch, 410 on expiry → client loads history). Disconnect logs `CHAT_STREAM_DISCONNECTED` and frees the worker while the task keeps running. Telemetry: `CHAT_TASK_DISPATCHED`, `CHAT_RESUME_ATTACHED`, `CHAT_RESUME_FROM_PERSISTED`, `CHAT_RESUME_FORBIDDEN`.
+- **`config/settings.py`:** env-gated `CELERY_TASK_ROUTES` for a dedicated `chat` queue. `CHAT_GENERATION_QUEUE` defaults to `"celery"` (shared pool — **safe default, nothing breaks on deploy**; documented risk). Set to `"chat"` + deploy a `-Q chat` worker for isolation (Procfile/railway.toml updated with the Railway step).
+- **`templates/components/chat_widget.html`:** captures the `job_id`, keeps the pending marker alive until `done` (so the handle survives navigation), reconnects on a relay `timeout` event, and reconnects on drawer/page load via `reconnectToJob()` → the resume endpoint. The UI is now an observer only.
+
+**Dev/test:** under `CELERY_TASK_ALWAYS_EAGER=True` the task runs inline and fully populates the snapshot before the relay reads it — streaming still works locally and in tests.
+
+**Tests:** `apps/ai/tests/test_chat_background.py` — bus roundtrip + SSE framing, task completes/persists/fails, resume ownership (403) / expiry (410) / owner-stream, POST relays job→done with a single assistant message (no duplicate, no orphan placeholder), and disconnect-does-not-interrupt persistence. **Files:** `apps/ai/chat_stream_bus.py`, `apps/ai/tasks.py`, `apps/ai/views.py`, `apps/ai/urls.py`, `config/settings.py`, `Procfile`, `railway.toml`, `templates/components/chat_widget.html`, `apps/ai/tests/test_chat_background.py`.
+
+
 ## 2026-06-23 — fix(ai): Trust hotfix regression — canonical milestone source, assessment dedup/positive, health-scope, fact-only
 
 Live validation after the first hotfix surfaced regressions. Traced each to root cause (file:line) and fixed the smallest safe change.

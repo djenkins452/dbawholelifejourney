@@ -581,7 +581,35 @@ def _build_qualified_status_response(msg_lower: str, user):
 # =============================================================================
 
 
-def _try_daily_briefing_gate(user, conversation):
+def _briefing_should_yield(msg_lower):
+    """The first-of-day briefing must NEVER steal a specific deterministic
+    request — FACT / milestone / assessment / CoS questions always win. The
+    briefing is an orientation for an OPENER, not an answer to a direct ask."""
+    if not msg_lower:
+        return False
+    matchers = (
+        _match_weight_fact_query, _match_next_milestone_query,
+        _match_weight_assessment_query, _match_goal_pace_query,
+        _match_accountability_query, _match_recommendation_list_query,
+        _match_rec_effectiveness_query, _match_attention_now_query,
+        _match_late_query, _match_upcoming_query, _match_executive_query,
+        _match_weight_query, _match_sleep_query, _match_glucose_query,
+    )
+    for matcher in matchers:
+        try:
+            if matcher(msg_lower):
+                return True
+        except Exception:
+            continue
+    try:
+        if _cos_mode_for(msg_lower):
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _try_daily_briefing_gate(user, conversation, msg_lower=None):
     """First-of-day hard override — Daily Briefing.
 
     Checks conversation.metadata['last_briefing_date'] against today
@@ -598,6 +626,10 @@ def _try_daily_briefing_gate(user, conversation):
         from apps.core.utils import get_user_today
         from apps.ai.beth_checkin_renderer import render_daily_briefing
         from apps.ai.executive_briefing import mark_briefing_delivered
+
+        # A specific deterministic question always wins over the briefing.
+        if _briefing_should_yield(msg_lower):
+            return None
 
         today = get_user_today(user)
         metadata = conversation.metadata or {}
@@ -958,7 +990,7 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
     # Daily Briefing BEFORE any other routing. This is non-negotiable:
     # the CoS must orient the user before reacting to their message.
     if conversation is not None and user is not None:
-        result = _try_daily_briefing_gate(user, conversation)
+        result = _try_daily_briefing_gate(user, conversation, msg_lower)
         if result is not None:
             result.elapsed_ms = (time.monotonic() - t_start) * 1000
             _log_route_decision(result, user, message)

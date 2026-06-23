@@ -157,15 +157,22 @@ def _nearest_weight_milestone(user, current_weight=None):
                          exc_info=True)
         # 2) Title form — only if objective found none. Uses .values() to SELECT
         #    ONLY columns that always exist (avoids objective_* under schema drift).
+        #    Matches the Goals UI, which shows the milestone regardless of format:
+        #    a weight number in a title mentioning "weight" or "lb" — covers both
+        #    "Goal Weight of 289.9" (migration 0018) and "Reached 295 lbs."
         if not candidates:
-            pat = re.compile(r"(\d{2,3}(?:\.\d+)?)\s*lbs?\b", re.I)
+            num = re.compile(r"(\d{2,3}(?:\.\d+)?)")
             for row in GoalMilestone.objects.filter(
                     goal__user=user, completed=False, target_date__isnull=False
             ).values("target_date", "title", "goal__title"):
-                hit = pat.search(row["title"] or "")
-                if hit:
+                title = row["title"] or ""
+                tl = title.lower()
+                if "weight" not in tl and "lb" not in tl:
+                    continue
+                hit = num.search(title)
+                if hit and 80 <= float(hit.group(1)) <= 500:  # plausible body weight
                     candidates.append((row["target_date"], float(hit.group(1)),
-                                       row["title"], row["goal__title"]))
+                                       title, row["goal__title"]))
     except Exception:
         logger.debug("cos_intel: milestone lookup failed", exc_info=True)
         return None

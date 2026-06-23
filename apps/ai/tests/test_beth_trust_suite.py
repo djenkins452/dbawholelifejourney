@@ -245,3 +245,40 @@ class HotfixRegressionV2(TestCase):
                                       "what concerns you most about my health right now")
         self.assertIn("physical-health", out.lower())
         self.assertNotIn("relationship", out.lower())
+
+
+class P0FinalFixes(TestCase):
+    """The two remaining P0s: briefing must not steal FACT routes; milestone
+    detection must match the Goals UI (title without 'lbs' / objective unset)."""
+
+    def setUp(self):
+        self.user = _user("p0final@test.com")
+
+    def test_briefing_yields_to_specific_requests(self):
+        for q in ("what is my current weight", "what is my next weight milestone",
+                  "how is my weight doing", "am i on pace for my goals"):
+            self.assertTrue(dr._briefing_should_yield(q), q)
+        for opener in ("good morning", "hey beth", "what's up"):
+            self.assertFalse(dr._briefing_should_yield(opener), opener)
+
+    def test_briefing_gate_returns_none_for_fact_question_first_of_day(self):
+        class _Conv:
+            metadata = {}   # no last_briefing_date → first interaction of the day
+        res = dr._try_daily_briefing_gate(
+            self.user, _Conv(), "what is my current weight")
+        self.assertIsNone(res)   # FACT wins; briefing did NOT fire
+
+    def test_milestone_title_without_lbs_suffix(self):
+        # Exact prod divergence: "Goal Weight of 284.9" (no 'lbs', objective unset).
+        # The Goals UI shows it via goal.next_milestone; Beth must find it too.
+        from datetime import date
+        from apps.purpose.models import LifeGoal, GoalMilestone
+        from apps.ai import cos_intelligence as ci
+        g = LifeGoal.objects.create(user=self.user, title="France 2027")
+        GoalMilestone.objects.create(
+            goal=g, title="Goal Weight of 284.9", target_date=date(2026, 6, 30),
+            completed=False)
+        m = ci._nearest_weight_milestone(self.user, current_weight=286.6)
+        self.assertIsNotNone(m)
+        self.assertEqual(m["target_value"], 284.9)
+        self.assertEqual(str(m["target_date"]), "2026-06-30")

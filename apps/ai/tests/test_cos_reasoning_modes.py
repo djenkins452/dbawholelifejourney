@@ -264,11 +264,15 @@ class RootCauseAnalysis(SimpleTestCase):
         self.assertIsNone(rc["evidence"])
         self.assertIn("consistency", rc["cause"])
 
-    def test_degrades_to_none_without_rule_or_fallback(self):
-        self.assertIsNone(dr._root_cause("relationships", set(), overdue=0))
+    def test_degrades_to_insufficient_without_rule_or_fallback(self):
+        # P0-4: no rule/driver → explicit insufficiency, NEVER a fabricated cause.
+        rc = dr._root_cause("relationships", set(), overdue=0)
+        self.assertTrue(rc.get("insufficient"))
+        self.assertIsNone(rc.get("cause"))
 
-    def test_clause_is_empty_when_no_judgment(self):
-        self.assertEqual(dr._root_cause_clause("relationships", [], 0), "")
+    def test_clause_admits_insufficiency_when_no_judgment(self):
+        clause = dr._root_cause_clause("relationships", [{"domain": "relationships"}], 0)
+        self.assertIn("insufficient evidence", clause.lower())
 
     def test_clause_names_cause_and_confidence(self):
         R = [{"domain": "workouts"}]

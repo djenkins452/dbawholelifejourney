@@ -6178,16 +6178,20 @@ _ROOT_CAUSE_RULES = {
          'rec': "resume logging to find the leak"},
     ],
 }
+# Fallbacks fire only when NO corroborating upstream driver is on the board. A
+# root cause must be an UPSTREAM DRIVER (sleep/nutrition/workouts/medication/
+# routine) or an honest "insufficient evidence" — NEVER a timeline, goal date,
+# symptom, or outcome (those are not causes).
 _ROOT_CAUSE_FALLBACK = {
-    'sleep': ("sleep consistency itself — your timing varies night to night",
+    'sleep': ("sleep consistency itself — your bedtime varies night to night",
               "anchor a consistent bedtime; consistency is the lever, not hours"),
-    'workouts': ("schedule and consistency rather than capability",
+    'workouts': ("training consistency rather than capability",
                  "put the sessions on the calendar as fixed commitments"),
-    'glucose': ("not enough recent data to attribute a cause",
-                "get the readings flowing again first (check the sync)"),
-    'weight': ("the timeline rather than your effort",
-               "reset the target date to match your real pace"),
+    'glucose': (None, None),   # insufficient evidence — never fabricate a cause
+    'weight': (None, None),    # was 'the timeline' (a false, non-causal cause)
 }
+_INSUFFICIENT_EVIDENCE = ("insufficient evidence to identify a root cause from "
+                          "the available data")
 
 
 def _root_cause(domain, neg_domains, overdue):
@@ -6204,9 +6208,12 @@ def _root_cause(domain, neg_domains, overdue):
                     'confidence': 'high' if len(hits) >= 2 else 'medium',
                     'evidence': ev}
     fb = _ROOT_CAUSE_FALLBACK.get(domain)
-    if fb:
+    if fb and fb[0]:   # a legitimate upstream-driver fallback (e.g. consistency)
         return {'cause': fb[0], 'rec': fb[1], 'confidence': 'low', 'evidence': None}
-    return None
+    # No corroborating upstream driver and no legitimate fallback → be honest.
+    # NEVER fabricate a cause (and never name a timeline/goal/outcome).
+    return {'cause': None, 'rec': None, 'confidence': 'low', 'evidence': None,
+            'insufficient': True}
 
 
 def _root_cause_clause(domain, R, overdue):
@@ -6215,12 +6222,84 @@ def _root_cause_clause(domain, R, overdue):
     rc = _root_cause(domain, neg, overdue)
     if not rc:
         return ""
+    if rc.get('insufficient') or not rc.get('cause'):
+        return f" On the cause: {_INSUFFICIENT_EVIDENCE} yet."
     s = f" Looking across the board, the likely root cause is {rc['cause']}"
     if rc.get('evidence'):
         s += f" ({rc['evidence']})"
     s += (f" — {rc['confidence']} confidence. The move aimed at the cause: "
           f"{rc['rec']}.")
     return s
+
+
+# ── ANSWER CONTRACT (2026-06-22) — deterministic Facts / Evidence / Assessment /
+# Confidence / Recommendation for analytical (trend/status) questions. Built
+# ONLY from existing pieces: goal_pace (facts), the life board (evidence), RCA
+# (assessment + confidence + cause-aimed recommendation). No new engine.
+_CONF_WHY = {
+    "high": "multiple converging signals",
+    "medium": "a corroborating signal, but incomplete evidence",
+    "low": "insufficient supporting data",
+}
+
+
+def _render_structured_assessment(user, domain="weight"):
+    from apps.ai.cos_intelligence import goal_pace
+    R, O, W = _life_state_signals(user)
+    parts = []
+    # ── Facts (objective only) ──
+    facts = []
+    gp = goal_pace(user)
+    if gp:
+        facts.append(f"Current weight: {gp['current']} lb.")
+        if gp.get("current_pace_lb_wk") is not None:
+            facts.append(f"Pace: ~{gp['current_pace_lb_wk']} lb/week.")
+        if gp.get("milestone"):
+            facts.append(f"Next milestone: {gp['goal']} lb by {gp['target_date']} "
+                         f"({gp['remaining']} lb to go).")
+    if facts:
+        parts.append("Facts:\n" + "\n".join(f"• {f}" for f in facts))
+    # ── Evidence (cross-domain, from canonical state) ──
+    ev = [f"{s['domain']}: {s['title']}" for s in (R + W)
+          if s.get("domain") != domain][:5]
+    if ev:
+        parts.append("Evidence:\n" + "\n".join(f"• {e}" for e in ev))
+    # ── Assessment + Confidence (RCA — never exceeds evidence) ──
+    neg = {s["domain"] for s in R if s.get("domain") != domain}
+    rc = _root_cause(domain, neg, 0)
+    if rc and rc.get("cause") and not rc.get("insufficient"):
+        a = f"The likely upstream driver is {rc['cause']}"
+        if rc.get("evidence"):
+            a += f" ({rc['evidence']})"
+        parts.append("Assessment:\n" + a + ".")
+        conf = rc["confidence"]
+        rec = rc.get("rec")
+    else:
+        parts.append("Assessment:\n" + _INSUFFICIENT_EVIDENCE.capitalize() + ".")
+        conf = "low"
+        rec = None
+    parts.append(f"Confidence: {conf.capitalize()} — {_CONF_WHY[conf]}.")
+    # ── Recommendation (cause-aimed; honest when unknown) ──
+    if not rec:
+        rec = ("log a clean week of sleep, nutrition, and workouts so the driver "
+               "can be identified")
+    parts.append("Recommendation:\n" + rec[0].upper() + rec[1:] + ".")
+    return "\n\n".join(parts)
+
+
+_WEIGHT_ASSESS_CUES = (
+    "how is my weight doing", "how's my weight", "how is my weight going",
+    "how is my weight trending", "assess my weight", "weight assessment",
+    "how is my weight journey", "how's my weight journey",
+)
+
+
+def _match_weight_assessment_query(msg_lower):
+    return bool(msg_lower) and any(c in msg_lower for c in _WEIGHT_ASSESS_CUES)
+
+
+def _handle_weight_assessment_query(user, msg_lower=None):
+    return _render_structured_assessment(user, "weight")
 
 
 def _render_cos_mode(user, mode):
@@ -7408,6 +7487,11 @@ def _register_builtin_routes():
     # "have we made progress on my sleep?" gets a multi-week verdict, not a
     # single-night status. (2026-06-21)
     register_data_route('accountability_query', _match_accountability_query, _handle_accountability_query, 'health')
+
+    # Analytical weight question → structured Answer Contract (Facts/Evidence/
+    # Assessment/Confidence/Recommendation). BEFORE weight_query so "how is my
+    # weight doing" gets the assessment; "what is my weight" stays a terse fact.
+    register_data_route('weight_assessment_query', _match_weight_assessment_query, _handle_weight_assessment_query, 'health')
 
     # ── Summary-level routes (Truth Depth: SUMMARY) ──
     register_data_route('weight_query', _match_weight_query, _handle_weight_query, 'health')

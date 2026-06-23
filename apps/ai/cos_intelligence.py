@@ -40,16 +40,15 @@ def goal_pace(user):
         # GOAL SELECTION: pace runs against the NEAREST INCOMPLETE weight
         # MILESTONE (the near-term target), not the ultimate destination. The
         # ultimate goal is kept only as strategic context.
-        milestone = _nearest_weight_milestone(user)
+        milestone = _nearest_weight_milestone(user, current_weight=cur)
         ultimate = round(float(wp["goal"]), 1) if (wp and wp.get("goal")) else None
         if milestone is not None:
-            goal = round(float(milestone.objective_target_value), 1)
-            target = milestone.target_date
+            goal = round(float(milestone["target_value"]), 1)
+            target = milestone["target_date"]
             out_extra = {
                 "milestone": True,
-                "milestone_title": milestone.title,
-                "strategic_objective": (milestone.goal.title
-                                        if milestone.goal_id else None),
+                "milestone_title": milestone["title"],
+                "strategic_objective": milestone["strategic_objective"],
                 "ultimate_goal": ultimate,
             }
         elif ultimate is not None:
@@ -95,19 +94,71 @@ def goal_pace(user):
         return None
 
 
-def _nearest_weight_milestone(user):
-    """The nearest INCOMPLETE weight milestone (objective_metric='weight_lb'),
-    ordered by target_date — the near-term target pace should run against.
-    Returns a GoalMilestone or None. Never raises."""
+def _nearest_weight_milestone(user, current_weight=None):
+    """The NEXT incomplete weight milestone — the near-term target pace runs
+    against. Supports BOTH representations:
+      • objective form: objective_metric='weight_lb' + objective_target_value
+      • title form:     "Reached 295 lbs." (parse the number)
+    Selection (challenges the literal 'nearest future by date' spec, which is
+    wrong on a weight ladder when earlier rungs are still incomplete): when
+    current weight is known, the next rung is the LARGEST incomplete target still
+    BELOW current weight (closest ahead of you); if you're already past every
+    rung, the smallest remaining; otherwise the nearest incomplete by date.
+    Returns {target_value, target_date, title, strategic_objective} or None.
+    Never raises (decoupled from the objective_* columns; survives schema drift)."""
+    import re
+    from django.utils import timezone
+    today = timezone.now().date()
+    candidates = []  # (target_date, target_value, title, parent_goal_title)
     try:
+        from django.db import transaction
         from apps.purpose.models import GoalMilestone
-        return (GoalMilestone.objects.select_related("goal").filter(
-            goal__user=user, completed=False, objective_metric="weight_lb",
-            objective_target_value__isnull=False, target_date__isnull=False)
-            .order_by("target_date").first())
+        # 1) Objective form. Wrapped in a savepoint so that if the objective_*
+        #    columns aren't present (schema drift), the aborted query doesn't
+        #    poison the transaction for the title-based fallback below.
+        try:
+            with transaction.atomic():
+                for m in GoalMilestone.objects.select_related("goal").filter(
+                        goal__user=user, completed=False,
+                        objective_metric="weight_lb",
+                        objective_target_value__isnull=False,
+                        target_date__isnull=False):
+                    candidates.append(
+                        (m.target_date, float(m.objective_target_value),
+                         m.title, m.goal.title if m.goal_id else None))
+        except Exception:
+            logger.debug("cos_intel: objective milestone read skipped",
+                         exc_info=True)
+        # 2) Title form — only if objective found none. Uses .values() to SELECT
+        #    ONLY columns that always exist (avoids objective_* under schema drift).
+        if not candidates:
+            pat = re.compile(r"(\d{2,3}(?:\.\d+)?)\s*lbs?\b", re.I)
+            for row in GoalMilestone.objects.filter(
+                    goal__user=user, completed=False, target_date__isnull=False
+            ).values("target_date", "title", "goal__title"):
+                hit = pat.search(row["title"] or "")
+                if hit:
+                    candidates.append((row["target_date"], float(hit.group(1)),
+                                       row["title"], row["goal__title"]))
     except Exception:
         logger.debug("cos_intel: milestone lookup failed", exc_info=True)
         return None
+    if not candidates:
+        return None
+    chosen = None
+    if current_weight is not None:
+        below = [c for c in candidates if c[1] < current_weight]
+        if below:
+            # Next rung: largest target still below current weight (closest ahead).
+            chosen = max(below, key=lambda c: c[1])
+        else:
+            # Already past every rung → the smallest remaining (final push).
+            chosen = min(candidates, key=lambda c: c[1])
+    if chosen is None:
+        future = sorted(c for c in candidates if c[0] >= today)
+        chosen = future[0] if future else sorted(candidates)[0]
+    return {"target_value": round(chosen[1], 1), "target_date": chosen[0],
+            "title": chosen[2], "strategic_objective": chosen[3]}
 
 
 def goal_pace_narrative(p):

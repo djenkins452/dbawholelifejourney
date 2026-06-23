@@ -6223,6 +6223,30 @@ def format_cos_system_injection(context, user_message=None):
         )
 
     # ══════════════════════════════════════════════════════════════
+    # HARD TRUTH CONTRACT (foundational — Beth is a Chief of Staff, not a
+    # chatbot). Binds every answer to canonical truth. Unknown beats invention.
+    # ══════════════════════════════════════════════════════════════
+    lines.append(
+        "TRUTH CONTRACT (non-negotiable — you are Danny's Chief of Staff):\n"
+        "• Report and interpret ONLY the canonical facts given in this context. "
+        "Every number (weight, sleep, glucose, pace, dates, counts) must be "
+        "copied verbatim from the context — NEVER invent, estimate, round, or "
+        "infer a value that isn't present.\n"
+        "• Distinguish FACT from ASSESSMENT. State facts plainly; label "
+        "interpretation as your read.\n"
+        "• Do not state a conclusion or a root cause you cannot support with "
+        "evidence in this context. A root cause must be an upstream driver "
+        "(sleep, nutrition, workouts, medication, routine) — never a timeline, "
+        "goal date, or the outcome itself.\n"
+        "• If the evidence is insufficient, SAY SO explicitly — e.g. 'I don't "
+        "have enough data to determine that' or 'the strongest candidate is X, "
+        "but confidence is low.' Unknown is always preferable to a guess.\n"
+        "• When a Chief of Staff Standing Read is provided below, treat it as "
+        "your grounded assessment and reason from it; do not contradict it or "
+        "add ungrounded numbers.")
+    lines.append("")
+
+    # ══════════════════════════════════════════════════════════════
     # CHIEF OF STAFF STANDING READ (single brain, no trigger phrase).
     # Beth's own current assessment — overall, goal pace, and whether her
     # standing recommendation is working — embedded in every conversation so

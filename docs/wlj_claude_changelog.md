@@ -7,6 +7,22 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-22 — feat(ai): Beth Trust Sprint 1 — truth, evidence, confidence, executive reasoning (P0-1..4)
+
+Singular objective: move Beth from Truth=C/Trust=C− toward Truth=A/Trust=A. No new infrastructure; extended existing systems.
+
+**P0-1 — Canonical weight target selection** (`cos_intelligence.py`). `_nearest_weight_milestone()` now finds the NEXT incomplete weight milestone from BOTH representations — objective form (`objective_metric='weight_lb'`) AND title form ("Reached 295 lbs."), using `.values()` to dodge schema-drift columns and a savepoint around the objective query so a missing column can't poison the transaction. **Selection challenges the literal 'nearest future by date' spec** (wrong on a weight ladder) → uses the next rung by VALUE: the largest incomplete target still below current weight (295 for Danny; 284.9 in the prod scenario). Ultimate goal kept only as strategic context. Kills the "46 lb to goal / 2026-06-13 (ultimate) leaked into milestone coaching" bug.
+
+**P0-2 — Hard Truth Contract** (`cos_context.py:format_cos_system_injection`). A non-negotiable contract now leads every LLM system prompt: report/interpret ONLY canonical facts; copy every number verbatim — never invent/estimate/infer; distinguish fact from assessment; a root cause must be an upstream driver, never a timeline/goal/outcome; if evidence is insufficient, say so explicitly. Unknown beats hallucination.
+
+**P0-3 — Answer Contract** (`deterministic_router.py`). Analytical weight questions ("how is my weight doing") now return a deterministic envelope — Facts / Evidence (cross-domain) / Assessment (RCA upstream driver) / Confidence (deterministic: converging→high, corroborating→moderate, sparse→low) / Recommendation (cause-aimed) — built ONLY from existing pieces (goal_pace + life board + RCA). Fact questions ("what is my weight") stay terse on `weight_query`.
+
+**P0-4 — False root causes removed** (`deterministic_router.py`). Deleted the "timeline is the root cause" fallback (and similar). When no upstream driver corroborates, RCA returns explicit "insufficient evidence to identify a root cause" — never a fabricated/non-causal cause. Root causes are now always upstream drivers (sleep/nutrition/workouts/medication/routine).
+
+**Validation:** new `test_beth_trust_suite.py` (fact-vs-assessment routing, all-5-sections, milestone-not-ultimate, cross-domain evidence, insufficient-evidence-admitted, no-false-root-cause). 2 prior RCA tests updated to the new explicit-insufficiency contract. `makemigrations --check` clean. `git`-baseline diff across 11 suites: **zero new failures**. **Files:** `apps/ai/cos_intelligence.py`, `apps/core/ai_orchestrator/cos_context.py`, `apps/ai/deterministic_router.py`, `apps/ai/tests/test_beth_trust_suite.py`, `apps/ai/tests/test_cos_reasoning_modes.py`.
+
+
+
 ## 2026-06-22 — fix(ai): goal selection — pace runs against the nearest milestone, not the ultimate destination
 
 **Bug:** Danny's active milestone is 284.9 lb by June 30 (1.5 lb to go from 286.4), but Beth evaluated pace against the ULTIMATE goal (240 lb) and reported "46 lbs to goal (behind pace)."

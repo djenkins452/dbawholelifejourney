@@ -75,6 +75,55 @@ class GoalPace(TestCase):
         hp.save()
         return hp
 
+    def _weight_milestone(self, target_value, days_out, parent_title="France Ready"):
+        from apps.purpose.models import LifeGoal, GoalMilestone
+        g = LifeGoal.objects.create(user=self.user, title=parent_title)
+        return GoalMilestone.objects.create(
+            goal=g, title=f"Hit {target_value} lb", objective_metric="weight_lb",
+            objective_target_value=target_value, objective_operator="lte",
+            target_date=timezone.now().date() + timedelta(days=days_out),
+            completed=False)
+
+    def test_pace_uses_nearest_milestone_not_ultimate_goal(self):
+        # The exact reported bug: ultimate goal 240, but the active milestone is
+        # 284.9 by ~8 days; current weight 286.4 → 1.5 lb to go.
+        self._weigh(300.0, 60)
+        self._weigh(286.4, 0)
+        self._goal(240.0, 365)                  # ultimate destination
+        self._weight_milestone(284.9, 8)        # nearest active milestone
+        p = ci.goal_pace(self.user)
+        print(f"\n>>>MILESTONE PACE: {ci.goal_pace_narrative(p)}\n<<<")
+        self.assertTrue(p["milestone"])
+        self.assertEqual(p["goal"], 284.9)      # NOT 240
+        self.assertEqual(p["remaining"], 1.5)   # NOT 46.4
+        self.assertEqual(p["ultimate_goal"], 240.0)        # kept as context
+        self.assertEqual(p["strategic_objective"], "France Ready")
+
+    def test_milestone_narrative_leads_with_milestone_and_strategic_context(self):
+        self._weigh(300.0, 60)
+        self._weigh(286.4, 0)
+        self._goal(240.0, 365)
+        self._weight_milestone(284.9, 8)
+        n = ci.goal_pace_narrative(ci.goal_pace(self.user))
+        self.assertIn("284.9 lb", n)
+        self.assertIn("1.5 lb to go", n)
+        self.assertIn("France Ready", n)        # strategic context
+        self.assertNotIn("240", n)              # ultimate not the headline
+
+    def test_completed_milestone_skipped(self):
+        from apps.purpose.models import LifeGoal, GoalMilestone
+        self._weigh(300.0, 60)
+        self._weigh(286.4, 0)
+        self._goal(240.0, 365)
+        g = LifeGoal.objects.create(user=self.user, title="X")
+        GoalMilestone.objects.create(
+            goal=g, title="done", objective_metric="weight_lb",
+            objective_target_value=290.0, objective_operator="lte",
+            target_date=timezone.now().date() + timedelta(days=2), completed=True)
+        p = ci.goal_pace(self.user)
+        self.assertFalse(p.get("milestone"))    # falls back to ultimate goal
+        self.assertEqual(p["goal"], 240.0)
+
     def test_on_pace_projects_completion(self):
         self._weigh(310.0, 60)
         self._weigh(295.0, 0)            # 15 lb / 60d = 1.75 lb/wk

@@ -7,6 +7,22 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-22 — fix(ai): goal selection — pace runs against the nearest milestone, not the ultimate destination
+
+**Bug:** Danny's active milestone is 284.9 lb by June 30 (1.5 lb to go from 286.4), but Beth evaluated pace against the ULTIMATE goal (240 lb) and reported "46 lbs to goal (behind pace)."
+
+**Root cause:** `goal_pace()` read `HealthProfile.get_weight_progress()` → `weight_goal` (the final destination, 240) and ignored the milestone hierarchy entirely. The purpose module already exposes it: `GoalMilestone` (FK to `LifeGoal`) with `objective_metric='weight_lb'`, `objective_target_value`, `objective_operator='lte'`, `target_date`, `completed`, `sort_order`.
+
+**Fix (no redesign):** new `_nearest_weight_milestone(user)` returns the nearest INCOMPLETE `weight_lb` milestone (ordered by target_date). `goal_pace()` now paces against that milestone's `objective_target_value` + `target_date` for remaining / on-track / projection; the ultimate `weight_goal` and the parent `LifeGoal.title` are kept only as strategic context (`ultimate_goal`, `strategic_objective`). Narrative leads with the milestone and appends the strategic objective; small remaining (≤3 lb) reads as "a small push gets you there." Falls back to the ultimate goal when no milestone exists.
+
+**Before → after:** before — "Weight 286.4 → goal 240 lb (46.4 to go)… behind pace." After — "Your nearest milestone is 284.9 lb by 2026-06-30 — 1.5 lb to go in 8 days. You're on track… This milestone supports your broader goal: France Ready."
+
+**Note:** local DB lacks the `objective_metric` column (migration drift) so the milestone path can't be exercised on the dev DB — but the TEST DB (fresh migrations) has it, and production has it (Danny sees the milestone). Tests prove the selection.
+
+**Tests:** milestone-selected-not-ultimate (goal 284.9 not 240, remaining 1.5 not 46.4, ultimate kept as context), narrative-leads-with-milestone+strategic, completed-milestone-skipped. `makemigrations --check` clean. `git`-baseline diff across 5 suites: **zero new failures**. **Files:** `apps/ai/cos_intelligence.py`, `apps/ai/tests/test_cos_intelligence.py`.
+
+
+
 ## 2026-06-22 — fix(ai): web proactive messages — deliver new CoS events to the notification center at creation
 
 **Trace (production path, by code):** scheduler→detect→GuidanceItem creation PASS; Beth chat context (active_guidance) PASS; **notification-center visibility FAIL**. The web bell/center query the `Notification` model, and a `GuidanceItem` only becomes a `Notification` via the DNE scan `_get_undelivered_guidance` — which filters `created_at >= now-24h`. But `cos_event_engine.persist_event` UPSERTS (recurring events keep their original `created_at` and are deduped after first delivery), so a standing CoS concern is delivered at most once, then ages out of the 24h window and never re-surfaces to the web. (Front-end polling is fine: `notifications.js` polls `/api/notifications/count/` every 60s.)

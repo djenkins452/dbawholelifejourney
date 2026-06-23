@@ -107,3 +107,62 @@ class NoFalseRootCauses(SimpleTestCase):
     def test_clause_admits_insufficiency(self):
         clause = dr._root_cause_clause("weight", [{"domain": "weight"}], 0)
         self.assertIn("insufficient evidence", clause.lower())
+
+
+class LiveValidationRegressions(TestCase):
+    """Regressions for the P0 defects found in live production validation."""
+
+    def setUp(self):
+        self.user = _user("liveval@test.com")
+
+    # T5 / T6 — causal weight questions must REASON, not return the FACT route.
+    def test_causal_weight_questions_route_to_assessment(self):
+        for q in ("why has my weight loss slowed",
+                  "what is the biggest thing holding back my weight loss",
+                  "what's slowing my weight loss"):
+            self.assertTrue(dr._match_weight_assessment_query(q), q)
+            self.assertFalse(dr._match_weight_assessment_query("what is my weight"))
+
+    # T2 — next milestone has a deterministic route + matcher.
+    def test_next_milestone_matcher(self):
+        self.assertTrue(dr._match_next_milestone_query("what is my next weight milestone"))
+        self.assertTrue(dr._match_next_milestone_query("next milestone"))
+
+    # T3 — evidence is physical-health only (no relationships/faith leakage).
+    def test_assessment_evidence_is_health_only(self):
+        R = [{"domain": "relationships", "title": "3 drifting", "direction": "declining"}]
+        W = [{"domain": "sleep", "title": "Sleep improving", "direction": "improving"},
+             {"domain": "faith", "title": "Bible streak 14d", "direction": "improving"}]
+        with patch.object(dr, "_life_state_signals", return_value=(R, [], W)), \
+             patch("apps.ai.cos_intelligence.goal_pace",
+                   return_value={"current": 286.0, "current_pace_lb_wk": 1.0,
+                                 "milestone": False, "goal": 240.0}):
+            out = dr._render_structured_assessment(self.user, "weight")
+        self.assertIn("sleep:", out)
+        self.assertNotIn("relationships:", out)   # whole-life excluded
+        self.assertNotIn("faith:", out)
+
+    # T3/T4 — losing + healthy drivers ⇒ POSITIVE assessment, not "insufficient".
+    def test_assessment_positive_when_drivers_healthy(self):
+        W = [{"domain": "sleep", "title": "Sleep improving", "direction": "improving"},
+             {"domain": "glucose", "title": "Glucose improving", "direction": "improving"}]
+        with patch.object(dr, "_life_state_signals", return_value=([], [], W)), \
+             patch("apps.ai.cos_intelligence.goal_pace",
+                   return_value={"current": 286.0, "current_pace_lb_wk": 1.0,
+                                 "milestone": False, "goal": 240.0}):
+            out = dr._render_structured_assessment(self.user, "weight").lower()
+        self.assertNotIn("insufficient evidence", out)
+        self.assertIn("progressing", out)
+        self.assertNotIn("confidence: low", out)
+
+    # T7 — health-scoped concern must NOT let a relationship signal lead.
+    def test_health_scoped_concern_excludes_relationships(self):
+        R = [{"domain": "relationships", "title": "3 drifting", "message": "drift.",
+              "direction": "risk", "leverage": False, "confidence": "medium"},
+             {"domain": "sleep", "title": "Sleep slipping", "message": "sleep down.",
+              "direction": "declining", "leverage": True, "confidence": "high"}]
+        with patch.object(dr, "_life_state_signals", return_value=(R, [], [])):
+            out = dr._render_cos_mode(self.user, "risk",
+                                      "what concerns you most about my health right now")
+        self.assertIn("sleep", out.lower())
+        self.assertNotIn("relationship", out.lower())   # whole-life can't lead health

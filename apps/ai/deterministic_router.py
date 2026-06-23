@@ -6239,6 +6239,7 @@ def _root_cause_clause(domain, R, overdue):
 _CONF_WHY = {
     "high": "multiple converging signals",
     "medium": "a corroborating signal, but incomplete evidence",
+    "moderate": "a corroborating signal, but incomplete evidence",
     "low": "insufficient supporting data",
 }
 
@@ -6259,26 +6260,40 @@ def _render_structured_assessment(user, domain="weight"):
                          f"({gp['remaining']} lb to go).")
     if facts:
         parts.append("Facts:\n" + "\n".join(f"• {f}" for f in facts))
-    # ── Evidence (cross-domain, from canonical state) ──
-    ev = [f"{s['domain']}: {s['title']}" for s in (R + W)
-          if s.get("domain") != domain][:5]
+    # ── Evidence: ONLY the physical-health domains relevant to weight (exclude
+    #    whole-life signals like relationships/faith from a weight assessment). ──
+    rel = {"sleep", "nutrition", "workouts", "glucose", "medication"}
+    ev = [f"{s['domain']}: {s['title']}" for s in (R + W + O)
+          if s.get("domain") in rel][:5]
     if ev:
         parts.append("Evidence:\n" + "\n".join(f"• {e}" for e in ev))
-    # ── Assessment + Confidence (RCA — never exceeds evidence) ──
-    neg = {s["domain"] for s in R if s.get("domain") != domain}
+    # ── Assessment + Confidence. Three cases — never claim 'insufficient' when
+    #    the evidence is actually GOOD. ──
+    neg = {s["domain"] for s in R if s.get("domain") in rel}
+    pos = [s for s in (W + O) if s.get("domain") in rel]
     rc = _root_cause(domain, neg, 0)
+    pace = gp.get("current_pace_lb_wk") if gp else None
     if rc and rc.get("cause") and not rc.get("insufficient"):
+        # A real negative driver corroborates a slowdown.
         a = f"The likely upstream driver is {rc['cause']}"
         if rc.get("evidence"):
             a += f" ({rc['evidence']})"
         parts.append("Assessment:\n" + a + ".")
-        conf = rc["confidence"]
-        rec = rc.get("rec")
+        conf, rec = rc["confidence"], rc.get("rec")
+    elif pace and pace > 0:
+        # Losing AND no negative health driver → it's working; say so.
+        drivers = ", ".join(sorted({s["domain"] for s in pos})) or "your routine"
+        a = (f"Weight loss is progressing (~{pace} lb/week) and the health "
+             f"drivers I can see are working ({drivers}). No constraint is "
+             f"holding it back right now — any slowing is the normal flattening "
+             f"as you get leaner, not a problem to fix.")
+        parts.append("Assessment:\n" + a)
+        conf = "high" if len(pos) >= 2 else "moderate"
+        rec = ("stay the course; protect the routines that are working")
     else:
         parts.append("Assessment:\n" + _INSUFFICIENT_EVIDENCE.capitalize() + ".")
-        conf = "low"
-        rec = None
-    parts.append(f"Confidence: {conf.capitalize()} — {_CONF_WHY[conf]}.")
+        conf, rec = "low", None
+    parts.append(f"Confidence: {conf.capitalize()} — {_CONF_WHY.get(conf, _CONF_WHY['low'])}.")
     # ── Recommendation (cause-aimed; honest when unknown) ──
     if not rec:
         rec = ("log a clean week of sleep, nutrition, and workouts so the driver "
@@ -6291,6 +6306,14 @@ _WEIGHT_ASSESS_CUES = (
     "how is my weight doing", "how's my weight", "how is my weight going",
     "how is my weight trending", "assess my weight", "weight assessment",
     "how is my weight journey", "how's my weight journey",
+    # Diagnostic / causal — these were wrongly hijacked by weight_query (FACT).
+    "why has my weight loss slowed", "why has my weight slowed",
+    "why has my weight loss stalled", "why is my weight loss",
+    "what is slowing my weight", "what's slowing my weight",
+    "what is stalling my weight", "what's stalling my weight",
+    "holding back my weight", "holding my weight back",
+    "weight loss plateau", "weight has plateaued", "weight loss has slowed",
+    "what is hurting my weight", "what's hurting my weight loss",
 )
 
 
@@ -6302,7 +6325,36 @@ def _handle_weight_assessment_query(user, msg_lower=None):
     return _render_structured_assessment(user, "weight")
 
 
-def _render_cos_mode(user, mode):
+# Next weight MILESTONE — canonical selection (the active milestone, not the
+# ultimate goal and not an ungrounded LLM guess).
+_NEXT_MILESTONE_CUES = (
+    "next weight milestone", "next milestone", "my next milestone",
+    "what milestone", "current weight milestone", "active milestone",
+    "next weight target", "next weight goal",
+)
+
+
+def _match_next_milestone_query(msg_lower):
+    return bool(msg_lower) and any(c in msg_lower for c in _NEXT_MILESTONE_CUES)
+
+
+def _handle_next_milestone_query(user, msg_lower=None):
+    from apps.ai.cos_intelligence import goal_pace, _nearest_weight_milestone
+    gp = goal_pace(user)
+    cur = gp.get("current") if gp else None
+    m = _nearest_weight_milestone(user, current_weight=cur)
+    if not m:
+        return ("I don't see an active weight milestone set right now — want to "
+                "set one?")
+    s = f"Your next weight milestone is {m['target_value']} lb"
+    if m.get("target_date"):
+        s += f" due {m['target_date']}"
+    if cur is not None:
+        s += f". You have {round(abs(cur - m['target_value']), 1)} lb remaining"
+    return s + "."
+
+
+def _render_cos_mode(user, mode, msg_lower=None):
     """Render a distinct executive answer for `mode` from ONE shared state.
     Strategic signals come from the LIVE state (event-independent); only the
     operational queue (overdue/recurring) is read from the event stream."""
@@ -6408,7 +6460,18 @@ def _render_cos_mode(user, mode):
     if mode == 'risk':
         # SELECT by severity (threats only) over the full signal set, then reason
         # across the concern set: top threat + recurring pattern + accountability.
-        ranked = [r[0] for r in _signal_scores(R + O + W, 'concern')]
+        # PHYSICAL-HEALTH scoping: "concerns about my health" weighs physical
+        # domains; whole-life signals (relationships/faith) must NOT lead a
+        # health-scoped question (they're whole-life, not physical health).
+        pool = R + O + W
+        _m = msg_lower or ''
+        if any(k in _m for k in ('my health', 'about my health',
+                                 'health right now', 'my physical health')):
+            _phys = {'weight', 'sleep', 'glucose', 'nutrition', 'workouts',
+                     'medication'}
+            scoped = [s for s in pool if s.get('domain') in _phys]
+            pool = scoped or pool
+        ranked = [r[0] for r in _signal_scores(pool, 'concern')]
         if ranked:
             out = f"What concerns me most: {ranked[0]['message']}"
             extra = []
@@ -6558,7 +6621,7 @@ def _handle_executive_query(user, msg_lower=None):
     _mode = _cos_mode_for(msg_lower)
     if _mode:
         try:
-            _mode_resp = _render_cos_mode(user, _mode)
+            _mode_resp = _render_cos_mode(user, _mode, msg_lower)
             if _mode_resp:
                 return _mode_resp
         except Exception:
@@ -7491,6 +7554,7 @@ def _register_builtin_routes():
     # Analytical weight question → structured Answer Contract (Facts/Evidence/
     # Assessment/Confidence/Recommendation). BEFORE weight_query so "how is my
     # weight doing" gets the assessment; "what is my weight" stays a terse fact.
+    register_data_route('next_milestone_query', _match_next_milestone_query, _handle_next_milestone_query, 'health')
     register_data_route('weight_assessment_query', _match_weight_assessment_query, _handle_weight_assessment_query, 'health')
 
     # ── Summary-level routes (Truth Depth: SUMMARY) ──

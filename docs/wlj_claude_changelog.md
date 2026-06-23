@@ -7,6 +7,22 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-23 — fix(ai): Trust Sprint 1 live-validation defects (T2/T3/T5/T6/T7)
+
+Live production validation on Danny's data surfaced P0 trust defects. Traced each, fixed the smallest safe change, added regressions.
+
+**PATTERN — intent/routing failure (T5, T6).** "Why has my weight loss slowed?" and "What is the biggest thing holding back my weight loss?" returned the FACT route (`weight_query`) instead of reasoning, because `_match_weight_assessment_query` didn't catch causal phrasings and `weight_query` grabs anything containing "weight". Fix: broadened the analytical-weight matcher to causal/diagnostic phrasings ("why … slowed", "holding back my weight", "what's slowing my weight"); registered before `weight_query` → these now route to the structured assessment (Facts/Evidence/Assessment/Confidence/Recommendation with RCA).
+
+**T2 — incomplete milestone retrieval.** "What is my next weight milestone?" hit `no_match` → ungrounded LLM ("280"). Fix: new deterministic `next_milestone_query` route using the canonical `_nearest_weight_milestone` (value-aware next rung): "Your next weight milestone is 284.9 lb due 2026-06-30. You have 1.7 lb remaining."
+
+**T3 — evidence selection + false 'insufficient'.** The weight assessment listed whole-life evidence (relationships, faith) and declared "insufficient evidence" even when drivers were healthy. Fix: evidence restricted to physical-health domains (sleep/nutrition/workouts/glucose/medication); assessment now has three cases — negative driver → RCA cause; losing + healthy drivers → POSITIVE ("weight loss is progressing; the drivers are working; no constraint to fix"); only truly ambiguous → insufficient.
+
+**T7 — relationship reasoning on a health question.** "What concerns you most about my health?" let a whole-life (relationship) signal lead. Fix: health-scoped concern questions ("my health") filter the concern pool to physical-health domains, so relationships/faith can't lead a physical-health question. (Portfolio-level relationship evidence/confidence remains a follow-up.)
+
+**Validation:** `LiveValidationRegressions` (causal routing, next-milestone matcher, health-only evidence, positive-when-healthy assessment, health-scoped concern). `makemigrations --check` clean. `git`-baseline diff across 9 suites: **zero new failures**. **Files:** `apps/ai/deterministic_router.py`, `apps/ai/tests/test_beth_trust_suite.py`.
+
+
+
 ## 2026-06-22 — feat(ai): Beth Trust Sprint 1 — truth, evidence, confidence, executive reasoning (P0-1..4)
 
 Singular objective: move Beth from Truth=C/Trust=C− toward Truth=A/Trust=A. No new infrastructure; extended existing systems.

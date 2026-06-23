@@ -7,6 +7,22 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-23 — fix(ai): Trust hotfix regression — canonical milestone source, assessment dedup/positive, health-scope, fact-only
+
+Live validation after the first hotfix surfaced regressions. Traced each to root cause (file:line) and fixed the smallest safe change.
+
+**Q2 (P0/CRITICAL) — wrong canonical source.** `_nearest_weight_milestone` reimplemented its own GoalMilestone query and never recomputed completion, so it diverged from the Goals UI (which uses `select_active_mission_goal(user).next_milestone` after `evaluate_weight_milestones`). Beth returned "no active milestone" while the UI showed 284.9/June‑30. Fix: `_nearest_weight_milestone` now delegates to the canonical path first — `evaluate_weight_milestones` (so a passed rung like 289.9 auto-completes) then the active mission goal's next incomplete `weight_lb` milestone — exactly the dashboard's source; the prior title/value scan remains a fallback (savepoint-guarded for schema drift).
+
+**Q3/Q4/Q5 (P0) — assessment defects.** (a) Duplicate evidence: a signal lives in BOTH `W` (polarity) and `O` (lens), so `R+W+O` listed it twice → now deduped by domain. (b) False "insufficient evidence" when drivers were healthy → positive/supportive assessment now fires whenever there are positive health drivers and no negative driver, even when pace isn't computable. (c) Facts could be empty if goal_pace degraded → current weight is now read robustly so Facts is never empty.
+
+**Q6 (HIGH) — relationships in a health answer.** The health-scoped concern filtered the pool, but the empty-pool fallback returned the whole-life `overall` (which names relationships). Fix: health-scoped questions with no physical-health risk now return a physical-health read, never the whole-life overall.
+
+**Q1 (LOW) — FACT_ONLY.** New `weight_fact_query` route (registered before weight_query) returns "Your current weight is 286.6 lbs." for bare scalar questions — no trend, no follow-up.
+
+**Tests:** `HotfixRegressionV2` (canonical mission-goal milestone, evidence dedup, positive-without-pace, health-scope physical read, fact-only) + 2 prior trust tests updated to the reworked assessment contract. `makemigrations --check` clean. `git`-baseline diff across 10 suites: **zero new failures**. **Files:** `apps/ai/cos_intelligence.py`, `apps/ai/deterministic_router.py`, `apps/ai/tests/test_beth_trust_suite.py`.
+
+
+
 ## 2026-06-23 — fix(ai): Trust Sprint 1 live-validation defects (T2/T3/T5/T6/T7)
 
 Live production validation on Danny's data surfaced P0 trust defects. Traced each, fixed the smallest safe change, added regressions.

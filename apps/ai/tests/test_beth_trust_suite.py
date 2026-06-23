@@ -78,9 +78,11 @@ class AnswerContract(TestCase):
         self.assertIn("Confidence:", out)
 
     def test_insufficient_evidence_admitted(self):
-        # No negative drivers on the board → must admit uncertainty, not invent.
-        out = self._render([], [_WIN], {"current": 286.4, "milestone": False,
-                                        "goal": 240.0})
+        # NO drivers at all (no negative AND no positive health signal) → must
+        # admit uncertainty, not invent. (A positive driver yields a supportive
+        # read instead — covered by test_assessment_positive_when_drivers_healthy.)
+        out = self._render([], [], {"current": 286.4, "milestone": False,
+                                    "goal": 240.0})
         self.assertIn("insufficient evidence", out.lower())
         self.assertIn("Confidence: Low", out)
 
@@ -152,7 +154,7 @@ class LiveValidationRegressions(TestCase):
                                  "milestone": False, "goal": 240.0}):
             out = dr._render_structured_assessment(self.user, "weight").lower()
         self.assertNotIn("insufficient evidence", out)
-        self.assertIn("progressing", out)
+        self.assertIn("working", out)            # supportive read (not insufficient)
         self.assertNotIn("confidence: low", out)
 
     # T7 — health-scoped concern must NOT let a relationship signal lead.
@@ -166,3 +168,80 @@ class LiveValidationRegressions(TestCase):
                                       "what concerns you most about my health right now")
         self.assertIn("sleep", out.lower())
         self.assertNotIn("relationship", out.lower())   # whole-life can't lead health
+
+
+class HotfixRegressionV2(TestCase):
+    """Reproduces the exact post-hotfix live failures (Q1/Q2/Q3/Q6)."""
+
+    def setUp(self):
+        self.user = _user("hotfix2@test.com")
+
+    def test_q1_bare_weight_is_fact_only(self):
+        from apps.health.models import WeightEntry
+        from django.utils import timezone
+        WeightEntry.objects.create(user=self.user, value=286.6, unit="lb",
+                                   recorded_at=timezone.now())
+        self.assertTrue(dr._match_weight_fact_query("what is my current weight"))
+        out = dr._handle_weight_fact_query(self.user, "what is my current weight")
+        self.assertEqual(out, "Your current weight is 286.6 lbs.")
+        self.assertNotIn("trending", out)
+        self.assertNotIn("?", out)
+
+    def test_q2_milestone_from_canonical_mission_goal(self):
+        from decimal import Decimal
+        from datetime import date
+        from django.utils import timezone
+        from apps.purpose.models import LifeGoal, GoalMilestone
+        from apps.health.models import WeightEntry
+        from apps.ai import cos_intelligence as ci
+        g = LifeGoal.objects.create(user=self.user, title="France 2027")
+        GoalMilestone.objects.create(
+            goal=g, title="Goal Weight of 289.9", objective_metric="weight_lb",
+            objective_target_value=Decimal("289.9"), objective_operator="lte",
+            target_date=date(2026, 5, 1), completed=False)
+        GoalMilestone.objects.create(
+            goal=g, title="Goal Weight of 284.9", objective_metric="weight_lb",
+            objective_target_value=Decimal("284.9"), objective_operator="lte",
+            target_date=date(2026, 6, 30), completed=False)
+        WeightEntry.objects.create(user=self.user, value=286.6, unit="lb",
+                                   recorded_at=timezone.now())
+        with patch("apps.purpose.mission_selection.select_active_mission_goal",
+                   return_value=g):
+            m = ci._nearest_weight_milestone(self.user, current_weight=286.6)
+        # 289.9 auto-completes (286.6 <= 289.9); next incomplete = 284.9.
+        self.assertEqual(m["target_value"], 284.9)
+        self.assertEqual(str(m["target_date"]), "2026-06-30")
+        self.assertEqual(m["strategic_objective"], "France 2027")
+
+    def test_q3_evidence_deduped(self):
+        # A signal in BOTH W and O must appear ONCE (the live duplicate bug).
+        g = {"domain": "glucose", "title": "Glucose improving", "direction": "improving"}
+        s = {"domain": "sleep", "title": "Sleep improving", "direction": "improving"}
+        with patch.object(dr, "_life_state_signals", return_value=([], [g, s], [g, s])), \
+             patch("apps.ai.cos_intelligence.goal_pace",
+                   return_value={"current": 286.6, "current_pace_lb_wk": 1.0,
+                                 "milestone": False, "goal": 240.0}):
+            out = dr._render_structured_assessment(self.user, "weight")
+        self.assertEqual(out.lower().count("glucose:"), 1)
+        self.assertEqual(out.lower().count("sleep:"), 1)
+
+    def test_q3_positive_when_drivers_improving_even_without_pace(self):
+        s = {"domain": "sleep", "title": "Sleep improving", "direction": "improving"}
+        g = {"domain": "glucose", "title": "Glucose improving", "direction": "improving"}
+        with patch.object(dr, "_life_state_signals", return_value=([], [], [s, g])), \
+             patch("apps.ai.cos_intelligence.goal_pace",
+                   return_value={"current": 286.6, "milestone": False, "goal": 240.0}):
+            out = dr._render_structured_assessment(self.user, "weight").lower()
+        self.assertNotIn("insufficient evidence", out)
+        self.assertIn("working", out)
+
+    def test_q6_health_scope_gives_physical_read_not_relationships(self):
+        R = [{"domain": "relationships", "title": "3 drifting", "message": "drift.",
+              "direction": "risk", "leverage": False, "confidence": "medium"}]
+        W = [{"domain": "weight", "title": "Weight down", "direction": "improving"},
+             {"domain": "glucose", "title": "Glucose improving", "direction": "improving"}]
+        with patch.object(dr, "_life_state_signals", return_value=(R, [], W)):
+            out = dr._render_cos_mode(self.user, "risk",
+                                      "what concerns you most about my health right now")
+        self.assertIn("physical-health", out.lower())
+        self.assertNotIn("relationship", out.lower())

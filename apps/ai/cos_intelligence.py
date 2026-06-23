@@ -107,11 +107,37 @@ def _nearest_weight_milestone(user, current_weight=None):
     Returns {target_value, target_date, title, strategic_objective} or None.
     Never raises (decoupled from the objective_* columns; survives schema drift)."""
     import re
+    from django.db import transaction
+    from django.db.models import F
     from django.utils import timezone
     today = timezone.now().date()
+
+    # 0) CANONICAL — the SAME source the Goals UI / dashboard uses:
+    #    recompute completion, then the active mission goal's next incomplete
+    #    weight_lb milestone (so dashboard and Beth never diverge). Wrapped in a
+    #    savepoint; under local schema drift this raises and we fall through.
+    try:
+        with transaction.atomic():
+            from apps.purpose.services.objective_weight_milestones import (
+                evaluate_weight_milestones)
+            from apps.purpose.mission_selection import select_active_mission_goal
+            evaluate_weight_milestones(user)   # 289.9 already passed → completes
+            goal = select_active_mission_goal(user)
+            if goal is not None:
+                wm = goal.milestones.filter(
+                    completed=False, objective_metric="weight_lb",
+                    objective_target_value__isnull=False).order_by(
+                    F("target_date").asc(nulls_last=True), "sort_order").first()
+                if wm is not None:
+                    return {"target_value": round(float(wm.objective_target_value), 1),
+                            "target_date": wm.target_date, "title": wm.title,
+                            "strategic_objective": goal.title}
+    except Exception:
+        logger.debug("cos_intel: canonical mission milestone unavailable",
+                     exc_info=True)
+
     candidates = []  # (target_date, target_value, title, parent_goal_title)
     try:
-        from django.db import transaction
         from apps.purpose.models import GoalMilestone
         # 1) Objective form. Wrapped in a savepoint so that if the objective_*
         #    columns aren't present (schema drift), the aborted query doesn't

@@ -6248,11 +6248,22 @@ def _render_structured_assessment(user, domain="weight"):
     from apps.ai.cos_intelligence import goal_pace
     R, O, W = _life_state_signals(user)
     parts = []
-    # ── Facts (objective only) ──
+    # ── Facts (objective only). Current weight is read robustly so Facts is
+    #    never empty even if goal_pace degrades. ──
     facts = []
     gp = goal_pace(user)
+    cur = gp.get("current") if gp else None
+    if cur is None:
+        try:
+            from apps.health.models import WeightEntry
+            e = WeightEntry.objects.filter(
+                user=user, status="active").order_by("recorded_at").last()
+            cur = round(float(e.value_in_lb), 1) if e else None
+        except Exception:
+            cur = None
+    if cur is not None:
+        facts.append(f"Current weight: {cur} lb.")
     if gp:
-        facts.append(f"Current weight: {gp['current']} lb.")
         if gp.get("current_pace_lb_wk") is not None:
             facts.append(f"Pace: ~{gp['current_pace_lb_wk']} lb/week.")
         if gp.get("milestone"):
@@ -6260,17 +6271,23 @@ def _render_structured_assessment(user, domain="weight"):
                          f"({gp['remaining']} lb to go).")
     if facts:
         parts.append("Facts:\n" + "\n".join(f"• {f}" for f in facts))
-    # ── Evidence: ONLY the physical-health domains relevant to weight (exclude
-    #    whole-life signals like relationships/faith from a weight assessment). ──
+    # ── Evidence: physical-health domains only, DEDUPED by domain (a signal can
+    #    appear in both W and O — never list it twice). ──
     rel = {"sleep", "nutrition", "workouts", "glucose", "medication"}
-    ev = [f"{s['domain']}: {s['title']}" for s in (R + W + O)
-          if s.get("domain") in rel][:5]
+    seen, ev = set(), []
+    for s in (R + W + O):
+        d = s.get("domain")
+        if d in rel and d not in seen:
+            seen.add(d)
+            ev.append(f"{d}: {s['title']}")
+        if len(ev) >= 5:
+            break
     if ev:
         parts.append("Evidence:\n" + "\n".join(f"• {e}" for e in ev))
     # ── Assessment + Confidence. Three cases — never claim 'insufficient' when
-    #    the evidence is actually GOOD. ──
+    #    the health evidence is actually GOOD. ──
     neg = {s["domain"] for s in R if s.get("domain") in rel}
-    pos = [s for s in (W + O) if s.get("domain") in rel]
+    pos_domains = sorted({s["domain"] for s in (W + O) if s.get("domain") in rel})
     rc = _root_cause(domain, neg, 0)
     pace = gp.get("current_pace_lb_wk") if gp else None
     if rc and rc.get("cause") and not rc.get("insufficient"):
@@ -6280,16 +6297,18 @@ def _render_structured_assessment(user, domain="weight"):
             a += f" ({rc['evidence']})"
         parts.append("Assessment:\n" + a + ".")
         conf, rec = rc["confidence"], rc.get("rec")
-    elif pace and pace > 0:
-        # Losing AND no negative health driver → it's working; say so.
-        drivers = ", ".join(sorted({s["domain"] for s in pos})) or "your routine"
-        a = (f"Weight loss is progressing (~{pace} lb/week) and the health "
-             f"drivers I can see are working ({drivers}). No constraint is "
-             f"holding it back right now — any slowing is the normal flattening "
-             f"as you get leaner, not a problem to fix.")
+    elif pos_domains and not neg:
+        # Healthy drivers + no negative driver → supportive read, even if pace
+        # isn't computable. Distinguishes "doing well" from "insufficient".
+        lead = (f"Weight is trending down (~{pace} lb/week) and "
+                if (pace and pace > 0) else "Your health drivers are working — ")
+        a = (f"{lead}the supporting signals are healthy ({', '.join(pos_domains)}). "
+             f"I don't see a constraint holding you back right now; any slowing "
+             f"is likely the normal flattening as you lean out, not a problem to "
+             f"fix.")
         parts.append("Assessment:\n" + a)
-        conf = "high" if len(pos) >= 2 else "moderate"
-        rec = ("stay the course; protect the routines that are working")
+        conf = "high" if len(pos_domains) >= 2 else "moderate"
+        rec = "stay the course; protect the routines that are working"
     else:
         parts.append("Assessment:\n" + _INSUFFICIENT_EVIDENCE.capitalize() + ".")
         conf, rec = "low", None
@@ -6323,6 +6342,29 @@ def _match_weight_assessment_query(msg_lower):
 
 def _handle_weight_assessment_query(user, msg_lower=None):
     return _render_structured_assessment(user, "weight")
+
+
+# FACT_ONLY — a bare scalar weight question gets the number, nothing else.
+_WEIGHT_FACT_CUES = (
+    "what is my current weight", "what's my current weight", "what is my weight",
+    "what's my weight", "current weight", "how much do i weigh", "what do i weigh",
+)
+
+
+def _match_weight_fact_query(msg_lower):
+    return bool(msg_lower) and any(c in msg_lower for c in _WEIGHT_FACT_CUES)
+
+
+def _handle_weight_fact_query(user, msg_lower=None):
+    try:
+        from apps.health.models import WeightEntry
+        e = WeightEntry.objects.filter(
+            user=user, status="active").order_by("recorded_at").last()
+        if not e:
+            return None  # fall through to the richer route
+        return f"Your current weight is {round(float(e.value_in_lb), 1)} lbs."
+    except Exception:
+        return None  # fall through
 
 
 # Next weight MILESTONE — canonical selection (the active milestone, not the
@@ -6488,6 +6530,17 @@ def _render_cos_mode(user, mode, msg_lower=None):
                 out += " Below that, I'm watching " + ", ".join(extra[:2]) + "."
             out += _root_cause_clause(ranked[0]['domain'], R, len(OD))
             return out
+        # Health-scoped + no physical-health risk → give a PHYSICAL-health read,
+        # not the whole-life `overall` (which can mention relationships).
+        if any(k in _m for k in ('my health', 'about my health',
+                                 'health right now', 'my physical health')):
+            wins = [s['domain'] for s in (W + O)
+                    if s.get('domain') in {'weight', 'sleep', 'glucose',
+                                           'nutrition', 'workouts', 'medication'}]
+            good = (", ".join(sorted(set(wins))[:3]) or "your trend")
+            return ("From a physical-health standpoint, nothing is flashing red — "
+                    f"{good} {'are' if ',' in good else 'is'} working. I'm not "
+                    "seeing a physical-health concern that needs action right now.")
         if gp.get('target_passed') or gp.get('on_pace') is False:
             return f"Your main strategic risk is the goal trajectory. {pace_n}"
         return ("Honestly, nothing strategic is flashing red right now — your "
@@ -7554,6 +7607,7 @@ def _register_builtin_routes():
     # Analytical weight question → structured Answer Contract (Facts/Evidence/
     # Assessment/Confidence/Recommendation). BEFORE weight_query so "how is my
     # weight doing" gets the assessment; "what is my weight" stays a terse fact.
+    register_data_route('weight_fact_query', _match_weight_fact_query, _handle_weight_fact_query, 'health')
     register_data_route('next_milestone_query', _match_next_milestone_query, _handle_next_milestone_query, 'health')
     register_data_route('weight_assessment_query', _match_weight_assessment_query, _handle_weight_assessment_query, 'health')
 

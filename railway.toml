@@ -12,10 +12,21 @@ builder = "nixpacks"
 #
 # Worker Service (wlj-worker):
 #   celery -A config worker --loglevel=info --concurrency=2
+#   NOTE: Until the dedicated chat worker below is deployed, this worker also
+#   handles interactive chat generation (CHAT_GENERATION_QUEUE defaults to the
+#   "celery" queue). That shares the pool with scheduled tasks — see the
+#   documented risk in config/settings.py.
 #
 # Beat Service (wlj-beat):
 #   celery -A config beat --loglevel=info
 #   IMPORTANT: Must be single-instance. Multiple Beat processes = duplicate task dispatch.
 #
-# All three services must share the same environment variables (REDIS_URL, DATABASE_URL, etc.)
+# OPTIONAL — Chat Worker Service (wlj-chat-worker) — RECOMMENDED for chat isolation:
+#   celery -A config worker -Q chat --loglevel=info --concurrency=2
+#   Then set CHAT_GENERATION_QUEUE=chat on the web + worker + chat-worker
+#   services. Deploy this worker BEFORE setting the env, or chat tasks will
+#   queue unconsumed. This keeps long-running LLM generation off the
+#   high-frequency scheduled-task pool (SAME 60s / ISE 300s / keepalive 30s).
+#
+# All services must share the same environment variables (REDIS_URL, DATABASE_URL, etc.)
 # via Railway's shared variables or project-level env vars.

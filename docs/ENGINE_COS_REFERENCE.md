@@ -152,6 +152,14 @@ Phase 1 (Interpretation)        Phase 2 (Execution)          Phase 3 (Post-Execu
 | `dashboard-v2-expire-celebrations-9am-utc` | crontab(9,0) | `dashboard_v2.expire_celebrations` |
 | `life-recalculate-task-priorities-6am-utc` | crontab(6,0) | `life.recalculate_task_priorities` |
 
+### On-Demand Tasks (not scheduled)
+
+| Task | Trigger | Function | Queue |
+|------|---------|----------|-------|
+| `run_chat_generation` | Per chat message (dispatched by `AssistantChatStreamView`) | `apps.ai.tasks.run_chat_generation` | `chat` (env `CHAT_GENERATION_QUEUE`, default `celery`) |
+
+**Background chat generation (P0 navigation fix, 2026-06-23):** interactive chat generation no longer runs inside the SSE request. The streaming POST dispatches `run_chat_generation`, which owns the LLM loop and relays tokens into a cache snapshot (`apps/ai/chat_stream_bus.py`); the HTTP layer (initial relay + `AssistantChatResumeView`) only observes that snapshot. Client navigation/disconnect ends the observer but NOT the task, so the assistant message always completes and persists. Route to a dedicated `-Q chat` worker (set `CHAT_GENERATION_QUEUE=chat`) to keep long LLM runs off the 30s/60s/300s scheduled-task pool — until then it shares the default worker (documented risk in `config/settings.py`).
+
 ### APScheduler Jobs (apps/core/jobs.py)
 
 | Job | Schedule | Purpose |
@@ -215,9 +223,12 @@ Key tasks by interval:
 
 ### Request Flow
 
+**Streaming path (P0 navigation fix, 2026-06-23):** `AssistantChatStreamView.post()` no longer runs generation in-request. It dispatches `run_chat_generation` (Celery) and relays a cache snapshot via `_chat_relay_stream`; the task calls `send_message_stream` below. `AssistantChatResumeView` re-attaches by `job_id` (ownership-checked). See `apps/ai/chat_stream_bus.py`. The non-streaming `AssistantChatView.post()` path below is unchanged.
+
 ```
 User Message
-  → AssistantChatView.post() [apps/ai/views.py:312]
+  → AssistantChatView.post() [apps/ai/views.py:312]    (non-streaming)
+  → AssistantChatStreamView.post() → run_chat_generation task → send_message_stream  (streaming)
     → PersonalAssistant.send_message() [apps/ai/personal_assistant.py:2266]
       ├─ 1. ECC Pre-Check (commitment contract)
       ├─ 2. Readiness Cache (try layered → flat → rebuild)

@@ -1126,6 +1126,28 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 
+# ── Chat generation queue (P0 navigation fix) ────────────────────────
+# run_chat_generation owns interactive LLM generation, which can run for
+# tens of seconds. Routing it to a DEDICATED queue lets a dedicated worker
+# absorb that load without starving the high-frequency scheduled tasks
+# (SAME 60s / ISE 300s / keepalive 30s) on the default pool.
+#
+# SAFE DEFAULT: CHAT_GENERATION_QUEUE defaults to "celery" (the default
+# queue), so with NO infra change chat tasks are consumed by the existing
+# worker immediately — nothing breaks on deploy. The trade-off is that chat
+# generation then SHARES the worker pool with scheduled tasks (documented
+# risk: a chat burst can delay scheduled work, and vice-versa).
+#
+# RECOMMENDED PRODUCTION ISOLATION (see Procfile / railway.toml):
+#   1. Add a dedicated Railway worker:  celery -A config worker -Q chat --concurrency=2
+#   2. Set env on web + worker services:  CHAT_GENERATION_QUEUE=chat
+# Do step 1 BEFORE step 2 — setting the env without a worker on the "chat"
+# queue would leave chat tasks unconsumed.
+CHAT_GENERATION_QUEUE = env("CHAT_GENERATION_QUEUE", default="celery")
+CELERY_TASK_ROUTES = {
+    "apps.ai.tasks.run_chat_generation": {"queue": CHAT_GENERATION_QUEUE},
+}
+
 # Timezone — match Django
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = True

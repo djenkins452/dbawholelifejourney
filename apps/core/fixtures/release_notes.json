@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 213,
+    "fields": {
+      "title": "Your Chief of Staff keeps thinking even if you leave the page",
+      "description": "Ask a question in chat and you no longer have to sit and wait on the same screen for the answer. If you switch tabs, move to another part of the app, or even refresh the page while your Chief of Staff is still working, the answer keeps being prepared in the background instead of being thrown away. When you come back to the conversation, the completed reply is already waiting for you — and if it's still being written, the chat reconnects and picks the response up live, the way you'd expect from a modern assistant. Your question and its reply are saved either way, so nothing gets lost to a stray tap or a reload.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-06-23",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-06-23T21:00:00Z",
+      "updated_at": "2026-06-23T21:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 212,
     "fields": {
       "title": "Your Executive Briefing now tells one clear story",

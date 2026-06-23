@@ -954,6 +954,107 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
             }, status=500)
 
 
+def _chat_relay_stream(job_id, user_id):
+    """
+    Read-only SSE relay over a chat_stream_bus snapshot.
+
+    Shared by the initial POST and the resume endpoint. Emits a leading
+    ``job`` event (so the client can store the reconnect handle), then tails
+    the snapshot — streaming new token text and any new control events — until
+    the snapshot reaches a terminal status. It always replays from the start,
+    so a reconnecting client receives the full answer so far.
+
+    On client disconnect the generator receives GeneratorExit; we log it and
+    let it propagate. The owning Celery task is unaffected and keeps running.
+    """
+    import json
+    import time as _t
+
+    from apps.ai import chat_stream_bus as bus
+    from apps.ai.readiness_telemetry import (
+        log_stream_complete, log_stream_start,
+    )
+
+    POLL_INTERVAL = 0.15      # seconds between snapshot reads
+    MAX_WALL = 90.0           # cap one connection; client reconnects by job_id
+    HEARTBEAT = 15.0          # SSE comment cadence to keep proxies/CDN alive
+
+    yield f"event: job\ndata: {json.dumps({'job_id': job_id})}\n\n"
+
+    text_cursor = 0
+    event_cursor = 0
+    start = _t.monotonic()
+    last_activity = start
+    first_token_logged = False
+    try:
+        while True:
+            snap = bus.read(job_id)
+            if snap is None:
+                # Snapshot expired/unknown — nothing left to observe.
+                yield (
+                    "event: error\n"
+                    f"data: {json.dumps({'error': 'expired'})}\n\n"
+                )
+                return
+
+            text = snap.get('text', '')
+            if len(text) > text_cursor:
+                delta = text[text_cursor:]
+                text_cursor = len(text)
+                if not first_token_logged:
+                    first_token_logged = True
+                    try:
+                        log_stream_start(
+                            user_id, (_t.monotonic() - start) * 1000,
+                        )
+                    except Exception:
+                        pass
+                yield (
+                    "event: token\n"
+                    f"data: {json.dumps({'content': delta})}\n\n"
+                )
+                last_activity = _t.monotonic()
+
+            events = snap.get('events', [])
+            while event_cursor < len(events):
+                frame = bus.format_sse(events[event_cursor])
+                event_cursor += 1
+                if frame:
+                    yield frame
+                    last_activity = _t.monotonic()
+
+            status = snap.get('status')
+            if status in bus.TERMINAL_STATUSES:
+                try:
+                    log_stream_complete(
+                        user_id, (_t.monotonic() - start) * 1000, text_cursor,
+                    )
+                except Exception:
+                    pass
+                return
+
+            now = _t.monotonic()
+            if now - start > MAX_WALL:
+                # Generation still running — ask the client to reconnect by
+                # job_id rather than pinning a gunicorn worker indefinitely.
+                yield (
+                    "event: timeout\n"
+                    f"data: {json.dumps({'job_id': job_id})}\n\n"
+                )
+                return
+            if now - last_activity > HEARTBEAT:
+                yield ": keep-alive\n\n"
+                last_activity = now
+            _t.sleep(POLL_INTERVAL)
+    except GeneratorExit:
+        logger.info(
+            "CHAT_STREAM_DISCONNECTED job=%s user=%s — client gone, "
+            "generation continues in Celery task",
+            job_id, user_id,
+        )
+        raise
+
+
 class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
     """
     Streaming chat endpoint using Server-Sent Events (SSE).
@@ -976,11 +1077,7 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def post(self, request, *args, **kwargs):
-        import time
         from django.http import StreamingHttpResponse
-        from apps.ai.readiness_telemetry import (
-            log_stream_start, log_stream_complete,
-        )
 
         enabled, error = self.check_personal_assistant_enabled()
         if not enabled:
@@ -1012,114 +1109,36 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
             conversation = assistant.get_or_create_conversation()
             user_id = request.user.id
 
-            def event_stream():
-                first_token_time = None
-                start_time = time.monotonic()
-                token_count = 0
+            # ── P0 navigation fix ──────────────────────────────────────
+            # Generation runs in a Celery task, NOT in this request. We
+            # dispatch the job, then become a read-only relay tailing the
+            # cache snapshot (see apps/ai/chat_stream_bus.py). If the client
+            # navigates away, only this relay ends — the task keeps
+            # generating and persists the assistant message on completion.
+            # Post-response intelligence also runs in the task.
+            import uuid
+            from apps.ai import chat_stream_bus as bus
+            from apps.ai.tasks import run_chat_generation
 
-                try:
-                    _log_page_context_diag('stream', page_context, request.user)
-                    for event in assistant.send_message_stream(
-                        message, conversation, page_context=page_context,
-                    ):
-                        if event['type'] == 'token':
-                            token_count += 1
-                            if first_token_time is None:
-                                first_token_time = time.monotonic()
-                                ttft_ms = (first_token_time - start_time) * 1000
-                                try:
-                                    log_stream_start(user_id, ttft_ms)
-                                except Exception:
-                                    pass
-                            yield (
-                                f"event: token\n"
-                                f"data: {json.dumps({'content': event['content']})}\n\n"
-                            )
-                        elif event['type'] == 'done':
-                            total_ms = (time.monotonic() - start_time) * 1000
-                            try:
-                                log_stream_complete(
-                                    user_id, total_ms, token_count,
-                                )
-                            except Exception:
-                                pass
-                            yield (
-                                f"event: done\n"
-                                f"data: {json.dumps(event['data'])}\n\n"
-                            )
-                        elif event['type'] == 'correction':
-                            # Post-stream validator blocked a hallucination.
-                            # Send correction event so the UI can replace
-                            # the streamed content.
-                            yield (
-                                f"event: correction\n"
-                                f"data: {json.dumps({'content': event['content']})}\n\n"
-                            )
-                        elif event['type'] == 'duplicate_pending':
-                            # Phase 6.8: structured duplicate-suppression
-                            # payload — frontend renders a dedicated card
-                            # echoing the original message with a "View
-                            # latest result" button.
-                            yield (
-                                f"event: duplicate_pending\n"
-                                f"data: {json.dumps(event['data'])}\n\n"
-                            )
-                        elif event['type'] == 'error':
-                            yield (
-                                f"event: error\n"
-                                f"data: {json.dumps({'error': event['error']})}\n\n"
-                            )
-                except Exception as e:
-                    logger.error("Stream error: %s", e, exc_info=True)
-                    yield (
-                        f"event: error\n"
-                        f"data: {json.dumps({'error': 'Stream failed'})}\n\n"
-                    )
+            job_id = str(uuid.uuid4())
+            # Seed the snapshot (with owner) BEFORE dispatch so a resume that
+            # races task pickup still finds an ownership-checkable record.
+            bus.write(job_id, bus.new_snapshot(user_id, conversation.id))
 
-            # Post-response intelligence (same as AssistantChatView)
-            import threading
-
-            def _post_response_intelligence():
-                try:
-                    # Allow stream to complete first
-                    time.sleep(0.5)
-                    from apps.ai.personal_assistant import PersonalAssistant
-                    pa = PersonalAssistant(request.user)
-                    # Extract learning
-                    try:
-                        from apps.ai.learning_extraction import extract_learning
-                        extract_learning(request.user, message, '')
-                    except Exception as e:
-                        logger.debug("Stream post-response learning extraction failed: %s", e)
-                    # Detect corrections
-                    try:
-                        from apps.ai.correction_detector import detect_correction
-                        detect_correction(request.user, message, conversation)
-                    except Exception as e:
-                        logger.debug("Stream post-response correction detection failed: %s", e)
-                    # Detect patterns
-                    try:
-                        from apps.ai.pattern_detector import detect_patterns
-                        detect_patterns(request.user, message, '')
-                    except Exception as e:
-                        logger.debug("Stream post-response pattern detection failed: %s", e)
-                    # Life fact extraction — captures biographical details
-                    try:
-                        from apps.core.ai_memory.life_fact_extractor import (
-                            extract_life_facts_from_message,
-                        )
-                        extract_life_facts_from_message(request.user, message, '')
-                    except Exception as e:
-                        logger.debug("Stream post-response life fact extraction failed: %s", e)
-                except Exception as e:
-                    logger.warning("Stream post-response intelligence failed: %s", e)
-
-            threading.Thread(
-                target=_post_response_intelligence, daemon=True,
-            ).start()
+            # In eager mode (dev/tests, CELERY_TASK_ALWAYS_EAGER) this runs
+            # inline and fully populates the snapshot before returning; the
+            # relay below then streams it in one pass. In production it
+            # returns immediately and a worker generates independently.
+            run_chat_generation.delay(
+                user_id, conversation.id, message, page_context, job_id,
+            )
+            logger.info(
+                "CHAT_TASK_DISPATCHED job=%s user=%s conv=%s",
+                job_id, user_id, conversation.id,
+            )
 
             response = StreamingHttpResponse(
-                event_stream(),
+                _chat_relay_stream(job_id, user_id),
                 content_type='text/event-stream',
             )
             response['Cache-Control'] = 'no-cache'
@@ -1136,6 +1155,55 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
                 {'success': False, 'error': 'Failed to start stream'},
                 status=500,
             )
+
+
+class AssistantChatResumeView(LoginRequiredMixin, AssistantMixin, View):
+    """
+    Reconnect to an in-progress (or just-finished) chat generation by job_id.
+
+    GET /assistant/api/chat/stream/resume/<job_id>/
+    Response: text/event-stream (same framing as the initial stream)
+
+    Security: the snapshot records the user id that created the job; a
+    mismatch returns 403 (requirement 7). An expired/unknown job returns 410
+    so the client falls back to loading the completed message from history.
+    """
+
+    def get(self, request, *args, **kwargs):
+        from django.http import StreamingHttpResponse
+        from apps.ai import chat_stream_bus as bus
+
+        job_id = kwargs.get('job_id')
+        snap = bus.read(job_id)
+        if snap is None:
+            logger.info(
+                "CHAT_RESUME_FROM_PERSISTED job=%s user=%s — snapshot "
+                "expired; client loads completed message from history",
+                job_id, request.user.id,
+            )
+            return JsonResponse(
+                {'success': False, 'status': 'expired'}, status=410,
+            )
+        if snap.get('owner') != request.user.id:
+            logger.warning(
+                "CHAT_RESUME_FORBIDDEN job=%s user=%s owner=%s",
+                job_id, request.user.id, snap.get('owner'),
+            )
+            return JsonResponse(
+                {'success': False, 'error': 'Forbidden'}, status=403,
+            )
+
+        logger.info(
+            "CHAT_RESUME_ATTACHED job=%s user=%s status=%s",
+            job_id, request.user.id, snap.get('status'),
+        )
+        response = StreamingHttpResponse(
+            _chat_relay_stream(job_id, request.user.id),
+            content_type='text/event-stream',
+        )
+        response['Cache-Control'] = 'no-cache'
+        response['X-Accel-Buffering'] = 'no'
+        return response
 
 
 class ConversationHistoryView(LoginRequiredMixin, AssistantMixin, View):

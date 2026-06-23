@@ -1827,6 +1827,20 @@
                 showEmptyState();
             }
 
+            // P0 navigation fix: if a request is still pending with a job_id
+            // (the user navigated away mid-generation and it has not been
+            // recovered above), reattach to the live generation by job_id.
+            // The resume endpoint streams the in-progress answer, or returns
+            // 410/403 → reconnectToJob falls back to a history refresh.
+            try {
+                var _pendingJob = getPendingRequest();
+                if (_pendingJob && _pendingJob.job_id) {
+                    reconnectToJob(_pendingJob.job_id, null, '');
+                }
+            } catch (_rcErr) {
+                console.debug('Reconnect check failed:', _rcErr);
+            }
+
             // v7: Trigger proactive briefing after history loads
             maybeTriggerBriefing(data);
 
@@ -2510,6 +2524,18 @@
         } catch (e) { return null; }
     }
 
+    // P0 navigation fix: record the backend job_id on the pending marker so
+    // that, after navigation/refresh, we can reconnect to the in-progress
+    // generation by job_id (resume endpoint) instead of losing the stream.
+    function markPendingJob(jobId) {
+        try {
+            var raw = sessionStorage.getItem(CHAT_PENDING_KEY);
+            var obj = raw ? JSON.parse(raw) : {};
+            obj.job_id = jobId;
+            sessionStorage.setItem(CHAT_PENDING_KEY, JSON.stringify(obj));
+        } catch (e) { /* storage unavailable */ }
+    }
+
     // Debounced input-change handler — persist draft on every keystroke
     var _draftSaveTimer = null;
     input.addEventListener('input', function() {
@@ -2583,17 +2609,23 @@
     }
 
     // Phase 6.7: called when the server acknowledges receipt of a
-    // message. Clears the input, draft, and pending marker.
+    // message. Clears the input and draft.
+    // P0 navigation fix: do NOT clear the pending marker here — it now
+    // carries the job_id needed to reconnect if the user navigates away
+    // mid-generation. The marker is cleared on 'done'/'error' instead.
     function onRequestAcknowledged() {
         input.value = '';
         clearDraft();
-        clearPendingRequest();
     }
 
     // Streaming path — SSE via fetch + ReadableStream
     async function sendMessageStreaming(message, sendContext, savedMessage) {
         var controller = new AbortController();
-        var timeoutId = setTimeout(function() { controller.abort(); }, 60000);
+        // P0 navigation fix: the server relay self-caps at ~90s and emits a
+        // 'timeout' event telling us to reconnect by job_id, so the client
+        // abort is only a last-resort safety net — set it well above the
+        // relay cap so the relay's own timeout fires first.
+        var timeoutId = setTimeout(function() { controller.abort(); }, 130000);
 
         // Create message element BEFORE fetch so it exists in DOM immediately
         var msgEl = createStreamingMessage();
@@ -2678,7 +2710,22 @@
                         continue; // skip malformed JSON
                     }
 
-                    if (eventType === 'token' && evt.content) {
+                    if (eventType === 'job' && evt.job_id) {
+                        // P0 navigation fix: persist the backend job_id so we
+                        // can reconnect to this generation after navigation,
+                        // refresh, or tab change.
+                        markPendingJob(evt.job_id);
+                    } else if (eventType === 'timeout') {
+                        // Relay self-capped but generation is still running.
+                        // Reconnect by job_id to keep observing it; carry the
+                        // in-progress bubble + text forward.
+                        clearTimeout(timeoutId);
+                        try { reader.cancel(); } catch (e) { /* ignore */ }
+                        if (evt.job_id) {
+                            await reconnectToJob(evt.job_id, msgEl, fullText);
+                        }
+                        return;
+                    } else if (eventType === 'token' && evt.content) {
                         if (firstToken) {
                             hideTyping();
                             firstToken = false;
@@ -2705,6 +2752,10 @@
                         // (duplicate) request — clear input + draft.
                         onRequestAcknowledged();
                     } else if (eventType === 'done') {
+                        // P0 navigation fix: generation finished — the answer
+                        // is persisted and rendered, so drop the reconnect
+                        // marker.
+                        clearPendingRequest();
                         finalizeStreamingMessage(msgEl, fullText);
                         // Render structured options from done event
                         if (evt.options && evt.options.length) {
@@ -2728,6 +2779,7 @@
                             });
                         }
                     } else if (eventType === 'error') {
+                        clearPendingRequest();
                         if (fullText) {
                             finalizeStreamingMessage(msgEl, fullText);
                         } else {
@@ -2765,6 +2817,119 @@
                 showTyping();
                 await sendMessageNonStreaming(message, sendContext, null, savedMessage);
             }
+        }
+    }
+
+    // P0 navigation fix: reconnect to an in-progress generation by job_id.
+    // Used (a) when the relay emits a 'timeout' event mid-stream, and (b) on
+    // drawer/page load when a pending marker still carries a job_id (the user
+    // navigated away while generating). The resume endpoint replays the FULL
+    // accumulated answer from the start, so we rebuild fullText fresh. Falls
+    // back to a history refresh if the job has expired/completed (410) or the
+    // caller isn't its owner (403).
+    async function reconnectToJob(jobId, existingMsgEl, existingText) {
+        var msgEl = existingMsgEl || createStreamingMessage();
+        if (existingText) { msgEl.textContent = existingText; }
+        // Resume replays from cursor 0 — start fresh to avoid duplication.
+        var fullText = '';
+        var controller = new AbortController();
+        var timeoutId = setTimeout(function() { controller.abort(); }, 130000);
+        try {
+            var response = await fetch(
+                '/assistant/api/chat/stream/resume/'
+                    + encodeURIComponent(jobId) + '/',
+                { method: 'GET', signal: controller.signal }
+            );
+            clearTimeout(timeoutId);
+
+            var contentType = response.headers.get('content-type') || '';
+            if (!response.ok
+                || contentType.indexOf('text/event-stream') === -1) {
+                // 410 expired / 403 forbidden / completed — the final message
+                // is already persisted. Drop the placeholder and load it from
+                // history.
+                if (!existingMsgEl && msgEl && msgEl.parentNode) msgEl.remove();
+                clearPendingRequest();
+                refreshHistory();
+                return;
+            }
+
+            hideTyping();
+            var reader = response.body.getReader();
+            var decoder = new TextDecoder();
+            var buffer = '';
+
+            while (true) {
+                var result = await reader.read();
+                if (result.done) break;
+                buffer += decoder.decode(result.value, {stream: true});
+                var parts = buffer.split('\n\n');
+                buffer = parts.pop();
+                for (var i = 0; i < parts.length; i++) {
+                    var part = parts[i].trim();
+                    if (!part) continue;
+                    var eventType = 'message';
+                    var dataStr = '';
+                    var lines = part.split('\n');
+                    for (var j = 0; j < lines.length; j++) {
+                        if (lines[j].indexOf('event: ') === 0) eventType = lines[j].substring(7);
+                        else if (lines[j].indexOf('data: ') === 0) dataStr = lines[j].substring(6);
+                    }
+                    if (!dataStr) continue;
+                    var evt;
+                    try { evt = JSON.parse(dataStr); } catch (e) { continue; }
+
+                    if (eventType === 'token' && evt.content) {
+                        fullText += evt.content;
+                        msgEl.textContent = fullText;
+                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                    } else if (eventType === 'correction') {
+                        fullText = evt.content || fullText;
+                        msgEl.textContent = fullText;
+                    } else if (eventType === 'duplicate_pending') {
+                        if (!existingMsgEl && msgEl && msgEl.parentNode) msgEl.remove();
+                        renderDuplicatePending(evt);
+                        clearPendingRequest();
+                    } else if (eventType === 'done') {
+                        clearPendingRequest();
+                        finalizeStreamingMessage(msgEl, fullText);
+                        if (evt.options && evt.options.length) renderOptions(evt.options);
+                        if (evt.navigation && evt.navigation.url) renderNavigation(evt.navigation);
+                        if (evt.request_id) {
+                            applyLifecycleBadge(msgEl, {
+                                request_id: evt.request_id,
+                                status: 'completed',
+                                stream_interrupted: false,
+                            });
+                        }
+                    } else if (eventType === 'timeout') {
+                        try { reader.cancel(); } catch (e) { /* ignore */ }
+                        if (evt.job_id) {
+                            await reconnectToJob(evt.job_id, msgEl, fullText);
+                        }
+                        return;
+                    } else if (eventType === 'error') {
+                        // Snapshot expired mid-reconnect — fall back to history.
+                        clearPendingRequest();
+                        if (fullText) {
+                            finalizeStreamingMessage(msgEl, fullText);
+                        } else {
+                            if (!existingMsgEl && msgEl && msgEl.parentNode) msgEl.remove();
+                            refreshHistory();
+                        }
+                        return;
+                    }
+                }
+            }
+            if (fullText) finalizeStreamingMessage(msgEl, fullText);
+        } catch (error) {
+            clearTimeout(timeoutId);
+            console.warn('Reconnect failed:', error);
+            if (!existingMsgEl && msgEl && msgEl.parentNode && !fullText) {
+                msgEl.remove();
+            }
+            // Best-effort: pull the final answer from history.
+            refreshHistory();
         }
     }
 

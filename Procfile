@@ -26,6 +26,13 @@
 web: python manage.py migrate --noinput && python manage.py load_sports_data && python manage.py collectstatic --noinput && gunicorn config.wsgi --preload --log-file - --workers 4 --timeout 30
 worker: celery -A config worker --loglevel=info --concurrency=2
 beat: celery -A config beat --loglevel=info
+# Optional dedicated chat worker (P0 navigation fix). Isolates long-running
+# interactive LLM generation from scheduled tasks. Pair with env
+# CHAT_GENERATION_QUEUE=chat on the web + worker services. Until this worker
+# exists, CHAT_GENERATION_QUEUE defaults to "celery" and the worker above
+# handles chat (shared pool — documented risk in config/settings.py).
+chatworker: celery -A config worker -Q chat --loglevel=info --concurrency=2
+# Updated: 2026-06-23 — Added optional chatworker for dedicated chat queue
 # Updated: 2026-05-20 — Added "Procfile is NOT what Railway runs" warning header
 # Previously: 2026-03-16 — Removed APScheduler, all scheduling via Celery Beat
 #
@@ -36,6 +43,8 @@ beat: celery -A config beat --loglevel=info
 #
 # Worker service:
 #   - Celery worker consumes tasks from Redis queue (concurrency=2)
+#   - Also consumes chat generation UNLESS CHAT_GENERATION_QUEUE=chat is set
+#     and a dedicated chatworker (-Q chat) is deployed (recommended).
 #
 # Beat service:
 #   - Celery Beat schedules ALL periodic tasks (SAME, ISE, reminders, cleanup, COAS)

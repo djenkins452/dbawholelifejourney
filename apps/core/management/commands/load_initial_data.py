@@ -1084,6 +1084,8 @@ class Command(BaseCommand):
         # Rhythms stay completable until midnight (PK 211)
         self._reset_rhythm_end_of_day_release_notes(DataLoadConfig, force, verbosity)
         self._reset_exec_briefing_coherence_release_notes(DataLoadConfig, force, verbosity)
+        # Background chat generation (PK 213)
+        self._reset_background_chat_release_notes(DataLoadConfig, force, verbosity)
 
         # One-time: Reload fixtures for Routine History (release note PK 210,
         # help topic PK 157, teaching destination PK 187)
@@ -7365,6 +7367,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset rhythm end-of-day release notes FAILED: {e}'))
+
+    def _reset_background_chat_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes after adding PK 213 (background
+        chat generation — responses continue and persist when the user
+        navigates away / refreshes, and reconnect live on return).
+        """
+        reset_tracker_name = 'reset_background_chat_2026_06_23'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for background chat generation (PK 213)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for background chat generation',
+                'command',
+                'One-time reset: added PK 213 for background chat generation'
+            )
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset background chat release notes FAILED: {e}'))
 
     def _reset_exec_briefing_coherence_release_notes(self, DataLoadConfig, force=False, verbosity=1):
         """

@@ -13,10 +13,168 @@ These tasks run via Celery Beat to maintain CoS responsiveness for active users.
 """
 
 import logging
+import time
 
 from celery import shared_task
+from celery.exceptions import SoftTimeLimitExceeded
 
 logger = logging.getLogger(__name__)
+
+
+@shared_task(
+    name="apps.ai.tasks.run_chat_generation",
+    bind=True,
+    # No retries / no late-ack: a retry or redelivery would generate a
+    # SECOND assistant message for the same question. Losing a job on a
+    # worker crash is preferable to duplicating a reply.
+    max_retries=0,
+    acks_late=False,
+    soft_time_limit=110,
+    time_limit=120,
+)
+def run_chat_generation(self, user_id, conversation_id, message,
+                        page_context, job_id):
+    """
+    Own the LLM generation for one chat turn, independent of the browser.
+
+    This is the heart of the P0 navigation fix. Generation runs here as a
+    plain function call (NOT inside an HTTP response generator), so a client
+    disconnecting cannot raise ``GeneratorExit`` into it. Tokens and control
+    events are relayed into a cache snapshot via ``chat_stream_bus``; the web
+    relay (and any later resume) merely observe that snapshot.
+
+    The assistant message itself is persisted by ``send_message_stream``'s own
+    finally-block on completion — unchanged. Reasoning logic is untouched.
+
+    Telemetry markers: CHAT_TASK_STARTED / CHAT_TASK_COMPLETED /
+    CHAT_TASK_FAILED / CHAT_TASK_TIMEOUT.
+    """
+    from django.contrib.auth import get_user_model
+
+    from apps.ai import chat_stream_bus as bus
+    from apps.ai.models import AssistantConversation
+    from apps.ai.personal_assistant import PersonalAssistant
+
+    User = get_user_model()
+    started = time.monotonic()
+    logger.info(
+        "CHAT_TASK_STARTED job=%s user=%s conv=%s",
+        job_id, user_id, conversation_id,
+    )
+
+    # The view writes an initial snapshot (with owner) before dispatch; fall
+    # back to a fresh one if it expired between dispatch and pickup.
+    snap = bus.read(job_id) or bus.new_snapshot(user_id, conversation_id)
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        snap["status"] = "failed"
+        bus.write(job_id, snap)
+        logger.error("CHAT_TASK_NO_USER job=%s user=%s", job_id, user_id)
+        return
+
+    snap["status"] = "processing"
+    bus.write(job_id, snap)
+
+    _last_flush = 0.0
+    _FLUSH_INTERVAL = 0.12  # seconds — bounds snapshot write frequency
+    _first_token_ms = None
+    _token_count = 0
+
+    def _flush(force=False):
+        nonlocal _last_flush
+        now = time.monotonic()
+        if force or (now - _last_flush) >= _FLUSH_INTERVAL:
+            bus.write(job_id, snap)
+            _last_flush = now
+
+    try:
+        assistant = PersonalAssistant(user)
+        try:
+            conversation = AssistantConversation.objects.get(
+                id=conversation_id, user=user,
+            )
+        except AssistantConversation.DoesNotExist:
+            conversation = assistant.get_or_create_conversation()
+
+        for event in assistant.send_message_stream(
+            message, conversation, page_context=page_context or {},
+        ):
+            etype = event.get("type")
+            if etype == "token":
+                if _first_token_ms is None:
+                    _first_token_ms = (time.monotonic() - started) * 1000
+                _token_count += 1
+                snap["text"] += event.get("content", "")
+                _flush()
+            else:
+                # Relay control events (done / correction / duplicate_pending
+                # / error) verbatim so the observer re-emits identical SSE.
+                snap["events"].append(event)
+                _flush(force=True)
+
+        snap["status"] = "done"
+        bus.write(job_id, snap)
+        logger.info(
+            "CHAT_TASK_COMPLETED job=%s user=%s chars=%d events=%d "
+            "ttft_ms=%s total_ms=%d tokens=%d",
+            job_id, user_id, len(snap["text"]), len(snap["events"]),
+            round(_first_token_ms) if _first_token_ms else None,
+            round((time.monotonic() - started) * 1000), _token_count,
+        )
+
+        _run_chat_post_response(user, message, conversation)
+
+    except SoftTimeLimitExceeded:
+        snap["status"] = "failed"
+        snap["events"].append(
+            {"type": "error", "error": "Generation timed out"}
+        )
+        bus.write(job_id, snap)
+        logger.error("CHAT_TASK_TIMEOUT job=%s user=%s", job_id, user_id)
+    except Exception as exc:
+        snap["status"] = "failed"
+        if not snap["text"]:
+            snap["events"].append(
+                {"type": "error", "error": "Generation failed"}
+            )
+        bus.write(job_id, snap)
+        logger.error(
+            "CHAT_TASK_FAILED job=%s user=%s err=%s",
+            job_id, user_id, exc, exc_info=True,
+        )
+
+
+def _run_chat_post_response(user, message, conversation):
+    """
+    Post-response intelligence, relocated from the streaming view's daemon
+    thread. Each extractor is independently guarded — a failure here must
+    never mark the chat turn as failed. (Mirrors prior view behaviour, which
+    passed an empty response string to these extractors.)
+    """
+    try:
+        from apps.ai.learning_extraction import extract_learning
+        extract_learning(user, message, "")
+    except Exception as e:
+        logger.debug("Chat post-response learning extraction failed: %s", e)
+    try:
+        from apps.ai.correction_detector import detect_correction
+        detect_correction(user, message, conversation)
+    except Exception as e:
+        logger.debug("Chat post-response correction detection failed: %s", e)
+    try:
+        from apps.ai.pattern_detector import detect_patterns
+        detect_patterns(user, message, "")
+    except Exception as e:
+        logger.debug("Chat post-response pattern detection failed: %s", e)
+    try:
+        from apps.core.ai_memory.life_fact_extractor import (
+            extract_life_facts_from_message,
+        )
+        extract_life_facts_from_message(user, message, "")
+    except Exception as e:
+        logger.debug("Chat post-response life fact extraction failed: %s", e)
 
 
 @shared_task(

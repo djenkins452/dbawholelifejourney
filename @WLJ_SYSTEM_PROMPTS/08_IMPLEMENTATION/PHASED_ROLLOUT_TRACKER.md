@@ -11,7 +11,7 @@
 | **3** | ChatGPT Integration Layer | ✅ Done (on branch, flag OFF) | Yes (flag-gated) | Natural conversation with dynamic evidence retrieval | `786204bd` |
 | **4** | Decision Surface Reuse | ✅ Done (on branch, flag OFF) | Yes (reuse) | Execution/Risk/Fix answers via existing modes | `9f5b86bf` |
 | **5** | Historical Intelligence | ✅ Done (on branch, flag OFF) | Yes (reuse) | "Have I been here before" — keyword history search | `5b7b44a4` |
-| **6** | Action Execution | ✅ Done (on branch, flag OFF) | Yes (reuse) | CoS that acts — tasks/journal/goals/events via UAIO | `<P6>` |
+| **6** | Action Execution | ✅ Done (on branch, flag OFF) | Yes (reuse) | CoS that acts — tasks/journal/goals/events via UAIO | `e68be088` |
 | **7** | Persistent Conversation Infra | ⬜ Not started | Yes (reuse) | Server-owned execution; survives nav/refresh/disconnect; multi-tab reattach | — |
 | **8** | Chat UI Transition | ⬜ Not started | Yes | ChatGPT path behind a flag; legacy live; rollback ready | — |
 | **9** | Legacy Beth Retirement | ⬜ Not started | Yes (removal) | Legacy conversational orchestration retired | — |
@@ -33,7 +33,7 @@
 | Phase 3 ChatGPT Integration | Complete | feat/chatgpt-cos-transition | `786204bd` | NO — pending real-model live validation |
 | Phase 4 Decision Surface | Complete | feat/chatgpt-cos-transition | `9f5b86bf` | NO — pending real-model live validation |
 | Phase 5 Historical Intelligence | Complete | feat/chatgpt-cos-transition | `5b7b44a4` | NO — rides the 3+4 live-validation gate |
-| Phase 6 Action Execution | Complete | feat/chatgpt-cos-transition | `<P6>` | NO — rides the 3-6 live-validation gate |
+| Phase 6 Action Execution | Complete | feat/chatgpt-cos-transition | `e68be088` | NO — rides the 3-6 live-validation gate |
 
 > **Live validation status (Phase 3+4 merge gate):** the deterministic half is PROVEN against real (non-mocked) services — `dispatch_tool_call` → `get_decision`/`get_domain_state`/`get_standing_context` returns real deterministic truth (e.g. `get_decision('risk')` → "No risks right now." via the real `build_execution_state`+selectors; `purpose`→`goals` SAE alias confirmed). The real-MODEL tool-selection link is NOT yet validated — this environment has no `OPENAI_API_KEY`. Run the harness in a key-bearing safe env to complete the gate:
 > `python manage.py validate_cos_tools --email <you@example.com>`

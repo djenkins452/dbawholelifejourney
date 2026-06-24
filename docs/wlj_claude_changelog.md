@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — feat(cos): Phase 1 — StandingContextService (ChatGPT CoS always-loaded context)
+
+First code phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). HYBRID topology: WLJ keeps orchestration, OpenAI is the reasoning layer, tools are internal Python services reusing existing deterministic providers (wrappable by HTTP endpoints later). **No new intelligence, no new engines, WLJ truth unchanged.**
+
+**Pure-projection extraction (reuse enabler).** `apps/core/ai_orchestrator/cos_context.py`: extracted `build_executive_from_context(context)` from `build_executive_context()` — the executive summary is now derivable from an *existing* (e.g. cached) context dict without a `build_cos_context()` rebuild. `build_executive_context(user)` behavior is unchanged (now calls the helper). Verified transparent: 141 `test_phase4_cos` tests pass.
+
+**StandingContextService** (`apps/ai/cos_services/standing_context.py`, new package): `get_standing_context(user, *, page_context=None, allow_build=False)` returns the minimum always-loaded ChatGPT CoS package (personalization, time/active-block, execution summary, top risks/signals, health summary, priorities, situation/mode, cos_intelligence, trust framing). **Cache-first** via `readiness_cache.get_cached_cos_context` — on a miss it returns a `pending` shell and **never live-computes on the request path** (Law: no heavy compute on request path; `allow_build=True` is reserved for background/warming callers). Read-only, deterministic, JSON-safe, observable (`STANDING_CTX` telemetry). `travel_state` is explicitly `null` (unbuilt domain — never inferred). Designed to be wrapped by an authenticated HTTP endpoint later with zero logic change.
+
+**Tests:** `apps/ai/tests/test_standing_context.py` — 9 tests: pending-on-miss does-not-build, allow_build warms, ready projection reuses cos_context/executive, personalization/modules, current_screen passthrough, list caps, JSON-serializable (ready + pending), and the executive-projection refactor purity. All pass. `manage.py check` clean; `makemigrations --check` clean (no model changes). **Files:** `apps/core/ai_orchestrator/cos_context.py`, `apps/ai/cos_services/__init__.py`, `apps/ai/cos_services/standing_context.py`, `apps/ai/tests/test_standing_context.py`, `docs/ENGINE_COS_REFERENCE.md`, `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/PHASED_ROLLOUT_TRACKER.md`.
+
+
 ## 2026-06-24 — chore(cos): Phase 0 — implementation tracking + transition branch
 
 Phase 0 of the ChatGPT CoS transition (no code changes). Created branch `feat/chatgpt-cos-transition` off the architecture baseline and added implementation-tracking artifacts under `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/`: implementation backlog (per-phase reuse map + anti-pattern watchlist), phased rollout tracker (Phases 0–8), and the gated migration checklist (Gates A–F, Beth→ChatGPT). Establishes the execution scaffold; Phase 1 (standing-context serializer) is the first code phase. **Files:** `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/*`.

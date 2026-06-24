@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — fix(cos): ChatGPT CoS chat hung forever — clean task not registered on the Celery worker
+
+**Symptom:** header + message + typing indicator appear, then the chat hangs indefinitely; no response ever returns.
+
+**Root cause (PROVEN):** `run_chatgpt_cos_generation` lives in `apps/ai/chatgpt_cos/tasks.py`, but Celery's `app.autodiscover_tasks()` (`config/celery.py:38`) only scans `tasks.py` in each INSTALLED_APP. `apps.ai.chatgpt_cos` is a SUB-PACKAGE, not an installed app, so the WORKER never imported it → the task was **unregistered on the worker**. The web process registered it (via the view import) and `.delay()` enqueued the job, but the worker rejected it as an unregistered task → it never ran → the chat_stream_bus snapshot stayed at `queued` → the SSE relay tailed a non-terminal snapshot and the client reconnected forever → infinite "typing". The task body never executed; last worker event = unregistered-task error; last published snapshot = the view's `queued`.
+
+**Fix:** import the task in the autodiscovered `apps/ai/tasks.py` so every worker registers it. Regression test asserts `apps.ai.tasks.run_chatgpt_cos_generation.name == "apps.ai.chatgpt_cos.run_chatgpt_cos_generation"`.
+
+**Hardening (so a hang can never recur):** rewrote `run_chatgpt_cos_generation` to ALWAYS publish a terminal status — the entire body (message persistence + generation) is now under one guard; the `finally` forces `status=failed` if it isn't already terminal, then writes the bus. Lowered soft_time_limit to 95s / time_limit 110s so the SoftTimeLimit handler publishes `failed` BEFORE a hard SIGKILL (which skips `finally`).
+
+**Telemetry (requested):** `COS_REQUEST_START`, `COS_TOOL_LOOP_START/FINISH` (service.py), `COS_OPENAI_START/FINISH` per round (services.py `_call_api_with_tools`), `COS_STREAM_PUBLISH`, `COS_REQUEST_FINISH`, `COS_EXCEPTION` — plus the existing `COS_PATH=chatgpt_clean`/`COS_TOOL` lines. Every request is now traceable end to end.
+
+**Tests:** registration test + existing service/task/routing suite (8). `check` + `makemigrations --check` clean. **Files:** `apps/ai/tasks.py`, `apps/ai/chatgpt_cos/tasks.py`, `apps/ai/chatgpt_cos/service.py`, `apps/ai/services.py`, `apps/ai/tests/test_chatgpt_cos_clean.py`. **Rollback:** toggle `use_chatgpt_cos` off or revert. **Requires `wlj-worker` redeploy** to pick up the registration.
+
+
 ## 2026-06-24 — fix(cos): clean path warms SAE state so tools return real data (not 'pending')
 
 Follow-up to the clean ChatGPT CoS path: `get_domain_state("health")` and `get_standing_context` returned a cold `pending` shell (cause of "I can't see your current weight"). The clean path runs in a background Celery task (no request-path "never live-compute" constraint), so `ChatGPTCoSService.generate` now warms state ONCE up front: `self.user._sae_cache = get_user_state(user, allow_rebuild=True)` (pins the fresh SAE snapshot so every `get_domain_state` tool reads it via the per-request fast path) + `get_standing_context(..., allow_build=True)`. Cheap for warm users (returns existing snapshot); rebuilds only when cold. **Test:** `test_warms_sae_and_standing_context` (allow_rebuild/allow_build passed; snapshot pinned). 3/3 service tests pass; `check` clean. **Files:** `apps/ai/chatgpt_cos/service.py`, `apps/ai/tests/test_chatgpt_cos_clean.py`. **Rollback:** toggle `use_chatgpt_cos` off or revert.

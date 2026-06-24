@@ -231,3 +231,17 @@ def cos_keepalive_task(self):
     except Exception as exc:
         logger.warning("CoS keepalive task failed: %s", exc)
         raise self.retry(exc=exc)
+
+
+# =============================================================================
+# Register the clean ChatGPT CoS generation task with the Celery WORKER.
+# It lives in apps.ai.chatgpt_cos.tasks — a sub-package that
+# `app.autodiscover_tasks()` does NOT scan (chatgpt_cos is not an INSTALLED_APP),
+# so the worker would otherwise never register it. Dispatched jobs would then sit
+# unconsumed and the ChatGPT CoS chat would hang forever (the bus snapshot never
+# reaches a terminal status). Importing the module here — apps.ai.tasks IS
+# autodiscovered — guarantees the task is registered on every worker.
+# =============================================================================
+from apps.ai.chatgpt_cos.tasks import (  # noqa: E402,F401
+    run_chatgpt_cos_generation,
+)

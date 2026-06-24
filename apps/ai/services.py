@@ -571,9 +571,15 @@ class AIService:
                     kwargs["tools"] = tools
                     kwargs["tool_choice"] = "auto"
 
+                logger.info("COS_OPENAI_START endpoint=%s round=%d tools=%s",
+                            endpoint, _round, not last_round)
                 response = self.client.chat.completions.create(**kwargs)
                 msg = response.choices[0].message
                 tool_calls = getattr(msg, "tool_calls", None)
+                logger.info(
+                    "COS_OPENAI_FINISH endpoint=%s round=%d tool_calls=%d",
+                    endpoint, _round, len(tool_calls) if tool_calls else 0,
+                )
 
                 if tool_calls and not last_round:
                     # Echo the assistant tool-call turn, then append tool results.

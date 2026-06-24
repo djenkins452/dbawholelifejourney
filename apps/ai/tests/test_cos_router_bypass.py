@@ -131,6 +131,40 @@ class CoSRouterBypassTests(TestCase):
         self.assertNotIn(_ROUTER_ANSWER, joined)
 
     @override_settings(WLJ_COS_EVIDENCE_TOOLS_ENABLED=False)
+    def test_cos_path_skips_all_legacy_gates(self):
+        # Clean boundary: with CoS on, NO legacy gate runs — not the
+        # deterministic router, not intent recognition (even for an action
+        # phrasing). Everything goes to the tool loop; the model owns the
+        # answer and calls execute_action for writes.
+        self.user.preferences.use_chatgpt_cos = True
+        self.user.preferences.save()
+
+        assistant = PersonalAssistant(self.user)
+        fake_ai = mock.Mock()
+        fake_ai.is_available = True
+        with mock.patch(_INFLIGHT, return_value=None), \
+             mock.patch(_RC1, return_value={"x": 1}), \
+             mock.patch(_RC2, return_value={"x": 1}), \
+             mock.patch("apps.ai.personal_assistant.ai_service", fake_ai), \
+             mock.patch("apps.ai.personal_assistant.AIService.check_user_consent",
+                        return_value=True), \
+             mock.patch(_ROUTER) as router, \
+             mock.patch("apps.ai.intent_service.intent_service.recognize_intents") as recog, \
+             mock.patch.object(PersonalAssistant, "_generate_response_stream",
+                               return_value=iter([_TOOL_ANSWER])) as genstream:
+            tokens = []
+            for ev in assistant.send_message_stream(
+                "Create a task to call the dentist", self.conversation,
+            ):
+                if ev.get("type") in ("token", "correction"):
+                    tokens.append(ev.get("content", ""))
+        # legacy router + intent pipeline never ran; tool loop did
+        router.assert_not_called()
+        recog.assert_not_called()
+        genstream.assert_called_once()
+        self.assertEqual("".join(tokens), _TOOL_ANSWER)
+
+    @override_settings(WLJ_COS_EVIDENCE_TOOLS_ENABLED=False)
     def test_cos_on_for_each_reported_prompt(self):
         self.user.preferences.use_chatgpt_cos = True
         self.user.preferences.save()

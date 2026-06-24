@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — refactor(cos): hard boundary — NO legacy Beth conversation logic in the ChatGPT CoS path
+
+Replaced piecemeal gating with a full boundary audit + fix. When `use_chatgpt_cos=True`, the production streaming chat path (`AssistantChatStreamView` → `run_chat_generation` → `send_message_stream`) now runs: persist → standing context → tool loop → ChatGPT answer → persist, with EVERY legacy conversational gate skipped. WLJ provides truth via tools; ChatGPT owns the final answer. Legacy Beth (flag off) is byte-for-byte unchanged.
+
+**Audit — legacy components gated out of the CoS path (all in `apps/ai/personal_assistant.py::send_message_stream`, each `... and not _cos_evidence_on`):** ECC closure (`:6374`) + ECC detection, affirmation detector, proactive confirmation, pending-CRUD confirmation, pending disambiguation, pending clarification (the shared-condition gates), the Shared Deterministic Router block entry (`:6568`) + its terminal response, the check-in prefilter (`:6626`), and intent recognition / orchestrator execution (`:6653` — actions now flow through the `execute_action` TOOL, not the legacy intent pipeline). Post-LLM overrides already gated in the prior fix: validator-gate replacement (`:6843`), CoS locked-facts replacement (`:6875`); non-streaming locked-facts regeneration (`:2155`) + cos_mode_shortcut (`:1214`) + router terminal (`:1704`).
+
+**Preserved (allowed truth/infrastructure reuse):** SAE/domain state, signals, execution state, decision selectors (via `get_decision`), history/search, the 54 action handlers (via `execute_action` → UAIO + write safety gates), persistent chat/session infra (idempotency lifecycle, message persistence, status, resume), telemetry, stored data. NONE removed.
+
+**Telemetry:** `COS_PATH user=… path=chatgpt|legacy_beth build=clean-boundary-v1` (one per request — proves which path answered). Plus existing `COS_TOOL`/`COS_TOOL_ROUND`/`DOMAIN_STATE`/`SEARCH_HISTORY`/`COS_ACTION`.
+
+**Tests:** `test_cos_router_bypass.py` +1 (`test_cos_path_skips_all_legacy_gates`) — with CoS on, an action phrasing ("Create a task…") runs neither `classify_and_route` nor `recognize_intents`; only the tool loop runs. Full file 5/5; nutrition-trust (legacy Beth) regression unchanged; `check` + `makemigrations --check` clean. Scope: production text chat is always streaming (now fully clean); non-streaming `send_message` is image-only (vision bypasses tools) with its key gates already gated. **Files:** `apps/ai/personal_assistant.py`, `apps/ai/tests/test_cos_router_bypass.py`. **Rollback:** toggle `UserPreferences.use_chatgpt_cos` off (full legacy path restored) or revert.
+
+
 ## 2026-06-24 — fix(cos): ChatGPT CoS answers flapped to the legacy deterministic answer (locked-facts validator override)
 
 **Symptom:** identical prompts ("What should I focus on today?") alternated between the ChatGPT CoS answer and the legacy "Good morning, Danny… Start with Drink Protein Shake" deterministic summary.

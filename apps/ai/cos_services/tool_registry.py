@@ -34,9 +34,11 @@ from django.conf import settings
 
 from apps.ai.cos_services.action_execution import allowed_actions as _allowed_actions
 from apps.ai.cos_services.domain_state import supported_domains
+from apps.ai.cos_services.health_facts import SUPPORTED_FACTS as _SUPPORTED_FACTS
 from apps.ai.cos_services.history_search import SUPPORTED_HISTORY_DOMAINS
 
 ALLOWED_ACTIONS = _allowed_actions()
+ALLOWED_FOUNDATIONAL_FACTS = list(_SUPPORTED_FACTS)
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +79,11 @@ def _h_standing_context(user, **kwargs):
 def _h_domain_state(user, **kwargs):
     from apps.ai.cos_services.domain_state import get_domain_state
     return get_domain_state(user, kwargs.get("domain", ""))
+
+
+def _h_foundational_health_facts(user, **kwargs):
+    from apps.ai.cos_services.health_facts import get_foundational_health_facts
+    return get_foundational_health_facts(user, kwargs.get("keys"))
 
 
 def _h_execute_action(user, **kwargs):
@@ -141,6 +148,43 @@ TOOL_REGISTRY = {
             },
         },
     },
+    "get_foundational_health_facts": {
+        "kind": "read",
+        "enabled": True,
+        "phase": 2,
+        "handler": _h_foundational_health_facts,
+        "schema": {
+            "type": "function",
+            "function": {
+                "name": "get_foundational_health_facts",
+                "description": (
+                    "Return focused, scalar foundational health facts. ALWAYS "
+                    "use this (NOT get_domain_state) for specific factual health "
+                    "questions like: 'what is my current weight?', 'what's my "
+                    "glucose?', 'what was my last glucose reading?', 'how did I "
+                    "sleep?', 'how many calories/protein today?', 'what meds am I "
+                    "taking?', 'how much weight have I lost?'. Pass only the keys "
+                    "you need. Each fact includes value + unit + source; a "
+                    "missing value returns {status:'unknown', reason} — report "
+                    "that honestly, never a generic failure."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "keys": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": ALLOWED_FOUNDATIONAL_FACTS,
+                            },
+                            "description": "Which foundational facts to fetch.",
+                        }
+                    },
+                    "required": ["keys"],
+                },
+            },
+        },
+    },
     "get_domain_state": {
         "kind": "read",
         "enabled": True,
@@ -151,11 +195,16 @@ TOOL_REGISTRY = {
             "function": {
                 "name": "get_domain_state",
                 "description": (
-                    "Return canonical deterministic state for one life domain "
-                    "(e.g. current weight from 'health', prayer/scripture from "
-                    "'faith', stalled goals from 'purpose'). Use when a question "
-                    "is about a specific domain. Never fabricate — if the result "
-                    "status is 'pending' or 'no_state_source', say so."
+                    "Return the FULL canonical state for one life domain — use "
+                    "ONLY for broad/overview questions ('give me a health "
+                    "overview', 'what does my health look like overall', 'what "
+                    "patterns do you see'). For a SPECIFIC scalar health fact "
+                    "(weight, glucose, sleep, calories, protein, meds) use "
+                    "get_foundational_health_facts instead — the full domain is "
+                    "large and may be truncated. Domains: 'faith' (prayer/"
+                    "scripture), 'purpose' (goals), 'journal', 'relationships', "
+                    "'meals', 'calendar', 'finance', etc. If the status is "
+                    "'pending' or 'no_state_source', say so."
                 ),
                 "parameters": {
                     "type": "object",

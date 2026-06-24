@@ -36,6 +36,10 @@ from apps.ai.cos_services.domain_state import (
     get_domain_state,
     supported_domains,
 )
+from apps.ai.cos_services.health_facts import (
+    SUPPORTED_FACTS,
+    get_foundational_health_facts,
+)
 from apps.ai.cos_services.history_search import (
     SUPPORTED_HISTORY_DOMAINS,
     search_history,
@@ -65,6 +69,9 @@ __all__ = [
     "enabled_tool_names",
     "evidence_tools_enabled",
     "dispatch_tool_call",
+    # Foundational health facts (focused, scalar)
+    "get_foundational_health_facts",
+    "SUPPORTED_FACTS",
     # Phase 5
     "search_history",
     "SUPPORTED_HISTORY_DOMAINS",

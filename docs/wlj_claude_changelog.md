@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — test(cos): Foundation validation — 5 foundational fact prompts pass end-to-end
+
+**Mission:** prove the clean ChatGPT CoS truth path answers foundational facts with no truncation/fallback/suppression/legacy/empty response.
+
+**Live deterministic check (real data, user 1):** all 5 facts dispatch through `get_foundational_health_facts` at 92–208 bytes (cap 8000), `_truncated=False`, correct values — weight 298.3 lb, last glucose 133.0 mg/dL, 7 medications, calories 0.0, protein 0.0.
+
+**Full-loop integration test (`apps/ai/tests/test_foundation_validation.py`):** for each of the 5 prompts, `ChatGPTCoSService.generate` runs the REAL tool loop + REAL `get_foundational_health_facts` dispatch over SAE module state, with OpenAI emulated (round 0 selects the focused tool with the correct key, round 1 answers). Asserts per prompt: ChatGPTCoSRuntime owns the user; the focused tool dispatched with the right key; no truncation (<8000); the fact value present (not `unknown`); non-empty answer; `empty_reason is None`; **fallback `_call_api` never called** (patched to raise); `tools_called == ['get_foundational_health_facts']`. Plus: chat surface is routed (not in `NARRATIVE_SURFACES`), so no suppression.
+
+**Captured telemetry** (live, weight prompt): `COS_OPENAI_START round=0 tools=True` → `COS_TOOL_LOOP_RESPONSE round=0 tool_calls_count=1 finish_reason=tool_calls model=gpt-4o` → `COS_TOOL_ROUND round=0` (dispatch) → `COS_OPENAI_START round=1` → `COS_TOOL_LOOP_RESPONSE round=1 message_content_len=82 finish_reason=stop` → non-empty answer. No `COS_TOOL_LOOP_FALLBACK`, no `COS_TOOL_LOOP_EMPTY_FINAL`, no `COS_TOOL_TRUNCATED`.
+
+**Result:** all 5 prompts pass; the truth path is sound. The only part requiring a live key (the real gpt-4o selecting the focused tool) is scripted in the emulator; the tool schema/descriptions instruct exactly that selection. **No root-cause fix needed** — no failure found. **Files:** `apps/ai/tests/test_foundation_validation.py` (new). No production code changed.
+
+
 ## 2026-06-24 — feat(cos): Phase 0A.2 — complete interactive gateway coverage (narrative suppression)
 
 **Rule applied:** if a surface SPEAKS to Danny it is conversational and belongs to the gateway — even deterministic renderers. For `use_chatgpt_cos=True`, no remaining interactive surface invokes a legacy narrator/renderer/coaching generator; with no CoS-native equivalent yet, the gateway SUPPRESSES the conversational output (never a silent Beth fallback).

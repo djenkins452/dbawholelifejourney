@@ -8,7 +8,7 @@
 | **0** | Preserve Architecture Baseline | ✅ Done | No | Baseline committed; branch + trackers created | `a2e94d2b` (main), this branch |
 | **1** | Standing Context Foundation | ✅ Done (on branch) | Yes (read-only) | Aware CoS — "how am I doing" from standing context | `d1dcd9b0` |
 | **2** | Generic Domain Access | ✅ Done (on branch) | Yes (read-only) | Holistic read CoS — any domain via `get_domain_state` | `f8cc390d` |
-| **3** | ChatGPT Integration Layer | ✅ Done (on branch, flag OFF) | Yes (flag-gated) | Natural conversation with dynamic evidence retrieval | `980b49a7` |
+| **3** | ChatGPT Integration Layer | ✅ Done (on branch, flag OFF) | Yes (flag-gated) | Natural conversation with dynamic evidence retrieval | `786204bd` |
 | **4** | Decision Surface Reuse | ⬜ Not started | Yes (reuse) | Execution/Risk/Fix answers via existing modes | — |
 | **5** | Historical Intelligence | ⬜ Not started | Yes (reuse) | "Have I been here before" — time-based history | — |
 | **6** | Action Execution | ⬜ Not started | Yes (reuse) | CoS that acts — tasks/journal/goals/events via UAIO | — |
@@ -30,7 +30,7 @@
 | Phase 0 Tracking | Complete | feat/chatgpt-cos-transition | `a1e9325b` | Yes |
 | Phase 1 Standing Context | Complete | feat/chatgpt-cos-transition | `d1dcd9b0` | Yes (dormant/unwired) |
 | Phase 2 Domain Access | Complete | feat/chatgpt-cos-transition | `f8cc390d` | Yes (merged `f7eea159`) |
-| Phase 3 ChatGPT Integration | Complete | feat/chatgpt-cos-transition | `980b49a7` | Flag-gated OFF — see note |
+| Phase 3 ChatGPT Integration | Complete | feat/chatgpt-cos-transition | `786204bd` | Flag-gated OFF — see note |
 | Phase 4 Decision Surface | Pending | — | — | — |
 | Phase 5 Historical Intelligence | Pending | — | — | — |
 | Phase 6 Action Execution | Pending | — | — | — |

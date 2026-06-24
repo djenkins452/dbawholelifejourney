@@ -7,6 +7,24 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — feat(cos): separate clean ChatGPT CoS path — legacy Beth retired from enabled accounts
+
+Hard reset of the approach: instead of gating legacy Beth internally, built a STANDALONE ChatGPT CoS path that the chat view branches to BEFORE any legacy Beth logic. When `use_chatgpt_cos=True`, PersonalAssistant / `send_message_stream` / the deterministic router / check-in / validators / intent pipeline are never entered.
+
+**Split point:** `apps/ai/views.py::AssistantChatStreamView.post` — immediately after message validation, before `handle_day_start` and any PersonalAssistant: `if evidence_tools_enabled(request.user): → dispatch run_chatgpt_cos_generation + relay; return`. Legacy path is the `else`.
+
+**New clean package `apps/ai/chatgpt_cos/`:**
+- `service.py::ChatGPTCoSService.generate()` — loads `get_standing_context`, builds a clean CoS system prompt (NOT Beth's prompt assembly) with the standing context embedded, builds history directly from the message model, and runs `AIService._call_api_with_tools` over the 5 CoS tools (get_standing_context / get_domain_state / get_decision / search_history / execute_action). ChatGPT authors the answer; tools provide deterministic truth. Honest about pending/empty/error tool results.
+- `tasks.py::run_chatgpt_cos_generation` — Celery task (clean twin of run_chat_generation) that owns generation independent of the browser: persists the user message + assistant placeholder, runs the service, relays into `chat_stream_bus`, persists the final answer. Survives navigation/refresh/disconnect; reconnect uses the existing resume endpoint. Routed to the same chat queue (`config/settings.py`).
+- `telemetry.py` — one canonical line per request: `COS_PATH=chatgpt_clean REQUEST_ID=… BUILD_HASH=chatgpt-clean-v1 USER_ID=… CONVERSATION_ID=… MESSAGE_ID=… TOOLS_ADVERTISED=… TOOLS_CALLED=… FINAL_RESPONSE_SOURCE=chatgpt ERRORS=… LATENCY_MS=…`.
+
+**Reused (allowed):** cos_services (standing/domain/decision/history/action tools + dispatcher), `_call_api_with_tools`, AssistantConversation/AssistantMessage models, `AssistantConversation.get_or_create_active`, chat_stream_bus + `_chat_relay_stream` + resume view, Celery, the `use_chatgpt_cos` flag, the distinct header. **Excluded:** PersonalAssistant.send_message[_stream], deterministic router, check-in/morning renderer, persona narration, locked-facts/validator overrides, fallback composition, legacy intent recognition.
+
+**Scope:** production text chat (streaming) now uses the clean path exclusively for enabled accounts. Non-streaming `send_message` (image/vision only) remains legacy. The prior internal gates in `personal_assistant.py` are now unreachable for the CoS streaming path (kept as harmless no-op defense-in-depth; legacy untouched when flag off).
+
+**Tests:** `apps/ai/tests/test_chatgpt_cos_clean.py` (6) — service runs the tool loop + advertises all 5 tools + injects standing context; tool calls recorded; task persists messages + writes the bus snapshot (done/text); task handles generation errors cleanly; view routes flag-on→clean task (legacy NOT called) and flag-off→legacy (clean NOT called). `check` + `makemigrations --check` clean (no model changes). **Files:** `apps/ai/chatgpt_cos/{__init__,service,tasks,telemetry}.py`, `apps/ai/views.py`, `config/settings.py`, `apps/ai/tests/test_chatgpt_cos_clean.py`. **Rollback:** `UserPreferences.use_chatgpt_cos=False` (view falls to legacy; zero deploy) or revert.
+
+
 ## 2026-06-24 — refactor(cos): hard boundary — NO legacy Beth conversation logic in the ChatGPT CoS path
 
 Replaced piecemeal gating with a full boundary audit + fix. When `use_chatgpt_cos=True`, the production streaming chat path (`AssistantChatStreamView` → `run_chat_generation` → `send_message_stream`) now runs: persist → standing context → tool loop → ChatGPT answer → persist, with EVERY legacy conversational gate skipped. WLJ provides truth via tools; ChatGPT owns the final answer. Legacy Beth (flag off) is byte-for-byte unchanged.

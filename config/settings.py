@@ -1146,6 +1146,8 @@ CELERY_RESULT_SERIALIZER = "json"
 CHAT_GENERATION_QUEUE = env("CHAT_GENERATION_QUEUE", default="celery")
 CELERY_TASK_ROUTES = {
     "apps.ai.tasks.run_chat_generation": {"queue": CHAT_GENERATION_QUEUE},
+    # Clean ChatGPT CoS generation shares the same interactive-chat queue.
+    "apps.ai.chatgpt_cos.run_chatgpt_cos_generation": {"queue": CHAT_GENERATION_QUEUE},
 }
 
 # Timezone — match Django

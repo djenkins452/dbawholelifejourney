@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — fix(cos): ChatGPT CoS returned the same deterministic answer for every query (router pre-empted the tool loop)
+
+**Symptom:** with the ChatGPT CoS enabled, "What should I focus on?", "What is my biggest risk?", and "What is my current weight?" all returned the SAME deterministic morning-execution summary — the tool loop never ran.
+
+**Root cause (PROVEN by code trace, classification = Streaming path bypass):** the chat panel uses streaming (`run_chat_generation` → `send_message_stream`). At `apps/ai/personal_assistant.py:6538`, the Shared Deterministic Router `classify_and_route()` runs and, for terminal routes, sets `_direct_response = _route_result_stream.response` (`:6543`) — which is yielded directly. The ChatGPT tool loop in `_generate_response_stream` is the LAST resort, reached ONLY when `_direct_response is None`. Decision/focus/risk/health queries all have terminal deterministic routes, so they were answered by the router and NEVER reached the model. Enabling the flag changed nothing for them. (Non-streaming `send_message` had the same issue via `_cos_mode_shortcut` `:1214` and the router terminal `:1704`.)
+
+**Smallest safe fix:** when `evidence_tools_enabled(user)` is True, the deterministic answer-routers do NOT emit a terminal response, so reasoning/decision/data queries fall through to the tool loop. The router still runs for its domain/skip_intent metadata. When OFF (legacy Beth) behavior is byte-for-byte unchanged. Gated 3 sites: streaming router terminal (`personal_assistant.py:6543`), non-streaming `_cos_mode_shortcut` (`:1214`), non-streaming router terminal (`:1704`). No redesign, no new orchestrator, no prompt tuning.
+
+**Tests:** `apps/ai/tests/test_cos_router_bypass.py` (3) — drives `send_message_stream` with the router + LLM stream mocked: CoS OFF → router's terminal answer used (legacy); CoS ON → bypassed, tool loop runs; all four reported prompts (focus/risk/weight/faith) reach the tool loop. Regression: nutrition-trust deterministic-routing tests (CoS off) unchanged. Full sweep green; `check` + `makemigrations --check` clean. **Files:** `apps/ai/personal_assistant.py`, `apps/ai/tests/test_cos_router_bypass.py`. **Rollback:** toggle `UserPreferences.use_chatgpt_cos` off (legacy router restored) or revert this commit.
+
+
 ## 2026-06-24 — feat(cos): per-account ChatGPT CoS enablement + enable for owner (Alpha User #1)
 
 Single-user deployment strategy: ship the ChatGPT CoS (Phases 3–7) to production, enabled ONLY for the owner; legacy Beth stays the global default. **Per-account, not global.**

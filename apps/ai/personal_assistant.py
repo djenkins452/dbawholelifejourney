@@ -1204,13 +1204,25 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
         if not conversation:
             conversation = self.get_or_create_conversation()
 
+        # ChatGPT CoS per-account gate (parity with send_message_stream): when
+        # enabled for this user, the model answers reasoning/decision/data
+        # queries via its tool loop, so the deterministic shortcuts below must
+        # not pre-empt it. Off = legacy Beth, unchanged.
+        try:
+            from apps.ai.cos_services.tool_registry import (
+                evidence_tools_enabled as _cos_enabled,
+            )
+            _cos_evidence_on = bool(_cos_enabled(self.user))
+        except Exception:
+            _cos_evidence_on = False
+
         # ── Deterministic CoS decision-mode shortcut ──
         # Three keyword-routed queries ("what should I do" / "biggest risk"
         # / "what should I fix") bypass the LLM and intent pipeline entirely.
         # The state, selectors, and message text are 100% deterministic and
         # share the same execution_state contract used by Action Center.
         # See apps/ai/cos_mode_router.py + apps/core/execution/selectors.py.
-        if not (image_data or images_list):
+        if not (image_data or images_list) and not _cos_evidence_on:
             shortcut = self._cos_mode_shortcut(message, conversation)
             if shortcut is not None:
                 return shortcut
@@ -1700,8 +1712,11 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                         conversation=conversation,
                     )
 
-                    # Terminal routes: response is complete, skip LLM
-                    if _route_result.is_terminal and _route_result.response:
+                    # Terminal routes: response is complete, skip LLM.
+                    # ChatGPT CoS: when enabled, let reasoning/decision/data
+                    # queries fall through to the tool loop instead.
+                    if (_route_result.is_terminal and _route_result.response
+                            and not _cos_evidence_on):
                         response = _route_result.response
                         # Store event context for follow-up continuity
                         if _route_result.route_name in (
@@ -6260,6 +6275,19 @@ Rules for this response:
                 _direct_response = None
                 _is_checkin_stream = False
 
+                # ChatGPT CoS per-account gate. When enabled for this user, the
+                # model answers reasoning/decision/data queries via its tool loop
+                # (get_decision / get_domain_state / search_history). The
+                # deterministic answer-router must NOT pre-empt those with a
+                # terminal response, or the message never reaches the tool loop.
+                try:
+                    from apps.ai.cos_services.tool_registry import (
+                        evidence_tools_enabled as _cos_enabled,
+                    )
+                    _cos_evidence_on = bool(_cos_enabled(self.user))
+                except Exception:
+                    _cos_evidence_on = False
+
                 # ── RESPONSE GOVERNOR — central authority ───────────
                 # Determines the single approved response type BEFORE
                 # any pre-processing runs. When REFLECTIVE, all ECC,
@@ -6540,8 +6568,13 @@ Rules for this response:
                             cos_context_cache=_cos_context_cache,
                             conversation=conversation,
                         )
+                        # ChatGPT CoS: let reasoning/decision/data queries fall
+                        # through to the tool loop instead of being answered by
+                        # the deterministic router. The router still ran above,
+                        # so its domain/skip_intent metadata remains available.
                         if (_route_result_stream.is_terminal
-                                and _route_result_stream.response):
+                                and _route_result_stream.response
+                                and not _cos_evidence_on):
                             _direct_response = _route_result_stream.response
                             # Store event context for follow-up continuity
                             if _route_result_stream.route_name in (

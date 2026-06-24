@@ -2152,7 +2152,10 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
             _validated, _truth_violations = validate_locked_facts(
                 response, _locked, self.user, allow_regenerate=True,
             )
-            if _truth_violations and any(
+            # ChatGPT CoS answers are tool-grounded — do not regenerate them
+            # against the legacy locked-facts narration block (parity with the
+            # streaming path's gated guards).
+            if (not _cos_evidence_on) and _truth_violations and any(
                 v.get('should_reject') for v in _truth_violations
             ):
                 logger.error(
@@ -6287,6 +6290,13 @@ Rules for this response:
                     _cos_evidence_on = bool(_cos_enabled(self.user))
                 except Exception:
                     _cos_evidence_on = False
+                # Per-request routing proof: shows whether THIS request resolved
+                # the ChatGPT CoS (vs legacy Beth). Pair with COS_TOOL_ROUND
+                # (tool loop ran) + route_name (deterministic) in the same logs.
+                logger.info(
+                    "COS_ROUTING_STREAM user=%s evidence_on=%s build=router-bypass-v2",
+                    self.user.id, _cos_evidence_on,
+                )
 
                 # ── RESPONSE GOVERNOR — central authority ───────────
                 # Determines the single approved response type BEFORE
@@ -6840,7 +6850,12 @@ Rules for this response:
                             response_text, self.user, conversation,
                             action_executed=bool(actions_taken),
                         )
-                        if _sv['blocked']:
+                        # ChatGPT CoS answers are grounded in tool results, not
+                        # in the locked-facts narration block — so the legacy
+                        # narration-override guards must NOT replace them (that
+                        # is what caused identical questions to flap between the
+                        # CoS answer and the deterministic morning summary).
+                        if _sv['blocked'] and not _cos_evidence_on:
                             response_text = _sv['response']
                             assistant_msg.content = response_text
                             assistant_msg.save(update_fields=['content'])
@@ -6872,7 +6887,7 @@ Rules for this response:
                             response_text, _stream_locked, self.user,
                             allow_regenerate=False,
                         )
-                        if _cos_violations:
+                        if _cos_violations and not _cos_evidence_on:
                             response_text = _corrected
                             assistant_msg.content = response_text
                             assistant_msg.save(update_fields=['content'])

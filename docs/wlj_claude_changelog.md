@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — fix(cos): ChatGPT CoS answers flapped to the legacy deterministic answer (locked-facts validator override)
+
+**Symptom:** identical prompts ("What should I focus on today?") alternated between the ChatGPT CoS answer and the legacy "Good morning, Danny… Start with Drink Protein Shake" deterministic summary.
+
+**Root cause (PROVEN, file:line):** after the (now-correct) tool loop produced an answer, two legacy post-response narration guards in `send_message_stream` REPLACED it with a deterministic locked-facts answer when the LLM's wording didn't match the locked next-action: the validator-gate (`personal_assistant.py:6843`, `response_text = _sv['response']`) and the CoS locked-facts validator (`:6875`, `response_text = _corrected` → the morning summary, emitting a `correction` SSE event). The CoS is grounded in TOOL results (get_decision/get_domain_state return the real deterministic truth), but its phrasing legitimately differs from the locked *next-action*, so `validate_locked_facts` flagged a "violation" and overrode it. Because the LLM's wording varies per request, the override fired inconsistently → flapping. ("I can't see your weight" survived because it asserts no execution fact to violate.) These guards were built for legacy Beth's free-form narration over the locked-facts block, not for tool-grounded CoS answers.
+
+**Smallest safe fix:** gate the post-response narration OVERRIDES on `not evidence_tools_enabled(user)` — when the CoS is active, do not replace its tool-grounded answer. Streaming: validator-gate (`:6843`) + locked-facts (`:6875`) replacements. Non-streaming parity: locked-facts regeneration (`:2155`). Legacy Beth keeps all guards unchanged. Also added per-request routing telemetry `COS_ROUTING_STREAM user=… evidence_on=… build=router-bypass-v2` (proves the path per request; pair with `COS_TOOL_ROUND` + route_name).
+
+**Tests:** `test_cos_router_bypass.py` +1 — with CoS on, a locked-facts "violation" + a blocked validator-gate do NOT replace the CoS tool answer (the override that caused the flapping). Regression: nutrition-trust (legacy Beth, validators intact) unchanged. 30/30; `check` + `makemigrations --check` clean. **Files:** `apps/ai/personal_assistant.py`, `apps/ai/tests/test_cos_router_bypass.py`. **Rollback:** toggle `UserPreferences.use_chatgpt_cos` off (legacy guards restored) or revert this commit.
+
+
 ## 2026-06-24 — fix(cos): ChatGPT CoS returned the same deterministic answer for every query (router pre-empted the tool loop)
 
 **Symptom:** with the ChatGPT CoS enabled, "What should I focus on?", "What is my biggest risk?", and "What is my current weight?" all returned the SAME deterministic morning-execution summary — the tool loop never ran.

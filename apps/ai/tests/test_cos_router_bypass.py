@@ -92,6 +92,45 @@ class CoSRouterBypassTests(TestCase):
         self.assertNotIn(_ROUTER_ANSWER, out)
 
     @override_settings(WLJ_COS_EVIDENCE_TOOLS_ENABLED=False)
+    def test_cos_answer_not_overridden_by_locked_validator(self):
+        # The flapping cause: the locked-facts validator replaced the CoS answer
+        # with the deterministic morning summary when wording didn't match the
+        # locked next-action. With CoS on, that override must NOT happen.
+        self.user.preferences.use_chatgpt_cos = True
+        self.user.preferences.save()
+
+        assistant = PersonalAssistant(self.user)
+        fake_ai = mock.Mock()
+        fake_ai.is_available = True
+        with mock.patch(_INFLIGHT, return_value=None), \
+             mock.patch(_RC1, return_value={"x": 1}), \
+             mock.patch(_RC2, return_value={"x": 1}), \
+             mock.patch("apps.ai.personal_assistant.ai_service", fake_ai), \
+             mock.patch("apps.ai.personal_assistant.AIService.check_user_consent",
+                        return_value=True), \
+             mock.patch(_ROUTER, return_value=_terminal_route()), \
+             mock.patch.object(PersonalAssistant, "_generate_response_stream",
+                               return_value=iter([_TOOL_ANSWER])), \
+             mock.patch("apps.ai.cos_fact_statements.build_locked_facts",
+                        return_value={}), \
+             mock.patch("apps.core.ai_governance.validator_gate.validate_response",
+                        return_value={"blocked": True, "response": _ROUTER_ANSWER,
+                                      "violations": ["x"]}), \
+             mock.patch("apps.ai.cos_truth_validator.validate_locked_facts",
+                        return_value=(_ROUTER_ANSWER, [{"domain": "medications"}])), \
+             mock.patch("apps.ai.cos_truth_validator.log_cos_debug_state"):
+            tokens = []
+            for ev in assistant.send_message_stream(
+                "What is my biggest risk right now?", self.conversation,
+            ):
+                if ev.get("type") in ("token", "correction"):
+                    tokens.append(ev.get("content", ""))
+        joined = "".join(tokens)
+        # CoS tool answer survives; legacy override did NOT replace it
+        self.assertIn(_TOOL_ANSWER, joined)
+        self.assertNotIn(_ROUTER_ANSWER, joined)
+
+    @override_settings(WLJ_COS_EVIDENCE_TOOLS_ENABLED=False)
     def test_cos_on_for_each_reported_prompt(self):
         self.user.preferences.use_chatgpt_cos = True
         self.user.preferences.save()

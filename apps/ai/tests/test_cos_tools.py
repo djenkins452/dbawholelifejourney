@@ -49,18 +49,20 @@ def _resp(content=None, tool_calls=None):
 class ToolRegistryTests(TestCase):
     def test_all_tools_advertised(self):
         names = {s["function"]["name"] for s in get_tool_schemas(enabled_only=True)}
-        # Phases 1-6: all five tools enabled.
+        # Phases 1-6 + focused foundational health facts.
         self.assertEqual(
             names,
             {"get_standing_context", "get_domain_state", "get_decision",
-             "search_history", "execute_action"},
+             "search_history", "execute_action",
+             "get_foundational_health_facts"},
         )
 
     def test_enabled_tool_names(self):
         self.assertEqual(
             enabled_tool_names(),
             ["execute_action", "get_decision", "get_domain_state",
-             "get_standing_context", "search_history"],
+             "get_foundational_health_facts", "get_standing_context",
+             "search_history"],
         )
 
     def test_domain_state_schema_has_enum(self):

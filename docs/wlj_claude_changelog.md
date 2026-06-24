@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — feat(cos): focused get_foundational_health_facts tool — scalar health facts survive (no truncation)
+
+**Problem (proven trace):** "What is my current weight?" → the model called `get_domain_state("health")`, which returns the FULL health domain (70+ keys, 6.6 KB on a moderate account, larger with populated workout/lab/glucose lists). The tool dispatcher truncates any result >8000 chars (`tool_dispatcher.py:94`), stripping `weight_current`, so the model said "Unable to retrieve your current weight due to data size constraints." (The truncation note is the ONLY "size" string in the CoS path.)
+
+**Fix (Option A):** new focused tool `get_foundational_health_facts(keys)` (`apps/ai/cos_services/health_facts.py`). Returns ONLY the requested scalars, read STATE-FIRST from SAE module state (no raw ORM), with `value` + `source` + `unit`/`trend`/`recorded_at`/`count`/`target` metadata. Tiny payload (all 8 facts < 2 KB). Missing values return `{status:"unknown", reason}` (explicit, not generic); 0/0.0 is a valid value (e.g. 0 calories logged). Supported keys → exact SAE fields (verified against live state): current_weight→`health.weight_current`, last_glucose_reading→`health.latest_glucose`, average_glucose_yesterday→`health.glucose_avg_7d` (labeled), sleep_last_night→`health.sleep_avg_hours_7d` (labeled), current_medications→`medicine.active_medications`, calories_today→`nutrition.daily_calories`, protein_today→`nutrition.daily_protein_g`, weight_30_day_change→unknown (no SAE scalar).
+
+**Tool selection:** registered + enabled (`tool_registry.py`). Description tells the model to use `get_foundational_health_facts` for specific scalar health questions; `get_domain_state("health")` description updated to "broad/overview ONLY" and to redirect scalar questions to the focused tool. Clean-path system prompt updated to list the focused tool first.
+
+**Verified on real data (user 1):** focused payload survives dispatch un-truncated — weight `298.3 lb` (trend decreasing, source `SAE.health.weight_current`, timestamp), 7-med list intact. The full `get_domain_state("health")` was 6,659 B (near the cap); the focused 7-fact payload is ~1.2 KB.
+
+**Tests:** `apps/ai/tests/test_health_facts.py` (10) — payload <2000 chars; weight + glucose survive dispatch; missing→structured unknown; 0 is valid; meds from canonical state; unsupported fact explicit; focused tool advertised with full key enum; get_domain_state description points to the focused tool; no truncation for all facts. Updated `test_cos_tools` advertised-set assertions (now 6 tools). 28/28; `check` + `makemigrations --check` clean. **Files:** `apps/ai/cos_services/health_facts.py`, `apps/ai/cos_services/tool_registry.py`, `apps/ai/cos_services/__init__.py`, `apps/ai/chatgpt_cos/service.py`, `apps/ai/tests/test_health_facts.py`, `apps/ai/tests/test_cos_tools.py`. **Rollback:** revert; or `use_chatgpt_cos=False`. **Requires `wlj-worker` redeploy.**
+
+
 ## 2026-06-24 — fix(cos): ChatGPT CoS chat hung forever — clean task not registered on the Celery worker
 
 **Symptom:** header + message + typing indicator appear, then the chat hangs indefinitely; no response ever returns.

@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — fix(cos): empty-answer diagnostics + telemetry in _call_api_with_tools (no more silent "couldn't compose")
+
+**Symptom:** "What is my current weight?" returned "I couldn't compose a response just now — please try again."
+
+**Proven (trace):** that string is the EMPTY-ANSWER fallback at `tasks.py:85` — the SUCCESS branch (`status=done`), NOT the exception branch (`tasks.py:118`, which emits a *different* message). So the task did not crash; `ChatGPTCoSService.generate()` returned an empty answer because `AIService._call_api_with_tools` returned `""`/`None`. Code review confirmed the message format + SDK parsing are correct (`choices[0].message`, `msg.tool_calls`, `msg.content`, `role:tool`/`tool_call_id` echo) and `COS_MODEL=gpt-4o` supports tools — so the empty answer is a runtime outcome, not a static bug. The two empty-return paths in `_call_api_with_tools`: (A) `services.py:627` returns `""` when the model's final message content is empty; (B) `services.py:635` returns `None` when a caught tool-loop exception (`:628`) forces the fallback `_call_api`, which exhausts retries.
+
+**Telemetry (temporary, safe):** added in `apps/ai/services.py::_call_api_with_tools` — `COS_TOOL_LOOP_RESPONSE` (round, has_message, message_content_len, tool_calls_count, finish_reason, response_id, model) after every OpenAI response; `COS_TOOL_LOOP_EMPTY_FINAL` (round, tool_calls_count, last_tool_names, messages_count, finish_reason) before returning empty content; `COS_TOOL_LOOP_FALLBACK` (exception_type, exception_message) when the loop catches and falls back; `COS_PLAIN_FALLBACK_RESULT` (answer_len) after the fallback. These pinpoint case A vs B/C/D in production.
+
+**Fix (smallest safe):** the clean path never silently degrades. `generate()` classifies the empty answer (`answer is None → openai_fallback_empty`; `answer == "" → model_empty_after_tools`) and returns `empty_reason`; the task (`tasks.py`) maps it to a diagnostic-safe user message — "I reached the ChatGPT CoS path, but the model returned an empty response after tool execution." or "I reached OpenAI, but the response came back empty after retries (the fallback returned nothing)." — and logs `COS_EMPTY_ANSWER`.
+
+**Tests:** `apps/ai/tests/test_cos_empty_answer.py` (9) — Case 1 (tool→result→content, answer_len>0, COS_TOOL_LOOP_RESPONSE logged, no EMPTY_FINAL); Case 2 (tool→result→empty, returns "", COS_TOOL_LOOP_EMPTY_FINAL with last_tool_names); Case 3 (OpenAI raises→fallback None, returns None, COS_TOOL_LOOP_FALLBACK + COS_PLAIN_FALLBACK_RESULT answer_len=0); generate() classification (model_empty_after_tools / openai_fallback_empty / none). Clean-path + tool-loop + health-facts suites green; `check` + `makemigrations --check` clean. **Files:** `apps/ai/services.py`, `apps/ai/chatgpt_cos/service.py`, `apps/ai/chatgpt_cos/tasks.py`, `apps/ai/tests/test_cos_empty_answer.py`. **Requires `wlj-worker` redeploy.**
+
+
 ## 2026-06-24 — feat(cos): focused get_foundational_health_facts tool — scalar health facts survive (no truncation)
 
 **Problem (proven trace):** "What is my current weight?" → the model called `get_domain_state("health")`, which returns the FULL health domain (70+ keys, 6.6 KB on a moderate account, larger with populated workout/lab/glucose lists). The tool dispatcher truncates any result >8000 chars (`tool_dispatcher.py:94`), stripping `weight_current`, so the model said "Unable to retrieve your current weight due to data size constraints." (The truncation note is the ONLY "size" string in the CoS path.)

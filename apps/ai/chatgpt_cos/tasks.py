@@ -82,9 +82,22 @@ def run_chatgpt_cos_generation(self, user_id, conversation_id, message,
         result = ChatGPTCoSService(user).generate(
             conversation, message, page_context=page_context, request_id=job_id,
         )
-        answer = result["answer"] or (
-            "I couldn't compose a response just now — please try again."
-        )
+        answer = result["answer"]
+        if not answer:
+            # Never silently degrade to a generic message — name the failure point.
+            reason = result.get("empty_reason")
+            logger.warning("COS_EMPTY_ANSWER job=%s user=%s reason=%s",
+                           job_id, user_id, reason)
+            if reason == "openai_fallback_empty":
+                answer = (
+                    "I reached OpenAI, but the response came back empty after "
+                    "retries (the fallback returned nothing). Please try again."
+                )
+            else:
+                answer = (
+                    "I reached the ChatGPT CoS path, but the model returned an "
+                    "empty response after tool execution. Please try again."
+                )
         tools_called = result.get("tools_called", [])
         tools_advertised = result.get("tools_advertised", [])
 

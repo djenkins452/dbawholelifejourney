@@ -160,12 +160,25 @@ class ChatGPTCoSService:
             logger.error("COS_EXCEPTION user=%s stage=tool_loop",
                          self.user.id, exc_info=True)
             raise
+        # Classify an empty answer BEFORE collapsing None->"" so the task can
+        # show a diagnostic-safe message (never a silent "couldn't compose").
+        #   answer is None  -> tool loop raised, fallback _call_api returned None
+        #                      (OpenAI error / retry exhaustion).
+        #   answer == ""    -> model returned empty content after tool execution.
+        final = (answer or "").strip()
+        empty_reason = None
+        if not final:
+            empty_reason = ("openai_fallback_empty" if answer is None
+                            else "model_empty_after_tools")
         logger.info(
-            "COS_TOOL_LOOP_FINISH user=%s tools_called=%s answer_len=%d",
-            self.user.id, ",".join(called) or "none", len(answer or ""),
+            "COS_TOOL_LOOP_FINISH user=%s tools_called=%s answer_len=%d "
+            "empty_reason=%s",
+            self.user.id, ",".join(called) or "none", len(final),
+            empty_reason or "none",
         )
         return {
-            "answer": (answer or "").strip(),
+            "answer": final,
+            "empty_reason": empty_reason,
             "tools_advertised": advertised,
             "tools_called": called,
         }

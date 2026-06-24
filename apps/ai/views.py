@@ -826,21 +826,31 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                     'error': 'Message too long (max 2000 characters)',
                 }, status=400)
 
-            # ── Authoritative day-start (idempotent) ──
-            from apps.ai.executive_briefing import handle_day_start
-            handle_day_start(request.user)
-
-            assistant = self.get_assistant()
-            conversation = assistant.get_or_create_conversation()
             _log_page_context_diag('chat', page_context, request.user)
-            result = assistant.send_message(
-                message,
-                conversation,
+            # SINGLE CONVERSATIONAL GATEWAY (Phase 0A) — runtime resolved once.
+            # Legacy Beth (day-start briefing + send_message) for flag-OFF;
+            # ChatGPT CoS for flag-ON. Downstream response/intelligence code is
+            # unchanged — the legacy rich result dict is preserved via the
+            # envelope meta so flag-OFF JSON is byte-identical.
+            from apps.ai.cos_gateway import CoSGateway, SURFACE_CHAT
+            from apps.ai.models import AssistantConversation
+            envelope = CoSGateway.respond(
+                user=request.user,
+                surface=SURFACE_CHAT,
+                message=message,
                 page_context=page_context,
                 image_data=image_data,
                 image_mime_type=image_mime_type,
                 images_list=images_list if len(images_list) > 1 else None,
             )
+            conversation = AssistantConversation.objects.get(
+                id=envelope.meta['conversation_id'],
+            )
+            result = envelope.meta.get('legacy_result')
+            if result is None:
+                result = {'response': envelope.text}
+                if envelope.meta.get('tools_called'):
+                    result['tools_called'] = envelope.meta['tools_called']
 
             # Phase 4: Post-response intelligence (truly non-blocking via bg thread)
             # Learning extraction, correction detection, and pattern detection
@@ -1102,94 +1112,23 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
                 )
 
             # ============================================================
-            # CLEAN ChatGPT CoS SPLIT — earliest possible branch.
-            # When use_chatgpt_cos=True, route to the standalone ChatGPT CoS
-            # path. Legacy Beth (day-start briefing, deterministic router,
-            # check-in, validators, intent pipeline, fallback) is NOT entered.
+            # SINGLE CONVERSATIONAL GATEWAY (Phase 0A). The gateway resolves
+            # runtime ownership ONCE — ChatGPT CoS when use_chatgpt_cos=True,
+            # else legacy Beth (which preserves the day-start briefing + legacy
+            # generation task) — and dispatches the correct generation. This
+            # view only builds the SSE relay from the returned job id. No
+            # conversational surface decides runtime ownership itself.
             # ============================================================
-            from apps.ai.cos_services.tool_registry import evidence_tools_enabled
-            if evidence_tools_enabled(request.user):
-                import uuid as _cos_uuid
-                from apps.ai import chat_stream_bus as bus
-                from apps.ai.chatgpt_cos.tasks import run_chatgpt_cos_generation
-                from apps.ai.models import AssistantConversation
-
-                conversation = AssistantConversation.get_or_create_active(
-                    request.user,
-                )
-                job_id = str(_cos_uuid.uuid4())
-                bus.write(
-                    job_id, bus.new_snapshot(request.user.id, conversation.id),
-                )
-                from django.conf import settings as _cos_settings
-                logger.warning(
-                    "COS_DISPATCH user=%s task=%s queue=%s job=%s",
-                    request.user.id, "run_chatgpt_cos_generation",
-                    getattr(_cos_settings, "CHAT_GENERATION_QUEUE", "celery"),
-                    job_id,
-                )
-                run_chatgpt_cos_generation.delay(
-                    request.user.id, conversation.id, message,
-                    page_context, job_id,
-                )
-                logger.info(
-                    "COS_PATH=chatgpt_clean dispatched job=%s user=%s conv=%s",
-                    job_id, request.user.id, conversation.id,
-                )
-                response = StreamingHttpResponse(
-                    _chat_relay_stream(job_id, request.user.id),
-                    content_type='text/event-stream',
-                )
-                response['Cache-Control'] = 'no-cache'
-                response['X-Accel-Buffering'] = 'no'
-                return response
-            # ===== end clean split — legacy Beth path below =====
-
-            # ── Authoritative day-start (idempotent) ──
-            from apps.ai.executive_briefing import handle_day_start
-            handle_day_start(request.user)
-
-            assistant = self.get_assistant()
-            conversation = assistant.get_or_create_conversation()
-            user_id = request.user.id
-
-            # ── P0 navigation fix ──────────────────────────────────────
-            # Generation runs in a Celery task, NOT in this request. We
-            # dispatch the job, then become a read-only relay tailing the
-            # cache snapshot (see apps/ai/chat_stream_bus.py). If the client
-            # navigates away, only this relay ends — the task keeps
-            # generating and persists the assistant message on completion.
-            # Post-response intelligence also runs in the task.
-            import uuid
-            from apps.ai import chat_stream_bus as bus
-            from apps.ai.tasks import run_chat_generation
-
-            job_id = str(uuid.uuid4())
-            # Seed the snapshot (with owner) BEFORE dispatch so a resume that
-            # races task pickup still finds an ownership-checkable record.
-            bus.write(job_id, bus.new_snapshot(user_id, conversation.id))
-
-            # In eager mode (dev/tests, CELERY_TASK_ALWAYS_EAGER) this runs
-            # inline and fully populates the snapshot before returning; the
-            # relay below then streams it in one pass. In production it
-            # returns immediately and a worker generates independently.
-            from django.conf import settings as _legacy_settings
-            logger.warning(
-                "COS_DISPATCH user=%s task=%s queue=%s job=%s",
-                user_id, "run_chat_generation",
-                getattr(_legacy_settings, "CHAT_GENERATION_QUEUE", "celery"),
-                job_id,
+            from apps.ai.cos_gateway import CoSGateway, SURFACE_CHAT_STREAM
+            envelope = CoSGateway.respond(
+                user=request.user,
+                surface=SURFACE_CHAT_STREAM,
+                message=message,
+                page_context=page_context,
+                stream=True,
             )
-            run_chat_generation.delay(
-                user_id, conversation.id, message, page_context, job_id,
-            )
-            logger.info(
-                "CHAT_TASK_DISPATCHED job=%s user=%s conv=%s",
-                job_id, user_id, conversation.id,
-            )
-
             response = StreamingHttpResponse(
-                _chat_relay_stream(job_id, user_id),
+                _chat_relay_stream(envelope.stream_job_id, request.user.id),
                 content_type='text/event-stream',
             )
             response['Cache-Control'] = 'no-cache'

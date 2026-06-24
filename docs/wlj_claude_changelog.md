@@ -7,6 +7,24 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — feat(cos): Phase 0A — Single Interactive Conversational Gateway
+
+**Goal:** one request → one gateway → one runtime → one response. No interactive conversational surface decides runtime ownership itself; only the gateway does.
+
+**New package `apps/ai/cos_gateway/`:**
+- `envelope.py` — `CoSResponse` (text, runtime, surface, stream_job_id, envelope_version, meta) + surface constants.
+- `runtime.py` — `ConversationalRuntime` interface + `ChatGPTCoSRuntime` (reuses ONLY the clean CoS runtime + truth/streaming infra) + `LegacyBethRuntime` (wraps existing legacy generators verbatim; all legacy imports isolated here).
+- `gateway.py` — `CoSGateway.respond()` resolves runtime ONCE via `evidence_tools_enabled` (the canonical `use_chatgpt_cos` resolver), invokes it, returns the envelope.
+
+**Migrated surfaces (text-envelope fit):** streaming chat (`AssistantChatStreamView`) and non-streaming chat (`AssistantChatView`) now call `CoSGateway.respond(...)`. The streaming view's duplicated clean/legacy branch (and the per-branch `evidence_tools_enabled` decision) collapsed into the gateway. Flag-ON → ChatGPT CoS; flag-OFF → legacy Beth with the day-start briefing + `send_message` preserved (rich result dict carried through `envelope.meta['legacy_result']` so flag-OFF JSON is byte-identical).
+
+**Deferred surfaces (documented, not forced):** state assessment, weekly/monthly analysis return STRUCTURED JSON with the LLM text as one buried `summary`/narrative field — a text envelope would break their UI contract (out of scope: "do not redesign UX"). Opening, briefing, session-start, priorities, reflection, drift, goals are DETERMINISTIC truth renderers (no LLM narrator leak). Quick-reply/event-reflection are opaque handlers. These need either contract-preserving narrative routing or a CoS structured generator (a feature) — both Phase 0A.2 / later.
+
+**Quarantine + drift tests** (`apps/ai/tests/test_cos_gateway.py`): tripwire suite patches 17 forbidden legacy conversational symbols to raise `QuarantineBreach` on execution; proves a flag-ON user executes ZERO legacy conversational code across chat + chat_stream. Positive control proves flag-OFF routes to legacy. AST import-drift guard: no module under `apps/ai/chatgpt_cos/` imports any forbidden legacy conversational module. `check` + `makemigrations --check` clean; `test_personal_assistant` + chat-view + gateway suites green.
+
+**Out of scope (untouched):** proactive/push/SMS generation (Phase 0B), `emit()`, prompts, tools, latency, UX, legacy deletion. **Files:** `apps/ai/cos_gateway/*` (new), `apps/ai/views.py`, `apps/ai/tests/test_cos_gateway.py` (new).
+
+
 ## 2026-06-24 — fix(cos): empty-answer diagnostics + telemetry in _call_api_with_tools (no more silent "couldn't compose")
 
 **Symptom:** "What is my current weight?" returned "I couldn't compose a response just now — please try again."

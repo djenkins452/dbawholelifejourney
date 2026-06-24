@@ -91,7 +91,13 @@ def dispatch_tool_call(user, name, arguments):
         result = _jsonsafe(raw)
         # token-safety cap on the serialized result
         import json as _json
-        if len(_json.dumps(result)) > _MAX_RESULT_CHARS:
+        _result_bytes = len(_json.dumps(result))
+        if _result_bytes > _MAX_RESULT_CHARS:
+            # TEMP TRACE: prove oversized-payload truncation in production logs.
+            logger.warning(
+                "COS_TOOL_TRUNCATED tool=%s user=%s bytes=%d cap=%d args=%s",
+                name, uid, _result_bytes, _MAX_RESULT_CHARS, args,
+            )
             result = {
                 "_truncated": True,
                 "_note": "Result exceeded size budget; request a narrower domain.",

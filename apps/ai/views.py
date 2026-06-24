@@ -1121,6 +1121,13 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
                 bus.write(
                     job_id, bus.new_snapshot(request.user.id, conversation.id),
                 )
+                from django.conf import settings as _cos_settings
+                logger.warning(
+                    "COS_DISPATCH user=%s task=%s queue=%s job=%s",
+                    request.user.id, "run_chatgpt_cos_generation",
+                    getattr(_cos_settings, "CHAT_GENERATION_QUEUE", "celery"),
+                    job_id,
+                )
                 run_chatgpt_cos_generation.delay(
                     request.user.id, conversation.id, message,
                     page_context, job_id,
@@ -1166,6 +1173,13 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
             # inline and fully populates the snapshot before returning; the
             # relay below then streams it in one pass. In production it
             # returns immediately and a worker generates independently.
+            from django.conf import settings as _legacy_settings
+            logger.warning(
+                "COS_DISPATCH user=%s task=%s queue=%s job=%s",
+                user_id, "run_chat_generation",
+                getattr(_legacy_settings, "CHAT_GENERATION_QUEUE", "celery"),
+                job_id,
+            )
             run_chat_generation.delay(
                 user_id, conversation.id, message, page_context, job_id,
             )

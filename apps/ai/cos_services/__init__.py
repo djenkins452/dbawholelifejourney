@@ -25,6 +25,11 @@ Phase 1 — StandingContextService: get_standing_context()
 Phase 2 — DomainStateService:     get_domain_state()
 """
 
+from apps.ai.cos_services.action_execution import (
+    DAY1_ACTION_ALLOWLIST,
+    allowed_actions,
+    execute_action,
+)
 from apps.ai.cos_services.domain_state import (
     DOMAIN_REGISTRY,
     DOMAIN_STATE_SCHEMA_VERSION,
@@ -63,4 +68,8 @@ __all__ = [
     # Phase 5
     "search_history",
     "SUPPORTED_HISTORY_DOMAINS",
+    # Phase 6
+    "execute_action",
+    "allowed_actions",
+    "DAY1_ACTION_ALLOWLIST",
 ]

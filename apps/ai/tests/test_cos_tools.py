@@ -47,28 +47,21 @@ def _resp(content=None, tool_calls=None):
 
 
 class ToolRegistryTests(TestCase):
-    def test_only_enabled_tools_advertised(self):
+    def test_all_tools_advertised(self):
         names = {s["function"]["name"] for s in get_tool_schemas(enabled_only=True)}
-        # Phase 4 enables get_decision; Phase 5 enables search_history.
+        # Phases 1-6: all five tools enabled.
         self.assertEqual(
             names,
             {"get_standing_context", "get_domain_state", "get_decision",
-             "search_history"},
+             "search_history", "execute_action"},
         )
 
     def test_enabled_tool_names(self):
         self.assertEqual(
             enabled_tool_names(),
-            ["get_decision", "get_domain_state", "get_standing_context",
-             "search_history"],
+            ["execute_action", "get_decision", "get_domain_state",
+             "get_standing_context", "search_history"],
         )
-
-    def test_disabled_tools_registered_but_hidden(self):
-        advertised = {s["function"]["name"] for s in get_tool_schemas(enabled_only=True)}
-        all_names = {s["function"]["name"] for s in get_tool_schemas(enabled_only=False)}
-        # execute_action remains registered but NOT advertised until Phase 6
-        self.assertIn("execute_action", all_names)
-        self.assertNotIn("execute_action", advertised)
 
     def test_domain_state_schema_has_enum(self):
         schema = next(
@@ -95,12 +88,6 @@ class ToolDispatcherTests(TestCase):
         env = dispatch_tool_call(self.user, "no_such_tool", {})
         self.assertFalse(env["ok"])
         self.assertEqual(env["code"], "unknown_tool")
-
-    def test_disabled_tool_rejected_without_calling_handler(self):
-        # execute_action is still disabled (Phase 6)
-        env = dispatch_tool_call(self.user, "execute_action", {"action": "create_task"})
-        self.assertFalse(env["ok"])
-        self.assertEqual(env["code"], "tool_not_enabled")
 
     def test_enabled_tool_delegates_to_service(self):
         with mock.patch(_GMS, return_value={"weight_current": 286.6}):

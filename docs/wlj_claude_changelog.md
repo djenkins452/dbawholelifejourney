@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — feat(cos): Phase 6 — action execution (execute_action, the CoS write surface)
+
+Sixth code phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). The first WRITE tool. **Reuse-only — single existing write path, no new write path.**
+
+**ActionExecutionService** (`apps/ai/cos_services/action_execution.py`, new): `execute_action(user, action, params)` routes every write through the EXISTING single path — builds an `IntentResult(intent_type=action, parameters=params)` and calls `IntentService.execute_intent()` → UAIO → the 54 existing handlers. The dispatcher's fail-closed Learning-Mode gate is preserved automatically (returns success=False → status='failed'). NO new write path, NO new action framework, NO parallel execution, NO direct model writes, NO bypassing UAIO.
+
+**Strict Day-1 allowlist** (13 verified intent_types): create_task, mutate_task(update_task), complete_task, create_goal, update_goal_progress(update_goal), create_journal_entry, add_gratitude, log_prayer, save_verse, create_event, add_reminder, log_habit, log_workout. (`create_note`/`create_capture` are app-level, NOT intent types → honestly excluded.) Non-allowlisted → status='denied' (no execution).
+
+**Confirmation discipline — reuses `apps/core/ai_orchestrator/action_policy.ACTION_POLICY`** (category + risk metadata), applying the Phase-6 CoS threshold: DESTRUCTIVE category OR HIGH/CRITICAL risk OR explicit-verb → status='confirmation_required' (must re-call with `confirmed=true`); routine create/log/complete actions execute directly. No new confirmation system. (e.g. `mutate_task`=HIGH → confirm; `create_task`/`log_prayer` → execute.) The `confirmed` control flag is stripped before reaching the handler.
+
+**Result envelope:** JSON-safe `{status, action, message, result, error, _meta}`; statuses success/failed/denied/confirmation_required/error. Never raises into the tool loop. Telemetry `COS_ACTION` (requested/denied/confirmation_required/executed/failed/error + duration). `execute_action` tool ENABLED — all 5 CoS tools now advertised.
+
+**Offline validation (real ACTION_POLICY + real path):** `delete_account`→denied; `mutate_task`→confirmation_required (real policy HIGH risk); `log_prayer` routed through the REAL `execute_intent`→`handle_log_prayer` (end-to-end wiring proven) and returned status=failed — surfacing a PRE-EXISTING handler bug (`handle_log_prayer` passes non-existent `prayer_status` kwarg to `PrayerRequest` → TypeError; flagged separately, NOT a Phase-6 defect). execute_action handled it correctly (honest failed, no crash, no fabrication).
+
+**Tests:** `apps/ai/tests/test_action_execution.py` — 14 tests (disallowed→denied without executing; allowlist contents; routine executes without confirmation; HIGH-risk→confirmation_required; confirmed=true allows + strips flag; routes via IntentResult to execute_intent; handler-failure→failed; learning-mode→failed; execute_intent raise caught→error; never-raises on garbage params; JSON-safe; dispatch + confirmation through the tool dispatcher). Obsolete "disabled tool" test removed (all tools now enabled). Full CoS sweep **68/68**; `check` + `makemigrations --check` clean (no model changes). **Files:** `apps/ai/cos_services/action_execution.py`, `apps/ai/cos_services/tool_registry.py`, `apps/ai/cos_services/__init__.py`, `apps/ai/tests/test_action_execution.py`, `apps/ai/tests/test_cos_tools.py`, `docs/ENGINE_COS_REFERENCE.md`, `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/PHASED_ROLLOUT_TRACKER.md`.
+
+
 ## 2026-06-24 — feat(cos): Phase 5 — historical intelligence (search_history)
 
 Fifth code phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). **Reuse-only — exposes existing, previously-unused search engines; no new search engine, no new embeddings, no duplicate indexing.**

@@ -32,8 +32,11 @@ No business logic lives here — handlers delegate to the cos_services functions
 
 from django.conf import settings
 
+from apps.ai.cos_services.action_execution import allowed_actions as _allowed_actions
 from apps.ai.cos_services.domain_state import supported_domains
 from apps.ai.cos_services.history_search import SUPPORTED_HISTORY_DOMAINS
+
+ALLOWED_ACTIONS = _allowed_actions()
 
 
 # ---------------------------------------------------------------------------
@@ -57,6 +60,14 @@ def _h_standing_context(user, **kwargs):
 def _h_domain_state(user, **kwargs):
     from apps.ai.cos_services.domain_state import get_domain_state
     return get_domain_state(user, kwargs.get("domain", ""))
+
+
+def _h_execute_action(user, **kwargs):
+    from apps.ai.cos_services.action_execution import execute_action
+    params = dict(kwargs.get("params") or {})
+    if "confirmed" in kwargs:
+        params["confirmed"] = kwargs["confirmed"]
+    return execute_action(user, kwargs.get("action", ""), params)
 
 
 def _h_search_history(user, **kwargs):
@@ -215,20 +226,43 @@ TOOL_REGISTRY = {
         },
     },
     "execute_action": {
-        "kind": "action", "enabled": False, "phase": 6, "handler": None,
+        "kind": "action",
+        "enabled": True,
+        "phase": 6,
+        "handler": _h_execute_action,
         "schema": {
             "type": "function",
             "function": {
                 "name": "execute_action",
                 "description": (
-                    "Perform an action on the user's behalf (Phase 6) — routes "
-                    "through the existing intent execution + safety gates."
+                    "Perform a write action on the user's behalf (create a task, "
+                    "complete a task, create a goal/journal entry, log a prayer/"
+                    "habit/workout, save a verse, schedule an event, add a "
+                    "reminder). WLJ executes it deterministically through its "
+                    "existing safety-gated pipeline — you only request it. If the "
+                    "result status is 'confirmation_required', confirm with the "
+                    "user, then re-call with confirmed=true. Report the returned "
+                    "message honestly; never claim an action you didn't perform."
                 ),
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "action": {"type": "string"},
-                        "params": {"type": "object"},
+                        "action": {
+                            "type": "string",
+                            "description": "The action to perform.",
+                            "enum": ALLOWED_ACTIONS,
+                        },
+                        "params": {
+                            "type": "object",
+                            "description": "Handler parameters for the action.",
+                        },
+                        "confirmed": {
+                            "type": "boolean",
+                            "description": (
+                                "Set true ONLY after the user has confirmed an "
+                                "action that requires confirmation."
+                            ),
+                        },
                     },
                     "required": ["action"],
                 },

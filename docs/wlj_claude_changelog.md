@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — feat(cos): Phase 3 — ChatGPT integration layer (tool registry + dispatcher + bounded tool loop)
+
+Third code phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). Wires the dormant Phase 1/2 services into the EXISTING OpenAI orchestration — single path, no parallel orchestrator. **Flag-gated OFF by default → zero production behavior change.**
+
+**Investigation (proven, code-authoritative).** The answering LLM (`apps/ai/services.py::_call_api` @424 / `_call_api_stream` @562, called from `personal_assistant.py::_generate_response` @5132) is a PLAIN completion with no tools; the only function-calling call (`intent_service.py::recognize_intents` @216) is a one-shot intent classifier, not an agentic loop. So evidence tools required ADDING a bounded tool loop to the existing client (not a new orchestrator).
+
+**Tool registry** (`apps/ai/cos_services/tool_registry.py`): OpenAI tool schemas bound to existing services. ENABLED: `get_standing_context` (Phase 1), `get_domain_state` (Phase 2). Registered-but-DISABLED (advertised to neither model nor dispatcher until their phase): `get_decision` (P4), `search_history` (P5), `execute_action` (P6 — must route through `execute_intent` + safety gates). `get_tool_schemas(enabled_only=True)` advertises only enabled tools. Flag `WLJ_COS_EVIDENCE_TOOLS_ENABLED` (default False).
+
+**Tool dispatcher** (`apps/ai/cos_services/tool_dispatcher.py`): deterministic routing only, no business logic. `dispatch_tool_call(user, name, args)` validates (unknown / not-enabled / bad-args / exec-error), delegates to the bound service, returns a JSON-safe envelope, caps result size, telemeters (`COS_TOOL`). Never raises into the loop, never swallows silently.
+
+**Bounded tool loop** (`apps/ai/services.py::_call_api_with_tools`, new method — existing `_call_api`/`_call_api_stream` untouched): same client/model/logging; model may call read-only tools, results fed back deterministically, hard round cap (3), and on ANY error falls back to a plain `_call_api` completion so the answer path never regresses. Vision turns bypass the loop.
+
+**Wiring** (`personal_assistant.py::_generate_response`): a flag-gated branch — when `WLJ_COS_EVIDENCE_TOOLS_ENABLED` and no images, route the answer through `_call_api_with_tools`; else the existing `_call_api` (verbatim). Default OFF. Streaming evidence-tools deferred to Phase 7 (the chat_stream_bus needs a new event type). Shared JSON helper extracted in Phase 2 reused.
+
+**Tests:** `apps/ai/tests/test_cos_tools.py` — 17 tests: registry advertises only enabled tools / disabled registered / domain enum / flag default OFF + override; dispatcher unknown/not-enabled(no handler call)/delegates/bad-args/exec-error/never-raises/JSON-safe; tool loop plain-answer, tool-call→final-answer (dispatch invoked, 2 API rounds), error→fallback-to-plain. 17/17 pass; full CoS sweep 39/39 (incl. Phase 1/2); `check` + `makemigrations --check` clean (no model changes). **Files:** `apps/ai/cos_services/tool_registry.py`, `apps/ai/cos_services/tool_dispatcher.py`, `apps/ai/cos_services/__init__.py`, `apps/ai/services.py`, `apps/ai/personal_assistant.py`, `apps/ai/tests/test_cos_tools.py`, `docs/ENGINE_COS_REFERENCE.md`, `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/PHASED_ROLLOUT_TRACKER.md`.
+
+
 ## 2026-06-24 — feat(cos): Phase 2 — DomainStateService (generic ChatGPT domain read surface)
 
 Second code phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). **Reuse-only, no new intelligence, WLJ truth unchanged.**

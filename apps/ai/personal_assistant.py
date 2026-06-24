@@ -5129,19 +5129,51 @@ Rules for this response:
             _cos_model = django_settings.COS_MODEL
             if _ltrace:
                 _ltrace.set_meta('model', _cos_model)
-            _llm_response = ai_service._call_api(
-                system_prompt,
-                user_prompt,
-                max_tokens=max_tokens,
-                image_data=image_data,
-                image_mime_type=image_mime_type,
-                temperature=temperature,
-                endpoint='cos_chat',
-                user=self.user,
-                conversation_history=conversation_history,
-                all_images=all_images,
-                model=_cos_model,
-            )
+            # ChatGPT CoS evidence tools (Phase 3): when enabled, the answering
+            # model may call read-only CoS tools (get_standing_context /
+            # get_domain_state) to gather deterministic WLJ truth mid-answer.
+            # Flag defaults OFF (no production change). Vision turns bypass the
+            # tool loop (it does not support images).
+            _use_cos_tools = False
+            try:
+                from apps.ai.cos_services.tool_registry import evidence_tools_enabled
+                _use_cos_tools = (
+                    evidence_tools_enabled()
+                    and not (image_data or all_images)
+                )
+            except Exception:
+                _use_cos_tools = False
+
+            if _use_cos_tools:
+                from apps.ai.cos_services.tool_dispatcher import dispatch_tool_call
+                from apps.ai.cos_services.tool_registry import get_tool_schemas
+                _cos_user = self.user
+                _llm_response = ai_service._call_api_with_tools(
+                    system_prompt,
+                    user_prompt,
+                    tools=get_tool_schemas(enabled_only=True),
+                    dispatch=(lambda _n, _a: dispatch_tool_call(_cos_user, _n, _a)),
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    endpoint='cos_chat',
+                    user=self.user,
+                    conversation_history=conversation_history,
+                    model=_cos_model,
+                )
+            else:
+                _llm_response = ai_service._call_api(
+                    system_prompt,
+                    user_prompt,
+                    max_tokens=max_tokens,
+                    image_data=image_data,
+                    image_mime_type=image_mime_type,
+                    temperature=temperature,
+                    endpoint='cos_chat',
+                    user=self.user,
+                    conversation_history=conversation_history,
+                    all_images=all_images,
+                    model=_cos_model,
+                )
             if _ltrace:
                 _ltrace.end('LLM_REQUEST')
                 # Extract token usage from the AI service's last response

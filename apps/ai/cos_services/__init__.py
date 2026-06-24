@@ -35,6 +35,12 @@ from apps.ai.cos_services.standing_context import (
     STANDING_CONTEXT_SCHEMA_VERSION,
     get_standing_context,
 )
+from apps.ai.cos_services.tool_dispatcher import dispatch_tool_call
+from apps.ai.cos_services.tool_registry import (
+    enabled_tool_names,
+    evidence_tools_enabled,
+    get_tool_schemas,
+)
 
 __all__ = [
     # Phase 1
@@ -45,4 +51,9 @@ __all__ = [
     "supported_domains",
     "DOMAIN_REGISTRY",
     "DOMAIN_STATE_SCHEMA_VERSION",
+    # Phase 3
+    "get_tool_schemas",
+    "enabled_tool_names",
+    "evidence_tools_enabled",
+    "dispatch_tool_call",
 ]

@@ -27,11 +27,13 @@ Public API:
     get_standing_context(user, *, page_context=None, allow_build=False) -> dict
 """
 
-import json
 import logging
 import time
 
 from django.utils import timezone
+
+from apps.ai.cos_services.serialization import cap as _cap
+from apps.ai.cos_services.serialization import jsonsafe as _jsonsafe
 
 logger = logging.getLogger(__name__)
 
@@ -44,41 +46,8 @@ _MAX_PRIORITIES = 6
 
 
 # ---------------------------------------------------------------------------
-# JSON-safety
-# ---------------------------------------------------------------------------
-def _jsonsafe(value):
-    """
-    Best-effort coercion to a JSON-serializable value. Standing context is read
-    by an external LLM, so it must serialize cleanly. Unknown objects degrade to
-    their string form rather than raising — we never drop truth silently, but we
-    also never crash the always-loaded path.
-    """
-    try:
-        json.dumps(value)
-        return value
-    except (TypeError, ValueError):
-        pass
-    if isinstance(value, dict):
-        return {str(k): _jsonsafe(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple, set)):
-        return [_jsonsafe(v) for v in value]
-    if hasattr(value, "isoformat"):  # datetime / date
-        try:
-            return value.isoformat()
-        except Exception:
-            return str(value)
-    return str(value)
-
-
-def _cap(value, limit):
-    """Cap a list-valued field; pass through non-lists unchanged."""
-    if isinstance(value, (list, tuple)):
-        return list(value)[:limit]
-    return value
-
-
-# ---------------------------------------------------------------------------
 # Personalization (cheap, single-row reads — safe on any path)
+# JSON-safety helpers (jsonsafe / cap) are imported from .serialization.
 # ---------------------------------------------------------------------------
 def _cos_name(user):
     """Resolve the user-configured assistant name (default 'Chief of Staff')."""

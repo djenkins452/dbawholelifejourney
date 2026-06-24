@@ -21,15 +21,28 @@ truth to the ChatGPT reasoning layer. They:
 
 WLJ owns truth. ChatGPT owns understanding.
 
-Phase 1 — StandingContextService (this package): get_standing_context()
+Phase 1 — StandingContextService: get_standing_context()
+Phase 2 — DomainStateService:     get_domain_state()
 """
 
+from apps.ai.cos_services.domain_state import (
+    DOMAIN_REGISTRY,
+    DOMAIN_STATE_SCHEMA_VERSION,
+    get_domain_state,
+    supported_domains,
+)
 from apps.ai.cos_services.standing_context import (
     STANDING_CONTEXT_SCHEMA_VERSION,
     get_standing_context,
 )
 
 __all__ = [
+    # Phase 1
     "get_standing_context",
     "STANDING_CONTEXT_SCHEMA_VERSION",
+    # Phase 2
+    "get_domain_state",
+    "supported_domains",
+    "DOMAIN_REGISTRY",
+    "DOMAIN_STATE_SCHEMA_VERSION",
 ]

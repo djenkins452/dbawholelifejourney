@@ -6,8 +6,8 @@
 | Phase | Title | Status | Code? | Usable outcome | Commit(s) |
 |-------|-------|--------|-------|----------------|-----------|
 | **0** | Preserve Architecture Baseline | ✅ Done | No | Baseline committed; branch + trackers created | `a2e94d2b` (main), this branch |
-| **1** | Standing Context Foundation | ✅ Done (on branch) | Yes (read-only) | Aware CoS — "how am I doing" from standing context | `<P1>` |
-| **2** | Generic Domain Access | ⬜ Not started | Yes (read-only) | Holistic read CoS — any domain via `get_domain_state` | — |
+| **1** | Standing Context Foundation | ✅ Done (on branch) | Yes (read-only) | Aware CoS — "how am I doing" from standing context | `d1dcd9b0` |
+| **2** | Generic Domain Access | ✅ Done (on branch) | Yes (read-only) | Holistic read CoS — any domain via `get_domain_state` | `f7296f30` |
 | **3** | ChatGPT Integration Layer | ⬜ Not started | Yes | Natural conversation with dynamic evidence retrieval | — |
 | **4** | Decision Surface Reuse | ⬜ Not started | Yes (reuse) | Execution/Risk/Fix answers via existing modes | — |
 | **5** | Historical Intelligence | ⬜ Not started | Yes (reuse) | "Have I been here before" — time-based history | — |
@@ -19,6 +19,26 @@
 > **Connection topology (DECIDED): HYBRID.** Conversation orchestration stays inside WLJ; OpenAI is the reasoning engine; tools are internal Python services (StandingContextService, DomainStateService, DecisionService, HistorySearchService, ActionExecutionService) reusing existing providers, designed to be wrapped by authenticated HTTP endpoints later with no logic change. No OAuth/public APIs during initial build.
 >
 > **Phase 7 reuse target:** the persistent/background-conversation requirement is largely already built — `apps/ai/chat_stream_bus.py` + `run_chat_generation` (Celery) + the resume-by-job_id endpoint (commit `50fb57e5`) already make Beth generation survive navigation. Phase 7 reuses this, it does not rebuild it.
+
+---
+
+## Consolidated status (branch / commit / main-readiness)
+
+| Phase | Status | Branch | Commit | Ready for Main |
+|-------|--------|--------|--------|----------------|
+| Architecture Docs | Complete | main | `a2e94d2b` | Yes (merged) |
+| Phase 0 Tracking | Complete | feat/chatgpt-cos-transition | `a1e9325b` | Yes |
+| Phase 1 Standing Context | Complete | feat/chatgpt-cos-transition | `d1dcd9b0` | Yes (dormant/unwired) |
+| Phase 2 Domain Access | Complete | feat/chatgpt-cos-transition | `f7296f30` | Yes (dormant/unwired) |
+| Phase 3 ChatGPT Integration | Pending | — | — | — |
+| Phase 4 Decision Surface | Pending | — | — | — |
+| Phase 5 Historical Intelligence | Pending | — | — | — |
+| Phase 6 Action Execution | Pending | — | — | — |
+| Phase 7 Persistent Conversations | Pending | — | — | — |
+| Phase 8 UI Cutover | Pending | — | — | — |
+| Phase 9 Legacy Retirement | Pending | — | — | — |
+
+> Phases 1–2 are "ready for main" in the sense that they are additive, read-only, fully tested, and have NO caller in any request path yet (dormant until Phase 3 wires them). They remain branch-isolated per the transition plan.
 
 ---
 
@@ -37,8 +57,8 @@
 ## Critical-path milestones (from Day-1 rollout sequence, Doc 07/06)
 - **Usable holistic read-only CoS** → end of **Phase 2**.
 - **CoS that acts / feels real** → end of **Phase 6**.
-- **Full conversational cutover** → **Phase 7**, with legacy retained.
-- **Legacy retirement** → **Phase 8**, only after validated parity + rollback.
+- **Full conversational cutover** → **Phase 8**, with legacy retained.
+- **Legacy retirement** → **Phase 9**, only after validated parity + rollback.
 
 ## Update protocol
 After each phase: set status, record commit hash(es) + deployment status, and append a short report (Current state / Changes / Blast radius / Verification / Next phase) to `PHASE_REPORTS.md` (created when Phase 1 begins).

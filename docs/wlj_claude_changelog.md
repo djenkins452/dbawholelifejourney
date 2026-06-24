@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — feat(cos): Phase 2 — DomainStateService (generic ChatGPT domain read surface)
+
+Second code phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). **Reuse-only, no new intelligence, WLJ truth unchanged.**
+
+**DomainStateService** (`apps/ai/cos_services/domain_state.py`, new): `get_domain_state(user, domain, *, allow_build=False)` — ONE generic, registry-driven read surface for all WLJ domains. Delegates to the canonical SAE accessor `get_module_state()` over the existing `MODULE_BUILDERS` registry — **no domain-specific readers** (`get_health_context` etc. are forbidden), **no re-aggregation** (Law 9). `DOMAIN_REGISTRY` is the exposure contract (ChatGPT-facing domain → canonical SAE module key); it layers ON TOP of SAE and does NOT modify the core `_canonical_module` alias map. Covers the 13 target domains (health, medical, faith, purpose, life, journal, relationships, finance, meals, calendar, capture, sports, notes) plus existing builder domains (goals, habits, tasks, execution, routine, nutrition, fasting, fitness, medicine, brain_training). Exposure aliases: `life`→`tasks`, `purpose`→`goals`.
+
+**State-first / no fabrication.** Reads read-only on the request path (`allow_rebuild=False`) → `pending` on a cold snapshot; `allow_build=True` permits a rebuild (background callers). Honest statuses: `ready` / `pending` / `no_state_source` (e.g. `notes` — no SAE state; retrieved via search, Phase 5) / `unsupported_domain` (lists supported) / `error` (logged, never swallowed). Unknown stays unknown. JSON-safe envelope; `DOMAIN_STATE` telemetry (domain, status, module, availability, field count, source, ms, errors).
+
+**Shared serialization (no duplicate pipelines).** Extracted Phase 1's JSON helpers into `apps/ai/cos_services/serialization.py` (`jsonsafe`, `cap`); `standing_context.py` now imports them (behavior identical — Phase 1's 9 tests still pass).
+
+**Tests:** `apps/ai/tests/test_domain_state.py` — 13 tests: all 13 target domains supported, exposure-alias mapping, ready delegation to get_module_state (read-only), cold→pending, allow_build→rebuild, empty-rebuild→ready, unsupported domain, notes no_state_source (never hits SAE), read-error surfaced not swallowed, case-insensitivity, JSON-safety across all statuses, non-serializable coercion. 13/13 pass; Phase 1 9/9 still pass. `check` + `makemigrations --check` clean (no model changes). **Files:** `apps/ai/cos_services/domain_state.py`, `apps/ai/cos_services/serialization.py`, `apps/ai/cos_services/standing_context.py`, `apps/ai/cos_services/__init__.py`, `apps/ai/tests/test_domain_state.py`, `docs/ENGINE_COS_REFERENCE.md`, `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/PHASED_ROLLOUT_TRACKER.md`.
+
+
 ## 2026-06-24 — feat(cos): Phase 1 — StandingContextService (ChatGPT CoS always-loaded context)
 
 First code phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). HYBRID topology: WLJ keeps orchestration, OpenAI is the reasoning layer, tools are internal Python services reusing existing deterministic providers (wrappable by HTTP endpoints later). **No new intelligence, no new engines, WLJ truth unchanged.**

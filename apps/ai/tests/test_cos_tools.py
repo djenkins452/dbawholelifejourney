@@ -49,19 +49,25 @@ def _resp(content=None, tool_calls=None):
 class ToolRegistryTests(TestCase):
     def test_only_enabled_tools_advertised(self):
         names = {s["function"]["name"] for s in get_tool_schemas(enabled_only=True)}
-        self.assertEqual(names, {"get_standing_context", "get_domain_state"})
+        # Phase 4 enables get_decision.
+        self.assertEqual(
+            names,
+            {"get_standing_context", "get_domain_state", "get_decision"},
+        )
 
     def test_enabled_tool_names(self):
         self.assertEqual(
-            enabled_tool_names(), ["get_domain_state", "get_standing_context"]
+            enabled_tool_names(),
+            ["get_decision", "get_domain_state", "get_standing_context"],
         )
 
     def test_disabled_tools_registered_but_hidden(self):
+        advertised = {s["function"]["name"] for s in get_tool_schemas(enabled_only=True)}
         all_names = {s["function"]["name"] for s in get_tool_schemas(enabled_only=False)}
-        # registered (complete catalog) ...
-        self.assertIn("get_decision", all_names)
-        self.assertIn("search_history", all_names)
-        self.assertIn("execute_action", all_names)
+        # registered (complete catalog) but NOT advertised until their phase
+        for deferred in ("search_history", "execute_action"):
+            self.assertIn(deferred, all_names)
+            self.assertNotIn(deferred, advertised)
 
     def test_domain_state_schema_has_enum(self):
         schema = next(
@@ -90,7 +96,8 @@ class ToolDispatcherTests(TestCase):
         self.assertEqual(env["code"], "unknown_tool")
 
     def test_disabled_tool_rejected_without_calling_handler(self):
-        env = dispatch_tool_call(self.user, "get_decision", {"mode": "risk"})
+        # execute_action is still disabled (Phase 6)
+        env = dispatch_tool_call(self.user, "execute_action", {"action": "create_task"})
         self.assertFalse(env["ok"])
         self.assertEqual(env["code"], "tool_not_enabled")
 
@@ -130,6 +137,57 @@ class ToolDispatcherTests(TestCase):
     def test_output_json_serializable(self):
         with mock.patch(_GMS, return_value={"x": 1}):
             env = dispatch_tool_call(self.user, "get_domain_state", {"domain": "faith"})
+        json.dumps(env)
+
+
+class DecisionToolTests(TestCase):
+    """Phase 4 — get_decision reuses normalize_mode + build_execution_state +
+    selectors.select (the CosDecisionView pipeline). No new decision logic."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(email="cos_decide@example.com", password="x")
+
+    def _patches(self, decision):
+        return (
+            mock.patch("apps.ai.cos_mode_router.normalize_mode", side_effect=lambda m: m),
+            mock.patch(
+                "apps.core.execution.execution_state.build_execution_state",
+                return_value={"_fake": "state"},
+            ),
+            mock.patch("apps.core.execution.selectors.select", return_value=decision),
+        )
+
+    def test_decision_tool_enabled_and_delegates(self):
+        decision = {
+            "mode": "execution", "primary_action": {"title": "Take meds"},
+            "reason": "due now", "follow_on": None, "message": "Next: Take meds.",
+        }
+        p1, p2, p3 = self._patches(decision)
+        with p1, p2 as bes, p3 as sel:
+            env = dispatch_tool_call(self.user, "get_decision", {"mode": "execution"})
+        self.assertTrue(env["ok"])
+        self.assertEqual(env["result"]["mode"], "execution")
+        self.assertEqual(env["result"]["message"], "Next: Take meds.")
+        bes.assert_called_once()   # reused execution-state pipeline
+        sel.assert_called_once_with("execution", {"_fake": "state"})
+
+    def test_all_three_modes(self):
+        for mode in ("execution", "risk", "fix"):
+            decision = {"mode": mode, "primary_action": None, "reason": "",
+                        "follow_on": None, "message": f"{mode} msg"}
+            p1, p2, p3 = self._patches(decision)
+            with p1, p2, p3:
+                env = dispatch_tool_call(self.user, "get_decision", {"mode": mode})
+            self.assertTrue(env["ok"])
+            self.assertEqual(env["result"]["mode"], mode)
+
+    def test_decision_result_json_safe(self):
+        decision = {"mode": "risk", "primary_action": None, "reason": "r",
+                    "follow_on": None, "message": "m"}
+        p1, p2, p3 = self._patches(decision)
+        with p1, p2, p3:
+            env = dispatch_tool_call(self.user, "get_decision", {"mode": "risk"})
         json.dumps(env)
 
 

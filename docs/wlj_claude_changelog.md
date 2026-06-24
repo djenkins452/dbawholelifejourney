@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — feat(cos): Phase 4 — decision surface reuse (get_decision) + live-validation harness
+
+Fourth code phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). **Reuse-only, no new decision logic.**
+
+**get_decision ENABLED** (`apps/ai/cos_services/tool_registry.py::_h_decision`): reuses the EXACT pipeline behind `CosDecisionView` (`/assistant/api/cos/decision/`) — `cos_mode_router.normalize_mode` → `execution_state.build_execution_state` → `selectors.select` — returning `{mode, primary_action, reason, follow_on, message}`. No new decision engine, no parallel selectors, no LLM-generated decisions. The three modes (execution/risk/fix) are now callable as a CoS tool. `get_tool_schemas(enabled_only=True)` now advertises 3 tools; `search_history`/`execute_action` remain registered-disabled (P5/P6).
+
+**Live-validation harness** (`apps/ai/management/commands/validate_cos_tools.py`, new — a DEV tool, not a prod one-off): with `OPENAI_API_KEY` set in a safe env, enables `WLJ_COS_EVIDENCE_TOOLS_ENABLED` for the process and runs the 7 required scenarios through the REAL `_call_api_with_tools` loop, printing each model tool call (name/args/ok/status) + final synthesized answer. Fails closed with a clear error if no key (never fabricates).
+
+**Validation performed here (deterministic half, against REAL non-mocked services):** `dispatch_tool_call` → `get_standing_context` (pending for cold cache), `get_domain_state(health/faith/purpose)` (real SAE read; `purpose`→`goals` alias confirmed), `get_decision(execution/risk/fix)` → real `build_execution_state`+selectors messages. **Real-MODEL tool selection NOT validated here** — this environment has no API key. Phase 3+4 therefore stay on the branch until the harness is run in a key-bearing env (per the "mocked is no longer sufficient" merge gate).
+
+**Tests:** `apps/ai/tests/test_cos_tools.py` — +3 decision tests (delegates to normalize_mode+build_execution_state+select; all 3 modes; JSON-safe), Phase 3 enabled-tool assertions updated for the 3rd tool. 20/20 pass; full CoS sweep 42/42; `check` + `makemigrations --check` clean (no model changes). **Files:** `apps/ai/cos_services/tool_registry.py`, `apps/ai/management/commands/validate_cos_tools.py`, `apps/ai/tests/test_cos_tools.py`, `docs/ENGINE_COS_REFERENCE.md`, `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/PHASED_ROLLOUT_TRACKER.md`.
+
+
 ## 2026-06-24 — feat(cos): Phase 3 — ChatGPT integration layer (tool registry + dispatcher + bounded tool loop)
 
 Third code phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). Wires the dormant Phase 1/2 services into the EXISTING OpenAI orchestration — single path, no parallel orchestrator. **Flag-gated OFF by default → zero production behavior change.**

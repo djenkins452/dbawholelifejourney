@@ -58,6 +58,26 @@ def _h_domain_state(user, **kwargs):
     return get_domain_state(user, kwargs.get("domain", ""))
 
 
+def _h_decision(user, **kwargs):
+    """Deterministic Execution/Risk/Fix decision — reuses the EXACT pipeline
+    behind CosDecisionView (`/assistant/api/cos/decision/`). No new decision
+    logic, no LLM: normalize_mode -> build_execution_state -> selectors.select."""
+    from apps.ai.cos_mode_router import normalize_mode
+    from apps.core.execution.execution_state import build_execution_state
+    from apps.core.execution.selectors import select as run_selector
+
+    mode = normalize_mode(kwargs.get("mode", "execution"))
+    state = build_execution_state(user)
+    decision = run_selector(mode, state)
+    return {
+        "mode": decision.get("mode"),
+        "primary_action": decision.get("primary_action"),
+        "reason": decision.get("reason"),
+        "follow_on": decision.get("follow_on"),
+        "message": decision.get("message"),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
@@ -112,14 +132,23 @@ TOOL_REGISTRY = {
             },
         },
     },
-    # --- registered, disabled until their phase ---
     "get_decision": {
-        "kind": "read", "enabled": False, "phase": 4, "handler": None,
+        "kind": "read",
+        "enabled": True,
+        "phase": 4,
+        "handler": _h_decision,
         "schema": {
             "type": "function",
             "function": {
                 "name": "get_decision",
-                "description": "Deterministic Execution/Risk/Fix decision (Phase 4).",
+                "description": (
+                    "Return WLJ's deterministic decision for one of three modes: "
+                    "'execution' (what to do next / focus on now), 'risk' (the "
+                    "biggest at-risk item), or 'fix' (what to clean up first). "
+                    "WLJ makes the decision from its execution-state pipeline — "
+                    "you only explain it. Use for 'what should I focus on', "
+                    "'biggest risk', or 'what should I fix first' questions."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {"mode": {"type": "string",
@@ -129,6 +158,7 @@ TOOL_REGISTRY = {
             },
         },
     },
+    # --- registered, disabled until their phase ---
     "search_history": {
         "kind": "read", "enabled": False, "phase": 5, "handler": None,
         "schema": {

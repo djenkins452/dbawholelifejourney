@@ -508,6 +508,130 @@ class AIService:
         )
         return None
 
+    def _call_api_with_tools(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        tools: list,
+        dispatch,
+        max_tokens: int = 1000,
+        temperature: float = 0.7,
+        endpoint: str = 'cos_chat',
+        user=None,
+        conversation_history: list = None,
+        model: str = None,
+        max_tool_rounds: int = 3,
+    ):
+        """
+        Bounded agentic completion (ChatGPT CoS — Phase 3).
+
+        Same client / model / logging as ``_call_api``, but the model MAY call
+        registered read-only evidence tools. We dispatch each call
+        deterministically via ``dispatch(name, args_dict) -> dict`` (the CoS tool
+        dispatcher — WLJ truth), feed the JSON results back, and let the model
+        write the final answer. WLJ owns truth; the model only narrates it.
+
+        Safety: read-only tools, a hard round cap, and on ANY error it falls back
+        to a plain ``_call_api`` completion so the answer path never regresses.
+        Vision is not supported here (callers route image turns to ``_call_api``).
+
+        Returns the final assistant text (str), or None on total failure.
+        """
+        import json as _json
+
+        messages = [{"role": "system", "content": system_prompt}]
+        if conversation_history:
+            messages.extend(conversation_history)
+        messages.append({"role": "user", "content": user_prompt})
+
+        # Reuse the same global token governor as _call_api.
+        try:
+            from apps.ai.conversation.token_governor import govern_prompt
+            messages, _ = govern_prompt(messages)
+        except ImportError:
+            pass
+        except Exception as _gov_err:
+            logger.debug("Token governor skipped (tools): %s", _gov_err)
+
+        effective_model = model or self.model
+        _timeout = get_timeout_for_endpoint(endpoint)
+
+        try:
+            for _round in range(max_tool_rounds + 1):
+                last_round = _round == max_tool_rounds
+                kwargs = {
+                    "model": effective_model,
+                    "messages": messages,
+                    "max_tokens": max_tokens,
+                    "temperature": temperature,
+                    "timeout": _timeout,
+                }
+                # On the final round, drop tools so the model MUST answer in prose.
+                if not last_round:
+                    kwargs["tools"] = tools
+                    kwargs["tool_choice"] = "auto"
+
+                response = self.client.chat.completions.create(**kwargs)
+                msg = response.choices[0].message
+                tool_calls = getattr(msg, "tool_calls", None)
+
+                if tool_calls and not last_round:
+                    # Echo the assistant tool-call turn, then append tool results.
+                    messages.append({
+                        "role": "assistant",
+                        "content": msg.content or "",
+                        "tool_calls": [
+                            {
+                                "id": tc.id,
+                                "type": "function",
+                                "function": {
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments,
+                                },
+                            }
+                            for tc in tool_calls
+                        ],
+                    })
+                    for tc in tool_calls:
+                        try:
+                            _args = _json.loads(tc.function.arguments or "{}")
+                        except (ValueError, TypeError):
+                            _args = {}
+                        try:
+                            _result = dispatch(tc.function.name, _args)
+                        except Exception:
+                            logger.warning(
+                                "COS tool dispatch raised (tool=%s)",
+                                tc.function.name, exc_info=True,
+                            )
+                            _result = {"ok": False, "code": "dispatch_error"}
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tc.id,
+                            "name": tc.function.name,
+                            "content": _json.dumps(_result),
+                        })
+                    logger.info(
+                        "COS_TOOL_ROUND endpoint=%s round=%d tool_calls=%d",
+                        endpoint, _round, len(tool_calls),
+                    )
+                    continue  # re-call with tool results in context
+
+                # No tool calls (or final round) -> final answer.
+                return (msg.content or "").strip()
+        except Exception:
+            logger.warning(
+                "COS tool loop failed endpoint=%s — falling back to plain completion",
+                endpoint, exc_info=True,
+            )
+
+        # Fallback: plain completion (no tools) — never regress the answer path.
+        return self._call_api(
+            system_prompt, user_prompt, max_tokens=max_tokens,
+            temperature=temperature, endpoint=endpoint, user=user,
+            conversation_history=conversation_history, model=model,
+        )
+
     def _call_api_stream(
         self,
         system_prompt: str,

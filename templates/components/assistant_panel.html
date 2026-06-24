@@ -21,13 +21,14 @@
 <aside id="assistant-panel" class="assistant-panel" data-testid="cos-panel"
        data-calibration-active="{{ calibration_active|yesno:'true,false' }}"
        aria-label="Chief of Staff Chat">
-    <div class="assistant-panel-header">
+    <div class="assistant-panel-header{% if feature_flags.WLJ_COS_EVIDENCE_TOOLS_ENABLED %} assistant-panel-header--chatgpt{% endif %}">
         <div class="assistant-panel-title">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <path d="m9 12 2 2 4-4"/>
             </svg>
-            <span>{{ cos_display_name|default:"Chief of Staff" }}</span>
+            <span>{{ cos_display_name|default:"Chief of Staff" }}{% if feature_flags.WLJ_COS_EVIDENCE_TOOLS_ENABLED %}<span class="ap-cos-badge">AI</span>{% endif %}</span>
+            {% if feature_flags.WLJ_COS_EVIDENCE_TOOLS_ENABLED %}<span class="ap-cos-sublabel">Powered by ChatGPT</span>{% endif %}
             <button class="ap-header-icon-btn" data-action="ap-clear-chat" title="Clear conversation">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="3 6 5 6 21 6"/>
@@ -173,12 +174,12 @@
 <div id="assistant-pullup" class="assistant-pullup" aria-label="Assistant">
     <div class="assistant-pullup-handle" data-action="toggle-mobile-assistant">
         <div class="assistant-pullup-grip"></div>
-        <div class="assistant-pullup-header">
+        <div class="assistant-pullup-header{% if feature_flags.WLJ_COS_EVIDENCE_TOOLS_ENABLED %} assistant-pullup-header--chatgpt{% endif %}">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <path d="m9 12 2 2 4-4"/>
             </svg>
-            <span>{{ cos_display_name|default:"Chief of Staff" }}</span>
+            <span>{{ cos_display_name|default:"Chief of Staff" }}{% if feature_flags.WLJ_COS_EVIDENCE_TOOLS_ENABLED %}<span class="ap-cos-badge">AI</span>{% endif %}</span>
             <span class="assistant-badge mobile-badge" id="mobile-intervention-count" hidden>0</span>
         </div>
     </div>

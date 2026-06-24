@@ -2378,3 +2378,68 @@ body.has-desktop-nav .desktop-main-area {
 .cos-finish-intro-btn:active {
     transform: translateY(0);
 }
+
+/* =========================================================================
+   ChatGPT CoS distinct identity (feature-flagged: WLJ_COS_EVIDENCE_TOOLS_ENABLED)
+   Makes it visually obvious the user is on the new ChatGPT-powered Chief of
+   Staff, not legacy Beth. WLJ palette: deep blue -> teal gradient, gold accent.
+   ========================================================================= */
+.assistant-panel-header--chatgpt,
+.assistant-pullup-header--chatgpt {
+    background: linear-gradient(135deg, #0f2c4d 0%, #115e59 55%, #12796f 100%);
+    border-bottom: 2px solid #d4af37; /* gold accent line */
+    color: #ffffff;
+    box-shadow: 0 1px 0 rgba(212, 175, 55, 0.25);
+}
+.assistant-panel-header--chatgpt .assistant-panel-title,
+.assistant-panel-header--chatgpt .assistant-panel-title span,
+.assistant-pullup-header--chatgpt span {
+    color: #ffffff;
+}
+.assistant-panel-header--chatgpt .assistant-panel-title > svg,
+.assistant-pullup-header--chatgpt > svg {
+    color: #d4af37; /* gold mark */
+}
+.assistant-panel-header--chatgpt .ap-header-icon-btn,
+.assistant-panel-header--chatgpt .ap-tcc-link {
+    color: rgba(255, 255, 255, 0.85);
+}
+.assistant-panel-header--chatgpt .ap-header-icon-btn:hover,
+.assistant-panel-header--chatgpt .ap-tcc-link:hover {
+    color: #ffffff;
+}
+.assistant-panel-header--chatgpt .ap-tab {
+    color: rgba(255, 255, 255, 0.78);
+}
+.assistant-panel-header--chatgpt .ap-tab.active {
+    color: #ffffff;
+    border-bottom-color: #d4af37;
+}
+
+/* "AI" badge + "Powered by ChatGPT" sublabel */
+.ap-cos-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: #d4af37;
+    color: #0f2c4d;
+    padding: 1px 6px;
+    border-radius: 9px;
+    margin-left: 6px;
+    vertical-align: middle;
+    line-height: 1.4;
+}
+.ap-cos-sublabel {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #d4af37;
+    margin-left: 8px;
+    white-space: nowrap;
+    opacity: 0.95;
+}
+@media (max-width: 480px) {
+    .ap-cos-sublabel { display: none; } /* keep the compact mobile header tidy */
+}

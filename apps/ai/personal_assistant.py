@@ -5129,19 +5129,51 @@ Rules for this response:
             _cos_model = django_settings.COS_MODEL
             if _ltrace:
                 _ltrace.set_meta('model', _cos_model)
-            _llm_response = ai_service._call_api(
-                system_prompt,
-                user_prompt,
-                max_tokens=max_tokens,
-                image_data=image_data,
-                image_mime_type=image_mime_type,
-                temperature=temperature,
-                endpoint='cos_chat',
-                user=self.user,
-                conversation_history=conversation_history,
-                all_images=all_images,
-                model=_cos_model,
-            )
+            # ChatGPT CoS evidence tools (Phase 3): when enabled, the answering
+            # model may call read-only CoS tools (get_standing_context /
+            # get_domain_state) to gather deterministic WLJ truth mid-answer.
+            # Flag defaults OFF (no production change). Vision turns bypass the
+            # tool loop (it does not support images).
+            _use_cos_tools = False
+            try:
+                from apps.ai.cos_services.tool_registry import evidence_tools_enabled
+                _use_cos_tools = (
+                    evidence_tools_enabled(self.user)
+                    and not (image_data or all_images)
+                )
+            except Exception:
+                _use_cos_tools = False
+
+            if _use_cos_tools:
+                from apps.ai.cos_services.tool_dispatcher import dispatch_tool_call
+                from apps.ai.cos_services.tool_registry import get_tool_schemas
+                _cos_user = self.user
+                _llm_response = ai_service._call_api_with_tools(
+                    system_prompt,
+                    user_prompt,
+                    tools=get_tool_schemas(enabled_only=True),
+                    dispatch=(lambda _n, _a: dispatch_tool_call(_cos_user, _n, _a)),
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    endpoint='cos_chat',
+                    user=self.user,
+                    conversation_history=conversation_history,
+                    model=_cos_model,
+                )
+            else:
+                _llm_response = ai_service._call_api(
+                    system_prompt,
+                    user_prompt,
+                    max_tokens=max_tokens,
+                    image_data=image_data,
+                    image_mime_type=image_mime_type,
+                    temperature=temperature,
+                    endpoint='cos_chat',
+                    user=self.user,
+                    conversation_history=conversation_history,
+                    all_images=all_images,
+                    model=_cos_model,
+                )
             if _ltrace:
                 _ltrace.end('LLM_REQUEST')
                 # Extract token usage from the AI service's last response
@@ -5907,31 +5939,67 @@ Rules for this response:
                 if _ltrace:
                     _ltrace.start('LLM_REQUEST')
                     _ltrace.set_meta('model', _cos_model_stream)
-                for chunk in ai_service._call_api_stream(
-                    ctx['system_prompt'],
-                    ctx['user_prompt'],
-                    max_tokens=ctx['max_tokens'],
-                    temperature=ctx['temperature'],
-                    endpoint='cos_chat',
-                    user=self.user,
-                    conversation_history=ctx['conversation_history'],
-                    model=_cos_model_stream,
-                ):
-                    full_text += chunk
+                # ChatGPT CoS evidence tools (Phase 7): when enabled, run the
+                # bounded tool loop in THIS generator (owned by the background
+                # run_chat_generation task, so it survives navigation). The loop
+                # is non-incremental, so we emit the final synthesized answer as
+                # one chunk and let the existing bus/resume relay it. Flag OFF =
+                # the streaming path below is unchanged.
+                _use_cos_tools_stream = False
+                try:
+                    from apps.ai.cos_services.tool_registry import (
+                        evidence_tools_enabled,
+                    )
+                    _use_cos_tools_stream = evidence_tools_enabled(self.user)
+                except Exception:
+                    _use_cos_tools_stream = False
 
-                    # First-token telemetry
-                    if not first_token_logged:
-                        logger.warning(
-                            "STREAM_FIRST_TOKEN ms=%.1f user=%s",
-                            (_t_fast.monotonic() - _t_fast_start) * 1000,
-                            self.user.id,
-                        )
-                        if _ltrace:
-                            _ltrace.start('LLM_FIRST_TOKEN')
-                            _ltrace.end('LLM_FIRST_TOKEN')
-                        first_token_logged = True
+                if _use_cos_tools_stream:
+                    from apps.ai.cos_services.tool_dispatcher import dispatch_tool_call
+                    from apps.ai.cos_services.tool_registry import get_tool_schemas
+                    _cos_user = self.user
+                    _answer = ai_service._call_api_with_tools(
+                        ctx['system_prompt'],
+                        ctx['user_prompt'],
+                        tools=get_tool_schemas(enabled_only=True),
+                        dispatch=(lambda _n, _a: dispatch_tool_call(_cos_user, _n, _a)),
+                        max_tokens=ctx['max_tokens'],
+                        temperature=ctx['temperature'],
+                        endpoint='cos_chat',
+                        user=self.user,
+                        conversation_history=ctx['conversation_history'],
+                        model=_cos_model_stream,
+                    ) or ''
+                    full_text += _answer
+                    first_token_logged = True
+                    if _answer:
+                        yield _answer
+                else:
+                    for chunk in ai_service._call_api_stream(
+                        ctx['system_prompt'],
+                        ctx['user_prompt'],
+                        max_tokens=ctx['max_tokens'],
+                        temperature=ctx['temperature'],
+                        endpoint='cos_chat',
+                        user=self.user,
+                        conversation_history=ctx['conversation_history'],
+                        model=_cos_model_stream,
+                    ):
+                        full_text += chunk
 
-                    yield chunk
+                        # First-token telemetry
+                        if not first_token_logged:
+                            logger.warning(
+                                "STREAM_FIRST_TOKEN ms=%.1f user=%s",
+                                (_t_fast.monotonic() - _t_fast_start) * 1000,
+                                self.user.id,
+                            )
+                            if _ltrace:
+                                _ltrace.start('LLM_FIRST_TOKEN')
+                                _ltrace.end('LLM_FIRST_TOKEN')
+                            first_token_logged = True
+
+                        yield chunk
 
                 if _ltrace:
                     _ltrace.end('LLM_REQUEST')

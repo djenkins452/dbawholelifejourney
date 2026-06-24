@@ -7,6 +7,97 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — feat(cos): per-account ChatGPT CoS enablement + enable for owner (Alpha User #1)
+
+Single-user deployment strategy: ship the ChatGPT CoS (Phases 3–7) to production, enabled ONLY for the owner; legacy Beth stays the global default. **Per-account, not global.**
+
+**New preference:** `UserPreferences.use_chatgpt_cos` (BooleanField, default False) — migration `users/0085`. **`evidence_tools_enabled(user)`** (`apps/ai/cos_services/tool_registry.py`) now resolves per user: global override `WLJ_COS_EVIDENCE_TOOLS_ENABLED` (default False → on for everyone, dev/test/emergency) OR the user's `use_chatgpt_cos` opt-in. Call sites updated to pass the user: `_generate_response`, `_generate_response_stream` (`personal_assistant.py`), and the template header via `context_processors._cos_enabled_for(request)` — so the distinct ChatGPT CoS header shows ONLY for enabled accounts.
+
+**Owner = Alpha User #1:** data migration `users/0086_enable_chatgpt_cos_for_owner` sets `use_chatgpt_cos=True` for `dannyjenkins71@gmail.com` on deploy (no prod CLI; runs via the Procfile migrate). Safe no-op if the account is absent in an environment.
+
+**Rollback (zero code, zero deploy):** toggle `UserPreferences.use_chatgpt_cos` off (Django admin) → instant revert to legacy Beth for that user. The migration's reverse also disables it. Global kill-switch: leave `WLJ_COS_EVIDENCE_TOOLS_ENABLED` unset/False (default).
+
+**Tests:** `apps/ai/tests/test_cos_account_flag.py` (5) — default legacy Beth, account opt-in enables, toggle-off rollback, no-user disabled, global override. Backward-compat: existing `@override_settings(WLJ_COS_EVIDENCE_TOOLS_ENABLED=True)` tests still pass via the global-override path. Full sweep **98/98**; `check` + `makemigrations --check` clean. **Files:** `apps/users/models.py`, `apps/users/migrations/0085_*`, `apps/users/migrations/0086_*`, `apps/ai/cos_services/tool_registry.py`, `apps/ai/personal_assistant.py`, `apps/core/context_processors.py`, `apps/ai/tests/test_cos_account_flag.py`.
+
+
+## 2026-06-24 — fix(faith): handle_log_prayer passed non-existent prayer_status to PrayerRequest
+
+**Root cause (proven):** `apps/ai/action_handlers.py:2701` — `handle_log_prayer` called `PrayerRequest.objects.create(..., prayer_status='active')`, but `PrayerRequest` (`apps/faith/models.py:151`) has NO `prayer_status` field (its status is the `is_answered` BooleanField, default False = active/unanswered; confirmed no `prayer_status` anywhere in `apps/faith/`). → `TypeError: PrayerRequest() got unexpected keyword arguments: 'prayer_status'` at model init in EVERY environment, so logging a prayer via the AI/CoS `log_prayer` intent always failed. Surfaced during ChatGPT CoS Phase 6 `execute_action` validation (the new code correctly reported it as status=failed). **Smallest safe fix:** removed the invalid `prayer_status='active'` kwarg (the model default already represents active). Faith architecture untouched. **Tests:** `apps/ai/tests/test_log_prayer_fix.py` (3) — handler creates a PrayerRequest (is_answered=False), optional fields persist, guard that `PrayerRequest` has no `prayer_status` attr. **Files:** `apps/ai/action_handlers.py`, `apps/ai/tests/test_log_prayer_fix.py`.
+
+
+## 2026-06-24 — feat(cos): Phase 7 — persistent conversation (tool loop in background path) + distinct ChatGPT CoS header
+
+Seventh phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). **Reuse-only — the persistent/background machinery already existed; Phase 7 makes the new tool loop participate in it, and adds a feature-flagged UI identity.** Flag-gated OFF → no production change.
+
+**Investigation finding:** the server-owned persistent path already exists and survives navigation — `apps/ai/tasks.py::run_chat_generation` (Celery) → `send_message_stream` → `chat_stream_bus` snapshot → resume-by-job_id endpoint (commit `50fb57e5`). BUT it ran the token-streaming generation (`_call_api_stream`), which has NO tools — so the new evidence-tool loop (`_call_api_with_tools`, wired only into non-streaming `_generate_response` in Phase 3) did NOT survive navigation.
+
+**Bridge (smallest safe change):** `apps/ai/personal_assistant.py::_generate_response_stream` — added a flag-gated branch at the LLM seam: when `WLJ_COS_EVIDENCE_TOOLS_ENABLED`, run the bounded tool loop (`_call_api_with_tools`) IN this generator (which the background `run_chat_generation` task owns, so it survives nav/refresh/disconnect) and emit the final synthesized answer as a single chunk; else the existing token-streaming path is byte-for-byte unchanged. `full_text` is set identically, so all downstream persistence/briefing logic is unchanged. `tasks.py`, `chat_stream_bus`, the resume endpoint, and multi-tab/duplicate-suppression (existing job-id ownership + idempotency guard) are REUSED untouched — no rebuild.
+
+**Distinct ChatGPT CoS header (feature-flagged):** `WLJ_COS_EVIDENCE_TOOLS_ENABLED` exposed to templates via `apps/core/context_processors.py::feature_flags`. `templates/components/assistant_panel.html` main + mobile-pullup headers get a `--chatgpt` modifier class + an "AI" badge + a "Powered by ChatGPT" sublabel when the flag is on; legacy Beth header unchanged when off. `static/css/assistant-panel.css` adds the treatment: deep-blue→teal gradient, gold accent line, gold badge/sublabel (WLJ palette), responsive (sublabel hidden < 480px). CSP-safe (external CSS + classes, no inline styles/handlers).
+
+**Verification:** `apps/ai/tests/test_phase7_stream_tools.py` (3) — flag OFF uses `_call_api_stream` (unchanged); flag ON uses `_call_api_with_tools` in the stream generator and yields its final answer (persisted to the assistant message); tools+dispatch passed. Existing `test_chat_background` (background path) still green. Template conditional verified to emit the `--chatgpt` class + badge + sublabel only when flagged. Full affected sweep **93/93**; `check` + `makemigrations --check` clean (no model changes). **Files:** `apps/ai/personal_assistant.py`, `apps/core/context_processors.py`, `templates/components/assistant_panel.html`, `static/css/assistant-panel.css`, `apps/ai/tests/test_phase7_stream_tools.py`, `docs/ENGINE_COS_REFERENCE.md`, `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/PHASED_ROLLOUT_TRACKER.md`.
+
+
+## 2026-06-24 — feat(cos): Phase 6 — action execution (execute_action, the CoS write surface)
+
+Sixth code phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). The first WRITE tool. **Reuse-only — single existing write path, no new write path.**
+
+**ActionExecutionService** (`apps/ai/cos_services/action_execution.py`, new): `execute_action(user, action, params)` routes every write through the EXISTING single path — builds an `IntentResult(intent_type=action, parameters=params)` and calls `IntentService.execute_intent()` → UAIO → the 54 existing handlers. The dispatcher's fail-closed Learning-Mode gate is preserved automatically (returns success=False → status='failed'). NO new write path, NO new action framework, NO parallel execution, NO direct model writes, NO bypassing UAIO.
+
+**Strict Day-1 allowlist** (13 verified intent_types): create_task, mutate_task(update_task), complete_task, create_goal, update_goal_progress(update_goal), create_journal_entry, add_gratitude, log_prayer, save_verse, create_event, add_reminder, log_habit, log_workout. (`create_note`/`create_capture` are app-level, NOT intent types → honestly excluded.) Non-allowlisted → status='denied' (no execution).
+
+**Confirmation discipline — reuses `apps/core/ai_orchestrator/action_policy.ACTION_POLICY`** (category + risk metadata), applying the Phase-6 CoS threshold: DESTRUCTIVE category OR HIGH/CRITICAL risk OR explicit-verb → status='confirmation_required' (must re-call with `confirmed=true`); routine create/log/complete actions execute directly. No new confirmation system. (e.g. `mutate_task`=HIGH → confirm; `create_task`/`log_prayer` → execute.) The `confirmed` control flag is stripped before reaching the handler.
+
+**Result envelope:** JSON-safe `{status, action, message, result, error, _meta}`; statuses success/failed/denied/confirmation_required/error. Never raises into the tool loop. Telemetry `COS_ACTION` (requested/denied/confirmation_required/executed/failed/error + duration). `execute_action` tool ENABLED — all 5 CoS tools now advertised.
+
+**Offline validation (real ACTION_POLICY + real path):** `delete_account`→denied; `mutate_task`→confirmation_required (real policy HIGH risk); `log_prayer` routed through the REAL `execute_intent`→`handle_log_prayer` (end-to-end wiring proven) and returned status=failed — surfacing a PRE-EXISTING handler bug (`handle_log_prayer` passes non-existent `prayer_status` kwarg to `PrayerRequest` → TypeError; flagged separately, NOT a Phase-6 defect). execute_action handled it correctly (honest failed, no crash, no fabrication).
+
+**Tests:** `apps/ai/tests/test_action_execution.py` — 14 tests (disallowed→denied without executing; allowlist contents; routine executes without confirmation; HIGH-risk→confirmation_required; confirmed=true allows + strips flag; routes via IntentResult to execute_intent; handler-failure→failed; learning-mode→failed; execute_intent raise caught→error; never-raises on garbage params; JSON-safe; dispatch + confirmation through the tool dispatcher). Obsolete "disabled tool" test removed (all tools now enabled). Full CoS sweep **68/68**; `check` + `makemigrations --check` clean (no model changes). **Files:** `apps/ai/cos_services/action_execution.py`, `apps/ai/cos_services/tool_registry.py`, `apps/ai/cos_services/__init__.py`, `apps/ai/tests/test_action_execution.py`, `apps/ai/tests/test_cos_tools.py`, `docs/ENGINE_COS_REFERENCE.md`, `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/PHASED_ROLLOUT_TRACKER.md`.
+
+
+## 2026-06-24 — feat(cos): Phase 5 — historical intelligence (search_history)
+
+Fifth code phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). **Reuse-only — exposes existing, previously-unused search engines; no new search engine, no new embeddings, no duplicate indexing.**
+
+**HistorySearchService** (`apps/ai/cos_services/history_search.py`, new): `search_history(user, query, *, domain=None, timeframe=None)` wraps `apps.ai.search_service.SearchService` (the Readiness-Audit "dead-code" keyword search across journal/health/goals/faith/organize[life]/finance/capture + `search_all`) and `apps.notes.services.search_notes_cos` for notes. Each SearchService method is called uniformly as `method(keywords=..., limit=...)` (exactly how `search_all` calls them), returning the standardized `{id,title,snippet,date,url,metadata}` shape. `timeframe` ('7d'/'30d'/'90d', 'week'/'month'/'quarter'/'year', or 'YYYY-MM-DD:YYYY-MM-DD') is parsed deterministically and applied UNIFORMLY on each result's `date` field — so it never depends on per-method date-range support. Exposure alias `purpose`→goals, `life`→organize. Honest statuses: ready/empty (no fabrication)/unsupported_domain/error (logged, never swallowed). JSON-safe; `SEARCH_HISTORY` telemetry.
+
+**get_decision → search_history tool ENABLED** in `tool_registry.py` (`_h_search_history`, schema `query` required + optional `domain`/`timeframe`). Advertised tools now 4 (get_standing_context, get_domain_state, get_decision, search_history); only `execute_action` remains registered-disabled (Phase 6).
+
+**Offline validation (real, non-mocked):** `search_history('anxiety', domain='journal')` → real `SearchService.search_journal` → `status=empty` for a fresh user (deterministic, correct). `health`/`all` returned `status=error` ONLY because the LOCAL dev DB is behind migrations (`column health_intakelog.dose_amount does not exist`) — my error handling surfaced it cleanly (no crash, no fabrication); the migrated test DB validates those paths.
+
+**Tests:** `apps/ai/tests/test_history_search.py` — 15 tests (timeframe parser: none/days/named/explicit/garbage; domain→method mapping; purpose→goals alias; default→search_all; notes→search_notes_cos; timeframe filtering incl. undated-excluded; empty→empty; unsupported_domain; error surfaced; JSON-safe; tool dispatch). Phase 3/4 enabled-tool assertions updated for the 4th tool. 15/15 pass; full CoS sweep **57/57**; `check` + `makemigrations --check` clean (no model changes). **Files:** `apps/ai/cos_services/history_search.py`, `apps/ai/cos_services/tool_registry.py`, `apps/ai/cos_services/__init__.py`, `apps/ai/tests/test_history_search.py`, `apps/ai/tests/test_cos_tools.py`, `docs/ENGINE_COS_REFERENCE.md`, `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/PHASED_ROLLOUT_TRACKER.md`.
+
+
+## 2026-06-24 — feat(cos): Phase 4 — decision surface reuse (get_decision) + live-validation harness
+
+Fourth code phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). **Reuse-only, no new decision logic.**
+
+**get_decision ENABLED** (`apps/ai/cos_services/tool_registry.py::_h_decision`): reuses the EXACT pipeline behind `CosDecisionView` (`/assistant/api/cos/decision/`) — `cos_mode_router.normalize_mode` → `execution_state.build_execution_state` → `selectors.select` — returning `{mode, primary_action, reason, follow_on, message}`. No new decision engine, no parallel selectors, no LLM-generated decisions. The three modes (execution/risk/fix) are now callable as a CoS tool. `get_tool_schemas(enabled_only=True)` now advertises 3 tools; `search_history`/`execute_action` remain registered-disabled (P5/P6).
+
+**Live-validation harness** (`apps/ai/management/commands/validate_cos_tools.py`, new — a DEV tool, not a prod one-off): with `OPENAI_API_KEY` set in a safe env, enables `WLJ_COS_EVIDENCE_TOOLS_ENABLED` for the process and runs the 7 required scenarios through the REAL `_call_api_with_tools` loop, printing each model tool call (name/args/ok/status) + final synthesized answer. Fails closed with a clear error if no key (never fabricates).
+
+**Validation performed here (deterministic half, against REAL non-mocked services):** `dispatch_tool_call` → `get_standing_context` (pending for cold cache), `get_domain_state(health/faith/purpose)` (real SAE read; `purpose`→`goals` alias confirmed), `get_decision(execution/risk/fix)` → real `build_execution_state`+selectors messages. **Real-MODEL tool selection NOT validated here** — this environment has no API key. Phase 3+4 therefore stay on the branch until the harness is run in a key-bearing env (per the "mocked is no longer sufficient" merge gate).
+
+**Tests:** `apps/ai/tests/test_cos_tools.py` — +3 decision tests (delegates to normalize_mode+build_execution_state+select; all 3 modes; JSON-safe), Phase 3 enabled-tool assertions updated for the 3rd tool. 20/20 pass; full CoS sweep 42/42; `check` + `makemigrations --check` clean (no model changes). **Files:** `apps/ai/cos_services/tool_registry.py`, `apps/ai/management/commands/validate_cos_tools.py`, `apps/ai/tests/test_cos_tools.py`, `docs/ENGINE_COS_REFERENCE.md`, `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/PHASED_ROLLOUT_TRACKER.md`.
+
+
+## 2026-06-24 — feat(cos): Phase 3 — ChatGPT integration layer (tool registry + dispatcher + bounded tool loop)
+
+Third code phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). Wires the dormant Phase 1/2 services into the EXISTING OpenAI orchestration — single path, no parallel orchestrator. **Flag-gated OFF by default → zero production behavior change.**
+
+**Investigation (proven, code-authoritative).** The answering LLM (`apps/ai/services.py::_call_api` @424 / `_call_api_stream` @562, called from `personal_assistant.py::_generate_response` @5132) is a PLAIN completion with no tools; the only function-calling call (`intent_service.py::recognize_intents` @216) is a one-shot intent classifier, not an agentic loop. So evidence tools required ADDING a bounded tool loop to the existing client (not a new orchestrator).
+
+**Tool registry** (`apps/ai/cos_services/tool_registry.py`): OpenAI tool schemas bound to existing services. ENABLED: `get_standing_context` (Phase 1), `get_domain_state` (Phase 2). Registered-but-DISABLED (advertised to neither model nor dispatcher until their phase): `get_decision` (P4), `search_history` (P5), `execute_action` (P6 — must route through `execute_intent` + safety gates). `get_tool_schemas(enabled_only=True)` advertises only enabled tools. Flag `WLJ_COS_EVIDENCE_TOOLS_ENABLED` (default False).
+
+**Tool dispatcher** (`apps/ai/cos_services/tool_dispatcher.py`): deterministic routing only, no business logic. `dispatch_tool_call(user, name, args)` validates (unknown / not-enabled / bad-args / exec-error), delegates to the bound service, returns a JSON-safe envelope, caps result size, telemeters (`COS_TOOL`). Never raises into the loop, never swallows silently.
+
+**Bounded tool loop** (`apps/ai/services.py::_call_api_with_tools`, new method — existing `_call_api`/`_call_api_stream` untouched): same client/model/logging; model may call read-only tools, results fed back deterministically, hard round cap (3), and on ANY error falls back to a plain `_call_api` completion so the answer path never regresses. Vision turns bypass the loop.
+
+**Wiring** (`personal_assistant.py::_generate_response`): a flag-gated branch — when `WLJ_COS_EVIDENCE_TOOLS_ENABLED` and no images, route the answer through `_call_api_with_tools`; else the existing `_call_api` (verbatim). Default OFF. Streaming evidence-tools deferred to Phase 7 (the chat_stream_bus needs a new event type). Shared JSON helper extracted in Phase 2 reused.
+
+**Tests:** `apps/ai/tests/test_cos_tools.py` — 17 tests: registry advertises only enabled tools / disabled registered / domain enum / flag default OFF + override; dispatcher unknown/not-enabled(no handler call)/delegates/bad-args/exec-error/never-raises/JSON-safe; tool loop plain-answer, tool-call→final-answer (dispatch invoked, 2 API rounds), error→fallback-to-plain. 17/17 pass; full CoS sweep 39/39 (incl. Phase 1/2); `check` + `makemigrations --check` clean (no model changes). **Files:** `apps/ai/cos_services/tool_registry.py`, `apps/ai/cos_services/tool_dispatcher.py`, `apps/ai/cos_services/__init__.py`, `apps/ai/services.py`, `apps/ai/personal_assistant.py`, `apps/ai/tests/test_cos_tools.py`, `docs/ENGINE_COS_REFERENCE.md`, `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/PHASED_ROLLOUT_TRACKER.md`.
+
+
 ## 2026-06-24 — feat(cos): Phase 2 — DomainStateService (generic ChatGPT domain read surface)
 
 Second code phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). **Reuse-only, no new intelligence, WLJ truth unchanged.**

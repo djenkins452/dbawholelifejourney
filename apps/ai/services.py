@@ -555,6 +555,7 @@ class AIService:
 
         effective_model = model or self.model
         _timeout = get_timeout_for_endpoint(endpoint)
+        _last_tool_names = []  # for COS_TOOL_LOOP_EMPTY_FINAL diagnostics
 
         try:
             for _round in range(max_tool_rounds + 1):
@@ -574,14 +575,27 @@ class AIService:
                 logger.info("COS_OPENAI_START endpoint=%s round=%d tools=%s",
                             endpoint, _round, not last_round)
                 response = self.client.chat.completions.create(**kwargs)
-                msg = response.choices[0].message
+                _choice = response.choices[0]
+                msg = _choice.message
                 tool_calls = getattr(msg, "tool_calls", None)
+                _content_len = len(msg.content or "")
                 logger.info(
                     "COS_OPENAI_FINISH endpoint=%s round=%d tool_calls=%d",
                     endpoint, _round, len(tool_calls) if tool_calls else 0,
                 )
+                # TEMP TRACE: full per-response shape to pinpoint empty answers.
+                logger.warning(
+                    "COS_TOOL_LOOP_RESPONSE round=%d has_message=%s "
+                    "message_content_len=%d tool_calls_count=%d "
+                    "finish_reason=%s response_id=%s model=%s",
+                    _round, msg is not None, _content_len,
+                    len(tool_calls) if tool_calls else 0,
+                    getattr(_choice, "finish_reason", None),
+                    getattr(response, "id", None), effective_model,
+                )
 
                 if tool_calls and not last_round:
+                    _last_tool_names = [tc.function.name for tc in tool_calls]
                     # Echo the assistant tool-call turn, then append tool results.
                     messages.append({
                         "role": "assistant",
@@ -624,19 +638,37 @@ class AIService:
                     continue  # re-call with tool results in context
 
                 # No tool calls (or final round) -> final answer.
-                return (msg.content or "").strip()
-        except Exception:
+                _final = (msg.content or "").strip()
+                if not _final:
+                    # TEMP TRACE: empty assistant content on the answering round.
+                    logger.warning(
+                        "COS_TOOL_LOOP_EMPTY_FINAL round=%d tool_calls_count=%d "
+                        "last_tool_names=%s messages_count=%d "
+                        "finish_reason=%s reason=empty_assistant_content",
+                        _round, len(tool_calls) if tool_calls else 0,
+                        ",".join(_last_tool_names) or "none", len(messages),
+                        getattr(_choice, "finish_reason", None),
+                    )
+                # Empty string here = "model returned empty content" (case A);
+                # the caller distinguishes this from the None fallback below.
+                return _final
+        except Exception as _loop_exc:
+            # TEMP TRACE: an exception inside the tool loop forced the fallback.
             logger.warning(
-                "COS tool loop failed endpoint=%s — falling back to plain completion",
-                endpoint, exc_info=True,
+                "COS_TOOL_LOOP_FALLBACK exception_type=%s exception_message=%s",
+                type(_loop_exc).__name__, _loop_exc, exc_info=True,
             )
 
         # Fallback: plain completion (no tools) — never regress the answer path.
-        return self._call_api(
+        _fb = self._call_api(
             system_prompt, user_prompt, max_tokens=max_tokens,
             temperature=temperature, endpoint=endpoint, user=user,
             conversation_history=conversation_history, model=model,
         )
+        # TEMP TRACE: fallback outcome (answer_len=0 + None => total OpenAI failure).
+        logger.warning("COS_PLAIN_FALLBACK_RESULT answer_len=%d",
+                       len(_fb or ""))
+        return _fb
 
     def _call_api_stream(
         self,

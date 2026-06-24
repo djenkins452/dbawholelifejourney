@@ -7,6 +7,35 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — feat(cos): Phase 2 — DomainStateService (generic ChatGPT domain read surface)
+
+Second code phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). **Reuse-only, no new intelligence, WLJ truth unchanged.**
+
+**DomainStateService** (`apps/ai/cos_services/domain_state.py`, new): `get_domain_state(user, domain, *, allow_build=False)` — ONE generic, registry-driven read surface for all WLJ domains. Delegates to the canonical SAE accessor `get_module_state()` over the existing `MODULE_BUILDERS` registry — **no domain-specific readers** (`get_health_context` etc. are forbidden), **no re-aggregation** (Law 9). `DOMAIN_REGISTRY` is the exposure contract (ChatGPT-facing domain → canonical SAE module key); it layers ON TOP of SAE and does NOT modify the core `_canonical_module` alias map. Covers the 13 target domains (health, medical, faith, purpose, life, journal, relationships, finance, meals, calendar, capture, sports, notes) plus existing builder domains (goals, habits, tasks, execution, routine, nutrition, fasting, fitness, medicine, brain_training). Exposure aliases: `life`→`tasks`, `purpose`→`goals`.
+
+**State-first / no fabrication.** Reads read-only on the request path (`allow_rebuild=False`) → `pending` on a cold snapshot; `allow_build=True` permits a rebuild (background callers). Honest statuses: `ready` / `pending` / `no_state_source` (e.g. `notes` — no SAE state; retrieved via search, Phase 5) / `unsupported_domain` (lists supported) / `error` (logged, never swallowed). Unknown stays unknown. JSON-safe envelope; `DOMAIN_STATE` telemetry (domain, status, module, availability, field count, source, ms, errors).
+
+**Shared serialization (no duplicate pipelines).** Extracted Phase 1's JSON helpers into `apps/ai/cos_services/serialization.py` (`jsonsafe`, `cap`); `standing_context.py` now imports them (behavior identical — Phase 1's 9 tests still pass).
+
+**Tests:** `apps/ai/tests/test_domain_state.py` — 13 tests: all 13 target domains supported, exposure-alias mapping, ready delegation to get_module_state (read-only), cold→pending, allow_build→rebuild, empty-rebuild→ready, unsupported domain, notes no_state_source (never hits SAE), read-error surfaced not swallowed, case-insensitivity, JSON-safety across all statuses, non-serializable coercion. 13/13 pass; Phase 1 9/9 still pass. `check` + `makemigrations --check` clean (no model changes). **Files:** `apps/ai/cos_services/domain_state.py`, `apps/ai/cos_services/serialization.py`, `apps/ai/cos_services/standing_context.py`, `apps/ai/cos_services/__init__.py`, `apps/ai/tests/test_domain_state.py`, `docs/ENGINE_COS_REFERENCE.md`, `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/PHASED_ROLLOUT_TRACKER.md`.
+
+
+## 2026-06-24 — feat(cos): Phase 1 — StandingContextService (ChatGPT CoS always-loaded context)
+
+First code phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). HYBRID topology: WLJ keeps orchestration, OpenAI is the reasoning layer, tools are internal Python services reusing existing deterministic providers (wrappable by HTTP endpoints later). **No new intelligence, no new engines, WLJ truth unchanged.**
+
+**Pure-projection extraction (reuse enabler).** `apps/core/ai_orchestrator/cos_context.py`: extracted `build_executive_from_context(context)` from `build_executive_context()` — the executive summary is now derivable from an *existing* (e.g. cached) context dict without a `build_cos_context()` rebuild. `build_executive_context(user)` behavior is unchanged (now calls the helper). Verified transparent: 141 `test_phase4_cos` tests pass.
+
+**StandingContextService** (`apps/ai/cos_services/standing_context.py`, new package): `get_standing_context(user, *, page_context=None, allow_build=False)` returns the minimum always-loaded ChatGPT CoS package (personalization, time/active-block, execution summary, top risks/signals, health summary, priorities, situation/mode, cos_intelligence, trust framing). **Cache-first** via `readiness_cache.get_cached_cos_context` — on a miss it returns a `pending` shell and **never live-computes on the request path** (Law: no heavy compute on request path; `allow_build=True` is reserved for background/warming callers). Read-only, deterministic, JSON-safe, observable (`STANDING_CTX` telemetry). `travel_state` is explicitly `null` (unbuilt domain — never inferred). Designed to be wrapped by an authenticated HTTP endpoint later with zero logic change.
+
+**Tests:** `apps/ai/tests/test_standing_context.py` — 9 tests: pending-on-miss does-not-build, allow_build warms, ready projection reuses cos_context/executive, personalization/modules, current_screen passthrough, list caps, JSON-serializable (ready + pending), and the executive-projection refactor purity. All pass. `manage.py check` clean; `makemigrations --check` clean (no model changes). **Files:** `apps/core/ai_orchestrator/cos_context.py`, `apps/ai/cos_services/__init__.py`, `apps/ai/cos_services/standing_context.py`, `apps/ai/tests/test_standing_context.py`, `docs/ENGINE_COS_REFERENCE.md`, `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/PHASED_ROLLOUT_TRACKER.md`.
+
+
+## 2026-06-24 — chore(cos): Phase 0 — implementation tracking + transition branch
+
+Phase 0 of the ChatGPT CoS transition (no code changes). Created branch `feat/chatgpt-cos-transition` off the architecture baseline and added implementation-tracking artifacts under `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/`: implementation backlog (per-phase reuse map + anti-pattern watchlist), phased rollout tracker (Phases 0–8), and the gated migration checklist (Gates A–F, Beth→ChatGPT). Establishes the execution scaffold; Phase 1 (standing-context serializer) is the first code phase. **Files:** `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/*`.
+
+
 ## 2026-06-24 — docs(cos): ChatGPT Chief of Staff architecture baseline
 
 Established the authoritative architectural baseline for the transition from the legacy Beth conversational layer to a ChatGPT-powered Chief of Staff — **documentation only, no code changes, WLJ deterministic-truth architecture unchanged.** Four read-only discovery/architecture artifact sets committed under `@WLJ_SYSTEM_PROMPTS/`:

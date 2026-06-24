@@ -9076,20 +9076,20 @@ For all trajectory surfacing:
 """
 
 
-def build_executive_context(user):
+def build_executive_from_context(context):
     """
-    Build the unified Executive Context Object.
+    Project an already-assembled cos_context into the Executive Context Object.
 
-    Aggregates all intelligence signals into a single strategic summary.
-    This is the primary intelligence injected into the assistant system prompt.
+    PURE transformation over an existing context dict — performs NO rebuild and
+    NO new queries (all `_build_*` helpers read only from `context`). Extracted
+    from build_executive_context so callers that already hold a (possibly cached)
+    context — e.g. the ChatGPT CoS StandingContextService — can derive the
+    executive summary without paying for a full build_cos_context().
 
     Returns:
-        dict — ExecutiveContextObject
+        dict — the `executive` sub-object (strategic summary, risk flags, etc.)
     """
-    context = build_cos_context(user)
-
-    # Build the strategic summary object
-    executive = {
+    return {
         'strategic_state_summary': _build_strategic_summary(context),
         'risk_flags': _build_risk_flags(context),
         'momentum_indicators': _build_momentum_indicators(context),
@@ -9106,8 +9106,20 @@ def build_executive_context(user):
         'tone_mode': context.get('executive_tone_mode', 'strategic_executive'),
     }
 
-    # Merge with full operational context
-    context['executive'] = executive
+
+def build_executive_context(user):
+    """
+    Build the unified Executive Context Object.
+
+    Aggregates all intelligence signals into a single strategic summary.
+    This is the primary intelligence injected into the assistant system prompt.
+
+    Returns:
+        dict — ExecutiveContextObject
+    """
+    context = build_cos_context(user)
+    # Merge the strategic summary into the full operational context.
+    context['executive'] = build_executive_from_context(context)
     return context
 
 

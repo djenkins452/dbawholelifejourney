@@ -7,6 +7,26 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — feat(cos): Phase 0A.2 — complete interactive gateway coverage (narrative suppression)
+
+**Rule applied:** if a surface SPEAKS to Danny it is conversational and belongs to the gateway — even deterministic renderers. For `use_chatgpt_cos=True`, no remaining interactive surface invokes a legacy narrator/renderer/coaching generator; with no CoS-native equivalent yet, the gateway SUPPRESSES the conversational output (never a silent Beth fallback).
+
+**Gateway additions (`cos_gateway/`):** `CoSResponse` gains `suppressed`/`suppressed_reason`; `CoSGateway.is_cos(user)`; `CoSGateway.structured(user, surface, legacy, suppressed)` (CoS → runs only the `suppressed(reason)` closure; the legacy producer is NEVER called); `CoSGateway.narrative(user, surface, legacy_producer)` (gates a confirmation string while the caller still executes the action). 12 narrative surface constants + `NARRATIVE_SURFACES`.
+
+**Surfaces resolved (all 12):**
+- **Full suppression for CoS** (legacy producer not invoked; contract keys preserved with null/empty + `suppressed_reason`): state assessment, weekly analysis, monthly analysis (the 3 real LLM-narrator leaks), opening message, proactive briefing, daily priorities, reflection prompt, drift, goal progress. Session-start suppresses via its existing `action: none` quiet contract.
+- **Action preserved, message suppressed for CoS:** quick reply (IntakeLog / mark_complete still execute; confirmation text gated + not persisted) and event reflection (`process_reflection_answer` still saves; `message` nulled).
+- **Flag-OFF:** every surface byte-identical (producers run exactly as before).
+
+**Structured-contract approach:** only the narrative is gated; the surrounding JSON shape is preserved. Where the LLM/Beth producer is entangled with the data (weekly/monthly summary inside `generate_weekly_analysis`; opening built entirely by `build_cos_structured_output`), the surface is fully suppressed for CoS (data also withheld) because separating it = a new CoS-native builder (out of scope). Documented tradeoff: CoS users lose these analytics/briefing surfaces until a CoS-native generator lands (later phase).
+
+**Quarantine expansion (`test_cos_gateway.py`):** `StructuredSuppressionTests` prove the legacy producer is never called for CoS (and runs for flag-OFF). `NarrativeSurfaceEndpointTests` drive all 8 GET + 2 POST surfaces end-to-end as a flag-ON user with the 17-symbol tripwire suite armed — each returns a suppressed response with ZERO forbidden conversational execution. Import-drift guard unchanged. Updated `test_executive_briefing.test_all_entry_points_call_handle_day_start` to reflect that chat entry points delegate `handle_day_start` to `LegacyBethRuntime` (Phase 0A).
+
+**Known pre-existing (not Phase 0A):** `test_executive_briefing.TestHandleDayStart.test_second_call_is_noop` fails on a clean tree (day-start idempotency cache no-ops in the test env) — unrelated to this change, left untouched per scope.
+
+**Files:** `apps/ai/cos_gateway/{envelope,gateway,__init__}.py`, `apps/ai/views.py` (12 views), `apps/ai/tests/test_cos_gateway.py`, `apps/ai/tests/test_executive_briefing.py`. **Out of scope (untouched):** proactive/push/SMS (Phase 0B), `emit()`, new features, prompts, UX.
+
+
 ## 2026-06-24 — feat(cos): Phase 0A — Single Interactive Conversational Gateway
 
 **Goal:** one request → one gateway → one runtime → one response. No interactive conversational surface decides runtime ownership itself; only the gateway does.

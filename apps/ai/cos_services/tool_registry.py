@@ -33,6 +33,7 @@ No business logic lives here — handlers delegate to the cos_services functions
 from django.conf import settings
 
 from apps.ai.cos_services.domain_state import supported_domains
+from apps.ai.cos_services.history_search import SUPPORTED_HISTORY_DOMAINS
 
 
 # ---------------------------------------------------------------------------
@@ -56,6 +57,16 @@ def _h_standing_context(user, **kwargs):
 def _h_domain_state(user, **kwargs):
     from apps.ai.cos_services.domain_state import get_domain_state
     return get_domain_state(user, kwargs.get("domain", ""))
+
+
+def _h_search_history(user, **kwargs):
+    from apps.ai.cos_services.history_search import search_history
+    return search_history(
+        user,
+        kwargs.get("query", ""),
+        domain=kwargs.get("domain"),
+        timeframe=kwargs.get("timeframe"),
+    )
 
 
 def _h_decision(user, **kwargs):
@@ -160,19 +171,45 @@ TOOL_REGISTRY = {
     },
     # --- registered, disabled until their phase ---
     "search_history": {
-        "kind": "read", "enabled": False, "phase": 5, "handler": None,
+        "kind": "read",
+        "enabled": True,
+        "phase": 5,
+        "handler": _h_search_history,
         "schema": {
             "type": "function",
             "function": {
                 "name": "search_history",
-                "description": "Time-based history lookup across domains (Phase 5).",
+                "description": (
+                    "Search the user's deterministic HISTORY by keyword — past "
+                    "journal entries, health records, goals, faith, tasks, "
+                    "finance, captures, and notes. Use for 'have I struggled "
+                    "with this before', 'what worked previously', 'when did I "
+                    "last feel like this', or pattern questions. Omit `domain` "
+                    "to search across all. Empty results mean no matching "
+                    "history — say so, never invent."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "domain": {"type": "string"},
-                        "time_range": {"type": "string"},
+                        "query": {
+                            "type": "string",
+                            "description": "Free-text search terms.",
+                        },
+                        "domain": {
+                            "type": "string",
+                            "description": "Optional single history domain.",
+                            "enum": SUPPORTED_HISTORY_DOMAINS,
+                        },
+                        "timeframe": {
+                            "type": "string",
+                            "description": (
+                                "Optional window: '7d'/'30d'/'90d', "
+                                "'week'/'month'/'quarter'/'year', or "
+                                "'YYYY-MM-DD:YYYY-MM-DD'."
+                            ),
+                        },
                     },
-                    "required": ["domain"],
+                    "required": ["query"],
                 },
             },
         },

@@ -31,6 +31,10 @@ from apps.ai.cos_services.domain_state import (
     get_domain_state,
     supported_domains,
 )
+from apps.ai.cos_services.history_search import (
+    SUPPORTED_HISTORY_DOMAINS,
+    search_history,
+)
 from apps.ai.cos_services.standing_context import (
     STANDING_CONTEXT_SCHEMA_VERSION,
     get_standing_context,
@@ -56,4 +60,7 @@ __all__ = [
     "enabled_tool_names",
     "evidence_tools_enabled",
     "dispatch_tool_call",
+    # Phase 5
+    "search_history",
+    "SUPPORTED_HISTORY_DOMAINS",
 ]

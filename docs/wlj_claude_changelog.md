@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — feat(cos): Phase 5 — historical intelligence (search_history)
+
+Fifth code phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). **Reuse-only — exposes existing, previously-unused search engines; no new search engine, no new embeddings, no duplicate indexing.**
+
+**HistorySearchService** (`apps/ai/cos_services/history_search.py`, new): `search_history(user, query, *, domain=None, timeframe=None)` wraps `apps.ai.search_service.SearchService` (the Readiness-Audit "dead-code" keyword search across journal/health/goals/faith/organize[life]/finance/capture + `search_all`) and `apps.notes.services.search_notes_cos` for notes. Each SearchService method is called uniformly as `method(keywords=..., limit=...)` (exactly how `search_all` calls them), returning the standardized `{id,title,snippet,date,url,metadata}` shape. `timeframe` ('7d'/'30d'/'90d', 'week'/'month'/'quarter'/'year', or 'YYYY-MM-DD:YYYY-MM-DD') is parsed deterministically and applied UNIFORMLY on each result's `date` field — so it never depends on per-method date-range support. Exposure alias `purpose`→goals, `life`→organize. Honest statuses: ready/empty (no fabrication)/unsupported_domain/error (logged, never swallowed). JSON-safe; `SEARCH_HISTORY` telemetry.
+
+**get_decision → search_history tool ENABLED** in `tool_registry.py` (`_h_search_history`, schema `query` required + optional `domain`/`timeframe`). Advertised tools now 4 (get_standing_context, get_domain_state, get_decision, search_history); only `execute_action` remains registered-disabled (Phase 6).
+
+**Offline validation (real, non-mocked):** `search_history('anxiety', domain='journal')` → real `SearchService.search_journal` → `status=empty` for a fresh user (deterministic, correct). `health`/`all` returned `status=error` ONLY because the LOCAL dev DB is behind migrations (`column health_intakelog.dose_amount does not exist`) — my error handling surfaced it cleanly (no crash, no fabrication); the migrated test DB validates those paths.
+
+**Tests:** `apps/ai/tests/test_history_search.py` — 15 tests (timeframe parser: none/days/named/explicit/garbage; domain→method mapping; purpose→goals alias; default→search_all; notes→search_notes_cos; timeframe filtering incl. undated-excluded; empty→empty; unsupported_domain; error surfaced; JSON-safe; tool dispatch). Phase 3/4 enabled-tool assertions updated for the 4th tool. 15/15 pass; full CoS sweep **57/57**; `check` + `makemigrations --check` clean (no model changes). **Files:** `apps/ai/cos_services/history_search.py`, `apps/ai/cos_services/tool_registry.py`, `apps/ai/cos_services/__init__.py`, `apps/ai/tests/test_history_search.py`, `apps/ai/tests/test_cos_tools.py`, `docs/ENGINE_COS_REFERENCE.md`, `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/PHASED_ROLLOUT_TRACKER.md`.
+
+
 ## 2026-06-24 — feat(cos): Phase 4 — decision surface reuse (get_decision) + live-validation harness
 
 Fourth code phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). **Reuse-only, no new decision logic.**

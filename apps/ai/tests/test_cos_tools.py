@@ -49,25 +49,26 @@ def _resp(content=None, tool_calls=None):
 class ToolRegistryTests(TestCase):
     def test_only_enabled_tools_advertised(self):
         names = {s["function"]["name"] for s in get_tool_schemas(enabled_only=True)}
-        # Phase 4 enables get_decision.
+        # Phase 4 enables get_decision; Phase 5 enables search_history.
         self.assertEqual(
             names,
-            {"get_standing_context", "get_domain_state", "get_decision"},
+            {"get_standing_context", "get_domain_state", "get_decision",
+             "search_history"},
         )
 
     def test_enabled_tool_names(self):
         self.assertEqual(
             enabled_tool_names(),
-            ["get_decision", "get_domain_state", "get_standing_context"],
+            ["get_decision", "get_domain_state", "get_standing_context",
+             "search_history"],
         )
 
     def test_disabled_tools_registered_but_hidden(self):
         advertised = {s["function"]["name"] for s in get_tool_schemas(enabled_only=True)}
         all_names = {s["function"]["name"] for s in get_tool_schemas(enabled_only=False)}
-        # registered (complete catalog) but NOT advertised until their phase
-        for deferred in ("search_history", "execute_action"):
-            self.assertIn(deferred, all_names)
-            self.assertNotIn(deferred, advertised)
+        # execute_action remains registered but NOT advertised until Phase 6
+        self.assertIn("execute_action", all_names)
+        self.assertNotIn("execute_action", advertised)
 
     def test_domain_state_schema_has_enum(self):
         schema = next(

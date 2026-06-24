@@ -5138,7 +5138,7 @@ Rules for this response:
             try:
                 from apps.ai.cos_services.tool_registry import evidence_tools_enabled
                 _use_cos_tools = (
-                    evidence_tools_enabled()
+                    evidence_tools_enabled(self.user)
                     and not (image_data or all_images)
                 )
             except Exception:
@@ -5950,7 +5950,7 @@ Rules for this response:
                     from apps.ai.cos_services.tool_registry import (
                         evidence_tools_enabled,
                     )
-                    _use_cos_tools_stream = evidence_tools_enabled()
+                    _use_cos_tools_stream = evidence_tools_enabled(self.user)
                 except Exception:
                     _use_cos_tools_stream = False
 

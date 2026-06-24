@@ -79,6 +79,15 @@ def _get_module_enablement_defaults():
     return defaults
 
 
+def _cos_enabled_for(request):
+    """Per-user ChatGPT CoS resolution for the template header. Never raises."""
+    try:
+        from apps.ai.cos_services.tool_registry import evidence_tools_enabled
+        return evidence_tools_enabled(getattr(request, 'user', None))
+    except Exception:
+        return False
+
+
 def feature_flags(request):
     """Expose UI-relevant WLJ feature flags to templates.
 
@@ -90,12 +99,11 @@ def feature_flags(request):
             'WLJ_ACTION_CENTER_CHRONOLOGICAL': getattr(
                 settings, 'WLJ_ACTION_CENTER_CHRONOLOGICAL', True,
             ),
-            # ChatGPT CoS evidence-tool experience. When on, the chat header
-            # gets a distinct identity so the user knows they're on the new
-            # ChatGPT-powered Chief of Staff (not legacy Beth). Default OFF.
-            'WLJ_COS_EVIDENCE_TOOLS_ENABLED': getattr(
-                settings, 'WLJ_COS_EVIDENCE_TOOLS_ENABLED', False,
-            ),
+            # ChatGPT CoS experience, resolved PER USER (global override OR the
+            # user's UserPreferences.use_chatgpt_cos opt-in). When on, the chat
+            # header gets a distinct identity so the user always knows they're on
+            # the new ChatGPT-powered Chief of Staff (not legacy Beth).
+            'WLJ_COS_EVIDENCE_TOOLS_ENABLED': _cos_enabled_for(request),
         }
     }
 

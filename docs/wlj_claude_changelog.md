@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — feat(cos): per-account ChatGPT CoS enablement + enable for owner (Alpha User #1)
+
+Single-user deployment strategy: ship the ChatGPT CoS (Phases 3–7) to production, enabled ONLY for the owner; legacy Beth stays the global default. **Per-account, not global.**
+
+**New preference:** `UserPreferences.use_chatgpt_cos` (BooleanField, default False) — migration `users/0085`. **`evidence_tools_enabled(user)`** (`apps/ai/cos_services/tool_registry.py`) now resolves per user: global override `WLJ_COS_EVIDENCE_TOOLS_ENABLED` (default False → on for everyone, dev/test/emergency) OR the user's `use_chatgpt_cos` opt-in. Call sites updated to pass the user: `_generate_response`, `_generate_response_stream` (`personal_assistant.py`), and the template header via `context_processors._cos_enabled_for(request)` — so the distinct ChatGPT CoS header shows ONLY for enabled accounts.
+
+**Owner = Alpha User #1:** data migration `users/0086_enable_chatgpt_cos_for_owner` sets `use_chatgpt_cos=True` for `dannyjenkins71@gmail.com` on deploy (no prod CLI; runs via the Procfile migrate). Safe no-op if the account is absent in an environment.
+
+**Rollback (zero code, zero deploy):** toggle `UserPreferences.use_chatgpt_cos` off (Django admin) → instant revert to legacy Beth for that user. The migration's reverse also disables it. Global kill-switch: leave `WLJ_COS_EVIDENCE_TOOLS_ENABLED` unset/False (default).
+
+**Tests:** `apps/ai/tests/test_cos_account_flag.py` (5) — default legacy Beth, account opt-in enables, toggle-off rollback, no-user disabled, global override. Backward-compat: existing `@override_settings(WLJ_COS_EVIDENCE_TOOLS_ENABLED=True)` tests still pass via the global-override path. Full sweep **98/98**; `check` + `makemigrations --check` clean. **Files:** `apps/users/models.py`, `apps/users/migrations/0085_*`, `apps/users/migrations/0086_*`, `apps/ai/cos_services/tool_registry.py`, `apps/ai/personal_assistant.py`, `apps/core/context_processors.py`, `apps/ai/tests/test_cos_account_flag.py`.
+
+
 ## 2026-06-24 — fix(faith): handle_log_prayer passed non-existent prayer_status to PrayerRequest
 
 **Root cause (proven):** `apps/ai/action_handlers.py:2701` — `handle_log_prayer` called `PrayerRequest.objects.create(..., prayer_status='active')`, but `PrayerRequest` (`apps/faith/models.py:151`) has NO `prayer_status` field (its status is the `is_answered` BooleanField, default False = active/unanswered; confirmed no `prayer_status` anywhere in `apps/faith/`). → `TypeError: PrayerRequest() got unexpected keyword arguments: 'prayer_status'` at model init in EVERY environment, so logging a prayer via the AI/CoS `log_prayer` intent always failed. Surfaced during ChatGPT CoS Phase 6 `execute_action` validation (the new code correctly reported it as status=failed). **Smallest safe fix:** removed the invalid `prayer_status='active'` kwarg (the model default already represents active). Faith architecture untouched. **Tests:** `apps/ai/tests/test_log_prayer_fix.py` (3) — handler creates a PrayerRequest (is_answered=False), optional fields persist, guard that `PrayerRequest` has no `prayer_status` attr. **Files:** `apps/ai/action_handlers.py`, `apps/ai/tests/test_log_prayer_fix.py`.

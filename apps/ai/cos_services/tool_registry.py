@@ -42,9 +42,26 @@ ALLOWED_ACTIONS = _allowed_actions()
 # ---------------------------------------------------------------------------
 # Feature flag (defaults OFF — ships dark, no settings.py change required)
 # ---------------------------------------------------------------------------
-def evidence_tools_enabled():
-    """True when the CoS evidence-tool loop is wired into the answer path."""
-    return bool(getattr(settings, "WLJ_COS_EVIDENCE_TOOLS_ENABLED", False))
+def evidence_tools_enabled(user=None):
+    """True when the ChatGPT CoS evidence-tool loop should be active.
+
+    Resolution (legacy Beth is the global default):
+    * Global override `WLJ_COS_EVIDENCE_TOOLS_ENABLED` (default False) — when
+      True, enabled for EVERYONE (dev/testing/emergency-on). Honors the existing
+      tests that toggle this setting.
+    * Otherwise per-account opt-in via `UserPreferences.use_chatgpt_cos` — the
+      production switch (Danny = Alpha User #1). Toggling it off is the
+      zero-deploy, zero-code rollback for that user.
+    """
+    if bool(getattr(settings, "WLJ_COS_EVIDENCE_TOOLS_ENABLED", False)):
+        return True
+    if user is None or not getattr(user, "is_authenticated", False):
+        return False
+    try:
+        prefs = getattr(user, "preferences", None)
+        return bool(prefs is not None and getattr(prefs, "use_chatgpt_cos", False))
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------

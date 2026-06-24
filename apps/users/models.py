@@ -702,6 +702,16 @@ class UserPreferences(models.Model):
         """Return the user's chosen CoS name, or 'Chief of Staff' if not set."""
         return self.cos_display_name.strip() or 'Chief of Staff'
 
+    # ChatGPT Chief of Staff (per-account opt-in)
+    # When True, this user's chat uses the new ChatGPT-powered CoS (evidence
+    # tools + distinct header). Default False = legacy Beth. This is the
+    # zero-deploy rollback switch: toggle it off to revert this user instantly.
+    use_chatgpt_cos = models.BooleanField(
+        default=False,
+        help_text="Use the new ChatGPT-powered Chief of Staff for this user "
+                  "(default: legacy Beth). Toggle off for instant rollback.",
+    )
+
     # ===================
     # PROACTIVE CHECK-INS
     # ===================

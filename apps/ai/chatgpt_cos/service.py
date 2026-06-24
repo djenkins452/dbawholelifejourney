@@ -111,7 +111,20 @@ class ChatGPTCoSService:
         )
         from apps.ai.services import ai_service
 
-        standing = get_standing_context(self.user, page_context=page_context)
+        # The clean path runs in a background Celery task, so synchronous warming
+        # is allowed here (no request-path "never live-compute" constraint).
+        # Warm the SAE snapshot ONCE and pin it on the user so standing context
+        # AND every get_domain_state tool call read REAL data instead of a cold
+        # 'pending' shell (this is why weight/faith previously read as pending).
+        try:
+            from apps.core.ai_state.state_engine import get_user_state
+            self.user._sae_cache = get_user_state(self.user, allow_rebuild=True)
+        except Exception:
+            logger.warning("chatgpt_cos: SAE warm failed", exc_info=True)
+
+        standing = get_standing_context(
+            self.user, page_context=page_context, allow_build=True,
+        )
         system_prompt = self._system_prompt(standing)
         history = self._history(conversation, message)
         tools = get_tool_schemas(enabled_only=True)

@@ -6294,8 +6294,9 @@ Rules for this response:
                 # the ChatGPT CoS (vs legacy Beth). Pair with COS_TOOL_ROUND
                 # (tool loop ran) + route_name (deterministic) in the same logs.
                 logger.info(
-                    "COS_ROUTING_STREAM user=%s evidence_on=%s build=router-bypass-v2",
-                    self.user.id, _cos_evidence_on,
+                    "COS_PATH user=%s path=%s build=clean-boundary-v1",
+                    self.user.id,
+                    "chatgpt" if _cos_evidence_on else "legacy_beth",
                 )
 
                 # ── RESPONSE GOVERNOR — central authority ───────────
@@ -6371,14 +6372,14 @@ Rules for this response:
                     _ecc_tier = _ecc_determine_tier(_ecc_traj, message)
 
                     _ecc_pending = list(get_pending_commitments(self.user))
-                    if _ecc_pending and not _reflective_mode_active:
+                    if _ecc_pending and not _reflective_mode_active and not _cos_evidence_on:
                         closure_result = process_ecc_closure(
                             self.user, message, _ecc_pending, _ecc_tier,
                         )
                         if closure_result:
                             _direct_response = closure_result
 
-                    if not _direct_response and not _reflective_mode_active:
+                    if not _direct_response and not _reflective_mode_active and not _cos_evidence_on:
                         detection_result = process_ecc_detection(
                             self.user, message, _ecc_tier,
                         )
@@ -6392,7 +6393,7 @@ Rules for this response:
                 # User-affirmed completion check — runs before proactive
                 # confirmation to suppress reminders without CRUD execution.
                 # Phase 18.4: skip in reflective mode
-                if not _direct_response and not _reflective_mode_active:
+                if not _direct_response and not _reflective_mode_active and not _cos_evidence_on:
                     try:
                         from .affirmation_detector import handle_affirmed_completion
                         _affirm_result = handle_affirmed_completion(
@@ -6407,7 +6408,7 @@ Rules for this response:
                         )
 
                 # Phase 18.4: skip proactive check-in in reflective mode
-                if not _direct_response and not _reflective_mode_active:
+                if not _direct_response and not _reflective_mode_active and not _cos_evidence_on:
                     try:
                         from .confirmation_detector import handle_proactive_confirmation
                         confirm_resp = handle_proactive_confirmation(
@@ -6419,7 +6420,7 @@ Rules for this response:
                         pass
 
                 # ── Pending CRUD action confirmation ──
-                if not _direct_response:
+                if not _direct_response and not _cos_evidence_on:
                     try:
                         from apps.ai.intent_service import intent_service
                         _pending_crud = (
@@ -6470,7 +6471,7 @@ Rules for this response:
                         )
 
                 # ── Pending disambiguation (multi-candidate selection) ──
-                if not _direct_response:
+                if not _direct_response and not _cos_evidence_on:
                     try:
                         from apps.ai.intent_service import intent_service
                         _pending_disambig = (
@@ -6516,7 +6517,7 @@ Rules for this response:
                         )
 
                 # ── Pending clarification check (entity disambiguation) ──
-                if not _direct_response:
+                if not _direct_response and not _cos_evidence_on:
                     try:
                         from apps.ai.intent_service import intent_service
                         _stream_clarification = (
@@ -6565,7 +6566,7 @@ Rules for this response:
                 # ensure parity. Handles data queries, health summary,
                 # strict health status, and check-in prefilter detection.
                 _route_result_stream = None
-                if not _direct_response:
+                if not _direct_response and not _cos_evidence_on:
                     if _ltrace_s:
                         _ltrace_s.start('ROUTER_CLASSIFICATION')
                     try:
@@ -6623,7 +6624,8 @@ Rules for this response:
                                 _ltrace_s.set_meta('route_category', str(_route_result_stream.category))
 
                 # ── Check-in prefilter (detected by shared router) ─────
-                if not _direct_response and _route_result_stream is not None:
+                if (not _direct_response and _route_result_stream is not None
+                        and not _cos_evidence_on):
                     _is_checkin_stream = (
                         _route_result_stream.category == 'checkin_prefilter'
                     )
@@ -6649,9 +6651,12 @@ Rules for this response:
                     )
                     if _ltrace_s:
                         _ltrace_s.set_governance_decision('intent_bypassed')
+                # ChatGPT CoS: actions go through the execute_action TOOL, not
+                # the legacy intent/orchestrator pipeline. Skip it entirely.
                 if (not _direct_response and not _is_checkin_stream
                         and not _skip_intent_stream
-                        and not _reflective_mode_active):
+                        and not _reflective_mode_active
+                        and not _cos_evidence_on):
                     try:
                         from apps.ai.intent_service import intent_service
                         from apps.core.ai_orchestrator.orchestrator import (

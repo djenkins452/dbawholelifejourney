@@ -140,6 +140,20 @@ class ChatGPTCoSTaskTests(TestCase):
         self.assertIn("error", am.content.lower())
 
 
+class TaskRegistrationTests(TestCase):
+    """The hang bug: the clean task lived in a non-autodiscovered sub-package,
+    so the Celery worker never registered it and jobs sat unconsumed forever.
+    It must be importable via apps.ai.tasks (which IS autodiscovered)."""
+
+    def test_clean_task_registered_via_autodiscovered_module(self):
+        from apps.ai import tasks as ai_tasks
+        self.assertTrue(hasattr(ai_tasks, "run_chatgpt_cos_generation"))
+        self.assertEqual(
+            ai_tasks.run_chatgpt_cos_generation.name,
+            "apps.ai.chatgpt_cos.run_chatgpt_cos_generation",
+        )
+
+
 class StreamViewRoutingTests(TestCase):
     @classmethod
     def setUpTestData(cls):

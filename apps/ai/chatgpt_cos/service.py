@@ -135,15 +135,29 @@ class ChatGPTCoSService:
             called.append(name)
             return dispatch_tool_call(self.user, name, args)
 
-        answer = ai_service._call_api_with_tools(
-            system_prompt,
-            message,
-            tools=tools,
-            dispatch=_dispatch,
-            endpoint="cos_chat",
-            user=self.user,
-            conversation_history=history,
-            model=getattr(settings, "COS_MODEL", None),
+        logger.info(
+            "COS_TOOL_LOOP_START user=%s advertised=%s standing=%s",
+            self.user.id, ",".join(advertised),
+            (standing.get("status") if isinstance(standing, dict) else "?"),
+        )
+        try:
+            answer = ai_service._call_api_with_tools(
+                system_prompt,
+                message,
+                tools=tools,
+                dispatch=_dispatch,
+                endpoint="cos_chat",
+                user=self.user,
+                conversation_history=history,
+                model=getattr(settings, "COS_MODEL", None),
+            )
+        except Exception:
+            logger.error("COS_EXCEPTION user=%s stage=tool_loop",
+                         self.user.id, exc_info=True)
+            raise
+        logger.info(
+            "COS_TOOL_LOOP_FINISH user=%s tools_called=%s answer_len=%d",
+            self.user.id, ",".join(called) or "none", len(answer or ""),
         )
         return {
             "answer": (answer or "").strip(),

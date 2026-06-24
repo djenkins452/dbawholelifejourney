@@ -7,6 +7,11 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — fix(cos): clean path warms SAE state so tools return real data (not 'pending')
+
+Follow-up to the clean ChatGPT CoS path: `get_domain_state("health")` and `get_standing_context` returned a cold `pending` shell (cause of "I can't see your current weight"). The clean path runs in a background Celery task (no request-path "never live-compute" constraint), so `ChatGPTCoSService.generate` now warms state ONCE up front: `self.user._sae_cache = get_user_state(user, allow_rebuild=True)` (pins the fresh SAE snapshot so every `get_domain_state` tool reads it via the per-request fast path) + `get_standing_context(..., allow_build=True)`. Cheap for warm users (returns existing snapshot); rebuilds only when cold. **Test:** `test_warms_sae_and_standing_context` (allow_rebuild/allow_build passed; snapshot pinned). 3/3 service tests pass; `check` clean. **Files:** `apps/ai/chatgpt_cos/service.py`, `apps/ai/tests/test_chatgpt_cos_clean.py`. **Rollback:** toggle `use_chatgpt_cos` off or revert.
+
+
 ## 2026-06-24 — feat(cos): separate clean ChatGPT CoS path — legacy Beth retired from enabled accounts
 
 Hard reset of the approach: instead of gating legacy Beth internally, built a STANDALONE ChatGPT CoS path that the chat view branches to BEFORE any legacy Beth logic. When `use_chatgpt_cos=True`, PersonalAssistant / `send_message_stream` / the deterministic router / check-in / validators / intent pipeline are never entered.

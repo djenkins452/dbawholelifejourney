@@ -1101,6 +1101,43 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
                     status=400,
                 )
 
+            # ============================================================
+            # CLEAN ChatGPT CoS SPLIT — earliest possible branch.
+            # When use_chatgpt_cos=True, route to the standalone ChatGPT CoS
+            # path. Legacy Beth (day-start briefing, deterministic router,
+            # check-in, validators, intent pipeline, fallback) is NOT entered.
+            # ============================================================
+            from apps.ai.cos_services.tool_registry import evidence_tools_enabled
+            if evidence_tools_enabled(request.user):
+                import uuid as _cos_uuid
+                from apps.ai import chat_stream_bus as bus
+                from apps.ai.chatgpt_cos.tasks import run_chatgpt_cos_generation
+                from apps.ai.models import AssistantConversation
+
+                conversation = AssistantConversation.get_or_create_active(
+                    request.user,
+                )
+                job_id = str(_cos_uuid.uuid4())
+                bus.write(
+                    job_id, bus.new_snapshot(request.user.id, conversation.id),
+                )
+                run_chatgpt_cos_generation.delay(
+                    request.user.id, conversation.id, message,
+                    page_context, job_id,
+                )
+                logger.info(
+                    "COS_PATH=chatgpt_clean dispatched job=%s user=%s conv=%s",
+                    job_id, request.user.id, conversation.id,
+                )
+                response = StreamingHttpResponse(
+                    _chat_relay_stream(job_id, request.user.id),
+                    content_type='text/event-stream',
+                )
+                response['Cache-Control'] = 'no-cache'
+                response['X-Accel-Buffering'] = 'no'
+                return response
+            # ===== end clean split — legacy Beth path below =====
+
             # ── Authoritative day-start (idempotent) ──
             from apps.ai.executive_briefing import handle_day_start
             handle_day_start(request.user)

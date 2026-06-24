@@ -90,6 +90,12 @@ def feature_flags(request):
             'WLJ_ACTION_CENTER_CHRONOLOGICAL': getattr(
                 settings, 'WLJ_ACTION_CENTER_CHRONOLOGICAL', True,
             ),
+            # ChatGPT CoS evidence-tool experience. When on, the chat header
+            # gets a distinct identity so the user knows they're on the new
+            # ChatGPT-powered Chief of Staff (not legacy Beth). Default OFF.
+            'WLJ_COS_EVIDENCE_TOOLS_ENABLED': getattr(
+                settings, 'WLJ_COS_EVIDENCE_TOOLS_ENABLED', False,
+            ),
         }
     }
 

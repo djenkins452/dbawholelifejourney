@@ -7,6 +7,24 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — fix(faith): handle_log_prayer passed non-existent prayer_status to PrayerRequest
+
+**Root cause (proven):** `apps/ai/action_handlers.py:2701` — `handle_log_prayer` called `PrayerRequest.objects.create(..., prayer_status='active')`, but `PrayerRequest` (`apps/faith/models.py:151`) has NO `prayer_status` field (its status is the `is_answered` BooleanField, default False = active/unanswered; confirmed no `prayer_status` anywhere in `apps/faith/`). → `TypeError: PrayerRequest() got unexpected keyword arguments: 'prayer_status'` at model init in EVERY environment, so logging a prayer via the AI/CoS `log_prayer` intent always failed. Surfaced during ChatGPT CoS Phase 6 `execute_action` validation (the new code correctly reported it as status=failed). **Smallest safe fix:** removed the invalid `prayer_status='active'` kwarg (the model default already represents active). Faith architecture untouched. **Tests:** `apps/ai/tests/test_log_prayer_fix.py` (3) — handler creates a PrayerRequest (is_answered=False), optional fields persist, guard that `PrayerRequest` has no `prayer_status` attr. **Files:** `apps/ai/action_handlers.py`, `apps/ai/tests/test_log_prayer_fix.py`.
+
+
+## 2026-06-24 — feat(cos): Phase 7 — persistent conversation (tool loop in background path) + distinct ChatGPT CoS header
+
+Seventh phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). **Reuse-only — the persistent/background machinery already existed; Phase 7 makes the new tool loop participate in it, and adds a feature-flagged UI identity.** Flag-gated OFF → no production change.
+
+**Investigation finding:** the server-owned persistent path already exists and survives navigation — `apps/ai/tasks.py::run_chat_generation` (Celery) → `send_message_stream` → `chat_stream_bus` snapshot → resume-by-job_id endpoint (commit `50fb57e5`). BUT it ran the token-streaming generation (`_call_api_stream`), which has NO tools — so the new evidence-tool loop (`_call_api_with_tools`, wired only into non-streaming `_generate_response` in Phase 3) did NOT survive navigation.
+
+**Bridge (smallest safe change):** `apps/ai/personal_assistant.py::_generate_response_stream` — added a flag-gated branch at the LLM seam: when `WLJ_COS_EVIDENCE_TOOLS_ENABLED`, run the bounded tool loop (`_call_api_with_tools`) IN this generator (which the background `run_chat_generation` task owns, so it survives nav/refresh/disconnect) and emit the final synthesized answer as a single chunk; else the existing token-streaming path is byte-for-byte unchanged. `full_text` is set identically, so all downstream persistence/briefing logic is unchanged. `tasks.py`, `chat_stream_bus`, the resume endpoint, and multi-tab/duplicate-suppression (existing job-id ownership + idempotency guard) are REUSED untouched — no rebuild.
+
+**Distinct ChatGPT CoS header (feature-flagged):** `WLJ_COS_EVIDENCE_TOOLS_ENABLED` exposed to templates via `apps/core/context_processors.py::feature_flags`. `templates/components/assistant_panel.html` main + mobile-pullup headers get a `--chatgpt` modifier class + an "AI" badge + a "Powered by ChatGPT" sublabel when the flag is on; legacy Beth header unchanged when off. `static/css/assistant-panel.css` adds the treatment: deep-blue→teal gradient, gold accent line, gold badge/sublabel (WLJ palette), responsive (sublabel hidden < 480px). CSP-safe (external CSS + classes, no inline styles/handlers).
+
+**Verification:** `apps/ai/tests/test_phase7_stream_tools.py` (3) — flag OFF uses `_call_api_stream` (unchanged); flag ON uses `_call_api_with_tools` in the stream generator and yields its final answer (persisted to the assistant message); tools+dispatch passed. Existing `test_chat_background` (background path) still green. Template conditional verified to emit the `--chatgpt` class + badge + sublabel only when flagged. Full affected sweep **93/93**; `check` + `makemigrations --check` clean (no model changes). **Files:** `apps/ai/personal_assistant.py`, `apps/core/context_processors.py`, `templates/components/assistant_panel.html`, `static/css/assistant-panel.css`, `apps/ai/tests/test_phase7_stream_tools.py`, `docs/ENGINE_COS_REFERENCE.md`, `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/PHASED_ROLLOUT_TRACKER.md`.
+
+
 ## 2026-06-24 — feat(cos): Phase 6 — action execution (execute_action, the CoS write surface)
 
 Sixth code phase of the ChatGPT CoS transition (branch `feat/chatgpt-cos-transition`). The first WRITE tool. **Reuse-only — single existing write path, no new write path.**

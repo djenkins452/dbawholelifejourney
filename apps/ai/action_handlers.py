@@ -2691,6 +2691,9 @@ class ActionHandler:
         from apps.faith.models import PrayerRequest
 
         try:
+            # NOTE: PrayerRequest has no `prayer_status` field — its status is the
+            # `is_answered` BooleanField (default False = active/unanswered). The
+            # default already represents "active", so we set nothing extra.
             prayer = PrayerRequest.objects.create(
                 user=self.user,
                 title=title,
@@ -2698,7 +2701,6 @@ class ActionHandler:
                 person_or_situation=person_or_situation or "",
                 priority=priority,
                 is_personal=is_personal,
-                prayer_status='active'
             )
 
             _emit_domain_event("faith.prayer.created", self.user, {

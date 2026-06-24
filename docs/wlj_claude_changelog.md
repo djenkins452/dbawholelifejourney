@@ -7,6 +7,11 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — chore(cos): Phase 0 — implementation tracking + transition branch
+
+Phase 0 of the ChatGPT CoS transition (no code changes). Created branch `feat/chatgpt-cos-transition` off the architecture baseline and added implementation-tracking artifacts under `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/`: implementation backlog (per-phase reuse map + anti-pattern watchlist), phased rollout tracker (Phases 0–8), and the gated migration checklist (Gates A–F, Beth→ChatGPT). Establishes the execution scaffold; Phase 1 (standing-context serializer) is the first code phase. **Files:** `@WLJ_SYSTEM_PROMPTS/08_IMPLEMENTATION/*`.
+
+
 ## 2026-06-24 — docs(cos): ChatGPT Chief of Staff architecture baseline
 
 Established the authoritative architectural baseline for the transition from the legacy Beth conversational layer to a ChatGPT-powered Chief of Staff — **documentation only, no code changes, WLJ deterministic-truth architecture unchanged.** Four read-only discovery/architecture artifact sets committed under `@WLJ_SYSTEM_PROMPTS/`:

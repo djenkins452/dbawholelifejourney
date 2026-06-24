@@ -7,6 +7,18 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — docs(cos): ChatGPT Chief of Staff architecture baseline
+
+Established the authoritative architectural baseline for the transition from the legacy Beth conversational layer to a ChatGPT-powered Chief of Staff — **documentation only, no code changes, WLJ deterministic-truth architecture unchanged.** Four read-only discovery/architecture artifact sets committed under `@WLJ_SYSTEM_PROMPTS/`:
+
+- **04_DISCOVERY** — full system architecture inventory (domains, engines, context pipeline, UI surfaces, integrations, CoS dependency analysis), grounded in `file:line` evidence.
+- **05_READINESS_AUDIT** — holistic context readiness matrix + deterministic truth gap analysis + cross-domain reasoning readiness + minimal context package.
+- **06_COS_REASONING_ARCHITECTURE** — the reasoning lifecycle, intent→retrieval matrix, dynamic evidence retrieval, holistic diagnostic, historical/coaching, and confidence/trust frameworks for ChatGPT as the conversational layer over WLJ truth.
+- **07_DAY1_TOOL_CATALOG** — minimum-viable Day-1 tool catalog (≈6 reuse/serialization tool roles), always-loaded context spec, action capability catalog (54 existing handlers), experience coverage matrix, launch readiness, rollout sequence.
+
+Governing principle: **WLJ owns truth; ChatGPT owns understanding.** No new engines, no parallel pipelines, no Beth rebuild — the initiative exposes/serializes existing deterministic providers. **Files:** `@WLJ_SYSTEM_PROMPTS/04_DISCOVERY/*`, `05_READINESS_AUDIT/*`, `06_COS_REASONING_ARCHITECTURE/*`, `07_DAY1_TOOL_CATALOG/*`.
+
+
 ## 2026-06-23 — fix(ai): final two Trust P0s — briefing precedence + canonical milestone title-match
 
 **P0-1 — first-of-day briefing stole FACT questions.** `_try_daily_briefing_gate` is the highest-priority gate and fired on the first interaction of the day regardless of content, so "What is my current weight?" returned the Midday Briefing. Fix: new `_briefing_should_yield(msg_lower)` — the gate now yields (returns None) when the message matches ANY specific deterministic matcher (weight-fact, next-milestone, weight-assessment, goal-pace, accountability, attention/late/upcoming, executive, domain status, CoS modes). Deterministic FACT/CoS routes always win; the briefing still fires for openers (greetings / vague). Verified: "what is my current weight" → yield; "good morning" → briefing.

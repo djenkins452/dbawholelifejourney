@@ -19,7 +19,12 @@ No conversational surface decides runtime ownership; the gateway does.
 
 import logging
 
-from apps.ai.cos_gateway.envelope import MIGRATED_SURFACES, CoSResponse
+from apps.ai.cos_gateway.envelope import (
+    MIGRATED_SURFACES,
+    RUNTIME_CHATGPT,
+    RUNTIME_LEGACY,
+    CoSResponse,
+)
 from apps.ai.cos_gateway.runtime import ChatGPTCoSRuntime, LegacyBethRuntime
 
 logger = logging.getLogger(__name__)
@@ -34,6 +39,49 @@ class CoSGateway:
         if evidence_tools_enabled(user):
             return ChatGPTCoSRuntime()
         return LegacyBethRuntime()
+
+    @staticmethod
+    def is_cos(user) -> bool:
+        """True when ChatGPT CoS owns this user's conversation."""
+        return CoSGateway.resolve_runtime(user).name == RUNTIME_CHATGPT
+
+    # ------------------------------------------------------------------
+    # Phase 0A.2 — narrative-bearing surfaces.
+    #
+    # These surfaces are produced by legacy Beth narrators/renderers/coaching
+    # generators. There is no CoS-native equivalent yet, so for CoS users the
+    # gateway SUPPRESSES the conversational output — the legacy producer is
+    # NEVER invoked (no silent Beth fallback). Truth/data the surface computes
+    # from canonical providers is unaffected.
+    # ------------------------------------------------------------------
+    @staticmethod
+    def structured(*, user, surface, legacy, suppressed):
+        """Route a STRUCTURED narrative surface. `legacy` and `suppressed` are
+        zero-/one-arg callables returning the final response payload. For CoS
+        users only `suppressed(reason)` runs; `legacy` (the Beth producer) is
+        never called."""
+        if CoSGateway.is_cos(user):
+            reason = (f"ChatGPT CoS '{surface}' narrative is not yet "
+                      f"implemented; suppressed (no legacy Beth fallback).")
+            logger.info("COS_GATEWAY_SUPPRESS user=%s surface=%s",
+                        getattr(user, "id", None), surface)
+            return suppressed(reason)
+        return legacy()
+
+    @staticmethod
+    def narrative(*, user, surface, legacy_producer=None) -> CoSResponse:
+        """Gateway-owned conversational text for an action endpoint. The action
+        is executed by the caller (truth); only the language is gated here. CoS
+        users get a suppressed envelope; the legacy text producer is not run."""
+        if CoSGateway.is_cos(user):
+            return CoSResponse(
+                text="", runtime=RUNTIME_CHATGPT, surface=surface,
+                suppressed=True,
+                suppressed_reason=(f"ChatGPT CoS '{surface}' confirmation is "
+                                   f"not yet implemented; suppressed."),
+            )
+        text = (legacy_producer() if legacy_producer else "") or ""
+        return CoSResponse(text=text, runtime=RUNTIME_LEGACY, surface=surface)
 
     @staticmethod
     def respond(*, user, surface, message=None, conversation=None,

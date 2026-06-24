@@ -677,26 +677,27 @@ class TestHandleDayStart(ExecutiveBriefingTestMixin, TestCase):
         mock_wake.assert_called_once()
 
     def test_all_entry_points_call_handle_day_start(self):
-        """Verify all CoS entry points include handle_day_start."""
+        """Verify all CoS entry points include handle_day_start.
+
+        Phase 0A: the chat entry points delegate the day-start briefing to the
+        gateway's LegacyBethRuntime (so it runs for flag-OFF users and is
+        quarantined for ChatGPT CoS users); the non-chat entry points still
+        invoke it directly within their own handler (legacy branch)."""
         import inspect
         from apps.ai.views import (
             SessionStartView,
             ProactiveBriefingView,
             AssistantOpeningView,
-            AssistantChatView,
-            AssistantChatStreamView,
         )
+        from apps.ai.cos_gateway.runtime import LegacyBethRuntime
 
         views_to_check = [
             ('SessionStartView', SessionStartView),
             ('ProactiveBriefingView', ProactiveBriefingView),
             ('AssistantOpeningView', AssistantOpeningView),
-            ('AssistantChatView', AssistantChatView),
-            ('AssistantChatStreamView', AssistantChatStreamView),
         ]
 
         for name, view_cls in views_to_check:
-            # Check the post or get method
             method = getattr(view_cls, 'post', None) or getattr(view_cls, 'get', None)
             source = inspect.getsource(method)
             self.assertIn(
@@ -704,6 +705,13 @@ class TestHandleDayStart(ExecutiveBriefingTestMixin, TestCase):
                 source,
                 f"{name} must call handle_day_start before CoS rendering",
             )
+
+        # Chat entry points delegate day-start to the legacy runtime (gateway).
+        self.assertIn(
+            'handle_day_start',
+            inspect.getsource(LegacyBethRuntime.respond),
+            "LegacyBethRuntime must call handle_day_start for chat surfaces",
+        )
 
 
 class TestAutoCompleteWakeupIntegration(ExecutiveBriefingTestMixin, TestCase):

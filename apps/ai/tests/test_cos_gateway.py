@@ -170,6 +170,114 @@ class GatewayQuarantineTests(TestCase):
                                    message="hi")
 
 
+@override_settings(WLJ_COS_EVIDENCE_TOOLS_ENABLED=False)
+class StructuredSuppressionTests(TestCase):
+    """Phase 0A.2 — gateway-owned narrative suppression mechanism."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.cos = User.objects.create_user(email="s_cos@example.com", password="x")
+        cls.cos.preferences.use_chatgpt_cos = True
+        cls.cos.preferences.save()
+        cls.legacy = User.objects.create_user(email="s_leg@example.com", password="x")
+        cls.legacy.preferences.use_chatgpt_cos = False
+        cls.legacy.preferences.save()
+
+    def test_structured_suppresses_cos_without_calling_legacy(self):
+        called = []
+        out = CoSGateway.structured(
+            user=self.cos, surface="weekly_analysis",
+            legacy=lambda: called.append("LEGACY") or {"x": 1},
+            suppressed=lambda reason: {"suppressed": True, "reason": reason},
+        )
+        self.assertEqual(called, [])            # legacy producer NEVER called
+        self.assertTrue(out["suppressed"])
+        self.assertIn("suppressed", out["reason"])
+
+    def test_structured_runs_legacy_for_flag_off(self):
+        called = []
+        out = CoSGateway.structured(
+            user=self.legacy, surface="weekly_analysis",
+            legacy=lambda: (called.append("LEGACY"), {"ok": True})[1],
+            suppressed=lambda reason: {"suppressed": True},
+        )
+        self.assertEqual(called, ["LEGACY"])
+        self.assertEqual(out, {"ok": True})
+
+    def test_narrative_suppressed_for_cos(self):
+        called = []
+        nar = CoSGateway.narrative(
+            user=self.cos, surface="quick_reply",
+            legacy_producer=lambda: called.append("X") or "Great!",
+        )
+        self.assertEqual(called, [])
+        self.assertTrue(nar.suppressed)
+        self.assertEqual(nar.text, "")
+        self.assertTrue(nar.suppressed_reason)
+
+    def test_narrative_legacy_text_for_flag_off(self):
+        nar = CoSGateway.narrative(
+            user=self.legacy, surface="quick_reply",
+            legacy_producer=lambda: "Great!",
+        )
+        self.assertFalse(nar.suppressed)
+        self.assertEqual(nar.text, "Great!")
+
+
+@override_settings(WLJ_COS_EVIDENCE_TOOLS_ENABLED=False)
+class NarrativeSurfaceEndpointTests(TestCase):
+    """Phase 0A.2 — every migrated interactive surface, end to end: a flag-ON
+    user gets a SUPPRESSED response and ZERO legacy conversational code runs."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.conf import settings as dj_settings
+        from apps.users.models import TermsAcceptance
+        cls.user = User.objects.create_user(email="ep_cos@example.com", password="x")
+        TermsAcceptance.objects.create(
+            user=cls.user,
+            terms_version=dj_settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"),
+        )
+        p = cls.user.preferences
+        p.has_completed_onboarding = True
+        p.ai_enabled = True
+        p.ai_data_consent = True
+        p.personal_assistant_enabled = True
+        p.personal_assistant_consent = True
+        p.use_chatgpt_cos = True
+        p.save()
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def test_get_surfaces_suppressed_no_legacy(self):
+        from django.urls import reverse
+        surfaces = [
+            "ai:api_state", "ai:api_weekly_analysis", "ai:api_monthly_analysis",
+            "ai:api_opening", "ai:api_drift", "ai:api_goal_progress",
+            "ai:api_reflection", "ai:api_priorities",
+        ]
+        with tripwires(FORBIDDEN_TARGETS):
+            for name in surfaces:
+                resp = self.client.get(reverse(name))
+                self.assertEqual(resp.status_code, 200, name)
+                self.assertIn("suppressed_reason", resp.json(), name)
+
+    def test_post_surfaces_suppressed_no_legacy(self):
+        from django.urls import reverse
+        with tripwires(FORBIDDEN_TARGETS):
+            r1 = self.client.post(reverse("ai:api_session_start"), data="{}",
+                                  content_type="application/json")
+            self.assertEqual(r1.status_code, 200)
+            self.assertEqual(r1.json().get("action"), "none")
+            self.assertIn("suppressed_reason", r1.json())
+
+            r2 = self.client.post(reverse("ai:api_briefing"), data="{}",
+                                  content_type="application/json")
+            self.assertEqual(r2.status_code, 200)
+            self.assertIn("suppressed_reason", r2.json())
+
+
 class ImportDriftTests(TestCase):
     def test_chatgpt_cos_package_imports_no_legacy_conversation(self):
         import apps.ai.chatgpt_cos as pkg

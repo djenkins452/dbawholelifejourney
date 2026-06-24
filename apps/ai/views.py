@@ -156,6 +156,7 @@ class AssistantOpeningView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def get(self, request, *args, **kwargs):
+        from apps.ai.cos_gateway import CoSGateway, SURFACE_OPENING
         enabled, error = self.check_personal_assistant_enabled()
 
         if not enabled:
@@ -165,7 +166,23 @@ class AssistantOpeningView(LoginRequiredMixin, AssistantMixin, View):
                 'fallback': True,
             }, status=200)
 
-        try:
+        def _suppressed(reason):
+            # CoS user: the legacy day-start briefing + Beth opening renderer are
+            # NOT invoked. Contract keys preserved with empty/null values.
+            return JsonResponse({
+                'success': True,
+                'greeting': None,
+                'state_summary': None,
+                'priorities': [],
+                'celebrations': [],
+                'nudges': [],
+                'reflection_prompt': None,
+                'is_first_visit': True,
+                'cos_snapshot': {},
+                'suppressed_reason': reason,
+            })
+
+        def _legacy():
             # ── Authoritative day-start (idempotent) ──
             from apps.ai.executive_briefing import handle_day_start
             handle_day_start(request.user)
@@ -243,6 +260,11 @@ class AssistantOpeningView(LoginRequiredMixin, AssistantMixin, View):
                 'cos_snapshot': cos_snapshot,
             })
 
+        try:
+            return CoSGateway.structured(
+                user=request.user, surface=SURFACE_OPENING,
+                legacy=_legacy, suppressed=_suppressed,
+            )
         except Exception as e:
             logger.error(f"Opening message error: {e}", exc_info=True)
             return JsonResponse({
@@ -352,6 +374,7 @@ class ProactiveBriefingView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def post(self, request, *args, **kwargs):
+        from apps.ai.cos_gateway import CoSGateway, SURFACE_BRIEFING
         enabled, error = self.check_personal_assistant_enabled()
         if not enabled:
             return JsonResponse({
@@ -359,7 +382,7 @@ class ProactiveBriefingView(LoginRequiredMixin, AssistantMixin, View):
                 'error': error,
             }, status=200)
 
-        try:
+        def _legacy():
             # ── Authoritative day-start (idempotent) ──
             # Must run BEFORE CoS rendering so execution truth is settled.
             from apps.ai.executive_briefing import handle_day_start
@@ -382,6 +405,21 @@ class ProactiveBriefingView(LoginRequiredMixin, AssistantMixin, View):
                 'is_proactive': True,
             })
 
+        def _suppressed(reason):
+            # CoS user: legacy day-start briefing + Beth check-in renderer NOT run.
+            return JsonResponse({
+                'success': True,
+                'skipped': True,
+                'response': None,
+                'is_proactive': True,
+                'suppressed_reason': reason,
+            })
+
+        try:
+            return CoSGateway.structured(
+                user=request.user, surface=SURFACE_BRIEFING,
+                legacy=_legacy, suppressed=_suppressed,
+            )
         except Exception as e:
             logger.error("Proactive briefing error: %s", e, exc_info=True)
             return JsonResponse({
@@ -417,12 +455,26 @@ class SessionStartView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def post(self, request, *args, **kwargs):
+        from apps.ai.cos_gateway import CoSGateway
         enabled, error = self.check_personal_assistant_enabled()
         if not enabled:
             return JsonResponse({
                 'action': 'none',
                 'reason': error,
             }, status=200)
+
+        # SINGLE GATEWAY (Phase 0A.2): the session-start payload is built by the
+        # legacy day-start briefing + Beth renderer. For CoS users the gateway
+        # SUPPRESSES it (CoS stays quiet via the existing 'action: none'
+        # contract) — the legacy producer is never invoked, no Beth fallback.
+        if CoSGateway.is_cos(request.user):
+            return JsonResponse({
+                'action': 'none',
+                'suppressed_reason': (
+                    "ChatGPT CoS 'session_start' narrative is not yet "
+                    "implemented; suppressed (no legacy Beth fallback)."
+                ),
+            })
 
         try:
             from django.utils import timezone as tz
@@ -1438,10 +1490,11 @@ class DailyPrioritiesView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def get(self, request, *args, **kwargs):
+        from apps.ai.cos_gateway import CoSGateway, SURFACE_PRIORITIES
         enabled, error = self.check_personal_assistant_enabled()
         force_refresh = request.GET.get('refresh') == 'true'
 
-        try:
+        def _legacy():
             if enabled:
                 assistant = self.get_assistant()
                 priorities = assistant.generate_daily_priorities(force_refresh)
@@ -1453,13 +1506,18 @@ class DailyPrioritiesView(LoginRequiredMixin, AssistantMixin, View):
                     user=request.user,
                     priority_date=today
                 ).values()
+            return JsonResponse({'success': True, 'ai_enabled': enabled,
+                                 'priorities': list(priorities)})
 
-            return JsonResponse({
-                'success': True,
-                'ai_enabled': enabled,
-                'priorities': list(priorities),
-            })
+        def _suppressed(reason):
+            return JsonResponse({'success': True, 'ai_enabled': enabled,
+                                 'priorities': [], 'suppressed_reason': reason})
 
+        try:
+            return CoSGateway.structured(
+                user=request.user, surface=SURFACE_PRIORITIES,
+                legacy=_legacy, suppressed=_suppressed,
+            )
         except Exception as e:
             logger.error(f"Priorities error: {e}", exc_info=True)
             return JsonResponse({
@@ -1583,17 +1641,24 @@ class StateAssessmentView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def get(self, request, *args, **kwargs):
+        from apps.ai.cos_gateway import CoSGateway, SURFACE_STATE_ASSESSMENT
         force_refresh = request.GET.get('refresh') == 'true'
 
-        try:
+        def _legacy():
             assistant = self.get_assistant()
             state = assistant.assess_current_state(force_refresh)
+            return JsonResponse({'success': True, 'state': state})
 
-            return JsonResponse({
-                'success': True,
-                'state': state,
-            })
+        def _suppressed(reason):
+            # CoS user: the legacy LLM assessment narrator is NOT invoked.
+            return JsonResponse({'success': True, 'state': None,
+                                 'suppressed_reason': reason})
 
+        try:
+            return CoSGateway.structured(
+                user=request.user, surface=SURFACE_STATE_ASSESSMENT,
+                legacy=_legacy, suppressed=_suppressed,
+            )
         except Exception as e:
             logger.error(f"State assessment error: {e}", exc_info=True)
             return JsonResponse({
@@ -1612,13 +1677,13 @@ class WeeklyAnalysisView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def get(self, request, *args, **kwargs):
+        from apps.ai.cos_gateway import CoSGateway, SURFACE_WEEKLY
         enabled, error = self.check_personal_assistant_enabled()
         force_refresh = request.GET.get('refresh') == 'true'
 
-        try:
+        def _legacy():
             tracker = self.get_tracker()
             analysis = tracker.generate_weekly_analysis(force_refresh)
-
             if analysis:
                 return JsonResponse({
                     'success': True,
@@ -1633,13 +1698,22 @@ class WeeklyAnalysisView(LoginRequiredMixin, AssistantMixin, View):
                         'metrics': analysis.metrics,
                     }
                 })
-            else:
-                return JsonResponse({
-                    'success': True,
-                    'analysis': None,
-                    'message': 'Not enough data for weekly analysis',
-                })
+            return JsonResponse({
+                'success': True,
+                'analysis': None,
+                'message': 'Not enough data for weekly analysis',
+            })
 
+        def _suppressed(reason):
+            # CoS user: generate_weekly_analysis (LLM summary) is NOT invoked.
+            return JsonResponse({'success': True, 'analysis': None,
+                                 'suppressed_reason': reason})
+
+        try:
+            return CoSGateway.structured(
+                user=request.user, surface=SURFACE_WEEKLY,
+                legacy=_legacy, suppressed=_suppressed,
+            )
         except Exception as e:
             logger.error(f"Weekly analysis error: {e}", exc_info=True)
             return JsonResponse({
@@ -1654,13 +1728,13 @@ class MonthlyAnalysisView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def get(self, request, *args, **kwargs):
+        from apps.ai.cos_gateway import CoSGateway, SURFACE_MONTHLY
         enabled, error = self.check_personal_assistant_enabled()
         force_refresh = request.GET.get('refresh') == 'true'
 
-        try:
+        def _legacy():
             tracker = self.get_tracker()
             analysis = tracker.generate_monthly_analysis(force_refresh)
-
             if analysis:
                 return JsonResponse({
                     'success': True,
@@ -1675,13 +1749,22 @@ class MonthlyAnalysisView(LoginRequiredMixin, AssistantMixin, View):
                         'metrics': analysis.metrics,
                     }
                 })
-            else:
-                return JsonResponse({
-                    'success': True,
-                    'analysis': None,
-                    'message': 'Not enough data for monthly analysis',
-                })
+            return JsonResponse({
+                'success': True,
+                'analysis': None,
+                'message': 'Not enough data for monthly analysis',
+            })
 
+        def _suppressed(reason):
+            # CoS user: generate_monthly_analysis (LLM summary) is NOT invoked.
+            return JsonResponse({'success': True, 'analysis': None,
+                                 'suppressed_reason': reason})
+
+        try:
+            return CoSGateway.structured(
+                user=request.user, surface=SURFACE_MONTHLY,
+                legacy=_legacy, suppressed=_suppressed,
+            )
         except Exception as e:
             logger.error(f"Monthly analysis error: {e}", exc_info=True)
             return JsonResponse({
@@ -1696,15 +1779,22 @@ class DriftDetectionView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def get(self, request, *args, **kwargs):
-        try:
+        from apps.ai.cos_gateway import CoSGateway, SURFACE_DRIFT
+
+        def _legacy():
             tracker = self.get_tracker()
             drift_areas = tracker.detect_intention_drift()
+            return JsonResponse({'success': True, 'drift_areas': drift_areas})
 
-            return JsonResponse({
-                'success': True,
-                'drift_areas': drift_areas,
-            })
+        def _suppressed(reason):
+            return JsonResponse({'success': True, 'drift_areas': [],
+                                 'suppressed_reason': reason})
 
+        try:
+            return CoSGateway.structured(
+                user=request.user, surface=SURFACE_DRIFT,
+                legacy=_legacy, suppressed=_suppressed,
+            )
         except Exception as e:
             logger.error(f"Drift detection error: {e}", exc_info=True)
             return JsonResponse({
@@ -1719,15 +1809,22 @@ class GoalProgressView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def get(self, request, *args, **kwargs):
-        try:
+        from apps.ai.cos_gateway import CoSGateway, SURFACE_GOALS
+
+        def _legacy():
             tracker = self.get_tracker()
             report = tracker.get_goal_progress_report()
+            return JsonResponse({'success': True, 'report': report})
 
-            return JsonResponse({
-                'success': True,
-                'report': report,
-            })
+        def _suppressed(reason):
+            return JsonResponse({'success': True, 'report': None,
+                                 'suppressed_reason': reason})
 
+        try:
+            return CoSGateway.structured(
+                user=request.user, surface=SURFACE_GOALS,
+                legacy=_legacy, suppressed=_suppressed,
+            )
         except Exception as e:
             logger.error(f"Goal progress error: {e}", exc_info=True)
             return JsonResponse({
@@ -1746,18 +1843,24 @@ class ReflectionPromptView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def get(self, request, *args, **kwargs):
+        from apps.ai.cos_gateway import CoSGateway, SURFACE_REFLECTION
         context = request.GET.get('context', 'general')
 
-        try:
+        def _legacy():
             assistant = self.get_assistant()
             prompt = assistant.generate_reflection_prompt(context)
+            return JsonResponse({'success': True, 'prompt': prompt,
+                                 'context': context})
 
-            return JsonResponse({
-                'success': True,
-                'prompt': prompt,
-                'context': context,
-            })
+        def _suppressed(reason):
+            return JsonResponse({'success': True, 'prompt': None,
+                                 'context': context, 'suppressed_reason': reason})
 
+        try:
+            return CoSGateway.structured(
+                user=request.user, surface=SURFACE_REFLECTION,
+                legacy=_legacy, suppressed=_suppressed,
+            )
         except Exception as e:
             logger.error(f"Reflection prompt error: {e}", exc_info=True)
             return JsonResponse({
@@ -1832,7 +1935,8 @@ class QuickReplyView(LoginRequiredMixin, AssistantMixin, View):
                     'error': 'Action is required',
                 }, status=400)
 
-            # Handle the quick reply action
+            # Handle the quick reply ACTION (truth/action handler — runs for
+            # every runtime; the action is not conversational).
             from .quick_reply_handlers import handle_quick_reply
             result = handle_quick_reply(request.user, action, params)
 
@@ -1848,21 +1952,33 @@ class QuickReplyView(LoginRequiredMixin, AssistantMixin, View):
                 except AssistantMessage.DoesNotExist:
                     pass  # Message not found, but action was handled
 
-            # Add assistant response message to conversation
-            if result.get('success') and result.get('message'):
+            # Gateway-owned conversational confirmation: legacy text for legacy
+            # users; SUPPRESSED for CoS users (the action already executed).
+            from apps.ai.cos_gateway import CoSGateway, SURFACE_QUICK_REPLY
+            nar = CoSGateway.narrative(
+                user=request.user, surface=SURFACE_QUICK_REPLY,
+                legacy_producer=lambda: result.get('message', ''),
+            )
+            message_text = '' if nar.suppressed else nar.text
+
+            # Persist the assistant confirmation only when NOT suppressed.
+            if result.get('success') and message_text:
                 conversation = AssistantConversation.get_or_create_active(request.user)
                 AssistantMessage.objects.create(
                     conversation=conversation,
                     role='assistant',
-                    content=result['message'],
+                    content=message_text,
                     message_type='text',
                 )
 
-            return JsonResponse({
+            payload = {
                 'success': result.get('success', False),
-                'message': result.get('message', ''),
+                'message': message_text,
                 'data': result.get('data', {}),
-            })
+            }
+            if nar.suppressed:
+                payload['suppressed_reason'] = nar.suppressed_reason
+            return JsonResponse(payload)
 
         except json.JSONDecodeError:
             return JsonResponse({
@@ -2056,7 +2172,20 @@ class EventReflectionView(LoginRequiredMixin, View):
                 return JsonResponse({'error': 'text required'}, status=400)
 
             from apps.core.blueprint.reflection_engine import process_reflection_answer
+            # The reflection is SAVED inside process_reflection_answer (action);
+            # only its conversational 'message' is gated by the gateway.
             result = process_reflection_answer(user, reflection_id, answer_text)
+            from apps.ai.cos_gateway import CoSGateway, SURFACE_EVENT_REFLECTION
+            nar = CoSGateway.narrative(
+                user=user, surface=SURFACE_EVENT_REFLECTION,
+                legacy_producer=lambda: (
+                    result.get('message') if isinstance(result, dict) else ''
+                ) or '',
+            )
+            if nar.suppressed and isinstance(result, dict):
+                result = dict(result)
+                result['message'] = None
+                result['suppressed_reason'] = nar.suppressed_reason
             return JsonResponse(result)
 
         return JsonResponse({'error': 'Unknown action'}, status=400)

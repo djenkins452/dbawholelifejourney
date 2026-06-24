@@ -38,7 +38,6 @@
 > **Live validation status (Phase 3+4 merge gate):** the deterministic half is PROVEN against real (non-mocked) services — `dispatch_tool_call` → `get_decision`/`get_domain_state`/`get_standing_context` returns real deterministic truth (e.g. `get_decision('risk')` → "No risks right now." via the real `build_execution_state`+selectors; `purpose`→`goals` SAE alias confirmed). The real-MODEL tool-selection link is NOT yet validated — this environment has no `OPENAI_API_KEY`. Run the harness in a key-bearing safe env to complete the gate:
 > `python manage.py validate_cos_tools --email <you@example.com>`
 > Until that passes, Phase 3 + 4 stay on the branch (per the "mocked is no longer sufficient" policy).
-| Phase 6 Action Execution | Pending | — | — | — |
 | Phase 7 Persistent Conversations | Pending | — | — | — |
 | Phase 8 UI Cutover | Pending | — | — | — |
 | Phase 9 Legacy Retirement | Pending | — | — | — |

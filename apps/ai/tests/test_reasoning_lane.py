@@ -126,15 +126,15 @@ class HealthScopeTests(TestCase):
         facts = wm["facts"]
         # curated health buckets present
         self.assertIn("current_status", facts)
-        self.assertIn("active_risks", facts)
         self.assertEqual(facts["current_status"]["bp_systolic"], 111)
-        self.assertFalse(facts["active_risks"]["weight_goal_on_track"])
-        # NO contamination, NO raw SAE
+        self.assertFalse(facts["goal_progress"]["weight_goal_on_track"])
+        self.assertIn("ranked_concerns", facts)
+        # NO contamination, NO raw SAE, NO raw enums/labels/source paths
         blob = json.dumps(wm, default=str)
-        self.assertNotIn("risk_decision", blob)
-        self.assertNotIn("Wake up", blob)
-        self.assertNotIn("routine", blob)
-        self.assertNotIn("_huge", blob)
+        for forbidden in ("risk_decision", "Wake up", "routine", "_huge",
+                          "active_risks", "plateau_risk_label", "Elevated",
+                          "source"):
+            self.assertNotIn(forbidden, blob)
 
     def test_curator_reads_only_health_truth(self):
         # even handed contaminated truth directly, the curator ignores non-health
@@ -163,12 +163,14 @@ class ReasonerTests(TestCase):
 
     def test_health_fallback_uses_ranked_concerns(self):
         plan = parse_plan(_RISK_PLAN_JSON)
-        wm = {"intent": "biggest_health_risk",
-              "facts": {"ranked_concerns": ["weight goal is behind pace"]}}
+        wm = {"intent": "biggest_health_risk", "facts": {"ranked_concerns": [
+            {"concern": "your weight-loss pace is a bit behind",
+             "action": "a small, steady calorie adjustment"}]}}
         with mock.patch(_CALL_API, return_value=None):
             answer, fb = run_reasoning(self.user, "risk?", plan, wm)
         self.assertTrue(fb)
-        self.assertIn("weight goal", answer.lower())
+        self.assertIn("weight-loss pace", answer.lower())
+        self.assertIn("next step", answer.lower())   # action included
         self.assertNotIn("wake up", answer.lower())
 
 
@@ -221,12 +223,15 @@ class ToneCalibrationTests(TestCase):  # Fix 3
         self.assertEqual(_calibrate_label("stable"), "stable")
         self.assertEqual(_calibrate_label(False), False)
 
-    def test_curator_calibrates_active_risk_labels(self):
+    def test_raw_enum_never_leaks_to_model_facing_wm(self):
         truth = {"health_state": {"state": {
-            "muscle_loss_risk_level": "significant", "weight_goal_on_track": False}}}
+            "muscle_loss_risk_level": "MED", "weight_goal_on_track": False}}}
         facts = health_working_memory(truth)
-        self.assertEqual(facts["active_risks"]["muscle_loss_risk_level"],
-                         "elevated — worth watching")
+        blob = json.dumps(facts, default=str)
+        self.assertNotIn("MED", blob)                     # raw enum gone
+        self.assertNotIn("muscle_loss_risk_level", blob)  # field name gone
+        concerns = " ".join(c["concern"] for c in facts.get("ranked_concerns", []))
+        self.assertIn("muscle", concerns.lower())         # surfaced as coaching
 
     def test_prompts_carry_calibration_and_no_alarmist_words(self):
         for intent in ("biggest_health_risk", "overall_progress"):
@@ -288,9 +293,11 @@ class RankedConcernsTests(TestCase):  # Fix #1 — protein over-anchoring
                 "interpretation": "early_day_not_yet_logged"}},
         }
         ranked = _rank_health_concerns(buckets)
+        concerns = [c["concern"] for c in ranked]
         # only the genuine concern survives; protein (early-day) is excluded
-        self.assertEqual(ranked, ["weight goal is behind pace"])
-        self.assertNotIn("protein", " ".join(ranked).lower())
+        self.assertEqual(len(ranked), 1)
+        self.assertIn("weight", concerns[0].lower())
+        self.assertNotIn("protein", " ".join(concerns).lower())
 
     def test_real_risk_outranks_late_day_nutrition(self):
         from apps.ai.chatgpt_cos.reasoning.stages import _rank_health_concerns
@@ -300,7 +307,8 @@ class RankedConcernsTests(TestCase):  # Fix #1 — protein over-anchoring
                 "interpretation": "below_typical_for_time_of_day"}},
         }
         ranked = _rank_health_concerns(buckets)
-        self.assertTrue(ranked[0].startswith("muscle loss risk level"))  # sev 3 first
+        self.assertIn("muscle", ranked[0]["concern"].lower())   # outranks nutrition
+        self.assertNotIn("MED", json.dumps(ranked))             # coaching, not enum
 
     def test_no_concerns_yields_empty(self):
         from apps.ai.chatgpt_cos.reasoning.stages import _rank_health_concerns
@@ -353,3 +361,32 @@ class ReasoningGuaranteeTests(TestCase):  # Fix #2 — always answer, never fall
         with mock.patch(_CALL_API, return_value=None):
             self.assertIsNone(
                 answer_reasoning_question(self.user, "Tell me a joke."))
+
+
+class DeterministicFallbackQualityTests(TestCase):  # Fix #3
+    def test_progress_fallback_multi_part(self):
+        from apps.ai.chatgpt_cos.reasoning.stages import _health_progress_fallback
+        wm = {"facts": {
+            "current_status": {"weight_current": 285.7, "weight_unit": "lb",
+                               "latest_glucose": 133.0, "latest_glucose_unit": "mg/dL",
+                               "sleep_avg_hours_7d": 6.7},
+            "trends": {"weight_trend": "decreasing"},
+            "goal_progress": {"weight_goal_remaining": 45.7},
+            "ranked_concerns": [{"concern": "your weight-loss pace is a bit behind",
+                                 "action": "x"}]}}
+        ans = _health_progress_fallback(wm).lower()
+        self.assertIn("weight", ans)
+        self.assertIn("glucose", ans)
+        self.assertIn("sleep", ans)
+        self.assertIn("nudge", ans)            # next focus
+        # not the degenerate single-fact answer
+        self.assertGreater(len(ans), 60)
+
+    def test_risk_fallback_has_concern_and_action(self):
+        from apps.ai.chatgpt_cos.reasoning.stages import _health_risk_fallback
+        wm = {"facts": {"ranked_concerns": [
+            {"concern": "your blood sugar has been running high",
+             "action": "a short walk after meals helps"}]}}
+        ans = _health_risk_fallback(wm)
+        self.assertIn("blood sugar", ans)
+        self.assertIn("next step", ans.lower())

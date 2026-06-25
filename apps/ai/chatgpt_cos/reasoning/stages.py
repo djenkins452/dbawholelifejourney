@@ -259,28 +259,69 @@ _BENIGN_RISK = {"low", "stable", "none", "good", "optimal", "normal",
                 "insufficient_data", "on track", "on_track", ""}
 
 
+def _nonbenign(v):
+    return isinstance(v, str) and v.strip().lower() not in _BENIGN_RISK
+
+
+def _num(v):
+    return v if isinstance(v, (int, float)) else None
+
+
 def _rank_health_concerns(buckets):
-    concerns = []  # (severity, text)
+    """Evidence-ranked health concerns as plain COACHING language (never raw
+    labels/enums). Severity reflects clinical meaningfulness — glucose/diabetes
+    management and sleep outrank muscle/nutrition — not the biggest numeric gap.
+    Returns an ordered list of {concern, action} dicts (highest priority first).
+    """
     risks = buckets.get("active_risks") or {}
     gp = buckets.get("goal_progress") or {}
+    cs = buckets.get("current_status") or {}
+    tr = buckets.get("major_trends") or {}
     nc = buckets.get("nutrition_context") or {}
+    out = []  # (severity, concern, action)
+
+    # Diabetes / glucose management — highest stakes (chronic condition).
+    glu, glu_avg = _num(cs.get("latest_glucose")), _num(tr.get("glucose_avg_7d"))
+    if (glu and glu >= 180) or (glu_avg and glu_avg >= 154):
+        out.append((5, "your blood sugar has been running high lately",
+                    "a short walk after meals and steadier carb timing is the highest-leverage move"))
+    elif _nonbenign(risks.get("glucose_variability_label")):
+        out.append((3, "your blood sugar has been swinging more than usual",
+                    "more consistent meal timing and portions will help smooth it out"))
+
+    # Sleep — foundational; affects everything else.
+    sleep = _num(cs.get("sleep_avg_hours_7d"))
+    if sleep is not None and sleep < 6.5:
+        out.append((4, "you've been averaging under 6.5 hours of sleep, which makes everything else harder",
+                    "protecting a consistent bedtime this week is the best next step"))
+    elif tr.get("sleep_trend") == "decreasing":
+        out.append((2, "your sleep has been trending down",
+                    "an earlier wind-down a few nights would help"))
+
+    # Weight-loss pace.
     if gp.get("weight_goal_on_track") is False:
-        concerns.append((2, "weight goal is behind pace"))
-    for k, sev in (("muscle_loss_risk_level", 3), ("plateau_risk_label", 2),
-                   ("glucose_variability_label", 2), ("fat_loss_quality_label", 1)):
-        v = risks.get(k)
-        if isinstance(v, str) and v.strip().lower() not in _BENIGN_RISK:
-            concerns.append(
-                (sev, f"{k.replace('_', ' ').replace(' label', '')}: {v}"))
-    # nutrition counts ONLY as a real (late-day / below-typical) gap, never early-day
-    for slot, label in (("protein_g", "protein"), ("calories", "calories")):
-        s = nc.get(slot) or {}
-        if s.get("interpretation") in ("below_typical_for_time_of_day",
-                                       "nothing_logged_today"):
-            concerns.append(
-                (1, f"{label} is running below your usual for this time of day"))
-    concerns.sort(key=lambda x: -x[0])
-    return [t for _s, t in concerns]
+        out.append((3, "your weight-loss pace is a bit behind where you'd planned",
+                    "a small, steady calorie adjustment beats a big change"))
+
+    # Plateau.
+    if _nonbenign(risks.get("plateau_risk_label")):
+        out.append((2, "your weight loss looks like it may be stalling",
+                    "a short diet break or a training tweak can restart progress"))
+
+    # Muscle preservation.
+    if _nonbenign(risks.get("muscle_loss_risk_level")):
+        out.append((2, "you may be losing some muscle along with the fat",
+                    "keeping protein up and strength-training 2–3× a week protects it"))
+
+    # Nutrition — only a genuine late-day gap, never early-day; lowest priority.
+    for slot, what in (("protein_g", "protein"), ("calories", "calories")):
+        if (nc.get(slot) or {}).get("interpretation") in (
+                "below_typical_for_time_of_day", "nothing_logged_today"):
+            out.append((1, f"your {what} is running low for today",
+                        f"a {what}-focused next meal would close the gap"))
+
+    out.sort(key=lambda x: -x[0])
+    return [{"concern": c, "action": a} for _s, c, a in out]
 
 
 # ---- Fix 2: time-aware intra-day nutrition interpretation ------------------
@@ -328,46 +369,61 @@ def _nutrition_time_context(user):
     return out if (out.get("protein_g") or out.get("calories")) else {}
 
 
-def health_working_memory(truth, user=None):
-    """HealthWorkingMemoryCurator — bounded, deterministic, health-truth ONLY.
+def _strip_source(fh):
+    """Foundational facts minus intra-day nutrition counters AND internal
+    'source' paths (e.g. 'SAE.health.weight_current') — never user-facing."""
+    out = {}
+    for k, v in (fh or {}).items():
+        if k in ("calories_today", "protein_today"):
+            continue
+        if isinstance(v, dict):
+            out[k] = {kk: vv for kk, vv in v.items() if kk != "source"}
+        else:
+            out[k] = v
+    return out
 
-    Tone-calibrated risk labels; intra-day nutrition counters are presented with
-    time awareness (via nutrition_context) so a morning 0 is not read as a risk.
+
+def health_working_memory(truth, user=None):
+    """HealthWorkingMemoryCurator — health-truth ONLY and EXECUTIVE-CLEAN.
+
+    The model-facing output contains NO raw SAE labels, enum codes, internal
+    field names, or data-source paths. Risk signals are expressed solely as
+    evidence-ranked coaching concerns (ranked_concerns). Enum labels live only in
+    the internal ranking inputs, never in what the model (or user) sees.
     """
     hs = truth.get("health_state")
     state = hs.get("state") if isinstance(hs, dict) else None
     state = state if isinstance(state, dict) else {}
     fh = truth.get("foundational_health") or {}
-    buckets = {
+
+    # Internal ranking inputs — enum labels stay HERE, not in the model-facing WM.
+    rank_input = {
+        "active_risks": _pick(state, _H_RISKS),
+        "goal_progress": _pick(state, _H_GOALS),
         "current_status": _pick(state, _H_STATUS),
         "major_trends": _pick(state, _H_TRENDS),
-        "active_risks": _calibrate_risks(_pick(state, _H_RISKS)),
-        "goal_progress": _pick(state, _H_GOALS),
+        "nutrition_context": _nutrition_time_context(user) if user is not None else {},
     }
-    pd = state.get("physical_decision")
-    if isinstance(pd, dict):
-        buckets["health_assessment"] = {
-            _k: _calibrate_label(pd[_k]) for _k in list(pd)[:6]
-            if isinstance(pd.get(_k), (int, float, str, bool))
-        }
-    # Foundational scalars EXCEPT intra-day nutrition counters — those are
-    # represented (with time context) in nutrition_context below, so the model
-    # never sees a bare "0g protein" without knowing it's early in the day.
-    if isinstance(fh, dict) and fh:
-        buckets["foundational_facts"] = {
-            k: v for k, v in fh.items()
-            if k not in ("calories_today", "protein_today")
-        }
-    if user is not None:
-        nc = _nutrition_time_context(user)
-        if nc:
-            buckets["nutrition_context"] = nc
-    # Evidence-ranked concerns (highest first) so reasoning prioritizes among ALL
-    # health signals rather than anchoring on one number.
-    ranked = _rank_health_concerns(buckets)
+    ranked = _rank_health_concerns(rank_input)
+
+    # Model-facing facts: numbers / bools / human words / coaching only.
+    facts = {}
+    if rank_input["current_status"]:
+        facts["current_status"] = rank_input["current_status"]
+    trends = {k: v for k, v in rank_input["major_trends"].items()
+              if not k.endswith("_label")}          # drop enum labels
+    if trends:
+        facts["trends"] = trends
+    if rank_input["goal_progress"]:
+        facts["goal_progress"] = rank_input["goal_progress"]
+    if rank_input["nutrition_context"]:
+        facts["nutrition_context"] = rank_input["nutrition_context"]
+    ff = _strip_source(fh) if isinstance(fh, dict) else {}
+    if ff:
+        facts["foundational_facts"] = ff
     if ranked:
-        buckets["ranked_concerns"] = ranked
-    return {k: v for k, v in buckets.items() if v}
+        facts["ranked_concerns"] = ranked
+    return facts
 
 
 def _generic_curator(truth, user=None):
@@ -403,30 +459,57 @@ def build_working_memory(plan, truth, user=None):
 # Stage 4 — OpenAI reasoning over working memory (one plain _call_api + fallback)
 # ----------------------------------------------------------------------------
 def _health_risk_fallback(wm):
+    # biggest_health_risk: concern + (coaching) explanation + recommended action.
     ranked = (wm.get("facts") or {}).get("ranked_concerns") or []
-    if ranked:
-        return "The main thing worth watching from your health data: " + ranked[0] + "."
-    return "Your health metrics look steady — nothing that stands out as a concern right now."
+    if not ranked:
+        return ("Your health metrics look steady right now — nothing stands out "
+                "as a concern. Keep doing what's working.")
+    top = ranked[0]
+    return ("The main thing worth your attention right now: "
+            + top.get("concern", "")
+            + ". A good next step: " + top.get("action", "stay consistent") + ".")
 
 
 def _health_progress_fallback(wm):
-    facts = wm.get("facts") or {}
-    gp = facts.get("goal_progress") or {}
-    st = facts.get("current_status") or {}
-    bits = []
-    if st.get("weight_current") is not None:
-        bits.append(f"weight {st['weight_current']} {st.get('weight_unit', '')}".strip())
-    if gp.get("weight_goal_remaining") is not None:
-        bits.append(f"{gp['weight_goal_remaining']} to your goal")
-    if gp.get("weight_goal_on_track") is not None:
-        bits.append("on track" if gp["weight_goal_on_track"] else "behind on your goal")
-    return ("On your health goals: " + "; ".join(str(b) for b in bits) + ".") \
-        if bits else "Here's where your health goals stand based on your data."
+    # overall_progress: weight trend + glucose status + sleep status + next focus.
+    f = wm.get("facts") or {}
+    cs = f.get("current_status") or {}
+    tr = f.get("trends") or {}
+    gp = f.get("goal_progress") or {}
+    ranked = f.get("ranked_concerns") or []
+    parts = []
+    w = _num(cs.get("weight_current"))
+    if w is not None:
+        s = f"Your weight is {w} {cs.get('weight_unit', 'lb')}"
+        if tr.get("weight_trend"):
+            s += f" and {tr['weight_trend']}"
+        rem = _num(gp.get("weight_goal_remaining"))
+        if rem is not None:
+            s += f", about {rem} from your goal"
+        parts.append(s + ".")
+    glu = _num(cs.get("latest_glucose"))
+    if glu is not None:
+        tag = "in a good range" if glu < 140 else "running a little high"
+        parts.append(f"Glucose is around {glu} {cs.get('latest_glucose_unit', 'mg/dL')} ({tag}).")
+    sl = _num(cs.get("sleep_avg_hours_7d"))
+    if sl is not None:
+        tag = "solid" if sl >= 7 else "a bit short"
+        parts.append(f"Sleep is averaging {sl} hours ({tag}).")
+    if ranked:
+        parts.append(f"The main thing to nudge next: {ranked[0].get('concern')}.")
+    if not parts:
+        return ("I have your health profile but not enough recent data to "
+                "summarize your progress yet.")
+    return " ".join(parts)
 
 
 _HEALTH_GUIDANCE = (
     " Stay strictly within health — never mention tasks, projects, work items, "
     "Harley, finances, or generic to-dos. Cite the data; never invent numbers."
+    " LANGUAGE: translate everything into plain executive coaching language. "
+    "NEVER output raw labels, internal codes, enum values, field names, or data-"
+    "source paths (e.g. 'MED', 'LOW', 'INSUFFICIENT_DATA', 'SAE.health…', "
+    "'early_day_not_yet_logged'). If you can't say it as a coach would, omit it."
     " TONE: be evidence-based and measured. Avoid alarmist language — 'significant"
     " risk', 'critical', 'dangerous', 'muscle loss risk' — unless the data clearly"
     " supports that severity. Prefer 'worth watching', 'below target', 'could "
@@ -442,15 +525,13 @@ _HEALTH_GUIDANCE = (
 REASONING_PROFILES = {
     "biggest_health_risk": {
         "system": (
-            "You are the user's Chief of Staff. The working memory includes "
-            "'ranked_concerns' — an evidence-ranked list of GENUINE health "
-            "concerns (highest priority first), already excluding normal values "
-            "(e.g. an early-day 0 protein is NOT included). Pick the single "
-            "highest-priority item from ranked_concerns and give one good next "
-            "step. If ranked_concerns is absent or empty, say nothing stands out "
-            "as a concern right now — do NOT manufacture one or default to "
-            "nutrition. Weigh all concerns by evidence; never fixate on one "
-            "number." + _HEALTH_GUIDANCE + " Max 120 words."
+            "You are the user's Chief of Staff. 'ranked_concerns' is an ordered "
+            "list of {concern, action} in plain coaching language (highest "
+            "priority first), already excluding normal values like an early-day 0 "
+            "protein. Use the TOP entry: state its concern, briefly explain why "
+            "it matters, and give its action. If ranked_concerns is absent or "
+            "empty, say nothing stands out right now — do NOT manufacture one or "
+            "default to nutrition." + _HEALTH_GUIDANCE + " Max 120 words."
         ),
         "max_tokens": 200,
         "fallback": _health_risk_fallback,

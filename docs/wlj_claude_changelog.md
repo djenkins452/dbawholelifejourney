@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-25 — fix(cos): navigation survival — robust job_id-independent recovery (both chat surfaces)
+
+**Traced the 8 candidates (reproduced where possible):** (1) job created — YES (bus snapshot + task). (6) assistant message persisted in DB — **YES, reproduced** (eager task → DB message has content, bus status=done). (5) bus TTL is 600s; resume returns 410 on expiry → history fallback. So the backend + resume are sound. **The failure is #8 (frontend fails to restore), with two precise causes:**
+- **`assistant_panel.html` (the /assistant/ page) had NO navigation recovery at all** — no pending marker, no `job` event capture, no reconnect, no poll. Any message sent through that surface was lost on navigation.
+- **`chat_widget.html`'s only `job_id`-independent recovery was a single one-shot 1500ms refresh** — far too short for a multi-second reasoning answer that finishes *after* the user returns; and reconnect-by-`job_id`/resume can race or expire.
+
+Both surfaces are included globally in `base.html` (208 + 415), so either could be the surface in use.
+
+**Fix — a sustained, deterministic recovery poll on each surface** (independent of `job_id`, the stream bus, and the resume endpoint): on history load, if a request is still pending whose assistant reply isn't persisted yet, poll `/assistant/api/history/` (40 × 3s ≈ 120s) until the background answer appears, then render it and clear the marker. `chat_widget` keeps its existing job_id/resume path and gains the poll as a backstop. `assistant_panel` gains the full mechanism: pending marker on send, `job_id` capture on the `job` event, clear-on-`done`, and the poll (own sessionStorage key, no collision). Guarantee: navigate away → return → the persisted background answer is restored, even for slow reasoning answers and even if the user navigated before the `job` event.
+
+**Verified:** backend persistence reproduced (answer in DB + bus `done`); both templates render; no Python changed. **Files:** `templates/components/chat_widget.html`, `templates/components/assistant_panel.html`. **Requires web redeploy. Pause for final production validation.**
+
+
 ## 2026-06-25 — fix(cos): reasoning lane hardening — label leakage, ranking quality, fallback quality
 
 **FAILED #1 — internal label leakage ("…muscle loss risk level: MED").** Traced: `_rank_health_concerns` built concern strings as `"<field>: <enum>"`, and the model-facing working memory also exposed `active_risks` (raw enums like LOW/MED/INSUFFICIENT_DATA) and `foundational_facts` with internal `source` paths (`SAE.health…`). **Fix:** the curator is now EXECUTIVE-CLEAN — enum labels live only in internal ranking inputs; the model-facing WM contains `current_status` (numbers), `trends` (enum `_label` fields stripped), `goal_progress`, `nutrition_context`, `foundational_facts` (internal `source` stripped), and `ranked_concerns` (coaching only). `ranked_concerns` is now a list of `{concern, action}` in plain coaching language. Prompts forbid emitting any raw label/code/enum/field-name/source-path. Verified live: leak check = False.

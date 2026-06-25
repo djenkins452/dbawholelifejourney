@@ -263,6 +263,52 @@
     // ChatGPT CoS users must ALWAYS use the streaming/background path (the
     // synchronous non-streaming path is not navigation-safe and would re-submit).
     var AP_IS_COS_USER = {% if feature_flags.WLJ_COS_EVIDENCE_TOOLS_ENABLED %}true{% else %}false{% endif %};
+
+    // Navigation survival: track the in-flight request so its background answer
+    // can be recovered on return (independent of job_id/bus/resume). Own key so
+    // it never collides with the floating chat widget.
+    var AP_PENDING_KEY = 'wlj_ap_pending';
+    function apMarkPending(msg) {
+        try { sessionStorage.setItem(AP_PENDING_KEY, JSON.stringify({ message: msg, at: Date.now() })); } catch (e) {}
+    }
+    function apMarkPendingJob(jobId) {
+        try { var raw = sessionStorage.getItem(AP_PENDING_KEY); var o = raw ? JSON.parse(raw) : {}; o.job_id = jobId; sessionStorage.setItem(AP_PENDING_KEY, JSON.stringify(o)); } catch (e) {}
+    }
+    function apGetPending() {
+        try { var raw = sessionStorage.getItem(AP_PENDING_KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+    }
+    function apClearPending() {
+        try { sessionStorage.removeItem(AP_PENDING_KEY); } catch (e) {}
+    }
+    var _apPollTimer = null;
+    function apPollPendingReply(container, maxAttempts) {
+        if (_apPollTimer) return;
+        var attempts = 0; maxAttempts = maxAttempts || 40;   // ~120s at 3s
+        function check() {
+            _apPollTimer = null;
+            var pending = apGetPending();
+            if (!pending || !pending.message) return;
+            var pendingText = (pending.message || '').trim();
+            fetch('/assistant/api/history/', { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    var found = false; var msgs = (data && data.messages) || [];
+                    for (var i = msgs.length - 1; i >= 0; i--) {
+                        var m = msgs[i];
+                        if (m.role === 'user' && (m.content || '').trim() === pendingText) {
+                            var nx = msgs[i + 1];
+                            if (nx && nx.role === 'assistant' && (nx.content || '').trim()) found = true;
+                            break;
+                        }
+                    }
+                    if (found) { apClearPending(); loadChatHistory(container, null); return; }
+                    if (++attempts < maxAttempts) { _apPollTimer = setTimeout(check, 3000); }
+                    else { apClearPending(); }
+                })
+                .catch(function () { if (++attempts < maxAttempts) _apPollTimer = setTimeout(check, 3000); });
+        }
+        _apPollTimer = setTimeout(check, 2000);
+    }
     var lastDisplayedDate = null; // Track for date separator headers
     var apHistorySyncDone = false; // One-time post-load sync guard
 
@@ -784,6 +830,9 @@
 
         addMessage(container, message || '(Images attached)', true, true, imageDataUrls);
 
+        // Track this request so its background answer survives navigation.
+        if (message) apMarkPending(message);
+
         // Image messages use non-streaming endpoint — EXCEPT ChatGPT CoS users,
         // who must always use the streaming/background path.
         if (sentImages && sentImages.length > 0 && !AP_IS_COS_USER) {
@@ -877,7 +926,10 @@
                         continue; // skip malformed JSON
                     }
 
-                    if (eventType === 'token' && evt.content) {
+                    if (eventType === 'job' && evt.job_id) {
+                        // Navigation survival: persist the backend job_id.
+                        apMarkPendingJob(evt.job_id);
+                    } else if (eventType === 'token' && evt.content) {
                         if (firstToken) {
                             hideTyping();
                             firstToken = false;
@@ -889,6 +941,7 @@
                         msgEl.textContent = fullText;
                         container.scrollTop = container.scrollHeight;
                     } else if (eventType === 'done') {
+                        apClearPending();
                         apFinalizeStreamingMsg(msgEl, fullText);
                     } else if (eventType === 'error') {
                         apFinalizeStreamingMsg(msgEl, fullText || (evt.error || 'Stream error'));
@@ -1022,6 +1075,24 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (loadingEl) loadingEl.style.display = 'none';
+
+            // Navigation survival backstop: if a request is still pending whose
+            // answer isn't persisted yet, poll history until it appears.
+            try {
+                var _ap = apGetPending();
+                if (_ap && _ap.message) {
+                    var _txt = (_ap.message || '').trim(), _have = false;
+                    var _ms = (data && data.messages) || [];
+                    for (var _k = _ms.length - 1; _k >= 0; _k--) {
+                        if (_ms[_k].role === 'user' && (_ms[_k].content || '').trim() === _txt) {
+                            var _nx = _ms[_k + 1];
+                            if (_nx && _nx.role === 'assistant' && (_nx.content || '').trim()) _have = true;
+                            break;
+                        }
+                    }
+                    if (_have) { apClearPending(); } else { apPollPendingReply(container); }
+                }
+            } catch (e) { /* ignore */ }
 
             if (data.success && data.messages && data.messages.length > 0) {
                 // If calibration welcome hasn't been shown but stale

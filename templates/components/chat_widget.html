@@ -1841,6 +1841,18 @@
                 console.debug('Reconnect check failed:', _rcErr);
             }
 
+            // Robust backstop: if a pending request's reply is NOT on screen yet
+            // (not recovered from history above, and resume may race/expire),
+            // poll history until the background answer persists — independent of
+            // job_id, the bus, or resume. This is the guarantee that navigating
+            // away and back never loses a slow (reasoning) answer.
+            try {
+                var _stillPending = getPendingRequest();
+                if (_stillPending && _stillPending.message && !_recoveredAssistantMsgId) {
+                    pollPendingReply();
+                }
+            } catch (_pollErr) { /* ignore */ }
+
             // v7: Trigger proactive briefing after history loads
             maybeTriggerBriefing(data);
 
@@ -2538,6 +2550,54 @@
             obj.job_id = jobId;
             sessionStorage.setItem(CHAT_PENDING_KEY, JSON.stringify(obj));
         } catch (e) { /* storage unavailable */ }
+    }
+
+    // P0 navigation fix (robust backstop): poll history until the pending
+    // request's assistant reply has been persisted — INDEPENDENT of job_id, the
+    // stream bus, and the resume endpoint. Guarantees a slow background answer
+    // (e.g. multi-second reasoning) surfaces on return even if the user
+    // navigated away before the 'job' event, or the bus/resume raced or expired.
+    var _pendingPollTimer = null;
+    function pollPendingReply(maxAttempts) {
+        if (_pendingPollTimer) return;              // already polling
+        var attempts = 0;
+        maxAttempts = maxAttempts || 40;            // ~120s at a 3s cadence
+        function check() {
+            _pendingPollTimer = null;
+            var pending = getPendingRequest();
+            if (!pending || !pending.message) return;   // resolved/cleared elsewhere
+            var pendingText = (pending.message || '').trim();
+            fetch('/assistant/api/history/', { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    var found = false;
+                    var msgs = (data && data.messages) || [];
+                    for (var i = msgs.length - 1; i >= 0; i--) {
+                        var m = msgs[i];
+                        if (m.role === 'user' && (m.content || '').trim() === pendingText) {
+                            var nx = msgs[i + 1];
+                            if (nx && nx.role === 'assistant' && (nx.content || '').trim()) {
+                                found = true;
+                            }
+                            break;
+                        }
+                    }
+                    if (found) {
+                        clearPendingRequest();
+                        refreshHistory();           // surface the recovered answer
+                        return;
+                    }
+                    if (++attempts < maxAttempts) {
+                        _pendingPollTimer = setTimeout(check, 3000);
+                    } else {
+                        clearPendingRequest();      // give up after the bound
+                    }
+                })
+                .catch(function () {
+                    if (++attempts < maxAttempts) _pendingPollTimer = setTimeout(check, 3000);
+                });
+        }
+        _pendingPollTimer = setTimeout(check, 2000);
     }
 
     // Debounced input-change handler — persist draft on every keystroke

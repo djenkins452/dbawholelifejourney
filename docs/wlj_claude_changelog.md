@@ -7,6 +7,25 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — feat(cos): foundational fact FAST PATH — deterministic, no tools, no agentic loop
+
+**Why:** the agentic tool loop (`_call_api_with_tools`) was failing in production for foundational facts ("the fallback returned nothing"). Foundational facts don't need the tool loop — the truth is already retrievable deterministically.
+
+**New path (`apps/ai/chatgpt_cos/foundational_facts.py`):**
+1. `classify_foundational_fact(message)` — deterministic keyword classifier for exactly 5 intents → fact key (current_weight, last_glucose_reading, current_medications, calories_today, protein_today). Non-foundational prompts → None (fall through to the normal path).
+2. `get_foundational_health_facts(user, [key])` — canonical truth retrieved FIRST.
+3. plain `ai_service._call_api(...)` — NO `tools`, NO `tool_choice`, NO loop — phrases the already-retrieved fact (the proven Beth OpenAI mechanism).
+4. **Deterministic fallback:** if `_call_api` returns None or raises, `format_fact_sentence(key, fact)` builds the answer straight from the payload. The user ALWAYS gets the exact fact — never "couldn't compose" / "fallback returned nothing".
+
+**Wiring:** `ChatGPTCoSService.generate` calls the fast path right after SAE warming, before any tool-loop machinery; if it returns a result, generate returns immediately. Non-foundational prompts are unaffected (still use the tool loop). Applies to both streaming and non-streaming chat (both call `generate`).
+
+**Verified live (real data, user 1, with `_call_api` unavailable → deterministic fallback):** "Your current weight is 298.3 lb, and the trend is decreasing." / "Your last glucose reading was 133.0 mg/dL." / "You're currently taking 7 medication(s): …" / "You've consumed 0.0 calories today (target 2000)." / "You've consumed 0.0 g of protein today (target 40.0 g)."
+
+**No** `_call_api_with_tools`, **no** `tools`/`tool_choice`, **no** legacy Beth / renderers / validators, **no** OpenAI-first flow.
+
+**Tests:** `apps/ai/tests/test_foundation_validation.py` rewritten (10) — classifier maps all 5 prompts + rejects non-foundational; fast path uses plain `_call_api` and NEVER `_call_api_with_tools` (patched to raise); deterministic fallback on `_call_api` None/raise surfaces the exact value; `generate()` takes the fast path; `format_fact_sentence` per key incl. 0.0-is-valid + unknown. Updated `test_cos_empty_answer` + `test_chatgpt_cos_clean` to use non-foundational prompts for the tool-loop tests (foundational prompts now bypass it) and the 6-tool advertised set. Full CoS suite green; `check` + `makemigrations --check` clean. **Files:** `apps/ai/chatgpt_cos/foundational_facts.py` (new), `apps/ai/chatgpt_cos/service.py`, `apps/ai/tests/test_foundation_validation.py`, `apps/ai/tests/test_cos_empty_answer.py`, `apps/ai/tests/test_chatgpt_cos_clean.py`. **Requires `wlj-worker` redeploy.**
+
+
 ## 2026-06-24 — test(cos): Foundation validation — 5 foundational fact prompts pass end-to-end
 
 **Mission:** prove the clean ChatGPT CoS truth path answers foundational facts with no truncation/fallback/suppression/legacy/empty response.

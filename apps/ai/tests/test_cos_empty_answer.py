@@ -127,7 +127,9 @@ class GenerateEmptyReasonTests(TestCase):
              mock.patch("apps.ai.cos_services.get_tool_schemas", return_value=[]), \
              mock.patch("apps.ai.services.ai_service._call_api_with_tools",
                         return_value=loop_return):
-            return svc.generate(object(), "what is my weight?")
+            # Non-foundational prompt so generate() exercises the tool loop
+            # (foundational fact prompts take the deterministic fast path).
+            return svc.generate(object(), "how am I doing overall?")
 
     def test_model_empty_after_tools(self):
         result = self._generate_with_loop_return("")

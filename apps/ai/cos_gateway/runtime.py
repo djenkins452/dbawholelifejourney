@@ -74,6 +74,16 @@ class ChatGPTCoSRuntime(ConversationalRuntime):
                 "COS_GATEWAY runtime=chatgpt_cos surface=%s stream job=%s user=%s",
                 surface, job_id, user.id,
             )
+            try:
+                from apps.ai.chatgpt_cos.telemetry import beth_lifecycle
+                beth_lifecycle(
+                    "BETH_JOB_CREATED",
+                    cid=(page_context or {}).get("beth_cid"),
+                    job_id=job_id, conversation_id=conversation.id,
+                    user_id=user.id, src="server",
+                )
+            except Exception:
+                pass
             return CoSResponse(
                 text="", runtime=self.name, surface=surface,
                 stream_job_id=job_id,

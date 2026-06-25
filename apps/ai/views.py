@@ -25,7 +25,9 @@ import logging
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.shortcuts import redirect
+from django.utils.decorators import method_decorator
 from django.views import View
+from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import RedirectView, TemplateView
 
 from apps.core.utils import user_log_id
@@ -1215,6 +1217,8 @@ class AssistantChatResumeView(LoginRequiredMixin, AssistantMixin, View):
         from django.http import StreamingHttpResponse
         from apps.ai import chat_stream_bus as bus
 
+        from apps.ai.chatgpt_cos.telemetry import beth_lifecycle
+
         job_id = kwargs.get('job_id')
         snap = bus.read(job_id)
         if snap is None:
@@ -1223,6 +1227,9 @@ class AssistantChatResumeView(LoginRequiredMixin, AssistantMixin, View):
                 "expired; client loads completed message from history",
                 job_id, request.user.id,
             )
+            beth_lifecycle("BETH_JOB_RESUMED", job_id=job_id,
+                           user_id=request.user.id, src="server",
+                           extra="result=410_expired")
             return JsonResponse(
                 {'success': False, 'status': 'expired'}, status=410,
             )
@@ -1231,6 +1238,9 @@ class AssistantChatResumeView(LoginRequiredMixin, AssistantMixin, View):
                 "CHAT_RESUME_FORBIDDEN job=%s user=%s owner=%s",
                 job_id, request.user.id, snap.get('owner'),
             )
+            beth_lifecycle("BETH_JOB_RESUMED", job_id=job_id,
+                           user_id=request.user.id, src="server",
+                           extra="result=403_forbidden")
             return JsonResponse(
                 {'success': False, 'error': 'Forbidden'}, status=403,
             )
@@ -1239,6 +1249,9 @@ class AssistantChatResumeView(LoginRequiredMixin, AssistantMixin, View):
             "CHAT_RESUME_ATTACHED job=%s user=%s status=%s",
             job_id, request.user.id, snap.get('status'),
         )
+        beth_lifecycle("BETH_JOB_RESUMED", job_id=job_id,
+                       user_id=request.user.id, src="server",
+                       extra=f"result=attached status={snap.get('status')}")
         response = StreamingHttpResponse(
             _chat_relay_stream(job_id, request.user.id),
             content_type='text/event-stream',
@@ -1246,6 +1259,42 @@ class AssistantChatResumeView(LoginRequiredMixin, AssistantMixin, View):
         response['Cache-Control'] = 'no-cache'
         response['X-Accel-Buffering'] = 'no'
         return response
+
+
+class BethTelemetryView(View):
+    """Instrumentation-only beacon. The frontend reports BETH_* lifecycle stages
+    here via navigator.sendBeacon (which survives navigation-away), so client-side
+    stages land in production logs alongside the server stages, all keyed by the
+    same `cid`. Logs only — no state change, no behavior change, no recovery."""
+
+    @method_decorator(csrf_exempt)
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        from django.http import HttpResponse
+        try:
+            if not request.user.is_authenticated:
+                return HttpResponse(status=204)
+            from apps.ai.chatgpt_cos.telemetry import (
+                BETH_LIFECYCLE_STAGES, beth_lifecycle,
+            )
+            data = json.loads(request.body or b"{}")
+            stage = data.get("stage")
+            if stage in BETH_LIFECYCLE_STAGES:
+                beth_lifecycle(
+                    stage,
+                    cid=data.get("cid"),
+                    job_id=data.get("job_id"),
+                    conversation_id=data.get("conversation_id"),
+                    message_id=data.get("message_id"),
+                    user_id=request.user.id,
+                    src="client",
+                    extra=data.get("extra"),
+                )
+        except Exception:
+            pass
+        return HttpResponse(status=204)
 
 
 class ConversationHistoryView(LoginRequiredMixin, AssistantMixin, View):

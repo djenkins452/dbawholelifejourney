@@ -34,6 +34,8 @@ urlpatterns = [
     path('api/chat/stream/', views.AssistantChatStreamView.as_view(), name='api_chat_stream'),
     # Reconnect to an in-progress generation by job_id (P0 navigation fix)
     path('api/chat/stream/resume/<str:job_id>/', views.AssistantChatResumeView.as_view(), name='api_chat_stream_resume'),
+    # Instrumentation-only telemetry beacon (frontend lifecycle stages -> logs)
+    path('api/beth-telemetry/', views.BethTelemetryView.as_view(), name='api_beth_telemetry'),
     path('api/history/', views.ConversationHistoryView.as_view(), name='api_history'),
     path('api/history/<int:conversation_id>/', views.ConversationHistoryView.as_view(), name='api_history_detail'),
     path('api/feedback/', views.MessageFeedbackView.as_view(), name='api_feedback'),

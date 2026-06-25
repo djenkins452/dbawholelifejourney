@@ -268,8 +268,47 @@
     // can be recovered on return (independent of job_id/bus/resume). Own key so
     // it never collides with the floating chat widget.
     var AP_PENDING_KEY = 'wlj_ap_pending';
-    function apMarkPending(msg) {
-        try { sessionStorage.setItem(AP_PENDING_KEY, JSON.stringify({ message: msg, at: Date.now() })); } catch (e) {}
+
+    // --- Lifecycle telemetry beacon (INSTRUMENTATION ONLY; survives navigation).
+    // Self-contained mirror of the chat_widget beacon so /assistant/ stages also
+    // reach production logs, keyed by the same correlation id (cid). ---
+    function apBethGenCid() {
+        return 'c-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+    }
+    function apBethCid() {
+        try {
+            var keys = ['wlj_ap_pending', 'wlj_chat_pending'];
+            for (var i = 0; i < keys.length; i++) {
+                var raw = sessionStorage.getItem(keys[i]);
+                if (raw) { var o = JSON.parse(raw); if (o && o.cid) return o.cid; }
+            }
+        } catch (e) {}
+        return null;
+    }
+    function apBethBeacon(stage, fields) {
+        try {
+            fields = fields || {};
+            var payload = {
+                stage: stage, cid: fields.cid || apBethCid(),
+                job_id: fields.job_id || null, conversation_id: fields.conversation_id || null,
+                message_id: fields.message_id || null, extra: fields.extra || null
+            };
+            var url = '/assistant/api/beth-telemetry/';
+            var body = JSON.stringify(payload);
+            if (navigator.sendBeacon) {
+                navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+            } else {
+                fetch(url, { method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true }).catch(function () {});
+            }
+        } catch (e) {}
+    }
+
+    function apMarkPending(msg, cid) {
+        try {
+            sessionStorage.setItem(AP_PENDING_KEY, JSON.stringify({ message: msg, cid: cid || null, at: Date.now() }));
+            apBethBeacon('BETH_PENDING_MARKER_CREATED', { cid: cid || null });
+        } catch (e) {}
     }
     function apMarkPendingJob(jobId) {
         try { var raw = sessionStorage.getItem(AP_PENDING_KEY); var o = raw ? JSON.parse(raw) : {}; o.job_id = jobId; sessionStorage.setItem(AP_PENDING_KEY, JSON.stringify(o)); } catch (e) {}
@@ -284,6 +323,8 @@
     function apPollPendingReply(container, maxAttempts) {
         if (_apPollTimer) return;
         var attempts = 0; maxAttempts = maxAttempts || 40;   // ~120s at 3s
+        var _ap0 = apGetPending() || {};
+        apBethBeacon('BETH_RECOVERY_POLL_STARTED', { cid: _ap0.cid || null, job_id: _ap0.job_id || null, extra: 'src=panel' });
         function check() {
             _apPollTimer = null;
             var pending = apGetPending();
@@ -292,18 +333,21 @@
             fetch('/assistant/api/history/', { credentials: 'same-origin' })
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
-                    var found = false; var msgs = (data && data.messages) || [];
+                    var found = false, foundId = null; var msgs = (data && data.messages) || [];
                     for (var i = msgs.length - 1; i >= 0; i--) {
                         var m = msgs[i];
                         if (m.role === 'user' && (m.content || '').trim() === pendingText) {
                             var nx = msgs[i + 1];
-                            if (nx && nx.role === 'assistant' && (nx.content || '').trim()) found = true;
+                            if (nx && nx.role === 'assistant' && (nx.content || '').trim()) { found = true; foundId = nx.id; }
                             break;
                         }
                     }
-                    if (found) { apClearPending(); loadChatHistory(container, null); return; }
+                    if (found) {
+                        apBethBeacon('BETH_RECOVERY_POLL_FOUND_MESSAGE', { cid: pending.cid || null, job_id: pending.job_id || null, message_id: foundId, extra: 'src=panel' });
+                        apClearPending(); loadChatHistory(container, null); return;
+                    }
                     if (++attempts < maxAttempts) { _apPollTimer = setTimeout(check, 3000); }
-                    else { apClearPending(); }
+                    else { apBethBeacon('BETH_RECOVERY_POLL_TIMEOUT', { cid: pending.cid || null, job_id: pending.job_id || null, extra: 'src=panel attempts=' + attempts }); apClearPending(); }
                 })
                 .catch(function () { if (++attempts < maxAttempts) _apPollTimer = setTimeout(check, 3000); });
         }
@@ -846,7 +890,11 @@
         addMessage(container, message || '(Images attached)', true, true, imageDataUrls);
 
         // Track this request so its background answer survives navigation.
-        if (message) apMarkPending(message);
+        if (message) {
+            var _apCid = apBethGenCid();
+            apBethBeacon('BETH_REQUEST_SUBMITTED', { cid: _apCid });
+            apMarkPending(message, _apCid);
+        }
 
         // Image messages use non-streaming endpoint — EXCEPT ChatGPT CoS users,
         // who must always use the streaming/background path.
@@ -864,6 +912,8 @@
     // Streaming path — async/await + ReadableStream for immediate token rendering
     async function apSendStreaming(message, container, btnEl, inputEl) {
         var pageCtx = getFullPageContext();
+        // Thread the correlation id to the server (BETH_JOB_CREATED + task stages).
+        try { pageCtx.beth_cid = (apGetPending() || {}).cid || null; } catch (e) {}
 
         // Create message element BEFORE fetch so it exists in DOM immediately
         var msgEl = apCreateStreamingMsg(container);

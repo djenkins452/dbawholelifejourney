@@ -2518,13 +2518,56 @@
         catch (e) { /* storage unavailable */ }
     }
 
+    // --- Lifecycle telemetry beacon (INSTRUMENTATION ONLY; survives navigation
+    // via navigator.sendBeacon). Reports client-side BETH_* stages to the server
+    // so they appear in production logs alongside the server stages, all keyed by
+    // the same correlation id (cid). No behavior change. ---
+    function bethGenCid() {
+        return 'c-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+    }
+    function bethCurrentCid() {
+        try {
+            var keys = ['wlj_chat_pending', 'wlj_ap_pending'];
+            for (var i = 0; i < keys.length; i++) {
+                var raw = sessionStorage.getItem(keys[i]);
+                if (raw) { var o = JSON.parse(raw); if (o && o.cid) return o.cid; }
+            }
+        } catch (e) { /* ignore */ }
+        return null;
+    }
+    function bethBeacon(stage, fields) {
+        try {
+            fields = fields || {};
+            var payload = {
+                stage: stage,
+                cid: fields.cid || bethCurrentCid(),
+                job_id: fields.job_id || null,
+                conversation_id: fields.conversation_id || null,
+                message_id: fields.message_id || null,
+                extra: fields.extra || null
+            };
+            var url = '/assistant/api/beth-telemetry/';
+            var body = JSON.stringify(payload);
+            if (navigator.sendBeacon) {
+                navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+            } else {
+                fetch(url, { method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: body, keepalive: true }).catch(function () {});
+            }
+        } catch (e) { /* ignore */ }
+    }
+
     function markPendingRequest(msg, ctx) {
         try {
+            var _cid = (ctx && ctx.beth_cid) || null;
             sessionStorage.setItem(CHAT_PENDING_KEY, JSON.stringify({
                 message: msg,
                 page_context: ctx || null,
+                cid: _cid,
                 submitted_at: Date.now(),
             }));
+            bethBeacon('BETH_PENDING_MARKER_CREATED', { cid: _cid });
         } catch (e) { /* storage unavailable */ }
     }
 
@@ -2562,6 +2605,8 @@
         if (_pendingPollTimer) return;              // already polling
         var attempts = 0;
         maxAttempts = maxAttempts || 40;            // ~120s at a 3s cadence
+        var _p0 = getPendingRequest() || {};
+        bethBeacon('BETH_RECOVERY_POLL_STARTED', { cid: _p0.cid || null, job_id: _p0.job_id || null, extra: 'src=drawer' });
         function check() {
             _pendingPollTimer = null;
             var pending = getPendingRequest();
@@ -2570,19 +2615,20 @@
             fetch('/assistant/api/history/', { credentials: 'same-origin' })
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
-                    var found = false;
+                    var found = false, foundId = null;
                     var msgs = (data && data.messages) || [];
                     for (var i = msgs.length - 1; i >= 0; i--) {
                         var m = msgs[i];
                         if (m.role === 'user' && (m.content || '').trim() === pendingText) {
                             var nx = msgs[i + 1];
                             if (nx && nx.role === 'assistant' && (nx.content || '').trim()) {
-                                found = true;
+                                found = true; foundId = nx.id;
                             }
                             break;
                         }
                     }
                     if (found) {
+                        bethBeacon('BETH_RECOVERY_POLL_FOUND_MESSAGE', { cid: pending.cid || null, job_id: pending.job_id || null, message_id: foundId, extra: 'src=drawer' });
                         clearPendingRequest();
                         refreshHistory();           // surface the recovered answer
                         return;
@@ -2590,6 +2636,7 @@
                     if (++attempts < maxAttempts) {
                         _pendingPollTimer = setTimeout(check, 3000);
                     } else {
+                        bethBeacon('BETH_RECOVERY_POLL_TIMEOUT', { cid: pending.cid || null, job_id: pending.job_id || null, extra: 'src=drawer attempts=' + attempts });
                         clearPendingRequest();      // give up after the bound
                     }
                 })
@@ -2648,6 +2695,9 @@
         }
         if (!pending) return;                       // nothing in flight
         var pendingText = (pending.message || '').trim();
+        var _pcid = pending.cid || null;
+        var _pjob = pending.job_id || null;
+        bethBeacon('BETH_RECOVERY_POLL_STARTED', { cid: _pcid, job_id: _pjob });
         var attempts = 0, maxAttempts = 40;          // ~160s at 4s cadence
         function check() {
             _bethWatchTimer = null;
@@ -2667,12 +2717,17 @@
                     if (replyId) {
                         try { sessionStorage.removeItem('wlj_chat_pending'); } catch (e) {}
                         try { sessionStorage.removeItem('wlj_ap_pending'); } catch (e) {}
+                        bethBeacon('BETH_RECOVERY_POLL_FOUND_MESSAGE', { cid: _pcid, job_id: _pjob, message_id: replyId });
                         showBethToast(replyId);
                         return;
                     }
-                    if (++attempts < maxAttempts) _bethWatchTimer = setTimeout(check, 4000);
+                    if (++attempts < maxAttempts) { _bethWatchTimer = setTimeout(check, 4000); }
+                    else { bethBeacon('BETH_RECOVERY_POLL_TIMEOUT', { cid: _pcid, job_id: _pjob, extra: 'attempts=' + attempts }); }
                 })
-                .catch(function () { if (++attempts < maxAttempts) _bethWatchTimer = setTimeout(check, 4000); });
+                .catch(function () {
+                    if (++attempts < maxAttempts) { _bethWatchTimer = setTimeout(check, 4000); }
+                    else { bethBeacon('BETH_RECOVERY_POLL_TIMEOUT', { cid: _pcid, job_id: _pjob, extra: 'attempts=' + attempts + ' (fetch-error)' }); }
+                });
         }
         _bethWatchTimer = setTimeout(check, 4000);
     }
@@ -2714,6 +2769,10 @@
         var sendContext = Object.assign({}, currentPageContext || {});
         sendContext.captured_at = Date.now();
         sendContext.url = window.location.pathname;
+        // Single correlation id minted at submit; threads through page_context to
+        // the server (BETH_JOB_CREATED + task stages) and the pending marker.
+        sendContext.beth_cid = bethGenCid();
+        bethBeacon('BETH_REQUEST_SUBMITTED', { cid: sendContext.beth_cid });
         if (lastInputWasVoice) {
             sendContext.voice_input = true;
             lastInputWasVoice = false;
@@ -2980,6 +3039,7 @@
     // back to a history refresh if the job has expired/completed (410) or the
     // caller isn't its owner (403).
     async function reconnectToJob(jobId, existingMsgEl, existingText) {
+        bethBeacon('BETH_JOB_RECONNECTED', { job_id: jobId });
         var msgEl = existingMsgEl || createStreamingMessage();
         if (existingText) { msgEl.textContent = existingText; }
         // Resume replays from cursor 0 — start fresh to avoid duplication.

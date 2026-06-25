@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-25 — diag(cos): full Beth-request lifecycle telemetry (instrumentation only)
+
+**Why:** prove from production logs the EXACT stage where a reasoning request dies (candidates A–G: task never finishes / finishes-but-not-persisted / persisted-but-not-restored / poll never runs / poll never finds / marker lost / worker killed). No architecture, no recovery, no migration — instrumentation only.
+
+**Single correlation id (`cid`):** minted client-side at submit, threaded through `page_context` to the server (so `BETH_JOB_CREATED` + every task stage carry it) and stored on the pending marker (so recovery/reconnect stages carry it). One line format everywhere: `BETH_LIFECYCLE stage=… cid=… request_id=… job_id=… conversation_id=… message_id=… user_id=… src=server|client extra=…`.
+
+**Stages emitted:**
+- Server (Python logger → already in prod logs): `BETH_JOB_CREATED` (runtime), `BETH_TASK_STARTED` / `BETH_GENERATE_STARTED` / `BETH_GENERATE_FINISHED` / `BETH_MESSAGE_PERSISTED` / `BETH_TASK_FINALLY` (task), `BETH_JOB_RESUMED` (resume view, with 410/403/attached result).
+- Client (via `navigator.sendBeacon` → new logs-only endpoint `POST /assistant/api/beth-telemetry/`, which survives navigation-away): `BETH_REQUEST_SUBMITTED`, `BETH_PENDING_MARKER_CREATED`, `BETH_RECOVERY_POLL_STARTED/FOUND_MESSAGE/TIMEOUT`, `BETH_JOB_RECONNECTED` — on BOTH chat surfaces.
+
+**Beacon endpoint:** `BethTelemetryView` (csrf-exempt, auth-gated, stage-whitelisted) logs only and returns 204 — no state change. Verified: valid stage logs the full line; unknown stage rejected.
+
+**How to read the failure:** for one reproduction, grep `BETH_LIFECYCLE` for the request's `cid`. The last stage present pinpoints the death: stops after `BETH_GENERATE_STARTED` with no `…FINISHED`/`…FINALLY` ⇒ worker killed mid-generate (A/G); `…MESSAGE_PERSISTED` present but no client `…FOUND_MESSAGE` ⇒ frontend never restored (C/D/E); no `BETH_PENDING_MARKER_CREATED` ⇒ marker lost (F).
+
+**No fix.** **Files:** `apps/ai/chatgpt_cos/telemetry.py`, `apps/ai/cos_gateway/runtime.py`, `apps/ai/chatgpt_cos/tasks.py`, `apps/ai/views.py`, `apps/ai/urls.py`, `templates/components/chat_widget.html`, `templates/components/assistant_panel.html`. **Requires worker + web redeploy.**
+
+
 ## 2026-06-25 — diag(cos): READ-ONLY production proof of worker process-death (orphaned placeholders)
 
 **Why:** the navigation/"processing stops" failure was narrowed to a worker hard-kill during `generate()` (the empty assistant placeholder at `tasks.py:108` is never filled because no success/error/soft-limit/`finally` path runs). No CLI/SSH to prod, so this proof is gathered via a data migration (runs on deploy).

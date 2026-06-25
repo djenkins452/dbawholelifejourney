@@ -127,6 +127,14 @@ class ChatGPTCoSService:
         except Exception:
             logger.warning("chatgpt_cos: SAE warm failed", exc_info=True)
 
+        # FOUNDATION FACT FAST PATH — deterministic, NO tools / NO agentic loop.
+        # Foundational fact prompts retrieve canonical truth directly and phrase
+        # it with the plain _call_api mechanism (with a deterministic fallback).
+        from apps.ai.chatgpt_cos.foundational_facts import answer_foundational_fact
+        _fast = answer_foundational_fact(self.user, message)
+        if _fast is not None:
+            return _fast
+
         standing = get_standing_context(
             self.user, page_context=page_context, allow_build=True,
         )

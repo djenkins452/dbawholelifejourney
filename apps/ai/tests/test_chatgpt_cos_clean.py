@@ -55,11 +55,12 @@ class ChatGPTCoSServiceTests(TestCase):
                 self.conversation, "How am I doing?",
             )
         self.assertEqual(result["answer"], "You're on track.")
-        # all five CoS tools advertised to the model
+        # all CoS tools advertised to the model
         self.assertEqual(
             set(result["tools_advertised"]),
             {"get_standing_context", "get_domain_state", "get_decision",
-             "search_history", "execute_action"},
+             "search_history", "execute_action",
+             "get_foundational_health_facts"},
         )
         loop.assert_called_once()
         # standing context is injected into the system prompt
@@ -86,8 +87,10 @@ class ChatGPTCoSServiceTests(TestCase):
         with mock.patch(_WARM, return_value={"health": {"weight_current": 286}}) as warm, \
              mock.patch(_STANDING, return_value={"status": "ready"}) as standing, \
              mock.patch(_LOOP, return_value="ok"):
+            # Non-foundational prompt: foundational fact prompts take the
+            # deterministic fast path and never build standing context.
             ChatGPTCoSService(self.user).generate(
-                self.conversation, "What is my current weight?",
+                self.conversation, "How am I doing overall?",
             )
         warm.assert_called()
         self.assertIs(warm.call_args.kwargs.get("allow_rebuild"), True)

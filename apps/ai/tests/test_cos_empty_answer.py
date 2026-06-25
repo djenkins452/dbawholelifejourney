@@ -125,6 +125,8 @@ class GenerateEmptyReasonTests(TestCase):
              mock.patch("apps.ai.cos_services.get_standing_context",
                         return_value={"status": "ready"}), \
              mock.patch("apps.ai.cos_services.get_tool_schemas", return_value=[]), \
+             mock.patch("apps.ai.chatgpt_cos.reasoning.answer_reasoning_question",
+                        return_value=None), \
              mock.patch("apps.ai.services.ai_service._call_api_with_tools",
                         return_value=loop_return):
             # Non-foundational prompt so generate() exercises the tool loop

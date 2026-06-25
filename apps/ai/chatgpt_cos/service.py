@@ -135,6 +135,16 @@ class ChatGPTCoSService:
         if _fast is not None:
             return _fast
 
+        # REASONING LANE — Planner LLM -> deterministic authoritative retrieval
+        # -> curated working memory -> single reasoning call (+ deterministic
+        # fallback). Handles judgment/synthesis questions WITHOUT the agentic
+        # tool loop. Returns None (falls through) for not-yet-implemented intents
+        # or planner unavailability.
+        from apps.ai.chatgpt_cos.reasoning import answer_reasoning_question
+        _reasoned = answer_reasoning_question(self.user, message)
+        if _reasoned is not None:
+            return _reasoned
+
         standing = get_standing_context(
             self.user, page_context=page_context, allow_build=True,
         )

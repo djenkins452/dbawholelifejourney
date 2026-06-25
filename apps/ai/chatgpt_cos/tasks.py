@@ -76,11 +76,14 @@ def run_chatgpt_cos_generation(self, user_id, conversation_id, message,
 
     from apps.ai import chat_stream_bus as bus
     from apps.ai.chatgpt_cos.service import ChatGPTCoSService
-    from apps.ai.chatgpt_cos.telemetry import COS_BUILD_HASH, log_cos_request
+    from apps.ai.chatgpt_cos.telemetry import (
+        COS_BUILD_HASH, beth_lifecycle, log_cos_request,
+    )
     from apps.ai.models import AssistantConversation, AssistantMessage
 
     User = get_user_model()
     t0 = time.monotonic()
+    _cid = (page_context or {}).get("beth_cid") if isinstance(page_context, dict) else None
 
     snap = bus.read(job_id) or bus.new_snapshot(user_id, conversation_id)
     snap["status"] = "processing"
@@ -89,6 +92,8 @@ def run_chatgpt_cos_generation(self, user_id, conversation_id, message,
         "COS_REQUEST_START job=%s user=%s conv=%s build=%s",
         job_id, user_id, conversation_id, COS_BUILD_HASH,
     )
+    beth_lifecycle("BETH_TASK_STARTED", cid=_cid, job_id=job_id,
+                   conversation_id=conversation_id, user_id=user_id)
 
     assistant_msg = None
     error = None
@@ -112,10 +117,17 @@ def run_chatgpt_cos_generation(self, user_id, conversation_id, message,
                       "status": "processing"},
         )
 
+        beth_lifecycle("BETH_GENERATE_STARTED", cid=_cid, job_id=job_id,
+                       conversation_id=conversation_id,
+                       message_id=assistant_msg.id, user_id=user_id)
         result = ChatGPTCoSService(user).generate(
             conversation, message, page_context=page_context, request_id=job_id,
         )
         answer = result["answer"]
+        beth_lifecycle("BETH_GENERATE_FINISHED", cid=_cid, job_id=job_id,
+                       conversation_id=conversation_id,
+                       message_id=assistant_msg.id, user_id=user_id,
+                       extra=f"answer_len={len(answer or '')}")
         if not answer:
             # Never silently degrade to a generic message — name the failure point.
             reason = result.get("empty_reason")
@@ -152,6 +164,10 @@ def run_chatgpt_cos_generation(self, user_id, conversation_id, message,
         assistant_msg.save(update_fields=["content", "metadata"])
         conversation.updated_at = timezone.now()
         conversation.save(update_fields=["updated_at"])
+        beth_lifecycle("BETH_MESSAGE_PERSISTED", cid=_cid, job_id=job_id,
+                       conversation_id=conversation_id,
+                       message_id=assistant_msg.id, user_id=user_id,
+                       extra=f"content_len={len(answer or '')}")
 
     except SoftTimeLimitExceeded:
         error = "timeout"
@@ -178,6 +194,11 @@ def run_chatgpt_cos_generation(self, user_id, conversation_id, message,
         logger.info("COS_STREAM_PUBLISH job=%s status=%s", job_id,
                     snap.get("status"))
         bus.write(job_id, snap)
+        beth_lifecycle("BETH_TASK_FINALLY", cid=_cid, job_id=job_id,
+                       conversation_id=conversation_id,
+                       message_id=getattr(assistant_msg, "id", None),
+                       user_id=user_id,
+                       extra=f"status={snap.get('status')} error={error or 'none'}")
         try:
             from apps.ai.idempotency import clear_in_flight
             clear_in_flight(user_id, message)

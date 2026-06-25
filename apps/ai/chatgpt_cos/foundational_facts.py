@@ -36,6 +36,7 @@ _FACT_KEYWORDS = [
                               "drugs i", "pills i")),
     ("calories_today",       ("calorie", "calories")),
     ("protein_today",        ("protein",)),
+    ("sleep_last_night",     ("sleep", "slept", "rest last night")),
 ]
 
 FOUNDATIONAL_KEYS = [k for k, _ in _FACT_KEYWORDS]
@@ -46,6 +47,9 @@ _UNKNOWN_SENTENCE = {
     "current_medications": "I don't have any current medications recorded for you.",
     "calories_today": "I don't have any calories logged for you today.",
     "protein_today": "I don't have any protein logged for you today.",
+    "sleep_last_night": "I don't have recent sleep data recorded for you.",
+    "average_sleep_7d": "I don't have enough sleep data to show an average yet.",
+    "sleep_trend": "I don't have a sleep trend for you yet.",
 }
 
 _PHRASE_SYSTEM = (
@@ -104,6 +108,13 @@ def format_fact_sentence(key, fact):
         if fact.get("target"):
             s += f" (target {fact['target']} g)"
         return s + "."
+    if key in ("sleep_last_night", "average_sleep_7d"):
+        s = f"You've been averaging {value} {unit or 'hours'} of sleep"
+        if fact.get("trend"):
+            s += f", and your sleep trend is {fact['trend']}"
+        return s + "."
+    if key == "sleep_trend":
+        return f"Your sleep trend is {value}."
     return f"{key}: {value} {unit}".strip()
 
 

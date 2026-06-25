@@ -48,6 +48,13 @@ _FACT_MAP = {
         "unit": "hours", "trend": "sleep_trend", "recorded_at": "last_sleep_entry",
         "note": "7-day average hours; SAE has no last-night-specific value.",
     },
+    "average_sleep_7d": {
+        "module": "health", "value": "sleep_avg_hours_7d",
+        "unit": "hours", "trend": "sleep_trend",
+    },
+    "sleep_trend": {
+        "module": "health", "value": "sleep_trend",
+    },
     "current_medications": {
         "module": "medicine", "value": "active_medications",
         "count": "medication_count",

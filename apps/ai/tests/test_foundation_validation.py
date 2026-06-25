@@ -36,6 +36,8 @@ _FAKE_STATE = {
         "last_weight_entry": "2026-04-07T16:00:00+00:00",
         "latest_glucose": 133.0, "latest_glucose_unit": "mg/dL",
         "last_glucose_entry": "2026-04-07T20:43:35+00:00",
+        "sleep_avg_hours_7d": 6.7, "sleep_trend": "decreasing",
+        "last_sleep_entry": "2026-04-07",
     },
     "medicine": {"active_medications": ["Metformin HCL ER", "Valsartan"],
                  "medication_count": 2},
@@ -50,6 +52,7 @@ PROMPTS = [
     ("What medications am I currently taking?",   "current_medications",  "Metformin"),
     ("How many calories have I consumed today?",  "calories_today",       "1850"),
     ("How much protein have I consumed today?",   "protein_today",        "142"),
+    ("How did I sleep last night?",               "sleep_last_night",     "6.7"),
 ]
 
 
@@ -147,6 +150,10 @@ class FormatFactSentenceTests(TestCase):
                                      "count": 2}, "Metformin"),
             "calories_today": ({"value": 1850.0, "target": 2000}, "1850"),
             "protein_today": ({"value": 142.0, "target": 180}, "142"),
+            "sleep_last_night": ({"value": 6.7, "unit": "hours",
+                                  "trend": "decreasing"}, "6.7"),
+            "average_sleep_7d": ({"value": 6.7, "unit": "hours"}, "6.7"),
+            "sleep_trend": ({"value": "decreasing"}, "decreasing"),
         }
         for key, (fact, needle) in cases.items():
             self.assertIn(needle, format_fact_sentence(key, fact), key)

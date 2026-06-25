@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — feat(cos): foundational fast path — add sleep ("How did I sleep last night?")
+
+**Diagnosis:** "How did I sleep last night?" returned the tool-loop error because the deterministic classifier had no `sleep` route — `classify_foundational_fact` returned None → `generate()`'s `if _fast is not None` guard was False → fell through to `_call_api_with_tools` (the failing production tool loop). File·method·condition: `foundational_facts.py::classify_foundational_fact` (`_FACT_KEYWORDS` had no sleep entry) → `service.py::generate` fall-through.
+
+**Fix (same architecture, tool loop untouched):**
+- Truth layer (`cos_services/health_facts.py`): added `average_sleep_7d` (→ `sleep_avg_hours_7d`) and `sleep_trend` (→ `sleep_trend`); `sleep_last_night` already mapped to `sleep_avg_hours_7d` with the trend bundled. All three now supported.
+- Classifier (`chatgpt_cos/foundational_facts.py`): `sleep`/`slept`/`rest last night` → `sleep_last_night`. Added deterministic `format_fact_sentence` cases for the sleep keys + unknown sentences.
+
+**Verified live (user 1, `_call_api` unavailable → deterministic fallback):** "You've been averaging 6.7 hours of sleep, and your sleep trend is decreasing." No tool loop.
+
+**Tests:** sleep added to `test_foundation_validation.py` (classifier, fast path, deterministic fallback, format). `test_health_facts` enum test auto-covers the new keys. Suite green; `check` + `makemigrations --check` clean. **Files:** `apps/ai/cos_services/health_facts.py`, `apps/ai/chatgpt_cos/foundational_facts.py`, `apps/ai/tests/test_foundation_validation.py`. **Requires `wlj-worker` redeploy.**
+
+
 ## 2026-06-24 — feat(cos): foundational fact FAST PATH — deterministic, no tools, no agentic loop
 
 **Why:** the agentic tool loop (`_call_api_with_tools`) was failing in production for foundational facts ("the fallback returned nothing"). Foundational facts don't need the tool loop — the truth is already retrievable deterministically.

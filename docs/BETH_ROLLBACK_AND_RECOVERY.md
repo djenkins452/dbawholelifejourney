@@ -40,13 +40,21 @@ Cut a tag **only** after the full production validation checklist passes
 (`BETH_PRODUCTION_VALIDATION_CHECKLIST.md`).
 
 ```bash
-# Annotated tag at the validated commit (use the merge commit on main)
-git tag -a beth-stable-v1 35c27f58 \
-  -m "Beth stable v1 — conversation durability + persistent thinking indicator + health reasoning validated"
+# Annotated tag at the CURRENT validated main HEAD (NOT an earlier milestone).
+# Resolve HEAD explicitly so the tag captures all approved fixes + governance.
+git checkout main && git pull
+git rev-parse HEAD               # record this SHA in the registry below
+git tag -a beth-stable-v1 \
+  -m "Beth stable v1 — durability + persistent thinking indicator + health reasoning + governance, production-validated"
 
 # Push the tag
 GIT_SSH_COMMAND="ssh -p 443" git push git@ssh.github.com:djenkins452/dbawholelifejourney.git beth-stable-v1
 ```
+
+> **`beth-stable-v1` points to the current validated production HEAD, not the
+> earlier `35c27f58` milestone.** The behaviors were *stabilized* at `35c27f58`
+> and are unchanged since (later commits are governance docs only), but the tag
+> must capture the actual deployed state including all approved fixes.
 
 Tagging does not deploy anything; it marks a rollback point.
 
@@ -127,5 +135,5 @@ GIT_SSH_COMMAND="ssh -p 443" git push git@ssh.github.com:djenkins452/dbawholelif
 
 | Tag | Commit | Date | Meaning / validated behaviors |
 |-----|--------|------|-------------------------------|
-| `beth-stable-v1` *(suggested, not yet cut)* | `35c27f58` | 2026-06-25 | Conversation durability (nav + refresh), background completion + recovery, completion notifications, persistent thinking indicator, validated health reasoning (2 intents). Known limits: worker hard-kill durability gap; no frontend automated tests. |
-| `beth-stable-v2` | _tbd_ | _tbd_ | _next milestone_ |
+| `beth-stable-v1` *(awaiting final production validation, not yet cut)* | **current validated main HEAD** (resolve with `git rev-parse main`; behaviors stabilized at `35c27f58`, unchanged since) | 2026-06-25 | Conversation durability (nav + refresh), background completion + recovery, completion notifications, persistent thinking indicator, validated health reasoning (2 intents: `biggest_health_risk`, `overall_progress`), deterministic fallbacks, contamination prevention, coaching tone. Known limits: worker hard-kill durability gap (P15); no frontend automated tests (matrix R-2). |
+| `beth-stable-v2` | _tbd_ | _tbd_ | _next validated milestone_ |

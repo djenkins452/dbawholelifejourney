@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-25 — docs(cos): Beth constitution + baseline tag prep (documentation only)
+
+**Why:** establish Beth's architectural constitution and prepare the first protected production baseline tag before further capability work. No runtime/UI/reasoning/schema changes.
+
+**Created:** `docs/BETH_ARCHITECTURAL_PRINCIPLES.md` — 14 core principles (truth-first; deterministic retrieval before LLM; no raw SAE to OpenAI; planner never answers; deterministic fallback per intent; framework-first; stability outranks capability; tool loop is fallback-only; coaching language; no internal details to users; domain curators own isolation; blast-radius required; new capability = framework extension; validated behaviors protected) plus 7 supporting principles (P15 no-heavy-compute-on-request-path, P16 fail-loud, P17 single-source-of-truth, P18 briefing-consumer, P19 streaming parity, P20 observability, P21 deferred-means-phased) and an amendment process.
+
+**Updated:** `BETH_ROLLBACK_AND_RECOVERY.md` + `BETH_GOLDEN_BEHAVIORS.md` — `beth-stable-v1` now targets the **current validated main HEAD** (per owner directive: do NOT tag `35c27f58`); behaviors were stabilized at `35c27f58`, unchanged since.
+
+**Tag status:** `beth-stable-v1` NOT cut — awaiting the owner's final production validation round. Files: docs only.
+
+
 ## 2026-06-25 — docs(cos): Beth stability baseline + governance (documentation only)
 
 **Why:** core Beth behaviors are now production-stable; establish a formal line-in-the-sand, regression protection, change control, and rollback before further feature work. No runtime/UI/reasoning code changed.

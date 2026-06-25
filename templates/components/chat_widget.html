@@ -357,6 +357,29 @@
     30% { transform: translateY(-4px); opacity: 1; }
 }
 
+/* Persistent "thinking" placeholder — survives navigation/refresh while a
+   request is pending. Reuses the typing-dot animation above. */
+.beth-thinking {
+    align-self: flex-start;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 85%;
+    padding: 10px 14px;
+    margin: 4px 0;
+    background: var(--color-surface, #f3f4f6);
+    border-radius: 16px;
+    border-bottom-left-radius: 4px;
+}
+.beth-thinking .beth-thinking-text {
+    font-size: 13px;
+    color: var(--color-text-muted, #6b7280);
+}
+.beth-thinking .assistant-typing {
+    padding: 0;
+    background: transparent;
+}
+
 /* Error card with retry */
 .assistant-error-card {
     text-align: center;
@@ -1856,6 +1879,10 @@
                 }
             } catch (_pollErr) { /* ignore */ }
 
+            // Persistent thinking indicator: if a request is still in flight
+            // (marker present, answer not yet on screen), show it; else clear it.
+            try { ensureThinkingPlaceholder(); } catch (_thinkErr) { /* ignore */ }
+
             // v7: Trigger proactive briefing after history loads
             maybeTriggerBriefing(data);
 
@@ -2424,6 +2451,48 @@
         if (typing) typing.remove();
     }
 
+    // --- Persistent "thinking" placeholder (reuses the existing pending marker;
+    // NOT a second tracking system). Marker present + answer not yet rendered =>
+    // a thinking bubble survives navigation/refresh/reopen. Cleared on the
+    // re-render that surfaces the answer (the marker is gone by then). ---
+    var CW_BETH_NAME = '{{ cos_display_name|default:"Chief of Staff"|escapejs }}';
+    function removeThinkingPlaceholder() {
+        var el = document.getElementById('cw-beth-thinking');
+        if (el) el.remove();
+    }
+    function showThinkingPlaceholder() {
+        removeThinkingPlaceholder();                 // dedup: only ever one
+        var wrap = document.createElement('div');
+        wrap.className = 'beth-thinking';
+        wrap.id = 'cw-beth-thinking';
+        var txt = document.createElement('div');
+        txt.className = 'beth-thinking-text';
+        txt.textContent = CW_BETH_NAME + ' is reviewing your information...';
+        var dots = document.createElement('div');
+        dots.className = 'assistant-typing';
+        dots.innerHTML = '<span></span><span></span><span></span>';
+        wrap.appendChild(txt); wrap.appendChild(dots);
+        messagesContainer.appendChild(wrap);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    // Single source of truth: marker exists <=> request in flight (answer not
+    // yet resolved). Idempotent — safe to call after every render.
+    function ensureThinkingPlaceholder() {
+        if (getPendingRequest()) showThinkingPlaceholder();
+        else removeThinkingPlaceholder();
+    }
+    function showThinkingEnded(message) {
+        var el = document.getElementById('cw-beth-thinking');
+        if (!el) { showThinkingPlaceholder(); el = document.getElementById('cw-beth-thinking'); }
+        if (!el) return;
+        el.className = 'beth-thinking';
+        el.innerHTML = '';
+        var txt = document.createElement('div');
+        txt.className = 'beth-thinking-text';
+        txt.textContent = message || (CW_BETH_NAME + " couldn't finish that one. Please try again.");
+        el.appendChild(txt);
+    }
+
     // ==========================================================================
     // SSE Streaming Helpers
     // ==========================================================================
@@ -2664,6 +2733,7 @@
                         _pendingPollTimer = setTimeout(check, 3000);
                     } else {
                         bethBeacon('BETH_RECOVERY_POLL_TIMEOUT', { cid: pending.cid || null, job_id: pending.job_id || null, extra: 'src=drawer attempts=' + attempts });
+                        showThinkingEnded("That's taking longer than expected. Please try again.");
                         clearPendingRequest();      // give up after the bound
                     }
                 })
@@ -3802,6 +3872,8 @@
                 } else {
                     bethBeacon('BETH_RENDER_SKIPPED', { extra: 'fn=refreshHistory(widget) reason=needsUpdate_false server_visible=' + newMessageCount + ' dom_assistant_msgs=' + currentMessages.length });
                 }
+                // Re-render wiped the placeholder; restore it iff still pending.
+                try { ensureThinkingPlaceholder(); } catch (_t) { /* ignore */ }
             }
         } catch (error) {
             console.error('Error refreshing history:', error);

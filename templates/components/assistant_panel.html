@@ -309,6 +309,21 @@
         }
         _apPollTimer = setTimeout(check, 2000);
     }
+
+    // Deep-link: a completion notification opens /assistant/?beth_msg=<id>.
+    // After history renders, scroll to that message and briefly highlight it.
+    function apScrollToBethMsg(container) {
+        try {
+            var mid = new URLSearchParams(window.location.search).get('beth_msg');
+            if (!mid) return;
+            var el = (container || document).querySelector('[data-message-id="' + mid + '"]');
+            if (!el) return;
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.style.transition = 'background-color .4s';
+            el.style.backgroundColor = 'rgba(99,102,241,0.18)';
+            setTimeout(function () { el.style.backgroundColor = ''; }, 4000);
+        } catch (e) { /* ignore */ }
+    }
     var lastDisplayedDate = null; // Track for date separator headers
     var apHistorySyncDone = false; // One-time post-load sync guard
 
@@ -1133,6 +1148,7 @@
                 });
                 if (renderedCount > 0) {
                     container.scrollTop = container.scrollHeight;
+                    apScrollToBethMsg(container);   // deep-link to a specific answer
                 } else {
                     showEmptyState(container);
                 }

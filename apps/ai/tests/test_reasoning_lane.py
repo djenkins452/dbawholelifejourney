@@ -24,6 +24,10 @@ from django.test import TestCase, override_settings
 from apps.ai.chatgpt_cos.reasoning import answer_reasoning_question
 from apps.ai.chatgpt_cos.reasoning.plan import parse_plan
 from apps.ai.chatgpt_cos.reasoning.stages import (
+    REASONING_PROFILES,
+    _calibrate_label,
+    _intra_day_hint,
+    _nutrition_time_context,
     build_working_memory,
     health_working_memory,
     retrieve_truth,
@@ -203,3 +207,69 @@ class EngineTests(TestCase):
     def test_planner_unavailable_declines(self):
         with mock.patch(_CALL_API, return_value=None):
             self.assertIsNone(answer_reasoning_question(self.user, "biggest risk?"))
+
+
+class ToneCalibrationTests(TestCase):  # Fix 3
+    def test_severe_labels_softened(self):
+        self.assertEqual(_calibrate_label("Significant"), "elevated — worth watching")
+        self.assertEqual(_calibrate_label("Critical"), "worth attention")
+        self.assertEqual(_calibrate_label("dangerous"), "worth watching")
+
+    def test_non_severe_labels_unchanged(self):
+        self.assertEqual(_calibrate_label("Elevated"), "Elevated")
+        self.assertEqual(_calibrate_label("stable"), "stable")
+        self.assertEqual(_calibrate_label(False), False)
+
+    def test_curator_calibrates_active_risk_labels(self):
+        truth = {"health_state": {"state": {
+            "muscle_loss_risk_level": "significant", "weight_goal_on_track": False}}}
+        facts = health_working_memory(truth)
+        self.assertEqual(facts["active_risks"]["muscle_loss_risk_level"],
+                         "elevated — worth watching")
+
+    def test_prompts_carry_calibration_and_no_alarmist_words(self):
+        for intent in ("biggest_health_risk", "overall_progress"):
+            sys = REASONING_PROFILES[intent]["system"].lower()
+            self.assertIn("worth watching", sys)
+            self.assertIn("evidence-based", sys)
+
+
+class NutritionTimeAwarenessTests(TestCase):  # Fix 2
+    def test_intra_day_hints(self):
+        self.assertEqual(_intra_day_hint(0, 176, 40, "morning"),
+                         "early_day_not_yet_logged")
+        self.assertEqual(_intra_day_hint(20, 176, 40, "morning"),
+                         "logging_in_progress")
+        self.assertEqual(_intra_day_hint(0, 176, 40, "evening"),
+                         "nothing_logged_today")
+        self.assertEqual(_intra_day_hint(50, 176, 40, "evening"),
+                         "below_typical_for_time_of_day")
+        self.assertEqual(_intra_day_hint(150, 176, 40, "evening"),
+                         "on_track_for_time_of_day")
+
+    def test_nutrition_context_morning_zero_not_a_risk(self):
+        from types import SimpleNamespace
+        nut = {"daily_protein_g": 0.0, "rolling_7d_protein_avg": 176.9,
+               "protein_target": 40.0, "daily_calories": 0.0,
+               "rolling_7d_calories_avg": 1993.5, "calorie_target": 2000}
+        with mock.patch("apps.core.ai_state.state_engine.get_module_state",
+                        return_value=nut), \
+             mock.patch("apps.core.utils.get_user_now",
+                        return_value=SimpleNamespace(hour=9)):
+            ctx = _nutrition_time_context(object())
+        self.assertEqual(ctx["day_phase"], "morning")
+        self.assertEqual(ctx["protein_g"]["interpretation"],
+                         "early_day_not_yet_logged")
+        self.assertEqual(ctx["protein_g"]["typical_7d_avg"], 176.9)
+
+    def test_curator_includes_nutrition_context_when_user_given(self):
+        from types import SimpleNamespace
+        nut = {"daily_protein_g": 0.0, "rolling_7d_protein_avg": 176.9,
+               "protein_target": 40.0}
+        with mock.patch("apps.core.ai_state.state_engine.get_module_state",
+                        return_value=nut), \
+             mock.patch("apps.core.utils.get_user_now",
+                        return_value=SimpleNamespace(hour=9)):
+            facts = health_working_memory({"health_state": {"state": {}}},
+                                          user=object())
+        self.assertIn("nutrition_context", facts)

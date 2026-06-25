@@ -2475,6 +2475,10 @@
     // input must never be lost on network or navigation failures.
     var CHAT_DRAFT_KEY = 'wlj_chat_draft';
     var CHAT_PENDING_KEY = 'wlj_chat_pending';
+    // ChatGPT CoS users must ALWAYS use the streaming/background job path so
+    // generation survives navigation (background task + resume-by-job_id). The
+    // synchronous non-streaming path is never used for CoS.
+    var IS_COS_USER = {% if feature_flags.WLJ_COS_EVIDENCE_TOOLS_ENABLED %}true{% else %}false{% endif %};
 
     function saveDraft() {
         try {
@@ -2596,14 +2600,17 @@
         var sentImages = attachedImages.slice();
         clearAttachment();
 
-        // Image messages use non-streaming endpoint
-        if (sentImages.length > 0) {
+        // Image messages use the non-streaming endpoint — EXCEPT for ChatGPT
+        // CoS users, who must ALWAYS use the streaming/background path so
+        // generation survives navigation (the non-streaming path is synchronous
+        // and is canceled by its AbortController on navigate-away).
+        if (sentImages.length > 0 && !IS_COS_USER) {
             showTyping();
             await sendMessageNonStreaming(message, sendContext, sentImages, savedMessage);
             return;
         }
 
-        // Text messages use streaming endpoint
+        // All text messages — and ALL ChatGPT CoS messages — use streaming.
         showTyping();
         await sendMessageStreaming(message, sendContext, savedMessage);
     }
@@ -2811,8 +2818,14 @@
 
             if (error.name === 'AbortError') {
                 addErrorWithRetry(savedMessage, null, sendContext);
+            } else if (IS_COS_USER) {
+                // CoS must never use the synchronous non-streaming path: it would
+                // re-submit (duplicate) and is not navigation-safe. Offer a retry
+                // that re-streams (the background job/resume path).
+                console.warn('CoS streaming failed; offering retry (no non-streaming fallback):', error);
+                addErrorWithRetry(savedMessage, null, sendContext);
             } else {
-                // Fallback to non-streaming
+                // Fallback to non-streaming (legacy Beth users only)
                 console.warn('Streaming failed, falling back:', error);
                 showTyping();
                 await sendMessageNonStreaming(message, sendContext, null, savedMessage);

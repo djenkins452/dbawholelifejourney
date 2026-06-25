@@ -260,6 +260,9 @@
     var attachedImages = []; // Array of { data: base64, mimeType: string, dataUrl: string }
     var MAX_IMAGES = 5;
     var calibrationAutoStarted = false;
+    // ChatGPT CoS users must ALWAYS use the streaming/background path (the
+    // synchronous non-streaming path is not navigation-safe and would re-submit).
+    var AP_IS_COS_USER = {% if feature_flags.WLJ_COS_EVIDENCE_TOOLS_ENABLED %}true{% else %}false{% endif %};
     var lastDisplayedDate = null; // Track for date separator headers
     var apHistorySyncDone = false; // One-time post-load sync guard
 
@@ -781,14 +784,15 @@
 
         addMessage(container, message || '(Images attached)', true, true, imageDataUrls);
 
-        // Image messages use non-streaming endpoint
-        if (sentImages && sentImages.length > 0) {
+        // Image messages use non-streaming endpoint — EXCEPT ChatGPT CoS users,
+        // who must always use the streaming/background path.
+        if (sentImages && sentImages.length > 0 && !AP_IS_COS_USER) {
             showTyping(container);
             apSendNonStreaming(message, container, btnEl, inputEl, sentImages);
             return;
         }
 
-        // Text messages use streaming endpoint
+        // All text messages — and ALL ChatGPT CoS messages — use streaming.
         showTyping(container);
         apSendStreaming(message, container, btnEl, inputEl);
     }
@@ -904,9 +908,16 @@
             hideTyping();
             // Remove pre-created element on failure, fallback will create its own
             if (msgEl && msgEl.parentNode) msgEl.remove();
-            console.warn('Streaming failed, falling back:', error);
-            showTyping(container);
-            apSendNonStreaming(message, container, btnEl, inputEl, null);
+            if (AP_IS_COS_USER) {
+                // CoS never falls back to the synchronous non-streaming path
+                // (it would re-submit → duplicate and isn't navigation-safe).
+                console.warn('CoS streaming failed; no non-streaming fallback:', error);
+                addMessage(container, "I couldn't reach that just now — please try again.", false);
+            } else {
+                console.warn('Streaming failed, falling back:', error);
+                showTyping(container);
+                apSendNonStreaming(message, container, btnEl, inputEl, null);
+            }
         } finally {
             btnEl.disabled = !inputEl.value.trim();
         }

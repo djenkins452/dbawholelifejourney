@@ -224,8 +224,82 @@ def _pick(state, keys):
     return {k: state[k] for k in keys if state.get(k) is not None}
 
 
-def health_working_memory(truth):
-    """HealthWorkingMemoryCurator — bounded, deterministic, health-truth ONLY."""
+# ---- Fix 3: tone calibration — soften alarmist raw SAE risk labels ----------
+_SEVERE_TO_CALIBRATED = (
+    ("significant", "elevated — worth watching"),
+    ("critical", "worth attention"),
+    ("dangerous", "worth watching"),
+    ("danger", "worth watching"),
+    ("severe", "notable"),
+    ("high risk", "elevated — worth watching"),
+)
+
+
+def _calibrate_label(v):
+    if not isinstance(v, str):
+        return v
+    low = v.strip().lower()
+    for severe, mild in _SEVERE_TO_CALIBRATED:
+        if severe in low:
+            return mild
+    return v
+
+
+def _calibrate_risks(risks):
+    return {k: _calibrate_label(v) for k, v in risks.items()}
+
+
+# ---- Fix 2: time-aware intra-day nutrition interpretation ------------------
+def _intra_day_hint(today, avg, target, phase):
+    t = today or 0
+    if phase == "morning":
+        return "early_day_not_yet_logged" if t == 0 else "logging_in_progress"
+    ref = avg or target or 0
+    if t == 0:
+        return "nothing_logged_today"
+    if ref and t < 0.5 * ref:
+        return "below_typical_for_time_of_day"
+    return "on_track_for_time_of_day"
+
+
+def _nutrition_time_context(user):
+    """Deterministic, time-aware view of intra-day nutrition counters so a 0
+    counter early in the day is NOT read as a deficit. Includes the 7-day
+    typical (sustained trend) for reference."""
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        from apps.core.utils import get_user_now
+        nut = get_module_state(user, "nutrition", allow_rebuild=False) or {}
+        hour = get_user_now(user).hour
+    except Exception:
+        return {}
+    phase = "morning" if hour < 12 else "afternoon" if hour < 17 else "evening"
+
+    def slot(today_k, avg_k, target_k):
+        today, avg, target = nut.get(today_k), nut.get(avg_k), nut.get(target_k)
+        if today is None and avg is None:
+            return None
+        return {"today": today, "target": target, "typical_7d_avg": avg,
+                "day_phase": phase,
+                "interpretation": _intra_day_hint(today, avg, target, phase)}
+
+    out = {}
+    p = slot("daily_protein_g", "rolling_7d_protein_avg", "protein_target")
+    c = slot("daily_calories", "rolling_7d_calories_avg", "calorie_target")
+    if p:
+        out["protein_g"] = p
+    if c:
+        out["calories"] = c
+    out["day_phase"] = phase
+    return out if (out.get("protein_g") or out.get("calories")) else {}
+
+
+def health_working_memory(truth, user=None):
+    """HealthWorkingMemoryCurator — bounded, deterministic, health-truth ONLY.
+
+    Tone-calibrated risk labels; intra-day nutrition counters are presented with
+    time awareness (via nutrition_context) so a morning 0 is not read as a risk.
+    """
     hs = truth.get("health_state")
     state = hs.get("state") if isinstance(hs, dict) else None
     state = state if isinstance(state, dict) else {}
@@ -233,21 +307,31 @@ def health_working_memory(truth):
     buckets = {
         "current_status": _pick(state, _H_STATUS),
         "major_trends": _pick(state, _H_TRENDS),
-        "active_risks": _pick(state, _H_RISKS),
+        "active_risks": _calibrate_risks(_pick(state, _H_RISKS)),
         "goal_progress": _pick(state, _H_GOALS),
     }
     pd = state.get("physical_decision")
     if isinstance(pd, dict):
         buckets["health_assessment"] = {
-            k: pd[k] for k in list(pd)[:6]
-            if isinstance(pd.get(k), (int, float, str, bool))
+            _k: _calibrate_label(pd[_k]) for _k in list(pd)[:6]
+            if isinstance(pd.get(_k), (int, float, str, bool))
         }
+    # Foundational scalars EXCEPT intra-day nutrition counters — those are
+    # represented (with time context) in nutrition_context below, so the model
+    # never sees a bare "0g protein" without knowing it's early in the day.
     if isinstance(fh, dict) and fh:
-        buckets["foundational_facts"] = fh
+        buckets["foundational_facts"] = {
+            k: v for k, v in fh.items()
+            if k not in ("calories_today", "protein_today")
+        }
+    if user is not None:
+        nc = _nutrition_time_context(user)
+        if nc:
+            buckets["nutrition_context"] = nc
     return {k: v for k, v in buckets.items() if v}
 
 
-def _generic_curator(truth):
+def _generic_curator(truth, user=None):
     """Default curator for non-health intents (Phase 1 adds domain curators)."""
     return {key: _curate_value(data) for key, data in truth.items()}
 
@@ -259,12 +343,12 @@ INTENT_CURATORS = {
 }
 
 
-def build_working_memory(plan, truth):
+def build_working_memory(plan, truth, user=None):
     """Stage 3: curate the truth into bounded, inspectable working memory via the
     intent's curator. This is the ONLY data the reasoning model sees — never raw
     SAE, and for health intents never cross-domain truth."""
     curator = INTENT_CURATORS.get(plan.intent, _generic_curator)
-    facts = curator(truth)
+    facts = curator(truth, user)
     wm = {"intent": plan.intent, "reasoning_style": plan.reasoning_style,
           "urgency": plan.urgency, "facts": facts}
     logger.info(
@@ -283,16 +367,16 @@ def _health_risk_fallback(wm):
     risks = (wm.get("facts") or {}).get("active_risks") or {}
     flags = []
     if risks.get("weight_goal_on_track") is False:
-        flags.append("you're behind on your weight goal")
+        flags.append("your weight goal is a bit behind pace")
     for k in ("plateau_risk_label", "muscle_loss_risk_level",
               "glucose_variability_label", "fat_loss_quality_label"):
         v = risks.get(k)
         if v and str(v).strip().lower() not in (
                 "none", "stable", "low", "good", "on track", "optimal", "normal"):
-            flags.append(f"{k.replace('_', ' ')}: {v}")
+            flags.append(f"{k.replace('_', ' ').replace(' label', '')}: {v}")
     if flags:
-        return "From your health data, the main thing to watch: " + flags[0] + "."
-    return "Your health metrics don't show a single dominant risk right now."
+        return "The main thing worth watching from your health data: " + flags[0] + "."
+    return "Your health metrics look steady — nothing that stands out as a concern right now."
 
 
 def _health_progress_fallback(wm):
@@ -310,17 +394,28 @@ def _health_progress_fallback(wm):
         if bits else "Here's where your health goals stand based on your data."
 
 
-_NO_CROSS_DOMAIN = (
+_HEALTH_GUIDANCE = (
     " Stay strictly within health — never mention tasks, projects, work items, "
     "Harley, finances, or generic to-dos. Cite the data; never invent numbers."
+    " TONE: be evidence-based and measured. Avoid alarmist language — 'significant"
+    " risk', 'critical', 'dangerous', 'muscle loss risk' — unless the data clearly"
+    " supports that severity. Prefer 'worth watching', 'below target', 'could "
+    "affect progress if it continues', 'a good next step would be', or 'the main "
+    "thing to improve today is'."
+    " NUTRITION: read nutrition_context with TIME AWARENESS — when its "
+    "interpretation is 'early_day_not_yet_logged' or 'logging_in_progress', do NOT"
+    " treat 0 calories/protein as a risk or deficit (it is simply early in the "
+    "day). Only call out a nutrition gap when the interpretation shows a late-day "
+    "shortfall or a sustained trend below the 7-day typical."
 )
 
 REASONING_PROFILES = {
     "biggest_health_risk": {
         "system": (
             "You are the user's Chief of Staff. Using ONLY the health working "
-            "memory provided, name the single biggest HEALTH risk right now and "
-            "the one action to address it." + _NO_CROSS_DOMAIN + " Max 120 words."
+            "memory provided, name the single most important HEALTH thing worth "
+            "attention right now and one good next step." + _HEALTH_GUIDANCE
+            + " Max 120 words."
         ),
         "max_tokens": 200,
         "fallback": _health_risk_fallback,
@@ -329,8 +424,8 @@ REASONING_PROFILES = {
         "system": (
             "You are the user's Chief of Staff. Using ONLY the health working "
             "memory provided, give a balanced read on how the user is doing "
-            "against their HEALTH goals — what's going well and what needs "
-            "attention." + _NO_CROSS_DOMAIN + " Max 160 words."
+            "against their HEALTH goals — what's going well and what to improve."
+            + _HEALTH_GUIDANCE + " Max 160 words."
         ),
         "max_tokens": 260,
         "fallback": _health_progress_fallback,

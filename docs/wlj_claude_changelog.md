@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-25 — release(cos): beth-stable-v1 — first protected production baseline
+
+**Tag cut & pushed:** `beth-stable-v1` → `b56b223ef5e9e34df53693c2837c283b00ff398b`. First formal stable baseline for the Chief of Staff. Annotated tag; pushed to GitHub.
+
+**Production-validated capabilities included in the baseline:**
+- Conversation durability: navigation-away while processing, return before completion, hard refresh while processing, background processing continues while navigating, response recovery after navigation.
+- UX integrity: persistent thinking indicator, no duplicate indicators, no duplicate answers, no OpenAI failure messages.
+- Health reasoning: health-only (no cross-domain contamination), no internal enums/labels/source paths exposed, coaching-oriented language.
+- Reliability: deterministic fallbacks; implemented reasoning intents always answer (`biggest_health_risk`, `overall_progress`).
+
+**Governance:** baseline governed by `docs/BETH_ARCHITECTURAL_PRINCIPLES.md`; protected by `BETH_GOLDEN_BEHAVIORS.md`; future change gated by `BETH_CHANGE_CONTROL.md`. Registry updated in `BETH_ROLLBACK_AND_RECOVERY.md` + `BETH_GOLDEN_BEHAVIORS.md`. Known limits at baseline: worker hard-kill durability gap (P15), no frontend automated test coverage (matrix R-2). Docs only — no runtime/UI/reasoning/schema change.
+
+
 ## 2026-06-25 — docs(cos): Beth constitution + baseline tag prep (documentation only)
 
 **Why:** establish Beth's architectural constitution and prepare the first protected production baseline tag before further capability work. No runtime/UI/reasoning/schema changes.

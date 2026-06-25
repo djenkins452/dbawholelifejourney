@@ -3,7 +3,7 @@
 > **Status:** Authoritative line-in-the-sand for the Chief of Staff (CoS / "Beth").
 > **Constitution:** governed by `BETH_ARCHITECTURAL_PRINCIPLES.md` (principles outrank this doc).
 > **Behaviors stabilized at:** commit `35c27f58` — *"persistent thinking placeholder across navigation"* — and unchanged since (later commits are governance docs only).
-> **Baseline tag:** `beth-stable-v1` points to the **current validated main HEAD** (not `35c27f58`); cut after final production validation — see `BETH_ROLLBACK_AND_RECOVERY.md`.
+> **Baseline tag:** ✅ `beth-stable-v1` — **CUT & PUSHED** at `b56b223e` (production-validated 2026-06-25). This is the protected production baseline; see `BETH_ROLLBACK_AND_RECOVERY.md`.
 > **Last updated:** 2026-06-25
 
 This document formally defines the behaviors that are **production-stable and

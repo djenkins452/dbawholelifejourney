@@ -28,6 +28,9 @@ User = get_user_model()
 _LOOP = "apps.ai.services.ai_service._call_api_with_tools"
 _STANDING = "apps.ai.cos_services.get_standing_context"
 _WARM = "apps.core.ai_state.state_engine.get_user_state"
+# Neutralize the reasoning lane so these tests deterministically exercise the
+# tool-loop path (reasoning questions otherwise route through the planner).
+_REASONING = "apps.ai.chatgpt_cos.reasoning.answer_reasoning_question"
 
 
 def _mk_user(email):
@@ -48,7 +51,8 @@ class ChatGPTCoSServiceTests(TestCase):
         cls.conversation = AssistantConversation.objects.create(user=cls.user)
 
     def test_generate_runs_tool_loop_and_returns_answer(self):
-        with mock.patch(_WARM, return_value={"health": {}}), \
+        with mock.patch(_REASONING, return_value=None), \
+             mock.patch(_WARM, return_value={"health": {}}), \
              mock.patch(_STANDING, return_value={"status": "ready", "x": 1}), \
              mock.patch(_LOOP, return_value="You're on track.") as loop:
             result = ChatGPTCoSService(self.user).generate(
@@ -71,7 +75,8 @@ class ChatGPTCoSServiceTests(TestCase):
         def _fake_loop(system, user_msg, *, tools, dispatch, **kw):
             dispatch("get_decision", {"mode": "execution"})
             return "Focus on X."
-        with mock.patch(_WARM, return_value={}), \
+        with mock.patch(_REASONING, return_value=None), \
+             mock.patch(_WARM, return_value={}), \
              mock.patch(_STANDING, return_value={"status": "ready"}), \
              mock.patch("apps.ai.cos_services.dispatch_tool_call",
                         return_value={"ok": True, "result": {}}), \
@@ -84,7 +89,8 @@ class ChatGPTCoSServiceTests(TestCase):
     def test_warms_sae_and_standing_context(self):
         # The fix for "I can't see your weight": the clean path warms the SAE
         # snapshot and builds standing context so tools read real data.
-        with mock.patch(_WARM, return_value={"health": {"weight_current": 286}}) as warm, \
+        with mock.patch(_REASONING, return_value=None), \
+             mock.patch(_WARM, return_value={"health": {"weight_current": 286}}) as warm, \
              mock.patch(_STANDING, return_value={"status": "ready"}) as standing, \
              mock.patch(_LOOP, return_value="ok"):
             # Non-foundational prompt: foundational fact prompts take the

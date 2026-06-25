@@ -7,6 +7,34 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — feat(cos): Reasoning Lane — Planner → Retrieval → Working Memory → Reasoning (framework + 2 intents)
+
+**Architecture milestone (approved scope: framework + 2 intents, then pause for review).** The long-term path for judgment/synthesis questions — NOT keyword classifiers, NOT the agentic tool loop:
+```
+Question → Planner LLM → Retrieval Plan → Deterministic Truth Retrieval
+        → Working Memory Builder → OpenAI Reasoning → narrative
+```
+
+**New package `apps/ai/chatgpt_cos/reasoning/`:**
+- `plan.py` — `RetrievalPlan` + closed vocabulary (intents/domains/truth keys). `parse_plan` validates the planner JSON and **drops anything outside the vocabulary** (the planner cannot fabricate truth sources). Unknown intent → `other`.
+- `stages.py` — the four boundary stages, each logged: **run_planner** (small constrained Planner LLM; emits a structured plan, never answers the user), **retrieve_truth** (deterministic, authoritative — reuses `get_decision`/execution selectors, `get_domain_state`, `get_standing_context`, `get_foundational_health_facts`; unknown keys ignored, errors captured not raised), **build_working_memory** (curates the truth into bounded, inspectable working memory — health whitelist + generic scalar/list-truncation cap; **OpenAI never sees raw SAE**), **run_reasoning** (one plain `_call_api` over working memory + per-intent deterministic fallback).
+- `engine.py` — orchestrator `answer_reasoning_question`; returns None (falls through) for unimplemented intents or planner unavailability.
+
+**Two intents wired:** `biggest_risk` (risk-triage; fallback = `get_decision(risk)` message) and `overall_progress` (holistic; fallback = deterministic summary from working memory). New intents = a plan vocabulary entry + a reasoning profile, **not** new classifiers.
+
+**Wiring:** `ChatGPTCoSService.generate` calls the Reasoning Lane after the foundational fact fast path, before the legacy tool loop. Foundational fast paths preserved. The agentic tool loop is **not** used by the Reasoning Lane (and remains only as fall-through for unhandled questions, pending review).
+
+**Telemetry (every stage):** `COS_REASONING_PLAN`, `COS_REASONING_TRUTH`, `COS_REASONING_WORKING_MEMORY` (payload logged), `COS_REASONING_PROMPT`, `COS_REASONING_RESPONSE` (+ `_DECLINE`/`_FAILED`).
+
+**Verified live (user 1, OpenAI unavailable → deterministic fallback):** biggest_risk → "Biggest risk: Wake up. Fix this next." (real `get_decision`); overall_progress → "Here's where things stand … weight 298.3 lb; Next: Wake up. Do this now." Real retrieval + curation + fallback proven end-to-end.
+
+**Import-drift guard:** the clean runtime stays free of legacy conversational modules — `_decision` passes canonical modes directly (no `cos_mode_router` import).
+
+**Tests:** `apps/ai/tests/test_reasoning_lane.py` (14) — plan parsing (fences, unknown-key drop, garbage→None, unknown-intent→other); retrieve_truth fetches planned keys; working memory curated (raw SAE list stripped); run_reasoning uses plain `_call_api`, never tools; deterministic fallback; engine end-to-end for both intents + decline + fallback, asserting `_call_api_with_tools` is never called. Updated tool-loop tests in `test_cos_empty_answer`/`test_chatgpt_cos_clean` to neutralize the reasoning lane (deterministic). Suite green; `check` + `makemigrations --check` clean.
+
+**PAUSE for architectural review** before implementing the remaining reasoning examples (per directive). **Files:** `apps/ai/chatgpt_cos/reasoning/*` (new), `apps/ai/chatgpt_cos/service.py`, `apps/ai/tests/test_reasoning_lane.py` (new), `test_cos_empty_answer.py`, `test_chatgpt_cos_clean.py`. **Requires `wlj-worker` redeploy.**
+
+
 ## 2026-06-24 — feat(cos): foundational fast path — add blood pressure + last meal
 
 **Diagnosis (both prompts):** neither "What was my last blood pressure reading?" nor "What was the last meal I logged?" had a classifier keyword → `classify_foundational_fact` returned None → `generate()`'s `if _fast is not None` guard False → fell through to `_call_api_with_tools` (the failing tool loop). Same file·method·condition as the sleep miss.

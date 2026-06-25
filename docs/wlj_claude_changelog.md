@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-25 — fix(cos): reasoning lane hardening — label leakage, ranking quality, fallback quality
+
+**FAILED #1 — internal label leakage ("…muscle loss risk level: MED").** Traced: `_rank_health_concerns` built concern strings as `"<field>: <enum>"`, and the model-facing working memory also exposed `active_risks` (raw enums like LOW/MED/INSUFFICIENT_DATA) and `foundational_facts` with internal `source` paths (`SAE.health…`). **Fix:** the curator is now EXECUTIVE-CLEAN — enum labels live only in internal ranking inputs; the model-facing WM contains `current_status` (numbers), `trends` (enum `_label` fields stripped), `goal_progress`, `nutrition_context`, `foundational_facts` (internal `source` stripped), and `ranked_concerns` (coaching only). `ranked_concerns` is now a list of `{concern, action}` in plain coaching language. Prompts forbid emitting any raw label/code/enum/field-name/source-path. Verified live: leak check = False.
+
+**FAILED #2 — protein/muscle over-prioritization.** `_rank_health_concerns` had no sleep or glucose-level signals and weighted muscle highest. **Fix:** richer clinically-weighted ranking — glucose/diabetes management (high glucose) sev 5, sleep deficit (<6.5h) sev 4, weight pace / glucose variability sev 3, sleep-trend / plateau / muscle sev 2, late-day nutrition sev 1 (early-day still excluded). The engine now prioritizes the most meaningful opportunity, not the biggest numeric gap. Verified live: user 1 surfaces "weight-loss pace" then "sleep trending down" — not protein.
+
+**FAILED #3 — thin deterministic fallback ("…weight 285.7 lb").** The old `overall_progress` fallback used only weight/goal fields, so when goal fields were absent only weight survived. **Fix:** `overall_progress` fallback now gives weight trend + glucose status + sleep status + next focus; `biggest_health_risk` fallback gives concern + (coaching) explanation + recommended action. Both fully deterministic, no OpenAI dependency. Verified live (multi-part).
+
+**Tests:** `test_reasoning_lane.py` updated for the sanitized WM + `{concern, action}` dicts; +2 fallback-quality tests; raw-enum-never-leaks test. Full reasoning + CoS suites green; `check` + `makemigrations --check` clean. **Files:** `apps/ai/chatgpt_cos/reasoning/{stages,plan}.py`, `apps/ai/tests/test_reasoning_lane.py`. **Requires `wlj-worker` redeploy. Pause for production validation; no widening.**
+
+
 ## 2026-06-25 — fix(cos): reasoning lane — evidence-ranked risk (no protein anchor) + guaranteed answer
 
 **FAILED #1 — biggest_health_risk over-anchored on protein.** Proven (Danny's data): every `active_risks` label is benign (LOW/stable/INSUFFICIENT_DATA) — zero real risk labels; the only genuine concern is `weight_goal_on_track=false`. The working memory handed the model raw buckets with no prioritization, so it fixated on the most striking number (early-day 0 protein vs 176.9 typical). **Fix:** `_rank_health_concerns` builds a deterministic, evidence-RANKED `ranked_concerns` list (severity-weighted), EXCLUDING benign labels and early-day nutrition (a not-yet-logged 0 is not a risk). The biggest_health_risk prompt now picks the top item from `ranked_concerns` (or says nothing stands out — never manufactures one); the fallback uses `ranked_concerns[0]`. Verified live: `ranked_concerns=["weight goal is behind pace"]` (no protein).

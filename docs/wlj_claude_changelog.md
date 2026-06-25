@@ -7,6 +7,20 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-25 — docs(cos): Beth stability baseline + governance (documentation only)
+
+**Why:** core Beth behaviors are now production-stable; establish a formal line-in-the-sand, regression protection, change control, and rollback before further feature work. No runtime/UI/reasoning code changed.
+
+**Created (5 governance docs):**
+- `docs/BETH_GOLDEN_BEHAVIORS.md` — production-stable behaviors (GB-1 durability, GB-2 UX integrity, GB-3 health reasoning, GB-4 reliability) anchored at baseline commit `35c27f58`; documents known limitations (worker hard-kill durability gap; zero frontend automated coverage; single-marker concurrency).
+- `docs/BETH_PRODUCTION_VALIDATION_CHECKLIST.md` — per-area production validation scenarios (navigation, refresh, multi-in-flight, notifications, health reasoning) with expected outcomes + `cid` telemetry debugging.
+- `docs/BETH_CHANGE_CONTROL.md` — mandatory Blast Radius Assessment; "preserve stable functionality over shipping features"; hard rules (intent gate, no heavy compute on task path, no error-swallowing, naming boundary, single source of truth).
+- `docs/BETH_ROLLBACK_AND_RECOVERY.md` — stability tags, forward-only revert, hotfix-from-tag, failed-deploy recovery, migration-safety; tag registry.
+- `docs/BETH_REGRESSION_TEST_MATRIX.md` — real coverage inventory of `apps/ai/tests/`; flags R-1 (worker-kill path) and R-2 (no frontend test harness) as top gaps.
+
+**Suggested first tag:** `beth-stable-v1` at `35c27f58` (NOT cut automatically — awaiting go). **Files:** docs only.
+
+
 ## 2026-06-25 — feat(cos): persistent "thinking" placeholder across navigation
 
 **Root cause:** the typing indicator is a transient DOM node (`showTyping` → `#assistant-typing`/`#ap-typing`) destroyed on navigation; history-load renders only persisted messages (the empty placeholder is skipped), so nothing re-creates a "still working" cue — it looks like processing stopped.

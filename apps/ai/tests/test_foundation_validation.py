@@ -38,11 +38,14 @@ _FAKE_STATE = {
         "last_glucose_entry": "2026-04-07T20:43:35+00:00",
         "sleep_avg_hours_7d": 6.7, "sleep_trend": "decreasing",
         "last_sleep_entry": "2026-04-07",
+        "bp_systolic": 111, "bp_diastolic": 72,
+        "last_bp_entry": "2026-04-07T08:55:45+00:00",
     },
     "medicine": {"active_medications": ["Metformin HCL ER", "Valsartan"],
                  "medication_count": 2},
     "nutrition": {"daily_calories": 1850.0, "calorie_target": 2000,
-                  "daily_protein_g": 142.0, "protein_target": 180},
+                  "daily_protein_g": 142.0, "protein_target": 180,
+                  "last_food_entry": "2026-04-07"},
 }
 
 # prompt -> (fact key, substring that must appear in the deterministic answer)
@@ -53,6 +56,8 @@ PROMPTS = [
     ("How many calories have I consumed today?",  "calories_today",       "1850"),
     ("How much protein have I consumed today?",   "protein_today",        "142"),
     ("How did I sleep last night?",               "sleep_last_night",     "6.7"),
+    ("What was my last blood pressure reading?",   "last_blood_pressure_reading", "111/72"),
+    ("What was the last meal I logged?",           "latest_meal_logged",   "2026-04-07"),
 ]
 
 
@@ -154,6 +159,9 @@ class FormatFactSentenceTests(TestCase):
                                   "trend": "decreasing"}, "6.7"),
             "average_sleep_7d": ({"value": 6.7, "unit": "hours"}, "6.7"),
             "sleep_trend": ({"value": "decreasing"}, "decreasing"),
+            "last_blood_pressure_reading": ({"value": 111, "diastolic": 72},
+                                            "111/72"),
+            "latest_meal_logged": ({"value": "2026-04-07"}, "2026-04-07"),
         }
         for key, (fact, needle) in cases.items():
             self.assertIn(needle, format_fact_sentence(key, fact), key)

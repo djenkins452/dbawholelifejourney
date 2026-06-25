@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-24 — feat(cos): foundational fast path — add blood pressure + last meal
+
+**Diagnosis (both prompts):** neither "What was my last blood pressure reading?" nor "What was the last meal I logged?" had a classifier keyword → `classify_foundational_fact` returned None → `generate()`'s `if _fast is not None` guard False → fell through to `_call_api_with_tools` (the failing tool loop). Same file·method·condition as the sleep miss.
+
+**Fix (same architecture; tool loop untouched):**
+- Truth layer (`health_facts.py`): `last_blood_pressure_reading` → `bp_systolic` (+ `bp_diastolic` via new `diastolic` metadata field, + `last_bp_entry`); `latest_meal_logged` → `nutrition.last_food_entry`. SAE has no meal name/description anywhere (the `meals` module holds only `has_household`), so the canonical truth for "last meal" is the date of the most recent food entry.
+- Classifier (`foundational_facts.py`): `blood pressure`/`bp` → `last_blood_pressure_reading`; `meal`/`meals`/`did i eat`/`last food` → `latest_meal_logged`. Deterministic `format_fact_sentence` cases ("…was 111/72 mmHg.", "…logged meal entry was on {date}.") + unknown sentences.
+
+**Verified live (user 1, `_call_api` unavailable → deterministic fallback):** "Your last blood pressure reading was 111/72 mmHg." / "Your most recently logged meal entry was on 2026-04-07." No tool loop.
+
+**Tests:** BP + meal added to `test_foundation_validation.py` (classifier, fast path, deterministic fallback, format incl. systolic/diastolic). Suite green; `check` + `makemigrations --check` clean. **Files:** `apps/ai/cos_services/health_facts.py`, `apps/ai/chatgpt_cos/foundational_facts.py`, `apps/ai/tests/test_foundation_validation.py`. **Requires `wlj-worker` redeploy.**
+
+
 ## 2026-06-24 — feat(cos): foundational fast path — add sleep ("How did I sleep last night?")
 
 **Diagnosis:** "How did I sleep last night?" returned the tool-loop error because the deterministic classifier had no `sleep` route — `classify_foundational_fact` returned None → `generate()`'s `if _fast is not None` guard was False → fell through to `_call_api_with_tools` (the failing production tool loop). File·method·condition: `foundational_facts.py::classify_foundational_fact` (`_FACT_KEYWORDS` had no sleep entry) → `service.py::generate` fall-through.

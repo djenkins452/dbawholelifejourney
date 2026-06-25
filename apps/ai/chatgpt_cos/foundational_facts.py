@@ -37,6 +37,8 @@ _FACT_KEYWORDS = [
     ("calories_today",       ("calorie", "calories")),
     ("protein_today",        ("protein",)),
     ("sleep_last_night",     ("sleep", "slept", "rest last night")),
+    ("last_blood_pressure_reading", ("blood pressure", "blood-pressure", "bp")),
+    ("latest_meal_logged",   ("meal", "meals", "did i eat", "last food")),
 ]
 
 FOUNDATIONAL_KEYS = [k for k, _ in _FACT_KEYWORDS]
@@ -50,6 +52,8 @@ _UNKNOWN_SENTENCE = {
     "sleep_last_night": "I don't have recent sleep data recorded for you.",
     "average_sleep_7d": "I don't have enough sleep data to show an average yet.",
     "sleep_trend": "I don't have a sleep trend for you yet.",
+    "last_blood_pressure_reading": "I don't have a blood pressure reading recorded for you.",
+    "latest_meal_logged": "I don't have any logged meals recorded for you yet.",
 }
 
 _PHRASE_SYSTEM = (
@@ -115,6 +119,12 @@ def format_fact_sentence(key, fact):
         return s + "."
     if key == "sleep_trend":
         return f"Your sleep trend is {value}."
+    if key == "last_blood_pressure_reading":
+        dia = fact.get("diastolic")
+        bp = f"{value}/{dia}" if dia is not None else f"{value}"
+        return f"Your last blood pressure reading was {bp} mmHg."
+    if key == "latest_meal_logged":
+        return f"Your most recently logged meal entry was on {value}."
     return f"{key}: {value} {unit}".strip()
 
 

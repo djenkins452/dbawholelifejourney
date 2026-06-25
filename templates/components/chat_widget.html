@@ -2600,6 +2600,85 @@
         _pendingPollTimer = setTimeout(check, 2000);
     }
 
+    // Active-session completion toast (global — chat_widget is on every page).
+    // While a Beth request is pending (either chat surface), watch for the
+    // persisted answer and show a clickable toast on completion. The durable
+    // bell notification (created server-side) covers the closed-tab case.
+    function showBethToast(msgId) {
+        try {
+            var t = document.createElement('div');
+            t.setAttribute('role', 'status');
+            t.style.position = 'fixed'; t.style.top = '72px'; t.style.right = '20px';
+            t.style.zIndex = '99999'; t.style.maxWidth = '320px';
+            t.style.background = '#1f2937'; t.style.color = '#fff';
+            t.style.padding = '14px 16px'; t.style.borderRadius = '12px';
+            t.style.boxShadow = '0 8px 24px rgba(0,0,0,.30)'; t.style.fontSize = '14px';
+            t.style.cursor = 'pointer'; t.style.display = 'flex';
+            t.style.gap = '10px'; t.style.alignItems = 'center';
+            var icon = document.createElement('span');
+            icon.textContent = '\u{1F9E0}'; icon.style.fontSize = '18px';
+            var body = document.createElement('div');
+            var title = document.createElement('strong');
+            title.textContent = 'Beth finished your response';
+            var sub = document.createElement('div');
+            sub.textContent = 'Click to view'; sub.style.opacity = '.85';
+            body.appendChild(title); body.appendChild(sub);
+            t.appendChild(icon); t.appendChild(body);
+            t.addEventListener('click', function () {
+                window.location.href = '/assistant/?beth_msg=' + encodeURIComponent(msgId);
+            });
+            document.body.appendChild(t);
+            setTimeout(function () {
+                t.style.transition = 'opacity .4s'; t.style.opacity = '0';
+                setTimeout(function () { if (t.parentNode) t.remove(); }, 400);
+            }, 12000);
+        } catch (e) { /* ignore */ }
+    }
+
+    var _bethWatchTimer = null;
+    function watchBethCompletion() {
+        if (_bethWatchTimer) return;
+        var keys = ['wlj_chat_pending', 'wlj_ap_pending'];
+        var pending = null;
+        for (var k = 0; k < keys.length; k++) {
+            try {
+                var raw = sessionStorage.getItem(keys[k]);
+                if (raw) { var o = JSON.parse(raw); if (o && o.message) { pending = o; break; } }
+            } catch (e) { /* ignore */ }
+        }
+        if (!pending) return;                       // nothing in flight
+        var pendingText = (pending.message || '').trim();
+        var attempts = 0, maxAttempts = 40;          // ~160s at 4s cadence
+        function check() {
+            _bethWatchTimer = null;
+            fetch('/assistant/api/history/', { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    var msgs = (data && data.messages) || [];
+                    var replyId = null;
+                    for (var i = msgs.length - 1; i >= 0; i--) {
+                        var m = msgs[i];
+                        if (m.role === 'user' && (m.content || '').trim() === pendingText) {
+                            var nx = msgs[i + 1];
+                            if (nx && nx.role === 'assistant' && (nx.content || '').trim()) replyId = nx.id;
+                            break;
+                        }
+                    }
+                    if (replyId) {
+                        try { sessionStorage.removeItem('wlj_chat_pending'); } catch (e) {}
+                        try { sessionStorage.removeItem('wlj_ap_pending'); } catch (e) {}
+                        showBethToast(replyId);
+                        return;
+                    }
+                    if (++attempts < maxAttempts) _bethWatchTimer = setTimeout(check, 4000);
+                })
+                .catch(function () { if (++attempts < maxAttempts) _bethWatchTimer = setTimeout(check, 4000); });
+        }
+        _bethWatchTimer = setTimeout(check, 4000);
+    }
+    // Kick the watcher on every page load (no-op unless a request is pending).
+    try { watchBethCompletion(); } catch (e) { /* ignore */ }
+
     // Debounced input-change handler — persist draft on every keystroke
     var _draftSaveTimer = null;
     input.addEventListener('input', function() {

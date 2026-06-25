@@ -27,6 +27,39 @@ from celery.exceptions import SoftTimeLimitExceeded
 
 logger = logging.getLogger("apps.ai.chatgpt_cos")
 
+# A long-running Beth response that the user may have navigated away from gets a
+# durable completion Notification (bell + toast + deep-link). Quick answers
+# (delivered live) below this threshold do not, to avoid notification noise.
+COS_COMPLETION_NOTIFY_MS = 12000
+
+
+def _notify_beth_completion(user_id, conversation_id, assistant_msg, prompt):
+    """Durable 'Beth finished your response' notification (reuses the core
+    Notification model/service). Deep-links to the exact answer. Never raises."""
+    try:
+        from django.contrib.auth import get_user_model
+        from apps.core.services.notification_service import notification_service
+
+        user = get_user_model().objects.get(id=user_id)
+        preview = (prompt or "").strip().replace("\n", " ")
+        if len(preview) > 60:
+            preview = preview[:57] + "…"
+        notification_service.create_notification(
+            user=user,
+            category="intelligence",
+            title="Beth finished your response",
+            message=(f'Your answer to "{preview}" is ready.'
+                     if preview else "Your Chief of Staff response is ready."),
+            action_url=f"/assistant/?beth_msg={assistant_msg.id}",
+            icon="🧠",
+            source_object=assistant_msg,
+            send_email=False,
+        )
+        logger.info("COS_COMPLETION_NOTIFICATION user=%s conv=%s msg=%s",
+                    user_id, conversation_id, assistant_msg.id)
+    except Exception:
+        logger.warning("COS completion notification failed", exc_info=True)
+
 
 @shared_task(
     name="apps.ai.chatgpt_cos.run_chatgpt_cos_generation",
@@ -151,6 +184,13 @@ def run_chatgpt_cos_generation(self, user_id, conversation_id, message,
         except Exception:
             pass
         _ms = (time.monotonic() - t0) * 1000
+        # Durable completion notification for long-running answers (the user may
+        # have navigated away). Fires only on success with a real answer.
+        if (snap.get("status") == "done" and assistant_msg is not None
+                and (assistant_msg.content or "").strip()
+                and _ms >= COS_COMPLETION_NOTIFY_MS):
+            _notify_beth_completion(user_id, conversation_id, assistant_msg,
+                                    message)
         log_cos_request(
             user_id=user_id, conversation_id=conversation_id,
             message_id=getattr(assistant_msg, "id", None), request_id=job_id,

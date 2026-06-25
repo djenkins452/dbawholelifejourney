@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-25 — feat(cos): Beth completion notifications + answer durability (reuses core Notification framework)
+
+**Root cause (carried from prior fix, confirmed):** answers were never lost in the DB (reproduced: task persists message + bus `done`); the gap was frontend restore — `assistant_panel` had no recovery and `chat_widget`'s only job_id-independent path was a one-shot 1500ms refresh. The prior deploy added sustained recovery polls. This change adds the **durable completion notification** so an answer is surfaced even across tab-close / logout.
+
+**Reused infra (no new model, no migration):** the existing `core.Notification` model + `notification_service.create_notification` + notification bell + `/api/notifications/*` endpoints. Used `category='intelligence'` (already mapped to `ai_enabled` + `intelligence_inapp_enabled`), so future proactive Beth notifications (health concerns, missed goals, faith/relationship/productivity) slot into the same framework with new categories.
+
+**Backend (`apps/ai/chatgpt_cos/tasks.py`):** `_notify_beth_completion` creates a durable "Beth finished your response" notification on the success path, **only for long-running answers** (`COS_COMPLETION_NOTIFY_MS = 12000`) so quick live-delivered answers don't spam. `action_url=/assistant/?beth_msg=<message_id>` deep-links to the exact answer; `source_object=assistant_msg` (GenericFK). Never raises (guarded).
+
+**Frontend:**
+- **Active-session toast (global):** `chat_widget` (on every page) runs `watchBethCompletion()` on load — if a Beth request is pending (either surface's sessionStorage marker), it polls history and shows a clickable toast on completion ("Beth finished your response → click to view"), deep-linking to the answer. CSP-safe (DOM API + JS-set styles, no inline handlers/styles).
+- **Deep-link:** `assistant_panel` (already emits `data-message-id`) parses `?beth_msg=<id>` after history renders and scrolls to + highlights that message.
+
+**Durability guarantee:** once accepted → background completion → DB persist → (a) bell notification (survives refresh/logout/close), (b) recovery polls restore the answer in the chat, (c) deep-link opens it. No response lost; no duplicates (one notification per job, markers cleared on delivery).
+
+**Tests (`apps/ai/tests/test_cos_completion_notification.py`, 4):** helper creates the intelligence notification with the deep-link; long-running job → exactly one notification (dedup); quick job → none (threshold); helper never raises. Affected CoS suite green; templates render; `check` + `makemigrations --check` clean. **Files:** `apps/ai/chatgpt_cos/tasks.py`, `templates/components/chat_widget.html`, `templates/components/assistant_panel.html`, `apps/ai/tests/test_cos_completion_notification.py`. **Requires `wlj-worker` + web redeploy.**
+
+
 ## 2026-06-25 — fix(cos): navigation survival — robust job_id-independent recovery (both chat surfaces)
 
 **Traced the 8 candidates (reproduced where possible):** (1) job created — YES (bus snapshot + task). (6) assistant message persisted in DB — **YES, reproduced** (eager task → DB message has content, bus status=done). (5) bus TTL is 600s; resume returns 410 on expiry → history fallback. So the backend + resume are sound. **The failure is #8 (frontend fails to restore), with two precise causes:**

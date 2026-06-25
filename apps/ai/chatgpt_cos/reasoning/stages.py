@@ -49,9 +49,11 @@ _PLANNER_SYSTEM = (
     '  "confidence": 0.0-1.0\n'
     "}\n\n"
     "Rules: choose intent='biggest_health_risk' for health risk/concern/what's-"
-    "wrong-with-my-health questions; intent='overall_progress' for how-am-I-doing "
-    "/ on-track / overall-health-goals questions; intent='other' for anything "
-    "else. BOTH implemented intents are HEALTH-scoped: for them, required_truth "
+    "wrong-with-my-health questions AND for 'what should I focus on health-wise / "
+    "from a health perspective today' (the single top health priority); "
+    "intent='overall_progress' for how-am-I-doing / on-track / overall-health-"
+    "goals questions; intent='other' for anything else. BOTH implemented intents "
+    "are HEALTH-scoped: for them, required_truth "
     "must be ONLY ['health_state','foundational_health'] and domains ONLY "
     "['health']. NEVER request risk_decision, execution_decision, tasks, or any "
     "non-health truth for a health intent. NEVER invent truth keys outside the "
@@ -249,6 +251,38 @@ def _calibrate_risks(risks):
     return {k: _calibrate_label(v) for k, v in risks.items()}
 
 
+# ---- Fix #1: deterministic, evidence-ranked health concerns -----------------
+# Prevents the model anchoring on one striking number (e.g. early-day 0 protein)
+# by handing it a prioritized list of GENUINE concerns. Benign labels and
+# early-day nutrition (not yet logged) are excluded — they are not risks.
+_BENIGN_RISK = {"low", "stable", "none", "good", "optimal", "normal",
+                "insufficient_data", "on track", "on_track", ""}
+
+
+def _rank_health_concerns(buckets):
+    concerns = []  # (severity, text)
+    risks = buckets.get("active_risks") or {}
+    gp = buckets.get("goal_progress") or {}
+    nc = buckets.get("nutrition_context") or {}
+    if gp.get("weight_goal_on_track") is False:
+        concerns.append((2, "weight goal is behind pace"))
+    for k, sev in (("muscle_loss_risk_level", 3), ("plateau_risk_label", 2),
+                   ("glucose_variability_label", 2), ("fat_loss_quality_label", 1)):
+        v = risks.get(k)
+        if isinstance(v, str) and v.strip().lower() not in _BENIGN_RISK:
+            concerns.append(
+                (sev, f"{k.replace('_', ' ').replace(' label', '')}: {v}"))
+    # nutrition counts ONLY as a real (late-day / below-typical) gap, never early-day
+    for slot, label in (("protein_g", "protein"), ("calories", "calories")):
+        s = nc.get(slot) or {}
+        if s.get("interpretation") in ("below_typical_for_time_of_day",
+                                       "nothing_logged_today"):
+            concerns.append(
+                (1, f"{label} is running below your usual for this time of day"))
+    concerns.sort(key=lambda x: -x[0])
+    return [t for _s, t in concerns]
+
+
 # ---- Fix 2: time-aware intra-day nutrition interpretation ------------------
 def _intra_day_hint(today, avg, target, phase):
     t = today or 0
@@ -328,6 +362,11 @@ def health_working_memory(truth, user=None):
         nc = _nutrition_time_context(user)
         if nc:
             buckets["nutrition_context"] = nc
+    # Evidence-ranked concerns (highest first) so reasoning prioritizes among ALL
+    # health signals rather than anchoring on one number.
+    ranked = _rank_health_concerns(buckets)
+    if ranked:
+        buckets["ranked_concerns"] = ranked
     return {k: v for k, v in buckets.items() if v}
 
 
@@ -364,18 +403,9 @@ def build_working_memory(plan, truth, user=None):
 # Stage 4 — OpenAI reasoning over working memory (one plain _call_api + fallback)
 # ----------------------------------------------------------------------------
 def _health_risk_fallback(wm):
-    risks = (wm.get("facts") or {}).get("active_risks") or {}
-    flags = []
-    if risks.get("weight_goal_on_track") is False:
-        flags.append("your weight goal is a bit behind pace")
-    for k in ("plateau_risk_label", "muscle_loss_risk_level",
-              "glucose_variability_label", "fat_loss_quality_label"):
-        v = risks.get(k)
-        if v and str(v).strip().lower() not in (
-                "none", "stable", "low", "good", "on track", "optimal", "normal"):
-            flags.append(f"{k.replace('_', ' ').replace(' label', '')}: {v}")
-    if flags:
-        return "The main thing worth watching from your health data: " + flags[0] + "."
+    ranked = (wm.get("facts") or {}).get("ranked_concerns") or []
+    if ranked:
+        return "The main thing worth watching from your health data: " + ranked[0] + "."
     return "Your health metrics look steady — nothing that stands out as a concern right now."
 
 
@@ -412,10 +442,15 @@ _HEALTH_GUIDANCE = (
 REASONING_PROFILES = {
     "biggest_health_risk": {
         "system": (
-            "You are the user's Chief of Staff. Using ONLY the health working "
-            "memory provided, name the single most important HEALTH thing worth "
-            "attention right now and one good next step." + _HEALTH_GUIDANCE
-            + " Max 120 words."
+            "You are the user's Chief of Staff. The working memory includes "
+            "'ranked_concerns' — an evidence-ranked list of GENUINE health "
+            "concerns (highest priority first), already excluding normal values "
+            "(e.g. an early-day 0 protein is NOT included). Pick the single "
+            "highest-priority item from ranked_concerns and give one good next "
+            "step. If ranked_concerns is absent or empty, say nothing stands out "
+            "as a concern right now — do NOT manufacture one or default to "
+            "nutrition. Weigh all concerns by evidence; never fixate on one "
+            "number." + _HEALTH_GUIDANCE + " Max 120 words."
         ),
         "max_tokens": 200,
         "fallback": _health_risk_fallback,

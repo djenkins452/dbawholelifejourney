@@ -161,10 +161,10 @@ class ReasonerTests(TestCase):
         self.assertEqual(answer, "Your BP needs attention.")
         self.assertNotIn("tools", ca.call_args.kwargs)
 
-    def test_health_fallback_is_health_only(self):
+    def test_health_fallback_uses_ranked_concerns(self):
         plan = parse_plan(_RISK_PLAN_JSON)
-        wm = {"intent": "biggest_health_risk", "facts": {"active_risks":
-              {"weight_goal_on_track": False, "plateau_risk_label": "Elevated"}}}
+        wm = {"intent": "biggest_health_risk",
+              "facts": {"ranked_concerns": ["weight goal is behind pace"]}}
         with mock.patch(_CALL_API, return_value=None):
             answer, fb = run_reasoning(self.user, "risk?", plan, wm)
         self.assertTrue(fb)
@@ -204,9 +204,10 @@ class EngineTests(TestCase):
         with mock.patch(_CALL_API, return_value=_OTHER_PLAN_JSON):
             self.assertIsNone(answer_reasoning_question(self.user, "Tell a joke."))
 
-    def test_planner_unavailable_declines(self):
+    def test_planner_unavailable_declines_for_non_health(self):
+        # planner None + a non-health question -> decline (no resilience match)
         with mock.patch(_CALL_API, return_value=None):
-            self.assertIsNone(answer_reasoning_question(self.user, "biggest risk?"))
+            self.assertIsNone(answer_reasoning_question(self.user, "what's the weather?"))
 
 
 class ToneCalibrationTests(TestCase):  # Fix 3
@@ -273,3 +274,82 @@ class NutritionTimeAwarenessTests(TestCase):  # Fix 2
             facts = health_working_memory({"health_state": {"state": {}}},
                                           user=object())
         self.assertIn("nutrition_context", facts)
+
+
+class RankedConcernsTests(TestCase):  # Fix #1 — protein over-anchoring
+    def test_benign_labels_and_early_day_nutrition_excluded(self):
+        from apps.ai.chatgpt_cos.reasoning.stages import _rank_health_concerns
+        buckets = {
+            "active_risks": {"weight_goal_on_track": False,
+                             "muscle_loss_risk_level": "LOW",
+                             "glucose_variability_level": "stable"},
+            "goal_progress": {"weight_goal_on_track": False},
+            "nutrition_context": {"protein_g": {
+                "interpretation": "early_day_not_yet_logged"}},
+        }
+        ranked = _rank_health_concerns(buckets)
+        # only the genuine concern survives; protein (early-day) is excluded
+        self.assertEqual(ranked, ["weight goal is behind pace"])
+        self.assertNotIn("protein", " ".join(ranked).lower())
+
+    def test_real_risk_outranks_late_day_nutrition(self):
+        from apps.ai.chatgpt_cos.reasoning.stages import _rank_health_concerns
+        buckets = {
+            "active_risks": {"muscle_loss_risk_level": "elevated — worth watching"},
+            "nutrition_context": {"protein_g": {
+                "interpretation": "below_typical_for_time_of_day"}},
+        }
+        ranked = _rank_health_concerns(buckets)
+        self.assertTrue(ranked[0].startswith("muscle loss risk level"))  # sev 3 first
+
+    def test_no_concerns_yields_empty(self):
+        from apps.ai.chatgpt_cos.reasoning.stages import _rank_health_concerns
+        buckets = {"active_risks": {"muscle_loss_risk_level": "LOW"},
+                   "goal_progress": {"weight_goal_on_track": True},
+                   "nutrition_context": {"protein_g": {
+                       "interpretation": "early_day_not_yet_logged"}}}
+        self.assertEqual(_rank_health_concerns(buckets), [])
+
+
+@override_settings(WLJ_COS_EVIDENCE_TOOLS_ENABLED=False)
+class ReasoningGuaranteeTests(TestCase):  # Fix #2 — always answer, never fall through
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(email="rl_guar@example.com", password="x")
+
+    def test_deterministic_intent_matcher(self):
+        from apps.ai.chatgpt_cos.reasoning.plan import deterministic_health_intent
+        self.assertEqual(deterministic_health_intent(
+            "How am I doing overall with my health goals?"), "overall_progress")
+        self.assertEqual(deterministic_health_intent(
+            "What should I focus on from a health perspective today?"),
+            "biggest_health_risk")
+        self.assertEqual(deterministic_health_intent(
+            "What is my biggest health risk right now?"), "biggest_health_risk")
+        self.assertIsNone(deterministic_health_intent("Tell me a joke."))
+
+    def test_planner_none_health_question_still_answers(self):
+        # planner _call_api returns None -> deterministic resilience -> answer
+        with _mock_providers(), \
+             mock.patch(_CALL_API, return_value=None), \
+             mock.patch(_CALL_API_TOOLS, side_effect=AssertionError("tools")):
+            out = answer_reasoning_question(
+                self.user, "How am I doing overall with my health goals?")
+        self.assertIsNotNone(out)                       # NOT None (no fall-through)
+        self.assertEqual(out["reasoning"]["intent"], "overall_progress")
+        self.assertTrue(out["answer"])                  # guaranteed non-empty
+        self.assertTrue(out["reasoning"]["used_fallback"])
+
+    def test_focus_question_routes_to_implemented_intent(self):
+        with _mock_providers(), \
+             mock.patch(_CALL_API, return_value=None), \
+             mock.patch(_CALL_API_TOOLS, side_effect=AssertionError("tools")):
+            out = answer_reasoning_question(
+                self.user, "What should I focus on from a health perspective today?")
+        self.assertEqual(out["reasoning"]["intent"], "biggest_health_risk")
+        self.assertTrue(out["answer"])
+
+    def test_non_health_still_declines_when_planner_none(self):
+        with mock.patch(_CALL_API, return_value=None):
+            self.assertIsNone(
+                answer_reasoning_question(self.user, "Tell me a joke."))

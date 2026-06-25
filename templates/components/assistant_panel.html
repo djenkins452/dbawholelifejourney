@@ -369,7 +369,7 @@
                         return;
                     }
                     if (++attempts < maxAttempts) { _apPollTimer = setTimeout(check, 3000); }
-                    else { apBethBeacon('BETH_RECOVERY_POLL_TIMEOUT', { cid: pending.cid || null, job_id: pending.job_id || null, extra: 'src=panel attempts=' + attempts }); apClearPending(); }
+                    else { apBethBeacon('BETH_RECOVERY_POLL_TIMEOUT', { cid: pending.cid || null, job_id: pending.job_id || null, extra: 'src=panel attempts=' + attempts }); apShowThinkingEnded(container, "That's taking longer than expected. Please try again."); apClearPending(); }
                 })
                 .catch(function () { if (++attempts < maxAttempts) _apPollTimer = setTimeout(check, 3000); });
         }
@@ -669,6 +669,49 @@
     function hideTyping() {
         var el = document.getElementById('ap-typing');
         if (el) el.remove();
+    }
+
+    // --- Persistent "thinking" placeholder (reuses the existing AP_PENDING_KEY
+    // marker; NOT a second tracking system). Container-scoped so desktop/mobile
+    // surfaces never collide. Reuses the global .beth-thinking/.assistant-typing
+    // styles from the chat widget. ---
+    var AP_BETH_NAME = '{{ cos_display_name|default:"Chief of Staff"|escapejs }}';
+    function apRemoveThinking(container) {
+        var scope = container || document;
+        var el = scope.querySelector('.ap-beth-thinking');
+        if (el) el.remove();
+    }
+    function apShowThinking(container) {
+        container = container || document.getElementById('ap-chat-messages');
+        if (!container) return;
+        apRemoveThinking(container);                 // dedup: only ever one
+        var wrap = document.createElement('div');
+        wrap.className = 'beth-thinking ap-beth-thinking';
+        var txt = document.createElement('div');
+        txt.className = 'beth-thinking-text';
+        txt.textContent = AP_BETH_NAME + ' is reviewing your information...';
+        var dots = document.createElement('div');
+        dots.className = 'assistant-typing';
+        dots.innerHTML = '<span></span><span></span><span></span>';
+        wrap.appendChild(txt); wrap.appendChild(dots);
+        container.appendChild(wrap);
+        container.scrollTop = container.scrollHeight;
+    }
+    // marker exists <=> request in flight (answer not resolved). Idempotent.
+    function apEnsureThinking(container) {
+        if (apGetPending()) apShowThinking(container);
+        else apRemoveThinking(container);
+    }
+    function apShowThinkingEnded(container, message) {
+        container = container || document.getElementById('ap-chat-messages');
+        var el = container ? container.querySelector('.ap-beth-thinking') : null;
+        if (!el) { apShowThinking(container); el = container ? container.querySelector('.ap-beth-thinking') : null; }
+        if (!el) return;
+        el.innerHTML = '';
+        var txt = document.createElement('div');
+        txt.className = 'beth-thinking-text';
+        txt.textContent = message || (AP_BETH_NAME + " couldn't finish that one. Please try again.");
+        el.appendChild(txt);
     }
 
     function showEmptyState(container) {
@@ -1250,6 +1293,8 @@
                 // Trigger briefing even with no messages (first visit)
                 maybeTriggerPanelBriefing(container, []);
             }
+            // Persistent thinking indicator: show iff a request is still in flight.
+            try { apEnsureThinking(container); } catch (_t) { /* ignore */ }
         })
         .catch(function() {
             if (loadingEl) loadingEl.style.display = 'none';
@@ -1296,6 +1341,8 @@
             } else {
                 apBethBeacon('BETH_RENDER_SKIPPED', { extra: 'fn=refreshChatHistory(panel) reason=needsUpdate_false server_visible=' + visibleMessages.length + ' dom_msgs=' + current.length });
             }
+            // Re-render wiped the placeholder; restore it iff still pending.
+            try { apEnsureThinking(container); } catch (_t) { /* ignore */ }
         })
         .catch(function() {});
     }

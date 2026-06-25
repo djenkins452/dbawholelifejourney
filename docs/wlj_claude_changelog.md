@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-25 — feat(cos): persistent "thinking" placeholder across navigation
+
+**Root cause:** the typing indicator is a transient DOM node (`showTyping` → `#assistant-typing`/`#ap-typing`) destroyed on navigation; history-load renders only persisted messages (the empty placeholder is skipped), so nothing re-creates a "still working" cue — it looks like processing stopped.
+
+**Fix (reuses the existing pending marker — no second tracking system):** marker present ⇔ a request is in flight whose answer isn't resolved yet ⇒ render a persistent assistant bubble "`<CoS name>` is reviewing your information..." with the existing animated dots. `ensureThinkingPlaceholder()` (widget) / `apEnsureThinking(container)` (panel) is idempotent and called at the end of every render path (`loadHistory`/`refreshHistory`; `loadChatHistory`/`refreshChatHistory`), so it survives refresh, module navigation, and surface open/close. When the answer arrives, the recovery re-render clears the marker first → the placeholder is removed and the real answer renders. On client poll timeout (worker hard-kill / empty placeholder) it's replaced with a "taking longer than expected" message; backend-persisted errors/timeouts already surface via the normal FOUND re-render.
+
+**Duplicate-safe:** widget uses a fixed id `cw-beth-thinking` (removed before re-add); panel uses a container-scoped class `.ap-beth-thinking` (removed before re-add) so desktop/mobile never collide. Not counted by the `needsUpdate` comparisons (distinct from `.assistant-message`/`.ap-chat-message`). CoS naming boundary respected (uses `cos_display_name`, never hardcodes a name).
+
+**No migration, no new endpoint, no polling changes, no architecture change.** **Files:** `templates/components/chat_widget.html`, `templates/components/assistant_panel.html`. **Requires web redeploy.**
+
+
 ## 2026-06-25 — diag(cos): render-path telemetry after RECOVERY_POLL_FOUND (instrumentation only)
 
 **Why:** backend proven healthy (TASK_STARTED→GENERATE→MESSAGE_PERSISTED→TASK_FINALLY all fire) and `BETH_RECOVERY_POLL_FOUND_MESSAGE` fires — yet the answer never renders. Isolated to the frontend render path AFTER FOUND. Instrumentation only (no fix).

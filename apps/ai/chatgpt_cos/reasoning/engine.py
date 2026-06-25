@@ -44,7 +44,7 @@ def answer_reasoning_question(user, message):
         return None
 
     truth = retrieve_truth(user, plan)
-    working_memory = build_working_memory(plan, truth)
+    working_memory = build_working_memory(plan, truth, user)
     answer, used_fallback = run_reasoning(user, message, plan, working_memory)
 
     return {

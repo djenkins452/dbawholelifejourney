@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-25 — fix(cos): three production-validation fixes (navigation, time-aware nutrition, tone)
+
+**Fix 1 — CoS chat always uses the streaming/background path (navigation-safe).** Investigation: the frontend chooses non-streaming `/api/chat/` (synchronous + AbortController, not navigation-safe) only for (a) image messages and (b) a streaming-failure fallback; text already streams (background task + `job` event + resume-by-job_id + history fallback — all intact). Forced CoS through streaming via the existing `feature_flags.WLJ_COS_EVIDENCE_TOOLS_ENABLED` flag: in `chat_widget.html` and `assistant_panel.html`, CoS users (a) never use the image→non-streaming branch and (b) never fall back to synchronous non-streaming on a streaming error (which would re-submit → duplicate + die on navigation) — they get a retry instead. Legacy Beth users unchanged.
+
+**Fix 2 — time-aware intra-day nutrition.** The health curator no longer surfaces bare `calories_today`/`protein_today`; instead `health_working_memory` adds a deterministic `nutrition_context` (today / target / 7-day typical / day_phase / interpretation). `_intra_day_hint` classifies: morning 0 → `early_day_not_yet_logged` (NOT a risk), `logging_in_progress`, late-day `nothing_logged_today`, `below_typical_for_time_of_day`, `on_track`. The health reasoning prompt is told to read `nutrition_context` with time awareness and never treat a morning 0 as a deficit. (Explicit fact questions unchanged.) Verified live (user 1, morning): protein 0g → `early_day_not_yet_logged`, 7-day typical 176.9g shown.
+
+**Fix 3 — health coaching tone calibration.** `_calibrate_label` softens alarmist raw SAE risk labels in the curator (`significant`→"elevated — worth watching", `critical`→"worth attention", `dangerous`→"worth watching", `severe`→"notable"). The health reasoning prompts now require evidence-based, measured language ("worth watching", "below target", "could affect progress if it continues", "a good next step would be") and forbid "significant risk / critical / dangerous / muscle loss risk" unless the data clearly supports it. Deterministic fallbacks re-worded to match.
+
+**Note on truth consistency:** confirmed the fast path, reasoning retrieval, and curator all read the identical canonical source (`SAE.nutrition.daily_protein_g`); the earlier 141g→0% was a day-boundary counter reset (temporal), not a path divergence — addressed by Fix 2's time-awareness.
+
+**Tests:** `test_reasoning_lane.py` +6 (ToneCalibration ×4, NutritionTimeAwareness — incl. morning-0-not-a-risk; curator nutrition_context). 19 pass; full CoS suite green; `check` + `makemigrations --check` clean. **Files:** `apps/ai/chatgpt_cos/reasoning/stages.py`, `engine.py`, `apps/ai/tests/test_reasoning_lane.py`, `templates/components/chat_widget.html`, `templates/components/assistant_panel.html`. **Requires `wlj-worker` + web redeploy. Pause for production validation per directive.**
+
+
 ## 2026-06-25 — fix(cos): Reasoning Lane health-scope contamination (the "overdue Harley task")
 
 **Bug (prod):** "What is my biggest health risk right now?" answered with an overdue task. **Captured the exact entry point** (reproduced on user 1): the plan's `required_truth` included `risk_decision`; `stages.py::_decision(user, "risk")` is the GENERIC cross-domain execution selector → returned a task (`{type:"task", title:"Wake up"/Harley}`); that task reached working memory → OpenAI. The generic risk decision is not health.

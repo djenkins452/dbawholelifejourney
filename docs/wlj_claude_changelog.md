@@ -7,6 +7,15 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-25 — diag(cos): READ-ONLY production proof of worker process-death (orphaned placeholders)
+
+**Why:** the navigation/"processing stops" failure was narrowed to a worker hard-kill during `generate()` (the empty assistant placeholder at `tasks.py:108` is never filled because no success/error/soft-limit/`finally` path runs). No CLI/SSH to prod, so this proof is gathered via a data migration (runs on deploy).
+
+**What:** `apps/ai/migrations/0029_prove_orphaned_cos_placeholders.py` — writes NOTHING. Counts + prints (to the deploy logs) assistant placeholders still `content="" / status="processing"` more than 10 min old (far past the 110s hard time-limit). That state is impossible on any clean exit, so each one proves the worker process died mid-`generate()`. Each line includes the orphan's `job_id` (metadata.request_id) so `COS_REQUEST_START`/`COS_REQUEST_FINISH` can be cross-checked. Also prints a completed-answer count for contrast.
+
+**Artifact location:** wlj-web-app deploy logs, lines prefixed `[WLJ PROOF]`. **No fix applied yet — paused for proof confirmation per request.** **File:** `apps/ai/migrations/0029_prove_orphaned_cos_placeholders.py`.
+
+
 ## 2026-06-25 — feat(cos): Beth completion notifications + answer durability (reuses core Notification framework)
 
 **Root cause (carried from prior fix, confirmed):** answers were never lost in the DB (reproduced: task persists message + bus `done`); the gap was frontend restore — `assistant_panel` had no recovery and `chat_widget`'s only job_id-independent path was a one-shot 1500ms refresh. The prior deploy added sustained recovery polls. This change adds the **durable completion notification** so an answer is surfaced even across tab-close / logout.

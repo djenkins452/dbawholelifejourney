@@ -7,6 +7,22 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-25 — fix(cos): Reasoning Lane health-scope contamination (the "overdue Harley task")
+
+**Bug (prod):** "What is my biggest health risk right now?" answered with an overdue task. **Captured the exact entry point** (reproduced on user 1): the plan's `required_truth` included `risk_decision`; `stages.py::_decision(user, "risk")` is the GENERIC cross-domain execution selector → returned a task (`{type:"task", title:"Wake up"/Harley}`); that task reached working memory → OpenAI. The generic risk decision is not health.
+
+**Fix (health-scope, framework-first):**
+- **Intent renamed** `biggest_risk` → `biggest_health_risk` (both implemented intents are now HEALTH-scoped: `HEALTH_INTENTS`).
+- **Retrieval scope** (`retrieve_truth`): health intents are restricted to `HEALTH_TRUTH = {health_state, foundational_health}`; any other truth key the planner emits (risk_decision/execution_decision/tasks/finance) is dropped before fetch (`COS_REASONING_SCOPE_DROP`) — the generic decision engine isn't even invoked.
+- **HealthWorkingMemoryCurator** (`health_working_memory`): builds bounded, deterministic working memory SOLELY from health_state + foundational_health → buckets `current_status / major_trends / active_risks / goal_progress / health_assessment / foundational_facts`. It never reads cross-domain keys, so contamination is structurally impossible.
+- **Health-scoped reasoning prompts + fallbacks:** prompts say "stay strictly within health — never mention tasks/projects/work/Harley/finances"; fallbacks derive from the health buckets (active_risks / goal_progress), never `risk_decision`.
+- Planner prompt updated: health intents must request only health truth.
+
+**Verified live (user 1, contaminated plan + OpenAI unavailable → deterministic fallback):** biggest_health_risk → "From your health data, the main thing to watch: you're behind on your weight goal." overall_progress → "On your health goals: weight 298.3 lb; 58.3 to your goal; behind on your goal." Working memory = health buckets only; **no task leak**.
+
+**Tests:** `test_reasoning_lane.py` rewritten (13) — scope drops cross-domain truth + never fetches it; HealthWorkingMemoryCurator is health-only (no risk_decision/"Wake up"/raw `_huge`); curator ignores handed-in contamination; health-scoped fallback; engine regression asserting no task contamination from a contaminated plan. Import-drift guard green. Full CoS suite green; `check` + `makemigrations --check` clean. **Files:** `apps/ai/chatgpt_cos/reasoning/plan.py`, `stages.py`, `apps/ai/tests/test_reasoning_lane.py`. **Requires `wlj-worker` redeploy.**
+
+
 ## 2026-06-24 — feat(cos): Reasoning Lane — Planner → Retrieval → Working Memory → Reasoning (framework + 2 intents)
 
 **Architecture milestone (approved scope: framework + 2 intents, then pause for review).** The long-term path for judgment/synthesis questions — NOT keyword classifiers, NOT the agentic tool loop:

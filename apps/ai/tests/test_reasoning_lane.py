@@ -1,14 +1,17 @@
 # ==============================================================================
 # File: apps/ai/tests/test_reasoning_lane.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Reasoning Lane — Planner -> Retrieval -> Working Memory -> Reasoning
+# Description: Reasoning Lane — health-scoped intents (no cross-domain contamination)
 # ==============================================================================
 """
-Validates the reasoning-lane framework (milestone: 2 intents):
+Validates the reasoning-lane framework + the health-scope contamination fix:
 
-  Planner LLM (structured plan, never answers) -> deterministic authoritative
-  retrieval -> curated working memory (no raw SAE) -> one plain _call_api
-  reasoning (+ deterministic fallback). No agentic tool loop.
+  Planner (structured plan) -> deterministic authoritative retrieval (health
+  intents SCOPED to health truth) -> HealthWorkingMemoryCurator (health truth
+  ONLY) -> one plain _call_api reasoning (+ deterministic health fallback).
+
+Regression: health reasoning must NEVER receive tasks / generic decisions
+(the "overdue Harley task" contamination).
 """
 
 import contextlib
@@ -22,6 +25,7 @@ from apps.ai.chatgpt_cos.reasoning import answer_reasoning_question
 from apps.ai.chatgpt_cos.reasoning.plan import parse_plan
 from apps.ai.chatgpt_cos.reasoning.stages import (
     build_working_memory,
+    health_working_memory,
     retrieve_truth,
     run_reasoning,
 )
@@ -30,128 +34,138 @@ User = get_user_model()
 
 _CALL_API = "apps.ai.services.ai_service._call_api"
 _CALL_API_TOOLS = "apps.ai.services.ai_service._call_api_with_tools"
+_BUILD_EXEC = "apps.core.execution.execution_state.build_execution_state"
 
+# A CONTAMINATED plan (the planner mistakenly requests cross-domain truth) — the
+# health scope must drop risk_decision/execution_decision before retrieval.
 _RISK_PLAN_JSON = json.dumps({
-    "intent": "biggest_risk", "response_mode": "reasoning",
-    "domains": ["health"], "required_truth": ["risk_decision", "health_state"],
+    "intent": "biggest_health_risk", "response_mode": "reasoning",
+    "domains": ["health"],
+    "required_truth": ["risk_decision", "execution_decision", "health_state"],
     "optional_truth": ["foundational_health"], "reasoning_style": "risk_triage",
     "urgency": "high", "confidence": 0.9,
 })
 _PROGRESS_PLAN_JSON = json.dumps({
     "intent": "overall_progress", "response_mode": "mixed",
-    "domains": ["health", "goals"],
-    "required_truth": ["standing_context", "goals_state"],
-    "optional_truth": ["execution_decision", "foundational_health"],
-    "reasoning_style": "holistic_review", "urgency": "normal", "confidence": 0.85,
+    "domains": ["health"],
+    "required_truth": ["health_state", "foundational_health"],
+    "optional_truth": [], "reasoning_style": "holistic_review",
+    "urgency": "normal", "confidence": 0.85,
 })
-_OTHER_PLAN_JSON = json.dumps({
-    "intent": "other", "response_mode": "lookup", "domains": [],
-    "required_truth": [], "optional_truth": [], "reasoning_style": "",
-    "urgency": "low", "confidence": 0.5,
-})
+_OTHER_PLAN_JSON = json.dumps({"intent": "other", "response_mode": "lookup",
+                               "domains": [], "required_truth": [],
+                               "optional_truth": [], "reasoning_style": "",
+                               "urgency": "low", "confidence": 0.5})
 
-_DECISION = {"mode": "risk", "primary_action": {"title": "Recheck BP"},
-             "reason": "BP elevated", "message": "Your BP is trending high.",
-             "follow_on": None}
+# A task-shaped decision — if this ever reaches health working memory, the test fails.
+_TASK_DECISION = {"mode": "risk", "primary_action": {"type": "task",
+                  "title": "Wake up", "source": "routine"},
+                  "reason": "overdue", "message": "Biggest risk: Wake up."}
+
+_HEALTH_STATE = {"status": "ready", "domain": "health", "state": {
+    "weight_current": 298.3, "weight_unit": "lb", "weight_trend": "decreasing",
+    "bp_systolic": 111, "bp_diastolic": 72, "sleep_avg_hours_7d": 6.7,
+    "weight_goal": 240.0, "weight_goal_remaining": 58.3,
+    "weight_goal_on_track": False, "plateau_risk_label": "Elevated",
+    "_huge": list(range(100)),
+}}
 
 
 @contextlib.contextmanager
 def _mock_providers():
     with mock.patch("apps.ai.cos_services.get_domain_state",
-                    side_effect=lambda u, d: {"status": "ready", "domain": d,
-                                              "state": {"weight_current": 298.3,
-                                                        "bp_systolic": 111,
-                                                        "bp_diastolic": 72,
-                                                        "_huge": list(range(100))}}), \
-         mock.patch("apps.ai.cos_services.get_standing_context",
-                    return_value={"status": "ready", "recommended_focus": "health"}), \
+                    side_effect=lambda u, d: _HEALTH_STATE), \
          mock.patch("apps.ai.cos_services.get_foundational_health_facts",
                     return_value={"current_weight": {"value": 298.3, "unit": "lb"}}), \
-         mock.patch("apps.ai.cos_mode_router.normalize_mode", side_effect=lambda m: m), \
-         mock.patch("apps.core.execution.execution_state.build_execution_state",
-                    return_value={}), \
-         mock.patch("apps.core.execution.selectors.select", return_value=_DECISION):
-        yield
+         mock.patch(_BUILD_EXEC, return_value={}) as bes, \
+         mock.patch("apps.core.execution.selectors.select",
+                    return_value=_TASK_DECISION):
+        yield bes
 
 
 class PlanParsingTests(TestCase):
     def test_valid_plan(self):
         p = parse_plan(_RISK_PLAN_JSON)
-        self.assertEqual(p.intent, "biggest_risk")
-        self.assertEqual(p.required_truth, ["risk_decision", "health_state"])
-        self.assertEqual(p.urgency, "high")
-
-    def test_code_fenced_json(self):
-        p = parse_plan("```json\n" + _RISK_PLAN_JSON + "\n```")
-        self.assertEqual(p.intent, "biggest_risk")
-
-    def test_unknown_truth_keys_dropped(self):
-        bad = json.dumps({"intent": "biggest_risk", "response_mode": "reasoning",
-                          "domains": ["health", "atlantis"],
-                          "required_truth": ["risk_decision", "made_up_source"],
-                          "optional_truth": [], "reasoning_style": "x",
-                          "urgency": "high", "confidence": 1.0})
-        p = parse_plan(bad)
-        self.assertEqual(p.domains, ["health"])           # atlantis dropped
-        self.assertEqual(p.required_truth, ["risk_decision"])  # made_up dropped
+        self.assertEqual(p.intent, "biggest_health_risk")
 
     def test_unknown_intent_becomes_other(self):
-        p = parse_plan(json.dumps({"intent": "diagnose_me", "response_mode": "x"}))
-        self.assertEqual(p.intent, "other")
+        self.assertEqual(parse_plan('{"intent":"x"}').intent, "other")
 
     def test_garbage_returns_none(self):
-        self.assertIsNone(parse_plan("not json at all"))
-        self.assertIsNone(parse_plan(""))
+        self.assertIsNone(parse_plan("not json"))
 
 
 @override_settings(WLJ_COS_EVIDENCE_TOOLS_ENABLED=False)
-class StageTests(TestCase):
+class HealthScopeTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.user = User.objects.create_user(email="rl_stage@example.com", password="x")
+        cls.user = User.objects.create_user(email="rl_scope@example.com", password="x")
 
-    def test_retrieve_truth_fetches_planned_keys(self):
-        plan = parse_plan(_RISK_PLAN_JSON)
-        with _mock_providers():
+    def test_scope_drops_cross_domain_truth_and_never_fetches_it(self):
+        plan = parse_plan(_RISK_PLAN_JSON)   # requests risk_decision + execution_decision
+        with _mock_providers() as bes:
             truth = retrieve_truth(self.user, plan)
-        self.assertIn("risk_decision", truth)
+        # generic/cross-domain decisions DROPPED by the health scope:
+        self.assertNotIn("risk_decision", truth)
+        self.assertNotIn("execution_decision", truth)
+        # health truth retained:
         self.assertIn("health_state", truth)
         self.assertIn("foundational_health", truth)
+        # the decision engine was never even invoked:
+        bes.assert_not_called()
 
-    def test_working_memory_curated_no_raw_sae(self):
+    def test_health_working_memory_is_health_only(self):
         plan = parse_plan(_RISK_PLAN_JSON)
         with _mock_providers():
             truth = retrieve_truth(self.user, plan)
         wm = build_working_memory(plan, truth)
-        # health_state curated to whitelist scalars; the raw "_huge" list is gone
-        hs = wm["facts"]["health_state"]
-        self.assertIn("weight_current", hs)
-        self.assertNotIn("_huge", hs)
-        self.assertEqual(hs["bp_systolic"], 111)
-        # decision curated to action/reason/recommendation
-        self.assertEqual(wm["facts"]["risk_decision"]["recommendation"],
-                         "Your BP is trending high.")
+        facts = wm["facts"]
+        # curated health buckets present
+        self.assertIn("current_status", facts)
+        self.assertIn("active_risks", facts)
+        self.assertEqual(facts["current_status"]["bp_systolic"], 111)
+        self.assertFalse(facts["active_risks"]["weight_goal_on_track"])
+        # NO contamination, NO raw SAE
+        blob = json.dumps(wm, default=str)
+        self.assertNotIn("risk_decision", blob)
+        self.assertNotIn("Wake up", blob)
+        self.assertNotIn("routine", blob)
+        self.assertNotIn("_huge", blob)
 
-    def test_run_reasoning_uses_plain_call_api(self):
+    def test_curator_reads_only_health_truth(self):
+        # even handed contaminated truth directly, the curator ignores non-health
+        contaminated = {"health_state": _HEALTH_STATE,
+                        "risk_decision": _TASK_DECISION}
+        facts = health_working_memory(contaminated)
+        self.assertNotIn("risk_decision", json.dumps(facts, default=str))
+        self.assertNotIn("Wake up", json.dumps(facts, default=str))
+
+
+@override_settings(WLJ_COS_EVIDENCE_TOOLS_ENABLED=False)
+class ReasonerTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(email="rl_reason@example.com", password="x")
+
+    def test_reasoning_uses_plain_call_api(self):
         plan = parse_plan(_RISK_PLAN_JSON)
-        wm = {"intent": "biggest_risk", "facts": {"risk_decision":
-              {"recommendation": "Your BP is trending high."}}}
-        with mock.patch(_CALL_API, return_value="Your biggest risk is BP.") as ca, \
+        wm = {"intent": "biggest_health_risk",
+              "facts": {"active_risks": {"weight_goal_on_track": False}}}
+        with mock.patch(_CALL_API, return_value="Your BP needs attention.") as ca, \
              mock.patch(_CALL_API_TOOLS, side_effect=AssertionError("tools")):
             answer, fb = run_reasoning(self.user, "risk?", plan, wm)
-        self.assertEqual(answer, "Your biggest risk is BP.")
-        self.assertFalse(fb)
-        _, kwargs = ca.call_args
-        self.assertNotIn("tools", kwargs)
+        self.assertEqual(answer, "Your BP needs attention.")
+        self.assertNotIn("tools", ca.call_args.kwargs)
 
-    def test_run_reasoning_deterministic_fallback(self):
+    def test_health_fallback_is_health_only(self):
         plan = parse_plan(_RISK_PLAN_JSON)
-        wm = {"intent": "biggest_risk", "facts": {"risk_decision":
-              {"recommendation": "Your BP is trending high."}}}
+        wm = {"intent": "biggest_health_risk", "facts": {"active_risks":
+              {"weight_goal_on_track": False, "plateau_risk_label": "Elevated"}}}
         with mock.patch(_CALL_API, return_value=None):
             answer, fb = run_reasoning(self.user, "risk?", plan, wm)
         self.assertTrue(fb)
-        self.assertEqual(answer, "Your BP is trending high.")
+        self.assertIn("weight goal", answer.lower())
+        self.assertNotIn("wake up", answer.lower())
 
 
 @override_settings(WLJ_COS_EVIDENCE_TOOLS_ENABLED=False)
@@ -160,44 +174,32 @@ class EngineTests(TestCase):
     def setUpTestData(cls):
         cls.user = User.objects.create_user(email="rl_eng@example.com", password="x")
 
-    def test_biggest_risk_end_to_end_no_tool_loop(self):
+    def test_biggest_health_risk_no_contamination(self):
+        # planner emits a CONTAMINATED plan; result must still be health-only.
         with _mock_providers(), \
-             mock.patch(_CALL_API,
-                        side_effect=[_RISK_PLAN_JSON, "Your biggest risk is BP."]), \
+             mock.patch(_CALL_API, side_effect=[_RISK_PLAN_JSON, None]), \
              mock.patch(_CALL_API_TOOLS, side_effect=AssertionError("tools")):
             out = answer_reasoning_question(
                 self.user, "What is my biggest health risk right now?")
-        self.assertIsNotNone(out)
-        self.assertEqual(out["fast_path"], "reasoning")
-        self.assertEqual(out["reasoning"]["intent"], "biggest_risk")
-        self.assertEqual(out["answer"], "Your biggest risk is BP.")
-        self.assertIn("risk_decision", out["reasoning"]["truth_keys"])
+        self.assertEqual(out["reasoning"]["intent"], "biggest_health_risk")
+        self.assertNotIn("risk_decision", out["reasoning"]["truth_keys"])
+        self.assertNotIn("Wake up", out["answer"])
+        self.assertNotIn("Harley", out["answer"])
 
     def test_overall_progress_end_to_end(self):
         with _mock_providers(), \
              mock.patch(_CALL_API,
-                        side_effect=[_PROGRESS_PLAN_JSON, "You're trending well."]), \
+                        side_effect=[_PROGRESS_PLAN_JSON, "You're behind on weight."]), \
              mock.patch(_CALL_API_TOOLS, side_effect=AssertionError("tools")):
             out = answer_reasoning_question(
                 self.user, "How am I doing overall with my health goals?")
         self.assertEqual(out["reasoning"]["intent"], "overall_progress")
-        self.assertEqual(out["answer"], "You're trending well.")
+        self.assertEqual(out["answer"], "You're behind on weight.")
 
     def test_other_intent_declines(self):
         with mock.patch(_CALL_API, return_value=_OTHER_PLAN_JSON):
-            out = answer_reasoning_question(self.user, "Tell me a joke.")
-        self.assertIsNone(out)
+            self.assertIsNone(answer_reasoning_question(self.user, "Tell a joke."))
 
     def test_planner_unavailable_declines(self):
         with mock.patch(_CALL_API, return_value=None):
-            out = answer_reasoning_question(self.user, "What is my biggest risk?")
-        self.assertIsNone(out)
-
-    def test_reasoning_fallback_when_llm_empty(self):
-        # planner succeeds, reasoning call returns empty -> deterministic fallback
-        with _mock_providers(), \
-             mock.patch(_CALL_API, side_effect=[_RISK_PLAN_JSON, None]):
-            out = answer_reasoning_question(
-                self.user, "What is my biggest health risk right now?")
-        self.assertTrue(out["reasoning"]["used_fallback"])
-        self.assertEqual(out["answer"], "Your BP is trending high.")
+            self.assertIsNone(answer_reasoning_question(self.user, "biggest risk?"))

@@ -33,6 +33,16 @@ BETH_LIFECYCLE_STAGES = frozenset({
     "BETH_JOB_RECONNECTED",
     "BETH_JOB_RESUMED",
     "BETH_TASK_FINALLY",
+    # --- render-path stages (post-FOUND frontend instrumentation) ---
+    "BETH_RENDER_FOUND_HANDLER",     # which FOUND handler fired + what it calls
+    "BETH_RENDER_BEFORE_REFRESH",    # immediately before a history fetch/refresh
+    "BETH_RENDER_AFTER_REFRESH",     # fetch returned (+ server msg count, decision)
+    "BETH_RENDER_HISTORY_OVERWRITE", # container innerHTML cleared (redraw)
+    "BETH_RENDER_BEFORE_ADD",        # before the addMessage render loop
+    "BETH_RENDER_AFTER_ADD",         # after the render loop (rendered count)
+    "BETH_RENDER_DOM_INSERTED",      # DOM probe: answer in DOM? visible? container?
+    "BETH_RENDER_AFTER_SCROLL",      # after scroll/highlight
+    "BETH_RENDER_SKIPPED",           # a render path decided NOT to update / no-pending
 })
 
 

@@ -1776,6 +1776,7 @@
                 let renderedCount = 0;
                 const totalCount = data.messages.length;
                 let lastLoadedQuickReplies = null;
+                bethBeacon('BETH_RENDER_BEFORE_ADD', { extra: 'fn=loadHistory(widget) total=' + totalCount + ' recovered_id=' + (_recoveredAssistantMsgId || '-') });
                 data.messages.forEach(msg => {
                     // Skip empty placeholder messages (created before streaming, not yet populated)
                     if (!msg.content || !msg.content.trim()) return;
@@ -1811,12 +1812,14 @@
                 }
                 hasMessages = renderedCount > 0;
                 if (!hasMessages) showEmptyState();
+                bethBeacon('BETH_RENDER_AFTER_ADD', { extra: 'fn=loadHistory(widget) rendered=' + renderedCount + '/' + totalCount + ' widget_msgs=' + messagesContainer.childElementCount });
 
                 // If any messages were filtered (empty placeholders awaiting
                 // backend save), schedule a one-time re-fetch so content
                 // appears once the backend finalizes the record.
                 if (renderedCount < totalCount && !historySyncDone) {
                     historySyncDone = true;
+                    bethBeacon('BETH_RENDER_SKIPPED', { extra: 'fn=loadHistory(widget) reason=placeholder_filtered rendered=' + renderedCount + '/' + totalCount + ' scheduling_refreshHistory_in_1500ms' });
                     setTimeout(() => {
                         console.log("POST-LOAD HISTORY SYNC TRIGGERED");
                         refreshHistory();
@@ -2558,6 +2561,26 @@
         } catch (e) { /* ignore */ }
     }
 
+    // DOM-state probe for the post-FOUND render investigation. Reports whether
+    // the recovered answer is actually in the DOM, on which surface, and visible.
+    function bethDomProbe(stage, msgId, container, note) {
+        try {
+            var el = msgId ? document.querySelector('[data-message-id="' + msgId + '"]') : null;
+            var visible = el ? (el.offsetParent !== null) : false;
+            var cs = el ? getComputedStyle(el) : null;
+            var widget = document.getElementById('assistant-messages');
+            var panel = document.getElementById('ap-chat-messages');
+            var extra = 'msg_in_dom=' + (!!el) + ' visible=' + visible
+                + ' display=' + (cs ? cs.display : '-')
+                + ' opacity=' + (cs ? cs.opacity : '-')
+                + ' container=' + (container ? (container.id || 'unnamed') : '-')
+                + ' widget_msgs=' + (widget ? widget.childElementCount : 'no-widget')
+                + ' panel_msgs=' + (panel ? panel.childElementCount : 'no-panel')
+                + (note ? ' ' + note : '');
+            bethBeacon(stage, { message_id: msgId, extra: extra });
+        } catch (e) { bethBeacon(stage, { message_id: msgId, extra: 'probe_error' }); }
+    }
+
     function markPendingRequest(msg, ctx) {
         try {
             var _cid = (ctx && ctx.beth_cid) || null;
@@ -2629,8 +2652,12 @@
                     }
                     if (found) {
                         bethBeacon('BETH_RECOVERY_POLL_FOUND_MESSAGE', { cid: pending.cid || null, job_id: pending.job_id || null, message_id: foundId, extra: 'src=drawer' });
+                        bethBeacon('BETH_RENDER_FOUND_HANDLER', { cid: pending.cid || null, job_id: pending.job_id || null, message_id: foundId, extra: 'handler=drawerPoll action=refreshHistory' });
                         clearPendingRequest();
                         refreshHistory();           // surface the recovered answer
+                        setTimeout(function () {
+                            bethDomProbe('BETH_RENDER_DOM_INSERTED', foundId, messagesContainer, 'after=drawerPoll_refreshHistory');
+                        }, 800);
                         return;
                     }
                     if (++attempts < maxAttempts) {
@@ -2715,10 +2742,17 @@
                         }
                     }
                     if (replyId) {
+                        bethBeacon('BETH_RECOVERY_POLL_FOUND_MESSAGE', { cid: _pcid, job_id: _pjob, message_id: replyId });
+                        bethDomProbe('BETH_RENDER_FOUND_HANDLER', replyId, null,
+                            'handler=global_watcher action=toast_only(NO_RENDER) markers_cleared=both');
                         try { sessionStorage.removeItem('wlj_chat_pending'); } catch (e) {}
                         try { sessionStorage.removeItem('wlj_ap_pending'); } catch (e) {}
-                        bethBeacon('BETH_RECOVERY_POLL_FOUND_MESSAGE', { cid: _pcid, job_id: _pjob, message_id: replyId });
                         showBethToast(replyId);
+                        // Probe AFTER the toast settles: did anything render the answer?
+                        setTimeout(function () {
+                            bethDomProbe('BETH_RENDER_DOM_INSERTED', replyId, null,
+                                'after=global_watcher_toast(no_render_called)');
+                        }, 800);
                         return;
                     }
                     if (++attempts < maxAttempts) { _bethWatchTimer = setTimeout(check, 4000); }
@@ -3720,6 +3754,7 @@
 
     // Refresh history without showing loading state
     async function refreshHistory() {
+        bethBeacon('BETH_RENDER_BEFORE_REFRESH', { extra: 'fn=refreshHistory(widget) drawer_msgs=' + messagesContainer.childElementCount });
         try {
             const response = await fetch('/assistant/api/history/');
             const data = await response.json();
@@ -3743,21 +3778,29 @@
                     }
                 }
 
+                bethBeacon('BETH_RENDER_AFTER_REFRESH', { extra: 'fn=refreshHistory(widget) server_visible=' + newMessageCount + ' dom_assistant_msgs=' + currentMessages.length + ' needsUpdate=' + needsUpdate });
+
                 if (needsUpdate) {
                     // Clear and reload
+                    bethBeacon('BETH_RENDER_HISTORY_OVERWRITE', { extra: 'fn=refreshHistory(widget) cleared_dom=' + currentMessages.length });
                     messagesContainer.innerHTML = '';
                     if (newMessageCount > 0) {
+                        bethBeacon('BETH_RENDER_BEFORE_ADD', { extra: 'fn=refreshHistory(widget) to_render=' + newMessageCount });
                         visibleMessages.forEach(msg => {
                             console.log("LOADED MESSAGE:", msg.id, msg.content.length);
                             const isUser = msg.role === 'user';
                             const imageDataUrls = msg.image_data_urls || (msg.image_data_url ? [msg.image_data_url] : null);
                             addMessage(msg.content, isUser, false, imageDataUrls);
                         });
+                        bethBeacon('BETH_RENDER_AFTER_ADD', { extra: 'fn=refreshHistory(widget) rendered=' + newMessageCount + ' dom_now=' + messagesContainer.childElementCount });
                         messagesContainer.scrollTop = messagesContainer.scrollHeight;
                         hasMessages = true;
+                        bethBeacon('BETH_RENDER_AFTER_SCROLL', { extra: 'fn=refreshHistory(widget) widget_msgs=' + messagesContainer.childElementCount });
                     } else {
                         showEmptyState();
                     }
+                } else {
+                    bethBeacon('BETH_RENDER_SKIPPED', { extra: 'fn=refreshHistory(widget) reason=needsUpdate_false server_visible=' + newMessageCount + ' dom_assistant_msgs=' + currentMessages.length });
                 }
             }
         } catch (error) {

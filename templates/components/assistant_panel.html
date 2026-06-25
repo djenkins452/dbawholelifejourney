@@ -304,6 +304,24 @@
         } catch (e) {}
     }
 
+    function apBethDomProbe(stage, msgId, container, note) {
+        try {
+            var el = msgId ? document.querySelector('[data-message-id="' + msgId + '"]') : null;
+            var visible = el ? (el.offsetParent !== null) : false;
+            var cs = el ? getComputedStyle(el) : null;
+            var widget = document.getElementById('assistant-messages');
+            var panel = document.getElementById('ap-chat-messages');
+            var extra = 'msg_in_dom=' + (!!el) + ' visible=' + visible
+                + ' display=' + (cs ? cs.display : '-')
+                + ' opacity=' + (cs ? cs.opacity : '-')
+                + ' container=' + (container ? (container.id || 'unnamed') : '-')
+                + ' panel_msgs=' + (panel ? panel.childElementCount : 'no-panel')
+                + ' widget_msgs=' + (widget ? widget.childElementCount : 'no-widget')
+                + (note ? ' ' + note : '');
+            apBethBeacon(stage, { message_id: msgId, extra: extra });
+        } catch (e) { apBethBeacon(stage, { message_id: msgId, extra: 'probe_error' }); }
+    }
+
     function apMarkPending(msg, cid) {
         try {
             sessionStorage.setItem(AP_PENDING_KEY, JSON.stringify({ message: msg, cid: cid || null, at: Date.now() }));
@@ -344,7 +362,11 @@
                     }
                     if (found) {
                         apBethBeacon('BETH_RECOVERY_POLL_FOUND_MESSAGE', { cid: pending.cid || null, job_id: pending.job_id || null, message_id: foundId, extra: 'src=panel' });
-                        apClearPending(); loadChatHistory(container, null); return;
+                        apBethBeacon('BETH_RENDER_FOUND_HANDLER', { cid: pending.cid || null, job_id: pending.job_id || null, message_id: foundId, extra: 'handler=apPoll action=loadChatHistory' });
+                        apClearPending();
+                        loadChatHistory(container, null);
+                        setTimeout(function () { apBethDomProbe('BETH_RENDER_DOM_INSERTED', foundId, container, 'after=apPoll_loadChatHistory'); }, 800);
+                        return;
                     }
                     if (++attempts < maxAttempts) { _apPollTimer = setTimeout(check, 3000); }
                     else { apBethBeacon('BETH_RECOVERY_POLL_TIMEOUT', { cid: pending.cid || null, job_id: pending.job_id || null, extra: 'src=panel attempts=' + attempts }); apClearPending(); }
@@ -1136,10 +1158,12 @@
             return;
         }
 
+        apBethBeacon('BETH_RENDER_BEFORE_REFRESH', { extra: 'fn=loadChatHistory(panel) panel_msgs=' + (container ? container.childElementCount : '-') });
         fetch('/assistant/api/history/')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (loadingEl) loadingEl.style.display = 'none';
+            apBethBeacon('BETH_RENDER_AFTER_REFRESH', { extra: 'fn=loadChatHistory(panel) server_msgs=' + ((data && data.messages) ? data.messages.length : 0) });
 
             // Navigation survival backstop: if a request is still pending whose
             // answer isn't persisted yet, poll history until it appears.
@@ -1184,10 +1208,12 @@
                     return;
                 }
 
+                apBethBeacon('BETH_RENDER_HISTORY_OVERWRITE', { extra: 'fn=loadChatHistory(panel) cleared_dom=' + container.childElementCount });
                 container.innerHTML = '';
                 lastDisplayedDate = null;
                 var renderedCount = 0;
                 var totalCount = data.messages.length;
+                apBethBeacon('BETH_RENDER_BEFORE_ADD', { extra: 'fn=loadChatHistory(panel) total=' + totalCount });
                 data.messages.forEach(function(msg) {
                     // Skip empty placeholder messages (created before streaming, not yet populated)
                     if (!msg.content || !msg.content.trim()) return;
@@ -1196,9 +1222,11 @@
                         msg.image_data_url || null, msg);
                     renderedCount++;
                 });
+                apBethBeacon('BETH_RENDER_AFTER_ADD', { extra: 'fn=loadChatHistory(panel) rendered=' + renderedCount + '/' + totalCount + ' dom_now=' + container.childElementCount });
                 if (renderedCount > 0) {
                     container.scrollTop = container.scrollHeight;
                     apScrollToBethMsg(container);   // deep-link to a specific answer
+                    apBethBeacon('BETH_RENDER_AFTER_SCROLL', { extra: 'fn=loadChatHistory(panel) panel_msgs=' + container.childElementCount });
                 } else {
                     showEmptyState(container);
                 }
@@ -1208,6 +1236,7 @@
                 // appears once the backend finalizes the record.
                 if (renderedCount < totalCount && !apHistorySyncDone) {
                     apHistorySyncDone = true;
+                    apBethBeacon('BETH_RENDER_SKIPPED', { extra: 'fn=loadChatHistory(panel) reason=placeholder_filtered rendered=' + renderedCount + '/' + totalCount + ' scheduling_refreshChatHistory_in_1500ms' });
                     setTimeout(function() {
                         console.log("POST-LOAD HISTORY SYNC TRIGGERED");
                         refreshChatHistory(container);
@@ -1230,6 +1259,7 @@
 
     function refreshChatHistory(container) {
         if (!paAccessible) return;
+        apBethBeacon('BETH_RENDER_BEFORE_REFRESH', { extra: 'fn=refreshChatHistory(panel) panel_msgs=' + container.childElementCount });
         fetch('/assistant/api/history/')
         .then(function(r) { return r.json(); })
         .then(function(data) {
@@ -1245,19 +1275,26 @@
                 var lastDisplay = current[current.length - 1].textContent.trim();
                 if (lastServer.substring(0, 50) !== lastDisplay.substring(0, 50)) needsUpdate = true;
             }
+            apBethBeacon('BETH_RENDER_AFTER_REFRESH', { extra: 'fn=refreshChatHistory(panel) server_visible=' + visibleMessages.length + ' dom_msgs=' + current.length + ' needsUpdate=' + needsUpdate });
             if (needsUpdate) {
+                apBethBeacon('BETH_RENDER_HISTORY_OVERWRITE', { extra: 'fn=refreshChatHistory(panel) cleared_dom=' + current.length });
                 container.innerHTML = '';
                 lastDisplayedDate = null;
                 if (visibleMessages.length > 0) {
+                    apBethBeacon('BETH_RENDER_BEFORE_ADD', { extra: 'fn=refreshChatHistory(panel) to_render=' + visibleMessages.length });
                     visibleMessages.forEach(function(msg) {
                         console.log("LOADED MESSAGE:", msg.id, msg.content.length);
                         addMessage(container, msg.content, msg.role === 'user', false,
                             msg.image_data_url || null, msg);
                     });
+                    apBethBeacon('BETH_RENDER_AFTER_ADD', { extra: 'fn=refreshChatHistory(panel) rendered=' + visibleMessages.length + ' dom_now=' + container.childElementCount });
                     container.scrollTop = container.scrollHeight;
+                    apBethBeacon('BETH_RENDER_AFTER_SCROLL', { extra: 'fn=refreshChatHistory(panel) panel_msgs=' + container.childElementCount });
                 } else {
                     showEmptyState(container);
                 }
+            } else {
+                apBethBeacon('BETH_RENDER_SKIPPED', { extra: 'fn=refreshChatHistory(panel) reason=needsUpdate_false server_visible=' + visibleMessages.length + ' dom_msgs=' + current.length });
             }
         })
         .catch(function() {});

@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-25 — diag(cos): render-path telemetry after RECOVERY_POLL_FOUND (instrumentation only)
+
+**Why:** backend proven healthy (TASK_STARTED→GENERATE→MESSAGE_PERSISTED→TASK_FINALLY all fire) and `BETH_RECOVERY_POLL_FOUND_MESSAGE` fires — yet the answer never renders. Isolated to the frontend render path AFTER FOUND. Instrumentation only (no fix).
+
+**Key structural fact surfaced:** there are THREE FOUND handlers doing DIFFERENT things — `watchBethCompletion` (global, chat_widget) clears BOTH markers and only calls `showBethToast` (**no DOM render**); `pollPendingReply` (drawer) calls `refreshHistory()`; `apPollPendingReply` (panel) calls `loadChatHistory()`. The `refresh*` paths only re-render when `needsUpdate` (count/last-content differs) — they can SKIP.
+
+**Added 9 render-path stages** (`BETH_RENDER_FOUND_HANDLER`, `…BEFORE_REFRESH`, `…AFTER_REFRESH`, `…HISTORY_OVERWRITE`, `…BEFORE_ADD`, `…AFTER_ADD`, `…DOM_INSERTED`, `…AFTER_SCROLL`, `…SKIPPED`) wired into: all 3 FOUND handlers, `refreshHistory`/`loadHistory` (widget), `loadChatHistory`/`refreshChatHistory` (panel). Each FOUND handler logs which one fired + what it calls; the `needsUpdate=false` branches log `…SKIPPED`; a DOM probe (`bethDomProbe`/`apBethDomProbe`) reports for the recovered `message_id`: in_dom, visible (offsetParent), display, opacity, which container, and widget-vs-panel child counts — directly answering A (inserted?), B (wrong surface?), C/D (removed/overwritten?), E (surfaces fighting?), F (present but hidden?).
+
+**No fix. No migration. No behavior change.** **Files:** `apps/ai/chatgpt_cos/telemetry.py`, `templates/components/chat_widget.html`, `templates/components/assistant_panel.html`. **Requires web redeploy.**
+
+
 ## 2026-06-25 — diag(cos): full Beth-request lifecycle telemetry (instrumentation only)
 
 **Why:** prove from production logs the EXACT stage where a reasoning request dies (candidates A–G: task never finishes / finishes-but-not-persisted / persisted-but-not-restored / poll never runs / poll never finds / marker lost / worker killed). No architecture, no recovery, no migration — instrumentation only.

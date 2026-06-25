@@ -67,11 +67,20 @@ _FACT_MAP = {
         "module": "nutrition", "value": "daily_protein_g",
         "unit": "g", "target": "protein_target",
     },
+    "last_blood_pressure_reading": {
+        "module": "health", "value": "bp_systolic",
+        "diastolic": "bp_diastolic", "recorded_at": "last_bp_entry",
+    },
+    "latest_meal_logged": {
+        # SAE has no meal name/description; the canonical truth is the date of
+        # the most recent food/meal entry.
+        "module": "nutrition", "value": "last_food_entry",
+    },
 }
 
 SUPPORTED_FACTS = sorted(_FACT_MAP.keys())
 
-_META_FIELDS = ("unit", "trend", "recorded_at", "count", "target")
+_META_FIELDS = ("unit", "trend", "recorded_at", "count", "target", "diastolic")
 
 
 def get_foundational_health_facts(user, keys=None):

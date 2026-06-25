@@ -63,6 +63,43 @@ class RetrievalPlan:
         }
 
 
+# ---------------------------------------------------------------------------
+# Resilience matcher (NOT the primary path): when the LLM planner is
+# unavailable or misclassifies, route an implemented HEALTH reasoning question
+# deterministically so the reasoning lane ALWAYS produces an answer and never
+# falls through to the legacy tool loop. The LLM planner remains primary.
+# ---------------------------------------------------------------------------
+_HEALTH_INTENT_SIGNALS = (
+    ("overall_progress", ("how am i doing", "how am i tracking", "overall",
+                          "on track", "progress", "health goals",
+                          "doing with my health")),
+    ("biggest_health_risk", ("biggest health risk", "biggest risk", "health risk",
+                             "what should i focus", "focus on", "what's wrong",
+                             "whats wrong", "concern", "worried", "should i worry",
+                             "what to improve", "what needs attention")),
+)
+
+
+def deterministic_health_intent(message):
+    """Best-effort deterministic match to an IMPLEMENTED health intent, or None."""
+    text = (message or "").lower()
+    for intent, sigs in _HEALTH_INTENT_SIGNALS:
+        if intent in IMPLEMENTED_INTENTS and any(s in text for s in sigs):
+            return intent
+    return None
+
+
+def synthesize_health_plan(intent):
+    """A health-scoped RetrievalPlan for the resilience path."""
+    return RetrievalPlan(
+        intent=intent, response_mode="reasoning", domains=["health"],
+        required_truth=["health_state", "foundational_health"],
+        optional_truth=[], reasoning_style="resilience_fallback",
+        urgency="normal", confidence=0.0,
+        raw={"source": "deterministic_fallback"},
+    )
+
+
 def _coerce_list(value, allowed):
     if not isinstance(value, list):
         return []

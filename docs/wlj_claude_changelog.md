@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-25 — fix(cos): reasoning lane — evidence-ranked risk (no protein anchor) + guaranteed answer
+
+**FAILED #1 — biggest_health_risk over-anchored on protein.** Proven (Danny's data): every `active_risks` label is benign (LOW/stable/INSUFFICIENT_DATA) — zero real risk labels; the only genuine concern is `weight_goal_on_track=false`. The working memory handed the model raw buckets with no prioritization, so it fixated on the most striking number (early-day 0 protein vs 176.9 typical). **Fix:** `_rank_health_concerns` builds a deterministic, evidence-RANKED `ranked_concerns` list (severity-weighted), EXCLUDING benign labels and early-day nutrition (a not-yet-logged 0 is not a risk). The biggest_health_risk prompt now picks the top item from `ranked_concerns` (or says nothing stands out — never manufactures one); the fallback uses `ranked_concerns[0]`. Verified live: `ranked_concerns=["weight goal is behind pace"]` (no protein).
+
+**FAILED #2 — overall_progress / "what should I focus on" returned the OpenAI failure message.** Proven: when the planner `_call_api` returns None, `run_planner`→None → engine returned None → fell through to the failing tool loop → OpenAI failure message. **Fix (guarantee an answer):** the engine now never falls through for an implemented health-reasoning question — if the planner is unavailable (None) OR misclassifies (intent not implemented), a deterministic resilience matcher (`deterministic_health_intent`) routes the question to an implemented intent and synthesizes a health-scoped plan, so the lane always reaches its deterministic fallback. Also broadened `biggest_health_risk` to cover "what should I focus on health-wise today" (the top-priority question — no new intent). Verified live (planner None): both questions answer deterministically, never surfacing the OpenAI failure.
+
+**Kept:** morning-nutrition time awareness + tone calibration (validated as passing).
+
+**Tests:** `test_reasoning_lane.py` +7 (RankedConcerns ×3: benign+early-day excluded, real risk outranks late-day nutrition, empty when none; ReasoningGuarantee ×4: matcher, planner-None health-question answers, focus→implemented intent, non-health still declines). 26 pass; full CoS suite green; `check` + `makemigrations --check` clean. **Files:** `apps/ai/chatgpt_cos/reasoning/{stages,plan,engine}.py`, `apps/ai/tests/test_reasoning_lane.py`. **Requires `wlj-worker` redeploy. Pause for production validation; no widening.**
+
+
 ## 2026-06-25 — fix(cos): three production-validation fixes (navigation, time-aware nutrition, tone)
 
 **Fix 1 — CoS chat always uses the streaming/background path (navigation-safe).** Investigation: the frontend chooses non-streaming `/api/chat/` (synchronous + AbortController, not navigation-safe) only for (a) image messages and (b) a streaming-failure fallback; text already streams (background task + `job` event + resume-by-job_id + history fallback — all intact). Forced CoS through streaming via the existing `feature_flags.WLJ_COS_EVIDENCE_TOOLS_ENABLED` flag: in `chat_widget.html` and `assistant_panel.html`, CoS users (a) never use the image→non-streaming branch and (b) never fall back to synchronous non-streaming on a streaming error (which would re-submit → duplicate + die on navigation) — they get a retry instead. Legacy Beth users unchanged.

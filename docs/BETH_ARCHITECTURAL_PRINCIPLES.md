@@ -1,0 +1,176 @@
+# Beth Architectural Principles — The Constitution
+
+> **This is the highest-order governance document for the Chief of Staff (CoS /
+> "Beth").** Where any other doc, ticket, or convenience conflicts with a principle
+> here, the principle wins. Changes to this document require explicit owner approval.
+>
+> **Companions:** `BETH_GOLDEN_BEHAVIORS.md` (what must not regress),
+> `BETH_CHANGE_CONTROL.md` (how to change safely),
+> `BETH_PRODUCTION_VALIDATION_CHECKLIST.md` (how to prove it),
+> `BETH_ROLLBACK_AND_RECOVERY.md` (how to undo),
+> `BETH_REGRESSION_TEST_MATRIX.md` (what is covered).
+>
+> **Last updated:** 2026-06-25
+
+---
+
+## Preamble
+
+Beth's architecture rests on one sentence: **WLJ owns truth; the LLM owns
+reasoning.** Every principle below is a consequence of refusing to blur that line.
+The system is *framework-first*: capabilities are added by extending a small set of
+contracts, never by special-casing a question. Stability is a feature; a regression
+in a validated behavior is a defect regardless of what shipped alongside it.
+
+Each principle states the rule, why it exists, how it is enforced, and what a
+violation looks like.
+
+---
+
+## Core Principles
+
+### P1 — Truth first, reasoning second
+WLJ computes and owns the authoritative facts; the LLM only narrates and reasons
+*over* facts it is handed. The model never sources its own truth.
+- **Why:** prevents fabrication, drift, and "confident wrong" answers.
+- **Enforced by:** deterministic retrieval in the reasoning lane; `cos_context` /
+  `build_cos_intelligence` compose state before the model is called.
+- **Violation:** asking the model to "figure out" a metric instead of retrieving it.
+
+### P2 — Deterministic retrieval before LLM reasoning
+The flow is: question → Planner (structured plan) → **deterministic** authoritative
+retrieval → curated Working Memory → one reasoning call. Retrieval is code, not a
+model guess.
+- **Enforced by:** `apps/ai/chatgpt_cos/reasoning/plan.py` (plan only) +
+  deterministic retrieval/curator in `stages.py`.
+- **Violation:** letting the LLM choose or fabricate which data to fetch.
+
+### P3 — OpenAI never receives raw SAE state
+The model sees only an executive-clean Working Memory. Raw SAE objects, enum codes,
+internal labels, `source` paths, and field names never reach the prompt.
+- **Enforced by:** `stages.py` curator (strips `source`/`_label`/raw enums);
+  `test_reasoning_lane::test_raw_enum_never_leaks_to_model_facing_wm`,
+  `test_health_working_memory_is_health_only`.
+- **Violation:** dumping a module state dict into the system/user prompt.
+
+### P4 — The Planner never answers the user
+The Planner LLM emits a structured `RetrievalPlan` and nothing else. It never
+produces user-facing text.
+- **Enforced by:** `plan.py::parse_plan` (closed vocabulary; unknown → `other`);
+  reasoning is a separate, later call.
+- **Violation:** returning the planner's output to the user, or having it "just
+  answer" when confident.
+
+### P5 — Every implemented intent provides a deterministic fallback
+An implemented reasoning intent must return a correct, useful answer even if every
+LLM call fails. No implemented intent can produce a blank or error-only response.
+- **Enforced by:** `reasoning/engine.py` guarantee + `_health_risk_fallback` /
+  `_health_progress_fallback`; `test_foundation_validation::test_deterministic_fallback_*`,
+  `test_reasoning_lane::test_health_fallback_uses_ranked_concerns`.
+- **Violation:** shipping an intent whose only path to an answer is a successful LLM call.
+
+### P6 — Framework-first, never special-case-first
+New behavior is added by extending shared contracts (intent registry, retrieval
+vocabulary, curators), not by branching on a specific question or string.
+- **Why:** special cases multiply silently and rot; the framework is testable once
+  and reused everywhere.
+- **Violation:** `if "biggest risk" in message:` style branching outside the registry.
+
+### P7 — Stable behavior outranks new capability
+If a change risks a Golden Behavior and the risk cannot be removed, the change does
+not ship. Preservation beats shipping.
+- **Enforced by:** `BETH_CHANGE_CONTROL.md` (Blast Radius Assessment + sign-off).
+
+### P8 — The tool loop is fallback/debug infrastructure only
+The agentic tool loop is demoted to a fallback/diagnostic path. The framework
+(Planner + deterministic retrieval + curated reasoning) is the primary path.
+- **Enforced by:** fast path + reasoning lane bypass the tool loop;
+  `test_foundation_validation::test_fast_path_uses_plain_call_api_never_tool_loop`.
+- **Violation:** routing a normal implemented intent through the tool loop by default.
+
+### P9 — User-facing language stays coaching-oriented
+Responses are warm, direct, evidence-based, and non-alarmist. Beth coaches; it does
+not diagnose, scold, or catastrophize.
+- **Enforced by:** tone calibration in `stages.py`;
+  `test_reasoning_lane::test_prompts_carry_calibration_and_no_alarmist_words`,
+  `test_severe_labels_softened`.
+
+### P10 — Internal implementation details never surface to users
+No enums, no `LOW/MED/HIGH` codes, no `SAE.*` paths, no field names, no system
+terminology, no engine names — ever — in user-facing output.
+- **Enforced by:** curator stripping + label calibration; same tests as P3/P9.
+- **Violation:** "muscle loss risk level: MED" reaching the user.
+
+### P11 — Domain curators own context isolation
+Each domain's curator is responsible for keeping its Working Memory to its own
+domain. Health answers are health-only; cross-domain truth is never fetched or shown.
+- **Enforced by:** HEALTH-scoped retrieval + `HealthWorkingMemoryCurator`;
+  `test_reasoning_lane::test_scope_drops_cross_domain_truth_and_never_fetches_it`,
+  `test_biggest_health_risk_no_contamination`.
+- **Violation:** journal/faith/finance content bleeding into a health answer.
+
+### P12 — Every qualifying change requires blast-radius analysis
+A Blast Radius Assessment (files, subsystems, Golden Behaviors at risk, required
+tests, validation, rollback) is mandatory before significant Beth changes.
+- **Enforced by:** `BETH_CHANGE_CONTROL.md`.
+
+### P13 — New reasoning capability = framework extension, not ad hoc branching
+A new intent is added through the registry/vocabulary/curator contracts and the
+5-point registration gate — not by inserting bespoke conditionals.
+- **Enforced by:** `apps.ai.tests.test_intent_registration`; the New Intent Checklist
+  in `CLAUDE.md`.
+
+### P14 — Validated behaviors are protected and may not regress without approval
+The Golden Behaviors are a contract. Regressing one requires explicit owner approval
+and is otherwise treated as a defect to be reverted.
+- **Enforced by:** `BETH_GOLDEN_BEHAVIORS.md` + production validation + stable tags.
+
+---
+
+## Supporting Principles
+*(refinements consistent with the core and with established WLJ practice)*
+
+### P15 — Never compute heavy analytics on the request/task path
+Heavy analytics (full SAE rebuilds, system-impact, signal health) must run in
+background workers and be read from cache/snapshots; request/task paths read
+pre-computed data or return "pending" — never live-compute as a fallback.
+- **Why:** live compute caused 524 timeouts and is the root of the open worker-kill
+  durability gap (`BETH_GOLDEN_BEHAVIORS.md` known-limitation #1; matrix R-1).
+- **Status:** *aspirational at baseline* — `service.py::generate` still warms with
+  `get_user_state(allow_rebuild=True)`; closing this is prioritized post-baseline.
+
+### P16 — Fail loud on critical paths; never swallow errors
+No `except Exception: pass` on intent recognition, execution, retrieval, or safety
+gates. Separate `ImportError` (optional) from `Exception` (logged with `exc_info`).
+Safety gates fail closed.
+
+### P17 — Single source of truth for in-flight state
+"A request is in flight" is derived from exactly one signal — the sessionStorage
+pending marker. The thinking indicator, recovery, and notifications all read it. **No
+second pending-tracking system.**
+
+### P18 — Beth consumes composed briefings, not raw signals
+Intelligence features produce composed, deterministic state objects (verdict already
+inside) for Beth to narrate over. PIE/PRIE/CDCE feed the composer, not Beth directly.
+Never add "more atomic signals for Beth to reason from."
+
+### P19 — Streaming and non-streaming paths stay at parity
+Both chat paths call the same orchestrator. A fix to one must be verified on the other.
+
+### P20 — Every lifecycle stage is observable
+Each request carries a single correlation id (`cid`) through `BETH_LIFECYCLE`
+telemetry (client + server) so any failure is locatable from production logs without
+guesswork.
+
+### P21 — "Deferred" means phased, not abandoned
+Cut scope gets a phase number and an explicit promotion trigger. v1 architecture must
+remain additive-compatible with the full roadmap. "Maybe someday" is forbidden in plans.
+
+---
+
+## Amendment process
+1. Propose the change with rationale and the principle(s) affected.
+2. If it weakens a protection, it requires explicit owner approval (P7, P14).
+3. On approval, update this doc, bump "Last updated", and note it in
+   `docs/wlj_claude_changelog.md`.
+4. If the change alters runtime contracts, follow `BETH_CHANGE_CONTROL.md` in full.

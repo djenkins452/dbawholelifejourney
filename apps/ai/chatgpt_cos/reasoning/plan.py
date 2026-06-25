@@ -20,7 +20,8 @@ from dataclasses import dataclass, field
 
 # Implemented reasoning intents (this milestone). The planner may also return
 # "other" for anything not yet built — the engine then declines (falls through).
-IMPLEMENTED_INTENTS = ("biggest_risk", "overall_progress")
+# Both are HEALTH-scoped intents (see HEALTH_INTENTS in stages.py).
+IMPLEMENTED_INTENTS = ("biggest_health_risk", "overall_progress")
 ALLOWED_INTENTS = IMPLEMENTED_INTENTS + ("other",)
 
 ALLOWED_RESPONSE_MODES = ("lookup", "reasoning", "mixed")

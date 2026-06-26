@@ -39837,3 +39837,8 @@ This uses `or ''` to convert any falsy value (None, empty string, missing key) t
 ## 2026-06-25 — fix(study): spacebar now flips flashcards regardless of focus
 
 **Why:** Space only flipped when focus was on `document.body`; after clicking a button or the card, focus moved there and Space was swallowed (or activated the focused button). Now the global keydown handler flips on Space/Spacebar everywhere and `preventDefault`s the focused button + page scroll. Verified in-browser: Space flips from body, card, and a focused Next button without also advancing. File: `templates/core/study_flashcards.html`.
+
+
+## 2026-06-26 — fix(study): do not hijack spacebar while typing (Beth chat box)
+
+**Why:** the global flashcard keydown handler called `preventDefault` on Space everywhere, breaking the spacebar inside the Chief of Staff chat input (and any other field) while the flashcard page was open. Added an `isTypingTarget()` guard that bails out of the handler when the event target is an input/textarea/select/contenteditable, so typing is never intercepted. Card shortcuts still work everywhere else. Verified in-browser: Space types normally in an input (no defaultPrevented, no flip) and still flips the card when not in a field. File: `templates/core/study_flashcards.html`.

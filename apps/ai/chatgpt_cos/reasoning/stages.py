@@ -486,6 +486,34 @@ def _evidence_losing(e):
     return bool(e) and (e.get("trend") == "falling" or e.get("momentum") == "low")
 
 
+# Task 2 — risk language varies by canonical goal STATE. Steady/strong goals get
+# consistency/maintenance risks; only failing/stalled get intervention framing.
+_GOAL_STATE_RISK = {
+    "failing":  (50, "is at risk — it's overdue or clearly declining, and it needs "
+                     "intervention to get back on track"),
+    "stalled":  (40, "has stalled — there's little recent progress and it's losing "
+                     "momentum"),
+    "drifting": (30, "is drifting — recent execution has dropped off"),
+    "stable":   (25, "is progressing steadily — the watch-item is keeping your "
+                     "consistency and not missing an upcoming milestone"),
+    "thriving": (20, "is thriving — the main thing now is protecting your "
+                     "consistency over time"),
+}
+
+
+def _state_risk_concern(name, e, is_mission):
+    """A state-appropriate risk concern for one goal, or None when no state is
+    known. The action is the milestone-grounded recommendation from the evidence."""
+    spec = _GOAL_STATE_RISK.get((e or {}).get("state"))
+    if not spec:
+        return None
+    sev, phrase = spec
+    lead = "your mission" if is_mission else "your goal"
+    action = ((e or {}).get("recommended_action")
+              or "take the concrete next step on its current milestone")
+    return (sev, f"{lead} '{name}' {phrase}", action)
+
+
 def _rank_goal_concerns(goals, habits):
     """EVIDENCE-FIRST goal concerns as plain coaching language (never raw
     IDs/enums/scores/JSON). Beth narrates the nightly momentum engine's verdict
@@ -516,10 +544,10 @@ def _rank_goal_concerns(goals, habits):
     if overdue_titles:
         name = overdue_titles[0]["title"]
         extra = f" (and {overdue - 1} other goal(s))" if overdue > 1 else ""
-        out.append((6, f"'{name}' is past its target date{extra}",
+        out.append((60, f"'{name}' is past its target date{extra}",
                     f"reschedule '{name}' with a realistic new milestone date, or close it out"))
     elif overdue:
-        out.append((6, f"{overdue} goal(s) are past their target date",
+        out.append((60, f"{overdue} goal(s) are past their target date",
                     "reschedule each with a realistic new date, or close them out"))
 
     # 5 — Nearest deadline within a week (named); includes the mission's deadline.
@@ -533,54 +561,31 @@ def _rank_goal_concerns(goals, habits):
         soon = (md, mname)
     if soon and soon[0] is not None and soon[0] <= 7:
         name = soon[1] or "a goal"
-        out.append((5, f"'{name}' is due in {int(soon[0])} day(s)",
+        out.append((45, f"'{name}' is due in {int(soon[0])} day(s)",
                     f"schedule focused calendar time this week to move '{name}' forward"))
 
-    # 4 — EVIDENCE-backed stall: a named goal the momentum engine shows is
-    # low/falling (NOT already overdue). Prefer the mission. This REPLACES the old
-    # metadata "no habits" headline with the engine's real progress verdict.
-    losing = None  # (name, evidence, is_mission)
-    if mission and mname and _evidence_losing(me) and mname not in overdue_names:
-        losing = (mname, me, True)
-    if losing is None:
-        for t in active_titles:
-            e = _goal_evidence(t)
-            if t.get("title") and _evidence_losing(e) and t["title"] not in overdue_names:
-                losing = (t["title"], e, False)
-                break
-    if losing:
-        name, e, is_mission = losing
-        why = ("is losing momentum" if e.get("trend") == "falling"
-               else "has low momentum right now")
-        lead = "your mission" if is_mission else "your goal"
-        rec = (e or {}).get("recommended_action") or (
-            f"review the next milestone for '{name}' and choose one concrete action to rebuild momentum")
-        out.append((4, f"{lead} '{name}' {why}", rec))
-
-    # 3b — EVIDENCE risk-driver: a named goal that IS progressing but the engine
-    # flags a specific drag (e.g. light workout frequency). Surfaces a concrete,
-    # evidence-based watch item — NOT a generic portfolio nag. Prefer the mission.
-    losing_names = {losing[0]} if losing else set()
-    rd_candidates = []
-    if mission and mname and not _evidence_losing(me) and mname not in overdue_names:
-        rd_candidates.append((mname, me, True))
+    # 50–20 — STATE-BASED risk per goal (Task 2): the risk LANGUAGE varies by the
+    # goal's canonical state (failing>stalled>drifting>stable>thriving). Steady/
+    # strong goals get consistency/maintenance risks — never crisis language. The
+    # action is the milestone-grounded recommendation from the evidence narrative.
+    seen_state = set()
+    if mission and mname and mname not in overdue_names:
+        c = _state_risk_concern(mname, me, True)
+        if c:
+            out.append(c)
+            seen_state.add(mname)
     for t in active_titles:
-        e = _goal_evidence(t)
         nm = t.get("title")
-        if nm and e and not _evidence_losing(e) and nm not in overdue_names:
-            rd_candidates.append((nm, e, False))
-    for name, e, is_mission in rd_candidates:
-        rds = [r for r in ((e or {}).get("risk_drivers") or []) if isinstance(r, str)]
-        if rds and name not in losing_names:
-            lead = "your mission" if is_mission else "your goal"
-            rec = (e or {}).get("recommended_action") or _goal_concrete_today_action(rds[0])
-            out.append((3, f"{lead} '{name}' is progressing, but {rds[0].lower()} could slow it",
-                        rec))
-            break
+        e = _goal_evidence(t)
+        if nm and nm not in overdue_names and nm not in seen_state:
+            c = _state_risk_concern(nm, e, False)
+            if c:
+                out.append(c)
+                seen_state.add(nm)
 
-    # 3 — A named goal with NO evidence of progress AND no supporting habits — a
-    # genuinely unsupported goal. SUPPRESSED whenever any goal shows healthy
-    # momentum (real progress beats absent metadata). Weak metadata signal only.
+    # 35 — Genuinely UNSUPPORTED goal (Task 1): only when there is provably NO
+    # milestone, NO momentum evidence, and NO habit — i.e. nothing to measure
+    # progress against. Habit-gap language is suppressed in every other case.
     hactive = int(_num(habits.get("active_habit_count")) or 0)
     any_evidence = (bool(me and (me.get("momentum") or me.get("trend")))
                     or any(_goal_evidence(t) and
@@ -588,35 +593,35 @@ def _rank_goal_concerns(goals, habits):
                            for t in active_titles))
     any_healthy = _evidence_healthy(me) or any(
         _evidence_healthy(_goal_evidence(t)) for t in active_titles)
-    if active and not hactive and not any_evidence and not any_healthy:
+    any_milestones = bool((mission or {}).get("context", {}).get("has_milestones")) or any(
+        (t.get("context") or {}).get("has_milestones") for t in active_titles)
+    if active and not hactive and not any_evidence and not any_milestones:
         name = mname or _first_title(active_titles)
-        if name:
-            out.append((3, f"'{name}' has no supporting habits or recent activity to show progress",
-                        f"create one weekly supporting habit for '{name}', or log progress so momentum can be tracked"))
-        else:
-            out.append((3, "your active goals have no supporting habits or tracked progress yet",
-                        "create one weekly supporting habit for your most important goal"))
+        label = (f"'{name}' has no milestones, habits, or tracked activity yet"
+                 if name else "your active goals have no milestones, habits, or "
+                 "tracked activity yet")
+        out.append((35, f"{label} — there's nothing to measure progress against",
+                    "define your first milestone so there's a concrete next step"))
 
-    # 2 — At-risk habit (named) — momentum that feeds goals.
+    # 15 — At-risk habit (named) — a real near-term loss when habits exist.
     at_risk = [h for h in (habits.get("streaks_per_habit") or [])
                if h.get("at_risk") and h.get("name")]
     if at_risk:
         name = at_risk[0]["name"]
         extra = f" (and {len(at_risk) - 1} other(s))" if len(at_risk) > 1 else ""
-        out.append((2, f"your habit '{name}' is about to break its streak{extra}",
+        out.append((15, f"your habit '{name}' is about to break its streak{extra}",
                     f"complete '{name}' today to protect the streak"))
 
-    # 1 — Portfolio metrics (ANONYMOUS) — supplemental; the headline ONLY when no
-    # goal-level concern exists above. Low milestone completion is SUPPRESSED when
-    # the engine shows healthy momentum (a goal can be progressing in real life
-    # while its formal milestones lag — evidence beats lagging metadata).
+    # 10 — Portfolio metrics (ANONYMOUS) — supplemental; headline ONLY when nothing
+    # above. Low milestone completion is SUPPRESSED when the engine shows healthy
+    # momentum (a goal can progress in real life while its milestones lag).
     rate = _num(goals.get("completion_rate"))
     if rate is not None and rate < 0.4 and active and not any_healthy:
-        out.append((1, "your overall goal completion is running low",
+        out.append((10, "your overall goal completion is running low",
                     "narrow your focus to one or two goals to lift it"))
     hrate = _num(habits.get("avg_completion_rate"))
     if active >= 6 and hrate is not None and hrate < 0.5:
-        out.append((1, f"you're carrying {active} active goals with thin follow-through",
+        out.append((10, f"you're carrying {active} active goals with thin follow-through",
                     "pause the lowest-priority goals to protect your top ones"))
 
     out.sort(key=lambda x: -x[0])
@@ -683,6 +688,8 @@ def goals_working_memory(truth, user=None):
         if not name or (not e and not context):
             return None
         item = {"goal": name}
+        if e.get("state"):
+            item["state"] = e["state"]               # thriving/stable/drifting/…
         phase = e.get("phase") or context.get("current_phase")
         if phase:
             item["phase"] = phase
@@ -825,21 +832,20 @@ def _goal_concrete_today_action(concern):
         return "reschedule it with a realistic new milestone date, or close it out"
     if "due in" in c:
         return "schedule focused calendar time this week to move it forward"
-    if "losing momentum" in c or "low momentum" in c:
-        return "review its next milestone and choose one concrete action to rebuild momentum"
+    if "losing momentum" in c or "low momentum" in c or "stalled" in c \
+            or "drifting" in c or "execution has dropped" in c:
+        return "complete today's scheduled workout to rebuild momentum"
     if "no active next milestone" in c:
         return "define its next milestone so it has a clear next step"
-    if "no supporting habits" in c or "isn't backed by a routine" in c \
-            or "no recent activity" in c or "tracked progress" in c:
-        return "create one weekly supporting habit for it, or log progress so momentum can be tracked"
+    if "no milestones" in c or "nothing to measure" in c:
+        return "define your first milestone so there's a concrete next step"
     if "streak" in c:
         return "complete the habit today to protect the streak"
     if "completion is running low" in c:
         return "narrow your focus to one or two goals to lift it"
     if "thin follow-through" in c:
         return "pause the lowest-priority goals to protect your top ones"
-    return ("spend 15 minutes progressing your most important goal — review its "
-            "next milestone and choose the next concrete action")
+    return "take the concrete next step on your current milestone today"
 
 
 def _goals_focus_today_fallback(wm):
@@ -853,8 +859,7 @@ def _goals_focus_today_fallback(wm):
         top = ranked[0]
         focus = top.get("concern", "your top goal")
         action = top.get("action") or _goal_concrete_today_action(focus)
-        return (f"Today, focus on {focus}. Acting on it today keeps it from "
-                f"slipping further and protects your momentum. One concrete step: "
+        return (f"Today, focus on {focus}. The single highest-leverage move: "
                 f"{action}.")
     # No risk concern — narrate the top goal's evidence and give its recommended
     # next action (tied to actual drivers / phase).

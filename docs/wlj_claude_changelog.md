@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — refine(cos): Chief-of-Staff quality for Goals reasoning (states + leverage + no generic)
+
+Quality pass on Goals reasoning (no new domains/architecture/P25). Four refinements:
+
+1. **No unsupported habit-gap (Task 1):** "no supporting habits"/"create a supporting habit" is now suppressed unless a goal provably has NO milestones, NO momentum evidence, AND no habits. Goals with milestones/momentum (the France case) never receive habit-gap coaching. The only remaining habit-absent message is milestone-oriented ("define your first milestone").
+
+2. **Goal STATE risk language (Task 2):** `build_goal_state` classifies each goal — **thriving / stable / drifting / stalled / failing** — from canonical momentum (band + trend + overdue). Risk messaging now varies by state: thriving→protect consistency; stable→keep consistency / don't miss a milestone; drifting→execution declined; stalled→losing momentum; failing→needs intervention. Steady/strong goals never get crisis language. State is exposed in `goal_evidence` for narration.
+
+3. **Highest-leverage actions (Task 3):** `recommended_action` follows precedence — strongest negative driver → active-milestone execution lever → milestone-grounded step. A weight-milestone goal with workout consistency as the lever yields "complete today's scheduled workout", never "work on your goal".
+
+4. **Generic language eliminated (Task 4):** filtered out onboarding momentum-driver labels ("take your first action today", "getting started", "start a habit", "building your data profile", "no tasks due") so they can never become a "risk driver" or recommendation; removed "take one step / make progress / work on your goal / plan your goal / advance the goal / support your mission" from milestoned-goal output.
+
+**Files:** `apps/core/ai_state/state_builder.py` (state classification, generic-driver filter, action precedence), `apps/ai/chatgpt_cos/reasoning/stages.py` (state-based ranking, curator state exposure, no-generic fallbacks), `apps/ai/tests/test_goals_reasoning.py`. Canonical engines only (P24); no recompute; no model change — no migration; Health byte-identical.
+
+**Verification:** 75 goals tests (5-state risk language, healthy-momentum-suppresses-habit-gap, milestone-grounded actions for every state, generic-language-never-when-evidence, generic-driver-label filtering, routing unchanged) + 202-test reasoning/lane/facts/mission regression all green; `check` clean; `makemigrations --check` = no changes.
+
+
 ## 2026-06-26 — fix(cos): goal pre-router resilience (deictic-first + DB title fallback + telemetry)
 
 Runtime investigation proved the deployed named-goal pre-router was silently no-opping because it received an EMPTY title list at request time (the warm goals SAE snapshot read returned status="pending"/state=None), so `named_goal_intent` returned None for every goal question — and the planner then stole them (Q1 "How is my France 2027… Mission progressing?" → Health overall_progress; Q2 "How is my mission going?" → planner declines → tool loop → empty). Q2 being empty was itself the proof: with titles loaded both questions deterministically resolve to goals_progress, so titles were empty.

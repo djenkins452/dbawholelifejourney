@@ -1429,7 +1429,42 @@ _GENERIC_PLANNING_REC = (
     "take one step", "take one concrete action", "make progress",
     "plan the goal", "plan your goal", "outline next steps", "outline the next",
     "work on the goal", "work on your goal", "figure out next steps",
+    "take your first action", "support your mission", "advance the goal",
 )
+
+# Onboarding/empty-state momentum-driver labels that are system NUDGES, not real
+# evidence of a drag. They must never become a "risk driver" or a recommendation
+# (e.g. "your mission is progressing, but take your first action today could slow
+# it" — the label is generic, not a real risk).
+_GENERIC_DRIVER_LABELS = (
+    "getting started", "take your first action", "start a habit",
+    "build a habit", "build consistent daily habits", "building your data profile",
+    "no tasks due", "start a habit to build momentum",
+)
+
+
+def _is_generic_driver(label):
+    l = (label or "").lower()
+    return any(g in l for g in _GENERIC_DRIVER_LABELS)
+
+
+def _classify_goal_state(band, trend, is_overdue, progress_band):
+    """Deterministic goal STATE from canonical momentum evidence:
+    thriving > stable > drifting > stalled > failing. Drives state-appropriate
+    risk language — steady/strong goals never get crisis framing."""
+    if is_overdue:
+        return "failing"
+    if band == "low" and trend == "falling":
+        return "failing"
+    if band == "low":
+        return "stalled"
+    if trend == "falling":
+        return "drifting"
+    if band == "strong" or trend == "rising":
+        return "thriving"
+    if band in ("moderate", "strong"):
+        return "stable"
+    return "stable"
 
 
 def _build_goal_context(goal):
@@ -1536,21 +1571,19 @@ def build_goal_state(user):
         s = int(score)
         return "strong" if s >= 67 else "moderate" if s >= 34 else "low"
 
-    def _evidence_from_snapshot(snap, phase=None, has_milestones=False):
+    def _evidence_from_snapshot(snap, phase=None, has_milestones=False,
+                                is_overdue=False):
         """Goal Evidence Narrative composed from the persisted nightly snapshot
-        (READ-ONLY — never recomputed here): current phase, success/risk drivers,
-        a momentum summary, and an evidence-based recommended next action. Each
-        driver is the momentum engine's own user-safe label; no raw 0-100 score is
-        exposed. Beth narrates this verdict (P24 / briefing-consumer pattern).
-
-        The recommended action is grounded in (1) the active milestone / phase,
-        (2) momentum evidence, (3) risk drivers — in that precedence. A goal that
-        already has milestones (has_milestones / phase) NEVER receives generic
-        planning advice (Fix #3)."""
+        (READ-ONLY — never recomputed here): goal STATE, current phase, success/
+        risk drivers, momentum summary, and the highest-leverage next action. Each
+        driver is the momentum engine's own user-safe label; generic onboarding
+        nudges are filtered out; no raw 0-100 score is exposed. A goal that already
+        has milestones NEVER receives generic planning/habit advice."""
         if snap is None:
             return None
         band = _momentum_band(snap.momentum_score)
         trend = snap.momentum_trend or None
+        progress_band = _momentum_band(snap.progress_score)
         raw = snap.drivers if isinstance(snap.drivers, dict) else {}
         success, risk, all_labels = [], [], []
         for _comp, info in raw.items():
@@ -1559,17 +1592,18 @@ def build_goal_state(user):
             score = info.get("score")
             label = (info.get("label") or "").strip()
             sig_labels = [s.strip() for s in (info.get("signal_labels") or [])
-                          if isinstance(s, str) and s.strip()]
-            if label:
+                          if isinstance(s, str) and s.strip()
+                          and not _is_generic_driver(s)]
+            if label and not _is_generic_driver(label):
                 all_labels.append(label)
             if score is None:
                 continue
             if score >= 60:
-                if label:
+                if label and not _is_generic_driver(label):
                     success.append(label)
                 success.extend(sig_labels)
-            elif score <= 35 and label:
-                risk.append(label)
+            elif score <= 35 and label and not _is_generic_driver(label):
+                risk.append(label)         # only REAL drags, never system nudges
 
         def _dedupe(seq):
             seen, out = set(), []
@@ -1581,6 +1615,8 @@ def build_goal_state(user):
         success = _dedupe(success)[:4]
         risk = _dedupe(risk)[:3]
 
+        state = _classify_goal_state(band, trend, is_overdue, progress_band)
+
         # Momentum summary — coaching language only (never the raw score).
         base = {"strong": "strong momentum", "moderate": "steady momentum",
                 "low": "low momentum"}.get(band, "in progress")
@@ -1589,36 +1625,39 @@ def build_goal_state(user):
         elif trend == "falling":
             base += " but slipping"
 
-        # Evidence-based recommended next action, tied to the actual drag (or, if
-        # none, to advancing the current phase).
-        rtext = " ".join(risk).lower()
-        if any(k in rtext for k in ("workout", "exercise", "consistency", "activity")):
-            rec = "add one more workout this week to keep the trend moving"
-        elif "habit" in rtext:
-            rec = "complete one supporting habit today"
-        elif "task" in rtext:
-            rec = "knock out one of the outstanding tasks today"
-        elif any(k in rtext for k in ("nutrition", "macro", "fasting")):
-            rec = "hit your nutrition target at your next meal"
-        elif "sleep" in rtext:
-            rec = "protect a consistent bedtime tonight"
-        elif phase:
-            rec = f"take the next concrete step on your current milestone, \"{phase}\""
-        elif band in ("strong", "moderate") and trend != "falling":
-            rec = "keep your current routine going and log today's progress"
-        else:
-            rec = "take one concrete action toward this goal today"
-
-        # Fix #3 guard: a goal WITH planning structure (an active milestone) must
-        # never get generic planning advice — anchor the next step to the milestone.
-        if (has_milestones or phase) and any(
-                g in rec.lower() for g in _GENERIC_PLANNING_REC):
-            anchor = phase or "your current milestone"
-            rec = f"take the next concrete step on your current milestone, \"{anchor}\""
+        # Highest-leverage next action (Task 3 precedence): strongest negative
+        # driver → active-milestone execution lever → milestone-grounded step.
+        # Milestoned goals NEVER get generic/habit advice (Tasks 1 & 4).
+        neg = " ".join(risk).lower()
+        alld = " ".join(success + risk).lower()
+        rec = None
+        for kw, act in (("workout", "complete today's scheduled workout"),
+                        ("exercise", "complete today's scheduled workout"),
+                        ("consistency", "complete today's scheduled workout"),
+                        ("activity", "complete today's scheduled workout"),
+                        ("nutrition", "hit your nutrition target at your next meal"),
+                        ("macro", "hit your nutrition target at your next meal"),
+                        ("fasting", "stay within your fasting window today"),
+                        ("sleep", "protect a consistent bedtime tonight"),
+                        ("task", "complete one task tied to this milestone today")):
+            if kw in neg:
+                rec = act
+                break
+        if rec is None and ("workout" in alld or "exercise" in alld):
+            rec = "complete today's scheduled workout"   # the milestone's execution lever
+        if rec is None and phase:
+            rec = f"take the concrete next step on your current milestone, \"{phase}\""
+        if rec is None and has_milestones:
+            rec = "take the concrete next step on your current milestone"
+        if rec is None:
+            # Truly no milestone and no driver evidence — the ONE acceptable
+            # "planning" nudge (Task 1: only when planning genuinely absent).
+            rec = "define your first milestone so this goal has a concrete next step"
 
         return {
+            "state": state,
             "momentum": band,
-            "progress": _momentum_band(snap.progress_score),
+            "progress": progress_band,
             "trend": trend,
             "phase": phase,
             "success_drivers": success,
@@ -1654,13 +1693,14 @@ def build_goal_state(user):
         # prefetched relation (no extra query). Phase = the active milestone.
         ctx = _build_goal_context(goal)
         phase = ctx["current_phase"]
+        is_overdue = bool(target and target < today)
         entry = {
             'title': title,
             'target_date': target.isoformat() if target else None,
             'is_foundational': bool(is_foundational),
             'context': ctx,
             'evidence': _evidence_from_snapshot(
-                latest_snap.get(goal.id), phase, ctx["has_milestones"]),
+                latest_snap.get(goal.id), phase, ctx["has_milestones"], is_overdue),
         }
         active_titles.append(entry)
         if target:
@@ -1701,7 +1741,9 @@ def build_goal_state(user):
             if m_target and m_target > today else None,
             "context": m_ctx,
             "evidence": _evidence_from_snapshot(
-                snap, nm.title if nm else None, m_ctx["has_milestones"]),
+                snap, m_ctx["current_phase"] or (nm.title if nm else None),
+                m_ctx["has_milestones"],
+                bool(m_target and m_target < today)),
         }
 
     return state

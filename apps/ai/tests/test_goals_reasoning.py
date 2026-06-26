@@ -38,13 +38,13 @@ GOALS_FIXTURE = {
         "next_deadline": "2026-06-30",
         "active_titles": [
             {"title": "Lose 20 lbs", "target_date": "2026-09-01", "is_foundational": True,
-             "evidence": {"momentum": "strong", "trend": "rising",
+             "evidence": {"state": "thriving", "momentum": "strong", "trend": "rising",
                           "phase": "Cutting phase", "momentum_summary": "strong momentum and building",
                           "success_drivers": ["weight trending down"], "risk_drivers": [],
                           "recommended_action": "keep your current routine going and log today's progress",
                           "as_of": "2026-06-25"}},
             {"title": "Write a book", "target_date": "2026-12-01", "is_foundational": False,
-             "evidence": {"momentum": "moderate", "trend": "stable",
+             "evidence": {"state": "stable", "momentum": "moderate", "trend": "stable",
                           "phase": "Drafting", "momentum_summary": "steady momentum",
                           "success_drivers": ["2 milestones completed"], "risk_drivers": [],
                           "recommended_action": "take the next concrete step toward \"Drafting\"",
@@ -57,7 +57,7 @@ GOALS_FIXTURE = {
         ],
         "mission": {"title": "Become a published author",
                     "momentum_score": 42, "next_milestone": {"id": 99},
-                    "evidence": {"momentum": "moderate", "trend": "stable",
+                    "evidence": {"state": "stable", "momentum": "moderate", "trend": "stable",
                                  "phase": "Drafting", "momentum_summary": "steady momentum",
                                  "success_drivers": ["2 milestones completed"], "risk_drivers": [],
                                  "recommended_action": "take the next concrete step toward \"Drafting\"",
@@ -86,7 +86,7 @@ MISSION_STALLED_FIXTURE = {
         "overdue_goal_count": 0,
         "active_titles": [{"title": "France 2027 Family 18K Mission",
                            "target_date": None, "is_foundational": True,
-                           "evidence": {"momentum": "low", "trend": "falling",
+                           "evidence": {"state": "stalled", "momentum": "low", "trend": "falling",
                                         "phase": "Weight-loss foundation phase",
                                         "momentum_summary": "low momentum but slipping",
                                         "success_drivers": [],
@@ -98,7 +98,7 @@ MISSION_STALLED_FIXTURE = {
         "mission": {"title": "France 2027 Family 18K Mission",
                     "current_focus": None, "momentum_trend": "falling",
                     "days_remaining": None,
-                    "evidence": {"momentum": "low", "trend": "falling",
+                    "evidence": {"state": "stalled", "momentum": "low", "trend": "falling",
                                  "phase": "Weight-loss foundation phase",
                                  "momentum_summary": "low momentum but slipping",
                                  "success_drivers": [],
@@ -117,13 +117,14 @@ MISSION_STALLED_FIXTURE = {
 # achieved, exercise consistency) with a specific, evidence-flagged drag (light
 # workout frequency) and a clear phase. Beth must narrate THIS, not portfolio %.
 FRANCE_EVIDENCE = {
+    "state": "stable",
     "momentum": "moderate", "trend": "stable",
     "phase": "Weight-loss foundation phase",
     "momentum_summary": "steady momentum",
     "success_drivers": ["weight trending down", "milestone achieved",
                         "exercise consistency"],
     "risk_drivers": ["workout frequency is light"],
-    "recommended_action": "add one more workout this week to keep the trend moving",
+    "recommended_action": "complete today's scheduled workout",
     "as_of": "2026-06-25",
 }
 
@@ -282,7 +283,7 @@ class GoalsAntiCollapseTests(SimpleTestCase):
                             for k in ("%", "deadline", "follow-through", "target date")))
 
     def test_inv5_focus_ends_with_concrete_24h_action(self):
-        self.assertIn("one concrete step", self.focus.lower())
+        self.assertIn("highest-leverage move", self.focus.lower())
         # concrete, not vague
         for vague in ("work on your goals", "make progress", "stay active"):
             self.assertNotIn(vague, self.focus.lower())
@@ -455,7 +456,7 @@ class GoalsGoalFirstTests(SimpleTestCase):
     def test_4_focus_today_ends_with_concrete_action(self):
         for fx in (GOALS_FIXTURE, MISSION_STALLED_FIXTURE):
             out = stages._goals_focus_today_fallback(_wm(fx))
-            self.assertIn("one concrete step:", out.lower())
+            self.assertIn("highest-leverage move", out.lower())
 
     def test_5_biggest_risk_references_exactly_one_goal(self):
         out = stages._goal_risk_fallback(_wm(GOALS_FIXTURE))
@@ -531,18 +532,21 @@ class GoalsEvidenceFirstTests(SimpleTestCase):
         self.assertNotIn("isn't backed by a routine", blob)
         self.assertNotIn("overall goal completion", blob)
 
-    def test_biggest_risk_is_evidence_driver_not_metadata(self):
-        # The France headline is the engine's specific drag, naming the goal.
+    def test_biggest_risk_is_state_based_not_crisis(self):
+        # France is STABLE -> a consistency/maintenance risk (Task 2), naming the
+        # goal, with NO crisis language and NO generic/portfolio nag.
         risk = stages._goal_risk_fallback(_wm(FRANCE_HEALTHY_FIXTURE))
         self.assertIn("France 2027 Family 18K Mission", risk)
-        self.assertIn("workout frequency is light", risk)
+        self.assertIn("steadily", risk.lower())             # stable-state framing
+        for crisis in ("intervention", "failing", "crisis", "abandon"):
+            self.assertNotIn(crisis, risk.lower())
         for g in self._GENERIC:
             self.assertNotIn(g, risk.lower())
 
     def test_focus_today_uses_recommended_action(self):
         out = stages._goals_focus_today_fallback(_wm(FRANCE_HEALTHY_FIXTURE))
         self.assertIn("France 2027 Family 18K Mission", out)
-        self.assertIn("add one more workout this week", out)   # the driver action
+        self.assertIn("complete today's scheduled workout", out)   # milestone lever
         for g in self._GENERIC:
             self.assertNotIn(g, out.lower())
 
@@ -551,10 +555,11 @@ class GoalsEvidenceFirstTests(SimpleTestCase):
               .get("goal_evidence") or [])
         self.assertTrue(ev)
         item = ev[0]
+        self.assertEqual(item["state"], "stable")
         self.assertEqual(item["phase"], "Weight-loss foundation phase")
         self.assertIn("weight trending down", item.get("whats_working", []))
         self.assertIn("workout frequency is light", item.get("watch", []))
-        self.assertIn("add one more workout this week", item.get("recommended_action", ""))
+        self.assertIn("workout", item.get("recommended_action", "").lower())
 
     def test_evidence_backed_stall_outranks_metadata(self):
         ranked = self._ranked(MISSION_STALLED_FIXTURE)
@@ -581,10 +586,13 @@ class GoalsEvidenceFirstTests(SimpleTestCase):
             self.assertNotIn(g, blob, f"generic coaching leaked with evidence: {g}")
 
     def test_no_raw_momentum_json_or_scores_leak(self):
+        # NB: the goal STATE words (thriving/stable/drifting/stalled/failing) are
+        # intentional coaching vocabulary, not a leak. We forbid raw momentum
+        # TREND enums, raw scores, and internal JSON keys.
         for fx in (GOALS_FIXTURE, MISSION_STALLED_FIXTURE, FRANCE_HEALTHY_FIXTURE):
             blob = json.dumps(stages.goals_working_memory(fx))
             for forbidden in ("momentum_score", "progress_score", "snapshot",
-                              "\"rising\"", "\"falling\"", "\"stable\"", "\"moderate\"",
+                              "\"rising\"", "\"falling\"", "\"moderate\"",
                               "as_of", "signal_scores", "success_drivers", "risk_drivers"):
                 self.assertNotIn(forbidden, blob, f"leaked: {forbidden}")
 
@@ -595,6 +603,74 @@ class GoalsEvidenceFirstTests(SimpleTestCase):
                        stages._goal_concerns_fallback, stages._goals_focus_today_fallback):
                 out = fb(wm)
                 self.assertTrue(out and len(out) > 20)
+
+
+# ---------------------------------------------------------------------------
+# Task 2 — goal STATE risk language (thriving/stable/drifting/stalled/failing).
+# Steady/strong goals get consistency/maintenance risks, never crisis language.
+# ---------------------------------------------------------------------------
+class GoalStateRiskTests(SimpleTestCase):
+    _CRISIS = ("intervention", "failing", "crisis", "at risk of failing", "abandon")
+
+    def _fixture(self, state, momentum, trend, overdue=False):
+        ev = {"state": state, "momentum": momentum, "trend": trend,
+              "phase": "Foundation phase", "momentum_summary": momentum + " momentum",
+              "success_drivers": ["weight trending down"], "risk_drivers": [],
+              "recommended_action": "complete today's scheduled workout"}
+        gs = {"active_goal_count": 1, "completion_rate": 0.5,
+              "overdue_goal_count": 1 if overdue else 0,
+              "active_titles": [{"title": "My Goal", "target_date": None, "evidence": ev}],
+              "upcoming_titles": [], "overdue_titles":
+                  ([{"title": "My Goal", "days_overdue": 5}] if overdue else []),
+              "mission": {"title": "My Goal", "evidence": ev}}
+        return {"goals_state": {"state": gs},
+                "habits_state": {"state": {"active_habit_count": 1,
+                                           "avg_completion_rate": 0.6,
+                                           "streaks_per_habit": []}}}
+
+    def _risk(self, state, momentum, trend, overdue=False):
+        return stages._goal_risk_fallback(
+            _wm(self._fixture(state, momentum, trend, overdue))).lower()
+
+    def test_thriving_gets_consistency_not_crisis(self):
+        r = self._risk("thriving", "strong", "rising")
+        self.assertIn("thriving", r)
+        self.assertIn("consistency", r)
+        for c in self._CRISIS:
+            self.assertNotIn(c, r)
+
+    def test_stable_gets_maintenance_risk(self):
+        r = self._risk("stable", "moderate", "stable")
+        self.assertIn("steadily", r)
+        for c in self._CRISIS:
+            self.assertNotIn(c, r)
+
+    def test_drifting_gets_execution_decline(self):
+        r = self._risk("drifting", "moderate", "falling")
+        self.assertIn("drifting", r)
+        self.assertIn("execution", r)
+
+    def test_stalled_gets_losing_momentum(self):
+        r = self._risk("stalled", "low", "stable")
+        self.assertIn("stalled", r)
+        self.assertIn("losing momentum", r)
+
+    def test_failing_gets_intervention(self):
+        r = self._risk("failing", "low", "falling")
+        self.assertIn("intervention", r)
+
+    def test_action_is_milestone_grounded_for_every_state(self):
+        for state, m, t in (("thriving", "strong", "rising"),
+                            ("stable", "moderate", "stable"),
+                            ("drifting", "moderate", "falling"),
+                            ("stalled", "low", "stable"),
+                            ("failing", "low", "falling")):
+            out = stages._goals_focus_today_fallback(
+                _wm(self._fixture(state, m, t))).lower()
+            self.assertIn("workout", out)                 # the milestone lever
+            for g in ("take one step", "make progress", "work on your goal",
+                      "plan your goal", "take your first action", "supporting habit"):
+                self.assertNotIn(g, out)
 
 
 # ---------------------------------------------------------------------------
@@ -632,7 +708,10 @@ class BuildGoalStateEvidenceTests(TestCase):
                 "domain_signals": {"score": 80, "label": "Weight trend: down",
                                    "signal_labels": ["weight trending down",
                                                      "3 workouts this week"]},
-                "habits": {"score": 20, "label": "Start a habit to build momentum"},
+                # A REAL low-scoring drag (NOT a generic onboarding nudge).
+                "consistency": {"score": 20, "label": "Workout consistency: 30%"},
+                # A generic nudge that MUST be filtered out of risk_drivers.
+                "habits": {"score": 15, "label": "Start a habit to build momentum"},
             })
         # Two more (with snapshots) so the N+1 test has multiple goals.
         for i in range(2):
@@ -665,11 +744,16 @@ class BuildGoalStateEvidenceTests(TestCase):
         from apps.core.ai_state.state_builder import build_goal_state
         ev = self._france_entry(build_goal_state(self.user)).get("evidence")
         self.assertEqual(ev["phase"], "Build base")                       # milestone
+        self.assertEqual(ev["state"], "thriving")                         # strong+rising
         self.assertIn("weight trending down", ev["success_drivers"])      # high-score
-        self.assertIn("Start a habit to build momentum", ev["risk_drivers"])  # low-score
-        self.assertTrue(ev["recommended_action"])
-        # recommendation is tied to the risk driver (habit), not generic
-        self.assertIn("habit", ev["recommended_action"].lower())
+        self.assertIn("Workout consistency: 30%", ev["risk_drivers"])     # REAL drag
+        # generic onboarding nudge is filtered OUT of risk drivers (Tasks 1 & 4)
+        self.assertNotIn("Start a habit to build momentum", ev["risk_drivers"])
+        # recommendation is milestone/execution-grounded, never generic/habit
+        self.assertIn("workout", ev["recommended_action"].lower())
+        for g in ("create a supporting habit", "take one step", "plan your goal",
+                  "take your first action"):
+            self.assertNotIn(g, ev["recommended_action"].lower())
 
     def test_no_recompute_on_request_path(self):
         # build_goal_state must READ the nightly snapshot, never recompute it.

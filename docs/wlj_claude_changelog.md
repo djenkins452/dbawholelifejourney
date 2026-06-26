@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — fix(cos): goal pre-router resilience (deictic-first + DB title fallback + telemetry)
+
+Runtime investigation proved the deployed named-goal pre-router was silently no-opping because it received an EMPTY title list at request time (the warm goals SAE snapshot read returned status="pending"/state=None), so `named_goal_intent` returned None for every goal question — and the planner then stole them (Q1 "How is my France 2027… Mission progressing?" → Health overall_progress; Q2 "How is my mission going?" → planner declines → tool loop → empty). Q2 being empty was itself the proof: with titles loaded both questions deterministically resolve to goals_progress, so titles were empty.
+
+Four fixes:
+1. **Deictic-first** (`named_goal_intent`): "my mission"/"this goal"/"that goal" now route to Goals BEFORE the title check — goal deixis no longer depends on titles existing (fixes Q2 with a cold snapshot). Function now returns `(intent, matched)`.
+2. **Resilient DB title fallback** (`preroute_named_goal` + `_active_goal_titles_db`): when the snapshot yields no titles, read active-goal/mission titles directly from `LifeGoal` (titles only, one indexed query — a READ, no recompute, no SAE build; P24). Recovers named-title matching (fixes Q1) even when the snapshot is cold or the read throws.
+3. **Intent inference** (`_infer_named_goal_intent`): "focus on"/"focus for"/"what should i focus" → `goals_focus_today` (fixes Q3 routing to a progress summary).
+4. **Telemetry**: structured `BETH_GOAL_ROUTE_START / _RESULT / _FALLBACK / _NO_MATCH` logging (message, snapshot status, snapshot title count, DB fallback count, matched title, selected intent, whether the router fired) — closes the one remaining unknown (why titles were empty: warm-failure vs empty active_titles) with production evidence.
+
+**Files:** `apps/ai/chatgpt_cos/reasoning/plan.py`, `apps/ai/tests/test_goals_reasoning.py`. No model change — no migration; Health untouched (byte-identical); no routing-registry change.
+
+**Verification:** 69 goals tests (deictic-without-titles, DB fallback on empty snapshot + on read failure, focus-on-for-this-goal → focus_today, no-goals → None, health/general/rhythm unchanged, no Health takeover) + 196-test reasoning/lane/facts/mission regression all green; `check` clean; `makemigrations --check` = no changes.
+
+
 ## 2026-06-26 — fix(cos): named-goal pre-router + rich goal context for Goals reasoning
 
 **Why (two accepted root causes):**

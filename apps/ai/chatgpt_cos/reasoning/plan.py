@@ -205,7 +205,9 @@ def _infer_named_goal_intent(text):
     """Pick the goal intent for a message ALREADY known to be about a named goal.
     Generic cues (no 'goal' keyword required, since the subject is established)."""
     if any(k in text for k in ("what should i do", "focus on today", "do today",
-                               "work on today", "action today", "next step today")):
+                               "work on today", "action today", "next step today",
+                               "what should i focus", "focus on", "focus for",
+                               "focus on for", "what to focus", "where to focus")):
         return "goals_focus_today"
     if any(k in text for k in ("biggest", "most at risk", "at risk", "worried",
                                "behind on", "in trouble")):
@@ -217,61 +219,110 @@ def _infer_named_goal_intent(text):
 
 
 def named_goal_intent(message, goal_titles, mission_title=None):
-    """Deterministic pre-router decision (pure — no DB). Returns a forced GOAL
-    intent when the message references a named active goal/mission or uses a goal
-    deictic, else None.
+    """Deterministic pre-router decision (pure — no DB). Returns (intent, matched)
+    where `intent` is a forced GOAL intent (or None) and `matched` is the title
+    string that matched (or "<deictic>" / None). Backward-compatible: callers may
+    use the truthiness of the returned intent.
 
-    Gates (so it cannot steal unrelated questions):
-      - goal-context-gated: returns None unless the user actually has goal titles;
-      - title matching is length-gated (>= _MIN_TITLE_MATCH_LEN) and word-boundary
-        matched, and a bare domain-collision word title (e.g. "Health") is skipped.
+    DEICTIC-FIRST: an unambiguous goal deictic ("my mission", "this goal", …) is
+    OWNED by Goals and routes WITHOUT any title — goal deixis must not depend on
+    titles existing (root cause: empty request-path snapshot). Title matching is
+    the secondary path, length-gated and collision-guarded so it never steals an
+    unrelated (e.g. health) question.
     """
     text = (message or "").lower().strip()
     if not text:
-        return None
+        return None, None
+
+    # 1) Deictic — title-INDEPENDENT (must work with a cold/empty snapshot).
+    if any(d in text for d in _GOAL_DEICTIC):
+        return _infer_named_goal_intent(text), "<deictic>"
+
+    # 2) Named-title match (secondary).
     titles = [str(t).strip() for t in (goal_titles or []) if t]
     if mission_title:
         titles.append(str(mission_title).strip())
-    if not titles:                       # goal-context-gated
-        return None
+    for t in titles:
+        tl = t.lower()
+        if len(tl) < _MIN_TITLE_MATCH_LEN:
+            continue
+        if " " not in tl and tl in _DOMAIN_COLLISION_WORDS:
+            continue                     # bare domain word — never steal that domain
+        if re.search(r"\b" + re.escape(tl) + r"\b", text):
+            return _infer_named_goal_intent(text), t
+    return None, None
 
-    matched = any(d in text for d in _GOAL_DEICTIC)
-    if not matched:
-        for t in titles:
-            tl = t.lower()
-            if len(tl) < _MIN_TITLE_MATCH_LEN:
-                continue
-            if " " not in tl and tl in _DOMAIN_COLLISION_WORDS:
-                continue                 # bare domain word — never steal that domain
-            if re.search(r"\b" + re.escape(tl) + r"\b", text):
-                matched = True
-                break
-    if not matched:
-        return None
-    return _infer_named_goal_intent(text)
+
+def _active_goal_titles_db(user):
+    """Lightweight canonical fallback: read active goal/mission titles DIRECTLY
+    from the DB (titles only, one indexed query — a READ, never a recompute or SAE
+    build; P24-compliant). Used only when the request-path snapshot has no titles.
+    Returns (titles, mission_title)."""
+    try:
+        from apps.purpose.models import LifeGoal
+        rows = list(LifeGoal.objects.filter(user=user, status="active")
+                    .values_list("title", "is_primary_mission")[:25])
+    except Exception:
+        logger.warning("BETH_GOAL_ROUTE_DB_FALLBACK_FAILED user=%s",
+                       getattr(user, "id", None), exc_info=True)
+        return [], None
+    titles = [t for t, _ in rows if t]
+    mission_title = next((t for t, primary in rows if primary and t), None)
+    return titles, mission_title
 
 
 def preroute_named_goal(user, message):
-    """Pre-router wrapper: read canonical goal/mission titles READ-ONLY (snapshot,
-    never recomputed on the request path) and apply named_goal_intent. Returns a
-    forced GOAL intent or None. Any read failure degrades safely to None (the
-    planner then runs as usual)."""
+    """Pre-router: a question that names an active goal/mission — or uses a goal
+    deictic — is OWNED by Goals. Reads canonical titles READ-ONLY (snapshot first,
+    then a lightweight DB title read if the snapshot is cold). Returns a forced
+    GOAL intent or None. Fully instrumented (BETH_GOAL_ROUTE_*)."""
     if not message:
         return None
+    uid = getattr(user, "id", None)
+    logger.info("BETH_GOAL_ROUTE_START user=%s qlen=%d msg=%r",
+                uid, len(message or ""), (message or "")[:140])
+
+    # 1) Snapshot (warm, read-only).
+    snap_status, snap_titles, mission_title = "error", [], None
     try:
         from apps.ai.cos_services import get_domain_state
-        envelope = get_domain_state(user, "purpose")  # allow_build=False (read-only)
+        envelope = get_domain_state(user, "purpose")  # allow_build=False
+        snap_status = envelope.get("status") if isinstance(envelope, dict) else "error"
+        state = envelope.get("state") if isinstance(envelope, dict) else None
+        state = state if isinstance(state, dict) else {}
+        snap_titles = [t.get("title") for t in (state.get("active_titles") or [])
+                       if isinstance(t, dict) and t.get("title")]
+        mission = state.get("mission")
+        mission_title = mission.get("title") if isinstance(mission, dict) else None
     except Exception:
-        logger.warning("COS_GOAL_PREROUTE_STATE_FAILED user=%s",
-                       getattr(user, "id", None), exc_info=True)
-        return None
-    state = envelope.get("state") if isinstance(envelope, dict) else None
-    state = state if isinstance(state, dict) else {}
-    titles = [t.get("title") for t in (state.get("active_titles") or [])
-              if isinstance(t, dict) and t.get("title")]
-    mission = state.get("mission")
-    mission_title = mission.get("title") if isinstance(mission, dict) else None
-    return named_goal_intent(message, titles, mission_title)
+        logger.warning("BETH_GOAL_ROUTE_STATE_FAILED user=%s", uid, exc_info=True)
+
+    intent, matched = named_goal_intent(message, snap_titles, mission_title)
+
+    # 2) DB title fallback — only if the snapshot gave us nothing to match on AND
+    #    the deictic path didn't already resolve it.
+    db_count = 0
+    if intent is None and not snap_titles:
+        db_titles, db_mission = _active_goal_titles_db(user)
+        db_count = len(db_titles)
+        if db_titles or db_mission:
+            intent, matched = named_goal_intent(message, db_titles, db_mission)
+            if intent is not None:
+                logger.info(
+                    "BETH_GOAL_ROUTE_FALLBACK user=%s db_titles=%d matched=%r intent=%s",
+                    uid, db_count, matched, intent)
+
+    if intent is not None:
+        logger.info(
+            "BETH_GOAL_ROUTE_RESULT user=%s fired=True snap_status=%s "
+            "snap_titles=%d db_titles=%d matched=%r intent=%s",
+            uid, snap_status, len(snap_titles), db_count, matched, intent)
+        return intent
+
+    logger.info(
+        "BETH_GOAL_ROUTE_NO_MATCH user=%s fired=False snap_status=%s "
+        "snap_titles=%d db_titles=%d", uid, snap_status, len(snap_titles), db_count)
+    return None
 
 
 def synthesize_plan(intent):

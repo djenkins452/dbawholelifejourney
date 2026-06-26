@@ -714,8 +714,10 @@ class NamedGoalPrerouteDecisionTests(SimpleTestCase):
     TITLES = ["France 2027", "Write a book"]
     MISSION = "Become a published author"
 
-    def _route(self, msg):
-        return planmod.named_goal_intent(msg, self.TITLES, self.MISSION)
+    def _route(self, msg, titles=None, mission=None):
+        titles = self.TITLES if titles is None else titles
+        mission = self.MISSION if mission is None else mission
+        return planmod.named_goal_intent(msg, titles, mission)[0]   # (intent, matched)
 
     def test_named_goal_progress_routes_to_goals(self):
         # (1) named-goal progress questions route to Goals, not Health.
@@ -739,6 +741,15 @@ class NamedGoalPrerouteDecisionTests(SimpleTestCase):
         self.assertEqual(self._route("what should i do today for France 2027"),
                          "goals_focus_today")
 
+    def test_focus_on_for_this_goal_routes_to_focus_today(self):
+        # Defect C: "focus on" / "focus for" with a goal reference -> focus_today.
+        self.assertEqual(self._route("what should i focus on for this goal"),
+                         "goals_focus_today")
+        self.assertEqual(self._route("what should i focus on for France 2027"),
+                         "goals_focus_today")
+        self.assertEqual(self._route("what to focus on for this mission"),
+                         "goals_focus_today")
+
     def test_health_questions_never_routed_to_goals(self):
         # (3) Health questions still route to Health (pre-router returns None,
         # leaving the existing health path untouched). Includes the "goal weight"
@@ -756,18 +767,24 @@ class NamedGoalPrerouteDecisionTests(SimpleTestCase):
                     "thanks", "remind me to call mom"):
             self.assertIsNone(self._route(msg), msg)
 
-    def test_goal_context_gated(self):
-        # No active goals/mission -> nothing to own, even for explicit deixis.
-        self.assertIsNone(planmod.named_goal_intent("how is my mission going", [], None))
-        self.assertIsNone(planmod.named_goal_intent("how is France 2027 going", [], None))
+    def test_deictic_routes_without_titles(self):
+        # Defect A fix: an unambiguous goal deictic routes to Goals even when NO
+        # titles are loaded (cold/empty snapshot). This is the Q2 ("how is my
+        # mission going") fix — it must NOT depend on titles existing.
+        self.assertEqual(self._route("how is my mission going", titles=[], mission=None),
+                         "goals_progress")
+        self.assertEqual(self._route("what should i focus on for this goal",
+                                     titles=[], mission=None), "goals_focus_today")
+        # A NAMED title with no titles loaded still can't match (needs the title) —
+        # the DB fallback (wrapper) covers that case.
+        self.assertIsNone(self._route("how is France 2027 going", titles=[], mission=None))
 
     def test_title_gates_prevent_stealing(self):
         # A goal literally named "Health" must NOT steal the health question
         # (bare domain-collision word); short titles are length-gated out.
-        self.assertIsNone(
-            planmod.named_goal_intent("what is my biggest health risk", ["Health"], None))
-        self.assertIsNone(
-            planmod.named_goal_intent("how is it going", ["ab"], None))
+        self.assertIsNone(self._route("what is my biggest health risk",
+                                      titles=["Health"], mission=None))
+        self.assertIsNone(self._route("how is it going", titles=["ab"], mission=None))
 
 
 class NamedGoalPrerouteWrapperTests(TestCase):
@@ -795,19 +812,45 @@ class NamedGoalPrerouteWrapperTests(TestCase):
         GoalMilestone.objects.create(goal=g, title="Build aerobic base", completed=False)
 
     @patch("apps.ai.cos_services.get_domain_state")
-    def test_wrapper_routes_named_goal_and_ignores_health(self, mock_gds):
+    def test_wrapper_routes_named_goal_with_populated_snapshot(self, mock_gds):
         from apps.core.ai_state.state_builder import build_goal_state
-        mock_gds.return_value = {"state": build_goal_state(self.user)}
+        mock_gds.return_value = {"status": "ready", "state": build_goal_state(self.user)}
         self.assertEqual(
             planmod.preroute_named_goal(self.user, "how is France 2027 progressing"),
             "goals_progress")
         self.assertIsNone(
             planmod.preroute_named_goal(self.user, "what is my biggest health risk"))
-        # read-only canonical source (allow_build defaults to False).
         self.assertTrue(mock_gds.called)
 
+    @patch("apps.ai.cos_services.get_domain_state",
+           return_value={"status": "pending", "state": None})
+    def test_wrapper_db_fallback_on_empty_snapshot(self, _mock):
+        # Root cause: cold/pending snapshot -> no titles. The DB fallback must
+        # recover the named goal, and the deictic must route with no titles.
+        self.assertEqual(
+            planmod.preroute_named_goal(self.user, "how is France 2027 going"),
+            "goals_progress")                                   # DB title fallback
+        self.assertEqual(
+            planmod.preroute_named_goal(self.user, "how is my mission going"),
+            "goals_progress")                                   # deictic, no titles
+        self.assertEqual(
+            planmod.preroute_named_goal(self.user, "what should i focus on for this goal"),
+            "goals_focus_today")
+        self.assertIsNone(
+            planmod.preroute_named_goal(self.user, "what is my biggest health risk"))
+
     @patch("apps.ai.cos_services.get_domain_state", side_effect=RuntimeError("boom"))
-    def test_wrapper_degrades_safely_on_read_failure(self, _mock):
+    def test_wrapper_db_fallback_on_read_failure(self, _mock):
+        # Snapshot read throws -> degrade to the DB title fallback, still route.
+        self.assertEqual(
+            planmod.preroute_named_goal(self.user, "how is France 2027 going"),
+            "goals_progress")
+
+    @patch("apps.ai.cos_services.get_domain_state",
+           return_value={"status": "pending", "state": None})
+    def test_wrapper_no_goals_named_title_returns_none(self, _mock):
+        from apps.purpose.models import LifeGoal
+        LifeGoal.objects.filter(user=self.user).delete()        # no active goals at all
         self.assertIsNone(
             planmod.preroute_named_goal(self.user, "how is France 2027 going"))
 

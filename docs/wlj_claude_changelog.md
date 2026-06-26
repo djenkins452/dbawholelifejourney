@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — docs(cos): Beth Truth Coverage Audit (4 docs, audit only)
+
+Comprehensive truth-coverage audit across the entire WLJ codebase (462 models, 21 apps; infra/audit/cache/log excluded). Traced every user-truth domain through storage → SAE canonical state → briefing → foundational facts → reasoning → Beth access, via three parallel codebase investigations (Beth read surface, SAE module builders, dashboard/briefing/proactive surface).
+
+**Headline:** WLJ computes rich canonical state for ~18 domains and surfaces ~9 on the dashboard/briefings, but Beth can DELIBERATELY REASON over exactly one (health). The gap is the reasoning + facts + briefing surface, not storage or canonical state — so closing it is a framework extension over existing engines, not a new-truth project.
+
+**Created:** `docs/BETH_TRUTH_COVERAGE_AUDIT.md` (master per-domain pipeline table + the 8 audit questions), `docs/BETH_TRUTH_GAP_ANALYSIS.md` (G1–G6 gap classes: reasoning-only-health, thin facts, orphaned truth [documents/emotional], dashboard-only domains, rich-but-unused labs; no problematic duplicate truth engines found), `docs/BETH_HOLISTIC_TRUTH_ROADMAP.md` (Phase 0–5; facts → reasoning curators → labs → orphans), `docs/BETH_DOMAIN_MATURITY_MATRIX.md` (per-domain tiers T0–T4; one T4 [health], large T3 band = cheapest path; ~45% holistic coverage today, ~85% target).
+
+Documentation only — no code/runtime/migration change.
+
+
 ## 2026-06-26 — polish(cos): goals/faith wording (no developer language) + backlog
 
 Pre-`beth-stable-v2` cleanup. Goals capability-gap reworded to natural CoS voice:

@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — polish(cos): goals/faith wording (no developer language) + backlog
+
+Pre-`beth-stable-v2` cleanup. Goals capability-gap reworded to natural CoS voice:
+"I don't have enough active goal information to include goals in today's check-in
+yet, but I can still help with your schedule, health, and priorities." Faith gap
+similarly de-jargoned (no "composed"/"brief"). Added a P3 backlog item for
+ambiguous external questions (e.g. "What is Delphi?") in `docs/improvement_tasks.md`
+— not a v2 blocker. No routing/architecture/durability/P25 change. Final
+regression sweep green (138 tests, exit 0); `check` clean; no migration.
+
+
 ## 2026-06-26 — feat(cos): Daily Agenda synthesis + CoS no-deflection + General-lane reliability fix
 
 **1. Daily Check-In promoted from placeholder to real synthesis (GB-5, P24):** new `apps/core/cos_briefing/daily_agenda.py::build_daily_agenda(user)` — deterministic, NO OpenAI, composed ONLY from canonical engines (Rhythm API schedule/next, `get_next_action` Focus-Right-Now, `build_rhythm_sections` overdue/at-risk totals). Returns upcoming items + highest priority + risks + recommended next step in CoS voice. Clarification daily-checkin options now resolve via deterministic resolvers: opt1→agenda, opt2→next rhythm, opt3→deterministic health summary (existing engine's fallback path, no LLM), opt4→honest goals capability-gap (never "Goals area"), opt5→full check-in (agenda + health + goals gap).

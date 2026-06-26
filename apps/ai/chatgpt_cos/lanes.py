@@ -98,9 +98,11 @@ def _next_rhythm_lane(user, message, conversation=None):
 
 
 # Honest capability-gap for goals — until a canonical goal engine exists, Beth
-# says so plainly. She NEVER tells the user to visit a "Goals area" (CoS rule).
-_GOALS_GAP = ("I don't yet have your goals composed into my daily brief. I can "
-              "still help with your schedule, health, and today's priorities.")
+# says so plainly, in natural CoS language (no developer words). She NEVER tells
+# the user to visit a "Goals area" (GB-5).
+_GOALS_GAP = ("I don't have enough active goal information to include goals in "
+              "today's check-in yet, but I can still help with your schedule, "
+              "health, and priorities.")
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +161,7 @@ AMBIGUITY_TYPES = (
             {"n": 3, "aliases": ("schedule", "calendar", "day"), "resolver": "next",
              "resolution": "I'm lining up your schedule — give me a moment."},
             {"n": 4, "aliases": ("faith", "prayer", "bible"), "resolver": None,
-             "resolution": "I can't compose your faith journey into a brief yet, but I can pull together your schedule, health, and today's priorities."},
+             "resolution": "I don't have your faith journey ready for today's check-in yet, but I can help with your schedule, health, and priorities."},
             {"n": 5, "aliases": ("project", "projects", "work"), "resolver": "next",
              "resolution": "I'm lining up your next step — give me a moment."},
             {"n": 6, "aliases": ("general", "question", "questions"), "resolver": None,

@@ -416,8 +416,10 @@ class DailyCheckinResolutionTests(TestCase):
         with mock.patch(_CALL_API, side_effect=AssertionError("no openai")):
             out = route_message(self.user, "4", self.conv)
         self.assertEqual(out["resolved_option"], 4)
-        self.assertIn("don't yet have your goals", out["answer"].lower())
+        self.assertIn("active goal information", out["answer"].lower())
         self.assertNotIn("goals area", out["answer"].lower())
+        for dev in ("composed", "daily brief"):
+            self.assertNotIn(dev, out["answer"].lower())
 
 
 class NoDeflectionLanguageTests(TestCase):

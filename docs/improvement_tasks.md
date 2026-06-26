@@ -264,3 +264,25 @@ The current `IntakeLog` schema uses the `scheduled_*` / `log_status` field names
 - Created initial task list from comprehensive app analysis
 - Starting dialog on Task 1 (Sleep Tracking)
 
+
+---
+
+## Backlog — Beth / CoS
+
+### [P3] Ambiguous external (general-knowledge) questions
+**Added:** 2026-06-26 · **Not a blocker for beth-stable-v2.**
+
+When a General Conversation question is ambiguous (multiple common meanings),
+Beth currently answers a single interpretation with no acknowledgement.
+Example: "What is Delphi?" (the Greek oracle / the programming language / the
+forecasting method / the city).
+
+**Desired behavior — one of:**
+1. Answer using the most common meaning *while acknowledging the ambiguity*
+   ("Delphi most often refers to … — though it can also mean …"), or
+2. Ask a short clarifying question (reuse the Clarification lane pattern).
+
+**Notes:** lives entirely in the General Conversation lane
+(`apps/ai/chatgpt_cos/lanes.py::general_answer`). Deterministic ambiguity
+detection is hard (open domain); simplest first step is a system-prompt
+instruction to acknowledge ambiguity. No routing/architecture change required.

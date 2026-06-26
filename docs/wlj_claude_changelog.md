@@ -7,6 +7,15 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — docs(cos): Beth Domain Dependency Graph & Ownership Model (docs only)
+
+Created `docs/BETH_DOMAIN_DEPENDENCY_GRAPH.md` — the authoritative ownership contract preventing duplicate engines / conflicting answers / overlapping ownership as more reasoning domains ship. Parts: domain inventory (canonical owner + maturity + privacy tier each), dependency graph (upstream consumption per domain; Goals consumes Tasks/Projects/Habits/Schedule; Health consumes sub-domains; Executive composes mature OUTPUTS only), ownership boundaries (what each domain owns + MUST NOT answer), authority hierarchy (Safety > explicit commitment > canonical[P24] > specific-owner > Executive; tactical→Schedule, strategic→Goals), cross-domain composition rules (compose mature curated outputs, never raw SAE), a 105-row Chief-of-Staff question→owner table (the P25 PERSONAL dispatch contract), P25 alignment, Impact×Readiness×Dependency sequencing, and risks+mitigations.
+
+**Findings:** most important domain after Health = Goals/Purpose (executive spine); only Goals (strategic) + Executive (cross-domain) own prioritization — never Projects/Tasks/Schedule/feeders; Tier-2/3 domains never expose raw truth (curated/banded only; documents+journal text never ambient); cross-domain needs ≥4 T4 domains (Health+Goals+Schedule+Tasks/Finance) before starting; first cross-domain pair = Health + Schedule.
+
+Documentation/architecture only — no code/runtime/migration change. P24/P25 authoritative; Health reference; cross-domain over mature outputs only.
+
+
 ## 2026-06-26 — docs(cos): Beth Domain Reasoning Framework (master spec, docs only)
 
 Created `docs/BETH_DOMAIN_REASONING_FRAMEWORK.md` — the master specification for how Beth reasons across every life domain. Generalizes the validated Health reference into eight reusable per-domain contracts (overview, canonical truth source [P24], foundational facts, the reasoning-intent quartet risk/progress/focus_today/concerns with anti-collapse invariants INV-1..5, curator contract [P3/P10/P11], reasoning profile, deterministic fallback [P5], privacy tiers 1-3, validation scenarios). Includes per-domain configurations (Health reference; Goals/Finance/Faith fully worked; remaining domains configured), a cross-domain reasoning roadmap (composition over mature single-domain curators; conflict-resolution + truth-precedence rules), Impact×Readiness×Risk prioritization, and a New Domain Onboarding Checklist that turns future domains into configuration rather than architecture.

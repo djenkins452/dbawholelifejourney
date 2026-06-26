@@ -175,21 +175,40 @@ def general_answer(user, message):
         "user's personal data, health, goals, faith, or schedule. If you are not "
         "sure of a fact, say so briefly rather than guessing."
     )
+    # --- Issue #1 instrumentation (root-cause trace; no behavior change) ---
+    from django.core.cache import cache
+    breaker_before = bool(cache.get("openai_rate_limited"))
     answer = None
+    call_outcome = "none"
     try:
         from apps.ai.services import ai_service
-        answer = ai_service._call_api(
+        raw = ai_service._call_api(
             system, message, max_tokens=500, temperature=0.5,
             endpoint="cos_chat", user=user,
         )
+        if raw is None:
+            call_outcome = "none"
+        elif not raw.strip():
+            call_outcome = "empty"
+        else:
+            call_outcome = "content"
+        answer = raw
     except Exception:
+        call_outcome = "raised"
         logger.warning("COS_GENERAL_LANE_LLM_FAILED user=%s",
                        getattr(user, "id", None), exc_info=True)
         answer = None
     answer = (answer or "").strip()
+    fallback_used = not answer
     if not answer:
         answer = ("I can usually help with that, but I couldn't reach it just "
                   "now. Please try again.")
+    logger.info(
+        "BETH_GENERAL_CALL user=%s breaker_before=%s call_outcome=%s "
+        "fallback_used=%s qlen=%d",
+        getattr(user, "id", None), breaker_before, call_outcome,
+        fallback_used, len(message or ""),
+    )
     return {
         "answer": answer,
         "tools_called": [],
@@ -217,14 +236,21 @@ LANE_REGISTRY = (
 def route_message(user, message):
     """Try each lane in order; return the first non-None result (tagged with its
     lane), or None if every lane declines (caller runs the tool-loop fallback)."""
+    uid = getattr(user, "id", None)
+    tried = []                      # Issue #1 trace: which lanes were consulted
     for name, fn in LANE_REGISTRY:
+        tried.append(name)
         result = fn(user, message)
         if result is not None:
             if isinstance(result, dict):
                 result.setdefault("lane", name)
-            logger.info("COS_LANE_ROUTED user=%s lane=%s",
-                        getattr(user, "id", None), name)
+            # 'planner_invoked' = the reasoning lane (which runs the planner) was
+            # consulted before the winner. Pair with the adjacent COS_REASONING_PLAN
+            # line for the planner RESULT, and BETH_GENERAL_CALL for breaker/outcome.
+            logger.info("COS_LANE_TRACE user=%s tried=%s winner=%s planner_invoked=%s",
+                        uid, ",".join(tried), name, "personal_reasoning" in tried)
             return result
-    logger.info("COS_LANE_ROUTED user=%s lane=tool_loop_fallback",
-                getattr(user, "id", None))
+    logger.info("COS_LANE_TRACE user=%s tried=%s winner=tool_loop_fallback "
+                "planner_invoked=%s", uid, ",".join(tried),
+                "personal_reasoning" in tried)
     return None

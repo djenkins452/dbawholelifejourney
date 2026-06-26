@@ -180,6 +180,29 @@ Beth remains a Chief of Staff but must never feel incapable of basic conversatio
   data → would fabricate), or returning the empty-response message for plain
   general knowledge.
 
+### P24 — Canonical Truth Source  *(CONSTITUTIONAL — WLJ-wide, not Beth-only)*
+When a domain engine already computes a user-facing fact, **all WLJ experiences**
+must consume that engine's output rather than independently calculating or
+inferring the fact. Dashboard, Beth, notifications, reports, mobile experiences,
+widgets, and future experiences must derive facts from the **same authoritative
+engine**. Independent computation of an existing fact is **prohibited**.
+- **Canonical engines (examples):** next rhythm item → Rhythm engine; dashboard
+  scores → Scoring engine; health risks → Health briefing engine; goal status →
+  Goal engine.
+- **Why:** divergent re-computation breaks trust — e.g. the dashboard's "Today's
+  Rhythm" (`build_rhythm_sections`, schedule-ordered) said *Work on WLJ* while Beth
+  (`get_next_action`, urgency-ordered) said *Bible Reading is next*. Two selectors,
+  two "next," one broken promise.
+- **Direction:** facts are **computed once and consumed everywhere** via a canonical
+  API/service layer (e.g. `get_current_rhythm_item` / `get_next_rhythm_item` /
+  `get_remaining_rhythm_items` / `get_current_rhythm_bucket`). Consumers — Dashboard,
+  Beth, Notifications, Daily Briefings, Mobile, Widgets — all read the same API.
+- **Distinct facts stay distinct:** "next *rhythm* item" (schedule) and "focus *right
+  now*" (urgency) are different canonical facts with different engines; consumers must
+  request the one they mean, not silently substitute.
+- **Enforced by:** a canonical-source test that the Dashboard and Beth return identical
+  "next rhythm item"; code review (P12) flags any independent re-computation.
+
 ### P23 — Clarification Before Failure
 When intent confidence is low or a request is ambiguous, Beth asks a clarifying
 question rather than returning a failure.

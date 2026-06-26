@@ -7,6 +7,18 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — diag(cos): General-lane root-cause instrumentation + P24 constitution
+
+**Issue #1 instrumentation (no behavior change):** capture one complete production trace per General request to prove the inconsistent-failure root cause (shared 120s OpenAI circuit breaker).
+- `lanes.py::general_answer` → `BETH_GENERAL_CALL user=.. breaker_before=.. call_outcome=content|empty|none|raised fallback_used=.. qlen=..`
+- `lanes.py::route_message` → `COS_LANE_TRACE user=.. tried=<lane sequence> winner=.. planner_invoked=..` (planner RESULT remains in the adjacent `COS_REASONING_PLAN` line).
+- Reading a trace: same user, adjacent timestamps → `COS_LANE_TRACE` (lane + planner invoked) + `COS_REASONING_PLAN` (planner result) + `BETH_GENERAL_CALL` (breaker/outcome/fallback). No redesign; instrument first.
+
+**P24 — Canonical Truth Source (CONSTITUTIONAL, WLJ-wide):** added to `BETH_ARCHITECTURAL_PRINCIPLES.md`. When a domain engine already computes a user-facing fact, all WLJ experiences (Dashboard, Beth, notifications, reports, mobile, widgets) must consume that engine's output — independent re-computation prohibited. Documents the Rhythm-vs-`get_next_action` divergence as the motivating defect.
+
+Instrumentation only + constitution doc. No fix/redesign code. Issues #2/#3 and the P24 rhythm-API implementation are queued pending the production trace + assessment review.
+
+
 ## 2026-06-26 — feat(cos): conversation lane registry — Clarification + General lanes (P22/P23)
 
 **Why:** Beth previously fell to the tool loop (often the empty-response message) for ambiguous and general-knowledge requests. Adds two lanes so she clarifies instead of failing, and answers general questions — without losing her Chief-of-Staff role. Framework-first (P6/P13): an ordered lane registry, no special-casing.

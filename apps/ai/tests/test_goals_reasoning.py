@@ -59,6 +59,51 @@ GOALS_FIXTURE = {
 }
 
 
+# Mission losing momentum, NO overdue / deadline, low completion — the goal-level
+# mission risk must outrank the portfolio metric.
+MISSION_STALLED_FIXTURE = {
+    "goals_state": {"state": {
+        "active_goal_count": 4,
+        "completion_rate": 0.22,
+        "overdue_goal_count": 0,
+        "active_titles": [{"title": "France 2027 Family 18K Mission",
+                           "target_date": None, "is_foundational": True}],
+        "upcoming_titles": [],
+        "overdue_titles": [],
+        "mission": {"title": "France 2027 Family 18K Mission",
+                    "current_focus": None, "momentum_trend": "declining",
+                    "days_remaining": None},
+    }},
+    "habits_state": {"state": {
+        "active_habit_count": 2, "avg_completion_rate": 0.6, "longest_streak": 5,
+        "streaks_per_habit": [{"name": "Save weekly", "at_risk": False,
+                               "current_streak": 5}],
+    }},
+}
+
+# No goal-level concern exists at all (no overdue/deadline/mission/at-risk habit,
+# habits present) — only here may a portfolio metric become the headline.
+PORTFOLIO_ONLY_FIXTURE = {
+    "goals_state": {"state": {
+        "active_goal_count": 3,
+        "completion_rate": 0.20,
+        "overdue_goal_count": 0,
+        "active_titles": [{"title": "Read more", "target_date": None, "is_foundational": False},
+                          {"title": "Learn guitar", "target_date": None, "is_foundational": False}],
+        "upcoming_titles": [],
+        "overdue_titles": [],
+        "mission": None,
+    }},
+    "habits_state": {"state": {
+        "active_habit_count": 2, "avg_completion_rate": 0.55, "longest_streak": 3,
+        "streaks_per_habit": [{"name": "Stretch", "at_risk": False}],
+    }},
+}
+
+_BANNED_GENERIC = ("take one step", "work on the goal", "work on your goals",
+                   "make progress today")
+
+
 def _wm(truth=None):
     truth = truth if truth is not None else GOALS_FIXTURE
     facts = stages.goals_working_memory(truth)
@@ -133,7 +178,7 @@ class GoalsCuratorTests(SimpleTestCase):
         gs = GOALS_FIXTURE["goals_state"]["state"]
         hs = GOALS_FIXTURE["habits_state"]["state"]
         ranked = stages._rank_goal_concerns(gs, hs)
-        self.assertIn("past their target date", ranked[0]["concern"])
+        self.assertIn("past its target date", ranked[0]["concern"])
 
 
 # ---------------------------------------------------------------------------
@@ -304,3 +349,92 @@ class GoalsP25Tests(SimpleTestCase):
     def test_external_still_external(self):
         r = classify_request("who was abraham lincoln")
         self.assertEqual(r["classification"], "EXTERNAL")
+
+
+# ---------------------------------------------------------------------------
+# Goal-FIRST refinement — named goals outrank portfolio metrics (Rules 1–5)
+# ---------------------------------------------------------------------------
+class GoalsGoalFirstTests(SimpleTestCase):
+    def _ranked(self, fixture):
+        gs = fixture["goals_state"]["state"]
+        hs = fixture["habits_state"]["state"]
+        return stages._rank_goal_concerns(gs, hs)
+
+    def test_1_named_goal_outranks_portfolio(self):
+        top = self._ranked(GOALS_FIXTURE)[0]["concern"]
+        self.assertIn("'", top)                                # a named goal
+        self.assertNotIn("overall goal completion", top)
+
+    def test_2_mission_risk_outranks_low_completion(self):
+        ranked = self._ranked(MISSION_STALLED_FIXTURE)
+        self.assertIn("France 2027 Family 18K Mission", ranked[0]["concern"])
+        self.assertNotIn("completion", ranked[0]["concern"].lower())
+        # the portfolio metric still exists, but lower down (supplemental)
+        joined = " ".join(c["concern"].lower() for c in ranked)
+        self.assertIn("completion", joined)
+
+    def test_3_focus_today_references_a_real_goal(self):
+        a = stages._goals_focus_today_fallback(_wm(GOALS_FIXTURE))
+        self.assertIn("Launch side project", a)
+        b = stages._goals_focus_today_fallback(_wm(MISSION_STALLED_FIXTURE))
+        self.assertIn("France 2027 Family 18K Mission", b)
+        # never an abstract portfolio metric as the focus target
+        self.assertNotIn("overall goal completion", a.lower())
+        self.assertNotIn("overall goal completion", b.lower())
+
+    def test_4_focus_today_ends_with_concrete_action(self):
+        for fx in (GOALS_FIXTURE, MISSION_STALLED_FIXTURE):
+            out = stages._goals_focus_today_fallback(_wm(fx))
+            self.assertIn("one concrete step:", out.lower())
+
+    def test_5_biggest_risk_references_exactly_one_goal(self):
+        out = stages._goal_risk_fallback(_wm(GOALS_FIXTURE))
+        self.assertNotIn("\n", out)                            # single headline
+        self.assertNotIn("1.", out)                            # not a list
+        self.assertIn("'", out)                                # a named goal
+        self.assertNotIn("overall goal completion", out.lower())
+
+    def test_6_concerns_rank_goal_issues_above_portfolio(self):
+        out = stages._goal_concerns_fallback(_wm(GOALS_FIXTURE))
+        first_line = out.splitlines()[1]                       # "1. ..."
+        self.assertTrue(first_line.startswith("1."))
+        self.assertIn("'", first_line)                         # named goal first
+        self.assertNotIn("overall goal completion", first_line.lower())
+
+    def test_7_portfolio_headline_only_when_no_goal_concern(self):
+        # portfolio-only fixture: the headline MAY be a portfolio metric
+        top_portfolio = self._ranked(PORTFOLIO_ONLY_FIXTURE)[0]["concern"]
+        self.assertIn("overall goal completion", top_portfolio.lower())
+        # but whenever a goal-level concern exists, it is NEVER the headline
+        for fx in (GOALS_FIXTURE, MISSION_STALLED_FIXTURE):
+            self.assertNotIn("overall goal completion",
+                             self._ranked(fx)[0]["concern"].lower())
+
+    def test_8_no_fabricated_stall_detection(self):
+        # Non-mission goals with no canonical risk signal must NOT be called
+        # stalled / slipping / losing momentum.
+        ranked = self._ranked(PORTFOLIO_ONLY_FIXTURE)
+        blob = " ".join(c["concern"].lower() for c in ranked)
+        for word in ("stalled", "slipping", "losing momentum", "stalling"):
+            self.assertNotIn(word, blob)
+        for name in ("read more", "learn guitar"):
+            self.assertNotIn(name, blob)                       # never named as at-risk
+
+    def test_9_no_generic_take_one_step_language(self):
+        outs = []
+        for fx in (GOALS_FIXTURE, MISSION_STALLED_FIXTURE, PORTFOLIO_ONLY_FIXTURE):
+            wm = _wm(fx)
+            outs += [stages._goal_risk_fallback(wm),
+                     stages._goals_focus_today_fallback(wm),
+                     stages._goal_concerns_fallback(wm)]
+        blob = " ".join(outs).lower()
+        for phrase in _BANNED_GENERIC:
+            self.assertNotIn(phrase, blob, f"generic coaching leaked: {phrase}")
+
+    def test_10_health_ranking_untouched(self):
+        # Health reasoning functions are not modified by the goals refinement.
+        self.assertTrue(hasattr(stages, "_rank_health_concerns"))
+        self.assertIsNot(stages._rank_health_concerns, stages._rank_goal_concerns)
+        # health deterministic routing unchanged (byte-identical contract)
+        self.assertEqual(planmod.deterministic_intent("what is my biggest health risk"),
+                         "biggest_health_risk")

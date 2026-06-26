@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — fix(cos): Goals reasoning is goal-first, not portfolio-first
+
+Refinement of the Goals reasoning domain (#2). Production validation showed Beth surfacing PORTFOLIO metrics ("your overall goal completion is running low") as the headline for biggest_goal_risk / goals_focus_today / goal_concerns. Rewrote `_rank_goal_concerns` to a NAMED goal-first severity hierarchy: (6) overdue goal (named) > (5) near-deadline goal (named, incl. the mission's own deadline) > (4) mission losing momentum / no active milestone (named, weighted) > (3) goals lacking supporting habits (named) > (2) at-risk habit (named) > (1) portfolio metric (anonymous, supplemental). Because every goal-level concern outranks every portfolio metric, `ranked[0]` is always a named goal when one exists; a portfolio metric is the headline ONLY when no goal-level concern exists.
+
+- **Truth-first (P1):** a specific goal is called overdue/at-risk only when canonical truth supports it — overdue/deadline are verifiable; the MISSION is the only goal with a canonical momentum signal (`mission.momentum_trend`/`current_focus`), so non-mission goals are NEVER inferred as stalled. "Lacking habits" fires only when there are zero active habits (provably no goal is backed by a routine).
+- **Domain-aware actions (Rule 3):** each concern carries a concrete action tied to the detected risk (reschedule / schedule calendar time / review the next milestone / define the next milestone / create one supporting habit / complete the habit). Removed all generic coaching ("take one step", "work on the goal", "make progress today"). `_goals_focus_today_fallback` uses the concern's own action and always names a real goal (even the no-concern case names the mission/top goal). `_goal_risk_fallback` = one named goal + one reason + one action.
+- Portfolio metrics (completion %, active count, momentum) remain in `goals_progress` (unchanged).
+
+**Files:** `apps/ai/chatgpt_cos/reasoning/stages.py` (`_rank_goal_concerns`, `_goal_concrete_today_action`, `_goal_risk_fallback`, `_goals_focus_today_fallback` + `_LOSING_TRENDS`/`_first_title`), `apps/ai/tests/test_goals_reasoning.py` (+10 goal-first tests; updated 1 phrasing assertion). No architecture/routing/P25/Health change; consumes only canonical `goals_state`/`habits_state`. No model change — no migration.
+
+**Verification:** 39 goals tests (incl. all 10 required: named>portfolio, mission>completion, focus names a goal + concrete action, risk=one goal, concerns rank goal>portfolio, portfolio-headline-only-when-no-goal-concern, no fabricated stall, no generic language) + 152-test reasoning/lane/facts/registration regression all green; Health proven byte-identical; `check` clean; `makemigrations --check` = no changes.
+
+
 ## 2026-06-26 — feat(cos): Goals Reasoning Domain (Beth domain #2)
 
 Implemented Goals as Beth's second reasoning domain after Health, following the exact Health architectural pattern (framework-first, registry-based). Single-domain only — no cross-domain reasoning, no Executive composition, Health untouched.

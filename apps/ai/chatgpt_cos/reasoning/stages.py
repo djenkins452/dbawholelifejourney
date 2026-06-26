@@ -457,52 +457,105 @@ def _generic_curator(truth, user=None):
 # (no IDs, enums, raw momentum scores, field names, or source paths reach the
 # model). See docs/BETH_DOMAIN_REASONING_FRAMEWORK.md (§④–⑦).
 # ===========================================================================
+# Canonical momentum-trend labels that mean the mission is losing ground.
+_LOSING_TRENDS = {"declining", "decreasing", "falling", "down", "stalled",
+                  "negative", "losing", "slowing", "stalling", "regressing"}
+
+
+def _first_title(items):
+    for t in (items or []):
+        if isinstance(t, dict) and t.get("title"):
+            return t.get("title")
+    return None
+
+
 def _rank_goal_concerns(goals, habits):
-    """Evidence-ranked goal/habit concerns as plain COACHING language (never raw
-    IDs/enums/scores). Severity: overdue > near-deadline > at-risk habits > low
-    completion > over-commitment. Returns ordered [{concern, action}]."""
+    """GOAL-FIRST evidence-ranked concerns as plain coaching language (never raw
+    IDs/enums/scores). NAMED, concrete goal-level risks ALWAYS outrank anonymous
+    portfolio metrics:
+
+        6 overdue (named) > 5 near-deadline (named) > 4 mission stalled / no
+        focus (named) > 3 goals lacking supporting habits (named) > 2 at-risk
+        habit (named) > 1 portfolio metric (anonymous — supplemental only).
+
+    Truth-first (P1): a specific goal is called overdue/at-risk only when canonical
+    truth supports it — overdue and deadline are verifiable; the MISSION is the
+    only goal with a canonical momentum signal, so non-mission goals are NEVER
+    inferred as stalled. Each action is domain-aware (tied to the concern, never
+    generic). Returns ordered [{concern, action}]."""
     out = []  # (severity, concern, action)
+    mission = goals.get("mission") if isinstance(goals.get("mission"), dict) else None
+    mname = mission.get("title") if mission else None
+    active = int(_num(goals.get("active_goal_count")) or 0)
 
-    overdue = int(_num(goals.get("overdue_goal_count")) or 0)
-    if overdue:
-        titles = [t.get("title") for t in (goals.get("overdue_titles") or [])
-                  if t.get("title")]
-        names = ", ".join(f"'{t}'" for t in titles[:2])
-        detail = f" ({names})" if names else ""
-        out.append((5, f"you have {overdue} goal(s) past their target date{detail}",
-                    "pick one and either set a realistic new date or close it out"))
+    # 6 — Overdue goals (named, most urgent).
+    overdue_titles = [t for t in (goals.get("overdue_titles") or []) if t.get("title")]
+    overdue = int(_num(goals.get("overdue_goal_count")) or 0) or len(overdue_titles)
+    if overdue_titles:
+        name = overdue_titles[0]["title"]
+        extra = f" (and {overdue - 1} other goal(s))" if overdue > 1 else ""
+        out.append((6, f"'{name}' is past its target date{extra}",
+                    f"reschedule '{name}' with a realistic new milestone date, or close it out"))
+    elif overdue:
+        out.append((6, f"{overdue} goal(s) are past their target date",
+                    "reschedule each with a realistic new date, or close them out"))
 
-    # Nearest upcoming deadline within a week.
-    soon = None
+    # 5 — Nearest deadline within a week (named); includes the mission's deadline.
+    soon = None  # (days, title)
     for t in (goals.get("upcoming_titles") or []):
         d = _num(t.get("days_remaining"))
         if d is not None and (soon is None or d < soon[0]):
             soon = (d, t.get("title"))
+    md = _num(mission.get("days_remaining")) if mission else None
+    if md is not None and (soon is None or md < soon[0]):
+        soon = (md, mname)
     if soon and soon[0] is not None and soon[0] <= 7:
-        title = f"'{soon[1]}'" if soon[1] else "a goal"
-        out.append((4, f"{title} is due in {int(soon[0])} day(s)",
-                    "block focused time this week to move it forward"))
+        name = soon[1] or "a goal"
+        out.append((5, f"'{name}' is due in {int(soon[0])} day(s)",
+                    f"schedule focused calendar time this week to move '{name}' forward"))
 
-    # At-risk habits — the momentum that feeds goals.
-    at_risk = [h for h in (habits.get("streaks_per_habit") or []) if h.get("at_risk")]
+    # 4 — Mission losing momentum / no active next milestone (named, weighted).
+    if mission and mname:
+        trend = str(mission.get("momentum_trend") or "").lower()
+        if trend in _LOSING_TRENDS:
+            out.append((4, f"your mission '{mname}' is losing momentum",
+                        f"review the next milestone for '{mname}' and choose one concrete action to restart progress"))
+        elif not mission.get("current_focus"):
+            out.append((4, f"your mission '{mname}' has no active next milestone",
+                        f"define the next milestone for '{mname}' so it has a clear next step"))
+
+    # 3 — Goals lacking supporting habits (named). Only fires when there are NO
+    # active habits at all — provably no goal is backed by a routine (truth-first;
+    # we never claim a SPECIFIC non-mission goal lacks habits without linkage).
+    hactive = int(_num(habits.get("active_habit_count")) or 0)
+    if active and not hactive:
+        name = mname or _first_title(goals.get("active_titles"))
+        if name:
+            out.append((3, f"your goals have no supporting habits — '{name}' isn't backed by a routine",
+                        f"create one weekly supporting habit for '{name}'"))
+        else:
+            out.append((3, "your active goals have no supporting habits backing them",
+                        "create one weekly supporting habit for your most important goal"))
+
+    # 2 — At-risk habit (named) — the momentum that feeds goals.
+    at_risk = [h for h in (habits.get("streaks_per_habit") or [])
+               if h.get("at_risk") and h.get("name")]
     if at_risk:
-        names = ", ".join(f"'{h.get('name')}'" for h in at_risk[:2] if h.get("name"))
-        detail = f" ({names})" if names else ""
-        out.append((3, f"{len(at_risk)} habit(s) are about to break their streak{detail}",
-                    "a quick completion today protects the streak and your momentum"))
+        name = at_risk[0]["name"]
+        extra = f" (and {len(at_risk) - 1} other(s))" if len(at_risk) > 1 else ""
+        out.append((2, f"your habit '{name}' is about to break its streak{extra}",
+                    f"complete '{name}' today to protect the streak"))
 
-    # Low overall goal completion.
+    # 1 — Portfolio metrics (ANONYMOUS) — supplemental; the headline ONLY when no
+    # goal-level concern exists above.
     rate = _num(goals.get("completion_rate"))
-    active = int(_num(goals.get("active_goal_count")) or 0)
     if rate is not None and rate < 0.4 and active:
-        out.append((2, "your overall goal completion is running low",
-                    "narrowing focus to one or two goals usually lifts it"))
-
-    # Over-commitment: many active goals, thin habit follow-through.
+        out.append((1, "your overall goal completion is running low",
+                    "narrow your focus to one or two goals to lift it"))
     hrate = _num(habits.get("avg_completion_rate"))
     if active >= 6 and hrate is not None and hrate < 0.5:
-        out.append((2, f"you're carrying {active} active goals with thin follow-through",
-                    "consider pausing the lowest-priority ones to protect the top goals"))
+        out.append((1, f"you're carrying {active} active goals with thin follow-through",
+                    "pause the lowest-priority goals to protect your top ones"))
 
     out.sort(key=lambda x: -x[0])
     return [{"concern": c, "action": a} for _s, c, a in out]
@@ -574,14 +627,17 @@ def goals_working_memory(truth, user=None):
 
 
 def _goal_risk_fallback(wm):
-    # biggest_goal_risk: the SINGLE goal most at risk + why + action.
+    # biggest_goal_risk: ONE goal (named) + one reason + one concrete action.
+    # ranked is goal-first, so ranked[0] is a named goal-level risk whenever one
+    # exists; a portfolio metric only surfaces here when nothing else does.
     ranked = (wm.get("facts") or {}).get("ranked_concerns") or []
     if not ranked:
-        return ("Your goals look on track right now — nothing is overdue or "
-                "stalling. Keep the momentum going.")
+        return ("Your goals look on track right now — nothing is overdue, stalling, "
+                "or missing support. Keep the momentum going.")
     top = ranked[0]
     return ("The goal most worth your attention right now: " + top.get("concern", "")
-            + ". A good next step: " + top.get("action", "keep steady progress") + ".")
+            + ". A good next step: "
+            + top.get("action", "choose the next concrete action for it") + ".")
 
 
 def _goals_progress_fallback(wm):
@@ -626,34 +682,56 @@ def _goal_concerns_fallback(wm):
     return "\n".join(lines)
 
 
-# INV-5: map the top goal concern to a CONCRETE imperative doable within 24h.
+# INV-5 / Rule 3: map a goal concern to a CONCRETE, domain-aware action doable
+# within 24h — tied to the detected risk, NEVER generic ("take one step", "work
+# on the goal", "make progress today"). Used only when a concern carries no
+# pre-attached action (the ranking already attaches a domain-aware action).
 def _goal_concrete_today_action(concern):
     c = (concern or "").lower()
-    if "past their target" in c or "overdue" in c:
-        return "open your top overdue goal and set one realistic new milestone date today"
+    if "past its target" in c or "past their target" in c or "overdue" in c:
+        return "reschedule it with a realistic new milestone date, or close it out"
     if "due in" in c:
-        return "block 30 focused minutes on your nearest-deadline goal today"
-    if "habit" in c and "streak" in c:
-        return "complete your at-risk habit today to protect the streak"
+        return "schedule focused calendar time this week to move it forward"
+    if "losing momentum" in c:
+        return "review its next milestone and choose one concrete action to restart progress"
+    if "no active next milestone" in c:
+        return "define its next milestone so it has a clear next step"
+    if "no supporting habits" in c or "isn't backed by a routine" in c:
+        return "create one weekly supporting habit for it"
+    if "streak" in c:
+        return "complete the habit today to protect the streak"
     if "completion is running low" in c:
-        return "pick your single most important goal and take one concrete step on it today"
-    if "follow-through" in c:
-        return "choose one goal to pause so you can fully focus on the top one today"
-    return "spend 30 focused minutes moving your most important goal forward today"
+        return "narrow your focus to one or two goals to lift it"
+    if "thin follow-through" in c:
+        return "pause the lowest-priority goals to protect your top ones"
+    return ("spend 15 minutes progressing your most important goal — review its "
+            "next milestone and choose the next concrete action")
 
 
 def _goals_focus_today_fallback(wm):
-    # goals_focus_today: (1) focus, (2) why today, (3) ONE concrete 24h action.
-    ranked = (wm.get("facts") or {}).get("ranked_concerns") or []
-    if not ranked:
-        return ("Today, take one step on your most important goal — momentum "
-                "compounds. One concrete step: spend 30 focused minutes moving "
-                "your top goal forward today.")
-    top = ranked[0]
-    focus = top.get("concern", "your top goal")
-    action = _goal_concrete_today_action(focus)
-    return (f"Today, focus on {focus}. Acting on it today keeps it from slipping "
-            f"further and protects your momentum. One concrete step: {action}.")
+    # goals_focus_today: (1) one specific goal, (2) why today, (3) ONE concrete
+    # 24h action. Always references a real goal — never a portfolio metric.
+    facts = wm.get("facts") or {}
+    ranked = facts.get("ranked_concerns") or []
+    if ranked:
+        top = ranked[0]
+        focus = top.get("concern", "your top goal")
+        action = top.get("action") or _goal_concrete_today_action(focus)
+        return (f"Today, focus on {focus}. Acting on it today keeps it from "
+                f"slipping further and protects your momentum. One concrete step: "
+                f"{action}.")
+    # No concern detected — name the mission/top goal and give a concrete step.
+    name = facts.get("mission")
+    if not name:
+        ag = facts.get("active_goals") or []
+        name = ag[0] if ag else None
+    if name:
+        return (f"Today, focus on '{name}', your most important goal. Steady "
+                f"momentum compounds. One concrete step: spend 15 minutes "
+                f"progressing '{name}' — review its next milestone and choose the "
+                f"next concrete action.")
+    return ("You don't have an active goal set yet. One concrete step: create a "
+            "single specific goal today so we have something to drive toward.")
 
 
 _GOAL_GUIDANCE = (

@@ -39,7 +39,6 @@ urlpatterns = [
     path("terms/", views.TermsOfServiceView.as_view(), name="terms"),
     path("privacy/", views.PrivacyPolicyView.as_view(), name="privacy"),
     path("about/", views.AboutView.as_view(), name="about"),
-    path("study/flashcards/", views.StudyFlashcardsView.as_view(), name="study_flashcards"),
     path("app-review/", views.AppReviewView.as_view(), name="app_review"),
     path("app-review/login/", views.AppReviewLoginView.as_view(), name="app_review_login"),
     path("ux-design/", views.UXDesignView.as_view(), name="ux_design"),

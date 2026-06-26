@@ -39940,3 +39940,10 @@ This uses `or ''` to convert any falsy value (None, empty string, missing key) t
 ## 2026-06-26 — fix(study): do not hijack spacebar while typing (Beth chat box)
 
 **Why:** the global flashcard keydown handler called `preventDefault` on Space everywhere, breaking the spacebar inside the Chief of Staff chat input (and any other field) while the flashcard page was open. Added an `isTypingTarget()` guard that bails out of the handler when the event target is an input/textarea/select/contenteditable, so typing is never intercepted. Card shortcuts still work everywhere else. Verified in-browser: Space types normally in an input (no defaultPrevented, no flip) and still flips the card when not in a field. File: `templates/core/study_flashcards.html`.
+
+
+## 2026-06-26 — chore(study): remove SHRM-SCP flashcards tool
+
+**Why:** one-off personal study aid no longer needed (exam over). Removed both nav links (desktop left rail + header nav), the `StudyFlashcardsView`, its URL (`/study/flashcards/`), and the `templates/core/study_flashcards.html` template. `manage.py check` clean; no lingering references to `study_flashcards`/`StudyFlashcardsView`.
+
+**Files:** `apps/core/views.py`, `apps/core/urls.py`, `templates/components/desktop_left_rail.html`, `templates/components/navigation.html`, `templates/core/study_flashcards.html` (deleted).

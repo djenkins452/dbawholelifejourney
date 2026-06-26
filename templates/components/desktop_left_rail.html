@@ -24,15 +24,6 @@
         <span class="rail-label">Home</span>
     </a>
 
-    <!-- SHRM-SCP Flashcards - quick study launch -->
-    <a href="{% url 'core:study_flashcards' %}" class="rail-item{% if request.resolver_match.url_name == 'study_flashcards' %} active{% endif %}" data-tooltip="SHRM Flashcards">
-        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M4 6h11a2 2 0 0 1 2 2v11"/>
-            <rect x="7" y="3" width="13" height="16" rx="2"/>
-        </svg>
-        <span class="rail-label">SHRM Flashcards</span>
-    </a>
-
     <!-- Dynamic modules from user preferences (excluding utility modules) -->
     {% for module in desktop_rail_modules %}
         {% if module.slug != 'capture' %}

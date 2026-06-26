@@ -217,6 +217,31 @@ question rather than returning a failure.
 
 ---
 
+### P25 — Personal Truth First  *(RATIFIED; activation phased — shadow first)*
+For every request, Beth first determines whether Danny's personal WLJ truth is
+relevant, then routes on that single explicit decision rather than on lane order:
+1. If personal truth is **required or would materially improve** the answer →
+   retrieve and reason over WLJ truth (**PERSONAL**).
+2. If personal truth is **not relevant** → answer with normal OpenAI capability,
+   consulting no WLJ truth (**EXTERNAL**, sandboxed).
+3. If personal truth helps but general knowledge is also needed → ground a general
+   answer on WLJ truth, **truth first** (**MIXED**).
+4. If Beth **cannot determine** whether personal truth is needed → ask a clarifying
+   question rather than guessing (**AMBIGUOUS**).
+5. **Personal truth always outranks generalized advice** unless the user explicitly
+   requests external-only guidance.
+- **Why:** lane order was carrying the personal-vs-external semantics implicitly,
+  which produced repeated routing regressions (`check in` → health planner; general
+  → planner/breaker). P25 makes that one decision explicit, deterministic, and
+  testable — and contains the planner/SAE-warm to PERSONAL only.
+- **Classification is deterministic-first** (reuses existing predicates); the LLM is
+  at most an optional gray-zone tie-breaker, never the heavy planner, never the
+  critical path; genuine uncertainty defaults to **clarify** (rule 4).
+- **Activation is phased** (`docs/BETH_P25_PERSONAL_TRUTH_FIRST.md`): shadow →
+  validate → flag-activate → remove legacy. P25 routing is **NOT active**; a shadow
+  classifier runs for telemetry only. Generalizes P1/P2; subsumes the implicit lane
+  ordering; consistent with P6/P8/P11/P22/P23/P24. Target milestone: `beth-stable-v3`.
+
 ## Amendment process
 1. Propose the change with rationale and the principle(s) affected.
 2. If it weakens a protection, it requires explicit owner approval (P7, P14).

@@ -137,6 +137,17 @@ class ChatGPTCoSService:
         # loop below (the terminal fallback, P8).
         from apps.ai.chatgpt_cos.lanes import route_message
         _routed = route_message(self.user, message, conversation)
+        # P25 SHADOW instrumentation (Phase 1/2) — classify the request as
+        # PERSONAL/EXTERNAL/MIXED/AMBIGUOUS and log agreement with the CURRENT
+        # routing outcome. SHADOW ONLY: this does NOT affect routing or behavior.
+        try:
+            from apps.ai.chatgpt_cos.p25_classifier import log_p25_shadow
+            log_p25_shadow(
+                message, self.user, conversation,
+                current_lane=((_routed or {}).get("lane") or "tool_loop"),
+            )
+        except Exception:
+            pass
         if _routed is not None:
             return _routed
 

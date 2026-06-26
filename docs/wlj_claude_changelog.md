@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — feat(cos): P25 Personal Truth First — constitution + SHADOW classifier (no behavior change)
+
+**Phase 1–2 only. P25 routing is NOT active; the live lane router is unchanged.** Ratifies P25 and adds a deterministic shadow classifier so we can prove accuracy on production traffic before activating (Phase 3 / `beth-stable-v3`).
+
+- **Constitution:** P25 added to `BETH_ARCHITECTURAL_PRINCIPLES.md`; new `docs/BETH_P25_PERSONAL_TRUTH_FIRST.md` (classifier rules, telemetry, phased rollout, how to read disagreement logs).
+- **Shadow classifier:** `apps/ai/chatgpt_cos/p25_classifier.py::classify_request` → PERSONAL / EXTERNAL / MIXED / AMBIGUOUS, deterministic-first (reuses the live lanes' predicates; no LLM, no SAE warm, no side effects). Validated against the full required example table (10/10).
+- **Telemetry:** `service.generate` emits `BETH_P25_SHADOW current_lane=.. current_p25=.. shadow_class=.. confidence=.. signal=.. agree=.. qlen=..` after the live router runs — shadow only, wrapped, never affects routing (no message content logged).
+
+**No behavior/routing change, no lane registry change, no migration, no user-facing change.** Golden Behaviors + `beth-stable-v1` preserved. Tests: `test_p25_shadow.py` (7). Focused regression green (91 tests, exit 0); `check` clean. P25 activation remains a separate milestone (not in `beth-stable-v2`).
+
+
 ## 2026-06-26 — fix(cos): lane registry reorder — clarification before the planner
 
 **Root cause (proven):** the `clarification` lane sat AFTER `personal_reasoning`, so the LLM planner over-claimed the ambiguous "check in" as `overall_progress` and returned a health summary before clarification was ever reached (`deterministic_health_intent("check in")` is None — it was the planner). Beth never showed the daily-check-in options.

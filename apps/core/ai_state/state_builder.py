@@ -1421,6 +1421,52 @@ def build_health_state(user):
     return state
 
 
+# Generic, planning-shaped recommendations that are FORBIDDEN for a goal that
+# already has milestones (Fix #3): such a goal already has a plan, so the next
+# step must be the concrete behavior tied to its active milestone — never "plan
+# the goal" / "outline next steps" / "take one step" / "make progress".
+_GENERIC_PLANNING_REC = (
+    "take one step", "take one concrete action", "make progress",
+    "plan the goal", "plan your goal", "outline next steps", "outline the next",
+    "work on the goal", "work on your goal", "figure out next steps",
+)
+
+
+def _build_goal_context(goal):
+    """Rich, user-safe goal context from EXISTING canonical fields ONLY — no new
+    truth, no recompute, no migration. Milestones are read from the (prefetched)
+    relation. Powers milestone/phase-grounded narration and recommendations
+    (root cause #2). Returns plain titles + the user's own free-text — never IDs,
+    enums, scores, field names, or source paths."""
+    milestones = list(goal.milestones.all())
+    incomplete = [m for m in milestones if not getattr(m, "completed", False)]
+    completed = [m for m in milestones if getattr(m, "completed", False)]
+    active_m = incomplete[0] if incomplete else None
+
+    recently_completed = None
+    if completed:
+        dated = [m for m in completed if getattr(m, "completed_date", None)]
+        chosen = (max(dated, key=lambda m: m.completed_date) if dated
+                  else completed[-1])
+        recently_completed = chosen.title
+
+    def _clean(text):
+        t = (text or "").strip()
+        return t or None
+
+    return {
+        "has_milestones": bool(milestones),
+        "current_phase": active_m.title if active_m else None,
+        "active_milestone": active_m.title if active_m else None,
+        "active_milestone_detail": _clean(getattr(active_m, "description", None))
+        if active_m else None,
+        "next_milestones": [m.title for m in incomplete[:3]],
+        "recently_completed_milestone": recently_completed,
+        "why_it_matters": _clean(getattr(goal, "why_it_matters", None)),
+        "success_definition": _clean(getattr(goal, "success_looks_like", None)),
+    }
+
+
 def build_goal_state(user):
     """
     Build goal state from actual database records.
@@ -1490,12 +1536,17 @@ def build_goal_state(user):
         s = int(score)
         return "strong" if s >= 67 else "moderate" if s >= 34 else "low"
 
-    def _evidence_from_snapshot(snap, phase=None):
+    def _evidence_from_snapshot(snap, phase=None, has_milestones=False):
         """Goal Evidence Narrative composed from the persisted nightly snapshot
         (READ-ONLY — never recomputed here): current phase, success/risk drivers,
         a momentum summary, and an evidence-based recommended next action. Each
         driver is the momentum engine's own user-safe label; no raw 0-100 score is
-        exposed. Beth narrates this verdict (P24 / briefing-consumer pattern)."""
+        exposed. Beth narrates this verdict (P24 / briefing-consumer pattern).
+
+        The recommended action is grounded in (1) the active milestone / phase,
+        (2) momentum evidence, (3) risk drivers — in that precedence. A goal that
+        already has milestones (has_milestones / phase) NEVER receives generic
+        planning advice (Fix #3)."""
         if snap is None:
             return None
         band = _momentum_band(snap.momentum_score)
@@ -1552,11 +1603,18 @@ def build_goal_state(user):
         elif "sleep" in rtext:
             rec = "protect a consistent bedtime tonight"
         elif phase:
-            rec = f"take the next concrete step toward \"{phase}\""
+            rec = f"take the next concrete step on your current milestone, \"{phase}\""
         elif band in ("strong", "moderate") and trend != "falling":
             rec = "keep your current routine going and log today's progress"
         else:
             rec = "take one concrete action toward this goal today"
+
+        # Fix #3 guard: a goal WITH planning structure (an active milestone) must
+        # never get generic planning advice — anchor the next step to the milestone.
+        if (has_milestones or phase) and any(
+                g in rec.lower() for g in _GENERIC_PLANNING_REC):
+            anchor = phase or "your current milestone"
+            rec = f"take the next concrete step on your current milestone, \"{anchor}\""
 
         return {
             "momentum": band,
@@ -1592,15 +1650,17 @@ def build_goal_state(user):
         title = goal.title
         target = goal.target_date
         is_foundational = getattr(goal, 'is_foundational', False)
-        # Phase = the current (first incomplete) milestone, from the prefetched
-        # milestones (no extra query).
-        phase = next((m.title for m in goal.milestones.all()
-                      if not getattr(m, 'completed', False)), None)
+        # Rich canonical context (Fix #2) — milestones/why/success — from the
+        # prefetched relation (no extra query). Phase = the active milestone.
+        ctx = _build_goal_context(goal)
+        phase = ctx["current_phase"]
         entry = {
             'title': title,
             'target_date': target.isoformat() if target else None,
             'is_foundational': bool(is_foundational),
-            'evidence': _evidence_from_snapshot(latest_snap.get(goal.id), phase),
+            'context': ctx,
+            'evidence': _evidence_from_snapshot(
+                latest_snap.get(goal.id), phase, ctx["has_milestones"]),
         }
         active_titles.append(entry)
         if target:
@@ -1631,6 +1691,7 @@ def build_goal_state(user):
         # read for the latest (still read-only, no recompute).
         snap = latest_snap.get(mission_goal.id) or mission_goal.momentum_snapshots.first()
         nm = mission_goal.next_milestone
+        m_ctx = _build_goal_context(mission_goal)
         m_target = mission_goal.target_date
         state["mission"] = {
             "title": mission_goal.title,
@@ -1638,7 +1699,9 @@ def build_goal_state(user):
             "momentum_trend": snap.momentum_trend if snap else None,
             "days_remaining": (m_target - today).days
             if m_target and m_target > today else None,
-            "evidence": _evidence_from_snapshot(snap, nm.title if nm else None),
+            "context": m_ctx,
+            "evidence": _evidence_from_snapshot(
+                snap, nm.title if nm else None, m_ctx["has_milestones"]),
         }
 
     return state

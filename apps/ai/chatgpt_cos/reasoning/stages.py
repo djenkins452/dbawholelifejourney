@@ -671,15 +671,33 @@ def goals_working_memory(truth, user=None):
     # Per-goal EVIDENCE (the nightly momentum engine's verdict) translated into
     # coaching language. NEVER exposes raw scores, trend enums, or JSON keys —
     # only banded momentum words and the engine's user-safe driver labels.
-    def _coach_evidence(name, e):
+    def _coach_evidence(name, e, context=None):
         # The Goal Evidence Narrative in coaching language — phase, what's working,
-        # what to watch, momentum summary, and the recommended next action. NEVER
-        # exposes raw scores, trend enums, or JSON keys.
-        if not name or not isinstance(e, dict):
+        # what to watch, momentum summary, the recommended next action, AND the
+        # rich canonical context (why it matters, success definition, the active
+        # milestone detail, what's next, the most recent win). NEVER exposes raw
+        # scores, trend enums, IDs, field names, or JSON keys (root cause #2 fix:
+        # goals reasoning no longer ignores this canonical context).
+        e = e if isinstance(e, dict) else {}
+        context = context if isinstance(context, dict) else {}
+        if not name or (not e and not context):
             return None
         item = {"goal": name}
-        if e.get("phase"):
-            item["phase"] = e["phase"]
+        phase = e.get("phase") or context.get("current_phase")
+        if phase:
+            item["phase"] = phase
+        if context.get("active_milestone_detail"):
+            item["current_milestone_detail"] = context["active_milestone_detail"]
+        nxt = [m for m in (context.get("next_milestones") or [])
+               if isinstance(m, str) and m != phase]
+        if nxt:
+            item["next_milestones"] = nxt[:3]
+        if context.get("recently_completed_milestone"):
+            item["recently_completed"] = context["recently_completed_milestone"]
+        if context.get("why_it_matters"):
+            item["why_it_matters"] = context["why_it_matters"]
+        if context.get("success_definition"):
+            item["success_looks_like"] = context["success_definition"]
         item["momentum"] = e.get("momentum_summary") or "in progress"
         succ = [s for s in (e.get("success_drivers") or []) if isinstance(s, str)]
         if succ:
@@ -693,14 +711,15 @@ def goals_working_memory(truth, user=None):
 
     evidence = []
     mev = _coach_evidence(mission.get("title") if isinstance(mission, dict) else None,
-                          _goal_evidence(mission) if isinstance(mission, dict) else None)
+                          _goal_evidence(mission) if isinstance(mission, dict) else None,
+                          mission.get("context") if isinstance(mission, dict) else None)
     if mev:
         evidence.append(mev)
     seen_names = {mev["goal"]} if mev else set()
     for t in (goals.get("active_titles") or []):
         nm = t.get("title")
         if nm and nm not in seen_names:
-            ce = _coach_evidence(nm, _goal_evidence(t))
+            ce = _coach_evidence(nm, _goal_evidence(t), t.get("context"))
             if ce:
                 evidence.append(ce)
                 seen_names.add(nm)
@@ -871,6 +890,13 @@ _GOAL_GUIDANCE = (
     " TONE: be motivating but honest about slippage — name the slip plainly and "
     "give the next step. Never shaming, never alarmist. Prefer 'worth focusing "
     "on', 'a bit behind', 'a good next step would be'."
+    " CONTEXT: when a goal's working memory includes 'phase', "
+    "'current_milestone_detail', 'next_milestones', 'why_it_matters', or "
+    "'success_looks_like', GROUND your narration and the next step in them — name "
+    "the active milestone and recommend the next concrete behavior that advances "
+    "it. If a goal already has milestones, NEVER give generic planning advice "
+    "('plan the goal', 'outline next steps', 'take one step', 'make progress'); "
+    "reserve those only for a goal that has no milestones yet."
 )
 
 

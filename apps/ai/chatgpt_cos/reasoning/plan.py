@@ -15,8 +15,11 @@ it is dropped during parsing (the planner cannot fabricate truth sources).
 """
 
 import json
+import logging
 import re
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 # Implemented reasoning intents (this milestone). The planner may also return
 # "other" for anything not yet built — the engine then declines (falls through).
@@ -167,6 +170,108 @@ def deterministic_intent(message):
 # Backward-compatible alias (generalize-with-alias): existing callers/tests using
 # the health-named function keep working; it now matches goal intents too.
 deterministic_health_intent = deterministic_intent
+
+
+# ---------------------------------------------------------------------------
+# Named-goal PRE-ROUTER (runs BEFORE the planner — see engine.answer_reasoning_
+# question). A question that references a named active goal, the mission, or uses
+# "my mission"/"this goal"/"that goal" is OWNED by the Goals domain and must never
+# be stolen by the health planner (root cause #1). Deterministic, gated on goal
+# context + title length so it never captures an unrelated (e.g. health) question.
+# ---------------------------------------------------------------------------
+# Deictic references to a goal/mission that name no title but clearly point at one.
+# Kept narrow on purpose: a bare "my goal" is excluded because phrases like "my
+# goal weight" are HEALTH questions — only unambiguous goal/mission deixis qualifies.
+_GOAL_DEICTIC = (
+    "my mission", "this goal", "that goal", "this mission", "that mission",
+    "how is my goal going", "how's my goal going", "hows my goal going",
+    "how is my goal progressing", "how's my goal progressing",
+)
+
+# Length gate: a matched title must be at least this long to count (a 1–3 char
+# title is too generic to safely own a question).
+_MIN_TITLE_MATCH_LEN = 4
+
+# A bare single-word title that collides with another domain's vocabulary (a goal
+# literally named "Health"/"Sleep"/…) must NOT steal that domain's questions. A
+# multi-word title that merely contains such a word still matches as a phrase.
+_DOMAIN_COLLISION_WORDS = frozenset({
+    "health", "weight", "sleep", "glucose", "fitness", "nutrition", "habits",
+    "habit", "faith", "tasks", "task", "finance", "finances", "money",
+})
+
+
+def _infer_named_goal_intent(text):
+    """Pick the goal intent for a message ALREADY known to be about a named goal.
+    Generic cues (no 'goal' keyword required, since the subject is established)."""
+    if any(k in text for k in ("what should i do", "focus on today", "do today",
+                               "work on today", "action today", "next step today")):
+        return "goals_focus_today"
+    if any(k in text for k in ("biggest", "most at risk", "at risk", "worried",
+                               "behind on", "in trouble")):
+        return "biggest_goal_risk"
+    if any(k in text for k in ("concerns", "slipping", "stalling", "stalled",
+                               "problems with")):
+        return "goal_concerns"
+    return "goals_progress"
+
+
+def named_goal_intent(message, goal_titles, mission_title=None):
+    """Deterministic pre-router decision (pure — no DB). Returns a forced GOAL
+    intent when the message references a named active goal/mission or uses a goal
+    deictic, else None.
+
+    Gates (so it cannot steal unrelated questions):
+      - goal-context-gated: returns None unless the user actually has goal titles;
+      - title matching is length-gated (>= _MIN_TITLE_MATCH_LEN) and word-boundary
+        matched, and a bare domain-collision word title (e.g. "Health") is skipped.
+    """
+    text = (message or "").lower().strip()
+    if not text:
+        return None
+    titles = [str(t).strip() for t in (goal_titles or []) if t]
+    if mission_title:
+        titles.append(str(mission_title).strip())
+    if not titles:                       # goal-context-gated
+        return None
+
+    matched = any(d in text for d in _GOAL_DEICTIC)
+    if not matched:
+        for t in titles:
+            tl = t.lower()
+            if len(tl) < _MIN_TITLE_MATCH_LEN:
+                continue
+            if " " not in tl and tl in _DOMAIN_COLLISION_WORDS:
+                continue                 # bare domain word — never steal that domain
+            if re.search(r"\b" + re.escape(tl) + r"\b", text):
+                matched = True
+                break
+    if not matched:
+        return None
+    return _infer_named_goal_intent(text)
+
+
+def preroute_named_goal(user, message):
+    """Pre-router wrapper: read canonical goal/mission titles READ-ONLY (snapshot,
+    never recomputed on the request path) and apply named_goal_intent. Returns a
+    forced GOAL intent or None. Any read failure degrades safely to None (the
+    planner then runs as usual)."""
+    if not message:
+        return None
+    try:
+        from apps.ai.cos_services import get_domain_state
+        envelope = get_domain_state(user, "purpose")  # allow_build=False (read-only)
+    except Exception:
+        logger.warning("COS_GOAL_PREROUTE_STATE_FAILED user=%s",
+                       getattr(user, "id", None), exc_info=True)
+        return None
+    state = envelope.get("state") if isinstance(envelope, dict) else None
+    state = state if isinstance(state, dict) else {}
+    titles = [t.get("title") for t in (state.get("active_titles") or [])
+              if isinstance(t, dict) and t.get("title")]
+    mission = state.get("mission")
+    mission_title = mission.get("title") if isinstance(mission, dict) else None
+    return named_goal_intent(message, titles, mission_title)
 
 
 def synthesize_plan(intent):

@@ -25,7 +25,9 @@ import logging
 from apps.ai.chatgpt_cos.reasoning.plan import (
     IMPLEMENTED_INTENTS,
     deterministic_health_intent,
+    preroute_named_goal,
     synthesize_health_plan,
+    synthesize_plan,
 )
 from apps.ai.chatgpt_cos.reasoning.stages import (
     build_working_memory,
@@ -46,6 +48,35 @@ def answer_reasoning_question(user, message):
     deterministic fallback. It never falls through to the legacy tool loop, so
     the OpenAI-failure message can never reach the user for these intents.
     """
+    # Deterministic GOAL PRE-ROUTER (before the planner): a question that names an
+    # active goal/mission — or uses "my mission"/"this goal"/"that goal" — is OWNED
+    # by the Goals domain and must never be stolen by the health planner. Health
+    # evidence may support a goal answer, but Health does not own the response.
+    # Gated on goal context + title length so unrelated questions are untouched.
+    forced_goal_intent = preroute_named_goal(user, message)
+    if forced_goal_intent is not None:
+        logger.info("COS_REASONING_GOAL_PREROUTE user=%s intent=%s",
+                    getattr(user, "id", None), forced_goal_intent)
+        plan = synthesize_plan(forced_goal_intent)
+        truth = retrieve_truth(user, plan)
+        working_memory = build_working_memory(plan, truth, user)
+        answer, used_fallback = run_reasoning(user, message, plan, working_memory)
+        return {
+            "answer": answer,
+            "empty_reason": None,
+            "tools_advertised": [],
+            "tools_called": ["reasoning_planner"],
+            "fast_path": "reasoning",
+            "reasoning": {
+                "intent": plan.intent,
+                "response_mode": plan.response_mode,
+                "confidence": plan.confidence,
+                "truth_keys": list((working_memory.get("facts") or {}).keys()),
+                "used_fallback": used_fallback,
+                "preroute": "named_goal",
+            },
+        }
+
     plan = run_planner(user, message)
 
     # Resilience: planner unavailable (None) OR misclassified (not implemented).

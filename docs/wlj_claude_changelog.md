@@ -7,6 +7,29 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — fix(cos): named-goal pre-router + rich goal context for Goals reasoning
+
+**Why (two accepted root causes):**
+1. Named-goal progress questions were being STOLEN by the Health domain because the reasoning-lane planner runs first and matches health keywords (e.g. "how is my weight-loss goal going" → health).
+2. Goals reasoning ignored rich canonical goal context (milestones, descriptions, why-it-matters, success definition, current phase), so answers/recommendations were generic.
+
+**Fix 1 — named-goal routing (root cause #1):**
+- New deterministic pre-router in `apps/ai/chatgpt_cos/reasoning/plan.py`: pure `named_goal_intent(message, goal_titles, mission_title)` + DB wrapper `preroute_named_goal(user, message)`.
+- Wired into `apps/ai/chatgpt_cos/reasoning/engine.py::answer_reasoning_question` BEFORE `run_planner`. A question that names an active goal/mission — or uses "my mission"/"this goal"/"that goal" — is forced to the GOALS domain; the health planner can no longer own it.
+- Reads canonical titles READ-ONLY via `get_domain_state(user, "purpose")` (snapshot; **no request-path recompute**). Gated: goal-context-gated (no goals → never fires), title length-gated (≥4), word-boundary matched, and a bare-domain-collision-word guard (a goal literally named "Health" cannot steal a health question).
+
+**Fix 2 — rich goal context (root cause #2):**
+- `apps/core/ai_state/state_builder.py::build_goal_state` now attaches a `context` block to each active-goal entry and the mission, from EXISTING canonical `LifeGoal`/`GoalMilestone` fields ONLY (**no migration**): `active_milestone` (+ `active_milestone_detail`), `next_milestones`, `recently_completed_milestone`, `current_phase`, `why_it_matters`, `success_definition` (`success_looks_like`).
+- `apps/ai/chatgpt_cos/reasoning/stages.py::goals_working_memory` (`_coach_evidence`) surfaces this context to the reasoner, executive-clean (no IDs/enums/scores/field names/source paths). `_GOAL_GUIDANCE` updated to ground the next step in the active milestone.
+
+**Fix 3 — milestone-grounded recommendations:**
+- `_evidence_from_snapshot` recommended action follows active-milestone → momentum → risk-drivers precedence, with a generic-planning GUARD: a goal that already has milestones never receives "plan the goal"/"outline next steps"/"take one step"/"make progress".
+
+**Files:** `apps/ai/chatgpt_cos/reasoning/plan.py`, `apps/ai/chatgpt_cos/reasoning/engine.py`, `apps/ai/chatgpt_cos/reasoning/stages.py`, `apps/core/ai_state/state_builder.py`, `apps/ai/tests/test_goals_reasoning.py`, `docs/ENGINE_COS_REFERENCE.md`.
+
+**Verification:** `apps.ai.tests.test_goals_reasoning` 66/66 pass (incl. 14 new). Intent-registration gate 11/11 pass. `manage.py check` clean. `makemigrations --check` → no changes (no migration). Health byte-identical: the only 2 failures in the health suite (`test_health_retrieval` sleep/workout no-data) are PRE-EXISTING and unrelated — confirmed identical on a clean tree via `git stash`. No user-facing release note added (internal routing-correctness fix).
+
+
 ## 2026-06-26 — feat(cos): Goal Evidence Narrative layer (phase + drivers + recommendation)
 
 Follow-up to evidence-first Goals. Production still showed "Narrow your focus to one or two goals to boost your overall completion rate" as the focus for a progressing mission. Two root causes fixed: (1) "steady/moderate" momentum wasn't counted as healthy, so the portfolio nag leaked; (2) Beth had momentum band/trend but no per-driver narrative to reason from.

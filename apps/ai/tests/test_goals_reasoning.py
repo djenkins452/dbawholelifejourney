@@ -703,3 +703,225 @@ class BuildGoalStateEvidenceTests(TestCase):
         # 3 goals -> at most 2 snapshot reads (the bulk active-goal query + the
         # mission's own latest), never one-per-goal.
         self.assertLessEqual(len(snap_queries), 2, snap_queries)
+
+
+# ---------------------------------------------------------------------------
+# Named-goal PRE-ROUTER — root cause #1: a question about a named goal/mission
+# must be OWNED by the Goals domain, never stolen by the health planner. Pure
+# decision logic (no DB) + the canonical-state wrapper.
+# ---------------------------------------------------------------------------
+class NamedGoalPrerouteDecisionTests(SimpleTestCase):
+    TITLES = ["France 2027", "Write a book"]
+    MISSION = "Become a published author"
+
+    def _route(self, msg):
+        return planmod.named_goal_intent(msg, self.TITLES, self.MISSION)
+
+    def test_named_goal_progress_routes_to_goals(self):
+        # (1) named-goal progress questions route to Goals, not Health.
+        for msg in ("how is France 2027 progressing",
+                    "how's France 2027 going",
+                    "where am i on Write a book",
+                    "give me an update on France 2027"):
+            self.assertEqual(self._route(msg), "goals_progress", msg)
+
+    def test_mission_and_deictic_route_to_goals(self):
+        # (2) "my mission" and "this goal" route to Goals.
+        for msg in ("how is my mission going",
+                    "tell me about this goal",
+                    "what's the status of that goal",
+                    "how is Become a published author tracking"):
+            self.assertIsNotNone(self._route(msg), msg)
+
+    def test_named_goal_risk_and_focus_intents(self):
+        self.assertEqual(self._route("what's my biggest risk on France 2027"),
+                         "biggest_goal_risk")
+        self.assertEqual(self._route("what should i do today for France 2027"),
+                         "goals_focus_today")
+
+    def test_health_questions_never_routed_to_goals(self):
+        # (3) Health questions still route to Health (pre-router returns None,
+        # leaving the existing health path untouched). Includes the "goal weight"
+        # trap — a health question that merely contains the word "goal".
+        for msg in ("what is my biggest health risk",
+                    "what are my health concerns",
+                    "what should i focus on today",
+                    "how am i doing",
+                    "what's my goal weight"):
+            self.assertIsNone(self._route(msg), msg)
+
+    def test_rhythm_and_general_questions_unchanged(self):
+        # (4) rhythm / general questions remain unchanged (None -> planner path).
+        for msg in ("what should i do next", "who was abraham lincoln",
+                    "thanks", "remind me to call mom"):
+            self.assertIsNone(self._route(msg), msg)
+
+    def test_goal_context_gated(self):
+        # No active goals/mission -> nothing to own, even for explicit deixis.
+        self.assertIsNone(planmod.named_goal_intent("how is my mission going", [], None))
+        self.assertIsNone(planmod.named_goal_intent("how is France 2027 going", [], None))
+
+    def test_title_gates_prevent_stealing(self):
+        # A goal literally named "Health" must NOT steal the health question
+        # (bare domain-collision word); short titles are length-gated out.
+        self.assertIsNone(
+            planmod.named_goal_intent("what is my biggest health risk", ["Health"], None))
+        self.assertIsNone(
+            planmod.named_goal_intent("how is it going", ["ab"], None))
+
+
+class NamedGoalPrerouteWrapperTests(TestCase):
+    """preroute_named_goal reads canonical goals_state (read-only) and applies the
+    decision against REAL state shape produced by build_goal_state."""
+
+    def setUp(self):
+        from datetime import timedelta
+        from django.conf import settings as dj_settings
+        from apps.users.models import TermsAcceptance
+        from apps.purpose.models import LifeDomain, LifeGoal, GoalMilestone
+        from apps.core.time.system_clock import get_current_time
+
+        self.user = User.objects.create_user(email="preroute@example.com", password="x")
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=dj_settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"))
+        self.user.preferences.has_completed_onboarding = True
+        self.user.preferences.save()
+        domain = LifeDomain.objects.create(name="Purpose", slug="purpose")
+        today = get_current_time().date()
+        g = LifeGoal.objects.create(user=self.user, title="France 2027",
+                                    domain=domain, status="active",
+                                    target_date=today + timedelta(days=300))
+        GoalMilestone.objects.create(goal=g, title="Build aerobic base", completed=False)
+
+    @patch("apps.ai.cos_services.get_domain_state")
+    def test_wrapper_routes_named_goal_and_ignores_health(self, mock_gds):
+        from apps.core.ai_state.state_builder import build_goal_state
+        mock_gds.return_value = {"state": build_goal_state(self.user)}
+        self.assertEqual(
+            planmod.preroute_named_goal(self.user, "how is France 2027 progressing"),
+            "goals_progress")
+        self.assertIsNone(
+            planmod.preroute_named_goal(self.user, "what is my biggest health risk"))
+        # read-only canonical source (allow_build defaults to False).
+        self.assertTrue(mock_gds.called)
+
+    @patch("apps.ai.cos_services.get_domain_state", side_effect=RuntimeError("boom"))
+    def test_wrapper_degrades_safely_on_read_failure(self, _mock):
+        self.assertIsNone(
+            planmod.preroute_named_goal(self.user, "how is France 2027 going"))
+
+
+# ---------------------------------------------------------------------------
+# Rich goal context (Fix #2) + milestone-grounded recommendation (Fix #3) —
+# root cause #2: goals reasoning no longer ignores canonical goal context.
+# ---------------------------------------------------------------------------
+class RichGoalContextTests(TestCase):
+    def setUp(self):
+        from datetime import timedelta
+        from django.conf import settings as dj_settings
+        from apps.users.models import TermsAcceptance
+        from apps.purpose.models import LifeDomain, LifeGoal, GoalMilestone
+        from apps.dashboard_v2.models import GoalMomentumSnapshot
+        from apps.core.time.system_clock import get_current_time
+
+        self.user = User.objects.create_user(email="richctx@example.com", password="x")
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=dj_settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"))
+        self.user.preferences.has_completed_onboarding = True
+        self.user.preferences.save()
+        domain = LifeDomain.objects.create(name="Purpose", slug="purpose")
+        today = get_current_time().date()
+        self.goal = LifeGoal.objects.create(
+            user=self.user, title="France 2027", domain=domain, status="active",
+            target_date=today + timedelta(days=300),
+            why_it_matters="To run the family 18K with my kids in France.",
+            success_looks_like="Finish the 18K route under 2 hours, together.")
+        # A completed milestone (the recent win) + the active milestone (with a
+        # description) + a future milestone — ordered by target_date.
+        GoalMilestone.objects.create(
+            goal=self.goal, title="Buy running shoes", completed=True,
+            completed_date=today - timedelta(days=5),
+            target_date=today - timedelta(days=7))
+        GoalMilestone.objects.create(
+            goal=self.goal, title="Build aerobic base", completed=False,
+            description="Three easy zone-2 runs per week for a month.",
+            target_date=today + timedelta(days=10))
+        GoalMilestone.objects.create(
+            goal=self.goal, title="Run a 5K", completed=False,
+            target_date=today + timedelta(days=40))
+        # Snapshot with HIGH-score drivers only -> no risk driver -> the rec must
+        # fall through to the active-milestone anchor (Fix #3).
+        GoalMomentumSnapshot.objects.create(
+            user=self.user, goal=self.goal, snapshot_date=today,
+            momentum_score=80, progress_score=45, momentum_trend="rising",
+            drivers={"domain_signals": {"score": 80, "label": "Training on track",
+                                        "signal_labels": ["3 runs this week"]}})
+
+    def _france(self, state):
+        for t in (state.get("active_titles") or []):
+            if t.get("title") == "France 2027":
+                return t
+        return None
+
+    def _state(self):
+        from apps.core.ai_state.state_builder import build_goal_state
+        return build_goal_state(self.user)
+
+    def test_build_goal_state_exposes_rich_context(self):
+        # (5) build_goal_state exposes rich milestone/context fields.
+        ctx = self._france(self._state()).get("context")
+        self.assertIsNotNone(ctx)
+        self.assertTrue(ctx["has_milestones"])
+        self.assertEqual(ctx["current_phase"], "Build aerobic base")
+        self.assertEqual(ctx["active_milestone"], "Build aerobic base")
+        self.assertIn("zone-2", ctx["active_milestone_detail"].lower())
+        self.assertIn("Run a 5K", ctx["next_milestones"])
+        self.assertEqual(ctx["recently_completed_milestone"], "Buy running shoes")
+        self.assertIn("family", ctx["why_it_matters"].lower())
+        self.assertIn("finish", ctx["success_definition"].lower())
+
+    def test_recommendation_grounded_in_active_milestone(self):
+        # (7) recommendations use active milestone / phase context, and
+        # (6) richly planned goals do not receive generic planning advice.
+        ev = self._france(self._state()).get("evidence")
+        self.assertIsNotNone(ev)
+        rec = ev["recommended_action"]
+        self.assertIn("Build aerobic base", rec)
+        for g in ("take one step", "make progress", "plan the goal",
+                  "outline next steps", "work on the goal"):
+            self.assertNotIn(g, rec.lower())
+
+    def test_curator_surfaces_context_to_reasoning(self):
+        truth = {"goals_state": {"state": self._state()},
+                 "habits_state": {"state": {}}}
+        ev = (stages.goals_working_memory(truth).get("goal_evidence") or [])
+        france = next((i for i in ev if i.get("goal") == "France 2027"), None)
+        self.assertIsNotNone(france)
+        self.assertEqual(france.get("phase"), "Build aerobic base")
+        self.assertIn("zone-2", france.get("current_milestone_detail", "").lower())
+        self.assertIn("why_it_matters", france)
+        self.assertIn("success_looks_like", france)
+        self.assertEqual(france.get("recently_completed"), "Buy running shoes")
+
+    def test_focus_today_fallback_is_milestone_grounded(self):
+        # (6/7) the user-facing fallback names the milestone, never generic.
+        truth = {"goals_state": {"state": self._state()},
+                 "habits_state": {"state": {}}}
+        wm = {"intent": "goals_focus_today",
+              "facts": stages.goals_working_memory(truth)}
+        out = stages._goals_focus_today_fallback(wm).lower()
+        self.assertIn("build aerobic base", out)
+        for g in _BANNED_GENERIC:
+            self.assertNotIn(g, out, g)
+
+    def test_no_raw_ids_enums_or_source_paths_leak(self):
+        # (8) no raw IDs, enums, source paths, or internal JSON leaks.
+        truth = {"goals_state": {"state": self._state()},
+                 "habits_state": {"state": {}}}
+        blob = json.dumps(stages.goals_working_memory(truth))
+        for forbidden in ("momentum_score", "progress_score", "is_foundational",
+                          "SAE.", "success_drivers", "risk_drivers", "as_of",
+                          "signal_labels", "_id\""):
+            self.assertNotIn(forbidden, blob, f"leaked: {forbidden}")

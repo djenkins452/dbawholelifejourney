@@ -127,23 +127,18 @@ class ChatGPTCoSService:
         except Exception:
             logger.warning("chatgpt_cos: SAE warm failed", exc_info=True)
 
-        # FOUNDATION FACT FAST PATH — deterministic, NO tools / NO agentic loop.
-        # Foundational fact prompts retrieve canonical truth directly and phrase
-        # it with the plain _call_api mechanism (with a deterministic fallback).
-        from apps.ai.chatgpt_cos.foundational_facts import answer_foundational_fact
-        _fast = answer_foundational_fact(self.user, message)
-        if _fast is not None:
-            return _fast
-
-        # REASONING LANE — Planner LLM -> deterministic authoritative retrieval
-        # -> curated working memory -> single reasoning call (+ deterministic
-        # fallback). Handles judgment/synthesis questions WITHOUT the agentic
-        # tool loop. Returns None (falls through) for not-yet-implemented intents
-        # or planner unavailability.
-        from apps.ai.chatgpt_cos.reasoning import answer_reasoning_question
-        _reasoned = answer_reasoning_question(self.user, message)
-        if _reasoned is not None:
-            return _reasoned
+        # CONVERSATION LANE REGISTRY (framework-first, P6/P13) — ordered:
+        #   Foundational Facts -> Personal Reasoning -> Clarification -> General.
+        # The first two are the existing lanes (deterministic facts + the health
+        # reasoning lane), wrapped UNCHANGED. The Clarification lane gracefully
+        # asks instead of failing on ambiguous requests (deterministic, no LLM);
+        # the General lane answers non-personal questions in a SANDBOX (no
+        # personal/SAE data). If every lane declines, fall through to the tool
+        # loop below (the terminal fallback, P8).
+        from apps.ai.chatgpt_cos.lanes import route_message
+        _routed = route_message(self.user, message)
+        if _routed is not None:
+            return _routed
 
         standing = get_standing_context(
             self.user, page_context=page_context, allow_build=True,

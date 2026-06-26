@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — feat(cos): conversation lane registry — Clarification + General lanes (P22/P23)
+
+**Why:** Beth previously fell to the tool loop (often the empty-response message) for ambiguous and general-knowledge requests. Adds two lanes so she clarifies instead of failing, and answers general questions — without losing her Chief-of-Staff role. Framework-first (P6/P13): an ordered lane registry, no special-casing.
+
+**Architecture:** new `apps/ai/chatgpt_cos/lanes.py` — `route_message()` over `LANE_REGISTRY` = Foundational Facts → Personal Reasoning → **Clarification** → **General**; tool loop remains the terminal fallback (P8). `service.generate()` now calls `route_message` (the existing two lanes are wrapped UNCHANGED — called directly, decline/error semantics preserved).
+- **Clarification lane** — DETERMINISTIC (no OpenAI); `AMBIGUITY_TYPES` registry with `daily_checkin_candidate` ("check in" → Daily Check-In framing; full Daily Check-In Lane intentionally NOT built; no calendar/task/goal/health data pulled), `unspecified_help`, `unspecified_review`. Conservative matching (multi-word substring ≤4 words; single-word exact) so specific requests aren't stolen.
+- **General lane** — SANDBOXED (no personal/SAE data in the prompt; P1/P3/P11); conservative claim (declines anything personal/WLJ → tool loop); deterministic fallback on LLM failure (P5).
+
+**Golden Behaviors preserved:** durability/recovery/notifications/thinking-indicators/persistence/Celery untouched (lanes live inside `generate()`, same return contract); the 4 health intents unchanged and still claimed by the reasoning lane before the new lanes (tested); no contamination (General is data-less; new lanes never claim health/personal questions); planner + deterministic-fallback guarantees unchanged.
+
+**Tests:** new `test_conversation_lanes.py` (14) — `check in`→Clarification/daily framing, deterministic (no OpenAI, works with OpenAI down), never reaches tool loop; General sandbox + fallback + declines-personal; health/personal never claimed by new lanes; reasoning claims first; registry order; contract parity. Full regression sweep green (90 tests OK); `check` clean; no migrations.
+
+**Docs:** amended `BETH_ARCHITECTURAL_PRINCIPLES.md` (P22, P23); new `BETH_CONVERSATION_LANES.md`. **Paused for production validation before any further work (BETH_CHANGE_CONTROL); promotes to beth-stable-v2 only if validation passes.**
+
+
 ## 2026-06-25 — feat(study): SHRM-SCP flashcards quick-study tool
 
 **Why:** one-off personal study aid — self-contained click-to-flip flashcard deck (113 cards) built from the Master SHRM-SCP Study Guide, for use ahead of the 2026-06-26 exam. Reachable from a "SHRM Flashcards" link in the left-hand navigation for quick launch.

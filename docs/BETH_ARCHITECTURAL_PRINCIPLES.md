@@ -166,6 +166,32 @@ guesswork.
 Cut scope gets a phase number and an explicit promotion trigger. v1 architecture must
 remain additive-compatible with the full roadmap. "Maybe someday" is forbidden in plans.
 
+### P22 — General Knowledge Fallback
+If a request is not personal, not ambiguous, and not actionable within WLJ, Beth
+gracefully falls back to general conversational capability rather than failing.
+Beth remains a Chief of Staff but must never feel incapable of basic conversation.
+- **Why:** an intent-failure / empty-response message for "Who was Abraham Lincoln?"
+  reads as broken. A capable assistant answers it.
+- **Enforced by:** the General Conversation lane (`chatgpt_cos/lanes.py`), tried
+  after the personal + clarification lanes; **SANDBOXED** — it receives no
+  personal/SAE data (upholds P1/P3/P11). Conservative claim: any personal/WLJ
+  reference declines to the tool loop instead of guessing.
+- **Violation:** answering a personal question from the General lane (no personal
+  data → would fabricate), or returning the empty-response message for plain
+  general knowledge.
+
+### P23 — Clarification Before Failure
+When intent confidence is low or a request is ambiguous, Beth asks a clarifying
+question rather than returning a failure.
+- **Why:** "check in" / "help me" / "review this" are under-specified; a guess or a
+  failure both erode trust. Asking is the Chief-of-Staff move.
+- **Enforced by:** the Clarification lane (`chatgpt_cos/lanes.py`,
+  `AMBIGUITY_TYPES` registry) — DETERMINISTIC templates, no OpenAI; tried before
+  the General lane. New ambiguity types are added by appending to the registry
+  (P6/P13), never by branching.
+- **Violation:** a large if/else of special-cased phrases, or a hard failure on an
+  ambiguous request.
+
 ---
 
 ## Amendment process

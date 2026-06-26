@@ -139,8 +139,8 @@ class RoutingPreservationTests(TestCase):
     def test_registry_order(self):
         self.assertEqual([n for n, _ in LANE_REGISTRY],
                          ["clarification_reply", "foundational_facts",
-                          "personal_reasoning", "next_rhythm",
-                          "clarification", "general_conversation"])
+                          "clarification", "next_rhythm",
+                          "personal_reasoning", "general_conversation"])
 
     def test_health_questions_never_claimed_by_new_lanes(self):
         # The Clarification + General lanes must NEVER claim a health/personal
@@ -149,15 +149,15 @@ class RoutingPreservationTests(TestCase):
             self.assertIsNone(clarify(q), f"clarify stole: {q}")
             self.assertIsNone(general_answer(self.user, q), f"general stole: {q}")
 
-    def test_health_question_routes_to_reasoning_first(self):
-        # Reasoning claims before Clarification/General are ever consulted.
+    def test_health_question_routes_to_reasoning(self):
+        # A health question is declined by the deterministic lanes (clarification
+        # has no trigger; next_rhythm has no signal) and claimed by reasoning.
+        # general_answer must NOT be reached (reasoning claims before it).
         with mock.patch(_FOUNDATIONAL, return_value=None), \
              mock.patch(_REASONING,
                         return_value={"answer": "health answer",
                                       "tools_called": [],
                                       "reasoning": {"intent": "biggest_health_risk"}}), \
-             mock.patch("apps.ai.chatgpt_cos.lanes.clarify",
-                        side_effect=AssertionError("clarify reached")), \
              mock.patch("apps.ai.chatgpt_cos.lanes.general_answer",
                         side_effect=AssertionError("general reached")):
             out = route_message(self.user, "What is my biggest health risk right now?")
@@ -285,3 +285,73 @@ class P24RhythmApiTests(TestCase):
         # "right now / focus" is the URGENCY fact (get_next_action), NOT rhythm.
         self.assertIsNone(_next_rhythm_lane(self.user, "what should I do right now"))
         self.assertIsNone(_next_rhythm_lane(self.user, "what should I focus on right now"))
+
+
+class ApprovedRegistryOrderTests(TestCase):
+    """The exact approved order (clarification + next_rhythm BEFORE personal
+    reasoning; general AFTER it). Issue #1 General ordering is intentionally
+    unchanged pending production telemetry."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(email="lane_appr@example.com", password="x")
+
+    def setUp(self):
+        self.conv = AssistantConversation.objects.create(user=self.user)
+
+    def test_order_is_approved(self):
+        self.assertEqual(
+            [n for n, _ in LANE_REGISTRY],
+            ["clarification_reply", "foundational_facts", "clarification",
+             "next_rhythm", "personal_reasoning", "general_conversation"])
+
+    def test_check_in_routes_to_clarification_and_not_personal_reasoning(self):
+        # the planner must NEVER run for 'check in' — mock it to explode; the
+        # clarification lane claims first, so reasoning is never reached.
+        with mock.patch(_CALL_API, side_effect=AssertionError("planner ran")), \
+             mock.patch(_CALL_API_TOOLS, side_effect=AssertionError("tool loop")), \
+             mock.patch(_FOUNDATIONAL, return_value=None):
+            out = route_message(self.user, "check in", self.conv)
+        self.assertEqual(out["lane"], "clarification")
+        self.assertEqual(out["ambiguity_type"], "daily_checkin_candidate")
+
+    def test_check_in_then_1_resolves_state(self):
+        with mock.patch(_CALL_API, side_effect=AssertionError("planner")), \
+             mock.patch(_FOUNDATIONAL, return_value=None):
+            route_message(self.user, "check in", self.conv)
+        with mock.patch(_CALL_API, side_effect=AssertionError("openai")), \
+             mock.patch(_CALL_API_TOOLS, side_effect=AssertionError("tool loop")):
+            out = route_message(self.user, "1", self.conv)
+        self.assertEqual(out["lane"], "clarification_reply")
+        self.assertEqual(out["resolved_option"], 1)
+        self.conv.refresh_from_db()
+        self.assertNotIn("pending_clarification", self.conv.metadata or {})
+
+    def test_what_should_i_do_next_routes_to_next_rhythm(self):
+        # next_rhythm is before reasoning -> the planner never runs for it.
+        with mock.patch(_RHYTHM_PATCH, return_value=_RHYTHM), \
+             mock.patch(_CALL_API, side_effect=AssertionError("planner")), \
+             mock.patch(_FOUNDATIONAL, return_value=None):
+            out = route_message(self.user, "what should I do next?", self.conv)
+        self.assertEqual(out["lane"], "next_rhythm")
+        self.assertIn("Work on WLJ", out["answer"])
+
+    def test_health_question_routes_to_personal_reasoning(self):
+        with mock.patch(_FOUNDATIONAL, return_value=None), \
+             mock.patch(_REASONING,
+                        return_value={"answer": "health read", "tools_called": [],
+                                      "reasoning": {"intent": "biggest_health_risk"}}):
+            out = route_message(
+                self.user, "what is my biggest health risk right now?", self.conv)
+        self.assertEqual(out["lane"], "personal_reasoning")
+
+    def test_general_routes_to_general_after_reasoning_declines_no_tool_loop(self):
+        # general is AFTER reasoning: the planner runs, declines (non-JSON ->
+        # 'other'), then the general lane claims. Tool loop is never reached.
+        with mock.patch(_CALL_API,
+                        return_value="Lincoln was the 16th US president."), \
+             mock.patch(_CALL_API_TOOLS, side_effect=AssertionError("tool loop")), \
+             mock.patch(_FOUNDATIONAL, return_value=None):
+            out = route_message(self.user, "Who was Abraham Lincoln?", self.conv)
+        self.assertEqual(out["lane"], "general_conversation")
+        self.assertIn("Lincoln", out["answer"])

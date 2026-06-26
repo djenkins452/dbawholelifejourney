@@ -417,17 +417,24 @@ def _general_lane(user, message, conversation=None):
 # ---------------------------------------------------------------------------
 # The ordered registry + router. The tool loop is NOT in the registry — it is
 # the terminal fallback in service.generate() when route_message() returns None.
+#
 #   clarification_reply  — resolves a pending clarification (front)
-#   foundational_facts / personal_reasoning — existing lanes (unchanged)
-#   next_rhythm          — canonical SCHEDULED "what's next" (P24)
-#   clarification / general_conversation
+#   foundational_facts   — deterministic personal scalar facts
+#   clarification        — deterministic ambiguity detection (BEFORE the planner,
+#                          so ambiguous prompts like "check in" are clarified
+#                          rather than over-claimed by the reasoning planner)
+#   next_rhythm          — canonical SCHEDULED "what's next" (P24, deterministic)
+#   personal_reasoning   — the LLM-planner health reasoning lane
+#   general_conversation — sandboxed general knowledge (kept AFTER reasoning;
+#                          general-before-personal is NOT yet approved — pending
+#                          Issue #1 production telemetry)
 # ---------------------------------------------------------------------------
 LANE_REGISTRY = (
     ("clarification_reply", _clarification_reply_lane),
     ("foundational_facts", _foundational_lane),
-    ("personal_reasoning", _reasoning_lane),
-    ("next_rhythm", _next_rhythm_lane),
     ("clarification", _clarification_lane),
+    ("next_rhythm", _next_rhythm_lane),
+    ("personal_reasoning", _reasoning_lane),
     ("general_conversation", _general_lane),
 )
 

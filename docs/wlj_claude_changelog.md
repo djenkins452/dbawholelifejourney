@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — fix(cos): lane registry reorder — clarification before the planner
+
+**Root cause (proven):** the `clarification` lane sat AFTER `personal_reasoning`, so the LLM planner over-claimed the ambiguous "check in" as `overall_progress` and returned a health summary before clarification was ever reached (`deterministic_health_intent("check in")` is None — it was the planner). Beth never showed the daily-check-in options.
+
+**Fix (approved partial reorder — registry tuple only):**
+`clarification_reply → foundational_facts → clarification → next_rhythm → personal_reasoning → general_conversation`
+Only `clarification` and `next_rhythm` move ahead of `personal_reasoning`; **`general_conversation` stays AFTER reasoning** (general-before-personal is NOT approved — pending Issue #1 telemetry, to avoid general stealing personal prompts).
+
+**Result:** "check in" → clarification (planner never runs); "check in" → "1" resolves deterministically; "what should I do next" → next_rhythm; health questions → personal_reasoning; general questions → general_conversation after reasoning declines (no tool loop).
+
+**Issue #1 (General-lane circuit-breaker failures) deliberately NOT touched** — awaiting the production `COS_LANE_TRACE`/`COS_REASONING_PLAN`/`BETH_GENERAL_CALL` trace before deciding the fix. Tests: `ApprovedRegistryOrderTests` (7 required checks) + updated order assertions. Relevant regression suite green (115 tests, exit 0); `check` clean; no migration. Paused for production validation.
+
+
 ## 2026-06-26 — feat(cos): clarification state + Responded chip + P24 canonical Rhythm API
 
 **1. Clarification state (no migration, no OpenAI):** pending clarification persists in `conversation.metadata["pending_clarification"]`; a new front-of-registry `clarification_reply` lane resolves the user's reply deterministically (number / `option N` / ordinal / yes-no / label alias) and clears the state. Stale state self-clears when the next message is not a reply (never hijacks an unrelated request). `check in` → reply `1` now resolves deterministically — no tool loop, no OpenAI.

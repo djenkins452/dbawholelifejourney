@@ -22,10 +22,19 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
 from apps.ai.chatgpt_cos.reasoning import answer_reasoning_question
-from apps.ai.chatgpt_cos.reasoning.plan import parse_plan
+from apps.ai.chatgpt_cos.reasoning.plan import (
+    IMPLEMENTED_INTENTS,
+    deterministic_health_intent,
+    parse_plan,
+)
 from apps.ai.chatgpt_cos.reasoning.stages import (
+    INTENT_CURATORS,
     REASONING_PROFILES,
     _calibrate_label,
+    _health_concerns_fallback,
+    _health_focus_today_fallback,
+    _health_progress_fallback,
+    _health_risk_fallback,
     _intra_day_hint,
     _nutrition_time_context,
     build_working_memory,
@@ -234,7 +243,8 @@ class ToneCalibrationTests(TestCase):  # Fix 3
         self.assertIn("muscle", concerns.lower())         # surfaced as coaching
 
     def test_prompts_carry_calibration_and_no_alarmist_words(self):
-        for intent in ("biggest_health_risk", "overall_progress"):
+        for intent in ("biggest_health_risk", "overall_progress",
+                       "health_focus_today", "health_concerns"):
             sys = REASONING_PROFILES[intent]["system"].lower()
             self.assertIn("worth watching", sys)
             self.assertIn("evidence-based", sys)
@@ -331,7 +341,7 @@ class ReasoningGuaranteeTests(TestCase):  # Fix #2 — always answer, never fall
             "How am I doing overall with my health goals?"), "overall_progress")
         self.assertEqual(deterministic_health_intent(
             "What should I focus on from a health perspective today?"),
-            "biggest_health_risk")
+            "health_focus_today")          # Phase 1: own intent, not lumped
         self.assertEqual(deterministic_health_intent(
             "What is my biggest health risk right now?"), "biggest_health_risk")
         self.assertIsNone(deterministic_health_intent("Tell me a joke."))
@@ -349,12 +359,14 @@ class ReasoningGuaranteeTests(TestCase):  # Fix #2 — always answer, never fall
         self.assertTrue(out["reasoning"]["used_fallback"])
 
     def test_focus_question_routes_to_implemented_intent(self):
+        # Phase 1: a "focus ... today" question now routes to its own intent
+        # (health_focus_today), no longer lumped into biggest_health_risk.
         with _mock_providers(), \
              mock.patch(_CALL_API, return_value=None), \
              mock.patch(_CALL_API_TOOLS, side_effect=AssertionError("tools")):
             out = answer_reasoning_question(
                 self.user, "What should I focus on from a health perspective today?")
-        self.assertEqual(out["reasoning"]["intent"], "biggest_health_risk")
+        self.assertEqual(out["reasoning"]["intent"], "health_focus_today")
         self.assertTrue(out["answer"])
 
     def test_non_health_still_declines_when_planner_none(self):
@@ -390,3 +402,138 @@ class DeterministicFallbackQualityTests(TestCase):  # Fix #3
         ans = _health_risk_fallback(wm)
         self.assertIn("blood sugar", ans)
         self.assertIn("next step", ans.lower())
+
+
+# Phase 1 — the four health intents must be intentionally differentiated.
+# Enforces docs/BETH_HEALTH_INTENT_CONTRACTS.md (INV-1..INV-5).
+_WM_MULTI = {"facts": {
+    "current_status": {"weight_current": 285.7, "weight_unit": "lb",
+                       "latest_glucose": 165, "sleep_avg_hours_7d": 6.1},
+    "trends": {"weight_trend": "decreasing"},
+    "goal_progress": {"weight_goal_remaining": 60},
+    "nutrition_context": {"day_phase": "evening"},
+    "ranked_concerns": [
+        {"concern": "your blood sugar has been running high lately",
+         "action": "a short walk after meals and steadier carb timing"},
+        {"concern": "you've been averaging under 6.5 hours of sleep",
+         "action": "protecting a consistent bedtime this week"},
+    ],
+}}
+
+_VAGUE = ("keep improving", "work on", "stay active", "try to", "continue improving")
+
+
+class Phase1IntentContractTests(TestCase):
+    # --- registration / framework wiring ---
+    def test_all_four_intents_have_profiles_and_curators(self):
+        for intent in IMPLEMENTED_INTENTS:
+            self.assertIn(intent, REASONING_PROFILES, intent)
+            self.assertIn(intent, INTENT_CURATORS, intent)
+        self.assertEqual(set(IMPLEMENTED_INTENTS), {
+            "biggest_health_risk", "overall_progress",
+            "health_focus_today", "health_concerns"})
+
+    # --- disambiguation (deterministic resilience matcher) ---
+    def test_disambiguation_routes_four_intents(self):
+        self.assertEqual(deterministic_health_intent(
+            "What should I focus on from a health perspective today?"),
+            "health_focus_today")
+        self.assertEqual(deterministic_health_intent(
+            "What are my health concerns?"), "health_concerns")
+        self.assertEqual(deterministic_health_intent(
+            "What is my biggest health risk right now?"), "biggest_health_risk")
+        self.assertEqual(deterministic_health_intent(
+            "How am I doing overall with my health goals?"), "overall_progress")
+
+    # --- INV-1: concerns is a LIST (>=2); risk is a single item ---
+    def test_inv1_concerns_list_vs_single_risk(self):
+        concerns = _health_concerns_fallback(_WM_MULTI)
+        risk = _health_risk_fallback(_WM_MULTI)
+        self.assertIn("1.", concerns)
+        self.assertIn("2.", concerns)            # >=2 items when >=2 exist
+        self.assertNotIn("2.", risk)             # exactly one
+        self.assertIn("blood sugar", risk)       # the TOP concern only
+
+    # --- INV-2 + INV-5: focus_today = action + time + concrete, not vague ---
+    def test_inv5_focus_today_concrete_action_three_parts(self):
+        focus = _health_focus_today_fallback(_WM_MULTI)
+        low = focus.lower()
+        self.assertIn("today, focus on", low)              # (1) today's focus
+        self.assertIn("one concrete step:", low)           # (3) concrete action
+        self.assertTrue(any(k in low for k in (            # action is concrete
+            "walk", "bedtime", "protein", "meal", "minute", "tonight")), focus)
+        for v in _VAGUE:
+            self.assertNotIn(v, low, f"vague phrase leaked: {v}")
+        # INV-2: materially different from the single-risk answer
+        self.assertNotEqual(focus, _health_risk_fallback(_WM_MULTI))
+
+    def test_inv5_focus_today_action_when_no_concerns(self):
+        focus = _health_focus_today_fallback({"facts": {}})
+        self.assertIn("today", focus.lower())
+        self.assertTrue(any(k in focus.lower() for k in ("walk", "step")), focus)
+
+    # --- INV-3: progress is a multi-domain summary, not single-risk framing ---
+    def test_inv3_progress_multidomain_not_single_risk(self):
+        prog = _health_progress_fallback(_WM_MULTI).lower()
+        self.assertIn("weight", prog)
+        self.assertIn("glucose", prog)
+        self.assertIn("sleep", prog)
+        self.assertFalse(prog.startswith("the main thing worth your attention"))
+
+    # --- INV-4: the four answers are pairwise distinct on one fixture ---
+    def test_inv4_four_answers_pairwise_distinct(self):
+        answers = {
+            _health_risk_fallback(_WM_MULTI),
+            _health_concerns_fallback(_WM_MULTI),
+            _health_focus_today_fallback(_WM_MULTI),
+            _health_progress_fallback(_WM_MULTI),
+        }
+        self.assertEqual(len(answers), 4)        # no two are identical
+
+
+@override_settings(WLJ_COS_EVIDENCE_TOOLS_ENABLED=False)
+class Phase1EndToEndTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(email="rl_p1@example.com", password="x")
+
+    def _plan_json(self, intent):
+        return json.dumps({
+            "intent": intent, "response_mode": "reasoning", "domains": ["health"],
+            "required_truth": ["health_state", "foundational_health"],
+            "optional_truth": [], "reasoning_style": "x",
+            "urgency": "normal", "confidence": 0.8})
+
+    def test_health_focus_today_end_to_end_health_only(self):
+        with _mock_providers(), \
+             mock.patch(_CALL_API,
+                        side_effect=[self._plan_json("health_focus_today"), None]), \
+             mock.patch(_CALL_API_TOOLS, side_effect=AssertionError("tools")):
+            out = answer_reasoning_question(
+                self.user, "What should I focus on health-wise today?")
+        self.assertEqual(out["reasoning"]["intent"], "health_focus_today")
+        self.assertNotIn("risk_decision", out["reasoning"]["truth_keys"])
+        self.assertNotIn("Harley", out["answer"])
+        self.assertTrue(out["answer"].strip())               # always answers
+
+    def test_health_concerns_end_to_end_health_only(self):
+        with _mock_providers(), \
+             mock.patch(_CALL_API,
+                        side_effect=[self._plan_json("health_concerns"), None]), \
+             mock.patch(_CALL_API_TOOLS, side_effect=AssertionError("tools")):
+            out = answer_reasoning_question(
+                self.user, "What are my health concerns?")
+        self.assertEqual(out["reasoning"]["intent"], "health_concerns")
+        self.assertNotIn("Harley", out["answer"])
+        self.assertTrue(out["answer"].strip())
+
+    def test_planner_misclassify_routes_deterministically(self):
+        # planner returns 'other' for a clearly-implemented intent -> resilience
+        with _mock_providers(), \
+             mock.patch(_CALL_API,
+                        side_effect=[_OTHER_PLAN_JSON, None]), \
+             mock.patch(_CALL_API_TOOLS, side_effect=AssertionError("tools")):
+            out = answer_reasoning_question(
+                self.user, "What should I focus on health-wise today?")
+        self.assertIsNotNone(out)
+        self.assertEqual(out["reasoning"]["intent"], "health_focus_today")

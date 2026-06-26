@@ -21,6 +21,22 @@
 **Note:** intentionally NOT added to release notes / help / teaching destinations — it is a personal study aid, not a product feature. No models/migrations touched. Django `check` clean; page verified in-browser (200, 113 cards, flip + next + progress confirmed, no console errors).
 
 
+## 2026-06-26 — feat(cos): Phase 1 reasoning expansion — health_focus_today + health_concerns
+
+**Why:** complete the planned 4 health reasoning intents (was 2). Framework extension only (P6/P13) — registry-by-key, no special-casing. Governed by the approved `docs/BETH_HEALTH_INTENT_CONTRACTS.md`.
+
+**Behavioral contract (intentionally differentiated):** `biggest_health_risk` = single top priority; `health_concerns` = ranked LIST; `health_focus_today` = ONE concrete action for today (time-aware, **INV-5**: always ends with a concrete 24h action + the 3 parts focus/why/action); `overall_progress` = status summary.
+
+**Changes (additive):**
+- `reasoning/plan.py` — `IMPLEMENTED_INTENTS` → 4; `_HEALTH_INTENT_SIGNALS` re-partitioned most-specific-first (today→focus_today, plural→concerns, superlative→biggest, status→progress) to disambiguate the resilience matcher.
+- `reasoning/stages.py` — planner rules rewritten for 4 distinct intents; `INTENT_CURATORS` + `REASONING_PROFILES` add the 2 new intents (reuse the health curator — differentiation lives in the per-intent profile + fallback); new deterministic fallbacks `_health_concerns_fallback` (list) and `_health_focus_today_fallback` + `_concrete_today_action` (INV-5 concrete imperatives).
+- `engine.py` — unchanged (generic, reads `IMPLEMENTED_INTENTS` + maps).
+
+**Golden Behaviors preserved:** health-only scope unchanged (all 4 in `HEALTH_TRUTH` scope — no contamination, GB-3.1); same curator strips enums/labels/source paths (GB-3.2/3.3); always-answer + deterministic fallback per intent (GB-4.1/4.3); never falls through to legacy (GB-4.2). Durability/UX layers untouched (GB-1.*, GB-2.*). Existing 2 intents’ maps/fallbacks not modified (P14).
+
+**Tests:** `test_reasoning_lane.py` +new `Phase1IntentContractTests` (INV-1..5, disambiguation, profile/curator wiring) + `Phase1EndToEndTests` (health-only end-to-end for both new intents + planner-misclassify resilience); updated 2 stale assertions that encoded the old focus→biggest lumping. Full scoped suite green (77 tests OK); `check` clean; no migrations. **New doc:** `docs/BETH_HEALTH_INTENT_CONTRACTS.md`. **Paused for production validation before any further work (per BETH_CHANGE_CONTROL; tag beth-stable-v2 only if validation passes).**
+
+
 ## 2026-06-25 — release(cos): beth-stable-v1 — first protected production baseline
 
 **Tag cut & pushed:** `beth-stable-v1` → `b56b223ef5e9e34df53693c2837c283b00ff398b`. First formal stable baseline for the Chief of Staff. Annotated tag; pushed to GitHub.

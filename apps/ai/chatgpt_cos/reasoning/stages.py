@@ -48,16 +48,23 @@ _PLANNER_SYSTEM = (
     '  "urgency": "low" | "normal" | "high",\n'
     '  "confidence": 0.0-1.0\n'
     "}\n\n"
-    "Rules: choose intent='biggest_health_risk' for health risk/concern/what's-"
-    "wrong-with-my-health questions AND for 'what should I focus on health-wise / "
-    "from a health perspective today' (the single top health priority); "
-    "intent='overall_progress' for how-am-I-doing / on-track / overall-health-"
-    "goals questions; intent='other' for anything else. BOTH implemented intents "
-    "are HEALTH-scoped: for them, required_truth "
-    "must be ONLY ['health_state','foundational_health'] and domains ONLY "
-    "['health']. NEVER request risk_decision, execution_decision, tasks, or any "
-    "non-health truth for a health intent. NEVER invent truth keys outside the "
-    "lists. NEVER write prose. NEVER answer the user. JSON only."
+    "Rules — pick the intent that matches the user's INTENT, keeping these four "
+    "DISTINCT (see their differing shapes):\n"
+    "- 'biggest_health_risk': the SINGLE highest-priority health issue — "
+    "'biggest/worst/most important health risk', 'what's most wrong'. One thing.\n"
+    "- 'health_concerns': a RANKED LIST of current health concerns — 'what are my "
+    "health concerns/issues', 'list what's off'. Multiple things.\n"
+    "- 'health_focus_today': the best ACTIONABLE step for TODAY — 'what should I "
+    "focus on / do health-wise today', 'one thing to do today'. Today + action.\n"
+    "- 'overall_progress': an executive SUMMARY of overall status/trajectory — "
+    "'how am I doing', 'on track', 'overall health goals'. A summary, not a list "
+    "or a single risk.\n"
+    "Use intent='other' for anything else. ALL implemented intents are "
+    "HEALTH-scoped: required_truth must be ONLY "
+    "['health_state','foundational_health'] and domains ONLY ['health']. NEVER "
+    "request risk_decision, execution_decision, tasks, or any non-health truth for "
+    "a health intent. NEVER invent truth keys outside the lists. NEVER write "
+    "prose. NEVER answer the user. JSON only."
 )
 
 
@@ -431,10 +438,14 @@ def _generic_curator(truth, user=None):
     return {key: _curate_value(data) for key, data in truth.items()}
 
 
-# intent -> curator. Both implemented intents are health-scoped.
+# intent -> curator. All four implemented intents are health-scoped and share the
+# same health curator; the per-intent DIFFERENTIATION lives in the reasoning
+# profile + deterministic fallback, not the curated truth.
 INTENT_CURATORS = {
     "biggest_health_risk": health_working_memory,
     "overall_progress": health_working_memory,
+    "health_focus_today": health_working_memory,
+    "health_concerns": health_working_memory,
 }
 
 
@@ -503,6 +514,58 @@ def _health_progress_fallback(wm):
     return " ".join(parts)
 
 
+def _health_concerns_fallback(wm):
+    # health_concerns: a RANKED LIST (≥2 when available), each concern + action.
+    ranked = (wm.get("facts") or {}).get("ranked_concerns") or []
+    if not ranked:
+        return ("Your health metrics look steady right now — nothing stands out "
+                "as a concern. Keep doing what's working.")
+    lines = ["Here's what's on your health radar right now, most important first:"]
+    for i, c in enumerate(ranked[:4], 1):
+        lines.append(f"{i}. {c.get('concern', '')} — {c.get('action', 'stay consistent')}.")
+    return "\n".join(lines)
+
+
+# INV-5: map the top concern to a CONCRETE imperative the user can do in 24h.
+# Never vague ("work on nutrition"); always a specific, completable action.
+def _concrete_today_action(concern, phase):
+    c = (concern or "").lower()
+    after = "after dinner tonight" if phase == "evening" else "after your biggest meal today"
+    if "blood sugar" in c or "glucose" in c:
+        return f"take a 15–20 minute walk {after}"
+    if "sleep" in c:
+        return "protect a consistent bedtime tonight — set a wind-down reminder 30 minutes before"
+    if "weight-loss pace" in c or "pace" in c:
+        return "log everything you eat today and keep your portions steady"
+    if "protein" in c:
+        return "make your next meal protein-forward — aim for about 30g"
+    if "calorie" in c:
+        return "plan one balanced meal to close today's gap"
+    if "stalling" in c or "plateau" in c:
+        return "add a 20-minute walk or one short strength set today"
+    if "muscle" in c:
+        return "get a protein-rich meal and a short strength set in today"
+    return "take one 20-minute walk today"
+
+
+def _health_focus_today_fallback(wm):
+    # health_focus_today: (1) today's focus, (2) why today, (3) ONE concrete 24h
+    # action (INV-5). Time-aware via nutrition_context.day_phase.
+    f = wm.get("facts") or {}
+    ranked = f.get("ranked_concerns") or []
+    phase = ((f.get("nutrition_context") or {}).get("day_phase")) or "today"
+    if not ranked:
+        return ("Today, keep your healthy routine steady — nothing urgent stands "
+                "out. It keeps your momentum going. One concrete step: take a "
+                "20-minute walk today.")
+    top = ranked[0]
+    focus = top.get("concern", "your health")
+    action = _concrete_today_action(focus, phase)
+    return (f"Today, focus on {focus}. Acting on it today keeps it from "
+            f"compounding and protects your momentum. One concrete step: "
+            f"{action}.")
+
+
 _HEALTH_GUIDANCE = (
     " Stay strictly within health — never mention tasks, projects, work items, "
     "Harley, finances, or generic to-dos. Cite the data; never invent numbers."
@@ -545,6 +608,35 @@ REASONING_PROFILES = {
         ),
         "max_tokens": 260,
         "fallback": _health_progress_fallback,
+    },
+    "health_concerns": {
+        "system": (
+            "You are the user's Chief of Staff. 'ranked_concerns' is an ordered "
+            "list of {concern, action} (highest priority first). List the CURRENT "
+            "health concerns — up to 4 — most important first, each as a brief "
+            "'concern — why/what to do'. This is a SURVEY (a list), not a single "
+            "headline: if two or more concerns exist, give two or more. If "
+            "ranked_concerns is absent or empty, say nothing stands out right now "
+            "— do NOT manufacture concerns." + _HEALTH_GUIDANCE + " Max 150 words."
+        ),
+        "max_tokens": 240,
+        "fallback": _health_concerns_fallback,
+    },
+    "health_focus_today": {
+        "system": (
+            "You are the user's Chief of Staff. Give the user ONE thing to focus "
+            "on TODAY, derived from the TOP entry of 'ranked_concerns'. Output "
+            "exactly three parts: (1) today's focus, (2) one sentence on why it "
+            "matters today, (3) ONE specific action they can COMPLETE within 24 "
+            "hours. The action MUST be concrete and doable — e.g. 'take a "
+            "20-minute walk after dinner', 'have a 30g-protein breakfast', "
+            "'protect a 10:30 PM bedtime tonight'. NEVER vague ('keep improving "
+            "sleep', 'work on nutrition', 'stay active'). Be time-aware using "
+            "nutrition_context.day_phase. If no concerns exist, give one simple, "
+            "concrete healthy action for today." + _HEALTH_GUIDANCE + " Max 90 words."
+        ),
+        "max_tokens": 180,
+        "fallback": _health_focus_today_fallback,
     },
 }
 

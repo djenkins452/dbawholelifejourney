@@ -20,8 +20,10 @@ from dataclasses import dataclass, field
 
 # Implemented reasoning intents (this milestone). The planner may also return
 # "other" for anything not yet built — the engine then declines (falls through).
-# Both are HEALTH-scoped intents (see HEALTH_INTENTS in stages.py).
-IMPLEMENTED_INTENTS = ("biggest_health_risk", "overall_progress")
+# All are HEALTH-scoped intents (see HEALTH_INTENTS in stages.py) and are
+# intentionally differentiated per docs/BETH_HEALTH_INTENT_CONTRACTS.md.
+IMPLEMENTED_INTENTS = ("biggest_health_risk", "overall_progress",
+                       "health_focus_today", "health_concerns")
 ALLOWED_INTENTS = IMPLEMENTED_INTENTS + ("other",)
 
 ALLOWED_RESPONSE_MODES = ("lookup", "reasoning", "mixed")
@@ -69,14 +71,29 @@ class RetrievalPlan:
 # deterministically so the reasoning lane ALWAYS produces an answer and never
 # falls through to the legacy tool loop. The LLM planner remains primary.
 # ---------------------------------------------------------------------------
+# Ordered MOST-SPECIFIC first — the matcher returns the first intent whose
+# signals hit, so time/action cues and plural-survey cues are checked before the
+# singular-superlative risk cues (which would otherwise swallow them). See
+# docs/BETH_HEALTH_INTENT_CONTRACTS.md "Disambiguation".
 _HEALTH_INTENT_SIGNALS = (
+    # 1. Today / actionable → health_focus_today (time-bound action).
+    ("health_focus_today", ("today", "right now what should i do",
+                            "what to do first", "focus today", "do first today")),
+    # 2. Plural survey → health_concerns (a ranked LIST, not a single priority).
+    ("health_concerns", ("health concerns", "my concerns", "any concerns",
+                         "concerns do i", "health issues", "what issues",
+                         "what's off", "whats off", "list my health",
+                         "anything wrong with my health")),
+    # 3. Superlative single risk → biggest_health_risk (the ONE top priority).
+    ("biggest_health_risk", ("biggest health risk", "biggest risk", "health risk",
+                             "single biggest", "most important health",
+                             "what's wrong", "whats wrong", "should i worry",
+                             "worried about my health", "what needs attention",
+                             "what to improve", "what should i focus on")),
+    # 4. Progress / status → overall_progress (executive summary / trajectory).
     ("overall_progress", ("how am i doing", "how am i tracking", "overall",
                           "on track", "progress", "health goals",
                           "doing with my health")),
-    ("biggest_health_risk", ("biggest health risk", "biggest risk", "health risk",
-                             "what should i focus", "focus on", "what's wrong",
-                             "whats wrong", "concern", "worried", "should i worry",
-                             "what to improve", "what needs attention")),
 )
 
 

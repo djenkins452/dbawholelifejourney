@@ -16,12 +16,15 @@ left health behavior unchanged.
 import json
 from unittest.mock import patch
 
-from django.test import SimpleTestCase
+from django.contrib.auth import get_user_model
+from django.test import SimpleTestCase, TestCase
 
 from apps.ai.chatgpt_cos.reasoning import plan as planmod
 from apps.ai.chatgpt_cos.reasoning import stages
 from apps.ai.chatgpt_cos import foundational_facts as ff
 from apps.ai.chatgpt_cos.p25_classifier import classify_request
+
+User = get_user_model()
 
 
 # A realistic goals fixture: 2 overdue, 1 near deadline, 2 at-risk habits, low
@@ -34,8 +37,12 @@ GOALS_FIXTURE = {
         "days_to_next_deadline": 4,
         "next_deadline": "2026-06-30",
         "active_titles": [
-            {"title": "Lose 20 lbs", "target_date": "2026-09-01", "is_foundational": True},
-            {"title": "Write a book", "target_date": "2026-12-01", "is_foundational": False},
+            {"title": "Lose 20 lbs", "target_date": "2026-09-01", "is_foundational": True,
+             "evidence": {"momentum": "strong", "trend": "rising",
+                          "drivers": ["weight trending down"], "as_of": "2026-06-25"}},
+            {"title": "Write a book", "target_date": "2026-12-01", "is_foundational": False,
+             "evidence": {"momentum": "moderate", "trend": "stable",
+                          "drivers": ["2 milestones completed"], "as_of": "2026-06-25"}},
         ],
         "upcoming_titles": [{"title": "Finish chapter 3", "days_remaining": 4}],
         "overdue_titles": [
@@ -43,7 +50,10 @@ GOALS_FIXTURE = {
             {"title": "Read 10 books", "days_overdue": 3},
         ],
         "mission": {"title": "Become a published author",
-                    "momentum_score": 0.42, "next_milestone": {"id": 99}},
+                    "momentum_score": 42, "next_milestone": {"id": 99},
+                    "evidence": {"momentum": "moderate", "trend": "stable",
+                                 "drivers": ["2 milestones completed"],
+                                 "as_of": "2026-06-25"}},
     }},
     "habits_state": {"state": {
         "active_habit_count": 5,
@@ -59,25 +69,61 @@ GOALS_FIXTURE = {
 }
 
 
-# Mission losing momentum, NO overdue / deadline, low completion — the goal-level
-# mission risk must outrank the portfolio metric.
+# Mission losing momentum (EVIDENCE: low/falling), NO overdue/deadline, low
+# completion — the evidence-backed mission risk must outrank the portfolio metric.
 MISSION_STALLED_FIXTURE = {
     "goals_state": {"state": {
         "active_goal_count": 4,
         "completion_rate": 0.22,
         "overdue_goal_count": 0,
         "active_titles": [{"title": "France 2027 Family 18K Mission",
-                           "target_date": None, "is_foundational": True}],
+                           "target_date": None, "is_foundational": True,
+                           "evidence": {"momentum": "low", "trend": "falling",
+                                        "drivers": ["activity has slowed this week"],
+                                        "as_of": "2026-06-25"}}],
         "upcoming_titles": [],
         "overdue_titles": [],
         "mission": {"title": "France 2027 Family 18K Mission",
-                    "current_focus": None, "momentum_trend": "declining",
-                    "days_remaining": None},
+                    "current_focus": None, "momentum_trend": "falling",
+                    "days_remaining": None,
+                    "evidence": {"momentum": "low", "trend": "falling",
+                                 "drivers": ["activity has slowed this week"],
+                                 "as_of": "2026-06-25"}},
     }},
     "habits_state": {"state": {
         "active_habit_count": 2, "avg_completion_rate": 0.6, "longest_streak": 5,
         "streaks_per_habit": [{"name": "Save weekly", "at_risk": False,
                                "current_streak": 5}],
+    }},
+}
+
+# The France case: a health goal PROGRESSING via real-world evidence (weight loss,
+# exercise) but with ZERO formal habits attached and a lagging milestone %. Healthy
+# momentum MUST suppress the "no supporting habits" / "completion low" criticism.
+FRANCE_HEALTHY_FIXTURE = {
+    "goals_state": {"state": {
+        "active_goal_count": 1,
+        "completion_rate": 0.22,                 # milestones lag...
+        "overdue_goal_count": 0,
+        "active_titles": [{"title": "France 2027 Family 18K Mission",
+                           "target_date": None, "is_foundational": True,
+                           "evidence": {"momentum": "strong", "trend": "rising",
+                                        "drivers": ["weight trending down",
+                                                    "4 workouts this week"],
+                                        "as_of": "2026-06-25"}}],
+        "upcoming_titles": [],
+        "overdue_titles": [],
+        "mission": {"title": "France 2027 Family 18K Mission",
+                    "current_focus": None, "momentum_trend": "rising",
+                    "days_remaining": None,
+                    "evidence": {"momentum": "strong", "trend": "rising",
+                                 "drivers": ["weight trending down",
+                                             "4 workouts this week"],
+                                 "as_of": "2026-06-25"}},
+    }},
+    "habits_state": {"state": {
+        "active_habit_count": 0, "avg_completion_rate": 0.0, "longest_streak": 0,
+        "streaks_per_habit": [],
     }},
 }
 
@@ -438,3 +484,139 @@ class GoalsGoalFirstTests(SimpleTestCase):
         # health deterministic routing unchanged (byte-identical contract)
         self.assertEqual(planmod.deterministic_intent("what is my biggest health risk"),
                          "biggest_health_risk")
+
+
+# ---------------------------------------------------------------------------
+# Evidence-FIRST refinement — Beth narrates the momentum engine, not metadata
+# ---------------------------------------------------------------------------
+class GoalsEvidenceFirstTests(SimpleTestCase):
+    def _ranked(self, fixture):
+        gs = fixture["goals_state"]["state"]
+        hs = fixture["habits_state"]["state"]
+        return stages._rank_goal_concerns(gs, hs)
+
+    def test_healthy_momentum_suppresses_missing_habit(self):
+        # France progressing (strong/rising) with ZERO habits -> never criticised
+        # for missing habits, and not flagged for lagging milestone %.
+        ranked = self._ranked(FRANCE_HEALTHY_FIXTURE)
+        blob = " ".join(c["concern"].lower() for c in ranked)
+        self.assertNotIn("no supporting habits", blob)
+        self.assertNotIn("isn't backed by a routine", blob)
+        self.assertNotIn("overall goal completion", blob)
+        # with the only goal progressing, biggest risk says on-track, not criticism
+        risk = stages._goal_risk_fallback(_wm(FRANCE_HEALTHY_FIXTURE)).lower()
+        self.assertIn("on track", risk)
+
+    def test_evidence_backed_risk_outranks_metadata(self):
+        ranked = self._ranked(MISSION_STALLED_FIXTURE)
+        self.assertIn("France 2027 Family 18K Mission", ranked[0]["concern"])
+        self.assertIn("momentum", ranked[0]["concern"].lower())
+        self.assertNotIn("completion", ranked[0]["concern"].lower())
+
+    def test_progress_narrates_evidence(self):
+        out = stages._goals_progress_fallback(_wm(FRANCE_HEALTHY_FIXTURE))
+        self.assertIn("France 2027 Family 18K Mission", out)
+        self.assertIn("momentum", out.lower())
+        # driver evidence surfaces in coaching language
+        self.assertIn("weight trending down", out)
+
+    def test_no_raw_momentum_json_or_scores_leak(self):
+        # Curated output must never carry raw scores, trend enums, or JSON keys.
+        for fx in (GOALS_FIXTURE, MISSION_STALLED_FIXTURE, FRANCE_HEALTHY_FIXTURE):
+            blob = json.dumps(stages.goals_working_memory(fx))
+            for forbidden in ("momentum_score", "progress_score", "snapshot",
+                              "\"rising\"", "\"falling\"", "\"stable\"",
+                              "as_of", "signal_scores"):
+                self.assertNotIn(forbidden, blob, f"leaked: {forbidden}")
+
+    def test_evidence_curated_as_coaching_language(self):
+        facts = stages.goals_working_memory(FRANCE_HEALTHY_FIXTURE)
+        ev = facts.get("goal_evidence") or []
+        self.assertTrue(ev)
+        self.assertEqual(ev[0]["goal"], "France 2027 Family 18K Mission")
+        self.assertIn("momentum", ev[0]["status"])         # banded coaching word
+        self.assertIn("trending up", ev[0]["status"])       # translated, not "rising"
+
+    def test_fallbacks_always_answer_with_evidence_fixtures(self):
+        for fx in (FRANCE_HEALTHY_FIXTURE, MISSION_STALLED_FIXTURE):
+            wm = _wm(fx)
+            for fb in (stages._goal_risk_fallback, stages._goals_progress_fallback,
+                       stages._goal_concerns_fallback, stages._goals_focus_today_fallback):
+                out = fb(wm)
+                self.assertTrue(out and len(out) > 20)
+
+
+# ---------------------------------------------------------------------------
+# build_goal_state — exposes snapshot evidence, READ-ONLY (no recompute), no N+1
+# ---------------------------------------------------------------------------
+class BuildGoalStateEvidenceTests(TestCase):
+    def setUp(self):
+        from django.conf import settings as dj_settings
+        from apps.users.models import TermsAcceptance
+        from apps.purpose.models import LifeDomain, LifeGoal
+        from apps.dashboard_v2.models import GoalMomentumSnapshot
+        from apps.core.time.system_clock import get_current_time
+
+        self.user = User.objects.create_user(email="goalsev@example.com",
+                                              password="x")
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=dj_settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"))
+        self.user.preferences.has_completed_onboarding = True
+        self.user.preferences.save()
+
+        domain = LifeDomain.objects.create(name="Health", slug="health")
+        today = get_current_time().date()
+        for i in range(3):
+            g = LifeGoal.objects.create(user=self.user, title=f"Goal {i}",
+                                        domain=domain, status="active")
+            GoalMomentumSnapshot.objects.create(
+                user=self.user, goal=g, snapshot_date=today,
+                momentum_score=80, progress_score=40, momentum_trend="rising",
+                drivers={"habits": {"score": 28, "label": "4/5 habits completed"}})
+
+    def test_evidence_exposed_banded_and_sanitized(self):
+        from apps.core.ai_state.state_builder import build_goal_state
+        state = build_goal_state(self.user)
+        titles = state.get("active_titles") or []
+        self.assertTrue(titles)
+        ev = titles[0].get("evidence")
+        self.assertIsNotNone(ev)
+        self.assertEqual(ev["momentum"], "strong")       # 80 -> banded
+        self.assertEqual(ev["trend"], "rising")
+        self.assertIn("4/5 habits completed", ev["drivers"])
+        # banded — no raw 0-100 score on the entry
+        self.assertNotIn("momentum_score", ev)
+
+    def test_no_recompute_on_request_path(self):
+        # build_goal_state must READ the nightly snapshot, never recompute it.
+        from apps.core.ai_state.state_builder import build_goal_state
+        import apps.dashboard_v2.services.momentum_service as ms
+
+        def _boom(*a, **k):
+            raise AssertionError("momentum recomputed on the request path")
+
+        patches = []
+        for attr in ("compute_and_persist", "compute_momentum"):
+            if hasattr(ms.GoalMomentumService, attr):
+                patches.append(patch.object(ms.GoalMomentumService, attr, _boom))
+        for p in patches:
+            p.start()
+        try:
+            state = build_goal_state(self.user)
+        finally:
+            for p in patches:
+                p.stop()
+        self.assertTrue(state.get("active_titles"))
+
+    def test_snapshot_query_is_bounded_no_n_plus_1(self):
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+        from apps.core.ai_state.state_builder import build_goal_state
+        with CaptureQueriesContext(connection) as ctx:
+            build_goal_state(self.user)
+        snap_queries = [q for q in ctx.captured_queries
+                        if "momentumsnapshot" in q["sql"].lower()]
+        # 3 goals -> at most 2 snapshot reads (the bulk active-goal query + the
+        # mission's own latest), never one-per-goal.
+        self.assertLessEqual(len(snap_queries), 2, snap_queries)

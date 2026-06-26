@@ -1480,10 +1480,50 @@ def build_goal_state(user):
     today = now.date()
     fourteen_days = today + timedelta(days=14)
 
+    # Sanitized, banded EVIDENCE from the latest PERSISTED GoalMomentumSnapshot
+    # (the nightly engine). Read-only — momentum is NEVER recomputed on the
+    # request path (P24). No raw 0-100 score or JSON key is exposed: momentum is
+    # banded and only the human driver LABELS ("4/5 habits completed") are kept.
+    def _momentum_band(score):
+        if score is None:
+            return None
+        s = int(score)
+        return "strong" if s >= 67 else "moderate" if s >= 34 else "low"
+
+    def _evidence_from_snapshot(snap):
+        if snap is None:
+            return None
+        drivers = []
+        raw = snap.drivers if isinstance(snap.drivers, dict) else {}
+        for _comp, info in raw.items():
+            if isinstance(info, dict) and isinstance(info.get("label"), str):
+                drivers.append(info["label"])
+        return {
+            "momentum": _momentum_band(snap.momentum_score),
+            "progress": _momentum_band(snap.progress_score),
+            "trend": snap.momentum_trend or None,
+            "drivers": drivers[:4],
+            "as_of": snap.snapshot_date.isoformat() if snap.snapshot_date else None,
+        }
+
     active_titles = []
     upcoming_titles = []
     overdue_titles = []
-    for goal in active_goals.order_by('target_date')[:10]:
+    top_goals = list(active_goals.order_by('target_date')[:10])
+
+    # ONE bounded query for the latest recent snapshot per goal (no N+1). Stale
+    # goals (no snapshot in 14 days) simply carry no evidence -> metadata fallback.
+    latest_snap = {}
+    if top_goals:
+        from apps.dashboard_v2.models import GoalMomentumSnapshot
+        recent_cutoff = today - timedelta(days=14)
+        for s in GoalMomentumSnapshot.objects.filter(
+            user=user, goal_id__in=[g.id for g in top_goals],
+            snapshot_date__gte=recent_cutoff,
+        ).order_by('goal_id', '-snapshot_date'):
+            latest_snap.setdefault(s.goal_id, s)
+
+    for goal in top_goals:
         title = goal.title
         target = goal.target_date
         is_foundational = getattr(goal, 'is_foundational', False)
@@ -1491,6 +1531,7 @@ def build_goal_state(user):
             'title': title,
             'target_date': target.isoformat() if target else None,
             'is_foundational': bool(is_foundational),
+            'evidence': _evidence_from_snapshot(latest_snap.get(goal.id)),
         }
         active_titles.append(entry)
         if target:
@@ -1517,7 +1558,9 @@ def build_goal_state(user):
     state["mission"] = None
     mission_goal = select_active_mission_goal(user)
     if mission_goal is not None:
-        snap = mission_goal.momentum_snapshots.first()  # ordered -snapshot_date
+        # Reuse the recent snapshot already fetched above when available; else one
+        # read for the latest (still read-only, no recompute).
+        snap = latest_snap.get(mission_goal.id) or mission_goal.momentum_snapshots.first()
         nm = mission_goal.next_milestone
         m_target = mission_goal.target_date
         state["mission"] = {
@@ -1526,6 +1569,7 @@ def build_goal_state(user):
             "momentum_trend": snap.momentum_trend if snap else None,
             "days_remaining": (m_target - today).days
             if m_target and m_target > today else None,
+            "evidence": _evidence_from_snapshot(snap),
         }
 
     return state

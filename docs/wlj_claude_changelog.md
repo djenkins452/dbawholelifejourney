@@ -7,6 +7,20 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — feat(cos): Evidence-first Goals reasoning (consume GoalMomentumSnapshot)
+
+Goals reasoning now narrates the existing nightly momentum engine's verdict instead of re-deriving progress from metadata. Root issue: Beth headlined "no supporting habits" for goals that are actually progressing in real life (e.g. the France 2027 mission, advanced by weight loss + exercise) because `build_goal_state` exposed only metadata. The evidence engine (`GoalMomentumSnapshot`, computed nightly via `DOMAIN_SIGNAL_MAP` over health/fitness/nutrition/faith/journal) already existed — it just wasn't reaching Beth.
+
+- **`build_goal_state`** now exposes, per active goal AND the mission, a **sanitized, banded** evidence summary from the latest persisted `GoalMomentumSnapshot`: momentum band (strong/moderate/low), progress band, trend, and the engine's user-safe driver labels + as-of date. Read-only — **never recomputes on the request path (P24)**; ONE bounded query for all active goals (14-day window, no N+1); stale/absent snapshot → no evidence (metadata fallback).
+- **`goals_working_memory`** curates the evidence into coaching language (`goal_evidence`: "strong momentum, trending up — weight trending down, 4 workouts this week"); never exposes raw 0-100 scores, trend enums, JSON keys, or `signal_scores`.
+- **`_rank_goal_concerns`** rewritten EVIDENCE-FIRST: overdue/deadline (hard commitments) → **evidence-backed stall** (a named goal the engine shows low/falling) → unsupported goal (no evidence AND no habits) → at-risk habit → portfolio metric (last). **Healthy momentum suppresses both "no supporting habits" and "low completion %"** — a goal progressing in real life is never criticised for lagging metadata.
+- **`goals_progress`** narrates evidence first (momentum + drivers), with completion % as supporting context. Risk/focus consume the evidence-first ranking; actions stay domain-aware.
+
+**Files:** `apps/core/ai_state/state_builder.py` (build_goal_state evidence exposure), `apps/ai/chatgpt_cos/reasoning/stages.py` (curator/ranking/progress/action), `apps/ai/tests/test_goals_reasoning.py` (+ evidence-first + DB tests). No routing/P25/Health change; no model change — **no migration**.
+
+**Verification:** 48 goals tests (incl. healthy-momentum-suppresses-missing-habit, evidence-backed-risk-outranks-metadata, no-raw-JSON-leak, DB tests proving evidence exposure + no request-path recompute + bounded snapshot query/no-N+1) + 161-test reasoning/lane/facts regression + 28 mission/weight-milestone tests all green; Health byte-identical; `check` clean; `makemigrations --check` = no changes.
+
+
 ## 2026-06-26 — fix(cos): Goals reasoning is goal-first, not portfolio-first
 
 Refinement of the Goals reasoning domain (#2). Production validation showed Beth surfacing PORTFOLIO metrics ("your overall goal completion is running low") as the headline for biggest_goal_risk / goals_focus_today / goal_concerns. Rewrote `_rank_goal_concerns` to a NAMED goal-first severity hierarchy: (6) overdue goal (named) > (5) near-deadline goal (named, incl. the mission's own deadline) > (4) mission losing momentum / no active milestone (named, weighted) > (3) goals lacking supporting habits (named) > (2) at-risk habit (named) > (1) portfolio metric (anonymous, supplemental). Because every goal-level concern outranks every portfolio metric, `ranked[0]` is always a named goal when one exists; a portfolio metric is the headline ONLY when no goal-level concern exists.

@@ -7,6 +7,15 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — docs(cos): Beth Domain Reasoning Framework (master spec, docs only)
+
+Created `docs/BETH_DOMAIN_REASONING_FRAMEWORK.md` — the master specification for how Beth reasons across every life domain. Generalizes the validated Health reference into eight reusable per-domain contracts (overview, canonical truth source [P24], foundational facts, the reasoning-intent quartet risk/progress/focus_today/concerns with anti-collapse invariants INV-1..5, curator contract [P3/P10/P11], reasoning profile, deterministic fallback [P5], privacy tiers 1-3, validation scenarios). Includes per-domain configurations (Health reference; Goals/Finance/Faith fully worked; remaining domains configured), a cross-domain reasoning roadmap (composition over mature single-domain curators; conflict-resolution + truth-precedence rules), Impact×Readiness×Risk prioritization, and a New Domain Onboarding Checklist that turns future domains into configuration rather than architecture.
+
+**Analysis:** highest-ROI next domain = Goals/Purpose. Domains that should NOT get reasoning now: Career/Learning (no canonical truth), Documents (retrieval only — privacy), Capture/Sports/Brain-training/Meals/Scan (facts-only), faith.journey (dead reference — delete). First phase after approval: Goals reasoning + non-health foundational facts, step-gated.
+
+Documentation/architecture only — no code/runtime/migration change. Health remains the reference implementation.
+
+
 ## 2026-06-26 — docs(cos): Beth Truth Coverage Audit (4 docs, audit only)
 
 Comprehensive truth-coverage audit across the entire WLJ codebase (462 models, 21 apps; infra/audit/cache/log excluded). Traced every user-truth domain through storage → SAE canonical state → briefing → foundational facts → reasoning → Beth access, via three parallel codebase investigations (Beth read surface, SAE module builders, dashboard/briefing/proactive surface).

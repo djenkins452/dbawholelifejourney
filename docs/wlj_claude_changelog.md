@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — feat(cos): Daily Agenda synthesis + CoS no-deflection + General-lane reliability fix
+
+**1. Daily Check-In promoted from placeholder to real synthesis (GB-5, P24):** new `apps/core/cos_briefing/daily_agenda.py::build_daily_agenda(user)` — deterministic, NO OpenAI, composed ONLY from canonical engines (Rhythm API schedule/next, `get_next_action` Focus-Right-Now, `build_rhythm_sections` overdue/at-risk totals). Returns upcoming items + highest priority + risks + recommended next step in CoS voice. Clarification daily-checkin options now resolve via deterministic resolvers: opt1→agenda, opt2→next rhythm, opt3→deterministic health summary (existing engine's fallback path, no LLM), opt4→honest goals capability-gap (never "Goals area"), opt5→full check-in (agenda + health + goals gap).
+
+**2. CoS no-deflection rule (new protected behavior GB-5):** removed ALL "your dashboard / Goals area / Faith area / open your tasks / ask me 'X'" deflection language from clarification resolutions; replaced with synthesized guidance or honest capability gaps. Codified GB-5 (no deflection, no "ask again", no implementation/retrieval language, honest gaps). Tests scan responses for forbidden phrases.
+
+**3. General-lane reliability (Issue #1, isolated fix):** `_reasoning_lane` now declines clearly-general questions (`_looks_general`) WITHOUT invoking the health planner — a general question would only be declined by the planner anyway, so skipping it removes the wasted call and the shared-circuit-breaker cascade that was starving the General lane. Not a reorder, not a health-intent change (health/personal questions carry markers → unaffected), no new OpenAI call (removes one).
+
+Constraints honored: no migration, no durability/recovery/notification changes, no health-intent changes, no P25 activation (shadow only), P24 alignment preserved. Tests: `test_daily_agenda.py` (4) + new clarification-resolution/no-deflection/general-reliability tests. Full regression green (114 tests, exit 0); `check` clean. Paused for production validation.
+
+
 ## 2026-06-26 — feat(cos): P25 Personal Truth First — constitution + SHADOW classifier (no behavior change)
 
 **Phase 1–2 only. P25 routing is NOT active; the live lane router is unchanged.** Ratifies P25 and adds a deterministic shadow classifier so we can prove accuracy on production traffic before activating (Phase 3 / `beth-stable-v3`).

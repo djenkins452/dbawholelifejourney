@@ -35,6 +35,15 @@ def _foundational_lane(user, message, conversation=None):
 
 
 def _reasoning_lane(user, message, conversation=None):
+    # Issue #1 reliability fix (isolated; not a reorder, not a health-intent
+    # change): a clearly-GENERAL question carries no personal/health markers, so
+    # the health planner would only decline it anyway. Skip the planner LLM for
+    # those — it avoids a wasted call AND the shared circuit-breaker cascade that
+    # was starving the General lane (the planner's rate-limit tripped the breaker
+    # before the General call ran). Health/personal questions are unaffected
+    # (_looks_general is False for anything with a pronoun or WLJ-domain word).
+    if _looks_general(message):
+        return None
     from apps.ai.chatgpt_cos.reasoning import answer_reasoning_question
     return answer_reasoning_question(user, message)
 
@@ -88,6 +97,12 @@ def _next_rhythm_lane(user, message, conversation=None):
             "lane": "next_rhythm"}
 
 
+# Honest capability-gap for goals — until a canonical goal engine exists, Beth
+# says so plainly. She NEVER tells the user to visit a "Goals area" (CoS rule).
+_GOALS_GAP = ("I don't yet have your goals composed into my daily brief. I can "
+              "still help with your schedule, health, and today's priorities.")
+
+
 # ---------------------------------------------------------------------------
 # Lane 3 — Clarification (DETERMINISTIC; never calls OpenAI). Registry of
 # ambiguity types -> closed trigger set + a templated clarifying question.
@@ -110,20 +125,22 @@ AMBIGUITY_TYPES = (
             "4. goals and commitments,\n"
             "5. or a full Whole Life check-in?"
         ),
-        # Deterministic per-option resolutions (no data pull, no OpenAI). The
-        # full daily synthesis is future work — these point to capabilities that
-        # already exist (e.g. 'what should I do next', health questions).
+        # Each option carries a deterministic RESOLVER (computed at reply time
+        # from canonical engines — no OpenAI, no deflection). The static
+        # 'resolution' is only a non-deflecting fallback if the resolver yields
+        # nothing. CoS voice: Beth synthesizes; she never sends the user to a
+        # dashboard/page/area or tells them to ask again.
         "options": [
-            {"n": 1, "aliases": ("today", "coming up"),
-             "resolution": "Let's keep today front and center. Your dashboard's Today's Rhythm shows what's scheduled, and a full daily brief from me is on the way."},
-            {"n": 2, "aliases": ("next", "do next"),
-             "resolution": "Focusing on your next step — just ask me \"what should I do next\" and I'll pull it straight from your rhythm."},
-            {"n": 3, "aliases": ("health", "energy"),
-             "resolution": "For health and energy, ask me \"how am I doing with my health\" or \"what's my biggest health risk\" and I'll give you a real read."},
-            {"n": 4, "aliases": ("goals", "commitments"),
-             "resolution": "Goals and commitments live in your Goals area — ask me to check in on them any time."},
-            {"n": 5, "aliases": ("whole life", "full", "everything"),
-             "resolution": "A full Whole Life check-in is the complete daily brief, which I'm putting together. For now your dashboard gives you the whole-day picture."},
+            {"n": 1, "aliases": ("today", "coming up"), "resolver": "agenda",
+             "resolution": "I'm having trouble assembling your day right now — try once more in a moment."},
+            {"n": 2, "aliases": ("next", "do next"), "resolver": "next",
+             "resolution": "I'm lining up your next step — give me a moment."},
+            {"n": 3, "aliases": ("health", "energy"), "resolver": "health",
+             "resolution": "I don't have enough recent health data to give you a full read yet."},
+            {"n": 4, "aliases": ("goals", "commitments"), "resolver": "goals_gap",
+             "resolution": _GOALS_GAP},
+            {"n": 5, "aliases": ("whole life", "full", "everything"), "resolver": "full_checkin",
+             "resolution": "I'm assembling your full check-in — give me a moment."},
         ],
     },
     {
@@ -135,18 +152,18 @@ AMBIGUITY_TYPES = (
             "general questions."
         ),
         "options": [
-            {"n": 1, "aliases": ("health", "energy"),
-             "resolution": "For health, ask me \"how am I doing with my health\" or \"what's my biggest health risk\"."},
-            {"n": 2, "aliases": ("goals", "commitments"),
-             "resolution": "Your goals live in the Goals area — ask me to check in on them any time."},
-            {"n": 3, "aliases": ("schedule", "calendar", "day"),
-             "resolution": "For your schedule, ask \"what should I do next\" and I'll pull it from your rhythm."},
-            {"n": 4, "aliases": ("faith", "prayer", "bible"),
-             "resolution": "Your faith journey is in the Faith area — ask me about it any time."},
-            {"n": 5, "aliases": ("project", "projects", "work"),
-             "resolution": "For projects, ask \"what should I do next\" or open your tasks."},
-            {"n": 6, "aliases": ("general", "question", "questions"),
-             "resolution": "Sure — just ask your question directly and I'll answer it."},
+            {"n": 1, "aliases": ("health", "energy"), "resolver": "health",
+             "resolution": "I don't have enough recent health data to give you a full read yet."},
+            {"n": 2, "aliases": ("goals", "commitments"), "resolver": "goals_gap",
+             "resolution": _GOALS_GAP},
+            {"n": 3, "aliases": ("schedule", "calendar", "day"), "resolver": "next",
+             "resolution": "I'm lining up your schedule — give me a moment."},
+            {"n": 4, "aliases": ("faith", "prayer", "bible"), "resolver": None,
+             "resolution": "I can't compose your faith journey into a brief yet, but I can pull together your schedule, health, and today's priorities."},
+            {"n": 5, "aliases": ("project", "projects", "work"), "resolver": "next",
+             "resolution": "I'm lining up your next step — give me a moment."},
+            {"n": 6, "aliases": ("general", "question", "questions"), "resolver": None,
+             "resolution": "Of course — ask your question and I'll answer it."},
         ],
     },
     {
@@ -157,14 +174,14 @@ AMBIGUITY_TYPES = (
             "schedule, or something else?"
         ),
         "options": [
-            {"n": 1, "aliases": ("document", "doc", "file"),
-             "resolution": "Open or upload the document and I'll take a look."},
-            {"n": 2, "aliases": ("goal", "goals"),
-             "resolution": "Ask me to review your goals and I'll summarize where they stand."},
-            {"n": 3, "aliases": ("schedule", "calendar", "day"),
-             "resolution": "Ask \"what should I do next\" and I'll walk your schedule with you."},
-            {"n": 4, "aliases": ("something", "other", "else"),
-             "resolution": "Tell me what you'd like reviewed and I'll dig in."},
+            {"n": 1, "aliases": ("document", "doc", "file"), "resolver": None,
+             "resolution": "Send the document over and I'll read it for you."},
+            {"n": 2, "aliases": ("goal", "goals"), "resolver": "goals_gap",
+             "resolution": _GOALS_GAP},
+            {"n": 3, "aliases": ("schedule", "calendar", "day"), "resolver": "agenda",
+             "resolution": "I'm assembling your day — give me a moment."},
+            {"n": 4, "aliases": ("something", "other", "else"), "resolver": None,
+             "resolution": "Tell me what you'd like me to review and I'll dig in."},
         ],
     },
 )
@@ -220,7 +237,7 @@ def _set_pending(conversation, ambiguity_type):
             "ambiguity_type": ambiguity_type,
             "options": [
                 {"n": o["n"], "aliases": list(o.get("aliases", ())),
-                 "resolution": o["resolution"]}
+                 "resolution": o["resolution"], "resolver": o.get("resolver")}
                 for o in spec.get("options", [])
             ],
         }
@@ -280,6 +297,72 @@ def parse_clarification_reply(message, options):
     return None
 
 
+# --- Deterministic clarification RESOLVERS (canonical engines only; NO OpenAI,
+# NO new truth, NO deflection). Each selected option carries a 'resolver' tag. ---
+def _health_overall_summary(user):
+    """Deterministic overall-health summary via the EXISTING health reasoning
+    engine's deterministic path (retrieve -> curate -> fallback). No LLM."""
+    try:
+        from apps.ai.chatgpt_cos.reasoning.plan import synthesize_health_plan
+        from apps.ai.chatgpt_cos.reasoning.stages import (
+            _health_progress_fallback, build_working_memory, retrieve_truth,
+        )
+        plan = synthesize_health_plan("overall_progress")
+        wm = build_working_memory(plan, retrieve_truth(user, plan), user)
+        return _health_progress_fallback(wm) or None
+    except Exception:
+        logger.warning("clarification: health summary failed", exc_info=True)
+        return None
+
+
+def _next_rhythm_summary(user):
+    try:
+        from apps.core.cos_briefing.rhythm_api import (
+            get_current_rhythm_item, get_next_rhythm_item,
+        )
+        item = get_current_rhythm_item(user)
+        if not item:
+            return "You're all caught up on today's rhythm — nothing scheduled is left."
+        t = item.get("scheduled_time")
+        s = (f"Next up: {(item.get('title') or 'your next item').strip()}"
+             f"{(' (' + _fmt_time(t) + ')') if t else ''}.")
+        up = get_next_rhythm_item(user)
+        if up and (up.get("title") or "").strip():
+            s += f" After that: {up['title'].strip()}."
+        return s
+    except Exception:
+        return None
+
+
+def resolve_clarification_option(user, opt):
+    """Compute a selected option's answer deterministically. Falls back to the
+    option's non-deflecting static text if a resolver yields nothing."""
+    resolver = (opt or {}).get("resolver")
+    static = (opt or {}).get("resolution") or "Got it."
+    try:
+        if resolver == "agenda":
+            from apps.core.cos_briefing.daily_agenda import build_daily_agenda
+            return build_daily_agenda(user) or static
+        if resolver == "next":
+            return _next_rhythm_summary(user) or static
+        if resolver == "health":
+            return _health_overall_summary(user) or static
+        if resolver == "goals_gap":
+            return _GOALS_GAP
+        if resolver == "full_checkin":
+            from apps.core.cos_briefing.daily_agenda import build_daily_agenda
+            out = build_daily_agenda(user) or ""
+            health = _health_overall_summary(user)
+            if health:
+                out += " On your health: " + health
+            out = (out + " " + _GOALS_GAP).strip()
+            return out or static
+    except Exception:
+        logger.warning("clarification: resolve failed resolver=%s", resolver,
+                       exc_info=True)
+    return static
+
+
 def _clarification_reply_lane(user, message, conversation=None):
     if conversation is None:
         return None
@@ -292,11 +375,12 @@ def _clarification_reply_lane(user, message, conversation=None):
         _clear_pending(conversation)        # not a reply -> clear stale, route fresh
         return None
     _clear_pending(conversation)
-    logger.info("COS_CLARIFY_RESOLVED user=%s type=%s option=%s",
+    answer = resolve_clarification_option(user, opt)    # deterministic synthesis
+    logger.info("COS_CLARIFY_RESOLVED user=%s type=%s option=%s resolver=%s",
                 getattr(user, "id", None), pending.get("ambiguity_type"),
-                opt.get("n"))
+                opt.get("n"), opt.get("resolver"))
     return {
-        "answer": opt["resolution"], "tools_called": [], "tools_advertised": [],
+        "answer": answer, "tools_called": [], "tools_advertised": [],
         "lane": "clarification_reply",
         "ambiguity_type": pending.get("ambiguity_type"),
         "resolved_option": opt.get("n"),

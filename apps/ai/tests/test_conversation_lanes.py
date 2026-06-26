@@ -355,3 +355,103 @@ class ApprovedRegistryOrderTests(TestCase):
             out = route_message(self.user, "Who was Abraham Lincoln?", self.conv)
         self.assertEqual(out["lane"], "general_conversation")
         self.assertIn("Lincoln", out["answer"])
+
+
+class DailyCheckinResolutionTests(TestCase):
+    """check in -> option resolutions are synthesized (no deflection)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(email="lane_ckres@example.com", password="x")
+
+    def setUp(self):
+        self.conv = AssistantConversation.objects.create(user=self.user)
+
+    def _pending(self, options):
+        self.conv.metadata = {"pending_clarification": {
+            "ambiguity_type": "daily_checkin_candidate", "options": options}}
+        self.conv.save(update_fields=["metadata"])
+
+    def test_option1_returns_synthesized_agenda_no_deflection_no_openai(self):
+        self._pending([{"n": 1, "aliases": ["today"], "resolver": "agenda",
+                        "resolution": "fallback"}])
+        ps = [
+            mock.patch("apps.core.cos_briefing.rhythm_api.get_remaining_rhythm_items",
+                       return_value=[{"title": "Prayer Time", "scheduled_time": "05:30",
+                                      "completed_today": False}]),
+            mock.patch("apps.core.cos_briefing.rhythm_api.get_current_rhythm_item",
+                       return_value={"title": "Prayer Time", "scheduled_time": "05:30"}),
+            mock.patch("apps.core.execution.execution_state.build_execution_state",
+                       return_value={}),
+            mock.patch("apps.core.execution.selectors.get_next_action",
+                       return_value={"primary_action": {"title": "Work on WLJ"}}),
+            mock.patch("apps.core.cos_briefing.rhythm.build_rhythm_sections",
+                       return_value={"totals": {"overdue": 0, "at_risk": 0}}),
+            mock.patch(_CALL_API, side_effect=AssertionError("no openai")),
+            mock.patch(_CALL_API_TOOLS, side_effect=AssertionError("no tool loop")),
+        ]
+        for p in ps:
+            p.start()
+        try:
+            out = route_message(self.user, "1", self.conv)
+        finally:
+            for p in ps:
+                p.stop()
+        self.assertEqual(out["lane"], "clarification_reply")
+        self.assertIn("Prayer Time", out["answer"])
+        self.assertIn("Work on WLJ", out["answer"])
+        low = out["answer"].lower()
+        for bad in ("dashboard", "ask me", "goals area", "go to", "look at your"):
+            self.assertNotIn(bad, low)
+
+    def test_option4_goals_returns_honest_gap_not_deflection(self):
+        # full 5-option set — the reply parser selects by position (1..N).
+        self._pending([
+            {"n": 1, "aliases": [], "resolver": "agenda", "resolution": "f"},
+            {"n": 2, "aliases": [], "resolver": "next", "resolution": "f"},
+            {"n": 3, "aliases": [], "resolver": "health", "resolution": "f"},
+            {"n": 4, "aliases": ["goals"], "resolver": "goals_gap", "resolution": "f"},
+            {"n": 5, "aliases": [], "resolver": "full_checkin", "resolution": "f"},
+        ])
+        with mock.patch(_CALL_API, side_effect=AssertionError("no openai")):
+            out = route_message(self.user, "4", self.conv)
+        self.assertEqual(out["resolved_option"], 4)
+        self.assertIn("don't yet have your goals", out["answer"].lower())
+        self.assertNotIn("goals area", out["answer"].lower())
+
+
+class NoDeflectionLanguageTests(TestCase):
+    def test_no_static_resolution_contains_deflection(self):
+        from apps.ai.chatgpt_cos.lanes import AMBIGUITY_TYPES
+        bad = ("dashboard", "goals area", "faith area", "open your tasks",
+               "ask me", "go to your", "look at your", "check your dashboard",
+               "visit the")
+        for spec in AMBIGUITY_TYPES:
+            for opt in spec.get("options", []):
+                low = (opt.get("resolution") or "").lower()
+                for phrase in bad:
+                    self.assertNotIn(phrase, low,
+                                     f"{spec['type']} opt{opt['n']}: {phrase!r}")
+
+
+class GeneralLaneReliabilityTests(TestCase):
+    """Issue #1: a clearly-general question must NOT invoke the health planner."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(email="lane_genrel@example.com", password="x")
+
+    def test_reasoning_lane_skips_planner_for_general(self):
+        from apps.ai.chatgpt_cos.lanes import _reasoning_lane
+        # planner would call _call_api; for a general question it must be skipped.
+        with mock.patch(_CALL_API, side_effect=AssertionError("planner ran")):
+            self.assertIsNone(_reasoning_lane(self.user, "Who was Abraham Lincoln?"))
+            self.assertIsNone(_reasoning_lane(self.user, "Explain photosynthesis."))
+
+    def test_general_question_makes_only_one_call_no_planner(self):
+        with mock.patch(_CALL_API, return_value="Lincoln was the 16th US president.") as ca, \
+             mock.patch(_CALL_API_TOOLS, side_effect=AssertionError("tool loop")), \
+             mock.patch(_FOUNDATIONAL, return_value=None):
+            out = route_message(self.user, "Who was Abraham Lincoln?")
+        self.assertEqual(out["lane"], "general_conversation")
+        self.assertEqual(ca.call_count, 1)   # general only — planner was skipped

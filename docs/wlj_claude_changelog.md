@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — feat(cos): Goal Evidence Narrative layer (phase + drivers + recommendation)
+
+Follow-up to evidence-first Goals. Production still showed "Narrow your focus to one or two goals to boost your overall completion rate" as the focus for a progressing mission. Two root causes fixed: (1) "steady/moderate" momentum wasn't counted as healthy, so the portfolio nag leaked; (2) Beth had momentum band/trend but no per-driver narrative to reason from.
+
+**Pipeline findings (GoalMomentumSnapshot):** France momentum is fed by `DOMAIN_SIGNAL_MAP["health"]` (workouts_7d, weight_trend, sleep, nutrition/fasting compliance, workout_consistency) plus habits/tasks/discipline/recency. `drivers` stores each component as `{score, label}` (+ domain `signal_labels`). Exposed to Beth before: only banded momentum/trend. NOW also exposed: per-driver success/risk split + phase.
+
+**Goal Evidence Narrative** — `build_goal_state._evidence_from_snapshot` now composes, per active goal + mission, from the persisted nightly snapshot (READ-ONLY, no recompute, P24): `phase` (current/first-incomplete milestone, from prefetched milestones — no extra query), `success_drivers` (components scoring ≥60 + their signal labels), `risk_drivers` (components ≤35), `momentum_summary` (coaching language), and an evidence-based `recommended_action` tied to the actual drag (light workouts → "add one more workout this week"; else advance the phase). No raw 0-100 scores exposed.
+
+- **`goals_working_memory`** surfaces the narrative as coaching language (`goal_evidence`: phase / momentum / whats_working / watch / recommended_action) — no scores, enums, or JSON keys.
+- **`_rank_goal_concerns`**: "steady/moderate, not falling" now counts as healthy (suppresses "no habits" + "low completion"); added an EVIDENCE risk-driver concern — a progressing goal with a specific flagged drag becomes a named, concrete watch item instead of a portfolio nag.
+- **`goals_focus_today`** uses the goal's `recommended_action`; **`goals_progress`** narrates phase + momentum + what's working. Generic lines ("focus on fewer goals", "improve completion rate", "take one step", "make progress") never appear when evidence exists.
+
+**Files:** `apps/core/ai_state/state_builder.py`, `apps/ai/chatgpt_cos/reasoning/stages.py`, `apps/ai/tests/test_goals_reasoning.py`. Canonical engines only (P24); no model change — no migration.
+
+**Verification:** 52 goals tests (incl. phase/success/risk-driver exposure, focus-today-uses-recommended-action, no-generic-when-evidence-exists, DB narrative test) + 179-test reasoning/lane/facts/mission regression all green; Health byte-identical; `check` clean; `makemigrations --check` = no changes.
+
+
 ## 2026-06-26 — feat(cos): Evidence-first Goals reasoning (consume GoalMomentumSnapshot)
 
 Goals reasoning now narrates the existing nightly momentum engine's verdict instead of re-deriving progress from metadata. Root issue: Beth headlined "no supporting habits" for goals that are actually progressing in real life (e.g. the France 2027 mission, advanced by weight loss + exercise) because `build_goal_state` exposed only metadata. The evidence engine (`GoalMomentumSnapshot`, computed nightly via `DOMAIN_SIGNAL_MAP` over health/fitness/nutrition/faith/journal) already existed — it just wasn't reaching Beth.

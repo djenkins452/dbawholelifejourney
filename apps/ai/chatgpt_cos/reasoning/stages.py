@@ -473,8 +473,12 @@ def _goal_evidence(entry):
 
 
 def _evidence_healthy(e):
-    # Real progress per the nightly momentum engine.
-    return bool(e) and (e.get("momentum") == "strong" or e.get("trend") == "rising")
+    # Real progress per the nightly momentum engine: steady-or-better momentum
+    # that isn't slipping counts as progressing (a goal can hold steady on strong
+    # foundations — e.g. weight trending down, milestone achieved — without a
+    # "strong" score). Steady/moderate is healthy; only falling/low is not.
+    return bool(e) and (e.get("momentum") in ("strong", "moderate")
+                        and e.get("trend") != "falling")
 
 
 def _evidence_losing(e):
@@ -549,8 +553,30 @@ def _rank_goal_concerns(goals, habits):
         why = ("is losing momentum" if e.get("trend") == "falling"
                else "has low momentum right now")
         lead = "your mission" if is_mission else "your goal"
-        out.append((4, f"{lead} '{name}' {why}",
-                    f"review the next milestone for '{name}' and choose one concrete action to rebuild momentum"))
+        rec = (e or {}).get("recommended_action") or (
+            f"review the next milestone for '{name}' and choose one concrete action to rebuild momentum")
+        out.append((4, f"{lead} '{name}' {why}", rec))
+
+    # 3b — EVIDENCE risk-driver: a named goal that IS progressing but the engine
+    # flags a specific drag (e.g. light workout frequency). Surfaces a concrete,
+    # evidence-based watch item — NOT a generic portfolio nag. Prefer the mission.
+    losing_names = {losing[0]} if losing else set()
+    rd_candidates = []
+    if mission and mname and not _evidence_losing(me) and mname not in overdue_names:
+        rd_candidates.append((mname, me, True))
+    for t in active_titles:
+        e = _goal_evidence(t)
+        nm = t.get("title")
+        if nm and e and not _evidence_losing(e) and nm not in overdue_names:
+            rd_candidates.append((nm, e, False))
+    for name, e, is_mission in rd_candidates:
+        rds = [r for r in ((e or {}).get("risk_drivers") or []) if isinstance(r, str)]
+        if rds and name not in losing_names:
+            lead = "your mission" if is_mission else "your goal"
+            rec = (e or {}).get("recommended_action") or _goal_concrete_today_action(rds[0])
+            out.append((3, f"{lead} '{name}' is progressing, but {rds[0].lower()} could slow it",
+                        rec))
+            break
 
     # 3 — A named goal with NO evidence of progress AND no supporting habits — a
     # genuinely unsupported goal. SUPPRESSED whenever any goal shows healthy
@@ -646,26 +672,23 @@ def goals_working_memory(truth, user=None):
     # coaching language. NEVER exposes raw scores, trend enums, or JSON keys —
     # only banded momentum words and the engine's user-safe driver labels.
     def _coach_evidence(name, e):
+        # The Goal Evidence Narrative in coaching language — phase, what's working,
+        # what to watch, momentum summary, and the recommended next action. NEVER
+        # exposes raw scores, trend enums, or JSON keys.
         if not name or not isinstance(e, dict):
             return None
-        bits = []
-        mom = e.get("momentum")
-        if mom == "strong":
-            bits.append("strong momentum")
-        elif mom == "moderate":
-            bits.append("steady momentum")
-        elif mom == "low":
-            bits.append("low momentum")
-        tr = e.get("trend")
-        if tr == "rising":
-            bits.append("trending up")
-        elif tr == "falling":
-            bits.append("trending down")
-        status = ", ".join(bits) if bits else "in progress"
-        item = {"goal": name, "status": status}
-        drv = [d for d in (e.get("drivers") or []) if isinstance(d, str)]
-        if drv:
-            item["evidence"] = drv[:3]          # already user-safe phrases
+        item = {"goal": name}
+        if e.get("phase"):
+            item["phase"] = e["phase"]
+        item["momentum"] = e.get("momentum_summary") or "in progress"
+        succ = [s for s in (e.get("success_drivers") or []) if isinstance(s, str)]
+        if succ:
+            item["whats_working"] = succ[:3]
+        risks = [s for s in (e.get("risk_drivers") or []) if isinstance(s, str)]
+        if risks:
+            item["watch"] = risks[:2]
+        if e.get("recommended_action"):
+            item["recommended_action"] = e["recommended_action"]
         return item
 
     evidence = []
@@ -730,10 +753,14 @@ def _goals_progress_fallback(wm):
     active = st.get("active_goals")
     if active is not None:
         parts.append(f"You have {active} active goal(s).")
-    # Lead with real-world evidence of progress (up to two goals).
+    # Lead with real-world evidence of progress (up to two goals): phase +
+    # momentum summary + what's working.
     for item in ev[:2]:
-        s = f"'{item.get('goal')}' has {item.get('status', 'progress')}"
-        det = [d for d in (item.get("evidence") or []) if isinstance(d, str)]
+        s = f"'{item.get('goal')}'"
+        if item.get("phase"):
+            s += f" is in the {item['phase']}"
+        s += f" with {item.get('momentum', 'progress')}"
+        det = [d for d in (item.get("whats_working") or []) if isinstance(d, str)]
         if det:
             s += f" — {', '.join(det[:2])}"
         parts.append(s + ".")
@@ -798,9 +825,11 @@ def _goal_concrete_today_action(concern):
 
 def _goals_focus_today_fallback(wm):
     # goals_focus_today: (1) one specific goal, (2) why today, (3) ONE concrete
-    # 24h action. Always references a real goal — never a portfolio metric.
+    # 24h action. Evidence-first — uses the goal's narrative recommended action,
+    # never a generic/portfolio line when evidence exists.
     facts = wm.get("facts") or {}
     ranked = facts.get("ranked_concerns") or []
+    ev = facts.get("goal_evidence") or []
     if ranked:
         top = ranked[0]
         focus = top.get("concern", "your top goal")
@@ -808,16 +837,25 @@ def _goals_focus_today_fallback(wm):
         return (f"Today, focus on {focus}. Acting on it today keeps it from "
                 f"slipping further and protects your momentum. One concrete step: "
                 f"{action}.")
-    # No concern detected — name the mission/top goal and give a concrete step.
+    # No risk concern — narrate the top goal's evidence and give its recommended
+    # next action (tied to actual drivers / phase).
+    if ev:
+        item = ev[0]
+        name = item.get("goal")
+        action = item.get("recommended_action")
+        if name and action:
+            phase = f" ({item['phase']})" if item.get("phase") else ""
+            mom = item.get("momentum") or "it's progressing"
+            return (f"Today, focus on '{name}'{phase}. {mom.capitalize()} — keep "
+                    f"that going. One concrete step: {action}.")
     name = facts.get("mission")
     if not name:
         ag = facts.get("active_goals") or []
         name = ag[0] if ag else None
     if name:
-        return (f"Today, focus on '{name}', your most important goal. Steady "
-                f"momentum compounds. One concrete step: spend 15 minutes "
-                f"progressing '{name}' — review its next milestone and choose the "
-                f"next concrete action.")
+        return (f"Today, focus on '{name}', your most important goal. One concrete "
+                f"step: take the next concrete action on its current milestone "
+                f"today.")
     return ("You don't have an active goal set yet. One concrete step: create a "
             "single specific goal today so we have something to drive toward.")
 

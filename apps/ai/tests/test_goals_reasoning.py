@@ -39,10 +39,16 @@ GOALS_FIXTURE = {
         "active_titles": [
             {"title": "Lose 20 lbs", "target_date": "2026-09-01", "is_foundational": True,
              "evidence": {"momentum": "strong", "trend": "rising",
-                          "drivers": ["weight trending down"], "as_of": "2026-06-25"}},
+                          "phase": "Cutting phase", "momentum_summary": "strong momentum and building",
+                          "success_drivers": ["weight trending down"], "risk_drivers": [],
+                          "recommended_action": "keep your current routine going and log today's progress",
+                          "as_of": "2026-06-25"}},
             {"title": "Write a book", "target_date": "2026-12-01", "is_foundational": False,
              "evidence": {"momentum": "moderate", "trend": "stable",
-                          "drivers": ["2 milestones completed"], "as_of": "2026-06-25"}},
+                          "phase": "Drafting", "momentum_summary": "steady momentum",
+                          "success_drivers": ["2 milestones completed"], "risk_drivers": [],
+                          "recommended_action": "take the next concrete step toward \"Drafting\"",
+                          "as_of": "2026-06-25"}},
         ],
         "upcoming_titles": [{"title": "Finish chapter 3", "days_remaining": 4}],
         "overdue_titles": [
@@ -52,7 +58,9 @@ GOALS_FIXTURE = {
         "mission": {"title": "Become a published author",
                     "momentum_score": 42, "next_milestone": {"id": 99},
                     "evidence": {"momentum": "moderate", "trend": "stable",
-                                 "drivers": ["2 milestones completed"],
+                                 "phase": "Drafting", "momentum_summary": "steady momentum",
+                                 "success_drivers": ["2 milestones completed"], "risk_drivers": [],
+                                 "recommended_action": "take the next concrete step toward \"Drafting\"",
                                  "as_of": "2026-06-25"}},
     }},
     "habits_state": {"state": {
@@ -79,7 +87,11 @@ MISSION_STALLED_FIXTURE = {
         "active_titles": [{"title": "France 2027 Family 18K Mission",
                            "target_date": None, "is_foundational": True,
                            "evidence": {"momentum": "low", "trend": "falling",
-                                        "drivers": ["activity has slowed this week"],
+                                        "phase": "Weight-loss foundation phase",
+                                        "momentum_summary": "low momentum but slipping",
+                                        "success_drivers": [],
+                                        "risk_drivers": ["activity has slowed this week"],
+                                        "recommended_action": "add one more workout this week to keep the trend moving",
                                         "as_of": "2026-06-25"}}],
         "upcoming_titles": [],
         "overdue_titles": [],
@@ -87,7 +99,11 @@ MISSION_STALLED_FIXTURE = {
                     "current_focus": None, "momentum_trend": "falling",
                     "days_remaining": None,
                     "evidence": {"momentum": "low", "trend": "falling",
-                                 "drivers": ["activity has slowed this week"],
+                                 "phase": "Weight-loss foundation phase",
+                                 "momentum_summary": "low momentum but slipping",
+                                 "success_drivers": [],
+                                 "risk_drivers": ["activity has slowed this week"],
+                                 "recommended_action": "add one more workout this week to keep the trend moving",
                                  "as_of": "2026-06-25"}},
     }},
     "habits_state": {"state": {
@@ -97,9 +113,23 @@ MISSION_STALLED_FIXTURE = {
     }},
 }
 
-# The France case: a health goal PROGRESSING via real-world evidence (weight loss,
-# exercise) but with ZERO formal habits attached and a lagging milestone %. Healthy
-# momentum MUST suppress the "no supporting habits" / "completion low" criticism.
+# The France case: steady momentum on strong foundations (weight down, milestone
+# achieved, exercise consistency) with a specific, evidence-flagged drag (light
+# workout frequency) and a clear phase. Beth must narrate THIS, not portfolio %.
+FRANCE_EVIDENCE = {
+    "momentum": "moderate", "trend": "stable",
+    "phase": "Weight-loss foundation phase",
+    "momentum_summary": "steady momentum",
+    "success_drivers": ["weight trending down", "milestone achieved",
+                        "exercise consistency"],
+    "risk_drivers": ["workout frequency is light"],
+    "recommended_action": "add one more workout this week to keep the trend moving",
+    "as_of": "2026-06-25",
+}
+
+# A health goal PROGRESSING via real-world evidence (weight loss, exercise) but with
+# ZERO formal habits attached and a lagging milestone %. Healthy momentum MUST
+# suppress the "no supporting habits" / "completion low" criticism.
 FRANCE_HEALTHY_FIXTURE = {
     "goals_state": {"state": {
         "active_goal_count": 1,
@@ -107,19 +137,13 @@ FRANCE_HEALTHY_FIXTURE = {
         "overdue_goal_count": 0,
         "active_titles": [{"title": "France 2027 Family 18K Mission",
                            "target_date": None, "is_foundational": True,
-                           "evidence": {"momentum": "strong", "trend": "rising",
-                                        "drivers": ["weight trending down",
-                                                    "4 workouts this week"],
-                                        "as_of": "2026-06-25"}}],
+                           "evidence": FRANCE_EVIDENCE}],
         "upcoming_titles": [],
         "overdue_titles": [],
         "mission": {"title": "France 2027 Family 18K Mission",
-                    "current_focus": None, "momentum_trend": "rising",
-                    "days_remaining": None,
-                    "evidence": {"momentum": "strong", "trend": "rising",
-                                 "drivers": ["weight trending down",
-                                             "4 workouts this week"],
-                                 "as_of": "2026-06-25"}},
+                    "current_focus": "Weight-loss foundation phase",
+                    "momentum_trend": "stable", "days_remaining": None,
+                    "evidence": FRANCE_EVIDENCE},
     }},
     "habits_state": {"state": {
         "active_habit_count": 0, "avg_completion_rate": 0.0, "longest_streak": 0,
@@ -490,52 +514,79 @@ class GoalsGoalFirstTests(SimpleTestCase):
 # Evidence-FIRST refinement — Beth narrates the momentum engine, not metadata
 # ---------------------------------------------------------------------------
 class GoalsEvidenceFirstTests(SimpleTestCase):
+    _GENERIC = ("focus on fewer goals", "improve completion rate",
+                "overall goal completion", "take one step", "make progress today",
+                "no supporting habits")
+
     def _ranked(self, fixture):
         gs = fixture["goals_state"]["state"]
         hs = fixture["habits_state"]["state"]
         return stages._rank_goal_concerns(gs, hs)
 
-    def test_healthy_momentum_suppresses_missing_habit(self):
-        # France progressing (strong/rising) with ZERO habits -> never criticised
-        # for missing habits, and not flagged for lagging milestone %.
-        ranked = self._ranked(FRANCE_HEALTHY_FIXTURE)
-        blob = " ".join(c["concern"].lower() for c in ranked)
+    def test_healthy_momentum_suppresses_missing_habit_and_portfolio(self):
+        # France progressing (steady, ZERO habits, lagging milestone %): never
+        # criticised for missing habits or completion %, despite hactive==0.
+        blob = " ".join(c["concern"].lower() for c in self._ranked(FRANCE_HEALTHY_FIXTURE))
         self.assertNotIn("no supporting habits", blob)
         self.assertNotIn("isn't backed by a routine", blob)
         self.assertNotIn("overall goal completion", blob)
-        # with the only goal progressing, biggest risk says on-track, not criticism
-        risk = stages._goal_risk_fallback(_wm(FRANCE_HEALTHY_FIXTURE)).lower()
-        self.assertIn("on track", risk)
 
-    def test_evidence_backed_risk_outranks_metadata(self):
+    def test_biggest_risk_is_evidence_driver_not_metadata(self):
+        # The France headline is the engine's specific drag, naming the goal.
+        risk = stages._goal_risk_fallback(_wm(FRANCE_HEALTHY_FIXTURE))
+        self.assertIn("France 2027 Family 18K Mission", risk)
+        self.assertIn("workout frequency is light", risk)
+        for g in self._GENERIC:
+            self.assertNotIn(g, risk.lower())
+
+    def test_focus_today_uses_recommended_action(self):
+        out = stages._goals_focus_today_fallback(_wm(FRANCE_HEALTHY_FIXTURE))
+        self.assertIn("France 2027 Family 18K Mission", out)
+        self.assertIn("add one more workout this week", out)   # the driver action
+        for g in self._GENERIC:
+            self.assertNotIn(g, out.lower())
+
+    def test_phase_success_and_risk_drivers_exposed(self):
+        ev = (stages.goals_working_memory(FRANCE_HEALTHY_FIXTURE)
+              .get("goal_evidence") or [])
+        self.assertTrue(ev)
+        item = ev[0]
+        self.assertEqual(item["phase"], "Weight-loss foundation phase")
+        self.assertIn("weight trending down", item.get("whats_working", []))
+        self.assertIn("workout frequency is light", item.get("watch", []))
+        self.assertIn("add one more workout this week", item.get("recommended_action", ""))
+
+    def test_evidence_backed_stall_outranks_metadata(self):
         ranked = self._ranked(MISSION_STALLED_FIXTURE)
         self.assertIn("France 2027 Family 18K Mission", ranked[0]["concern"])
         self.assertIn("momentum", ranked[0]["concern"].lower())
         self.assertNotIn("completion", ranked[0]["concern"].lower())
 
-    def test_progress_narrates_evidence(self):
+    def test_progress_narrates_phase_and_drivers(self):
         out = stages._goals_progress_fallback(_wm(FRANCE_HEALTHY_FIXTURE))
         self.assertIn("France 2027 Family 18K Mission", out)
-        self.assertIn("momentum", out.lower())
-        # driver evidence surfaces in coaching language
-        self.assertIn("weight trending down", out)
+        self.assertIn("Weight-loss foundation phase", out)     # phase
+        self.assertIn("weight trending down", out)             # success driver
+        self.assertIn("steady momentum", out)                  # momentum summary
+
+    def test_no_generic_coaching_when_evidence_exists(self):
+        outs = []
+        wm = _wm(FRANCE_HEALTHY_FIXTURE)
+        outs += [stages._goal_risk_fallback(wm),
+                 stages._goals_focus_today_fallback(wm),
+                 stages._goals_progress_fallback(wm),
+                 stages._goal_concerns_fallback(wm)]
+        blob = " ".join(outs).lower()
+        for g in self._GENERIC:
+            self.assertNotIn(g, blob, f"generic coaching leaked with evidence: {g}")
 
     def test_no_raw_momentum_json_or_scores_leak(self):
-        # Curated output must never carry raw scores, trend enums, or JSON keys.
         for fx in (GOALS_FIXTURE, MISSION_STALLED_FIXTURE, FRANCE_HEALTHY_FIXTURE):
             blob = json.dumps(stages.goals_working_memory(fx))
             for forbidden in ("momentum_score", "progress_score", "snapshot",
-                              "\"rising\"", "\"falling\"", "\"stable\"",
-                              "as_of", "signal_scores"):
+                              "\"rising\"", "\"falling\"", "\"stable\"", "\"moderate\"",
+                              "as_of", "signal_scores", "success_drivers", "risk_drivers"):
                 self.assertNotIn(forbidden, blob, f"leaked: {forbidden}")
-
-    def test_evidence_curated_as_coaching_language(self):
-        facts = stages.goals_working_memory(FRANCE_HEALTHY_FIXTURE)
-        ev = facts.get("goal_evidence") or []
-        self.assertTrue(ev)
-        self.assertEqual(ev[0]["goal"], "France 2027 Family 18K Mission")
-        self.assertIn("momentum", ev[0]["status"])         # banded coaching word
-        self.assertIn("trending up", ev[0]["status"])       # translated, not "rising"
 
     def test_fallbacks_always_answer_with_evidence_fixtures(self):
         for fx in (FRANCE_HEALTHY_FIXTURE, MISSION_STALLED_FIXTURE):
@@ -551,9 +602,10 @@ class GoalsEvidenceFirstTests(SimpleTestCase):
 # ---------------------------------------------------------------------------
 class BuildGoalStateEvidenceTests(TestCase):
     def setUp(self):
+        from datetime import timedelta
         from django.conf import settings as dj_settings
         from apps.users.models import TermsAcceptance
-        from apps.purpose.models import LifeDomain, LifeGoal
+        from apps.purpose.models import LifeDomain, LifeGoal, GoalMilestone
         from apps.dashboard_v2.models import GoalMomentumSnapshot
         from apps.core.time.system_clock import get_current_time
 
@@ -567,26 +619,57 @@ class BuildGoalStateEvidenceTests(TestCase):
 
         domain = LifeDomain.objects.create(name="Health", slug="health")
         today = get_current_time().date()
-        for i in range(3):
+        # The rich goal: success (domain signals) + risk (habits) drivers + phase.
+        self.rich = LifeGoal.objects.create(
+            user=self.user, title="France 2027", domain=domain, status="active",
+            target_date=today + timedelta(days=300))
+        GoalMilestone.objects.create(goal=self.rich, title="Build base",
+                                     completed=False)
+        GoalMomentumSnapshot.objects.create(
+            user=self.user, goal=self.rich, snapshot_date=today,
+            momentum_score=80, progress_score=40, momentum_trend="rising",
+            drivers={
+                "domain_signals": {"score": 80, "label": "Weight trend: down",
+                                   "signal_labels": ["weight trending down",
+                                                     "3 workouts this week"]},
+                "habits": {"score": 20, "label": "Start a habit to build momentum"},
+            })
+        # Two more (with snapshots) so the N+1 test has multiple goals.
+        for i in range(2):
             g = LifeGoal.objects.create(user=self.user, title=f"Goal {i}",
-                                        domain=domain, status="active")
+                                        domain=domain, status="active",
+                                        target_date=today + timedelta(days=400 + i))
             GoalMomentumSnapshot.objects.create(
                 user=self.user, goal=g, snapshot_date=today,
-                momentum_score=80, progress_score=40, momentum_trend="rising",
-                drivers={"habits": {"score": 28, "label": "4/5 habits completed"}})
+                momentum_score=55, progress_score=30, momentum_trend="stable",
+                drivers={"habits": {"score": 50, "label": "Habits: getting started"}})
+
+    def _france_entry(self, state):
+        for t in (state.get("active_titles") or []):
+            if t.get("title") == "France 2027":
+                return t
+        return None
 
     def test_evidence_exposed_banded_and_sanitized(self):
         from apps.core.ai_state.state_builder import build_goal_state
         state = build_goal_state(self.user)
-        titles = state.get("active_titles") or []
-        self.assertTrue(titles)
-        ev = titles[0].get("evidence")
+        entry = self._france_entry(state)
+        self.assertIsNotNone(entry)
+        ev = entry.get("evidence")
         self.assertIsNotNone(ev)
         self.assertEqual(ev["momentum"], "strong")       # 80 -> banded
         self.assertEqual(ev["trend"], "rising")
-        self.assertIn("4/5 habits completed", ev["drivers"])
-        # banded — no raw 0-100 score on the entry
-        self.assertNotIn("momentum_score", ev)
+        self.assertNotIn("momentum_score", ev)           # no raw 0-100 score
+
+    def test_narrative_phase_success_risk_and_recommendation(self):
+        from apps.core.ai_state.state_builder import build_goal_state
+        ev = self._france_entry(build_goal_state(self.user)).get("evidence")
+        self.assertEqual(ev["phase"], "Build base")                       # milestone
+        self.assertIn("weight trending down", ev["success_drivers"])      # high-score
+        self.assertIn("Start a habit to build momentum", ev["risk_drivers"])  # low-score
+        self.assertTrue(ev["recommended_action"])
+        # recommendation is tied to the risk driver (habit), not generic
+        self.assertIn("habit", ev["recommended_action"].lower())
 
     def test_no_recompute_on_request_path(self):
         # build_goal_state must READ the nightly snapshot, never recompute it.

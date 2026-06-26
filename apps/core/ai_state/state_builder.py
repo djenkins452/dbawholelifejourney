@@ -1490,19 +1490,84 @@ def build_goal_state(user):
         s = int(score)
         return "strong" if s >= 67 else "moderate" if s >= 34 else "low"
 
-    def _evidence_from_snapshot(snap):
+    def _evidence_from_snapshot(snap, phase=None):
+        """Goal Evidence Narrative composed from the persisted nightly snapshot
+        (READ-ONLY — never recomputed here): current phase, success/risk drivers,
+        a momentum summary, and an evidence-based recommended next action. Each
+        driver is the momentum engine's own user-safe label; no raw 0-100 score is
+        exposed. Beth narrates this verdict (P24 / briefing-consumer pattern)."""
         if snap is None:
             return None
-        drivers = []
+        band = _momentum_band(snap.momentum_score)
+        trend = snap.momentum_trend or None
         raw = snap.drivers if isinstance(snap.drivers, dict) else {}
+        success, risk, all_labels = [], [], []
         for _comp, info in raw.items():
-            if isinstance(info, dict) and isinstance(info.get("label"), str):
-                drivers.append(info["label"])
+            if not isinstance(info, dict):
+                continue
+            score = info.get("score")
+            label = (info.get("label") or "").strip()
+            sig_labels = [s.strip() for s in (info.get("signal_labels") or [])
+                          if isinstance(s, str) and s.strip()]
+            if label:
+                all_labels.append(label)
+            if score is None:
+                continue
+            if score >= 60:
+                if label:
+                    success.append(label)
+                success.extend(sig_labels)
+            elif score <= 35 and label:
+                risk.append(label)
+
+        def _dedupe(seq):
+            seen, out = set(), []
+            for x in seq:
+                if x and x not in seen:
+                    seen.add(x)
+                    out.append(x)
+            return out
+        success = _dedupe(success)[:4]
+        risk = _dedupe(risk)[:3]
+
+        # Momentum summary — coaching language only (never the raw score).
+        base = {"strong": "strong momentum", "moderate": "steady momentum",
+                "low": "low momentum"}.get(band, "in progress")
+        if trend == "rising":
+            base += " and building"
+        elif trend == "falling":
+            base += " but slipping"
+
+        # Evidence-based recommended next action, tied to the actual drag (or, if
+        # none, to advancing the current phase).
+        rtext = " ".join(risk).lower()
+        if any(k in rtext for k in ("workout", "exercise", "consistency", "activity")):
+            rec = "add one more workout this week to keep the trend moving"
+        elif "habit" in rtext:
+            rec = "complete one supporting habit today"
+        elif "task" in rtext:
+            rec = "knock out one of the outstanding tasks today"
+        elif any(k in rtext for k in ("nutrition", "macro", "fasting")):
+            rec = "hit your nutrition target at your next meal"
+        elif "sleep" in rtext:
+            rec = "protect a consistent bedtime tonight"
+        elif phase:
+            rec = f"take the next concrete step toward \"{phase}\""
+        elif band in ("strong", "moderate") and trend != "falling":
+            rec = "keep your current routine going and log today's progress"
+        else:
+            rec = "take one concrete action toward this goal today"
+
         return {
-            "momentum": _momentum_band(snap.momentum_score),
+            "momentum": band,
             "progress": _momentum_band(snap.progress_score),
-            "trend": snap.momentum_trend or None,
-            "drivers": drivers[:4],
+            "trend": trend,
+            "phase": phase,
+            "success_drivers": success,
+            "risk_drivers": risk,
+            "drivers": (success or all_labels)[:4],   # back-compat summary list
+            "momentum_summary": base,
+            "recommended_action": rec,
             "as_of": snap.snapshot_date.isoformat() if snap.snapshot_date else None,
         }
 
@@ -1527,11 +1592,15 @@ def build_goal_state(user):
         title = goal.title
         target = goal.target_date
         is_foundational = getattr(goal, 'is_foundational', False)
+        # Phase = the current (first incomplete) milestone, from the prefetched
+        # milestones (no extra query).
+        phase = next((m.title for m in goal.milestones.all()
+                      if not getattr(m, 'completed', False)), None)
         entry = {
             'title': title,
             'target_date': target.isoformat() if target else None,
             'is_foundational': bool(is_foundational),
-            'evidence': _evidence_from_snapshot(latest_snap.get(goal.id)),
+            'evidence': _evidence_from_snapshot(latest_snap.get(goal.id), phase),
         }
         active_titles.append(entry)
         if target:
@@ -1569,7 +1638,7 @@ def build_goal_state(user):
             "momentum_trend": snap.momentum_trend if snap else None,
             "days_remaining": (m_target - today).days
             if m_target and m_target > today else None,
-            "evidence": _evidence_from_snapshot(snap),
+            "evidence": _evidence_from_snapshot(snap, nm.title if nm else None),
         }
 
     return state

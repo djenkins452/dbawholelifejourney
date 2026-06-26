@@ -48,23 +48,25 @@ _PLANNER_SYSTEM = (
     '  "urgency": "low" | "normal" | "high",\n'
     '  "confidence": 0.0-1.0\n'
     "}\n\n"
-    "Rules — pick the intent that matches the user's INTENT, keeping these four "
-    "DISTINCT (see their differing shapes):\n"
-    "- 'biggest_health_risk': the SINGLE highest-priority health issue — "
-    "'biggest/worst/most important health risk', 'what's most wrong'. One thing.\n"
-    "- 'health_concerns': a RANKED LIST of current health concerns — 'what are my "
-    "health concerns/issues', 'list what's off'. Multiple things.\n"
-    "- 'health_focus_today': the best ACTIONABLE step for TODAY — 'what should I "
-    "focus on / do health-wise today', 'one thing to do today'. Today + action.\n"
-    "- 'overall_progress': an executive SUMMARY of overall status/trajectory — "
-    "'how am I doing', 'on track', 'overall health goals'. A summary, not a list "
-    "or a single risk.\n"
-    "Use intent='other' for anything else. ALL implemented intents are "
-    "HEALTH-scoped: required_truth must be ONLY "
-    "['health_state','foundational_health'] and domains ONLY ['health']. NEVER "
-    "request risk_decision, execution_decision, tasks, or any non-health truth for "
-    "a health intent. NEVER invent truth keys outside the lists. NEVER write "
-    "prose. NEVER answer the user. JSON only."
+    "Rules — pick the intent that matches the user's INTENT. Two domains are "
+    "implemented (HEALTH and GOALS); keep each intent DISTINCT by shape.\n"
+    "HEALTH intents — required_truth ONLY "
+    "['health_state','foundational_health'], domains ONLY ['health']:\n"
+    "- 'biggest_health_risk': the SINGLE highest-priority health issue. One thing.\n"
+    "- 'health_concerns': a RANKED LIST of current health concerns. Multiple things.\n"
+    "- 'health_focus_today': the best ACTIONABLE health step for TODAY. Today + action.\n"
+    "- 'overall_progress': an executive SUMMARY of overall HEALTH status/trajectory.\n"
+    "GOALS intents — required_truth ONLY ['goals_state','habits_state'], domains "
+    "ONLY ['goals']:\n"
+    "- 'biggest_goal_risk': the SINGLE goal most at risk (overdue/stalling). One thing.\n"
+    "- 'goal_concerns': a RANKED LIST of goals/habits that are slipping. Multiple things.\n"
+    "- 'goals_focus_today': the ONE goal action to advance TODAY. Today + action.\n"
+    "- 'goals_progress': an executive SUMMARY of goal progress/trajectory.\n"
+    "Match the DOMAIN to the question: health questions → health intents + health "
+    "truth; goal/habit/mission/priority questions → goal intents + goal truth. "
+    "NEVER mix truth across domains (no health truth for a goal intent, or "
+    "vice-versa). Use intent='other' for anything else. NEVER invent truth keys "
+    "outside the lists. NEVER write prose. NEVER answer the user. JSON only."
 )
 
 
@@ -134,6 +136,7 @@ TRUTH_PROVIDERS = {
     ).get_foundational_health_facts(u, _FOUNDATION_KEYS),
     "health_state": lambda u: _domain(u, "health"),
     "goals_state": lambda u: _domain(u, "purpose"),
+    "habits_state": lambda u: _domain(u, "habits"),
     "fitness_state": lambda u: _domain(u, "fitness"),
     "nutrition_state": lambda u: _domain(u, "nutrition"),
 }
@@ -142,6 +145,7 @@ TRUTH_PROVIDERS = {
 _DOMAIN_TRUTH = {
     "health": "health_state", "fitness": "fitness_state",
     "nutrition": "nutrition_state", "goals": "goals_state",
+    "habits": "habits_state",
 }
 
 # Per-intent truth SCOPE. Health intents are restricted to health truth ONLY —
@@ -151,7 +155,16 @@ _DOMAIN_TRUTH = {
 HEALTH_TRUTH = frozenset({"health_state", "foundational_health"})
 HEALTH_INTENTS = ("biggest_health_risk", "overall_progress",
                   "health_focus_today", "health_concerns")
-INTENT_TRUTH_SCOPE = {i: HEALTH_TRUTH for i in HEALTH_INTENTS}
+# Goals domain (#2): goals-truth ONLY (goals_state + habits_state — Goals
+# consumes Habits per docs/BETH_DOMAIN_DEPENDENCY_GRAPH.md). Same defense-in-depth
+# isolation as health — no cross-domain truth can reach a goal intent.
+GOALS_TRUTH = frozenset({"goals_state", "habits_state"})
+GOAL_INTENTS = ("biggest_goal_risk", "goals_progress",
+                "goals_focus_today", "goal_concerns")
+INTENT_TRUTH_SCOPE = {
+    **{i: HEALTH_TRUTH for i in HEALTH_INTENTS},
+    **{i: GOALS_TRUTH for i in GOAL_INTENTS},
+}
 
 
 def retrieve_truth(user, plan):
@@ -434,8 +447,227 @@ def health_working_memory(truth, user=None):
 
 
 def _generic_curator(truth, user=None):
-    """Default curator for non-health intents (Phase 1 adds domain curators)."""
+    """Default curator for unmapped intents (each domain registers its own)."""
     return {key: _curate_value(data) for key, data in truth.items()}
+
+
+# ===========================================================================
+# GOALS domain (Beth domain #2) — mirrors the health curator/ranking/fallback
+# pattern exactly. Goals-truth ONLY (goals_state + habits_state); EXECUTIVE-CLEAN
+# (no IDs, enums, raw momentum scores, field names, or source paths reach the
+# model). See docs/BETH_DOMAIN_REASONING_FRAMEWORK.md (§④–⑦).
+# ===========================================================================
+def _rank_goal_concerns(goals, habits):
+    """Evidence-ranked goal/habit concerns as plain COACHING language (never raw
+    IDs/enums/scores). Severity: overdue > near-deadline > at-risk habits > low
+    completion > over-commitment. Returns ordered [{concern, action}]."""
+    out = []  # (severity, concern, action)
+
+    overdue = int(_num(goals.get("overdue_goal_count")) or 0)
+    if overdue:
+        titles = [t.get("title") for t in (goals.get("overdue_titles") or [])
+                  if t.get("title")]
+        names = ", ".join(f"'{t}'" for t in titles[:2])
+        detail = f" ({names})" if names else ""
+        out.append((5, f"you have {overdue} goal(s) past their target date{detail}",
+                    "pick one and either set a realistic new date or close it out"))
+
+    # Nearest upcoming deadline within a week.
+    soon = None
+    for t in (goals.get("upcoming_titles") or []):
+        d = _num(t.get("days_remaining"))
+        if d is not None and (soon is None or d < soon[0]):
+            soon = (d, t.get("title"))
+    if soon and soon[0] is not None and soon[0] <= 7:
+        title = f"'{soon[1]}'" if soon[1] else "a goal"
+        out.append((4, f"{title} is due in {int(soon[0])} day(s)",
+                    "block focused time this week to move it forward"))
+
+    # At-risk habits — the momentum that feeds goals.
+    at_risk = [h for h in (habits.get("streaks_per_habit") or []) if h.get("at_risk")]
+    if at_risk:
+        names = ", ".join(f"'{h.get('name')}'" for h in at_risk[:2] if h.get("name"))
+        detail = f" ({names})" if names else ""
+        out.append((3, f"{len(at_risk)} habit(s) are about to break their streak{detail}",
+                    "a quick completion today protects the streak and your momentum"))
+
+    # Low overall goal completion.
+    rate = _num(goals.get("completion_rate"))
+    active = int(_num(goals.get("active_goal_count")) or 0)
+    if rate is not None and rate < 0.4 and active:
+        out.append((2, "your overall goal completion is running low",
+                    "narrowing focus to one or two goals usually lifts it"))
+
+    # Over-commitment: many active goals, thin habit follow-through.
+    hrate = _num(habits.get("avg_completion_rate"))
+    if active >= 6 and hrate is not None and hrate < 0.5:
+        out.append((2, f"you're carrying {active} active goals with thin follow-through",
+                    "consider pausing the lowest-priority ones to protect the top goals"))
+
+    out.sort(key=lambda x: -x[0])
+    return [{"concern": c, "action": a} for _s, c, a in out]
+
+
+def goals_working_memory(truth, user=None):
+    """GoalsWorkingMemoryCurator — goals-truth ONLY and EXECUTIVE-CLEAN.
+
+    Reads goals_state + habits_state. Model-facing output has NO internal IDs,
+    enum codes, raw momentum scores, field names, or data-source paths — only
+    counts, percentages, plain goal/mission titles, and ranked coaching concerns.
+    """
+    gs = truth.get("goals_state")
+    goals = gs.get("state") if isinstance(gs, dict) else None
+    goals = goals if isinstance(goals, dict) else {}
+    hsr = truth.get("habits_state")
+    habits = hsr.get("state") if isinstance(hsr, dict) else None
+    habits = habits if isinstance(habits, dict) else {}
+
+    facts = {}
+    status = {}
+    active = _num(goals.get("active_goal_count"))
+    if active is not None:
+        status["active_goals"] = int(active)
+    rate = _num(goals.get("completion_rate"))
+    if rate is not None:
+        status["completion_pct"] = round(rate * 100)
+    overdue = _num(goals.get("overdue_goal_count"))
+    if overdue is not None:
+        status["overdue_goals"] = int(overdue)
+    dnext = _num(goals.get("days_to_next_deadline"))
+    if dnext is not None:
+        status["next_deadline_in_days"] = int(dnext)
+    if status:
+        facts["goal_status"] = status
+
+    # Goal titles — NAMES only (drop target_date isoformat + is_foundational enum).
+    names = [t.get("title") for t in (goals.get("active_titles") or [])
+             if t.get("title")]
+    if names:
+        facts["active_goals"] = names[:10]
+
+    # Mission — TITLE only (strip momentum snapshot scores / milestone internals).
+    mission = goals.get("mission")
+    if isinstance(mission, dict):
+        mtitle = (mission.get("title") or mission.get("goal_title")
+                  or mission.get("name"))
+        if mtitle:
+            facts["mission"] = mtitle
+
+    # Habits — summarized consistency only.
+    hb = {}
+    hactive = _num(habits.get("active_habit_count"))
+    if hactive is not None:
+        hb["active_habits"] = int(hactive)
+    hrate = _num(habits.get("avg_completion_rate"))
+    if hrate is not None:
+        hb["consistency_pct"] = round(hrate * 100)
+    longest = _num(habits.get("longest_streak"))
+    if longest is not None:
+        hb["longest_streak_days"] = int(longest)
+    if hb:
+        facts["habits"] = hb
+
+    ranked = _rank_goal_concerns(goals, habits)
+    if ranked:
+        facts["ranked_concerns"] = ranked
+    return facts
+
+
+def _goal_risk_fallback(wm):
+    # biggest_goal_risk: the SINGLE goal most at risk + why + action.
+    ranked = (wm.get("facts") or {}).get("ranked_concerns") or []
+    if not ranked:
+        return ("Your goals look on track right now — nothing is overdue or "
+                "stalling. Keep the momentum going.")
+    top = ranked[0]
+    return ("The goal most worth your attention right now: " + top.get("concern", "")
+            + ". A good next step: " + top.get("action", "keep steady progress") + ".")
+
+
+def _goals_progress_fallback(wm):
+    # goals_progress: active goals + completion + deadline/overdue + mission + habits.
+    f = wm.get("facts") or {}
+    st = f.get("goal_status") or {}
+    hb = f.get("habits") or {}
+    ranked = f.get("ranked_concerns") or []
+    parts = []
+    active = st.get("active_goals")
+    if active is not None:
+        s = f"You have {active} active goal(s)"
+        if st.get("completion_pct") is not None:
+            s += f", about {st['completion_pct']}% of the way through their milestones"
+        parts.append(s + ".")
+    if st.get("overdue_goals"):
+        parts.append(f"{st['overdue_goals']} are past their target date.")
+    elif st.get("next_deadline_in_days") is not None:
+        parts.append(f"Your next goal deadline is in {st['next_deadline_in_days']} day(s).")
+    if f.get("mission"):
+        parts.append(f"Your headline focus is \"{f['mission']}\".")
+    if hb.get("consistency_pct") is not None:
+        tag = "strong" if hb["consistency_pct"] >= 70 else "a bit uneven"
+        parts.append(f"Habit follow-through is {tag} ({hb['consistency_pct']}%).")
+    if ranked:
+        parts.append(f"The main thing to nudge next: {ranked[0].get('concern')}.")
+    if not parts:
+        return ("I have your goals but not enough recent progress data to summarize "
+                "your trajectory yet.")
+    return " ".join(parts)
+
+
+def _goal_concerns_fallback(wm):
+    # goal_concerns: a RANKED LIST (≥2 when available), each concern + action.
+    ranked = (wm.get("facts") or {}).get("ranked_concerns") or []
+    if not ranked:
+        return ("Your goals look healthy right now — nothing overdue or stalling. "
+                "Keep doing what's working.")
+    lines = ["Here's what's on your goals radar right now, most important first:"]
+    for i, c in enumerate(ranked[:4], 1):
+        lines.append(f"{i}. {c.get('concern', '')} — {c.get('action', 'stay consistent')}.")
+    return "\n".join(lines)
+
+
+# INV-5: map the top goal concern to a CONCRETE imperative doable within 24h.
+def _goal_concrete_today_action(concern):
+    c = (concern or "").lower()
+    if "past their target" in c or "overdue" in c:
+        return "open your top overdue goal and set one realistic new milestone date today"
+    if "due in" in c:
+        return "block 30 focused minutes on your nearest-deadline goal today"
+    if "habit" in c and "streak" in c:
+        return "complete your at-risk habit today to protect the streak"
+    if "completion is running low" in c:
+        return "pick your single most important goal and take one concrete step on it today"
+    if "follow-through" in c:
+        return "choose one goal to pause so you can fully focus on the top one today"
+    return "spend 30 focused minutes moving your most important goal forward today"
+
+
+def _goals_focus_today_fallback(wm):
+    # goals_focus_today: (1) focus, (2) why today, (3) ONE concrete 24h action.
+    ranked = (wm.get("facts") or {}).get("ranked_concerns") or []
+    if not ranked:
+        return ("Today, take one step on your most important goal — momentum "
+                "compounds. One concrete step: spend 30 focused minutes moving "
+                "your top goal forward today.")
+    top = ranked[0]
+    focus = top.get("concern", "your top goal")
+    action = _goal_concrete_today_action(focus)
+    return (f"Today, focus on {focus}. Acting on it today keeps it from slipping "
+            f"further and protects your momentum. One concrete step: {action}.")
+
+
+_GOAL_GUIDANCE = (
+    " Stay strictly within goals and habits — never mention health metrics, "
+    "finances, labs, or unrelated domains. Cite the data; never invent goals, "
+    "numbers, or deadlines."
+    " LANGUAGE: translate everything into plain executive coaching language. "
+    "NEVER output raw IDs, internal codes, enum values, raw momentum scores, "
+    "field names, or data-source paths (e.g. 'SAE.goals…', 'is_foundational', "
+    "'frequency_type'). If you can't say it as a coach would, omit it."
+    " TONE: be motivating but honest about slippage — name the slip plainly and "
+    "give the next step. Never shaming, never alarmist. Prefer 'worth focusing "
+    "on', 'a bit behind', 'a good next step would be'."
+)
 
 
 # intent -> curator. All four implemented intents are health-scoped and share the
@@ -446,6 +678,10 @@ INTENT_CURATORS = {
     "overall_progress": health_working_memory,
     "health_focus_today": health_working_memory,
     "health_concerns": health_working_memory,
+    "biggest_goal_risk": goals_working_memory,
+    "goals_progress": goals_working_memory,
+    "goals_focus_today": goals_working_memory,
+    "goal_concerns": goals_working_memory,
 }
 
 
@@ -637,6 +873,57 @@ REASONING_PROFILES = {
         ),
         "max_tokens": 180,
         "fallback": _health_focus_today_fallback,
+    },
+    # ----- GOALS domain (#2) -----
+    "biggest_goal_risk": {
+        "system": (
+            "You are the user's Chief of Staff. 'ranked_concerns' is an ordered "
+            "list of {concern, action} in plain coaching language (most at-risk "
+            "first). Use the TOP entry: state the goal most at risk, briefly "
+            "explain why it matters, and give its action. If ranked_concerns is "
+            "absent or empty, say the goals look on track — do NOT manufacture a "
+            "risk." + _GOAL_GUIDANCE + " Max 120 words."
+        ),
+        "max_tokens": 200,
+        "fallback": _goal_risk_fallback,
+    },
+    "goals_progress": {
+        "system": (
+            "You are the user's Chief of Staff. Using ONLY the goals working "
+            "memory provided, give a balanced executive read on how the user is "
+            "tracking against their GOALS — active goals, completion, deadlines, "
+            "mission, and habit follow-through. A summary, not a single risk or a "
+            "bare list." + _GOAL_GUIDANCE + " Max 160 words."
+        ),
+        "max_tokens": 260,
+        "fallback": _goals_progress_fallback,
+    },
+    "goal_concerns": {
+        "system": (
+            "You are the user's Chief of Staff. 'ranked_concerns' is an ordered "
+            "list of {concern, action} (most important first). List the CURRENT "
+            "goal/habit concerns — up to 4 — most important first, each as a brief "
+            "'concern — what to do'. This is a SURVEY (a list), not one headline: "
+            "if two or more concerns exist, give two or more. If ranked_concerns "
+            "is empty, say nothing stands out." + _GOAL_GUIDANCE + " Max 150 words."
+        ),
+        "max_tokens": 240,
+        "fallback": _goal_concerns_fallback,
+    },
+    "goals_focus_today": {
+        "system": (
+            "You are the user's Chief of Staff. Give the user ONE goal-related "
+            "thing to focus on TODAY, derived from the TOP entry of "
+            "'ranked_concerns'. Output exactly three parts: (1) today's focus, "
+            "(2) one sentence on why it matters today, (3) ONE specific action "
+            "they can COMPLETE within 24 hours (e.g. 'spend 30 focused minutes on "
+            "goal X', 'set a new milestone date for your overdue goal'). NEVER "
+            "vague ('work on your goals', 'make progress'). If no concerns exist, "
+            "give one simple concrete step on their top goal." + _GOAL_GUIDANCE +
+            " Max 90 words."
+        ),
+        "max_tokens": 180,
+        "fallback": _goals_focus_today_fallback,
     },
 }
 

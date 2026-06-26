@@ -429,9 +429,14 @@ class Phase1IntentContractTests(TestCase):
         for intent in IMPLEMENTED_INTENTS:
             self.assertIn(intent, REASONING_PROFILES, intent)
             self.assertIn(intent, INTENT_CURATORS, intent)
-        self.assertEqual(set(IMPLEMENTED_INTENTS), {
+        # The HEALTH quartet remains exactly as-is (byte-identical reference);
+        # GOALS (domain #2) is additively registered alongside it.
+        self.assertTrue({
             "biggest_health_risk", "overall_progress",
-            "health_focus_today", "health_concerns"})
+            "health_focus_today", "health_concerns"}.issubset(set(IMPLEMENTED_INTENTS)))
+        self.assertTrue({
+            "biggest_goal_risk", "goals_progress",
+            "goals_focus_today", "goal_concerns"}.issubset(set(IMPLEMENTED_INTENTS)))
 
     # --- disambiguation (deterministic resilience matcher) ---
     def test_disambiguation_routes_four_intents(self):

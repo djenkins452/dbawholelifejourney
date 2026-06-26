@@ -39,9 +39,24 @@ _FACT_KEYWORDS = [
     ("sleep_last_night",     ("sleep", "slept", "rest last night")),
     ("last_blood_pressure_reading", ("blood pressure", "blood-pressure", "bp")),
     ("latest_meal_logged",   ("meal", "meals", "did i eat", "last food")),
+    # ----- GOALS domain facts (deterministic, canonical build_goal_state) -----
+    # Goal-specific keywords only — never the reasoning cues ("biggest goal risk",
+    # "goals at risk"), which fall through to the Goals reasoning quartet.
+    ("active_goal_count",    ("how many goals", "how many active goals",
+                              "how many goal", "number of goals", "count of goals")),
+    ("goals_overdue",        ("overdue goals", "goals overdue", "goals past due",
+                              "goals are overdue", "any goals overdue")),
+    ("next_goal_deadline",   ("next goal deadline", "goal deadline", "next goal due",
+                              "when is my next goal", "when's my next goal")),
+    ("top_goal",             ("top goal", "main goal", "primary goal",
+                              "what is my goal", "what's my goal", "whats my goal")),
 ]
 
 FOUNDATIONAL_KEYS = [k for k, _ in _FACT_KEYWORDS]
+
+# Keys resolved from the Goals canonical state instead of the health-facts source.
+GOAL_FACT_KEYS = {"top_goal", "active_goal_count", "goals_overdue",
+                  "next_goal_deadline"}
 
 _UNKNOWN_SENTENCE = {
     "current_weight": "I don't have a current weight recorded for you yet.",
@@ -54,7 +69,55 @@ _UNKNOWN_SENTENCE = {
     "sleep_trend": "I don't have a sleep trend for you yet.",
     "last_blood_pressure_reading": "I don't have a blood pressure reading recorded for you.",
     "latest_meal_logged": "I don't have any logged meals recorded for you yet.",
+    "top_goal": "I don't have an active goal recorded for you yet.",
+    "active_goal_count": "I don't have any active goals recorded for you yet.",
+    "goals_overdue": "I don't have any goals recorded for you yet.",
+    "next_goal_deadline": "I don't have any upcoming goal deadlines recorded for you.",
 }
+
+
+def get_foundational_goal_facts(user, keys):
+    """Deterministic Goal facts from canonical build_goal_state (no LLM, P24).
+
+    Reads the warm SAE goals module — never recomputes goal truth. Returns the
+    same {key: {status, value, ...}} shape the health-facts source uses.
+    """
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        gs = get_module_state(user, "goals", allow_rebuild=False) or {}
+    except Exception:
+        logger.warning("COS_FOUNDATION_GOAL_STATE_FAILED user=%s",
+                       getattr(user, "id", None), exc_info=True)
+        gs = {}
+    out = {}
+    for key in keys:
+        if key == "active_goal_count":
+            n = gs.get("active_goal_count")
+            out[key] = ({"status": "ok", "value": int(n)} if n is not None
+                        else {"status": "unknown"})
+        elif key == "top_goal":
+            mission = gs.get("mission") if isinstance(gs.get("mission"), dict) else None
+            title = None
+            if mission:
+                title = (mission.get("title") or mission.get("goal_title")
+                         or mission.get("name"))
+            if not title:
+                titles = gs.get("active_titles") or []
+                title = titles[0].get("title") if titles else None
+            out[key] = ({"status": "ok", "value": title} if title
+                        else {"status": "unknown"})
+        elif key == "goals_overdue":
+            n = gs.get("overdue_goal_count")
+            names = [t.get("title") for t in (gs.get("overdue_titles") or [])
+                     if t.get("title")]
+            out[key] = {"status": "ok", "value": int(n or 0), "titles": names}
+        elif key == "next_goal_deadline":
+            d = gs.get("days_to_next_deadline")
+            upcoming = gs.get("upcoming_titles") or []
+            title = upcoming[0].get("title") if upcoming else None
+            out[key] = ({"status": "ok", "value": int(d), "title": title}
+                        if d is not None else {"status": "unknown"})
+    return out
 
 _PHRASE_SYSTEM = (
     "You are the user's Chief of Staff. In ONE short, natural, warm sentence, "
@@ -125,6 +188,22 @@ def format_fact_sentence(key, fact):
         return f"Your last blood pressure reading was {bp} mmHg."
     if key == "latest_meal_logged":
         return f"Your most recently logged meal entry was on {value}."
+    if key == "active_goal_count":
+        return f"You have {value} active goal(s) right now."
+    if key == "top_goal":
+        return f"Your top goal right now is \"{value}\"."
+    if key == "goals_overdue":
+        if not value:
+            return "You don't have any overdue goals right now."
+        names = fact.get("titles") or []
+        if names:
+            return f"You have {value} overdue goal(s): {', '.join(names)}."
+        return f"You have {value} overdue goal(s)."
+    if key == "next_goal_deadline":
+        title = fact.get("title")
+        if title:
+            return f"Your next goal deadline is in {value} day(s) — \"{title}\"."
+        return f"Your next goal deadline is in {value} day(s)."
     return f"{key}: {value} {unit}".strip()
 
 
@@ -138,10 +217,17 @@ def answer_foundational_fact(user, message):
     if key is None:
         return None
 
-    from apps.ai.cos_services.health_facts import get_foundational_health_facts
     from apps.ai.services import ai_service
 
-    facts = get_foundational_health_facts(user, [key])
+    # Route to the right canonical source: goals from build_goal_state, all other
+    # (health/nutrition/medicine) facts from the health-facts source.
+    if key in GOAL_FACT_KEYS:
+        facts = get_foundational_goal_facts(user, [key])
+        fact_source = "get_foundational_goal_facts"
+    else:
+        from apps.ai.cos_services.health_facts import get_foundational_health_facts
+        facts = get_foundational_health_facts(user, [key])
+        fact_source = "get_foundational_health_facts"
     fact = facts.get(key, {}) if isinstance(facts, dict) else {}
 
     # The guaranteed, deterministic answer built from the payload.
@@ -172,7 +258,7 @@ def answer_foundational_fact(user, message):
         "answer": answer,
         "empty_reason": None,
         "tools_advertised": [],
-        "tools_called": ["get_foundational_health_facts"],
+        "tools_called": [fact_source],
         "fast_path": "foundational_fact",
         "fact_key": key,
     }

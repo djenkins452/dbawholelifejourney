@@ -7,6 +7,25 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — feat(cos): Goals Reasoning Domain (Beth domain #2)
+
+Implemented Goals as Beth's second reasoning domain after Health, following the exact Health architectural pattern (framework-first, registry-based). Single-domain only — no cross-domain reasoning, no Executive composition, Health untouched.
+
+**What shipped:**
+- **Foundational facts** (deterministic, canonical `build_goal_state`, no LLM): `active_goal_count`, `top_goal`, `goals_overdue`, `next_goal_deadline`. New `get_foundational_goal_facts()` source + format branches; goal-specific keywords that never steal the reasoning quartet.
+- **Goals curator** `goals_working_memory()` — goals-truth ONLY (`goals_state` + `habits_state`), executive-clean: strips internal IDs, enum codes, raw momentum scores, field names, source paths. New `_rank_goal_concerns()` (overdue > near-deadline > at-risk habits > low completion > over-commitment).
+- **Intent quartet**: `biggest_goal_risk`, `goals_progress`, `goals_focus_today`, `goal_concerns` — registered in `INTENT_CURATORS`, `INTENT_TRUTH_SCOPE` (new `GOALS_TRUTH`), `REASONING_PROFILES`, `IMPLEMENTED_INTENTS`. Anti-collapse invariants INV-1..5 enforced; motivating/non-shaming `_GOAL_GUIDANCE`.
+- **Deterministic fallbacks** for all four intents (P5 always-answer; honest non-deflecting empty states).
+- **Routing**: generalized the two health-named dispatch functions to multi-domain — `deterministic_health_intent`->`deterministic_intent` and `synthesize_health_plan`->`synthesize_plan`, keeping the old names as backward-compat aliases (generalize-with-alias). New `INTENT_DOMAINS` single-source intent->(domain, truth). Goal-specific signals (each contains "goal") checked before health so health routing stays byte-identical; planner system prompt now describes both domains.
+- **P25**: goal questions already classify PERSONAL via existing `_DOMAIN_WORDS` ("goal"/"habit") — no classifier change; routing remains shadow-only.
+
+**Files:** `apps/ai/chatgpt_cos/reasoning/plan.py`, `apps/ai/chatgpt_cos/reasoning/stages.py`, `apps/ai/chatgpt_cos/foundational_facts.py`, `apps/ai/tests/test_goals_reasoning.py` (new, 29 tests), `apps/ai/tests/test_reasoning_lane.py` (registration assertion updated for domain #2). No model changes — no migration.
+
+**Verification:** 29 new goals tests + 122 reasoning/lane/registration/p25/agenda + 27 foundational-facts + cos service suites all green. `manage.py check` clean; `makemigrations --check` = no changes. Health routing/answers proven byte-identical; rhythm still owns "what's next"; general questions unaffected; no raw IDs/enums/scores/source-paths leak; deterministic fallbacks answer when OpenAI fails.
+
+**Governance:** Blast Radius Assessment approved; framework-first; consumes canonical `build_goal_state`/`build_habit_state` (P24, no recompute). User-facing release note DEFERRED to the `beth-stable-v3` cut (after production validation). Pending: production validation, then beth-stable-v3.
+
+
 ## 2026-06-26 — docs(cos): Beth Domain Dependency Graph & Ownership Model (docs only)
 
 Created `docs/BETH_DOMAIN_DEPENDENCY_GRAPH.md` — the authoritative ownership contract preventing duplicate engines / conflicting answers / overlapping ownership as more reasoning domains ship. Parts: domain inventory (canonical owner + maturity + privacy tier each), dependency graph (upstream consumption per domain; Goals consumes Tasks/Projects/Habits/Schedule; Health consumes sub-domains; Executive composes mature OUTPUTS only), ownership boundaries (what each domain owns + MUST NOT answer), authority hierarchy (Safety > explicit commitment > canonical[P24] > specific-owner > Executive; tactical→Schedule, strategic→Goals), cross-domain composition rules (compose mature curated outputs, never raw SAE), a 105-row Chief-of-Staff question→owner table (the P25 PERSONAL dispatch contract), P25 alignment, Impact×Readiness×Dependency sequencing, and risks+mitigations.

@@ -37,6 +37,17 @@
                     </a>
                 </li>
 
+                <!-- SHRM-SCP Flashcards - Quick study launch -->
+                <li>
+                    <a href="{% url 'core:study_flashcards' %}" class="nav-link {% if request.resolver_match.url_name == 'study_flashcards' %}active{% endif %}">
+                        <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 6h11a2 2 0 0 1 2 2v11"/>
+                            <rect x="7" y="3" width="13" height="16" rx="2"/>
+                        </svg>
+                        <span>SHRM Flashcards</span>
+                    </a>
+                </li>
+
                 <!-- Chief of Staff - Conditional on AI + Personal Assistant enabled and consent -->
                 {% if ai_enabled and ai_data_consent and personal_assistant_enabled and personal_assistant_consent %}
                 <li>

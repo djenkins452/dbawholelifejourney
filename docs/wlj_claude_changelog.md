@@ -7,6 +7,20 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-25 — feat(study): SHRM-SCP flashcards quick-study tool
+
+**Why:** one-off personal study aid — self-contained click-to-flip flashcard deck (113 cards) built from the Master SHRM-SCP Study Guide, for use ahead of the 2026-06-26 exam. Reachable from a "SHRM Flashcards" link in the left-hand navigation for quick launch.
+
+**What:**
+- New view `StudyFlashcardsView` (LoginRequiredMixin TemplateView) at `/study/flashcards/`.
+- Template renders cards as a JSON island consumed by a CSP-compliant nonce `<script>` (no inline handlers; flip/next/prev/shuffle via `addEventListener`). Responsive, ≥44px touch targets, keyboard support (Space=flip, ←/→=prev/next).
+- Nav link added beneath Dashboard.
+
+**Files:** `apps/core/views.py`, `apps/core/urls.py`, `templates/core/study_flashcards.html`, `templates/components/navigation.html`.
+
+**Note:** intentionally NOT added to release notes / help / teaching destinations — it is a personal study aid, not a product feature. No models/migrations touched. Django `check` clean; page verified in-browser (200, 113 cards, flip + next + progress confirmed, no console errors).
+
+
 ## 2026-06-25 — release(cos): beth-stable-v1 — first protected production baseline
 
 **Tag cut & pushed:** `beth-stable-v1` → `b56b223ef5e9e34df53693c2837c283b00ff398b`. First formal stable baseline for the Chief of Staff. Annotated tag; pushed to GitHub.

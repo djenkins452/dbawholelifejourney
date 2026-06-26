@@ -315,6 +315,19 @@ class AboutView(TemplateView):
     template_name = "core/about.html"
 
 
+class StudyFlashcardsView(LoginRequiredMixin, TemplateView):
+    """
+    Standalone flashcard study tool (personal study aid).
+
+    Renders a self-contained click-to-flip flashcard deck. Card data lives
+    in the template as a JSON island consumed by a CSP-compliant nonce script.
+
+    URL: /study/flashcards/
+    """
+
+    template_name = "core/study_flashcards.html"
+
+
 class AppReviewView(TemplateView):
     """
     App Review Demo Guide for Apple App Store reviewers.

@@ -39796,3 +39796,8 @@ This uses `or ''` to convert any falsy value (None, empty string, missing key) t
 - Removed redundant "Completed" collapsed section at bottom of Action Center — completed items already show inline with checkmarks in their time phase (Now/Upcoming/Later)
 - Completed groups now stay in their time phase instead of being pulled into separate section
 **Why:** Clicking radio buttons did nothing because toggle URLs pointed to wrong endpoint. Binary domain deduplication prevents confusing duplicate entries. Completed section was architecturally redundant with inline completion display.
+
+
+## 2026-06-25 — fix(study): place SHRM Flashcards link in the desktop left rail
+
+**Why:** the initial link landed in the top header nav (`navigation.html`); the user expected it in the vertical desktop left rail. Added a "SHRM Flashcards" `rail-item` directly under Home in `templates/components/desktop_left_rail.html`. Verified in-browser: link renders second in the rail and resolves to `/study/flashcards/`.

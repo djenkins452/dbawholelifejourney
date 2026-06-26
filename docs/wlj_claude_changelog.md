@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — feat(cos): clarification state + Responded chip + P24 canonical Rhythm API
+
+**1. Clarification state (no migration, no OpenAI):** pending clarification persists in `conversation.metadata["pending_clarification"]`; a new front-of-registry `clarification_reply` lane resolves the user's reply deterministically (number / `option N` / ordinal / yes-no / label alias) and clears the state. Stale state self-clears when the next message is not a reply (never hijacks an unrelated request). `check in` → reply `1` now resolves deterministically — no tool loop, no OpenAI.
+
+**2. "Responded" passive chip (Option A, UI-only):** the proactive quick-reply terminal state is now a passive status chip/badge (`✓ Responded`, muted pill, `cursor:default`) instead of a button-styled span — no handler, no routing/backend change.
+
+**3. P24 Canonical Rhythm API + Beth migration:** new `apps/core/cos_briefing/rhythm_api.py` — `get_current_rhythm_item` / `get_next_rhythm_item` / `get_remaining_rhythm_items` / `get_current_rhythm_bucket`, derived from the SAME engine the Dashboard renders (`build_rhythm_sections` over the execution contract). A new deterministic `next_rhythm` lane answers "what should I do next" from this API — so Beth and the Dashboard's "Today's Rhythm" can never disagree. `get_next_action` (urgency / "Focus Right Now") is **untouched**; "right now / focus" phrasings are not claimed by `next_rhythm`. No fabricated URLs (rhythm items carry no destination → omitted).
+
+**Golden Behaviors preserved:** durability/recovery/notifications/thinking-indicators/Celery untouched; four health intents unchanged + still claimed before the new lanes; no contamination; no migration. **Tests:** `test_conversation_lanes.py` +ClarificationStateTests +P24RhythmApiTests (check-in→reply resolution, stale-clear, rhythm API == dashboard next, urgency-not-claimed). Relevant regression suite green (109 tests, exit 0); `check` clean. **Issue #1 (General-lane failures) NOT touched — awaiting the production trace.** Requires worker+web redeploy. Paused for production validation.
+
+
 ## 2026-06-26 — diag(cos): General-lane root-cause instrumentation + P24 constitution
 
 **Issue #1 instrumentation (no behavior change):** capture one complete production trace per General request to prove the inconsistent-failure root cause (shared 120s OpenAI circuit breaker).

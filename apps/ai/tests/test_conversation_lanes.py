@@ -22,10 +22,14 @@ from django.test import TestCase
 from apps.ai.chatgpt_cos.lanes import (
     AMBIGUITY_TYPES,
     LANE_REGISTRY,
+    _clarification_reply_lane,
+    _next_rhythm_lane,
     clarify,
     general_answer,
+    parse_clarification_reply,
     route_message,
 )
+from apps.ai.models import AssistantConversation
 
 User = get_user_model()
 
@@ -134,7 +138,8 @@ class RoutingPreservationTests(TestCase):
 
     def test_registry_order(self):
         self.assertEqual([n for n, _ in LANE_REGISTRY],
-                         ["foundational_facts", "personal_reasoning",
+                         ["clarification_reply", "foundational_facts",
+                          "personal_reasoning", "next_rhythm",
                           "clarification", "general_conversation"])
 
     def test_health_questions_never_claimed_by_new_lanes(self):
@@ -176,3 +181,107 @@ class RoutingPreservationTests(TestCase):
             g = general_answer(self.user, "What is gravity?")
         self.assertIn("answer", g)
         self.assertEqual(g["tools_called"], [])
+
+
+_RHYTHM = {"current_key": "day", "sections": [
+    {"key": "morning", "items": [
+        {"title": "Wake up", "completed_today": True, "scheduled_time": "06:00"}]},
+    {"key": "day", "items": [
+        {"title": "Work on WLJ", "completed_today": False, "scheduled_time": "09:00"},
+        {"title": "Prayer Time", "completed_today": False, "scheduled_time": "12:00"}]},
+    {"key": "evening", "items": [
+        {"title": "Bible Reading", "completed_today": False, "scheduled_time": "19:00"}]},
+    {"key": "night", "items": []},
+]}
+_RHYTHM_PATCH = "apps.core.cos_briefing.rhythm.build_rhythm_sections"
+
+
+class ClarificationStateTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(email="lane_state@example.com", password="x")
+
+    def setUp(self):
+        self.conv = AssistantConversation.objects.create(user=self.user)
+
+    def test_check_in_sets_pending_state(self):
+        # planner is attempted then declines; clarification claims (no OpenAI needed)
+        with mock.patch(_CALL_API, side_effect=RuntimeError("openai down")), \
+             mock.patch(_FOUNDATIONAL, return_value=None):
+            out = route_message(self.user, "check in", self.conv)
+        self.assertEqual(out["lane"], "clarification")
+        self.assertEqual(out["ambiguity_type"], "daily_checkin_candidate")
+        self.conv.refresh_from_db()
+        pending = (self.conv.metadata or {}).get("pending_clarification")
+        self.assertIsNotNone(pending)
+        self.assertEqual(pending["ambiguity_type"], "daily_checkin_candidate")
+        self.assertEqual(len(pending["options"]), 5)
+
+    def test_reply_1_resolves_deterministically_no_openai_no_tool_loop(self):
+        self.conv.metadata = {"pending_clarification": {
+            "ambiguity_type": "daily_checkin_candidate",
+            "options": [{"n": i, "aliases": [], "resolution": f"R{i}"} for i in range(1, 6)]}}
+        self.conv.save(update_fields=["metadata"])
+        with mock.patch(_CALL_API, side_effect=AssertionError("openai")), \
+             mock.patch(_CALL_API_TOOLS, side_effect=AssertionError("tool loop")):
+            out = route_message(self.user, "1", self.conv)
+        self.assertEqual(out["lane"], "clarification_reply")
+        self.assertEqual(out["resolved_option"], 1)
+        self.assertEqual(out["answer"], "R1")
+        self.conv.refresh_from_db()
+        self.assertNotIn("pending_clarification", self.conv.metadata or {})
+
+    def test_reply_alias_and_ordinal(self):
+        opts = [{"n": 1, "aliases": ["today"], "resolution": "R1"},
+                {"n": 3, "aliases": ["health"], "resolution": "R3"}]
+        self.assertEqual(parse_clarification_reply("health", opts)["resolution"], "R3")
+        self.assertEqual(parse_clarification_reply("the first one", opts)["resolution"], "R1")
+        self.assertIsNone(parse_clarification_reply("what is photosynthesis exactly today", opts))
+
+    def test_non_reply_clears_stale_and_routes_fresh(self):
+        self.conv.metadata = {"pending_clarification": {
+            "ambiguity_type": "daily_checkin_candidate",
+            "options": [{"n": 1, "aliases": [], "resolution": "R1"}]}}
+        self.conv.save(update_fields=["metadata"])
+        with mock.patch(_FOUNDATIONAL, return_value=None), \
+             mock.patch(_CALL_API, return_value="Gravity is a force."):
+            out = route_message(self.user, "What is gravity?", self.conv)
+        self.assertEqual(out["lane"], "general_conversation")     # routed fresh
+        self.conv.refresh_from_db()
+        self.assertNotIn("pending_clarification", self.conv.metadata or {})  # stale cleared
+
+    def test_reply_lane_declines_when_no_pending(self):
+        self.assertIsNone(_clarification_reply_lane(self.user, "1", self.conv))
+
+
+class P24RhythmApiTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(email="lane_p24@example.com", password="x")
+
+    def test_rhythm_api_derives_from_build_rhythm_sections(self):
+        from apps.core.cos_briefing import rhythm_api
+        with mock.patch(_RHYTHM_PATCH, return_value=_RHYTHM):
+            self.assertEqual(rhythm_api.get_current_rhythm_item(self.user)["title"], "Work on WLJ")
+            self.assertEqual(rhythm_api.get_next_rhythm_item(self.user)["title"], "Prayer Time")
+            self.assertEqual([i["title"] for i in rhythm_api.get_remaining_rhythm_items(self.user)],
+                             ["Work on WLJ", "Prayer Time", "Bible Reading"])
+            self.assertEqual(rhythm_api.get_current_rhythm_bucket(self.user)["key"], "day")
+
+    def test_dashboard_and_beth_agree_on_next(self):
+        # Dashboard "next" == rhythm engine's current item; Beth must match it.
+        from apps.core.cos_briefing import rhythm_api
+        with mock.patch(_RHYTHM_PATCH, return_value=_RHYTHM), \
+             mock.patch(_FOUNDATIONAL, return_value=None), \
+             mock.patch(_CALL_API, return_value=None):              # planner declines
+            dashboard_next = rhythm_api.get_current_rhythm_item(self.user)["title"]
+            out = route_message(self.user, "What should I do next?", None)
+        self.assertEqual(out["lane"], "next_rhythm")
+        self.assertEqual(dashboard_next, "Work on WLJ")
+        self.assertIn("Work on WLJ", out["answer"])      # Beth == dashboard
+        self.assertNotIn("Bible Reading", out["answer"].split("After that")[0])
+
+    def test_next_rhythm_does_not_claim_urgency_focus_now(self):
+        # "right now / focus" is the URGENCY fact (get_next_action), NOT rhythm.
+        self.assertIsNone(_next_rhythm_lane(self.user, "what should I do right now"))
+        self.assertIsNone(_next_rhythm_lane(self.user, "what should I focus on right now"))

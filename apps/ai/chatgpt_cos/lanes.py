@@ -29,14 +29,63 @@ logger = logging.getLogger("apps.ai.chatgpt_cos")
 # Lane 1 + 2 — existing lanes, WRAPPED (unchanged behavior; called directly so
 # their own decline (None) and error semantics are byte-for-byte preserved).
 # ---------------------------------------------------------------------------
-def _foundational_lane(user, message):
+def _foundational_lane(user, message, conversation=None):
     from apps.ai.chatgpt_cos.foundational_facts import answer_foundational_fact
     return answer_foundational_fact(user, message)
 
 
-def _reasoning_lane(user, message):
+def _reasoning_lane(user, message, conversation=None):
     from apps.ai.chatgpt_cos.reasoning import answer_reasoning_question
     return answer_reasoning_question(user, message)
+
+
+# ---------------------------------------------------------------------------
+# Lane — Next Rhythm (P24): the SCHEDULED "what should I do next" answer, sourced
+# from the canonical Rhythm API (the SAME engine the Dashboard renders), NOT from
+# get_next_action (which is the URGENCY "focus right now" fact). Deterministic.
+# ---------------------------------------------------------------------------
+_NEXT_RHYTHM_SIGNALS = (
+    "what should i do next", "whats next", "what is next", "what do i do next",
+    "what should i work on next", "whats coming up next",
+    "what's coming up next", "next on my schedule", "whats my next",
+    "what's my next", "what comes next",
+)
+
+
+def _fmt_time(hhmm):
+    try:
+        from apps.core.cos_briefing.rhythm import _format_time_12h
+        return _format_time_12h(hhmm)
+    except Exception:
+        return hhmm
+
+
+def _next_rhythm_lane(user, message, conversation=None):
+    norm = _normalize(message)
+    if not any(s in norm for s in _NEXT_RHYTHM_SIGNALS):
+        return None
+    try:
+        from apps.core.cos_briefing.rhythm_api import (
+            get_current_rhythm_item, get_next_rhythm_item,
+        )
+        item = get_current_rhythm_item(user)
+        upcoming = get_next_rhythm_item(user)
+    except Exception:
+        logger.warning("next_rhythm: rhythm api failed", exc_info=True)
+        item, upcoming = None, None
+    if not item:
+        answer = ("You're all caught up on today's rhythm — nothing scheduled "
+                  "is left.")
+    else:
+        title = (item.get("title") or "your next item").strip()
+        t = item.get("scheduled_time")
+        when = f" ({_fmt_time(t)})" if t else ""
+        answer = f"Next up: {title}{when}."
+        # No URLs are fabricated — rhythm items carry no destination, so we omit.
+        if upcoming and (upcoming.get("title") or "").strip():
+            answer += f" After that: {upcoming['title'].strip()}."
+    return {"answer": answer, "tools_called": [], "tools_advertised": [],
+            "lane": "next_rhythm"}
 
 
 # ---------------------------------------------------------------------------
@@ -61,6 +110,21 @@ AMBIGUITY_TYPES = (
             "4. goals and commitments,\n"
             "5. or a full Whole Life check-in?"
         ),
+        # Deterministic per-option resolutions (no data pull, no OpenAI). The
+        # full daily synthesis is future work — these point to capabilities that
+        # already exist (e.g. 'what should I do next', health questions).
+        "options": [
+            {"n": 1, "aliases": ("today", "coming up"),
+             "resolution": "Let's keep today front and center. Your dashboard's Today's Rhythm shows what's scheduled, and a full daily brief from me is on the way."},
+            {"n": 2, "aliases": ("next", "do next"),
+             "resolution": "Focusing on your next step — just ask me \"what should I do next\" and I'll pull it straight from your rhythm."},
+            {"n": 3, "aliases": ("health", "energy"),
+             "resolution": "For health and energy, ask me \"how am I doing with my health\" or \"what's my biggest health risk\" and I'll give you a real read."},
+            {"n": 4, "aliases": ("goals", "commitments"),
+             "resolution": "Goals and commitments live in your Goals area — ask me to check in on them any time."},
+            {"n": 5, "aliases": ("whole life", "full", "everything"),
+             "resolution": "A full Whole Life check-in is the complete daily brief, which I'm putting together. For now your dashboard gives you the whole-day picture."},
+        ],
     },
     {
         "type": "unspecified_help",
@@ -70,6 +134,20 @@ AMBIGUITY_TYPES = (
             "health, goals, schedule, faith journey, projects, or answer "
             "general questions."
         ),
+        "options": [
+            {"n": 1, "aliases": ("health", "energy"),
+             "resolution": "For health, ask me \"how am I doing with my health\" or \"what's my biggest health risk\"."},
+            {"n": 2, "aliases": ("goals", "commitments"),
+             "resolution": "Your goals live in the Goals area — ask me to check in on them any time."},
+            {"n": 3, "aliases": ("schedule", "calendar", "day"),
+             "resolution": "For your schedule, ask \"what should I do next\" and I'll pull it from your rhythm."},
+            {"n": 4, "aliases": ("faith", "prayer", "bible"),
+             "resolution": "Your faith journey is in the Faith area — ask me about it any time."},
+            {"n": 5, "aliases": ("project", "projects", "work"),
+             "resolution": "For projects, ask \"what should I do next\" or open your tasks."},
+            {"n": 6, "aliases": ("general", "question", "questions"),
+             "resolution": "Sure — just ask your question directly and I'll answer it."},
+        ],
     },
     {
         "type": "unspecified_review",
@@ -78,6 +156,16 @@ AMBIGUITY_TYPES = (
             "What would you like me to review? A document, your goals, your "
             "schedule, or something else?"
         ),
+        "options": [
+            {"n": 1, "aliases": ("document", "doc", "file"),
+             "resolution": "Open or upload the document and I'll take a look."},
+            {"n": 2, "aliases": ("goal", "goals"),
+             "resolution": "Ask me to review your goals and I'll summarize where they stand."},
+            {"n": 3, "aliases": ("schedule", "calendar", "day"),
+             "resolution": "Ask \"what should I do next\" and I'll walk your schedule with you."},
+            {"n": 4, "aliases": ("something", "other", "else"),
+             "resolution": "Tell me what you'd like reviewed and I'll dig in."},
+        ],
     },
 )
 
@@ -113,8 +201,113 @@ def clarify(message):
     return None
 
 
-def _clarification_lane(user, message):
-    return clarify(message)
+# --- Clarification STATE (deterministic; persisted in conversation.metadata;
+# no migration, no OpenAI). The clarification lane records a pending question;
+# the clarification_reply lane (front of the registry) resolves the user's reply
+# deterministically and clears the state. Stale state self-clears when the next
+# message is not a reply, so it never hijacks an unrelated request. ---
+def _spec_for(ambiguity_type):
+    return next((a for a in AMBIGUITY_TYPES if a["type"] == ambiguity_type), None)
+
+
+def _set_pending(conversation, ambiguity_type):
+    spec = _spec_for(ambiguity_type)
+    if conversation is None or not spec:
+        return
+    try:
+        md = dict(getattr(conversation, "metadata", None) or {})
+        md["pending_clarification"] = {
+            "ambiguity_type": ambiguity_type,
+            "options": [
+                {"n": o["n"], "aliases": list(o.get("aliases", ())),
+                 "resolution": o["resolution"]}
+                for o in spec.get("options", [])
+            ],
+        }
+        conversation.metadata = md
+        conversation.save(update_fields=["metadata"])
+    except Exception:
+        logger.warning("clarification: set_pending failed", exc_info=True)
+
+
+def _clear_pending(conversation):
+    if conversation is None:
+        return
+    try:
+        md = dict(getattr(conversation, "metadata", None) or {})
+        if md.pop("pending_clarification", None) is not None:
+            conversation.metadata = md
+            conversation.save(update_fields=["metadata"])
+    except Exception:
+        logger.warning("clarification: clear_pending failed", exc_info=True)
+
+
+_ORDINALS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5,
+             "sixth": 6, "last": -1}
+
+
+def parse_clarification_reply(message, options):
+    """Deterministically map a SHORT reply to one pending option, or None.
+    Handles: bare number / 'option N', ordinals, yes/no, and label aliases."""
+    norm = _normalize(message)
+    if not norm or not options:
+        return None
+    words = norm.split()
+    n = len(options)
+    if len(words) <= 3:
+        m = re.search(r"\b([1-9][0-9]*)\b", norm)
+        if m:
+            i = int(m.group(1))
+            if 1 <= i <= n:
+                return options[i - 1]
+    if len(words) <= 4:
+        for w in words:
+            if w in _ORDINALS:
+                o = _ORDINALS[w]
+                if o == -1:
+                    return options[-1]
+                if 1 <= o <= n:
+                    return options[o - 1]
+    if norm in ("yes", "y", "yeah", "yep", "sure"):
+        return options[0]
+    if norm in ("no", "n", "nope") and n >= 2:
+        return options[1]
+    if len(words) <= 4:
+        for opt in options:
+            for alias in opt.get("aliases", []):
+                if alias and alias in norm:
+                    return opt
+    return None
+
+
+def _clarification_reply_lane(user, message, conversation=None):
+    if conversation is None:
+        return None
+    md = getattr(conversation, "metadata", None) or {}
+    pending = md.get("pending_clarification")
+    if not pending:
+        return None
+    opt = parse_clarification_reply(message, pending.get("options") or [])
+    if opt is None:
+        _clear_pending(conversation)        # not a reply -> clear stale, route fresh
+        return None
+    _clear_pending(conversation)
+    logger.info("COS_CLARIFY_RESOLVED user=%s type=%s option=%s",
+                getattr(user, "id", None), pending.get("ambiguity_type"),
+                opt.get("n"))
+    return {
+        "answer": opt["resolution"], "tools_called": [], "tools_advertised": [],
+        "lane": "clarification_reply",
+        "ambiguity_type": pending.get("ambiguity_type"),
+        "resolved_option": opt.get("n"),
+    }
+
+
+def _clarification_lane(user, message, conversation=None):
+    result = clarify(message)
+    if result is not None:
+        _set_pending(conversation, result.get("ambiguity_type"))
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -217,30 +410,36 @@ def general_answer(user, message):
     }
 
 
-def _general_lane(user, message):
+def _general_lane(user, message, conversation=None):
     return general_answer(user, message)
 
 
 # ---------------------------------------------------------------------------
 # The ordered registry + router. The tool loop is NOT in the registry — it is
 # the terminal fallback in service.generate() when route_message() returns None.
+#   clarification_reply  — resolves a pending clarification (front)
+#   foundational_facts / personal_reasoning — existing lanes (unchanged)
+#   next_rhythm          — canonical SCHEDULED "what's next" (P24)
+#   clarification / general_conversation
 # ---------------------------------------------------------------------------
 LANE_REGISTRY = (
+    ("clarification_reply", _clarification_reply_lane),
     ("foundational_facts", _foundational_lane),
     ("personal_reasoning", _reasoning_lane),
+    ("next_rhythm", _next_rhythm_lane),
     ("clarification", _clarification_lane),
     ("general_conversation", _general_lane),
 )
 
 
-def route_message(user, message):
+def route_message(user, message, conversation=None):
     """Try each lane in order; return the first non-None result (tagged with its
     lane), or None if every lane declines (caller runs the tool-loop fallback)."""
     uid = getattr(user, "id", None)
     tried = []                      # Issue #1 trace: which lanes were consulted
     for name, fn in LANE_REGISTRY:
         tried.append(name)
-        result = fn(user, message)
+        result = fn(user, message, conversation)
         if result is not None:
             if isinstance(result, dict):
                 result.setdefault("lane", name)

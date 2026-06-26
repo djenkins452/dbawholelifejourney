@@ -619,7 +619,7 @@
             } else if (msgData && msgData.quick_reply_used) {
                 var usedDiv = document.createElement('div');
                 usedDiv.className = 'ap-quick-replies';
-                usedDiv.innerHTML = '<span class="ap-quick-reply-btn used">Responded</span>';
+                usedDiv.innerHTML = '<span class="ap-status-chip" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#6b7280;background:#f3f4f6;border-radius:9999px;padding:3px 10px;cursor:default;">✓ Responded</span>';
                 msg.appendChild(usedDiv);
             }
         } else {
@@ -1737,7 +1737,7 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            btnsDiv.innerHTML = '<span class="ap-quick-reply-btn used">Responded</span>';
+            btnsDiv.innerHTML = '<span class="ap-status-chip" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#6b7280;background:#f3f4f6;border-radius:9999px;padding:3px 10px;cursor:default;">✓ Responded</span>';
             if (data.message) addMessage(chatMessages, data.message, false, true);
             if (data.data && data.data.action === 'navigate' && data.data.url) {
                 window.location.href = data.data.url;

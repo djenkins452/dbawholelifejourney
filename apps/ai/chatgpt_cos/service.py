@@ -136,7 +136,7 @@ class ChatGPTCoSService:
         # personal/SAE data). If every lane declines, fall through to the tool
         # loop below (the terminal fallback, P8).
         from apps.ai.chatgpt_cos.lanes import route_message
-        _routed = route_message(self.user, message)
+        _routed = route_message(self.user, message, conversation)
         if _routed is not None:
             return _routed
 

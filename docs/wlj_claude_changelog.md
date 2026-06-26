@@ -39817,3 +39817,8 @@ This uses `or ''` to convert any falsy value (None, empty string, missing key) t
 ## 2026-06-25 — fix(study): place SHRM Flashcards link in the desktop left rail
 
 **Why:** the initial link landed in the top header nav (`navigation.html`); the user expected it in the vertical desktop left rail. Added a "SHRM Flashcards" `rail-item` directly under Home in `templates/components/desktop_left_rail.html`. Verified in-browser: link renders second in the rail and resolves to `/study/flashcards/`.
+
+
+## 2026-06-25 — fix(study): spacebar now flips flashcards regardless of focus
+
+**Why:** Space only flipped when focus was on `document.body`; after clicking a button or the card, focus moved there and Space was swallowed (or activated the focused button). Now the global keydown handler flips on Space/Spacebar everywhere and `preventDefault`s the focused button + page scroll. Verified in-browser: Space flips from body, card, and a focused Next button without also advancing. File: `templates/core/study_flashcards.html`.

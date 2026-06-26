@@ -273,7 +273,7 @@
 
     elCard.addEventListener('click', flip);
     elCard.addEventListener('keydown', function (e) {
-        if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); flip(); }
+        if (e.key === 'Enter') { e.preventDefault(); flip(); }
     });
     document.getElementById('flash-flip').addEventListener('click', flip);
     document.getElementById('flash-next').addEventListener('click', next);
@@ -284,7 +284,12 @@
     document.addEventListener('keydown', function (e) {
         if (e.key === 'ArrowRight') { next(); }
         else if (e.key === 'ArrowLeft') { prev(); }
-        else if (e.key === ' ' && e.target === document.body) { e.preventDefault(); flip(); }
+        else if (e.key === ' ' || e.key === 'Spacebar') {
+            // Space always flips, regardless of which element has focus.
+            // preventDefault stops a focused button from also activating and stops page scroll.
+            e.preventDefault();
+            flip();
+        }
     });
 
     render();

@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Sprint 2A — MedicationEvent append-only ledger (treatment history foundation)
+
+Establishes the permanent historical memory of the Medication Intelligence domain (Canon §3/§6.1). `Intake` remains the canonical CURRENT-STATE projection; `MedicationEvent` becomes the canonical HISTORY. Additive only — no existing behavior changed.
+
+**Model:** `MedicationEvent` (`apps/health/models.py`, `UserOwnedModel`) — `intake` FK (related_name `events`), `event_type` (started/tracking_began/paused/resumed/discontinued/dose_changed/frequency_changed/provider_changed/pharmacy_changed/refill), `effective_date`, `previous_value`/`new_value` (JSON snapshots), `reason` (provider_directed/side_effect/cost/effectiveness/user_choice/backfill/unknown — defaults UNKNOWN, never assuming a clinical reason the user didn't give), `reason_detail`, `provider` FK→MedicalProvider, `source`. **Append-only enforced:** `save()` raises on any update — corrections are new compensating events, never edits.
+
+**Single writer (Canon C10b):** `apps/health/medication_events.py::record_medication_change()` is the ONE authority that appends events; `get_medication_timeline()` reads them newest-first (Sprint 2D foundation). Wired in: a `post_save` signal on `Intake` records the canonical `started` event on every creation path (web/AI/scan/admin); `Intake.pause/resume/complete/request_refill` append paused/resumed/discontinued/refill events. History writes are best-effort — a ledger failure never blocks a lifecycle action.
+
+**Forward-only backfill (no fabrication):** migration `0092` creates exactly ONE honest `tracking_began` event per existing active intake, dated `start_date` (idempotent — skips intakes with events; reversible — reverse deletes only backfill events). Verified on dev: 14 active intakes → 14 events, 0 without events. The timeline can now state truthfully "Tracking began on <date>. Earlier history was not recorded."
+
+**Files:** apps/health/models.py, apps/health/medication_events.py (new), apps/health/signals.py, apps/health/migrations/0091_medicationevent.py + 0092_backfill_tracking_began_events.py, apps/health/tests/test_medication_events.py (new, 9 tests).
+
+**Verification:** 9 ledger tests + 142 existing medicine/adherence tests green (`--keepdb`); `manage.py check` clean; migrations apply cleanly; `makemigrations --check` = no drift. No user-visible or Beth-visible change yet (state/UI wiring is Sprint 2C/2D).
+
+
 ## 2026-06-27 — feat(admin): P33 Acceptance Center operational resilience (heartbeats + stale reaper)
 
 An Acceptance run executing during a deployment was orphaned — the worker was killed mid-loop, leaving the run permanently `RUNNING` (UI: RUNNING / 0%). Root cause (evidence): `execute_run` only writes a terminal status on a Python exception; a hard kill (SIGKILL/deploy) runs no cleanup, and the Celery task uses `acks_late=False` (no redelivery), so the run is orphaned with no terminal state.

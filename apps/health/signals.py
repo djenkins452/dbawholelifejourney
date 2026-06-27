@@ -21,6 +21,31 @@ from django.dispatch import receiver
 logger = logging.getLogger(__name__)
 
 
+@receiver(post_save, sender='health.Intake')
+def handle_intake_created(sender, instance, created, **kwargs):
+    """When an Intake is first created, append the canonical 'started' event to
+    the MedicationEvent ledger (Sprint 2A). Captures every creation path — web
+    form, AI, scan-confirm, admin — via one hook. History logging is best-effort
+    and must never block the create."""
+    if not created:
+        return
+    try:
+        from apps.health.medication_events import record_medication_change
+        from apps.health.models import MedicationEvent
+        record_medication_change(
+            instance,
+            MedicationEvent.EVENT_STARTED,
+            source=MedicationEvent.SOURCE_LIFECYCLE,
+            new_value={"name": instance.name, "dose": instance.dose},
+            effective_date=instance.start_date,
+        )
+    except Exception as e:  # pragma: no cover - additive history, never blocking
+        logger.warning(
+            "Failed to record 'started' MedicationEvent for intake %s: %s",
+            instance.pk, e,
+        )
+
+
 @receiver(post_save, sender='health.IntakeSchedule')
 def handle_medicine_schedule_saved(sender, instance, **kwargs):
     """

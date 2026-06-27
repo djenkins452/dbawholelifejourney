@@ -2578,6 +2578,11 @@ class Intake(UserOwnedModel):
         self.paused_at = timezone.now()
         self.paused_reason = reason
         self.save(update_fields=["intake_status", "paused_at", "paused_reason", "updated_at"])
+        # Reason defaults to UNKNOWN (Canon: never assume a clinical reason the
+        # user did not give); the free-text pause reason is kept as reason_detail.
+        self._record_event(
+            "paused", reason_detail=reason, new_value={"paused_reason": reason},
+        )
 
     def resume(self):
         """Resume a paused intake."""
@@ -2585,6 +2590,7 @@ class Intake(UserOwnedModel):
         self.paused_at = None
         self.paused_reason = ""
         self.save(update_fields=["intake_status", "paused_at", "paused_reason", "updated_at"])
+        self._record_event("resumed")
 
     def complete(self):
         """Mark this intake course as completed."""
@@ -2592,12 +2598,27 @@ class Intake(UserOwnedModel):
         user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
         self.end_date = user_today
         self.save(update_fields=["intake_status", "end_date", "updated_at"])
+        self._record_event("discontinued", new_value={"end_date": str(self.end_date)})
 
     def request_refill(self):
         """Mark that a refill has been requested."""
         self.refill_requested = True
         self.refill_requested_at = timezone.now()
         self.save(update_fields=["refill_requested", "refill_requested_at", "updated_at"])
+        self._record_event("refill")
+
+    def _record_event(self, event_type, **kwargs):
+        """Append a MedicationEvent via the single ledger authority (best-effort:
+        a history-logging failure must never break a lifecycle action)."""
+        try:
+            from apps.health.medication_events import record_medication_change
+            record_medication_change(self, event_type, **kwargs)
+        except Exception:  # pragma: no cover - history is additive, never blocking
+            import logging
+            logging.getLogger(__name__).warning(
+                "Failed to record MedicationEvent '%s' for intake %s",
+                event_type, self.pk, exc_info=True,
+            )
 
     def clear_refill_request(self):
         """Clear the refill request (e.g., when refill is received)."""
@@ -3022,6 +3043,140 @@ class IntakeLog(UserOwnedModel):
         """Mark this dose as missed (not taken or skipped)."""
         self.log_status = self.STATUS_MISSED
         self.save(update_fields=["log_status", "updated_at"])
+
+
+class MedicationEvent(UserOwnedModel):
+    """
+    Append-only ledger of treatment changes for an Intake (Medication Intelligence
+    Canon §3/§6.1 — "History"). This is the canonical HISTORY of the medication
+    domain; ``Intake`` remains the canonical CURRENT-STATE projection.
+
+    Invariants (enforced):
+      - Append-only. Events are immutable once recorded; a correction is a NEW
+        compensating event, never an edit (see ``save`` override).
+      - Forward-only. WLJ records change from the moment it begins observing and
+        never fabricates a pre-tracking history. Existing medications receive
+        exactly one honest ``tracking_began`` backfill event.
+      - Never the source of CURRENT state — readers derive "what is taken now"
+        from ``Intake``; this ledger answers "what changed, when, and why".
+
+    All writes go through the single authority
+    ``apps.health.medication_events.record_medication_change`` (Canon C10b —
+    one writer for the Intake+ledger dual-write).
+    """
+
+    # ── Event types ──
+    EVENT_STARTED = "started"
+    EVENT_TRACKING_BEGAN = "tracking_began"   # honest backfill marker (no prior history)
+    EVENT_PAUSED = "paused"
+    EVENT_RESUMED = "resumed"
+    EVENT_DISCONTINUED = "discontinued"        # "stopped"
+    EVENT_DOSE_CHANGED = "dose_changed"
+    EVENT_FREQUENCY_CHANGED = "frequency_changed"
+    EVENT_PROVIDER_CHANGED = "provider_changed"
+    EVENT_PHARMACY_CHANGED = "pharmacy_changed"
+    EVENT_REFILL = "refill"
+    EVENT_TYPE_CHOICES = [
+        (EVENT_STARTED, "Started"),
+        (EVENT_TRACKING_BEGAN, "Tracking began"),
+        (EVENT_PAUSED, "Paused"),
+        (EVENT_RESUMED, "Resumed"),
+        (EVENT_DISCONTINUED, "Discontinued"),
+        (EVENT_DOSE_CHANGED, "Dose changed"),
+        (EVENT_FREQUENCY_CHANGED, "Frequency changed"),
+        (EVENT_PROVIDER_CHANGED, "Provider changed"),
+        (EVENT_PHARMACY_CHANGED, "Pharmacy changed"),
+        (EVENT_REFILL, "Refill"),
+    ]
+
+    # ── Reason (why the change happened) ──
+    REASON_PROVIDER_DIRECTED = "provider_directed"
+    REASON_SIDE_EFFECT = "side_effect"
+    REASON_COST = "cost"
+    REASON_EFFECTIVENESS = "effectiveness"
+    REASON_USER_CHOICE = "user_choice"
+    REASON_BACKFILL = "backfill"
+    REASON_UNKNOWN = "unknown"
+    REASON_CHOICES = [
+        (REASON_PROVIDER_DIRECTED, "Provider directed"),
+        (REASON_SIDE_EFFECT, "Side effect"),
+        (REASON_COST, "Cost"),
+        (REASON_EFFECTIVENESS, "Effectiveness"),
+        (REASON_USER_CHOICE, "Personal choice"),
+        (REASON_BACKFILL, "Tracking backfill"),
+        (REASON_UNKNOWN, "Unknown"),
+    ]
+
+    # ── Source (how the event was recorded) ──
+    SOURCE_MANUAL = "manual"
+    SOURCE_SCAN = "scan"
+    SOURCE_PHARMACY_DOC = "pharmacy_doc"
+    SOURCE_COS_CONFIRMED = "cos_confirmed"
+    SOURCE_LIFECYCLE = "lifecycle"            # via Intake lifecycle methods / signals
+    SOURCE_BACKFILL = "backfill"
+    SOURCE_CHOICES = [
+        (SOURCE_MANUAL, "Manual"),
+        (SOURCE_SCAN, "Scan"),
+        (SOURCE_PHARMACY_DOC, "Pharmacy document"),
+        (SOURCE_COS_CONFIRMED, "Chief of Staff (confirmed)"),
+        (SOURCE_LIFECYCLE, "Lifecycle"),
+        (SOURCE_BACKFILL, "Backfill"),
+    ]
+
+    intake = models.ForeignKey(
+        Intake,
+        on_delete=models.CASCADE,
+        related_name="events",
+        help_text="The medication/supplement this change belongs to.",
+    )
+    event_type = models.CharField(max_length=24, choices=EVENT_TYPE_CHOICES)
+    effective_date = models.DateField(
+        help_text="The date the change took effect (user-local).",
+    )
+    previous_value = models.JSONField(
+        null=True, blank=True,
+        help_text="Snapshot of the changed attribute(s) BEFORE the change.",
+    )
+    new_value = models.JSONField(
+        null=True, blank=True,
+        help_text="Snapshot of the changed attribute(s) AFTER the change.",
+    )
+    reason = models.CharField(
+        max_length=24, choices=REASON_CHOICES, default=REASON_UNKNOWN,
+    )
+    reason_detail = models.CharField(max_length=500, blank=True, default="")
+    provider = models.ForeignKey(
+        "health.MedicalProvider",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="medication_events",
+        help_text="Prescriber associated with this change, if known.",
+    )
+    source = models.CharField(
+        max_length=20, choices=SOURCE_CHOICES, default=SOURCE_LIFECYCLE,
+    )
+
+    class Meta:
+        ordering = ["-effective_date", "-created_at"]
+        verbose_name = "medication event"
+        verbose_name_plural = "medication events"
+        indexes = [
+            models.Index(fields=["intake", "-effective_date"]),
+        ]
+
+    def __str__(self):
+        return f"{self.intake.name}: {self.get_event_type_display()} ({self.effective_date})"
+
+    def save(self, *args, **kwargs):
+        # Append-only: events are immutable once recorded. Corrections are new
+        # compensating events, never edits (Canon §6.1). `_state.adding` is True
+        # only for the initial insert; any later save() is a forbidden mutation.
+        if not self._state.adding:
+            raise ValueError(
+                "MedicationEvent is append-only and cannot be modified; "
+                "record a new compensating event instead."
+            )
+        super().save(*args, **kwargs)
 
 
 # =============================================================================

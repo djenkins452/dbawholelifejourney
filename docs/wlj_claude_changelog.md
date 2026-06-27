@@ -7,6 +7,25 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — diag(cos): "external knowledge service unavailable" is an OpenAI config/env issue (not a code bug)
+
+Investigated why general/hybrid medication questions now fail at the external knowledge step.
+
+**Exact component:** the "external knowledge service" is **OpenAI**, called via `AIService._call_api` (General lane) and `_call_api_with_tools` (tool loop) at the `cos_chat` endpoint. The user-visible "…my external knowledge service is temporarily unavailable…" is `general_answer`'s graceful fallback (`apps/ai/chatgpt_cos/lanes.py`) when `_call_api` returns None; the hybrid's "I couldn't pull that together…" is the tool-loop emergency fallback for the same underlying None.
+
+**Root cause (ENVIRONMENT, not code):** `_call_api` returns None when `is_available` is False — i.e. `get_openai_client()` returned None because **`OPENAI_API_KEY` is not set** (or invalid / quota-exhausted). Reproduced deterministically: in this environment `OPENAI_API_KEY` is unset → `ai_service.is_available is False` → `_call_api(..., endpoint="cos_chat")` returns None → the exact "temporarily unavailable" message. Timeout (`LLM_TIMEOUT_COS_CHAT=45s`) and model (`gpt-4o`) are fine; the request isn't malformed; no exception is swallowed (`LLM FAILED endpoint=cos_chat model=… final_error=…` is logged at ERROR). Deterministic WLJ facts (the med list) keep working because the foundational lane has an offline fallback; general education has none by design — which is why the list answers but "what is X used for" doesn't.
+
+**Working as designed:** the WLJ-truth vs external-knowledge separation is correct. `test_general_knowledge_outage.py` already pins the designed degradation (outage → graceful message, no personal-domain leak, accepted by the evaluator). There is no code defect to fix.
+
+**Minimal fix:** set a valid `OPENAI_API_KEY` (with quota) in the deploy environment — `OPENAI_MODEL`/`COS_MODEL` default to `gpt-4o`. Because production has no interactive CLI, added a diagnostic command `python manage.py diagnose_external_knowledge [--ping]` that reports api_key_configured / client_initialized / model / breaker and names the root cause (and, with `--ping`, makes one live call to distinguish a missing key from invalid-key/quota/model/network).
+
+**Regression tests** (`apps/ai/tests/test_external_knowledge_service.py`): no client → `is_available` False → `_call_api` None; General lane returns the graceful "temporarily unavailable" message when the service is down (no personal leak) AND answers "What is Metformin commonly used for?" once `_call_api` is reachable (proving the only missing piece is the key); the diagnostic command reports the missing-key root cause and the configured state.
+
+**Files:** apps/ai/management/commands/diagnose_external_knowledge.py (new), apps/ai/tests/test_external_knowledge_service.py (new).
+
+**Verification:** 19 tests green (external-knowledge + outage + hybrid); `manage.py diagnose_external_knowledge` prints the root cause; `manage.py check` clean; no migration. Environment vs code: **ENVIRONMENT** — no code change to the answer path.
+
+
 ## 2026-06-27 — fix(cos): hybrid medication questions never reached the combining tool loop
 
 Follow-up to the prompt-block fix. The system prompt now PERMITS combining WLJ truth + general knowledge, but hybrid questions still failed because a LANE intercepts them before the tool loop runs.

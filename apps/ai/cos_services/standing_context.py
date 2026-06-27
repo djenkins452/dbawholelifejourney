@@ -10,7 +10,7 @@ StandingContextService (ChatGPT CoS — Phase 1)
 ==============================================
 
 Exposes the *minimum always-loaded context package* (see
-@WLJ_SYSTEM_PROMPTS/07_DAY1_TOOL_CATALOG/02_Always_Loaded_Context_Specification.md)
+@WLJ_SYSTEM_PROMPTS/07_COS_TOOLS_REFERENCE/02_Always_Loaded_Context_Specification.md)
 as one compact, JSON-safe object the ChatGPT reasoning layer carries on every turn.
 
 Design rules honored (Architecture Laws + WLJ performance law):

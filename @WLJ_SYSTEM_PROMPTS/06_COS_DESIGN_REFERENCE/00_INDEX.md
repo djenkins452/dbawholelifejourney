@@ -1,8 +1,15 @@
 # WLJ — ChatGPT CoS Reasoning Architecture
 
-**Mandate:** Design *how a holistic ChatGPT Chief of Staff should think* — the reasoning, evidence-gathering, retrieval, tool-usage, and synthesis workflows — while WLJ remains the deterministic source of truth. Architecture only: no code, no APIs, no prompts, no infrastructure.
+> **AS BUILT (2026-06-26):** This folder is the **design rationale** for the ChatGPT
+> CoS reasoning layer. That layer is now **built and deployed** (Phases 0–7, see
+> `../08_IMPLEMENTATION_TRACKER/`). For the production tool/standing-context surface,
+> the canonical source is `../03_CANON_REFERENCE/WLJ COS TOOL & STANDING CONTEXT
+> CONTRACT.md`. Read these docs for *why* the system reasons as it does; read the
+> contract for *what is implemented*. Load class: **SPECIALIZED_ON_DEMAND**.
 
-**Builds on:** `../04_DISCOVERY/` (system inventory) and `../05_READINESS_AUDIT/` (deterministic-truth readiness). Those findings are assumed correct and are not repeated.
+**Mandate (original):** Design *how a holistic ChatGPT Chief of Staff should think* — the reasoning, evidence-gathering, retrieval, tool-usage, and synthesis workflows — while WLJ remains the deterministic source of truth. Architecture only: no code, no APIs, no prompts, no infrastructure.
+
+**Builds on:** `../04_DISCOVERY_REFERENCE/` (system inventory) and `../05_READINESS_REFERENCE/` (deterministic-truth readiness). Those findings are assumed correct and are not repeated.
 
 **Governing principle:**
 > **WLJ owns truth. ChatGPT owns wisdom.**

@@ -1,6 +1,6 @@
 # WLJ Domain & Data Catalog — Part A (Health, Medical, Meals, Faith, Journal)
 
-> **Scope:** Grounded, read-only knowledge extraction for five WLJ domains. Every claim is proven with `file:line` references against the live codebase at `/Users/dannyjenkins/Projects/dbawholelifejourney`. Where the framing docs (`docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md`, `docs/DOMAIN_TRUTH_CONTRACTS.md`, `docs/DOMAIN_SIGNAL_CHECKLIST.md`, `@WLJ_SYSTEM_PROMPTS/03_REFERENCE/WLJ DOMAIN REGISTRY.md`) claim something not found in code, it is flagged as **"claimed in docs, not located in code."**
+> **Scope:** Grounded, read-only knowledge extraction for five WLJ domains. Every claim is proven with `file:line` references against the live codebase at `/Users/dannyjenkins/Projects/dbawholelifejourney`. Where the framing docs (`docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md`, `docs/DOMAIN_TRUTH_CONTRACTS.md`, `docs/DOMAIN_SIGNAL_CHECKLIST.md`, `@WLJ_SYSTEM_PROMPTS/03_CANON_REFERENCE/WLJ DOMAIN REGISTRY.md`) claim something not found in code, it is flagged as **"claimed in docs, not located in code."**
 >
 > **Method note:** Models, services, signal rules, URLs, templates, and cross-domain imports were located via `grep`/`Read` against the actual source. `.bak` / `.bak2` files were ignored. Line numbers reflect the state of the repo at extraction time.
 

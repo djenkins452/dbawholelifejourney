@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-23
 **Scope:** READ-ONLY knowledge extraction. Classifies what the current "Beth" conversational implementation depends on, in service of moving the conversational layer to ChatGPT WHILE PRESERVING the WLJ platform (data, engines, signals, state, dashboards, integrations unchanged).
-**Method:** Traced `apps/ai/`, `apps/cos/`, `apps/core/ai_orchestrator/`, `apps/core/ai_state/`, `apps/core/signals/`, `apps/core/execution/`, `apps/core/ai_persona/`. Cross-referenced against `@WLJ_SYSTEM_PROMPTS/03_REFERENCE/WLJ ARCHITECTURE LAWS.md` (Laws 1, 2, 9, 13, 14, 15, 16) and `docs/ENGINE_COS_REFERENCE.md`.
+**Method:** Traced `apps/ai/`, `apps/cos/`, `apps/core/ai_orchestrator/`, `apps/core/ai_state/`, `apps/core/signals/`, `apps/core/execution/`, `apps/core/ai_persona/`. Cross-referenced against `@WLJ_SYSTEM_PROMPTS/03_CANON_REFERENCE/WLJ ARCHITECTURE LAWS.md` (Laws 1, 2, 9, 13, 14, 15, 16) and `docs/ENGINE_COS_REFERENCE.md`.
 
 > This is **objective classification only** — no recommendations, no redesign, no implementation plan for the ChatGPT integration.
 

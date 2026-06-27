@@ -1,8 +1,17 @@
 # WLJ — Day 1 ChatGPT CoS Tool Catalog Architecture
 
-**Mandate:** Determine the **smallest possible Day-1 tool catalog** that lets ChatGPT function as Danny's full-time holistic Chief of Staff. Maximum CoS capability, minimum implementation. Architecture only — no code, APIs, prompts, or new intelligence engines.
+> **AS BUILT (2026-06-26):** The Day-1 catalog described here is **implemented and
+> deployed** in `apps/ai/cos_services/` (Phases 0–7). The standing-context schema,
+> the six tools, the action allowlist, and the dispatch model are canonized in
+> `../03_CANON_REFERENCE/WLJ COS TOOL & STANDING CONTEXT CONTRACT.md` — **that
+> contract is production truth; this folder is the design rationale.** Note the
+> as-built surface is slightly richer than the original 4-tool proposal (it adds
+> `get_foundational_health_facts`). Status: `../08_IMPLEMENTATION_TRACKER/`. Load
+> class: **SPECIALIZED_ON_DEMAND**.
 
-**Builds on:** `../04_DISCOVERY/`, `../05_READINESS_AUDIT/`, `../06_COS_REASONING_ARCHITECTURE/`. Findings assumed correct; not repeated.
+**Mandate (original):** Determine the **smallest possible Day-1 tool catalog** that lets ChatGPT function as Danny's full-time holistic Chief of Staff. Maximum CoS capability, minimum implementation. Architecture only — no code, APIs, prompts, or new intelligence engines.
+
+**Builds on:** `../04_DISCOVERY_REFERENCE/`, `../05_READINESS_REFERENCE/`, `../06_COS_DESIGN_REFERENCE/`. Findings assumed correct; not repeated.
 
 **Governing principle:** WLJ owns truth; ChatGPT owns understanding. The catalog **reuses existing deterministic providers** and builds no parallel intelligence.
 

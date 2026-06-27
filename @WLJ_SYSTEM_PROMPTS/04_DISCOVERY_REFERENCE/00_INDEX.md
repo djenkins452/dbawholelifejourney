@@ -39,7 +39,7 @@
 
 ---
 
-## Authoritative Companions (pre-existing, in `../03_REFERENCE/`)
+## Authoritative Companions (pre-existing, in `../03_CANON_REFERENCE/`)
 
 These were treated as authoritative framing and verified against code:
 

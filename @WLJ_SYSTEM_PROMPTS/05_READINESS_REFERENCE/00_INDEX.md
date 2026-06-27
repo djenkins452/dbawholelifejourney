@@ -15,7 +15,7 @@
 | 3 | **Cross-Domain Reasoning Readiness** — can WLJ deterministically explain weight/stress/productivity/motivation/routine changes? | [03_Cross_Domain_Reasoning_Readiness.md](03_Cross_Domain_Reasoning_Readiness.md) |
 | 4 | **Recommended Minimal Context Package** — the minimal always-loaded deterministic context, mapped to existing providers | [04_Recommended_Minimal_Context_Package.md](04_Recommended_Minimal_Context_Package.md) |
 
-Builds on the system discovery in `../04_DISCOVERY/`.
+Builds on the system discovery in `../04_DISCOVERY_REFERENCE/`.
 
 ---
 

@@ -5,7 +5,7 @@
 > `docs/wlj_camera_scan_architecture.md` make claims not found in code, this is flagged explicitly
 > under "Doc vs Code".
 
-Framing source: `@WLJ_SYSTEM_PROMPTS/03_REFERENCE/WLJ DOMAIN REGISTRY.md` (Capture §301, Notes §255,
+Framing source: `@WLJ_SYSTEM_PROMPTS/03_CANON_REFERENCE/WLJ DOMAIN REGISTRY.md` (Capture §301, Notes §255,
 Sports §357, Brain Training §217, Owner Finance §378, Travel §398, scan §451).
 
 ---

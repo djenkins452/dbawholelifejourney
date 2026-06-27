@@ -9,7 +9,7 @@
 ChatGPT Chief of Staff — Internal Service Layer
 ================================================
 
-Per the architecture baseline (@WLJ_SYSTEM_PROMPTS/07_DAY1_TOOL_CATALOG) and the
+Per the architecture baseline (@WLJ_SYSTEM_PROMPTS/07_COS_TOOLS_REFERENCE) and the
 HYBRID connection decision, these services expose WLJ's EXISTING deterministic
 truth to the ChatGPT reasoning layer. They:
 

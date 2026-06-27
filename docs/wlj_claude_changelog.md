@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(cos): P27 Deep convergence — goal identity resolution + capability-gap classification
+
+Architectural finalization toward beth-stable-v3. Generalized the architecture (not phrases), evidenced by an OpenAI-disabled routing probe with a real primary-mission goal.
+
+**DC#1 — Semantic goal context (the core class).** Evidence: the pre-router resolved goal identity only by FULL-title match or a tiny deictic set, returning NONE for "how is France going?", "my France goal", "the mission status", "biggest threat to the mission", "how's France 2027 tracking?" — all unambiguous references to the active mission. Root cause: lexical full-string matching, not goal-identity reasoning. Fix: `named_goal_intent` (the existing first-class goal provider) now resolves a goal by a DISTINCTIVE TITLE TOKEN (`_distinctive_title_tokens`) gated by goal FRAMING (`_has_goal_framing`) — identity before intent wording. A general mention ("the capital of France") is NOT stolen because it lacks goal framing. Added "the mission"/"our mission" referents; deliberately excluded "my/the goal" (collides with "my goal weight" = health and shadows richer milestone phrasing). This reduces the whole class of "mission-referent" failures, not the listed examples.
+
+**DC#2 — Deterministic CoS capability coverage.** Evidence: "what's my biggest health concern?" fell to the tool loop (the biggest_health_risk signals lacked "concern") — a deterministic-capability ROUTING gap, NOT an OpenAI failure (the truth exists). Fix: added "biggest/main/top health concern" to the health risk signals. All listed capabilities (health summary, biggest health concern, mission status, diabetes status) now reach deterministic truth with OpenAI disabled.
+
+**DC#3 — routing was the symptom; goal-context/semantic grounding was the layer.** Fixed at that lower layer (DC#1), not the routing surface.
+
+**Acceptance Center — DETERMINISTIC CAPABILITY GAP classification.** New architectural distinction: an outage message in a domain WLJ OWNS the truth for (goals/health) is a CAPABILITY GAP (deterministic reasoning failed to reach existing truth) — layer `deterministic_truth`, NOT infrastructure — whereas a general-suite outage stays infrastructure. `_infer_subsystems` attributes it; review prompts now force a 5-way `primary classification` (infrastructure | deterministic capability gap | semantic routing | prompt quality | acceptance contract). Deep was NOT weakened.
+
+**Files:** apps/ai/chatgpt_cos/reasoning/plan.py, acceptance_service.py. Tests: apps/ai/tests/test_p27_convergence.py (new). Docs: ENGINE_COS_REFERENCE.md.
+
+**Verification:** OpenAI-disabled probe confirms all 14 mission referents resolve to goals, general France questions are NOT stolen, all CoS capabilities answer deterministically; the capability-gap classification is distinct from infrastructure in prompts. 328-test regression green; `check` clean; no migration; health byte-identical (signals additive, "my goal weight" still NOT routed to goals).
+
+
 ## 2026-06-27 — docs: add Medication & Supplement Intelligence v2 architecture (Phase 1 design)
 
 Phase 1 (greenfield architecture design) of the Medication & Supplement Intelligence v2 initiative. Design-only — no implementation, no code, no migrations.

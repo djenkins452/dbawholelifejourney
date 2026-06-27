@@ -121,7 +121,9 @@ _HEALTH_INTENT_SIGNALS = (
                              "single biggest", "most important health",
                              "what's wrong", "whats wrong", "should i worry",
                              "worried about my health", "what needs attention",
-                             "what to improve", "what should i focus on")),
+                             "what to improve", "what should i focus on",
+                             "biggest health concern", "main health concern",
+                             "top health concern", "biggest concern", "health concern")),
     # 4. Progress / status → overall_progress (executive summary / trajectory).
     ("overall_progress", ("how am i doing", "how am i tracking", "overall",
                           "on track", "progress", "health goals",
@@ -202,9 +204,51 @@ deterministic_health_intent = deterministic_intent
 # goal weight" are HEALTH questions — only unambiguous goal/mission deixis qualifies.
 _GOAL_DEICTIC = (
     "my mission", "this goal", "that goal", "this mission", "that mission",
+    "the mission", "our mission",   # "mission" is goal-specific; "my/the goal" is
+    # deliberately NOT here — it collides with "my goal weight" (health) and would
+    # shadow the richer milestone phrasing in _foundational_goal_intent. A bare goal
+    # reference is resolved by the distinctive-token path (framing-gated) instead.
     "how is my goal going", "how's my goal going", "hows my goal going",
     "how is my goal progressing", "how's my goal progressing",
 )
+
+# ---------------------------------------------------------------------------
+# Goal IDENTITY resolution (P27 DC#1). Goal questions are recognized by goal
+# IDENTITY before intent wording — not by matching the FULL title string. A
+# distinctive token from an active goal's title ("France" from "France 2027 Family
+# 18K Mission") identifies the goal; goal FRAMING (a progress/status/forward/risk
+# cue) confirms it is a goal question, so a general question that merely mentions
+# the token ("the capital of France") is NOT stolen. Generic/structural title
+# words never identify a goal.
+# ---------------------------------------------------------------------------
+_TITLE_STOPWORDS = frozenset({
+    "mission", "missions", "goal", "goals", "plan", "plans", "project", "projects",
+    "target", "targets", "family", "personal", "life", "phase", "year", "years",
+    "journey", "challenge", "vision", "objective", "milestone", "milestones",
+    "the", "and", "for", "with", "your", "this", "that", "into", "from", "every",
+})
+_GOAL_FRAMING = (
+    "going", "doing", "progress", "progressing", "status", "update", "tracking",
+    "track", "on pace", "behind", "ahead", "forward", "leverage", "threat", "risk",
+    "milestone", "confiden", "focus", "next step", "derail", "watch", "slipping",
+    "priority", "achieve", "on track", "how is", "how's", "hows", "how am i doing",
+    "move this", "move it", "goal", "mission", "succeed", "make it",
+)
+
+
+def _distinctive_title_tokens(titles):
+    """Identifying tokens from active goal titles — alphabetic, >=4 chars, not a
+    generic/structural or domain-collision word. Pure."""
+    toks = set()
+    for t in titles or []:
+        for w in re.findall(r"[a-z][a-z']{3,}", str(t or "").lower()):
+            if w not in _TITLE_STOPWORDS and w not in _DOMAIN_COLLISION_WORDS:
+                toks.add(w)
+    return toks
+
+
+def _has_goal_framing(text):
+    return any(f in text for f in _GOAL_FRAMING)
 
 # Length gate: a matched title must be at least this long to count (a 1–3 char
 # title is too generic to safely own a question).
@@ -373,7 +417,15 @@ def named_goal_intent(message, goal_titles, mission_title=None):
         if re.search(r"\b" + re.escape(tl) + r"\b", text):
             return _infer_named_goal_intent(text), t
 
-    # 3) Foundational goal MEANING — a mission-implicit question ("what is my next
+    # 3) DISTINCTIVE-TOKEN identity (P27 DC#1) — a goal is referenced by a rare
+    # identifying token from its title ("France", "France 2027 …") rather than the
+    # full string, CONFIRMED by goal framing so a general mention is never stolen.
+    if _has_goal_framing(text):
+        for tok in _distinctive_title_tokens(titles):
+            if re.search(r"\b" + re.escape(tok) + r"\b", text):
+                return _infer_named_goal_intent(text), tok
+
+    # 4) Foundational goal MEANING — a mission-implicit question ("what is my next
     # milestone?", "why is this my priority?", "how confident are you?") with no
     # name and no deictic. Title-independent and OpenAI-independent.
     fg = _foundational_goal_intent(text)

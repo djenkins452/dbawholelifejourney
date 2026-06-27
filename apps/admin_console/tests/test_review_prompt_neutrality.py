@@ -46,11 +46,21 @@ class SubsystemInferenceTests(SimpleTestCase):
         row = dict(_HEALTH_BANNED[0], suite="goals", intent="goals_progress")
         self.assertIn("goal narration", self._subs(row))
 
-    def test_outage_attributes_to_deterministic_fallback(self):
-        row = {"key": "g1", "suite": "goals", "fails": ["openai_failure_message"],
+    def test_deterministic_fallback_answer_attributes_to_fallback(self):
+        # a real deterministic-fallback answer (openai down) that's merely thin/
+        # missing content -> "deterministic fallback" subsystem.
+        row = {"key": "g1", "suite": "goals", "fails": ["missing_required_any:x"],
                "openai_called": False, "fallback_used": True, "intent": "goals_progress",
                "lane": "personal_reasoning", "passed": False}
         self.assertIn("deterministic fallback", self._subs(row))
+
+    def test_personal_outage_is_capability_gap_not_infrastructure(self):
+        # P27: an OUTAGE message (openai_failure_message) in a domain WLJ owns is a
+        # deterministic capability gap, NOT infrastructure.
+        row = {"key": "g1", "suite": "goals", "fails": ["openai_failure_message"],
+               "openai_called": False, "fallback_used": True, "intent": "goals_progress",
+               "lane": "personal_reasoning", "passed": False}
+        self.assertEqual(self._subs(row)[0], "deterministic capability gap")
 
     def test_empty_attributes_to_tool_loop(self):
         row = {"key": "g1", "suite": "goals", "fails": ["empty"], "openai_called": False,

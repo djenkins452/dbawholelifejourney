@@ -108,6 +108,7 @@ _PRIMARY_LAYER = {
     "goal narration": "narration", "health narration": "narration",
     "check-in narration": "narration", "rhythm narration": "narration",
     "narration": "narration", "acceptance guard": "content_quality",
+    "deterministic capability gap": "deterministic_truth",
 }
 _HYP_TITLE = {
     "tool loop": "Possible silent orchestration termination",
@@ -119,6 +120,9 @@ _HYP_TITLE = {
     "planner": "Possible planner / answer-duplication issue",
     "acceptance guard": ("Possible missing required content OR an over-narrow "
                          "acceptance contract (check BOTH — the evaluator may be wrong)"),
+    "deterministic capability gap": ("Possible DETERMINISTIC CAPABILITY GAP — WLJ owns "
+                                     "this truth but no deterministic path reached it "
+                                     "(NOT an OpenAI/infrastructure failure)"),
 }
 
 
@@ -137,8 +141,15 @@ def _infer_subsystems(row):
              f"lane={row.get('lane') or '-'}, openai={openai}, fallback={fallback}")
     if "empty_response" in cats:
         return (["tool loop", "conversation orchestration"], "HIGH", telem)
-    if suite == "general" and openai is False:
-        return (["OpenAI integration", "general outage fallback"], "HIGH", telem)
+    if "general_failure" in cats or (suite == "general" and openai is False):
+        if suite == "general":
+            # external knowledge genuinely depends on OpenAI -> infrastructure.
+            return (["OpenAI integration", "general outage fallback"], "HIGH", telem)
+        # P27: an outage message in a domain WLJ OWNS the truth for (goals/health)
+        # is a DETERMINISTIC CAPABILITY GAP — deterministic truth exists but no
+        # deterministic reasoning path reached it. This is NOT infrastructure
+        # (OpenAI availability is not the root cause); Beth should answer it offline.
+        return (["deterministic capability gap", _suite_narration(suite)], "HIGH", telem)
     if "wrong_domain" in cats:
         return (["routing", "lane selection"], "MEDIUM", telem)
     if "duplicate_answer" in cats:
@@ -647,7 +658,13 @@ REVIEW_LAYER_VOCAB = ("conversation_orchestration", "infrastructure", "routing",
                       "deterministic_truth", "narration", "content_quality", "unknown")
 REVIEW_SUBSYSTEMS = ("planner", "tool loop", "routing", "lane selection",
                      "deterministic fallback", "goal narration", "health narration",
-                     "acceptance guard", "OpenAI integration", "unknown")
+                     "acceptance guard", "OpenAI integration",
+                     "deterministic capability gap", "unknown")
+# P27: the architectural CLASS of a failure — forces reviewers to separate a
+# CAPABILITY GAP (WLJ has the truth, no deterministic path reaches it) from a true
+# Infrastructure outage (OpenAI genuinely unavailable).
+FAILURE_CLASSIFICATION = ("infrastructure", "deterministic capability gap",
+                          "semantic routing", "prompt quality", "acceptance contract")
 REVIEW_SEVERITIES = ("BLOCKER", "HIGH", "MEDIUM", "LOW")
 INFRA_DEFECT_EXAMPLES = ("empty responses", "OpenAI unavailable", "routing failure",
                          "orchestration abort", "timeout", "fallback bypass")
@@ -672,6 +689,11 @@ def _review_output_contract(run, rows):
         "A. SYSTEMIC DEFECT CLASSES  (defect CLASSES, never individual questions)",
         "   For EACH class, provide ALL of:",
         f"     - name:",
+        f"     - primary classification: one of {{{' | '.join(FAILURE_CLASSIFICATION)}}}",
+        "         (CAPABILITY GAP = WLJ HAS the deterministic truth but no deterministic "
+        "path reaches it — distinct from INFRASTRUCTURE, where OpenAI is genuinely the "
+        "unavailable dependency. Ask: is this Infrastructure? Capability Gap? Semantic "
+        "Routing? Prompt Quality? Acceptance Contract?)",
         f"     - architectural layer:  one of {{{layers}}}",
         f"     - probable subsystem(s): one or more of {{{subs}}}",
         f"     - severity:             one of {{{sev}}}",

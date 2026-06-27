@@ -167,12 +167,17 @@ _DOMAIN_INTENT_SIGNALS = _GOAL_INTENT_SIGNALS + _HEALTH_INTENT_SIGNALS
 def deterministic_intent(message):
     """Best-effort deterministic match to an IMPLEMENTED intent, or None.
 
-    Multi-domain (health + goals); goal-specific cues are checked first. The LLM
-    planner remains primary — this is the resilience path."""
+    Multi-domain (health + goals); goal-specific cues are checked first, then a
+    MEANING-based foundational classifier so foundational CoS questions route even
+    with no goal name and no planner/OpenAI. The LLM planner remains primary —
+    this is the resilience path."""
     text = (message or "").lower()
     for intent, sigs in _DOMAIN_INTENT_SIGNALS:
         if intent in IMPLEMENTED_INTENTS and any(s in text for s in sigs):
             return intent
+    foundational = _foundational_intent(message)
+    if foundational in IMPLEMENTED_INTENTS:
+        return foundational
     return None
 
 
@@ -233,7 +238,8 @@ def _infer_named_goal_intent(text):
         return "goal_why_priority"
     # Next milestone / current phase only.
     if any(k in t for k in ("milestone", "next phase", "current phase", "next step in",
-                            "what phase")):
+                            "what phase", "comes next", "next checkpoint",
+                            "what's after", "whats after", "where should i be next")):
         return "goal_next_milestone"
     # Trajectory — on track / on pace.
     if any(k in t for k in ("on track", "on pace", "on schedule", "behind schedule",
@@ -256,6 +262,65 @@ def _infer_named_goal_intent(text):
         return "goal_concerns"
     # Default — progress summary.
     return "goals_progress"
+
+
+# ---------------------------------------------------------------------------
+# Foundational CoS questions classified by MEANING, not exact wording — so they
+# ALWAYS route to a deterministic intent even with no goal name, no deictic, and
+# no planner/OpenAI. These refer to the user's PRIMARY MISSION (goal) or health
+# in general. Health-context words steer ambiguous phrases to health, not goals.
+# ---------------------------------------------------------------------------
+_HEALTH_CONTEXT_WORDS = ("health", "healthy", "physically", "physical", "weight",
+                         "glucose", "blood sugar", "blood pressure", "sleep", "a1c",
+                         "diabetes", "nutrition", "fitness")
+
+
+def _foundational_goal_intent(text):
+    """A GOAL intent for a foundational, mission-implicit question, or None. Gated
+    so it never steals a health/general question."""
+    t = (text or "").lower()
+    health_ctx = any(w in t for w in _HEALTH_CONTEXT_WORDS)
+    if any(k in t for k in ("next milestone", "next checkpoint", "next step toward",
+                            "where should i be next", "what milestone", "which milestone",
+                            "current milestone", "what's after", "whats after",
+                            "what comes next in", "next phase of")):
+        return "goal_next_milestone"
+    if ("why" in t and any(k in t for k in ("priority", "matter", "matters", "important",
+                                            "highest", "this goal", "this mission",
+                                            "keep focusing", "keep working on"))):
+        return "goal_why_priority"
+    if any(k in t for k in ("how confident", "will i achieve", "will i make it",
+                            "my odds", "odds of", "chances of", "chance of", "how likely",
+                            "do you think i'll", "do you think i will", "going to make it",
+                            "will i succeed", "will i be ready", "likely is success")):
+        return "goal_confidence"
+    if not health_ctx and any(k in t for k in ("on track", "on pace", "behind schedule",
+                              "am i behind", "adjust the timeline", "make it in time",
+                              "finish in time", "still okay for", "still ok for")):
+        return "goal_on_track"
+    if not health_ctx and any(k in t for k in ("biggest risk", "most at risk",
+                              "worries you most", "what worries you", "goal needs the most")):
+        return "biggest_goal_risk"
+    if not health_ctx and any(k in t for k in ("which goals are slipping", "goals slipping",
+                              "goals drifting", "goals need attention", "goals at risk")):
+        return "goal_concerns"
+    return None
+
+
+def _foundational_intent(text):
+    """A GOAL or HEALTH intent for a foundational question, or None. Used by the
+    deterministic resilience path so these questions answer even with OpenAI down."""
+    g = _foundational_goal_intent(text)
+    if g:
+        return g
+    t = (text or "").lower()
+    if any(k in t for k in ("how is my health", "how's my health", "hows my health",
+                            "how healthy am i", "how am i doing physically",
+                            "how am i physically", "how is my physical",
+                            "my health right now", "how am i health wise",
+                            "how's my physical health")):
+        return "overall_progress"
+    return None
 
 
 def named_goal_intent(message, goal_titles, mission_title=None):
@@ -290,6 +355,13 @@ def named_goal_intent(message, goal_titles, mission_title=None):
             continue                     # bare domain word — never steal that domain
         if re.search(r"\b" + re.escape(tl) + r"\b", text):
             return _infer_named_goal_intent(text), t
+
+    # 3) Foundational goal MEANING — a mission-implicit question ("what is my next
+    # milestone?", "why is this my priority?", "how confident are you?") with no
+    # name and no deictic. Title-independent and OpenAI-independent.
+    fg = _foundational_goal_intent(text)
+    if fg:
+        return fg, "<meaning>"
     return None, None
 
 

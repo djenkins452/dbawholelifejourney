@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — fix(cos): foundational-question routing + general-knowledge graceful degradation
+
+Fixes the two REAL Beth defects the Acceptance Center exposed (not the symptom).
+
+**Defect Class 1 — silent orchestration termination (FIXED at the source).** Root cause: foundational CoS questions ("What is my next milestone?", "Why is this my highest priority goal?", "How confident are you I'll achieve this?", "How is my health?") carry no goal NAME and no deictic, so the pre-router no-opped; with OpenAI down the planner returned None; `deterministic_intent`'s signals all required the literal word "goal"; the general lane rejects pronoun questions → fell through every lane to the tool loop → EMPTY. Fix: a MEANING classifier (`_foundational_goal_intent` / `_foundational_intent`) that routes mission-implicit goal questions and "how is my health" variants to the correct deterministic intent — title-independent AND OpenAI-independent (no planner needed). Wired into the goal pre-router (`named_goal_intent`, third path) and the resilience matcher (`deterministic_intent`). Health-context words steer ambiguous phrases ("on track", "biggest risk") to Health, never Goals. The rhythm lane now yields "next milestone/checkpoint" questions to Goals instead of answering with the next calendar item.
+
+**Defect Class 2 — general-knowledge availability collapse (graceful degradation).** Investigation (telemetry: lane=general_conversation, openai=False, fallback=True for the whole run; goals/health also fell to deterministic fallbacks) shows a genuine OpenAI outage/rate-limit during the run, not a code bug — general knowledge fundamentally requires the model. Per the "no parallel knowledge system" constraint, the fix is graceful degradation: the general-lane fallback now honestly acknowledges the outage AND offers the personal help Beth CAN still give (goals/health/schedule/faith), instead of a terse "couldn't reach it."
+
+**Architectural review (the emergency fallback):** `ChatGPTCoSService._emergency_fallback()` is a single deterministic string guarding invariant #1 — it has no routing/tool logic and one caller, so it is NOT shadow orchestration; a `ResponseGuaranteeService` is not justified by repo evidence. With the routing fix, foundational questions now reach deterministic fallbacks, so the emergency fallback is a true last resort.
+
+**Files:** apps/ai/chatgpt_cos/reasoning/plan.py (meaning classifier + wiring), apps/ai/chatgpt_cos/lanes.py (rhythm guard + graceful general degradation), tests. No model change — no migration. Health byte-identical (additive resilience only).
+
+**Verification:** new `test_foundational_routing.py` (next-milestone / why-priority / confidence / on-track / biggest-risk paraphrases route with NO titles and NO OpenAI; health variants route to overall_progress; health-context questions are NOT stolen by Goals; rhythm yields milestone questions) + updated general-degradation test + 294-test routing/lane/health/acceptance regression all green; `check` clean; `makemigrations --check` = no changes.
+
+
 ## 2026-06-26 — feat(admin): Acceptance Center hardening — architectural failure classification
 
 The first Full production run (RED 13/21, 8 critical) exposed two SYSTEMIC defect classes the Center under-diagnosed: silent conversation termination (empty responses) and a general-knowledge/OpenAI availability collapse. Upgraded the Center to reason at the ARCHITECTURAL level, and added the one justified Beth safety net.

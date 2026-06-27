@@ -123,7 +123,10 @@ class GeneralLaneTests(TestCase):
             out = general_answer(self.user, "What is Delphi?")
         self.assertEqual(out["lane"], "general_conversation")
         self.assertTrue(out["answer"].strip())
-        self.assertIn("try again", out["answer"].lower())
+        # graceful degradation: acknowledges the outage AND offers personal help
+        low = out["answer"].lower()
+        self.assertIn("trying again", low)
+        self.assertTrue(any(w in low for w in ("goals", "health", "schedule")))
 
     def test_general_declines_personal_questions(self):
         for q in ("what is my weight", "what are my goals",

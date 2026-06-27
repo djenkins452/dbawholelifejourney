@@ -73,6 +73,11 @@ def _next_rhythm_lane(user, message, conversation=None):
     norm = _normalize(message)
     if not any(s in norm for s in _NEXT_RHYTHM_SIGNALS):
         return None
+    # A goal question that happens to contain "next" ("what's my next milestone")
+    # is owned by Goals, not the schedule rhythm — let it fall through to the goal
+    # pre-router rather than being answered with the next calendar item.
+    if "milestone" in norm or "next phase" in norm or "next checkpoint" in norm:
+        return None
     try:
         from apps.core.cos_briefing.rhythm_api import (
             get_current_rhythm_item, get_next_rhythm_item,
@@ -483,8 +488,16 @@ def general_answer(user, message):
     answer = (answer or "").strip()
     fallback_used = not answer
     if not answer:
-        answer = ("I can usually help with that, but I couldn't reach it just "
-                  "now. Please try again.")
+        # OpenAI is unavailable. General knowledge needs the model, so we can't
+        # answer the question offline — but we degrade GRACEFULLY: acknowledge the
+        # outage honestly and offer the personal help we CAN still give from
+        # already-known data (never a blank box, never a fake answer).
+        answer = (
+            "I usually answer general questions like that directly, but I can't "
+            "reach my knowledge service at the moment — it may be briefly busy, so "
+            "it's worth trying again in a minute. In the meantime I can still help "
+            "with anything about your goals, health, schedule, or faith from what "
+            "I already know.")
     logger.info(
         "BETH_GENERAL_CALL user=%s breaker_before=%s call_outcome=%s "
         "fallback_used=%s qlen=%d",

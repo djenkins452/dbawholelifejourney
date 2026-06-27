@@ -139,6 +139,26 @@ _EXTERNAL_SIGNALS = (
     "recommended range", "what range", "definition of", "what does it mean",
 )
 
+# EDUCATIONAL OVERLAY — phrases that ask for GENERAL education layered ON a personal
+# fact ("which of my medications are commonly USED FOR diabetes", "list each med and
+# what it is COMMONLY USED FOR"). These are HYBRID: WLJ owns the personal list, but
+# the educational part is general knowledge. The deterministic fact-stater can't
+# combine them, so it must DECLINE and let the tool loop (WLJ tools + general
+# knowledge) handle it. Distinct from _EXTERNAL_SIGNALS, which mark a PURELY general
+# question (no personal data needed).
+_EDUCATIONAL_OVERLAY = (
+    "used for", "use for", "used to treat", "what do they treat", "what does it treat",
+    "what are they for", "what is it for", "what's it for", "what they're for",
+    "what it's for", "what are these for", "commonly used", "purpose of",
+    "what's the purpose", "what is the purpose", "why do i take", "why am i taking",
+    "what do they do", "what does it do", "what are they used", "what is it used",
+)
+
+
+def _has_educational_overlay(text):
+    """True when a message asks for general education on top of a personal fact."""
+    return any(sig in text for sig in _EDUCATIONAL_OVERLAY)
+
 
 def external_general_signal(message):
     """True when a message is clearly an EXTERNAL/definitional question (not about
@@ -167,6 +187,12 @@ def classify_foundational_fact(message):
     if external_general_signal(message):
         return None
     text = str(message).lower()
+    # HYBRID (personal fact + general education) — e.g. "which of my medications are
+    # commonly used for diabetes". The deterministic fact-stater would answer with
+    # the bare list and the educational layer would never run. Decline so it falls
+    # through to the tool loop, which combines WLJ truth with general knowledge.
+    if _has_educational_overlay(text):
+        return None
     # PROGRESSION questions ("what's after Goal Weight 284.9?") are milestone-
     # sequence questions owned by Goals, NOT current-fact lookups — even though the
     # milestone NAME contains a fact keyword like "weight" (P29 DC#1).

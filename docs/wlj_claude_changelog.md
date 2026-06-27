@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(cos): hybrid medication questions never reached the combining tool loop
+
+Follow-up to the prompt-block fix. The system prompt now PERMITS combining WLJ truth + general knowledge, but hybrid questions still failed because a LANE intercepts them before the tool loop runs.
+
+**Exact failure point / root cause:** in `generate()`, lanes run before the tool loop, and the first lane to claim a question wins. The deterministic foundational fast-path (`apps/ai/chatgpt_cos/foundational_facts.py` `classify_foundational_fact`) maps the bare keyword `medication`/`medicine`/`meds` → `current_medications`. So "which of my medications are commonly used for diabetes?" and "list each medication and what it is commonly used for" matched the keyword, weren't flagged external (they contain personal grounding), and were CLAIMED by the foundational lane — which emits only the deterministic list ("You're currently taking N medications: …") via a no-tools phrasing call. The educational layer never ran, and the hybrid-capable tool loop was never reached. (No acceptance/safety rejection and no discarded model output — the foundational lane simply never produces education; it's a fact-stater. `COS_LANE_TRACE … winner=foundational_facts`.) The General lane couldn't help either — it's hard-sandboxed ("do NOT reference the user's personal data"), so it can't list the user's meds. **No lane combines both; only the tool loop can.**
+
+**Minimal fix (routing only — no drug database):** `classify_foundational_fact` now DECLINES when a personal fact question also carries an EDUCATIONAL OVERLAY (`_EDUCATIONAL_OVERLAY`: "used for", "commonly used", "used to treat", "what do they treat", "purpose of", "why am I taking", …). The hybrid then falls through every single-source lane to the tool loop, which combines the WLJ med list (tools) with general purposes (model knowledge, per the relaxed prompt). Plain list questions ("what medications do I take?", "list all my medications") have no overlay → still claimed by the fast path (unchanged). `COS_LANE_TRACE … winner=tool_loop_fallback` for hybrids after the fix.
+
+**Success criteria met:** "Metformin is commonly used to help lower blood sugar in type 2 diabetes" (general) + "Based on what WLJ knows, you're taking Metformin alongside Mounjaro, Humalog, and Lantus" (WLJ) — one combined answer.
+
+**Regression tests** (`apps/ai/tests/test_cos_medication_hybrid.py`): the classifier declines hybrids and still claims plain list/other facts; `route_message` returns None (→ tool loop) for every hybrid; `generate()` produces a combined personal+educational answer with no emergency fallback.
+
+**Files:** apps/ai/chatgpt_cos/foundational_facts.py, apps/ai/tests/test_cos_medication_hybrid.py.
+
+**Verification:** 6 hybrid tests + 149 foundational/lanes/empty-answer regression tests green (only the unrelated PRE-EXISTING `DailyCheckinResolutionTests.test_option1_…` failure, present on HEAD without this change); `manage.py check` clean; no migration.
+
+
 ## 2026-06-27 — fix(cos): Beth couldn't explain medications — prompt blocked general education
 
 **Scenario:** "What medicine do I take?" and "List them all" worked (WLJ data). "Can you list each one and what they are for?" returned the emergency fallback: "I couldn't pull that together just now — my assistant service may be briefly unavailable."

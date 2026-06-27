@@ -89,43 +89,126 @@ def analyze(rows):
     }
 
 
+# ---------------------------------------------------------------------------
+# Telemetry-driven SUBSYSTEM inference. Hypotheses are derived from a row's OWN
+# telemetry (suite / intent / lane / openai / fallback / failure category) — never
+# from historical bias toward Goals. A HEALTH-suite banned phrase is attributed to
+# HEALTH narration, not Goals. Output is ADVISORY: it MUST be validated against
+# repository evidence (see EVIDENCE_SUPREMACY).
+# ---------------------------------------------------------------------------
+_CONF_RANK = {"LOW": 1, "MEDIUM": 2, "HIGH": 3}
+_SUITE_NARRATION = {"goals": "goal narration", "health": "health narration",
+                    "checkin": "check-in narration", "rhythm": "rhythm narration"}
+_PRIMARY_LAYER = {
+    "tool loop": "conversation_orchestration",
+    "conversation orchestration": "conversation_orchestration",
+    "OpenAI integration": "infrastructure", "general outage fallback": "infrastructure",
+    "routing": "routing", "lane selection": "routing", "planner": "routing",
+    "deterministic fallback": "deterministic_truth",
+    "goal narration": "narration", "health narration": "narration",
+    "check-in narration": "narration", "rhythm narration": "narration",
+    "narration": "narration",
+}
+_HYP_TITLE = {
+    "tool loop": "Possible silent orchestration termination",
+    "OpenAI integration": "Possible OpenAI / general-knowledge dependency outage",
+    "routing": "Possible routing / lane mis-classification",
+    "deterministic fallback": "Possible defect in a DETERMINISTIC fallback (no LLM involved)",
+    "goal narration": "Possible narration leak in GOAL narration",
+    "health narration": "Possible narration leak in HEALTH narration",
+    "planner": "Possible planner / answer-duplication issue",
+}
+
+
+def _suite_narration(suite):
+    return _SUITE_NARRATION.get(suite, f"{suite} narration")
+
+
+def _infer_subsystems(row):
+    """Probable subsystem(s) for ONE failed row, inferred from its OWN telemetry —
+    never from history. Returns (subsystems:list, confidence, telemetry_reason)."""
+    suite = row.get("suite", "?")
+    cats = {categorize_rule(f) for f in row.get("fails", [])}
+    openai = row.get("openai_called")
+    fallback = row.get("fallback_used")
+    telem = (f"suite={suite}, intent={row.get('intent') or '-'}, "
+             f"lane={row.get('lane') or '-'}, openai={openai}, fallback={fallback}")
+    if "empty_response" in cats:
+        return (["tool loop", "conversation orchestration"], "HIGH", telem)
+    if suite == "general" and openai is False:
+        return (["OpenAI integration", "general outage fallback"], "HIGH", telem)
+    if "wrong_domain" in cats:
+        return (["routing", "lane selection"], "MEDIUM", telem)
+    if "duplicate_answer" in cats:
+        return (["planner", "narration"], "MEDIUM", telem)
+    if openai is False and fallback is True:
+        # the answer came from the DETERMINISTIC fallback, not the LLM
+        return (["deterministic fallback", _suite_narration(suite)], "MEDIUM", telem)
+    if "banned_phrase" in cats:
+        src = "LLM narration" if openai else "deterministic fallback"
+        return ([_suite_narration(suite), src], "MEDIUM", telem)
+    src = "LLM narration" if openai else "deterministic fallback"
+    return ([_suite_narration(suite), src, "content quality"], "LOW", telem)
+
+
+def probable_subsystems(row):
+    """Public one-line subsystem attribution for a failed row (used per-question)."""
+    subs, conf, _ = _infer_subsystems(row)
+    return subs, conf
+
+
 def _hypotheses(layers, empty_count, entire_suites_failed, rows):
+    """ADVISORY hypotheses, grouped by telemetry-inferred subsystem. Each is a guess
+    that MUST be validated against repository evidence — never a conclusion."""
+    failed = [r for r in rows if not r.get("passed")]
+    buckets = {}
+    for r in failed:
+        subs, conf, telem = _infer_subsystems(r)
+        primary = subs[0]
+        b = buckets.setdefault(primary, {"subs": subs, "conf": conf, "keys": [],
+                                         "suites": set(), "telem": telem})
+        b["keys"].append(r["key"])
+        b["suites"].add(r.get("suite", "?"))
+        if _CONF_RANK[conf] > _CONF_RANK[b["conf"]]:
+            b["conf"], b["telem"] = conf, telem
     h = []
-    if empty_count > 0:
-        h.append({"title": "Silent conversation/orchestration termination",
-                  "layer": "conversation_orchestration", "confidence": "HIGH",
-                  "evidence": f"{empty_count} question(s) returned an EMPTY response "
-                  "with no intent, no lane, no OpenAI call and no fallback — the "
-                  "request fell through every lane to the tool loop, which returned "
-                  "nothing. A deterministic emergency fallback must fire."})
-    for s in entire_suites_failed:
-        if s == "general":
-            h.append({"title": "General-knowledge / OpenAI dependency unavailable",
-                      "layer": "infrastructure", "confidence": "HIGH",
-                      "evidence": "Every general-knowledge question failed (typically "
-                      "the 'couldn't reach it' message) — OpenAI is rate-limited, out "
-                      "of quota, or unreachable. This is infrastructure, not content."})
-        else:
-            h.append({"title": f"Entire '{s}' suite unavailable",
-                      "layer": "routing" if s in ("goals", "health") else "infrastructure",
-                      "confidence": "MEDIUM",
-                      "evidence": f"All '{s}' questions failed — presumed systemic."})
-    if layers.get("routing") and not any(x["layer"] == "routing" for x in h):
-        h.append({"title": "Routing to the wrong domain/intent", "layer": "routing",
-                  "confidence": "MEDIUM",
-                  "evidence": f"{layers['routing']} response(s) reached the wrong "
-                  "domain — pre-router/planner is mis-classifying."})
-    if layers.get("narration"):
-        h.append({"title": "Prohibited narration language leaking", "layer": "narration",
-                  "confidence": "MEDIUM",
-                  "evidence": f"{layers['narration']} answer(s) contained banned "
-                  "coaching/system/deflection phrases."})
-    if layers.get("content_quality"):
-        h.append({"title": "Content quality below the gold bar", "layer": "content_quality",
-                  "confidence": "LOW",
-                  "evidence": f"{layers['content_quality']} answer(s) missed required "
-                  "concepts, evidence, synthesis, or a concrete action."})
+    for primary, b in buckets.items():
+        suites = ", ".join(sorted(b["suites"]))
+        systemic = any(s in entire_suites_failed for s in b["suites"])
+        ev = (f"{len(b['keys'])} failing question(s) [{', '.join(b['keys'][:6])}] in "
+              f"suite(s): {suites}. Representative telemetry: {b['telem']}."
+              + (" Entire suite failed — presumed systemic." if systemic else ""))
+        h.append({"title": _HYP_TITLE.get(primary, f"Possible defect in {primary}"),
+                  "subsystems": b["subs"],
+                  "layer": _PRIMARY_LAYER.get(primary, "content_quality"),
+                  "confidence": b["conf"], "evidence": ev})
+    h.sort(key=lambda x: (-_LAYER_PRECEDENCE_RANK.get(x["layer"], 0),
+                          -_CONF_RANK[x["confidence"]]))
     return h
+
+
+_LAYER_PRECEDENCE_RANK = {"conversation_orchestration": 6, "infrastructure": 5,
+                          "routing": 4, "deterministic_truth": 3, "narration": 2,
+                          "content_quality": 1, "unknown": 0}
+
+# Permanent architectural law injected into BOTH generated prompts. The automated
+# analysis GUIDES — it must never ANCHOR. Repository evidence always wins.
+EVIDENCE_SUPREMACY = (
+    "EVIDENCE SUPREMACY (permanent law):\n"
+    "  Repository evidence takes precedence over automated hypotheses, telemetry "
+    "heuristics, and Acceptance analysis.\n"
+    "  If evidence contradicts automated analysis, fix the EVIDENCE-BASED defect and "
+    "DOCUMENT the discrepancy.\n"
+    "  The automated analysis below is generated from telemetry + heuristics and CAN "
+    "BE WRONG — it may, for example, attribute a HEALTH-suite failure to Goals. "
+    "Hypothesize, do not conclude; suggest, do not dictate; guide, do not anchor.")
+
+ADVISORY_HEADER = "AUTOMATED HYPOTHESES (may be wrong):"
+ADVISORY_NOTE = ("These hypotheses were generated from telemetry + heuristics. You "
+                 "MUST validate each against repository evidence. If repository "
+                 "evidence contradicts a hypothesis: (1) document the discrepancy, "
+                 "(2) explain why the hypothesis was wrong, (3) fix the evidence-based "
+                 "root cause.")
 
 logger = logging.getLogger(__name__)
 
@@ -422,8 +505,14 @@ def _root_cause_groups(failed):
     coaching = [r for r in failed if any(
         f.startswith("banned_phrase:") and f.split(":", 1)[1] in COACHING_HINT for f in r["fails"])]
     if coaching:
-        groups.append(("Legacy generic coaching language leaking into LLM goal answers.",
-                       coaching))
+        # Attribute to the ACTUAL suite(s) + source — never assume Goals. A health
+        # banned phrase is HEALTH narration; openai=True means the LLM produced it.
+        where = ", ".join(sorted({_suite_narration(r["suite"]) for r in coaching}))
+        src = ("LLM narration" if any(r.get("openai_called") for r in coaching)
+               else "a deterministic fallback")
+        groups.append((f"Generic coaching language leaking into {where} (probable "
+                       f"source: {src}). VALIDATE the source against repository "
+                       "evidence — do NOT assume Goals.", coaching))
     system = has(lambda f: f.startswith("banned_phrase:") and any(
         s in f for s in ("source of truth", "state builder", "momentum score",
                          "confidence score", "signal", "canonical")))
@@ -526,11 +615,15 @@ def _arch_block(run, rows):
         "  Consider: could this run be FALSELY GREEN (infra masking content) or "
         "FALSELY RED (content failing only because infra is down)?",
         "",
-        "LIKELY ROOT CAUSES (ranked):",
+        ADVISORY_HEADER,
+        "  " + ADVISORY_NOTE,
     ]
     for i, hyp in enumerate(a["hypotheses"], 1):
+        subs = ", ".join(hyp.get("subsystems", [])) or "unknown"
         lines.append(f"  {i}. {hyp['title']}  [layer={hyp['layer']}, "
-                     f"confidence={hyp['confidence']}]\n     evidence: {hyp['evidence']}")
+                     f"confidence={hyp['confidence']}]\n"
+                     f"     probable subsystem(s): {subs}\n"
+                     f"     evidence/telemetry: {hyp['evidence']}")
     if not a["hypotheses"]:
         lines.append("  (none — run is clean)")
     return "\n".join(lines)
@@ -603,6 +696,12 @@ def _review_output_contract(run, rows):
         "   - Stable-tag eligible? yes/no — justify.",
         "   - If NOT eligible: list the EXACT conditions that must ALL be satisfied "
         "first, e.g.: " + "; ".join(STABLE_TAG_CONDITIONS) + ".",
+        "",
+        "F. AGREEMENT WITH AUTOMATED HYPOTHESES  (anti-anchoring — answer explicitly)",
+        "   - Do you AGREE with the automated hypotheses above? yes/no",
+        "   - If NO: provide the CORRECTED hypotheses, cite the repository evidence that "
+        "contradicts the automated ones, and explain why each heuristic was wrong "
+        "(repository evidence takes precedence over the automated analysis).",
     ])
 
 
@@ -618,6 +717,8 @@ def build_chatgpt_review_prompt(run, rows):
         f"Suite: {run.suite_name}/{run.depth}   Time: {run.completed_at or run.created_at}\n",
         ARCHITECTURAL_INVARIANTS,
         "",
+        EVIDENCE_SUPREMACY,
+        "",
         summary,
         "",
         _arch_block(run, rows),
@@ -627,6 +728,7 @@ def build_chatgpt_review_prompt(run, rows):
         for r in failed:
             crit = " [CRITICAL]" if any(
                 is_critical_rule(f, r.get("spec")) for f in r["fails"]) else ""
+            subs, conf = probable_subsystems(r)
             lines.append(
                 f"\n- [{r['key']}] suite={r['suite']} depth={r.get('spec',{}).get('depth','')}{crit}\n"
                 f"  Q: {r['question']}\n"
@@ -634,6 +736,8 @@ def build_chatgpt_review_prompt(run, rows):
                 f"actual_intent={r['intent'] or '-'} lane={r['lane'] or '-'} "
                 f"openai={r['openai_called']} fallback={r['fallback_used']} time={r['ms']}ms\n"
                 f"  failed_rules: {', '.join(r['fails'])}\n"
+                f"  probable subsystem(s) [telemetry-derived, confidence={conf}, "
+                f"VALIDATE vs evidence]: {', '.join(subs)}\n"
                 f"  actual_response: {r['answer'][:500]}")
     else:
         lines.append("\nNo failed questions — every response passed its rules.")
@@ -659,6 +763,8 @@ def build_claude_fix_prompt(run, rows):
     lines.append("")
     lines.append(ARCHITECTURAL_INVARIANTS)
     lines.append("")
+    lines.append(EVIDENCE_SUPREMACY)
+    lines.append("")
     lines.append(_arch_block(run, rows))
     lines.append("\nFIX INFRASTRUCTURE DEFECTS FIRST — they take precedence and a "
                  "content failure downstream of an outage may not be real.\n")
@@ -672,6 +778,7 @@ def build_claude_fix_prompt(run, rows):
 
     lines.append(f"\nFAILING QUESTIONS ({len(failed)}):")
     for r in failed:
+        sub_list, sub_conf = probable_subsystems(r)
         lines.append(
             f"\n- [{r['key']}] suite={r['suite']}\n"
             f"  Question: {r['question']}\n"
@@ -680,6 +787,8 @@ def build_claude_fix_prompt(run, rows):
             f"  Actual: intent={r['intent'] or '-'} lane={r['lane'] or '-'} "
             f"openai={r['openai_called']} fallback={r['fallback_used']}.\n"
             f"  Failed rules: {', '.join(r['fails'])}\n"
+            f"  Probable subsystem(s) [telemetry-derived, confidence={sub_conf}, "
+            f"VALIDATE vs repository evidence]: {', '.join(sub_list)}\n"
             f"  Actual response: {r['answer'][:500]}")
     layers = " | ".join(REVIEW_LAYER_VOCAB)
     subs = " | ".join(REVIEW_SUBSYSTEMS)
@@ -693,6 +802,16 @@ def build_claude_fix_prompt(run, rows):
         "  - root cause:           the exact mechanism (with file:line evidence)\n"
         "  - permanent regression test: ONE test (file + assertion) that catches this "
         "CLASS forever — every production defect becomes a permanent test.\n")
+    lines.append(
+        "VALIDATE THE AUTOMATED HYPOTHESES against repository evidence FIRST — they are "
+        "telemetry heuristics and can mis-attribute a subsystem (e.g. a HEALTH failure "
+        "labelled as Goals). Repository evidence takes precedence.\n"
+        "IF AN AUTOMATED HYPOTHESIS IS WRONG, document the discrepancy with ALL of:\n"
+        "  1. the original (automated) hypothesis\n"
+        "  2. the repository evidence that contradicts it\n"
+        "  3. the corrected, evidence-based root cause\n"
+        "  4. why the heuristic failed\n"
+        "  5. whether prompt generation should improve to prevent this misattribution\n")
     lines.append(
         "Instructions:\n"
         "- INFRASTRUCTURE defects FIRST (they take precedence; a content failure "

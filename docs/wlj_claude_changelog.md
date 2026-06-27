@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(admin): Acceptance review prompts — A+ neutrality (guide, don't anchor)
+
+Generated prompts were anchoring reviewers: a HEALTH-suite `banned_phrase: maintain momentum` (openai=True, fallback=False — LLM health narration) was hard-labelled "Legacy generic coaching language leaking into LLM GOAL answers." Fixed the prompt-generation system so it GUIDES rather than anchors. PROMPT GENERATION ONLY — no Beth behavior/grading/routing/models/persistence change.
+
+- **Telemetry-driven subsystem inference** (`_infer_subsystems`/`probable_subsystems`): attribution derives from the row's OWN telemetry (suite/intent/lane/openai/fallback/category), never history. health+openai=True→health narration (LLM); goals→goal narration; openai=False+fallback=True→deterministic fallback; empty→tool loop/orchestration; general+openai=False→OpenAI integration/general outage fallback; wrong_domain→routing/lane selection; duplicate→planner/narration. Each carries LOW/MEDIUM/HIGH confidence + a telemetry reason.
+- **Advisory hypotheses:** "LIKELY ROOT CAUSES" → "AUTOMATED HYPOTHESES (may be wrong)" with a mandatory validate-against-evidence note, grouped by inferred subsystem, ordered by layer precedence.
+- **EVIDENCE SUPREMACY** permanent law injected into BOTH prompts: repository evidence outranks automated hypotheses/heuristics/analysis; contradictions must be fixed evidence-first and documented.
+- **ChatGPT review:** per-failed-question "probable subsystem(s)" line (telemetry-derived, confidence, "VALIDATE vs evidence") + new contract section F "Do you AGREE with the automated hypotheses? yes/no; if no, corrected hypotheses + contradicting evidence + why the heuristic was wrong."
+- **Claude fix:** EVIDENCE SUPREMACY + per-question subsystem + forced discrepancy-reporting block (original hypothesis / contradicting evidence / corrected root cause / why the heuristic failed / whether prompt generation should improve). `_root_cause_groups` coaching label is now suite-aware ("...into health narration", "do NOT assume Goals").
+
+**Files:** apps/ai/chatgpt_cos/acceptance_service.py. Tests: apps/admin_console/tests/test_review_prompt_neutrality.py (new); test_acceptance_architecture.py (renamed-header assertion).
+
+**Verification:** new test_review_prompt_neutrality.py proves the cited health failure attributes to health narration (not Goals), subsystem inference is correct across empty/outage/wrong-domain/general/duplicate, both prompts contain "may be wrong" + "repository evidence takes precedence", ChatGPT has "do you agree with automated hypotheses", Claude has "document the discrepancy"/"corrected"/"why the heuristic failed"/"whether prompt generation should improve". 114-test acceptance regression green; `check` clean; no migration.
+
+
 ## 2026-06-27 — fix(cos): general-knowledge OUTAGE fallback defect class (Smoke RED → GREEN)
 
 Production Smoke RED (5/6, 0 infra, 1 content, trustworthy) on "Who was Abraham Lincoln?": `forbidden_concept: your goal` + `missing_required_any`. Telemetry (lane=general_conversation, openai=False, fallback=True) proved routing/lane/degradation all succeeded — the defect was in the outage fallback CONTENT and the evaluator's EXPECTATIONS. Two root causes, both fixed:

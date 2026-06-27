@@ -128,7 +128,7 @@ class ArchPromptTests(TestCase):
         self.assertIn("ARCHITECTURAL INVARIANTS", p)
         self.assertIn("INFRASTRUCTURE vs CONTENT", p)
         self.assertIn("ARCHITECTURAL LAYER AGGREGATION", p)
-        self.assertIn("LIKELY ROOT CAUSES", p)
+        self.assertIn("AUTOMATED HYPOTHESES", p)     # renamed from "LIKELY ROOT CAUSES"
         self.assertIn("RUN TRUSTWORTHINESS", p)
         self.assertIn("RELEASE BLOCKERS", p)
         self.assertIn("falsely", p.lower())

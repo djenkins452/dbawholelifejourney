@@ -660,11 +660,16 @@ REVIEW_SUBSYSTEMS = ("planner", "tool loop", "routing", "lane selection",
                      "deterministic fallback", "goal narration", "health narration",
                      "acceptance guard", "OpenAI integration",
                      "deterministic capability gap", "unknown")
-# P27: the architectural CLASS of a failure — forces reviewers to separate a
+# P27/P29: the architectural CLASS of a failure — forces reviewers to separate a
 # CAPABILITY GAP (WLJ has the truth, no deterministic path reaches it) from a true
-# Infrastructure outage (OpenAI genuinely unavailable).
+# Infrastructure outage (OpenAI genuinely unavailable), and — when a REAL USER report
+# contradicts a GREEN Acceptance run — a PRODUCTION-PATH DIVERGENCE (live UI path
+# differs from the harness path) or an ACCEPTANCE COVERAGE GAP (the harness never
+# tested this exact path).
 FAILURE_CLASSIFICATION = ("infrastructure", "deterministic capability gap",
-                          "semantic routing", "prompt quality", "acceptance contract")
+                          "semantic routing", "production-path divergence",
+                          "acceptance coverage gap", "prompt quality",
+                          "acceptance contract")
 REVIEW_SEVERITIES = ("BLOCKER", "HIGH", "MEDIUM", "LOW")
 INFRA_DEFECT_EXAMPLES = ("empty responses", "OpenAI unavailable", "routing failure",
                          "orchestration abort", "timeout", "fallback bypass")
@@ -692,8 +697,12 @@ def _review_output_contract(run, rows):
         f"     - primary classification: one of {{{' | '.join(FAILURE_CLASSIFICATION)}}}",
         "         (CAPABILITY GAP = WLJ HAS the deterministic truth but no deterministic "
         "path reaches it — distinct from INFRASTRUCTURE, where OpenAI is genuinely the "
-        "unavailable dependency. Ask: is this Infrastructure? Capability Gap? Semantic "
-        "Routing? Prompt Quality? Acceptance Contract?)",
+        "unavailable dependency. If a REAL USER report contradicts a GREEN run, ask "
+        "whether it is a PRODUCTION-PATH DIVERGENCE (the live UI path differs from this "
+        "harness path / a feature flag diverges) or an ACCEPTANCE COVERAGE GAP (the "
+        "harness never tested this exact phrasing/path). Ask: Infrastructure? Capability "
+        "Gap? Semantic Routing? Production-path divergence? Acceptance coverage gap? "
+        "Prompt Quality? Acceptance Contract?)",
         f"     - architectural layer:  one of {{{layers}}}",
         f"     - probable subsystem(s): one or more of {{{subs}}}",
         f"     - severity:             one of {{{sev}}}",

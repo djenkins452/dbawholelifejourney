@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(cos): P29 final Deep + real-world morning path hardening
+
+**DC#1 — goal intent PRECEDENCE after identity (architectural).** Once a request is goal-grounded, goal intent must beat generic health/rhythm/foundational routes. Evidence + fixes: `_infer_named_goal_intent` reordered/extended — "behind"→goal_on_track (was goal_concerns), "biggest THREAT"→goal_failure_modes (checked BEFORE biggest_goal_risk), "work on/next move/highest leverage"→goals_focus_today; the `next_rhythm` lane yields on goal-grounded markers (this/that/the/our/my mission/goal, milestone) so "what comes next in this mission" reaches Goals; `foundational_facts` declines PROGRESSION questions ("what's after Goal Weight 284.9?") so a milestone name containing "weight" isn't answered as a current-weight fact; `_GOAL_FRAMING` gains day-action cues so "what should I do today for France?" resolves via the France token. General France questions + "what's my goal weight?" are still NOT stolen.
+
+**DC#2 — real production "Good morning" failure (release blocker).** Repository evidence: the live chat path and the Acceptance path are THE SAME (`ChatGPTCoSService.generate` → `route_message`; the emergency-fallback message is from `service.py`). No production-path divergence and no feature-flag split. "Good morning" failed only because NO deterministic lane covered it → tool loop → (OpenAI hiccup) → emergency fallback. Fix: `_cos_briefing_lane` now claims greetings/morning entry points ("good morning", "morning", "start my day", "how is my day looking?", time-constrained "if I only have 30 minutes…") via `_is_greeting` + signals → deterministic `build_daily_agenda`; a morning greeting NEVER reaches the tool loop, with OpenAI disabled.
+
+**DC#3 — Acceptance coverage gap.** The real failure proves Deep never tested "Good morning". Added the morning CoS scenario to the Deep bank (Good morning / how is my day looking / what could derail me today / 30-minutes) + a scenario regression that validates deterministic, non-empty, non-outage, banned-free answers with OpenAI disabled.
+
+**Prompt-generation.** `FAILURE_CLASSIFICATION` gains `production-path divergence` and `acceptance coverage gap` as first-class diagnostic options for when a real user report contradicts a GREEN run.
+
+**Files:** apps/ai/chatgpt_cos/reasoning/plan.py, lanes.py, foundational_facts.py, acceptance_rules.py, acceptance_service.py. Tests: apps/ai/tests/test_p29_morning_and_precedence.py (new). Docs: ENGINE_COS_REFERENCE.md, release_notes.json (pk).
+
+**Verification:** OpenAI-disabled probe — all 5 DC#1 Deep questions + semantic variants resolve to the correct goal intent; all morning/greeting/scenario phrases answer deterministically (cos_briefing/personal_reasoning, never an outage message); general France + "my goal weight" still not stolen. 347-test regression green; `check` clean; no migration; health byte-identical (signals additive).
+
+
 ## 2026-06-27 — feat(cos): P27 Deep convergence — goal identity resolution + capability-gap classification
 
 Architectural finalization toward beth-stable-v3. Generalized the architecture (not phrases), evidenced by an OpenAI-disabled routing probe with a real primary-mission goal.

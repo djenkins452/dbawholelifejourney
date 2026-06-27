@@ -233,6 +233,7 @@ _GOAL_FRAMING = (
     "milestone", "confiden", "focus", "next step", "derail", "watch", "slipping",
     "priority", "achieve", "on track", "how is", "how's", "hows", "how am i doing",
     "move this", "move it", "goal", "mission", "succeed", "make it",
+    "should i do", "do today", "do for", "work on", "next move", "advance",
 )
 
 
@@ -274,10 +275,14 @@ def _infer_named_goal_intent(text):
                             "chance of", "likely to achieve", "odds of", "probability",
                             "going to make it")):
         return "goal_confidence"
-    # Failure-mode analysis. (In a named-goal context, "fail" is unambiguous.)
+    # Failure-mode analysis. (In a named-goal context, "fail"/"threat" is unambiguous.)
+    # NOTE: checked BEFORE biggest_goal_risk so "biggest THREAT" is a failure-mode
+    # question, not a single-risk question.
     if any(k in t for k in ("fail", "cause this", "cause the", "cause it to",
                             "go wrong", "derail", "what would stop", "what could stop",
-                            "what might stop", "fall apart", "blow this", "give up on")):
+                            "what might stop", "fall apart", "blow this", "give up on",
+                            "threat", "threaten", "watch out for", "watch out", "jeopard",
+                            "what could hurt", "knock me off")):
         return "goal_failure_modes"
     # Strategic rationale — why it's the priority.
     if ("why" in t and any(k in t for k in ("priority", "matter", "matters",
@@ -289,24 +294,29 @@ def _infer_named_goal_intent(text):
                             "what phase", "comes next", "next checkpoint",
                             "what's after", "whats after", "where should i be next")):
         return "goal_next_milestone"
-    # Trajectory — on track / on pace.
+    # Trajectory — on track / on pace / behind. ("behind" is a TRAJECTORY verdict,
+    # not a slipping-concerns list.)
     if any(k in t for k in ("on track", "on pace", "on schedule", "behind schedule",
                             "still on track", "make it in time", "going to make it",
-                            "will i finish in time")):
+                            "will i finish in time", "behind", "am i behind",
+                            "falling behind", "fallen behind", "keeping pace", "caught up")):
         return "goal_on_track"
-    # Focus today.
+    # Focus today / move-the-needle action.
     if any(k in t for k in ("what should i do", "focus on today", "do today",
                             "work on today", "action today", "next step today",
                             "what should i focus", "focus on", "focus for",
-                            "what to focus", "where to focus")):
+                            "what to focus", "where to focus", "work on", "what should i work",
+                            "next move", "best move", "advance", "move the needle",
+                            "highest leverage", "highest-leverage", "move this forward",
+                            "move it forward")):
         return "goals_focus_today"
     # Single biggest risk.
     if any(k in t for k in ("biggest", "most at risk", "at risk", "worried",
                             "in trouble")):
         return "biggest_goal_risk"
-    # Slipping / concerns.
+    # Slipping / concerns. ("behind on" removed — trajectory is owned by on_track.)
     if any(k in t for k in ("concerns", "slipping", "stalling", "stalled",
-                            "problems with", "behind on")):
+                            "problems with", "drifting", "needs attention")):
         return "goal_concerns"
     # Default — progress summary.
     return "goals_progress"

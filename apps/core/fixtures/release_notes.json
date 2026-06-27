@@ -3430,5 +3430,21 @@
       "created_at": "2026-06-27T12:00:00Z",
       "updated_at": "2026-06-27T12:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 215,
+    "fields": {
+      "title": "Say “Good morning” and your Chief of Staff gives you a real morning briefing",
+      "description": "Greeting your Chief of Staff — “Good morning”, “start my day”, “how is my day looking?” — now always returns a real briefing of your day drawn from your own schedule and priorities, even in the rare moments the AI service is briefly busy. You’ll never get a “try again later” message for your morning check-in. Questions about a specific goal (“what comes next on my mission?”, “am I behind?”, “what could derail me today?”) now land on the right answer more reliably, even when phrased loosely.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-06-27",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-06-27T13:00:00Z",
+      "updated_at": "2026-06-27T13:00:00Z"
+    }
   }
 ]

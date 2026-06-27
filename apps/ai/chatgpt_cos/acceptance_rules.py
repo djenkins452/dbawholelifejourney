@@ -287,7 +287,15 @@ def _checkin_questions():
                  ("checkin_know", "what should I know today?"),
                  ("checkin_attention", "what needs my attention?"),
                  ("checkin_plan", "help me plan the rest of the day"),
-                 ("checkin_wrap", "wrap up my day")]:
+                 ("checkin_wrap", "wrap up my day"),
+                 # P29 morning CoS scenario — the real production "Good morning" path.
+                 # These MUST answer deterministically (no assistant-unavailable msg).
+                 ("morning_greet", "Good morning"),
+                 ("morning_greet_beth", "good morning Beth"),
+                 ("morning_day", "How is my day looking?"),
+                 ("morning_start", "start my day"),
+                 ("morning_derail", "What could derail me today?"),
+                 ("morning_thirty", "If I only have 30 minutes, what should I do?")]:
         out.append(_q(k, t, "clarification", "deep"))
     return out
 

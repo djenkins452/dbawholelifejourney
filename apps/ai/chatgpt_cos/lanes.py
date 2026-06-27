@@ -85,17 +85,39 @@ _BRIEFING_SIGNALS = (
     "full check-in", "full check in", "give me a briefing", "brief me",
     "daily briefing", "what's on my plate", "whats on my plate",
     "where do things stand", "how's my day", "hows my day", "rest of my day",
+    # Morning / greeting CoS entry points (P29 DC#2): a greeting is a request for
+    # the deterministic morning briefing — it must never fall to the tool loop.
+    "good morning", "good afternoon", "good evening", "morning beth",
+    "start my day", "start the day", "begin my day", "kick off my day",
+    "how is my day looking", "how's my day looking", "hows my day looking",
+    "how is my day", "my day looking", "how does my day look", "what's my day like",
+    # Time-constrained prioritization ("if I only have 30 minutes…") — the daily
+    # agenda IS the prioritized-next-action answer (P29 DC#3 morning scenario).
+    "if i only have", "i only have", "only have 30", "only have an hour",
+    "30 minutes", "limited time", "short on time", "pressed for time",
+    "if i have 30", "only got", "if i've got",
 )
+
+# A bare greeting (possibly addressed to the assistant) is a morning-briefing entry.
+_GREETING_PREFIXES = ("good morning", "good afternoon", "good evening", "morning",
+                      "gm beth", "hey beth", "hi beth", "hello beth")
+
+
+def _is_greeting(norm):
+    if norm in ("morning", "gm", "good morning", "good evening", "good afternoon"):
+        return True
+    return any(norm.startswith(p) for p in _GREETING_PREFIXES)
 
 
 def _cos_briefing_lane(user, message, conversation=None):
-    """Deterministic CoS briefing/check-in (P26 DC#1). 'What needs my attention?',
-    'help me plan the rest of the day', 'wrap up my day', 'what should I know
-    today' — answered from the deterministic daily agenda (rhythm + executive
-    summary). ALWAYS non-empty, NO OpenAI: a CoS capability Beth already has the
-    truth for must never depend on the LLM or fall to the tool loop."""
+    """Deterministic CoS briefing/check-in (P26 DC#1 + P29 DC#2). 'Good morning',
+    'what needs my attention?', 'help me plan the rest of the day', 'wrap up my
+    day', 'how is my day looking?' — answered from the deterministic daily agenda
+    (rhythm + executive summary). ALWAYS non-empty, NO OpenAI: a CoS capability
+    Beth already has the truth for must never depend on the LLM or fall to the
+    tool loop."""
     norm = _normalize(message)
-    if not any(s in norm for s in _BRIEFING_SIGNALS):
+    if not (any(s in norm for s in _BRIEFING_SIGNALS) or _is_greeting(norm)):
         return None
     try:
         from apps.core.cos_briefing.daily_agenda import build_daily_agenda
@@ -109,14 +131,22 @@ def _cos_briefing_lane(user, message, conversation=None):
             "lane": "cos_briefing"}
 
 
+# A request grounded to a goal/mission is OWNED by Goals — these markers all resolve
+# in the goal pre-router (deictic or milestone), so yielding here never drops the
+# request (P29 DC#1: goal grounding beats the generic schedule rhythm).
+_GOAL_GROUNDED_MARKERS = (
+    "this goal", "that goal", "this mission", "that mission", "my mission",
+    "the mission", "our mission", "milestone", "next phase", "next checkpoint",
+)
+
+
 def _next_rhythm_lane(user, message, conversation=None):
     norm = _normalize(message)
     if not any(s in norm for s in _NEXT_RHYTHM_SIGNALS):
         return None
-    # A goal question that happens to contain "next" ("what's my next milestone")
-    # is owned by Goals, not the schedule rhythm — let it fall through to the goal
-    # pre-router rather than being answered with the next calendar item.
-    if "milestone" in norm or "next phase" in norm or "next checkpoint" in norm:
+    # A goal/mission-grounded question ("what comes next in this mission") is owned
+    # by Goals, not the schedule rhythm — yield to the goal pre-router.
+    if any(g in norm for g in _GOAL_GROUNDED_MARKERS):
         return None
     try:
         from apps.core.cos_briefing.rhythm_api import (

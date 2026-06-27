@@ -167,6 +167,13 @@ def classify_foundational_fact(message):
     if external_general_signal(message):
         return None
     text = str(message).lower()
+    # PROGRESSION questions ("what's after Goal Weight 284.9?") are milestone-
+    # sequence questions owned by Goals, NOT current-fact lookups — even though the
+    # milestone NAME contains a fact keyword like "weight" (P29 DC#1).
+    if any(c in text for c in ("what's after", "whats after", "what is after",
+                               "what comes after", "next after", "after goal weight",
+                               "comes next in", "next milestone", "next phase")):
+        return None
     for key, keywords in _FACT_KEYWORDS:
         for kw in keywords:
             if kw in text:

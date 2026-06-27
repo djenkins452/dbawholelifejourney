@@ -7,6 +7,31 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — docs: Medication Intelligence planning baseline — Design Assurance corrections + Canon freeze
+
+Final design-assurance pass on the Medication & Supplement Intelligence v2 planning package (Architecture, Gap Analysis, UX, Roadmap, Canon). An adversarial cross-document review raised verdict **B — Ready with minor corrections**; this commit applies the 12 verified documentation reconciliations to raise it to **A — Ready for implementation**. Documentation-only; no code, schema, or roadmap redesign.
+
+**Corrections applied (C1–C12):**
+- **C1** Reconciled Phase 1 to Phase 2 provider ownership — standalone `Provider` model CANCELLED (struck-through + SUPERSEDED banner); reuse `apps.health.MedicalProvider` via an `Intake.provider` FK.
+- **C2** D5 acceptance criterion hardened: the EAE + two `dashboard_v2` expected-dose enumerators are **deleted** and call the single `medicine_utils._enumerate_expected_doses` (single authorship, not mere parity).
+- **C3** Duplicate detection (E3-S6) moved into Sprint 3 WITH the Confidence Review screen, gating the confirm-write — no silent duplicate Intake can be created.
+- **C4** Resolved O-8 (dedicated `Pharmacy` model, not `MedicalProvider`), O-9 (`MedicationEvent` = clinical history; audit log = operational only), O-10 (`DrugClass` + its FK deferred together to Sprint 8).
+- **C5** Completed "Experiment Engine" → "Learning Plans" terminology migration across Phase 1/2/3 titles.
+- **C6** Standardized `Allergy` → `DrugAllergy` everywhere.
+- **C7** Reconciled MLP/Physician-PDF timing (full MLP completes ~Sprint 9; daily-use core ~Sprint 7).
+- **C8** Fixed Phase 1 provider cross-reference (O-3 → O-1).
+- **C9** Added Chief-of-Staff naming note to the UX doc ("Beth" in-doc renders as "Chief of Staff" in shipped strings).
+- **C10** Bound three single-author rules to story ACs: momentum reuses `medicine_utils`/existing signals (a); single `record_medication_change()` writer for the Intake+ledger dual-write (b); Evidence envelope normalizes existing `evidence` JSON in place, no parallel store (c).
+- **C11** `TreatmentPlan` kept domain-agnostic (not `IntakeTreatmentPlan`), therapy linkage designed to become polymorphic for the future Treatment Intelligence layer.
+- **C12** Canon §3 Treatment Goal / Treatment Outcome operationalized within `TreatmentPlan`; standalone models explicitly deferred to Level-5.
+
+**Verdict: A — Ready for implementation.** The Canon is frozen as the governing philosophical document; changes to it require explicit architectural review. Planning for Medication Intelligence is complete; work transitions to implementation beginning with Sprint 1 (Stabilization & Dashboard Foundation).
+
+**Files:** docs/MEDICATION_INTELLIGENCE_CANON.md (new — frozen), docs/MEDICATION_SUPPLEMENT_INTELLIGENCE_V2.md (Phase 1, amended), docs/MEDICATION_SUPPLEMENT_INTELLIGENCE_V2_PHASE2.md (new), docs/MEDICATION_SUPPLEMENT_INTELLIGENCE_V2_PHASE3_UX.md (new), docs/MEDICATION_SUPPLEMENT_INTELLIGENCE_V2_PHASE4_ROADMAP.md (new). This commit is the official baseline for Medication Intelligence implementation.
+
+**Why:** establishes a single internally-consistent, drift-free planning baseline before implementation begins.
+
+
 ## 2026-06-27 — fix(cos): health-risk deterministic capability gap (full/deep RED → routing closed)
 
 Production full/deep RED (2 critical): biggest_health_risk__1 ("What health issue concerns you most?") and __2 ("What is the main health problem I should focus on?") returned the assistant-unavailable message (openai=False, intent/lane/fallback all missing).

@@ -149,7 +149,7 @@ The target canonical model. Models marked **(exists)** are kept; **(extend)** ga
 
 ### 6.1 Core records
 
-- **`Intake`** *(exists, extend)* — `apps/health/models.py:2282`. Current truth for an actively-tracked substance. Already unified (`intake_type` med/supplement), with dose, frequency, schedule linkage, refill/supply, provider/pharmacy free-text fields, status lifecycle. **Extend with:** `ndc_code`, `strength` (structured: value+unit, distinct from free-text `dose`), `sig_text` (verbatim SIG/instructions as written), `drug_class` (FK → `DrugClass`), `provider` (FK → `Provider`, replacing free-text), `pharmacy` (FK → `Pharmacy`), `current_event` (FK → latest `MedicationEvent`), `expiration_date`, `monitoring_requirements` (e.g., "A1c q3mo"). Free-text fields are retained for backward-compat and downgraded to fallbacks.
+- **`Intake`** *(exists, extend)* — `apps/health/models.py:2282`. Current truth for an actively-tracked substance. Already unified (`intake_type` med/supplement), with dose, frequency, schedule linkage, refill/supply, provider/pharmacy free-text fields, status lifecycle. **Extend with:** `ndc_code`, `strength` (structured: value+unit, distinct from free-text `dose`), `sig_text` (verbatim SIG/instructions as written), `drug_class` (FK → `DrugClass`), `provider` (FK → existing `apps.health.MedicalProvider` — see §6.3; replacing free-text), `pharmacy` (FK → `Pharmacy`), `current_event` (FK → latest `MedicationEvent`), `expiration_date`, `monitoring_requirements` (e.g., "A1c q3mo"). Free-text fields are retained for backward-compat and downgraded to fallbacks.
 
 - **`IntakeSchedule`** *(exists)* — dosing plan. Consider promoting to `SoftDeleteModel` to fix the cascade-asymmetry noted in the audit (low priority).
 
@@ -159,19 +159,21 @@ The target canonical model. Models marked **(exists)** are kept; **(extend)** ga
 
 - **`MedicationEvent`** *(new — the cornerstone)* — append-only, immutable ledger. One row per clinically-meaningful change. Fields: `intake` (FK), `event_type` (started | stopped | paused | resumed | dose_increased | dose_decreased | frequency_changed | provider_changed | pharmacy_changed | formulation_changed | discontinued), `effective_date`, `previous_value` / `new_value` (JSON snapshots of the changed attribute), `reason` (provider_directed | side_effect | cost | effectiveness | user_choice | other), `reason_detail`, `provider` (FK, nullable), `source` (manual | scan | pharmacy_doc | cos_confirmed), `recorded_at`. **Never updated, never hard-deleted** (correction = a new compensating event). This is what powers the Timeline (Section 5/§ Medication Timeline) and treatment-effectiveness reasoning.
 
-- **`TreatmentPlan`** *(new)* — groups one or more `Intake`s pursuing a shared clinical goal (e.g., "Type 2 diabetes management" = Mounjaro + Lantus + metformin). Fields: `name`, `condition` (FK → `MedicalCondition`), `goal_narrative`, `started_date`, `status`, `primary_provider` (FK). Enables "is *this treatment* working" rather than "is this pill working," and frames cross-domain observations.
+- **`TreatmentPlan`** *(new)* — groups one or more therapies pursuing a shared clinical goal (e.g., "Type 2 diabetes management" = Mounjaro + Lantus + metformin). Fields: `name`, `condition` (FK → `MedicalCondition`), `goal_narrative`, `started_date`, `status`, `primary_provider` (FK). Enables "is *this treatment* working" rather than "is this pill working," and frames cross-domain observations. **Naming & future-proofing (per Canon §2):** the name stays **`TreatmentPlan`** — domain-agnostic, NOT `IntakeTreatmentPlan` — because this is the seam where the future Treatment Intelligence layer (Canon §9 Level 5) composes non-medication therapies. In v2 its therapy linkage is `Intake`-only; its membership is designed to become **polymorphic** (a future `Therapy` reference) without a rename, so a CPAP, PT regimen, or diet protocol can later join a plan additively. **Canon concept mapping (C12):** the Canon §3 concepts **Treatment Goal** and **Treatment Outcome** are operationalized in v2 *within* `TreatmentPlan` — Treatment Goal = the `goal_narrative` (+ a structured target field if needed), Treatment Outcome = the relevant biometric series read from canonical health models (labs/weight/glucose), surfaced as the `treatment` momentum verdict. Promoting them to **standalone models is explicitly deferred to the Treatment Intelligence layer (Canon §9 Level 5)**, where multiple therapies share a goal; they are not orphaned, they are Level-5 concepts not yet given their own tables.
 
 ### 6.3 People, places, prescriptions
 
-- **`Provider`** *(new — verify against `apps/medical`)* — prescribing physician. Fields: `name`, `specialty`, `practice`, `phone`, `notes`. *Open question O-3: a provider concept may already exist in `apps/medical`; reconcile before creating.*
-- **`Pharmacy`** *(new)* — `name`, `phone`, `address`, `rx_account`.
+> **SUPERSEDED by Phase 2 (provider ownership).** The evidence pass in Phase 2 §6.6 established that a prescribing-provider model **already exists** — `apps.health.MedicalProvider` (+ `ProviderStaff`). The standalone `Provider` model proposed below is **CANCELLED**; reuse `MedicalProvider` and add an `Intake.provider` FK to it. The entry is retained, struck through, for historical traceability only. Phase 2 is authoritative on this point.
+
+- **~~`Provider` *(new)*~~ → REUSE `apps.health.MedicalProvider`** *(resolved by Phase 2 §6.6; see Open Question **O-1**)* — prescribing physician already modeled (contact, NPI, specialty incl. pharmacy) with `ProviderStaff`. Do **not** create a new `Provider` model; bridge via a nullable `Intake.provider` FK → `MedicalProvider`, keeping free-text `prescribing_doctor` as a fallback.
+- **`Pharmacy`** *(new — resolved by Phase 2 O-8: a dedicated lightweight model, NOT `MedicalProvider` specialty=pharmacy)* — `name`, `phone`, `address`, `rx_account`. A given pharmacy is represented in `Pharmacy` only, never duplicated as a `MedicalProvider` row.
 - **`Prescription`** *(new)* — the prescription record distinct from the substance: `intake` (FK), `provider` (FK), `pharmacy` (FK), `rx_number`, `written_date`, `quantity`, `refills_authorized`, `refills_remaining`, `expiration_date`, `sig_text`. Multiple prescriptions over time map to the same `Intake` via `MedicationEvent`s.
 
 ### 6.4 Clinical context
 
 - **`DrugClass`** *(new, reference data)* — `name`, `class_type` (e.g., GLP-1 agonist, basal insulin, statin), `monitoring_defaults`, `common_side_effects` (reference list, **not** user truth). Curated catalog, like `LabTestCatalog`.
-- **`MedicalCondition`** *(new — verify against `apps/medical`)* — user's conditions; links treatments to indications.
-- **`Allergy`** *(new — verify against `apps/medical`)* — substance + reaction; powers interaction/duplicate warnings.
+- **`MedicalCondition`** *(new — confirmed absent by Phase 2 §2.3; `apps/medical` is labs-only)* — user's conditions; links treatments to indications.
+- **`DrugAllergy`** *(new — confirmed absent by Phase 2 §2.3; the only existing "allergies" are dietary JSON)* — substance + reaction; powers interaction/duplicate warnings. *(Canonical name standardized to `DrugAllergy` across all phases.)*
 - **`SideEffectReport`** *(new)* — user-reported, never inferred: `intake` (FK), `symptom`, `severity`, `started_date`, `ongoing`, `notes`. Distinct from the `DrugClass.common_side_effects` reference list. *(Audit found no side-effect field exists today; this fills the §5 Beth blind spot.)*
 
 ### 6.5 Images & staging
@@ -332,7 +334,7 @@ Beth **never** diagnoses, prescribes, recommends a dose/medication change, inter
 
 ---
 
-## 11. Experiment Framework
+## 11. Learning Plans *(formerly "Experiment Framework"; canonical user-facing name per Canon §3 — internal models `IntakeExperiment`/`ExperimentObservation`)*
 
 A genuinely new capability: Beth helps the user **learn what works for their body** through structured, deterministic, time-boxed observation. **Not** prescription, **not** clinical trial — personal pattern discovery.
 
@@ -375,7 +377,7 @@ One-click, evidence-grade export for clinical visits.
 
 - **PDF / printable** — reuse the `apps/capture/services/pdf.py` template→bytes pattern. **Constraint:** WeasyPrint is used there but **not in `requirements.txt`**; Physician Mode must add WeasyPrint (or reportlab) as an explicit dependency. *(Grounding finding.)*
 - **Structured export** — extend the existing GDPR export (`apps/users/services/data_export.py`, which already serializes `Intake`/`IntakeLog`) with the new history/treatment models.
-- **FHIR (Phase 7+, optional)** — no FHIR exists today (greenfield). If pursued, map `Intake`→`MedicationStatement`, `Prescription`→`MedicationRequest`, `LabResult`→`Observation`, `Allergy`→`AllergyIntolerance`, `Provider`→`Practitioner`. Treated as a later-phase enhancement, not v2 core.
+- **FHIR (Phase 7+, optional)** — no FHIR exists today (greenfield). If pursued, map `Intake`→`MedicationStatement`, `Prescription`→`MedicationRequest`, `LabResult`→`Observation`, `DrugAllergy`→`AllergyIntolerance`, `MedicalProvider`→`Practitioner`. Treated as a later-phase enhancement, not v2 core.
 
 ### 12.3 Safety framing
 
@@ -486,7 +488,7 @@ The path from today to v2, ordered for least disruption. **Additive-compatible**
 
 1. **Stabilize first (Phase 2 prerequisites).** Fix D1 (dead subscriber → real `rules_medicine.py`), D2 (chart → `medicine_utils`), D5 (collapse expected-dose copies). These are correctness fixes that v2 depends on; they ship before new features.
 2. **History without disruption.** Introduce `MedicationEvent` as a *parallel* ledger. Backfill a single "started" event per existing `Intake` from `start_date`. From then, every create/update/pause/complete writes an event. `Intake` behavior is unchanged for readers until the timeline UI consumes the ledger.
-3. **Structured fields are additive.** New `Intake` fields (`ndc_code`, `strength`, FKs to `Provider`/`Pharmacy`) are nullable; free-text fields remain as fallbacks. Migrate free-text → FK opportunistically, never destructively.
+3. **Structured fields are additive.** New `Intake` fields (`ndc_code`, `strength`, FKs to the existing `MedicalProvider` and the new `Pharmacy`) are nullable; free-text fields remain as fallbacks. Migrate free-text → FK opportunistically, never destructively.
 4. **Staging replaces the prefill URL gradually.** `MedicationScanDraft` is introduced behind the existing scan path; the review screen becomes the new confirm step. The old URL-prefill remains functional until the draft flow is proven.
 5. **Signals extend existing seams.** New EAE types, CDCE detectors, and `_DETECTORS` entries are pure additions to existing lists — no existing signal changes behavior.
 6. **State contract grows, never breaks.** New `_contract` sections are additive; existing keys (`medication_status`, etc.) are untouched, preserving Beth's current behavior.
@@ -516,7 +518,7 @@ No canonical model is rebuilt. No existing reader breaks. Every phase is indepen
 
 ## 18. Open Questions
 
-- **O-1 — `Provider`/`MedicalCondition`/`Allergy` ownership.** Do these already exist in `apps/medical`? If so, reference them rather than creating duplicates (Single Source of Truth). *Must verify before Phase 3 modeling.*
+- **O-1 — `Provider`/`MedicalCondition`/`DrugAllergy` ownership. RESOLVED (Phase 2 §2/§6.6).** Provider **exists** → reuse `apps.health.MedicalProvider`; `MedicalCondition` and `DrugAllergy` are **absent** → new models in `apps/health`. `apps/medical` is labs-only. No duplicate ownership.
 - **O-2 — Domain home for new models.** Do the history/treatment models live in `apps/health` (alongside `Intake`) or a new `apps/medication`? Recommendation: keep in `apps/health` to avoid a cross-app FK web and respect "one medicine domain," unless `apps/medical` already owns providers/conditions.
 - **O-3 — Image retention default.** Opt-in (recommended, privacy-preserving) vs opt-out. Confirms PHI posture.
 - **O-4 — Experiment trigger detection.** How automatically should experiment triggers fire (e.g., "ride > 60 min")? Fully automatic from `WorkoutSession`, or user-confirmed each iteration? Recommendation: auto-detect, user-confirm capture.
@@ -533,10 +535,10 @@ Phase 1 (this document) is complete. The remaining phases, in dependency order:
 | Phase | Title | Gate / dependency | Promotion trigger |
 |-------|-------|-------------------|-------------------|
 | **2** | **Stabilize & Gap-Close** | Fix D1, D2, D5; confirm O-1/O-2 ownership; full gap analysis vs this spec | Defects fixed + ownership decided |
-| **3** | **Data Model Evolution** | `MedicationEvent` ledger (+ backfill), structured `Intake` fields, `Provider`/`Pharmacy`/`Prescription`/`TreatmentPlan`/`SideEffectReport`; state-contract `treatment` section | Phase 2 green; migrations additive & reversible |
+| **3** | **Data Model Evolution** | `MedicationEvent` ledger (+ backfill), structured `Intake` fields, reuse `MedicalProvider` (FK bridge) + new `Pharmacy`/`Prescription`/`TreatmentPlan`/`MedicalCondition`/`DrugAllergy`/`SideEffectReport`; state-contract `treatment` section | Phase 2 green; migrations additive & reversible |
 | **4** | **Image-First Ingestion** | `MedicationScanDraft` + review/confirm workflow; pharmacy-doc parsing; consent for image retention | Phase 3 canonical model stable |
 | **5** | **Beth Intelligence** | Extended `_contract` (observations, momentum, monitoring); safety classifier; visibility blind-spots closed | Phases 3–4 feeding real data |
-| **6** | **Experiment Engine** | `IntakeExperiment`/`ExperimentObservation`; deterministic summarizer; trigger detection | Phase 5 narration proven safe |
+| **6** | **Learning Plans** *(user-facing name; models `IntakeExperiment`/`ExperimentObservation`)* | `IntakeExperiment`/`ExperimentObservation`; deterministic summarizer; trigger detection | Phase 5 narration proven safe |
 | **7** | **Physician Mode** | PDF (add WeasyPrint), structured export extension; optional FHIR | Phases 3–6 producing exportable evidence |
 | **8** | **Advanced Cross-Domain Intelligence** | New CDCE detectors, PRIE forecasts, predictive observations, treatment-learning | All prior phases stable; sufficient longitudinal data |
 

@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — fix(cos): three Goals reasoning defects (watch-vs-risk, slipping filter, no generic actions)
+
+Production validation defects, all in the goals quality layer (no new architecture/truth):
+
+**Defect 1 — healthy goals labeled as risks.** `biggest_goal_risk` now distinguishes RISK from WATCH by canonical state: drifting/stalled/failing/overdue are real risks; thriving/stable are watch items. A healthy goal returns "No significant risks right now. <watch item>." instead of being called the biggest risk. Each ranked concern now carries `kind` (risk/watch) and `state`. (Also fixed a `.capitalize()` bug that lowercased the goal name.)
+
+**Defect 2 — "which goals are slipping?" returned healthy goals.** `goal_concerns` now filters to states drifting/stalled/failing ONLY; thriving/stable never appear. Zero slipping → honest "None of your active goals appear to be slipping right now. All active goals are showing stable or positive momentum…".
+
+**Defect 3 — generic focus recommendations.** Removed every generic placeholder ("take the (concrete) next step", "make progress", "work on/advance your goal", "take one step", "take your first action"). `recommended_action` precedence is now: strongest negative driver → active-milestone DESCRIPTION (the user's own plan) → execution lever among drivers → else `None`. When no concrete action is derivable, Beth states it honestly ("its current milestone has no defined next action yet — add one…") rather than emitting a placeholder. A banned-phrase guard (`_is_generic_action`) sanitizes any generic action to the honest statement.
+
+**Files:** `apps/core/ai_state/state_builder.py` (action precedence uses milestone description; returns None when none derivable), `apps/ai/chatgpt_cos/reasoning/stages.py` (kind/state on concerns, watch-vs-risk fallback, slipping filter, concrete-or-honest focus), `apps/ai/tests/test_goals_reasoning.py`. Canonical engines only (P24); no recompute; no model change — no migration; Health byte-identical.
+
+**Verification:** 83 goals tests (watch-not-risk for stable/thriving, drifting/stalled/failing are real risks, slipping excludes healthy + honest none-message, banned phrases never in focus across all five states, honest-when-generic, kind/state on concerns) + 210-test reasoning/lane/facts/mission regression all green; `check` clean; `makemigrations --check` = no changes.
+
+
 ## 2026-06-26 — refine(cos): Chief-of-Staff quality for Goals reasoning (states + leverage + no generic)
 
 Quality pass on Goals reasoning (no new domains/architecture/P25). Four refinements:

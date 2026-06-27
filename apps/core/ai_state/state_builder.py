@@ -1572,7 +1572,7 @@ def build_goal_state(user):
         return "strong" if s >= 67 else "moderate" if s >= 34 else "low"
 
     def _evidence_from_snapshot(snap, phase=None, has_milestones=False,
-                                is_overdue=False):
+                                is_overdue=False, milestone_detail=None):
         """Goal Evidence Narrative composed from the persisted nightly snapshot
         (READ-ONLY — never recomputed here): goal STATE, current phase, success/
         risk drivers, momentum summary, and the highest-leverage next action. Each
@@ -1628,6 +1628,10 @@ def build_goal_state(user):
         # Highest-leverage next action (Task 3 precedence): strongest negative
         # driver → active-milestone execution lever → milestone-grounded step.
         # Milestoned goals NEVER get generic/habit advice (Tasks 1 & 4).
+        # Highest-leverage action (Defect 3 precedence): strongest negative driver
+        # → active-milestone DESCRIPTION → execution lever among drivers. NEVER a
+        # generic placeholder — if none derivable, rec stays None and the reasoning
+        # layer states that honestly.
         neg = " ".join(risk).lower()
         alld = " ".join(success + risk).lower()
         rec = None
@@ -1643,16 +1647,15 @@ def build_goal_state(user):
             if kw in neg:
                 rec = act
                 break
+        if rec is None and milestone_detail:
+            # The user's own milestone plan — already concrete and goal-specific.
+            rec = milestone_detail
         if rec is None and ("workout" in alld or "exercise" in alld):
             rec = "complete today's scheduled workout"   # the milestone's execution lever
-        if rec is None and phase:
-            rec = f"take the concrete next step on your current milestone, \"{phase}\""
-        if rec is None and has_milestones:
-            rec = "take the concrete next step on your current milestone"
-        if rec is None:
-            # Truly no milestone and no driver evidence — the ONE acceptable
-            # "planning" nudge (Task 1: only when planning genuinely absent).
+        if rec is None and not has_milestones and not phase:
+            # Truly no milestone and no driver — the ONE acceptable planning nudge.
             rec = "define your first milestone so this goal has a concrete next step"
+        # else rec stays None -> honest "no defined next action" downstream.
 
         return {
             "state": state,
@@ -1700,7 +1703,8 @@ def build_goal_state(user):
             'is_foundational': bool(is_foundational),
             'context': ctx,
             'evidence': _evidence_from_snapshot(
-                latest_snap.get(goal.id), phase, ctx["has_milestones"], is_overdue),
+                latest_snap.get(goal.id), phase, ctx["has_milestones"], is_overdue,
+                ctx.get("active_milestone_detail")),
         }
         active_titles.append(entry)
         if target:
@@ -1743,7 +1747,8 @@ def build_goal_state(user):
             "evidence": _evidence_from_snapshot(
                 snap, m_ctx["current_phase"] or (nm.title if nm else None),
                 m_ctx["has_milestones"],
-                bool(m_target and m_target < today)),
+                bool(m_target and m_target < today),
+                m_ctx.get("active_milestone_detail")),
         }
 
     return state

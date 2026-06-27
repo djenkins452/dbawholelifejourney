@@ -44,10 +44,10 @@ GOALS_FIXTURE = {
                           "recommended_action": "keep your current routine going and log today's progress",
                           "as_of": "2026-06-25"}},
             {"title": "Write a book", "target_date": "2026-12-01", "is_foundational": False,
-             "evidence": {"state": "stable", "momentum": "moderate", "trend": "stable",
-                          "phase": "Drafting", "momentum_summary": "steady momentum",
-                          "success_drivers": ["2 milestones completed"], "risk_drivers": [],
-                          "recommended_action": "take the next concrete step toward \"Drafting\"",
+             "evidence": {"state": "drifting", "momentum": "moderate", "trend": "falling",
+                          "phase": "Drafting", "momentum_summary": "steady momentum but slipping",
+                          "success_drivers": [], "risk_drivers": ["writing cadence has dropped"],
+                          "recommended_action": "write for 30 focused minutes today",
                           "as_of": "2026-06-25"}},
         ],
         "upcoming_titles": [{"title": "Finish chapter 3", "days_remaining": 4}],
@@ -674,6 +674,89 @@ class GoalStateRiskTests(SimpleTestCase):
 
 
 # ---------------------------------------------------------------------------
+# Defects 1–3 — stable/thriving are watch items (not risks); slipping filters to
+# drifting/stalled/failing; focus is always concrete-or-honest, never generic.
+# ---------------------------------------------------------------------------
+class GoalsDefectFixesTests(SimpleTestCase):
+    _BANNED = ("take the next step", "take the concrete next step", "make progress",
+               "work on your goal", "work on the goal", "advance your goal",
+               "advance the goal", "take one step", "take your first action")
+
+    def _fx(self, state, momentum, trend,
+            action="complete today's scheduled workout", overdue=False):
+        ev = {"state": state, "momentum": momentum, "trend": trend, "phase": "Phase",
+              "momentum_summary": momentum + " momentum", "success_drivers": [],
+              "risk_drivers": [], "recommended_action": action}
+        gs = {"active_goal_count": 1, "completion_rate": 0.5,
+              "overdue_goal_count": 1 if overdue else 0,
+              "active_titles": [{"title": "My Goal", "target_date": None, "evidence": ev}],
+              "upcoming_titles": [],
+              "overdue_titles": [{"title": "My Goal", "days_overdue": 3}] if overdue else [],
+              "mission": {"title": "My Goal", "evidence": ev}}
+        return {"goals_state": {"state": gs},
+                "habits_state": {"state": {"active_habit_count": 1,
+                                           "avg_completion_rate": 0.6,
+                                           "streaks_per_habit": []}}}
+
+    # ---- Defect 1: healthy goals are watch items, not risks ----
+    def test_stable_goal_is_watch_not_risk(self):
+        out = stages._goal_risk_fallback(_wm(self._fx("stable", "moderate", "stable")))
+        self.assertIn("no significant risks", out.lower())
+        self.assertNotIn("biggest risk", out.lower())
+        self.assertIn("My Goal", out)               # name preserved, not lowercased
+
+    def test_thriving_goal_is_watch_not_risk(self):
+        out = stages._goal_risk_fallback(_wm(self._fx("thriving", "strong", "rising")))
+        self.assertIn("no significant risks", out.lower())
+        self.assertIn("consistency", out.lower())
+
+    def test_drifting_goal_is_a_real_risk(self):
+        out = stages._goal_risk_fallback(_wm(self._fx("drifting", "moderate", "falling")))
+        self.assertIn("biggest risk", out.lower())
+
+    # ---- Defect 2: slipping filters to drifting/stalled/failing only ----
+    def test_slipping_excludes_healthy_goals(self):
+        for state in ("thriving", "stable"):
+            out = stages._goal_concerns_fallback(_wm(self._fx(state, "moderate", "stable")))
+            self.assertIn("none of your active goals appear to be slipping", out.lower())
+            self.assertIn("stable or positive momentum", out.lower())
+
+    def test_slipping_includes_unhealthy_goals(self):
+        for state, m, t in (("drifting", "moderate", "falling"),
+                            ("stalled", "low", "stable"), ("failing", "low", "falling")):
+            out = stages._goal_concerns_fallback(_wm(self._fx(state, m, t)))
+            self.assertIn("slipping right now", out.lower())
+            self.assertIn("My Goal", out)
+
+    # ---- Defect 3: focus never contains a generic placeholder ----
+    def test_focus_never_generic_across_states(self):
+        for state, m, t in (("thriving", "strong", "rising"),
+                            ("stable", "moderate", "stable"),
+                            ("drifting", "moderate", "falling"),
+                            ("stalled", "low", "stable"), ("failing", "low", "falling")):
+            out = stages._goals_focus_today_fallback(_wm(self._fx(state, m, t))).lower()
+            for b in self._BANNED:
+                self.assertNotIn(b, out, f"{state}: {b}")
+
+    def test_focus_is_honest_when_recommended_action_is_generic(self):
+        # A generic recommended_action is sanitized to an honest statement, never
+        # echoed verbatim.
+        out = stages._goals_focus_today_fallback(
+            _wm(self._fx("stable", "moderate", "stable", action="take the next step"))).lower()
+        for b in self._BANNED:
+            self.assertNotIn(b, out)
+        self.assertIn("no defined next action", out)
+
+    def test_risk_and_concerns_carry_kind_and_state(self):
+        ranked = stages._rank_goal_concerns(
+            self._fx("drifting", "moderate", "falling")["goals_state"]["state"],
+            self._fx("drifting", "moderate", "falling")["habits_state"]["state"])
+        self.assertTrue(ranked)
+        self.assertEqual(ranked[0]["kind"], "risk")
+        self.assertEqual(ranked[0]["state"], "drifting")
+
+
+# ---------------------------------------------------------------------------
 # build_goal_state — exposes snapshot evidence, READ-ONLY (no recompute), no N+1
 # ---------------------------------------------------------------------------
 class BuildGoalStateEvidenceTests(TestCase):
@@ -1015,9 +1098,11 @@ class RichGoalContextTests(TestCase):
         ev = self._france(self._state()).get("evidence")
         self.assertIsNotNone(ev)
         rec = ev["recommended_action"]
-        self.assertIn("Build aerobic base", rec)
-        for g in ("take one step", "make progress", "plan the goal",
-                  "outline next steps", "work on the goal"):
+        # Defect 3: the action resolves to the milestone's concrete PLAN (its
+        # description), not the bare title with a generic verb.
+        self.assertIn("zone-2", rec.lower())
+        for g in ("take one step", "make progress", "plan the goal", "take the next step",
+                  "take the concrete next step", "outline next steps", "work on the goal"):
             self.assertNotIn(g, rec.lower())
 
     def test_curator_surfaces_context_to_reasoning(self):
@@ -1039,7 +1124,7 @@ class RichGoalContextTests(TestCase):
         wm = {"intent": "goals_focus_today",
               "facts": stages.goals_working_memory(truth)}
         out = stages._goals_focus_today_fallback(wm).lower()
-        self.assertIn("build aerobic base", out)
+        self.assertIn("zone-2", out)                 # the milestone's concrete plan
         for g in _BANNED_GENERIC:
             self.assertNotIn(g, out, g)
 

@@ -619,7 +619,7 @@ def upsert_from_medicine_schedule(schedule):
         delete_medicine_events(schedule)
         return None
 
-    medicine = schedule.medicine
+    medicine = schedule.intake
     user = medicine.user
 
     existing = CalendarEvent.objects.filter(
@@ -629,7 +629,7 @@ def upsert_from_medicine_schedule(schedule):
     ).first()
 
     # Build title: "Take Metformin 500mg" or "Take Metformin"
-    dosage_str = f" {medicine.dosage}" if medicine.dosage else ""
+    dosage_str = f" {medicine.dose}" if medicine.dose else ""
     title = f"Take {medicine.name}{dosage_str}"
 
     # Anchor event at schedule's time on medicine start_date or today

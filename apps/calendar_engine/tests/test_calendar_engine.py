@@ -26,6 +26,7 @@ from apps.calendar_engine.services.projection import (
     upsert_execution_block_for_task,
     upsert_from_goal,
     upsert_from_habit,
+    upsert_from_medicine_schedule,
     upsert_from_task,
 )
 
@@ -207,6 +208,35 @@ class HabitProjectionTests(TestCase):
         self.assertTrue(event.is_protected)
         self.assertTrue(hasattr(event, 'recurrence'))
         self.assertEqual(event.recurrence.frequency, RecurrenceRule.FREQ_DAILY)
+
+
+class MedicineScheduleProjectionTests(TestCase):
+    """Regression (Sprint 1.5C): projecting an IntakeSchedule to the calendar
+    used the removed legacy `schedule.medicine` / `medicine.dosage` attributes
+    (canonical: `.intake` / `.dose`), so every projection raised AttributeError
+    (swallowed by the health signal) and no medication CalendarEvent was created."""
+
+    def setUp(self):
+        self.user = _create_test_user('medcaltest@example.com')
+        _ensure_domains()
+
+    def test_upsert_from_medicine_schedule_creates_event(self):
+        from apps.health.models import Intake, IntakeSchedule
+
+        medicine = Intake.objects.create(
+            user=self.user, name='Metformin', dose='500mg', frequency='daily',
+            start_date=dt.date(2026, 1, 1), intake_status=Intake.STATUS_ACTIVE,
+        )
+        schedule = IntakeSchedule.objects.create(
+            intake=medicine, scheduled_time=dt.time(8, 0), is_active=True,
+        )
+        event = upsert_from_medicine_schedule(schedule)
+        self.assertIsNotNone(event)
+        self.assertEqual(event.source_type, CalendarEvent.SOURCE_MEDICINE_SCHEDULE)
+        self.assertEqual(event.source_id, str(schedule.pk))
+        # Title is built from the canonical .name / .dose (was .dosage).
+        self.assertIn('Metformin', event.title)
+        self.assertIn('500mg', event.title)
 
 
 # ──────────────────────────────────────────────────────────

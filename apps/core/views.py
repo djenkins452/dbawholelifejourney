@@ -848,8 +848,8 @@ class RestoreItemView(LoginRequiredMixin, View):
         'health.glucoseentry',
         'health.workoutsession',
         'health.workouttemplate',
-        'health.medicine',
-        'health.medicineentry',
+        'health.intake',
+        'health.medicineentry',  # tech-debt: obsolete model (folded into Intake in the unified-intake migration); dead whitelist entry, harmless.
         'health.foodentry',
         'health.customfood',
         'health.medicalprovider',

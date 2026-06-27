@@ -7,6 +7,22 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(health): Sprint 1.5C — clean remaining medicine→intake legacy references (3 active defects)
+
+Swept the codebase for legacy references left by the historical medicine→intake model rename and fixed the trivial active correctness defects encountered in the implementation path. **No new features, no schema, no migrations.**
+
+**Active defects fixed (legacy attribute references → AttributeError, all silently swallowed):**
+1. **Calendar projection** — `apps/calendar_engine/services/projection.py` `upsert_from_medicine_schedule()` used `schedule.medicine` (canonical: `.intake`) and `medicine.dosage` (canonical: `.dose`). Every `IntakeSchedule` save logged "Failed to project medicine schedule … 'IntakeSchedule' object has no attribute 'medicine'" and **created no medication CalendarEvent**. Fixed → medication doses now project to the calendar.
+2. **Execution-quality signal** — `apps/core/signals/execution_quality.py:293` `record_signal_from_medicine_log()` used `medicine_log.medicine` (canonical: `.intake`); medicine-log execution signals were silently never recorded. Fixed.
+3. **Restore whitelist** — `apps/core/views.py` `ALLOWED_MODELS` listed `'health.medicine'` (renamed to `health.intake`), so soft-deleted intakes could not be restored. Fixed → `'health.intake'`.
+
+**Classified as harmless / documented (NOT changed):** docstrings and log strings mentioning Medicine*/MedicineLog; `source_model="MedicineLog"` / `'MedicineSchedule'` value labels (changing them would break signal-source matching — left as-is); historical migration files; and the obsolete `'health.medicineentry'` whitelist entry (model folded into Intake in the unified-intake migration — dead but harmless; annotated as tech-debt).
+
+**Files:** apps/calendar_engine/services/projection.py; apps/core/signals/execution_quality.py; apps/core/views.py; apps/calendar_engine/tests/test_calendar_engine.py (new `MedicineScheduleProjectionTests` regression — projecting an IntakeSchedule creates a CalendarEvent titled from `.name`/`.dose`).
+
+**Verification:** new projection regression 1/1; `test_execution_quality` 24/24; `test_calendar_engine`, SMS `RealTimeSignalTests`, medication + health dashboards, adherence single-author, intake CRUD all green; the "Failed to project medicine schedule" warning is gone; `manage.py check` clean; no migration; no remaining active legacy `.medicine`/`.dosage` references.
+
+
 ## 2026-06-27 — feat(cos): P31 Phase 1 — Executive Conversation Planning (check-in + repair)
 
 A thin DETERMINISTIC conversation strategy/state layer in front of the existing pipeline — Beth now plans the CONVERSATION, not just the answer. No LLM director, no migration.

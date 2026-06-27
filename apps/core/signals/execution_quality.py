@@ -290,7 +290,7 @@ def record_signal_from_medicine_log(medicine_log):
             dt.combine(medicine_log.scheduled_date, medicine_log.scheduled_time),
             timezone.get_current_timezone(),
         )
-        medicine_name = str(medicine_log.medicine) if medicine_log.medicine else "Unknown"
+        medicine_name = str(medicine_log.intake) if medicine_log.intake else "Unknown"
 
         return record_execution_signal(
             user=medicine_log.user,

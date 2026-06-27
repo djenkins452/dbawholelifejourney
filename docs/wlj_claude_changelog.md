@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Sprint 4 (core) — canonical Treatment Timeline service + deterministic summaries
+
+Turns the append-only `MedicationEvent` ledger into a deterministic, evidence-first treatment story. No LLM, no predictions, no correlation, no clinical conclusions — the timeline ORDERS events and references their source; it never explains cause.
+
+**4A — Canonical Timeline service** (`apps/health/treatment_timeline.py`, the single source): `build_medication_timeline(user, intake=None, newest_first=False)` returns reusable canonical entry dicts (`{timestamp, date, domain, kind, title, detail, intake_id, reason, evidence}`) from `MedicationEvent` (tracking_began/started/stopped/paused/resumed/dose_changed/frequency/provider/pharmacy/refill) plus `acquisition_confirmed` entries from confirmed `MedicationScanDraft`s. Dose changes are classified increased/decreased deterministically by numeric comparison. Not UI structures.
+
+**4B — Deterministic summaries:** `build_treatment_summary(user, intake=None)` — overall (treatment duration, total dose changes, recent-change count, adherence, factual momentum label stable/adjusting/actively_changing) and per-intake (start/duration, current-dose duration, dose-change count, provider history, longest stable period, prescription status, adherence). No coaching.
+
+**4F — Evidence-first:** every entry carries an `evidence` reference (`MedicationEvent` / `MedicationScanDraft`) answering "why is this here?", never raw OCR.
+
+**Files:** apps/health/treatment_timeline.py (new), apps/health/tests/test_treatment_timeline.py (new, 11 tests).
+
+**Verification:** 11 tests green — ordering (chronological + newest-first), dose increase/decrease classification, provider changes, acquisition entries, summaries, evidence refs, empty timeline, no-duplicate-started, no-fabricated-history; `manage.py check` clean; no migration. Cross-domain alignment (4C), Beth awareness (4E), and Timeline UI (4D) follow.
+
+
 ## 2026-06-27 — feat(health): Sprint 3.6 — pharmacy-label extraction & structured prescription linking
 
 Improves what the acquisition pipeline extracts from real medication labels and, on confirmation, links structured records. Enhancement to the existing pipeline — no redesign, no parallel path, Vision still writes nothing canonical.

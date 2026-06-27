@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — docs: add Medication & Supplement Intelligence v2 architecture (Phase 1 design)
+
+Phase 1 (greenfield architecture design) of the Medication & Supplement Intelligence v2 initiative. Design-only — no implementation, no code, no migrations.
+
+**What:** New canonical architecture specification `docs/MEDICATION_SUPPLEMENT_INTELLIGENCE_V2.md` (19 sections) that elevates the medication domain from a tracker ("did you take it?") to a longitudinal treatment-intelligence system ("is your treatment working?"). Designed greenfield, then reconciled to an additive evolution against the existing codebase.
+
+**Key conclusions:** ~60% of the substrate already ships (unified `health.Intake`, `medicine_utils` adherence authority, `build_medicine_state._contract` verdict, EAE `medication_adherence`/`supplement_adherence` signal types, cross-domain `medication_adherence_risk` detector, OpenAI-Vision bottle-scan path). Target reached by extending 5 existing seams (SAE `MODULE_BUILDERS`, EAE `signal_computers`, `ai_signals._DETECTORS`, CDCE `CORRELATION_DETECTORS`, ISE `SCHEDULED_TASKS`) + 4 new models (`MedicationEvent` append-only history ledger, `TreatmentPlan`, `IntakeExperiment`/`ExperimentObservation`, `MedicationScanDraft` staging). Preserves all WLJ laws: LLM-last, raw→state→signals→CoS, single source of truth, modify-before-add, UAIO sole write authority, fail-closed safety.
+
+**Files:** docs/MEDICATION_SUPPLEMENT_INTELLIGENCE_V2.md (new). No code touched.
+
+**Why:** Becomes the canonical design spec governing Phases 2–8 of the medication intelligence roadmap.
+
+
 ## 2026-06-27 — fix(cos): banned-language guard now covers HEALTH narration, not just goals
 
 Production full/full: health `overall_progress` (openai=True, fallback=False) leaked `banned_phrase:keep momentum` in a real LLM answer. The automated hypothesis ("narration leak in HEALTH narration, LLM source") was CORRECT — no discrepancy (the neutrality fix attributed it to health, not Goals).

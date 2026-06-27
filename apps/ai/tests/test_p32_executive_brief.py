@@ -39,12 +39,15 @@ class ComposerStructureTests(TestCase):
         # the FIRST thing is an executive read, never a task/agenda line
         self.assertFalse(head.startswith(("coming up", "drink", "shower", "next up")))
         self.assertTrue(any(k in head for k in (
-            "where things stand", "overall read", "what matters", "executive read")))
+            "looking at everything", "whole picture", "manageable", "today is")))
 
-    def test_agenda_is_last_when_present(self):
-        brief = eb.compose_executive_brief(self.u).lower()
-        if "today's agenda" in brief:
-            self.assertTrue(eb._agenda_is_last(brief))
+    def test_brief_is_one_narrative_no_headings(self):
+        brief = eb.compose_executive_brief(self.u)
+        self.assertNotIn("\n\n", brief)               # one coherent story
+        low = brief.lower()
+        for h in ("where things stand", "overall read:", "what matters today:",
+                  "highest-leverage move:"):
+            self.assertNotIn(h, low)
 
     def test_brief_is_deterministic_and_clean(self):
         with mock.patch(_C, side_effect=RuntimeError("down")), \
@@ -54,32 +57,35 @@ class ComposerStructureTests(TestCase):
         self.assertFalse(ar.is_failure_message(brief))
         self.assertEqual(ar.banned_hits(brief), [])
 
-    def test_low_energy_frames_recovery(self):
+    def test_low_energy_frames_energy_as_challenge(self):
         brief = eb.compose_executive_brief(self.u, low_energy=True).lower()
-        self.assertIn("recovery day", brief)
+        self.assertIn("it's your energy", brief)
+        self.assertIn("matters more", brief)
 
 
 class PresenceScorerTests(SimpleTestCase):
-    GOOD = ("Where things stand: you're on a strong run.\n\n"
-            "Overall read: this is shaping up to be a strong day.\n\n"
-            "What matters today: protect the morning block.\n\n"
-            "Your biggest risk right now: sleep is slipping.\n\n"
-            "Highest-leverage move: complete the scheduled workout.\n\n"
-            "Then, on today's agenda — Workout at 5pm.")
-    BAD = "Coming up today you have Drink Protein Shake at 6:45 AM. Shower. 10X Optimize."
+    GOOD = ("Looking at everything together, today is more manageable than it probably "
+            "feels. The bigger challenge is your energy — you slept only about five "
+            "hours, and that matters more than the open task count. Because of that, "
+            "I wouldn't try to catch up on everything; if we protect your energy and "
+            "handle the one thing due today, I'll count today a win. This afternoon "
+            "you've still got a light workout.")
+    BAD = ("Where things stand: strong. Overall read: a steady day. What matters today: "
+           "tasks. Highest-leverage move: workout. Coming up today you have Drink "
+           "Protein Shake at 6:45 AM.")
 
     def test_good_brief_scores_high(self):
         s = eb.score_executive_presence(self.GOOD)
         self.assertGreaterEqual(s["score"], 0.85)
-        for d in ("orientation", "assessment", "prioritization", "agenda_ordering",
-                  "actionability"):
+        for d in ("no_report_headings", "synthesis", "explains_why", "judgment",
+                  "conversational"):
             self.assertTrue(s[d], d)
 
-    def test_task_dump_scores_low(self):
+    def test_report_dump_scores_low(self):
         s = eb.score_executive_presence(self.BAD)
-        self.assertLess(s["score"], 0.4)
-        self.assertFalse(s["orientation"])
-        self.assertFalse(s["agenda_ordering"])   # agenda IS the headline -> fails
+        self.assertLess(s["score"], 0.5)
+        self.assertFalse(s["no_report_headings"])   # visible headings -> fails
+        self.assertFalse(s["temporal_ok"])          # "coming up" -> fails
 
 
 class _Conv:
@@ -120,16 +126,16 @@ class ProductionConversationTests(_Conv, TestCase):
         r2 = self.say("I'm tired but okay")
         self.assertEqual(r2["lane"], "conversation_brief")
         s2 = eb.score_executive_presence(r2["answer"])
-        self.assertTrue(s2["orientation"], r2["answer"][:200])
-        self.assertTrue(s2["agenda_ordering"])
-        self.assertIn("recovery day", r2["answer"].lower())
+        self.assertTrue(s2["no_report_headings"], r2["answer"][:200])
+        self.assertTrue(s2["synthesis"])
+        self.assertIn("it's your energy", r2["answer"].lower())
         self.assertFalse(r2["answer"].lower().startswith(("coming up", "drink")))
 
         # 3. What do I need to know about today? -> executive composer again
         r3 = self.say("What do I need to know about today?")
         self.assertIsNotNone(r3)
         self.assertEqual(r3["lane"], "cos_briefing")
-        self.assertTrue(eb.score_executive_presence(r3["answer"])["orientation"])
+        self.assertTrue(eb.score_executive_presence(r3["answer"])["no_report_headings"])
 
         # 4-5. Critique -> self-aware REPAIR that re-briefs (no "tell me what's wrong")
         self.say("That didn't feel like a first-class Chief of Staff response.")
@@ -139,7 +145,7 @@ class ProductionConversationTests(_Conv, TestCase):
         self.assertIn("you're right", ans)                 # owns it
         self.assertNotIn("tell me exactly what", ans)       # does NOT ask Danny to diagnose
         self.assertNotIn("tell me what looked", ans)
-        self.assertTrue(eb.score_executive_presence(r5["answer"])["orientation"])  # re-briefs
+        self.assertTrue(eb.score_executive_presence(r5["answer"])["no_report_headings"])  # re-briefs
 
     def test_repair_names_the_agenda_led_failure(self):
         from apps.ai.models import AssistantMessage

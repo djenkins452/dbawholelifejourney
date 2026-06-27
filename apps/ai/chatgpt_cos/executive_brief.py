@@ -86,27 +86,24 @@ def _fmt_titles(titles):
     return ", ".join(titles[:-1]) + f", and {titles[-1]}"
 
 
-def _agenda(user):
-    """The composer OWNS temporal framing (P33.1). Rhythm 'remaining' items are
-    INCOMPLETE, not necessarily future — so a 6:45 AM item still open at noon must
-    NEVER be framed as 'coming up'. Split by the user's clock: future items are
-    'still ahead'; already-passed open items are flagged as earlier, not upcoming."""
+def _rhythm_split(user):
+    """Split rhythm items by the user's CLOCK (P33.1): (ahead_labels, past_titles,
+    hour). 'remaining' items are merely INCOMPLETE — a 6:45 AM item still open at
+    noon is PAST, not upcoming. Returns ([], [], hour) on failure."""
     try:
         from apps.core.utils import get_user_now
         from apps.core.cos_briefing.rhythm_api import get_remaining_rhythm_items
         now = get_user_now(user)
     except Exception:
         logger.warning("executive_brief: agenda time failed", exc_info=True)
-        return _evening_or_empty(user)
-    if now.hour >= 20:                         # evening wrap-up is already correct
-        return _evening_or_empty(user)
+        return [], [], 9
     now_min = now.hour * 60 + now.minute
-    items = []
+    ahead, past = [], []
     try:
         items = get_remaining_rhythm_items(user) or []
     except Exception:
         logger.warning("executive_brief: rhythm items failed", exc_info=True)
-    ahead, past = [], []
+        items = []
     for it in items:
         if not isinstance(it, dict):
             continue
@@ -114,25 +111,36 @@ def _agenda(user):
         if not title:
             continue
         mins = _to_minutes(it.get("scheduled_time"))
-        if mins is None or mins >= now_min - 5:        # unscheduled or future (5-min grace)
-            label = title
+        if mins is None or mins >= now_min - 5:        # unscheduled or future
             if mins is not None:
                 from apps.core.cos_briefing.daily_agenda import _fmt_time
-                label = f"{title} at {_fmt_time(it.get('scheduled_time'))}"
-            ahead.append(label)
+                ahead.append(f"{title} at {_fmt_time(it.get('scheduled_time'))}")
+            else:
+                ahead.append(title)
         else:
             past.append(title)
+    return ahead, past, now.hour
+
+
+def _agenda_narrative(user, recovery):
+    """Weave the schedule into the story naturally — never 'coming up', never a past
+    item as upcoming, and reconcile a strenuous item with a recovery day."""
+    ahead, past, hour = _rhythm_split(user)
+    if hour >= 20:
+        return _evening_or_empty(user)
+    when = ("This morning" if hour < 12 else
+            "This afternoon" if hour < 17 else "This evening")
     parts = []
     if ahead:
-        parts.append("Today's agenda — still ahead: " + _fmt_titles(ahead[:3]) + ".")
+        line = f"{when} you've still got {_fmt_titles(ahead[:3])}"
+        if recovery:
+            line += " — keep it light, none of it has to be heavy"
+        parts.append(line + ".")
     else:
-        parts.append("Today's agenda — you're clear on your rhythm; nothing scheduled "
-                     "is left.")
+        parts.append("Your rhythm's clear for the rest of the day, so the time is yours.")
     if past:
-        parts.append("(From earlier, " + _fmt_titles(past[:3]) + " "
-                     + ("is" if len(past[:3]) == 1 else "are")
-                     + " still open — your call whether it's worth doing now, not a "
-                     "fresh start.)")
+        parts.append("Anything from earlier that's still open — like "
+                     + _fmt_titles(past[:2]) + " — is your call, not a fresh start.")
     return " ".join(parts)
 
 
@@ -167,100 +175,139 @@ def _safe_interpret(user):
         return ExecutiveSignals()
 
 
-def _orientation(sig, es):
-    # Lead with the INTERPRETED executive thesis (workload judged by horizon), not a
-    # raw metric or trajectory phrase.
-    head = _scrub(sig.headline) or _text(es.get("headline")) or _text(es.get("trajectory"))
-    return ("Where things stand: " + _ensure_sentence(head)) if head else ""
+def _cap(s):
+    s = (s or "").strip()
+    return (s[0].upper() + s[1:]) if s else s
 
 
-def _assessment(sig, low_energy=False):
-    summary = _scrub(sig.workload_summary)
-    if low_energy or sig.recovery_needed:
-        base = "Overall read: treat today as a recovery day"
-        if summary:
-            base += " — " + summary
-        return base + ". Protect your energy before pushing performance."
-    base = "Overall read: " + (summary or f"a {sig.workload} day")
-    return base + f" — so this is a {sig.workload} day, not an overloaded one."
+# ── Narrative beats (P34): one coherent executive STORY, no report headings ──
+def _thesis(sig):
+    """Lead with the synthesized conclusion — what today actually is."""
+    wl = sig.workload
+    if wl in ("light", "manageable"):
+        return ("Looking at everything together, today is more manageable than it "
+                "probably feels — you don't have an overloaded schedule, just a "
+                "healthy backlog that isn't actually due now.")
+    if wl == "full":
+        return ("Looking at the whole picture, today is full but workable if we're "
+                "deliberate about the order things happen in.")
+    return ("Looking at the whole picture, today is genuinely heavy, so the move is "
+            "to protect the few things that truly matter and let the rest slide.")
 
 
-def _priorities(sig, es):
-    """Today's COMMITMENTS first — never the total pending count as a priority."""
+def _energy_story(sig, low_energy):
+    """When recovery is the limiting factor, name it as the real challenge — and only
+    cite evidence that strengthens it."""
+    parts = ["The bigger challenge today isn't your task list — it's your energy."]
     bits = []
-    if sig.today_count:
-        bits.append(f"{sig.today_count} item{'s' if sig.today_count != 1 else ''} due today")
-    if sig.overdue_count:
-        bits.append(f"{sig.overdue_count} overdue to clear")
-    na = [_text(i) for i in (es.get("needs_attention") or [])]
-    # SUPPRESS raw task-count claims that contradict the interpreted workload (P33.1).
-    na = [t for t in na if t and not _is_raw_workload_claim(t)]
-    bits.extend(na[:2])
+    if sig.sleep_hours:
+        bits.append(f"you slept only about {round(sig.sleep_hours)} hours last night")
+    if low_energy:
+        bits.append("you've told me you're feeling stretched")
     if bits:
-        return "What matters today: " + "; ".join(bits) + "."
-    return ("What matters today: nothing is due today and nothing is flagged — a "
-            "clean slate, so it's your call on where to focus.")
+        parts.append(_cap(" and ".join(bits)) + ".")
+    parts.append("That combination matters more right now than the number of open items.")
+    return " ".join(parts)
 
 
-def _risk(sig):
-    r = _scrub(sig.biggest_risk)
-    return ("Your biggest risk right now: " + _ensure_sentence(r)) if r else ""
+def _recovery_plan(sig):
+    return ("Because of that, I wouldn't try to catch up on everything today. If we "
+            "protect your energy, keep nutrition steady, and take care of the one "
+            "thing that's genuinely due, I'll count today as a win.")
 
 
-def _recommendation(sig):
-    rec = _scrub(sig.highest_leverage)
-    return ("Highest-leverage move: " + _ensure_sentence(rec)) if rec else ""
+def _priority_story(sig):
+    """The non-recovery day: what genuinely needs him + the real leverage + why."""
+    parts = []
+    if sig.today_count:
+        n = sig.today_count
+        parts.append(f"What genuinely needs you today is the {n} item"
+                     f"{'s' if n != 1 else ''} actually due")
+    else:
+        parts.append("Nothing is strictly due today, so this is a day you get to choose")
+    lever = ""
+    if sig.strategic_focus:
+        lever = (f"the real leverage is moving {sig.strategic_focus} forward — that's "
+                 "where today's effort compounds, not the routine items")
+    elif _scrub(sig.highest_leverage):
+        lever = "the highest-leverage thing you can do is " + _scrub(sig.highest_leverage)
+    sentence = parts[0]
+    if lever:
+        sentence += "; beyond that, " + lever
+    out = [_cap(sentence) + "."]
+    risk = _scrub(sig.biggest_risk)
+    if risk:
+        out.append("Keep an eye on " + risk + " — that's the one thing that could "
+                   "quietly derail the day.")
+    return " ".join(out)
 
 
 def compose_executive_brief(user, *, lead="", low_energy=False):
-    """Compose a Chief-of-Staff executive briefing from INTERPRETED ExecutiveSignals
-    (P33) — orientation first, AGENDA LAST. The composer NARRATES judgment; it never
-    re-infers conclusions from raw metrics (e.g. '22 pending' never becomes
-    'overload'). Always non-empty; degrades gracefully; deterministic."""
+    """Compose ONE coherent executive CONVERSATION from interpreted ExecutiveSignals
+    (P34) — synthesis over enumeration, no report headings, evidence only when it
+    strengthens the recommendation, conflicts reconciled. Deterministic; degrades
+    gracefully; never re-infers conclusions from raw metrics."""
     sig = _safe_interpret(user)
-    es = _safe_exec_summary(user)
-    blocks = []
+    recovery = sig.recovery_needed or low_energy
+    story = []
     if lead:
-        blocks.append(lead.strip())
-    for section in (_orientation(sig, es), _assessment(sig, low_energy=low_energy),
-                    _priorities(sig, es), _risk(sig), _recommendation(sig)):
-        if section:
-            blocks.append(section)
-    agenda = _agenda(user)
+        story.append(lead.strip())
+    story.append(_thesis(sig))
+    if recovery:
+        story.append(_energy_story(sig, low_energy))
+        story.append(_recovery_plan(sig))
+    else:
+        story.append(_priority_story(sig))
+    if _has_backlog(sig):
+        story.append("The rest of your backlog can wait — none of it is due today.")
+    agenda = _agenda_narrative(user, recovery)
     if agenda:
-        # AGENDA LAST and self-framed (the composer owns temporal framing — never
-        # "coming up" as a headline, never a past item as upcoming).
-        blocks.append(agenda)
-    body = [b for b in blocks if b]
-    if not body or (lead and len(body) == 1):
-        body.append("Here's your executive read: nothing urgent is flagged right "
-                    "now, and the day looks manageable from here.")
-    return "\n\n".join(body)
+        story.append(agenda)
+    out = " ".join(s for s in story if s).strip()
+    if not out:
+        out = ("Here's the short version: nothing urgent is flagged right now, and "
+               "the day looks manageable from here.")
+    return _scrub(out) or out
+
+
+def _has_backlog(sig):
+    return (sig.total_pending - sig.today_count - sig.overdue_count) >= 3
 
 
 # ── Executive-presence quality scorer (Acceptance evolution, P32) ──────────
+# Internal report headings — implementation artifacts a human CoS would never speak.
+_REPORT_HEADINGS = (
+    "where things stand", "overall read", "what matters today:", "highest-leverage move:",
+    "your biggest risk right now:", "today's agenda —", "on today's agenda", "still ahead:")
+
+
 def score_executive_presence(text):
-    """Score a briefing for EXECUTIVE PRESENCE (not correctness). Deterministic
-    heuristics over the rendered text. Returns {dimension: bool, ..., score: 0..1}.
-    Used by scenario-based Acceptance to grade conversation quality."""
+    """Score a briefing for EXECUTIVE NARRATIVE quality (P34) — does it read like a
+    Chief of Staff thinking with you, or like generated sections? Returns
+    {dimension: bool, ..., score}. Headings/repetition are now PENALIZED."""
     t = (text or "").lower()
     dims = {
-        "orientation": any(k in t for k in (
-            "where things stand", "where you stand", "here's where", "you stand",
-            "executive read", "where do i stand")),
-        "assessment": any(k in t for k in (
-            "overall read", "overall,", "shaping up", "strong day", "recovery day",
-            "steady", "heavier day", "manageable day")),
-        "prioritization": any(k in t for k in (
-            "what matters today", "matters today", "your biggest", "priorit",
-            "needs attention", "clean slate")),
-        "synthesis": (len(t) > 120 and t.count("\n") >= 1),   # composed, not one line
-        "temporal_awareness": ("coming up" not in t) or ("still ahead" in t
-                                                          or "left today" in t),
+        # no visible report headings / implementation artifacts
+        "no_report_headings": not any(h in t for h in _REPORT_HEADINGS),
+        # synthesis — connects the picture rather than enumerating sections
+        "synthesis": any(k in t for k in (
+            "looking at everything", "whole picture", "together", "the bigger challenge",
+            "more than", "matters more")),
+        # explains WHY conclusions/priorities matter
+        "explains_why": any(k in t for k in (
+            "because", "that matters", "which is why", "that combination", "so the move",
+            "that's where", "compounds", "so this is")),
+        # expresses executive judgment (a recommendation in the first person)
+        "judgment": any(k in t for k in (
+            "i wouldn't", "i'd", "i'll count", "i'll call", "the real leverage",
+            "what genuinely needs you", "the move is", "i'd treat")),
+        # actionable and integrated
         "actionability": any(k in t for k in (
-            "highest-leverage move", "next step", "best next", "focus on",
-            "start with", "a good next")),
-        "agenda_ordering": _agenda_is_last(t),
+            "protect", "keep", "take care", "move", "handle", "focus", "your call")),
+        # temporal correctness (never frames items as upcoming when past)
+        "temporal_ok": "coming up" not in t,
+        # conversational — prose, not colon-delimited section blocks
+        "conversational": (len(t) > 120 and t.count(":") <= 1 and "\n\n" not in t),
     }
     score = round(sum(1 for v in dims.values() if v) / len(dims), 2)
     dims["score"] = score
@@ -274,20 +321,23 @@ def score_executive_judgment(text):
     t = (text or "").lower()
     mentions_many = any(str(n) in t for n in range(11, 100)) or "backlog" in t \
         or "pending" in t or "open item" in t
+    import re as _re
     dims = {
         # workload is an interpreted band, not a bare verdict from a count
-        "workload_interpreted": any(
-            f"workload is {w}" in t or f"a {w} day" in t or f"{w} day" in t
-            for w in ("light", "manageable", "full", "heavy", "overloaded")),
+        "workload_interpreted": any(k in t for k in (
+            "manageable", "overloaded schedule", "full but workable", "genuinely heavy",
+            "recovery day", "more manageable than", "workable")),
         # a large backlog is named as backlog/strategic/upcoming, not "today's load"
         "backlog_distinguished": (any(k in t for k in (
-            "backlog", "longer-term", "upcoming", "strategic"))
+            "backlog", "longer-term", "upcoming", "strategic", "can wait"))
             if mentions_many else True),
-        # never concludes overload from a raw count (overload only with a real today-load)
-        "no_count_overload": not ("overload" in t and "due today" not in t),
+        # never ASSERTS overload (a negated "no overloaded schedule" is fine)
+        "no_count_overload": not (bool(_re.search(
+            r"(is|are|you're|youre)\s+overload", t)) or "high workload" in t),
         # today's commitments lead, not the total pending number
         "today_first": any(k in t for k in (
-            "due today", "nothing is due today", "clean slate")),
+            "due today", "actually due", "genuinely due", "strictly due",
+            "nothing is due", "clean slate")),
         # P33.1: the interpreted conclusion is NOT contradicted later by a raw count
         "no_raw_workload": not _is_raw_workload_claim(t),
         # P33.1: the composer owns temporal framing — never frames items as "coming up"

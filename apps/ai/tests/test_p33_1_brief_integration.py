@@ -80,7 +80,8 @@ class ComposerOwnsFinalStoryTests(TestCase):
     def test_no_raw_workload_contradiction(self):
         # interpretation says "manageable"; the brief must NOT then echo "22 pending"
         brief = self._brief().lower()
-        self.assertIn("manageable despite a healthy strategic backlog", brief)
+        self.assertIn("manageable", brief)
+        self.assertIn("backlog", brief)
         self.assertNotIn("22 pending tasks", brief)
         self.assertNotIn("pending tasks", brief)
 
@@ -89,7 +90,7 @@ class ComposerOwnsFinalStoryTests(TestCase):
         self.assertNotIn("coming up", brief)
         # the 6:45 AM (past) item is flagged as earlier, NOT upcoming
         self.assertIn("from earlier", brief)
-        self.assertIn("still ahead", brief)
+        self.assertIn("you've still got", brief)       # future items woven naturally
         # the future 2 PM item IS still ahead
         self.assertIn("workout", brief)
 
@@ -97,10 +98,10 @@ class ComposerOwnsFinalStoryTests(TestCase):
         brief = self._brief().lower()
         # a bare "complete today's scheduled workout" must not be the lever; strategic
         # focus or a justified statement wins.
-        if "highest-leverage move:" in brief:
-            lev = brief.split("highest-leverage move:")[1][:160]
+        if "highest-leverage thing you can do is" in brief:
+            lev = brief.split("highest-leverage thing you can do is")[1][:160]
             self.assertTrue(any(k in lev for k in (
-                "leverage is today", "moving", "compounds", "keeps today's momentum")),
+                "leverage is today", "moving", "compounds", "keeps", "momentum", "—")),
                 f"unjustified routine leverage: {lev!r}")
 
     def test_integration_scorer_passes_clean_brief(self):

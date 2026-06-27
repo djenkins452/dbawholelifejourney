@@ -3478,5 +3478,21 @@
       "created_at": "2026-06-27T15:00:00Z",
       "updated_at": "2026-06-27T15:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 218,
+    "fields": {
+      "title": "Your briefing now reads like a conversation, not a report",
+      "description": "Your Chief of Staff no longer hands you a list of labeled sections. It tells you one clear story: what today actually is, the one thing that matters most and why, what you can safely let wait, and how the afternoon looks — woven together the way a trusted advisor would say it out loud. It leads with the conclusion, only brings up the supporting detail when it strengthens the advice, and reconciles conflicts (if you're running low, it tells you to keep the workout light rather than just listing it). It now adds judgment and clarity your dashboard can't.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-06-27",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-06-27T16:00:00Z",
+      "updated_at": "2026-06-27T16:00:00Z"
+    }
   }
 ]

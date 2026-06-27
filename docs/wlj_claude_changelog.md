@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(cos): P34 Executive Conversation Composer (from reports to conversation)
+
+Beth reached correct executive conclusions but still spoke them as a structured report with visible headings ("Where things stand", "Overall read", "What matters today", "Highest-leverage move", "Today's agenda"). This is WRITING, not new architecture — the facts/judgment already exist in ExecutiveSignals; the composer was rewritten to NARRATE them as one coherent story.
+
+**Composer rewrite (no new engine/planner/provider):** `compose_executive_brief` now builds a single flowing narrative from the SAME ExecutiveSignals: a synthesized thesis first ("Looking at everything together, today is more manageable than it probably feels — you don't have an overloaded schedule, just a healthy backlog that isn't due now"), the real challenge named with judgment ("The bigger challenge isn't your task list — it's your energy. You slept only about 5 hours … that matters more than the number of open items"), a recommendation WITH a why and conflict resolution ("Because of that, I wouldn't try to catch up … If we protect your energy, keep nutrition steady, and take care of the one thing genuinely due, I'll count today as a win"), the backlog deferred, and the schedule woven naturally ("This afternoon you've still got Bike Ride at 2:00 PM — keep it light"). No report headings, no section boundaries, no "\n\n" blocks, evidence only when it strengthens, conflicts (recovery vs a strenuous item) reconciled. The self-aware repair now re-briefs in the same narrative voice. Deterministic; degrades gracefully; coaching-scrubbed.
+
+**Acceptance evolution:** `score_executive_presence` is now the EXECUTIVE NARRATIVE dimension — it PENALIZES report headings and rewards synthesis / explains-why / first-person judgment / actionability / temporal correctness / conversational prose (the opposite of the old heading-based scorer). Surfaced `sleep_hours` on ExecutiveSignals for the energy evidence.
+
+**Files:** apps/ai/chatgpt_cos/executive_brief.py (narrative composer + narrative agenda + narrative scorer), executive_interpretation.py (sleep_hours). Tests: apps/ai/tests/test_p34_executive_narrative.py (new); P32/P33/P33.1 brief tests updated from heading-style to narrative-style.
+
+**Verification:** the EXACT production conversation as a permanent regression — Good morning → I'm tired but okay → What do I need to know → critique → "Does that sound right?". The brief now: reads as ONE story (no "\n\n", no headings), leads with the conclusion, frames energy as the bigger challenge with woven evidence ("about 5 hours"), explains WHY ("Because of that… count today as a win"), defers the backlog, reconciles the bike ride ("keep it light"), and never echoes "22 pending" or "coming up". Executive-narrative score ≥0.85; a section-report scores <0.5. The repair re-briefs in narrative voice. 123-test regression green; `check` clean; no migration.
+
+
 ## 2026-06-27 — feat(health): Sprint 4D — Treatment Timeline UI (chronological, evidence-first)
 
 The first timeline experience — not analytics, not a dashboard: the deterministic chronological story of how treatment changed over time, reading the canonical timeline service only.

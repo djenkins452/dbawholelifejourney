@@ -33,6 +33,7 @@ class ExecutiveSignals:
     intervention_required: bool = False
     confidence: str = "medium"         # low|medium|high
     headline: str = ""                 # the one-line executive thesis
+    sleep_hours: float = None          # last-night sleep (evidence for the energy story)
 
     def to_dict(self):
         return asdict(self)
@@ -80,7 +81,7 @@ def _exec_summary(user):
 
 
 def _health_read(user):
-    out = {"recovery_needed": False, "read": "stable", "note": ""}
+    out = {"recovery_needed": False, "read": "stable", "note": "", "sleep_hours": None}
     try:
         from apps.ai.cos_services import get_domain_state
         h = (get_domain_state(user, "health").get("state") or {})
@@ -88,6 +89,7 @@ def _health_read(user):
         if isinstance(sleep, (int, float)) and 0 < sleep < 6.5:
             out["recovery_needed"] = True
             out["note"] = "sleep is short"
+            out["sleep_hours"] = sleep
         trend = (h.get("weight_trend") or "").lower()
         if "down" in trend or "improv" in trend:
             out["read"] = "improving"
@@ -220,4 +222,5 @@ def interpret(user):
         health_read=health["read"], biggest_risk=biggest_risk,
         highest_leverage=highest_leverage, strategic_focus=strategic,
         intervention_required=intervention, confidence=confidence,
-        headline=_headline(workload, recovery, has_backlog))
+        headline=_headline(workload, recovery, has_backlog),
+        sleep_hours=health.get("sleep_hours"))

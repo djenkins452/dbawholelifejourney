@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Sprint 3 (core) — Medication Acquisition pipeline (staging, confidence, duplicate detection, confirmation)
+
+The permanent acquisition architecture for Medication Intelligence: every acquisition method converges into one staging object and resolves through one confirmation path into canonical `Intake` + the `MedicationEvent` ledger. Nothing enters canonical state without confirmation (Canon: OCR is never truth; user confirmation is the strongest evidence).
+
+**3A — `MedicationScanDraft`** (`apps/health/models.py`, migration 0094): staging record — `source` (manual/bottle_image/pharmacy_label/pharmacy_pdf/med_list/provider_export/fhir/pharmacy_api — extensible), `extracted_values` + `field_confidences` (JSON), `overall_confidence`, `evidence` (envelope), `review_status` (pending/confirmed/rejected/expired), `confirmation_action`, `created_intake`/`duplicate_of` FKs, timestamps. Drafts are kept as an append-only acquisition history; admin is read-only (review/confirm happens via the pipeline, never admin).
+
+**3C — Confidence Engine** (`medication_confidence.py`): per-field confidence (manual/user-edited = high; vision = extraction confidence or conservative source default; **absence = None, never a false-confident 0**) and overall confidence (weighted by field importance, penalized for missing name/dose, boosted by an existing match, lifted to ≥0.97 on user confirmation). Plus `missing_fields()` and `confidence_band()` for guided review.
+
+**3B/3G/3H — Acquisition + evidence** (`medication_acquisition.py`): `create_draft()` (any method) and `create_manual_draft()` (first-class, high-confidence) both produce the same draft + standardized evidence envelope. **3E — Duplicate detection**: `detect_duplicates()` runs BEFORE any write (exact / same-name-different-dose / NDC). **3F — Confirmation**: `confirm_draft(action=create|update|discontinue|replace|ignore)` resolves through the ONE write path — create fires the canonical `started` event via the Intake signal; update records dose/frequency/provider change events via the single `record_medication_change` writer; no direct ad-hoc model writes; user edits during review are applied as confirmation.
+
+**Files:** apps/health/models.py, apps/health/admin.py, apps/health/migrations/0094_medicationscandraft.py, apps/health/medication_confidence.py (new), apps/health/medication_acquisition.py (new), apps/health/tests/test_medication_acquisition.py (new, 20 tests).
+
+**Verification:** 20 acquisition tests green (bottle/manual/supplement/injection drafting, per-field + overall confidence, duplicate detection, create/update/discontinue/replace/ignore confirmation, MedicationEvent creation, Intake updates, no-duplicate-Intake + no-duplicate-event guarantees); `manage.py check` clean; migration applies cleanly. Canonical state additions (3I) and acquisition UI (3J) follow.
+
+
 ## 2026-06-27 — feat(admin): P34 Acceptance Center — Cancel Run + complete administrator experience
 
 We had heartbeats/stale/interrupted/restart but no CANCEL — engineering-correct, not operator-complete. P34 adds graceful cooperative cancellation and finishes the admin controls.

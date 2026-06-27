@@ -37,6 +37,7 @@ from .models import (
     NutritionLabelEvidence,
     PersonalRecord,
     Pharmacy,
+    MedicationScanDraft,
     Prescription,
     ProviderStaff,
     TemplateExercise,
@@ -1128,3 +1129,19 @@ class PrescriptionAdmin(admin.ModelAdmin):
     list_display = ("intake", "rx_number", "provider", "pharmacy", "refills_remaining", "expiration_date")
     list_filter = ("provider", "pharmacy")
     search_fields = ("intake__name", "rx_number")
+
+
+@admin.register(MedicationScanDraft)
+class MedicationScanDraftAdmin(admin.ModelAdmin):
+    """Acquisition staging — operational; review/confirm happens via the pipeline,
+    not admin. Read-only here to avoid bypassing the confirmation workflow."""
+    list_display = ("__str__", "user", "source", "review_status", "overall_confidence", "created_at")
+    list_filter = ("source", "review_status", "intake_type")
+    search_fields = ("user__email",)
+    date_hierarchy = "created_at"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

@@ -3276,6 +3276,131 @@ class Prescription(UserOwnedModel):
         return f"Rx {self.rx_number or '—'} for {self.intake.name}"
 
 
+class MedicationScanDraft(UserOwnedModel):
+    """
+    Staging record for a medication acquisition (Sprint 3 — Medication Acquisition).
+
+    Every acquisition — bottle photo, pharmacy label/PDF, medication list, provider
+    export, FHIR, pharmacy API, or manual entry — first becomes a draft here.
+    NOTHING from OCR/Vision (or even manual entry) enters canonical state directly:
+    a draft is reviewed, possibly edited, checked for duplicates, and only then
+    CONFIRMED into Intake via the single canonical write path (Canon: OCR is never
+    truth; user confirmation is the strongest evidence).
+
+    The collection of drafts is an append-only acquisition history — drafts are
+    kept (confirmed/rejected/expired) as evidence; they are never silently
+    overwritten. `extracted_values` and `field_confidences` are the per-field
+    payload + confidence; `evidence` is the standardized evidence envelope.
+    """
+
+    # ── Acquisition source (the pipeline is method-agnostic; all converge here) ──
+    SOURCE_MANUAL = "manual"
+    SOURCE_BOTTLE_IMAGE = "bottle_image"
+    SOURCE_PHARMACY_LABEL = "pharmacy_label"
+    SOURCE_PHARMACY_PDF = "pharmacy_pdf"
+    SOURCE_MED_LIST = "med_list"
+    SOURCE_PROVIDER_EXPORT = "provider_export"
+    SOURCE_FHIR = "fhir"
+    SOURCE_PHARMACY_API = "pharmacy_api"
+    SOURCE_CHOICES = [
+        (SOURCE_MANUAL, "Manual entry"),
+        (SOURCE_BOTTLE_IMAGE, "Bottle image"),
+        (SOURCE_PHARMACY_LABEL, "Pharmacy label"),
+        (SOURCE_PHARMACY_PDF, "Pharmacy PDF"),
+        (SOURCE_MED_LIST, "Medication list"),
+        (SOURCE_PROVIDER_EXPORT, "Provider export"),
+        (SOURCE_FHIR, "FHIR"),
+        (SOURCE_PHARMACY_API, "Pharmacy API"),
+    ]
+
+    # ── Review lifecycle (note: `status` is taken by soft-delete) ──
+    REVIEW_PENDING = "pending_review"
+    REVIEW_CONFIRMED = "confirmed"
+    REVIEW_REJECTED = "rejected"
+    REVIEW_EXPIRED = "expired"
+    REVIEW_STATUS_CHOICES = [
+        (REVIEW_PENDING, "Pending review"),
+        (REVIEW_CONFIRMED, "Confirmed"),
+        (REVIEW_REJECTED, "Rejected"),
+        (REVIEW_EXPIRED, "Expired"),
+    ]
+
+    # ── Confirmation action (how the draft resolved into canonical state) ──
+    ACTION_CREATE = "create"
+    ACTION_UPDATE = "update"
+    ACTION_DISCONTINUE = "discontinue"
+    ACTION_REPLACE = "replace"
+    ACTION_IGNORE = "ignore"
+    CONFIRMATION_ACTION_CHOICES = [
+        (ACTION_CREATE, "Create new"),
+        (ACTION_UPDATE, "Update existing"),
+        (ACTION_DISCONTINUE, "Discontinue existing"),
+        (ACTION_REPLACE, "Replace existing"),
+        (ACTION_IGNORE, "Ignore"),
+    ]
+
+    source = models.CharField(max_length=24, choices=SOURCE_CHOICES)
+    intake_type = models.CharField(
+        max_length=20, choices=Intake.INTAKE_TYPE_CHOICES,
+        default=Intake.INTAKE_TYPE_MEDICATION,
+        help_text="Declared/extracted type (defaults to the stricter 'medication').",
+    )
+    extracted_values = models.JSONField(
+        default=dict, blank=True,
+        help_text="Per-field acquired values (name, dose, frequency, sig, provider, "
+                  "pharmacy, quantity, expiration, refills, purpose, strength, ndc).",
+    )
+    field_confidences = models.JSONField(
+        default=dict, blank=True,
+        help_text="Per-field confidence 0.0–1.0 (parallel to extracted_values).",
+    )
+    overall_confidence = models.FloatField(
+        null=True, blank=True,
+        help_text="Composed overall confidence 0.0–1.0 for the whole record.",
+    )
+    evidence = models.JSONField(
+        default=list, blank=True,
+        help_text="Standardized evidence envelope: list of {source_type, source_id, "
+                  "captured_at, confidence, summary}. Evidence supports truth; it is "
+                  "not truth.",
+    )
+    review_status = models.CharField(
+        max_length=20, choices=REVIEW_STATUS_CHOICES, default=REVIEW_PENDING,
+    )
+    confirmation_action = models.CharField(
+        max_length=16, choices=CONFIRMATION_ACTION_CHOICES, blank=True, default="",
+    )
+    created_intake = models.ForeignKey(
+        Intake, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="acquisition_drafts",
+        help_text="The canonical Intake this draft confirmed into (create/update).",
+    )
+    duplicate_of = models.ForeignKey(
+        Intake, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="possible_duplicate_drafts",
+        help_text="An existing Intake this draft was detected as a possible duplicate of.",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "medication scan draft"
+        verbose_name_plural = "medication scan drafts"
+        indexes = [
+            models.Index(fields=["user", "review_status"]),
+        ]
+
+    def __str__(self):
+        name = (self.extracted_values or {}).get("name", "?")
+        return f"Draft: {name} [{self.source}/{self.review_status}]"
+
+    @property
+    def is_pending(self):
+        return self.review_status == self.REVIEW_PENDING
+
+
 # =============================================================================
 # Food Tracking Models
 # =============================================================================

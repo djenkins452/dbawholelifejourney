@@ -7,6 +7,26 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — feat(admin): Acceptance Center hardening — architectural failure classification
+
+The first Full production run (RED 13/21, 8 critical) exposed two SYSTEMIC defect classes the Center under-diagnosed: silent conversation termination (empty responses) and a general-knowledge/OpenAI availability collapse. Upgraded the Center to reason at the ARCHITECTURAL level, and added the one justified Beth safety net.
+
+- **Failure LAYER classification** (`acceptance_rules`): every category maps to an architectural layer (conversation_orchestration / infrastructure / routing / narration / content_quality). `row_layer` picks the highest-precedence layer per failure; `INFRA_LAYERS` vs `CONTENT_LAYERS` partition is complete.
+- **Infrastructure vs Content** split with precedence — infra failures are fixed first; content conclusions downstream of an outage are flagged unreliable.
+- **Architectural invariants** (8 system laws) now lead BOTH generated prompts.
+- **Root-cause hypotheses** (ranked, with layer + confidence + evidence), **run trustworthiness** assessment ("quality assessment partially invalid because infrastructure is unhealthy"; could-this-be-falsely-GREEN/RED), and **release blocker** classification — all computed deterministically in `acceptance_service.analyze()` and persisted on the run (`analysis` JSON, `trustworthy`).
+- **Stronger grading** (`compute_grade`): ANY empty response, entire-suite failure, or infra-failure-count over threshold deterministically forces RED.
+- **Improved prompts:** ChatGPT review now requires systemic classes, layer classification, infra-vs-content, ranked root causes, run trustworthiness, release blockers, and permanent-regression recommendations. Claude fix prompt leads with the invariants + "fix infrastructure first" + the arch block.
+- **UI:** trustworthiness banner, Architecture-analysis card (infra/content, empty count, layers, release blockers, ranked hypotheses).
+- **Beth safety net (invariant #1):** `ChatGPTCoSService.generate()` now fires a deterministic emergency fallback when the tool loop produces nothing — a request can NEVER yield an empty response. The graceful message is (correctly) classified by the evaluator as an infrastructure failure, not a silent empty.
+
+**Models:** `AcceptanceRun.analysis` (JSON) + `trustworthy` (bool) — migration 0039.
+
+**Files:** acceptance_rules.py, acceptance_service.py, service.py (emergency fallback), admin_console/{models.py, migrations/0039_*}, templates/admin_console/beth_acceptance_run.html, tests. 
+
+**Verification:** 18 new architecture tests (layer aggregation completeness + precedence, stronger grading, analyze infra/content/entire-suite/trustworthiness/hypotheses/blockers, upgraded prompts, and the EMPTY-RESPONSE INVARIANT against the real service) + 265-test regression green; `check` clean; `makemigrations --check` = no changes.
+
+
 ## 2026-06-26 — feat(admin): Beth Acceptance Center upgrade (depth levels, grading, richer prompts)
 
 Upgraded the Beth Acceptance Center from a basic runner into a product-quality testing system (test infrastructure only — no Beth behavior change).

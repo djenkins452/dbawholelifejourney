@@ -1680,6 +1680,10 @@ class AcceptanceRun(models.Model):
     warning_count = models.PositiveIntegerField(default=0)
     avg_response_ms = models.PositiveIntegerField(default=0)
     category_summary = models.JSONField(default=dict, blank=True)
+    # Architectural analysis: {layers, infra_fails, content_fails, blockers,
+    # entire_suites_failed, trustworthy, trust_reason, hypotheses}
+    analysis = models.JSONField(default=dict, blank=True)
+    trustworthy = models.BooleanField(default=True)
 
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="running")
     started_at = models.DateTimeField(null=True, blank=True)

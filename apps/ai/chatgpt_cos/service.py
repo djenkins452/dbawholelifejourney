@@ -194,6 +194,13 @@ class ChatGPTCoSService:
         if not final:
             empty_reason = ("openai_fallback_empty" if answer is None
                             else "model_empty_after_tools")
+            # ARCHITECTURAL INVARIANT #1/#2: a request must NEVER yield an empty
+            # response. If the tool loop produced nothing (OpenAI down/empty), fire
+            # a deterministic graceful fallback so the user is never shown a blank
+            # box. This degrades gracefully instead of terminating silently.
+            final = self._emergency_fallback()
+            logger.warning("COS_EMERGENCY_FALLBACK user=%s reason=%s",
+                           self.user.id, empty_reason)
         logger.info(
             "COS_TOOL_LOOP_FINISH user=%s tools_called=%s answer_len=%d "
             "empty_reason=%s",
@@ -206,3 +213,11 @@ class ChatGPTCoSService:
             "tools_advertised": advertised,
             "tools_called": called,
         }
+
+    def _emergency_fallback(self):
+        """Deterministic graceful response when no lane and no model output could
+        compose an answer — guarantees the never-empty invariant."""
+        return ("I couldn't pull that together just now — my assistant service may "
+                "be briefly unavailable. You can try again in a moment, or ask me "
+                "about a specific goal, your health, or your schedule and I'll work "
+                "from what I already know.")

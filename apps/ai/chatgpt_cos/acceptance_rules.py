@@ -404,6 +404,7 @@ def evaluate(spec, text, intent=None, lane=None):
 # Grading
 # ---------------------------------------------------------------------------
 RELEASE_THRESHOLD = 95
+INFRA_FAIL_THRESHOLD = 1     # more than this many infra failures => RED
 
 
 def grade(score_percent, critical_count):
@@ -418,3 +419,70 @@ def grade(score_percent, critical_count):
 
 def grade_color(g):
     return {"GREEN": "#10b981", "YELLOW": "#f59e0b", "RED": "#ef4444"}.get(g, "#6b7280")
+
+
+# ---------------------------------------------------------------------------
+# Architectural layer classification — every failure category maps to a layer,
+# and infrastructure failures take precedence over content failures.
+# ---------------------------------------------------------------------------
+FAILURE_LAYERS = {
+    "empty_response": "conversation_orchestration",
+    "general_failure": "infrastructure",
+    "slow_response": "infrastructure",
+    "wrong_domain": "routing",
+    "banned_phrase": "narration",
+    "missing_required": "content_quality",
+    "forbidden_concept": "content_quality",
+    "checkin_time_awareness": "content_quality",
+    "duplicate_answer": "content_quality",
+    "response_quality": "content_quality",
+}
+# Ordered by precedence (most architectural first). A row's layer = the
+# highest-precedence layer among its failures.
+LAYER_PRECEDENCE = ("conversation_orchestration", "infrastructure", "routing",
+                    "narration", "content_quality")
+INFRA_LAYERS = ("conversation_orchestration", "infrastructure", "routing")
+CONTENT_LAYERS = ("narration", "content_quality")
+
+
+def layer_of(category):
+    return FAILURE_LAYERS.get(category, "content_quality")
+
+
+def is_infrastructure_category(category):
+    return layer_of(category) in INFRA_LAYERS
+
+
+def row_layer(failed_rules):
+    """The dominant (highest-precedence) architectural layer for a failed row."""
+    layers = {layer_of(categorize_rule(f)) for f in failed_rules}
+    for lyr in LAYER_PRECEDENCE:
+        if lyr in layers:
+            return lyr
+    return None
+
+
+def compute_grade(score_percent, critical_count, infra_fails=0,
+                  empty_present=False, entire_suite_failed=False):
+    """Stronger grade: ANY of these deterministically forces RED — an empty
+    response, an entire suite failing, or too many infrastructure failures."""
+    if (empty_present or entire_suite_failed
+            or infra_fails > INFRA_FAIL_THRESHOLD or critical_count > 0):
+        return "RED"
+    return grade(score_percent, critical_count)
+
+
+ARCHITECTURAL_INVARIANTS = (
+    "ARCHITECTURAL INVARIANTS (system laws — a violation is a release blocker):\n"
+    "1. Empty responses are never acceptable.\n"
+    "2. Every request must produce an OpenAI response, a deterministic fallback, "
+    "OR a graceful failure response — never nothing.\n"
+    "3. WLJ owns truth; ChatGPT only NARRATES truth.\n"
+    "4. OpenAI outages must degrade gracefully (never an empty box, never a raw "
+    "error).\n"
+    "5. Deterministic providers (reasoning fallbacks, foundational facts) must "
+    "remain reachable even when OpenAI is down.\n"
+    "6. An entire-suite failure is presumed SYSTEMIC until proven otherwise.\n"
+    "7. Any path that bypasses the fallback is a release blocker.\n"
+    "8. Infrastructure failures take PRECEDENCE over content failures."
+)

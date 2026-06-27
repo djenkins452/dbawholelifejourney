@@ -21,10 +21,111 @@ from django.utils import timezone
 
 from apps.ai.chatgpt_cos.acceptance_rules import (
     QUESTIONS, evaluate, questions_for, GOAL_INTENTS, categorize_rule,
-    is_critical_rule, grade as grade_run, RELEASE_THRESHOLD,
+    is_critical_rule, grade as grade_run, compute_grade, RELEASE_THRESHOLD,
+    layer_of, row_layer, INFRA_LAYERS, ARCHITECTURAL_INVARIANTS,
 )
 
 SLOW_MS = 9000      # a response slower than this earns a warning
+
+
+# ---- architectural failure analysis ----------------------------------------
+def analyze(rows):
+    """Classify failures by architectural LAYER, split infrastructure vs content,
+    detect entire-suite failures + release blockers, assess run trustworthiness,
+    and emit ranked root-cause hypotheses. Pure — operates on row dicts."""
+    layers, categories = {}, {}
+    infra_fails = content_fails = empty_count = 0
+    blockers = []
+    suite_tot, suite_fail = {}, {}
+
+    for r in rows:
+        s = r.get("suite", "?")
+        suite_tot[s] = suite_tot.get(s, 0) + 1
+        if not r["passed"]:
+            suite_fail[s] = suite_fail.get(s, 0) + 1
+        for f in r["fails"]:
+            categories[categorize_rule(f)] = categories.get(categorize_rule(f), 0) + 1
+        if not r["passed"]:
+            lyr = row_layer(r["fails"]) or "content_quality"
+            layers[lyr] = layers.get(lyr, 0) + 1
+            if lyr in INFRA_LAYERS:
+                infra_fails += 1
+            else:
+                content_fails += 1
+            if any(f == "empty" or f.startswith("empty") for f in r["fails"]):
+                empty_count += 1
+            # release blockers: empty, orchestration, infra, wrong-domain
+            if lyr in INFRA_LAYERS:
+                blockers.append({"key": r["key"], "layer": lyr,
+                                 "reason": ", ".join(r["fails"])[:160]})
+
+    entire_suites_failed = sorted(
+        s for s, tot in suite_tot.items()
+        if tot >= 2 and suite_fail.get(s, 0) == tot)
+
+    trustworthy = (infra_fails == 0 and not entire_suites_failed)
+    if trustworthy:
+        trust_reason = ("Infrastructure healthy — quality conclusions can be "
+                        "trusted.")
+    else:
+        bits = []
+        if infra_fails:
+            bits.append(f"{infra_fails} infrastructure/orchestration failure(s)")
+        if entire_suites_failed:
+            bits.append("entire suite(s) unavailable: " + ", ".join(entire_suites_failed))
+        trust_reason = ("Quality assessment is PARTIALLY INVALID because "
+                        "infrastructure is unhealthy (" + "; ".join(bits) + "). "
+                        "Content conclusions for affected paths cannot be trusted; "
+                        "a GREEN here would be FALSELY green and a content-RED may "
+                        "just be downstream of the outage.")
+
+    return {
+        "layers": layers, "categories": categories,
+        "infra_fails": infra_fails, "content_fails": content_fails,
+        "empty_count": empty_count, "blockers": blockers,
+        "entire_suites_failed": entire_suites_failed,
+        "trustworthy": trustworthy, "trust_reason": trust_reason,
+        "hypotheses": _hypotheses(layers, empty_count, entire_suites_failed, rows),
+    }
+
+
+def _hypotheses(layers, empty_count, entire_suites_failed, rows):
+    h = []
+    if empty_count > 0:
+        h.append({"title": "Silent conversation/orchestration termination",
+                  "layer": "conversation_orchestration", "confidence": "HIGH",
+                  "evidence": f"{empty_count} question(s) returned an EMPTY response "
+                  "with no intent, no lane, no OpenAI call and no fallback — the "
+                  "request fell through every lane to the tool loop, which returned "
+                  "nothing. A deterministic emergency fallback must fire."})
+    for s in entire_suites_failed:
+        if s == "general":
+            h.append({"title": "General-knowledge / OpenAI dependency unavailable",
+                      "layer": "infrastructure", "confidence": "HIGH",
+                      "evidence": "Every general-knowledge question failed (typically "
+                      "the 'couldn't reach it' message) — OpenAI is rate-limited, out "
+                      "of quota, or unreachable. This is infrastructure, not content."})
+        else:
+            h.append({"title": f"Entire '{s}' suite unavailable",
+                      "layer": "routing" if s in ("goals", "health") else "infrastructure",
+                      "confidence": "MEDIUM",
+                      "evidence": f"All '{s}' questions failed — presumed systemic."})
+    if layers.get("routing") and not any(x["layer"] == "routing" for x in h):
+        h.append({"title": "Routing to the wrong domain/intent", "layer": "routing",
+                  "confidence": "MEDIUM",
+                  "evidence": f"{layers['routing']} response(s) reached the wrong "
+                  "domain — pre-router/planner is mis-classifying."})
+    if layers.get("narration"):
+        h.append({"title": "Prohibited narration language leaking", "layer": "narration",
+                  "confidence": "MEDIUM",
+                  "evidence": f"{layers['narration']} answer(s) contained banned "
+                  "coaching/system/deflection phrases."})
+    if layers.get("content_quality"):
+        h.append({"title": "Content quality below the gold bar", "layer": "content_quality",
+                  "confidence": "LOW",
+                  "evidence": f"{layers['content_quality']} answer(s) missed required "
+                  "concepts, evidence, synthesis, or a concrete action."})
+    return h
 
 logger = logging.getLogger(__name__)
 
@@ -262,6 +363,7 @@ def _finalize(run, rows, duration_ms):
         obj.is_slow = r_slow
         obj.save(update_fields=["passed", "failed_rules", "is_critical", "is_slow"])
 
+    analysis = analyze(rows)
     run.total_count = total
     run.pass_count = passed
     run.fail_count = total - passed
@@ -271,7 +373,12 @@ def _finalize(run, rows, duration_ms):
     run.critical_count = critical
     run.warning_count = warnings
     run.category_summary = category
-    run.grade = grade_run(run.score_percent, critical)
+    run.analysis = analysis
+    run.trustworthy = analysis["trustworthy"]
+    run.grade = compute_grade(
+        run.score_percent, critical, infra_fails=analysis["infra_fails"],
+        empty_present=analysis["empty_count"] > 0,
+        entire_suite_failed=bool(analysis["entire_suites_failed"]))
     run.status = "completed"
     run.completed_at = timezone.now()
     run.raw_report_json = {"rows": [{k: v for k, v in r.items() if k != "spec"}
@@ -386,19 +493,64 @@ def _summary_block(run, rows):
     return "\n".join(lines), failed
 
 
+def _arch_block(run, rows):
+    a = run.analysis or analyze(rows)
+    lines = ["ARCHITECTURAL LAYER AGGREGATION:"]
+    if a["layers"]:
+        for lyr, n in sorted(a["layers"].items(), key=lambda x: -x[1]):
+            lines.append(f"  - {lyr}: {n}")
+    else:
+        lines.append("  - (no failures)")
+    lines += [
+        "",
+        f"INFRASTRUCTURE vs CONTENT:  infrastructure={a['infra_fails']}  "
+        f"content={a['content_fails']}  (empty responses={a['empty_count']})",
+        "  NOTE: infrastructure failures take precedence — fix them FIRST; content "
+        "conclusions downstream of an outage are unreliable.",
+        "",
+        "RELEASE BLOCKERS:",
+    ]
+    if a["blockers"]:
+        for b in a["blockers"]:
+            lines.append(f"  - [{b['key']}] {b['layer']} :: {b['reason']}")
+    else:
+        lines.append("  - none")
+    if a["entire_suites_failed"]:
+        lines.append("  - ENTIRE SUITE(S) FAILED (presumed systemic): "
+                     + ", ".join(a["entire_suites_failed"]))
+    lines += [
+        "",
+        "RUN TRUSTWORTHINESS:",
+        f"  trustworthy: {'YES' if a['trustworthy'] else 'NO'}",
+        f"  {a['trust_reason']}",
+        "  Consider: could this run be FALSELY GREEN (infra masking content) or "
+        "FALSELY RED (content failing only because infra is down)?",
+        "",
+        "LIKELY ROOT CAUSES (ranked):",
+    ]
+    for i, hyp in enumerate(a["hypotheses"], 1):
+        lines.append(f"  {i}. {hyp['title']}  [layer={hyp['layer']}, "
+                     f"confidence={hyp['confidence']}]\n     evidence: {hyp['evidence']}")
+    if not a["hypotheses"]:
+        lines.append("  (none — run is clean)")
+    return "\n".join(lines)
+
+
 def build_chatgpt_review_prompt(run, rows):
     summary, failed = _summary_block(run, rows)
     lines = [
         "You are reviewing an automated acceptance run for 'Beth', a personal "
-        "Chief-of-Staff AI. Assess RELEASE READINESS. Identify SYSTEMIC failure "
-        "patterns, not just individual failed questions. Do NOT ask me follow-up "
-        "questions — everything you need is below.\n",
+        "Chief-of-Staff AI. Assess RELEASE READINESS. Reason at the ARCHITECTURAL "
+        "level: classify failures by layer, separate INFRASTRUCTURE from CONTENT "
+        "defects, and identify SYSTEMIC defect classes — not individual questions. "
+        "Do NOT ask follow-up questions — everything you need is below.\n",
         f"Environment: {run.environment}   Commit: {run.git_commit}   "
         f"Suite: {run.suite_name}/{run.depth}   Time: {run.completed_at or run.created_at}\n",
+        ARCHITECTURAL_INVARIANTS,
+        "",
         summary,
         "",
-        "TOP FAILURE THEMES (you fill these in): identify the 1-3 systemic themes "
-        "behind the failures above.",
+        _arch_block(run, rows),
     ]
     if failed:
         lines.append(f"\nFAILED QUESTIONS ({len(failed)}):")
@@ -416,13 +568,20 @@ def build_chatgpt_review_prompt(run, rows):
     else:
         lines.append("\nNo failed questions — every response passed its rules.")
     lines.append(
-        "\n\nRELEASE READINESS — please answer:\n"
-        "1. Identify the systemic failure patterns (the defect CLASSES), not just "
-        "individual questions.\n"
-        "2. Stable-tag eligible (beth-stable-v3): yes/no, and why.\n"
-        "3. Blocking failures (the critical ones that must be fixed first).\n"
-        "4. Recommended fix priority order.\n"
-        "5. Any missing acceptance tests we should add.")
+        "\n\nRELEASE READINESS — answer ALL of these:\n"
+        "1. Systemic defect CLASSES (not individual questions).\n"
+        "2. Architectural LAYER of each class (orchestration / infrastructure / "
+        "routing / narration / content).\n"
+        "3. INFRASTRUCTURE vs CONTENT — which defects are infra (fix first) vs "
+        "content?\n"
+        "4. LIKELY ROOT CAUSES, ranked, each with probable subsystem + confidence + "
+        "evidence.\n"
+        "5. RUN TRUSTWORTHINESS — is this run trustworthy? Could it be falsely GREEN "
+        "or falsely RED? Does infra instability invalidate the quality conclusions?\n"
+        "6. RELEASE BLOCKERS — which failures block a beth-stable-v3 tag.\n"
+        "7. PERMANENT REGRESSION tests we should add so this class can never be "
+        "misdiagnosed again.\n"
+        "8. Stable-tag eligible (beth-stable-v3): yes/no, and why.")
     return "\n".join(lines)
 
 
@@ -441,6 +600,12 @@ def build_claude_fix_prompt(run, rows):
                      "acceptance questions to harden coverage.")
         return "\n".join(lines)
 
+    lines.append("")
+    lines.append(ARCHITECTURAL_INVARIANTS)
+    lines.append("")
+    lines.append(_arch_block(run, rows))
+    lines.append("\nFIX INFRASTRUCTURE DEFECTS FIRST — they take precedence and a "
+                 "content failure downstream of an outage may not be real.\n")
     groups = _root_cause_groups(failed)
     lines.append("LIKELY ROOT-CAUSE GROUPS (treat each as a SYSTEMIC defect — fix the "
                  "defect class, not only the individual question):")

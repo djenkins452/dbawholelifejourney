@@ -133,7 +133,8 @@ class PromptGenerationTests(TestCase):
             depth="full", completed_at="2026-06-26", created_at="2026-06-26",
             score_percent=78, pass_count=14, total_count=18, fail_count=4,
             grade="RED", critical_count=1, warning_count=0, avg_response_ms=1200,
-            category_summary={"banned_phrase": 2, "missing_required": 1, "wrong_domain": 1})
+            category_summary={"banned_phrase": 2, "missing_required": 1, "wrong_domain": 1},
+            analysis={}, trustworthy=True)
         rows = [
             {"key": "goal_why_priority__0", "suite": "goals", "question": "Why?",
              "answer": "lock in consistency", "expected_intent": "goal_why_priority",
@@ -146,6 +147,8 @@ class PromptGenerationTests(TestCase):
              "fails": ["missing_required_any:slipping|none"], "passed": False,
              "spec": {"depth": "full"}},
         ]
+        run.analysis = svc.analyze(rows)
+        run.trustworthy = run.analysis["trustworthy"]
         return run, rows
 
     def test_chatgpt_prompt_has_summary_categories(self):

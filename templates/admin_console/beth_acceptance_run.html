@@ -56,6 +56,13 @@
   </div>
   {% endif %}
 
+  {% if run.status == "completed" and not run.trustworthy %}
+  <div class="stat-card" data-testid="ac-untrustworthy" style="border-left:4px solid #f59e0b;">
+    <strong style="color:#b45309;">⚠ This run may NOT be trustworthy.</strong>
+    <p class="ac-resp">{{ run.analysis.trust_reason }}</p>
+  </div>
+  {% endif %}
+
   <!-- Summary -->
   <div class="stat-card">
     <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
@@ -95,6 +102,45 @@
         {% endfor %}
       </ul>
     </details>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if run.analysis %}
+  <div class="section-divider"><h2 class="section-title">Architecture analysis</h2></div>
+  <div class="stat-card">
+    <div class="ac-summary">
+      <div class="ac-stat"><div class="k">Infrastructure failures</div><div class="v" style="color:{% if run.analysis.infra_fails %}#ef4444{% else %}#10b981{% endif %};">{{ run.analysis.infra_fails }}</div></div>
+      <div class="ac-stat"><div class="k">Content failures</div><div class="v">{{ run.analysis.content_fails }}</div></div>
+      <div class="ac-stat"><div class="k">Empty responses</div><div class="v" style="color:{% if run.analysis.empty_count %}#ef4444{% else %}#10b981{% endif %};">{{ run.analysis.empty_count }}</div></div>
+      <div class="ac-stat"><div class="k">Trustworthy</div><div class="v">{{ run.trustworthy|yesno:"yes,NO" }}</div></div>
+    </div>
+    <p class="ac-note" style="margin-top:6px;">Infrastructure failures take precedence over content failures — fix them first.</p>
+
+    {% if run.analysis.layers %}
+    <h3 style="margin-bottom:4px;">Failures by architectural layer</h3>
+    <ul class="ac-note">
+      {% for lyr, n in run.analysis.layers.items %}<li><code>{{ lyr }}</code>: {{ n }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if run.analysis.blockers %}
+    <h3 style="margin-bottom:4px; color:#ef4444;">Release blockers</h3>
+    <ul class="ac-note">
+      {% for b in run.analysis.blockers %}<li><strong>{{ b.key }}</strong> <code>{{ b.layer }}</code> — {{ b.reason }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% if run.analysis.entire_suites_failed %}
+    <p class="ac-bad">Entire suite(s) failed (presumed systemic): {{ run.analysis.entire_suites_failed|join:", " }}</p>
+    {% endif %}
+
+    {% if run.analysis.hypotheses %}
+    <h3 style="margin-bottom:4px;">Likely root causes (ranked)</h3>
+    <ol class="ac-note">
+      {% for h in run.analysis.hypotheses %}
+      <li><strong>{{ h.title }}</strong> — layer <code>{{ h.layer }}</code>, confidence {{ h.confidence }}<br><span style="color:#6b7280;">{{ h.evidence }}</span></li>
+      {% endfor %}
+    </ol>
     {% endif %}
   </div>
   {% endif %}

@@ -243,7 +243,7 @@ def on_medicine_save(sender, instance, created, **kwargs):
 def on_medicine_schedule_save(sender, instance, created, **kwargs):
     """Schedule SMS when a medicine schedule is saved."""
     try:
-        count = schedule_medicine_sms_for_today(instance.medicine)
+        count = schedule_medicine_sms_for_today(instance.intake)
         if count > 0:
             logger.info(f"Scheduled {count} SMS notification(s) for schedule {instance}")
     except Exception as e:

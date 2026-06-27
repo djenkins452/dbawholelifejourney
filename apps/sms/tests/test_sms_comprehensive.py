@@ -822,6 +822,36 @@ class RealTimeSignalTests(SMSTestMixin, TestCase):
         self.assertGreaterEqual(count_after, count_before)
 
     @override_settings(TWILIO_TEST_MODE=True)
+    def test_schedule_save_passes_intake_not_legacy_medicine(self):
+        """Regression (Sprint 1.5A): the IntakeSchedule-save signal must reference
+        the canonical `.intake` relationship, not the removed legacy `.medicine`.
+
+        The old code called schedule_medicine_sms_for_today(instance.medicine),
+        which raised AttributeError that the signal's try/except swallowed — so
+        medicine SMS reminders were silently never scheduled. This test is
+        deterministic (no wall-clock dependency): it proves the signal resolves
+        `instance.intake` and invokes the scheduler with the Intake instance.
+        """
+        from datetime import time as dtime
+        from unittest.mock import patch
+        from apps.health.models import Intake, IntakeSchedule
+
+        medicine = Intake.objects.create(
+            user=self.user, name='Reg Med', dose='5mg', frequency='daily',
+            start_date=date.today(), intake_status=Intake.STATUS_ACTIVE,
+        )
+        with patch(
+            'apps.sms.signals.schedule_medicine_sms_for_today', return_value=0
+        ) as mock_sched:
+            IntakeSchedule.objects.create(
+                intake=medicine, scheduled_time=dtime(9, 0), is_active=True,
+            )
+        # With the bug, `instance.medicine` raises before the call → mock never
+        # invoked. With the fix, the scheduler is called with the Intake itself.
+        self.assertTrue(mock_sched.called)
+        self.assertEqual(mock_sched.call_args[0][0], medicine)
+
+    @override_settings(TWILIO_TEST_MODE=True)
     def test_task_save_triggers_sms_scheduling(self):
         """Saving a task due today should trigger SMS scheduling."""
         from apps.life.models import Task

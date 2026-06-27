@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(sms): Sprint 1.5A — SMS reminder signal referenced legacy `.medicine` (reminders silently never scheduled)
+
+**Root cause:** `apps/sms/signals.py:246` (`on_medicine_schedule_save`, a `post_save` receiver on `health.IntakeSchedule`) called `schedule_medicine_sms_for_today(instance.medicine)`. The medicine→intake rename removed `IntakeSchedule.medicine` (canonical FK is `.intake`), so every schedule save raised `AttributeError: 'IntakeSchedule' object has no attribute 'medicine'`, which the receiver's `try/except` swallowed and logged. Net effect: **medicine SMS reminders were silently never scheduled when a schedule was created/edited** (a fail-open silent functional loss).
+
+**Fix:** one-line correctness — `instance.medicine` → `instance.intake`. No scheduling logic, timing, or reminder behavior changed. The helper `schedule_medicine_sms_for_today` already expects an `Intake`.
+
+**Files:** apps/sms/signals.py; apps/sms/tests/test_sms_comprehensive.py (strengthened: the existing `test_medicine_schedule_save_triggers_sms_scheduling` passed even WITH the bug because it only asserted `count_after >= count_before`; added deterministic `test_schedule_save_passes_intake_not_legacy_medicine` that patches the scheduler and asserts the signal resolves `.intake` and invokes it with the Intake — fails on the bug, passes on the fix).
+
+**Verification:** `RealTimeSignalTests` 3/3 green; no legacy `.medicine` remains in `apps/sms/`. (The same run surfaced a SEPARATE legacy `.medicine` in calendar projection — handled in Sprint 1.5C.)
+
+
 ## 2026-06-27 — feat(health): Sprint 1D — Medication dashboard foundation (canonical adherence + med/supplement split)
 
 Enhanced the existing intake daily dashboard (`IntakeHomeView`, `health:intake_home`) into the Medication Intelligence dashboard foundation — **modify-before-add**: no parallel dashboard created. Reads canonical sources only; no duplicate calculations.

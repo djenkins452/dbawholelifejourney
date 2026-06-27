@@ -637,21 +637,19 @@ _BRIEFING_CUES = ("coming up", "next up", "priority", "agenda", "scheduled", "be
                   "your day", "start with", "first up", "on your plate")
 
 
-def _greeting_word(message, user):
-    n = _normalize(message)
-    if "good evening" in n or "evening beth" in n:
-        return "Good evening"
-    if "good afternoon" in n or "afternoon beth" in n:
-        return "Good afternoon"
-    if "good morning" in n or "morning" in n:
-        return "Good morning"
+def _greeting_word(user, message=None):
+    """Time-aware greeting (P33.1): driven by the user's CURRENT clock, not by the
+    word they typed — so 'good morning' at 12:05 PM is answered 'Good afternoon'."""
     try:
         from apps.core.utils import get_user_now
         hour = get_user_now(user).hour
-        return ("Good morning" if hour < 12 else
-                "Good afternoon" if hour < 17 else "Good evening")
     except Exception:
-        return "Hi"
+        return "Hello"
+    if 4 <= hour < 12:
+        return "Good morning"
+    if 12 <= hour < 17:
+        return "Good afternoon"
+    return "Good evening"
 
 
 def _overnight_facts(user):
@@ -675,7 +673,7 @@ def _overnight_facts(user):
 
 
 def _morning_checkin(user, message):
-    greeting = _greeting_word(message, user)
+    greeting = _greeting_word(user, message)
     facts, strong = _overnight_facts(user)
     parts = [f"{greeting}, Danny."]
     if facts:

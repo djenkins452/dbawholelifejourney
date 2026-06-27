@@ -57,13 +57,103 @@ def _safe_exec_summary(user):
         return {}
 
 
+import re
+
+
+def _to_minutes(st):
+    """Parse a rhythm scheduled_time ('HH:MM' or 'H:MM AM/PM') to minutes-of-day, or
+    None when unscheduled."""
+    if not st:
+        return None
+    s = str(st).strip().lower()
+    m = re.match(r"^(\d{1,2}):(\d{2})\s*(am|pm)?", s)
+    if not m:
+        return None
+    h, mi, ap = int(m.group(1)), int(m.group(2)), m.group(3)
+    if ap == "pm" and h != 12:
+        h += 12
+    elif ap == "am" and h == 12:
+        h = 0
+    return h * 60 + mi
+
+
+def _fmt_titles(titles):
+    titles = list(titles)
+    if len(titles) == 1:
+        return titles[0]
+    if len(titles) == 2:
+        return f"{titles[0]} and {titles[1]}"
+    return ", ".join(titles[:-1]) + f", and {titles[-1]}"
+
+
 def _agenda(user):
+    """The composer OWNS temporal framing (P33.1). Rhythm 'remaining' items are
+    INCOMPLETE, not necessarily future — so a 6:45 AM item still open at noon must
+    NEVER be framed as 'coming up'. Split by the user's clock: future items are
+    'still ahead'; already-passed open items are flagged as earlier, not upcoming."""
+    try:
+        from apps.core.utils import get_user_now
+        from apps.core.cos_briefing.rhythm_api import get_remaining_rhythm_items
+        now = get_user_now(user)
+    except Exception:
+        logger.warning("executive_brief: agenda time failed", exc_info=True)
+        return _evening_or_empty(user)
+    if now.hour >= 20:                         # evening wrap-up is already correct
+        return _evening_or_empty(user)
+    now_min = now.hour * 60 + now.minute
+    items = []
+    try:
+        items = get_remaining_rhythm_items(user) or []
+    except Exception:
+        logger.warning("executive_brief: rhythm items failed", exc_info=True)
+    ahead, past = [], []
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        title = (it.get("title") or "").strip()
+        if not title:
+            continue
+        mins = _to_minutes(it.get("scheduled_time"))
+        if mins is None or mins >= now_min - 5:        # unscheduled or future (5-min grace)
+            label = title
+            if mins is not None:
+                from apps.core.cos_briefing.daily_agenda import _fmt_time
+                label = f"{title} at {_fmt_time(it.get('scheduled_time'))}"
+            ahead.append(label)
+        else:
+            past.append(title)
+    parts = []
+    if ahead:
+        parts.append("Today's agenda — still ahead: " + _fmt_titles(ahead[:3]) + ".")
+    else:
+        parts.append("Today's agenda — you're clear on your rhythm; nothing scheduled "
+                     "is left.")
+    if past:
+        parts.append("(From earlier, " + _fmt_titles(past[:3]) + " "
+                     + ("is" if len(past[:3]) == 1 else "are")
+                     + " still open — your call whether it's worth doing now, not a "
+                     "fresh start.)")
+    return " ".join(parts)
+
+
+def _evening_or_empty(user):
     try:
         from apps.core.cos_briefing.daily_agenda import build_daily_agenda
         return _scrub((build_daily_agenda(user) or "").strip()).strip()
     except Exception:
-        logger.warning("executive_brief: agenda failed", exc_info=True)
+        logger.warning("executive_brief: agenda fallback failed", exc_info=True)
         return ""
+
+
+_RAW_WORKLOAD_RE = re.compile(r"\b\d+\s+(pending|open|outstanding|backlog)?\s*tasks?\b")
+
+
+def _is_raw_workload_claim(t):
+    """A raw task-count claim ('22 pending tasks') CONTRADICTS the interpreted
+    workload — the interpretation owns workload, so the composer suppresses it."""
+    tl = (t or "").lower()
+    return bool(_RAW_WORKLOAD_RE.search(tl)) or "pending task" in tl \
+        or "tasks pending" in tl or "task backlog" in tl
 
 
 # ── Section composers (each returns a sentence/paragraph or "") ────────────
@@ -103,7 +193,9 @@ def _priorities(sig, es):
     if sig.overdue_count:
         bits.append(f"{sig.overdue_count} overdue to clear")
     na = [_text(i) for i in (es.get("needs_attention") or [])]
-    bits.extend([t for t in na if t][:2])
+    # SUPPRESS raw task-count claims that contradict the interpreted workload (P33.1).
+    na = [t for t in na if t and not _is_raw_workload_claim(t)]
+    bits.extend(na[:2])
     if bits:
         return "What matters today: " + "; ".join(bits) + "."
     return ("What matters today: nothing is due today and nothing is flagged — a "
@@ -136,9 +228,9 @@ def compose_executive_brief(user, *, lead="", low_energy=False):
             blocks.append(section)
     agenda = _agenda(user)
     if agenda:
-        # AGENDA LAST and framed as supporting detail — never "coming up" as a
-        # headline. The daily_agenda is itself time-aware (past != upcoming).
-        blocks.append("Then, on today's agenda — " + agenda)
+        # AGENDA LAST and self-framed (the composer owns temporal framing — never
+        # "coming up" as a headline, never a past item as upcoming).
+        blocks.append(agenda)
     body = [b for b in blocks if b]
     if not body or (lead and len(body) == 1):
         body.append("Here's your executive read: nothing urgent is flagged right "
@@ -196,6 +288,10 @@ def score_executive_judgment(text):
         # today's commitments lead, not the total pending number
         "today_first": any(k in t for k in (
             "due today", "nothing is due today", "clean slate")),
+        # P33.1: the interpreted conclusion is NOT contradicted later by a raw count
+        "no_raw_workload": not _is_raw_workload_claim(t),
+        # P33.1: the composer owns temporal framing — never frames items as "coming up"
+        "no_past_as_coming_up": "coming up" not in t,
     }
     dims["score"] = round(sum(1 for v in dims.values() if v) / len(dims), 2)
     return dims

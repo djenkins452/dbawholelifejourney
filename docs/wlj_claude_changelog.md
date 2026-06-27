@@ -7,6 +7,22 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(cos): P33.1 Executive Brief integration — the composer owns the final story
+
+Architecture was complete; the remaining defects were INTEGRATION — the brief was concatenating layers instead of producing one coherent executive narrative. Fixed all four live defects (no architecture change).
+
+1. **Greeting not time-aware** — `_greeting_word` echoed the user's typed word ("good morning" at 12:05 PM). Now driven by the user's CURRENT clock (`get_user_now`): morning/afternoon/evening regardless of what they typed.
+2. **Interpreted workload contradicted by raw "22 pending tasks"** — the composer echoed an executive-summary `needs_attention` item that was a raw task count, contradicting the interpreted "manageable." The composer now SUPPRESSES raw task-count claims (`_is_raw_workload_claim`) — interpretation owns workload.
+3. **Past item framed as "coming up"** — ROOT CAUSE: `get_remaining_rhythm_items` returns INCOMPLETE items (not future), so a 6:45 AM item still open at noon rendered "Coming up… at 6:45 AM." The composer now OWNS temporal framing: it splits rhythm items by the user's clock — future items are "still ahead", already-passed open items are flagged "(from earlier… your call, not a fresh start)" — and never says "coming up". (No change to the rhythm API; the composer reframes.)
+4. **Routine task as highest leverage without justification** — `highest_leverage` took the first recommendation (a routine task). Now a JUDGMENT: recovery (when limiting) > a real risk-driven move > the strategic mission > a routine pick, and a routine pick is justified ("— it keeps today's momentum").
+
+**Acceptance additions:** `score_executive_judgment` gains `no_raw_workload` (interpreted conclusion not contradicted by a later count) and `no_past_as_coming_up` (composer never frames items as upcoming) — a Morning Executive Brief now fails on either.
+
+**Files:** apps/ai/chatgpt_cos/executive_brief.py (composer-owned agenda + raw-workload suppression + scorer), executive_interpretation.py (strategic-over-routine leverage), lanes.py (time-aware greeting). Tests: apps/ai/tests/test_p33_1_brief_integration.py (new).
+
+**Verification:** the EXACT production case as regression (12:05 PM, 22 pending/1 due today, a 6:45 AM item still open + a 2 PM item): greeting → "Good afternoon" (not echoing "good morning"); brief concludes "manageable despite a healthy strategic backlog" and NEVER echoes "22 pending tasks"; the 6:45 AM item is flagged "(from earlier…)" not "coming up", the 2 PM item is "still ahead"; highest leverage is strategic/justified, not a bare routine task. 108-test regression green; `check` clean; no migration.
+
+
 ## 2026-06-27 — feat(health): Sprint 3.5 — real-world Scan/Vision → Acquisition pipeline integration
 
 Routes the existing bottle-scan Vision pipeline into the Sprint-3 acquisition pipeline. The legacy `Vision → prefilled IntakeCreateView` flow is retired in favor of `Vision → MedicationScanDraft → Confidence Review → Duplicate Detection → Confirm → MedicationEvent → Intake`. Reuses the Sprint-3 architecture; no redesign.

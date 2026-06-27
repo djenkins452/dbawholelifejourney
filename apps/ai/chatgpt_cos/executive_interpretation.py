@@ -150,6 +150,14 @@ def _cognitive_load(tw, health):
     return "high"
 
 
+def _looks_justified(rec):
+    """A leverage statement is 'justified' if it explains WHY (contains a because/so/—
+    rationale), so a bare routine task never reads as highest leverage on its own."""
+    r = (rec or "").lower()
+    return any(c in r for c in ("because", " so ", " — ", "keeps", "protects",
+                                "moves", "leverage", "compounds", "highest"))
+
+
 def _headline(workload, recovery, has_backlog):
     if workload in ("light", "manageable") and has_backlog:
         base = f"Today's workload is {workload} despite a healthy strategic backlog"
@@ -180,12 +188,24 @@ def interpret(user):
     if not biggest_risk and recovery:
         biggest_risk = "sleep debt is the main thing to watch"
 
-    recs = es.get("recommendations") or []
-    highest_leverage = next((_text(x) for x in recs if _text(x)), "")
-    if not highest_leverage and recovery:
-        highest_leverage = "protecting your sleep and energy today"
-
     strategic = _strategic_focus(user)
+    # Highest leverage is a JUDGMENT, not the first available task (P33.1: a routine
+    # task must not outrank strategic leverage without justification). Priority:
+    # recovery (when it's the limiting factor) > a real risk-driven move > the
+    # strategic mission > a routine recommendation, and a routine pick is justified.
+    recs = es.get("recommendations") or []
+    rec = next((_text(x) for x in recs if _text(x)), "")
+    if recovery:
+        highest_leverage = ("protecting your sleep and energy today — that compounds "
+                            "into everything else")
+    elif strategic:
+        highest_leverage = (f"moving {strategic} forward — that's where the leverage "
+                            "is today, not the routine items")
+    elif rec:
+        highest_leverage = rec + (" — it keeps today's momentum"
+                                  if not _looks_justified(rec) else "")
+    else:
+        highest_leverage = ""
     # Intervention is a JUDGMENT, not a count: only real risk warrants it, never a
     # large-but-harmless backlog.
     intervention = (tw["overdue"] >= 5 or workload == "overloaded"

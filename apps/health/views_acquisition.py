@@ -164,6 +164,23 @@ class MedicationTimelineView(LoginRequiredMixin, View):
         })
 
 
+class MedicationNoticedView(LoginRequiredMixin, View):
+    """Sprint 7G — "What We've Noticed". The visual equivalent of Beth's
+    understanding: the SAME deterministic narration objects she consumes, grouped,
+    each with a "why am I seeing this?" evidence trail. No duplicate logic — it
+    reads the narration boundary directly."""
+
+    template_name = "health/intake/noticed.html"
+
+    def get(self, request):
+        from apps.health.observations.narration import build_narration_view
+        view = build_narration_view(request.user)
+        return render(request, self.template_name, {
+            "groups": view["groups"],
+            "count": len(view["narrations"]),
+        })
+
+
 class MedicationConfirmView(LoginRequiredMixin, View):
     """Confirmation (Sprint 3F) — resolve the draft into canonical state through
     the single write path. POST only."""

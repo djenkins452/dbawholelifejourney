@@ -4009,13 +4009,36 @@ def build_medicine_state(user):
     _observations = []
     _prioritized_observations = []
     _observation_groups = []
+    _narrations = []
+    _narration_groups = []
     try:
         from apps.health.observations import build_observations, build_prioritized
+        from apps.health.observations.narration import render_narration
+        from apps.health.observations.prioritization import GROUP_TITLES
+
         _approved = build_observations(user)
         _observations = [o.to_dict() for o in _approved]
         _prioritized_observations, _observation_groups = build_prioritized(
             user, observations=_approved,
         )
+        # Sprint 7 — the narration boundary. Beth consumes `narrations` ONLY; the
+        # observation/prioritization layers below remain deterministic substrate.
+        _narrations = [render_narration(d).to_dict() for d in _prioritized_observations]
+        _nar_by_key = {
+            (d["type"], ":".join(sorted(d["domains"]))): n
+            for d, n in zip(_prioritized_observations, _narrations)
+        }
+        for _g in _observation_groups:
+            _items = [
+                _nar_by_key[(d["type"], ":".join(sorted(d["domains"])))]
+                for d in _g["observations"]
+                if (d["type"], ":".join(sorted(d["domains"]))) in _nar_by_key
+            ]
+            _narration_groups.append({
+                "key": _g["key"], "title": _g["title"],
+                "physician_discussion": _g["physician_discussion"],
+                "narrations": _items,
+            })
     except Exception:
         logger.debug("Medicine observations build failed", exc_info=True)
 
@@ -4081,6 +4104,9 @@ def build_medicine_state(user):
         'observations': _observations,
         'prioritized_observations': _prioritized_observations,
         'observation_groups': _observation_groups,
+        # Sprint 7 — Beth's narration surface (consume these, not the layers above).
+        'narrations': _narrations,
+        'narration_groups': _narration_groups,
         'acquisition': {
             'pending_review_count': _acq_pending,
             'medications': _acq_meds,

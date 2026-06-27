@@ -7,6 +7,27 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Sprint 7 — deterministic narration boundary + "What We've Noticed"
+
+The final rendering layer: prioritized observations become deterministic narration objects Beth consumes. Narration is a RENDERING layer, not an intelligence layer — Beth creates no facts, ranks nothing, infers nothing, never diagnoses or recommends.
+
+**7A — Narration model** (`apps/health/observations/narration.py`): frozen `Narration` (observation_type, narration_type, tone, title, summary, supporting_facts, physician_discussion, educational, evidence, confidence, safety_class, priority_score). Deterministic; no LLM facts. No migration.
+
+**7B/7C — Rendering rules + tone policy:** narration_type per observation type (stability→calm_reassurance, recent changes→informational_summary, cross-domain→educational_observation, adherence→supportive_observation); **tone is set by safety class** (informational→matter_of_fact, observation→supportive, educational→contextual, physician_discussion→calm_encouraging). Tone is metadata (how to say it), never injected words.
+
+**7D — Fact preservation (structural):** the summary is built ONLY from the observation's own `title`/`detail` + a fixed, pre-vetted physician-discussion suffix ("This may be worth bringing up at your next visit." — a discussion suggestion, never treatment advice). `assert_safe` raises if narration ever introduces causal/recommendation phrasing absent from the source. Confidence carried through unchanged (never upgraded); safety class preserved (never weakened); chronology preserved.
+
+**7E — Evidence visibility:** each narration exposes `supporting_facts` (deterministic evidence summaries) + `evidence` refs for "Why am I seeing this?" — never raw OCR.
+
+**7F — Beth integration:** `build_medicine_state._contract.narrations` + `narration_groups` are Beth's surface (consume these, not the observation/prioritization/timeline layers below the boundary).
+
+**7G — "What We've Noticed" UI** (`MedicationNoticedView`, `intake/noticed/`): the visual equivalent of Beth's understanding — the SAME narration objects, grouped, each with a "Why am I seeing this?" evidence trail and tone-driven styling. No duplicate logic. Reachable from the intake dashboard.
+
+**Files:** apps/health/observations/{narration.py (new), __init__.py}, apps/core/ai_state/state_builder.py, apps/health/views_acquisition.py, apps/health/urls.py, templates/health/intake/{noticed.html (new), home.html}, apps/health/tests/test_narration.py (new, 12 tests).
+
+**Verification:** 46 tests green — narration deterministic (identical input → identical output), adds no new facts, no causal/recommendation/banned language introduced, confidence + safety preserved, physician wording only when flagged, evidence intact, state exposes narrations for Beth, UI renders + empty state; `manage.py check` clean; no migration.
+
+
 ## 2026-06-27 — feat(health): Sprint 6 — deterministic observation prioritization & grouping
 
 Decides WHICH approved observations matter most to this user, and in WHAT order, so Beth never has to. Fully deterministic and explainable — no LLM ranking, no AI heuristics, no recommendations. Does not change observation generation or safety classification (Sprint 5 owns those); identical input always yields identical ordering.

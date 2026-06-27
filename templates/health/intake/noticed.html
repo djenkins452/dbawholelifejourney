@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}What We've Noticed - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:intake_home' %}">Intake</a>
+        <span>/</span>
+        <span>What We've Noticed</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">What We've Noticed</h1>
+            <p class="page-subtitle">Deterministic observations from your treatment history — chronology and association only, never a diagnosis or advice.</p>
+        </div>
+    </div>
+
+    {% if groups %}
+    {% for group in groups %}
+    <div class="noticed-group">
+        <h2 class="noticed-group-title">
+            {{ group.title }}
+            {% if group.physician_discussion %}
+            <span class="noticed-flag">worth discussing with your doctor</span>
+            {% endif %}
+        </h2>
+        {% for n in group.narrations %}
+        <div class="noticed-card tone-{{ n.tone }}">
+            <div class="noticed-summary">{{ n.summary }}</div>
+            {% if n.supporting_facts %}
+            <details class="noticed-why">
+                <summary>Why am I seeing this?</summary>
+                <ul>
+                    {% for fact in n.supporting_facts %}
+                    <li>{{ fact }}</li>
+                    {% endfor %}
+                </ul>
+            </details>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty-state">
+        <p>Nothing notable yet.</p>
+        <p class="empty-note">As your treatment builds a history — changes, adherence patterns, refills — clear, evidence-backed observations will appear here.</p>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.noticed-group { margin-bottom: 1.75rem; }
+.noticed-group-title { font-size: 1.05rem; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+.noticed-flag { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; padding: 0.12rem 0.5rem; border-radius: 999px; background: rgba(16,185,129,0.12); color: #0f766e; font-weight: 600; }
+.noticed-card { border: 1px solid rgba(148,163,184,0.25); border-left: 4px solid #cbd5e1; border-radius: 8px; padding: 0.85rem 1rem; margin-bottom: 0.6rem; max-width: 640px; }
+.noticed-card.tone-calm_encouraging { border-left-color: #10b981; }
+.noticed-card.tone-supportive { border-left-color: #3b82f6; }
+.noticed-card.tone-contextual { border-left-color: #8b5cf6; }
+.noticed-card.tone-matter_of_fact { border-left-color: #94a3b8; }
+.noticed-summary { font-size: 0.98rem; }
+.noticed-why { margin-top: 0.5rem; }
+.noticed-why summary { cursor: pointer; color: #64748b; font-size: 0.82rem; }
+.noticed-why ul { margin: 0.4rem 0 0 1rem; color: #64748b; font-size: 0.85rem; }
+.empty-state { text-align: center; padding: 2rem 1rem; color: #475569; }
+.empty-note { color: #94a3b8; font-size: 0.9rem; }
+</style>
+{% endblock %}

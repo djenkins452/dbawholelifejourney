@@ -51,6 +51,28 @@ FAILURE_MARKERS = (
     "reached openai", "response came back empty", "temporarily unavailable",
 )
 
+# goal_failure_modes is a SEMANTIC contract — "clearly communicate failure RISKS" —
+# not a narrow lexical whitelist. A correct failure analysis may use "setback",
+# "obstacle", "stall", "burnout", "inconsistent", etc. We accept the broad failure-
+# risk vocabulary the SYSTEM ITSELF already recognizes (mirrors the input-side set in
+# plan._infer_named_goal_intent + the LLM profile's own examples), so semantically-
+# correct answers are not rejected for word choice. Still paired with the 'actionable'
+# gate + domain check, so a pure PROGRESS answer (no risk language) still fails.
+FAILURE_RISK_VOCAB = [
+    # explicit risk / failure words
+    "fail", "risk", "threat", "derail", "jeopard", "undermin", "danger",
+    # trajectory loss
+    "slip", "stall", "stagn", "plateau", "fade", "fading", "falter", "drift",
+    "lapse", "regress", "backslid", "lose momentum", "losing", "lost momentum",
+    "fall behind", "falling behind", "behind",
+    # behavioural failure modes
+    "setback", "obstacle", "challenge", "hurdle", "barrier", "burnout", "burn out",
+    "inconsisten", "abandon", "skip", "miss", "give up", "giving up", "gave up",
+    "quit", "off track", "off plan", "drop off", "dropping off",
+    # caution framing
+    "watch", "go wrong", "fall apart", "what could stop", "what would stop",
+]
+
 _MOMENTUM = ("momentum", "trending", "thriving", "steady", "stalled", "drifting",
              "strong", "rising", "falling", "on pace", "ahead", "behind", "high",
              "low", "short")
@@ -200,7 +222,7 @@ def _goal_paraphrases():
         ("goal_next_milestone", [], ["milestone", "phase"],
          ["What is my next milestone?", "What milestone am I working on now?",
           "What's after Goal Weight 284.9?", "What comes next in this mission?"]),
-        ("goal_failure_modes", ["actionable"], ["fail", "risk", "slip", "threat", "derail", "watch"],
+        ("goal_failure_modes", ["actionable"], FAILURE_RISK_VOCAB,
          ["What could cause this goal to fail?", "What could derail this mission?",
           "What should I watch out for?", "What is the biggest threat to this goal?"]),
         ("goal_confidence", ["evidence"], ["confiden", "likely", "odds", "ready", "chance", "success"],

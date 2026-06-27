@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(cos): goal_failure_modes acceptance contract is SEMANTIC, not narrow-lexical
+
+Investigation (not assumption): the Acceptance evaluator failed semantically-correct goal_failure_modes answers. Proof — "The biggest SETBACKS would be INCONSISTENT workouts, MISSED sessions… BURNOUT could STALL progress" → `missing_required_any:fail|risk|slip|threat|derail|watch`, despite clearly communicating failure risks and being actionable.
+
+**Verdict: EVALUATOR defect, not narration.** Repository evidence the contract is meant to be semantic: (1) the system's OWN intent classifier (`plan._infer_named_goal_intent`) recognizes a broad failure vocabulary on input — "go wrong/fall apart/give up on/blow this/what would stop" — far wider than the 6 output tokens; (2) the LLM profile instructs Beth to use plain-language failure concepts ("inconsistency, missed workouts, lost momentum, abandoned routines"), several of which match NONE of the 6 tokens; (3) the deterministic fallback passes only by luck (hard-coded "could fail" header) — its mode text is mostly token-free. The narration is SOUND; only the evaluator was too narrow.
+
+**Fix:** added `FAILURE_RISK_VOCAB` (semantic failure-risk vocabulary mirroring the system's own input-side set + the profile's examples + common synonyms: setback/obstacle/stall/plateau/burnout/inconsistent/skip/abandon/fade/falter/off-track…) and pointed the `goal_failure_modes` required_any at it. Still paired with the `actionable` gate + domain check, so a pure PROGRESS answer (no risk language) STILL fails — the intents stay distinct. Narration unchanged.
+
+**Files:** apps/ai/chatgpt_cos/acceptance_rules.py. Tests: apps/ai/tests/test_goal_failure_modes_contract.py.
+
+**Verification:** new test_goal_failure_modes_contract.py — four semantically-correct answers (setback/obstacle/burnout/plateau/skipped/abandoned/off-plan) PASS; a pure-progress answer still FAILS required_any; the deterministic floor passes; the contract accepts every plain-language failure mode the system's own profile + fallback emit. 182-test acceptance/goals regression green; `check` clean; no migration.
+
+
 ## 2026-06-27 — feat(admin): Acceptance review prompts — A+ neutrality (guide, don't anchor)
 
 Generated prompts were anchoring reviewers: a HEALTH-suite `banned_phrase: maintain momentum` (openai=True, fallback=False — LLM health narration) was hard-labelled "Legacy generic coaching language leaking into LLM GOAL answers." Fixed the prompt-generation system so it GUIDES rather than anchors. PROMPT GENERATION ONLY — no Beth behavior/grading/routing/models/persistence change.

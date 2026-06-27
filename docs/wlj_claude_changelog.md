@@ -7,6 +7,24 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — feat(admin): Beth Acceptance Center upgrade (depth levels, grading, richer prompts)
+
+Upgraded the Beth Acceptance Center from a basic runner into a product-quality testing system (test infrastructure only — no Beth behavior change).
+
+- **Question bank** (`acceptance_rules.QUESTIONS`): restructured with metadata (key, suite, depth, expect_intent/lane, required/required_any/forbidden, banned, gates, distinct_group, criticality, notes). Expanded to 50+ questions — goal-intent paraphrases (×4-5 each), health paraphrases, time-aware check-ins, 8 general-knowledge, and personal-vs-external + ambiguous boundary/routing traps.
+- **Depth levels:** smoke (~12, fast gate) ⊂ full (release gate) ⊂ deep (~80, stress). `questions_for(suite, depth)`; Admin UI has Smoke/Full/Deep buttons + per-suite (deep) buttons + evening toggle; `--depth` on the command.
+- **Expanded banned categories:** coaching + SYSTEM language ("source of truth", "state builder", "momentum score", …) + DEFLECTION ("check your dashboard", "open the app", …). System/deflection hits are CRITICAL.
+- **Failure analytics:** per-run category summary, critical-failure detection, slow-response warnings, avg response time, and cross-intent **distinctiveness** (same answer from different intents in a distinct_group → duplicate_answer). Length-sanity gate (too_short).
+- **Release readiness grade:** GREEN (≥95% & 0 critical) / YELLOW (85–94%) / RED (<85% or any critical) — shown on the run detail, summary cards, and run history.
+- **Improved prompts:** ChatGPT Review Prompt now leads with OVERALL RESULT + FAILURE SUMMARY BY CATEGORY + suite results + OpenAI/duplicate/slow warnings + a RELEASE READINESS ask, and explicitly tells ChatGPT to identify SYSTEMIC patterns. Claude Fix Prompt now groups failures into LIKELY ROOT-CAUSE GROUPS and instructs "treat grouped failures as systemic defects; fix the defect class".
+- **UI:** summary cards (score, critical, warnings, avg time, OpenAI failures, wrong-domain, duplicates), a Failure-summary-by-category section, grade badges everywhere.
+- New `AcceptanceRun` fields (depth, grade, critical_count, warning_count, avg_response_ms, category_summary) + `AcceptanceResult` (is_critical, is_slow) — migration 0038.
+
+**Files:** acceptance_rules.py, acceptance_service.py, management/commands/beth_acceptance.py, admin_console/{models.py, ai_views.py, migrations/0038_*}, templates/admin_console/{beth_acceptance_center.html, beth_acceptance_run.html}, tests. Shared runner used by both the command and the UI. No Beth behavior change.
+
+**Verification:** 21 upgrade tests (bank/depth nesting, banned categories, grading, boundary routing, distinctiveness, prompt summaries + root-cause grouping, UI grade + controls) + 214-test regression green; command `--depth` works; `check` clean; `makemigrations --check` = no changes.
+
+
 ## 2026-06-26 — fix(cos): eliminate legacy momentum/consistency coaching from Goals (systemic)
 
 Production acceptance run (78%, 14/18) showed prohibited motivational language ("lock in consistency", "maintain momentum", "steady momentum", "keep moving forward") leaking into the LLM-PHRASED Goal answers (the deterministic fallbacks were already clean). Fixed as ONE defect class, not four bugs.

@@ -1664,6 +1664,7 @@ class AcceptanceRun(models.Model):
         blank=True, related_name="beth_acceptance_runs_targeted")
 
     suite_name = models.CharField(max_length=32, default="full")
+    depth = models.CharField(max_length=16, default="full")     # smoke/full/deep
     environment = models.CharField(max_length=40, blank=True)
     git_commit = models.CharField(max_length=40, blank=True)
 
@@ -1672,6 +1673,13 @@ class AcceptanceRun(models.Model):
     fail_count = models.PositiveIntegerField(default=0)
     score_percent = models.PositiveIntegerField(default=0)
     duration_ms = models.PositiveIntegerField(default=0)
+
+    # Release readiness + failure analytics
+    grade = models.CharField(max_length=8, blank=True)          # GREEN/YELLOW/RED
+    critical_count = models.PositiveIntegerField(default=0)
+    warning_count = models.PositiveIntegerField(default=0)
+    avg_response_ms = models.PositiveIntegerField(default=0)
+    category_summary = models.JSONField(default=dict, blank=True)
 
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="running")
     started_at = models.DateTimeField(null=True, blank=True)
@@ -1710,6 +1718,11 @@ class AcceptanceRun(models.Model):
             return "#f59e0b"
         return "#ef4444"
 
+    @property
+    def grade_color(self):
+        return {"GREEN": "#10b981", "YELLOW": "#f59e0b",
+                "RED": "#ef4444"}.get(self.grade, self.status_color)
+
 
 class AcceptanceResult(models.Model):
     """One question's evaluated response within an AcceptanceRun."""
@@ -1737,6 +1750,9 @@ class AcceptanceResult(models.Model):
     fallback_used = models.BooleanField(null=True, blank=True)
     raw_result_json = models.JSONField(default=dict, blank=True)
     sort_order = models.PositiveIntegerField(default=0)
+
+    is_critical = models.BooleanField(default=False)    # release-blocking failure
+    is_slow = models.BooleanField(default=False)        # response-time warning
 
     class Meta:
         ordering = ["run", "sort_order"]

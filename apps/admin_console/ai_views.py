@@ -14,7 +14,7 @@ from django.views.generic import TemplateView, View
 
 from apps.admin_console.models import AcceptanceRun
 from apps.admin_console.views import AdminRequiredMixin
-from apps.ai.chatgpt_cos.acceptance_rules import SUITES
+from apps.ai.chatgpt_cos.acceptance_rules import SUITES, DEPTHS
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +25,21 @@ class BethAcceptanceCenterView(AdminRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        runs = AcceptanceRun.objects.all()[:10]
+        runs = list(AcceptanceRun.objects.all()[:10])
         ctx["runs"] = runs
         ctx["latest"] = runs[0] if runs else None
-        ctx["suites"] = [s for s in SUITES]
+        ctx["suites"] = [s for s in SUITES if s != "full"]
+        ctx["depths"] = list(DEPTHS)
         return ctx
+
+
+# button value -> (suite, depth)
+_MODE_MAP = {
+    "smoke": ("full", "smoke"), "full": ("full", "full"), "deep": ("full", "deep"),
+    "goals": ("goals", "deep"), "health": ("health", "deep"),
+    "checkin": ("checkin", "deep"), "general": ("general", "deep"),
+    "rhythm": ("rhythm", "deep"), "boundary": ("boundary", "deep"),
+}
 
 
 class StartBethAcceptanceView(AdminRequiredMixin, View):
@@ -39,20 +49,23 @@ class StartBethAcceptanceView(AdminRequiredMixin, View):
         from apps.ai.chatgpt_cos.acceptance_service import (
             environment_label, git_commit,
         )
-        suite = request.POST.get("suite", "full")
+        mode = request.POST.get("mode", "full")
+        suite, depth = _MODE_MAP.get(mode, ("full", "full"))
         if suite not in SUITES:
             suite = "full"
+        if depth not in DEPTHS:
+            depth = "full"
         evening = request.POST.get("evening", "1") != "0"
 
         run = AcceptanceRun.objects.create(
-            suite_name=suite, created_by=request.user, target_user=request.user,
-            environment=environment_label(), git_commit=git_commit(),
-            status="running")
+            suite_name=suite, depth=depth, created_by=request.user,
+            target_user=request.user, environment=environment_label(),
+            git_commit=git_commit(), status="running")
         try:
             from apps.ai.chatgpt_cos.tasks import run_beth_acceptance
             run_beth_acceptance.delay(run.id, evening)
             messages.success(request,
-                             f"Started the {suite} acceptance suite (run #{run.id}).")
+                             f"Started the {suite}/{depth} acceptance suite (run #{run.id}).")
         except Exception:
             logger.error("Failed to dispatch acceptance run", exc_info=True)
             # Fallback: run inline (small suites) so the user is never stuck.
@@ -75,7 +88,18 @@ class BethAcceptanceRunDetailView(AdminRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         run = get_object_or_404(AcceptanceRun, pk=kwargs["pk"])
+        results = list(run.results.order_by("sort_order"))
         ctx["run"] = run
-        ctx["results"] = run.results.order_by("sort_order")
+        ctx["results"] = results
         ctx["is_running"] = run.is_running
+        ctx["failed_results"] = [r for r in results if not r.passed]
+        # ordered category summary (skip zero counts)
+        cats = run.category_summary or {}
+        ctx["categories"] = [(k, v) for k, v in sorted(cats.items(), key=lambda x: -x[1]) if v]
+        ctx["openai_fail"] = sum(1 for r in results
+                                 if any("openai_failure" in f for f in (r.failed_rules or [])))
+        ctx["wrong_domain"] = sum(1 for r in results
+                                  if any("wrong_domain" in f for f in (r.failed_rules or [])))
+        ctx["dupes"] = sum(1 for r in results
+                           if any("duplicate_answer" in f for f in (r.failed_rules or [])))
         return ctx

@@ -78,8 +78,8 @@ class AcceptanceServiceTests(TestCase):
         self.assertEqual(run.pass_count + run.fail_count, run.total_count)
         # prompts generated and reference failures + routing metadata
         self.assertIn("FAILED QUESTIONS", run.chatgpt_review_prompt)
-        self.assertIn("FAILING QUESTIONS TO FIX", run.claude_fix_prompt)
-        self.assertIn("failed_rules", run.chatgpt_review_prompt)
+        self.assertIn("FAILING QUESTIONS", run.claude_fix_prompt)
+        self.assertIn("FAILURE SUMMARY BY CATEGORY", run.chatgpt_review_prompt)
         self.assertIn("Do not stop for approval unless", run.claude_fix_prompt)
 
     def test_suite_filtering(self):
@@ -121,7 +121,7 @@ class AcceptanceViewTests(AdminTestMixin, TestCase):
         self.client.force_login(self.staff)
         with patch("apps.ai.chatgpt_cos.tasks.run_beth_acceptance.delay") as m:
             resp = self.client.post(reverse("admin_console:beth_acceptance_start"),
-                                    {"suite": "goals", "evening": "1"})
+                                    {"mode": "goals", "evening": "1"})
         self.assertTrue(m.called)
         run = AcceptanceRun.objects.latest("created_at")
         self.assertEqual(run.suite_name, "goals")

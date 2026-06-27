@@ -59,19 +59,45 @@
   <!-- Summary -->
   <div class="stat-card">
     <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
-      <div class="ac-score" style="color:{{ run.status_color }};">{{ run.score_percent }}%</div>
+      <div class="ac-score" style="color:{{ run.grade_color }};">{{ run.score_percent }}%</div>
+      {% if run.grade %}<span class="ac-pill" style="background:{{ run.grade_color }}; font-size:14px;">{{ run.grade }}</span>{% endif %}
       <span class="ac-pill" style="background:{{ run.status_color }};">{{ run.get_status_display|upper }}</span>
+      <span class="ac-note">Release readiness — GREEN ≥95% &amp; 0 critical · YELLOW 85–94% · RED &lt;85% or any critical</span>
     </div>
     <div class="ac-summary">
       <div class="ac-stat"><div class="k">Passed</div><div class="v ac-ok">{{ run.pass_count }}</div></div>
       <div class="ac-stat"><div class="k">Failed</div><div class="v ac-bad">{{ run.fail_count }}</div></div>
+      <div class="ac-stat"><div class="k">Critical</div><div class="v" style="color:{% if run.critical_count %}#ef4444{% else %}#10b981{% endif %};">{{ run.critical_count }}</div></div>
+      <div class="ac-stat"><div class="k">Warnings (slow)</div><div class="v">{{ run.warning_count }}</div></div>
+      <div class="ac-stat"><div class="k">Avg response</div><div class="v">{{ run.avg_response_ms }} ms</div></div>
+      <div class="ac-stat"><div class="k">OpenAI failures</div><div class="v">{{ openai_fail }}</div></div>
+      <div class="ac-stat"><div class="k">Wrong-domain</div><div class="v">{{ wrong_domain }}</div></div>
+      <div class="ac-stat"><div class="k">Duplicates</div><div class="v">{{ dupes }}</div></div>
       <div class="ac-stat"><div class="k">Total</div><div class="v">{{ run.total_count }}</div></div>
-      <div class="ac-stat"><div class="k">Duration</div><div class="v">{{ run.duration_ms }} ms</div></div>
+      <div class="ac-stat"><div class="k">Suite/Depth</div><div class="v" style="font-size:14px;">{{ run.suite_name }}/{{ run.depth }}</div></div>
       <div class="ac-stat"><div class="k">Commit</div><div class="v" style="font-size:14px;">{{ run.git_commit|default:"—" }}</div></div>
-      <div class="ac-stat"><div class="k">Env</div><div class="v" style="font-size:14px;">{{ run.environment }}</div></div>
-      <div class="ac-stat"><div class="k">When</div><div class="v" style="font-size:13px;">{{ run.created_at }}</div></div>
     </div>
   </div>
+
+  {% if categories %}
+  <div class="section-divider"><h2 class="section-title">Failure summary by category</h2></div>
+  <div class="stat-card">
+    <div class="ac-summary">
+      {% for name, count in categories %}
+      <div class="ac-stat"><div class="k">{{ name }}</div><div class="v" style="color:#ef4444;">{{ count }}</div></div>
+      {% endfor %}
+    </div>
+    {% if failed_results %}
+    <details class="ac-det" style="margin-top:10px;"><summary>failed questions ({{ failed_results|length }})</summary>
+      <ul class="ac-note">
+        {% for r in failed_results %}
+        <li><strong>{{ r.question_key }}</strong>{% if r.is_critical %} <span class="ac-bad">[CRITICAL]</span>{% endif %} — {{ r.failed_rules|join:", " }}</li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+  </div>
+  {% endif %}
 
   <!-- Results table -->
   {% if results %}

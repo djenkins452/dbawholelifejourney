@@ -71,7 +71,7 @@ class EvaluatorLogicTests(SimpleTestCase):
                          "forbidden": ["active goal count"]},
                         "Your active goal count is 3.", intent="goals_progress")
         self.assertIn("missing_required:France 2027", f)
-        self.assertIn("forbidden:active goal count", f)
+        self.assertTrue(any(x.startswith('forbidden') and 'active goal count' in x for x in f))
 
     def test_gate_failures(self):
         f = ar.evaluate({"domain": "goals", "gates": ["evidence", "actionable", "synthesis"]},
@@ -89,38 +89,35 @@ class EvaluatorLogicTests(SimpleTestCase):
 
 
 class DeterministicFloorPassesHarness(SimpleTestCase):
-    """Every goal question's deterministic FALLBACK must pass its live-harness
-    spec — so the live run can only fail on LLM phrasing/routing/reliability."""
+    """Every goal intent's deterministic FALLBACK must pass its live-harness spec."""
     FALLBACKS = {
-        "goal_progress": stages._goals_progress_fallback,
+        "goals_progress": stages._goals_progress_fallback,
         "goal_on_track": stages._goal_on_track_fallback,
-        "goal_why": stages._goal_why_priority_fallback,
-        "goal_milestone": stages._goal_next_milestone_fallback,
-        "goal_failure": stages._goal_failure_modes_fallback,
+        "goal_why_priority": stages._goal_why_priority_fallback,
+        "goal_next_milestone": stages._goal_next_milestone_fallback,
+        "goal_failure_modes": stages._goal_failure_modes_fallback,
         "goal_confidence": stages._goal_confidence_fallback,
-        "goal_focus": stages._goals_focus_today_fallback,
-        "goal_slipping": stages._goal_concerns_fallback,
-        "goal_risk": stages._goal_risk_fallback,
+        "goals_focus_today": stages._goals_focus_today_fallback,
+        "goal_concerns": stages._goal_concerns_fallback,
+        "biggest_goal_risk": stages._goal_risk_fallback,
     }
 
-    def _spec(self, key):
-        return next(q for q in ar.QUESTIONS if q["key"] == key)
+    def _spec(self, intent):
+        return next(q for q in ar.QUESTIONS if q.get("expect_intent") == intent)
 
     def test_each_goal_fallback_passes_its_spec(self):
         wm = _wm()
-        for key, fb in self.FALLBACKS.items():
-            spec = self._spec(key)
+        for intent, fb in self.FALLBACKS.items():
+            spec = self._spec(intent)
             answer = fb(wm)
-            fails = ar.evaluate(spec, answer, intent=spec.get("expect_intent"))
-            self.assertEqual(fails, [], f"{key} floor FAILED harness: {fails}\n  {answer!r}")
+            fails = ar.evaluate(spec, answer, intent=intent)
+            self.assertEqual(fails, [], f"{intent} floor FAILED harness: {fails}\n  {answer!r}")
 
     def test_goal_fallbacks_are_distinct(self):
         wm = _wm()
-        answers = [fb(wm) for fb in self.FALLBACKS.values()]
-        # the six "reasoning" intents (exclude focus/slipping/risk overlap-by-design)
         core = [self.FALLBACKS[k](wm) for k in
-                ("goal_progress", "goal_on_track", "goal_why", "goal_milestone",
-                 "goal_failure", "goal_confidence")]
+                ("goals_progress", "goal_on_track", "goal_why_priority",
+                 "goal_next_milestone", "goal_failure_modes", "goal_confidence")]
         self.assertEqual(len(set(core)), 6, "core goal intents collapsed")
 
 

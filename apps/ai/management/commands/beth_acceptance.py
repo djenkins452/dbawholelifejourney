@@ -17,7 +17,7 @@ import json
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.ai.chatgpt_cos.acceptance_rules import SUITES
+from apps.ai.chatgpt_cos.acceptance_rules import SUITES, DEPTHS
 
 
 class Command(BaseCommand):
@@ -26,6 +26,8 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--user-email", default=None)
         parser.add_argument("--suite", default="full", choices=list(SUITES))
+        parser.add_argument("--depth", default="full", choices=list(DEPTHS),
+                            help="smoke (~fast gate) / full (release gate) / deep (stress).")
         parser.add_argument("--evening", action="store_true",
                             help="Force evening (9 PM) for the check-in agenda turn.")
         parser.add_argument("--json", default=None, help="Write the full report to this path.")
@@ -42,14 +44,15 @@ class Command(BaseCommand):
         if user is None:
             raise CommandError(f"No user found for {email!r} (and no superuser).")
 
-        run = create_and_execute(suite=opts["suite"], target_user=user,
-                                 created_by=user, evening=opts["evening"])
+        run = create_and_execute(suite=opts["suite"], depth=opts["depth"],
+                                 target_user=user, created_by=user,
+                                 evening=opts["evening"])
         rows = (run.raw_report_json or {}).get("rows", [])
 
         w = self.stdout.write
         w("\n" + "=" * 78)
-        w(f"BETH LIVE ACCEPTANCE — suite={run.suite_name} env={run.environment} "
-          f"commit={run.git_commit}")
+        w(f"BETH LIVE ACCEPTANCE — suite={run.suite_name}/{run.depth} "
+          f"grade={run.grade} env={run.environment} commit={run.git_commit}")
         w("=" * 78)
         for r in rows:
             tag = self.style.SUCCESS("PASS") if r["passed"] else self.style.ERROR("FAIL")

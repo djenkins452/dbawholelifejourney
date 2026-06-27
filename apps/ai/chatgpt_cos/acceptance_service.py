@@ -20,8 +20,11 @@ from contextlib import contextmanager
 from django.utils import timezone
 
 from apps.ai.chatgpt_cos.acceptance_rules import (
-    QUESTIONS, evaluate, questions_for, GOAL_INTENTS,
+    QUESTIONS, evaluate, questions_for, GOAL_INTENTS, categorize_rule,
+    is_critical_rule, grade as grade_run, RELEASE_THRESHOLD,
 )
+
+SLOW_MS = 9000      # a response slower than this earns a warning
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +143,9 @@ def run_one(svc, conversation, spec, evening=False):
         "fallback_used": fb, "openai_called": openai, "ms": elapsed,
         "required": spec.get("required", []) + spec.get("required_any", []),
         "forbidden": spec.get("forbidden", []),
-        "fails": fails, "passed": not fails,
+        "distinct_group": spec.get("distinct_group", ""),
+        "criticality": spec.get("criticality", "normal"),
+        "spec": spec, "fails": fails, "passed": not fails,
     }
 
 
@@ -177,7 +182,7 @@ def execute_run(run, evening=True):
         user=user, title="[acceptance] Beth validation", session_type="general",
         is_active=False)
     svc = ChatGPTCoSService(user)
-    specs = questions_for(run.suite_name)
+    specs = questions_for(run.suite_name, run.depth or "full")
     rows = []
     t0 = time.monotonic()
     try:
@@ -199,123 +204,272 @@ def execute_run(run, evening=True):
         except Exception:
             pass
 
-    # Cross-intent distinctness (goal intents must not duplicate verbatim).
-    seen = {}
-    for r in rows:
-        if r["intent"] in GOAL_INTENTS:
-            norm = (r["answer"] or "").strip().lower()
-            if norm and norm in seen:
-                r["fails"].append("duplicate_answer")
-                r["passed"] = False
-            seen[norm] = r["key"]
+    _detect_duplicates(rows)
+    _finalize(run, rows, round((time.monotonic() - t0) * 1000))
+    return run
 
+
+def _detect_duplicates(rows):
+    """Within each distinct_group, answers from DIFFERENT intents that are
+    substantially identical (same normalized text OR same first 20 words) are
+    duplicates. Paraphrases of the SAME intent are allowed to match."""
+    def norm(a):
+        return " ".join((a or "").strip().lower().split())
+
+    def first20(a):
+        return " ".join(norm(a).split()[:20])
+
+    groups = {}
+    for r in rows:
+        g = r.get("distinct_group")
+        if g:
+            groups.setdefault(g, []).append(r)
+    for members in groups.values():
+        seen_full, seen_head = {}, {}
+        for r in members:
+            if not r["answer"] or r["answer"].startswith("<EXCEPTION"):
+                continue
+            nf, nh = norm(r["answer"]), first20(r["answer"])
+            for store, key in ((seen_full, nf), (seen_head, nh)):
+                prev = store.get(key)
+                if prev and prev["intent"] != r["intent"]:
+                    r["fails"].append("duplicate_answer")
+                    r["passed"] = False
+                store.setdefault(key, r)
+
+
+def _finalize(run, rows, duration_ms):
     total = len(rows)
     passed = sum(1 for r in rows if r["passed"])
+    # per-row criticality + slow + category, persisted to the result objects
+    category = {}
+    critical = warnings = 0
+    objs = list(run.results.order_by("sort_order"))
+    for r, obj in zip(rows, objs):
+        r_critical = any(is_critical_rule(f, r.get("spec")) for f in r["fails"]) \
+            or (not r["passed"] and r.get("criticality") == "critical")
+        r_slow = r["ms"] >= SLOW_MS
+        if r_critical:
+            critical += 1
+        if r_slow:
+            warnings += 1
+        for f in r["fails"]:
+            cat = categorize_rule(f)
+            category[cat] = category.get(cat, 0) + 1
+        obj.passed = r["passed"]
+        obj.failed_rules = r["fails"]
+        obj.is_critical = r_critical
+        obj.is_slow = r_slow
+        obj.save(update_fields=["passed", "failed_rules", "is_critical", "is_slow"])
+
     run.total_count = total
     run.pass_count = passed
     run.fail_count = total - passed
     run.score_percent = round(passed / total * 100) if total else 0
-    run.duration_ms = round((time.monotonic() - t0) * 1000)
+    run.duration_ms = duration_ms
+    run.avg_response_ms = round(sum(r["ms"] for r in rows) / total) if total else 0
+    run.critical_count = critical
+    run.warning_count = warnings
+    run.category_summary = category
+    run.grade = grade_run(run.score_percent, critical)
     run.status = "completed"
     run.completed_at = timezone.now()
-    run.raw_report_json = {"rows": rows, "suite": run.suite_name}
+    run.raw_report_json = {"rows": [{k: v for k, v in r.items() if k != "spec"}
+                                    for r in rows],
+                           "suite": run.suite_name, "depth": run.depth}
     run.chatgpt_review_prompt = build_chatgpt_review_prompt(run, rows)
     run.claude_fix_prompt = build_claude_fix_prompt(run, rows)
-    # persist the recomputed pass flags onto the result rows
-    for r, obj in zip(rows, run.results.order_by("sort_order")):
-        if obj.passed != r["passed"]:
-            obj.passed = r["passed"]
-            obj.failed_rules = r["fails"]
-            obj.save(update_fields=["passed", "failed_rules"])
     run.save()
-    return run
 
 
-def create_and_execute(suite="full", target_user=None, created_by=None, evening=True):
+def create_and_execute(suite="full", depth="full", target_user=None,
+                       created_by=None, evening=True):
     """Convenience for the CLI: create the AcceptanceRun then execute it."""
     from apps.admin_console.models import AcceptanceRun
     run = AcceptanceRun.objects.create(
-        suite_name=suite, target_user=target_user, created_by=created_by,
+        suite_name=suite, depth=depth, target_user=target_user, created_by=created_by,
         environment=environment_label(), git_commit=git_commit())
     return execute_run(run, evening=evening)
 
 
-# ---- prompt generators -----------------------------------------------------
-def _header(run):
-    return (f"Environment: {run.environment}\n"
-            f"Commit: {run.git_commit}\n"
-            f"Timestamp: {run.completed_at or run.created_at}\n"
-            f"Suite: {run.suite_name}\n"
-            f"Score: {run.score_percent}%  ({run.pass_count}/{run.total_count} passed, "
-            f"{run.fail_count} failed)\n"
-            f"Duration: {run.duration_ms} ms\n")
+# ---- failure analytics + prompt generators ---------------------------------
+def _category_summary(rows):
+    cats = {}
+    for r in rows:
+        for f in r["fails"]:
+            c = categorize_rule(f)
+            cats[c] = cats.get(c, 0) + 1
+    return cats
+
+
+_CATEGORY_ORDER = ["banned_phrase", "missing_required", "wrong_domain",
+                   "empty_response", "duplicate_answer", "general_failure",
+                   "checkin_time_awareness", "forbidden_concept", "response_quality",
+                   "slow_response"]
+
+
+def _root_cause_groups(failed):
+    """Group failures into likely systemic root-cause buckets (Claude prompt)."""
+    groups = []
+    has = lambda pred: [r for r in failed if any(pred(f) for f in r["fails"])]
+    coaching = [r for r in failed if any(
+        f.startswith("banned_phrase:") and f.split(":", 1)[1] in COACHING_HINT for f in r["fails"])]
+    if coaching:
+        groups.append(("Legacy generic coaching language leaking into LLM goal answers.",
+                       coaching))
+    system = has(lambda f: f.startswith("banned_phrase:") and any(
+        s in f for s in ("source of truth", "state builder", "momentum score",
+                         "confidence score", "signal", "canonical")))
+    if system:
+        groups.append(("Internal/system language leaking to the user.", system))
+    deflect = has(lambda f: f.startswith("banned_phrase:") and any(
+        s in f for s in ("dashboard", "goals page", "open the app", "navigate")))
+    if deflect:
+        groups.append(("Deflection — pointing the user elsewhere instead of answering.",
+                       deflect))
+    slipping = [r for r in failed if r["key"].startswith("goal_concern")
+                or r.get("expected_intent") == "goal_concerns"]
+    if slipping:
+        groups.append(("Goal 'slipping' filter — the concerns answer lists healthy "
+                       "goals or misses the slipping/none requirement.", slipping))
+    routing = has(lambda f: f.startswith("wrong_domain"))
+    if routing:
+        groups.append(("Routing — questions reaching the wrong domain/intent.", routing))
+    general = [r for r in failed if r["suite"] == "general"]
+    if general:
+        groups.append(("General-knowledge lane reliability (empty/failure/rate-limit).",
+                       general))
+    quality = has(lambda f: f.startswith(("gate_", "too_short")))
+    if quality:
+        groups.append(("Response quality — missing evidence/synthesis/actionable step.",
+                       quality))
+    return groups
+
+
+# coaching phrases (for grouping) — kept as a module set to avoid re-import cost
+from apps.ai.chatgpt_cos.acceptance_rules import COACHING_BANNED as COACHING_HINT  # noqa: E402
+
+
+def _summary_block(run, rows):
+    failed = [r for r in rows if not r["passed"]]
+    cats = run.category_summary or _category_summary(rows)
+    passed_suites = {}
+    for r in rows:
+        passed_suites.setdefault(r["suite"], [0, 0])
+        passed_suites[r["suite"]][0 if r["passed"] else 1] += 1
+    dupes = [r["key"] for r in rows if "duplicate_answer" in r["fails"]]
+    slow = [(r["key"], r["ms"]) for r in rows if r["ms"] >= SLOW_MS]
+    openai_fail = sum(1 for r in rows if "openai_failure_message" in r["fails"]
+                      or (not r["openai_called"] and r["suite"] == "general"))
+    status = "PASS" if (run.grade == "GREEN") else "FAIL"
+    lines = [
+        "OVERALL RESULT:",
+        f"  Pass rate: {run.score_percent}% ({run.pass_count}/{run.total_count})",
+        f"  Release threshold: {RELEASE_THRESHOLD}% and zero critical failures",
+        f"  Grade: {run.grade}   Current status: {status}",
+        f"  Critical failures: {run.critical_count}   Warnings(slow): {run.warning_count}"
+        f"   Avg response: {run.avg_response_ms} ms",
+        "",
+        "FAILURE SUMMARY BY CATEGORY:",
+    ]
+    for c in _CATEGORY_ORDER:
+        lines.append(f"  - {c}: {cats.get(c, 0)}")
+    lines.append("")
+    lines.append("SUITE RESULTS (pass/fail):")
+    for s, (p, f) in sorted(passed_suites.items()):
+        lines.append(f"  - {s}: {p} passed, {f} failed")
+    lines.append("")
+    lines.append(f"OpenAI/fallback failure count: {openai_fail}")
+    lines.append(f"Duplicate-answer warnings: {', '.join(dupes) or 'none'}")
+    lines.append("Slow responses (>9s): "
+                 + (", ".join(f"{k}={ms}ms" for k, ms in slow) or "none"))
+    return "\n".join(lines), failed
 
 
 def build_chatgpt_review_prompt(run, rows):
-    failed = [r for r in rows if not r["passed"]]
-    passed_suites = sorted({r["suite"] for r in rows if r["passed"]})
+    summary, failed = _summary_block(run, rows)
     lines = [
         "You are reviewing an automated acceptance run for 'Beth', a personal "
-        "Chief-of-Staff AI inside a wellness app. Assess release readiness — do NOT "
-        "ask me follow-up questions; everything you need is below.\n",
-        _header(run),
-        f"Passing suites (at least one pass): {', '.join(passed_suites) or 'none'}\n",
+        "Chief-of-Staff AI. Assess RELEASE READINESS. Identify SYSTEMIC failure "
+        "patterns, not just individual failed questions. Do NOT ask me follow-up "
+        "questions — everything you need is below.\n",
+        f"Environment: {run.environment}   Commit: {run.git_commit}   "
+        f"Suite: {run.suite_name}/{run.depth}   Time: {run.completed_at or run.created_at}\n",
+        summary,
+        "",
+        "TOP FAILURE THEMES (you fill these in): identify the 1-3 systemic themes "
+        "behind the failures above.",
     ]
     if failed:
         lines.append(f"\nFAILED QUESTIONS ({len(failed)}):")
         for r in failed:
+            crit = " [CRITICAL]" if any(
+                is_critical_rule(f, r.get("spec")) for f in r["fails"]) else ""
             lines.append(
-                f"\n- [{r['key']}] suite={r['suite']}\n"
+                f"\n- [{r['key']}] suite={r['suite']} depth={r.get('spec',{}).get('depth','')}{crit}\n"
                 f"  Q: {r['question']}\n"
                 f"  expected_intent={r['expected_intent'] or '-'} "
                 f"actual_intent={r['intent'] or '-'} lane={r['lane'] or '-'} "
-                f"openai={r['openai_called']} fallback={r['fallback_used']} "
-                f"time={r['ms']}ms\n"
+                f"openai={r['openai_called']} fallback={r['fallback_used']} time={r['ms']}ms\n"
                 f"  failed_rules: {', '.join(r['fails'])}\n"
-                f"  actual_response: {r['answer'][:600]}")
+                f"  actual_response: {r['answer'][:500]}")
     else:
         lines.append("\nNo failed questions — every response passed its rules.")
     lines.append(
-        "\n\nPlease:\n"
-        "1. Assess release readiness for Beth.\n"
-        "2. Identify the most likely root cause of each failure.\n"
-        "3. Prioritize the fixes (highest user impact first).\n"
-        "4. Recommend whether Beth is ready for a 'beth-stable-v3' tag.\n"
-        "5. Suggest any missing acceptance tests we should add.")
+        "\n\nRELEASE READINESS — please answer:\n"
+        "1. Identify the systemic failure patterns (the defect CLASSES), not just "
+        "individual questions.\n"
+        "2. Stable-tag eligible (beth-stable-v3): yes/no, and why.\n"
+        "3. Blocking failures (the critical ones that must be fixed first).\n"
+        "4. Recommended fix priority order.\n"
+        "5. Any missing acceptance tests we should add.")
     return "\n".join(lines)
 
 
 def build_claude_fix_prompt(run, rows):
     failed = [r for r in rows if not r["passed"]]
     lines = [
-        "This is an implementation task for Claude Code working in the WLJ Django "
-        "repo. Fix the failing Beth acceptance questions below.\n",
-        _header(run),
+        "This is an implementation task for Claude Code in the WLJ Django repo. Fix "
+        "the failing Beth acceptance behaviors below.\n",
+        f"Environment: {run.environment}   Commit: {run.git_commit}   "
+        f"Suite: {run.suite_name}/{run.depth}   Grade: {run.grade}   "
+        f"Score: {run.score_percent}% ({run.pass_count}/{run.total_count})   "
+        f"Critical: {run.critical_count}\n",
     ]
     if not failed:
-        lines.append("\nThe run is GREEN — no fixes required. If you want, add new "
+        lines.append("The run is GREEN — no fixes required. Optionally add new "
                      "acceptance questions to harden coverage.")
-    else:
-        lines.append(f"\nFAILING QUESTIONS TO FIX ({len(failed)}):")
-        for r in failed:
-            lines.append(
-                f"\n- [{r['key']}] suite={r['suite']}\n"
-                f"  Question: {r['question']}\n"
-                f"  Expected: routes to intent '{r['expected_intent'] or '(correct domain)'}' "
-                f"and passes rules.\n"
-                f"  Actual: intent={r['intent'] or '-'} lane={r['lane'] or '-'} "
-                f"openai={r['openai_called']} fallback={r['fallback_used']}.\n"
-                f"  Failed rules: {', '.join(r['fails'])}\n"
-                f"  Actual response: {r['answer'][:600]}")
+        return "\n".join(lines)
+
+    groups = _root_cause_groups(failed)
+    lines.append("LIKELY ROOT-CAUSE GROUPS (treat each as a SYSTEMIC defect — fix the "
+                 "defect class, not only the individual question):")
+    for i, (label, members) in enumerate(groups, 1):
+        lines.append(f"  {i}. {label}  [{', '.join(m['key'] for m in members)}]")
+    if not groups:
+        lines.append("  (no obvious grouping — treat each failure individually)")
+
+    lines.append(f"\nFAILING QUESTIONS ({len(failed)}):")
+    for r in failed:
+        lines.append(
+            f"\n- [{r['key']}] suite={r['suite']}\n"
+            f"  Question: {r['question']}\n"
+            f"  Expected: routes to '{r['expected_intent'] or '(correct domain)'}' and "
+            f"passes its rules.\n"
+            f"  Actual: intent={r['intent'] or '-'} lane={r['lane'] or '-'} "
+            f"openai={r['openai_called']} fallback={r['fallback_used']}.\n"
+            f"  Failed rules: {', '.join(r['fails'])}\n"
+            f"  Actual response: {r['answer'][:500]}")
     lines.append(
         "\n\nInstructions:\n"
-        "- Fix the ROOT CAUSE of each failure (routing, reasoning, fallback, or "
-        "phrasing) — not the symptom.\n"
-        "- Add or update automated tests covering each fixed behavior.\n"
-        "- Preserve all currently-passing behaviors (Health byte-identical; goals "
-        "differentiation intact).\n"
-        "- Re-run the acceptance suite (manage.py beth_acceptance or the Admin "
-        "Console Beth Acceptance Center) until green.\n"
+        "- Treat the grouped failures as SYSTEMIC defects: fix the defect class, not "
+        "only the individual question.\n"
+        "- Fix the ROOT CAUSE (routing, reasoning, fallback, profile, or evaluator).\n"
+        "- Add/Update regression tests covering each fixed behavior.\n"
+        "- PRESERVE all currently-passing behaviors (Health byte-identical; goal "
+        "intent differentiation intact).\n"
+        "- Re-run the acceptance suite (Admin Console Beth Acceptance Center, or "
+        "`python manage.py beth_acceptance`) until green.\n"
         "- Deploy to main when green.\n"
         "- Do not stop for approval unless there is a migration, security issue, or "
         "architectural conflict.")

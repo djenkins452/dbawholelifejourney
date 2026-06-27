@@ -64,6 +64,17 @@ def create_draft(user, source, extracted_values, *, intake_type=None,
     return draft
 
 
+def vision_item_field(item, key):
+    """Read a field from a Vision result item. `vision_service.analyze_image().items`
+    are `ScanItem` DATACLASSES in production (attribute access), but some callers and
+    tests pass plain dicts — support BOTH so a real ScanItem never raises `.get`.
+    The SINGLE author of this normalization (reused by single-image scan AND the
+    guided capture session)."""
+    if isinstance(item, dict):
+        return item.get(key)
+    return getattr(item, key, None)
+
+
 def vision_details_to_extracted(details, *, name=None):
     """Map a Vision label-`details` dict to canonical extracted_values — the SINGLE
     author of that mapping (reused by single-image scan AND guided capture-session
@@ -107,10 +118,12 @@ def create_draft_from_scan(user, category, items, *, scan_confidence=None,
 
     if not items:
         return None
-    item = items[0] or {}
-    details = item.get("details", {}) or {}
+    item = items[0]
+    # Vision items are ScanItem dataclasses in production (not dicts) — read via the
+    # shared normalizer so attribute-shaped items never raise `.get`.
+    details = vision_item_field(item, "details") or {}
     # Prefer the structured `name` field; fall back to the label (name+strength).
-    name = (details.get("name") or item.get("label") or "").strip()
+    name = (details.get("name") or vision_item_field(item, "label") or "").strip()
     if not name:
         return None
 

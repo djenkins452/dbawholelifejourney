@@ -7,6 +7,25 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(health): harden single-image scan→draft + loud logging (ScanItem normalization)
+
+Follow-up to the Guided Capture debug. Investigated the suspected silent failure in the single-image `scan:analyze → create_draft_from_scan` path.
+
+**Key finding (corrects the premise):** `ScanItem` is **vestigial — never instantiated anywhere in production** (`grep "ScanItem(" apps/` outside tests = 0). `vision_service.analyze_image()` returns `items=ai_result['items']` — plain **dicts parsed from the AI JSON**. So `create_draft_from_scan`'s `item.get("details")` already works in production, and the single-image path was **not** silently failing. **Proven:** with the real production (dict) shape, `scan:analyze` returns the **Review & Confirm** action, stages a `MedicationScanDraft`, and writes NO canonical `Intake`/`MedicationEvent` (new end-to-end test). A further proof that ScanItem isn't a production path: pushing a real `ScanItem` through `scan:analyze` 500s earlier at `scan_log.mark_success(items=…)` because the dataclass isn't JSON-serializable.
+
+**Hardening applied anyway (defensive, harmless):**
+- Added `vision_item_field(item, key)` to `medication_acquisition.py` — the SINGLE author of Vision-item access; reads a `ScanItem` dataclass by attribute OR a dict via `.get`. `create_draft_from_scan` and the capture session's `_extract_from_images` now both use it (removed the duplicate helper from `capture_session.py`). Both item shapes are supported and tested.
+- `scan:analyze` acquisition-routing `except` upgraded from `logger.warning(... %s, e)` to `logger.error(..., exc_info=True)` with request_id + category — so a real routing failure can never silently hide again (requirement 8).
+
+**Tests:** `create_draft_from_scan` with a real `ScanItem` → draft (defensive); dict items still supported; end-to-end `scan:analyze` medicine scan → Review action + draft + no canonical write.
+
+**Files:** apps/health/medication_acquisition.py, apps/health/capture_session.py, apps/scan/views.py, apps/health/tests/test_medication_acquisition.py, apps/scan/tests/test_views.py.
+
+**Verification:** 94 tests green (scan + acquisition + capture); `manage.py check` clean; no migration.
+
+**Remaining acquisition bug discovered (flagged, out of scope):** the more probable cause of the original "stuck on Working…" is that the Guided Capture endpoints call `vision_service.analyze_image()` **synchronously on the request path, once per image (≤6)** — slow external Vision work that can exceed the worker/Cloudflare timeout (CLAUDE.md forbids heavy compute on the request path). The earlier ScanItem fix did not address this. Flagged as a follow-up to move capture Vision off the request path (background job + pending/polling UI), without redesigning the draft→review→confirm pipeline. Also: `ScanItem` is dead code that can't round-trip through `mark_success` — a cleanup candidate.
+
+
 ## 2026-06-27 — fix(health): Guided Capture stalls on "Working…" — ScanItem read as dict
 
 **Root cause:** `apps/health/capture_session.py::_extract_from_images` read each Vision item with `item.get("details")`. But `vision_service.analyze_image().items` are `ScanItem` DATACLASS objects (apps/scan/services/vision.py — `label`/`details`/`confidence`), not dicts. `ScanItem` has no `.get`, so the call raised `AttributeError: 'ScanItem' object has no attribute 'get'`. That line is OUTSIDE the per-image `try/except` (which only wraps the Vision call), so it propagated through `analyze_capture`/`finalize_capture` → the view (no try/except) → HTTP 500. The session therefore never received a confidence response and never produced a draft — the UI sat on "Working…" indefinitely. **Evidence:** reproduced deterministically by calling `_extract_from_images` with a real `ScanItem` → `AttributeError`; passes after the fix.

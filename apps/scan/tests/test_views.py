@@ -398,6 +398,54 @@ class ScanAnalyzeViewTests(ScanTestMixin, TestCase):
         finally:
             vision_service.client = original_client
 
+    @patch('apps.scan.views.vision_service')
+    def test_medicine_scan_creates_review_draft_no_canonical_write(self, mock_vision_service):
+        """Single-image scan→draft, end-to-end through scan:analyze, in the REAL
+        production item shape (dicts parsed from AI JSON — ScanItem is never
+        constructed in production). Asserts the Review & Confirm action appears, a
+        draft is staged, and NOTHING canonical is written before confirmation."""
+        from apps.scan.services.vision import ScanResult
+        from apps.health.models import Intake, MedicationEvent, MedicationScanDraft
+
+        mock_vision_service.is_available = True
+
+        def mock_analyze(image_base64, request_id, image_format):
+            return ScanResult(
+                request_id=request_id, top_category='medicine', confidence=0.88,
+                # Production shape: items are plain dicts from parsed AI JSON.
+                items=[{'label': 'Metformin 500mg',
+                        'details': {'name': 'Metformin', 'dosage': '500mg'},
+                        'confidence': 0.88}],
+                safety_notes=[], next_best_actions=[],
+            )
+        mock_vision_service.analyze_image.side_effect = mock_analyze
+
+        self.client.login(email='test@example.com', password='testpass123')
+        resp = self.client.post(
+            self.url,
+            data=json.dumps({'image': self.get_valid_jpeg_base64()}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        # Review & Confirm action is returned for the detected medication.
+        action_ids = [
+            a['id']
+            for group in data.get('next_best_actions', [])
+            for a in group.get('actions', [])
+        ]
+        self.assertIn('review_intake', action_ids)
+
+        # A draft was staged …
+        draft = MedicationScanDraft.objects.filter(user=self.user).first()
+        self.assertIsNotNone(draft)
+        self.assertEqual(draft.extracted_values['name'], 'Metformin')
+        self.assertEqual(draft.extracted_values['dose'], '500mg')
+        # … but NOTHING canonical until the user confirms.
+        self.assertFalse(Intake.objects.filter(user=self.user).exists())
+        self.assertFalse(MedicationEvent.objects.filter(user=self.user).exists())
+
 
 class ScanRecordActionViewTests(ScanTestMixin, TestCase):
     """Tests for the action recording view."""

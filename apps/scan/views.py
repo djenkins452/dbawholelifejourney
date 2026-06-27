@@ -390,9 +390,13 @@ class ScanAnalyzeView(LoginRequiredMixin, View):
                                  'payload_template': {}},
                             ],
                         }]
-                except Exception as e:
-                    logger.warning(
-                        "Failed to route scan into acquisition pipeline: %s", e
+                except Exception:
+                    # Loud on purpose: a swallowed exception here once let the
+                    # single-image scan→draft path fail silently in production.
+                    logger.error(
+                        "Failed to route scan into acquisition pipeline "
+                        "(request_id=%s, category=%s)",
+                        request_id, result.top_category, exc_info=True,
                     )
 
             return JsonResponse(response_data)

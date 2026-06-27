@@ -336,6 +336,37 @@ class ScanIntegrationTest(AdherenceTestMixin, TestCase):
         # Vision evidence is recorded.
         self.assertTrue(any(e.get("source_type") == "vision" for e in draft.evidence))
 
+    def test_real_scanitem_dataclass_creates_draft(self):
+        """Regression: vision_service.analyze_image().items are ScanItem DATACLASSES,
+        not dicts. create_draft_from_scan must read them by attribute — never `.get`
+        — or the single-image scan→draft path silently fails. (2026-06-27.)"""
+        from apps.health.medication_acquisition import create_draft_from_scan
+        from apps.scan.services.vision import ScanItem
+        items = [ScanItem(label="Lisinopril 10mg",
+                          details={"name": "Lisinopril", "dosage": "10mg",
+                                   "rx_number": "RX42"},
+                          confidence=0.85)]
+        draft = create_draft_from_scan(self.user, "medicine", items, scan_confidence=0.85)
+        self.assertIsNotNone(draft)
+        self.assertEqual(draft.extracted_values["name"], "Lisinopril")
+        self.assertEqual(draft.extracted_values["dose"], "10mg")
+        self.assertEqual(draft.extracted_values["rx_number"], "RX42")
+        # Still nothing canonical until confirmation.
+        self.assertFalse(Intake.objects.filter(user=self.user).exists())
+        self.assertFalse(MedicationEvent.objects.filter(user=self.user).exists())
+
+    def test_dict_items_still_supported(self):
+        """Dict-shaped items (intentionally supported for other callers/tests)
+        must keep working after the ScanItem normalization."""
+        from apps.health.medication_acquisition import create_draft_from_scan
+        draft = create_draft_from_scan(
+            self.user, "supplement",
+            [{"label": "Vitamin D", "details": {"name": "Vitamin D", "serving_size": "1 softgel"}}],
+        )
+        self.assertIsNotNone(draft)
+        self.assertEqual(draft.extracted_values["name"], "Vitamin D")
+        self.assertEqual(draft.intake_type, Intake.INTAKE_TYPE_SUPPLEMENT)
+
     def test_all_representative_med_types_acquire_and_confirm(self):
         """Every representative medication type drafts, reviews, and confirms into
         a canonical Intake of the right type with exactly one 'started' event."""

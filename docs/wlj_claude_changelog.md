@@ -7,6 +7,25 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(cos): Beth couldn't explain medications — prompt blocked general education
+
+**Scenario:** "What medicine do I take?" and "List them all" worked (WLJ data). "Can you list each one and what they are for?" returned the emergency fallback: "I couldn't pull that together just now — my assistant service may be briefly unavailable."
+
+**Root cause (architectural, prompt-level):** the CoS system prompt (`apps/ai/chatgpt_cos/service.py` `_SYSTEM_PROMPT`) said *"Answer ONLY from deterministic data you retrieve through the tools — never invent facts, numbers, or status."* Medication **purposes** ("what they're for") are GENERAL knowledge, not a WLJ-owned fact — there is no tool/field for them. So the model fetched the real med list, then had nothing it was *permitted* to say about purposes → returned empty content after tools.
+
+**Exact failure point:** `ChatGPTCoSService.generate` → tool loop → `AIService._call_api_with_tools` returns `""` → `final` empty → `empty_reason="model_empty_after_tools"` → `_emergency_fallback()` ([service.py:220](apps/ai/chatgpt_cos/service.py)). Supporting logs (already emitted): `COS_TOOL_LOOP_EMPTY_FINAL … reason=empty_assistant_content`, `COS_EMERGENCY_FALLBACK reason=model_empty_after_tools`, `COS_TOOL_LOOP_FINISH … empty_reason=model_empty_after_tools`.
+
+**Minimal fix (prompt-only — NO drug database, no new tools, no Beth redesign):** carved the prompt into two lanes — (1) anything PERSONAL to the user (facts, numbers, status, history, medications, adherence, providers, pharmacies, goals) still comes ONLY from the tools and is never invented; (2) the model MAY use its own general knowledge for NON-personal education (what a medication is commonly used for, what a lab marker means), and for mixed questions it retrieves the real WLJ med list, then adds the general educational purpose of each — framed as general info, "confirm with your doctor/pharmacist", never a personal recommendation. Explicitly: do NOT go silent on a general health question just because WLJ doesn't store the answer. This is exactly the stretch-goal "minimal architectural change": OpenAI supplies general education; WLJ stays the source of personal truth.
+
+**Regression tests** (`apps/ai/tests/test_cos_empty_answer.py`): prompt permits general education ("general knowledge" / "commonly used for" / "do not refuse or go silent"); prompt preserves the personal-truth invariant ("invent or guess personal data" forbidden, personal facts tool-sourced); a combined med-list+purposes answer flows through `generate()` without the emergency fallback. Also corrected two PRE-EXISTING stale assertions in the same file (they expected `answer == ""`, but the never-empty invariant returns the graceful fallback text with `empty_reason` set).
+
+**Confirmation:** "What medications do I take?" → WLJ tools (unchanged). "What is Metformin commonly used for?" → now answerable from general knowledge. "What medications am I taking for diabetes?" → WLJ med list + general knowledge of which are diabetes-related, personalized. No local medication reference database introduced.
+
+**Files:** apps/ai/chatgpt_cos/service.py, apps/ai/tests/test_cos_empty_answer.py.
+
+**Verification:** test_cos_empty_answer 9/9 green; broad COS suite (chatgpt_cos_clean, coherence_guards, general_knowledge_outage, conversation_lanes, acceptance_rules, health_risk_capability, p29, foundation_validation) — only 1 unrelated PRE-EXISTING failure (`DailyCheckinResolutionTests.test_option1_…`, fails on HEAD without this change); `manage.py check` clean; no migration.
+
+
 ## 2026-06-27 — fix(health): Guided Capture false-negative on real prescription bottles
 
 Real Metformin bottle photos (UT Medical Center / University Pharmacy) were rejected with "We couldn't read a medication from those photos." The message fires in `process_capture_session` only when the merged extraction has no `name` — i.e. every image contributed nothing. Traced the Vision-call path (can't be the merge — when Vision returns a name, the existing tests pass).

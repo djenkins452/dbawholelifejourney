@@ -107,6 +107,63 @@ class ToolLoopEmptyAnswerTests(TestCase):
                             for m in cm.output))
 
 
+class MedicationEducationPromptTests(TestCase):
+    """Regression: 'list each medication and what they are for' returned the
+    emergency fallback because the system prompt allowed answering ONLY from WLJ
+    tool data — and medication PURPOSES are general knowledge, not a WLJ fact, so
+    the model had nothing permitted to say → empty content after tools.
+
+    Fix is prompt-only: permit general, NON-personal education from the model's own
+    knowledge, while keeping all PERSONAL facts WLJ-sourced. No drug database."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(email="cos_meds@example.com",
+                                            password="x", first_name="Danny")
+
+    def _prompt(self):
+        from apps.ai.chatgpt_cos.service import ChatGPTCoSService
+        return ChatGPTCoSService(self.user)._system_prompt({"status": "ready"})
+
+    def test_prompt_permits_general_education(self):
+        p = self._prompt().lower()
+        # The block is removed: general, non-personal education is explicitly allowed.
+        self.assertIn("general knowledge", p)
+        self.assertIn("commonly used for", p)
+        # And it must NOT go silent on a general question WLJ doesn't store.
+        self.assertIn("do not refuse or go silent", p)
+
+    def test_prompt_preserves_personal_truth_invariant(self):
+        p = self._prompt().lower()
+        # Personal data still comes ONLY from tools, never invented.
+        self.assertIn("invent or guess personal data", p)
+        self.assertIn("medications", p)
+        # Personal facts are tool-sourced (the invariant that protects truth).
+        self.assertTrue("retrieve through the tools" in p or "from the tools" in p)
+
+    def test_combined_answer_flows_through_without_emergency_fallback(self):
+        """With the prompt unblocked, a model that fetches the med list and adds
+        general purposes yields a real answer — not the emergency fallback."""
+        from apps.ai.chatgpt_cos.service import ChatGPTCoSService
+        svc = ChatGPTCoSService(self.user)
+        combined = ("Here's each medication and what it's generally used for:\n"
+                    "• Metformin — commonly used for type 2 diabetes …")
+        with mock.patch.object(ChatGPTCoSService, "_history", return_value=[]), \
+             mock.patch("apps.core.ai_state.state_engine.get_user_state",
+                        return_value={}), \
+             mock.patch("apps.ai.cos_services.get_standing_context",
+                        return_value={"status": "ready"}), \
+             mock.patch("apps.ai.cos_services.get_tool_schemas", return_value=[]), \
+             mock.patch("apps.ai.chatgpt_cos.reasoning.answer_reasoning_question",
+                        return_value=None), \
+             mock.patch("apps.ai.services.ai_service._call_api_with_tools",
+                        return_value=combined):
+            result = svc.generate(object(), "can you list each one and what they are for?")
+        self.assertEqual(result["answer"], combined)
+        self.assertIsNone(result["empty_reason"])
+        self.assertNotIn("couldn't pull that together", result["answer"].lower())
+
+
 class GenerateEmptyReasonTests(TestCase):
     """ChatGPTCoSService.generate classifies empty answers; never silent."""
 
@@ -135,12 +192,15 @@ class GenerateEmptyReasonTests(TestCase):
 
     def test_model_empty_after_tools(self):
         result = self._generate_with_loop_return("")
-        self.assertEqual(result["answer"], "")
+        # NEVER-EMPTY invariant: the answer is the graceful fallback (not blank);
+        # empty_reason records WHY for diagnostics.
+        self.assertTrue(result["answer"])
+        self.assertIn("couldn't pull that together", result["answer"].lower())
         self.assertEqual(result["empty_reason"], "model_empty_after_tools")
 
     def test_openai_fallback_empty(self):
         result = self._generate_with_loop_return(None)
-        self.assertEqual(result["answer"], "")
+        self.assertTrue(result["answer"])
         self.assertEqual(result["empty_reason"], "openai_fallback_empty")
 
     def test_nonempty_answer_has_no_empty_reason(self):

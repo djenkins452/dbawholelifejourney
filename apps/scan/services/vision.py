@@ -663,6 +663,12 @@ class VisionService:
             })
 
         elif category == 'medicine':
+            # NOTE (Sprint 3.5): this legacy intake_create prefill action is
+            # RETIRED for the live scan flow — `ScanAnalyzeView` overrides
+            # next_best_actions for medicine/supplement and routes the scan into
+            # the Medication Acquisition pipeline (Vision → MedicationScanDraft →
+            # Confidence Review → Confirm). This branch is retained only for the
+            # service-level unit tests and as a fallback; it never reaches users.
             med_name = items[0]['label'] if items else 'medication'
             details = items[0].get('details', {}) if items else {}
 

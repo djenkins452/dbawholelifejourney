@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Sprint 3.5 — real-world Scan/Vision → Acquisition pipeline integration
+
+Routes the existing bottle-scan Vision pipeline into the Sprint-3 acquisition pipeline. The legacy `Vision → prefilled IntakeCreateView` flow is retired in favor of `Vision → MedicationScanDraft → Confidence Review → Duplicate Detection → Confirm → MedicationEvent → Intake`. Reuses the Sprint-3 architecture; no redesign.
+
+**Bridge:** `medication_acquisition.create_draft_from_scan(user, category, items, scan_confidence)` maps a Vision medicine/supplement extraction (`items`/`details`: dosage→dose, directions→sig, quantity, purpose, prescriber→provider, pharmacy, refills, expiration, ndc) into a pending `MedicationScanDraft` (source=`bottle_image`), applying the overall scan confidence as per-field extraction confidence and recording Vision evidence. Vision writes NOTHING canonical.
+
+**Scan view integration** (`apps/scan/views.py`): after a successful medicine/supplement scan, `ScanAnalyzeView` creates the draft and overrides `next_best_actions` with a single "Review & Confirm" action → the guided review page. The user always reviews (confidence bands + duplicates) before any write; confirmation fires the canonical `started`/`dose_changed` events via the one history writer.
+
+**Legacy retired:** the `vision._build_actions` medicine/supplement `intake_create` prefill action is superseded by the view-level routing (documented as retired; never reaches users). Fixed 2 pre-existing stale `test_vision` assertions (medicine→intake rename artifacts: `Health.Medicine`→`Health.Intake`, "medicine"→"intake" question text).
+
+**Regression fixtures:** `apps/health/tests/acquisition_fixtures.py` — reusable, Vision-shaped samples for the real-world medication types (prescription bottle, Supplement Facts, OTC/Drug Facts, injection pen, pharmacy label, minimal supplement, GLP-1 injection). Future acquisition work validates against these, not synthetic one-offs.
+
+**Files:** apps/health/medication_acquisition.py, apps/scan/views.py, apps/scan/services/vision.py, apps/scan/tests/test_vision.py, apps/health/tests/acquisition_fixtures.py (new), apps/health/tests/test_medication_acquisition.py (+ScanIntegrationTest).
+
+**Verification:** 120 tests green (scan vision + scan views + acquisition + foundation), incl. every representative med type drafting→reviewing→confirming into the right Intake type with exactly one started event, and scan-duplicate detection; `manage.py check` clean; no migration.
+
+
 ## 2026-06-27 — feat(cos): P33 Executive Interpretation Engine (judgment before composition)
 
 Production: Beth concluded "22 pending tasks → recovery day / high workload" when reality was 1 due today + a strategic/someday backlog. The deterministic FACTS were right; the executive CONCLUSION was wrong — Beth reasoned from raw counts, not executive judgment.

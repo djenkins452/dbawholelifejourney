@@ -60,6 +60,58 @@ def create_draft(user, source, extracted_values, *, intake_type=None,
     return draft
 
 
+def create_draft_from_scan(user, category, items, *, scan_confidence=None,
+                           evidence=None):
+    """Bridge the existing Scan/Vision pipeline into the acquisition pipeline
+    (Sprint 3.5). Maps a Vision medicine/supplement extraction into a
+    MedicationScanDraft — Vision NEVER writes canonical state; like every other
+    source it produces a reviewable draft. Returns the draft, or None if there
+    is nothing usable to stage.
+    """
+    from apps.health.models import Intake
+
+    if not items:
+        return None
+    item = items[0] or {}
+    details = item.get("details", {}) or {}
+    name = (item.get("label") or details.get("name") or "").strip()
+    if not name:
+        return None
+
+    extracted = {
+        "name": name,
+        "dose": details.get("dosage", ""),
+        "sig": details.get("directions", ""),
+        "quantity": details.get("quantity", ""),
+        "purpose": details.get("purpose", ""),
+        "provider": details.get("prescriber") or details.get("provider", ""),
+        "pharmacy": details.get("pharmacy", ""),
+        "refills": details.get("refills", ""),
+        "expiration": details.get("expiration") or details.get("expiration_date", ""),
+        "ndc": details.get("ndc", ""),
+    }
+    intake_type = (
+        Intake.INTAKE_TYPE_SUPPLEMENT if category == "supplement"
+        else Intake.INTAKE_TYPE_MEDICATION
+    )
+    # Vision gives one overall scan confidence; apply it to each read field as the
+    # extraction confidence (the per-field confidence then flows through the engine).
+    extraction_conf = None
+    if scan_confidence is not None:
+        extraction_conf = {
+            k: scan_confidence for k, v in extracted.items() if v not in (None, "")
+        }
+    scan_evidence = (evidence or []) + [{
+        "source_type": "vision",
+        "summary": f"Scanned ({category})",
+        "confidence": scan_confidence,
+    }]
+    return create_draft(
+        user, "bottle_image", extracted, intake_type=intake_type,
+        extraction_confidences=extraction_conf, evidence=scan_evidence,
+    )
+
+
 def create_manual_draft(user, values, *, intake_type=None):
     """Manual entry is a first-class acquisition method (Sprint 3G).
 

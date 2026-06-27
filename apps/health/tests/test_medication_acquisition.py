@@ -312,3 +312,61 @@ class AcquisitionUIWorkflowTest(AdherenceTestMixin, TestCase):
         self.assertEqual(Intake.objects.filter(user=self.user, name="Lisinopril").count(), 1)
         med = Intake.objects.get(user=self.user, name="Lisinopril")
         self.assertEqual(med.dose, "20mg")
+
+
+class ScanIntegrationTest(AdherenceTestMixin, TestCase):
+    """Sprint 3.5 — the existing Vision output flows through the acquisition
+    pipeline (draft → review → confirm), validated across real-world med types."""
+
+    def setUp(self):
+        self.user = self.create_user(email="scanint@test.com")
+
+    def test_vision_output_becomes_pending_draft_not_canonical(self):
+        from apps.health.medication_acquisition import create_draft_from_scan
+        items = [{"label": "Metformin", "details": {"dosage": "500mg",
+                  "directions": "Take twice daily"}}]
+        draft = create_draft_from_scan(self.user, "medicine", items, scan_confidence=0.8)
+        self.assertIsNotNone(draft)
+        self.assertEqual(draft.source, "bottle_image")
+        self.assertEqual(draft.review_status, MedicationScanDraft.REVIEW_PENDING)
+        self.assertEqual(draft.extracted_values["name"], "Metformin")
+        self.assertEqual(draft.extracted_values["dose"], "500mg")
+        # Vision wrote NOTHING canonical.
+        self.assertFalse(Intake.objects.filter(user=self.user, name="Metformin").exists())
+        # Vision evidence is recorded.
+        self.assertTrue(any(e.get("source_type") == "vision" for e in draft.evidence))
+
+    def test_all_representative_med_types_acquire_and_confirm(self):
+        """Every representative medication type drafts, reviews, and confirms into
+        a canonical Intake of the right type with exactly one 'started' event."""
+        from apps.health.medication_acquisition import create_draft_from_scan
+        from apps.health.tests.acquisition_fixtures import ACQUISITION_SAMPLES
+
+        for sample in ACQUISITION_SAMPLES:
+            with self.subTest(sample=sample["key"]):
+                draft = create_draft_from_scan(
+                    self.user, sample["category"], sample["vision_items"],
+                    scan_confidence=sample["scan_confidence"],
+                )
+                self.assertIsNotNone(draft, sample["key"])
+                # Bottle confidence is medium-ish (needs review), never auto-high.
+                self.assertLess(draft.overall_confidence, 0.97)
+                intake = confirm_draft(draft, MedicationScanDraft.ACTION_CREATE)
+                self.assertEqual(intake.intake_type, sample["expected_intake_type"])
+                self.assertEqual(
+                    intake.events.filter(
+                        event_type=MedicationEvent.EVENT_STARTED
+                    ).count(), 1, sample["key"],
+                )
+                # Confidence lifts to confirmed after the user confirms.
+                draft.refresh_from_db()
+                self.assertGreaterEqual(draft.overall_confidence, 0.97)
+
+    def test_scan_duplicate_detected_against_existing(self):
+        from apps.health.medication_acquisition import create_draft_from_scan
+        self.create_medicine(self.user, name="Atorvastatin", dose="40mg")
+        items = [{"label": "Atorvastatin", "details": {"dosage": "40mg"}}]
+        draft = create_draft_from_scan(self.user, "medicine", items, scan_confidence=0.9)
+        dups = detect_duplicates(self.user, draft)
+        self.assertEqual(len(dups), 1)
+        self.assertEqual(dups[0]["match_type"], "exact")

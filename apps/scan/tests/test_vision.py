@@ -188,8 +188,8 @@ class ActionBuildingTests(TestCase):
         actions = self.service._build_actions('medicine', items)
 
         self.assertEqual(len(actions), 1)
-        self.assertEqual(actions[0]['module'], 'Health.Medicine')
-        self.assertIn('medicine', actions[0]['question'].lower())
+        self.assertEqual(actions[0]['module'], 'Health.Intake')
+        self.assertIn('intake', actions[0]['question'].lower())
 
     def test_supplement_actions(self):
         """Test that supplement category generates correct actions."""
@@ -197,7 +197,7 @@ class ActionBuildingTests(TestCase):
         actions = self.service._build_actions('supplement', items)
 
         self.assertEqual(len(actions), 1)
-        self.assertEqual(actions[0]['module'], 'Health.Medicine')
+        self.assertEqual(actions[0]['module'], 'Health.Intake')
         self.assertIn('supplement', actions[0]['question'].lower())
 
     def test_receipt_actions(self):

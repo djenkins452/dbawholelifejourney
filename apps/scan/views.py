@@ -364,6 +364,37 @@ class ScanAnalyzeView(LoginRequiredMixin, View):
             response_data = result.to_dict()
             response_data['scan_image_key'] = scan_image_key
 
+            # ── Sprint 3.5 — route bottle scans into the acquisition pipeline ──
+            # Vision produces a reviewable MedicationScanDraft (NEVER a canonical
+            # write); the user reviews confidence + duplicates and confirms. This
+            # supersedes the legacy intake_create prefill action for med/supplement.
+            if not result.error and result.top_category in ('medicine', 'supplement'):
+                try:
+                    from apps.health.medication_acquisition import create_draft_from_scan
+                    from django.urls import reverse as _reverse
+                    draft = create_draft_from_scan(
+                        user, result.top_category, result.items,
+                        scan_confidence=result.confidence,
+                    )
+                    if draft is not None:
+                        review_url = _reverse(
+                            'health:medication_review', kwargs={'draft_id': draft.id}
+                        )
+                        response_data['next_best_actions'] = [{
+                            'module': 'Health.Intake',
+                            'question': 'Review and confirm this medication?',
+                            'actions': [
+                                {'id': 'review_intake', 'label': 'Review & Confirm',
+                                 'url': review_url, 'payload_template': {}},
+                                {'id': 'skip', 'label': 'Skip', 'url': '',
+                                 'payload_template': {}},
+                            ],
+                        }]
+                except Exception as e:
+                    logger.warning(
+                        "Failed to route scan into acquisition pipeline: %s", e
+                    )
+
             return JsonResponse(response_data)
 
         except Exception as e:

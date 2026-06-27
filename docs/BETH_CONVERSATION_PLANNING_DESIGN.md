@@ -1,7 +1,17 @@
 # Executive Conversation Planning — Architecture Design (P31)
 
-**Status:** DESIGN ONLY (no Beth code changed). Checkpoint: `beth-stable-v3`.
+**Status:** Phase 1 IMPLEMENTED (`conversation_planner.py` + repair / morning check-in
+lanes, deterministic, no migration). Phases 2–3 pending. Checkpoint: `beth-stable-v3`.
 **Author:** Claude (P31). **Date:** 2026-06-27.
+
+> **Phase 1 (shipped):** `apps/ai/chatgpt_cos/conversation_planner.py` (deterministic
+> `plan()` + act classifier + state in `AssistantConversation.metadata`), wired as the
+> `conversation_planner` lane (2nd, after `clarification_reply`). A GREETING opens with
+> a light CHECK-IN (agenda held); a CRITIQUE triggers REPAIR (re-ground in time-aware
+> state, no unrelated fact); a CHECK-IN response hands off to the deterministic
+> BRIEFING (adaptive to negative feeling). Product decision: morning ALWAYS checks in
+> first. Tests: `apps/ai/tests/test_p31_conversation_planning.py`. Acceptance bank
+> stays isolated (state reset per question in `run_one`).
 
 ---
 

@@ -7,6 +7,20 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(cos): P31 Phase 1 — Executive Conversation Planning (check-in + repair)
+
+A thin DETERMINISTIC conversation strategy/state layer in front of the existing pipeline — Beth now plans the CONVERSATION, not just the answer. No LLM director, no migration.
+
+- **`apps/ai/chatgpt_cos/conversation_planner.py`** (new): deterministic `plan()` + a conversational-act classifier (greeting / critique / question) + first-class conversation STATE persisted in `AssistantConversation.metadata` (the proven pending_clarification pattern). handler ∈ {repair, checkin_open, brief_after_checkin, route}.
+- **Lanes** (lanes.py): new `conversation_planner` lane (2nd, after clarification_reply) + `_morning_checkin`, `_post_checkin_brief`, `_repair_response`. (1) GREETING → light CHECK-IN first: greet Danny by name, reference 1–2 overnight facts (sleep) when available, ask how he's feeling, and HOLD the agenda (product decision: morning always checks in first; warmer when sleep is short). (2) CHECK-IN response → deterministic BRIEFING via the time-aware `build_daily_agenda` (adaptive: a negative feeling → lighter, "essentials" lead). (3) CRITIQUE of Beth's prior answer ("does that sound right?", "that wasn't first class") → REPAIR: acknowledge, re-ground in the ACTUAL time-aware state (never frames a past item as "coming up"), never jump to an unrelated fact, offer to correct/continue. All deterministic — works with OpenAI disabled.
+- **Acceptance isolation:** `run_one` resets conversation-planner state per question so the isolated-intent bank never leaks state; multi-turn dialogue is covered by dedicated scenario tests.
+- **Tagged `beth-stable-v3`** (Smoke/Full/Deep GREEN) as the restore point before this work.
+
+**Files:** apps/ai/chatgpt_cos/{conversation_planner.py (new), lanes.py, acceptance_service.py}, tests/test_p31_conversation_planning.py (new), test_conversation_lanes.py (registry order). Docs: BETH_CONVERSATION_PLANNING_DESIGN.md, release_notes.json.
+
+**Verification:** new test_p31_conversation_planning.py — multi-turn scenarios validating ACTUAL rendered responses with OpenAI DISABLED: good morning → check-in first (no task dump, asks feeling, greets by name) → state check_in; check-in response → adaptive briefing → state briefing; critique after a briefing → repair (acknowledges, offers to correct, NO unrelated protein fact) → state repair; a fresh question during check-in is answered normally; a critique with no prior answer is not a repair. 267-test regression green (greeting tests unaffected — they route with conversation=None where the planner no-ops); `check` clean; no migration; Smoke/Full/Deep behavior preserved (bank greetings pass the lenient check-in lane).
+
+
 ## 2026-06-27 — fix(health): Sprint 1.5B — Health Dashboard refill alert silently dropped (intake_low_supply not provided)
 
 **Root cause:** the Phase 17/18 SAE refactor of `HealthHomeView` (`health:home`) renamed the medication context keys `medicine_*` → `intake_*` and re-sourced them from SAE medicine state, but **`intake_low_supply` was never mapped** — while the template `health/home.html:187` still renders `{% if intake_low_supply > 0 %}` the refill alert. Result: the **low-supply / refill indicator silently disappeared** from the Health Dashboard (count and overdue still rendered via `intake_count`/`intake_overdue`).

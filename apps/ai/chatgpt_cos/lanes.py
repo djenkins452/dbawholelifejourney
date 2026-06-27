@@ -606,8 +606,134 @@ def _general_lane(user, message, conversation=None):
 #                          general-before-personal is NOT yet approved — pending
 #                          Issue #1 production telemetry)
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Executive Conversation Planning (P31 Phase 1). A deterministic planner decides
+# WHAT CONVERSATION to have before the fact-routing lanes run: a GREETING opens
+# with a light CHECK-IN (agenda HELD), a CRITIQUE triggers a REPAIR, and a
+# CHECK-IN response hands off to the deterministic BRIEFING. All NO-OpenAI.
+# ---------------------------------------------------------------------------
+_NEGATIVE_FEELING = ("tired", "exhausted", "rough", "not great", "not good", "bad",
+                     "stressed", "anxious", "overwhelmed", "drained", "low", "awful",
+                     "struggling", "heavy", "off", "tough", "hard")
+_BRIEFING_CUES = ("coming up", "next up", "priority", "agenda", "scheduled", "begin",
+                  "your day", "start with", "first up", "on your plate")
+
+
+def _greeting_word(message, user):
+    n = _normalize(message)
+    if "good evening" in n or "evening beth" in n:
+        return "Good evening"
+    if "good afternoon" in n or "afternoon beth" in n:
+        return "Good afternoon"
+    if "good morning" in n or "morning" in n:
+        return "Good morning"
+    try:
+        from apps.core.utils import get_user_now
+        hour = get_user_now(user).hour
+        return ("Good morning" if hour < 12 else
+                "Good afternoon" if hour < 17 else "Good evening")
+    except Exception:
+        return "Hi"
+
+
+def _overnight_facts(user):
+    """1–2 concrete overnight/yesterday facts + a strong-signal flag. Cache-first
+    (SAE), best-effort: any missing fact is simply omitted."""
+    facts, strong = [], False
+    try:
+        from apps.ai.cos_services import get_domain_state
+        env = get_domain_state(user, "health")
+        st = (env.get("state") if isinstance(env, dict) else None) or {}
+        h = st.get("sleep_last_night_hours") or st.get("sleep_avg_hours_7d")
+        if isinstance(h, (int, float)) and h > 0:
+            if h < 6.5:
+                facts.append(f"You got about {h:g} hours of sleep last night — a bit short.")
+                strong = True
+            else:
+                facts.append(f"You got about {h:g} hours of sleep last night.")
+    except Exception:
+        logger.warning("checkin: overnight facts failed", exc_info=True)
+    return facts[:2], strong
+
+
+def _morning_checkin(user, message):
+    greeting = _greeting_word(message, user)
+    facts, strong = _overnight_facts(user)
+    parts = [f"{greeting}, Danny."]
+    if facts:
+        parts.append(" ".join(facts))
+    if strong:
+        parts.append("Before we dive into today — how are you feeling this morning, "
+                     "and is there anything you want me to know first?")
+    else:
+        parts.append("Before we get into the day — how are you feeling, and is there "
+                     "anything you want to tell me first?")
+    return {"answer": " ".join(parts), "tools_called": [], "tools_advertised": [],
+            "lane": "conversation_checkin"}
+
+
+def _post_checkin_brief(user, message, feeling):
+    f = (feeling or "").lower()
+    heavy = any(w in f for w in _NEGATIVE_FEELING)
+    lead = ("Thanks for telling me — let's keep today focused on the essentials. "
+            if heavy else "Got it. Here's how your day is shaping up. ")
+    try:
+        from apps.core.cos_briefing.daily_agenda import build_daily_agenda
+        agenda = build_daily_agenda(user) or ""
+    except Exception:
+        logger.warning("post_checkin_brief: agenda failed", exc_info=True)
+        agenda = ""
+    answer = (lead + agenda).strip() or (lead.strip())
+    return {"answer": answer, "tools_called": [], "tools_advertised": [],
+            "lane": "conversation_brief"}
+
+
+def _repair_response(user, message, prior_answer):
+    """Recognize the critique, acknowledge, and re-ground in the ACTUAL (time-aware)
+    state — NEVER jump to an unrelated fact — then offer to continue."""
+    prior = (prior_answer or "").lower()
+    parts = ["Fair question — let me re-check that rather than just repeat myself."]
+    # If the critiqued answer was a briefing/agenda, re-ground with the TIME-AWARE
+    # agenda (it never frames a past item as 'coming up'); that IS the correction.
+    if any(c in prior for c in _BRIEFING_CUES):
+        try:
+            from apps.core.cos_briefing.daily_agenda import build_daily_agenda
+            agenda = build_daily_agenda(user) or ""
+        except Exception:
+            agenda = ""
+        if agenda:
+            parts.append("Here's where things actually stand right now: " + agenda)
+    parts.append("If something looked off, tell me exactly what and I'll correct it — "
+                 "or I can walk through the rest with you.")
+    return {"answer": " ".join(parts), "tools_called": [], "tools_advertised": [],
+            "lane": "conversation_repair"}
+
+
+def _conversation_planner_lane(user, message, conversation=None):
+    """P31: run the deterministic conversation planner. Intervenes only for repair /
+    morning check-in / post-check-in briefing; otherwise declines (the planner has
+    already persisted the next conversation state)."""
+    if conversation is None:
+        return None
+    try:
+        from apps.ai.chatgpt_cos import conversation_planner as cp
+        p = cp.plan(user, conversation, message)
+    except Exception:
+        logger.warning("conversation_planner_lane failed", exc_info=True)
+        return None
+    handler = p.get("handler")
+    if handler == "repair":
+        return _repair_response(user, message, p.get("prior_answer"))
+    if handler == "checkin_open":
+        return _morning_checkin(user, message)
+    if handler == "brief_after_checkin":
+        return _post_checkin_brief(user, message, p.get("feeling"))
+    return None
+
+
 LANE_REGISTRY = (
     ("clarification_reply", _clarification_reply_lane),
+    ("conversation_planner", _conversation_planner_lane),
     ("foundational_facts", _foundational_lane),
     ("clarification", _clarification_lane),
     ("next_rhythm", _next_rhythm_lane),

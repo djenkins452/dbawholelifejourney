@@ -3446,5 +3446,21 @@
       "created_at": "2026-06-27T13:00:00Z",
       "updated_at": "2026-06-27T13:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 216,
+    "fields": {
+      "title": "Your Chief of Staff now checks in before briefing you — and fixes its answer when you push back",
+      "description": "Mornings now start like a real Chief of Staff would: instead of immediately listing your day, your assistant greets you, notes a thing or two from overnight (like how you slept), and asks how you’re doing before getting into the agenda — and it holds the briefing until you answer. If you tell it you’re running low, it keeps the briefing lighter. And when you push back on something it said — “does that sound right?”, “that wasn’t quite right” — it now recognizes you’re questioning its last answer, re-checks it instead of changing the subject, and offers to correct it. All of this works even if the AI service is briefly busy.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-06-27",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-06-27T14:00:00Z",
+      "updated_at": "2026-06-27T14:00:00Z"
+    }
   }
 ]

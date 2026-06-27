@@ -144,7 +144,7 @@ class RoutingPreservationTests(TestCase):
 
     def test_registry_order(self):
         self.assertEqual([n for n, _ in LANE_REGISTRY],
-                         ["clarification_reply", "foundational_facts",
+                         ["clarification_reply", "conversation_planner", "foundational_facts",
                           "clarification", "next_rhythm", "cos_briefing",
                           "personal_reasoning", "general_conversation"])
 
@@ -308,8 +308,8 @@ class ApprovedRegistryOrderTests(TestCase):
     def test_order_is_approved(self):
         self.assertEqual(
             [n for n, _ in LANE_REGISTRY],
-            ["clarification_reply", "foundational_facts", "clarification",
-             "next_rhythm", "cos_briefing", "personal_reasoning",
+            ["clarification_reply", "conversation_planner", "foundational_facts",
+             "clarification", "next_rhythm", "cos_briefing", "personal_reasoning",
              "general_conversation"])
 
     def test_check_in_routes_to_clarification_and_not_personal_reasoning(self):

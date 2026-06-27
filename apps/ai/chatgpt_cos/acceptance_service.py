@@ -311,6 +311,17 @@ def git_commit():
 
 # ---- run a single question through the real chat path ----------------------
 def run_one(svc, conversation, spec, evening=False):
+    # Each bank question is an ISOLATED turn — reset the conversation-planner state
+    # (P31) so it never leaks between unrelated questions. Multi-turn dialogue is
+    # covered by dedicated scenario tests, not the isolated-intent bank.
+    try:
+        if conversation is not None and isinstance(getattr(conversation, "metadata", None), dict):
+            md = dict(conversation.metadata)
+            if md.pop("conversation_state", None) is not None:
+                conversation.metadata = md
+                conversation.save(update_fields=["metadata"])
+    except Exception:
+        pass
     text = spec["text"]
     patches = []
     if spec.get("evening") and evening:

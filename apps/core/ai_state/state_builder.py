@@ -3980,6 +3980,46 @@ def build_medicine_state(user):
     except Exception:
         logger.debug("Medicine treatment-section build failed", exc_info=True)
 
+    # ── Acquisition confidence (Sprint 3I) ───────────────────────
+    # COMPOSED acquisition state so Beth understands how trustworthy each record
+    # is and whether anything awaits review — Beth NEVER reads raw OCR/extraction.
+    _acq_pending = 0
+    _acq_meds = []
+    try:
+        from apps.health.models import MedicationScanDraft as _MSD
+
+        _acq_pending = _MSD.objects.filter(
+            user=user, review_status=_MSD.REVIEW_PENDING,
+        ).count()
+
+        _confirmed = (
+            _MSD.objects
+            .filter(user=user, review_status=_MSD.REVIEW_CONFIRMED,
+                    created_intake__isnull=False,
+                    created_intake__intake_status='active')
+            .select_related('created_intake')
+            .order_by('created_intake_id', '-confirmed_at')
+        )
+        _seen = set()
+        for _d in _confirmed:
+            if _d.created_intake_id in _seen:
+                continue  # most recent confirmation per intake only
+            _seen.add(_d.created_intake_id)
+            _evidence_summary = ", ".join(
+                e.get("summary", "") for e in (_d.evidence or []) if e.get("summary")
+            )[:200]
+            _acq_meds.append({
+                'name': _d.created_intake.name,
+                'acquisition_confidence': _d.overall_confidence,
+                'source': _d.source,
+                'last_confirmed': _d.confirmed_at.isoformat() if _d.confirmed_at else None,
+                'last_reviewed': _d.reviewed_at.isoformat() if _d.reviewed_at else None,
+                'evidence_summary': _evidence_summary,
+                'duplicate_status': 'merged' if _d.duplicate_of_id else 'unique',
+            })
+    except Exception:
+        logger.debug("Medicine acquisition-section build failed", exc_info=True)
+
     state['_contract'] = {
         'summary': {
             'active_count': state.get('active_count', 0),
@@ -3997,6 +4037,10 @@ def build_medicine_state(user):
             'medications_detail': _med_detail,
             'recent_changes': _recent_changes,
             'treatment_summary': _treatment_summary,
+        },
+        'acquisition': {
+            'pending_review_count': _acq_pending,
+            'medications': _acq_meds,
         },
         'today': {
             'schedule_status': state.get('schedule_status_today', []),

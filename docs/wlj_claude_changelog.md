@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Sprint 3I — acquisition confidence in canonical state
+
+Extends `build_medicine_state._contract` with a composed `acquisition` section so the Chief of Staff understands how trustworthy each record is — never reading raw OCR/extraction (Canon: canonical state is the only source Beth reads).
+
+**`_contract.acquisition` (new):** `pending_review_count` (drafts awaiting the user's review — Beth can nudge "you have N medications to review") and `medications` — per confirmed-into-active med: `acquisition_confidence`, `source`, `last_confirmed`, `last_reviewed`, `evidence_summary` (a composed one-liner from the evidence envelope — NOT raw OCR), `duplicate_status`. Self-contained and guarded; reads the latest confirmed `MedicationScanDraft` per intake.
+
+**Files:** apps/core/ai_state/state_builder.py; apps/health/tests/test_medication_acquisition.py (+1 state test).
+
+**Verification:** 47 acquisition + foundation + SAE-extension tests green; `manage.py check` clean; no migration. Acquisition UI (3J) follows.
+
+
 ## 2026-06-27 — feat(health): Sprint 3 (core) — Medication Acquisition pipeline (staging, confidence, duplicate detection, confirmation)
 
 The permanent acquisition architecture for Medication Intelligence: every acquisition method converges into one staging object and resolves through one confirmation path into canonical `Intake` + the `MedicationEvent` ledger. Nothing enters canonical state without confirmation (Canon: OCR is never truth; user confirmation is the strongest evidence).

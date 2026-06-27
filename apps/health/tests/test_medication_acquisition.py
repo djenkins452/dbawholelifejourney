@@ -224,3 +224,26 @@ class ConfirmationTest(AdherenceTestMixin, TestCase):
             edits={"name": "Metformin"},  # user corrected the OCR typo
         )
         self.assertEqual(intake.name, "Metformin")
+
+
+class AcquisitionStateTest(AdherenceTestMixin, TestCase):
+    """Sprint 3I — acquisition confidence is exposed in canonical state."""
+
+    def setUp(self):
+        self.user = self.create_user(email="acqstate@test.com")
+
+    def test_state_exposes_pending_and_confirmed_acquisition(self):
+        from apps.core.ai_state.state_builder import build_medicine_state
+
+        # One pending draft (awaiting review) + one confirmed into an Intake.
+        create_manual_draft(self.user, {"name": "Pending Med", "dose": "1mg"})
+        d2 = create_manual_draft(self.user, {"name": "Confirmed Med", "dose": "2mg"})
+        confirm_draft(d2, MedicationScanDraft.ACTION_CREATE)
+
+        acq = build_medicine_state(self.user)["_contract"]["acquisition"]
+        self.assertEqual(acq["pending_review_count"], 1)
+        names = {m["name"]: m for m in acq["medications"]}
+        self.assertIn("Confirmed Med", names)
+        self.assertGreaterEqual(names["Confirmed Med"]["acquisition_confidence"], 0.97)
+        self.assertEqual(names["Confirmed Med"]["source"], "manual")
+        self.assertTrue(names["Confirmed Med"]["evidence_summary"])  # composed, not raw OCR

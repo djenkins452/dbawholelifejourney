@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(health): Sprint 1A / D3 — render `intake_subtype` in the intake form (insulin basal/bolus now UI-reachable)
+
+**Root cause:** `Intake.intake_subtype` (insulin basal/bolus) existed in the model and in `MedicineForm.Meta.fields` with a Select widget, but `templates/health/intake/intake_form.html` renders fields explicitly and never output `{{ form.intake_subtype }}`. Result: insulin subtype — which gates the metabolic/insulin intelligence (`is_insulin`, per-event dose tracking) — could only be set via Django admin, never by users. (Design Assurance defect D3; Medication Intelligence Sprint 1A.)
+
+**Fix:** rendered `{{ form.intake_subtype }}` inside the existing medication-only "Prescription Details" section (auto-hidden for supplements by the existing `data-intake-section="medication"` toggle script — CSP-compliant, no inline handlers). Field is optional (`null/blank`); the default blank choice preserves all prior behavior. **No schema change, no migration.**
+
+**Also (auto-fix, same file):** two pre-existing `MedicineCRUDTest` POST tests (`test_create_medicine_post`, `test_update_medicine`) omitted the form-required `intake_type`/`priority` and were failing on a clean DB (200≠302); added the fields they were missing. Real browsers always submit these (radio defaults + priority Select), so this was test incompleteness, not a behavior change.
+
+**Files:** templates/health/intake/intake_form.html; apps/health/tests/test_medicine.py (+3 D3 tests: field renders, insulin subtype persists + flips `is_insulin`, no-subtype create unchanged).
+
+**Verification:** `MedicineCRUDTest` 9/9 green (`--keepdb`); `manage.py check` clean; no migration (`intake_subtype` unchanged). Note: 6 unrelated pre-existing failures remain in `MedicineHealthDashboardTest`/`MedicineLogEditTest`/`MedicineContextTest` (dashboard/home/log-edit pages) — confirmed failing on clean HEAD, out of scope for D3, flagged for the Sprint 1D dashboard work.
+
+
 ## 2026-06-27 — docs(cos): P31 Executive Conversation Planning — architecture DESIGN (no code)
 
 Tagged `beth-stable-v3` (Smoke/Full/Deep GREEN) as a restore point. Added the P31 design doc `docs/BETH_CONVERSATION_PLANNING_DESIGN.md` — DESIGN ONLY, no Beth code changed (the prompt mandates "NO coding first").

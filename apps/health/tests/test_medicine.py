@@ -489,6 +489,8 @@ class MedicineCRUDTest(MedicineTestMixin, TestCase):
     def test_create_medicine_post(self):
         """Medicine can be created via POST."""
         response = self.client.post(reverse('health:intake_create'), {
+            'intake_type': 'medication',
+            'priority': 'critical',
             'name': 'New Medicine',
             'dose': '25mg',
             'frequency': 'daily',
@@ -502,12 +504,59 @@ class MedicineCRUDTest(MedicineTestMixin, TestCase):
             Intake.objects.filter(name='New Medicine').exists()
         )
 
+    def test_intake_subtype_field_renders(self):
+        """D3: the intake_subtype field is rendered in the create form template."""
+        response = self.client.get(reverse('health:intake_create'))
+        self.assertEqual(response.status_code, 200)
+        # The field's widget id must be present in the rendered HTML.
+        self.assertContains(response, 'id_intake_subtype')
+        # And both insulin subtype options must be selectable from the UI.
+        self.assertContains(response, 'value="insulin_basal"')
+        self.assertContains(response, 'value="insulin_bolus"')
+
+    def test_create_medicine_with_insulin_subtype(self):
+        """D3: insulin subtype set via the form is persisted and flips is_insulin."""
+        response = self.client.post(reverse('health:intake_create'), {
+            'intake_type': 'medication',
+            'priority': 'critical',
+            'name': 'Lantus',
+            'dose': '20 units',
+            'frequency': 'daily',
+            'intake_subtype': Intake.INTAKE_SUBTYPE_INSULIN_BASAL,
+            'start_date': timezone.now().date().isoformat(),
+            'refill_threshold': 7,
+            'grace_period_minutes': 60,
+        })
+        self.assertEqual(response.status_code, 302)
+        med = Intake.objects.get(name='Lantus')
+        self.assertEqual(med.intake_subtype, Intake.INTAKE_SUBTYPE_INSULIN_BASAL)
+        self.assertTrue(med.is_insulin)
+
+    def test_create_medicine_without_subtype_unchanged(self):
+        """D3: omitting intake_subtype preserves prior behavior (stays null, not insulin)."""
+        response = self.client.post(reverse('health:intake_create'), {
+            'intake_type': 'medication',
+            'priority': 'critical',
+            'name': 'Metformin',
+            'dose': '500mg',
+            'frequency': 'twice_daily',
+            'start_date': timezone.now().date().isoformat(),
+            'refill_threshold': 7,
+            'grace_period_minutes': 60,
+        })
+        self.assertEqual(response.status_code, 302)
+        med = Intake.objects.get(name='Metformin')
+        self.assertIn(med.intake_subtype, (None, ''))
+        self.assertFalse(med.is_insulin)
+
     def test_update_medicine(self):
         """Medicine can be updated."""
         medicine = self.create_medicine(self.user)
         response = self.client.post(
             reverse('health:intake_update', kwargs={'pk': medicine.pk}),
             {
+                'intake_type': 'medication',
+                'priority': 'critical',
                 'name': 'Updated Medicine',
                 'dose': '50mg',
                 'frequency': 'twice_daily',

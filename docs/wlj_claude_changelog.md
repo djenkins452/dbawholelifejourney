@@ -7,6 +7,42 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(pie): medication/weight/sleep event subscribers fire run_insights() (were silently dead)
+
+**Root cause:** `apps/core/events/subscribers.py` had three PIE subscribers —
+`on_medication_taken_check_adherence` (health.medication.taken),
+`on_weight_logged_check_insights` (health.weight.logged), and
+`on_sleep_logged_check_insights` (health.sleep.logged) — that each imported and
+called a per-domain helper (`check_medication_insights`, `check_weight_insights`,
+`check_sleep_insights`). **None of those functions exist anywhere in the codebase**
+— the engine long ago consolidated on `run_insights()`. The dead imports raised
+`ImportError`, which a blanket `except ImportError: pass` swallowed. Result: every
+dashboard/web dose, weight, and sleep log fired NO immediate PIE pass. The working
+`run_insights` path was only reached from the AI orchestrator execution hook
+(`execution_engine.py:249`) and the SAME-cycle synthetic scheduler — so manual
+web/dashboard logging never triggered a real-time insight pass.
+
+**Fix:**
+- Added `_run_health_pie(user, action)` helper that routes the event into the SAME
+  `run_insights()` entry point the orchestrator uses, with a proper event dict
+  (`event_type="record_created"`, `module="health"`, `action` = log_medication /
+  log_weight / log_sleep). Importing the engine also runs `apps.core.ai_insights`
+  `__init__`, which registers every `@register` rule, so the full rule set fires.
+- Per CLAUDE.md "Exception Handling": `ImportError` is now treated as a REAL error
+  (logged with `exc_info=True`), not swallowed — `run_insights` is a core
+  dependency of these handlers, not an optional module. A future missing/renamed
+  symbol can never again silently disable the PIE pass.
+
+**Files:**
+- `apps/core/events/subscribers.py` — replaced 3 dead subscribers with the helper + thin handlers
+- `apps/core/events/tests/__init__.py`, `apps/core/events/tests/test_pie_subscribers.py` — new (5 tests)
+
+**Verification:** `python3 manage.py test apps.core.events.tests.test_pie_subscribers`
+→ 5/5 pass. Tests assert each event invokes `run_insights()` with the correct dict,
+that the medication event reaches the real registered rule set, and that an
+ImportError is logged (not swallowed). `manage.py check` clean; no migrations needed.
+
+
 ## 2026-06-27 — fix(admin): acceptance hypothesis no longer mislabels content failures as "narration leak"
 
 A Claude Fix Prompt arrived for a full/full run at commit 6a4b450a: goal_failure_modes failed `missing_required_any:fail|risk|slip|threat|derail|watch`, hypothesis "Possible narration leak in GOAL narration."

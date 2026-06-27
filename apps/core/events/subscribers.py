@@ -183,46 +183,75 @@ def on_faith_event_invalidate_state(event):
 # PIE — Proactive Insight Engine (check for patterns on key events)
 # =========================================================================
 
-@subscribe("health.weight.logged")
-def on_weight_logged_check_insights(event):
-    """Trigger lightweight weight pattern check after weight logging."""
-    if not event.user:
+def _run_health_pie(user, action):
+    """Run a real-time PIE pass for a health write.
+
+    Routes the event into the SAME ``run_insights()`` entry point the AI
+    orchestrator uses (execution_engine.py:_run_pie_chain), so the full
+    rule set fires immediately on a dashboard/web write — not just on the
+    next scheduled SAME-cycle pass.
+
+    History (bug fixed 2026-06-27): these subscribers used to call
+    per-domain ``check_weight_insights`` / ``check_medication_insights`` /
+    ``check_sleep_insights`` helpers that NO LONGER EXIST — the engine
+    consolidated on ``run_insights()``. The missing symbols raised
+    ImportError, which a blanket ``except ImportError: pass`` swallowed, so
+    web/dashboard dose, weight, and sleep logging fired NO insight pass at
+    all — silently. ImportError is now treated as a real error (logged,
+    never swallowed) because ``run_insights`` is a core dependency of these
+    handlers, not an optional module. See CLAUDE.md "Exception Handling".
+
+    Args:
+        user: Django user instance (no-op if falsy).
+        action: PIE action string the insight rules key on
+            (e.g. "log_weight", "log_medication", "log_sleep").
+    """
+    if not user:
         return
     try:
-        from apps.core.ai_insights.insight_engine import check_weight_insights
-        check_weight_insights(event.user)
+        # Importing the engine module also runs apps.core.ai_insights
+        # __init__, which registers every rule via @register.
+        from apps.core.ai_insights.insight_engine import run_insights
+        from apps.core.time.system_clock import get_current_time
     except ImportError:
-        pass  # PIE module may not be available
-    except Exception as e:
-        logger.warning("PIE weight insight check failed: %s", e)
+        # NOT optional — run_insights is the core PIE entry point. A failure
+        # here means a real breakage (renamed/removed symbol); log it loudly
+        # so it can never be silently swallowed like the original bug.
+        logger.warning(
+            "PIE entry point unavailable — health insight pass skipped "
+            "(action=%s).", action, exc_info=True,
+        )
+        return
+    try:
+        run_insights(user, {
+            "event_type": "record_created",
+            "module": "health",
+            "action": action,
+            "timestamp_utc": get_current_time().isoformat(),
+        })
+    except Exception:
+        logger.warning(
+            "PIE health insight pass failed (action=%s user=%s)",
+            action, getattr(user, "id", "?"), exc_info=True,
+        )
+
+
+@subscribe("health.weight.logged")
+def on_weight_logged_check_insights(event):
+    """Trigger a real-time PIE pass after weight logging."""
+    _run_health_pie(event.user, "log_weight")
 
 
 @subscribe("health.medication.taken")
 def on_medication_taken_check_adherence(event):
-    """Trigger adherence pattern check after medication logging."""
-    if not event.user:
-        return
-    try:
-        from apps.core.ai_insights.insight_engine import check_medication_insights
-        check_medication_insights(event.user)
-    except ImportError:
-        pass
-    except Exception as e:
-        logger.warning("PIE medication insight check failed: %s", e)
+    """Trigger a real-time PIE pass after medication logging."""
+    _run_health_pie(event.user, "log_medication")
 
 
 @subscribe("health.sleep.logged")
 def on_sleep_logged_check_insights(event):
-    """Trigger sleep pattern check after sleep logging."""
-    if not event.user:
-        return
-    try:
-        from apps.core.ai_insights.insight_engine import check_sleep_insights
-        check_sleep_insights(event.user)
-    except ImportError:
-        pass
-    except Exception as e:
-        logger.warning("PIE sleep insight check failed: %s", e)
+    """Trigger a real-time PIE pass after sleep logging."""
+    _run_health_pie(event.user, "log_sleep")
 
 
 # =========================================================================

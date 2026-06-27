@@ -7,6 +7,25 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Sprint 5 — deterministic Observation Engine & Safety Classifier
+
+Begins the transition from history to understanding. A deterministic, evidence-first observation layer sits between the timeline and Beth: Beth never invents observations — she only narrates safety-approved ones. No diagnosis, no advice, no recommendations, no causation, no prediction (per guardrails).
+
+**5A — Observation object** (`apps/health/observations/core.py`): a frozen `Observation` dataclass (type, title, detail, confidence, domains, window_days, evidence, safety_class, physician_discussion, contradictory) — deterministic, recomputable, NOT an LLM/DB artifact. No migration.
+
+**5B/5G — Safety Classifier** (`core.classify` + `core.approve`): deterministic. Suppresses observations with no evidence, low confidence (<0.40), or a contradictory timeline; routes medication↔biomarker associations to PHYSICIAN_DISCUSSION (flag set deterministically); everything else is a plain OBSERVATION. `approve()` drops no-evidence, classifies, drops suppressed, collapses duplicates by key (highest confidence), orders by confidence. The classifier decides what may be said — it never generates language.
+
+**5C — Medication observation rules** (`rules.py`): adherence improving/declining (7d vs 30d), treatment recently changed (14d), multiple dose reductions/increases (90d), medication stable / long-term stability, recent provider change, recent refill pattern.
+
+**5D/5E — Cross-domain rules:** weight-after-treatment-change, glucose-after-treatment-change, exercise-during-treatment — CHRONOLOGY + ASSOCIATION ONLY ("not a cause"), each defensive and evidence-required. No observation exists without evidence.
+
+**5F — Beth integration:** `build_medicine_state._contract.observations` now carries ONLY the approved observation dicts (evidence-backed, safety-classed, physician-discussion-flagged). Beth never reads raw timeline data and never infers — she receives approved observations and narrates them.
+
+**Files:** apps/health/observations/{__init__,core,rules,engine}.py (new package), apps/core/ai_state/state_builder.py, apps/health/tests/test_observations.py (new, 13 tests).
+
+**Verification:** 57 tests green — observations require evidence, can't bypass the classifier, low-confidence/contradictory suppressed, duplicates collapse, physician-discussion flags deterministic, **no causal language produced** (banned-word assertion), chronology preserved, Beth sees only approved; `manage.py check` clean; no migration.
+
+
 ## 2026-06-27 — feat(cos): P34 Executive Conversation Composer (from reports to conversation)
 
 Beth reached correct executive conclusions but still spoke them as a structured report with visible headings ("Where things stand", "Overall read", "What matters today", "Highest-leverage move", "Today's agenda"). This is WRITING, not new architecture — the facts/judgment already exist in ExecutiveSignals; the composer was rewritten to NARRATE them as one coherent story.

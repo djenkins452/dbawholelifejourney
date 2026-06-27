@@ -4000,6 +4000,17 @@ def build_medicine_state(user):
     except Exception:
         logger.debug("Medicine treatment-history build failed", exc_info=True)
 
+    # ── Deterministic observations (Sprint 5F) ───────────────────
+    # Beth receives ONLY safety-approved deterministic observations — never raw
+    # timeline data, never her own inferences. Each is evidence-backed, association-
+    # only (no causation), with a physician_discussion flag set deterministically.
+    _observations = []
+    try:
+        from apps.health.observations import build_observation_dicts
+        _observations = build_observation_dicts(user)
+    except Exception:
+        logger.debug("Medicine observations build failed", exc_info=True)
+
     # ── Acquisition confidence (Sprint 3I) ───────────────────────
     # COMPOSED acquisition state so Beth understands how trustworthy each record
     # is and whether anything awaits review — Beth NEVER reads raw OCR/extraction.
@@ -4059,6 +4070,7 @@ def build_medicine_state(user):
             'treatment_summary': _treatment_summary,
             'history': _treatment_history,
         },
+        'observations': _observations,
         'acquisition': {
             'pending_review_count': _acq_pending,
             'medications': _acq_meds,

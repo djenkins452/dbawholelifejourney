@@ -145,7 +145,7 @@ class RoutingPreservationTests(TestCase):
     def test_registry_order(self):
         self.assertEqual([n for n, _ in LANE_REGISTRY],
                          ["clarification_reply", "foundational_facts",
-                          "clarification", "next_rhythm",
+                          "clarification", "next_rhythm", "cos_briefing",
                           "personal_reasoning", "general_conversation"])
 
     def test_health_questions_never_claimed_by_new_lanes(self):
@@ -309,7 +309,8 @@ class ApprovedRegistryOrderTests(TestCase):
         self.assertEqual(
             [n for n, _ in LANE_REGISTRY],
             ["clarification_reply", "foundational_facts", "clarification",
-             "next_rhythm", "personal_reasoning", "general_conversation"])
+             "next_rhythm", "cos_briefing", "personal_reasoning",
+             "general_conversation"])
 
     def test_check_in_routes_to_clarification_and_not_personal_reasoning(self):
         # the planner must NEVER run for 'check in' — mock it to explode; the

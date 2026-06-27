@@ -69,6 +69,46 @@ def _fmt_time(hhmm):
         return hhmm
 
 
+# ---------------------------------------------------------------------------
+# Lane — CoS Briefing (P26 DC#1): the holistic "tell me about my day / what needs
+# my attention / wrap up my day" requests. Beth ALREADY owns this truth (rhythm +
+# executive summary), so these MUST answer deterministically — never depend on the
+# LLM, never fall to the tool loop. Sourced from build_daily_agenda (time-aware,
+# always non-empty, no OpenAI).
+# ---------------------------------------------------------------------------
+_BRIEFING_SIGNALS = (
+    "what needs my attention", "needs my attention", "what needs attention",
+    "what should i know today", "what should i know", "what do i need to know",
+    "plan the rest of my day", "plan the rest of the day", "plan my day",
+    "plan the day", "help me plan", "wrap up my day", "wrap up the day",
+    "wrap up my", "wind down", "end my day", "close out my day", "close out the day",
+    "full check-in", "full check in", "give me a briefing", "brief me",
+    "daily briefing", "what's on my plate", "whats on my plate",
+    "where do things stand", "how's my day", "hows my day", "rest of my day",
+)
+
+
+def _cos_briefing_lane(user, message, conversation=None):
+    """Deterministic CoS briefing/check-in (P26 DC#1). 'What needs my attention?',
+    'help me plan the rest of the day', 'wrap up my day', 'what should I know
+    today' — answered from the deterministic daily agenda (rhythm + executive
+    summary). ALWAYS non-empty, NO OpenAI: a CoS capability Beth already has the
+    truth for must never depend on the LLM or fall to the tool loop."""
+    norm = _normalize(message)
+    if not any(s in norm for s in _BRIEFING_SIGNALS):
+        return None
+    try:
+        from apps.core.cos_briefing.daily_agenda import build_daily_agenda
+        answer = build_daily_agenda(user)
+    except Exception:
+        logger.warning("cos_briefing: daily_agenda failed", exc_info=True)
+        answer = None
+    if not answer:
+        return None
+    return {"answer": answer, "tools_called": [], "tools_advertised": [],
+            "lane": "cos_briefing"}
+
+
 def _next_rhythm_lane(user, message, conversation=None):
     norm = _normalize(message)
     if not any(s in norm for s in _NEXT_RHYTHM_SIGNALS):
@@ -430,6 +470,12 @@ def _looks_general(message):
     tokens = set(re.findall(r"[a-z']+", norm))
     if tokens & _PERSONAL_PRONOUNS:           # personal -> not general
         return False
+    # EXTERNAL/definitional framing ("what is a healthy weight generally?") is
+    # general even though it contains a domain word — claim it for the general lane
+    # so it never retrieves personal data (P26 DC#3).
+    from apps.ai.chatgpt_cos.foundational_facts import external_general_signal
+    if external_general_signal(norm):
+        return True
     if any(d in norm for d in _DOMAIN_WORDS):  # WLJ-domain -> not general
         return False
     return any(norm.startswith(o) or (" " + o) in norm for o in _GENERAL_OPENERS)
@@ -535,6 +581,7 @@ LANE_REGISTRY = (
     ("foundational_facts", _foundational_lane),
     ("clarification", _clarification_lane),
     ("next_rhythm", _next_rhythm_lane),
+    ("cos_briefing", _cos_briefing_lane),
     ("personal_reasoning", _reasoning_lane),
     ("general_conversation", _general_lane),
 )

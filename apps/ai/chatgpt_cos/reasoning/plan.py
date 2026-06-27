@@ -125,7 +125,11 @@ _HEALTH_INTENT_SIGNALS = (
     # 4. Progress / status → overall_progress (executive summary / trajectory).
     ("overall_progress", ("how am i doing", "how am i tracking", "overall",
                           "on track", "progress", "health goals",
-                          "doing with my health")),
+                          "doing with my health", "health summary",
+                          "summary of my health", "summarize my health",
+                          "my diabetes", "diabetes doing", "diabetes going",
+                          "diabetes status", "blood sugar control", "my a1c",
+                          "how's my health", "hows my health", "my health status")),
 )
 
 
@@ -301,6 +305,19 @@ def _foundational_goal_intent(text):
     if not health_ctx and any(k in t for k in ("biggest risk", "most at risk",
                               "worries you most", "what worries you", "goal needs the most")):
         return "biggest_goal_risk"
+    # Failure analysis — "what should I watch out for", "what could derail this".
+    if not health_ctx and any(k in t for k in ("watch out for", "watch for", "what to watch",
+                              "could go wrong", "might go wrong", "could derail", "would derail",
+                              "ways this could fail", "ways it could fail", "what would stop",
+                              "what could stop", "could cause this to fail", "fall apart")):
+        return "goal_failure_modes"
+    # Move-the-needle action — "move this forward", "highest leverage action".
+    if not health_ctx and any(k in t for k in ("move this forward", "move it forward",
+                              "move forward on", "push this forward", "push it forward",
+                              "move the needle", "highest leverage", "highest-leverage",
+                              "biggest lever", "best use of my time on this",
+                              "best next move", "how do i advance this")):
+        return "goals_focus_today"
     if not health_ctx and any(k in t for k in ("which goals are slipping", "goals slipping",
                               "goals drifting", "goals need attention", "goals at risk")):
         return "goal_concerns"

@@ -24,6 +24,7 @@ No legacy Beth, no Beth renderers, no Beth validators are involved.
 
 import json
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -126,11 +127,44 @@ _PHRASE_SYSTEM = (
 )
 
 
+# Personal/external BOUNDARY (P26 DC#3). A definitional/general question that
+# happens to contain a domain word ("what is a healthy WEIGHT generally?") must NOT
+# trigger personal retrieval. EXTERNAL framing + NO personal grounding => general.
+_EXTERNAL_SIGNALS = (
+    "generally", "in general", "typically", "typical", "usually", "on average", "average",
+    "healthy range", "normal range", "healthy level", "normal level", "ideal range",
+    "what is a healthy", "what's a healthy", "what is a normal", "what's a normal",
+    "what is normal", "what's normal", "what is the normal", "what is an ideal",
+    "what counts as", "considered healthy", "considered normal", "supposed to be",
+    "recommended range", "what range", "definition of", "what does it mean",
+)
+
+
+def external_general_signal(message):
+    """True when a message is clearly an EXTERNAL/definitional question (not about
+    the user's own data): strong external framing AND no personal grounding. Shared
+    by the foundational classifier (suppress personal retrieval) and the general
+    lane (claim it). Pure, deterministic (P26 DC#3)."""
+    if not message:
+        return False
+    t = str(message).lower()
+    tokens = set(re.findall(r"[a-z']+", t))
+    personal = bool(tokens & {"my", "i", "me", "mine", "myself", "our", "we"}) or \
+        any(p in t for p in ("am i", "do i", "should i", "i'm", "i've"))
+    if personal:
+        return False
+    return any(sig in t for sig in _EXTERNAL_SIGNALS)
+
+
 def classify_foundational_fact(message):
     """Return the fact key for a foundational-fact prompt, or None.
 
-    Deterministic keyword match — no LLM, no Beth, no broad NLU."""
+    Deterministic keyword match — no LLM, no Beth, no broad NLU. EXTERNAL/
+    definitional questions ("what is a healthy weight generally?") are suppressed so
+    they never retrieve the user's personal data (P26 DC#3)."""
     if not message:
+        return None
+    if external_general_signal(message):
         return None
     text = str(message).lower()
     for key, keywords in _FACT_KEYWORDS:

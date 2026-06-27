@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(cos): P26 Deep-suite hardening — deterministic degradation, goal semantic breadth, personal/external boundary
+
+Deep RED (76%, 56/74). Investigated with an OpenAI-disabled routing harness (ground truth, since the defect class is "fails when OpenAI unavailable"); fixed the three SYSTEMIC classes, not phrases.
+
+**DC#1 — CoS capabilities must deterministically degrade (BLOCKER).** Root cause: holistic CoS requests ("what needs my attention", "help me plan the rest of the day", "wrap up my day", "what should I know today") matched no deterministic lane → fell through to the OpenAI tool loop; and some health questions ("give me a health summary", "how is my diabetes doing") weren't in the deterministic_intent signal set, so they failed when the planner (OpenAI) was down. Fix: new deterministic `_cos_briefing_lane` (lanes.py, registered before personal_reasoning) sourced from `build_daily_agenda` (rhythm + executive summary — always non-empty, no OpenAI); widened `_HEALTH_INTENT_SIGNALS` overall_progress (health summary / my diabetes / a1c / my health status). Architecture: deterministic truth → deterministic reasoning → deterministic narration, even with OpenAI down.
+
+**DC#2 — goal semantic routing breadth (HIGH).** Root cause: goal-meaning paraphrases without a goal name/deictic ("move this forward", "what should I watch out for") had no classifier path. Fix: `_foundational_goal_intent` now maps failure-analysis paraphrases → goal_failure_modes and move-the-needle paraphrases → goals_focus_today (health-context-gated so health questions are never stolen).
+
+**DC#3 — personal vs external boundary (HIGH).** Root cause: `classify_foundational_fact` is pure keyword match — "what is a healthy weight generally?" matched the "weight" keyword and returned the user's personal weight. Fix: new `external_general_signal` — strong external framing (generally/typically/normal range/"what is a healthy…") + NO personal grounding suppresses personal retrieval (classify → None) and `_looks_general` claims it for the general lane. Personal questions ("what is my weight") are unaffected (personal pronoun present).
+
+**Files:** apps/ai/chatgpt_cos/lanes.py, foundational_facts.py, reasoning/plan.py. Tests: apps/ai/tests/test_p26_deep_hardening.py (new). Docs: ENGINE_COS_REFERENCE.md, release_notes.json (pk 214, "Chief of Staff" naming). Registry-order guards updated for the new lane.
+
+**Verification:** OpenAI-disabled harness confirms all DC#1 requests now answer deterministically (no tool-loop fall-through, no outage message), DC#2 paraphrases route to goals, DC#3 questions route to general with no personal leak. 258-test regression green; `check` clean; `makemigrations --check` = no changes. Health byte-identical (signals additive). No migration.
+
+
 ## 2026-06-27 — fix(pie): medication/weight/sleep event subscribers fire run_insights() (were silently dead)
 
 **Root cause:** `apps/core/events/subscribers.py` had three PIE subscribers —

@@ -496,21 +496,19 @@ class SignalAggregationService:
         Phase 2 collapses both to the canonical "late = taken" semantics so
         the daily signal score and the user-facing adherence rate agree.
         """
-        from apps.health.models import Intake, IntakeLog, IntakeSchedule
+        from apps.health.models import IntakeLog
+        from apps.health.medicine_utils import get_expected_dose_entries
 
         is_expected = expected_map.get(expected_key, expected_map.get('medication', False))
 
-        # Get active schedules filtered by intake_type
-        active_schedules = IntakeSchedule.objects.filter(
-            intake__user=user,
-            intake__intake_type=intake_type,
-            is_active=True,
+        # D5 / Canon §5 — single expected-dose author. Use the ONE canonical
+        # enumerator instead of re-walking schedules here, so this daily signal
+        # denominator agrees with the user-facing adherence rate: active intakes
+        # only, day-of-week filtering, and the future-dose-today fairness rule
+        # (a dose scheduled later today is not yet due, so not "expected").
+        scheduled_count = len(
+            get_expected_dose_entries(user, date, date, intake_type=intake_type)
         )
-
-        # Filter to schedules that apply today (by day_of_week)
-        day_of_week = date.weekday()  # 0=Mon, 6=Sun
-        applicable = [s for s in active_schedules if s.applies_to_day(day_of_week)]
-        scheduled_count = len(applicable)
 
         if scheduled_count == 0:
             return None  # No real data — no signal created

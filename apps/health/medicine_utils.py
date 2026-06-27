@@ -54,6 +54,46 @@ def _enumerate_expected_doses(active_medicines, start_date, end_date, user_today
     return expected
 
 
+def get_expected_dose_entries(
+    user, start_date, end_date, *, intake_type=None, active_medicines=None
+):
+    """Public single-source expected-dose enumeration for callers OUTSIDE this module.
+
+    This is the ONE expected-dose enumeration shared across WLJ (Medication
+    Intelligence Canon §5 — "expected dose has exactly one author"). Adherence
+    and compliance engines MUST call this instead of re-walking schedules, so
+    every engine agrees on the denominator and on the future-dose-today fairness
+    rule (a dose scheduled later today is not yet due and is not "expected").
+
+    Args:
+        user: Django User.
+        start_date / end_date: inclusive date range.
+        intake_type: optional 'medication' | 'supplement' | None (all).
+        active_medicines: optional pre-fetched iterable of ACTIVE Intake
+            instances (avoids a duplicate query when the caller already holds
+            them). When omitted, active intakes are fetched here.
+
+    Returns:
+        list of (medicine_id, schedule_id, day) tuples — len() is the
+        expected-dose count for the range.
+    """
+    from apps.core.utils import get_user_now, get_user_today
+    from apps.health.models import Intake
+
+    if active_medicines is None:
+        qs = Intake.objects.filter(user=user, intake_status=Intake.STATUS_ACTIVE)
+        if intake_type:
+            qs = qs.filter(intake_type=intake_type)
+        active_medicines = qs.prefetch_related("schedules")
+
+    user_today = get_user_today(user)
+    current_time = get_user_now(user).time()
+
+    return _enumerate_expected_doses(
+        active_medicines, start_date, end_date, user_today, current_time
+    )
+
+
 def calculate_medicine_adherence(user, start_date, end_date, intake_type=None):
     """
     Calculate medicine adherence rate for a date range.

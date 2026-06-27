@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(health): Sprint 1B / D5 — one expected-dose author across WLJ
+
+**Root cause:** medication "expected dose" (the adherence/compliance denominator) was enumerated in FIVE places that re-walked schedules independently. Two diverged from the canonical algorithm by omitting the future-dose-today fairness rule, so the same medication question returned different numbers depending on which engine asked (Canon §5: "expected dose has exactly one author — divergent denominators are always a defect").
+
+**Fix (single author):** added a public `get_expected_dose_entries()` to `apps/health/medicine_utils.py` (wrapping the one private `_enumerate_expected_doses`) and routed every consumer through it:
+- `apps/core/ai_eae/signal_aggregation.py` (`_compute_intake_adherence`) — **behavior fix:** previously counted today's not-yet-due doses, inflating the denominator vs the user-facing rate; now agrees.
+- `apps/dashboard_v2/compliance/adapters/medication.py` — **behavior fix:** previously emitted a not-yet-due dose as a MISSED compliance event; now excluded until due.
+- `apps/core/ai_events/adapters/medication.py` (missed-dose events) — DRY unification (clamped to today to preserve "no future days").
+- `apps/core/behavior/domain_medication.py` (behavior score) — DRY unification; also drops a latent `None > time` crash when a schedule has no `scheduled_time`.
+
+**Evidence-based scope correction:** the Design Assurance plan named `dashboard_v2/services/dashboard_service.py` as a third duplicate. On inspection it is NOT an adherence denominator — it builds today's *display stacks* grouped by time-of-day and deliberately includes not-yet-due doses to populate `future_intake_groups`. Routing it through the fairness-ruled enumerator would break that feature, so it is correctly LEFT AS-IS (display ≠ adherence). The repo-wide sweep also found two enumerators the plan missed (`ai_events`, `behavior`), now unified — so the actual count was five denominators, not three.
+
+**Files:** apps/health/medicine_utils.py; apps/core/ai_eae/signal_aggregation.py; apps/dashboard_v2/compliance/adapters/medication.py; apps/core/ai_events/adapters/medication.py; apps/core/behavior/domain_medication.py. New tests: apps/health/tests/test_expected_dose_single_author.py (12 tests — algorithm: PRN/multiple-per-day/weekly/day-of-week/future-today/skipped/inactive; parity: range-calculator + EAE signal + compliance adapter all agree; compliance future-dose fairness fix).
+
+**Verification:** new single-author suite 12/12; `test_medicine_adherence`, `test_adherence_chart_drift`, dashboard_v2 compliance, `ai_events.test_medication_adapter`, `apps.core.behavior`, EAE `test_signal_state` all green (`--keepdb`); `manage.py check` clean; no migration. Pre-existing unrelated failures (EAE `test_signal_governance` taxonomy, medicine dashboard/home/log-edit) confirmed failing on clean HEAD — out of scope.
+
+
 ## 2026-06-27 — fix(health): Sprint 1A / D3 — render `intake_subtype` in the intake form (insulin basal/bolus now UI-reachable)
 
 **Root cause:** `Intake.intake_subtype` (insulin basal/bolus) existed in the model and in `MedicineForm.Meta.fields` with a Select widget, but `templates/health/intake/intake_form.html` renders fields explicitly and never output `{{ form.intake_subtype }}`. Result: insulin subtype — which gates the metabolic/insulin intelligence (`is_insulin`, per-event dose tracking) — could only be set via Django admin, never by users. (Design Assurance defect D3; Medication Intelligence Sprint 1A.)

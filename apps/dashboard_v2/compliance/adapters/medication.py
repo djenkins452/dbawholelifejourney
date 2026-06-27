@@ -4,7 +4,6 @@ into canonical ComplianceEvent rows.
 """
 
 import logging
-from datetime import timedelta
 
 from apps.dashboard_v2.compliance.constants import (
     ACTUAL_COMPLETED,
@@ -39,13 +38,16 @@ def evaluate_medication(user, start_date, end_date):
     """
     try:
         from apps.health.models import Intake, IntakeLog
+        from apps.health.medicine_utils import get_expected_dose_entries
 
-        active_medicines = Intake.objects.filter(
-            user=user,
-            intake_status=Intake.STATUS_ACTIVE,
-        ).prefetch_related("schedules")
+        active_medicines = list(
+            Intake.objects.filter(
+                user=user,
+                intake_status=Intake.STATUS_ACTIVE,
+            ).prefetch_related("schedules")
+        )
 
-        if not active_medicines.exists():
+        if not active_medicines:
             return []
 
         # Build lookup of logs: (medicine_id, schedule_id, date) → log
@@ -60,23 +62,31 @@ def evaluate_medication(user, start_date, end_date):
             key = (log.intake_id, log.schedule_id, log.scheduled_date)
             log_map[key] = log
 
+        # Object lookups so we can decorate each canonical expected-dose entry.
+        med_by_id = {m.id: m for m in active_medicines}
+        sched_by_id = {
+            s.id: s
+            for m in active_medicines
+            for s in m.schedules.all()
+            if s.is_active
+        }
+
+        # D5 / Canon §5 — single expected-dose author. Enumerate expected doses
+        # via the ONE canonical helper (passing our already-fetched active
+        # medicines to avoid a duplicate query) instead of re-walking schedules
+        # here. This applies the future-dose-today fairness rule, so a dose
+        # scheduled later today is no longer emitted as a MISSED compliance event
+        # before it is due.
         events = []
-        day = start_date
-        while day <= end_date:
-            day_of_week = day.weekday()
-            for medicine in active_medicines:
-                for schedule in medicine.schedules.filter(is_active=True):
-                    if not schedule.applies_to_day(day_of_week):
-                        continue
-
-                    key = (medicine.id, schedule.id, day)
-                    log = log_map.get(key)
-
-                    event = _build_dose_event(
-                        user, day, medicine, schedule, log,
-                    )
-                    events.append(event)
-            day += timedelta(days=1)
+        for med_id, sched_id, day in get_expected_dose_entries(
+            user, start_date, end_date, active_medicines=active_medicines
+        ):
+            medicine = med_by_id.get(med_id)
+            schedule = sched_by_id.get(sched_id)
+            if medicine is None or schedule is None:
+                continue
+            log = log_map.get((med_id, sched_id, day))
+            events.append(_build_dose_event(user, day, medicine, schedule, log))
 
         return events
     except Exception:

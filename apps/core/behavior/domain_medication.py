@@ -9,7 +9,6 @@ from expected count. You can't miss a dose that isn't due yet.
 """
 
 import logging
-from datetime import timedelta
 
 from apps.core.behavior.status_engine import build_behavior_output
 
@@ -34,37 +33,30 @@ def calculate_medicine_behavior_output(user, start_date, end_date):
     Returns:
         dict matching behavior output contract, or None if no medicines
     """
-    from apps.core.utils import get_user_now, get_user_today
     from apps.health.models import Intake, IntakeLog
+    from apps.health.medicine_utils import get_expected_dose_entries
 
-    active_medicines = Intake.objects.filter(
-        user=user,
-        intake_status=Intake.STATUS_ACTIVE,
-        intake_type=Intake.INTAKE_TYPE_MEDICATION,
-    ).prefetch_related("schedules")
+    active_medicines = list(
+        Intake.objects.filter(
+            user=user,
+            intake_status=Intake.STATUS_ACTIVE,
+            intake_type=Intake.INTAKE_TYPE_MEDICATION,
+        ).prefetch_related("schedules")
+    )
 
-    if not active_medicines.exists():
+    if not active_medicines:
         return None
 
-    user_today = get_user_today(user)
-    user_now = get_user_now(user)
-    current_time = user_now.time()
-
-    # Count expected doses by iterating each day and checking schedules.
-    # For today: only count doses whose scheduled_time has passed.
-    expected = 0
-    day = start_date
-    while day <= end_date:
-        day_of_week = day.weekday()
-        is_today = (day == user_today)
-        for medicine in active_medicines:
-            for schedule in medicine.schedules.filter(is_active=True):
-                if schedule.applies_to_day(day_of_week):
-                    if is_today and schedule.scheduled_time > current_time:
-                        # Future dose today — not due yet, skip
-                        continue
-                    expected += 1
-        day += timedelta(days=1)
+    # D5 / Canon §5 — single expected-dose author. Use the ONE canonical
+    # enumerator (active intakes, day-of-week, future-dose-today fairness)
+    # instead of re-walking schedules here. (Also drops a latent crash when a
+    # schedule has no scheduled_time: the helper guards `scheduled_time` before
+    # comparing.)
+    expected = len(
+        get_expected_dose_entries(
+            user, start_date, end_date, active_medicines=active_medicines
+        )
+    )
 
     if expected == 0:
         return None

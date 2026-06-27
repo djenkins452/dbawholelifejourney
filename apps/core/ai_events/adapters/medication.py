@@ -15,7 +15,7 @@ Queries are always bounded by date range and user-scoped.
 """
 
 import logging
-from datetime import date, timedelta
+from datetime import date
 
 from apps.core.ai_events.event_record import EventRecord
 
@@ -160,19 +160,20 @@ def _find_unlogged_doses(user, start_date, end_date):
 
     Returns list[EventRecord] for each unlogged dose.
     """
-    from apps.core.utils import get_user_now, get_user_today
+    from apps.core.utils import get_user_today
     from apps.health.models import Intake, IntakeLog
+    from apps.health.medicine_utils import get_expected_dose_entries
 
     user_today = get_user_today(user)
-    user_now = get_user_now(user)
-    current_time = user_now.time()
 
-    active_medicines = Intake.objects.filter(
-        user=user,
-        intake_status=Intake.STATUS_ACTIVE,
-    ).prefetch_related("schedules")
+    active_medicines = list(
+        Intake.objects.filter(
+            user=user,
+            intake_status=Intake.STATUS_ACTIVE,
+        ).prefetch_related("schedules")
+    )
 
-    # Build set of (intake_id, scheduled_date) pairs that have log entries
+    # Build set of (intake_id, schedule_id, scheduled_date) keys that have logs
     existing_logs = set(
         IntakeLog.objects.filter(
             user=user,
@@ -181,27 +182,28 @@ def _find_unlogged_doses(user, start_date, end_date):
         ).values_list('intake_id', 'schedule_id', 'scheduled_date')
     )
 
+    med_by_id = {m.id: m for m in active_medicines}
+    sched_by_id = {
+        s.id: s for m in active_medicines for s in m.schedules.all() if s.is_active
+    }
+
+    # D5 / Canon §5 — single expected-dose author. Enumerate expected doses via
+    # the ONE canonical helper (active intakes, day-of-week, future-dose-today
+    # fairness) instead of re-walking schedules. Clamp to today so future DAYS
+    # are never reported as missed — this adapter only reports doses already due.
+    effective_end = min(end_date, user_today)
     events = []
-    day = start_date
-    while day <= end_date:
-        day_of_week = day.weekday()
-        is_today = (day == user_today)
-        # Don't report future days as missed
-        if day > user_today:
-            break
-        for medicine in active_medicines:
-            for schedule in medicine.schedules.filter(is_active=True):
-                if not schedule.applies_to_day(day_of_week):
-                    continue
-                # Skip future doses today — can't miss what isn't due yet
-                if is_today and schedule.scheduled_time and schedule.scheduled_time > current_time:
-                    continue
-                # Check if a log entry exists for this schedule+date
-                if (medicine.id, schedule.id, day) not in existing_logs:
-                    events.append(
-                        _unlogged_to_event(medicine, schedule, day, user)
-                    )
-        day += timedelta(days=1)
+    if effective_end >= start_date:
+        for med_id, sched_id, day in get_expected_dose_entries(
+            user, start_date, effective_end, active_medicines=active_medicines
+        ):
+            if (med_id, sched_id, day) in existing_logs:
+                continue
+            medicine = med_by_id.get(med_id)
+            schedule = sched_by_id.get(sched_id)
+            if medicine is None or schedule is None:
+                continue
+            events.append(_unlogged_to_event(medicine, schedule, day, user))
 
     return events
 

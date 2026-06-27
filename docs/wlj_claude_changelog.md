@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(cos): health-risk deterministic capability gap (full/deep RED → routing closed)
+
+Production full/deep RED (2 critical): biggest_health_risk__1 ("What health issue concerns you most?") and __2 ("What is the main health problem I should focus on?") returned the assistant-unavailable message (openai=False, intent/lane/fallback all missing).
+
+**Hypothesis validation — the automated hypothesis was CORRECT (no discrepancy).** It classified this as a DETERMINISTIC CAPABILITY GAP (layer deterministic_truth, health), NOT infrastructure — exactly as the P27 capability-gap classifier was designed to. Repository evidence confirms: `_HEALTH_INTENT_SIGNALS` biggest_health_risk (apps/ai/chatgpt_cos/reasoning/plan.py) lacked the "health issue concerns"/"main health problem"/"watching with my health"/"anything concerning" phrasings, so when OpenAI was transiently down for these 2 questions, `deterministic_intent` returned None → the request fell through every lane to the tool loop → emergency fallback. WLJ owns health truth; the deterministic biggest_health_risk path existed but no route reached it. (Note: the layer AGGREGATION still counts openai_failure_message as infrastructure via row_layer, while the per-row HYPOTHESIS correctly says capability gap — grading intentionally left as-is; it correctly forced RED, and Beth-side routing is the real fix.)
+
+**Fix (the defect class):** added health concern/risk/problem/watching phrasing to the biggest_health_risk deterministic signals so health-risk questions route to the deterministic biggest_health_risk path with OpenAI disabled. Additive — checked before overall_progress, so progress/summary questions are unchanged; "anything wrong with my health" still routes to its sibling health_concerns.
+
+**Coverage:** added the two missing real-user variants ("What should I be watching with my health?", "Is anything concerning in my health right now?") to the Deep health bank.
+
+**Files:** apps/ai/chatgpt_cos/reasoning/plan.py, acceptance_rules.py. Tests: apps/ai/tests/test_health_risk_capability.py (new).
+
+**Verification:** new test_health_risk_capability.py — all 5 required variants route deterministically to biggest_health_risk AND answer end-to-end with OpenAI DISABLED (lane=personal_reasoning, never an outage message); health-progress questions are unchanged; the variants are present in the Deep bank. 238-test regression green; `check` clean; no migration; health-progress byte-identical.
+
+
 ## 2026-06-27 — fix(cos): P29 final Deep + real-world morning path hardening
 
 **DC#1 — goal intent PRECEDENCE after identity (architectural).** Once a request is goal-grounded, goal intent must beat generic health/rhythm/foundational routes. Evidence + fixes: `_infer_named_goal_intent` reordered/extended — "behind"→goal_on_track (was goal_concerns), "biggest THREAT"→goal_failure_modes (checked BEFORE biggest_goal_risk), "work on/next move/highest leverage"→goals_focus_today; the `next_rhythm` lane yields on goal-grounded markers (this/that/the/our/my mission/goal, milestone) so "what comes next in this mission" reaches Goals; `foundational_facts` declines PROGRESSION questions ("what's after Goal Weight 284.9?") so a milestone name containing "weight" isn't answered as a current-weight fact; `_GOAL_FRAMING` gains day-action cues so "what should I do today for France?" resolves via the France token. General France questions + "what's my goal weight?" are still NOT stolen.

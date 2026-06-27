@@ -123,7 +123,16 @@ _HEALTH_INTENT_SIGNALS = (
                              "worried about my health", "what needs attention",
                              "what to improve", "what should i focus on",
                              "biggest health concern", "main health concern",
-                             "top health concern", "biggest concern", "health concern")),
+                             "top health concern", "biggest concern", "health concern",
+                             # health concern/risk/problem phrasing (P: deterministic
+                             # capability gap — these fell to the tool loop with OpenAI
+                             # down). WLJ owns health truth; these MUST route here.
+                             "health issue", "concerns you most", "concern you most",
+                             "what concerns you", "main health problem", "health problem",
+                             "main problem", "watching with my health", "be watching",
+                             "should i watch", "what should i watch", "what to watch",
+                             "anything concerning", "concerning in my health",
+                             "anything wrong", "anything off", "red flag", "warning sign")),
     # 4. Progress / status → overall_progress (executive summary / trajectory).
     ("overall_progress", ("how am i doing", "how am i tracking", "overall",
                           "on track", "progress", "health goals",

@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — fix(cos): narration defect class — coaching language leaking through deterministic goal narration
+
+Production Full run (commit dec0e5da, GREEN 95%, trustworthy, 0 infra) had ONE content failure: goal_next_milestone returned "…Momentum phase. Lock in consistency with protein, hydration, workouts, meds…" → `banned_phrase: lock in consistency`. Routing/orchestration/truth retrieval were all correct — only NARRATION leaked.
+
+**Root cause (repository evidence):** `_goal_next_milestone_fallback` echoed `current_milestone_detail` VERBATIM (`s += f" — {detail}"`), and the user's own France milestone DESCRIPTION literally contains "Lock in consistency with protein…". The defect class is broader than one phrase: any deterministic goal narration that echoes user free-text (milestone descriptions, recommended_action, why-it-matters, success-definition) can leak legacy generic coaching. The action helpers (`_concrete_action`/`_concrete_or_honest_action`) DROPPED such text to an honest "no next action" line — losing the concrete specifics — rather than cleaning it.
+
+**Fix (whole class, at the source):** added `_scrub_coaching()` — removes banned coaching phrases plus a trailing connector and KEEPS the substantive remainder ("Lock in consistency with protein, hydration, workouts" → "Protein, hydration, workouts."). Clean text is returned byte-identical (only acts when a banned phrase is present). Applied at the curator boundary (`_coach_evidence`: current_milestone_detail, recommended_action, why_it_matters, success_definition — so the LLM never sees the coaching either) and as defense in the action helpers and the milestone fallback. Extended the runtime blocklist `_BANNED_FOCUS` to a SUPERSET of the acceptance evaluator's COACHING_BANNED, so scrubbing removes everything the gate flags.
+
+**Files:** apps/ai/chatgpt_cos/reasoning/stages.py (scrubber + blocklist parity + wiring). Tests: apps/ai/tests/test_goal_narration_scrub.py.
+
+**Verification:** new test_goal_narration_scrub.py validates the ACTUAL rendered fallbacks (not template strings): with a fully coaching-contaminated France fixture, every goal fallback (9 intents) renders with zero banned phrases while keeping concrete substance; the milestone fallback specifically drops "lock in consistency" yet keeps "protein"/"milestone"; every COACHING_BANNED phrase scrubs to no residue; clean text is unchanged. 254-test regression green (goals/reasoning/foundational/health/gold/acceptance); `check` clean; `makemigrations --check` = no changes. Health byte-identical (no health code touched). No routing/orchestration/planner/lane change.
+
+
 ## 2026-06-26 — fix(cos): foundational-question routing + general-knowledge graceful degradation
 
 Fixes the two REAL Beth defects the Acceptance Center exposed (not the symptom).

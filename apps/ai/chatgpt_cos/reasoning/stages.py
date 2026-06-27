@@ -19,6 +19,7 @@ No agentic tool loop. No raw SAE reaches OpenAI.
 
 import json
 import logging
+import re
 
 from apps.ai.chatgpt_cos.reasoning.plan import (
     ALLOWED_DOMAINS,
@@ -520,7 +521,12 @@ _BANNED_FOCUS = (
     "keep your consistency", "lock in consistency", "lock in momentum",
     "stay consistent", "keep up the momentum", "keep the momentum going",
     "keep progressing", "keep moving forward", "steady momentum", "keep momentum",
-    "maintain your momentum", "keep going", "keep it going", "momentum over time",
+    "maintain your momentum", "maintaining your momentum", "keep going",
+    "keep it going", "keep it up", "just keep going", "momentum over time",
+    # generic encouragement / motivation (parity with the acceptance evaluator's
+    # COACHING_BANNED set — so scrubbing removes everything the gate flags).
+    "do your best", "doing great", "stay focused", "you got this", "you've got this",
+    "you're doing fine",
 )
 
 
@@ -529,10 +535,40 @@ def _is_generic_action(s):
     return any(b in l for b in _BANNED_FOCUS)
 
 
+def _scrub_coaching(text):
+    """Strip generic-coaching clauses from echoed user/goal free-text so
+    DETERMINISTIC goal narration never leaks banned phrases.
+
+    Defect class: legacy generic coaching language (e.g. a user's own milestone
+    description "Lock in consistency with protein…") leaking verbatim through
+    deterministic narration. We remove the banned phrase plus a trailing connector
+    and KEEP the substantive remainder ("Protein, hydration, workouts…"), so the
+    answer still references concrete state/action. Returns cleaned text (possibly
+    empty, in which case callers fall back to an honest 'no concrete step' line)."""
+    if not text:
+        return text
+    original = str(text)
+    if not _is_generic_action(original):
+        return original                      # nothing banned — leave it byte-identical
+    t = original
+    for b in _BANNED_FOCUS:
+        t = re.sub(r"\b" + re.escape(b) + r"\b[\s,;:.\-—]*(?:with|by|and|to|on|of|for)?\s*",
+                   " ", t, flags=re.IGNORECASE)
+    t = re.sub(r"\s{2,}", " ", t)
+    t = re.sub(r"\s+([.,;])", r"\1", t).strip(" .,;—-!?")
+    if not re.search(r"[A-Za-z0-9]", t):   # only punctuation/whitespace left
+        return ""
+    t = re.sub(r"(^|[.;!?]\s+)([a-z])",
+               lambda m: m.group(1) + m.group(2).upper(), t)
+    if t[-1] not in ".!?":
+        t += "."
+    return t
+
+
 def _concrete_or_honest_action(e, name=None):
     """The goal's concrete recommended action, or an HONEST 'no concrete step'
     statement — NEVER a generic placeholder (Defect 3)."""
-    rec = (e or {}).get("recommended_action")
+    rec = _scrub_coaching((e or {}).get("recommended_action"))
     if rec and not _is_generic_action(rec):
         return rec
     return ("its current milestone has no defined next action yet — add one so "
@@ -737,17 +773,23 @@ def goals_working_memory(truth, user=None):
         if phase:
             item["phase"] = phase
         if context.get("active_milestone_detail"):
-            item["current_milestone_detail"] = context["active_milestone_detail"]
+            # User milestone descriptions are free-text and may contain generic
+            # coaching ("lock in consistency…"). Scrub before Beth narrates/echoes.
+            detail = _scrub_coaching(context["active_milestone_detail"])
+            if detail:
+                item["current_milestone_detail"] = detail
         nxt = [m for m in (context.get("next_milestones") or [])
                if isinstance(m, str) and m != phase]
         if nxt:
             item["next_milestones"] = nxt[:3]
         if context.get("recently_completed_milestone"):
             item["recently_completed"] = context["recently_completed_milestone"]
-        if context.get("why_it_matters"):
-            item["why_it_matters"] = context["why_it_matters"]
-        if context.get("success_definition"):
-            item["success_looks_like"] = context["success_definition"]
+        why = _scrub_coaching(context.get("why_it_matters"))
+        if why:
+            item["why_it_matters"] = why
+        success = _scrub_coaching(context.get("success_definition"))
+        if success:
+            item["success_looks_like"] = success
         item["momentum"] = e.get("momentum_summary") or "in progress"
         succ = [s for s in (e.get("success_drivers") or []) if isinstance(s, str)]
         if succ:
@@ -755,8 +797,9 @@ def goals_working_memory(truth, user=None):
         risks = [s for s in (e.get("risk_drivers") or []) if isinstance(s, str)]
         if risks:
             item["watch"] = risks[:2]
-        if e.get("recommended_action"):
-            item["recommended_action"] = e["recommended_action"]
+        rec = _scrub_coaching(e.get("recommended_action"))
+        if rec:
+            item["recommended_action"] = rec
         return item
 
     evidence = []
@@ -946,7 +989,7 @@ def _focal_goal(wm):
 
 
 def _concrete_action(item):
-    a = (item or {}).get("recommended_action")
+    a = _scrub_coaching((item or {}).get("recommended_action"))
     if a and not _is_generic_action(a):
         return a
     return ("its current milestone has no defined next action yet — add one so "
@@ -1015,7 +1058,7 @@ def _goal_next_milestone_fallback(wm):
                 "concrete next target.")
     name = item.get("goal")
     phase = item.get("phase")
-    detail = item.get("current_milestone_detail")
+    detail = _scrub_coaching(item.get("current_milestone_detail"))
     nxt = [m for m in (item.get("next_milestones") or []) if isinstance(m, str)]
     parts = []
     if phase:

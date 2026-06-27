@@ -1550,7 +1550,10 @@ class MedicineLogEditTest(MedicineTestMixin, TestCase):
         )
 
         response = self.client.get(reverse('health:intake_history'))
-        self.assertContains(response, f'/health/physical/medicine/log/{log.pk}/edit/')
+        # Canonical URL after the medicine→intake rename (was /medicine/log/.../edit/).
+        self.assertContains(
+            response, reverse('health:intake_log_edit', kwargs={'pk': log.pk})
+        )
 
     def test_medicine_home_shows_edit_link_for_taken_doses(self):
         """Medicine home shows edit link for taken doses."""
@@ -1567,4 +1570,7 @@ class MedicineLogEditTest(MedicineTestMixin, TestCase):
         )
 
         response = self.client.get(reverse('health:intake_home'))
-        self.assertContains(response, f'/health/physical/medicine/log/{log.pk}/edit/')
+        # Canonical URL after the medicine→intake rename (was /medicine/log/.../edit/).
+        self.assertContains(
+            response, reverse('health:intake_log_edit', kwargs={'pk': log.pk})
+        )

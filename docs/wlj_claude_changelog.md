@@ -7,6 +7,13 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(health): Sprint 1.5C (addendum) — stale legacy URL in log-edit tests
+
+Two `MedicineLogEditTest` tests asserted a hardcoded `/health/physical/medicine/log/<pk>/edit/` path. The medicine→intake rename moved it to `/health/physical/intake/log/<pk>/edit/` (URL name `intake_log_edit`); the templates already render the canonical link, so the feature worked — only the test strings were stale legacy references. Updated both to assert the URL via `reverse('health:intake_log_edit', …)` (robust against future path changes). **Result: the entire `apps.health.tests.test_medicine` module is now green (105/105) — all pre-existing medicine-module failures cleared.** Test-only; no code, no schema, no migration.
+
+**Files:** apps/health/tests/test_medicine.py.
+
+
 ## 2026-06-27 — fix(health): Sprint 1.5C — clean remaining medicine→intake legacy references (3 active defects)
 
 Swept the codebase for legacy references left by the historical medicine→intake model rename and fixed the trivial active correctness defects encountered in the implementation path. **No new features, no schema, no migrations.**

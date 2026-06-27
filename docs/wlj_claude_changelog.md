@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(health): Guided Capture stalls on "Working…" — ScanItem read as dict
+
+**Root cause:** `apps/health/capture_session.py::_extract_from_images` read each Vision item with `item.get("details")`. But `vision_service.analyze_image().items` are `ScanItem` DATACLASS objects (apps/scan/services/vision.py — `label`/`details`/`confidence`), not dicts. `ScanItem` has no `.get`, so the call raised `AttributeError: 'ScanItem' object has no attribute 'get'`. That line is OUTSIDE the per-image `try/except` (which only wraps the Vision call), so it propagated through `analyze_capture`/`finalize_capture` → the view (no try/except) → HTTP 500. The session therefore never received a confidence response and never produced a draft — the UI sat on "Working…" indefinitely. **Evidence:** reproduced deterministically by calling `_extract_from_images` with a real `ScanItem` → `AttributeError`; passes after the fix.
+
+The mocked capture tests missed it because the mock returned plain dicts instead of the production `ScanItem` shape.
+
+**Fix:** added `_item_field(item, key)` that reads a Vision item by attribute (ScanItem dataclass, production) or `.get` (dict), and used it in `_extract_from_images` (copying `details` so the source is never mutated). No workflow/pipeline change.
+
+**Tests:** the capture test factory `_vresult` now builds REAL `ScanItem`/`ScanResult` objects (so every capture test exercises the production shape and would have caught this), plus a named `CaptureScanItemRegressionTest` (analyze + finalize against a real ScanItem). The view tests confirm the full state machine completes: analyze → 200 + confidence, finish → 200 + review_url.
+
+**Files:** apps/health/capture_session.py, apps/health/tests/test_capture_session.py.
+
+**Verification:** 91 tests green (capture + acquisition + full scan suite); end-to-end analyze→confidence and finish→review_url confirmed; `manage.py check` clean; no migration.
+
+**Adjacent finding (flagged, out of scope):** `create_draft_from_scan` has the same `.get()`-on-ScanItem issue when called from `scan:analyze` (Sprint 3.5 single-image path), silently swallowed by that view's try/except — flagged as a follow-up task, not fixed here.
+
+
 ## 2026-06-27 — feat(health): Guided Capture Sessions (Medication Acquisition V1 completion)
 
 Fulfills the original acquisition vision — "grab a bottle, take a couple of photos, let WLJ do the rest" — without redesigning the pipeline. Capture becomes a guided, multi-image SESSION whose photos merge into one combined extraction → the EXISTING pipeline (MedicationScanDraft → Confidence Review → Duplicate Detection → Confirmation → MedicationEvent → Intake). Nothing canonical until confirmation.

@@ -51,6 +51,15 @@ def _clean_b64(image_data):
     return image_data.split(",", 1)[1] if "," in (image_data or "") else image_data
 
 
+def _item_field(item, key):
+    """Read a field from a Vision item. `vision_service.analyze_image().items` are
+    `ScanItem` DATACLASSES in production (attribute access), but dicts in some
+    callers/tests — support both so a real ScanItem never raises `.get`."""
+    if isinstance(item, dict):
+        return item.get(key)
+    return getattr(item, key, None)
+
+
 def _merge_details(per_image_details):
     """Combine per-image Vision `details` dicts into one. First non-empty value per
     field wins (capture order is meaningful); absence stays absence."""
@@ -95,11 +104,13 @@ def _extract_from_images(images, image_format="jpeg"):
             categories.append(result.top_category)
         items = result.items or []
         if items:
-            item = items[0] or {}
-            per_image_details.append(item.get("details", {}) or {})
+            item = items[0]
+            details = dict(_item_field(item, "details") or {})  # copy — never mutate the source
+            label = _item_field(item, "label") or ""
             # Carry the label as a name fallback when structured name is absent.
-            if not (item.get("details") or {}).get("name") and item.get("label"):
-                per_image_details[-1].setdefault("name", item.get("label"))
+            if not details.get("name") and label:
+                details.setdefault("name", label)
+            per_image_details.append(details)
 
     merged = _merge_details(per_image_details)
     # Prefer a med/supplement category; default to medicine.

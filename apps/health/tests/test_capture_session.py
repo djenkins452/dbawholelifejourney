@@ -8,7 +8,6 @@ MedicationScanDraft with NOTHING canonical until confirmation. Vision is mocked 
 these tests assert the session/merge/pipeline logic, not the model's OCR.
 """
 
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from django.test import Client, TestCase
@@ -23,13 +22,18 @@ from apps.health.capture_profiles import (
 from apps.health.capture_session import analyze_capture, finalize_capture
 from apps.health.models import Intake, MedicationScanDraft
 from apps.health.tests.test_medicine_adherence import AdherenceTestMixin
+from apps.scan.services.vision import ScanItem, ScanResult
 
 CAPTURE_PATH = "apps.health.capture_session._vision"
 
 
 def _vresult(category="medicine", details=None, label=""):
-    items = [{"details": details or {}, "label": label}] if (details or label) else []
-    return SimpleNamespace(error=None, top_category=category, confidence=0.8, items=items)
+    # Use the REAL production result shape: vision_service.analyze_image().items are
+    # ScanItem DATACLASSES (not dicts). Regression guard for the .get() bug.
+    items = ([ScanItem(label=label, details=details or {}, confidence=0.8)]
+             if (details or label) else [])
+    return ScanResult(request_id="t", top_category=category, confidence=0.8,
+                      items=items, safety_notes=[], next_best_actions=[])
 
 
 def _mock_vision(results):
@@ -56,6 +60,31 @@ class CaptureProfileTest(TestCase):
         self.assertEqual(suggested_next_photo(["serving_size"]),
                          "a photo of the Supplement Facts panel")
         self.assertIsNone(suggested_next_photo([]))
+
+
+class CaptureScanItemRegressionTest(AdherenceTestMixin, TestCase):
+    """Regression: vision_service returns ScanItem DATACLASSES, not dicts. The
+    session must read them by attribute — never `.get()` — or it 500s mid-session
+    and the workflow stalls on 'Working…'. (Guided Capture debug, 2026-06-27.)"""
+
+    def setUp(self):
+        self.user = self.create_user(email="capreg@test.com")
+
+    def test_analyze_handles_real_scanitem_dataclass(self):
+        # _vresult now builds real ScanItem objects — this would AttributeError pre-fix.
+        results = [_vresult(details={"name": "Metformin", "dosage": "500mg"})]
+        with patch(CAPTURE_PATH, return_value=_mock_vision(results)):
+            r = analyze_capture(self.user, ["img1"], intake_type="medication")
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["name"], "Metformin")
+        self.assertIsNotNone(r["confidence"])
+
+    def test_finalize_handles_real_scanitem_dataclass(self):
+        results = [_vresult(details={"name": "Metformin", "dosage": "500mg"})]
+        with patch(CAPTURE_PATH, return_value=_mock_vision(results)):
+            draft = finalize_capture(self.user, ["img1"], intake_type="medication")
+        self.assertIsNotNone(draft)
+        self.assertEqual(draft.extracted_values["name"], "Metformin")
 
 
 class CaptureCombinedExtractionTest(AdherenceTestMixin, TestCase):

@@ -67,64 +67,71 @@ def _agenda(user):
 
 
 # ── Section composers (each returns a sentence/paragraph or "") ────────────
-def _orientation(es):
-    lenses = es.get("executive_lenses") or {}
-    overall = (_text(lenses.get("overall")) or _text(es.get("headline"))
-               or _text(es.get("trajectory")))
-    return ("Where things stand: " + _ensure_sentence(overall)) if overall else ""
+def _safe_interpret(user):
+    try:
+        from apps.ai.chatgpt_cos.executive_interpretation import interpret
+        return interpret(user)
+    except Exception:
+        logger.warning("executive_brief: interpretation failed", exc_info=True)
+        from apps.ai.chatgpt_cos.executive_interpretation import ExecutiveSignals
+        return ExecutiveSignals()
 
 
-def _assessment(es, low_energy=False):
-    """A one-line executive read: strong / recovery / heavier / steady day."""
-    if low_energy:
-        return ("Overall read: let's treat today as a recovery day — protect your "
-                "energy and keep the load light.")
-    traj = _text(es.get("trajectory")).lower()
-    has_risk = bool(_text(es.get("biggest_risk")))
-    n_attn = len([i for i in (es.get("needs_attention") or []) if _text(i)])
-    if has_risk or n_attn >= 3:
-        label = "a heavier day with something real to manage"
-    elif any(w in traj for w in ("strong", "ahead", "improv", "rising", "thriv")):
-        label = "a strong day — you're in good shape"
-    elif any(w in traj for w in ("recover", "behind", "declin", "slip", "falling")):
-        label = "a recovery day — steady the ship before pushing"
-    else:
-        label = "a steady, manageable day"
-    return f"Overall read: this is shaping up to be {label}."
+def _orientation(sig, es):
+    # Lead with the INTERPRETED executive thesis (workload judged by horizon), not a
+    # raw metric or trajectory phrase.
+    head = _scrub(sig.headline) or _text(es.get("headline")) or _text(es.get("trajectory"))
+    return ("Where things stand: " + _ensure_sentence(head)) if head else ""
 
 
-def _priorities(es):
+def _assessment(sig, low_energy=False):
+    summary = _scrub(sig.workload_summary)
+    if low_energy or sig.recovery_needed:
+        base = "Overall read: treat today as a recovery day"
+        if summary:
+            base += " — " + summary
+        return base + ". Protect your energy before pushing performance."
+    base = "Overall read: " + (summary or f"a {sig.workload} day")
+    return base + f" — so this is a {sig.workload} day, not an overloaded one."
+
+
+def _priorities(sig, es):
+    """Today's COMMITMENTS first — never the total pending count as a priority."""
+    bits = []
+    if sig.today_count:
+        bits.append(f"{sig.today_count} item{'s' if sig.today_count != 1 else ''} due today")
+    if sig.overdue_count:
+        bits.append(f"{sig.overdue_count} overdue to clear")
     na = [_text(i) for i in (es.get("needs_attention") or [])]
-    titles = [t for t in na if t][:3]
-    if titles:
-        return "What matters today: " + "; ".join(titles) + "."
-    return ("What matters today: nothing is flagged as needing attention — a clean "
-            "slate, so it's your call on where to focus.")
+    bits.extend([t for t in na if t][:2])
+    if bits:
+        return "What matters today: " + "; ".join(bits) + "."
+    return ("What matters today: nothing is due today and nothing is flagged — a "
+            "clean slate, so it's your call on where to focus.")
 
 
-def _risk(es):
-    r = _text(es.get("biggest_risk"))
+def _risk(sig):
+    r = _scrub(sig.biggest_risk)
     return ("Your biggest risk right now: " + _ensure_sentence(r)) if r else ""
 
 
-def _recommendation(es):
-    recs = es.get("recommendations") or []
-    rec = next((_text(x) for x in recs if _text(x)), "")
-    if not rec:
-        rec = _text((es.get("executive_lenses") or {}).get("opportunity"))
+def _recommendation(sig):
+    rec = _scrub(sig.highest_leverage)
     return ("Highest-leverage move: " + _ensure_sentence(rec)) if rec else ""
 
 
 def compose_executive_brief(user, *, lead="", low_energy=False):
-    """Compose a Chief-of-Staff executive briefing. Orientation first, AGENDA LAST.
-    Always non-empty; degrades gracefully when data is thin. Deterministic — works
-    with OpenAI disabled."""
+    """Compose a Chief-of-Staff executive briefing from INTERPRETED ExecutiveSignals
+    (P33) — orientation first, AGENDA LAST. The composer NARRATES judgment; it never
+    re-infers conclusions from raw metrics (e.g. '22 pending' never becomes
+    'overload'). Always non-empty; degrades gracefully; deterministic."""
+    sig = _safe_interpret(user)
     es = _safe_exec_summary(user)
     blocks = []
     if lead:
         blocks.append(lead.strip())
-    for section in (_orientation(es), _assessment(es, low_energy=low_energy),
-                    _priorities(es), _risk(es), _recommendation(es)):
+    for section in (_orientation(sig, es), _assessment(sig, low_energy=low_energy),
+                    _priorities(sig, es), _risk(sig), _recommendation(sig)):
         if section:
             blocks.append(section)
     agenda = _agenda(user)
@@ -165,6 +172,32 @@ def score_executive_presence(text):
     }
     score = round(sum(1 for v in dims.values() if v) / len(dims), 2)
     dims["score"] = score
+    return dims
+
+
+def score_executive_judgment(text):
+    """Score a briefing for EXECUTIVE JUDGMENT (P33) — does it interpret facts like a
+    Chief of Staff, or report raw counts? Deterministic heuristics. Returns
+    {dimension: bool, ..., score}."""
+    t = (text or "").lower()
+    mentions_many = any(str(n) in t for n in range(11, 100)) or "backlog" in t \
+        or "pending" in t or "open item" in t
+    dims = {
+        # workload is an interpreted band, not a bare verdict from a count
+        "workload_interpreted": any(
+            f"workload is {w}" in t or f"a {w} day" in t or f"{w} day" in t
+            for w in ("light", "manageable", "full", "heavy", "overloaded")),
+        # a large backlog is named as backlog/strategic/upcoming, not "today's load"
+        "backlog_distinguished": (any(k in t for k in (
+            "backlog", "longer-term", "upcoming", "strategic"))
+            if mentions_many else True),
+        # never concludes overload from a raw count (overload only with a real today-load)
+        "no_count_overload": not ("overload" in t and "due today" not in t),
+        # today's commitments lead, not the total pending number
+        "today_first": any(k in t for k in (
+            "due today", "nothing is due today", "clean slate")),
+    }
+    dims["score"] = round(sum(1 for v in dims.values() if v) / len(dims), 2)
     return dims
 
 

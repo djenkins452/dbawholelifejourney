@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(cos): P33 Executive Interpretation Engine (judgment before composition)
+
+Production: Beth concluded "22 pending tasks → recovery day / high workload" when reality was 1 due today + a strategic/someday backlog. The deterministic FACTS were right; the executive CONCLUSION was wrong — Beth reasoned from raw counts, not executive judgment.
+
+**Architecture (new layer, not an extension):** new `apps/ai/chatgpt_cos/executive_interpretation.py :: interpret(user) -> ExecutiveSignals`. A deterministic JUDGMENT layer that converts raw facts into executive signals BEFORE the Conversation Planner / Brief Composer. NOT a planner, engine, composer, or prioritizer — it reuses existing providers (canonical `TaskQueries` horizons: due_today / overdue / due_within(7d) / no_due_date / pending; health & goals SAE state; `build_executive_summary`) and interprets them. executive_summary still REPORTS; the interpretation engine JUDGES.
+
+**The key judgment:** workload = today's commitments + overdue, NOT total pending. `ExecutiveSignals(workload, workload_summary, today_count, overdue_count, soon_count, backlog_count, total_pending, cognitive_load, recovery_needed, health_read, biggest_risk, highest_leverage, strategic_focus, intervention_required, confidence, headline)`. 22 pending / 1 due today → workload="manageable", headline "Today's workload is manageable despite a healthy strategic backlog." A large backlog never implies overload or intervention; overdue and real risk do.
+
+**Composer consumes signals:** `compose_executive_brief` now narrates ExecutiveSignals (orientation = the interpreted headline; assessment = workload band + recovery; priorities = today's commitments, never the total count) instead of re-inferring conclusions from raw metrics.
+
+**Acceptance evolution:** new `score_executive_judgment(text)` dimension — workload interpreted (not a count verdict), backlog distinguished from today's load, never concludes overload from a count, today-first priorities.
+
+**Files:** apps/ai/chatgpt_cos/executive_interpretation.py (new), executive_brief.py (consumes signals + judgment scorer). Tests: apps/ai/tests/test_p33_executive_interpretation.py (new).
+
+**Verification:** the EXACT production case is a permanent regression (mocked horizons {today:1, overdue:0, backlog:18, total:22}): interpret() → workload="manageable", intervention_required=False, headline "…manageable despite a healthy strategic backlog"; the composed brief contains that exact conclusion and NOT "22 pending"/"high workload"/"is overloaded". Plus: a truly busy day (5 today+1 overdue) → "full"; a 40-item backlog with 0 due today → "light"; 6 overdue → intervention_required=True (real, not backlog). 108-test regression green; `check` clean; no migration.
+
+
 ## 2026-06-27 — feat(cos): P32 Executive Brief Composer (Chief-of-Staff presence)
 
 Beth knew the facts but communicated them like an assistant, not a Chief of Staff (production: a morning reply that opened with "Coming up: Drink Protein Shake at 6:45 AM" at 10:42 AM; a repair that asked Danny to diagnose the problem). Added a thin DETERMINISTIC composition layer that COMPOSES existing systems — it is NOT a new planner, engine, or prioritizer.

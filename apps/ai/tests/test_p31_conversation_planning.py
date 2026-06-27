@@ -93,7 +93,9 @@ class MorningCheckinScenarioTests(_ConvMixin, TestCase):
     def test_adaptive_to_negative_feeling(self):
         self._say("Good morning")
         res = self._say("honestly exhausted and stressed")
-        self.assertIn("essentials", res["answer"].lower())  # lighter, protective lead
+        low = res["answer"].lower()
+        # P32: low energy -> executive recovery framing, not a task dump
+        self.assertTrue("recovery day" in low or "protect your energy" in low, low[:200])
 
     def test_checkin_followed_by_direct_question_is_answered(self):
         self._say("Good morning")
@@ -115,8 +117,10 @@ class RepairScenarioTests(_ConvMixin, TestCase):
         self.assertIsNotNone(res)
         self.assertEqual(res["lane"], "conversation_repair")
         ans = res["answer"].lower()
-        self.assertTrue(any(w in ans for w in ("re-check", "recheck", "let me", "fair")))
-        self.assertIn("correct it", ans)                  # offers to continue/correct
+        # P32: a self-aware repair OWNS the miss and re-briefs (does not ask
+        # Danny to diagnose, does not dump an unrelated fact).
+        self.assertIn("you're right", ans)
+        self.assertNotIn("tell me exactly what", ans)
         self.assertNotIn("0 g protein", ans)              # NOT an unrelated fact dump
         self.assertNotIn("protein today", ans)
         self.assertFalse(ar.is_failure_message(ans))

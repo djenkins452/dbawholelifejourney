@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(cos): P32 Executive Brief Composer (Chief-of-Staff presence)
+
+Beth knew the facts but communicated them like an assistant, not a Chief of Staff (production: a morning reply that opened with "Coming up: Drink Protein Shake at 6:45 AM" at 10:42 AM; a repair that asked Danny to diagnose the problem). Added a thin DETERMINISTIC composition layer that COMPOSES existing systems — it is NOT a new planner, engine, or prioritizer.
+
+**Architecture:** new `apps/ai/chatgpt_cos/executive_brief.py :: compose_executive_brief(user, lead, low_energy)` composes `build_executive_summary` (trajectory/executive_lenses.overall/needs_attention/biggest_risk/recommendations) + the time-aware `build_daily_agenda` into the Chief-of-Staff structure: **orientation → executive assessment → priorities (outcomes) → biggest risk → highest-leverage move → AGENDA LAST** (the calendar is supporting detail, never the headline). Deterministic, request-path-safe, degrades gracefully, scrubbed of coaching language (reuses the P30 scrubber). The composer — not the agenda — owns temporal framing (it delegates to the time-aware agenda and never leads with tasks).
+
+**Wired in (reuse, no duplication):** `_post_checkin_brief` (check-in → executive brief, adaptive: a negative feeling frames a recovery day), the `cos_briefing` lane for full-briefing requests ("what should I know", "what do I need to know about today", "how's my day looking", "brief me", greetings), and a self-aware **repair**: "You're right — let me own that. I led with the agenda instead of orienting you… Here's the briefing the way it should have come:" + a fresh executive brief. The repair no longer asks Danny to diagnose.
+
+**Acceptance evolution:** `score_executive_presence(text)` grades a briefing on orientation / assessment / prioritization / synthesis / temporal awareness / actionability / agenda-ordering — correctness is no longer sufficient.
+
+**Files:** apps/ai/chatgpt_cos/executive_brief.py (new), lanes.py (post-checkin brief + cos_briefing full-brief + self-aware repair). Tests: apps/ai/tests/test_p32_executive_brief.py (new); test_p31_conversation_planning.py (updated to the new brief/repair behavior).
+
+**Verification:** test_p32 replays the EXACT production conversation (Good morning → I'm tired but okay → What do I need to know about today? → critique → "Does that sound right?") with OpenAI DISABLED and asserts Beth orients → synthesizes → prioritizes → repairs (owns it) → re-briefs, agenda last, recovery framing, no task-led opener, no "tell me what's wrong". Presence scorer: composed brief ≥0.85, task dump <0.4. 179-test regression green; `check` clean; no migration; briefs are banned-phrase-free.
+
+
 ## 2026-06-27 — feat(health): Sprint 3J — Medication Acquisition UI (Acquire → Review → Confirm)
 
 The user-facing acquisition workflow, thin over the Sprint-3 service layer. Acquisition only — no Timeline / Treatment / Learning Plans UI.

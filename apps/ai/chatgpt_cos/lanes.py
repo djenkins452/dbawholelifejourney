@@ -119,16 +119,34 @@ def _cos_briefing_lane(user, message, conversation=None):
     norm = _normalize(message)
     if not (any(s in norm for s in _BRIEFING_SIGNALS) or _is_greeting(norm)):
         return None
+    # A FULL-briefing request ("what should I know", "brief me", "how's my day",
+    # "what do I need to know") gets the EXECUTIVE BRIEF COMPOSER (P32) — orientation
+    # first, agenda last. Narrow asks ("wrap up", "30 minutes") stay on the agenda.
+    full_brief = any(s in norm for s in _FULL_BRIEF_SIGNALS)
     try:
-        from apps.core.cos_briefing.daily_agenda import build_daily_agenda
-        answer = build_daily_agenda(user)
+        if full_brief:
+            from apps.ai.chatgpt_cos.executive_brief import compose_executive_brief
+            answer = compose_executive_brief(user)
+        else:
+            from apps.core.cos_briefing.daily_agenda import build_daily_agenda
+            answer = build_daily_agenda(user)
     except Exception:
-        logger.warning("cos_briefing: daily_agenda failed", exc_info=True)
+        logger.warning("cos_briefing: compose/agenda failed", exc_info=True)
         answer = None
     if not answer:
         return None
     return {"answer": answer, "tools_called": [], "tools_advertised": [],
             "lane": "cos_briefing"}
+
+
+# Full-briefing intents -> the Executive Brief Composer (orientation-first).
+_FULL_BRIEF_SIGNALS = (
+    "what should i know", "what do i need to know", "what do i need to know about today",
+    "brief me", "give me a briefing", "daily briefing", "full check-in", "full check in",
+    "how is my day looking", "how's my day looking", "hows my day looking",
+    "how is my day", "my day looking", "where do things stand", "what needs my attention",
+    "needs my attention", "good morning", "good afternoon", "good evening",
+)
 
 
 # A request grounded to a goal/mission is OWNED by Goals — these markers all resolve
@@ -675,38 +693,46 @@ def _morning_checkin(user, message):
 def _post_checkin_brief(user, message, feeling):
     f = (feeling or "").lower()
     heavy = any(w in f for w in _NEGATIVE_FEELING)
-    lead = ("Thanks for telling me — let's keep today focused on the essentials. "
-            if heavy else "Got it. Here's how your day is shaping up. ")
+    lead = ("Thanks for telling me. " if heavy else "Got it. ")
     try:
-        from apps.core.cos_briefing.daily_agenda import build_daily_agenda
-        agenda = build_daily_agenda(user) or ""
+        from apps.ai.chatgpt_cos.executive_brief import compose_executive_brief
+        answer = compose_executive_brief(user, lead=lead, low_energy=heavy)
     except Exception:
-        logger.warning("post_checkin_brief: agenda failed", exc_info=True)
-        agenda = ""
-    answer = (lead + agenda).strip() or (lead.strip())
+        logger.warning("post_checkin_brief: compose failed", exc_info=True)
+        answer = lead + "Here's your day at a glance."
     return {"answer": answer, "tools_called": [], "tools_advertised": [],
             "lane": "conversation_brief"}
 
 
 def _repair_response(user, message, prior_answer):
-    """Recognize the critique, acknowledge, and re-ground in the ACTUAL (time-aware)
-    state — NEVER jump to an unrelated fact — then offer to continue."""
+    """Self-aware repair (P32): OWN the miss, name what went wrong (do NOT ask Danny
+    to diagnose it), then deliver a proper EXECUTIVE briefing — not an unrelated fact."""
     prior = (prior_answer or "").lower()
-    parts = ["Fair question — let me re-check that rather than just repeat myself."]
-    # If the critiqued answer was a briefing/agenda, re-ground with the TIME-AWARE
-    # agenda (it never frames a past item as 'coming up'); that IS the correction.
-    if any(c in prior for c in _BRIEFING_CUES):
-        try:
-            from apps.core.cos_briefing.daily_agenda import build_daily_agenda
-            agenda = build_daily_agenda(user) or ""
-        except Exception:
-            agenda = ""
-        if agenda:
-            parts.append("Here's where things actually stand right now: " + agenda)
-    parts.append("If something looked off, tell me exactly what and I'll correct it — "
-                 "or I can walk through the rest with you.")
-    return {"answer": " ".join(parts), "tools_called": [], "tools_advertised": [],
+    parts = ["You're right — let me own that."]
+    # Self-diagnose. If the prior answer led with the agenda/tasks, name THAT (the
+    # specific failure mode); otherwise acknowledge the missing executive read.
+    if any(c in prior for c in _BRIEFING_CUES) or _looks_agenda_led(prior):
+        parts.append("I led with the agenda instead of orienting you to the day. "
+                     "That's on me — the calendar is supporting detail, not the headline.")
+    else:
+        parts.append("I gave you the facts without the executive read you needed.")
+    parts.append("Here's the briefing the way it should have come:")
+    lead = " ".join(parts)
+    try:
+        from apps.ai.chatgpt_cos.executive_brief import compose_executive_brief
+        answer = compose_executive_brief(user, lead=lead)
+    except Exception:
+        logger.warning("repair: compose failed", exc_info=True)
+        answer = lead
+    return {"answer": answer, "tools_called": [], "tools_advertised": [],
             "lane": "conversation_repair"}
+
+
+def _looks_agenda_led(prior):
+    """The prior answer opened with the agenda (tasks/times) rather than orientation."""
+    head = (prior or "")[:160]
+    return any(c in head for c in ("coming up", "next up", "your agenda",
+                                   "first up", "at ", "scheduled", "drink", "shower"))
 
 
 def _conversation_planner_lane(user, message, conversation=None):

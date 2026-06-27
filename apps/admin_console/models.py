@@ -1653,7 +1653,16 @@ class AcceptanceRun(models.Model):
         ("running", "Running"),
         ("completed", "Completed"),
         ("failed", "Failed"),       # the run itself errored (not a question failure)
+        # NOTE: "interrupted" is ALSO a valid status (worker died — deploy/restart/
+        # crash, reaped by reap_stale_runs). It is deliberately NOT listed here so
+        # the field needs no migration (status is a plain varchar; choices are
+        # validation-only). get_status_display() returns "interrupted" verbatim.
     ]
+    # Operational resilience (P33): a RUNNING run whose worker heartbeat is older
+    # than this is presumed INTERRUPTED. A single question is one LLM round-trip
+    # (<~30s even with retries), so this is a generous margin that never false-flags
+    # a healthy run. Overridable via settings.WLJ_ACCEPTANCE_STALE_SECONDS.
+    STALE_HEARTBEAT_SECONDS = 180
 
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(
@@ -1713,7 +1722,9 @@ class AcceptanceRun(models.Model):
     @property
     def status_color(self):
         if self.status == "running":
-            return "#6b7280"
+            return "#f59e0b" if self.is_stale else "#6b7280"  # amber if stale
+        if self.status == "interrupted":
+            return "#f59e0b"
         if self.status == "failed":
             return "#ef4444"
         if self.fail_count == 0:
@@ -1726,6 +1737,79 @@ class AcceptanceRun(models.Model):
     def grade_color(self):
         return {"GREEN": "#10b981", "YELLOW": "#f59e0b",
                 "RED": "#ef4444"}.get(self.grade, self.status_color)
+
+    # ---- Operational resilience: worker heartbeat + stale/interrupt detection ----
+    # Heartbeat lives in raw_report_json (no migration) under "heartbeat":
+    #   {"at": iso, "current_question": key, "completed": n, "total": N}.
+    @property
+    def heartbeat(self):
+        hb = (self.raw_report_json or {}).get("heartbeat")
+        return hb if isinstance(hb, dict) else {}
+
+    @property
+    def last_heartbeat(self):
+        from django.utils.dateparse import parse_datetime
+        ts = self.heartbeat.get("at")
+        dt = parse_datetime(ts) if ts else None
+        return dt or self.started_at or self.created_at
+
+    @property
+    def heartbeat_age_seconds(self):
+        ref = self.last_heartbeat
+        if ref is None:
+            return None
+        from django.utils import timezone
+        return max(0.0, (timezone.now() - ref).total_seconds())
+
+    @property
+    def _stale_threshold(self):
+        from django.conf import settings as _s
+        return int(getattr(_s, "WLJ_ACCEPTANCE_STALE_SECONDS",
+                           self.STALE_HEARTBEAT_SECONDS))
+
+    @property
+    def is_stale(self):
+        """A RUNNING run with no recent heartbeat — presumed interrupted but not yet
+        reaped. Always False for terminal statuses."""
+        if self.status != "running":
+            return False
+        age = self.heartbeat_age_seconds
+        return age is not None and age > self._stale_threshold
+
+    @property
+    def is_interrupted(self):
+        return self.status == "interrupted"
+
+    @property
+    def current_question(self):
+        return self.heartbeat.get("current_question") or ""
+
+    @property
+    def questions_completed(self):
+        try:
+            return int(self.heartbeat.get("completed") or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    @property
+    def heartbeat_total(self):
+        return int(self.heartbeat.get("total") or self.total_count or 0)
+
+    @property
+    def progress_pct(self):
+        tot = self.heartbeat_total
+        return round(100 * self.questions_completed / tot) if tot else 0
+
+    @property
+    def heartbeat_age_display(self):
+        age = self.heartbeat_age_seconds
+        if age is None:
+            return "—"
+        if age < 90:
+            return f"{int(age)}s ago"
+        if age < 5400:
+            return f"{int(age // 60)}m ago"
+        return f"{int(age // 3600)}h ago"
 
 
 class AcceptanceResult(models.Model):

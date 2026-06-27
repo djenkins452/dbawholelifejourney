@@ -45,7 +45,28 @@
   {% if is_running %}
   <div class="stat-card" data-testid="ac-running" style="border-left:4px solid #6b7280;">
     <strong>Run in progress…</strong>
-    <p class="ac-note" style="color:#6b7280;">This page auto-refreshes every 5 seconds. The suite makes live OpenAI calls; ~30–90s total.</p>
+    <p class="ac-note" style="color:#6b7280;">This page auto-refreshes every 5 seconds.
+      Progress: <strong>{{ run.questions_completed }}/{{ run.heartbeat_total }}</strong>
+      ({{ run.progress_pct }}%) · current: <code>{{ run.current_question|default:"—" }}</code>
+      · last heartbeat {{ run.heartbeat_age_display }}.</p>
+  </div>
+  {% endif %}
+
+  {% if is_stale %}
+  <div class="stat-card" data-testid="ac-stale" style="border-left:4px solid #f59e0b;">
+    <strong style="color:#b45309;">⚠ This Acceptance run appears to have been interrupted.</strong>
+    <p class="ac-resp">No worker heartbeat for {{ run.heartbeat_age_display }} (last question
+      <code>{{ run.current_question|default:"—" }}</code>, {{ run.questions_completed }}/{{ run.heartbeat_total }} done).
+      A deployment or worker restart likely stopped it. Results are partial — start a fresh run for a trustworthy grade.</p>
+    {% include "admin_console/_ac_restart.html" %}
+  </div>
+  {% endif %}
+
+  {% if run.status == "interrupted" %}
+  <div class="stat-card" data-testid="ac-interrupted" style="border-left:4px solid #f59e0b;">
+    <strong style="color:#b45309;">⚠ This Acceptance run appears to have been interrupted.</strong>
+    <p class="ac-resp">{{ run.error_message }}</p>
+    {% include "admin_console/_ac_restart.html" %}
   </div>
   {% endif %}
 
@@ -53,6 +74,7 @@
   <div class="stat-card" style="border-left:4px solid #ef4444;">
     <strong class="ac-bad">Run failed.</strong>
     <p class="ac-resp">{{ run.error_message }}</p>
+    {% include "admin_console/_ac_restart.html" %}
   </div>
   {% endif %}
 

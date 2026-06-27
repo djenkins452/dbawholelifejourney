@@ -25,6 +25,17 @@ class BethAcceptanceCenterView(AdminRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        # P33: self-heal any runs orphaned by a deploy/restart BEFORE listing, so
+        # the Center never shows a permanently-RUNNING ghost. Lazy + Celery-free.
+        try:
+            from apps.ai.chatgpt_cos.acceptance_service import (
+                reap_stale_runs, running_acceptance_runs,
+            )
+            reap_stale_runs()
+            ctx["active_runs"] = running_acceptance_runs()
+        except Exception:
+            logger.warning("acceptance: reap on center failed", exc_info=True)
+            ctx["active_runs"] = []
         runs = list(AcceptanceRun.objects.all()[:10])
         ctx["runs"] = runs
         ctx["latest"] = runs[0] if runs else None
@@ -47,10 +58,19 @@ class StartBethAcceptanceView(AdminRequiredMixin, View):
 
     def post(self, request, *args, **kwargs):
         from apps.ai.chatgpt_cos.acceptance_service import (
-            environment_label, git_commit,
+            environment_label, git_commit, reap_stale_runs,
         )
-        mode = request.POST.get("mode", "full")
-        suite, depth = _MODE_MAP.get(mode, ("full", "full"))
+        # P33: clean up any deploy-orphaned runs before starting a fresh one.
+        try:
+            reap_stale_runs()
+        except Exception:
+            logger.warning("acceptance: reap on start failed", exc_info=True)
+        # Restart path passes suite+depth directly; the buttons pass a mode.
+        suite = request.POST.get("suite")
+        depth = request.POST.get("depth")
+        if not (suite and depth):
+            mode = request.POST.get("mode", "full")
+            suite, depth = _MODE_MAP.get(mode, ("full", "full"))
         if suite not in SUITES:
             suite = "full"
         if depth not in DEPTHS:
@@ -88,10 +108,21 @@ class BethAcceptanceRunDetailView(AdminRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         run = get_object_or_404(AcceptanceRun, pk=kwargs["pk"])
+        # P33: if THIS run's worker died, surface it as interrupted (not a forever
+        # spinner). Reap lazily on view so a single refresh after a deploy heals it.
+        if run.status == "running" and run.is_stale:
+            try:
+                from apps.ai.chatgpt_cos.acceptance_service import reap_stale_runs
+                reap_stale_runs()
+                run.refresh_from_db()
+            except Exception:
+                logger.warning("acceptance: reap on detail failed", exc_info=True)
         results = list(run.results.order_by("sort_order"))
         ctx["run"] = run
         ctx["results"] = results
-        ctx["is_running"] = run.is_running
+        # only auto-refresh while genuinely still running (fresh heartbeat)
+        ctx["is_running"] = run.is_running and not run.is_stale
+        ctx["is_stale"] = run.is_stale
         ctx["failed_results"] = [r for r in results if not r.passed]
         # ordered category summary (skip zero counts)
         cats = run.category_summary or {}

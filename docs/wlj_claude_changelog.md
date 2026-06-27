@@ -7,6 +7,24 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(admin): P33 Acceptance Center operational resilience (heartbeats + stale reaper)
+
+An Acceptance run executing during a deployment was orphaned — the worker was killed mid-loop, leaving the run permanently `RUNNING` (UI: RUNNING / 0%). Root cause (evidence): `execute_run` only writes a terminal status on a Python exception; a hard kill (SIGKILL/deploy) runs no cleanup, and the Celery task uses `acks_late=False` (no redelivery), so the run is orphaned with no terminal state.
+
+**Fix — worker heartbeats + a lazy, Celery-free reaper (NO migration):**
+- **Heartbeats** persisted in the existing `raw_report_json` JSONField (no schema change): `execute_run` writes `{at, current_question, completed, total}` before the loop and after every question. New `AcceptanceRun` accessors: `heartbeat`, `last_heartbeat`, `heartbeat_age_seconds`, `is_stale`, `is_interrupted`, `current_question`, `questions_completed`, `progress_pct`, `heartbeat_age_display`.
+- **Stale detection:** a `running` run whose heartbeat is older than `STALE_HEARTBEAT_SECONDS` (180s, settings-overridable) is presumed interrupted (a single question is one LLM round-trip, well under the threshold). Terminal runs are never stale; a run with no heartbeat falls back to `started_at`/`created_at`.
+- **Reaper:** `reap_stale_runs()` marks stale running runs `interrupted` with a diagnostic reason (heartbeat age, last question, progress). It is lazy + idempotent and runs from the REQUEST path (Center list, run detail, and start), so it works even when Celery is down — the exact deploy/restart scenario. `"interrupted"` is stored as a plain status string (choices are validation-only → no migration).
+- **Lifecycle:** RUNNING → COMPLETED | FAILED | INTERRUPTED (smallest model that fits reality; STALE is the transient pre-reap condition the UI surfaces).
+- **Recovery — RESTART, not resume (recommended + implemented):** resume is intentionally REJECTED — an interrupted run was almost certainly stopped by a deploy, so resuming would mix results across two commits and produce an untrustworthy grade. The UI offers a clean RESTART (fresh run at the current commit); the start view accepts explicit suite+depth.
+- **Deployment awareness:** kept in-app surface minimal (`running_acceptance_runs()` helper) — the deploy itself is external (Railway/Nixpacks), so a pre-deploy gate belongs in deploy tooling, not the app; the reaper makes the state self-heal post-deploy regardless.
+- **UI:** run detail now distinguishes RUNNING (with live progress + heartbeat age + current question) vs STALE ("This Acceptance run appears to have been interrupted") vs INTERRUPTED (reason + Restart). Auto-refresh stops once a run is stale (no false "still running" spinner). Status color amber for interrupted/stale.
+
+**Files:** apps/admin_console/models.py (heartbeat accessors + status_color), apps/ai/chatgpt_cos/acceptance_service.py (heartbeats + reaper + running list), apps/admin_console/ai_views.py (reap on list/detail/start + restart suite/depth), templates/admin_console/{beth_acceptance_run.html, _ac_restart.html (new)}. Tests: apps/admin_console/tests/test_acceptance_resilience.py (new).
+
+**Verification:** 12 new resilience tests — stale detection (old/fresh/terminal/no-heartbeat), heartbeat roundtrip, reaper (marks interrupted, leaves healthy/completed runs, idempotent), `running_acceptance_runs` excludes stale, detail view self-heals + explains + offers restart + stops the spinner, center reaps ghosts, restart creates a fresh run. 107-test acceptance regression green; `makemigrations admin_console --check` = no changes; `check` clean. No migration.
+
+
 ## 2026-06-27 — fix(health): Sprint 1.5C (addendum) — stale legacy URL in log-edit tests
 
 Two `MedicineLogEditTest` tests asserted a hardcoded `/health/physical/medicine/log/<pk>/edit/` path. The medicine→intake rename moved it to `/health/physical/intake/log/<pk>/edit/` (URL name `intake_log_edit`); the templates already render the canonical link, so the feature worked — only the test strings were stale legacy references. Updated both to assert the URL via `reverse('health:intake_log_edit', …)` (robust against future path changes). **Result: the entire `apps.health.tests.test_medicine` module is now green (105/105) — all pre-existing medicine-module failures cleared.** Test-only; no code, no schema, no migration.

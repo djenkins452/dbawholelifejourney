@@ -369,6 +369,61 @@ def _suite_of(spec):
 
 
 # ---- the orchestrator: fill an AcceptanceRun in place ----------------------
+def _write_heartbeat(run, current_question, completed, total):
+    """Persist a worker heartbeat into raw_report_json (no migration). Called once
+    before the loop and after every question so a dead worker is detectable by
+    heartbeat staleness — even when Celery itself is down (P33)."""
+    try:
+        rr = dict(run.raw_report_json or {})
+        rr["heartbeat"] = {
+            "at": timezone.now().isoformat(),
+            "current_question": current_question,
+            "completed": int(completed), "total": int(total),
+            "worker": "running",
+        }
+        run.raw_report_json = rr
+        run.save(update_fields=["raw_report_json"])
+    except Exception:
+        logger.warning("acceptance: heartbeat write failed run=%s",
+                       getattr(run, "id", None), exc_info=True)
+
+
+def reap_stale_runs():
+    """Mark RUNNING runs whose worker heartbeat is stale as INTERRUPTED. Lazy and
+    idempotent — safe to call from any request path, and crucially works when
+    Celery is down (the exact deploy/restart failure scenario). Returns the count
+    reaped. This is what prevents a killed worker from leaving a run permanently
+    'RUNNING'."""
+    from apps.admin_console.models import AcceptanceRun
+    reaped = 0
+    for run in AcceptanceRun.objects.filter(status="running"):
+        if not run.is_stale:
+            continue
+        age = int(run.heartbeat_age_seconds or 0)
+        run.status = "interrupted"
+        run.completed_at = run.completed_at or timezone.now()
+        run.error_message = (
+            f"Run interrupted — no worker heartbeat for {age}s. Last question: "
+            f"{run.current_question or 'n/a'} ({run.questions_completed}/"
+            f"{run.heartbeat_total or run.total_count} completed). The worker was "
+            "almost certainly stopped by a deployment, restart, or crash. Results "
+            "are partial; start a fresh run to get a trustworthy grade."
+        )[:2000]
+        try:
+            run.save(update_fields=["status", "completed_at", "error_message"])
+            reaped += 1
+            logger.warning("acceptance: reaped stale run=%s age=%ss", run.id, age)
+        except Exception:
+            logger.warning("acceptance: reap failed run=%s", run.id, exc_info=True)
+    return reaped
+
+
+def running_acceptance_runs():
+    """Active (non-stale RUNNING) acceptance runs — for deployment awareness."""
+    from apps.admin_console.models import AcceptanceRun
+    return [r for r in AcceptanceRun.objects.filter(status="running") if not r.is_stale]
+
+
 def execute_run(run, evening=True):
     """Run `run.suite_name` against the live stack, persist results onto `run`,
     compute score + prompts, and mark the run completed/failed. Returns `run`."""
@@ -397,12 +452,18 @@ def execute_run(run, evening=True):
         is_active=False)
     svc = ChatGPTCoSService(user)
     specs = questions_for(run.suite_name, run.depth or "full")
+    total = len(specs)
+    run.total_count = total
+    run.save(update_fields=["total_count"])
+    _write_heartbeat(run, "(starting)", 0, total)   # initial heartbeat
     rows = []
     t0 = time.monotonic()
     try:
         for i, spec in enumerate(specs):
+            _write_heartbeat(run, spec.get("key", ""), i, total)   # before each Q
             r = run_one(svc, conv, spec, evening=evening)
             rows.append(r)
+            _write_heartbeat(run, spec.get("key", ""), i + 1, total)  # after each Q
             AcceptanceResult.objects.create(
                 run=run, question_key=r["key"], suite=r["suite"],
                 question_text=r["question"], expected_intent=r["expected_intent"] or "",

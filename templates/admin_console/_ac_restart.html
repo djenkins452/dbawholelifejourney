@@ -1,0 +1,12 @@
+{# P33: restart an interrupted/failed run as a FRESH run at the CURRENT commit.
+   We do NOT resume — an interrupted run was almost certainly stopped by a deploy,
+   so mixing old+new code would be untrustworthy. A clean re-run is the safe path. #}
+<form method="post" action="{% url 'admin_console:beth_acceptance_start' %}" style="margin-top:8px;">
+  {% csrf_token %}
+  <input type="hidden" name="suite" value="{{ run.suite_name }}">
+  <input type="hidden" name="depth" value="{{ run.depth }}">
+  <button type="submit" class="ac-copy" data-testid="ac-restart"
+          style="background:#b45309; border-color:#b45309;">
+    ↻ Start a fresh {{ run.suite_name }}/{{ run.depth }} run
+  </button>
+</form>

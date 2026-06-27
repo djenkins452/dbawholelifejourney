@@ -108,7 +108,6 @@ def build_physician_summary(user):
     from apps.core.utils import get_user_today
     from apps.health.medicine_utils import calculate_medicine_adherence_rate
     from apps.health.models import Intake
-    from apps.health.observations.narration import build_narration_view
     from apps.health.treatment_timeline import (
         build_medication_timeline,
         build_treatment_summary,
@@ -122,13 +121,22 @@ def build_physician_summary(user):
         .prefetch_related("prescriptions", "acquisition_drafts")
         .order_by("name")
     )
+    def _safe_entry(m):
+        try:
+            return _med_entry(m)
+        except Exception:  # one bad row must not sink the whole summary (9C)
+            import logging
+            logging.getLogger(__name__).warning(
+                "physician summary: med entry failed for intake %s", m.pk, exc_info=True)
+            return None
+
     medications = [
-        _med_entry(m) for m in active
-        if m.intake_type == Intake.INTAKE_TYPE_MEDICATION
+        e for e in (_safe_entry(m) for m in active
+                    if m.intake_type == Intake.INTAKE_TYPE_MEDICATION) if e
     ]
     supplements = [
-        _med_entry(m) for m in active
-        if m.intake_type == Intake.INTAKE_TYPE_SUPPLEMENT
+        e for e in (_safe_entry(m) for m in active
+                    if m.intake_type == Intake.INTAKE_TYPE_SUPPLEMENT) if e
     ]
 
     # Recent changes — from the MedicationEvent ledger (no fabrication).
@@ -164,9 +172,10 @@ def build_physician_summary(user):
         "supplement_30d": calculate_medicine_adherence_rate(user, days=30, intake_type=Intake.INTAKE_TYPE_SUPPLEMENT),
     }
 
-    # What we've noticed + discussion items — APPROVED narrations only (Sprint 7).
-    narration_view = build_narration_view(user)
-    narrations = narration_view["narrations"]
+    # What we've noticed + discussion items — APPROVED narrations only (Sprint 7),
+    # read from the shared cached bundle (Sprint 9A — no recomputation).
+    from apps.health.observations.bundle import get_observation_bundle
+    narrations = get_observation_bundle(user)["narrations"]
     observations = [
         {
             "summary": n["summary"],

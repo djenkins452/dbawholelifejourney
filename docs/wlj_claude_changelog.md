@@ -7,6 +7,27 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Sprint 9 — Medication Intelligence production hardening (perf, observability, reliability)
+
+Operational-readiness pass making Medication Intelligence production-grade with no user-visible behavior change.
+
+**9A Performance:** consolidated the observation → prioritization → narration computation into ONE cached bundle (`apps/health/observations/bundle.py`, key `wlj:med:obs:<user_id>`, TTL 300s), read by both `build_medicine_state` and the physician summary (no double compute). Freshness is event-driven — a `post_save` on `MedicationEvent` busts the bundle. Removed the inline recomputation from `state_builder` and the recompute in `physician_summary`.
+
+**9B Observability:** `apps/health/observations/telemetry.py` (Ops Wall `wlj:ops:*` convention) — `compute_medication_intelligence_ops()` writes `wlj:ops:med_intelligence` (acquisition counts by status, confirmation rate, duplicate resolutions, confidence distribution, by-source, physician-summary count); `get_medication_intelligence_ops()` reads-only (None until populated, never live-computes on the request path); `record_physician_summary_generated()` counter.
+
+**9C Reliability:** observation bundle is fail-open (neutral empty bundle on error, never an exception); physician summary guards per-med rows and the view degrades to a friendly redirect; ledger-invalidation never blocks a write.
+
+**9D Visual QA:** verified all five surfaces are CSP-clean (nonce styles, zero inline handlers), forms use 16px inputs (iOS), physician summary has print + responsive; added a mobile `@media` to the timeline rail.
+
+**9E End-to-end:** walkthrough test acquires + confirms every representative medication type (prescription/supplement/OTC/injection/pharmacy-label/GLP-1) through acquisition → linking → timeline → observations → narration → physician summary, plus duplicate-update (no duplicate Intake).
+
+**9F Documentation:** `docs/MEDICATION_INTELLIGENCE_SUBSYSTEM.md` (new) — pipeline map, key files, perf/observability/reliability/safety, and the **9G tech-debt classification** (must-fix / acceptable / future).
+
+**Files:** apps/health/observations/{bundle.py, telemetry.py} (new), apps/core/ai_state/state_builder.py, apps/health/physician_summary.py, apps/health/views_acquisition.py, apps/health/signals.py, templates/health/intake/timeline.html, apps/health/tests/test_medication_hardening.py (new, 6 tests), docs/MEDICATION_INTELLIGENCE_SUBSYSTEM.md (new).
+
+**Verification:** 130 Medication Intelligence tests green incl. cache-then-invalidate, telemetry snapshot, physician counter, E2E across all med types; `manage.py check` clean; no migration; no user-visible behavior change.
+
+
 ## 2026-06-27 — feat(cos): P36 Personal Knowledge — Layer-4 Behavior Guidance (Phase 1)
 
 The goal isn't memory, it's UNDERSTANDING: Beth should get better at being Danny's Chief of Staff because she learns him. Audit (repository evidence): WLJ already has the storage + source-weighted confidence (ai_memory.PersonalFact, ai_eae.ExtractedFact) — so this is an EVOLUTION, not a new engine, and a third fact store would be duplication. The ONE missing concept is Layer 4 — knowledge that answers "why should this change how Beth behaves?" and that downstream systems CONSUME. Design: docs/BETH_PERSONAL_KNOWLEDGE_DESIGN.md.

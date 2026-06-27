@@ -4006,39 +4006,22 @@ def build_medicine_state(user):
     # deterministically so Beth speaks about the right things in the right order;
     # she performs NO ranking. Each carries evidence, safety class, priority, and
     # a deterministic explanation.
+    # Sprint 9A — one cached bundle for all observation layers (observations →
+    # prioritization → narration), read here and by the physician summary. Beth
+    # consumes `narrations` ONLY; the layers below remain deterministic substrate.
     _observations = []
     _prioritized_observations = []
     _observation_groups = []
     _narrations = []
     _narration_groups = []
     try:
-        from apps.health.observations import build_observations, build_prioritized
-        from apps.health.observations.narration import render_narration
-        from apps.health.observations.prioritization import GROUP_TITLES
-
-        _approved = build_observations(user)
-        _observations = [o.to_dict() for o in _approved]
-        _prioritized_observations, _observation_groups = build_prioritized(
-            user, observations=_approved,
-        )
-        # Sprint 7 — the narration boundary. Beth consumes `narrations` ONLY; the
-        # observation/prioritization layers below remain deterministic substrate.
-        _narrations = [render_narration(d).to_dict() for d in _prioritized_observations]
-        _nar_by_key = {
-            (d["type"], ":".join(sorted(d["domains"]))): n
-            for d, n in zip(_prioritized_observations, _narrations)
-        }
-        for _g in _observation_groups:
-            _items = [
-                _nar_by_key[(d["type"], ":".join(sorted(d["domains"])))]
-                for d in _g["observations"]
-                if (d["type"], ":".join(sorted(d["domains"]))) in _nar_by_key
-            ]
-            _narration_groups.append({
-                "key": _g["key"], "title": _g["title"],
-                "physician_discussion": _g["physician_discussion"],
-                "narrations": _items,
-            })
+        from apps.health.observations.bundle import get_observation_bundle
+        _bundle = get_observation_bundle(user)
+        _observations = _bundle["observations"]
+        _prioritized_observations = _bundle["prioritized_observations"]
+        _observation_groups = _bundle["observation_groups"]
+        _narrations = _bundle["narrations"]
+        _narration_groups = _bundle["narration_groups"]
     except Exception:
         logger.debug("Medicine observations build failed", exc_info=True)
 

@@ -46,6 +46,17 @@ def handle_intake_created(sender, instance, created, **kwargs):
         )
 
 
+@receiver(post_save, sender='health.MedicationEvent')
+def handle_medication_event_invalidates_observations(sender, instance, **kwargs):
+    """Sprint 9A — bust the cached observation bundle when the ledger changes, so
+    observation/narration freshness is event-driven, not just TTL-driven."""
+    try:
+        from apps.health.observations.bundle import invalidate_observation_bundle
+        invalidate_observation_bundle(instance.user_id)
+    except Exception:  # pragma: no cover - never block a ledger write
+        pass
+
+
 @receiver(post_save, sender='health.IntakeSchedule')
 def handle_medicine_schedule_saved(sender, instance, **kwargs):
     """

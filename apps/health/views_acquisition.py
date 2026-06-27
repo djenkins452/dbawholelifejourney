@@ -173,9 +173,18 @@ class PhysicianModeView(LoginRequiredMixin, View):
 
     def get(self, request):
         from apps.health.physician_summary import build_physician_summary
-        return render(request, self.template_name, {
-            "summary": build_physician_summary(request.user),
-        })
+        from apps.health.observations.telemetry import record_physician_summary_generated
+
+        record_physician_summary_generated()
+        try:
+            summary = build_physician_summary(request.user)
+        except Exception:
+            logger.warning("Physician summary failed for user %s",
+                           request.user.id, exc_info=True)
+            messages.error(
+                request, "We couldn't build your summary right now. Please try again.")
+            return redirect("health:intake_home")
+        return render(request, self.template_name, {"summary": summary})
 
 
 class MedicationNoticedView(LoginRequiredMixin, View):

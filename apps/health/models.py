@@ -2505,6 +2505,30 @@ class Intake(UserOwnedModel):
         help_text="When the refill was requested",
     )
 
+    # ── Structured treatment metadata (Sprint 2B) ──
+    # Canonical FK bridges that supersede the free-text prescribing_doctor/
+    # pharmacy fields above. The free-text fields are retained as fallbacks and
+    # migrated to FKs opportunistically — never destructively.
+    provider = models.ForeignKey(
+        "health.MedicalProvider",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="intakes",
+        help_text="Structured prescriber (reuses MedicalProvider). Free-text "
+                  "prescribing_doctor remains as a fallback.",
+    )
+    pharmacy_ref = models.ForeignKey(
+        "health.Pharmacy",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="intakes",
+        help_text="Structured pharmacy. Free-text `pharmacy` remains as a fallback.",
+    )
+    monitoring_requirements = models.TextField(
+        blank=True, default="",
+        help_text="What to monitor for this medication (e.g., 'A1c every 3 months').",
+    )
+
     class Meta:
         ordering = ["name"]
         verbose_name = "intake"
@@ -3177,6 +3201,79 @@ class MedicationEvent(UserOwnedModel):
                 "record a new compensating event instead."
             )
         super().save(*args, **kwargs)
+
+
+class Pharmacy(UserOwnedModel):
+    """
+    A pharmacy the user fills prescriptions at (Sprint 2B).
+
+    Dedicated lightweight model (Phase 2 O-8 — chosen over overloading
+    MedicalProvider with specialty=pharmacy). A given pharmacy is represented
+    here only, never duplicated as a MedicalProvider row (single ownership).
+    """
+
+    name = models.CharField(max_length=200)
+    phone = models.CharField(max_length=30, blank=True, default="")
+    address = models.CharField(max_length=300, blank=True, default="")
+    rx_account = models.CharField(
+        max_length=60, blank=True, default="",
+        help_text="The user's account/membership number at this pharmacy.",
+    )
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "pharmacy"
+        verbose_name_plural = "pharmacies"
+
+    def __str__(self):
+        return self.name
+
+
+class Prescription(UserOwnedModel):
+    """
+    A prescription record (Sprint 2B) — distinct from the medication regimen.
+
+    The ``Intake`` is the regimen (what/how the user takes it); a Prescription is
+    the Rx authorization for it (who wrote it, where it's filled, refills left,
+    expiry, SIG as written). Multiple prescriptions over time map to the same
+    Intake; the dosing schedule lives on IntakeSchedule, never duplicated here.
+    """
+
+    intake = models.ForeignKey(
+        Intake,
+        on_delete=models.CASCADE,
+        related_name="prescriptions",
+    )
+    provider = models.ForeignKey(
+        "health.MedicalProvider",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="prescriptions",
+    )
+    pharmacy = models.ForeignKey(
+        "health.Pharmacy",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="prescriptions",
+    )
+    rx_number = models.CharField(max_length=60, blank=True, default="")
+    written_date = models.DateField(null=True, blank=True)
+    quantity = models.PositiveIntegerField(null=True, blank=True)
+    refills_authorized = models.PositiveIntegerField(null=True, blank=True)
+    refills_remaining = models.PositiveIntegerField(null=True, blank=True)
+    expiration_date = models.DateField(null=True, blank=True)
+    sig_text = models.TextField(
+        blank=True, default="",
+        help_text="The SIG / directions exactly as written on the prescription.",
+    )
+
+    class Meta:
+        ordering = ["-written_date", "-created_at"]
+        verbose_name = "prescription"
+        verbose_name_plural = "prescriptions"
+
+    def __str__(self):
+        return f"Rx {self.rx_number or '—'} for {self.intake.name}"
 
 
 # =============================================================================

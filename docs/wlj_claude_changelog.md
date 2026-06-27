@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Sprint 2B — structured treatment metadata (Pharmacy, Prescription, provider/pharmacy bridge)
+
+Adds the structured treatment metadata identified in planning, reusing existing models and preserving single ownership. Additive only.
+
+**New models:** `Pharmacy` (`UserOwnedModel` — dedicated lightweight model per Phase 2 O-8; name/phone/address/rx_account; NOT overloaded onto MedicalProvider) and `Prescription` (`UserOwnedModel` — the Rx record distinct from the regimen: `intake` FK, `provider` FK→MedicalProvider, `pharmacy` FK→Pharmacy, rx_number, written_date, quantity, refills_authorized/remaining, expiration_date, sig_text). The dosing schedule stays on `IntakeSchedule` — never duplicated on Prescription.
+
+**Intake bridges (additive, nullable):** `provider` FK→`MedicalProvider` (reuses the existing provider model — no duplicate ownership), `pharmacy_ref` FK→`Pharmacy` (distinct name to avoid collision with the existing free-text `pharmacy`, which is retained as a fallback), `monitoring_requirements` TextField. Free-text `prescribing_doctor`/`pharmacy`/`rx_number` kept as fallbacks — migrated opportunistically, never destructively.
+
+**Admin:** `MedicationEvent` registered **read-only** (append-only ledger — add/change/delete disabled in admin); `Pharmacy` and `Prescription` registered with basic admin.
+
+**Files:** apps/health/models.py (Pharmacy, Prescription, 3 Intake fields), apps/health/admin.py, apps/health/migrations/0093_pharmacy_intake_monitoring_requirements_and_more.py, apps/health/tests/test_medication_events.py (+4 metadata tests).
+
+**Verification:** 13 medication-foundation tests green; `manage.py check` clean; migration applies cleanly; `makemigrations --check` = no drift. No user-visible/Beth change yet (state wiring is Sprint 2C).
+
+
 ## 2026-06-27 — feat(health): Sprint 2A — MedicationEvent append-only ledger (treatment history foundation)
 
 Establishes the permanent historical memory of the Medication Intelligence domain (Canon §3/§6.1). `Intake` remains the canonical CURRENT-STATE projection; `MedicationEvent` becomes the canonical HISTORY. Additive only — no existing behavior changed.

@@ -31,10 +31,13 @@ from .models import (
     Intake,
     IntakeLog,
     IntakeSchedule,
+    MedicationEvent,
     NutritionEntryAudit,
     NutritionGoals,
     NutritionLabelEvidence,
     PersonalRecord,
+    Pharmacy,
+    Prescription,
     ProviderStaff,
     TemplateExercise,
     WeightEntry,
@@ -1090,3 +1093,38 @@ class DailyHealthSummaryAdmin(admin.ModelAdmin):
             "classes": ("collapse",),
         }),
     ]
+
+
+@admin.register(MedicationEvent)
+class MedicationEventAdmin(admin.ModelAdmin):
+    """Append-only treatment-history ledger — READ-ONLY in admin.
+
+    MedicationEvent is immutable (corrections are compensating events). Admin
+    must not create or edit events, so all changes are disabled here.
+    """
+    list_display = ("intake", "event_type", "effective_date", "reason", "source", "created_at")
+    list_filter = ("event_type", "reason", "source")
+    search_fields = ("intake__name", "reason_detail")
+    date_hierarchy = "effective_date"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Pharmacy)
+class PharmacyAdmin(admin.ModelAdmin):
+    list_display = ("name", "user", "phone")
+    search_fields = ("name", "user__email")
+
+
+@admin.register(Prescription)
+class PrescriptionAdmin(admin.ModelAdmin):
+    list_display = ("intake", "rx_number", "provider", "pharmacy", "refills_remaining", "expiration_date")
+    list_filter = ("provider", "pharmacy")
+    search_fields = ("intake__name", "rx_number")

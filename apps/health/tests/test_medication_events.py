@@ -17,7 +17,13 @@ from apps.health.medication_events import (
     get_medication_timeline,
     record_medication_change,
 )
-from apps.health.models import Intake, MedicationEvent
+from apps.health.models import (
+    Intake,
+    MedicalProvider,
+    MedicationEvent,
+    Pharmacy,
+    Prescription,
+)
 
 from apps.health.tests.test_medicine_adherence import AdherenceTestMixin
 
@@ -108,3 +114,52 @@ class MedicationEventLedgerTest(AdherenceTestMixin, TestCase):
             med.pause("x")  # must not raise
         med.refresh_from_db()
         self.assertEqual(med.intake_status, Intake.STATUS_PAUSED)
+
+
+class MedicationMetadataTest(AdherenceTestMixin, TestCase):
+    """Sprint 2B — structured treatment metadata (provider/pharmacy/prescription)."""
+
+    def setUp(self):
+        self.user = self.create_user(email="medmeta@test.com")
+
+    def test_intake_provider_reuses_medical_provider(self):
+        """Provider linkage reuses the existing MedicalProvider model (no new model)."""
+        provider = MedicalProvider.objects.create(
+            user=self.user, name="Dr. Endo", specialty="endocrinology",
+        )
+        med = self.create_medicine(self.user, provider=provider)
+        med.refresh_from_db()
+        self.assertEqual(med.provider, provider)
+        self.assertIn(med, provider.intakes.all())
+
+    def test_pharmacy_is_dedicated_model(self):
+        """Pharmacy is its own dedicated model (Phase 2 O-8), not a MedicalProvider."""
+        pharm = Pharmacy.objects.create(
+            user=self.user, name="Corner Pharmacy", phone="555-1234",
+        )
+        med = self.create_medicine(self.user, pharmacy_ref=pharm)
+        med.refresh_from_db()
+        self.assertEqual(med.pharmacy_ref, pharm)
+        # Free-text fallback field still exists and is independent.
+        self.assertTrue(hasattr(med, "pharmacy"))
+
+    def test_prescription_links_intake_provider_pharmacy(self):
+        provider = MedicalProvider.objects.create(user=self.user, name="Dr. Rx")
+        pharm = Pharmacy.objects.create(user=self.user, name="Rx Mart")
+        med = self.create_medicine(self.user)
+        rx = Prescription.objects.create(
+            user=self.user, intake=med, provider=provider, pharmacy=pharm,
+            rx_number="ABC123", refills_authorized=3, refills_remaining=2,
+            sig_text="Take 1 tablet by mouth daily",
+        )
+        self.assertIn(rx, med.prescriptions.all())
+        self.assertEqual(rx.provider, provider)
+        self.assertEqual(rx.pharmacy, pharm)
+        self.assertEqual(rx.refills_remaining, 2)
+
+    def test_monitoring_requirements_field(self):
+        med = self.create_medicine(
+            self.user, monitoring_requirements="A1c every 3 months",
+        )
+        med.refresh_from_db()
+        self.assertEqual(med.monitoring_requirements, "A1c every 3 months")

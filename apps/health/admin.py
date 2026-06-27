@@ -27,6 +27,7 @@ from .models import (
     InsightResult,
     MealTemplate,
     MealTemplateItem,
+    MedicalCondition,
     MedicalProvider,
     Intake,
     IntakeLog,
@@ -39,6 +40,8 @@ from .models import (
     Pharmacy,
     MedicationScanDraft,
     Prescription,
+    TreatmentGoal,
+    TreatmentPlan,
     ProviderStaff,
     TemplateExercise,
     WeightEntry,
@@ -1145,3 +1148,24 @@ class MedicationScanDraftAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+class TreatmentGoalInline(admin.TabularInline):
+    model = TreatmentGoal
+    extra = 0
+
+
+@admin.register(MedicalCondition)
+class MedicalConditionAdmin(admin.ModelAdmin):
+    list_display = ("name", "user", "condition_status", "diagnosed_date")
+    list_filter = ("condition_status",)
+    search_fields = ("name", "user__email")
+
+
+@admin.register(TreatmentPlan)
+class TreatmentPlanAdmin(admin.ModelAdmin):
+    list_display = ("name", "user", "condition", "plan_status", "started_date")
+    list_filter = ("plan_status",)
+    search_fields = ("name", "user__email")
+    filter_horizontal = ("intakes",)
+    inlines = [TreatmentGoalInline]

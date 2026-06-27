@@ -4025,6 +4025,17 @@ def build_medicine_state(user):
     except Exception:
         logger.debug("Medicine observations build failed", exc_info=True)
 
+    # ── Treatment Intelligence (Sprint 10E) ──────────────────────
+    # COMPOSED treatment-plan state — Treatment Intelligence composes OVER medicine
+    # state (it reads the same cached bundle + the ledger; it never recomputes
+    # adherence/history). Beth consumes composed treatment state, never raw models.
+    _treatment_plans = {"active_plans": [], "plan_count": 0, "has_plans": False}
+    try:
+        from apps.health.treatment_intelligence import build_treatment_state
+        _treatment_plans = build_treatment_state(user)
+    except Exception:
+        logger.debug("Treatment state build failed", exc_info=True)
+
     # ── Acquisition confidence (Sprint 3I) ───────────────────────
     # COMPOSED acquisition state so Beth understands how trustworthy each record
     # is and whether anything awaits review — Beth NEVER reads raw OCR/extraction.
@@ -4090,6 +4101,8 @@ def build_medicine_state(user):
         # Sprint 7 — Beth's narration surface (consume these, not the layers above).
         'narrations': _narrations,
         'narration_groups': _narration_groups,
+        # Sprint 10 — Treatment Intelligence composed over medicine state.
+        'treatment_plans': _treatment_plans,
         'acquisition': {
             'pending_review_count': _acq_pending,
             'medications': _acq_meds,

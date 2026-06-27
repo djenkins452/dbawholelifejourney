@@ -7,6 +7,25 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Sprint 10 — Treatment Intelligence foundation (composition over Medication Intelligence)
+
+Begins the higher-order capability: "How is this treatment plan progressing toward its goals?" Treatment Intelligence composes OVER Medication Intelligence and the other domains — it groups and reads canonical truth; it never owns or recomputes medication state/history/adherence, never duplicates provider/pharmacy/condition models, and makes no clinical claims.
+
+**10A audit:** `MedicalCondition`/`TreatmentPlan`/`TreatmentGoal` confirmed ABSENT (Phase 2 / Sprint 2B deferral); all domain-truth owners (Intake/MedicationEvent/Prescription/Pharmacy/MedicalProvider, Glucose/Weight/BP, LabResult, LifeGoal) exist and are REUSED.
+
+**10B/10C models** (`apps/health/models.py`, migration 0095): `MedicalCondition` (minimal problem-list), `TreatmentPlan` (domain-agnostic — `intakes` M2M today, future-proof for non-medication therapies; condition/provider FKs, status, goal narrative), `TreatmentGoal` (names a metric to WATCH + direction/target — not a prescription; `user` derived from its plan). Admin registered.
+
+**10D/10E state builder** (`apps/health/treatment_intelligence.py`): `build_treatment_state(user)` composes active plans → related meds/supplements, goals, **tracked outcomes read live from canonical domains** (A1C/glucose/weight/BP), recent changes (READ from the MedicationEvent ledger filtered to the plan's intakes — no recompute), approved medication observations (from the Sprint-9 cached bundle), and a deterministic summary. Surfaced to Beth at `build_medicine_state._contract.treatment_plans` (composed state — Beth never reads raw models).
+
+**10F dashboard** (`TreatmentDashboardView`, `intake/treatment/`): read-only — active plans, linked meds/supplements, goals, "what we're watching" (live metric values), recent changes. No recommendations/predictions. Reachable from the intake dashboard.
+
+**10G safety:** inherits the medication safety rules — tests assert no diagnosis/recommendation/causal/"is working" language, no duplicate med models, composition-not-replacement. **10H telemetry:** `wlj:ops:treatment_intelligence` (active plans, plans without goals/metrics/interventions), read-only on the request path.
+
+**Files:** apps/health/models.py, apps/health/admin.py, apps/health/migrations/0095_*.py, apps/health/treatment_intelligence.py (new), apps/core/ai_state/state_builder.py, apps/health/views_acquisition.py, apps/health/urls.py, templates/health/intake/{treatment_dashboard.html (new), home.html}, apps/health/tests/test_treatment_intelligence.py (new, 10 tests).
+
+**Verification:** 50 tests green — models/linking, state composition (meds/goals/live-outcomes/ledger-changes), no adherence recompute, Beth state, safety guardrails, telemetry, dashboard render + empty states; `manage.py check` clean; migration applies; no drift.
+
+
 ## 2026-06-27 — docs(cos): P36.2 Evidence-First Personal Understanding — DESIGN ONLY (no code)
 
 Updated `docs/BETH_PERSONAL_UNDERSTANDING_ONTOLOGY.md` to v2 with the Evidence-First mandate + an explicit PATTERN stage. Defining principle: Beth becomes wiser by transforming evidence → pattern → understanding → judgment, NOT by an LLM thinking harder. Deterministic detectors ORIGINATE understanding and establish confidence; the LLM may only summarize/explain/narrate later, never originate. Confirms: BehaviorDirective is a DERIVED consumer (re-parent its origin, keep the P36 consumer wiring); no third fact store (PersonalFact/ExtractedFact are the Observation layer). Defines the five concepts crisply (Observation / Pattern / Understanding / Behavior Adaptation / Executive Interpretation); a Pattern is the deterministic detector output captured as structured evidence on the Understanding (no new store). Covers months/years evolution, confidence evolution, contradiction-driven weakening (Danny's corrections outweigh inference; nothing silently overwritten), downstream consumption, and a smallest-safe Phase 2 that proves observation→pattern→understanding→many-adaptations on ONE deterministic detector (the weekend-recovery example). No code. Awaiting "go" before Phase 2.

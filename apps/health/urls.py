@@ -205,6 +205,8 @@ urlpatterns = [
     path("physical/intake/noticed/", views_acquisition.MedicationNoticedView.as_view(), name="medication_noticed"),
     # Physician Mode (Sprint 8) — patient-owned, print-friendly summary
     path("physical/intake/physician/", views_acquisition.PhysicianModeView.as_view(), name="medication_physician"),
+    # Treatment Intelligence dashboard (Sprint 10F) — composition over medication
+    path("physical/intake/treatment/", views_acquisition.TreatmentDashboardView.as_view(), name="treatment_dashboard"),
     path("physical/intake/<int:pk>/", views.IntakeDetailView.as_view(), name="intake_detail"),
     path("physical/intake/<int:pk>/edit/", views.IntakeUpdateView.as_view(), name="intake_update"),
     path("physical/intake/<int:pk>/delete/", views.IntakeDeleteView.as_view(), name="intake_delete"),

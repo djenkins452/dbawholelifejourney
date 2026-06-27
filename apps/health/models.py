@@ -3402,6 +3402,167 @@ class MedicationScanDraft(UserOwnedModel):
 
 
 # =============================================================================
+# Treatment Intelligence (Sprint 10) — composition layer over Medication
+# Intelligence. These models GROUP existing canonical truth (Intakes, providers,
+# domain metrics); they NEVER duplicate medication state, history, or adherence.
+# =============================================================================
+
+
+class MedicalCondition(UserOwnedModel):
+    """A user's medical condition / health focus (Sprint 10C). Minimal problem-list
+    entry — confirmed absent in the audit (apps/medical is labs-only). Owns only
+    the condition fact; it does not own medications, labs, or any domain metric."""
+
+    STATUS_ACTIVE = "active_condition"
+    STATUS_RESOLVED = "resolved"
+    STATUS_MONITORING = "monitoring"
+    CONDITION_STATUS_CHOICES = [
+        (STATUS_ACTIVE, "Active"),
+        (STATUS_MONITORING, "Monitoring"),
+        (STATUS_RESOLVED, "Resolved"),
+    ]
+
+    name = models.CharField(max_length=200)
+    icd_code = models.CharField(max_length=20, blank=True, default="")
+    condition_status = models.CharField(
+        max_length=20, choices=CONDITION_STATUS_CHOICES, default=STATUS_ACTIVE,
+    )
+    diagnosed_date = models.DateField(null=True, blank=True)
+    provider = models.ForeignKey(
+        "health.MedicalProvider", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="conditions",
+    )
+    notes = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "medical condition"
+        verbose_name_plural = "medical conditions"
+
+    def __str__(self):
+        return self.name
+
+
+class TreatmentPlan(UserOwnedModel):
+    """A treatment plan (Sprint 10B) — the composition seam for Treatment
+    Intelligence. Domain-agnostic by design: today it groups medications/
+    supplements (``intakes`` M2M → Intake); tomorrow exercise/nutrition/sleep/
+    device therapies attach the same way without a rename or rewrite.
+
+    It GROUPS and READS canonical truth — it does not own or recompute it.
+    """
+
+    STATUS_ACTIVE = "active"
+    STATUS_PAUSED = "paused"
+    STATUS_COMPLETED = "completed"
+    PLAN_STATUS_CHOICES = [
+        (STATUS_ACTIVE, "Active"),
+        (STATUS_PAUSED, "Paused"),
+        (STATUS_COMPLETED, "Completed"),
+    ]
+
+    name = models.CharField(max_length=200)
+    condition = models.ForeignKey(
+        "health.MedicalCondition", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="treatment_plans",
+    )
+    health_focus = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Free-text focus when no structured condition is linked.",
+    )
+    goal_narrative = models.TextField(blank=True, default="")
+    primary_provider = models.ForeignKey(
+        "health.MedicalProvider", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="treatment_plans",
+    )
+    # The therapies in this plan. Medication-Intelligence intakes today; the M2M
+    # is the future-proof seam for additional therapy types (kept generic).
+    intakes = models.ManyToManyField(
+        Intake, blank=True, related_name="treatment_plans",
+    )
+    plan_status = models.CharField(
+        max_length=20, choices=PLAN_STATUS_CHOICES, default=STATUS_ACTIVE,
+    )
+    started_date = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["-started_date", "name"]
+        verbose_name = "treatment plan"
+        verbose_name_plural = "treatment plans"
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def is_active(self):
+        return self.plan_status == self.STATUS_ACTIVE
+
+
+class TreatmentGoal(UserOwnedModel):
+    """A deterministic treatment goal / tracked outcome for a plan (Sprint 10C).
+
+    A goal names a metric to WATCH and a direction — NOT a prescription, NOT a
+    target the system enforces or advises on. The "outcome" is the live metric
+    value READ from its canonical domain (LabResult / GlucoseEntry / WeightEntry /
+    BloodPressureEntry); Treatment Intelligence never stores or recomputes it.
+    """
+
+    # Metric keys map to a canonical domain owner (no new metric storage).
+    METRIC_A1C = "a1c"
+    METRIC_FASTING_GLUCOSE = "fasting_glucose"
+    METRIC_GLUCOSE_AVG = "glucose_avg"
+    METRIC_GLUCOSE_VARIABILITY = "glucose_variability"
+    METRIC_WEIGHT = "weight"
+    METRIC_BLOOD_PRESSURE = "blood_pressure"
+    METRIC_CHOICES = [
+        (METRIC_A1C, "A1C"),
+        (METRIC_FASTING_GLUCOSE, "Fasting glucose"),
+        (METRIC_GLUCOSE_AVG, "Average glucose"),
+        (METRIC_GLUCOSE_VARIABILITY, "Glucose variability"),
+        (METRIC_WEIGHT, "Weight"),
+        (METRIC_BLOOD_PRESSURE, "Blood pressure"),
+    ]
+
+    DIRECTION_LOWER = "lower"
+    DIRECTION_HIGHER = "higher"
+    DIRECTION_MAINTAIN = "maintain"
+    DIRECTION_CHOICES = [
+        (DIRECTION_LOWER, "Lower"),
+        (DIRECTION_HIGHER, "Higher"),
+        (DIRECTION_MAINTAIN, "Maintain"),
+    ]
+
+    treatment_plan = models.ForeignKey(
+        "health.TreatmentPlan", on_delete=models.CASCADE, related_name="goals",
+    )
+    name = models.CharField(max_length=200)
+    metric_key = models.CharField(
+        max_length=30, choices=METRIC_CHOICES, blank=True, default="",
+        help_text="The canonical domain metric this goal watches (optional).",
+    )
+    direction = models.CharField(
+        max_length=10, choices=DIRECTION_CHOICES, default=DIRECTION_MAINTAIN,
+    )
+    target_value = models.CharField(max_length=60, blank=True, default="")
+    notes = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "treatment goal"
+        verbose_name_plural = "treatment goals"
+
+    def save(self, *args, **kwargs):
+        # A goal is owned by its plan; derive the user FK (UserOwnedModel) from it.
+        if self.treatment_plan_id and not self.user_id:
+            self.user = self.treatment_plan.user
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.name} ({self.treatment_plan.name})"
+
+
+# =============================================================================
 # Food Tracking Models
 # =============================================================================
 

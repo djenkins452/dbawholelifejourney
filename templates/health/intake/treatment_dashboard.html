@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Treatment Plans - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:intake_home' %}">Intake</a>
+        <span>/</span>
+        <span>Treatment Plans</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Treatment Plans</h1>
+            <p class="page-subtitle">How your treatments are organized and what they're watching — deterministic, no clinical claims.</p>
+        </div>
+    </div>
+
+    {% if treatment.has_plans %}
+    {% for plan in treatment.active_plans %}
+    <div class="tx-plan">
+        <div class="tx-plan-head">
+            <h2 class="tx-plan-name">{{ plan.name }}</h2>
+            {% if plan.condition %}<span class="tx-condition">{{ plan.condition }}</span>{% endif %}
+        </div>
+        {% if plan.goal_narrative %}<p class="tx-goal-narrative">{{ plan.goal_narrative }}</p>{% endif %}
+
+        <div class="tx-grid">
+            <div class="tx-col">
+                <h3 class="tx-h">Medications</h3>
+                {% if plan.medications %}<ul>{% for m in plan.medications %}<li>{{ m }}</li>{% endfor %}</ul>
+                {% else %}<p class="tx-none">None linked.</p>{% endif %}
+                {% if plan.supplements %}
+                <h3 class="tx-h">Supplements</h3>
+                <ul>{% for s in plan.supplements %}<li>{{ s }}</li>{% endfor %}</ul>
+                {% endif %}
+            </div>
+            <div class="tx-col">
+                <h3 class="tx-h">Goals</h3>
+                {% if plan.goals %}<ul>{% for g in plan.goals %}<li>{{ g.name }}{% if g.metric %} <span class="tx-metric">({{ g.metric }})</span>{% endif %}</li>{% endfor %}</ul>
+                {% else %}<p class="tx-none">No goals set.</p>{% endif %}
+            </div>
+        </div>
+
+        {% if plan.watching %}
+        <div class="tx-watching">
+            <h3 class="tx-h">What we're watching</h3>
+            <div class="tx-metrics">
+                {% for w in plan.watching %}
+                <div class="tx-metric-card"><span class="tx-metric-name">{{ w.metric }}</span><span class="tx-metric-val">{{ w.current_value }}</span></div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if plan.recent_changes %}
+        <div class="tx-changes">
+            <h3 class="tx-h">Recent changes</h3>
+            <ul class="tx-list">
+                {% for c in plan.recent_changes %}
+                <li><span class="tx-date">{{ c.date }}</span> {{ c.medicine }} — {{ c.change }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty-state">
+        <p>No treatment plans yet.</p>
+        <p class="empty-note">A treatment plan groups the medications, supplements, and goals for a condition or health focus — so you can see how a whole treatment is progressing, not just one pill.</p>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.tx-plan { border: 1px solid rgba(148,163,184,0.25); border-radius: 10px; padding: 1.1rem 1.25rem; margin-bottom: 1.5rem; max-width: 760px; }
+.tx-plan-head { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+.tx-plan-name { font-size: 1.15rem; margin: 0; }
+.tx-condition { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; padding: 0.12rem 0.5rem; border-radius: 999px; background: rgba(37,99,235,0.1); color: #2563eb; font-weight: 600; }
+.tx-goal-narrative { color: #475569; font-size: 0.92rem; margin: 0.4rem 0 0.8rem; }
+.tx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+.tx-h { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; color: #64748b; margin: 0.6rem 0 0.3rem; }
+.tx-col ul, .tx-list { margin: 0; padding-left: 1.1rem; font-size: 0.92rem; }
+.tx-none { color: #94a3b8; font-size: 0.9rem; }
+.tx-metric { color: #94a3b8; }
+.tx-watching { margin-top: 0.6rem; }
+.tx-metrics { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.tx-metric-card { border: 1px solid rgba(148,163,184,0.3); border-radius: 8px; padding: 0.5rem 0.8rem; min-width: 120px; }
+.tx-metric-name { display: block; font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; }
+.tx-metric-val { font-weight: 700; }
+.tx-date { color: #64748b; font-variant-numeric: tabular-nums; margin-right: 0.3rem; }
+.empty-state { text-align: center; padding: 2rem 1rem; color: #475569; }
+.empty-note { color: #94a3b8; font-size: 0.9rem; max-width: 520px; margin: 0.4rem auto 0; }
+@media (max-width: 480px) { .tx-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}

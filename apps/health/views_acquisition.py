@@ -164,6 +164,21 @@ class MedicationTimelineView(LoginRequiredMixin, View):
         })
 
 
+class TreatmentDashboardView(LoginRequiredMixin, View):
+    """Sprint 10F — read-only Treatment Intelligence dashboard. Shows active
+    treatment plans, their linked medications/supplements, goals, tracked outcomes,
+    recent changes, and "what we're watching" — composed deterministic state only.
+    No recommendations, no predictions."""
+
+    template_name = "health/intake/treatment_dashboard.html"
+
+    def get(self, request):
+        from apps.health.treatment_intelligence import build_treatment_state
+        return render(request, self.template_name, {
+            "treatment": build_treatment_state(request.user),
+        })
+
+
 class PhysicianModeView(LoginRequiredMixin, View):
     """Sprint 8 — Physician Mode. A clean, print-friendly, patient-owned summary
     assembled entirely from deterministic canonical layers. No diagnosis, no

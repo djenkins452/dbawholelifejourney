@@ -123,10 +123,13 @@ class GeneralLaneTests(TestCase):
             out = general_answer(self.user, "What is Delphi?")
         self.assertEqual(out["lane"], "general_conversation")
         self.assertTrue(out["answer"].strip())
-        # graceful degradation: acknowledges the outage AND offers personal help
         low = out["answer"].lower()
-        self.assertIn("trying again", low)
-        self.assertTrue(any(w in low for w in ("goals", "health", "schedule")))
+        # graceful degradation: acknowledges the outage + invites retry
+        self.assertIn("temporarily unavailable", low)
+        self.assertIn("try again", low)
+        # NO personal-domain leakage on an external-knowledge question
+        for leak in ("your goal", "your health", "your schedule", "your faith"):
+            self.assertNotIn(leak, low)
 
     def test_general_declines_personal_questions(self):
         for q in ("what is my weight", "what are my goals",

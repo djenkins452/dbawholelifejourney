@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(cos): general-knowledge OUTAGE fallback defect class (Smoke RED → GREEN)
+
+Production Smoke RED (5/6, 0 infra, 1 content, trustworthy) on "Who was Abraham Lincoln?": `forbidden_concept: your goal` + `missing_required_any`. Telemetry (lane=general_conversation, openai=False, fallback=True) proved routing/lane/degradation all succeeded — the defect was in the outage fallback CONTENT and the evaluator's EXPECTATIONS. Two root causes, both fixed:
+
+**1. Fallback leaked personal domains.** The general outage message offered "your goals, health, schedule, or faith" → tripped the general spec's `forbidden=["your goal", …]`. Pivoting an EXTERNAL-knowledge question to personal domains is architecturally wrong. New message: "I normally answer general questions like that directly, but my external knowledge service is temporarily unavailable right now. Please try again in a minute." — no personal-domain references (`apps/ai/chatgpt_cos/lanes.py`).
+
+**2. Evaluator applied content gates during an outage.** The earlier reword ("trying again") no longer matched FAILURE_MARKERS, so the evaluator treated the outage message as a real answer and demanded president/Lincoln/1865/Civil War — un-satisfiable when OpenAI is down.
+
+**Architecture decision (made permanent):** general knowledge is the ONE domain that depends on the external LLM (WLJ has no offline KB by design). When OpenAI is down, graceful degradation IS the correct behavior, so a CLEAN general-knowledge outage response PASSES the content gate (required tokens skipped) — but it is still held to quality: banned phrases and personal-domain `forbidden` concepts still fail it, and it must stay on the general lane. Goals/Health stay STRICT — they own deterministic truth, so an outage message there remains an `openai_failure_message` infrastructure failure. This is Option A, narrowly gated: not falsely-RED on an external outage WLJ handled correctly, and not falsely-GREEN on content (the full content gate applies whenever OpenAI is up). Chosen over Option C (classify as infra degradation) because WLJ's own infrastructure is healthy — the outage is external and was handled correctly, so implicating WLJ infra would be wrong. (`acceptance_rules.evaluate` general-outage branch + `temporarily unavailable` added to FAILURE_MARKERS.)
+
+**Files:** apps/ai/chatgpt_cos/lanes.py, apps/ai/chatgpt_cos/acceptance_rules.py. Tests: apps/ai/tests/test_general_knowledge_outage.py (new), test_conversation_lanes.py + test_acceptance_rules.py (updated to new contract).
+
+**Verification:** new test_general_knowledge_outage.py — no personal-domain leakage across Lincoln/photosynthesis/Delphi; clean outage PASSES for all general questions; required tokens not demanded during outage; leaky/banned outage still FAILS; real answer (OpenAI up) fully gated; goals/health outage stays a strict infra failure. 301-test regression green; `check` clean; no migration. No routing/orchestration/foundational/goal/health/grading change.
+
+
 ## 2026-06-27 — feat(admin): Acceptance Center review prompts now self-sufficient (no human augmentation)
 
 The generated ChatGPT Review + Claude Fix prompts previously needed manual augmentation to yield architecture-quality reviews. Added a rigid OUTPUT CONTRACT with controlled vocabularies so a reviewer is structurally forced into expert architectural reasoning. PROMPT GENERATION ONLY — no Beth behavior, grading, or routing change.

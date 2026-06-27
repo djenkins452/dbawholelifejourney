@@ -48,7 +48,7 @@ for _p in DEFLECTION_BANNED:
 FAILURE_MARKERS = (
     "couldn't reach", "could not reach", "came back empty", "try again",
     "couldn't compose", "something went wrong", "i wasn't able to",
-    "reached openai", "response came back empty",
+    "reached openai", "response came back empty", "temporarily unavailable",
 )
 
 _MOMENTUM = ("momentum", "trending", "thriving", "steady", "stalled", "drifting",
@@ -371,6 +371,23 @@ def evaluate(spec, text, intent=None, lane=None):
     t = (text or "").strip()
     if not t:
         return ["empty"]
+    # GENERAL-KNOWLEDGE OUTAGE (architecture decision): general knowledge is the one
+    # domain that depends on the EXTERNAL LLM — WLJ has no offline knowledge source
+    # by design. When OpenAI is down, a graceful degradation IS the correct behavior,
+    # so a CLEAN outage response passes the content gate (required tokens are
+    # un-satisfiable during an outage). It is still held to quality: it must not leak
+    # personal-domain concepts (forbidden) or any banned phrase, and must stay on the
+    # general lane. Goals/Health stay strict — they own deterministic truth, so an
+    # outage message THERE is still an infrastructure failure (handled below).
+    if spec.get("domain") == "general" and is_failure_message(t):
+        if not _domain_ok(spec, intent, lane):
+            fails.append(f"wrong_domain(intent={intent},lane={lane})")
+        for b in banned_hits(t, spec.get("banned", [])):
+            fails.append(f"banned_phrase:{b}")
+        for f in spec.get("forbidden", []):
+            if f.lower() in t.lower():
+                fails.append(f"forbidden_concept:{f}")
+        return fails
     if is_failure_message(t):
         fails.append("openai_failure_message")
     if not _domain_ok(spec, intent, lane):

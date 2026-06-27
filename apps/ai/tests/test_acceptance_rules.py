@@ -49,9 +49,20 @@ class EvaluatorLogicTests(SimpleTestCase):
         self.assertEqual(ar.evaluate({"domain": "goals"}, ""), ["empty"])
 
     def test_failure_message_fails(self):
-        f = ar.evaluate({"domain": "general"},
+        # In a domain WLJ owns (goals/health), an outage message is an infrastructure
+        # failure — the deterministic fallback must have produced an answer.
+        f = ar.evaluate({"domain": "goals"},
                         "I reached OpenAI, but the response came back empty after retries.")
         self.assertIn("openai_failure_message", f)
+
+    def test_general_knowledge_outage_is_graceful_not_a_failure(self):
+        # General knowledge depends on the external LLM (no offline KB by design), so
+        # a CLEAN graceful outage degrades correctly and must NOT be flagged as a
+        # failure or demand un-satisfiable content tokens.
+        f = ar.evaluate({"domain": "general", "required_any": ["lincoln", "1865"],
+                         "forbidden": ["your goal"]},
+                        "That service is temporarily unavailable — please try again.")
+        self.assertEqual(f, [])
 
     def test_banned_phrase_fails(self):
         f = ar.evaluate({"domain": "goals", "expect_intent": "goals_focus_today"},

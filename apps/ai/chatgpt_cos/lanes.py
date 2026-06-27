@@ -488,16 +488,15 @@ def general_answer(user, message):
     answer = (answer or "").strip()
     fallback_used = not answer
     if not answer:
-        # OpenAI is unavailable. General knowledge needs the model, so we can't
-        # answer the question offline — but we degrade GRACEFULLY: acknowledge the
-        # outage honestly and offer the personal help we CAN still give from
-        # already-known data (never a blank box, never a fake answer).
+        # OpenAI is unavailable. General knowledge needs the model and WLJ has no
+        # offline knowledge source by design, so we degrade GRACEFULLY: acknowledge
+        # the outage honestly and invite a retry. Do NOT pivot to personal domains
+        # (goals/health/schedule/faith) — that is inappropriate for an EXTERNAL
+        # knowledge question and leaks personal-domain concepts into a general answer.
         answer = (
-            "I usually answer general questions like that directly, but I can't "
-            "reach my knowledge service at the moment — it may be briefly busy, so "
-            "it's worth trying again in a minute. In the meantime I can still help "
-            "with anything about your goals, health, schedule, or faith from what "
-            "I already know.")
+            "I normally answer general questions like that directly, but my external "
+            "knowledge service is temporarily unavailable right now. Please try again "
+            "in a minute.")
     logger.info(
         "BETH_GENERAL_CALL user=%s breaker_before=%s call_outcome=%s "
         "fallback_used=%s qlen=%d",

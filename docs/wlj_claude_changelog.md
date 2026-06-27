@@ -7,6 +7,25 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Sprint 6 — deterministic observation prioritization & grouping
+
+Decides WHICH approved observations matter most to this user, and in WHAT order, so Beth never has to. Fully deterministic and explainable — no LLM ranking, no AI heuristics, no recommendations. Does not change observation generation or safety classification (Sprint 5 owns those); identical input always yields identical ordering.
+
+**6A — Prioritization model** (`apps/health/observations/prioritization.py`): each approved observation gains `priority_score`, `priority_explanation`, `contributing_factors`, `urgency`, `relevance`, `expires_in_days`, `group_key`. Priority is fully explainable (every adjustment recorded as a factor).
+
+**6B — Personal context** (`build_context`): canonical sources only — 30-day adherence (via `medicine_utils`) + active health-goal keywords (LifeGoal). No raw re-query where a canonical surface exists.
+
+**6C — Ranking rules:** deterministic base-priority per type (risks > recent changes > opportunities > stable history: adherence_declining 90 > recently_changed 80 > improving 50 > stable 30 > long-term 25) + adjustments for confidence, evidence quality, physician-discussion urgency, and goal relevance. Stable tiebreak (score desc → type → domains) guarantees identical ordering.
+
+**6D — Grouping:** deterministic clustering by `group_key` (adherence / treatment_changes / treatment_response / logistics / stability) — e.g., weight + glucose collapse into one "Treatment response" cluster — preserving each observation and its evidence underneath; the cluster takes its strongest member's priority + physician flag. No LLM grouping.
+
+**6E — Beth input:** `build_medicine_state._contract` now exposes `prioritized_observations` (ranked) and `observation_groups` (clustered) alongside the flat `observations`. Beth performs NO ranking — she receives the ordered, grouped, explained list.
+
+**Files:** apps/health/observations/{prioritization.py (new), __init__.py}, apps/core/ai_state/state_builder.py, apps/health/tests/test_observation_prioritization.py (new, 10 tests).
+
+**Verification:** 34 tests green — ranking deterministic + stable (any input order → identical output), risk>opportunity, recent>stable, low-confidence can't outrank stronger, evidence + goals influence score, grouping deterministic, suppression still applies before ranking, state exposes ranked+grouped; `manage.py check` clean; no migration.
+
+
 ## 2026-06-27 — feat(health): Sprint 5 — deterministic Observation Engine & Safety Classifier
 
 Begins the transition from history to understanding. A deterministic, evidence-first observation layer sits between the timeline and Beth: Beth never invents observations — she only narrates safety-approved ones. No diagnosis, no advice, no recommendations, no causation, no prediction (per guardrails).

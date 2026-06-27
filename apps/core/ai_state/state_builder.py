@@ -4000,14 +4000,22 @@ def build_medicine_state(user):
     except Exception:
         logger.debug("Medicine treatment-history build failed", exc_info=True)
 
-    # ── Deterministic observations (Sprint 5F) ───────────────────
+    # ── Deterministic observations + prioritization (Sprint 5F / 6E) ──
     # Beth receives ONLY safety-approved deterministic observations — never raw
-    # timeline data, never her own inferences. Each is evidence-backed, association-
-    # only (no causation), with a physician_discussion flag set deterministically.
+    # timeline data, never her own inferences. Sprint 6 ranks + groups them
+    # deterministically so Beth speaks about the right things in the right order;
+    # she performs NO ranking. Each carries evidence, safety class, priority, and
+    # a deterministic explanation.
     _observations = []
+    _prioritized_observations = []
+    _observation_groups = []
     try:
-        from apps.health.observations import build_observation_dicts
-        _observations = build_observation_dicts(user)
+        from apps.health.observations import build_observations, build_prioritized
+        _approved = build_observations(user)
+        _observations = [o.to_dict() for o in _approved]
+        _prioritized_observations, _observation_groups = build_prioritized(
+            user, observations=_approved,
+        )
     except Exception:
         logger.debug("Medicine observations build failed", exc_info=True)
 
@@ -4071,6 +4079,8 @@ def build_medicine_state(user):
             'history': _treatment_history,
         },
         'observations': _observations,
+        'prioritized_observations': _prioritized_observations,
+        'observation_groups': _observation_groups,
         'acquisition': {
             'pending_review_count': _acq_pending,
             'medications': _acq_meds,

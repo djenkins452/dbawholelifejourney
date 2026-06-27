@@ -13,37 +13,24 @@
     <div class="page-header">
         <div>
             <h1 class="page-title">Acquire Medication or Supplement</h1>
-            <p class="page-subtitle">Choose how you'd like to add it. Snapping a photo is usually fastest — you'll review everything before it's saved.</p>
+            <p class="page-subtitle">Choose how you'd like to add it. Taking a few photos is usually fastest — we'll guide you and you'll review everything before it's saved.</p>
         </div>
-    </div>
-
-    {% csrf_token %}
-
-    <div id="acqStatus" class="acq-status" hidden>
-        <span class="acq-spinner" aria-hidden="true"></span>
-        <span id="acqStatusText">Reading your photo…</span>
     </div>
 
     <div class="acq-grid">
-        {# 📷 Take Photos — first on mobile #}
-        <div class="acq-card acq-card-primary" data-acq="camera">
+        {# 📷 Take Photos — guided capture, first on mobile #}
+        <a href="{% url 'health:medication_capture' %}" class="acq-card acq-card-primary" data-acq="camera">
             <div class="acq-icon" aria-hidden="true">📷</div>
             <div class="acq-card-title">Take Photos</div>
-            <div class="acq-card-sub">Use your camera — front of bottle, pharmacy label, Supplement/Drug Facts, or a pen.</div>
-            {% if photo_ready %}
-            <input type="file" id="cameraInput" accept="image/*" capture="environment" multiple hidden>
-            {% endif %}
-        </div>
+            <div class="acq-card-sub">Guided, photo by photo — front of bottle, pharmacy label, Supplement/Drug Facts, or a pen.</div>
+        </a>
 
-        {# 🖼️ Upload Photos #}
-        <div class="acq-card acq-card-primary" data-acq="upload">
+        {# 🖼️ Upload Photos — same guided session #}
+        <a href="{% url 'health:medication_capture' %}" class="acq-card acq-card-primary" data-acq="upload">
             <div class="acq-icon" aria-hidden="true">🖼️</div>
             <div class="acq-card-title">Upload Photos</div>
-            <div class="acq-card-sub">Pick one or more existing images of the label.</div>
-            {% if photo_ready %}
-            <input type="file" id="uploadInput" accept="image/*" multiple hidden>
-            {% endif %}
-        </div>
+            <div class="acq-card-sub">Pick or drag in existing images of the label.</div>
+        </a>
 
         {# 📱 Scan Barcode — existing workflow #}
         <a href="{% url 'health:intake_create' %}" class="acq-card" data-acq="barcode">
@@ -105,9 +92,6 @@
 .acq-card-sub { color: #64748b; font-size: 0.86rem; margin-top: 0.2rem; }
 .acq-tip { color: #64748b; font-size: 0.86rem; max-width: 620px; margin-top: 0.9rem; }
 .acq-consent-note { color: #b45309; font-size: 0.86rem; max-width: 620px; }
-.acq-status { display: flex; align-items: center; gap: 0.6rem; background: rgba(37,99,235,0.08); border-radius: 8px; padding: 0.7rem 1rem; max-width: 620px; margin-bottom: 0.85rem; color: #1d4ed8; }
-.acq-spinner { width: 16px; height: 16px; border: 2px solid #bfdbfe; border-top-color: #2563eb; border-radius: 50%; animation: acqspin 0.8s linear infinite; }
-@keyframes acqspin { to { transform: rotate(360deg); } }
 .acq-manual-title { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; }
 .acquire-form { max-width: 560px; }
 .acquire-form .form-group { margin-bottom: 1rem; }
@@ -124,71 +108,6 @@
 
 <script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function () {
-    var statusBox = document.getElementById('acqStatus');
-    var statusText = document.getElementById('acqStatusText');
-    var analyzeUrl = "{% url 'scan:analyze' %}";
-    var consentUrl = "{% url 'scan:consent' %}";
-
-    function csrf() {
-        var el = document.querySelector('input[name="csrfmiddlewaretoken"]');
-        return el ? el.value : '';
-    }
-
-    function showStatus(msg) { statusText.textContent = msg; statusBox.hidden = false; }
-    function hideStatus() { statusBox.hidden = true; }
-
-    function analyzeImage(dataUrl) {
-        showStatus('Reading your photo…');
-        fetch(analyzeUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
-            body: JSON.stringify({ image: dataUrl })
-        }).then(function (resp) {
-            if (resp.status === 403) { window.location.href = consentUrl; return null; }
-            return resp.json();
-        }).then(function (data) {
-            if (!data) return;
-            // Find the acquisition review action returned by the pipeline (Sprint 3.5).
-            var url = null;
-            (data.next_best_actions || []).forEach(function (group) {
-                (group.actions || []).forEach(function (a) {
-                    if (a.id === 'review_intake' && a.url) url = a.url;
-                });
-            });
-            if (url) { window.location.href = url; }
-            else {
-                hideStatus();
-                showStatus("We couldn't read a medication from that photo. Try a clearer shot of the label, or enter it manually.");
-            }
-        }).catch(function () {
-            hideStatus();
-            showStatus('Something went wrong. Please try again.');
-        });
-    }
-
-    function handleFiles(files) {
-        if (!files || !files.length) return;
-        // The pipeline takes the primary (first) image to create the draft and
-        // will request additional photos later based on confidence.
-        var reader = new FileReader();
-        reader.onload = function (e) { analyzeImage(e.target.result); };
-        reader.readAsDataURL(files[0]);
-    }
-
-    var cameraCard = document.querySelector('[data-acq="camera"]');
-    var uploadCard = document.querySelector('[data-acq="upload"]');
-    var cameraInput = document.getElementById('cameraInput');
-    var uploadInput = document.getElementById('uploadInput');
-
-    if (cameraCard) cameraCard.addEventListener('click', function () {
-        if (cameraInput) cameraInput.click(); else window.location.href = consentUrl;
-    });
-    if (uploadCard) uploadCard.addEventListener('click', function () {
-        if (uploadInput) uploadInput.click(); else window.location.href = consentUrl;
-    });
-    if (cameraInput) cameraInput.addEventListener('change', function (e) { handleFiles(e.target.files); });
-    if (uploadInput) uploadInput.addEventListener('change', function (e) { handleFiles(e.target.files); });
-
     var manualToggle = document.getElementById('manualToggle');
     var manualForm = document.getElementById('manualForm');
     if (manualToggle && manualForm) {

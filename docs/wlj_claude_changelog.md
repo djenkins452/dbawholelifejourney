@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Guided Capture Sessions (Medication Acquisition V1 completion)
+
+Fulfills the original acquisition vision — "grab a bottle, take a couple of photos, let WLJ do the rest" — without redesigning the pipeline. Capture becomes a guided, multi-image SESSION whose photos merge into one combined extraction → the EXISTING pipeline (MedicationScanDraft → Confidence Review → Duplicate Detection → Confirmation → MedicationEvent → Intake). Nothing canonical until confirmation.
+
+**Capture profiles** (`apps/health/capture_profiles.py`, deterministic): Prescription bottle (front → pharmacy label → optional side), Supplement (front → Supplement Facts → optional directions), OTC (front → Drug Facts → optional directions), Injection pen (front → optional lot/expiration). Each step carries an instruction + a "why". `suggested_next_photo(missing_fields)` maps a still-missing field to the photo that would supply it (drives the confidence prompt).
+
+**Session service** (`apps/health/capture_session.py`): `analyze_capture` (mid-session confidence preview — combined extraction, NO draft) and `finalize_capture` (combine all images → ONE draft via `create_draft_from_scan`). Multiple images merge field-by-field (first non-empty wins; capture order meaningful) into a richer extraction than any single image; confidence comes from the existing engine. Images are analyzed then discarded — only extracted fields kept (no raw-image retention). The Vision→canonical mapping was extracted into a single shared author, `vision_details_to_extracted` (reused by single-image scan AND capture merges — no drift).
+
+**Endpoints/views** (`views_acquisition.py`, `urls.py`): `medication_capture` (guided page), `…_capture_analyze` / `…_capture_finish` (JSON). Both POSTs gated on AI + scan consent (403 → consent page) and the existing scan rate-limiter; images bounded to 6/session.
+
+**UI** (`templates/health/acquisition/capture.html`): product-type picker → one clear instruction per step → camera (`capture="environment"`, first on mobile) / upload / desktop drag-and-drop → photo thumbnails with remove → progress checklist (✓ done / ○ required / ⏳ optional) + live confidence % and quality → confidence-driven prompt ("To improve confidence, I'd like a photo of the pharmacy label") → controls: skip, check confidence, finish & review, cancel. CSP-clean (nonce, no inline handlers), large 48px touch targets, responsive. The Add page's Take/Upload Photos now open this session.
+
+**Files:** apps/health/capture_profiles.py (new), apps/health/capture_session.py (new), apps/health/medication_acquisition.py (extract shared mapping), apps/health/views_acquisition.py, apps/health/urls.py, templates/health/acquisition/{capture.html (new), acquire.html}, apps/health/tests/{test_capture_session.py (new, 15 tests), test_medication_acquisition.py}, apps/core/fixtures/release_notes.json (user-facing What's New).
+
+**Verification:** 160 tests green (capture + acquisition + full scan suite) — four profiles, suggestion mapping, combined extraction richer than single image, confidence improves with more images, analyze makes no draft, finalize creates exactly one draft + nothing canonical, skip-optional still finalizes, unreadable photos make no draft, consent gate (403), review-URL handoff, page render + consent gating; `manage.py check` clean; no migration (no models added); CSP-clean.
+
+
 ## 2026-06-27 — feat(health): acquisition-first "Add" page (photos primary, manual collapsed)
 
 UX improvement so the Add page reflects the acquisition architecture: photos lead, manual entry is secondary. **No acquisition-architecture changes** — only how users enter the existing pipeline.

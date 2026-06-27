@@ -495,8 +495,8 @@ class AcquisitionLandingUXTest(AdherenceTestMixin, TestCase):
         self.assertContains(resp, "Upload Photos")
         self.assertContains(resp, "Scan Barcode")
         self.assertContains(resp, "Enter Manually")
-        # Routes to the existing scan + barcode pipelines (no parallel logic).
-        self.assertContains(resp, reverse("scan:analyze"))
+        # Photo methods route into the guided capture session (no parallel logic).
+        self.assertContains(resp, reverse("health:medication_capture"))
 
     def test_manual_form_present_but_collapsed(self):
         from django.urls import reverse
@@ -505,15 +505,14 @@ class AcquisitionLandingUXTest(AdherenceTestMixin, TestCase):
         self.assertContains(resp, 'hidden')             # collapsed by default
         self.assertContains(resp, 'name="name"')        # manual field still there
 
-    def test_photo_inputs_gated_on_consent(self):
+    def test_consent_note_shown_until_enabled(self):
         from django.urls import reverse
         from django.utils import timezone
         from apps.scan.models import ScanConsent
-        # No consent → no file inputs, shows consent note.
+        # No consent → shows the consent note.
         resp = self.client.get(reverse("health:medication_acquire"))
-        self.assertNotContains(resp, 'id="cameraInput"')
         self.assertContains(resp, "needs AI")
-        # With consent → camera + upload inputs render.
+        # With consent → note gone.
         prefs = self.user.preferences
         prefs.ai_enabled = True
         prefs.ai_data_consent = True
@@ -521,8 +520,7 @@ class AcquisitionLandingUXTest(AdherenceTestMixin, TestCase):
         ScanConsent.objects.create(
             user=self.user, consent_version="1.0", consented_at=timezone.now())
         resp2 = self.client.get(reverse("health:medication_acquire"))
-        self.assertContains(resp2, 'id="cameraInput"')
-        self.assertContains(resp2, 'id="uploadInput"')
+        self.assertNotContains(resp2, "needs AI")
 
     def test_manual_submission_still_routes_through_pipeline(self):
         from django.urls import reverse

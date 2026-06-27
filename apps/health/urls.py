@@ -207,6 +207,10 @@ urlpatterns = [
     path("physical/intake/physician/", views_acquisition.PhysicianModeView.as_view(), name="medication_physician"),
     # Treatment Intelligence dashboard (Sprint 10F) — composition over medication
     path("physical/intake/treatment/", views_acquisition.TreatmentDashboardView.as_view(), name="treatment_dashboard"),
+    # Guided Capture Session (Medication Acquisition V1 completion)
+    path("physical/intake/capture/", views_acquisition.CaptureSessionView.as_view(), name="medication_capture"),
+    path("physical/intake/capture/analyze/", views_acquisition.CaptureAnalyzeView.as_view(), name="medication_capture_analyze"),
+    path("physical/intake/capture/finish/", views_acquisition.CaptureFinalizeView.as_view(), name="medication_capture_finish"),
     path("physical/intake/<int:pk>/", views.IntakeDetailView.as_view(), name="intake_detail"),
     path("physical/intake/<int:pk>/edit/", views.IntakeUpdateView.as_view(), name="intake_update"),
     path("physical/intake/<int:pk>/delete/", views.IntakeDeleteView.as_view(), name="intake_delete"),

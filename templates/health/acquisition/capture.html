@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+
+{% block title %}Guided Capture - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container cap-wrap">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:intake_home' %}">Intake</a>
+        <span>/</span>
+        <a href="{% url 'health:medication_acquire' %}">Add</a>
+        <span>/</span>
+        <span>Guided Capture</span>
+    </nav>
+
+    {% if not photo_ready %}
+    <div class="page-header"><h1 class="page-title">Guided Capture</h1></div>
+    <p class="cap-consent">Taking or uploading photos needs AI &amp; scan consent.
+        <a href="{% url 'scan:consent' %}">Enable it</a> to use guided capture.</p>
+    {% else %}
+
+    {{ profiles|json_script:"profilesData" }}
+    {% csrf_token %}
+
+    {# ── Step 1: choose what you're capturing ───────────────────────── #}
+    <section id="profilePicker" {% if initial_profile %}hidden{% endif %}>
+        <div class="page-header">
+            <h1 class="page-title">What are you capturing?</h1>
+            <p class="page-subtitle">Pick one — we'll guide you photo by photo.</p>
+        </div>
+        <div class="cap-pick">
+            {% for key, prof in profiles.items %}
+            <button type="button" class="cap-pick-card" data-profile="{{ key }}">
+                <span class="cap-pick-title">{{ prof.title }}</span>
+            </button>
+            {% endfor %}
+        </div>
+    </section>
+
+    {# ── Step 2: the guided session ─────────────────────────────────── #}
+    <section id="captureSession" hidden>
+        <div class="page-header">
+            <h1 class="page-title" id="capTitle">Capture</h1>
+        </div>
+
+        <div class="cap-instruction" id="capInstruction">
+            <div class="cap-step-label" id="capStepLabel"></div>
+            <div class="cap-step-why" id="capStepWhy"></div>
+        </div>
+
+        <div id="capDropzone" class="cap-dropzone">
+            <div class="cap-actions">
+                <button type="button" id="btnCamera" class="btn btn-primary cap-big">📷 Take Photo</button>
+                <button type="button" id="btnUpload" class="btn btn-secondary cap-big">🖼️ Upload</button>
+            </div>
+            <p class="cap-drophint">Or drag &amp; drop photos here.</p>
+            <input type="file" id="cameraInput" accept="image/*" capture="environment" hidden>
+            <input type="file" id="uploadInput" accept="image/*" multiple hidden>
+        </div>
+
+        {# Captured photos #}
+        <div id="capThumbs" class="cap-thumbs"></div>
+
+        {# Progress + confidence #}
+        <div class="cap-progress">
+            <div>
+                <div class="cap-h">Progress</div>
+                <ul id="capChecklist" class="cap-checklist"></ul>
+            </div>
+            <div class="cap-confidence" id="capConfidenceBox" hidden>
+                <div class="cap-h">Confidence</div>
+                <div class="cap-conf-pct" id="capConfPct">—</div>
+                <div class="cap-quality" id="capQuality"></div>
+            </div>
+        </div>
+
+        {# Confidence-driven prompt #}
+        <div id="capPrompt" class="cap-prompt" hidden></div>
+
+        {# Session controls #}
+        <div class="cap-controls">
+            <button type="button" id="btnSkip" class="btn btn-secondary btn-sm">Skip step</button>
+            <button type="button" id="btnCheck" class="btn btn-secondary btn-sm">Check confidence</button>
+            <button type="button" id="btnFinish" class="btn btn-primary">Finish &amp; review</button>
+            <button type="button" id="btnCancel" class="btn btn-text btn-sm">Cancel</button>
+        </div>
+
+        <div id="capStatus" class="cap-statusbar" hidden>
+            <span class="cap-spinner" aria-hidden="true"></span>
+            <span id="capStatusText">Working…</span>
+        </div>
+    </section>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.cap-wrap { max-width: 640px; }
+.cap-consent { color: #b45309; }
+.cap-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.cap-pick-card { text-align: left; border: 1px solid rgba(148,163,184,0.3); border-radius: 12px; padding: 1.4rem 1.1rem; background: #fff; cursor: pointer; font-size: 1rem; font-weight: 600; }
+.cap-pick-card:hover { border-color: #2563eb; box-shadow: 0 2px 10px rgba(37,99,235,0.08); }
+.cap-instruction { background: rgba(37,99,235,0.06); border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
+.cap-step-label { font-size: 1.15rem; font-weight: 700; }
+.cap-step-why { color: #475569; font-size: 0.92rem; margin-top: 0.2rem; }
+.cap-dropzone { border: 2px dashed rgba(148,163,184,0.5); border-radius: 12px; padding: 1.3rem; text-align: center; transition: border-color .15s, background .15s; }
+.cap-dropzone.drag { border-color: #2563eb; background: rgba(37,99,235,0.05); }
+.cap-actions { display: flex; gap: 0.7rem; justify-content: center; flex-wrap: wrap; }
+.cap-big { font-size: 1.05rem; padding: 0.85rem 1.4rem; min-height: 48px; }
+.cap-drophint { color: #94a3b8; font-size: 0.85rem; margin: 0.7rem 0 0; }
+.cap-thumbs { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; }
+.cap-thumb { position: relative; width: 84px; height: 84px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(148,163,184,0.4); }
+.cap-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.cap-thumb button { position: absolute; top: 2px; right: 2px; width: 22px; height: 22px; border-radius: 50%; border: none; background: rgba(15,23,42,0.75); color: #fff; cursor: pointer; font-size: 0.8rem; line-height: 1; }
+.cap-progress { display: flex; gap: 1.5rem; margin-top: 1.3rem; flex-wrap: wrap; }
+.cap-h { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; margin-bottom: 0.3rem; }
+.cap-checklist { list-style: none; padding: 0; margin: 0; font-size: 0.95rem; }
+.cap-checklist li { padding: 0.15rem 0; }
+.cap-checklist li.done { color: #16a34a; }
+.cap-checklist li.optional { color: #94a3b8; }
+.cap-conf-pct { font-size: 1.7rem; font-weight: 800; color: #2563eb; }
+.cap-quality { color: #475569; font-size: 0.9rem; }
+.cap-prompt { margin-top: 1.1rem; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 0.85rem 1.1rem; color: #92400e; }
+.cap-controls { display: flex; gap: 0.6rem; margin-top: 1.5rem; flex-wrap: wrap; align-items: center; }
+.btn-text { background: none; border: none; color: #64748b; cursor: pointer; }
+.cap-statusbar { display: flex; align-items: center; gap: 0.6rem; margin-top: 1rem; color: #1d4ed8; }
+.cap-spinner { width: 16px; height: 16px; border: 2px solid #bfdbfe; border-top-color: #2563eb; border-radius: 50%; animation: capspin .8s linear infinite; }
+@keyframes capspin { to { transform: rotate(360deg); } }
+@media (max-width: 480px) {
+    .cap-pick { grid-template-columns: 1fr; }
+    .cap-actions { flex-direction: column; }
+    .cap-big { width: 100%; }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function () {
+    var dataEl = document.getElementById('profilesData');
+    if (!dataEl) return;  // consent gate — nothing to run
+    var PROFILES = JSON.parse(dataEl.textContent);
+    var analyzeUrl = "{% url 'health:medication_capture_analyze' %}";
+    var finishUrl = "{% url 'health:medication_capture_finish' %}";
+    var acquireUrl = "{% url 'health:medication_acquire' %}";
+
+    function csrf() {
+        var el = document.querySelector('input[name="csrfmiddlewaretoken"]');
+        return el ? el.value : '';
+    }
+
+    var state = { profile: null, steps: [], images: [], stepIndex: 0, intakeType: 'medication' };
+
+    var els = {
+        picker: document.getElementById('profilePicker'),
+        session: document.getElementById('captureSession'),
+        title: document.getElementById('capTitle'),
+        stepLabel: document.getElementById('capStepLabel'),
+        stepWhy: document.getElementById('capStepWhy'),
+        thumbs: document.getElementById('capThumbs'),
+        checklist: document.getElementById('capChecklist'),
+        confBox: document.getElementById('capConfidenceBox'),
+        confPct: document.getElementById('capConfPct'),
+        quality: document.getElementById('capQuality'),
+        prompt: document.getElementById('capPrompt'),
+        status: document.getElementById('capStatus'),
+        statusText: document.getElementById('capStatusText'),
+        dropzone: document.getElementById('capDropzone'),
+        cameraInput: document.getElementById('cameraInput'),
+        uploadInput: document.getElementById('uploadInput'),
+    };
+
+    function startProfile(key) {
+        var prof = PROFILES[key];
+        if (!prof) return;
+        state.profile = key;
+        state.steps = prof.steps;
+        state.intakeType = prof.intake_type || 'medication';
+        state.images = [];
+        state.stepIndex = 0;
+        els.title.textContent = prof.title;
+        els.picker.hidden = true;
+        els.session.hidden = false;
+        renderStep();
+        renderChecklist();
+    }
+
+    function currentStep() { return state.steps[state.stepIndex] || null; }
+
+    function renderStep() {
+        var step = currentStep();
+        if (step) {
+            els.stepLabel.textContent = step.instruction;
+            els.stepWhy.textContent = step.why;
+        } else {
+            els.stepLabel.textContent = "That's everything we suggest.";
+            els.stepWhy.textContent = "Add more photos if you like, or finish & review.";
+        }
+    }
+
+    function renderChecklist() {
+        els.checklist.innerHTML = '';
+        state.steps.forEach(function (step, i) {
+            var li = document.createElement('li');
+            var captured = state.images.some(function (im) { return im.step === step.key; });
+            var mark = captured ? '✓' : (step.required ? '○' : '⏳');
+            li.textContent = mark + ' ' + step.label + (step.required ? '' : ' (optional)');
+            if (captured) li.className = 'done';
+            else if (!step.required) li.className = 'optional';
+            els.checklist.appendChild(li);
+        });
+    }
+
+    function renderThumbs() {
+        els.thumbs.innerHTML = '';
+        state.images.forEach(function (im, idx) {
+            var d = document.createElement('div');
+            d.className = 'cap-thumb';
+            var img = document.createElement('img');
+            img.src = im.dataUrl; img.alt = 'Captured photo';
+            var rm = document.createElement('button');
+            rm.type = 'button'; rm.textContent = '×'; rm.title = 'Remove';
+            rm.setAttribute('data-remove', String(idx));
+            d.appendChild(img); d.appendChild(rm);
+            els.thumbs.appendChild(d);
+        });
+    }
+
+    function addImage(dataUrl) {
+        var step = currentStep();
+        state.images.push({ dataUrl: dataUrl, step: step ? step.key : 'extra' });
+        if (state.stepIndex < state.steps.length) state.stepIndex++;
+        renderStep(); renderChecklist(); renderThumbs();
+        els.prompt.hidden = true;
+    }
+
+    function readFiles(files) {
+        Array.prototype.slice.call(files || []).forEach(function (file) {
+            var reader = new FileReader();
+            reader.onload = function (e) { addImage(e.target.result); };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function showStatus(msg) { els.statusText.textContent = msg; els.status.hidden = false; }
+    function hideStatus() { els.status.hidden = true; }
+
+    function post(url, onOk) {
+        if (!state.images.length) { return; }
+        showStatus('Reading your photos…');
+        fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+            body: JSON.stringify({
+                images: state.images.map(function (im) { return im.dataUrl; }),
+                intake_type: state.intakeType,
+            }),
+        }).then(function (resp) {
+            if (resp.status === 403) { window.location.href = "{% url 'scan:consent' %}"; return null; }
+            return resp.json().then(function (data) { return { status: resp.status, data: data }; });
+        }).then(function (r) { if (r) onOk(r); }).catch(function () {
+            hideStatus(); showStatus('Something went wrong. Please try again.');
+        });
+    }
+
+    function checkConfidence() {
+        post(analyzeUrl, function (r) {
+            hideStatus();
+            var data = r.data || {};
+            els.confBox.hidden = false;
+            els.confPct.textContent = (data.confidence_pct != null ? data.confidence_pct + '%' : '—');
+            els.quality.textContent = 'Estimated quality: ' + (data.quality || '—');
+            if (data.prompt) { els.prompt.hidden = false; els.prompt.textContent = data.prompt; }
+        });
+    }
+
+    function finish() {
+        post(finishUrl, function (r) {
+            if (r.status === 200 && r.data.review_url) {
+                showStatus('Combining your photos…');
+                window.location.href = r.data.review_url;
+            } else {
+                hideStatus();
+                els.prompt.hidden = false;
+                els.prompt.textContent = (r.data && r.data.message)
+                    || "We couldn't read it. Try clearer photos or enter manually.";
+            }
+        });
+    }
+
+    // ── Wire up ──────────────────────────────────────────────────────
+    document.querySelectorAll('[data-profile]').forEach(function (btn) {
+        btn.addEventListener('click', function () { startProfile(btn.getAttribute('data-profile')); });
+    });
+    document.getElementById('btnCamera').addEventListener('click', function () { els.cameraInput.click(); });
+    document.getElementById('btnUpload').addEventListener('click', function () { els.uploadInput.click(); });
+    els.cameraInput.addEventListener('change', function (e) { readFiles(e.target.files); e.target.value = ''; });
+    els.uploadInput.addEventListener('change', function (e) { readFiles(e.target.files); e.target.value = ''; });
+
+    els.thumbs.addEventListener('click', function (e) {
+        var idx = e.target.getAttribute('data-remove');
+        if (idx === null) return;
+        state.images.splice(parseInt(idx, 10), 1);
+        renderChecklist(); renderThumbs();
+    });
+
+    document.getElementById('btnSkip').addEventListener('click', function () {
+        if (state.stepIndex < state.steps.length) state.stepIndex++;
+        renderStep(); renderChecklist();
+    });
+    document.getElementById('btnCheck').addEventListener('click', checkConfidence);
+    document.getElementById('btnFinish').addEventListener('click', finish);
+    document.getElementById('btnCancel').addEventListener('click', function () {
+        if (window.confirm('Cancel this capture? Nothing has been saved.')) {
+            window.location.href = acquireUrl;
+        }
+    });
+
+    // Desktop drag & drop.
+    ['dragenter', 'dragover'].forEach(function (ev) {
+        els.dropzone.addEventListener(ev, function (e) { e.preventDefault(); els.dropzone.classList.add('drag'); });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+        els.dropzone.addEventListener(ev, function (e) { e.preventDefault(); els.dropzone.classList.remove('drag'); });
+    });
+    els.dropzone.addEventListener('drop', function (e) {
+        if (e.dataTransfer && e.dataTransfer.files) readFiles(e.dataTransfer.files);
+    });
+
+    // Deep link with ?profile=… starts the session immediately.
+    var initial = "{{ initial_profile|escapejs }}";
+    if (initial && PROFILES[initial]) startProfile(initial);
+});
+</script>
+{% endblock %}

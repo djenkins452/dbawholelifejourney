@@ -8,13 +8,17 @@ confirmations through the single canonical write path. No Timeline / Treatment /
 Learning Plans UI — acquisition only.
 """
 
+import json
 import logging
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.decorators import method_decorator
 from django.views import View
+from django.views.decorators.csrf import csrf_protect
 
 from apps.health.medication_acquisition import (
     confirm_draft,
@@ -169,6 +173,109 @@ class MedicationTimelineView(LoginRequiredMixin, View):
             "entry_count": len(entries),
             "intake": intake,
             "include_cross": include_cross,
+        })
+
+
+MAX_CAPTURE_IMAGES = 6
+
+
+def _capture_consent_ok(user):
+    """Photo acquisition needs AI + scan consent (same gate as Scan/Vision)."""
+    from apps.scan.models import ScanConsent
+    prefs = getattr(user, "preferences", None)
+    ai_ok = bool(prefs and getattr(prefs, "ai_enabled", False)
+                 and getattr(prefs, "ai_data_consent", False))
+    return ai_ok and ScanConsent.objects.filter(user=user).exists()
+
+
+def _capture_gate(request):
+    """Consent + rate-limit gate for the capture POST endpoints. Returns a
+    JsonResponse to short-circuit, or None when the request may proceed."""
+    if not _capture_consent_ok(request.user):
+        return JsonResponse(
+            {"error": "consent_required", "url": reverse("scan:consent")}, status=403)
+    try:
+        from apps.scan.views import check_rate_limit, get_client_ip
+        allowed, retry_after = check_rate_limit(request.user, get_client_ip(request))
+        if not allowed:
+            resp = JsonResponse({"error": "rate_limited"}, status=429)
+            resp["Retry-After"] = str(retry_after)
+            return resp
+    except Exception:
+        logger.debug("capture rate-limit check skipped", exc_info=True)
+    return None
+
+
+def _capture_payload(request):
+    """Parse + bound the JSON capture payload → (images, intake_type) or error."""
+    try:
+        body = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return None, JsonResponse({"error": "bad_request"}, status=400)
+    images = (body.get("images") or [])[:MAX_CAPTURE_IMAGES]
+    intake_type = body.get("intake_type") or "medication"
+    if not images:
+        return None, JsonResponse({"error": "no_images"}, status=400)
+    return (images, intake_type), None
+
+
+class CaptureSessionView(LoginRequiredMixin, View):
+    """Guided Capture Session page — walk the user through profile-specific photos,
+    accumulate them, and finalize into ONE draft (the existing pipeline). No
+    canonical write happens here; review + confirm still follow."""
+
+    template_name = "health/acquisition/capture.html"
+
+    def get(self, request):
+        from apps.health.capture_profiles import CAPTURE_PROFILES
+        profile_key = request.GET.get("profile")
+        return render(request, self.template_name, {
+            "profiles": CAPTURE_PROFILES,
+            "initial_profile": profile_key if profile_key in CAPTURE_PROFILES else "",
+            "photo_ready": _capture_consent_ok(request.user),
+        })
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class CaptureAnalyzeView(LoginRequiredMixin, View):
+    """Mid-session confidence preview — combined extraction, NO draft."""
+
+    def post(self, request):
+        gated = _capture_gate(request)
+        if gated is not None:
+            return gated
+        parsed, err = _capture_payload(request)
+        if err is not None:
+            return err
+        images, intake_type = parsed
+        from apps.health.capture_session import analyze_capture
+        return JsonResponse(analyze_capture(request.user, images, intake_type=intake_type))
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class CaptureFinalizeView(LoginRequiredMixin, View):
+    """Finish the session — combine all images into ONE MedicationScanDraft and
+    hand off to guided review. Nothing canonical until the user confirms there."""
+
+    def post(self, request):
+        gated = _capture_gate(request)
+        if gated is not None:
+            return gated
+        parsed, err = _capture_payload(request)
+        if err is not None:
+            return err
+        images, intake_type = parsed
+        from apps.health.capture_session import finalize_capture
+        draft = finalize_capture(request.user, images, intake_type=intake_type)
+        if draft is None:
+            return JsonResponse({
+                "error": "no_extraction",
+                "message": "We couldn't read a medication from those photos. "
+                           "Try clearer shots, or enter it manually.",
+            }, status=422)
+        return JsonResponse({
+            "review_url": reverse("health:medication_review",
+                                  kwargs={"draft_id": draft.id}),
         })
 
 

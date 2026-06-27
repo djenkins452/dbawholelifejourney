@@ -3494,5 +3494,21 @@
       "created_at": "2026-06-27T16:00:00Z",
       "updated_at": "2026-06-27T16:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 219,
+    "fields": {
+      "title": "Add a medication by taking a few photos",
+      "description": "Adding a medication or supplement now feels like scanning a document, not filling out a form. Choose what you're adding — a prescription bottle, a supplement, an over-the-counter medicine, or an injection pen — and you'll be guided photo by photo: the front of the bottle, the pharmacy label, the Supplement or Drug Facts. You can take several pictures, and they're combined into one richer reading than any single photo could give. If something is still hard to read, you'll get a plain explanation of exactly which picture would help — for example, “to improve confidence, I'd like a photo of the pharmacy label.” You can skip optional steps, retake or remove a photo, drag and drop images on your computer, and finish whenever you're ready. Nothing is saved until you review the extracted details and confirm. Barcode scanning and manual entry are still there whenever you prefer them.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-06-27",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-06-27T00:00:00Z",
+      "updated_at": "2026-06-27T00:00:00Z"
+    }
   }
 ]

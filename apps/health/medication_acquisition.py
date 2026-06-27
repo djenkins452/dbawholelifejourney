@@ -64,28 +64,13 @@ def create_draft(user, source, extracted_values, *, intake_type=None,
     return draft
 
 
-def create_draft_from_scan(user, category, items, *, scan_confidence=None,
-                           evidence=None):
-    """Bridge the existing Scan/Vision pipeline into the acquisition pipeline
-    (Sprint 3.5). Maps a Vision medicine/supplement extraction into a
-    MedicationScanDraft — Vision NEVER writes canonical state; like every other
-    source it produces a reviewable draft. Returns the draft, or None if there
-    is nothing usable to stage.
-    """
-    from apps.health.models import Intake
-
-    if not items:
-        return None
-    item = items[0] or {}
-    details = item.get("details", {}) or {}
-    # Prefer the structured `name` field; fall back to the label (name+strength).
-    name = (details.get("name") or item.get("label") or "").strip()
-    if not name:
-        return None
-
-    # Map every label field Vision read into extracted_values. Empty/missing keys
-    # are dropped by create_draft (absence stays absence — never guessed).
-    extracted = {
+def vision_details_to_extracted(details, *, name=None):
+    """Map a Vision label-`details` dict to canonical extracted_values — the SINGLE
+    author of that mapping (reused by single-image scan AND guided capture-session
+    merges). Empty/missing keys stay absent (never guessed)."""
+    details = details or {}
+    name = (name if name is not None else (details.get("name") or "")).strip()
+    return {
         "name": name,
         "dose": details.get("dosage") or details.get("strength", ""),
         "strength": details.get("strength", ""),
@@ -108,6 +93,28 @@ def create_draft_from_scan(user, category, items, *, scan_confidence=None,
         "serving_size": details.get("serving_size", ""),
         "active_ingredients": details.get("active_ingredients", ""),
     }
+
+
+def create_draft_from_scan(user, category, items, *, scan_confidence=None,
+                           evidence=None):
+    """Bridge the existing Scan/Vision pipeline into the acquisition pipeline
+    (Sprint 3.5). Maps a Vision medicine/supplement extraction into a
+    MedicationScanDraft — Vision NEVER writes canonical state; like every other
+    source it produces a reviewable draft. Returns the draft, or None if there
+    is nothing usable to stage.
+    """
+    from apps.health.models import Intake
+
+    if not items:
+        return None
+    item = items[0] or {}
+    details = item.get("details", {}) or {}
+    # Prefer the structured `name` field; fall back to the label (name+strength).
+    name = (details.get("name") or item.get("label") or "").strip()
+    if not name:
+        return None
+
+    extracted = vision_details_to_extracted(details, name=name)
     intake_type = (
         Intake.INTAKE_TYPE_SUPPLEMENT if category == "supplement"
         else Intake.INTAKE_TYPE_MEDICATION

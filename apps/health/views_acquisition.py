@@ -60,9 +60,17 @@ class MedicationAcquireView(LoginRequiredMixin, View):
     template_name = "health/acquisition/acquire.html"
 
     def get(self, request):
+        # Consent flags so the photo actions route to consent first when needed
+        # (the scan/Vision pipeline requires AI + scan consent).
+        from apps.scan.models import ScanConsent
+        prefs = getattr(request.user, "preferences", None)
+        has_ai_consent = bool(prefs and getattr(prefs, "ai_enabled", False)
+                              and getattr(prefs, "ai_data_consent", False))
+        has_scan_consent = ScanConsent.objects.filter(user=request.user).exists()
         return render(request, self.template_name, {
             "fields": REVIEW_FIELDS,
             "intake_types": Intake.INTAKE_TYPE_CHOICES,
+            "photo_ready": has_ai_consent and has_scan_consent,
         })
 
     def post(self, request):

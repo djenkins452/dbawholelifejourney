@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): acquisition-first "Add" page (photos primary, manual collapsed)
+
+UX improvement so the Add page reflects the acquisition architecture: photos lead, manual entry is secondary. **No acquisition-architecture changes** — only how users enter the existing pipeline.
+
+**New landing** (`templates/health/acquisition/acquire.html`, `MedicationAcquireView`): "Acquire Medication or Supplement" with four method cards — **📷 Take Photos** (camera, `capture="environment"`, first on mobile), **🖼️ Upload Photos** (multi-file picker), **📱 Scan Barcode** (links to the existing barcode workflow, unchanged), **⌨️ Enter Manually** (the prior form, **collapsed by default**, expands on click). Multi-photo tip; consent note when photo acquisition isn't enabled.
+
+**Camera/upload integration:** a CSP-nonce script reads the primary image as a data URL and POSTs `{image}` to the existing `scan:analyze` endpoint — which (Sprint 3.5) creates a `MedicationScanDraft` and returns the **Review & Confirm** URL; the page redirects there. So camera, upload, barcode, and manual all flow into the SAME pipeline (Acquisition → draft → Confidence Review → Duplicate Detection → Confirm → MedicationEvent → Intake). No parallel logic. 403 (no AI/scan consent) → redirect to the scan consent page; photo inputs are gated on `ai_enabled + ai_data_consent + ScanConsent`.
+
+**Dashboard:** the primary "Add" button now opens the acquisition landing (was the legacy form). Manual entry and barcode remain fully available.
+
+**Files:** templates/health/acquisition/acquire.html (rebuilt), apps/health/views_acquisition.py (consent flags), templates/health/intake/home.html (primary Add → acquire), apps/health/tests/test_medication_acquisition.py (+4 UX tests).
+
+**Verification:** 75 acquisition + scan-view tests green — landing offers all four methods, manual present-but-collapsed, photo inputs consent-gated, manual submission still routes through the pipeline (draft, nothing canonical until confirm); `manage.py check` clean; CSP-clean (nonce, no inline handlers); 16px inputs; mobile camera-first; no migration.
+
+
 ## 2026-06-27 — feat(health): Sprint 10 — Treatment Intelligence foundation (composition over Medication Intelligence)
 
 Begins the higher-order capability: "How is this treatment plan progressing toward its goals?" Treatment Intelligence composes OVER Medication Intelligence and the other domains — it groups and reads canonical truth; it never owns or recomputes medication state/history/adherence, never duplicates provider/pharmacy/condition models, and makes no clinical claims.

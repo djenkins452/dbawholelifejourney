@@ -475,3 +475,62 @@ class PharmacyLabelLinkingTest(AdherenceTestMixin, TestCase):
         detail = {d["name"]: d for d in contract["treatment"]["medications_detail"]}
         self.assertEqual(detail["Amoxicillin"]["provider"], "Dr. Reyes")
         self.assertEqual(detail["Amoxicillin"]["pharmacy"], "Wellness Pharmacy")
+
+
+class AcquisitionLandingUXTest(AdherenceTestMixin, TestCase):
+    """Acquisition-first landing: photos primary, barcode kept, manual collapsed."""
+
+    def setUp(self):
+        from django.test import Client
+        self.client = Client()
+        self.user = self.create_user(email="acqux@test.com")
+        self.client.force_login(self.user)
+
+    def test_landing_offers_all_four_acquisition_methods(self):
+        from django.urls import reverse
+        resp = self.client.get(reverse("health:medication_acquire"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Acquire Medication or Supplement")
+        self.assertContains(resp, "Take Photos")
+        self.assertContains(resp, "Upload Photos")
+        self.assertContains(resp, "Scan Barcode")
+        self.assertContains(resp, "Enter Manually")
+        # Routes to the existing scan + barcode pipelines (no parallel logic).
+        self.assertContains(resp, reverse("scan:analyze"))
+
+    def test_manual_form_present_but_collapsed(self):
+        from django.urls import reverse
+        resp = self.client.get(reverse("health:medication_acquire"))
+        self.assertContains(resp, 'id="manualForm"')   # present
+        self.assertContains(resp, 'hidden')             # collapsed by default
+        self.assertContains(resp, 'name="name"')        # manual field still there
+
+    def test_photo_inputs_gated_on_consent(self):
+        from django.urls import reverse
+        from django.utils import timezone
+        from apps.scan.models import ScanConsent
+        # No consent → no file inputs, shows consent note.
+        resp = self.client.get(reverse("health:medication_acquire"))
+        self.assertNotContains(resp, 'id="cameraInput"')
+        self.assertContains(resp, "needs AI")
+        # With consent → camera + upload inputs render.
+        prefs = self.user.preferences
+        prefs.ai_enabled = True
+        prefs.ai_data_consent = True
+        prefs.save()
+        ScanConsent.objects.create(
+            user=self.user, consent_version="1.0", consented_at=timezone.now())
+        resp2 = self.client.get(reverse("health:medication_acquire"))
+        self.assertContains(resp2, 'id="cameraInput"')
+        self.assertContains(resp2, 'id="uploadInput"')
+
+    def test_manual_submission_still_routes_through_pipeline(self):
+        from django.urls import reverse
+        resp = self.client.post(reverse("health:medication_acquire"), {
+            "intake_type": "medication", "name": "Metformin", "dose": "500mg",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/review/", resp.url)
+        # A draft was created (pipeline), nothing canonical yet.
+        self.assertTrue(MedicationScanDraft.objects.filter(user=self.user).exists())
+        self.assertFalse(Intake.objects.filter(user=self.user, name="Metformin").exists())

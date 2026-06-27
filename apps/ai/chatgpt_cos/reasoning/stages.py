@@ -817,45 +817,39 @@ def _goal_risk_fallback(wm):
 
 
 def _goals_progress_fallback(wm):
-    # goals_progress: EVIDENCE-FIRST narration (the momentum engine's verdict),
-    # with portfolio metrics (completion %) as supporting context.
+    # goals_progress (GOLD): lead with the headline goal — phase + momentum + what's
+    # working + the next milestone — and END with today's concrete lever. A status
+    # READ, distinct from the on-track verdict and the confidence assessment.
     f = wm.get("facts") or {}
     st = f.get("goal_status") or {}
-    hb = f.get("habits") or {}
     ev = f.get("goal_evidence") or []
     ranked = f.get("ranked_concerns") or []
-    parts = []
-    active = st.get("active_goals")
-    if active is not None:
-        parts.append(f"You have {active} active goal(s).")
-    # Lead with real-world evidence of progress (up to two goals): phase +
-    # momentum summary + what's working.
-    for item in ev[:2]:
-        s = f"'{item.get('goal')}'"
-        if item.get("phase"):
-            s += f" is in the {item['phase']}"
-        s += f" with {item.get('momentum', 'progress')}"
-        det = [d for d in (item.get("whats_working") or []) if isinstance(d, str)]
-        if det:
-            s += f" — {', '.join(det[:2])}"
-        parts.append(s + ".")
-    # Portfolio context (supporting, not the headline).
-    if not ev and st.get("completion_pct") is not None:
-        parts.append(f"Milestone completion is around {st['completion_pct']}%.")
-    if st.get("overdue_goals"):
-        parts.append(f"{st['overdue_goals']} goal(s) are past their target date.")
-    elif st.get("next_deadline_in_days") is not None:
-        parts.append(f"Your next goal deadline is in {st['next_deadline_in_days']} day(s).")
-    if f.get("mission") and not any(i.get("goal") == f.get("mission") for i in ev):
-        parts.append(f"Your headline focus is \"{f['mission']}\".")
-    if hb.get("consistency_pct") is not None:
-        tag = "strong" if hb["consistency_pct"] >= 70 else "a bit uneven"
-        parts.append(f"Habit follow-through is {tag} ({hb['consistency_pct']}%).")
-    if ranked:
-        parts.append(f"The main thing to nudge next: {ranked[0].get('concern')}.")
-    if not parts:
-        return ("I have your goals but not enough recent progress data to summarize "
-                "your trajectory yet.")
+    if not ev:
+        parts = []
+        if st.get("active_goals") is not None:
+            parts.append(f"You have {st['active_goals']} active goal(s).")
+        if st.get("completion_pct") is not None:
+            parts.append(f"Milestone completion is around {st['completion_pct']}%.")
+        if ranked:
+            parts.append(f"The main thing to nudge next: {ranked[0].get('concern')}.")
+        return (" ".join(parts) or
+                "I don't have enough recent progress data to summarize your goals yet.")
+    item = ev[0]
+    name = item.get("goal")
+    s = f"'{name}'"
+    if item.get("phase"):
+        s += f" is in its {item['phase']} and"
+    s += f" showing {item.get('momentum', 'progress')}"
+    work = [d for d in (item.get("whats_working") or []) if isinstance(d, str)]
+    if work:
+        s += f" — {', '.join(work[:2])}"
+    parts = [s + "."]
+    nxt = [m for m in (item.get("next_milestones") or []) if isinstance(m, str)]
+    if nxt:
+        parts.append(f"The next milestone is {nxt[0]}.")
+    elif item.get("recently_completed"):
+        parts.append(f"You recently cleared \"{item['recently_completed']}\".")
+    parts.append(f"Today's lever: {_concrete_action(item)}.")
     return " ".join(parts)
 
 

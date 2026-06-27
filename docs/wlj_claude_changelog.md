@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — feat(cos): Beth Gold-Standard acceptance suite (response-quality gates)
+
+Routing + differentiation are necessary but not sufficient — an answer can be correct and still fail the user. Added a GOLD-STANDARD quality bar.
+
+**Spec:** `docs/BETH_GOLD_STANDARD_ACCEPTANCE.md` — per high-frequency question (GOALS ×6, HEALTH ×4, RHYTHM, EXECUTIVE): an unacceptable / acceptable / gold-standard answer, required + forbidden concepts, tone, and distinctiveness. Teaches "what great looks like."
+
+**Suite:** `apps/ai/tests/test_beth_gold_standard.py` — enforces five gates on the deterministic answers: EVIDENCE (cites specifics), SYNTHESIS (≥2 dimensions combined), ACTIONABLE (concrete next step), NON-TEMPLATED (no banned generic coaching), DISTINCT (materially different from sibling intents). A response that sounds templated, repeats generic coaching, lacks synthesis/evidence/action, or duplicates another intent FAILS the build.
+
+**Quality lift:** rewrote `_goals_progress_fallback` to the gold shape — lead with the headline goal (phase + momentum + what's working), the next milestone, and END with today's concrete lever (no portfolio-count lead). Banned-phrase list extended with cheerleading placeholders ("keep it up", "do your best", "you've got this").
+
+**Files:** `docs/BETH_GOLD_STANDARD_ACCEPTANCE.md` (new), `apps/ai/tests/test_beth_gold_standard.py` (new, 17 tests), `apps/ai/chatgpt_cos/reasoning/stages.py` (gold goals_progress), `apps/ai/tests/test_goals_reasoning.py` (INV-3 updated). No new architecture/domains; canonical engines only; no migration; Health byte-identical.
+
+**Verification:** 17 gold-standard + 18 acceptance + 245-test reasoning/lane/facts/mission regression all green; `check` clean; `makemigrations --check` = no changes.
+
+
 ## 2026-06-26 — feat(cos): product-quality pass + Beth acceptance suite (4 validation failures)
 
 Quality/reasoning/routing fixes for production validation, plus an automated acceptance suite that BLOCKS release on regression. No new architecture/frameworks.

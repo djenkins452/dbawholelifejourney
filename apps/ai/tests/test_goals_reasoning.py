@@ -277,10 +277,12 @@ class GoalsAntiCollapseTests(SimpleTestCase):
         self.assertNotEqual(self.focus, self.risk)
 
     def test_inv3_progress_is_multifield_summary(self):
-        self.assertIn("active goal", self.progress.lower())
-        # progress mentions completion / deadline / habits — not a single risk line
-        self.assertTrue(any(k in self.progress.lower()
-                            for k in ("%", "deadline", "follow-through", "target date")))
+        # GOLD: progress leads with the headline goal — phase + momentum + driver +
+        # next step — not a single risk line and not a bare portfolio count.
+        p = self.progress.lower()
+        self.assertTrue(any(k in p for k in ("phase", "momentum")))
+        self.assertIn("lever", p)                    # ends with today's concrete lever
+        self.assertNotEqual(self.progress, self.risk)
 
     def test_inv5_focus_ends_with_concrete_24h_action(self):
         self.assertIn("highest-leverage move", self.focus.lower())

@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(cos): banned-language guard now covers HEALTH narration, not just goals
+
+Production full/full: health `overall_progress` (openai=True, fallback=False) leaked `banned_phrase:keep momentum` in a real LLM answer. The automated hypothesis ("narration leak in HEALTH narration, LLM source") was CORRECT — no discrepancy (the neutrality fix attributed it to health, not Goals).
+
+**Root cause (evidence):** the systemic banned-language guard in `run_reasoning` (`apps/ai/chatgpt_cos/reasoning/stages.py`) was gated to `plan.intent in GOAL_INTENTS` — HEALTH LLM narration was UNGUARDED, so coaching phrases ("keep momentum") passed straight through. The runtime guard was narrower than the acceptance gate (which bans these for all domains).
+
+**Fix (defect class, not the phrase):** generalized the guard to ALL reasoning intents. The banned-language check now runs for every intent (goals AND health); the goal-specific required-token check stays dict-gated via `_GOAL_REQUIRE_ANY` (so health gets no spurious required-token failures). Any LLM answer that leaks a banned coaching phrase is replaced by the clean deterministic fallback — which is proven banned-free. Renamed `_goal_answer_violation` → `_answer_violation` (backward-compat alias kept).
+
+**Files:** apps/ai/chatgpt_cos/reasoning/stages.py. Tests: apps/ai/tests/test_health_narration_guard.py.
+
+**Verification:** new test_health_narration_guard.py validates ACTUAL rendered responses — a leaky health LLM answer ("…keep momentum…") is replaced by the clean deterministic fallback (banned_hits == []); a clean LLM answer is kept; the violation detector flags banned coaching for every health AND goal intent; the health deterministic fallback is banned-free. 196-test regression green (health byte-identical for clean answers; goal differentiation intact); no migration.
+
+
 ## 2026-06-27 — feat(cos): P26 Deep-suite hardening — deterministic degradation, goal semantic breadth, personal/external boundary
 
 Deep RED (76%, 56/74). Investigated with an OpenAI-disabled routing harness (ground truth, since the defect class is "fails when OpenAI unavailable"); fixed the three SYSTEMIC classes, not phrases.

@@ -1506,16 +1506,17 @@ def run_reasoning(user, message, plan, working_memory):
     if used_fallback:
         answer = profile["fallback"](working_memory)
 
-    # SYSTEMIC GUARD (goal intents): the LLM must not leak prohibited
-    # momentum/consistency coaching, and certain intents must contain their
-    # required tokens. If the LLM answer violates either, replace it with the
-    # clean deterministic fallback (proven to pass the acceptance gates). This
-    # eliminates the whole "legacy coaching language" defect class regardless of
-    # what the model phrases.
-    if not used_fallback and plan.intent in GOAL_INTENTS:
-        violation = _goal_answer_violation(plan.intent, answer)
+    # SYSTEMIC GUARD (ALL reasoning intents — goals AND health): the LLM must not
+    # leak prohibited momentum/consistency coaching, and certain intents must
+    # contain their required tokens. If the LLM answer violates either, replace it
+    # with the clean deterministic fallback (proven to pass the acceptance gates).
+    # This eliminates the whole "legacy coaching language" defect class regardless
+    # of domain or what the model phrases (P: health LLM narration was previously
+    # unguarded and leaked "keep momentum").
+    if not used_fallback:
+        violation = _answer_violation(plan.intent, answer)
         if violation:
-            logger.info("COS_REASONING_GOAL_GUARD user=%s intent=%s reason=%s",
+            logger.info("COS_REASONING_GUARD user=%s intent=%s reason=%s",
                         getattr(user, "id", None), plan.intent, violation)
             answer = profile["fallback"](working_memory)
             used_fallback = True
@@ -1535,9 +1536,11 @@ _GOAL_REQUIRE_ANY = {
 }
 
 
-def _goal_answer_violation(intent, answer):
-    """Return a reason string if a goal answer violates the banned-language or
-    required-token rules, else None."""
+def _answer_violation(intent, answer):
+    """Return a reason string if a reasoning answer (goal OR health) violates the
+    banned-language or required-token rules, else None. The banned-language check
+    applies to EVERY intent; the required-token check is intent-specific (only the
+    intents present in _GOAL_REQUIRE_ANY)."""
     low = (answer or "").lower()
     for b in _BANNED_FOCUS:
         if b in low:
@@ -1546,3 +1549,7 @@ def _goal_answer_violation(intent, answer):
     if req and not any(r in low for r in req):
         return "missing_required_any"
     return None
+
+
+# Backward-compatible alias (the guard now covers health too; same logic).
+_goal_answer_violation = _answer_violation

@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Beth Acceptance Center - Admin Console{% endblock %}
+
+{% block content %}
+<style nonce="{{ csp_nonce }}">
+  .ac-controls { display:flex; flex-wrap:wrap; gap:10px; margin:16px 0 8px; }
+  .ac-run-btn { padding:10px 16px; border-radius:8px; border:1px solid var(--border-color,#d1d5db);
+    background:var(--surface,#fff); color:var(--text,#111); font-size:15px; cursor:pointer;
+    min-height:44px; font-weight:600; }
+  .ac-run-btn:hover { background:#f3f4f6; }
+  .ac-run-primary { background:#4f46e5; color:#fff; border-color:#4f46e5; }
+  .ac-run-primary:hover { background:#4338ca; }
+  .ac-note { color:#6b7280; font-size:13px; margin-top:6px; }
+  .ac-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin:14px 0; }
+  .ac-pill { display:inline-block; padding:3px 10px; border-radius:999px; color:#fff; font-size:12px; font-weight:700; }
+  .ac-table { width:100%; border-collapse:collapse; margin-top:10px; font-size:14px; }
+  .ac-table th, .ac-table td { text-align:left; padding:8px 10px; border-bottom:1px solid #eee; }
+  .ac-table th { color:#6b7280; font-weight:600; }
+  .ac-score { font-size:28px; font-weight:800; }
+</style>
+
+<div class="container" data-testid="ac-beth-acceptance">
+  <div class="page-header">
+    <div>
+      <nav class="breadcrumb">
+        <a href="{% url 'admin_console:dashboard' %}">Admin Console</a>
+        <span>/</span>
+        <span>AI Operations</span>
+        <span>/</span>
+        <span>Beth Acceptance Center</span>
+      </nav>
+      <h1 class="page-title">Beth Acceptance Center</h1>
+      <p class="page-subtitle">Run live validation against the same Beth stack used by the chat UI.</p>
+    </div>
+  </div>
+
+  <!-- Run controls -->
+  <div class="stat-card">
+    <h2 class="section-title" style="margin-top:0;">Run a suite</h2>
+    <form method="post" action="{% url 'admin_console:beth_acceptance_start' %}">
+      {% csrf_token %}
+      <input type="hidden" name="evening" value="1">
+      <div class="ac-controls">
+        <button class="ac-run-btn ac-run-primary" name="suite" value="full" data-testid="ac-run-full">Run Full Suite</button>
+        <button class="ac-run-btn" name="suite" value="goals">Run Goals Only</button>
+        <button class="ac-run-btn" name="suite" value="health">Run Health Only</button>
+        <button class="ac-run-btn" name="suite" value="checkin">Run Check-In Only</button>
+        <button class="ac-run-btn" name="suite" value="general">Run General Knowledge Only</button>
+        <button class="ac-run-btn" name="suite" value="rhythm">Run Rhythm Only</button>
+      </div>
+      <p class="ac-note">Runs against your account through the real chat service. Each run makes live OpenAI calls and takes ~30–90s; results appear on the run page (auto-refreshes while running).</p>
+    </form>
+  </div>
+
+  <!-- Latest run -->
+  {% if latest %}
+  <div class="section-divider"><h2 class="section-title">Latest run</h2></div>
+  <div class="stat-card">
+    <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+      <div class="ac-score" style="color:{{ latest.status_color }};">{{ latest.score_percent }}%</div>
+      <div>
+        <span class="ac-pill" style="background:{{ latest.status_color }};">{{ latest.get_status_display|upper }}</span>
+        <div class="ac-note">{{ latest.pass_count }}/{{ latest.total_count }} passed · suite {{ latest.suite_name }} · {{ latest.created_at }}</div>
+      </div>
+      <div style="margin-left:auto;">
+        <a href="{% url 'admin_console:beth_acceptance_run' latest.pk %}" class="ac-run-btn">View details →</a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- History -->
+  <div class="section-divider"><h2 class="section-title">Run history</h2></div>
+  <div class="stat-card">
+    {% if runs %}
+    <table class="ac-table">
+      <thead><tr><th>Status</th><th>Score</th><th>Pass/Fail</th><th>Suite</th><th>Commit</th><th>When</th><th></th></tr></thead>
+      <tbody>
+        {% for r in runs %}
+        <tr>
+          <td><span class="ac-pill" style="background:{{ r.status_color }};">{{ r.get_status_display|upper }}</span></td>
+          <td style="font-weight:700; color:{{ r.status_color }};">{{ r.score_percent }}%</td>
+          <td>{{ r.pass_count }} / {{ r.fail_count }}</td>
+          <td>{{ r.suite_name }}</td>
+          <td><code>{{ r.git_commit|default:"—" }}</code></td>
+          <td class="ac-note">{{ r.created_at }}</td>
+          <td><a href="{% url 'admin_console:beth_acceptance_run' r.pk %}">details</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="ac-note">No runs yet. Click “Run Full Suite” to start.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

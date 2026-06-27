@@ -213,3 +213,20 @@ def evaluate(spec, text, intent=None, lane=None):
         fails.append("gate_actionable")
 
     return fails
+
+
+# Suite categorisation — derived from each question's domain.
+SUITES = ("full", "goals", "health", "checkin", "general", "rhythm")
+_DOMAIN_TO_SUITE = {"goals": "goals", "health": "health", "general": "general",
+                    "rhythm": "rhythm", "clarification": "checkin", "agenda": "checkin"}
+
+
+def suite_of(spec):
+    return _DOMAIN_TO_SUITE.get(spec.get("domain"), "full")
+
+
+def questions_for(suite):
+    """Return the question specs for a suite ('full' = all)."""
+    if suite in (None, "full"):
+        return list(QUESTIONS)
+    return [q for q in QUESTIONS if suite_of(q) == suite]

@@ -13,6 +13,7 @@ Admin Console URLs
 from django.urls import path
 
 from . import views
+from . import ai_views
 from apps.core.ai_observability import diagnostics_views as diag_views
 from apps.core.ai_observability import ops_views
 
@@ -21,6 +22,15 @@ app_name = "admin_console"
 urlpatterns = [
     # Dashboard
     path("", views.AdminDashboardView.as_view(), name="dashboard"),
+
+    # AI Operations — Beth Acceptance Center
+    path("ai/beth-acceptance/", ai_views.BethAcceptanceCenterView.as_view(),
+         name="beth_acceptance"),
+    path("ai/beth-acceptance/run/", ai_views.StartBethAcceptanceView.as_view(),
+         name="beth_acceptance_start"),
+    path("ai/beth-acceptance/runs/<int:pk>/",
+         ai_views.BethAcceptanceRunDetailView.as_view(),
+         name="beth_acceptance_run"),
 
     # Diagnostics Console (Truth Layer)
     path("diagnostics/", diag_views.DiagnosticsConsoleView.as_view(), name="diagnostics_console"),

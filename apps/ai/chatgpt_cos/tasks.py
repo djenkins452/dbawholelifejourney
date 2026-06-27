@@ -237,3 +237,28 @@ def _safe_set_assistant(assistant_msg, content, status):
         assistant_msg.save(update_fields=["content", "metadata"])
     except Exception:
         logger.warning("COS_ASSISTANT_SAVE_FAILED", exc_info=True)
+
+
+@shared_task(name="apps.ai.chatgpt_cos.run_beth_acceptance", bind=True,
+             soft_time_limit=600, time_limit=660)
+def run_beth_acceptance(self, run_id, evening=True):
+    """Execute a persisted AcceptanceRun against the live Beth stack (async)."""
+    from apps.admin_console.models import AcceptanceRun
+    from apps.ai.chatgpt_cos.acceptance_service import execute_run
+    try:
+        run = AcceptanceRun.objects.get(pk=run_id)
+    except AcceptanceRun.DoesNotExist:
+        logger.warning("run_beth_acceptance: run %s not found", run_id)
+        return {"status": "missing", "run_id": run_id}
+    try:
+        execute_run(run, evening=evening)
+        return {"status": run.status, "score": run.score_percent,
+                "passed": run.pass_count, "failed": run.fail_count}
+    except Exception as exc:
+        logger.error("run_beth_acceptance failed run=%s", run_id, exc_info=True)
+        run.status = "failed"
+        run.error_message = f"{type(exc).__name__}: {exc}"[:2000]
+        from django.utils import timezone as _tz
+        run.completed_at = _tz.now()
+        run.save(update_fields=["status", "error_message", "completed_at"])
+        return {"status": "failed", "error": str(exc)}

@@ -1637,3 +1637,109 @@ class UITestRun(models.Model):
     def is_full_suite(self):
         """True if this is a full-suite parent run."""
         return 'full_suite' in self.modules
+
+
+# ==============================================================================
+# Beth Acceptance Center — persisted live quality-validation runs
+# (Admin Console → AI Operations → Beth Acceptance Center)
+# ==============================================================================
+from django.conf import settings as _dj_settings
+
+
+class AcceptanceRun(models.Model):
+    """One execution of the Beth acceptance suite against the live chat stack."""
+
+    STATUS_CHOICES = [
+        ("running", "Running"),
+        ("completed", "Completed"),
+        ("failed", "Failed"),       # the run itself errored (not a question failure)
+    ]
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        _dj_settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        blank=True, related_name="beth_acceptance_runs_created")
+    target_user = models.ForeignKey(
+        _dj_settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        blank=True, related_name="beth_acceptance_runs_targeted")
+
+    suite_name = models.CharField(max_length=32, default="full")
+    environment = models.CharField(max_length=40, blank=True)
+    git_commit = models.CharField(max_length=40, blank=True)
+
+    total_count = models.PositiveIntegerField(default=0)
+    pass_count = models.PositiveIntegerField(default=0)
+    fail_count = models.PositiveIntegerField(default=0)
+    score_percent = models.PositiveIntegerField(default=0)
+    duration_ms = models.PositiveIntegerField(default=0)
+
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="running")
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+
+    chatgpt_review_prompt = models.TextField(blank=True)
+    claude_fix_prompt = models.TextField(blank=True)
+    raw_report_json = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["-created_at"]),
+                   models.Index(fields=["status"])]
+
+    def __str__(self):
+        return f"AcceptanceRun #{self.pk} {self.suite_name} {self.score_percent}%"
+
+    @property
+    def is_running(self):
+        return self.status == "running"
+
+    @property
+    def is_green(self):
+        return self.status == "completed" and self.fail_count == 0
+
+    @property
+    def status_color(self):
+        if self.status == "running":
+            return "#6b7280"
+        if self.status == "failed":
+            return "#ef4444"
+        if self.fail_count == 0:
+            return "#10b981"
+        if self.score_percent >= 70:
+            return "#f59e0b"
+        return "#ef4444"
+
+
+class AcceptanceResult(models.Model):
+    """One question's evaluated response within an AcceptanceRun."""
+
+    run = models.ForeignKey(AcceptanceRun, on_delete=models.CASCADE,
+                            related_name="results")
+    question_key = models.CharField(max_length=64)
+    suite = models.CharField(max_length=32, blank=True)
+    question_text = models.TextField(blank=True)
+
+    expected_intent = models.CharField(max_length=64, blank=True)
+    expected_lane = models.CharField(max_length=64, blank=True)
+    actual_intent = models.CharField(max_length=64, blank=True)
+    actual_lane = models.CharField(max_length=64, blank=True)
+
+    response_text = models.TextField(blank=True)
+    response_time_ms = models.PositiveIntegerField(default=0)
+
+    passed = models.BooleanField(default=False)
+    failed_rules = models.JSONField(default=list, blank=True)
+    required_concepts = models.JSONField(default=list, blank=True)
+    forbidden_concepts = models.JSONField(default=list, blank=True)
+
+    openai_called = models.BooleanField(default=False)
+    fallback_used = models.BooleanField(null=True, blank=True)
+    raw_result_json = models.JSONField(default=dict, blank=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["run", "sort_order"]
+
+    def __str__(self):
+        return f"{self.question_key} {'PASS' if self.passed else 'FAIL'}"

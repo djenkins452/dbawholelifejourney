@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Acceptance Run #{{ run.pk }} - Admin Console{% endblock %}
+
+{% block extra_css %}
+  {% if is_running %}<meta http-equiv="refresh" content="5">{% endif %}
+{% endblock %}
+
+{% block content %}
+<style nonce="{{ csp_nonce }}">
+  .ac-pill { display:inline-block; padding:3px 10px; border-radius:999px; color:#fff; font-size:12px; font-weight:700; }
+  .ac-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px; margin:14px 0; }
+  .ac-stat { background:var(--surface,#fff); border:1px solid #eee; border-radius:10px; padding:12px; }
+  .ac-stat .k { color:#6b7280; font-size:12px; }
+  .ac-stat .v { font-size:20px; font-weight:700; }
+  .ac-table { width:100%; border-collapse:collapse; margin-top:10px; font-size:14px; }
+  .ac-table th, .ac-table td { text-align:left; padding:8px 10px; border-bottom:1px solid #eee; vertical-align:top; }
+  .ac-table th { color:#6b7280; font-weight:600; }
+  .ac-ok { color:#10b981; font-weight:700; }
+  .ac-bad { color:#ef4444; font-weight:700; }
+  .ac-rules { color:#ef4444; font-size:12px; }
+  .ac-resp { color:#374151; font-size:13px; white-space:pre-wrap; }
+  details.ac-det summary { cursor:pointer; color:#4f46e5; font-size:13px; }
+  .ac-prompt { width:100%; min-height:200px; font-family:ui-monospace,Menlo,monospace; font-size:12px;
+    border:1px solid #d1d5db; border-radius:8px; padding:10px; }
+  .ac-copy { padding:8px 14px; border-radius:8px; border:1px solid #4f46e5; background:#4f46e5; color:#fff;
+    cursor:pointer; font-weight:600; min-height:40px; margin-bottom:8px; }
+  .ac-copy:hover { background:#4338ca; }
+  .ac-score { font-size:34px; font-weight:800; }
+</style>
+
+<div class="container" data-testid="ac-beth-run">
+  <div class="page-header">
+    <div>
+      <nav class="breadcrumb">
+        <a href="{% url 'admin_console:dashboard' %}">Admin Console</a><span>/</span>
+        <a href="{% url 'admin_console:beth_acceptance' %}">Beth Acceptance Center</a><span>/</span>
+        <span>Run #{{ run.pk }}</span>
+      </nav>
+      <h1 class="page-title">Acceptance Run #{{ run.pk }}</h1>
+      <p class="page-subtitle">Suite “{{ run.suite_name }}” · {{ run.environment }} · commit {{ run.git_commit|default:"—" }}</p>
+    </div>
+  </div>
+
+  {% if is_running %}
+  <div class="stat-card" data-testid="ac-running" style="border-left:4px solid #6b7280;">
+    <strong>Run in progress…</strong>
+    <p class="ac-note" style="color:#6b7280;">This page auto-refreshes every 5 seconds. The suite makes live OpenAI calls; ~30–90s total.</p>
+  </div>
+  {% endif %}
+
+  {% if run.status == "failed" %}
+  <div class="stat-card" style="border-left:4px solid #ef4444;">
+    <strong class="ac-bad">Run failed.</strong>
+    <p class="ac-resp">{{ run.error_message }}</p>
+  </div>
+  {% endif %}
+
+  <!-- Summary -->
+  <div class="stat-card">
+    <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
+      <div class="ac-score" style="color:{{ run.status_color }};">{{ run.score_percent }}%</div>
+      <span class="ac-pill" style="background:{{ run.status_color }};">{{ run.get_status_display|upper }}</span>
+    </div>
+    <div class="ac-summary">
+      <div class="ac-stat"><div class="k">Passed</div><div class="v ac-ok">{{ run.pass_count }}</div></div>
+      <div class="ac-stat"><div class="k">Failed</div><div class="v ac-bad">{{ run.fail_count }}</div></div>
+      <div class="ac-stat"><div class="k">Total</div><div class="v">{{ run.total_count }}</div></div>
+      <div class="ac-stat"><div class="k">Duration</div><div class="v">{{ run.duration_ms }} ms</div></div>
+      <div class="ac-stat"><div class="k">Commit</div><div class="v" style="font-size:14px;">{{ run.git_commit|default:"—" }}</div></div>
+      <div class="ac-stat"><div class="k">Env</div><div class="v" style="font-size:14px;">{{ run.environment }}</div></div>
+      <div class="ac-stat"><div class="k">When</div><div class="v" style="font-size:13px;">{{ run.created_at }}</div></div>
+    </div>
+  </div>
+
+  <!-- Results table -->
+  {% if results %}
+  <div class="section-divider"><h2 class="section-title">Results</h2></div>
+  <div class="stat-card">
+    <table class="ac-table">
+      <thead><tr>
+        <th>Result</th><th>Question</th><th>Suite</th><th>Intent</th><th>Lane</th>
+        <th>OpenAI</th><th>Fallback</th><th>Time</th><th>Failed rules</th>
+      </tr></thead>
+      <tbody>
+        {% for r in results %}
+        <tr>
+          <td>{% if r.passed %}<span class="ac-ok">PASS</span>{% else %}<span class="ac-bad">FAIL</span>{% endif %}</td>
+          <td>
+            {{ r.question_text }}
+            <details class="ac-det">
+              <summary>response</summary>
+              <div class="ac-resp">{{ r.response_text }}</div>
+              <div class="ac-note" style="margin-top:6px;">
+                expected_intent: <code>{{ r.expected_intent|default:"—" }}</code> ·
+                actual_intent: <code>{{ r.actual_intent|default:"—" }}</code> ·
+                lane: <code>{{ r.actual_lane|default:"—" }}</code><br>
+                required: {{ r.required_concepts }} · forbidden: {{ r.forbidden_concepts }}
+              </div>
+            </details>
+          </td>
+          <td>{{ r.suite }}</td>
+          <td><code>{{ r.actual_intent|default:"—" }}</code></td>
+          <td><code>{{ r.actual_lane|default:"—" }}</code></td>
+          <td>{{ r.openai_called|yesno:"yes,no" }}</td>
+          <td>{{ r.fallback_used|yesno:"yes,no,—" }}</td>
+          <td>{{ r.response_time_ms }} ms</td>
+          <td class="ac-rules">{{ r.failed_rules|join:", " }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <!-- Generated prompts -->
+  {% if run.chatgpt_review_prompt %}
+  <div class="section-divider"><h2 class="section-title">Generated prompts</h2></div>
+  <div class="stat-card">
+    <h3>ChatGPT Review Prompt</h3>
+    <button class="ac-copy" data-copy="cgpt">Copy ChatGPT Review Prompt</button>
+    <textarea id="cgpt" class="ac-prompt" readonly>{{ run.chatgpt_review_prompt }}</textarea>
+  </div>
+  <div class="stat-card">
+    <h3>Claude Fix Prompt</h3>
+    <button class="ac-copy" data-copy="claude">Copy Claude Fix Prompt</button>
+    <textarea id="claude" class="ac-prompt" readonly>{{ run.claude_fix_prompt }}</textarea>
+  </div>
+  {% endif %}
+</div>
+
+<script nonce="{{ csp_nonce }}">
+  document.querySelectorAll('.ac-copy').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var ta = document.getElementById(btn.getAttribute('data-copy'));
+      if (!ta) return;
+      ta.select();
+      try {
+        navigator.clipboard.writeText(ta.value);
+      } catch (e) {
+        document.execCommand('copy');
+      }
+      var orig = btn.textContent;
+      btn.textContent = 'Copied ✓';
+      setTimeout(function () { btn.textContent = orig; }, 1500);
+    });
+  });
+</script>
+{% endblock %}

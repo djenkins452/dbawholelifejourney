@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — feat(admin): Beth Acceptance Center (browser-run live quality gate)
+
+Built a first-class Admin Console feature so Beth can be validated from the browser (no Railway/shell/CLI). Admin Console → AI Operations → Beth Acceptance Center.
+
+- **Card + pages:** new "AI Operations" section on `/admin-console/` with a "Beth Acceptance Center" card → `/admin-console/ai/beth-acceptance/` (run controls + latest run + history) and `/admin-console/ai/beth-acceptance/runs/<id>/` (summary, results table with expandable per-question detail, and the two copy-prompt boxes). Matches existing Admin Console styling; admin-only (`AdminRequiredMixin`).
+- **Run controls:** Full / Goals / Health / Check-In / General / Rhythm. Each POSTs to start an async run (Celery `run_beth_acceptance`); the run page auto-refreshes while running.
+- **Shared runner** (`apps/ai/chatgpt_cos/acceptance_service.py`): `execute_run(run)` drives every validation question through the REAL chat path (`ChatGPTCoSService.generate`), captures telemetry (intent/lane/openai_called/fallback_used/time) from the BETH_*/COS_REASONING_* logs, evaluates with the shared rules, persists results, computes score, and generates the prompts. The management command now calls the SAME runner (no duplicated logic).
+- **Persistence:** new `AcceptanceRun` + `AcceptanceResult` models (migration 0037) storing all run/result fields incl. `chatgpt_review_prompt` + `claude_fix_prompt` + raw JSON.
+- **Generated prompts:** every run produces a copyable ChatGPT Review Prompt (release-readiness assessment) and Claude Fix Prompt (implementation-focused, "do not stop for approval unless migration/security/architecture"), stored on the run.
+- **Production safety:** read-only validation — `generate()` does not persist chat messages, notify, fire proactive behavior, or mutate data; the throwaway conversation is deleted after each run.
+- **Suite metadata** added to the question spec (full/goals/health/checkin/general/rhythm).
+
+**Files:** apps/admin_console/{models.py, ai_views.py, urls.py, migrations/0037_*, tests/test_beth_acceptance_center.py}, apps/ai/chatgpt_cos/{acceptance_service.py, acceptance_rules.py, tasks.py}, apps/ai/management/commands/beth_acceptance.py, templates/admin_console/{beth_acceptance_center.html, beth_acceptance_run.html, dashboard.html}. CSP-safe (nonce'd script/style). Migration created + applies on deploy.
+
+**Verification:** 8 acceptance-center tests (models, runner with MOCKED Beth, admin-only views, run start, detail + copy prompts, no chat-history pollution) + 175-test reasoning/acceptance/gold regression green; command `manage.py beth_acceptance --suite ...` works; `check` clean; `makemigrations --check` = no changes.
+
+
 ## 2026-06-26 — feat(cos): LIVE Beth acceptance harness (beth-stable-v3 release gate)
 
 The deterministic gold suite proves the FALLBACK floor; this proves the ACTUAL chat-endpoint responses. New live harness runs the core validation questions through the real service path and gates the release.

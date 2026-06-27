@@ -459,6 +459,30 @@
     </div>
 
     <!-- Owner Tools Section (superuser only) -->
+    <!-- AI Operations Section -->
+    <div class="section-divider mt-8 mb-4">
+        <h2 class="section-title">AI Operations</h2>
+    </div>
+
+    <div class="admin-grid">
+        <!-- Beth Acceptance Center -->
+        <a href="{% url 'admin_console:beth_acceptance' %}" class="admin-card" data-testid="ac-card-beth-acceptance">
+            <div class="admin-card-icon" style="background: color-mix(in srgb, #4f46e5 15%, transparent);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2">
+                    <path d="M9 11l3 3L22 4"/>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                </svg>
+            </div>
+            <div class="admin-card-content">
+                <h3>Beth Acceptance Center</h3>
+                <p>Run live quality validation against Beth</p>
+            </div>
+            <svg class="admin-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </a>
+    </div>
+
     {% if user.is_superuser %}
     <div class="section-divider mt-8 mb-4">
         <h2 class="section-title">Owner Tools</h2>

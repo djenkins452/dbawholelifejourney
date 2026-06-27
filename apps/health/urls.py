@@ -203,6 +203,8 @@ urlpatterns = [
     path("physical/intake/timeline/", views_acquisition.MedicationTimelineView.as_view(), name="medication_timeline"),
     # What We've Noticed (Sprint 7G) — deterministic narration surface
     path("physical/intake/noticed/", views_acquisition.MedicationNoticedView.as_view(), name="medication_noticed"),
+    # Physician Mode (Sprint 8) — patient-owned, print-friendly summary
+    path("physical/intake/physician/", views_acquisition.PhysicianModeView.as_view(), name="medication_physician"),
     path("physical/intake/<int:pk>/", views.IntakeDetailView.as_view(), name="intake_detail"),
     path("physical/intake/<int:pk>/edit/", views.IntakeUpdateView.as_view(), name="intake_update"),
     path("physical/intake/<int:pk>/delete/", views.IntakeDeleteView.as_view(), name="intake_delete"),

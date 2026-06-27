@@ -164,6 +164,20 @@ class MedicationTimelineView(LoginRequiredMixin, View):
         })
 
 
+class PhysicianModeView(LoginRequiredMixin, View):
+    """Sprint 8 — Physician Mode. A clean, print-friendly, patient-owned summary
+    assembled entirely from deterministic canonical layers. No diagnosis, no
+    recommendations — it organizes what WLJ knows for a better physician visit."""
+
+    template_name = "health/intake/physician_summary.html"
+
+    def get(self, request):
+        from apps.health.physician_summary import build_physician_summary
+        return render(request, self.template_name, {
+            "summary": build_physician_summary(request.user),
+        })
+
+
 class MedicationNoticedView(LoginRequiredMixin, View):
     """Sprint 7G — "What We've Noticed". The visual equivalent of Beth's
     understanding: the SAME deterministic narration objects she consumes, grouped,

@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}Physician Summary - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container phys-summary">
+    <nav class="breadcrumb mb-4 no-print">
+        <a href="{% url 'health:intake_home' %}">Intake</a>
+        <span>/</span>
+        <span>Physician Summary</span>
+    </nav>
+
+    <div class="page-header no-print">
+        <div>
+            <h1 class="page-title">Physician Summary</h1>
+            <p class="page-subtitle">A clean summary to bring to your next visit.</p>
+        </div>
+        <div class="page-actions">
+            <button type="button" class="btn btn-primary" id="printSummary">Print</button>
+        </div>
+    </div>
+
+    {# ── Header ── #}
+    <section class="phys-section phys-header">
+        <h2 class="phys-doc-title">Medication &amp; Treatment Summary</h2>
+        <div class="phys-meta">
+            <div><strong>{{ summary.header.user_name }}</strong></div>
+            <div>Generated {{ summary.header.generated_date }}{% if summary.header.summary_period_days %} · {{ summary.header.summary_period_days }} days of tracking{% endif %}</div>
+        </div>
+        <p class="phys-disclaimer">{{ summary.header.disclaimer }}</p>
+    </section>
+
+    {% if summary.is_empty %}
+    <section class="phys-section">
+        <p>No active medications or supplements are tracked yet.</p>
+    </section>
+    {% else %}
+
+    {# ── Current Medications ── #}
+    <section class="phys-section">
+        <h3>Current Medications</h3>
+        {% if summary.medications %}
+        {% for m in summary.medications %}
+        <div class="phys-med">
+            <div class="phys-med-name">{{ m.name }} <span class="phys-dose">{{ m.dose }}</span></div>
+            <div class="phys-grid">
+                <div><span class="lbl">Frequency</span> {{ m.frequency }}</div>
+                <div><span class="lbl">Route/Form</span> {{ m.route_form }}</div>
+                <div><span class="lbl">Purpose</span> {{ m.purpose }}</div>
+                <div><span class="lbl">Prescriber</span> {{ m.provider }}</div>
+                <div><span class="lbl">Pharmacy</span> {{ m.pharmacy }}</div>
+                <div><span class="lbl">Rx #</span> {{ m.rx_number }}</div>
+                <div><span class="lbl">Refills</span> {{ m.refill_status }}</div>
+                {% if m.monitoring %}<div><span class="lbl">Monitoring</span> {{ m.monitoring }}</div>{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}<p class="phys-none">None recorded.</p>{% endif %}
+    </section>
+
+    {# ── Current Supplements ── #}
+    <section class="phys-section">
+        <h3>Current Supplements</h3>
+        {% if summary.supplements %}
+        {% for m in summary.supplements %}
+        <div class="phys-med">
+            <div class="phys-med-name">{{ m.name }} <span class="phys-dose">{{ m.dose }}</span></div>
+            <div class="phys-grid">
+                <div><span class="lbl">Frequency</span> {{ m.frequency }}</div>
+                <div><span class="lbl">Purpose</span> {{ m.purpose }}</div>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}<p class="phys-none">None recorded.</p>{% endif %}
+    </section>
+
+    {# ── Recent Medication Changes ── #}
+    <section class="phys-section">
+        <h3>Recent Medication Changes</h3>
+        {% if summary.recent_changes %}
+        <ul class="phys-list">
+            {% for c in summary.recent_changes %}
+            <li><span class="phys-date">{{ c.date }}</span> {{ c.change }}{% if c.detail %} ({{ c.detail }}){% endif %}
+                <span class="phys-src">— {{ c.evidence_label }}</span></li>
+            {% endfor %}
+        </ul>
+        {% else %}<p class="phys-none">No changes recorded.</p>{% endif %}
+    </section>
+
+    {# ── Adherence ── #}
+    <section class="phys-section">
+        <h3>Adherence</h3>
+        <div class="phys-grid">
+            <div><span class="lbl">Medications (7-day)</span> {% if summary.adherence.medication_7d is not None %}{{ summary.adherence.medication_7d }}%{% else %}Not enough data{% endif %}</div>
+            <div><span class="lbl">Medications (30-day)</span> {% if summary.adherence.medication_30d is not None %}{{ summary.adherence.medication_30d }}%{% else %}Not enough data{% endif %}</div>
+            <div><span class="lbl">Supplements (30-day)</span> {% if summary.adherence.supplement_30d is not None %}{{ summary.adherence.supplement_30d }}%{% else %}Not enough data{% endif %}</div>
+        </div>
+    </section>
+
+    {# ── Timeline Highlights ── #}
+    {% if summary.timeline_highlights %}
+    <section class="phys-section">
+        <h3>Treatment Timeline Highlights</h3>
+        <ul class="phys-list">
+            {% for h in summary.timeline_highlights %}
+            <li><span class="phys-date">{{ h.date }}</span> {{ h.title }}{% if h.detail %} ({{ h.detail }}){% endif %}</li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    {# ── What We've Noticed (approved observations only) ── #}
+    {% if summary.observations %}
+    <section class="phys-section">
+        <h3>What We've Noticed</h3>
+        <ul class="phys-list">
+            {% for o in summary.observations %}
+            <li>{{ o.summary }}{% if o.evidence_labels %}<span class="phys-src">— {{ o.evidence_labels|join:", " }}</span>{% endif %}</li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    {# ── Questions / Discussion Items ── #}
+    {% if summary.discussion_items %}
+    <section class="phys-section">
+        <h3>Questions to Discuss</h3>
+        <ul class="phys-list phys-checklist">
+            {% for q in summary.discussion_items %}
+            <li>{{ q }}</li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    {# ── Evidence / Source Notes ── #}
+    {% if summary.source_notes %}
+    <section class="phys-section">
+        <h3>Where this information came from</h3>
+        <p class="phys-sources">{{ summary.source_notes|join:" · " }}</p>
+    </section>
+    {% endif %}
+
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.phys-summary { max-width: 760px; color: #1e293b; }
+.phys-section { margin-bottom: 1.5rem; }
+.phys-doc-title { font-size: 1.4rem; margin-bottom: 0.4rem; }
+.phys-meta { color: #475569; font-size: 0.9rem; margin-bottom: 0.6rem; }
+.phys-disclaimer { font-size: 0.82rem; color: #64748b; font-style: italic; border-left: 3px solid #cbd5e1; padding-left: 0.75rem; }
+.phys-section h3 { font-size: 1.05rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.3rem; margin-bottom: 0.6rem; }
+.phys-med { padding: 0.5rem 0 0.75rem; border-bottom: 1px dotted #e2e8f0; }
+.phys-med-name { font-weight: 700; }
+.phys-dose { font-weight: 400; color: #475569; }
+.phys-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem 1.5rem; margin-top: 0.35rem; font-size: 0.9rem; }
+.phys-grid .lbl { color: #94a3b8; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; display: block; }
+.phys-list { margin: 0; padding-left: 1.1rem; font-size: 0.92rem; }
+.phys-list li { margin-bottom: 0.3rem; }
+.phys-date { color: #64748b; font-variant-numeric: tabular-nums; margin-right: 0.3rem; }
+.phys-src { color: #94a3b8; font-size: 0.8rem; }
+.phys-none { color: #94a3b8; font-size: 0.9rem; }
+.phys-sources { color: #64748b; font-size: 0.85rem; }
+.phys-checklist { list-style: none; padding-left: 0; }
+.phys-checklist li::before { content: "☐ "; color: #94a3b8; }
+@media (max-width: 480px) { .phys-grid { grid-template-columns: 1fr; } }
+@media print {
+    .no-print { display: none !important; }
+    .phys-summary { max-width: 100%; }
+    nav, header, footer, .navbar, .bottom-nav { display: none !important; }
+}
+</style>
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function () {
+    var btn = document.getElementById('printSummary');
+    if (btn) { btn.addEventListener('click', function () { window.print(); }); }
+});
+</script>
+{% endblock %}

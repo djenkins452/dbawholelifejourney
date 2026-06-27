@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Sprint 8 — Physician Mode (patient-owned, print-friendly summary)
+
+Converts the deterministic Medication Intelligence foundation into clinical value: a clean, evidence-backed medication & treatment summary the user can bring to a physician. NOT a diagnosis tool, NOT a recommendation engine — it organizes what WLJ deterministically knows for a better conversation.
+
+**8A — Physician Summary service** (`apps/health/physician_summary.py`): `build_physician_summary(user)` assembles from canonical layers ONLY (Intake current state + structured Prescription/Pharmacy/MedicalProvider fields, the MedicationEvent ledger via the timeline service, `build_treatment_summary`, adherence utilities, and approved narration objects). No raw re-query where canonical state exists; no duplicate math; no clinical interpretation.
+
+**8B — Sections:** header (name, generated date, tracking period, "not a medical record / not medical advice" disclaimer); current medications (dose/frequency/route-form/purpose/prescriber/pharmacy/Rx#/refill status/monitoring/acquisition confidence); current supplements (separated); recent medication changes (from the ledger — no fabrication, with evidence labels); adherence (7d/30d med + supplement, canonical utilities); timeline highlights (canonical service); What We've Noticed (approved narrations only); deterministic discussion items (physician-flagged first); evidence/source notes.
+
+**8C/8D — UI:** `PhysicianModeView` at `intake/physician/` — calm, professional, skimmable, grouped, clear "Not recorded" values, no alarmist/diagnosis language, `@media print` browser-printable, Print button (CSP-nonce script). **PDF deferred** — WeasyPrint is neither in requirements nor importable; per the 8D guardrail no risky PDF dependency was added (web-viewable + browser-printable is the delivered minimum). Linked from the intake dashboard.
+
+**8F — Evidence traceability:** friendly source labels (Confirmed medication record / Medication timeline event / Confirmed scan / Manual entry / Lab result / Glucose entry / Weight entry / …) — never raw OCR or model internals.
+
+**Files:** apps/health/physician_summary.py (new), apps/health/views_acquisition.py, apps/health/urls.py, templates/health/intake/physician_summary.html (new), templates/health/intake/home.html, apps/health/tests/test_physician_summary.py (new, 10 tests).
+
+**Verification (8E):** 85 tests green — sections correct, meds/supplements separated, structured fields from acquisition, recent changes from ledger (no fabrication), adherence equals canonical utility, only approved observations + deterministic discussion items, evidence friendly-labeled, **no diagnosis/recommendation/dose-change/causal banned language**, empty states, UI renders + disclaimer; `manage.py check` clean; no migration.
+
+
 ## 2026-06-27 — refactor(cos): P35 layer ownership — move executive judgment out of the Composer
 
 Audit finding (the prompt's hypothesis was correct): the Executive Brief Composer still INVENTED executive judgment rather than narrating it. Sentence-ownership audit of the composer:

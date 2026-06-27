@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — feat(cos): LIVE Beth acceptance harness (beth-stable-v3 release gate)
+
+The deterministic gold suite proves the FALLBACK floor; this proves the ACTUAL chat-endpoint responses. New live harness runs the core validation questions through the real service path and gates the release.
+
+- **`apps/ai/chatgpt_cos/acceptance_rules.py`** — shared evaluator (pure, no DB/OpenAI): the gold gates (evidence/synthesis/actionable/non-templated), banned phrases, OpenAI-failure-message detection, domain/intent routing check, required/required_any/forbidden concepts, and the QUESTIONS spec (check-in×2, goals×9, health×3, rhythm, general×3 with per-question rules).
+- **`apps/ai/management/commands/beth_acceptance.py`** — runs each question through `ChatGPTCoSService.generate` (the same orchestrator the UI calls), captures telemetry (intent, lane, fallback_used, openai_called, response time) from the BETH_*/COS_REASONING_* logs, evaluates the ACTUAL response, checks cross-intent distinctness, and prints a PASS/FAIL report. Exits non-zero on any failure so it gates beth-stable-v3. Flags: `--user-email`, `--evening`, `--json`. Makes REAL OpenAI calls — run in staging/eval against the user's real data; not collected by the unit runner.
+- **`apps/ai/tests/test_acceptance_rules.py`** — unit-tests the evaluator AND proves every goal deterministic fallback passes its own live-harness spec (so a live failure can only come from LLM phrasing/routing/reliability, never the floor).
+
+Fails the harness if any response is empty, is a generic OpenAI failure message, routes to the wrong domain, duplicates another intent, contains banned phrases, misses required / contains forbidden concepts, recommends a morning activity at night, or fails general knowledge.
+
+**Files:** acceptance_rules.py, management/commands/beth_acceptance.py, tests/test_acceptance_rules.py (all new). No architecture/domain/P25/migration/frontend change; canonical only; Health byte-identical.
+
+**Verification:** 11 evaluator tests + 211-test acceptance/gold/goals/lane regression green; command registers (`manage.py beth_acceptance`); `check` clean; no migrations. Live run is the beth-stable-v3 gate (staging/eval with an OpenAI key).
+
+
 ## 2026-06-26 — feat(cos): Beth Gold-Standard acceptance suite (response-quality gates)
 
 Routing + differentiation are necessary but not sufficient — an answer can be correct and still fail the user. Added a GOLD-STANDARD quality bar.

@@ -3285,6 +3285,32 @@ class IntakeHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         context["active_intakes"] = active_intakes
         context["active_count"] = active_intakes.count()
 
+        # Medication Intelligence summary — split medications vs supplements
+        # (Phase 3 UX: the two are presented as distinct groups) and surface the
+        # canonical adherence figures. Adherence is read from the ONE adherence
+        # author (medicine_utils) — never recomputed here.
+        from apps.health.medicine_utils import calculate_medicine_adherence_rate
+
+        active_medicines = [
+            m for m in active_intakes
+            if m.intake_type == Intake.INTAKE_TYPE_MEDICATION
+        ]
+        active_supplements = [
+            m for m in active_intakes
+            if m.intake_type == Intake.INTAKE_TYPE_SUPPLEMENT
+        ]
+        context["active_medicines"] = active_medicines
+        context["active_supplements"] = active_supplements
+        context["medication_count"] = len(active_medicines)
+        context["supplement_count"] = len(active_supplements)
+        # int 0-100, or None when there are no expected doses to measure against.
+        context["medication_adherence_7d"] = calculate_medicine_adherence_rate(
+            user, days=7, intake_type=Intake.INTAKE_TYPE_MEDICATION
+        )
+        context["supplement_adherence_7d"] = calculate_medicine_adherence_rate(
+            user, days=7, intake_type=Intake.INTAKE_TYPE_SUPPLEMENT
+        )
+
         # Get today's scheduled doses — batch-load logs to avoid N+1 queries.
         # Previously queried IntakeLog per schedule; now 1 query for all logs.
         scheduled_intakes = list(

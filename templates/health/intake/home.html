@@ -76,6 +76,33 @@
         </div>
     </div>
 
+    <!-- 7-Day Adherence (canonical figures from medicine_utils — single author) -->
+    {% if active_medicines or active_supplements %}
+    <div class="section-header">
+        <h2>7-Day Adherence</h2>
+    </div>
+    <div class="stats-bar mb-6">
+        <div class="stat-item">
+            {% if medication_adherence_7d is not None %}
+            <span class="stat-value">{{ medication_adherence_7d }}%</span>
+            {% else %}
+            <span class="stat-value">&mdash;</span>
+            {% endif %}
+            <span class="stat-label">Medications ({{ medication_count }})</span>
+        </div>
+        {% if active_supplements %}
+        <div class="stat-item">
+            {% if supplement_adherence_7d is not None %}
+            <span class="stat-value">{{ supplement_adherence_7d }}%</span>
+            {% else %}
+            <span class="stat-value">&mdash;</span>
+            {% endif %}
+            <span class="stat-label">Supplements ({{ supplement_count }})</span>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
     <!-- Today's Schedule -->
     <div class="section-header">
         <h2>Today's Schedule</h2>

@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Sprint 1D — Medication dashboard foundation (canonical adherence + med/supplement split)
+
+Enhanced the existing intake daily dashboard (`IntakeHomeView`, `health:intake_home`) into the Medication Intelligence dashboard foundation — **modify-before-add**: no parallel dashboard created. Reads canonical sources only; no duplicate calculations.
+
+**What:** added to the dashboard (1) a **7-day adherence summary** for medications and supplements, read from the ONE adherence author `medicine_utils.calculate_medicine_adherence_rate` (never recomputed); (2) a **medications vs supplements split** (`active_medicines`, `active_supplements`, counts) per Phase 3 UX. Rendered a neutral, informational adherence section in `home.html` reusing existing stat classes — **Visual Truth Contract**: adherence percentages are metrics, not completion visuals; "—" shown when there is not enough data (no-zero-fill). Guarded by `{% if active_medicines or active_supplements %}` so the existing empty state is preserved.
+
+**Also:** fixed a pre-existing failing test (`MedicineContextTest.test_medicine_home_has_active_medicines`) — the view had been renamed medicine→intake and stopped providing `active_medicines`; now restored as the medications split.
+
+**Files:** apps/health/views.py (`IntakeHomeView`); templates/health/intake/home.html; apps/health/tests/test_medicine.py (+2 tests: adherence equals canonical util, med/supplement split + section renders).
+
+**Sprint 1E (one-tap logging): DEFERRED to Sprint 2** — one-tap take/skip logging already exists on this dashboard via the canonical `IntakeLog` path; adding a new path would risk a parallel write path (forbidden). Per 1E's own "defer if scope creep" guidance.
+
+**Verification:** `MedicineContextTest` 6/6 green (incl. the restored test + 2 new); `manage.py check` clean; no migration. Remaining 5 `test_medicine` failures are pre-existing in OTHER views (`health:home` dashboard medicine_count/overdue/low_supply; log-edit history links) — confirmed failing on clean HEAD, out of 1D scope (flagged for a follow-up: the overall health home lost its medicine context keys in the medicine→intake rename).
+
+
 ## 2026-06-27 — docs(health): Sprint 1C / D4 — AI medication CRUD decision spike (DEFER)
 
 Decision spike for AI-assisted medication/supplement CRUD. **Outcome: DEFER implementation to Sprint 12 (E11), gated on the safety classifier (Sprint 7).** No code — consistent with the spike's own low-risk-only precondition and the frozen roadmap.

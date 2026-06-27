@@ -1216,6 +1216,45 @@ class MedicineContextTest(MedicineTestMixin, TestCase):
         response = self.client.get(reverse('health:intake_home'))
         self.assertIn('today_schedules', response.context)
 
+    def test_medicine_home_adherence_uses_canonical_util(self):
+        """Sprint 1D: home surfaces canonical 7-day adherence (medicine_utils author)."""
+        from apps.core.utils import get_user_today
+        from apps.health.medicine_utils import calculate_medicine_adherence_rate
+
+        med = self.create_medicine(self.user)
+        schedule = self.create_schedule(med)
+        today = get_user_today(self.user)
+        for i in range(1, 4):
+            IntakeLog.objects.create(
+                user=self.user, intake=med, schedule=schedule,
+                scheduled_date=today - timedelta(days=i),
+                scheduled_time=schedule.scheduled_time,
+                log_status=IntakeLog.STATUS_TAKEN,
+            )
+        response = self.client.get(reverse('health:intake_home'))
+        self.assertIn('medication_adherence_7d', response.context)
+        self.assertIn('supplement_adherence_7d', response.context)
+        # The dashboard value must equal the canonical author's value (no drift).
+        expected = calculate_medicine_adherence_rate(
+            self.user, days=7, intake_type=Intake.INTAKE_TYPE_MEDICATION
+        )
+        self.assertEqual(response.context['medication_adherence_7d'], expected)
+
+    def test_medicine_home_splits_meds_and_supplements(self):
+        """Sprint 1D: home splits active intakes into medications and supplements."""
+        self.create_medicine(
+            self.user, name='Med A', intake_type=Intake.INTAKE_TYPE_MEDICATION
+        )
+        self.create_medicine(
+            self.user, name='Supp B', intake_type=Intake.INTAKE_TYPE_SUPPLEMENT
+        )
+        response = self.client.get(reverse('health:intake_home'))
+        self.assertIn('active_supplements', response.context)
+        self.assertEqual(response.context['medication_count'], 1)
+        self.assertEqual(response.context['supplement_count'], 1)
+        # The canonical adherence summary section renders in the dashboard.
+        self.assertContains(response, '7-Day Adherence')
+
     def test_medicine_list_has_status_counts(self):
         """Medicine list includes status counts."""
         self.create_medicine(self.user)

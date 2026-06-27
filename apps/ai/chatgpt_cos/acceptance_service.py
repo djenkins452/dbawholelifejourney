@@ -536,6 +536,76 @@ def _arch_block(run, rows):
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# REVIEW OUTPUT CONTRACT — the controlled vocabularies + rigid output schema that
+# force a generated prompt to elicit an EXPERT architectural review with no human
+# augmentation. Reviewers must classify every systemic defect against these exact
+# enums and fill every section; shallow commentary is structurally disallowed.
+# ---------------------------------------------------------------------------
+REVIEW_LAYER_VOCAB = ("conversation_orchestration", "infrastructure", "routing",
+                      "deterministic_truth", "narration", "content_quality", "unknown")
+REVIEW_SUBSYSTEMS = ("planner", "tool loop", "routing", "lane selection",
+                     "deterministic fallback", "goal narration", "health narration",
+                     "acceptance guard", "OpenAI integration", "unknown")
+REVIEW_SEVERITIES = ("BLOCKER", "HIGH", "MEDIUM", "LOW")
+INFRA_DEFECT_EXAMPLES = ("empty responses", "OpenAI unavailable", "routing failure",
+                         "orchestration abort", "timeout", "fallback bypass")
+CONTENT_DEFECT_EXAMPLES = ("banned phrases", "generic coaching", "wrong recommendation",
+                           "missing evidence", "duplicate answers")
+STABLE_TAG_CONDITIONS = ("two consecutive GREEN Full runs", "zero banned-phrase leakage",
+                         "Deep suite GREEN", "manual spot-check complete")
+
+
+def _review_output_contract(run, rows):
+    """The rigid OUTPUT schema a reviewer MUST fill — every section, controlled
+    vocabularies, one regression test per defect class. Includes the live infra/
+    content counts so the reviewer reasons from numbers, not impressions."""
+    a = run.analysis or analyze(rows)
+    layers = " | ".join(REVIEW_LAYER_VOCAB)
+    subs = " | ".join(REVIEW_SUBSYSTEMS)
+    sev = " | ".join(REVIEW_SEVERITIES)
+    return "\n".join([
+        "═══ REQUIRED OUTPUT — fill EVERY section. Use ONLY the controlled "
+        "vocabularies. No commentary outside this schema; no shallow summaries. ═══",
+        "",
+        "A. SYSTEMIC DEFECT CLASSES  (defect CLASSES, never individual questions)",
+        "   For EACH class, provide ALL of:",
+        f"     - name:",
+        f"     - architectural layer:  one of {{{layers}}}",
+        f"     - probable subsystem(s): one or more of {{{subs}}}",
+        f"     - severity:             one of {{{sev}}}",
+        "     - confidence:           HIGH | MEDIUM | LOW",
+        "     - evidence:             cite the exact failed question keys + telemetry "
+        "(intent/lane/openai/fallback) that prove it",
+        "     - permanent regression test: ONE concrete test (file + assertion) that "
+        "would catch this defect CLASS forever — 'every production defect becomes a "
+        "permanent test'.",
+        "",
+        "B. INFRASTRUCTURE vs CONTENT  (infrastructure ALWAYS takes precedence)",
+        f"   Infrastructure defects: <count>  — choose from: {', '.join(INFRA_DEFECT_EXAMPLES)}",
+        f"   Content defects:        <count>  — choose from: {', '.join(CONTENT_DEFECT_EXAMPLES)}",
+        f"   (automated tally for cross-check: infrastructure={a['infra_fails']}  "
+        f"content={a['content_fails']}  empty={a['empty_count']} — reconcile any "
+        "discrepancy and explain it.)",
+        "",
+        "C. RANKED ROOT CAUSES  (most-probable first)",
+        "   1. <root cause> — subsystem / layer / confidence / evidence",
+        "   2. ...",
+        "",
+        "D. RUN TRUSTWORTHINESS  (answer yes/no AND justify each)",
+        "   - Is this run trustworthy?",
+        "   - Could this run be FALSELY GREEN (infra masking real content defects)?",
+        "   - Could this run be FALSELY RED (content failing only because infra is down)?",
+        "   - Does infrastructure instability invalidate the quality conclusions?",
+        f"   (automated verdict for cross-check: trustworthy={'YES' if a['trustworthy'] else 'NO'}.)",
+        "",
+        "E. RELEASE READINESS — beth-stable-v3",
+        "   - Stable-tag eligible? yes/no — justify.",
+        "   - If NOT eligible: list the EXACT conditions that must ALL be satisfied "
+        "first, e.g.: " + "; ".join(STABLE_TAG_CONDITIONS) + ".",
+    ])
+
+
 def build_chatgpt_review_prompt(run, rows):
     summary, failed = _summary_block(run, rows)
     lines = [
@@ -567,21 +637,7 @@ def build_chatgpt_review_prompt(run, rows):
                 f"  actual_response: {r['answer'][:500]}")
     else:
         lines.append("\nNo failed questions — every response passed its rules.")
-    lines.append(
-        "\n\nRELEASE READINESS — answer ALL of these:\n"
-        "1. Systemic defect CLASSES (not individual questions).\n"
-        "2. Architectural LAYER of each class (orchestration / infrastructure / "
-        "routing / narration / content).\n"
-        "3. INFRASTRUCTURE vs CONTENT — which defects are infra (fix first) vs "
-        "content?\n"
-        "4. LIKELY ROOT CAUSES, ranked, each with probable subsystem + confidence + "
-        "evidence.\n"
-        "5. RUN TRUSTWORTHINESS — is this run trustworthy? Could it be falsely GREEN "
-        "or falsely RED? Does infra instability invalidate the quality conclusions?\n"
-        "6. RELEASE BLOCKERS — which failures block a beth-stable-v3 tag.\n"
-        "7. PERMANENT REGRESSION tests we should add so this class can never be "
-        "misdiagnosed again.\n"
-        "8. Stable-tag eligible (beth-stable-v3): yes/no, and why.")
+    lines.append("\n\n" + _review_output_contract(run, rows))
     return "\n".join(lines)
 
 
@@ -625,16 +681,34 @@ def build_claude_fix_prompt(run, rows):
             f"openai={r['openai_called']} fallback={r['fallback_used']}.\n"
             f"  Failed rules: {', '.join(r['fails'])}\n"
             f"  Actual response: {r['answer'][:500]}")
+    layers = " | ".join(REVIEW_LAYER_VOCAB)
+    subs = " | ".join(REVIEW_SUBSYSTEMS)
+    sev = " | ".join(REVIEW_SEVERITIES)
     lines.append(
-        "\n\nInstructions:\n"
+        "\n\nFOR EACH defect class above, state BEFORE you change code (controlled "
+        "vocabularies — fill every field):\n"
+        f"  - architectural layer:  one of {{{layers}}}\n"
+        f"  - probable subsystem(s): one or more of {{{subs}}}\n"
+        f"  - severity:             one of {{{sev}}}\n"
+        "  - root cause:           the exact mechanism (with file:line evidence)\n"
+        "  - permanent regression test: ONE test (file + assertion) that catches this "
+        "CLASS forever — every production defect becomes a permanent test.\n")
+    lines.append(
+        "Instructions:\n"
+        "- INFRASTRUCTURE defects FIRST (they take precedence; a content failure "
+        "downstream of an outage may not be real).\n"
         "- Treat the grouped failures as SYSTEMIC defects: fix the defect class, not "
         "only the individual question.\n"
         "- Fix the ROOT CAUSE (routing, reasoning, fallback, profile, or evaluator).\n"
-        "- Add/Update regression tests covering each fixed behavior.\n"
+        "- Add the per-class regression tests you named above; validate ACTUAL "
+        "rendered responses, not template strings.\n"
         "- PRESERVE all currently-passing behaviors (Health byte-identical; goal "
-        "intent differentiation intact).\n"
+        "intent differentiation intact; routing/orchestration unchanged unless they "
+        "are the proven root cause).\n"
         "- Re-run the acceptance suite (Admin Console Beth Acceptance Center, or "
         "`python manage.py beth_acceptance`) until green.\n"
+        "- STABLE-TAG (beth-stable-v3) requires ALL of: " + "; ".join(STABLE_TAG_CONDITIONS)
+        + ". State whether this fix gets us there and what remains.\n"
         "- Deploy to main when green.\n"
         "- Do not stop for approval unless there is a migration, security issue, or "
         "architectural conflict.")

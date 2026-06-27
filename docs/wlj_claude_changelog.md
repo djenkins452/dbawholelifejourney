@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(admin): Acceptance Center review prompts now self-sufficient (no human augmentation)
+
+The generated ChatGPT Review + Claude Fix prompts previously needed manual augmentation to yield architecture-quality reviews. Added a rigid OUTPUT CONTRACT with controlled vocabularies so a reviewer is structurally forced into expert architectural reasoning. PROMPT GENERATION ONLY — no Beth behavior, grading, or routing change.
+
+- **Controlled vocabularies** (new constants in acceptance_service): 7-layer set `REVIEW_LAYER_VOCAB` (conversation_orchestration | infrastructure | routing | deterministic_truth | narration | content_quality | unknown — adds deterministic_truth + unknown over the auto-classifier), `REVIEW_SUBSYSTEMS` (planner, tool loop, routing, lane selection, deterministic fallback, goal narration, health narration, acceptance guard, OpenAI integration, unknown), `REVIEW_SEVERITIES` (BLOCKER/HIGH/MEDIUM/LOW), infra/content defect example lists, `STABLE_TAG_CONDITIONS`.
+- **ChatGPT review** now ends with `_review_output_contract()` — a fill-every-section schema: (A) systemic defect CLASSES each with layer+subsystem+severity+confidence+evidence+ONE permanent regression test; (B) explicit Infrastructure-vs-Content counts with example lists + live automated tally for cross-check; (C) ranked root causes; (D) trustworthiness Q&A (falsely GREEN / falsely RED / infra-invalidates-quality, each justified); (E) stable-tag eligibility with the EXACT conditions to satisfy. Replaces the old loose 8-point list.
+- **Claude fix** now requires, per defect class, the same layer/subsystem/severity classification + root cause with file:line + ONE permanent regression test (validate ACTUAL rendered responses), infrastructure-first ordering, and the stable-tag condition list.
+
+**Files:** apps/ai/chatgpt_cos/acceptance_service.py. Tests: apps/admin_console/tests/test_review_prompt_contract.py.
+
+**Verification:** new test_review_prompt_contract.py asserts both prompts contain every required section, the full 7-layer + subsystem + severity vocabularies, infra/content counts with examples + live tally, the trustworthiness Q&A, one-regression-test-per-class, and all stable-tag conditions; GREEN-run short-circuit preserved. 60-test acceptance regression green (contract + architecture + upgrade + center); `check` clean. No model change, no migration.
+
+
 ## 2026-06-26 — fix(cos): narration defect class — coaching language leaking through deterministic goal narration
 
 Production Full run (commit dec0e5da, GREEN 95%, trustworthy, 0 infra) had ONE content failure: goal_next_milestone returned "…Momentum phase. Lock in consistency with protein, hydration, workouts, meds…" → `banned_phrase: lock in consistency`. Routing/orchestration/truth retrieval were all correct — only NARRATION leaked.

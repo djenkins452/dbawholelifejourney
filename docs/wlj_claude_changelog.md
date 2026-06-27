@@ -7,6 +7,15 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — docs(health): Sprint 1C / D4 — AI medication CRUD decision spike (DEFER)
+
+Decision spike for AI-assisted medication/supplement CRUD. **Outcome: DEFER implementation to Sprint 12 (E11), gated on the safety classifier (Sprint 7).** No code — consistent with the spike's own low-risk-only precondition and the frozen roadmap.
+
+**Findings:** AI intake intents today are log-only (`take_medication/supplement/take_intake_by_time` → `IntakeLog`, all `AuthorityLevel.CONFIRM`); no create/update/delete intent exists; the modern CoS `DAY1_ACTION_ALLOWLIST` contains no medication mutation (no direct Beth/ChatGPT writes). A confirmation gate (`crud_confirmation` + `action_policy`) and the safe channel (`IntentService → UAIO → action_handlers`) already exist. Implementing CRUD now is NOT low-risk: it lacks the safety classifier (Sprint 7), Confidence-Review/duplicate-detection semantics (Sprints 3–4), and the `MedicationEvent` ledger / `record_medication_change()` writer (Sprint 3). Per-action decisions, safe contract, and the deferred plan are recorded in the spike doc.
+
+**Files:** docs/MEDICATION_INTELLIGENCE_D4_AI_CRUD_SPIKE.md (new — decision record).
+
+
 ## 2026-06-27 — fix(health): Sprint 1B / D5 — one expected-dose author across WLJ
 
 **Root cause:** medication "expected dose" (the adherence/compliance denominator) was enumerated in FIVE places that re-walked schedules independently. Two diverged from the canonical algorithm by omitting the future-dose-today fairness rule, so the same medication question returned different numbers depending on which engine asked (Canon §5: "expected dose has exactly one author — divergent denominators are always a defect").

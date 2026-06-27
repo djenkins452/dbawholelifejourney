@@ -7,6 +7,25 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Sprint 3.6 — pharmacy-label extraction & structured prescription linking
+
+Improves what the acquisition pipeline extracts from real medication labels and, on confirmation, links structured records. Enhancement to the existing pipeline — no redesign, no parallel path, Vision still writes nothing canonical.
+
+**3.6A audit:** Vision previously extracted only `dosage/quantity/directions/purpose` (+ name label). **3.6B — enhanced Vision prompt:** rule #4 + medicine/supplement examples now target NDC, Rx number, prescriber, pharmacy + phone, refills, refill/written/filled dates, expiration, quantity, SIG, dose/strength, dosage form, route, serving size, active ingredients, supplement/drug-facts summary — with an explicit "only include what you can read; missing stays missing, never guess."
+
+**3.6C — confidence mapping:** the scan bridge (`create_draft_from_scan`) maps every new label field into `extracted_values`; each present field gets per-field confidence; overall stays a correctness-weighted score over the important fields (completeness is surfaced via `missing_fields`, not by inflating confidence).
+
+**3.6D — confirmation linking** (`medication_acquisition._link_structured_records`): on confirm, match-or-create `Pharmacy` and `MedicalProvider` by name (**no silent duplicates**), bridge `Intake.provider`/`pharmacy_ref`/`monitoring_requirements`, and create a `Prescription` (rx_number, parsed quantity/refills, expiration/written dates, SIG) when Rx data was captured. Best-effort — a linking failure never undoes the canonical Intake write. Dates/ints parsed tolerantly; unparseable → None (never guessed).
+
+**3.6E — review UI:** the review screen now groups fields — Medication identity / Directions & schedule / Pharmacy & prescription / Refill & inventory / Evidence & confidence — empty non-identity groups hidden to keep it simple.
+
+**3.6F — fixtures:** added pharmacy-label-shaped samples (with-refills, no-refills, low-confidence/partial, old-bottle/duplicate).
+
+**Files:** apps/scan/services/vision.py (prompt), apps/health/medication_acquisition.py (mapping + linking), apps/health/views_acquisition.py + templates/health/acquisition/review.html (grouping), apps/health/tests/acquisition_fixtures.py, apps/health/tests/test_medication_acquisition.py (+PharmacyLabelLinkingTest, 7 tests).
+
+**Verification:** 138 tests green incl. enhanced extraction mapping, per-field confidence, Pharmacy/Provider match-vs-create (no duplicates), Prescription creation (refills incl. 0), low-confidence partial staging, no-canonical-write-before-confirm, and Beth-visible state (acquisition confidence + linked provider/pharmacy); `manage.py check` clean; no migration (no model changes).
+
+
 ## 2026-06-27 — fix(cos): P33.1 Executive Brief integration — the composer owns the final story
 
 Architecture was complete; the remaining defects were INTEGRATION — the brief was concatenating layers instead of producing one coherent executive narrative. Fixed all four live defects (no architecture change).

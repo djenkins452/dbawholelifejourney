@@ -26,19 +26,28 @@ from apps.health.models import Intake, MedicationScanDraft
 
 logger = logging.getLogger(__name__)
 
-# The fields the manual-entry form / review screen present, in display order.
-REVIEW_FIELDS = [
-    ("name", "Name"),
-    ("dose", "Dose"),
-    ("frequency", "Frequency"),
-    ("purpose", "Purpose"),
-    ("sig", "Directions (SIG)"),
-    ("provider", "Prescriber"),
-    ("pharmacy", "Pharmacy"),
-    ("quantity", "Quantity"),
-    ("refills", "Refills"),
-    ("expiration", "Expiration"),
+# Review fields, grouped for a clean, scannable review screen (Sprint 3.6E).
+FIELD_GROUPS = [
+    ("Medication identity", [
+        ("name", "Name"), ("strength", "Strength"), ("dose", "Dose"),
+        ("dosage_form", "Form"), ("route", "Route"), ("ndc", "NDC"),
+    ]),
+    ("Directions & schedule", [
+        ("frequency", "Frequency"), ("sig", "Directions (SIG)"),
+        ("purpose", "Purpose"),
+    ]),
+    ("Pharmacy & prescription", [
+        ("provider", "Prescriber"), ("pharmacy", "Pharmacy"),
+        ("pharmacy_phone", "Pharmacy phone"), ("rx_number", "Rx number"),
+    ]),
+    ("Refill & inventory", [
+        ("quantity", "Quantity"), ("refills", "Refills"),
+        ("expiration", "Expiration"),
+    ]),
 ]
+
+# Flat list of (key, label) across all groups — for the manual form + POST parsing.
+REVIEW_FIELDS = [field for _title, fields in FIELD_GROUPS for field in fields]
 
 
 class MedicationAcquireView(LoginRequiredMixin, View):
@@ -82,24 +91,34 @@ class MedicationReviewView(LoginRequiredMixin, View):
         )
         values = draft.extracted_values or {}
         confidences = draft.field_confidences or {}
-        rows = []
-        for key, label in REVIEW_FIELDS:
+
+        def _row(key, label):
             val = values.get(key, "")
             conf = confidences.get(key)
-            rows.append({
-                "key": key,
-                "label": label,
-                "value": val,
-                "confidence": conf,
+            return {
+                "key": key, "label": label, "value": val, "confidence": conf,
                 "band": confidence_band(conf) if val else "missing",
-            })
+            }
+
+        # Grouped rows (Sprint 3.6E). A group is hidden if it has no acquired
+        # values AND it isn't the always-shown identity group — keeps it simple.
+        groups = []
+        for title, fields in FIELD_GROUPS:
+            rows = [_row(k, l) for k, l in fields]
+            has_value = any(r["value"] for r in rows)
+            if title == "Medication identity" or has_value:
+                groups.append({"title": title, "rows": rows})
+
         context = {
             "draft": draft,
-            "rows": rows,
+            "groups": groups,
             "missing": missing_fields(values, intake_type=draft.intake_type),
             "duplicates": detect_duplicates(request.user, draft),
             "overall_confidence": draft.overall_confidence,
             "overall_band": confidence_band(draft.overall_confidence),
+            "evidence_summary": ", ".join(
+                e.get("summary", "") for e in (draft.evidence or []) if e.get("summary")
+            ),
             "is_pending": draft.is_pending,
         }
         return render(request, self.template_name, context)

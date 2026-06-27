@@ -14,6 +14,8 @@ Invariants:
   - Duplicate detection runs BEFORE any canonical write — never silently duplicate.
 """
 
+import logging
+
 from django.db import transaction
 from django.utils import timezone
 
@@ -21,6 +23,8 @@ from apps.health.medication_confidence import (
     compute_field_confidences,
     compute_overall_confidence,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ── Acquisition (3B / 3G / 3H) ────────────────────────────────────────────────
@@ -74,21 +78,35 @@ def create_draft_from_scan(user, category, items, *, scan_confidence=None,
         return None
     item = items[0] or {}
     details = item.get("details", {}) or {}
-    name = (item.get("label") or details.get("name") or "").strip()
+    # Prefer the structured `name` field; fall back to the label (name+strength).
+    name = (details.get("name") or item.get("label") or "").strip()
     if not name:
         return None
 
+    # Map every label field Vision read into extracted_values. Empty/missing keys
+    # are dropped by create_draft (absence stays absence — never guessed).
     extracted = {
         "name": name,
-        "dose": details.get("dosage", ""),
+        "dose": details.get("dosage") or details.get("strength", ""),
+        "strength": details.get("strength", ""),
+        "frequency": details.get("frequency", ""),
         "sig": details.get("directions", ""),
+        "dosage_form": details.get("dosage_form", ""),
+        "route": details.get("route", ""),
         "quantity": details.get("quantity", ""),
         "purpose": details.get("purpose", ""),
         "provider": details.get("prescriber") or details.get("provider", ""),
         "pharmacy": details.get("pharmacy", ""),
+        "pharmacy_phone": details.get("pharmacy_phone", ""),
+        "rx_number": details.get("rx_number", ""),
         "refills": details.get("refills", ""),
+        "refill_date": details.get("refill_date", ""),
+        "written_date": details.get("written_date", ""),
+        "filled_date": details.get("filled_date", ""),
         "expiration": details.get("expiration") or details.get("expiration_date", ""),
         "ndc": details.get("ndc", ""),
+        "serving_size": details.get("serving_size", ""),
+        "active_ingredients": details.get("active_ingredients", ""),
     }
     intake_type = (
         Intake.INTAKE_TYPE_SUPPLEMENT if category == "supplement"
@@ -252,6 +270,22 @@ def confirm_draft(draft, action, *, target_intake=None, edits=None, reason=None,
     else:
         raise ValueError(f"Unknown confirmation action: {action}")
 
+    # Link structured records from the confirmed values (3.6D): match-or-create
+    # Pharmacy / MedicalProvider (no silent duplicates), bridge the Intake FKs, and
+    # create a Prescription if Rx data was captured. Best-effort — a linking failure
+    # must not undo the canonical Intake write.
+    if result is not None and action in (
+        MedicationScanDraft.ACTION_CREATE,
+        MedicationScanDraft.ACTION_UPDATE,
+        MedicationScanDraft.ACTION_REPLACE,
+    ):
+        try:
+            _link_structured_records(result, draft.extracted_values or {})
+        except Exception:
+            logger.warning(
+                "Structured linking failed for draft %s", draft.pk, exc_info=True
+            )
+
     # Mark the draft confirmed (user confirmation = strongest evidence → conf ~1.0).
     draft.review_status = MedicationScanDraft.REVIEW_CONFIRMED
     draft.confirmation_action = action
@@ -341,3 +375,104 @@ def _apply_update(draft, target_intake, *, reason=None):
                 reason=_reason, source=MedicationEvent.SOURCE_COS_CONFIRMED,
             )
     return target_intake
+
+
+# ── Structured-record linking on confirmation (3.6D) ──────────────────────────
+
+def _parse_int(value):
+    """Extract a leading integer from a value like '30 tablets' or '3'."""
+    if value in (None, ""):
+        return None
+    import re
+    m = re.search(r"\d+", str(value))
+    return int(m.group()) if m else None
+
+
+def _parse_date(value):
+    """Parse common label date formats → date, or None (never guess)."""
+    if value in (None, ""):
+        return None
+    from datetime import datetime
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%b %d, %Y", "%B %d, %Y"):
+        try:
+            return datetime.strptime(str(value).strip(), fmt).date()
+        except (ValueError, TypeError):
+            continue
+    return None
+
+
+def _match_or_create_provider(user, name):
+    """Match an existing MedicalProvider by name (no silent duplicates) or create one."""
+    from apps.health.models import MedicalProvider
+    name = (name or "").strip()
+    if not name:
+        return None
+    existing = MedicalProvider.objects.filter(user=user, name__iexact=name).first()
+    if existing:
+        return existing
+    return MedicalProvider.objects.create(user=user, name=name)
+
+
+def _match_or_create_pharmacy(user, name, phone=""):
+    """Match an existing Pharmacy by name (no silent duplicates) or create one."""
+    from apps.health.models import Pharmacy
+    name = (name or "").strip()
+    if not name:
+        return None
+    existing = Pharmacy.objects.filter(user=user, name__iexact=name).first()
+    if existing:
+        if phone and not existing.phone:
+            existing.phone = phone
+            existing.save(update_fields=["phone", "updated_at"])
+        return existing
+    return Pharmacy.objects.create(user=user, name=name, phone=(phone or "").strip())
+
+
+def _link_structured_records(intake, values):
+    """On confirmation, safely create/link structured records from confirmed values.
+
+    Matches existing Pharmacy/MedicalProvider (never duplicates silently), bridges
+    Intake.provider / Intake.pharmacy_ref / monitoring_requirements, and creates a
+    Prescription when any Rx data was captured. Best-effort: a linking failure must
+    not undo the canonical Intake write.
+    """
+    from apps.health.models import Prescription
+
+    user = intake.user
+    provider = _match_or_create_provider(user, values.get("provider"))
+    pharmacy = _match_or_create_pharmacy(
+        user, values.get("pharmacy"), values.get("pharmacy_phone", "")
+    )
+
+    changed = []
+    if provider and intake.provider_id != provider.id:
+        intake.provider = provider
+        changed.append("provider")
+    if pharmacy and intake.pharmacy_ref_id != pharmacy.id:
+        intake.pharmacy_ref = pharmacy
+        changed.append("pharmacy_ref")
+    monitoring = values.get("monitoring") or values.get("monitoring_requirements")
+    if monitoring and not intake.monitoring_requirements:
+        intake.monitoring_requirements = monitoring
+        changed.append("monitoring_requirements")
+    if changed:
+        intake.save(update_fields=changed + ["updated_at"])
+
+    # Create a Prescription only when real Rx data was captured.
+    rx_present = any(
+        values.get(f) for f in ("rx_number", "refills", "quantity", "expiration")
+    )
+    if rx_present:
+        Prescription.objects.create(
+            user=user,
+            intake=intake,
+            provider=provider,
+            pharmacy=pharmacy,
+            rx_number=(values.get("rx_number") or "").strip(),
+            quantity=_parse_int(values.get("quantity")),
+            refills_remaining=_parse_int(values.get("refills")),
+            expiration_date=_parse_date(values.get("expiration")),
+            written_date=_parse_date(values.get("written_date")),
+            sig_text=(values.get("sig") or "").strip(),
+        )
+    return provider, pharmacy

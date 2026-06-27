@@ -51,22 +51,34 @@
         <input type="hidden" name="target_intake_id" value="{{ duplicates.0.intake_id }}">
         {% endif %}
 
-        {% for row in rows %}
-        <div class="review-row band-{{ row.band }}">
-            <label for="id_{{ row.key }}">
-                {{ row.label }}
-                <span class="band-tag band-tag-{{ row.band }}">
-                    {% if row.band == 'high' %}High{% elif row.band == 'medium' %}Medium{% elif row.band == 'needs_confirmation' %}Check this{% else %}Missing{% endif %}
-                </span>
-            </label>
-            <input type="text" name="{{ row.key }}" id="id_{{ row.key }}"
-                   class="form-input" value="{{ row.value }}"
-                   placeholder="{% if row.band == 'missing' %}Add if you know it{% endif %}">
-        </div>
+        {% for group in groups %}
+        <fieldset class="review-group">
+            <legend>{{ group.title }}</legend>
+            {% for row in group.rows %}
+            <div class="review-row band-{{ row.band }}">
+                <label for="id_{{ row.key }}">
+                    {{ row.label }}
+                    <span class="band-tag band-tag-{{ row.band }}">
+                        {% if row.band == 'high' %}High{% elif row.band == 'medium' %}Medium{% elif row.band == 'needs_confirmation' %}Check this{% else %}Missing{% endif %}
+                    </span>
+                </label>
+                <input type="text" name="{{ row.key }}" id="id_{{ row.key }}"
+                       class="form-input" value="{{ row.value }}"
+                       placeholder="{% if row.band == 'missing' %}Add if you know it{% endif %}">
+            </div>
+            {% endfor %}
+        </fieldset>
         {% endfor %}
 
         {% if missing %}
         <p class="missing-note">Still needed for a complete record: {{ missing|join:", " }}</p>
+        {% endif %}
+
+        {% if evidence_summary %}
+        <fieldset class="review-group">
+            <legend>Evidence &amp; confidence</legend>
+            <p class="evidence-line">{{ evidence_summary }}</p>
+        </fieldset>
         {% endif %}
 
         <div class="form-actions">
@@ -83,6 +95,9 @@
 
 <style nonce="{{ csp_nonce }}">
 .review-form { max-width: 620px; }
+.review-group { border: 1px solid rgba(148,163,184,0.25); border-radius: 10px; padding: 1rem 1rem 0.5rem; margin-bottom: 1.25rem; }
+.review-group legend { font-weight: 700; font-size: 0.95rem; padding: 0 0.4rem; color: #475569; }
+.evidence-line { color: #64748b; font-size: 0.9rem; margin: 0.25rem 0; }
 .review-row { margin-bottom: 1rem; padding-left: 0.75rem; border-left: 3px solid transparent; }
 .review-row.band-high { border-left-color: #16a34a; }
 .review-row.band-medium { border-left-color: #f59e0b; }

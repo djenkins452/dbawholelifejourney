@@ -370,3 +370,108 @@ class ScanIntegrationTest(AdherenceTestMixin, TestCase):
         dups = detect_duplicates(self.user, draft)
         self.assertEqual(len(dups), 1)
         self.assertEqual(dups[0]["match_type"], "exact")
+
+
+class PharmacyLabelLinkingTest(AdherenceTestMixin, TestCase):
+    """Sprint 3.6 — enhanced pharmacy-label extraction → structured linking."""
+
+    def setUp(self):
+        self.user = self.create_user(email="pharmlabel@test.com")
+
+    def _full_label_draft(self):
+        from apps.health.medication_acquisition import create_draft_from_scan
+        from apps.health.tests.acquisition_fixtures import ACQUISITION_SAMPLES
+        sample = next(s for s in ACQUISITION_SAMPLES if s["key"] == "pharmacy_label_with_refills")
+        return create_draft_from_scan(
+            self.user, sample["category"], sample["vision_items"],
+            scan_confidence=sample["scan_confidence"],
+        )
+
+    def test_enhanced_extraction_maps_pharmacy_fields(self):
+        draft = self._full_label_draft()
+        v = draft.extracted_values
+        self.assertEqual(v["name"], "Amoxicillin")
+        self.assertEqual(v["rx_number"], "RX9988776")
+        self.assertEqual(v["ndc"], "00093-3109-01")
+        self.assertEqual(v["provider"], "Dr. Reyes")
+        self.assertEqual(v["pharmacy"], "Wellness Pharmacy")
+        self.assertEqual(v["refills"], "2")
+        # Per-field confidence assigned to the new fields (3.6C).
+        self.assertIn("rx_number", draft.field_confidences)
+        self.assertIn("pharmacy", draft.field_confidences)
+
+    def test_no_canonical_write_before_confirm(self):
+        from apps.health.models import Pharmacy, Prescription, MedicalProvider
+        self._full_label_draft()
+        self.assertFalse(Intake.objects.filter(user=self.user).exists())
+        self.assertFalse(Pharmacy.objects.filter(user=self.user).exists())
+        self.assertFalse(Prescription.objects.filter(user=self.user).exists())
+        self.assertFalse(MedicalProvider.objects.filter(user=self.user).exists())
+
+    def test_confirm_creates_pharmacy_provider_prescription_and_links(self):
+        from apps.health.models import Pharmacy, Prescription, MedicalProvider
+        draft = self._full_label_draft()
+        intake = confirm_draft(draft, MedicationScanDraft.ACTION_CREATE)
+        # Structured records created + linked.
+        pharm = Pharmacy.objects.get(user=self.user, name="Wellness Pharmacy")
+        prov = MedicalProvider.objects.get(user=self.user, name="Dr. Reyes")
+        self.assertEqual(intake.pharmacy_ref_id, pharm.id)
+        self.assertEqual(intake.provider_id, prov.id)
+        self.assertEqual(pharm.phone, "555-987-6543")
+        rx = Prescription.objects.get(user=self.user, intake=intake)
+        self.assertEqual(rx.rx_number, "RX9988776")
+        self.assertEqual(rx.refills_remaining, 2)
+        self.assertEqual(rx.quantity, 30)
+        self.assertEqual(str(rx.expiration_date), "2027-06-10")
+
+    def test_pharmacy_and_provider_matching_no_duplicates(self):
+        from apps.health.models import Pharmacy, MedicalProvider
+        # Pre-existing pharmacy + provider with the same names.
+        Pharmacy.objects.create(user=self.user, name="Wellness Pharmacy")
+        MedicalProvider.objects.create(user=self.user, name="Dr. Reyes")
+        draft = self._full_label_draft()
+        confirm_draft(draft, MedicationScanDraft.ACTION_CREATE)
+        # Matched the existing ones — no duplicates created.
+        self.assertEqual(Pharmacy.objects.filter(user=self.user, name="Wellness Pharmacy").count(), 1)
+        self.assertEqual(MedicalProvider.objects.filter(user=self.user, name="Dr. Reyes").count(), 1)
+
+    def test_label_no_refills_records_zero(self):
+        from apps.health.medication_acquisition import create_draft_from_scan
+        from apps.health.models import Prescription
+        from apps.health.tests.acquisition_fixtures import ACQUISITION_SAMPLES
+        sample = next(s for s in ACQUISITION_SAMPLES if s["key"] == "pharmacy_label_no_refills")
+        draft = create_draft_from_scan(
+            self.user, sample["category"], sample["vision_items"],
+            scan_confidence=sample["scan_confidence"],
+        )
+        intake = confirm_draft(draft, MedicationScanDraft.ACTION_CREATE)
+        rx = Prescription.objects.get(user=self.user, intake=intake)
+        self.assertEqual(rx.refills_remaining, 0)
+
+    def test_low_confidence_partial_label_flags_missing(self):
+        from apps.health.medication_acquisition import create_draft_from_scan
+        from apps.health.medication_confidence import missing_fields
+        from apps.health.tests.acquisition_fixtures import ACQUISITION_SAMPLES
+        sample = next(s for s in ACQUISITION_SAMPLES if s["key"] == "partial_low_confidence")
+        draft = create_draft_from_scan(
+            self.user, sample["category"], sample["vision_items"],
+            scan_confidence=sample["scan_confidence"],
+        )
+        # Low scan confidence → low overall, lots missing.
+        self.assertLess(draft.overall_confidence, 0.6)
+        miss = missing_fields(draft.extracted_values, intake_type="medication")
+        self.assertIn("sig", miss)
+        self.assertIn("provider", miss)
+
+    def test_beth_visible_state_after_confirm(self):
+        from apps.core.ai_state.state_builder import build_medicine_state
+        draft = self._full_label_draft()
+        confirm_draft(draft, MedicationScanDraft.ACTION_CREATE)
+        contract = build_medicine_state(self.user)["_contract"]
+        # Acquisition confidence visible (composed, not raw OCR).
+        acq = {m["name"]: m for m in contract["acquisition"]["medications"]}
+        self.assertIn("Amoxicillin", acq)
+        # Treatment detail shows the linked provider/pharmacy.
+        detail = {d["name"]: d for d in contract["treatment"]["medications_detail"]}
+        self.assertEqual(detail["Amoxicillin"]["provider"], "Dr. Reyes")
+        self.assertEqual(detail["Amoxicillin"]["pharmacy"], "Wellness Pharmacy")

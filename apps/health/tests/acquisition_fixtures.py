@@ -93,4 +93,52 @@ ACQUISITION_SAMPLES = [
         }}],
         "scan_confidence": 0.80,
     },
+    {
+        # Full pharmacy label WITH refills — exercises Pharmacy/Provider/Prescription linking.
+        "key": "pharmacy_label_with_refills",
+        "category": "medicine",
+        "expected_intake_type": "medication",
+        "vision_items": [{"label": "Amoxicillin 500mg", "details": {
+            "name": "Amoxicillin", "strength": "500mg", "dosage": "500mg",
+            "dosage_form": "capsule", "route": "oral",
+            "directions": "Take 1 capsule three times daily",
+            "quantity": "30 capsules", "ndc": "00093-3109-01", "rx_number": "RX9988776",
+            "prescriber": "Dr. Reyes", "pharmacy": "Wellness Pharmacy",
+            "pharmacy_phone": "555-987-6543", "refills": "2",
+            "written_date": "2026-06-10", "expiration": "2027-06-10",
+        }}],
+        "scan_confidence": 0.86,
+    },
+    {
+        # Label with NO refills (refills 0).
+        "key": "pharmacy_label_no_refills",
+        "category": "medicine",
+        "expected_intake_type": "medication",
+        "vision_items": [{"label": "Prednisone 20mg", "details": {
+            "name": "Prednisone", "strength": "20mg", "dosage": "20mg",
+            "directions": "Take 1 tablet daily for 5 days", "quantity": "5 tablets",
+            "rx_number": "RX5500001", "prescriber": "Dr. Lee", "pharmacy": "Wellness Pharmacy",
+            "refills": "0",
+        }}],
+        "scan_confidence": 0.83,
+    },
+    {
+        # Low-confidence / partial label — only name + dose legible.
+        "key": "partial_low_confidence",
+        "category": "medicine",
+        "expected_intake_type": "medication",
+        "vision_items": [{"label": "Losartan", "details": {"dosage": "50mg"}}],
+        "scan_confidence": 0.45,
+    },
+    {
+        # Old bottle that duplicates an existing tracked medication (the test
+        # pre-creates "Atorvastatin 40mg"). Used for duplicate-detection.
+        "key": "old_bottle_duplicate",
+        "category": "medicine",
+        "expected_intake_type": "medication",
+        "vision_items": [{"label": "Atorvastatin", "details": {
+            "name": "Atorvastatin", "dosage": "40mg", "rx_number": "RXOLD0001",
+        }}],
+        "scan_confidence": 0.7,
+    },
 ]

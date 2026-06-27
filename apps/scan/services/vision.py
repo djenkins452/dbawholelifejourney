@@ -42,7 +42,7 @@ IMPORTANT RULES:
 1. NEVER identify people or faces. If a person is in the image, ignore them.
 2. NEVER make assumptions about the person's health, weight, or medical conditions.
 3. NEVER provide medical advice. Only identify what you see.
-4. If you see medicine or supplements, describe what's visible (name, dosage on label) AND look up the common medical purpose of that medication (e.g., "blood pressure control", "cholesterol management", "pain relief", "allergy relief"). Include this purpose in the details.
+4. If you see medicine or supplements, extract every labeled field you can clearly read into details (see the medicine/supplement examples below for the exact keys): medication name, strength/dose, SIG/directions, quantity, NDC, Rx number, prescriber, pharmacy name + phone, refills remaining, refill/written/filled dates, expiration date, dosage form, route, and — for supplements/OTC — serving size, active ingredients, and a short supplement-facts/drug-facts summary. ALSO look up the common medical purpose (e.g., "blood pressure control", "cholesterol management"). CRITICAL: only include a key when you can actually read it on the label — NEVER guess or infer a value. Omit any field you cannot read; a missing field must stay missing.
 5. Be conservative with confidence scores - only use high confidence when clearly visible.
 6. Always respond with valid JSON matching the schema exactly.
 7. Choose the MOST SPECIFIC category that applies. For example, a power tool is "inventory_item", not "unknown".
@@ -96,7 +96,7 @@ RESPONSE FORMAT (strict JSON):
   "safety_notes": ["any warnings or notes for the user"]
 }
 
-Example for a medicine bottle:
+Example for a prescription bottle / pharmacy label (include ONLY keys you can actually read; omit the rest):
 {
   "top_category": "medicine",
   "confidence": 0.92,
@@ -104,15 +104,53 @@ Example for a medicine bottle:
     {
       "label": "Lisinopril 10mg",
       "details": {
+        "name": "Lisinopril",
+        "strength": "10mg",
         "dosage": "10mg",
+        "dosage_form": "tablet",
+        "route": "oral",
+        "directions": "Take 1 tablet by mouth once daily",
         "quantity": "30 tablets",
-        "directions": "Take once daily",
+        "ndc": "00071-0156-23",
+        "rx_number": "RX1234567",
+        "prescriber": "Dr. Jane Adams",
+        "pharmacy": "Corner Pharmacy",
+        "pharmacy_phone": "555-123-4567",
+        "refills": "3",
+        "refill_date": "2026-07-15",
+        "written_date": "2026-06-01",
+        "filled_date": "2026-06-05",
+        "expiration": "2027-06-05",
         "purpose": "Blood pressure control"
       },
       "confidence": 0.92
     }
   ],
   "safety_notes": ["Always consult your doctor or pharmacist about medications"]
+}
+
+Example for a supplement bottle (Supplement Facts panel):
+{
+  "top_category": "supplement",
+  "confidence": 0.9,
+  "items": [
+    {
+      "label": "Vitamin D3 2000 IU",
+      "details": {
+        "name": "Vitamin D3",
+        "strength": "2000 IU",
+        "dosage": "2000 IU",
+        "directions": "Take 1 softgel daily",
+        "quantity": "120 softgels",
+        "serving_size": "1 softgel",
+        "active_ingredients": "Vitamin D3 (as cholecalciferol) 2000 IU",
+        "supplement_facts_summary": "Vitamin D3 2000 IU per softgel, 120 servings",
+        "purpose": "Bone health"
+      },
+      "confidence": 0.9
+    }
+  ],
+  "safety_notes": ["Always consult your doctor or pharmacist about supplements"]
 }
 
 Example for a power tool (inventory item):

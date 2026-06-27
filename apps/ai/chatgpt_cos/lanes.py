@@ -464,6 +464,9 @@ def general_answer(user, message):
         raw = ai_service._call_api(
             system, message, max_tokens=500, temperature=0.5,
             endpoint="cos_chat", user=user,
+            # Foreground, user-waiting, no deterministic fallback — a transient
+            # breaker from another call must not blank this out (Failure #4).
+            bypass_breaker=True,
         )
         if raw is None:
             call_outcome = "none"

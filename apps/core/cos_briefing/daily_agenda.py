@@ -80,8 +80,18 @@ def _risk_clause(user):
     return "Watch out: you have " + " and ".join(bits) + " right now."
 
 
+def _user_hour(user):
+    try:
+        from apps.core.utils import get_user_now
+        return get_user_now(user).hour
+    except Exception:
+        return 12
+
+
 def build_daily_agenda(user):
-    """Return a deterministic daily agenda string (always non-empty)."""
+    """Return a deterministic daily agenda string (always non-empty). TIME-AWARE:
+    in the evening it pivots to wrap-up / recovery / tomorrow and never tells the
+    user to BEGIN a morning activity (Failure #1)."""
     try:
         from apps.core.cos_briefing.rhythm_api import (
             get_current_rhythm_item, get_remaining_rhythm_items,
@@ -91,6 +101,26 @@ def build_daily_agenda(user):
     except Exception:
         logger.warning("daily_agenda: rhythm api failed", exc_info=True)
         remaining, next_item = [], None
+
+    hour = _user_hour(user)
+
+    # ----- Evening (8 PM onward): wind down, don't start the day's activities. ----
+    if hour >= 20:
+        parts = ["It's getting late, so let's focus on wrapping up the day well."]
+        risk = _risk_clause(user)
+        if risk:
+            parts.append(risk + " Let that go for tonight and reset in the morning.")
+        parts.append("The best use of this evening is to wind down: journal a few "
+                     "lines on how today went, prepare for tomorrow, and protect "
+                     "your sleep.")
+        nxt = (next_item or {}).get("title") if isinstance(next_item, dict) else None
+        if nxt and nxt.strip():
+            parts.append(f"Tomorrow's first priority looks like {nxt.strip()} — "
+                         f"rest up tonight so you're ready for it.")
+        else:
+            parts.append("Set tomorrow's first priority before bed so you can start "
+                         "with a clear head.")
+        return " ".join(parts)
 
     parts = []
 

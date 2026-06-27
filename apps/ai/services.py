@@ -337,6 +337,7 @@ class AIService:
         conversation_history: list = None,
         all_images: list = None,
         model: str = None,
+        bypass_breaker: bool = False,
     ) -> Optional[str]:
         """
         Make an API call to OpenAI with retry, backoff, and observability.
@@ -368,8 +369,11 @@ class AIService:
             logger.warning("AI service not available - no API key configured")
             return None
 
-        # Circuit breaker: skip if we've been rate-limited recently
-        if cache.get("openai_rate_limited"):
+        # Circuit breaker: skip if we've been rate-limited recently. A FOREGROUND,
+        # user-waiting call (e.g. a general-knowledge answer with no deterministic
+        # fallback) may bypass it — one transient 429 elsewhere must not blank out
+        # "who was Abraham Lincoln?" for 120s (Failure #4).
+        if cache.get("openai_rate_limited") and not bypass_breaker:
             logger.info("LLM SKIPPED endpoint=%s — circuit breaker active (rate limited)", endpoint)
             return None
 

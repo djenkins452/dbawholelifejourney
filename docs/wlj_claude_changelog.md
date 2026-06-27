@@ -7,6 +7,25 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — feat(cos): product-quality pass + Beth acceptance suite (4 validation failures)
+
+Quality/reasoning/routing fixes for production validation, plus an automated acceptance suite that BLOCKS release on regression. No new architecture/frameworks.
+
+**Failure #2 — goal intent collapse (six questions, one answer).** Added five differentiated goal intents alongside goals_progress: `goal_on_track` (trajectory yes/no + evidence), `goal_why_priority` (strategic rationale from why_it_matters/success — NO counts/deadlines/portfolio), `goal_next_milestone` (active+next milestone ONLY), `goal_failure_modes` (failure analysis), `goal_confidence` (confidence level + strengths + risks). Each registered (IMPLEMENTED_INTENTS, INTENT_DOMAINS, INTENT_TRUTH_SCOPE, INTENT_CURATORS, REASONING_PROFILES) with a distinct deterministic fallback. `_infer_named_goal_intent` + the planner prompt now route the six questions to six intents.
+
+**Failure #1 — evening check-in.** `build_daily_agenda` is now time-aware: from 8 PM it pivots to wrap-up/recovery (journal, prepare for tomorrow, protect sleep, tomorrow's first priority) and never says "begin <morning activity>".
+
+**Failure #3 — generic language.** Extended the banned-phrase list (maintain/keep/lock-in consistency, maintain/keep momentum, etc.); rewrote goal-state phrases to drop system-speak; every focus/recommendation is concrete-or-honest, never a placeholder.
+
+**Failure #4 — general-knowledge reliability.** Root cause: one 429 anywhere set the shared circuit breaker for 120s, so `_call_api` returned None for every call including foreground general-knowledge questions (no deterministic fallback). Added `bypass_breaker` to `_call_api`; the general lane (foreground, user-waiting) now bypasses the breaker so a transient rate-limit elsewhere can't blank out "Who was Abraham Lincoln?".
+
+**Acceptance suite** (`apps/ai/tests/test_beth_acceptance.py`, 18 tests): asserts correct routing, six materially-distinct answers, expected/forbidden concepts per intent, no banned language in focus/recommendations, evening check-in time-awareness, and general-knowledge routing + breaker bypass.
+
+**Files:** `apps/ai/chatgpt_cos/reasoning/plan.py`, `apps/ai/chatgpt_cos/reasoning/stages.py`, `apps/core/cos_briefing/daily_agenda.py`, `apps/ai/services.py` (+bypass_breaker), `apps/ai/chatgpt_cos/lanes.py`, `apps/ai/tests/test_beth_acceptance.py` (new), `apps/ai/tests/test_goals_reasoning.py`. Canonical engines only (P24); no migration; Health byte-identical.
+
+**Verification:** 18 acceptance + 228-test reasoning/lane/facts/mission regression + 12 cos-service tests green; `check` clean; `makemigrations --check` = no changes.
+
+
 ## 2026-06-26 — docs(cos): WLJ prompt library refresh & governance update
 
 Documentation-only governance pass over `@WLJ_SYSTEM_PROMPTS/` (no production logic changed; two `.py` docstring path references updated to match renamed folders). Brings the prompt/document library to production-ready state and makes startup loading deterministic.

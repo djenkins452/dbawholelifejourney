@@ -28,7 +28,11 @@ logger = logging.getLogger(__name__)
 HEALTH_IMPLEMENTED = ("biggest_health_risk", "overall_progress",
                       "health_focus_today", "health_concerns")
 GOAL_IMPLEMENTED = ("biggest_goal_risk", "goals_progress",
-                    "goals_focus_today", "goal_concerns")
+                    "goals_focus_today", "goal_concerns",
+                    # Differentiated goal intents — six distinct questions, six
+                    # distinct answers (no more collapse to goals_progress).
+                    "goal_on_track", "goal_why_priority", "goal_next_milestone",
+                    "goal_failure_modes", "goal_confidence")
 IMPLEMENTED_INTENTS = HEALTH_IMPLEMENTED + GOAL_IMPLEMENTED
 ALLOWED_INTENTS = IMPLEMENTED_INTENTS + ("other",)
 
@@ -60,6 +64,11 @@ INTENT_DOMAINS = {
     "goals_progress": ("goals", _GOALS_REQUIRED),
     "goals_focus_today": ("goals", _GOALS_REQUIRED),
     "goal_concerns": ("goals", _GOALS_REQUIRED),
+    "goal_on_track": ("goals", _GOALS_REQUIRED),
+    "goal_why_priority": ("goals", _GOALS_REQUIRED),
+    "goal_next_milestone": ("goals", _GOALS_REQUIRED),
+    "goal_failure_modes": ("goals", _GOALS_REQUIRED),
+    "goal_confidence": ("goals", _GOALS_REQUIRED),
 }
 
 
@@ -203,18 +212,49 @@ _DOMAIN_COLLISION_WORDS = frozenset({
 
 def _infer_named_goal_intent(text):
     """Pick the goal intent for a message ALREADY known to be about a named goal.
-    Generic cues (no 'goal' keyword required, since the subject is established)."""
-    if any(k in text for k in ("what should i do", "focus on today", "do today",
-                               "work on today", "action today", "next step today",
-                               "what should i focus", "focus on", "focus for",
-                               "focus on for", "what to focus", "where to focus")):
+    Six distinct intents — checked MOST-SPECIFIC first so e.g. 'next milestone'
+    and 'why is this my priority' never collapse to goals_progress."""
+    t = text
+    # Confidence assessment.
+    if any(k in t for k in ("how confident", "confident are you", "confidence",
+                            "will i achieve", "will i hit", "will i make", "chances of",
+                            "chance of", "likely to achieve", "odds of", "probability",
+                            "going to make it")):
+        return "goal_confidence"
+    # Failure-mode analysis. (In a named-goal context, "fail" is unambiguous.)
+    if any(k in t for k in ("fail", "cause this", "cause the", "cause it to",
+                            "go wrong", "derail", "what would stop", "what could stop",
+                            "what might stop", "fall apart", "blow this", "give up on")):
+        return "goal_failure_modes"
+    # Strategic rationale — why it's the priority.
+    if ("why" in t and any(k in t for k in ("priority", "matter", "matters",
+                                            "important", "highest", "top goal",
+                                            "this goal", "this mission"))):
+        return "goal_why_priority"
+    # Next milestone / current phase only.
+    if any(k in t for k in ("milestone", "next phase", "current phase", "next step in",
+                            "what phase")):
+        return "goal_next_milestone"
+    # Trajectory — on track / on pace.
+    if any(k in t for k in ("on track", "on pace", "on schedule", "behind schedule",
+                            "still on track", "make it in time", "going to make it",
+                            "will i finish in time")):
+        return "goal_on_track"
+    # Focus today.
+    if any(k in t for k in ("what should i do", "focus on today", "do today",
+                            "work on today", "action today", "next step today",
+                            "what should i focus", "focus on", "focus for",
+                            "what to focus", "where to focus")):
         return "goals_focus_today"
-    if any(k in text for k in ("biggest", "most at risk", "at risk", "worried",
-                               "behind on", "in trouble")):
+    # Single biggest risk.
+    if any(k in t for k in ("biggest", "most at risk", "at risk", "worried",
+                            "in trouble")):
         return "biggest_goal_risk"
-    if any(k in text for k in ("concerns", "slipping", "stalling", "stalled",
-                               "problems with")):
+    # Slipping / concerns.
+    if any(k in t for k in ("concerns", "slipping", "stalling", "stalled",
+                            "problems with", "behind on")):
         return "goal_concerns"
+    # Default — progress summary.
     return "goals_progress"
 
 

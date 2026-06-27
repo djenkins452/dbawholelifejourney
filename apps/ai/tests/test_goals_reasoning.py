@@ -564,7 +564,7 @@ class GoalsEvidenceFirstTests(SimpleTestCase):
     def test_evidence_backed_stall_outranks_metadata(self):
         ranked = self._ranked(MISSION_STALLED_FIXTURE)
         self.assertIn("France 2027 Family 18K Mission", ranked[0]["concern"])
-        self.assertIn("momentum", ranked[0]["concern"].lower())
+        self.assertIn("stalled", ranked[0]["concern"].lower())
         self.assertNotIn("completion", ranked[0]["concern"].lower())
 
     def test_progress_narrates_phase_and_drivers(self):
@@ -635,7 +635,7 @@ class GoalStateRiskTests(SimpleTestCase):
     def test_thriving_gets_consistency_not_crisis(self):
         r = self._risk("thriving", "strong", "rising")
         self.assertIn("thriving", r)
-        self.assertIn("consistency", r)
+        self.assertIn("no significant risks", r)
         for c in self._CRISIS:
             self.assertNotIn(c, r)
 
@@ -653,11 +653,11 @@ class GoalStateRiskTests(SimpleTestCase):
     def test_stalled_gets_losing_momentum(self):
         r = self._risk("stalled", "low", "stable")
         self.assertIn("stalled", r)
-        self.assertIn("losing momentum", r)
+        self.assertIn("little recent progress", r)
 
     def test_failing_gets_intervention(self):
         r = self._risk("failing", "low", "falling")
-        self.assertIn("intervention", r)
+        self.assertIn("urgent recovery", r)
 
     def test_action_is_milestone_grounded_for_every_state(self):
         for state, m, t in (("thriving", "strong", "rising"),
@@ -708,7 +708,7 @@ class GoalsDefectFixesTests(SimpleTestCase):
     def test_thriving_goal_is_watch_not_risk(self):
         out = stages._goal_risk_fallback(_wm(self._fx("thriving", "strong", "rising")))
         self.assertIn("no significant risks", out.lower())
-        self.assertIn("consistency", out.lower())
+        self.assertIn("thriving", out.lower())
 
     def test_drifting_goal_is_a_real_risk(self):
         out = stages._goal_risk_fallback(_wm(self._fx("drifting", "moderate", "falling")))

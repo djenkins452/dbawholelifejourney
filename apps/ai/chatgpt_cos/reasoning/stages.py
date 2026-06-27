@@ -61,7 +61,15 @@ _PLANNER_SYSTEM = (
     "- 'biggest_goal_risk': the SINGLE goal most at risk (overdue/stalling). One thing.\n"
     "- 'goal_concerns': a RANKED LIST of goals/habits that are slipping. Multiple things.\n"
     "- 'goals_focus_today': the ONE goal action to advance TODAY. Today + action.\n"
-    "- 'goals_progress': an executive SUMMARY of goal progress/trajectory.\n"
+    "- 'goals_progress': a SUMMARY of how a goal is progressing (milestone/momentum/wins).\n"
+    "- 'goal_on_track': a TRAJECTORY verdict — am I on track / on pace? (yes-no + why).\n"
+    "- 'goal_why_priority': the STRATEGIC RATIONALE — why this goal matters most.\n"
+    "- 'goal_next_milestone': ONLY the current/next MILESTONE for a goal.\n"
+    "- 'goal_failure_modes': what could CAUSE the goal to FAIL (risk-of-failure list).\n"
+    "- 'goal_confidence': a CONFIDENCE assessment — how likely to achieve it.\n"
+    "These are DISTINCT: 'how is X going'→goals_progress; 'am I on track'→goal_on_track; "
+    "'why is X my priority'→goal_why_priority; 'next milestone'→goal_next_milestone; "
+    "'what could make X fail'→goal_failure_modes; 'how confident'→goal_confidence.\n"
     "Match the DOMAIN to the question: health questions → health intents + health "
     "truth; goal/habit/mission/priority questions → goal intents + goal truth. "
     "NEVER mix truth across domains (no health truth for a goal intent, or "
@@ -160,7 +168,9 @@ HEALTH_INTENTS = ("biggest_health_risk", "overall_progress",
 # isolation as health — no cross-domain truth can reach a goal intent.
 GOALS_TRUTH = frozenset({"goals_state", "habits_state"})
 GOAL_INTENTS = ("biggest_goal_risk", "goals_progress",
-                "goals_focus_today", "goal_concerns")
+                "goals_focus_today", "goal_concerns",
+                "goal_on_track", "goal_why_priority", "goal_next_milestone",
+                "goal_failure_modes", "goal_confidence")
 INTENT_TRUTH_SCOPE = {
     **{i: HEALTH_TRUTH for i in HEALTH_INTENTS},
     **{i: GOALS_TRUTH for i in GOAL_INTENTS},
@@ -486,26 +496,29 @@ def _evidence_losing(e):
     return bool(e) and (e.get("trend") == "falling" or e.get("momentum") == "low")
 
 
-# Task 2 — risk LANGUAGE and kind vary by canonical goal STATE. drifting/stalled/
-# failing are real RISKS; stable/thriving are WATCH items (never crisis language).
+# Risk LANGUAGE and kind vary by canonical goal STATE. drifting/stalled/failing are
+# real RISKS; stable/thriving are WATCH items. Phrases avoid system-speak
+# ("maintain consistency", "keep momentum") — the concrete next step is the action.
 # (severity, kind, phrase)
 _GOAL_STATE_RISK = {
     "failing":  (50, "risk",  "needs urgent recovery — it's overdue or clearly "
-                              "declining and won't succeed without intervention"),
-    "stalled":  (40, "risk",  "has stalled — there's little recent progress and it's "
-                              "losing momentum"),
+                              "declining and won't succeed without a reset"),
+    "stalled":  (40, "risk",  "has stalled — there's been little recent progress"),
     "drifting": (30, "risk",  "is drifting — recent execution has dropped off"),
-    "stable":   (25, "watch", "is progressing steadily — the watch item is keeping "
-                              "your consistency and not missing an upcoming milestone"),
-    "thriving": (20, "watch", "is thriving — the watch item is maintaining your "
-                              "consistency over time"),
+    "stable":   (25, "watch", "is progressing steadily and on pace"),
+    "thriving": (20, "watch", "is thriving — strong momentum and ahead of pace"),
 }
 
-# Generic placeholder verbs that must NEVER reach a focus/recommendation (Defect 3).
+# Generic / system phrases that must NEVER reach a focus or recommendation
+# (Defect 3 + Failure #3). Beth speaks in concrete actions, not these.
 _BANNED_FOCUS = (
     "take the next step", "take the concrete next step", "take a step",
     "make progress", "work on your goal", "work on the goal", "advance your goal",
     "advance the goal", "take one step", "take your first action", "support your mission",
+    "maintain consistency", "maintain momentum", "maintaining consistency",
+    "maintaining your consistency", "keep consistency", "keeping your consistency",
+    "keep your consistency", "lock in consistency", "lock in momentum",
+    "stay consistent", "keep up the momentum", "keep the momentum going",
 )
 
 
@@ -926,6 +939,153 @@ def _goals_focus_today_fallback(wm):
             "so there's something concrete to drive toward.")
 
 
+# ---------------------------------------------------------------------------
+# Differentiated goal intents — six distinct questions, six distinct answers.
+# Each fallback consumes the FOCAL goal's curated evidence (mission first).
+# ---------------------------------------------------------------------------
+def _focal_goal(wm):
+    ev = (wm.get("facts") or {}).get("goal_evidence") or []
+    return ev[0] if ev else None
+
+
+def _concrete_action(item):
+    a = (item or {}).get("recommended_action")
+    if a and not _is_generic_action(a):
+        return a
+    return ("its current milestone has no defined next action yet — add one so "
+            "there's a concrete thing to do today")
+
+
+def _goal_on_track_fallback(wm):
+    # Trajectory assessment: yes/no + evidence + why. DISTINCT from progress.
+    item = _focal_goal(wm)
+    if not item:
+        return ("I don't have an active goal with enough recent data to judge your "
+                "trajectory yet.")
+    name = item.get("goal")
+    state = item.get("state")
+    verdict = {
+        "thriving": f"Yes — you're on track for '{name}', and then some",
+        "stable": f"Yes — you're on track for '{name}'",
+        "drifting": f"You're roughly on track for '{name}', but starting to slip",
+        "stalled": f"Not right now — '{name}' has lost pace",
+        "failing": f"No — '{name}' is off track",
+    }.get(state, f"It's hard to say yet for '{name}'")
+    parts = [verdict + "."]
+    work = [w for w in (item.get("whats_working") or []) if isinstance(w, str)]
+    if work:
+        parts.append(f"The evidence: {', '.join(work[:2])}.")
+    why = {
+        "thriving": "Momentum and milestone progress are both moving the right way.",
+        "stable": "Your momentum is steady and milestones are advancing.",
+        "drifting": "Recent execution has dipped, so it needs attention to hold pace.",
+        "stalled": "Progress has flattened — it needs a restart to get back on pace.",
+        "failing": "Momentum has dropped and the timeline is at risk without a reset.",
+    }.get(state, "")
+    if why:
+        parts.append(why)
+    parts.append(f"Next move: {_concrete_action(item)}.")
+    return " ".join(parts)
+
+
+def _goal_why_priority_fallback(wm):
+    # Strategic rationale — why_it_matters / success. NO counts/deadlines/portfolio.
+    item = _focal_goal(wm)
+    if not item:
+        return ("I don't have a primary goal recorded for you yet — set one as your "
+                "mission and tell me why it matters, and I'll reflect it back.")
+    name = item.get("goal")
+    why = item.get("why_it_matters")
+    succ = item.get("success_looks_like")
+    parts = [f"'{name}' is your priority because of what it means to you, not because "
+             f"of where it sits on a list."]
+    if why:
+        parts.append(why)
+    if succ:
+        parts.append(f"Success looks like: {succ}")
+    if not why and not succ:
+        parts.append("You've set it as your primary mission — the goal you've chosen "
+                     "to organize your effort around. Add a note on why it matters and "
+                     "I can speak to it more fully.")
+    return " ".join(parts)
+
+
+def _goal_next_milestone_fallback(wm):
+    # ONLY the active + next milestone and its detail. No other goals/portfolio.
+    item = _focal_goal(wm)
+    if not item:
+        return ("I don't have a goal with milestones recorded yet — add one to set a "
+                "concrete next target.")
+    name = item.get("goal")
+    phase = item.get("phase")
+    detail = item.get("current_milestone_detail")
+    nxt = [m for m in (item.get("next_milestones") or []) if isinstance(m, str)]
+    parts = []
+    if phase:
+        s = f"Your current milestone for '{name}' is \"{phase}\""
+        if detail:
+            s += f" — {detail}"
+        parts.append(s + ".")
+    if nxt:
+        parts.append(f"After that, the next milestone is \"{nxt[0]}\".")
+    if not phase and not nxt:
+        parts.append(f"'{name}' has no active milestone defined yet — adding one would "
+                     f"give you a concrete next target to work toward.")
+    return " ".join(parts)
+
+
+_FITNESS_FAILURE_MODES = (
+    "losing workout consistency", "missing scheduled sessions",
+    "nutrition slipping off plan", "momentum fading if the routine lapses",
+    "abandoning the daily habits that drive it",
+)
+
+
+def _goal_failure_modes_fallback(wm):
+    # Failure analysis — what could cause it to fail. DISTINCT from progress.
+    item = _focal_goal(wm)
+    if not item:
+        return ("I don't have enough on this goal to map its failure modes yet.")
+    name = item.get("goal")
+    modes = []
+    for r in (item.get("watch") or []):
+        if isinstance(r, str):
+            modes.append(r)
+    for m in _FITNESS_FAILURE_MODES:
+        if m not in modes:
+            modes.append(m)
+    lines = [f"The most likely ways '{name}' could fail:"]
+    for i, m in enumerate(modes[:5], 1):
+        lines.append(f"{i}. {m}")
+    lines.append(f"The single best guard against them today: {_concrete_action(item)}.")
+    return "\n".join(lines)
+
+
+def _goal_confidence_fallback(wm):
+    # Confidence assessment — level + evidence + strengths + risks. DISTINCT.
+    item = _focal_goal(wm)
+    if not item:
+        return ("I don't have enough recent evidence to give you a confidence read "
+                "on this goal yet.")
+    name = item.get("goal")
+    state = item.get("state")
+    level = {
+        "thriving": "high", "stable": "solid", "drifting": "moderate",
+        "stalled": "low-to-moderate", "failing": "low",
+    }.get(state, "uncertain")
+    parts = [f"My confidence that you'll achieve '{name}' is {level} right now."]
+    strengths = [w for w in (item.get("whats_working") or []) if isinstance(w, str)]
+    risks = [r for r in (item.get("watch") or []) if isinstance(r, str)]
+    if strengths:
+        parts.append(f"Strengths: {', '.join(strengths[:2])}.")
+    if risks:
+        parts.append(f"Risks: {', '.join(risks[:2])}.")
+    elif state in ("thriving", "stable"):
+        parts.append("No significant risks are showing up in the evidence.")
+    parts.append(f"What would raise it: {_concrete_action(item)}.")
+    return " ".join(parts)
+
+
 _GOAL_GUIDANCE = (
     " Stay strictly within goals and habits — never mention health metrics, "
     "finances, labs, or unrelated domains. Cite the data; never invent goals, "
@@ -959,6 +1119,11 @@ INTENT_CURATORS = {
     "goals_progress": goals_working_memory,
     "goals_focus_today": goals_working_memory,
     "goal_concerns": goals_working_memory,
+    "goal_on_track": goals_working_memory,
+    "goal_why_priority": goals_working_memory,
+    "goal_next_milestone": goals_working_memory,
+    "goal_failure_modes": goals_working_memory,
+    "goal_confidence": goals_working_memory,
 }
 
 
@@ -1201,6 +1366,63 @@ REASONING_PROFILES = {
         ),
         "max_tokens": 180,
         "fallback": _goals_focus_today_fallback,
+    },
+    "goal_on_track": {
+        "system": (
+            "You are the user's Chief of Staff. Answer ONLY the trajectory question "
+            "for the FOCAL goal (goal_evidence[0]): are they on track? Lead with a "
+            "clear yes / roughly / no, then the EVIDENCE (whats_working, momentum, "
+            "state) and WHY, then the concrete next move (recommended_action). This "
+            "is a verdict, NOT a progress summary and NOT a portfolio overview."
+            + _GOAL_GUIDANCE + " Max 110 words."
+        ),
+        "max_tokens": 200,
+        "fallback": _goal_on_track_fallback,
+    },
+    "goal_why_priority": {
+        "system": (
+            "You are the user's Chief of Staff. Explain the STRATEGIC RATIONALE for "
+            "why this goal is the user's priority, using ONLY why_it_matters and "
+            "success_looks_like (the user's own words about meaning, family, health, "
+            "values, future impact). Do NOT mention active goal counts, deadlines, "
+            "completion %, momentum scores, or any portfolio summary." + _GOAL_GUIDANCE
+            + " Max 120 words."
+        ),
+        "max_tokens": 200,
+        "fallback": _goal_why_priority_fallback,
+    },
+    "goal_next_milestone": {
+        "system": (
+            "You are the user's Chief of Staff. Return ONLY the current active "
+            "milestone (phase) and its detail, plus the next milestone if known. Do "
+            "NOT discuss other goals, momentum, the portfolio, or progress %. Just "
+            "the milestone(s)." + _GOAL_GUIDANCE + " Max 90 words."
+        ),
+        "max_tokens": 160,
+        "fallback": _goal_next_milestone_fallback,
+    },
+    "goal_failure_modes": {
+        "system": (
+            "You are the user's Chief of Staff. Give a FAILURE ANALYSIS for the "
+            "focal goal: the specific ways it could fail (from 'watch' risk drivers "
+            "plus the obvious execution risks — inconsistency, missed workouts, "
+            "nutrition slipping, lost momentum, abandoned routines), then the single "
+            "best guard today (recommended_action). This is a risk-of-failure list, "
+            "NOT a progress summary." + _GOAL_GUIDANCE + " Max 130 words."
+        ),
+        "max_tokens": 220,
+        "fallback": _goal_failure_modes_fallback,
+    },
+    "goal_confidence": {
+        "system": (
+            "You are the user's Chief of Staff. Give a CONFIDENCE ASSESSMENT for the "
+            "focal goal: a clear confidence level (high/solid/moderate/low) grounded "
+            "in the evidence, then strengths (whats_working) and risks (watch), then "
+            "what would raise it (recommended_action). This is a confidence verdict, "
+            "NOT a progress summary." + _GOAL_GUIDANCE + " Max 120 words."
+        ),
+        "max_tokens": 200,
+        "fallback": _goal_confidence_fallback,
     },
 }
 

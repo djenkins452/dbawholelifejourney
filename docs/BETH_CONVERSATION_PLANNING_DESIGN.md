@@ -311,3 +311,28 @@ distinct from the intent suites.
 - No new reasoning engine / parallel orchestrator. No migration. No always-on LLM
   planner. No rewrite of the "Good morning" prompt. The deterministic fact bodies and
   the v3 never-empty / graceful-degradation invariants are preserved exactly.
+
+---
+
+# Appendix — Acceptance Center resume policy (P34)
+
+**Is resume technically possible?** Partially. Each answered question is persisted as
+an `AcceptanceResult` row and the heartbeat records `completed`, so a worker *could*
+skip already-answered questions and continue.
+
+**Why it is intentionally rejected.** An Acceptance run validates ONE commit. A run is
+interrupted/cancelled almost exclusively because (a) a **deployment** restarted the app
+(the code under test just changed) or (b) an admin **cancelled** it. Resuming would
+stitch together results produced by two different code versions, yielding a grade that
+is correct for *neither* commit — the exact "falsely-GREEN / falsely-RED" failure the
+trustworthiness architecture exists to prevent. A cancelled run is also, by definition,
+not a complete assessment. So the only safe recovery is **Restart** (a fresh run at the
+current commit), which is what the UI offers.
+
+**Under what future architecture resume could become safe.** Resume would be safe only
+if a resumed run could PROVE all results came from one immutable code version — e.g.
+the run pins `git_commit` at creation, every result row stores the commit it ran under,
+and resume refuses unless the *current* deployed commit equals the run's pinned commit
+(and the question bank hash is unchanged). With that invariant, resume after a transient
+worker crash (same commit) would be sound; resume across a deploy would still be refused.
+Not worth building today — restart is cheap and unambiguous.

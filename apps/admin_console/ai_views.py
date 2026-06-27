@@ -101,6 +101,39 @@ class StartBethAcceptanceView(AdminRequiredMixin, View):
                                 kwargs={"pk": run.id}))
 
 
+class CancelBethAcceptanceView(AdminRequiredMixin, View):
+    """POST: cooperatively cancel a running run (worker stops after the current
+    question). Never hard-kills Celery — see acceptance_service.request_cancel."""
+
+    def post(self, request, *args, **kwargs):
+        run = get_object_or_404(AcceptanceRun, pk=kwargs["pk"])
+        from apps.ai.chatgpt_cos.acceptance_service import request_cancel
+        new = request_cancel(run)
+        if new == "cancelling":
+            messages.info(request, "Cancelling — the run will stop after the current "
+                                   "question finishes.")
+        elif new == "cancelled":
+            messages.success(request, "Run cancelled.")
+        else:
+            messages.warning(request, "That run is not running — nothing to cancel.")
+        return redirect(reverse("admin_console:beth_acceptance_run",
+                                kwargs={"pk": run.pk}))
+
+
+class DeleteBethAcceptanceView(AdminRequiredMixin, View):
+    """POST: delete a TERMINAL run (cleanup). Active runs must be cancelled first."""
+
+    def post(self, request, *args, **kwargs):
+        run = get_object_or_404(AcceptanceRun, pk=kwargs["pk"])
+        if not run.is_terminal:
+            messages.warning(request, "Cancel the run before deleting it.")
+            return redirect(reverse("admin_console:beth_acceptance_run",
+                                    kwargs={"pk": run.pk}))
+        run.delete()
+        messages.success(request, f"Deleted acceptance run #{kwargs['pk']}.")
+        return redirect(reverse("admin_console:beth_acceptance"))
+
+
 class BethAcceptanceRunDetailView(AdminRequiredMixin, TemplateView):
     """Run detail: summary, results table/detail, and the two copy prompts."""
     template_name = "admin_console/beth_acceptance_run.html"
@@ -108,9 +141,9 @@ class BethAcceptanceRunDetailView(AdminRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         run = get_object_or_404(AcceptanceRun, pk=kwargs["pk"])
-        # P33: if THIS run's worker died, surface it as interrupted (not a forever
-        # spinner). Reap lazily on view so a single refresh after a deploy heals it.
-        if run.status == "running" and run.is_stale:
+        # P33/P34: if THIS run's worker died, surface it as interrupted/cancelled
+        # (not a forever spinner). Reap lazily on view so a single refresh heals it.
+        if run.status in ("running", "cancelling") and run.is_stale:
             try:
                 from apps.ai.chatgpt_cos.acceptance_service import reap_stale_runs
                 reap_stale_runs()
@@ -120,9 +153,11 @@ class BethAcceptanceRunDetailView(AdminRequiredMixin, TemplateView):
         results = list(run.results.order_by("sort_order"))
         ctx["run"] = run
         ctx["results"] = results
-        # only auto-refresh while genuinely still running (fresh heartbeat)
-        ctx["is_running"] = run.is_running and not run.is_stale
+        # keep auto-refreshing while genuinely executing (running OR cancelling)
+        ctx["is_running"] = run.is_active
         ctx["is_stale"] = run.is_stale
+        ctx["can_cancel"] = run.can_cancel
+        ctx["is_cancelling"] = run.is_cancelling
         ctx["failed_results"] = [r for r in results if not r.passed]
         # ordered category summary (skip zero counts)
         cats = run.category_summary or {}

@@ -223,6 +223,20 @@ The 5-point registration:
 
 ---
 
+## Administrator Experience Checklist (REQUIRED for any operational feature)
+
+Engineering correctness is not the same as a finished product. Any feature an operator runs (jobs, runs, imports, background work, dashboards with actions) is **not complete** until the operator sitting in front of the screen can naturally:
+
+- **Start** — initiate the work.
+- **Stop** — cancel/abort gracefully (cooperative cancellation, never an orphaned state).
+- **Monitor** — see progress, current step, and freshness (heartbeat/age), not just a spinner.
+- **Recover** — restart/retry after failure, interruption, or cancellation; understand stale vs interrupted vs failed.
+- **Understand** — distinguish active vs finished work; see diagnostics and history; know why something stopped.
+
+Every operational feature review must end by answering these five. If any obvious answer is "No", the feature is incomplete — implement the missing control. Do not gold-plate (only build controls an operator would naturally expect), but never ship engineering scaffolding without the operator controls that make it usable. (Origin: P34 — we built heartbeats/stale/interrupted/restart but missed **Cancel**.)
+
+---
+
 ## Reference Docs (Read On-Demand)
 
 | Doc | When to Read |

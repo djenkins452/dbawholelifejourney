@@ -7,6 +7,26 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(admin): P34 Acceptance Center — Cancel Run + complete administrator experience
+
+We had heartbeats/stale/interrupted/restart but no CANCEL — engineering-correct, not operator-complete. P34 adds graceful cooperative cancellation and finishes the admin controls.
+
+**Cancel (cooperative — never hard-kills Celery, never revokes):**
+- Lifecycle adds `cancelling` → `cancelled` (plain status strings → NO migration). `request_cancel()` marks a live RUNNING run `cancelling`; the worker checks `_cancel_requested()` BETWEEN questions, lets the in-flight question finish, then exits cleanly. `_finalize_cancelled()` keeps the partial `AcceptanceResult` rows, records honest partial counts, writes NO release grade (a cancelled run is not a trustworthy assessment), sets trustworthy=False. No orphaned/ambiguous state.
+- Edge cases: cancelling a STALE run (worker already gone) finalizes to `cancelled` immediately; the reaper now treats a stale `cancelling` run as terminal `cancelled` (honoring the admin's intent) and a stale `running` run as `interrupted`.
+- Status model evaluated: kept the minimum — RUNNING → CANCELLING → COMPLETED|FAILED|INTERRUPTED|CANCELLED (Queued omitted — no value; STALE remains a computed transient).
+
+**UI (administrator controls):** the live-run card now shows **Cancel** + **Refresh** alongside progress / current question / heartbeat age; "Cancelling…" state; a CSP-safe confirmation dialog with the exact copy ("Questions completed: N/M … Cancelling will stop after the current question finishes. This run cannot be resumed."). Cancelled runs get a banner + **Restart**. Terminal runs get a **Delete this run** control (confirm). New views `CancelBethAcceptanceView` + `DeleteBethAcceptanceView` + URLs.
+
+**Restart / resume:** Restart (fresh run) offered for cancelled/interrupted/stale/failed. Resume remains intentionally REJECTED — documented in docs/BETH_CONVERSATION_PLANNING_DESIGN.md (Appendix): technically partial-feasible, but an interrupted/cancelled run spans a deploy/cancel boundary so resuming would mix commits → untrustworthy; safe only under a future commit-pinned invariant.
+
+**New permanent standard:** added the **Administrator Experience Checklist** to CLAUDE.md — every operational feature must let the operator Start / Stop / Monitor / Recover / Understand, or it is incomplete (origin: we missed Cancel).
+
+**Files:** apps/admin_console/{models.py, ai_views.py, urls.py}, apps/ai/chatgpt_cos/acceptance_service.py, templates/admin_console/beth_acceptance_run.html, CLAUDE.md, docs/BETH_CONVERSATION_PLANNING_DESIGN.md. Tests: apps/admin_console/tests/test_acceptance_cancel.py (new).
+
+**Verification:** 13 new cancel tests — cancel request (live/idempotent/stale/terminal), cancellation WHILE processing (worker stops after the current question, partial results, no grade, clean terminal), stale-cancelling reaper, cancel button visibility (shown live / hidden when finished), confirmation copy present, cancel view, restart-after-cancel, delete terminal / refuse active. 120-test acceptance regression green; `makemigrations admin_console --check` = no changes; `check` clean. No migration.
+
+
 ## 2026-06-27 — feat(health): Sprint 2C/2D — canonical medication state + timeline foundation
 
 Expands `build_medicine_state` with a composed `_contract.treatment` section so the Chief of Staff sees richer canonical medication state (closing the dose/frequency/provider/pharmacy visibility gap from the audit) — COMPOSED state only, never raw models.

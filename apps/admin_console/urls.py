@@ -31,6 +31,12 @@ urlpatterns = [
     path("ai/beth-acceptance/runs/<int:pk>/",
          ai_views.BethAcceptanceRunDetailView.as_view(),
          name="beth_acceptance_run"),
+    path("ai/beth-acceptance/runs/<int:pk>/cancel/",
+         ai_views.CancelBethAcceptanceView.as_view(),
+         name="beth_acceptance_cancel"),
+    path("ai/beth-acceptance/runs/<int:pk>/delete/",
+         ai_views.DeleteBethAcceptanceView.as_view(),
+         name="beth_acceptance_delete"),
 
     # Diagnostics Console (Truth Layer)
     path("diagnostics/", diag_views.DiagnosticsConsoleView.as_view(), name="diagnostics_console"),

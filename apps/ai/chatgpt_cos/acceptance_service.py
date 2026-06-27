@@ -396,19 +396,28 @@ def reap_stale_runs():
     'RUNNING'."""
     from apps.admin_console.models import AcceptanceRun
     reaped = 0
-    for run in AcceptanceRun.objects.filter(status="running"):
+    for run in AcceptanceRun.objects.filter(status__in=["running", "cancelling"]):
         if not run.is_stale:
             continue
         age = int(run.heartbeat_age_seconds or 0)
-        run.status = "interrupted"
+        # A stale 'cancelling' run = the admin asked to cancel and the worker died
+        # before acknowledging -> honor the intent: terminal CANCELLED. A stale
+        # 'running' run = an unrequested interruption -> terminal INTERRUPTED.
+        if run.status == "cancelling":
+            run.status = "cancelled"
+            run.error_message = (
+                f"Cancelled — the worker stopped before finishing (no heartbeat for "
+                f"{age}s; {run.questions_completed}/{run.heartbeat_total or run.total_count} "
+                "completed). Results are partial; start a fresh run.")[:2000]
+        else:
+            run.status = "interrupted"
+            run.error_message = (
+                f"Run interrupted — no worker heartbeat for {age}s. Last question: "
+                f"{run.current_question or 'n/a'} ({run.questions_completed}/"
+                f"{run.heartbeat_total or run.total_count} completed). The worker was "
+                "almost certainly stopped by a deployment, restart, or crash. Results "
+                "are partial; start a fresh run to get a trustworthy grade.")[:2000]
         run.completed_at = run.completed_at or timezone.now()
-        run.error_message = (
-            f"Run interrupted — no worker heartbeat for {age}s. Last question: "
-            f"{run.current_question or 'n/a'} ({run.questions_completed}/"
-            f"{run.heartbeat_total or run.total_count} completed). The worker was "
-            "almost certainly stopped by a deployment, restart, or crash. Results "
-            "are partial; start a fresh run to get a trustworthy grade."
-        )[:2000]
         try:
             run.save(update_fields=["status", "completed_at", "error_message"])
             reaped += 1
@@ -457,9 +466,17 @@ def execute_run(run, evening=True):
     run.save(update_fields=["total_count"])
     _write_heartbeat(run, "(starting)", 0, total)   # initial heartbeat
     rows = []
+    cancelled = False
     t0 = time.monotonic()
     try:
         for i, spec in enumerate(specs):
+            # COOPERATIVE CANCELLATION (P34): check BETWEEN questions. The in-flight
+            # question always finishes; we stop cleanly before starting the next.
+            if _cancel_requested(run.id):
+                cancelled = True
+                logger.info("acceptance: cancel detected run=%s at %s/%s",
+                            run.id, i, total)
+                break
             _write_heartbeat(run, spec.get("key", ""), i, total)   # before each Q
             r = run_one(svc, conv, spec, evening=evening)
             rows.append(r)
@@ -479,9 +496,67 @@ def execute_run(run, evening=True):
         except Exception:
             pass
 
-    _detect_duplicates(rows)
-    _finalize(run, rows, round((time.monotonic() - t0) * 1000))
+    if cancelled:
+        _finalize_cancelled(run, rows, total)   # clean exit, partial results, no grade
+    else:
+        _detect_duplicates(rows)
+        _finalize(run, rows, round((time.monotonic() - t0) * 1000))
     return run
+
+
+def _cancel_requested(run_id):
+    """Cheap DB poll for a cooperative cancel signal (status == 'cancelling')."""
+    from apps.admin_console.models import AcceptanceRun
+    try:
+        return AcceptanceRun.objects.filter(pk=run_id).values_list(
+            "status", flat=True).first() == "cancelling"
+    except Exception:
+        return False
+
+
+def _finalize_cancelled(run, rows, full_total):
+    """Terminal state for a cooperatively-cancelled run: keep the partial results,
+    record honest partial counts, and write NO release grade (a cancelled run is not
+    a trustworthy assessment). Clean exit — no orphaned/ambiguous state."""
+    completed = len(rows)
+    passed = sum(1 for r in rows if r.get("passed"))
+    run.status = "cancelled"
+    run.completed_at = timezone.now()
+    run.total_count = full_total
+    run.pass_count = passed
+    run.fail_count = completed - passed
+    run.score_percent = round(100 * passed / completed) if completed else 0
+    run.grade = ""                 # no release grade for a partial run
+    run.trustworthy = False
+    run.error_message = (
+        f"Cancelled by administrator after {completed}/{full_total} questions. "
+        "Results are partial — no release grade is computed for a cancelled run. "
+        "Start a fresh run for a trustworthy grade.")
+    run.raw_report_json = {
+        "rows": [{k: v for k, v in r.items() if k != "spec"} for r in rows],
+        "cancelled": True, "completed": completed, "total": full_total}
+    run.save()
+
+
+def request_cancel(run):
+    """Cooperative cancel entry point. A live RUNNING run is marked 'cancelling' so
+    the worker stops after the current question. A STALE run (worker already gone)
+    is finalized to 'cancelled' immediately. Returns the new status, or None if the
+    run is not in a cancellable state. Idempotent."""
+    if run.status == "running":
+        if run.is_stale:
+            run.status = "cancelled"
+            run.completed_at = run.completed_at or timezone.now()
+            run.error_message = ("Cancelled — the worker was already gone "
+                                 "(no recent heartbeat).")
+            run.save(update_fields=["status", "completed_at", "error_message"])
+            return "cancelled"
+        run.status = "cancelling"
+        run.save(update_fields=["status"])
+        return "cancelling"
+    if run.status == "cancelling":
+        return "cancelling"        # already requested
+    return None
 
 
 def _detect_duplicates(rows):

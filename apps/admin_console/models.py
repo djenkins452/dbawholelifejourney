@@ -1721,9 +1721,9 @@ class AcceptanceRun(models.Model):
 
     @property
     def status_color(self):
-        if self.status == "running":
+        if self.status in ("running", "cancelling"):
             return "#f59e0b" if self.is_stale else "#6b7280"  # amber if stale
-        if self.status == "interrupted":
+        if self.status in ("interrupted", "cancelled"):
             return "#f59e0b"
         if self.status == "failed":
             return "#ef4444"
@@ -1769,9 +1769,9 @@ class AcceptanceRun(models.Model):
 
     @property
     def is_stale(self):
-        """A RUNNING run with no recent heartbeat — presumed interrupted but not yet
-        reaped. Always False for terminal statuses."""
-        if self.status != "running":
+        """A RUNNING/CANCELLING run with no recent heartbeat — the worker is gone but
+        the run has not yet been reaped. Always False for terminal statuses."""
+        if self.status not in ("running", "cancelling"):
             return False
         age = self.heartbeat_age_seconds
         return age is not None and age > self._stale_threshold
@@ -1779,6 +1779,28 @@ class AcceptanceRun(models.Model):
     @property
     def is_interrupted(self):
         return self.status == "interrupted"
+
+    @property
+    def is_cancelling(self):
+        return self.status == "cancelling"
+
+    @property
+    def is_cancelled(self):
+        return self.status == "cancelled"
+
+    @property
+    def is_active(self):
+        """Genuinely executing (running or cancelling) with a fresh heartbeat."""
+        return self.status in ("running", "cancelling") and not self.is_stale
+
+    @property
+    def can_cancel(self):
+        """An admin may cancel only a genuinely-active run."""
+        return self.status == "running" and not self.is_stale
+
+    @property
+    def is_terminal(self):
+        return self.status in ("completed", "failed", "interrupted", "cancelled")
 
     @property
     def current_question(self):

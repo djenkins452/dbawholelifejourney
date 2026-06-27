@@ -527,7 +527,11 @@ class VisionService:
                         ]
                     }
                 ],
-                max_tokens=1000,
+                # Field-dense prescription labels (name, strength, directions, NDC,
+                # Rx#, prescriber, pharmacy, refills, multiple dates…) can exceed
+                # 1000 tokens; truncation breaks json.loads → the image is dropped
+                # → false-negative "couldn't read a medication". 2000 gives headroom.
+                max_tokens=2000,
                 temperature=0.1,  # Low temperature for consistent structured output
                 response_format={"type": "json_object"}
             )

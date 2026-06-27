@@ -7,6 +7,25 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(health): Guided Capture false-negative on real prescription bottles
+
+Real Metformin bottle photos (UT Medical Center / University Pharmacy) were rejected with "We couldn't read a medication from those photos." The message fires in `process_capture_session` only when the merged extraction has no `name` — i.e. every image contributed nothing. Traced the Vision-call path (can't be the merge — when Vision returns a name, the existing tests pass).
+
+**Two root causes in the Vision call, both producing an empty extraction on these field-dense labels:**
+1. **`max_tokens=1000`** (`apps/scan/services/vision.py`) — a prescription label carries ~16 fields; the strict-JSON response can exceed 1000 tokens and **truncate**, so `json.loads` raises → `_error_result` → `result.error` set → `process_capture_session` **silently skipped the image**. Two dense labels both truncate → empty merge → false negative. Raised to **2000** (headroom).
+2. **`try_fatsecret=True`** (default) — Guided Capture called `analyze_image` without overriding it, routing **medication** photos through the **FatSecret FOOD recognizer first**, which returns food `details` (no medication `name`/`label`) and short-circuits the medicine-aware Vision prompt. Capture now passes **`try_fatsecret=False`** (the user picked a medication/supplement profile — never the food path).
+
+**Also:** `process_capture_session` now emits **structured instrumentation** (per-image category/confidence/items/name/error, then the merged name/categories/fields/errors and the decision) so production logs show the actual extraction — no more guessing. And it distinguishes a Vision **error** (retryable — "trouble reading your photos") from a genuine **no-medication** read, instead of one generic rejection.
+
+**Success criteria met:** if the medication is identifiable from any photo, the session succeeds and merges the rest — it does not require every field. Front photo names the drug; the pharmacy-label photo (name cut off) contributes Rx/directions/prescriber/refills.
+
+**Regression tests** (`apps/health/tests/test_capture_session.py`, modeled on these exact two images): Metformin front + pharmacy-label → READY, merged name "Metformin HCL ER" + Rx + prescriber + pharmacy (not rejected); capture never uses the food AI (`try_fatsecret=False` asserted); one-image Vision error (truncation) doesn't kill the session if another image read the name; all-images-error → failed with retry framing.
+
+**Files:** apps/scan/services/vision.py (max_tokens), apps/health/capture_session.py (try_fatsecret=False + instrumentation + error/no-read split), apps/health/tests/test_capture_session.py.
+
+**Verification:** 178 tests green (scan + capture + acquisition); `manage.py check` clean; no migration.
+
+
 ## 2026-06-27 — fix(health): Guided Capture never starts ("0 of 0") — request body exceeded 2.5MB limit
 
 **Root cause:** `DATA_UPLOAD_MAX_MEMORY_SIZE` was unset → Django's default **2.5MB**. `CaptureStartView` reads the JSON body via `request.body` (in `_capture_payload`), and the capture UI sent **raw full-resolution** photos (`reader.readAsDataURL(file)` — no downscale). One phone photo as base64 already exceeds 2.5MB, so `request.body` raised `RequestDataTooBig` → **HTTP 400 BEFORE the view ran**. No session was created, no task enqueued; the browser's `startProcessing()` `.then(resp.json())` rejected on the 400 HTML and hit `.catch` → "We couldn't start analysis", with the progress panel showing its default **"0 of 0 photos analyzed."** Workers/Redis/queue were irrelevant — processing never began.

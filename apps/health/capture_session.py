@@ -93,26 +93,43 @@ def process_capture_session(session):
 
     per_image_details = []
     categories = []
+    vision_errors = []
     for idx, image_data in enumerate(images):
         label = steps[idx]["label"] if idx < len(steps) else "additional photo"
         session.current_step = f"Analyzing {label}…"
         session.save(update_fields=["current_step", "updated_at"])
         # A Vision exception is RETRYABLE — let it propagate so the task retries
         # without losing the session or its images.
+        # try_fatsecret=False: this is a MEDICATION/supplement capture (the user
+        # picked a profile) — never route it through the FatSecret FOOD AI, which
+        # would return food fields (no medication name) and skip the medicine prompt.
         result = vision.analyze_image(
             image_base64=_clean_b64(image_data),
             request_id=f"capture-{session.pk}",
             image_format="jpeg",
+            try_fatsecret=False,
         )
-        if not getattr(result, "error", None):
+        err = getattr(result, "error", None)
+        items = (getattr(result, "items", None) or []) if not err else []
+        details = {}
+        if items:
+            details = dict(vision_item_field(items[0], "details") or {})
+            label_text = vision_item_field(items[0], "label") or ""
+            if not details.get("name") and label_text:
+                details.setdefault("name", label_text)
+        # Instrumentation — trace the ACTUAL extraction per image (no PHI image data).
+        logger.info(
+            "capture %s img %s/%s: category=%s confidence=%s items=%s name=%r error=%r",
+            session.pk, idx + 1, len(images),
+            getattr(result, "top_category", None), getattr(result, "confidence", None),
+            len(items), details.get("name"), err,
+        )
+        if err:
+            vision_errors.append(err)
+        else:
             if result.top_category:
                 categories.append(result.top_category)
-            items = result.items or []
-            if items:
-                details = dict(vision_item_field(items[0], "details") or {})
-                label_text = vision_item_field(items[0], "label") or ""
-                if not details.get("name") and label_text:
-                    details.setdefault("name", label_text)
+            if details:
                 per_image_details.append(details)
         session.images_analyzed = idx + 1
         session.save(update_fields=["images_analyzed", "updated_at"])
@@ -121,10 +138,19 @@ def process_capture_session(session):
     session.save(update_fields=["current_step", "updated_at"])
     merged = _merge_details(per_image_details)
     name = (merged.get("name") or "").strip()
+    logger.info(
+        "capture %s merged: name=%r categories=%s fields=%s vision_errors=%s",
+        session.pk, name, categories, sorted(merged.keys()), vision_errors,
+    )
     if not name:
-        session.mark_failed(
-            "We couldn't read a medication from those photos. "
-            "Try clearer shots, replace a photo, or enter it manually.")
+        # Distinguish a Vision failure (retryable) from a genuine no-medication read.
+        if vision_errors and not per_image_details:
+            session.mark_failed(
+                "We had trouble reading your photos. Please retry, or try clearer shots.")
+        else:
+            session.mark_failed(
+                "We couldn't read a medication from those photos. "
+                "Try clearer shots, replace a photo, or enter it manually.")
         return None
 
     session.current_step = "Calculating confidence…"

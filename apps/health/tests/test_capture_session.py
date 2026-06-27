@@ -154,6 +154,80 @@ class ProcessCaptureSessionTest(AdherenceTestMixin, TestCase):
         self.assertEqual(sess.images, ["img1"])
 
 
+def _verror(msg="truncated JSON"):
+    """A Vision result in the ERROR state (e.g., max_tokens truncation → parse fail)."""
+    return ScanResult(request_id="t", top_category=None, confidence=0.0,
+                      items=[], safety_notes=[], next_best_actions=[], error=msg)
+
+
+class CaptureProductionImagesTest(AdherenceTestMixin, TestCase):
+    """Regression for the production false-negative on real Metformin bottle photos
+    (UT Medical Center / University Pharmacy labels). Front names the drug; the
+    pharmacy-label photo has the Rx/directions/prescriber but the name is cut off.
+    The session must identify the medication and merge the rest — not reject it."""
+
+    def setUp(self):
+        self.user = self.create_user(email="capprod@test.com")
+
+    def _images(self):
+        # Image 1 — front: shows "METFORMIN HCL ER 500MG", directions, NDC.
+        front = _vresult(category="medicine", label="Metformin HCL ER 500MG",
+                         details={"name": "Metformin HCL ER", "strength": "500mg",
+                                  "directions": "Take two tablets by mouth",
+                                  "ndc": "68094-0904-60"})
+        # Image 2 — pharmacy label: name cut off; Rx, directions, prescriber, refills.
+        pharm = _vresult(category="medicine", label="",
+                         details={"directions": "by mouth two times a day",
+                                  "rx_number": "0110924-002N", "refills": "2",
+                                  "prescriber": "Kristen Stafford",
+                                  "pharmacy": "University Pharmacy", "strength": "500mg"})
+        return front, pharm
+
+    def test_metformin_bottle_succeeds_and_merges(self):
+        sess = _session(self.user, ["front", "pharm"])
+        front, pharm = self._images()
+        with patch(VISION_PATH, return_value=_mock_vision([front, pharm])):
+            draft = process_capture_session(sess)
+        sess.refresh_from_db()
+        self.assertIsNotNone(draft, "should NOT reject — the medication is identifiable")
+        self.assertEqual(sess.processing_status, MedicationCaptureSession.STATUS_READY)
+        ev = draft.extracted_values
+        self.assertEqual(ev["name"], "Metformin HCL ER")
+        self.assertEqual(ev["dose"], "500mg")          # strength → dose
+        self.assertEqual(ev["rx_number"], "0110924-002N")  # merged from image 2
+        self.assertEqual(ev["provider"], "Kristen Stafford")
+        self.assertEqual(ev["pharmacy"], "University Pharmacy")
+
+    def test_capture_never_uses_food_ai(self):
+        sess = _session(self.user, ["front"])
+        front, _ = self._images()
+        mock = _mock_vision([front])
+        with patch(VISION_PATH, return_value=mock):
+            process_capture_session(sess)
+        # Medication capture must bypass the FatSecret food recognizer.
+        _, kwargs = mock.analyze_image.call_args
+        self.assertFalse(kwargs.get("try_fatsecret", True))
+
+    def test_one_image_vision_error_does_not_kill_session(self):
+        # e.g. the dense pharmacy label truncated the JSON; the front still read.
+        sess = _session(self.user, ["front", "pharm"])
+        front, _ = self._images()
+        with patch(VISION_PATH, return_value=_mock_vision([front, _verror()])):
+            draft = process_capture_session(sess)
+        self.assertIsNotNone(draft)
+        self.assertEqual(draft.extracted_values["name"], "Metformin HCL ER")
+
+    def test_all_images_error_marks_failed_with_retry_framing(self):
+        sess = _session(self.user, ["front", "pharm"])
+        with patch(VISION_PATH, return_value=_mock_vision([_verror(), _verror()])):
+            draft = process_capture_session(sess)
+        sess.refresh_from_db()
+        self.assertIsNone(draft)
+        self.assertEqual(sess.processing_status, MedicationCaptureSession.STATUS_FAILED)
+        # Vision-error framing (retryable), NOT "couldn't read a medication".
+        self.assertIn("trouble reading", sess.error_message)
+
+
 class CaptureTaskTest(AdherenceTestMixin, TestCase):
     """The Celery task wrapper (eager in tests)."""
 

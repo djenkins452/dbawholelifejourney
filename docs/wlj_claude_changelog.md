@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — docs(cos): WLJ prompt library refresh & governance update
+
+Documentation-only governance pass over `@WLJ_SYSTEM_PROMPTS/` (no production logic changed; two `.py` docstring path references updated to match renamed folders). Brings the prompt/document library to production-ready state and makes startup loading deterministic.
+
+**Critical repairs:** Rebuilt `DANNY'S PREFERENCES.md` (was 290KB of corrupted web HTML, untracked/unrecoverable → clean v2.0 markdown reconstructed from continuation context + master prompts + CLAUDE.md). Synced `08_IMPLEMENTATION_TRACKER/00_INDEX.md` to reality (it claimed "Phase 1 next"; verified via git that Phases 0–7 are merged to main `43e3bcb3` and deployed). De-duplicated and versioned `WLJ MASTER CONTEXT — CONTINUATION SESSION.md`; added current CoS-transition status.
+
+**New canon:** `03_CANON_REFERENCE/WLJ COS TOOL & STANDING CONTEXT CONTRACT.md` — documents the as-built ChatGPT CoS tool surface (standing-context schema v1.0, 6 enabled tools, action allowlist, dispatch envelope, feature-flag/rollback model, `apps/ai/cos_services/` locations). **New navigation:** `00_README_LOAD_MANIFEST.md` — deterministic load-class guide (CORE_STARTUP / CANON / SPECIALIZED_ON_DEMAND / REFERENCE_ONLY).
+
+**Folder rationalization:** renamed all 9 folders to encode load behavior (e.g. `04_DISCOVERY`→`04_DISCOVERY_REFERENCE`, `07_DAY1_TOOL_CATALOG`→`07_COS_TOOLS_REFERENCE`); relocated the two always-load files into `00_CORE_STARTUP`. Added AS-BUILT banners to folders 06/07 (design rationale for a shipped system). Corrected Domain Registry (Sports awareness-only; providers/intake live in `apps/health`). Fixed "14 engines" framing → pointer to the full registry. Fixed all internal cross-references; 0 broken relative links.
+
+Files: `@WLJ_SYSTEM_PROMPTS/**` (rename + content), `apps/ai/cos_services/__init__.py` + `standing_context.py` (docstring path only). Why: the library is loaded into nearly every WLJ dev session and had drifted from production (shipped CoS described as a future plan, a corrupted core-startup file, no load guidance).
+
+
 ## 2026-06-26 — fix(cos): three Goals reasoning defects (watch-vs-risk, slipping filter, no generic actions)
 
 Production validation defects, all in the goals quality layer (no new architecture/truth):

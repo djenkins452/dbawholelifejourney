@@ -7,6 +7,13 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — docs(cos): P31 Executive Conversation Planning — architecture DESIGN (no code)
+
+Tagged `beth-stable-v3` (Smoke/Full/Deep GREEN) as a restore point. Added the P31 design doc `docs/BETH_CONVERSATION_PLANNING_DESIGN.md` — DESIGN ONLY, no Beth code changed (the prompt mandates "NO coding first").
+
+Diagnoses the two live conversation-quality defects (immediate agenda dump on "Good morning"; failure to recognize a critique/repair turn) as ONE gap: Beth plans answers, not conversations. Proposes a thin DETERMINISTIC Executive Conversation Planning layer inserted at the single entry point (ChatGPTCoSService.generate) BEFORE route_message, that emits a ConversationPlan (objective / opening strategy / should_brief_now / priority_topics) and persists first-class conversation STATE in AssistantConversation.metadata (reusing the proven pending_clarification pattern — no migration). Affirms the abstraction is correct but challenges/refines it to deterministic-planner + LLM-narration (preserving every v3 invariant), reuses build_executive_summary/_time_band/standing_context/daily_agenda/history rather than duplicating, and lays out a 3-phase roadmap (Phase 1 = conversation state + Repair lane + morning check-in lane) plus scenario-based multi-turn Acceptance tests. Awaiting "go" before Phase 1 implementation.
+
+
 ## 2026-06-27 — docs: Medication Intelligence planning baseline — Design Assurance corrections + Canon freeze
 
 Final design-assurance pass on the Medication & Supplement Intelligence v2 planning package (Architecture, Gap Analysis, UX, Roadmap, Canon). An adversarial cross-document review raised verdict **B — Ready with minor corrections**; this commit applies the 12 verified documentation reconciliations to raise it to **A — Ready for implementation**. Documentation-only; no code, schema, or roadmap redesign.

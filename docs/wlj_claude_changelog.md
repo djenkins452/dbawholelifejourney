@@ -7,6 +7,11 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — docs(cos): P36.1 Personal Understanding ontology — DESIGN ONLY (no code)
+
+Paused implementation per the product realignment. Added `docs/BETH_PERSONAL_UNDERSTANDING_ONTOLOGY.md`. Central correction (confirms the user's hypothesis): **Understanding** is the primary abstraction; **BehaviorDirective (P36) is demoted to one derived consumer** of it — one Understanding fans out to many behavior adaptations. Challenges the proposed stack: Identity/Preferences/Patterns are KINDS of understanding (a field), not pipeline layers; the real pipeline is Observation → Understanding → Behavior Adaptation → Executive Interpretation; do NOT add a third fact store (reuse PersonalFact/ExtractedFact as the Observation layer); model sensitivity as a first-class dimension (the abuse/Detroit example). Covers all 10 deliverables — ontology, layer ownership, lifecycle, compression (concept-keyed collapse so understandings stay ~constant while observations grow), confidence evolution (source base + reinforcement + kind-specific decay + contradiction), downstream consumption, additive migration strategy, and a smallest-valuable Phase 2 that proves observation→understanding→many-adaptations on ONE rich understanding. No code changed. Awaiting "go" before Phase 2.
+
+
 ## 2026-06-27 — feat(health): Sprint 9 — Medication Intelligence production hardening (perf, observability, reliability)
 
 Operational-readiness pass making Medication Intelligence production-grade with no user-visible behavior change.

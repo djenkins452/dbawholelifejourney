@@ -1297,25 +1297,31 @@ class MedicineHealthDashboardTest(MedicineTestMixin, TestCase):
         self.login_user()
 
     def test_health_home_shows_medicine_count(self):
-        """Health home shows medicine count."""
+        """Health home shows the (canonical) intake count from SAE medicine state."""
         self.create_medicine(self.user)
         response = self.client.get(reverse('health:home'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn('medicine_count', response.context)
-        self.assertEqual(response.context['medicine_count'], 1)
+        # Canonical key after the medicine→intake rename (SAE-sourced).
+        self.assertIn('intake_count', response.context)
+        self.assertEqual(response.context['intake_count'], 1)
 
     def test_health_home_shows_overdue_count(self):
-        """Health home shows overdue medicine count."""
+        """Health home exposes the canonical overdue-dose count."""
         # Create medicine with schedule in the past
         medicine = self.create_medicine(self.user, grace_period_minutes=0)
         self.create_schedule(medicine, time(0, 1))  # 12:01 AM - almost certainly past
 
         response = self.client.get(reverse('health:home'))
-        self.assertIn('medicine_overdue', response.context)
+        self.assertIn('intake_overdue', response.context)
 
     def test_health_home_shows_low_supply(self):
-        """Health home shows low supply count."""
+        """Health home shows the refill / low-supply indicator (intake_low_supply).
+
+        Regression guard (Sprint 1.5B): the template reads `intake_low_supply`,
+        which the view had stopped providing after the SAE refactor — the refill
+        alert silently disappeared. It is now mapped from SAE `needs_refill`.
+        """
         self.create_medicine(
             self.user,
             current_supply=3,
@@ -1323,8 +1329,8 @@ class MedicineHealthDashboardTest(MedicineTestMixin, TestCase):
         )
 
         response = self.client.get(reverse('health:home'))
-        self.assertIn('medicine_low_supply', response.context)
-        self.assertEqual(response.context['medicine_low_supply'], 1)
+        self.assertIn('intake_low_supply', response.context)
+        self.assertEqual(response.context['intake_low_supply'], 1)
 
 
 # =============================================================================

@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(health): Sprint 1.5B — Health Dashboard refill alert silently dropped (intake_low_supply not provided)
+
+**Root cause:** the Phase 17/18 SAE refactor of `HealthHomeView` (`health:home`) renamed the medication context keys `medicine_*` → `intake_*` and re-sourced them from SAE medicine state, but **`intake_low_supply` was never mapped** — while the template `health/home.html:187` still renders `{% if intake_low_supply > 0 %}` the refill alert. Result: the **low-supply / refill indicator silently disappeared** from the Health Dashboard (count and overdue still rendered via `intake_count`/`intake_overdue`).
+
+**Fix (canonical, no new calc):** map `intake_low_supply = len(ms.get("needs_refill") or [])` — reading the SAE medicine state's `needs_refill` list (built from each `Intake.needs_refill` property). Reuses canonical state; no raw re-query, no duplicate calculation. Medication count and overdue were already correctly displayed via the canonical `intake_*` keys.
+
+**Tests:** the three `MedicineHealthDashboardTest` assertions referenced the pre-rename `medicine_count`/`medicine_overdue`/`medicine_low_supply` keys (stale since Phase 17/18) and were failing. Updated them to the canonical `intake_count`/`intake_overdue`/`intake_low_supply` (the medicine→intake rename is canonical — legacy names intentionally not reintroduced). `test_health_home_shows_low_supply` now also guards the regression.
+
+**Files:** apps/health/views.py (`HealthHomeView`); apps/health/tests/test_medicine.py.
+
+**Verification:** `MedicineHealthDashboardTest` 3/3 green; medication count, overdue, and refill indicator all render from canonical SAE state; empty states preserved (template guards on `intake_count`). No migration.
+
+
 ## 2026-06-27 — fix(sms): Sprint 1.5A — SMS reminder signal referenced legacy `.medicine` (reminders silently never scheduled)
 
 **Root cause:** `apps/sms/signals.py:246` (`on_medicine_schedule_save`, a `post_save` receiver on `health.IntakeSchedule`) called `schedule_medicine_sms_for_today(instance.medicine)`. The medicine→intake rename removed `IntakeSchedule.medicine` (canonical FK is `.intake`), so every schedule save raised `AttributeError: 'IntakeSchedule' object has no attribute 'medicine'`, which the receiver's `try/except` swallowed and logged. Net effect: **medicine SMS reminders were silently never scheduled when a schedule was created/edited** (a fail-open silent functional loss).

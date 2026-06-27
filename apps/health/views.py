@@ -164,6 +164,11 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
                 context["intake_overdue"] = len(overdue_list)
             else:
                 context["intake_overdue"] = 0
+            # Refill / low-supply indicator — read the canonical refill-alert list
+            # from SAE medicine state (built from each Intake.needs_refill). The
+            # template (health/home.html) renders `intake_low_supply`; without this
+            # mapping the refill alert silently never appeared (Phase 17/18 regression).
+            context["intake_low_supply"] = len(ms.get("needs_refill") or [])
             # Build intake_windows from schedule_status_today if available
             sched_status = ms.get("schedule_status_today") or []
             _windows = {}

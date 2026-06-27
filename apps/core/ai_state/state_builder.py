@@ -1617,13 +1617,14 @@ def build_goal_state(user):
 
         state = _classify_goal_state(band, trend, is_overdue, progress_band)
 
-        # Momentum summary — coaching language only (never the raw score).
-        base = {"strong": "strong momentum", "moderate": "steady momentum",
-                "low": "low momentum"}.get(band, "in progress")
+        # Progress summary — CONCRETE pace language only (no generic
+        # "momentum"/"consistency" coaching, which is prohibited for goals).
+        base = {"strong": "ahead of pace", "moderate": "on pace",
+                "low": "behind pace"}.get(band, "in progress")
         if trend == "rising":
-            base += " and building"
+            base += " and improving"
         elif trend == "falling":
-            base += " but slipping"
+            base += " and slipping"
 
         # Highest-leverage next action (Task 3 precedence): strongest negative
         # driver → active-milestone execution lever → milestone-grounded step.

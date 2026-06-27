@@ -73,7 +73,7 @@ _CTX = {
 }
 _EV = {
     "state": "stable", "momentum": "moderate", "trend": "stable",
-    "phase": "weight-loss foundation phase", "momentum_summary": "steady momentum",
+    "phase": "weight-loss foundation phase", "momentum_summary": "on pace",
     "success_drivers": ["weight trending down", "workouts on schedule"],
     "risk_drivers": ["workout frequency is light"],
     "recommended_action": "complete today's scheduled workout and hit your protein target",

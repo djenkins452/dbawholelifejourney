@@ -17,6 +17,8 @@ BANNED_PHRASES = (
     "maintaining your consistency", "keep consistency", "keeping your consistency",
     "keep your consistency", "lock in consistency", "lock in momentum",
     "stay consistent", "keep up the momentum", "keep the momentum going",
+    "keep progressing", "keep moving forward", "steady momentum", "keep momentum",
+    "maintain your momentum", "keep going", "momentum over time",
     "do your best", "stay focused", "you've got this", "keep it up",
     "you're doing fine", "doing great", "you got this", "just keep going",
 )

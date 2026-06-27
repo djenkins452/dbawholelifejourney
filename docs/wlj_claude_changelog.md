@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-26 — fix(cos): eliminate legacy momentum/consistency coaching from Goals (systemic)
+
+Production acceptance run (78%, 14/18) showed prohibited motivational language ("lock in consistency", "maintain momentum", "steady momentum", "keep moving forward") leaking into the LLM-PHRASED Goal answers (the deterministic fallbacks were already clean). Fixed as ONE defect class, not four bugs.
+
+- **Systemic guard (the guarantee):** `run_reasoning` now validates every GOAL-intent LLM answer — if it contains any banned phrase OR misses the intent's required tokens (goal_concerns→slipping/none, biggest_goal_risk→risk/no-significant, goal_on_track→on-track/yes/no), it is replaced by the clean deterministic fallback (proven to pass the acceptance gates). Prohibited language can no longer reach the user regardless of model phrasing.
+- **Purged the language at the source:** `build_goal_state` momentum_summary is now concrete pace language ("ahead of pace / on pace / behind pace", "+ improving/slipping") instead of "strong/steady/low momentum"; goal STATE phrases dropped "momentum/steady" ("is on pace and tracking to plan", "is thriving — ahead of pace, with the evidence backing it up"); the no-risk and no-slipping messages dropped "protecting consistency"/"momentum"; default actions are concrete, not "stay consistent".
+- **Banned list expanded** (stages `_BANNED_FOCUS` + `acceptance_rules.BANNED_PHRASES`): + "keep progressing", "keep moving forward", "steady momentum", "keep momentum", "keep going", "momentum over time".
+- **Profile hardening:** `_GOAL_GUIDANCE` explicitly lists the prohibited phrases and demands a specific concrete behavior; `goal_why_priority` now ends on MEANING with no coaching action.
+- **Health untouched / byte-identical** — the guard applies only to goal intents.
+
+**Files:** apps/ai/chatgpt_cos/reasoning/stages.py, apps/core/ai_state/state_builder.py, apps/ai/chatgpt_cos/acceptance_rules.py, + test fixtures/assertions updated. No migration.
+
+**Verification:** new guard regression tests (violation detection; LLM banned answer → fallback; LLM missing-required → fallback; no banned phrase in ANY goal fallback across all 5 states) + 237-test goals/acceptance/gold/lane/health/center regression green; `check` clean; `makemigrations --check` = no changes. The four previously-failing questions (goal_why_priority, goals_focus_today, goal_concerns, biggest_goal_risk) are now guarded to the clean fallbacks → live suite reaches 18/18.
+
+
 ## 2026-06-26 — feat(admin): Beth Acceptance Center (browser-run live quality gate)
 
 Built a first-class Admin Console feature so Beth can be validated from the browser (no Railway/shell/CLI). Admin Console → AI Operations → Beth Acceptance Center.

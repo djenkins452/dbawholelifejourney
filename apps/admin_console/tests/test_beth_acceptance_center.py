@@ -37,7 +37,7 @@ class _FakeBeth:
         if "progressing" in message:
             return {"answer": (
                 "'France 2027 Family 18K Mission' is in its weight-loss foundation "
-                "phase and showing steady momentum — weight trending down. The next "
+                "phase and on pace — weight trending down, workouts on schedule. The next "
                 "milestone is a return to running base. Today's lever: complete "
                 "today's scheduled workout.")}
         return {"answer": "ok"}

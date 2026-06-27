@@ -33,7 +33,7 @@ _FRANCE_CTX = {
 }
 _FRANCE_EV = {
     "state": "stable", "momentum": "moderate", "trend": "stable",
-    "phase": "Weight-loss foundation phase", "momentum_summary": "steady momentum",
+    "phase": "Weight-loss foundation phase", "momentum_summary": "on pace",
     "success_drivers": ["weight trending down", "workouts on schedule"],
     "risk_drivers": ["workout frequency is light"],
     "recommended_action": "complete today's scheduled workout and hit your protein target",
@@ -47,7 +47,7 @@ FRANCE = {
              "evidence": _FRANCE_EV},
             {"title": "Read 50 books", "target_date": None, "context": {"has_milestones": False},
              "evidence": {"state": "stable", "momentum": "moderate", "trend": "stable",
-                          "momentum_summary": "steady momentum", "success_drivers": [],
+                          "momentum_summary": "on pace", "success_drivers": [],
                           "risk_drivers": [], "recommended_action": "read 20 pages today"}},
         ],
         "upcoming_titles": [], "overdue_titles": [],

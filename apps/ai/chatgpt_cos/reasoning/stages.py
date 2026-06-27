@@ -505,8 +505,8 @@ _GOAL_STATE_RISK = {
                               "declining and won't succeed without a reset"),
     "stalled":  (40, "risk",  "has stalled — there's been little recent progress"),
     "drifting": (30, "risk",  "is drifting — recent execution has dropped off"),
-    "stable":   (25, "watch", "is progressing steadily and on pace"),
-    "thriving": (20, "watch", "is thriving — strong momentum and ahead of pace"),
+    "stable":   (25, "watch", "is on pace and tracking to plan"),
+    "thriving": (20, "watch", "is thriving — ahead of pace, with the evidence backing it up"),
 }
 
 # Generic / system phrases that must NEVER reach a focus or recommendation
@@ -519,6 +519,8 @@ _BANNED_FOCUS = (
     "maintaining your consistency", "keep consistency", "keeping your consistency",
     "keep your consistency", "lock in consistency", "lock in momentum",
     "stay consistent", "keep up the momentum", "keep the momentum going",
+    "keep progressing", "keep moving forward", "steady momentum", "keep momentum",
+    "maintain your momentum", "keep going", "keep it going", "momentum over time",
 )
 
 
@@ -801,7 +803,7 @@ def _goal_risk_fallback(wm):
     ranked = (wm.get("facts") or {}).get("ranked_concerns") or []
     if not ranked:
         return ("No significant goal risks right now — nothing is overdue, drifting, "
-                "or stalled. Keep protecting your consistency.")
+                "or stalled.")
     real = [c for c in ranked if c.get("kind") == "risk"]
     if real:
         top = real[0]
@@ -813,7 +815,8 @@ def _goal_risk_fallback(wm):
     concern = top.get("concern", "")
     concern = concern[:1].upper() + concern[1:]
     return ("No significant risks right now. " + concern
-            + ". A good next step: " + top.get("action", "keep it going") + ".")
+            + ". A good next step: "
+            + top.get("action", "take the next concrete action on its current milestone") + ".")
 
 
 def _goals_progress_fallback(wm):
@@ -860,8 +863,8 @@ def _goal_concerns_fallback(wm):
     slipping = [c for c in ranked if c.get("state") in ("drifting", "stalled", "failing")]
     if not slipping:
         return ("None of your active goals appear to be slipping right now. All "
-                "active goals are showing stable or positive momentum. Continue "
-                "protecting consistency, especially for upcoming milestones.")
+                "active goals are on pace or ahead. The next thing to watch is your "
+                "nearest upcoming milestone.")
     lines = ["Here's what's slipping right now, most important first:"]
     for i, c in enumerate(slipping[:4], 1):
         lines.append(f"{i}. {c.get('concern', '')} — {c.get('action', 'address it today')}.")
@@ -1098,6 +1101,13 @@ _GOAL_GUIDANCE = (
     "it. If a goal already has milestones, NEVER give generic planning advice "
     "('plan the goal', 'outline next steps', 'take one step', 'make progress'); "
     "reserve those only for a goal that has no milestones yet."
+    " PROHIBITED PHRASES (NEVER use these — they are generic motivational filler, "
+    "not coaching): 'maintain momentum', 'maintain consistency', 'lock in "
+    "consistency', 'stay consistent', 'keep progressing', 'keep moving forward', "
+    "'steady momentum', 'keep the momentum going', 'keep it up', 'keep going', "
+    "'stay focused', 'you've got this'. Instead, name a SPECIFIC, concrete behavior "
+    "(e.g. 'complete today's scheduled workout', 'hit your protein target', 'walk 30 "
+    "minutes after dinner', 'meal-prep lunch and dinner')."
 )
 
 
@@ -1150,7 +1160,7 @@ def _health_risk_fallback(wm):
     top = ranked[0]
     return ("The main thing worth your attention right now: "
             + top.get("concern", "")
-            + ". A good next step: " + top.get("action", "stay consistent") + ".")
+            + ". A good next step: " + top.get("action", "take the next concrete action on its current milestone") + ".")
 
 
 def _health_progress_fallback(wm):
@@ -1379,7 +1389,9 @@ REASONING_PROFILES = {
             "why this goal is the user's priority, using ONLY why_it_matters and "
             "success_looks_like (the user's own words about meaning, family, health, "
             "values, future impact). Do NOT mention active goal counts, deadlines, "
-            "completion %, momentum scores, or any portfolio summary." + _GOAL_GUIDANCE
+            "completion %, momentum scores, or any portfolio summary. End on the "
+            "MEANING — do NOT pivot into a coaching action or a next step; this "
+            "answer should usually contain no recommendation at all." + _GOAL_GUIDANCE
             + " Max 120 words."
         ),
         "max_tokens": 200,
@@ -1450,8 +1462,44 @@ def run_reasoning(user, message, plan, working_memory):
     used_fallback = not answer
     if used_fallback:
         answer = profile["fallback"](working_memory)
+
+    # SYSTEMIC GUARD (goal intents): the LLM must not leak prohibited
+    # momentum/consistency coaching, and certain intents must contain their
+    # required tokens. If the LLM answer violates either, replace it with the
+    # clean deterministic fallback (proven to pass the acceptance gates). This
+    # eliminates the whole "legacy coaching language" defect class regardless of
+    # what the model phrases.
+    if not used_fallback and plan.intent in GOAL_INTENTS:
+        violation = _goal_answer_violation(plan.intent, answer)
+        if violation:
+            logger.info("COS_REASONING_GOAL_GUARD user=%s intent=%s reason=%s",
+                        getattr(user, "id", None), plan.intent, violation)
+            answer = profile["fallback"](working_memory)
+            used_fallback = True
+
     logger.info(
         "COS_REASONING_RESPONSE user=%s intent=%s fallback=%s answer_len=%d",
         getattr(user, "id", None), plan.intent, used_fallback, len(answer),
     )
     return answer, used_fallback
+
+
+# Per-intent required tokens — the answer must contain at least one of each set.
+_GOAL_REQUIRE_ANY = {
+    "goal_concerns": ("slipping", "drifting", "stalled", "failing", "none"),
+    "biggest_goal_risk": ("risk", "no significant"),
+    "goal_on_track": ("on track", "on pace", "yes", "no"),
+}
+
+
+def _goal_answer_violation(intent, answer):
+    """Return a reason string if a goal answer violates the banned-language or
+    required-token rules, else None."""
+    low = (answer or "").lower()
+    for b in _BANNED_FOCUS:
+        if b in low:
+            return f"banned:{b}"
+    req = _GOAL_REQUIRE_ANY.get(intent)
+    if req and not any(r in low for r in req):
+        return "missing_required_any"
+    return None

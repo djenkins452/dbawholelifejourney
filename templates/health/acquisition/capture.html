@@ -228,10 +228,31 @@ document.addEventListener('DOMContentLoaded', function () {
         if (state.stepIndex < state.steps.length) state.stepIndex++;
         renderStep(); renderChecklist(); renderThumbs();
     }
+    // Downscale + compress before adding — full-res phone photos as base64 blow
+    // past the request-body limit (one photo can exceed it). Mirrors Scan.
+    function compressImage(dataUrl, cb) {
+        var img = new Image();
+        img.onload = function () {
+            var w = img.width, h = img.height, maxDim = 1280;
+            if (w > maxDim || h > maxDim) {
+                if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+                else { w = Math.round((w * maxDim) / h); h = maxDim; }
+            }
+            var canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            cb(canvas.toDataURL('image/jpeg', 0.72));
+        };
+        img.onerror = function () { cb(dataUrl); };  // fall back to original
+        img.src = dataUrl;
+    }
+
     function readFiles(files) {
         Array.prototype.slice.call(files || []).forEach(function (file) {
             var reader = new FileReader();
-            reader.onload = function (e) { addImage(e.target.result); };
+            reader.onload = function (e) {
+                compressImage(e.target.result, function (compressed) { addImage(compressed); });
+            };
             reader.readAsDataURL(file);
         });
     }

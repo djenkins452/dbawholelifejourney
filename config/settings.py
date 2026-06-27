@@ -398,6 +398,13 @@ else:
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# Request body size — base64 image payloads (single-image Scan and the multi-image
+# Guided Capture session) post through JSON, which Django reads via request.body.
+# The default 2.5MB rejects even one full-res photo with HTTP 400 (RequestDataTooBig)
+# BEFORE the view runs — which silently broke Guided Capture ("0 of 0 photos").
+# Images are downscaled+compressed client-side; this is the headroom safety net.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB
+
 # Cloudinary Configuration
 # Requires CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET env vars
 _cloudinary_cloud_name = env("CLOUDINARY_CLOUD_NAME", default="")

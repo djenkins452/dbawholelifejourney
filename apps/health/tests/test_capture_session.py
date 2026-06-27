@@ -265,6 +265,47 @@ class CaptureFlowViewTest(AdherenceTestMixin, TestCase):
         self.assertEqual(MedicationScanDraft.objects.filter(user=self.user).count(), 1)
         self.assertFalse(Intake.objects.filter(user=self.user).exists())
 
+    def test_oversized_payload_rejected_under_default_limit(self):
+        """Reproduce the production bug: under Django's DEFAULT 2.5MB body limit, a
+        single full-res photo payload is rejected with 400 BEFORE the view runs —
+        no session, no enqueue → the UI's '0 of 0 / couldn't start' symptom."""
+        from django.test import override_settings
+        self._grant_consent()
+        big = "data:image/jpeg;base64," + ("A" * 3_500_000)  # ~3.5MB, like one photo
+        body = ('{"images": ["%s"], "intake_type": "medication", "profile": "prescription"}'
+                % big)
+        with override_settings(DATA_UPLOAD_MAX_MEMORY_SIZE=2 * 1024 * 1024):
+            resp = self.client.post(
+                reverse("health:medication_capture_start"),
+                data=body, content_type="application/json")
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(MedicationCaptureSession.objects.count(), 0)
+
+    def test_oversized_payload_accepted_under_configured_limit(self):
+        """The fix: with the configured 10MB limit, the same large payload reaches
+        the view, a session is created, and startup proceeds (202)."""
+        from django.test import override_settings
+        self._grant_consent()
+        big = "data:image/jpeg;base64," + ("A" * 3_500_000)
+        body = ('{"images": ["%s"], "intake_type": "medication", "profile": "prescription"}'
+                % big)
+        with override_settings(DATA_UPLOAD_MAX_MEMORY_SIZE=10 * 1024 * 1024):
+            with patch(VISION_PATH, return_value=_mock_vision(
+                    [_vresult(details={"name": "Metformin", "dosage": "500mg"})])):
+                resp = self.client.post(
+                    reverse("health:medication_capture_start"),
+                    data=body, content_type="application/json")
+        self.assertEqual(resp.status_code, 202)
+        self.assertEqual(MedicationCaptureSession.objects.count(), 1)
+
+    def test_capture_template_downscales_images_clientside(self):
+        """The real fix: the capture UI compresses before upload (keeps payloads
+        small) — like Scan. Guard against regressing back to raw readAsDataURL."""
+        self._grant_consent()
+        resp = self.client.get(reverse("health:medication_capture"))
+        self.assertContains(resp, "compressImage")
+        self.assertContains(resp, "toDataURL('image/jpeg'")
+
     def test_start_no_images_rejected(self):
         self._grant_consent()
         resp = self._start([])

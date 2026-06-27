@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(health): Guided Capture never starts ("0 of 0") — request body exceeded 2.5MB limit
+
+**Root cause:** `DATA_UPLOAD_MAX_MEMORY_SIZE` was unset → Django's default **2.5MB**. `CaptureStartView` reads the JSON body via `request.body` (in `_capture_payload`), and the capture UI sent **raw full-resolution** photos (`reader.readAsDataURL(file)` — no downscale). One phone photo as base64 already exceeds 2.5MB, so `request.body` raised `RequestDataTooBig` → **HTTP 400 BEFORE the view ran**. No session was created, no task enqueued; the browser's `startProcessing()` `.then(resp.json())` rejected on the 400 HTML and hit `.catch` → "We couldn't start analysis", with the progress panel showing its default **"0 of 0 photos analyzed."** Workers/Redis/queue were irrelevant — processing never began.
+
+**Evidence:** reproduced deterministically — under `DATA_UPLOAD_MAX_MEMORY_SIZE=2MB`, a ~3.5MB single-image payload to `medication_capture_start` returns **400** with **no** `MedicationCaptureSession` row. Scan worked because its UI downscales+compresses client-side (`canvas` → `toDataURL('image/jpeg', 0.85)`); capture did not.
+
+**Fix (two parts, both scoped to the root cause):**
+1. **Client downscale (primary)** — `templates/health/acquisition/capture.html`: added `compressImage()` (max 1280px longest side, JPEG q0.72) and route every captured/uploaded/dropped file through it before adding to the session payload — mirrors Scan. Keeps each image ~150–350KB, so even 6 photos stay small (and Vision is faster).
+2. **Headroom (safety net)** — `config/settings.py`: `DATA_UPLOAD_MAX_MEMORY_SIZE = 10MB`, so the multi-image case (and single-image Scan) can never trip the limit. Verified the existing mobile payload-size test still passes (its ~2.75MB body now reaches the view's own 413 check; it asserts `in [400, 413]`).
+
+**Regression tests** (`apps/health/tests/test_capture_session.py`): oversized payload → 400 under the default limit (reproduces the bug, asserts no session); same payload → 202 under the configured 10MB limit (proves startup proceeds); template asserts client-side `compressImage` / `toDataURL` (guards against regressing to raw `readAsDataURL`).
+
+**Files:** config/settings.py, templates/health/acquisition/capture.html, apps/health/tests/test_capture_session.py.
+
+**Verification:** 103 tests green (capture + acquisition + scan) + the mobile payload-size test; `manage.py check` clean; no migration.
+
+
 ## 2026-06-27 — feat(health): Guided Capture — background Vision processing (off the request path)
 
 Production-grade orchestration for Guided Capture. The acquisition pipeline is unchanged; only WHERE/WHEN Vision runs changed. Previously the capture endpoints ran OpenAI Vision synchronously on the web request path (up to 6 images/request) — the likely cause of the real-world "stuck on Working…" timeout (CLAUDE.md forbids heavy compute on the request path).

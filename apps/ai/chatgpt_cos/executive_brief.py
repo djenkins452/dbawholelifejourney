@@ -165,10 +165,10 @@ def _is_raw_workload_claim(t):
 
 
 # ── Section composers (each returns a sentence/paragraph or "") ────────────
-def _safe_interpret(user):
+def _safe_interpret(user, low_energy=False):
     try:
         from apps.ai.chatgpt_cos.executive_interpretation import interpret
-        return interpret(user)
+        return interpret(user, low_energy=low_energy)
     except Exception:
         logger.warning("executive_brief: interpretation failed", exc_info=True)
         from apps.ai.chatgpt_cos.executive_interpretation import ExecutiveSignals
@@ -180,9 +180,11 @@ def _cap(s):
     return (s[0].upper() + s[1:]) if s else s
 
 
-# ── Narrative beats (P34): one coherent executive STORY, no report headings ──
+# ── Narrative beats (P35): the composer is a SPEECHWRITER. Every executive opinion
+# below comes from a signal (interpretation owns the judgment); the composer only
+# chooses the words, transitions, and emphasis (communication). ───────────────────
 def _thesis(sig):
-    """Lead with the synthesized conclusion — what today actually is."""
+    """NARRATES sig.workload (the judgment). No new conclusion is created here."""
     wl = sig.workload
     if wl in ("light", "manageable"):
         return ("Looking at everything together, today is more manageable than it "
@@ -196,8 +198,11 @@ def _thesis(sig):
 
 
 def _energy_story(sig, low_energy):
-    """When recovery is the limiting factor, name it as the real challenge — and only
-    cite evidence that strengthens it."""
+    """NARRATES sig.primary_challenge / sig.challenge_reason — the conclusion that
+    energy is the real limiter lives in interpretation. The composer only phrases it
+    and cites the supporting evidence (sleep + the conversation's own report)."""
+    if sig.primary_challenge != "energy":
+        return ""
     parts = ["The bigger challenge today isn't your task list — it's your energy."]
     bits = []
     if sig.sleep_hours:
@@ -206,35 +211,44 @@ def _energy_story(sig, low_energy):
         bits.append("you've told me you're feeling stretched")
     if bits:
         parts.append(_cap(" and ".join(bits)) + ".")
-    parts.append("That combination matters more right now than the number of open items.")
+    reason = sig.challenge_reason or "more than the number of open items"
+    parts.append("That combination matters " + reason + ".")
     return " ".join(parts)
 
 
-def _recovery_plan(sig):
-    return ("Because of that, I wouldn't try to catch up on everything today. If we "
-            "protect your energy, keep nutrition steady, and take care of the one "
-            "thing that's genuinely due, I'll count today as a win.")
+def _join_levers(levers):
+    levers = [l for l in levers if l]
+    if len(levers) <= 1:
+        return levers[0] if levers else ""
+    return ", ".join(levers[:-1]) + ", and " + levers[-1]
+
+
+def _recommendation(sig):
+    """NARRATES sig.disposition + sig.recommendation_levers — the priorities and the
+    'what I'd do today' stance are interpretation's judgment, phrased here."""
+    disp = _scrub(sig.disposition)
+    if not disp:
+        return ""
+    sentence = "Because of that, " + disp + "."
+    levers = _join_levers(sig.recommendation_levers or [])
+    if levers:
+        sentence += " If we " + levers + ", I'll count today as a win."
+    return sentence
 
 
 def _priority_story(sig):
-    """The non-recovery day: what genuinely needs him + the real leverage + why."""
-    parts = []
+    """The non-energy day. NARRATES sig.highest_leverage (interpretation's leverage
+    judgment) and sig.biggest_risk — the composer does not pick either."""
     if sig.today_count:
         n = sig.today_count
-        parts.append(f"What genuinely needs you today is the {n} item"
-                     f"{'s' if n != 1 else ''} actually due")
+        head = (f"What genuinely needs you today is the {n} item"
+                f"{'s' if n != 1 else ''} actually due")
     else:
-        parts.append("Nothing is strictly due today, so this is a day you get to choose")
-    lever = ""
-    if sig.strategic_focus:
-        lever = (f"the real leverage is moving {sig.strategic_focus} forward — that's "
-                 "where today's effort compounds, not the routine items")
-    elif _scrub(sig.highest_leverage):
-        lever = "the highest-leverage thing you can do is " + _scrub(sig.highest_leverage)
-    sentence = parts[0]
+        head = "Nothing is strictly due today, so this is a day you get to choose"
+    lever = _scrub(sig.highest_leverage)
     if lever:
-        sentence += "; beyond that, " + lever
-    out = [_cap(sentence) + "."]
+        head += "; beyond that, the real leverage is " + lever
+    out = [_cap(head) + "."]
     risk = _scrub(sig.biggest_risk)
     if risk:
         out.append("Keep an eye on " + risk + " — that's the one thing that could "
@@ -243,24 +257,24 @@ def _priority_story(sig):
 
 
 def compose_executive_brief(user, *, lead="", low_energy=False):
-    """Compose ONE coherent executive CONVERSATION from interpreted ExecutiveSignals
-    (P34) — synthesis over enumeration, no report headings, evidence only when it
-    strengthens the recommendation, conflicts reconciled. Deterministic; degrades
-    gracefully; never re-infers conclusions from raw metrics."""
-    sig = _safe_interpret(user)
-    recovery = sig.recovery_needed or low_energy
+    """Compose ONE coherent executive CONVERSATION by NARRATING ExecutiveSignals
+    (P35: the composer is a speechwriter — it never invents priorities, leverage,
+    recommendations, or executive opinions; those come from interpretation). Synthesis
+    over enumeration, no headings, evidence only when it strengthens the point,
+    conflicts already reconciled upstream. Deterministic; degrades gracefully."""
+    sig = _safe_interpret(user, low_energy=low_energy)
     story = []
     if lead:
         story.append(lead.strip())
     story.append(_thesis(sig))
-    if recovery:
+    if sig.primary_challenge == "energy":
         story.append(_energy_story(sig, low_energy))
-        story.append(_recovery_plan(sig))
+        story.append(_recommendation(sig))
     else:
         story.append(_priority_story(sig))
-    if _has_backlog(sig):
+    if sig.backlog_can_wait:
         story.append("The rest of your backlog can wait — none of it is due today.")
-    agenda = _agenda_narrative(user, recovery)
+    agenda = _agenda_narrative(user, sig.ease_load)
     if agenda:
         story.append(agenda)
     out = " ".join(s for s in story if s).strip()
@@ -268,10 +282,6 @@ def compose_executive_brief(user, *, lead="", low_energy=False):
         out = ("Here's the short version: nothing urgent is flagged right now, and "
                "the day looks manageable from here.")
     return _scrub(out) or out
-
-
-def _has_backlog(sig):
-    return (sig.total_pending - sig.today_count - sig.overdue_count) >= 3
 
 
 # ── Executive-presence quality scorer (Acceptance evolution, P32) ──────────

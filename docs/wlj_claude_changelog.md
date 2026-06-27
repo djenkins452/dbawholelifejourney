@@ -7,6 +7,30 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — refactor(cos): P35 layer ownership — move executive judgment out of the Composer
+
+Audit finding (the prompt's hypothesis was correct): the Executive Brief Composer still INVENTED executive judgment rather than narrating it. Sentence-ownership audit of the composer:
+
+| Sentence | Type | Was owned by | Now owned by |
+|---|---|---|---|
+| "today is more manageable than it feels" | interpretation (workload) | narrated (ok) | interpretation |
+| "the bigger challenge isn't your tasks — it's your energy" | JUDGMENT | **Composer** | Interpretation (`primary_challenge`) |
+| "that combination matters more than the open-item count" | JUDGMENT | **Composer** | Interpretation (`challenge_reason`) |
+| "I wouldn't try to catch up … protect energy / nutrition / the one due item … a win" | RECOMMENDATION + priorities | **Composer** | Interpretation (`disposition`, `recommendation_levers`) |
+| "the real leverage is moving France forward, not routine items" | JUDGMENT (leverage) | **Composer (re-derived)** | Interpretation (`highest_leverage`) |
+| "the rest of your backlog can wait" | RECOMMENDATION | **Composer** | Interpretation (`backlog_can_wait`) |
+| "keep it light" (agenda) | RECOMMENDATION | **Composer** | Interpretation (`ease_load`) |
+| greeting / transitions / "Because of that," / evidence phrasing | communication | Composer (correct) | Composer |
+
+**Change:** `ExecutiveSignals` gains `primary_challenge`, `challenge_reason`, `disposition`, `recommendation_levers`, `backlog_can_wait`, `ease_load`; `interpret(user, low_energy=False)` now computes ALL of these (folding the conversation's energy signal so even the "energy is the limiter" conclusion is deterministic and owned upstream). The Composer was rewritten to NARRATE these signals — it no longer chooses priorities, leverage, recommendations, or the "real challenge". The Conversation Planner already passes `low_energy`. Style (wording, transitions, emphasis, evidence phrasing) stays in the Composer. The rendered brief reads byte-for-byte the same.
+
+**Acceptance addition — Layer Ownership:** the new tests prove the Composer narrates and invents nothing: with empty conclusions the brief contains no invented judgment ("the bigger challenge", "the real leverage", "backlog can wait", "keep an eye on" all absent); changing a signal (primary_challenge / challenge_reason / disposition / levers / highest_leverage / backlog_can_wait) changes the brief accordingly; and the judgments are verified directly on `interpret()` output.
+
+**Files:** apps/ai/chatgpt_cos/executive_interpretation.py (judgment fields + low_energy), executive_brief.py (narrate-only composer). Tests: apps/ai/tests/test_p35_layer_ownership.py (new).
+
+**Verification:** the production brief is unchanged; 113-test regression green; `check` clean; no migration. The Composer is now a speechwriter; the Interpretation Engine is the Chief-of-Staff judgment — no overlap.
+
+
 ## 2026-06-27 — feat(health): Sprint 7 — deterministic narration boundary + "What We've Noticed"
 
 The final rendering layer: prioritized observations become deterministic narration objects Beth consumes. Narration is a RENDERING layer, not an intelligence layer — Beth creates no facts, ranks nothing, infers nothing, never diagnoses or recommends.

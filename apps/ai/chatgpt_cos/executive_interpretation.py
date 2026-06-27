@@ -34,6 +34,13 @@ class ExecutiveSignals:
     confidence: str = "medium"         # low|medium|high
     headline: str = ""                 # the one-line executive thesis
     sleep_hours: float = None          # last-night sleep (evidence for the energy story)
+    # ── Executive JUDGMENTS the composer must NARRATE, not invent (P35) ──
+    primary_challenge: str = "none"    # energy | workload | none — what's the real limiter
+    challenge_reason: str = ""         # the conclusion (e.g. "more than the open-item count")
+    disposition: str = ""              # the strategic stance ("don't try to catch up …")
+    recommendation_levers: list = field(default_factory=list)  # chosen priorities/levers
+    backlog_can_wait: bool = False     # the disposition of the backlog
+    ease_load: bool = False            # keep the day's load light (recovery)
 
     def to_dict(self):
         return asdict(self)
@@ -175,16 +182,18 @@ def _headline(workload, recovery, has_backlog):
     return base + "."
 
 
-def interpret(user):
-    """Produce ExecutiveSignals from existing deterministic facts. Deterministic,
-    request-path-safe, degrades gracefully."""
+def interpret(user, low_energy=False):
+    """Produce ExecutiveSignals — ALL executive judgment — from deterministic facts
+    plus the conversation's energy signal (`low_energy`, owned by the Conversation
+    Planner). The Composer narrates these conclusions; it never invents them (P35).
+    Deterministic, request-path-safe, degrades gracefully."""
     tw = _task_horizons(user)
     es = _exec_summary(user)
     health = _health_read(user)
 
     workload, wsummary = _interpret_workload(tw)
     has_backlog = (tw["total"] - (tw["today"] + tw["overdue"])) >= 3
-    recovery = health["recovery_needed"]
+    recovery = bool(health["recovery_needed"] or low_energy)
 
     biggest_risk = _text(es.get("biggest_risk"))
     if not biggest_risk and recovery:
@@ -208,6 +217,21 @@ def interpret(user):
                                   if not _looks_justified(rec) else "")
     else:
         highest_leverage = ""
+    # ── Executive JUDGMENTS (the Chief-of-Staff opinions — owned HERE, P35) ──
+    # What is the real limiter today, and the stance/levers that follow from it.
+    primary_challenge, challenge_reason, disposition, levers = "none", "", "", []
+    if recovery:
+        primary_challenge = "energy"
+        challenge_reason = "more than the number of open items"
+        disposition = "I wouldn't try to catch up on everything today"
+        levers = ["protect your energy", "keep nutrition steady",
+                  "take care of the one thing that's genuinely due"]
+    elif workload in ("heavy", "overloaded"):
+        primary_challenge = "workload"
+        challenge_reason = "the volume is the constraint, so sequencing matters"
+        disposition = "I'd protect the few things that truly matter and let the rest slide"
+    ease_load = recovery
+
     # Intervention is a JUDGMENT, not a count: only real risk warrants it, never a
     # large-but-harmless backlog.
     intervention = (tw["overdue"] >= 5 or workload == "overloaded"
@@ -223,4 +247,7 @@ def interpret(user):
         highest_leverage=highest_leverage, strategic_focus=strategic,
         intervention_required=intervention, confidence=confidence,
         headline=_headline(workload, recovery, has_backlog),
-        sleep_hours=health.get("sleep_hours"))
+        sleep_hours=health.get("sleep_hours"),
+        primary_challenge=primary_challenge, challenge_reason=challenge_reason,
+        disposition=disposition, recommendation_levers=levers,
+        backlog_can_wait=has_backlog, ease_load=ease_load)

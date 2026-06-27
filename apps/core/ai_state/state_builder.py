@@ -3914,6 +3914,72 @@ def build_medicine_state(user):
         s for s in state.get('schedule_status_today', [])
         if s.get('status') == 'missed'
     ]
+    # ── Treatment metadata + recent changes (Sprint 2C) ──────────
+    # COMPOSED canonical state only — never raw model instances. Per-med detail
+    # closes the dose/frequency/provider/pharmacy visibility gap for Beth;
+    # recent_changes reads the canonical MedicationEvent ledger. Self-contained
+    # and guarded so a failure here never breaks the rest of the contract.
+    _med_detail = []
+    _recent_changes = []
+    _treatment_summary = "No active medications or supplements tracked."
+    try:
+        from datetime import timedelta as _timedelta
+        from apps.core.utils import get_user_today as _gut
+        from apps.health.models import Intake as _Intake, MedicationEvent as _ME
+
+        _today = _gut(user)
+        _active = (
+            _Intake.objects.filter(user=user, intake_status='active')
+            .select_related('provider', 'pharmacy_ref')
+        )
+        for _m in _active[:30]:
+            _med_detail.append({
+                'name': _m.name,
+                'intake_type': _m.intake_type,
+                'dose': _m.dose,
+                'frequency': _m.get_frequency_display() if _m.frequency else '',
+                'purpose': _m.purpose or '',
+                'provider': (_m.provider.name if _m.provider_id
+                             else (_m.prescribing_doctor or '')),
+                'pharmacy': (_m.pharmacy_ref.name if _m.pharmacy_ref_id
+                             else (_m.pharmacy or '')),
+                'monitoring': _m.monitoring_requirements or '',
+                'needs_refill': _m.needs_refill,
+                'days_until_empty': _m.days_until_empty,
+            })
+
+        _cutoff = _today - _timedelta(days=90)
+        _recent_events = (
+            _ME.objects
+            .filter(user=user, effective_date__gte=_cutoff)
+            .exclude(event_type=_ME.EVENT_TRACKING_BEGAN)
+            .select_related('intake')[:10]
+        )
+        for _ev in _recent_events:
+            _recent_changes.append({
+                'medicine': _ev.intake.name,
+                'change': _ev.get_event_type_display(),
+                'date': _ev.effective_date.isoformat(),
+                'reason': _ev.get_reason_display(),
+            })
+
+        _mc = state.get('medication_count', 0)
+        _sc = state.get('supplement_count', 0)
+        if _mc or _sc:
+            _bits = []
+            if _mc:
+                _bits.append(f"{_mc} medication{'s' if _mc != 1 else ''}")
+            if _sc:
+                _bits.append(f"{_sc} supplement{'s' if _sc != 1 else ''}")
+            _treatment_summary = "Tracking " + " and ".join(_bits) + "."
+            if _recent_changes:
+                _treatment_summary += (
+                    f" {len(_recent_changes)} recent change"
+                    f"{'s' if len(_recent_changes) != 1 else ''} in the last 90 days."
+                )
+    except Exception:
+        logger.debug("Medicine treatment-section build failed", exc_info=True)
+
     state['_contract'] = {
         'summary': {
             'active_count': state.get('active_count', 0),
@@ -3926,6 +3992,11 @@ def build_medicine_state(user):
             'supplement_adherence_7d': state.get('supplement_adherence_7d'),
             'expected_today': state.get('expected_today', 0),
             'today_taken': state.get('today_taken', 0),
+        },
+        'treatment': {
+            'medications_detail': _med_detail,
+            'recent_changes': _recent_changes,
+            'treatment_summary': _treatment_summary,
         },
         'today': {
             'schedule_status': state.get('schedule_status_today', []),

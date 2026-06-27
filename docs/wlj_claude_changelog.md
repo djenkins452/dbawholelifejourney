@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Sprint 2C/2D — canonical medication state + timeline foundation
+
+Expands `build_medicine_state` with a composed `_contract.treatment` section so the Chief of Staff sees richer canonical medication state (closing the dose/frequency/provider/pharmacy visibility gap from the audit) — COMPOSED state only, never raw models.
+
+**`_contract.treatment` (new):**
+- `medications_detail` — per active med (≤30): name, intake_type, dose, frequency (display), purpose, provider (FK name or free-text fallback), pharmacy (FK name or fallback), monitoring, needs_refill, days_until_empty (inventory estimate).
+- `recent_changes` — last 90 days from the canonical MedicationEvent ledger (started/paused/resumed/discontinued/dose/provider/pharmacy/refill), each a composed `{medicine, change, date, reason}`; the honest `tracking_began` backfill marker is excluded (not a "recent change").
+- `treatment_summary` — deterministic verdict line ("Tracking N medications and M supplements. K recent changes in the last 90 days.").
+The section is self-contained and guarded — a failure never breaks the rest of the contract; no request-path heavy compute (built in the SAE builder, read from snapshot).
+
+**Timeline foundation (2D):** the canonical timeline data is the append-only `MedicationEvent` ledger (Sprint 2A) read via `medication_events.get_medication_timeline()` (newest-first) and surfaced as `recent_changes`. All required event types exist (started/stopped/paused/resumed/dose changed/refill/provider changed). No UI — canonical data only, per spec.
+
+**Files:** apps/core/ai_state/state_builder.py; apps/health/tests/test_medication_events.py (+2 state-contract tests).
+
+**Verification:** 15 medication-foundation tests + 34 SAE state tests (medicine_medical_extensions, single_source_of_truth) + health dashboards green; `manage.py check` clean; no migration (state is read-only over existing+2A/2B schema). Beth now sees per-med dose/frequency/provider/pharmacy/monitoring + recent treatment changes via composed state.
+
+
 ## 2026-06-27 — feat(health): Sprint 2B — structured treatment metadata (Pharmacy, Prescription, provider/pharmacy bridge)
 
 Adds the structured treatment metadata identified in planning, reusing existing models and preserving single ownership. Additive only.

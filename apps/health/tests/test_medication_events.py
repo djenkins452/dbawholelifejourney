@@ -163,3 +163,60 @@ class MedicationMetadataTest(AdherenceTestMixin, TestCase):
         )
         med.refresh_from_db()
         self.assertEqual(med.monitoring_requirements, "A1c every 3 months")
+
+
+class MedicineStateContractTest(AdherenceTestMixin, TestCase):
+    """Sprint 2C — build_medicine_state exposes the new canonical treatment section."""
+
+    def setUp(self):
+        self.user = self.create_user(email="medstate@test.com")
+
+    def test_treatment_section_present_with_detail_and_changes(self):
+        from apps.core.ai_state.state_builder import build_medicine_state
+
+        from apps.core.utils import get_user_today
+        provider = MedicalProvider.objects.create(user=self.user, name="Dr. Who")
+        med = self.create_medicine(
+            self.user, name="Mounjaro", dose="5mg", frequency="weekly",
+            purpose="Glucose control", provider=provider,
+            monitoring_requirements="A1c q3mo",
+            start_date=get_user_today(self.user),  # recent → 'started' is a recent change
+        )  # creation → 'started' event (a recent change)
+
+        state = build_medicine_state(self.user)
+        contract = state["_contract"]
+        self.assertIn("treatment", contract)
+        treatment = contract["treatment"]
+
+        # Per-med composed detail (dose/frequency/provider/purpose/monitoring) — no raw models.
+        detail = {d["name"]: d for d in treatment["medications_detail"]}
+        self.assertIn("Mounjaro", detail)
+        self.assertEqual(detail["Mounjaro"]["dose"], "5mg")
+        self.assertEqual(detail["Mounjaro"]["frequency"], "Weekly")
+        self.assertEqual(detail["Mounjaro"]["provider"], "Dr. Who")
+        self.assertEqual(detail["Mounjaro"]["purpose"], "Glucose control")
+        self.assertEqual(detail["Mounjaro"]["monitoring"], "A1c q3mo")
+
+        # Recent changes read from the canonical ledger (the 'started' event).
+        changes = treatment["recent_changes"]
+        self.assertTrue(any(c["medicine"] == "Mounjaro" and c["change"] == "Started" for c in changes))
+
+        # Deterministic treatment summary (verdict-bearing).
+        self.assertIn("medication", treatment["treatment_summary"])
+
+    def test_tracking_began_excluded_from_recent_changes(self):
+        """The honest backfill marker is not surfaced as a 'recent change'."""
+        from apps.core.ai_state.state_builder import build_medicine_state
+        from apps.health.medication_events import record_medication_change
+        from apps.health.models import MedicationEvent
+
+        med = self.create_medicine(self.user, name="Old Med")
+        # Simulate a backfill marker (as the migration would create).
+        record_medication_change(
+            med, MedicationEvent.EVENT_TRACKING_BEGAN,
+            reason=MedicationEvent.REASON_BACKFILL,
+            source=MedicationEvent.SOURCE_BACKFILL,
+        )
+        state = build_medicine_state(self.user)
+        changes = state["_contract"]["treatment"]["recent_changes"]
+        self.assertFalse(any(c["change"] == "Tracking began" for c in changes))

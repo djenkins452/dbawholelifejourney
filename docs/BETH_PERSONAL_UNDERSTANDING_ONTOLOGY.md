@@ -1,205 +1,209 @@
-# Personal Understanding — Ontology & Architecture (P36.1, design only)
+# Personal Understanding — Evidence-First Ontology & Architecture (P36.1 → P36.2)
 
-**Status:** DESIGN ONLY. No code. Supersedes the P36 framing (BehaviorDirective is
-demoted to a derived consumer). **Date:** 2026-06-27.
+**Status:** DESIGN ONLY. No code. Supersedes the P36 framing (BehaviorDirective is a
+derived consumer). v2 adds the **Pattern** stage and the **Evidence-First** mandate.
+**Date:** 2026-06-27.
 
-> The objective is not a larger memory system. It is a richer, increasingly accurate
-> **understanding** of Danny that improves every future recommendation, conversation,
-> coaching moment, and executive decision — without accumulating disconnected memories.
+> Beth does not become wiser because an LLM thinks harder. Beth becomes wiser because she
+> continuously transforms **evidence → pattern → understanding → better judgment**. The
+> objective is not a larger memory system; it is a sharper, evidence-backed understanding
+> of Danny that improves every recommendation, conversation, and decision.
 
 ---
 
-## 1. Architectural review (and where I challenge the proposal)
+## 0. The defining principle — Evidence-First
 
-The proposed stack — `Identity → Preferences → Patterns → Understanding → Behavior
-Adaptation → Executive Interpretation` — is directionally right but **conflates two
-different axes**, and I recommend separating them:
+Every understanding **originates from evidence**, discovered by a **deterministic**
+detector — never from LLM intuition, prompts, or assumptions. The deterministic system
+*discovers the pattern and establishes the confidence*. The LLM's role is strictly
+**downstream and optional**: it may later **summarize, explain, narrate, or reflect** on
+understanding that already exists — it must **never originate** it. This is the same
+invariant that made v3 robust ("WLJ owns truth; ChatGPT narrates"), now applied to
+self-knowledge. Beth must always answer *"Why do you believe that?"* with evidence.
 
-- **Axis A — the pipeline (stages):** `Observation → Understanding → Behavior Adaptation
-  → Executive Interpretation`. Four stages, each owned by one layer.
-- **Axis B — the *kind* of understanding (a field, not a layer):** identity, value,
-  preference, pattern, sensitivity, communication-style, capability, relationship.
+## 1. Architectural review (challenges)
 
-So `Identity / Preferences / Patterns` are **kinds of Understanding**, not separate
-layers. Collapsing them avoids a rigid six-tier stack and a proliferation of tables.
-
-**The central correction (the user's hypothesis is correct):** `Understanding` is the
-**primary abstraction**; `BehaviorDirective` is **one derived consumer** of it. One
-Understanding fans out to *many* behavior adaptations:
+The proposed pipeline is correct, with one added stage and three challenges:
 
 ```
-Observation: "Danny consistently treats weekends differently."
-        ↓ (synthesis, compression, confidence)
-UNDERSTANDING: "Weekends are intentional recovery; weekend routine timing is not a
-               discipline signal."   ← ONE rich, confidence-weighted belief
-        ↓ (derivation — many adaptations from one understanding)
-Behavior adaptations:  • don't elevate weekend showers
-                       • soften the weekend morning briefing
-                       • drop unnecessary urgency on weekends
-                       • coach with latitude, not correction
-        ↓
-Executive Interpretation → Conversation Planner → Composer
+Observations
+   ↓  DETERMINISTIC pattern detection (the only thing that ORIGINATES understanding)
+Patterns
+   ↓  promotion when a pattern is confident enough
+Personal Understanding         ← the PRIMARY abstraction
+   ↓  derivation (one understanding → many)
+Behavior Adaptation            ← BehaviorDirective, now a DERIVED consumer
+   ↓
+Executive Interpretation → Conversation Planning → Composer → Narration
+   ↑
+LLM (optional): summarize / explain / narrate / reflect — never originate
 ```
 
-Three more challenges:
-1. **Do not add a third fact store.** WLJ already has `ai_memory.PersonalFact` and
-   `ai_eae.ExtractedFact` (source-weighted confidence, polymorphic source). Those are the
-   **Observation layer**. `Understanding` sits *above* them; it does not replace them.
-2. **Don't store free-text "behavior adaptations" on the Understanding.** Derive them
-   (so they stay consistent and explainable). The Understanding stores *implications*;
-   directives are generated from implications.
-3. **Sensitivity is a first-class dimension, not a pattern.** The abuse/Detroit example
-   isn't "remember Nell" — it's an Understanding of kind=`sensitivity` whose *single*
-   conclusion ("this topic is emotionally activating") drives many behaviors (slow down,
-   empathy, avoid references, prioritize emotional safety). This must be modeled
-   explicitly because its behavior adaptations are protective, not optimizing.
+- **Challenge A — `Identity / Preferences / Patterns` are not pipeline layers.** They are
+  *kinds* of Understanding (a field). The pipeline stages are Observation → Pattern →
+  Understanding → Adaptation → Interpretation. (A "pattern" the user lists as a *stage* is
+  the deterministic detection step; a "pattern" as a *kind* is a behavioral regularity —
+  same word, two roles, both kept, clearly separated below.)
+- **Challenge B — Do not add a third fact store.** `ai_memory.PersonalFact` and
+  `ai_eae.ExtractedFact` (source-weighted confidence, polymorphic source) are the
+  **Observation layer**. Understanding sits *above* them.
+- **Challenge C — Don't store free-text behaviors on the Understanding.** Store
+  *implications*; **derive** the adaptations (so they stay consistent and explainable).
 
-## 2. Current knowledge model (what exists today)
+**BehaviorDirective verdict (the user's hypothesis, confirmed):** it is **one derived
+consumer** of Personal Understanding, not the primary storage. One Understanding fans out
+to many adaptations. Keep the P36 directive *consumer wiring*; re-parent its *origin*.
 
-| Component | Role today | Verdict |
-|---|---|---|
-| `ai_memory.PersonalFact` | biographical facts (LLM-extracted), confidence, source | **Observation** — survives |
-| `ai_eae.ExtractedFact` | facts with `confidence = LLM_conf × source_weight`, polymorphic source | **Observation** — survives (the richer store) |
-| `ai_eae.SignalSnapshot` / `EAEState` | longitudinal signals + confidence machinery | **Observation / evidence** — survives, reused |
-| journal / conversation / health history | raw longitudinal data | **Observation** — survives |
-| `Executive Interpretation` (`ExecutiveSignals`) | judgment | **Consumer** — survives, gains Understanding inputs |
-| `BehaviorDirective` (P36) | behavior change keyed for compression | **Re-parented** — becomes a *derived consumer* of Understanding |
-| "What I Know About You" surface | renders raw observations (repetitive log) | **Changes** — renders Understandings instead |
+## 2. Current P36 implementation review
 
-Weakness today: there is **no synthesis layer**. Observations never compress into beliefs;
-the same idea appears as many rows; nothing decays; nothing merges.
+P36 Phase 1 shipped `BehaviorDirective` (keyed, compressing, confidence, source, evidence,
+explain) + an Interpretation consumer (`deprioritize:` honored end-to-end). It correctly
+proves *knowledge → behavior change*. Its only flaw is **altitude**: it stores the
+*adaptation* as if it were the knowledge. The richer model stores the *understanding* and
+derives the adaptation. So P36 is the correct **bottom** of the stack, missing the layer
+above it.
 
-## 3. Proposed Personal Understanding ontology
+## 3. The five concepts (crisp definitions)
 
-The primary object is **`Understanding`** — a synthesized, confidence-weighted belief
-about Danny, deduplicated by a canonical concept key.
+- **Observation** — a single, raw, timestamped, sourced evidentiary fact or event: one
+  journal entry; "today's shower was at 1pm"; "Danny said he had childhood trauma involving
+  Nell from Detroit". Atomic. Lives in the Observation layer (PersonalFact / ExtractedFact
+  / SignalSnapshot / journal / chat). *Beth remembers these.*
+- **Pattern** — a **deterministically detected regularity** across many observations:
+  "weekend shower delayed in 5 of the last 6 weekends". It is *evidence about a regularity*
+  — a rule + window + hit/miss tally + a confidence that rises with corroboration and falls
+  with contradiction. A pattern is **not yet a belief**; it is the machinery that *earns*
+  one. Detected by deterministic detectors, never the LLM.
+- **Understanding** — a durable, synthesized **belief** about Danny, promoted from one or
+  more confident patterns/observations: "Weekend routine timing is not a useful indicator
+  of discipline for Danny." It carries meaning, affected domains, implications, sensitivity,
+  confidence, decay, and evidence pointers. *Beth understands these.* The PRIMARY abstraction.
+- **Behavior Adaptation** — a concrete, consumable behavior change **derived** from an
+  understanding (the existing `BehaviorDirective`, e.g. `deprioritize:shower`, `tone:direct`).
+  One understanding → many adaptations.
+- **Executive Interpretation** — the judgment layer (`ExecutiveSignals`, P35) that consumes
+  adaptations + reads understandings directly (e.g. sensitivity → pacing) to shape the brief.
 
-```
-Understanding(user)
-  concept_key      : canonical id for dedup/merge ("weekend-recovery-orientation",
-                     "journaling-core-practice", "topic-sensitivity:detroit-abuse")
-  kind             : identity | value | preference | pattern | sensitivity |
-                     communication | capability | relationship
-  statement        : the belief, in Beth's words
-  meaning          : why it's true / what it reveals about Danny
-  affected_domains : [health, faith, work, family, execution, communication, emotional…]
-  implications     : structured hints that DERIVE behavior (not free text adaptations)
-  sensitivity      : none | elevated | high     (drives protective behavior)
-  confidence       : 0..1
-  evidence         : { summary, observation_refs:[…], source_mix:{told,observed,…} }
-  evidence_count   : reinforcement count (longitudinal weight)
-  status           : forming | active | weakening | contradicted | retired
-  decay_half_life  : per-kind (identity=years, preference=months, pattern=weeks)
-  created_at / last_reinforced_at / last_challenged_at
-```
+How **understanding differs from behavior**: understanding is *what Beth believes and why*
+(durable, explainable, evidence-backed); behavior is the *consequence* (derived, swappable).
+Behavior is downstream of knowledge — never the knowledge itself.
 
-`BehaviorDirective` (existing) gains a nullable `understanding` FK and becomes the
-**derived adaptation**: `derive_directives(understanding) → [BehaviorDirective…]`. Every
-output answers *Observation, Meaning, Confidence, Evidence, Affected domains,
-Implications, Behavior adaptations, Explainability* — but those live across the right
-objects (most on Understanding; adaptations derived).
+How **many behaviors emerge from one understanding**: the understanding's `implications`
+(structured) are expanded by a deterministic `derive()` step into multiple directives —
+e.g. weekend-recovery → {deprioritize weekend shower, soften the weekend morning brief,
+drop weekend urgency, coach with latitude}. Change the understanding once; all derived
+behaviors update consistently.
 
-## 4. Layer ownership (one responsibility per layer)
-
-1. **Observation** — `PersonalFact`/`ExtractedFact`/`SignalSnapshot`/journal/chat. Owns
-   *raw facts and signals*. No synthesis. (Unchanged.)
-2. **Understanding** (NEW) — owns *synthesized beliefs*: compression, confidence,
-   evolution, merge, retire, explainability. The primary abstraction.
-3. **Behavior Adaptation** — `BehaviorDirective`, *derived from* Understanding. Owns
-   *concrete, consumable behavior changes* (the structured keys interpretation honors).
-4. **Executive Interpretation** — owns *judgment* (`ExecutiveSignals`); consumes
-   directives + reads Understanding directly for richer context (sensitivity/tone).
-5. **Conversation Planner / Composer** — own *conversation strategy / wording*; consume
-   the resulting judgment + communication/sensitivity understandings.
-
-## 5. Lifecycle (how understanding evolves)
+## 4. Ontology (schema sketch — final schema chosen in Phase 2)
 
 ```
-observation arrives (told / observed / derived)
-   → MATCH to an existing Understanding by concept_key (semantic/deterministic)
-       ├─ match  → REINFORCE (confidence ↑ with diminishing returns, evidence appended,
-       │           evidence_count++, last_reinforced=now)  ← compression happens here
-       └─ no match → new Understanding (status=forming, low confidence)
-forming → active   when confidence ≥ θ_active AND evidence_count ≥ N
-active → weakening when contradicted OR decayed below θ_active
-weakening → retired/contradicted   when confidence < θ_retire
-merge: two understandings sharing a concept → one richer statement (max evidence, union
-       of domains, reconciled confidence)
-derive: when an active understanding crosses θ_actionable or changes, (re)derive its
-        BehaviorDirectives
+Observation        : (existing stores — unchanged)
+
+Pattern (deterministic detector output; captured as structured EVIDENCE, not a new store)
+  rule            : declarative detector id ("weekend_routine_delayed")
+  window          : evaluation window (e.g. last 6 weekends)
+  hits / misses   : the tally (rises/falls deterministically)
+  confidence      : f(hits, misses, recency)   ← established by the detector, not the LLM
+  observation_refs: pointers to the supporting observations
+
+Understanding(user)                              ← PRIMARY abstraction
+  concept_key     : canonical dedup/merge id ("weekend-recovery-orientation",
+                    "topic-sensitivity:detroit-abuse", "journaling-core-practice")
+  kind            : identity | value | preference | pattern | sensitivity |
+                    communication | capability | relationship
+  statement       : the belief, in Beth's words
+  meaning         : why it's true / what it reveals
+  affected_domains: [health, faith, work, family, execution, communication, emotional…]
+  implications    : structured hints that DERIVE behavior (not free-text behaviors)
+  sensitivity     : none | elevated | high       (drives PROTECTIVE behavior)
+  confidence      : 0..1                          (from the underlying patterns)
+  evidence        : { patterns:[…], observation_refs:[…], source_mix:{told,observed,…} }
+  status          : forming | active | weakening | contradicted | retired
+  decay_half_life : per-kind (identity≈years, preference≈months, pattern≈weeks)
+  created / last_reinforced / last_challenged
+
+BehaviorDirective : (existing) + nullable FK → Understanding   ← DERIVED consumer
 ```
 
-## 6. Compression strategy (the whole point)
+A pattern need **not** be its own table: it is the deterministic detector's output, stored
+as structured `evidence` on the Understanding it supports (explainable, no store
+proliferation). A separate `PatternObservation` table is an *option* only if we later want
+independent longitudinal pattern history.
 
-- **Concept-keyed collapse:** "Danny journals" / "journals regularly" / "values
-  journaling" / "journaled 48×" → **one** Understanding `journaling-core-practice`
-  (evidence_count=48, high confidence). The 48 journal entries remain in the Observation
-  layer (real data); the *understanding* is singular.
-- **Merge near-duplicates** by concept_key / semantic similarity.
-- **Surface renders Understandings**, never the raw observation log. "What I Know About
-  You" becomes "What I understand about you" — a short, rich, evolving list.
-- **Net effect:** observations grow linearly with life; *understandings stay roughly
-  constant and get richer.* Memory doesn't pile up; understanding sharpens.
+## 5. How understanding evolves over months and years
 
-## 7. Confidence evolution
+```
+Day 1     a single observation         → no understanding (one data point ≠ a belief)
+Weeks     observations recur           → a Pattern forms; confidence climbs deterministically
+Pattern crosses θ_active               → a forming Understanding becomes ACTIVE; behaviors derive
+Months    continued corroboration      → confidence saturates; the belief is trusted, low-touch
+Explicit "remember that I…" (told)     → instant high-confidence Understanding (no waiting)
+Contradiction / correction by Danny    → confidence drops → weakening → retired/superseded
+Silence (no reinforcement)             → kind-specific DECAY; stale patterns fade so they stop
+                                          driving behavior; identity barely moves
+Two beliefs about one concept          → MERGE into one richer statement
+```
 
-- **Base** by source: confirmed/told high, observed/derived lower (reuse the existing
-  `ExtractedFact` source-weighting — don't reinvent).
-- **Reinforce:** +Δ per corroboration, diminishing toward 1.0.
-- **Decay:** time-based, **kind-specific half-life** — identity barely decays; patterns
-  decay fast (a stale pattern shouldn't drive behavior). A background job applies decay.
-- **Contradict:** −Δ (largest for `corrected` by Danny) → weakening → retired.
-- **Gate:** only confidence ≥ θ_actionable derives directives / influences behavior. Beth
-  acts on what she's *sure enough* of, and softens claims she's unsure of.
+Net: **observations grow linearly with life; understandings stay roughly constant and get
+*sharper*.** That is the difference between a memory database and wisdom.
+
+## 6. Confidence evolution
+
+- **Origin (deterministic):** pattern confidence = f(hits, misses, recency, sample size).
+  Source sets the *floor* (told/confirmed high; observed/derived earn it). Reuse the
+  existing `ExtractedFact` source-weighting — don't reinvent.
+- **Reinforce:** each corroborating observation raises confidence with diminishing returns.
+- **Decay:** time-based, **kind-specific half-life** — a stale "pattern"-kind belief loses
+  confidence quickly (it shouldn't drive behavior on old evidence); identity barely decays.
+- **Gate:** only confidence ≥ θ_actionable derives behavior. Below it, Beth holds the belief
+  *tentatively* and softens any claim ("it looks like…").
+
+## 7. How contradictory evidence weakens understanding
+
+- A miss in the pattern window lowers pattern confidence → lowers the Understanding.
+- An explicit **correction by Danny** (`source=corrected`) applies the largest decrement and
+  can immediately move a belief to `weakening`/`retired` — Danny's word outweighs inference.
+- A directly **contradictory understanding** (same concept, opposite statement) triggers a
+  reconciliation: the better-evidenced one wins; the loser is superseded with a trail
+  (explainability is preserved — Beth can say *what she used to think and why she changed*).
+- Nothing is silently overwritten; weakening and retirement are logged.
 
 ## 8. How downstream systems consume understanding
 
-- **Executive Interpretation:** structured behavior via derived directives (already wired
-  in P36: `deprioritize:`, `tone:`); plus reads `sensitivity` understandings to set
-  pacing/empathy on `ExecutiveSignals`.
+- **Executive Interpretation:** structured behavior via derived directives (P36 wiring,
+  unchanged: `deprioritize:`, `tone:`); plus reads `sensitivity`/`pattern` understandings
+  directly to set pacing, protective framing, and proactive coaching on `ExecutiveSignals`.
 - **Conversation Planner:** reads `communication` + `sensitivity` understandings (e.g.
-  high-sensitivity topic → slow down, empathy, avoid references, emotional-safety
-  objective).
-- **Composer:** reads `tone` and value understandings for wording.
-- **Recommendations / coaching:** read `pattern` understandings (sleep<6h → execution↓ →
-  protect proactively).
-- **Explainability everywhere:** any adaptation traces to its Understanding → evidence,
-  confidence, last_reinforced, decay rule. Beth always answers "why do you believe this?"
+  high-sensitivity topic → slow down, empathy, avoid references, emotional-safety objective).
+- **Composer:** reads `tone`/value understandings for wording.
+- **Explainability everywhere:** every adaptation traces understanding → patterns →
+  observations, with confidence + last_reinforced + decay rule.
 
-## 9. Migration strategy
+## 9. Smallest safe Phase 2 (deterministic, evidence-first)
 
-- One **additive** model: `Understanding` (new table). No change to observation stores.
-- `BehaviorDirective` gains a **nullable** `understanding` FK (additive) — existing P36
-  directives keep working as legacy/standalone; new ones are derived.
-- **No destructive migration.** Converging `PersonalFact` + `ExtractedFact` into one
-  canonical Observation store is a *later, separate* effort — not required here, and not a
-  schema migration but a synthesis-input choice.
-- Synthesis backfill (turn today's observations into Understandings) is a **background
-  job**, not a migration — re-runnable, idempotent by concept_key.
+1. **`Understanding` model** (one additive migration) + nullable `BehaviorDirective.understanding`
+   FK (additive). No change to observation stores.
+2. **One deterministic pattern detector**, end-to-end, for the weekend-recovery example:
+   it reads existing observations (routine completion times), computes the hit/miss tally,
+   establishes confidence, and on θ_active promotes a forming Understanding to active. No LLM.
+3. **`derive(understanding) → [BehaviorDirective…]`** — prove **one understanding → ≥3
+   distinct adaptations** flowing into the brief (reuse the P36 consumer unchanged).
+4. **Confidence + decay + contradiction** working on that one understanding (a miss weakens
+   it; an explicit correction retires it), with `explain()` tracing to evidence.
+5. Re-point "What I Know About You" to render **Understandings** (compressed), not the raw log.
+6. **LLM stays out of origination.** A flag-gated LLM *explainer/summariser* over existing
+   Understandings is an optional later add — never the source of belief.
 
-## 10. What Phase 2 should actually implement (smallest valuable slice)
-
-1. The `Understanding` model + the nullable `BehaviorDirective.understanding` FK.
-2. A **deterministic synthesis service** `synthesize(user)`: map existing observations to
-   concept-keyed Understandings (dedup/compress), confidence from source + reinforcement;
-   idempotent. (LLM synthesis is optional, flag-gated enrichment — deterministic first.)
-3. `derive_directives(understanding)` — one Understanding → many directives (reusing the
-   P36 directive consumer, unchanged).
-4. **Prove the fan-out end-to-end on ONE understanding** (the weekend-recovery example):
-   a single Understanding drives ≥3 distinct behavior adaptations across the brief.
-5. A **decay** job + `explain(understanding)`.
-6. Re-point "What I Know About You" to render Understandings (compressed).
-
-Phase 2 deliberately does **not** build the full learning loop for every kind; it proves
-the architecture (observation → understanding → many adaptations → judgment) on one rich
-understanding, with compression, confidence, and explainability working.
+Phase 2 proves the architecture (observation → pattern → understanding → many adaptations →
+judgment) on **one** rich understanding, deterministically, with compression, confidence,
+decay, contradiction, and explainability — not the full detector library for every kind.
 
 ---
 
-### Survives / Changes / Disappears
+### Survives / Evolves / Disappears
 - **Survives:** PersonalFact, ExtractedFact, SignalSnapshot, EAE confidence machinery,
-  journal/chat history, Executive Interpretation, the P36 directive *consumer* wiring.
-- **Changes:** BehaviorDirective is re-parented (derived from Understanding); the
-  "What I Know About You" surface renders Understandings.
-- **Disappears:** the observation-log *presentation*; the long-term goal of two parallel
-  fact stores (converge later, not now).
+  journal/chat/signal history, Executive Interpretation, the P36 directive *consumer* wiring.
+- **Evolves:** BehaviorDirective is re-parented (derived from Understanding); "What I Know
+  About You" renders Understandings.
+- **Disappears:** the observation-*log* presentation; the long-term goal of two parallel
+  fact stores (converge later, not now). No LLM-originated personality.

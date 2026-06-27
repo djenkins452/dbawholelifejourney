@@ -73,6 +73,21 @@ class SubsystemInferenceTests(SimpleTestCase):
                "passed": False}
         self.assertIn("routing", self._subs(row))
 
+    def test_missing_required_points_at_acceptance_guard_not_leak(self):
+        # A content/missing_required failure is NOT a narration leak — it may be an
+        # over-narrow evaluator contract (origin: goal_failure_modes was). The
+        # hypothesis must invite checking the evaluator, not just Beth narration.
+        row = {"key": "goal_failure_modes__0", "suite": "goals",
+               "fails": ["missing_required_any:fail|risk|slip"], "openai_called": True,
+               "fallback_used": False, "intent": "goal_failure_modes",
+               "lane": "personal_reasoning", "passed": False}
+        subs = self._subs(row)
+        self.assertEqual(subs[0], "acceptance guard")
+        title = svc.analyze([dict(row, question="q", answer="a", spec={"depth": "full"})]
+                            )["hypotheses"][0]["title"].lower()
+        self.assertIn("acceptance contract", title)
+        self.assertNotIn("leak", title)
+
     def test_confidence_exposed(self):
         self.assertIn(svc.probable_subsystems(_HEALTH_BANNED[0])[1],
                       ("LOW", "MEDIUM", "HIGH"))

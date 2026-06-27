@@ -36,6 +36,16 @@ class SemanticFailureContractTests(SimpleTestCase):
         ("fall behind / off plan",
          "If nutrition drifts off plan and you fall behind on workouts, momentum fades. "
          "The single best guard today is to complete the scheduled workout."),
+        # The EXACT production response (commit 6a4b450a) that scored RED under the old
+        # narrow contract — must pass now. (Origin: full/full 20/21.)
+        ("production 6a4b450a",
+         'The "France 2027 Family 18K Mission" could face setbacks from inconsistent '
+         'protein intake, hydration lapses, skipped workouts, medication irregularities, '
+         'or falling out of routine. These areas are crucial in the current "Momentum '
+         'phase" to reach the next milestone of "Goal Weight 279.9". A good next step '
+         "would be to schedule and complete today's workout, ensuring it aligns with "
+         "your routine. This will help reinforce your commitment to becoming healthier "
+         "and more capable of running the 18K in France."),
     ]
 
     def test_semantic_failure_answers_pass(self):

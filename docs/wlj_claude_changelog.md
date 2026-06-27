@@ -7,6 +7,25 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(admin): acceptance hypothesis no longer mislabels content failures as "narration leak"
+
+A Claude Fix Prompt arrived for a full/full run at commit 6a4b450a: goal_failure_modes failed `missing_required_any:fail|risk|slip|threat|derail|watch`, hypothesis "Possible narration leak in GOAL narration."
+
+**EVIDENCE SUPREMACY validation — the hypothesis was WRONG and the defect was ALREADY FIXED:**
+1. Original (automated) hypothesis: narration leak in goal narration.
+2. Repository evidence: the actual response ("…setbacks from inconsistent protein intake, hydration lapses, skipped workouts…") contains NO banned phrase — it is a CORRECT failure analysis. The failure was `missing_required_any` against the OLD narrow 6-token contract. The failing run (6a4b450a) PREDATES commit 70413109, which widened the contract to FAILURE_RISK_VOCAB. Verified: `evaluate(actual_response)` now returns [] (matches lapse/setback/inconsisten/skip/miss).
+3. Corrected root cause: an over-narrow acceptance contract (evaluator breadth), already fixed — NOT a narration leak.
+4. Why the heuristic failed: `_infer_subsystems` attributed every content/missing_required failure to "{suite} narration" with the "narration leak" title, conflating missing-required-content with banned-phrase leakage.
+5. Prompt generation improved (this commit).
+
+**Changes (prompt generation only — no Beth/grading/routing change):**
+- `_infer_subsystems` content branch now leads with "acceptance guard" so a missing_required/gate failure points the reviewer at the EVALUATOR too (the contract may be wrong), not only Beth narration.
+- New `_HYP_TITLE["acceptance guard"]` = "Possible missing required content OR an over-narrow acceptance contract (check BOTH — the evaluator may be wrong)"; layer = content_quality.
+- Regression: pinned the EXACT production response (6a4b450a) into test_goal_failure_modes_contract.py; added a neutrality test asserting a missing_required failure attributes to acceptance guard and is NOT titled a leak.
+
+**Verification:** the exact production response passes the current evaluator; 128-test acceptance/goals regression green; `check` clean; no migration. No Beth narration, routing, or grading change.
+
+
 ## 2026-06-27 — fix(cos): goal_failure_modes acceptance contract is SEMANTIC, not narrow-lexical
 
 Investigation (not assumption): the Acceptance evaluator failed semantically-correct goal_failure_modes answers. Proof — "The biggest SETBACKS would be INCONSISTENT workouts, MISSED sessions… BURNOUT could STALL progress" → `missing_required_any:fail|risk|slip|threat|derail|watch`, despite clearly communicating failure risks and being actionable.

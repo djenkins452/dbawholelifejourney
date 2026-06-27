@@ -107,7 +107,7 @@ _PRIMARY_LAYER = {
     "deterministic fallback": "deterministic_truth",
     "goal narration": "narration", "health narration": "narration",
     "check-in narration": "narration", "rhythm narration": "narration",
-    "narration": "narration",
+    "narration": "narration", "acceptance guard": "content_quality",
 }
 _HYP_TITLE = {
     "tool loop": "Possible silent orchestration termination",
@@ -117,6 +117,8 @@ _HYP_TITLE = {
     "goal narration": "Possible narration leak in GOAL narration",
     "health narration": "Possible narration leak in HEALTH narration",
     "planner": "Possible planner / answer-duplication issue",
+    "acceptance guard": ("Possible missing required content OR an over-narrow "
+                         "acceptance contract (check BOTH — the evaluator may be wrong)"),
 }
 
 
@@ -147,8 +149,14 @@ def _infer_subsystems(row):
     if "banned_phrase" in cats:
         src = "LLM narration" if openai else "deterministic fallback"
         return ([_suite_narration(suite), src], "MEDIUM", telem)
+    # Content-completeness failure (missing required concept / gate / too short). This
+    # is NOT a "narration leak" — it is EITHER a narration omission OR an over-narrow
+    # acceptance contract. Lead with "acceptance guard" so the reviewer checks the
+    # EVALUATOR too (a goal_failure_modes missing_required was an evaluator-breadth
+    # defect — the contract, not Beth, was wrong; commit 70413109).
     src = "LLM narration" if openai else "deterministic fallback"
-    return ([_suite_narration(suite), src, "content quality"], "LOW", telem)
+    return (["acceptance guard", _suite_narration(suite), src, "content quality"],
+            "LOW", telem)
 
 
 def probable_subsystems(row):

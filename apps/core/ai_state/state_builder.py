@@ -3980,6 +3980,26 @@ def build_medicine_state(user):
     except Exception:
         logger.debug("Medicine treatment-section build failed", exc_info=True)
 
+    # ── Treatment history awareness (Sprint 4E) ──────────────────
+    # COMPOSED deterministic treatment-history summary so Beth understands
+    # chronology (duration, dose-change count, momentum, most-recent change) —
+    # never inferring cause. Guarded; uses the canonical timeline service.
+    _treatment_history = {}
+    try:
+        from apps.health.treatment_timeline import build_treatment_summary
+
+        _summary = build_treatment_summary(user)
+        _most_recent = _recent_changes[0] if _recent_changes else None
+        _treatment_history = {
+            'treatment_duration_days': _summary.get('treatment_duration_days'),
+            'total_dose_changes': _summary.get('total_dose_changes', 0),
+            'recent_change_count_90d': _summary.get('recent_change_count_90d', 0),
+            'treatment_momentum': _summary.get('treatment_momentum'),
+            'most_recent_change': _most_recent,
+        }
+    except Exception:
+        logger.debug("Medicine treatment-history build failed", exc_info=True)
+
     # ── Acquisition confidence (Sprint 3I) ───────────────────────
     # COMPOSED acquisition state so Beth understands how trustworthy each record
     # is and whether anything awaits review — Beth NEVER reads raw OCR/extraction.
@@ -4037,6 +4057,7 @@ def build_medicine_state(user):
             'medications_detail': _med_detail,
             'recent_changes': _recent_changes,
             'treatment_summary': _treatment_summary,
+            'history': _treatment_history,
         },
         'acquisition': {
             'pending_review_count': _acq_pending,

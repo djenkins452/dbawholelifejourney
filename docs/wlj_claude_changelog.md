@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Sprint 4C/4E — cross-domain timeline alignment + Beth treatment-history awareness
+
+**4C — Cross-domain alignment** (`treatment_timeline.build_cross_domain_timeline` + `build_full_timeline`): aligns medication events with weight, glucose, sleep, workouts, labs (incl. A1C), and appointments chronologically. ORDERING ONLY — no correlation, no inference. Each entry stays owned by its source domain and carries an evidence reference; each domain query is independent/defensive so a schema difference never breaks the timeline. `build_full_timeline` is the single "how has my treatment changed over time (alongside my body's data)?" read, defaulting to the treatment span (capped ~2y).
+
+**4E — Beth timeline awareness:** `build_medicine_state._contract.treatment.history` now exposes a deterministic treatment-history summary (treatment_duration_days, total_dose_changes, recent_change_count_90d, treatment_momentum, most_recent_change) — composed canonical state so Beth understands chronology, never cause. Guarded; uses the canonical timeline service.
+
+**Files:** apps/health/treatment_timeline.py (cross-domain + full timeline), apps/core/ai_state/state_builder.py (treatment history), apps/health/tests/test_treatment_timeline.py (+4 tests).
+
+**Verification:** cross-domain ordering (domain-owned + evidence), full-timeline merge/order, cross-domain-off, Beth treatment-history state, SAE medicine extensions — all green; `manage.py check` clean; no migration. Timeline UI (4D) follows.
+
+
 ## 2026-06-27 — feat(health): Sprint 4 (core) — canonical Treatment Timeline service + deterministic summaries
 
 Turns the append-only `MedicationEvent` ledger into a deterministic, evidence-first treatment story. No LLM, no predictions, no correlation, no clinical conclusions — the timeline ORDERS events and references their source; it never explains cause.

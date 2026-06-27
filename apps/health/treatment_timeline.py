@@ -278,3 +278,134 @@ def build_treatment_summary(user, *, intake=None):
         "treatment_momentum": momentum,
         "adherence_30d": calculate_medicine_adherence_rate(user, days=30),
     }
+
+
+# ── Cross-domain timeline alignment (Sprint 4C) ───────────────────────────────
+# Aligns medication events with other domains chronologically. ORDERING ONLY —
+# no correlation, no inference. Each entry stays owned by its source domain and
+# carries an evidence reference. Each domain query is independent/defensive so a
+# schema difference in one domain never breaks the timeline.
+
+def _cd_entry(domain, kind, dt, title, model, obj_id, detail=""):
+    ts = dt if hasattr(dt, "isoformat") else None
+    return {
+        "timestamp": (ts.isoformat() if ts else ""),
+        "date": (dt.date().isoformat() if hasattr(dt, "date") else dt.isoformat()),
+        "domain": domain,
+        "kind": kind,
+        "title": title,
+        "detail": detail,
+        "evidence": {"type": model, "id": obj_id,
+                     "summary": f"{model} on {dt.date() if hasattr(dt, 'date') else dt}"},
+    }
+
+
+def build_cross_domain_timeline(user, start_date, end_date, *, per_domain_limit=25):
+    """Cross-domain events within [start_date, end_date], chronological, no
+    correlation. Returns canonical entry dicts owned by each source domain."""
+    import logging
+    logger = logging.getLogger(__name__)
+    entries = []
+
+    def _safe(fn):
+        try:
+            fn()
+        except Exception:
+            logger.debug("Cross-domain timeline source failed", exc_info=True)
+
+    def weight():
+        from apps.health.models import WeightEntry
+        for w in WeightEntry.objects.filter(
+            user=user, recorded_at__date__gte=start_date, recorded_at__date__lte=end_date,
+        ).order_by("-recorded_at")[:per_domain_limit]:
+            entries.append(_cd_entry("weight", "weight_logged", w.recorded_at,
+                                     f"Weight {w.value} {w.unit}", "WeightEntry", w.id))
+
+    def glucose():
+        from apps.health.models import GlucoseEntry
+        for g in GlucoseEntry.objects.filter(
+            user=user, recorded_at__date__gte=start_date, recorded_at__date__lte=end_date,
+        ).order_by("-recorded_at")[:per_domain_limit]:
+            entries.append(_cd_entry("glucose", "glucose_reading", g.recorded_at,
+                                     f"Glucose {g.value} {g.unit}", "GlucoseEntry", g.id))
+
+    def sleep():
+        from apps.health.models import SleepEntry
+        for s in SleepEntry.objects.filter(
+            user=user, sleep_date__gte=start_date, sleep_date__lte=end_date,
+        ).order_by("-sleep_date")[:per_domain_limit]:
+            hrs = round((s.total_duration_minutes or 0) / 60, 1)
+            entries.append(_cd_entry("sleep", "sleep_logged", s.sleep_date,
+                                     f"Slept {hrs}h", "SleepEntry", s.id))
+
+    def workouts():
+        from apps.health.models import WorkoutSession
+        for wk in WorkoutSession.objects.filter(
+            user=user, date__gte=start_date, date__lte=end_date,
+        ).order_by("-date")[:per_domain_limit]:
+            entries.append(_cd_entry("workout", "workout_logged", wk.date,
+                                     wk.name or "Workout", "WorkoutSession", wk.id))
+
+    def labs():
+        from apps.medical.models import LabResult
+        for lab in LabResult.objects.filter(
+            user=user, collected_at__date__gte=start_date, collected_at__date__lte=end_date,
+        ).select_related("canonical_test").order_by("-collected_at")[:per_domain_limit]:
+            tname = lab.raw_test_name or (lab.canonical_test.name if lab.canonical_test_id else "Lab")
+            val = lab.value_numeric if lab.value_numeric is not None else lab.value_text
+            entries.append(_cd_entry("lab", "lab_result", lab.collected_at,
+                                     f"{tname}: {val} {lab.unit or ''}".strip(),
+                                     "LabResult", lab.id))
+
+    def appointments():
+        from apps.calendar_engine.models import CalendarEvent
+        for ev in CalendarEvent.objects.filter(
+            user=user, start_dt__date__gte=start_date, start_dt__date__lte=end_date,
+            deleted_at__isnull=True,
+        ).order_by("-start_dt")[:per_domain_limit]:
+            entries.append(_cd_entry("appointment", "appointment", ev.start_dt,
+                                     ev.title or "Appointment", "CalendarEvent", ev.id))
+
+    for fn in (weight, glucose, sleep, workouts, labs, appointments):
+        _safe(fn)
+    entries.sort(key=lambda e: e["timestamp"])
+    return entries
+
+
+def build_full_timeline(user, *, start_date=None, end_date=None, intake=None,
+                        include_cross_domain=True, newest_first=True,
+                        per_domain_limit=25):
+    """Merge the medication treatment timeline with aligned cross-domain events.
+
+    The single read for "how has my treatment changed over time?" alongside the
+    body's data — ordered only, never correlated. Defaults to the medication
+    treatment span when no window is given.
+    """
+    from apps.core.utils import get_user_today
+
+    med_entries = build_medication_timeline(
+        user, intake=intake, newest_first=False,
+    )
+    entries = list(med_entries)
+
+    if include_cross_domain:
+        today = get_user_today(user)
+        if end_date is None:
+            end_date = today
+        if start_date is None:
+            # Treatment span: earliest medication entry → today (cap window at ~2y).
+            from datetime import date as _date, timedelta as _td
+            floor = today - _td(days=730)
+            if med_entries:
+                earliest = _date.fromisoformat(med_entries[0]["date"])
+                start_date = max(floor, earliest)
+            else:
+                start_date = today
+        entries.extend(
+            build_cross_domain_timeline(
+                user, start_date, end_date, per_domain_limit=per_domain_limit,
+            )
+        )
+
+    entries.sort(key=lambda e: e["timestamp"], reverse=newest_first)
+    return entries

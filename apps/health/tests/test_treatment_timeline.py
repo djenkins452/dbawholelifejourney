@@ -130,3 +130,78 @@ class TreatmentSummaryTest(AdherenceTestMixin, TestCase):
         # The backfill-less started event is dated 2025; >90d ago.
         s = build_treatment_summary(self.user)
         self.assertEqual(s["treatment_momentum"], "stable")
+
+
+class CrossDomainTimelineTest(AdherenceTestMixin, TestCase):
+    """Sprint 4C — medication events aligned with other domains (ordering only)."""
+
+    def setUp(self):
+        self.user = self.create_user(email="xdomain@test.com")
+
+    def test_cross_domain_entries_owned_by_domain_with_evidence(self):
+        from datetime import datetime
+        from django.utils import timezone as tz
+        from apps.health.models import WeightEntry, GlucoseEntry
+        from apps.core.utils import get_user_today
+        from apps.health.treatment_timeline import build_cross_domain_timeline
+
+        today = get_user_today(self.user)
+        WeightEntry.objects.create(user=self.user, value=210, unit="lb",
+                                   recorded_at=tz.now())
+        GlucoseEntry.objects.create(user=self.user, value=110, unit="mg/dL",
+                                    recorded_at=tz.now())
+        entries = build_cross_domain_timeline(
+            self.user, today.replace(day=1), today,
+        )
+        domains = {e["domain"] for e in entries}
+        self.assertIn("weight", domains)
+        self.assertIn("glucose", domains)
+        for e in entries:
+            # Each entry stays owned by its source domain + has evidence.
+            self.assertIn(e["evidence"]["type"], ("WeightEntry", "GlucoseEntry"))
+
+    def test_full_timeline_merges_and_orders(self):
+        from django.utils import timezone as tz
+        from apps.health.models import WeightEntry
+        from apps.health.treatment_timeline import build_full_timeline
+
+        med = self.create_medicine(self.user, name="Metformin")
+        WeightEntry.objects.create(user=self.user, value=205, unit="lb",
+                                   recorded_at=tz.now())
+        entries = build_full_timeline(self.user)
+        domains = {e["domain"] for e in entries}
+        self.assertIn("medication", domains)
+        self.assertIn("weight", domains)
+        # Sorted (newest first by default) — timestamps non-increasing.
+        ts = [e["timestamp"] for e in entries if e["timestamp"]]
+        self.assertEqual(ts, sorted(ts, reverse=True))
+
+    def test_full_timeline_without_cross_domain(self):
+        from apps.health.treatment_timeline import build_full_timeline
+        self.create_medicine(self.user, name="Solo")
+        entries = build_full_timeline(self.user, include_cross_domain=False)
+        self.assertTrue(all(e["domain"] == "medication" for e in entries))
+
+
+class BethTimelineStateTest(AdherenceTestMixin, TestCase):
+    """Sprint 4E — treatment-history summary is in canonical state for Beth."""
+
+    def setUp(self):
+        self.user = self.create_user(email="bethtl@test.com")
+
+    def test_state_exposes_treatment_history(self):
+        from apps.core.ai_state.state_builder import build_medicine_state
+        from apps.core.utils import get_user_today
+        med = self.create_medicine(
+            self.user, name="Lantus", dose="20 units",
+            start_date=get_user_today(self.user) - timedelta(days=30),
+        )
+        record_medication_change(
+            med, MedicationEvent.EVENT_DOSE_CHANGED,
+            previous_value={"dose": "20 units"}, new_value={"dose": "24 units"},
+        )
+        history = build_medicine_state(self.user)["_contract"]["treatment"]["history"]
+        self.assertGreaterEqual(history["treatment_duration_days"], 30)
+        self.assertEqual(history["total_dose_changes"], 1)
+        self.assertIn(history["treatment_momentum"], ("stable", "adjusting", "actively_changing"))
+        self.assertIsNotNone(history["most_recent_change"])

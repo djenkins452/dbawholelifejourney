@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Sprint 4D — Treatment Timeline UI (chronological, evidence-first)
+
+The first timeline experience — not analytics, not a dashboard: the deterministic chronological story of how treatment changed over time, reading the canonical timeline service only.
+
+**View** (`views_acquisition.MedicationTimelineView`): renders `build_full_timeline` grouped by date, newest-first; `?intake=<id>` scopes to one medication, `?scope=medication` hides cross-domain markers. **Template** (`health/intake/timeline.html`): vertical timeline with domain badges (medications emphasized), per-entry detail and an "evidence" line answering "why is this here?", plus an honest empty state ("timeline starts when you track a medication; earlier history isn't recorded"). CSP-compliant, responsive. Reachable via a "Timeline" action on the intake dashboard. **URL:** `intake/timeline/`.
+
+**Files:** apps/health/views_acquisition.py, apps/health/urls.py, templates/health/intake/timeline.html (new), templates/health/intake/home.html (link), apps/health/tests/test_treatment_timeline.py (+3 UI tests).
+
+**Verification:** 79 timeline + medication + state tests green (event rendering, empty state, medication-only scope); `manage.py check` clean; no migration. Completes Sprint 4 (4A–4F).
+
+
 ## 2026-06-27 — feat(health): Sprint 4C/4E — cross-domain timeline alignment + Beth treatment-history awareness
 
 **4C — Cross-domain alignment** (`treatment_timeline.build_cross_domain_timeline` + `build_full_timeline`): aligns medication events with weight, glucose, sleep, workouts, labs (incl. A1C), and appointments chronologically. ORDERING ONLY — no correlation, no inference. Each entry stays owned by its source domain and carries an evidence reference; each domain query is independent/defensive so a schema difference never breaks the timeline. `build_full_timeline` is the single "how has my treatment changed over time (alongside my body's data)?" read, defaulting to the treatment span (capped ~2y).

@@ -124,6 +124,46 @@ class MedicationReviewView(LoginRequiredMixin, View):
         return render(request, self.template_name, context)
 
 
+class MedicationTimelineView(LoginRequiredMixin, View):
+    """Sprint 4D — chronological treatment history. Not analytics, not a dashboard:
+    the deterministic, evidence-first story of how treatment changed over time.
+    Reads the canonical timeline service only (no inference, no correlation)."""
+
+    template_name = "health/intake/timeline.html"
+
+    def get(self, request):
+        from apps.health.treatment_timeline import build_full_timeline
+        from apps.health.models import Intake
+
+        # Optional filters: ?intake=<id> (one medication), ?scope=medication (hide
+        # cross-domain markers).
+        intake = None
+        intake_id = request.GET.get("intake")
+        if intake_id:
+            intake = Intake.objects.filter(user=request.user, id=intake_id).first()
+        include_cross = request.GET.get("scope") != "medication"
+
+        entries = build_full_timeline(
+            request.user, intake=intake,
+            include_cross_domain=include_cross, newest_first=True,
+        )
+        # Group by date for a clean chronological read.
+        groups = []
+        current = None
+        for e in entries:
+            if current is None or current["date"] != e["date"]:
+                current = {"date": e["date"], "entries": []}
+                groups.append(current)
+            current["entries"].append(e)
+
+        return render(request, self.template_name, {
+            "groups": groups,
+            "entry_count": len(entries),
+            "intake": intake,
+            "include_cross": include_cross,
+        })
+
+
 class MedicationConfirmView(LoginRequiredMixin, View):
     """Confirmation (Sprint 3F) — resolve the draft into canonical state through
     the single write path. POST only."""

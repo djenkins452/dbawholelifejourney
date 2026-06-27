@@ -205,3 +205,38 @@ class BethTimelineStateTest(AdherenceTestMixin, TestCase):
         self.assertEqual(history["total_dose_changes"], 1)
         self.assertIn(history["treatment_momentum"], ("stable", "adjusting", "actively_changing"))
         self.assertIsNotNone(history["most_recent_change"])
+
+
+class TimelineUIViewTest(AdherenceTestMixin, TestCase):
+    """Sprint 4D — the timeline page renders the chronological story."""
+
+    def setUp(self):
+        from django.test import Client
+        self.client = Client()
+        self.user = self.create_user(email="tlui@test.com")
+        self.client.force_login(self.user)
+
+    def test_timeline_page_renders_events(self):
+        from django.urls import reverse
+        self.create_medicine(self.user, name="Metformin")
+        resp = self.client.get(reverse("health:medication_timeline"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Treatment Timeline")
+        self.assertContains(resp, "Started Metformin")
+
+    def test_timeline_empty_state(self):
+        from django.urls import reverse
+        resp = self.client.get(reverse("health:medication_timeline"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Your treatment timeline starts")
+
+    def test_timeline_medication_only_scope(self):
+        from django.urls import reverse
+        from django.utils import timezone as tz
+        from apps.health.models import WeightEntry
+        self.create_medicine(self.user, name="Lantus")
+        WeightEntry.objects.create(user=self.user, value=200, unit="lb", recorded_at=tz.now())
+        resp = self.client.get(reverse("health:medication_timeline") + "?scope=medication")
+        self.assertEqual(resp.status_code, 200)
+        # Medication-only: weight markers excluded.
+        self.assertNotContains(resp, "Weight 200")

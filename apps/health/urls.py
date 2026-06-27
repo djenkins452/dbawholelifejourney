@@ -199,6 +199,8 @@ urlpatterns = [
     path("physical/intake/acquire/", views_acquisition.MedicationAcquireView.as_view(), name="medication_acquire"),
     path("physical/intake/acquire/<int:draft_id>/review/", views_acquisition.MedicationReviewView.as_view(), name="medication_review"),
     path("physical/intake/acquire/<int:draft_id>/confirm/", views_acquisition.MedicationConfirmView.as_view(), name="medication_confirm"),
+    # Treatment Timeline (Sprint 4D) — chronological, deterministic, evidence-first
+    path("physical/intake/timeline/", views_acquisition.MedicationTimelineView.as_view(), name="medication_timeline"),
     path("physical/intake/<int:pk>/", views.IntakeDetailView.as_view(), name="intake_detail"),
     path("physical/intake/<int:pk>/edit/", views.IntakeUpdateView.as_view(), name="intake_update"),
     path("physical/intake/<int:pk>/delete/", views.IntakeDeleteView.as_view(), name="intake_delete"),

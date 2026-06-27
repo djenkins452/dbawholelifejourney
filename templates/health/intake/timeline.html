@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Treatment Timeline - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:intake_home' %}">Intake</a>
+        <span>/</span>
+        <span>Timeline</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Treatment Timeline</h1>
+            <p class="page-subtitle">
+                {% if intake %}How {{ intake.name }} has changed over time.{% else %}How your treatment has changed over time.{% endif %}
+            </p>
+        </div>
+        <div class="page-actions">
+            {% if include_cross %}
+            <a href="?scope=medication{% if intake %}&intake={{ intake.id }}{% endif %}" class="btn btn-secondary btn-sm">Medications only</a>
+            {% else %}
+            <a href="?{% if intake %}intake={{ intake.id }}{% endif %}" class="btn btn-secondary btn-sm">Show my data</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if groups %}
+    <div class="timeline">
+        {% for group in groups %}
+        <div class="timeline-day">
+            <div class="timeline-date">{{ group.date }}</div>
+            {% for e in group.entries %}
+            <div class="timeline-entry domain-{{ e.domain }}">
+                <span class="timeline-dot" aria-hidden="true"></span>
+                <div class="timeline-body">
+                    <div class="timeline-title">
+                        {{ e.title }}
+                        <span class="domain-badge domain-badge-{{ e.domain }}">{{ e.domain }}</span>
+                    </div>
+                    {% if e.detail %}<div class="timeline-detail">{{ e.detail }}</div>{% endif %}
+                    {% if e.evidence.summary %}
+                    <div class="timeline-evidence" title="Why this is here">{{ e.evidence.summary }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>Your treatment timeline starts as soon as you track a medication.</p>
+        <p class="empty-note">As things change — started, dose changes, refills — they'll appear here. Earlier history before tracking isn't recorded.</p>
+        <a href="{% url 'health:medication_acquire' %}" class="btn btn-primary">Add a Medication</a>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.timeline { max-width: 640px; margin-top: 1rem; }
+.timeline-day { margin-bottom: 1.25rem; }
+.timeline-date { font-weight: 700; color: #475569; font-size: 0.85rem; margin-bottom: 0.5rem; }
+.timeline-entry { display: flex; gap: 0.75rem; padding: 0.5rem 0 0.5rem 0.25rem; border-left: 2px solid #e2e8f0; margin-left: 0.5rem; padding-left: 1rem; position: relative; }
+.timeline-dot { position: absolute; left: -7px; top: 0.85rem; width: 10px; height: 10px; border-radius: 50%; background: #94a3b8; }
+.timeline-entry.domain-medication .timeline-dot { background: #2563eb; }
+.timeline-entry.domain-medication { border-left-color: #bfdbfe; }
+.timeline-title { font-weight: 600; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.timeline-detail { color: #475569; font-size: 0.9rem; margin-top: 0.15rem; }
+.timeline-evidence { color: #94a3b8; font-size: 0.78rem; margin-top: 0.2rem; }
+.domain-badge { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.03em; padding: 0.08rem 0.4rem; border-radius: 999px; background: rgba(148,163,184,0.18); color: #64748b; font-weight: 600; }
+.domain-badge-medication { background: rgba(37,99,235,0.12); color: #2563eb; }
+.empty-state { text-align: center; padding: 2rem 1rem; color: #475569; }
+.empty-note { color: #94a3b8; font-size: 0.9rem; }
+</style>
+{% endblock %}

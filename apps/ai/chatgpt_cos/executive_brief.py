@@ -122,10 +122,15 @@ def _rhythm_split(user):
     return ahead, past, now.hour
 
 
-def _agenda_narrative(user, recovery):
+def _agenda_narrative(user, recovery, deprioritized=()):
     """Weave the schedule into the story naturally — never 'coming up', never a past
-    item as upcoming, and reconcile a strenuous item with a recovery day."""
+    item as upcoming, and reconcile a strenuous item with a recovery day. Learned
+    de-prioritized items (P36) are NOT elevated into the agenda."""
     ahead, past, hour = _rhythm_split(user)
+    dep = [d.lower() for d in (deprioritized or []) if d]
+    if dep:
+        ahead = [a for a in ahead if not any(t in a.lower() for t in dep)]
+        past = [p for p in past if not any(t in p.lower() for t in dep)]
     if hour >= 20:
         return _evening_or_empty(user)
     when = ("This morning" if hour < 12 else
@@ -274,7 +279,7 @@ def compose_executive_brief(user, *, lead="", low_energy=False):
         story.append(_priority_story(sig))
     if sig.backlog_can_wait:
         story.append("The rest of your backlog can wait — none of it is due today.")
-    agenda = _agenda_narrative(user, sig.ease_load)
+    agenda = _agenda_narrative(user, sig.ease_load, deprioritized=sig.deprioritized)
     if agenda:
         story.append(agenda)
     out = " ".join(s for s in story if s).strip()

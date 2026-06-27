@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(cos): P36 Personal Knowledge — Layer-4 Behavior Guidance (Phase 1)
+
+The goal isn't memory, it's UNDERSTANDING: Beth should get better at being Danny's Chief of Staff because she learns him. Audit (repository evidence): WLJ already has the storage + source-weighted confidence (ai_memory.PersonalFact, ai_eae.ExtractedFact) — so this is an EVOLUTION, not a new engine, and a third fact store would be duplication. The ONE missing concept is Layer 4 — knowledge that answers "why should this change how Beth behaves?" and that downstream systems CONSUME. Design: docs/BETH_PERSONAL_KNOWLEDGE_DESIGN.md.
+
+**Phase 1 (shipped):**
+- New `core.BehaviorDirective` model (one additive migration 0126): a learned item keyed for COMPRESSION — `(observation, meaning, behavior_change, confidence, source, evidence, evidence_count, status, layer)`, unique per `(user, key)`. The `key` is structured + actionable ("deprioritize:shower", "tone:direct", "recovery_activity:ride").
+- `apps/ai/chatgpt_cos/behavior_guidance.py`: `learn()` (COMPRESSION — re-learning the same key REINFORCES confidence + evidence_count, never duplicates), `contradict()` (WEAKENS → weak → retired), source-weighted starting confidence (told/confirmed > observed/derived), `directive_map()` (active, ≥0.5-confidence seam), and `explain()` (traces to evidence — Beth never invents understanding).
+- The Executive Interpretation Engine CONSUMES directives (`_behavior_adapt`): `deprioritize:<x>` removes `<x>` from the day's priorities/agenda; `tone:<x>` carries a wording hint; explanations attach for "why do you think that?". Fully defensive — no directives ⇒ zero behavior change, so every existing brief is byte-identical for users with nothing learned.
+- The Composer honors `sig.deprioritized` (a learned "don't elevate X" removes X from the agenda).
+
+**Acceptance addition — Adaptive Understanding:** behavior changes because KNOWLEDGE exists (the SAME day produces a different brief once a directive is learned — the shower drops out), knowledge compresses (3 observations → 1 row, evidence_count=3), evolves (confidence ↑ on reinforce, ↓ on contradiction → retired), is source-weighted (told > observed), and is explainable.
+
+**Files:** apps/core/ai_memory/models.py (+ migration core/0126), apps/ai/chatgpt_cos/{behavior_guidance.py (new), executive_interpretation.py, executive_brief.py}. Tests: apps/ai/tests/test_p36_behavior_guidance.py (new). Docs: BETH_PERSONAL_KNOWLEDGE_DESIGN.md.
+
+**Verification:** 184-test regression green (existing briefs unchanged with no directives); the exact "weekend shower" example demonstrates behavior change from learning alone; compression/confidence-evolution/explainability all covered; `makemigrations core --check` consistent. Phases 2 (learning loop from longitudinal signals + corrections; compress the "What I Know About You" surface) and 3 (tone in the Composer, Planner consuming communication prefs) are designed, pending.
+
+
 ## 2026-06-27 — feat(health): Sprint 8 — Physician Mode (patient-owned, print-friendly summary)
 
 Converts the deterministic Medication Intelligence foundation into clinical value: a clean, evidence-backed medication & treatment summary the user can bring to a physician. NOT a diagnosis tool, NOT a recommendation engine — it organizes what WLJ deterministically knows for a better conversation.

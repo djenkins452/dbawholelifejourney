@@ -41,6 +41,10 @@ class ExecutiveSignals:
     recommendation_levers: list = field(default_factory=list)  # chosen priorities/levers
     backlog_can_wait: bool = False     # the disposition of the backlog
     ease_load: bool = False            # keep the day's load light (recovery)
+    # ── Learned personal knowledge that ADAPTS behavior (P36 Layer 4) ──
+    deprioritized: list = field(default_factory=list)  # things NOT to elevate (learned)
+    tone: str = ""                     # learned communication preference (e.g. "direct")
+    directive_explanations: list = field(default_factory=list)  # "why do you think that?"
 
     def to_dict(self):
         return asdict(self)
@@ -232,6 +236,11 @@ def interpret(user, low_energy=False):
         disposition = "I'd protect the few things that truly matter and let the rest slide"
     ease_load = recovery
 
+    # ── ADAPT behavior from learned personal knowledge (P36) ──
+    deprioritized, tone, directive_explanations = _behavior_adapt(user)
+    if deprioritized and primary_challenge == "energy":
+        ease_load = True
+
     # Intervention is a JUDGMENT, not a count: only real risk warrants it, never a
     # large-but-harmless backlog.
     intervention = (tw["overdue"] >= 5 or workload == "overloaded"
@@ -250,4 +259,31 @@ def interpret(user, low_energy=False):
         sleep_hours=health.get("sleep_hours"),
         primary_challenge=primary_challenge, challenge_reason=challenge_reason,
         disposition=disposition, recommendation_levers=levers,
-        backlog_can_wait=has_backlog, ease_load=ease_load)
+        backlog_can_wait=has_backlog, ease_load=ease_load,
+        deprioritized=deprioritized, tone=tone,
+        directive_explanations=directive_explanations)
+
+
+def _behavior_adapt(user):
+    """Read learned BehaviorDirectives (P36 Layer 4) and translate the structured keys
+    into behavior changes the brief honors. Defensive: no directives -> no change, so
+    behavior is byte-identical for users with nothing learned yet. Returns
+    (deprioritized:list, tone:str, explanations:list)."""
+    deprioritized, tone, explanations = [], "", []
+    try:
+        from apps.ai.chatgpt_cos.behavior_guidance import directive_map
+        dm = directive_map(user)
+    except Exception:
+        return deprioritized, tone, explanations
+    for key, d in dm.items():
+        if key.startswith("deprioritize:"):
+            token = key.split(":", 1)[1].strip()
+            if token:
+                deprioritized.append(token)
+        elif key.startswith("tone:") and not tone:
+            tone = key.split(":", 1)[1].strip()
+        try:
+            explanations.append(d.explain())
+        except Exception:
+            pass
+    return deprioritized, tone, explanations

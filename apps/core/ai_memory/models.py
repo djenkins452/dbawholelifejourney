@@ -266,3 +266,83 @@ class ClarificationLog(models.Model):
 
     def __str__(self):
         return f"Clarification: {self.original_input[:50]}..."
+
+
+class BehaviorDirective(models.Model):
+    """P36 Layer-4 Behavior Guidance — the ONE thing the existing knowledge stores
+    lacked: a learned item that answers "why should this change how Beth behaves?".
+
+    Unlike PersonalFact/ExtractedFact (which RECORD facts), a directive CHANGES
+    behavior downstream. One row per (user, key) — re-learning REINFORCES (compression),
+    contradiction WEAKENS. Consumed by the Executive Interpretation Engine."""
+
+    LAYER_CHOICES = [
+        ("identity", "Identity"),       # stable truths
+        ("preference", "Preference"),   # learned likes/dislikes
+        ("pattern", "Pattern"),         # repeated longitudinal observations
+        ("guidance", "Guidance"),       # explicit behavior guidance
+    ]
+    SOURCE_CHOICES = [
+        ("told", "Told by Danny"),
+        ("observed", "Observed repeatedly"),
+        ("derived", "Derived from analysis"),
+        ("confirmed", "Confirmed by Danny"),
+        ("corrected", "Corrected by Danny"),
+    ]
+    STATUS_CHOICES = [("active", "Active"), ("weak", "Weak"), ("retired", "Retired")]
+    # Starting confidence by source (different evidence -> different confidence).
+    SOURCE_WEIGHT = {"told": 0.85, "confirmed": 0.95, "observed": 0.55,
+                     "derived": 0.5, "corrected": 0.85}
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                             related_name="behavior_directives")
+    layer = models.CharField(max_length=16, choices=LAYER_CHOICES, default="preference")
+    # Structured behavior key — the COMPRESSION unit AND the behavior instruction
+    # (e.g. "deprioritize:shower", "tone:direct", "recovery_activity:motorcycle").
+    key = models.CharField(max_length=80)
+    observation = models.TextField(help_text="What was noticed.")
+    meaning = models.TextField(blank=True, help_text="Why it matters.")
+    behavior_change = models.TextField(help_text="How Beth should behave differently.")
+    confidence = models.FloatField(default=0.5)
+    source = models.CharField(max_length=16, choices=SOURCE_CHOICES, default="observed")
+    evidence = models.TextField(blank=True, help_text="Supports 'why do you think that?'")
+    evidence_count = models.PositiveIntegerField(default=1)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default="active")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    last_reinforced_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "key"],
+                                               name="uniq_behavior_directive_user_key")]
+        indexes = [models.Index(fields=["user", "status"]),
+                   models.Index(fields=["user", "-confidence"])]
+        ordering = ["-confidence", "-evidence_count"]
+
+    def __str__(self):
+        return f"[{self.layer}] {self.key} ({self.confidence:.2f}, {self.status})"
+
+    def reinforce(self, source=None, by=0.15):
+        from django.utils import timezone
+        self.confidence = min(1.0, round(self.confidence + by, 3))
+        self.evidence_count += 1
+        self.last_reinforced_at = timezone.now()
+        self.status = "active"
+        if source and source in self.SOURCE_WEIGHT:
+            # an explicit/confirmed source can lift a weakly-observed directive
+            self.confidence = max(self.confidence, self.SOURCE_WEIGHT[source])
+            self.source = source
+
+    def weaken(self, by=0.3):
+        self.confidence = max(0.0, round(self.confidence - by, 3))
+        if self.confidence < 0.25:
+            self.status = "retired"
+        elif self.confidence < 0.5:
+            self.status = "weak"
+
+    def explain(self):
+        pct = int(round(self.confidence * 100))
+        bc = (self.behavior_change or "").strip().rstrip(".")
+        return (f"Because {self.observation.rstrip('.')}"
+                f" ({self.get_source_display().lower()}; seen {self.evidence_count}×; "
+                f"{pct}% confident), {bc[0].lower() + bc[1:] if bc else 'I adapt'}.")

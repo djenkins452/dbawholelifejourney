@@ -22,6 +22,56 @@ Deep RED (76%, 56/74). Investigated with an OpenAI-disabled routing harness (gro
 **Verification:** OpenAI-disabled harness confirms all DC#1 requests now answer deterministically (no tool-loop fall-through, no outage message), DC#2 paraphrases route to goals, DC#3 questions route to general with no personal leak. 258-test regression green; `check` clean; `makemigrations --check` = no changes. Health byte-identical (signals additive). No migration.
 
 
+## 2026-06-27 — fix(health): D2 — medication adherence chart drift (chart now consumes the canonical calculation)
+
+**Root cause:** `apps/health/views.py:4538` (IntakeAdherenceView) built the daily
+adherence chart with its OWN logs-only calculation —
+`round(day_taken / day_total * 100) if day_total > 0 else 100` — where
+`day_total` counted only LOGGED doses (not expected doses from schedules) and
+**defaulted to 100% on days with no logs**. The headline on the same page
+(`views.py:4487`) used the canonical schedule-based
+`calculate_medicine_adherence()`. So the chart and headline could disagree for
+the same day, and an unlogged day rendered a misleading 100% bar (a Visual Truth
+Contract violation — false completion).
+
+**Fix (one calculation, one truth):**
+- Added `_enumerate_expected_doses()` to `apps/health/medicine_utils.py` — the
+  SINGLE expected-dose enumeration (schedule walk + future-today fairness rule).
+  Refactored both existing canonical functions (`calculate_medicine_adherence`,
+  `calculate_single_medicine_adherence`) to use it — collapsing two in-module
+  copies of the schedule walk into one (partial D5 cleanup, same file, trivial).
+- Added `calculate_daily_medicine_adherence()` — a per-day consumer that reuses
+  the same enumeration and the same `taken / (expected - skipped)` formula. A
+  single day computed here is identical to
+  `calculate_medicine_adherence(user, day, day)`, so the chart can never disagree
+  with the headline for the same day. Days with no expected doses (or all
+  skipped) return `adherence_rate=None` (no data) — explicitly NOT 100%.
+- `IntakeAdherenceView` now derives `daily_data` from
+  `calculate_daily_medicine_adherence()`. No business rules left in the view.
+  No-data days render as a 0-height bar, never 100%.
+
+**Additional duplication found (D5 — reported, NOT fixed here; not inseparable
+from D2):** independent expected-dose enumerations still exist in
+`apps/core/behavior/domain_medication.py` (behavior-engine adherence),
+`apps/core/ai_events/adapters/medication.py` (unlogged-dose event generation),
+and `apps/dashboard_v2/compliance/adapters/medication.py` (compliance events).
+Each re-walks schedules with `applies_to_day` + the future-dose rule. They serve
+different contracts/return shapes and are NOT required to fix D2, so they are
+left for the dedicated D5 PR.
+
+**Files:**
+- `apps/health/medicine_utils.py` — extracted `_enumerate_expected_doses`; added `calculate_daily_medicine_adherence`; rewired the two existing functions
+- `apps/health/views.py` — IntakeAdherenceView chart now consumes the canonical daily calc
+- `apps/health/tests/test_adherence_chart_drift.py` — new (12 tests)
+
+**Verification:** `python3 manage.py test apps.health.tests.test_medicine_adherence
+apps.health.tests.test_adherence_chart_drift apps.health.tests.test_insulin_regression`
+→ 57/57 pass (existing adherence suite proves the refactor is behavior-preserving;
+new suite proves zero-dose≠100%, chart==canonical, chart/headline parity, and the
+PRN / multiple-per-day / weekly / future-today / day-of-week edge cases).
+`manage.py check` clean; no migrations.
+
+
 ## 2026-06-27 — fix(pie): medication/weight/sleep event subscribers fire run_insights() (were silently dead)
 
 **Root cause:** `apps/core/events/subscribers.py` had three PIE subscribers —

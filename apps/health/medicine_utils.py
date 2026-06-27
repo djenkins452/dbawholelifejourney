@@ -16,6 +16,44 @@ used across dashboard_ai, dashboard cache, personal_assistant, and trend_trackin
 from datetime import date, timedelta
 
 
+def _enumerate_expected_doses(active_medicines, start_date, end_date, user_today, current_time):
+    """Single source of truth for the expected-dose algorithm.
+
+    Walks every day in [start_date, end_date] and yields one entry per
+    active schedule that applies to that day. Today's not-yet-due doses
+    (scheduled_time > now) are excluded — you can't miss a dose that
+    isn't due yet (fairness rule, see module docstring).
+
+    This is the ONE expected-dose enumeration shared by every adherence
+    calculation in this module (range, single-medicine, and per-day
+    chart). Do NOT re-implement the schedule walk elsewhere — call this.
+
+    Args:
+        active_medicines: iterable of Intake instances (active only).
+        start_date / end_date: inclusive date range.
+        user_today: the user's local "today" (date).
+        current_time: the user's local current time (datetime.time).
+
+    Returns:
+        list of (medicine_id, schedule_id, day) tuples. len() of the
+        returned list is the expected-dose count for the range.
+    """
+    expected = []
+    day = start_date
+    while day <= end_date:
+        day_of_week = day.weekday()  # 0=Mon, 6=Sun
+        is_today = (day == user_today)
+        for medicine in active_medicines:
+            for schedule in medicine.schedules.filter(is_active=True):
+                if schedule.applies_to_day(day_of_week):
+                    if is_today and schedule.scheduled_time and schedule.scheduled_time > current_time:
+                        # Future dose today — not due yet, skip
+                        continue
+                    expected.append((medicine.id, schedule.id, day))
+        day += timedelta(days=1)
+    return expected
+
+
 def calculate_medicine_adherence(user, start_date, end_date, intake_type=None):
     """
     Calculate medicine adherence rate for a date range.
@@ -51,25 +89,11 @@ def calculate_medicine_adherence(user, start_date, end_date, intake_type=None):
     user_now = get_user_now(user)
     current_time = user_now.time()
 
-    # Count expected doses by iterating each day and checking schedules.
-    # For today: only count doses whose scheduled_time has passed.
-    # You can't miss a dose that isn't due yet.
-    expected_doses = 0
-    day = start_date
-    schedule_day_map = []  # List of (medicine_id, schedule_id, date) tuples
-
-    while day <= end_date:
-        day_of_week = day.weekday()  # 0=Mon, 6=Sun
-        is_today = (day == user_today)
-        for medicine in active_medicines:
-            for schedule in medicine.schedules.filter(is_active=True):
-                if schedule.applies_to_day(day_of_week):
-                    if is_today and schedule.scheduled_time and schedule.scheduled_time > current_time:
-                        # Future dose today — not due yet, skip
-                        continue
-                    expected_doses += 1
-                    schedule_day_map.append((medicine.id, schedule.id, day))
-        day += timedelta(days=1)
+    # Count expected doses via the single canonical enumeration.
+    schedule_day_map = _enumerate_expected_doses(
+        active_medicines, start_date, end_date, user_today, current_time
+    )
+    expected_doses = len(schedule_day_map)
 
     if expected_doses == 0:
         return {
@@ -139,21 +163,10 @@ def calculate_single_medicine_adherence(user, medicine, start_date, end_date):
     user_now = get_user_now(user)
     current_time = user_now.time()
 
-    # Count expected doses from schedules.
-    # For today: only count doses whose scheduled_time has passed.
-    expected_doses = 0
-    day = start_date
-    active_schedules = list(medicine.schedules.filter(is_active=True))
-
-    while day <= end_date:
-        day_of_week = day.weekday()
-        is_today = (day == user_today)
-        for schedule in active_schedules:
-            if schedule.applies_to_day(day_of_week):
-                if is_today and schedule.scheduled_time and schedule.scheduled_time > current_time:
-                    continue
-                expected_doses += 1
-        day += timedelta(days=1)
+    # Count expected doses via the single canonical enumeration (one medicine).
+    expected_doses = len(_enumerate_expected_doses(
+        [medicine], start_date, end_date, user_today, current_time
+    ))
 
     if expected_doses == 0:
         return {
@@ -199,3 +212,97 @@ def calculate_medicine_adherence_rate(user, days=7, intake_type=None):
     start = today - timedelta(days=days)
     result = calculate_medicine_adherence(user, start, today, intake_type=intake_type)
     return result["adherence_rate"]
+
+
+def calculate_daily_medicine_adherence(user, start_date, end_date, intake_type=None):
+    """
+    Per-day adherence breakdown for charts.
+
+    Each day uses the EXACT same expected-dose enumeration
+    (``_enumerate_expected_doses``) and the same
+    ``taken / (expected - skipped)`` formula as
+    ``calculate_medicine_adherence``. Because a single day computed here is
+    identical to ``calculate_medicine_adherence(user, day, day)``, the daily
+    chart can never disagree with the headline for the same day.
+
+    This replaces the old logs-only chart calculation in the adherence view,
+    which counted only LOGGED doses as the denominator and defaulted to 100%
+    on days with no logs — silently disagreeing with the schedule-based
+    headline (D2 drift).
+
+    Args:
+        user: Django User instance.
+        start_date / end_date: inclusive date range.
+        intake_type: optional — 'medication', 'supplement', or None for all.
+
+    Returns:
+        list (ordered start_date..end_date) of dicts, one per day:
+            - date: ISO date string
+            - expected_doses: scheduled doses that day (today's not-yet-due
+              doses excluded)
+            - taken_doses: doses logged taken or late
+            - skipped_doses: doses logged skipped (excluded from denominator)
+            - adherence_rate: taken / (expected - skipped) * 100, capped at
+              100, or None when there is nothing to measure (no expected
+              doses, or every expected dose was skipped). None means
+              "no data" — explicitly NOT 100%.
+    """
+    from apps.core.utils import get_user_now, get_user_today
+    from apps.health.models import Intake, IntakeLog
+
+    qs = Intake.objects.filter(
+        user=user,
+        intake_status=Intake.STATUS_ACTIVE,
+    )
+    if intake_type:
+        qs = qs.filter(intake_type=intake_type)
+    active_medicines = list(qs.prefetch_related("schedules"))
+
+    user_today = get_user_today(user)
+    current_time = get_user_now(user).time()
+
+    # Bucket expected doses per day from the canonical enumeration.
+    expected_by_day = {}
+    for _med_id, _sched_id, day in _enumerate_expected_doses(
+        active_medicines, start_date, end_date, user_today, current_time
+    ):
+        expected_by_day[day] = expected_by_day.get(day, 0) + 1
+
+    # Bucket logs per day in a single query. Mirrors the headline's log
+    # handling: taken/late count toward adherence; skipped leaves the
+    # denominator; everything else (missed, unlogged) counts as not taken.
+    taken_by_day = {}
+    skipped_by_day = {}
+    if active_medicines:
+        log_rows = IntakeLog.objects.filter(
+            user=user,
+            intake__in=active_medicines,
+            scheduled_date__gte=start_date,
+            scheduled_date__lte=end_date,
+        ).values_list("scheduled_date", "log_status")
+        for sched_date, status in log_rows:
+            if status in ("taken", "late"):
+                taken_by_day[sched_date] = taken_by_day.get(sched_date, 0) + 1
+            elif status == "skipped":
+                skipped_by_day[sched_date] = skipped_by_day.get(sched_date, 0) + 1
+
+    daily = []
+    day = start_date
+    while day <= end_date:
+        expected = expected_by_day.get(day, 0)
+        taken = taken_by_day.get(day, 0)
+        skipped = skipped_by_day.get(day, 0)
+        effective_expected = expected - skipped
+        if effective_expected > 0:
+            rate = min(100, round((taken / effective_expected) * 100))
+        else:
+            rate = None  # No data — NOT 100%
+        daily.append({
+            "date": day.isoformat(),
+            "expected_doses": expected,
+            "taken_doses": taken,
+            "skipped_doses": skipped,
+            "adherence_rate": rate,
+        })
+        day += timedelta(days=1)
+    return daily

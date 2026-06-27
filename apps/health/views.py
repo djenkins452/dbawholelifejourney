@@ -4481,6 +4481,7 @@ class IntakeAdherenceView(LoginRequiredMixin, TemplateView):
 
         # Schedule-based adherence (counts unlogged doses as missed)
         from apps.health.medicine_utils import (
+            calculate_daily_medicine_adherence,
             calculate_medicine_adherence,
             calculate_single_medicine_adherence,
         )
@@ -4522,22 +4523,20 @@ class IntakeAdherenceView(LoginRequiredMixin, TemplateView):
             intake_stats, key=lambda x: x["rate"]
         )
 
-        # Daily breakdown for chart
+        # Daily breakdown for chart — derived from the SAME canonical
+        # adherence calculation as the headline (no independent logs-only
+        # math). A day with no expected doses (or all skipped) has rate None;
+        # we render it as a 0-height bar, never a misleading 100%.
         daily_data = []
-        current = start_date
-        while current <= today:
-            day_logs = logs.filter(scheduled_date=current)
-            day_total = day_logs.count()
-            day_taken = day_logs.filter(
-                log_status__in=[IntakeLog.STATUS_TAKEN, IntakeLog.STATUS_LATE]
-            ).count()
+        for d in calculate_daily_medicine_adherence(user, start_date, today):
+            rate = d["adherence_rate"]
             daily_data.append({
-                "date": current.isoformat(),
-                "total": day_total,
-                "taken": day_taken,
-                "rate": round(day_taken / day_total * 100) if day_total > 0 else 100,
+                "date": d["date"],
+                "total": d["expected_doses"],
+                "taken": d["taken_doses"],
+                "rate": rate if rate is not None else 0,
+                "has_expected": d["expected_doses"] > 0,
             })
-            current += timedelta(days=1)
         context["daily_data"] = daily_data
 
         return context

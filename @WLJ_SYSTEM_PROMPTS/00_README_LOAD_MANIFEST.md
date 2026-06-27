@@ -46,6 +46,25 @@ prompt that matches your work.
 
 ---
 
+## CANON DOCUMENTS
+
+**Purpose:** These documents represent **authoritative production truth.** When any
+other document (or the model's memory) disagrees with canon, canon wins; when canon
+disagrees with current code, the code wins and canon is updated to match. All live
+in `03_CANON_REFERENCE/`. Load them for architecture / signal / CoS-tool work (they
+are not all always-load — see the note on Architecture Laws below).
+
+- `WLJ DOMAIN REGISTRY.md` — the canonical life domains and their classification.
+- `WLJ SIGNAL ONTOLOGY.md` — the canonical signal model, producers, and renderer contract.
+- `WLJ COS TOOL & STANDING CONTEXT CONTRACT.md` — the as-built ChatGPT CoS tool surface and standing-context schema.
+
+> **`WLJ ARCHITECTURE LAWS.md` is unique: it is both ALWAYS LOAD *and* CANON.** It
+> is the only document that is simultaneously the operating rules every session
+> runs under and authoritative production truth — so it appears in both the
+> Always-Load table above and the canon set here.
+
+---
+
 ## LOAD BY WORK TYPE
 
 Pick the row matching your task; load those **in addition to** the Always-Load set.

@@ -95,6 +95,15 @@ the preference is explicit:
   hunch.
 - **Modify before adding** (Architecture Law 5). Reuse existing systems; don't
   spawn parallel engines/pipelines.
+- **Investigate architectural uncertainty before implementing.** When the right
+  approach isn't clear, trace the code and resolve the uncertainty first — don't
+  start writing against an unverified mental model.
+- **Preserve existing system behavior** unless you are intentionally changing it.
+  Know the current behavior before you touch it; a change that alters behavior as a
+  side effect is a defect, not a refactor.
+- **Think holistically.** Avoid local optimizations that create downstream
+  architectural problems — weigh a change against the whole WLJ pipeline
+  (raw data → signals/state → CoS), not just the file in front of you.
 - **Scoped tests only.** Never run the full ~4,400-test suite unless Danny
   explicitly asks. Test what changed plus directly-impacted modules.
 - **Don't ask permission** for reads, searches, tests, migrations, commits, or
@@ -104,8 +113,9 @@ the preference is explicit:
 
 ## Deployment Expectations
 
-- A task is **not complete until it is committed and pushed to `main`** (for app
-  work). Deploy automatically — don't wait for "ready to deploy?".
+- **Application work is not complete until it is committed and pushed to `main`
+  unless Danny explicitly instructs otherwise.** Deploy automatically — don't wait
+  for "ready to deploy?".
 - **Every commit gets a changelog entry** (`docs/wlj_claude_changelog.md`) — no
   exceptions, even one-line fixes.
 - Update user-facing docs (release notes, help topics, features doc) when shipping

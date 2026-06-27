@@ -53,6 +53,8 @@ Documentation-only governance pass over `@WLJ_SYSTEM_PROMPTS/` (no production lo
 
 Files: `@WLJ_SYSTEM_PROMPTS/**` (rename + content), `apps/ai/cos_services/__init__.py` + `standing_context.py` (docstring path only). Why: the library is loaded into nearly every WLJ dev session and had drifted from production (shipped CoS described as a future plan, a corrupted core-startup file, no load guidance).
 
+**Final adjustments (post-review, 2026-06-26):** Preferences — added Execution-Discipline guidance (investigate architectural uncertainty first; preserve existing behavior unless intentionally changing it; think holistically over local optimizations) and softened the deploy rule to "Application work is not complete until committed and pushed to main **unless Danny explicitly instructs otherwise**." Manifest — added an explicit **CANON DOCUMENTS** section (Domain Registry, Signal Ontology, CoS Tool & Standing Context Contract; Architecture Laws noted as both ALWAYS LOAD and CANON).
+
 
 ## 2026-06-26 — fix(cos): three Goals reasoning defects (watch-vs-risk, slipping filter, no generic actions)
 

@@ -28,6 +28,7 @@ from .models import (
     MealTemplate,
     MealTemplateItem,
     MedicalCondition,
+    MedicationCaptureSession,
     MedicalProvider,
     Intake,
     IntakeLog,
@@ -1160,6 +1161,22 @@ class MedicalConditionAdmin(admin.ModelAdmin):
     list_display = ("name", "user", "condition_status", "diagnosed_date")
     list_filter = ("condition_status",)
     search_fields = ("name", "user__email")
+
+
+@admin.register(MedicationCaptureSession)
+class MedicationCaptureSessionAdmin(admin.ModelAdmin):
+    """Operational record for background Guided Capture. Read-only — processing is
+    owned by the worker; images are transient and never shown here."""
+    list_display = ("__str__", "user", "status", "images_analyzed", "images_total",
+                    "overall_confidence", "created_at")
+    list_filter = ("status", "profile")
+    search_fields = ("user__email",)
+    readonly_fields = ("merged_extracted", "overall_confidence", "quality",
+                       "error_message", "created_draft", "started_at", "completed_at")
+    exclude = ("images",)  # never render transient base64 photos
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(TreatmentPlan)

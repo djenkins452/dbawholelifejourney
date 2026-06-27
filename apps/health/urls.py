@@ -207,10 +207,12 @@ urlpatterns = [
     path("physical/intake/physician/", views_acquisition.PhysicianModeView.as_view(), name="medication_physician"),
     # Treatment Intelligence dashboard (Sprint 10F) — composition over medication
     path("physical/intake/treatment/", views_acquisition.TreatmentDashboardView.as_view(), name="treatment_dashboard"),
-    # Guided Capture Session (Medication Acquisition V1 completion)
+    # Guided Capture Session — background Vision processing (off the request path)
     path("physical/intake/capture/", views_acquisition.CaptureSessionView.as_view(), name="medication_capture"),
-    path("physical/intake/capture/analyze/", views_acquisition.CaptureAnalyzeView.as_view(), name="medication_capture_analyze"),
-    path("physical/intake/capture/finish/", views_acquisition.CaptureFinalizeView.as_view(), name="medication_capture_finish"),
+    path("physical/intake/capture/start/", views_acquisition.CaptureStartView.as_view(), name="medication_capture_start"),
+    path("physical/intake/capture/<int:session_id>/status/", views_acquisition.CaptureStatusView.as_view(), name="medication_capture_status"),
+    path("physical/intake/capture/<int:session_id>/retry/", views_acquisition.CaptureRetryView.as_view(), name="medication_capture_retry"),
+    path("physical/intake/capture/<int:session_id>/cancel/", views_acquisition.CaptureCancelView.as_view(), name="medication_capture_cancel"),
     path("physical/intake/<int:pk>/", views.IntakeDetailView.as_view(), name="intake_detail"),
     path("physical/intake/<int:pk>/edit/", views.IntakeUpdateView.as_view(), name="intake_update"),
     path("physical/intake/<int:pk>/delete/", views.IntakeDeleteView.as_view(), name="intake_delete"),

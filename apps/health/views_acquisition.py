@@ -236,9 +236,35 @@ class CaptureSessionView(LoginRequiredMixin, View):
         })
 
 
+def _enqueue_capture(session):
+    """Hand the session to the Celery worker (off the request path). Falls back to
+    inline processing only if dispatch fails outright, so a session never silently
+    stalls — never live-computes Vision in the web process by default."""
+    from apps.health.tasks import process_medication_capture
+    try:
+        process_medication_capture.delay(session.id)
+    except Exception:
+        logger.error("capture %s: could not enqueue worker task", session.id,
+                     exc_info=True)
+        from apps.health.capture_session import process_capture_session
+        try:
+            process_capture_session(session)
+        except Exception:
+            session.mark_failed("We couldn't start analysis. Please retry.")
+
+
+def _session_review_url(session):
+    if session.created_draft_id:
+        return reverse("health:medication_review",
+                       kwargs={"draft_id": session.created_draft_id})
+    return None
+
+
 @method_decorator(csrf_protect, name="dispatch")
-class CaptureAnalyzeView(LoginRequiredMixin, View):
-    """Mid-session confidence preview — combined extraction, NO draft."""
+class CaptureStartView(LoginRequiredMixin, View):
+    """Create a capture session and return IMMEDIATELY — Vision runs in the
+    background worker. The browser polls CaptureStatusView for progress. No Vision
+    on the request path; nothing canonical until the user confirms in review."""
 
     def post(self, request):
         gated = _capture_gate(request)
@@ -248,35 +274,83 @@ class CaptureAnalyzeView(LoginRequiredMixin, View):
         if err is not None:
             return err
         images, intake_type = parsed
-        from apps.health.capture_session import analyze_capture
-        return JsonResponse(analyze_capture(request.user, images, intake_type=intake_type))
+        try:
+            body = json.loads(request.body or "{}")
+        except json.JSONDecodeError:
+            body = {}
+        profile = body.get("profile") or ""
 
-
-@method_decorator(csrf_protect, name="dispatch")
-class CaptureFinalizeView(LoginRequiredMixin, View):
-    """Finish the session — combine all images into ONE MedicationScanDraft and
-    hand off to guided review. Nothing canonical until the user confirms there."""
-
-    def post(self, request):
-        gated = _capture_gate(request)
-        if gated is not None:
-            return gated
-        parsed, err = _capture_payload(request)
-        if err is not None:
-            return err
-        images, intake_type = parsed
-        from apps.health.capture_session import finalize_capture
-        draft = finalize_capture(request.user, images, intake_type=intake_type)
-        if draft is None:
-            return JsonResponse({
-                "error": "no_extraction",
-                "message": "We couldn't read a medication from those photos. "
-                           "Try clearer shots, or enter it manually.",
-            }, status=422)
+        from apps.health.models import MedicationCaptureSession
+        session = MedicationCaptureSession.objects.create(
+            user=request.user, profile=profile, intake_type=intake_type,
+            images=images, images_total=len(images),
+            current_step="Uploading photos…",
+        )
+        _enqueue_capture(session)
         return JsonResponse({
-            "review_url": reverse("health:medication_review",
-                                  kwargs={"draft_id": draft.id}),
-        })
+            "session_id": session.id,
+            "status_url": reverse("health:medication_capture_status",
+                                  kwargs={"session_id": session.id}),
+        }, status=202)
+
+
+class CaptureStatusView(LoginRequiredMixin, View):
+    """Poll target — current step, counts, confidence, and the review URL when
+    ready. Read-only; never computes Vision (request-path-safe)."""
+
+    def get(self, request, session_id):
+        from apps.health.models import MedicationCaptureSession
+        session = get_object_or_404(
+            MedicationCaptureSession, id=session_id, user=request.user)
+        return JsonResponse(session.progress_dict(
+            review_url=_session_review_url(session)))
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class CaptureRetryView(LoginRequiredMixin, View):
+    """Re-run a failed session (images were kept). Optionally replace images first."""
+
+    def post(self, request, session_id):
+        from apps.health.models import MedicationCaptureSession
+        session = get_object_or_404(
+            MedicationCaptureSession, id=session_id, user=request.user)
+        try:
+            body = json.loads(request.body or "{}")
+        except json.JSONDecodeError:
+            body = {}
+        # Optional: replace the image set before retrying.
+        new_images = body.get("images")
+        if isinstance(new_images, list) and new_images:
+            session.images = new_images[:MAX_CAPTURE_IMAGES]
+            session.images_total = len(session.images)
+        session.processing_status = MedicationCaptureSession.STATUS_CREATED
+        session.retry_count = (session.retry_count or 0) + 1
+        session.error_message = ""
+        session.current_step = "Re-queued…"
+        session.save(update_fields=["images", "images_total", "processing_status",
+                                    "retry_count", "error_message",
+                                    "current_step", "updated_at"])
+        _enqueue_capture(session)
+        return JsonResponse({
+            "session_id": session.id,
+            "status_url": reverse("health:medication_capture_status",
+                                  kwargs={"session_id": session.id}),
+        }, status=202)
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class CaptureCancelView(LoginRequiredMixin, View):
+    """Cancel a session — drops its images; nothing canonical was ever written."""
+
+    def post(self, request, session_id):
+        from apps.health.models import MedicationCaptureSession
+        session = get_object_or_404(
+            MedicationCaptureSession, id=session_id, user=request.user)
+        session.processing_status = MedicationCaptureSession.STATUS_CANCELLED
+        session.images = []
+        session.current_step = "Cancelled."
+        session.save(update_fields=["processing_status", "images", "current_step", "updated_at"])
+        return JsonResponse({"cancelled": True})
 
 
 class TreatmentDashboardView(LoginRequiredMixin, View):

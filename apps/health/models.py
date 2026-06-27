@@ -3401,6 +3401,114 @@ class MedicationScanDraft(UserOwnedModel):
         return self.review_status == self.REVIEW_PENDING
 
 
+class MedicationCaptureSession(UserOwnedModel):
+    """Background orchestration record for a Guided Capture session. The web
+    request creates this immediately and returns; a Celery worker analyzes the
+    images off the request path, updating progress here, and the UI polls it.
+
+    It owns NO canonical state and changes NO acquisition rules — when analysis
+    finishes it produces exactly one `MedicationScanDraft` via the existing
+    pipeline (draft → review → confirm). `images` holds the uploaded photos only
+    until processing succeeds, then they are cleared (no raw-image retention)."""
+
+    STATUS_CREATED = "created"        # queued, not yet picked up
+    STATUS_ANALYZING = "analyzing"    # worker is processing images
+    STATUS_READY = "ready"            # draft staged, review available
+    STATUS_FAILED = "failed"          # Vision/processing failed; retryable
+    STATUS_CANCELLED = "cancelled"    # user cancelled
+    STATUS_CHOICES = [
+        (STATUS_CREATED, "Created"),
+        (STATUS_ANALYZING, "Analyzing"),
+        (STATUS_READY, "Ready"),
+        (STATUS_FAILED, "Failed"),
+        (STATUS_CANCELLED, "Cancelled"),
+    ]
+
+    profile = models.CharField(max_length=30, blank=True, default="")
+    intake_type = models.CharField(max_length=20, default="medication")
+    # Uploaded photos (base64 data URLs) — TRANSIENT; cleared once a draft is staged.
+    images = models.JSONField(default=list, blank=True)
+    images_total = models.PositiveIntegerField(default=0)
+    images_analyzed = models.PositiveIntegerField(default=0)
+
+    # NB: named `processing_status` (not `status`) — `status` is reserved by
+    # SoftDeleteModel, whose manager filters status="active".
+    processing_status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default=STATUS_CREATED)
+    current_step = models.CharField(max_length=120, default="Queued")
+
+    merged_extracted = models.JSONField(default=dict, blank=True)
+    overall_confidence = models.FloatField(null=True, blank=True)
+    quality = models.CharField(max_length=40, blank=True, default="")
+
+    error_message = models.TextField(blank=True, default="")
+    retry_count = models.PositiveIntegerField(default=0)
+
+    created_draft = models.ForeignKey(
+        "health.MedicationScanDraft", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="capture_session")
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "medication capture session"
+
+    def __str__(self):
+        return f"CaptureSession {self.pk} ({self.processing_status})"
+
+    @property
+    def confidence_pct(self):
+        return int(round(self.overall_confidence * 100)) if self.overall_confidence is not None else None
+
+    def mark_analyzing(self):
+        from django.utils import timezone
+        self.processing_status = self.STATUS_ANALYZING
+        self.started_at = self.started_at or timezone.now()
+        self.error_message = ""
+        self.images_analyzed = 0
+        self.current_step = "Preparing photos…"
+        self.save(update_fields=["processing_status", "started_at", "error_message",
+                                 "images_analyzed", "current_step", "updated_at"])
+
+    def mark_ready(self, draft, *, merged, confidence, quality):
+        from django.utils import timezone
+        self.created_draft = draft
+        self.merged_extracted = merged or {}
+        self.overall_confidence = confidence
+        self.quality = quality or ""
+        self.processing_status = self.STATUS_READY
+        self.current_step = "Ready for review."
+        self.images = []  # no raw-image retention once a draft is staged
+        self.completed_at = timezone.now()
+        self.save(update_fields=["created_draft", "merged_extracted", "overall_confidence",
+                                 "quality", "processing_status", "current_step", "images",
+                                 "completed_at", "updated_at"])
+
+    def mark_failed(self, message):
+        # Keep `images` so the user can retry / replace without re-uploading.
+        self.processing_status = self.STATUS_FAILED
+        self.error_message = message or "Processing failed."
+        self.current_step = "Couldn't finish — you can retry."
+        self.save(update_fields=["processing_status", "error_message", "current_step", "updated_at"])
+
+    def progress_dict(self, *, review_url=None):
+        """The JSON the UI polls — status, step, counts, confidence, next action."""
+        return {
+            "session_id": self.pk,
+            "status": self.processing_status,
+            "current_step": self.current_step,
+            "images_total": self.images_total,
+            "images_analyzed": self.images_analyzed,
+            "confidence_pct": self.confidence_pct,
+            "quality": self.quality,
+            "error": self.error_message or None,
+            "can_retry": self.processing_status == self.STATUS_FAILED,
+            "review_url": review_url,
+            "done": self.processing_status in (self.STATUS_READY, self.STATUS_CANCELLED),
+        }
+
+
 # =============================================================================
 # Treatment Intelligence (Sprint 10) — composition layer over Medication
 # Intelligence. These models GROUP existing canonical truth (Intakes, providers,

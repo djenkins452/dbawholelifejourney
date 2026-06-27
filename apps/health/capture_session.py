@@ -9,15 +9,13 @@ unchanged:
     Session (multiple images) → combined extraction → MedicationScanDraft
     → Confidence Review → Duplicate Detection → Confirmation → MedicationEvent → Intake
 
-`analyze_capture` previews the merged confidence mid-session (no draft, nothing
-canonical). `finalize_capture` creates the one draft and hands off to review.
-Images are analyzed then discarded — only extracted fields are kept (no raw-image
-retention), consistent with the rest of acquisition.
+`process_capture_session` runs OFF the request path (a Celery worker), updating the
+session's progress as it goes and staging exactly ONE draft. Images are analyzed
+then discarded — only extracted fields are kept (no raw-image retention).
 """
 
 import logging
 
-from apps.health.capture_profiles import suggested_next_photo
 from apps.health.medication_acquisition import (
     create_draft_from_scan,
     vision_details_to_extracted,
@@ -26,8 +24,6 @@ from apps.health.medication_acquisition import (
 from apps.health.medication_confidence import (
     compute_field_confidences,
     compute_overall_confidence,
-    confidence_band,
-    missing_fields,
 )
 
 logger = logging.getLogger(__name__)
@@ -78,114 +74,84 @@ def _quality_label(confidence):
     return "Needs another photo"
 
 
-def _extract_from_images(images, image_format="jpeg"):
-    """Run Vision over each image and merge → (category, merged_details, name).
-    Returns (None, {}, "") if nothing usable was read."""
+# ── Background processing (production orchestration) ──────────────────────────
+# `process_capture_session` runs OFF the request path (a Celery worker). It walks
+# the session's images, updating progress as it goes, merges them into one combined
+# extraction, computes confidence, and stages exactly ONE MedicationScanDraft via
+# the unchanged pipeline. Raises on a retryable Vision error (the task retries);
+# marks the session FAILED (keeping images for retry) when nothing readable came back.
+
+def process_capture_session(session):
+    """Analyze all images of a MedicationCaptureSession in the background, updating
+    its progress, and stage one draft. Returns the draft, or None if unreadable."""
+    from apps.health.capture_profiles import get_profile
+
+    session.mark_analyzing()
+    images = session.images or []
+    steps = (get_profile(session.profile) or {}).get("steps", [])
     vision = _vision()
+
     per_image_details = []
     categories = []
-    for image_data in images or []:
-        try:
-            result = vision.analyze_image(
-                image_base64=_clean_b64(image_data),
-                request_id="capture",
-                image_format=image_format,
-            )
-        except Exception:
-            logger.warning("capture: vision analyze failed for an image", exc_info=True)
-            continue
-        if getattr(result, "error", None):
-            continue
-        if result.top_category:
-            categories.append(result.top_category)
-        items = result.items or []
-        if items:
-            item = items[0]
-            details = dict(vision_item_field(item, "details") or {})  # copy — never mutate the source
-            label = vision_item_field(item, "label") or ""
-            # Carry the label as a name fallback when structured name is absent.
-            if not details.get("name") and label:
-                details.setdefault("name", label)
-            per_image_details.append(details)
+    for idx, image_data in enumerate(images):
+        label = steps[idx]["label"] if idx < len(steps) else "additional photo"
+        session.current_step = f"Analyzing {label}…"
+        session.save(update_fields=["current_step", "updated_at"])
+        # A Vision exception is RETRYABLE — let it propagate so the task retries
+        # without losing the session or its images.
+        result = vision.analyze_image(
+            image_base64=_clean_b64(image_data),
+            request_id=f"capture-{session.pk}",
+            image_format="jpeg",
+        )
+        if not getattr(result, "error", None):
+            if result.top_category:
+                categories.append(result.top_category)
+            items = result.items or []
+            if items:
+                details = dict(vision_item_field(items[0], "details") or {})
+                label_text = vision_item_field(items[0], "label") or ""
+                if not details.get("name") and label_text:
+                    details.setdefault("name", label_text)
+                per_image_details.append(details)
+        session.images_analyzed = idx + 1
+        session.save(update_fields=["images_analyzed", "updated_at"])
 
+    session.current_step = "Combining information…"
+    session.save(update_fields=["current_step", "updated_at"])
     merged = _merge_details(per_image_details)
-    # Prefer a med/supplement category; default to medicine.
-    category = "supplement" if "supplement" in categories else (
-        "medicine" if "medicine" in categories else (categories[0] if categories else None)
-    )
     name = (merged.get("name") or "").strip()
-    return category, merged, name
-
-
-def analyze_capture(user, images, *, intake_type="medication", image_format="jpeg"):
-    """Mid-session confidence preview — NO draft, nothing canonical. Returns the
-    combined confidence, quality label, what's still missing, and a deterministic
-    'why' prompt for the next photo."""
-    category, merged, name = _extract_from_images(images, image_format=image_format)
     if not name:
-        return {
-            "ok": False,
-            "name": "",
-            "confidence": None,
-            "confidence_pct": None,
-            "quality": "Needs another photo",
-            "missing": [],
-            "suggestion": "a clear photo of the front label",
-            "prompt": "I couldn't identify the product yet — try a clear photo of the front label.",
-        }
-
-    extracted = vision_details_to_extracted(merged, name=name)
-    fc = compute_field_confidences(extracted, "bottle_image")
-    overall = compute_overall_confidence(fc)
-    missing = missing_fields(extracted, intake_type=intake_type)
-    suggestion = suggested_next_photo(missing)
-
-    if suggestion and (overall is None or confidence_band(overall) != "high"):
-        prompt = (f"I've identified {name}. To improve confidence, "
-                  f"I'd like {suggestion}.")
-        enough = False
-    else:
-        prompt = f"I have enough to review {name}. You can finish, or add another photo."
-        enough = True
-
-    return {
-        "ok": True,
-        "name": name,
-        "category": category,
-        "confidence": overall,
-        "confidence_pct": int(round(overall * 100)) if overall is not None else None,
-        "quality": _quality_label(overall),
-        "missing": missing,
-        "suggestion": suggestion,
-        "prompt": prompt,
-        "enough": enough,
-    }
-
-
-def finalize_capture(user, images, *, intake_type="medication", image_format="jpeg"):
-    """End the session: combine all images into ONE MedicationScanDraft via the
-    existing pipeline. Returns the draft (or None if nothing usable). Nothing is
-    canonical yet — review + confirm still follow."""
-    category, merged, name = _extract_from_images(images, image_format=image_format)
-    if not name:
+        session.mark_failed(
+            "We couldn't read a medication from those photos. "
+            "Try clearer shots, replace a photo, or enter it manually.")
         return None
 
-    # Confidence over the combined extraction (one overall scan confidence).
+    session.current_step = "Calculating confidence…"
+    session.save(update_fields=["current_step", "updated_at"])
     extracted = vision_details_to_extracted(merged, name=name)
     overall = compute_overall_confidence(
         compute_field_confidences(extracted, "bottle_image"))
+    category = (
+        "supplement" if "supplement" in categories
+        else "medicine" if "medicine" in categories
+        else ("supplement" if session.intake_type == "supplement" else "medicine")
+    )
 
-    # Respect the user-selected product type for the category when Vision is unsure.
-    if not category:
-        category = "supplement" if intake_type == "supplement" else "medicine"
-
-    return create_draft_from_scan(
-        user, category,
+    draft = create_draft_from_scan(
+        session.user, category,
         [{"label": name, "details": merged}],
         scan_confidence=overall,
         evidence=[{
             "source_type": "capture_session",
-            "summary": f"Guided capture — {len(images or [])} photo(s) combined",
+            "summary": f"Guided capture — {len(images)} photo(s) combined (background)",
             "confidence": overall,
         }],
     )
+    if draft is None:
+        session.mark_failed("We couldn't stage a draft from those photos.")
+        return None
+
+    session.mark_ready(draft, merged=merged, confidence=overall,
+                       quality=_quality_label(overall))
+    return draft

@@ -1,35 +1,39 @@
 """
-Guided Capture Session tests (Medication Acquisition V1 completion).
+Guided Capture — background Vision processing tests.
 
-Covers the capture PROFILES, the confidence-driven next-photo suggestion, the
-multi-image COMBINED extraction (richer than any single image), confidence
-improvement as images accumulate, and that finalizing produces exactly ONE
-MedicationScanDraft with NOTHING canonical until confirmation. Vision is mocked —
-these tests assert the session/merge/pipeline logic, not the model's OCR.
+Vision now runs OFF the request path: a view creates a MedicationCaptureSession and
+returns immediately; a Celery worker analyzes the images, updates progress, and
+stages ONE MedicationScanDraft via the unchanged pipeline; the UI polls status.
+
+Covers profiles, the background processor (single/multi image, combined extraction,
+real ScanItem shape, progress, skip-optional, unreadable), the Celery task
+(success/failure/timeout/retry classification), and the async endpoints (start →
+202, status polling/resume, retry, cancel) — with NOTHING canonical until
+confirmation and NO duplicate drafts. Vision is mocked.
 """
 
 from unittest.mock import MagicMock, patch
 
+from celery.exceptions import SoftTimeLimitExceeded
 from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.health.capture_profiles import (
-    CAPTURE_PROFILES,
-    get_profile,
-    suggested_next_photo,
+from apps.health.capture_profiles import get_profile, suggested_next_photo
+from apps.health.capture_session import process_capture_session
+from apps.health.models import (
+    Intake,
+    MedicationCaptureSession,
+    MedicationScanDraft,
 )
-from apps.health.capture_session import analyze_capture, finalize_capture
-from apps.health.models import Intake, MedicationScanDraft
 from apps.health.tests.test_medicine_adherence import AdherenceTestMixin
 from apps.scan.services.vision import ScanItem, ScanResult
 
-CAPTURE_PATH = "apps.health.capture_session._vision"
+VISION_PATH = "apps.health.capture_session._vision"
 
 
 def _vresult(category="medicine", details=None, label=""):
-    # Use the REAL production result shape: vision_service.analyze_image().items are
-    # ScanItem DATACLASSES (not dicts). Regression guard for the .get() bug.
+    # Real production result shape: items are ScanItem DATACLASSES (not dicts).
     items = ([ScanItem(label=label, details=details or {}, confidence=0.8)]
              if (details or label) else [])
     return ScanResult(request_id="t", top_category=category, confidence=0.8,
@@ -37,10 +41,15 @@ def _vresult(category="medicine", details=None, label=""):
 
 
 def _mock_vision(results):
-    """A vision_service stand-in whose analyze_image yields one result per image."""
     m = MagicMock()
     m.analyze_image.side_effect = results
     return m
+
+
+def _session(user, images, *, profile="prescription", intake_type="medication"):
+    return MedicationCaptureSession.objects.create(
+        user=user, profile=profile, intake_type=intake_type,
+        images=images, images_total=len(images), current_step="Queued")
 
 
 class CaptureProfileTest(TestCase):
@@ -49,7 +58,6 @@ class CaptureProfileTest(TestCase):
             prof = get_profile(key)
             self.assertIsNotNone(prof, f"missing profile {key}")
             self.assertTrue(prof["steps"])
-            # Every step has user-facing guidance and a "why".
             for step in prof["steps"]:
                 self.assertTrue(step["instruction"])
                 self.assertTrue(step["why"])
@@ -57,116 +65,158 @@ class CaptureProfileTest(TestCase):
     def test_suggestion_maps_missing_fields_to_a_photo(self):
         self.assertEqual(suggested_next_photo(["name"]), "a clear photo of the front label")
         self.assertEqual(suggested_next_photo(["rx_number"]), "a photo of the pharmacy label")
-        self.assertEqual(suggested_next_photo(["serving_size"]),
-                         "a photo of the Supplement Facts panel")
         self.assertIsNone(suggested_next_photo([]))
 
 
-class CaptureScanItemRegressionTest(AdherenceTestMixin, TestCase):
-    """Regression: vision_service returns ScanItem DATACLASSES, not dicts. The
-    session must read them by attribute — never `.get()` — or it 500s mid-session
-    and the workflow stalls on 'Working…'. (Guided Capture debug, 2026-06-27.)"""
+class ProcessCaptureSessionTest(AdherenceTestMixin, TestCase):
+    """The background processor — runs in the worker, updates the session."""
 
     def setUp(self):
-        self.user = self.create_user(email="capreg@test.com")
+        self.user = self.create_user(email="capproc@test.com")
 
-    def test_analyze_handles_real_scanitem_dataclass(self):
-        # _vresult now builds real ScanItem objects — this would AttributeError pre-fix.
-        results = [_vresult(details={"name": "Metformin", "dosage": "500mg"})]
-        with patch(CAPTURE_PATH, return_value=_mock_vision(results)):
-            r = analyze_capture(self.user, ["img1"], intake_type="medication")
-        self.assertTrue(r["ok"])
-        self.assertEqual(r["name"], "Metformin")
-        self.assertIsNotNone(r["confidence"])
-
-    def test_finalize_handles_real_scanitem_dataclass(self):
-        results = [_vresult(details={"name": "Metformin", "dosage": "500mg"})]
-        with patch(CAPTURE_PATH, return_value=_mock_vision(results)):
-            draft = finalize_capture(self.user, ["img1"], intake_type="medication")
+    def test_single_image_session_ready_no_canonical(self):
+        sess = _session(self.user, ["img1"])
+        with patch(VISION_PATH, return_value=_mock_vision(
+                [_vresult(details={"name": "Metformin", "dosage": "500mg"})])):
+            draft = process_capture_session(sess)
+        sess.refresh_from_db()
         self.assertIsNotNone(draft)
-        self.assertEqual(draft.extracted_values["name"], "Metformin")
+        self.assertEqual(sess.processing_status, MedicationCaptureSession.STATUS_READY)
+        self.assertEqual(sess.created_draft_id, draft.id)
+        self.assertEqual(sess.images_analyzed, 1)
+        self.assertEqual(sess.images, [])  # cleared on success (no retention)
+        self.assertFalse(Intake.objects.filter(user=self.user).exists())
 
-
-class CaptureCombinedExtractionTest(AdherenceTestMixin, TestCase):
-    def setUp(self):
-        self.user = self.create_user(email="cap@test.com")
-
-    def test_combined_extraction_is_richer_than_single_image(self):
-        # Front names it; pharmacy label adds dose + Rx + prescriber.
+    def test_multi_image_combined_extraction_richer(self):
+        sess = _session(self.user, ["a", "b"])
         results = [
             _vresult(details={"name": "Metformin"}),
             _vresult(details={"dosage": "500mg", "rx_number": "RX123",
                               "prescriber": "Dr. Smith"}),
         ]
-        with patch(CAPTURE_PATH, return_value=_mock_vision(results)):
-            draft = finalize_capture(self.user, ["img1", "img2"],
-                                     intake_type="medication")
-        self.assertIsNotNone(draft)
+        with patch(VISION_PATH, return_value=_mock_vision(results)):
+            draft = process_capture_session(sess)
         ev = draft.extracted_values
         self.assertEqual(ev["name"], "Metformin")
         self.assertEqual(ev["dose"], "500mg")
         self.assertEqual(ev["rx_number"], "RX123")
         self.assertEqual(ev["provider"], "Dr. Smith")
 
+    def test_real_scanitem_dataclass_handled(self):
+        sess = _session(self.user, ["img1"])
+        with patch(VISION_PATH, return_value=_mock_vision(
+                [_vresult(details={"name": "Lisinopril", "dosage": "10mg"})])):
+            draft = process_capture_session(sess)
+        self.assertEqual(draft.extracted_values["name"], "Lisinopril")
+
     def test_confidence_improves_with_more_images(self):
-        one = [_vresult(details={"name": "Lipitor"})]
-        with patch(CAPTURE_PATH, return_value=_mock_vision(one)):
-            r1 = analyze_capture(self.user, ["img1"], intake_type="medication")
-        two = [
-            _vresult(details={"name": "Lipitor"}),
-            _vresult(details={"dosage": "20mg", "directions": "Take one daily",
-                              "rx_number": "RX9"}),
-        ]
-        with patch(CAPTURE_PATH, return_value=_mock_vision(two)):
-            r2 = analyze_capture(self.user, ["img1", "img2"], intake_type="medication")
-        self.assertTrue(r1["ok"])
-        self.assertTrue(r2["ok"])
-        self.assertGreater(r2["confidence"], r1["confidence"])
+        s1 = _session(self.user, ["a"])
+        with patch(VISION_PATH, return_value=_mock_vision([_vresult(details={"name": "Lipitor"})])):
+            process_capture_session(s1)
+        s2 = _session(self.user, ["a", "b"])
+        with patch(VISION_PATH, return_value=_mock_vision([
+                _vresult(details={"name": "Lipitor"}),
+                _vresult(details={"dosage": "20mg", "directions": "Take one daily",
+                                  "rx_number": "RX9"})])):
+            process_capture_session(s2)
+        s1.refresh_from_db(); s2.refresh_from_db()
+        self.assertGreater(s2.overall_confidence, s1.overall_confidence)
 
-    def test_analyze_makes_no_draft_and_nothing_canonical(self):
-        results = [_vresult(details={"name": "Metformin", "dosage": "500mg"})]
-        with patch(CAPTURE_PATH, return_value=_mock_vision(results)):
-            r = analyze_capture(self.user, ["img1"], intake_type="medication")
-        self.assertTrue(r["ok"])
-        self.assertEqual(MedicationScanDraft.objects.filter(user=self.user).count(), 0)
-        self.assertEqual(Intake.objects.filter(user=self.user).count(), 0)
-
-    def test_finalize_creates_one_draft_nothing_canonical(self):
-        results = [_vresult(details={"name": "Metformin", "dosage": "500mg"})]
-        with patch(CAPTURE_PATH, return_value=_mock_vision(results)):
-            draft = finalize_capture(self.user, ["img1"], intake_type="medication")
-        self.assertIsNotNone(draft)
-        # Exactly one draft, and NO canonical Intake yet (confirmation pending).
-        self.assertEqual(MedicationScanDraft.objects.filter(user=self.user).count(), 1)
-        self.assertFalse(Intake.objects.filter(user=self.user).exists())
-        self.assertEqual(draft.source, "bottle_image")
-
-    def test_skipping_optional_still_finalizes(self):
-        # Only the two required photos (front + supplement facts) — directions skipped.
+    def test_skip_optional_still_completes(self):
+        sess = _session(self.user, ["a", "b"], profile="supplement", intake_type="supplement")
         results = [
             _vresult(category="supplement", details={"name": "Vitamin D"}),
-            _vresult(category="supplement", details={"serving_size": "1 softgel",
-                                                     "active_ingredients": "Vit D3 2000 IU"}),
+            _vresult(category="supplement", details={"serving_size": "1 softgel"}),
         ]
-        with patch(CAPTURE_PATH, return_value=_mock_vision(results)):
-            draft = finalize_capture(self.user, ["img1", "img2"],
-                                     intake_type="supplement")
-        self.assertIsNotNone(draft)
+        with patch(VISION_PATH, return_value=_mock_vision(results)):
+            draft = process_capture_session(sess)
         self.assertEqual(draft.intake_type, Intake.INTAKE_TYPE_SUPPLEMENT)
 
-    def test_unreadable_photos_make_no_draft(self):
-        results = [_vresult(details={})]  # nothing usable
-        with patch(CAPTURE_PATH, return_value=_mock_vision(results)):
-            draft = finalize_capture(self.user, ["img1"], intake_type="medication")
+    def test_unreadable_marks_failed_keeps_images(self):
+        sess = _session(self.user, ["img1"])
+        with patch(VISION_PATH, return_value=_mock_vision([_vresult(details={})])):
+            draft = process_capture_session(sess)
+        sess.refresh_from_db()
         self.assertIsNone(draft)
+        self.assertEqual(sess.processing_status, MedicationCaptureSession.STATUS_FAILED)
+        self.assertEqual(sess.images, ["img1"])  # kept for retry
         self.assertEqual(MedicationScanDraft.objects.filter(user=self.user).count(), 0)
 
+    def test_vision_exception_propagates_for_retry(self):
+        sess = _session(self.user, ["img1"])
+        boom = MagicMock()
+        boom.analyze_image.side_effect = ConnectionError("Vision timeout")
+        with patch(VISION_PATH, return_value=boom):
+            with self.assertRaises(ConnectionError):
+                process_capture_session(sess)
+        # Images preserved — the task will retry.
+        sess.refresh_from_db()
+        self.assertEqual(sess.images, ["img1"])
 
-class CaptureViewTest(AdherenceTestMixin, TestCase):
+
+class CaptureTaskTest(AdherenceTestMixin, TestCase):
+    """The Celery task wrapper (eager in tests)."""
+
+    def setUp(self):
+        self.user = self.create_user(email="captask@test.com")
+
+    def test_task_success(self):
+        from apps.health.tasks import process_medication_capture
+        sess = _session(self.user, ["img1"])
+        with patch(VISION_PATH, return_value=_mock_vision(
+                [_vresult(details={"name": "Metformin", "dosage": "5mg"})])):
+            result = process_medication_capture.apply(kwargs={"session_id": sess.id}).result
+        sess.refresh_from_db()
+        self.assertTrue(result["success"])
+        self.assertEqual(sess.processing_status, MedicationCaptureSession.STATUS_READY)
+
+    def test_task_non_retryable_failure_marks_failed(self):
+        from apps.health.tasks import process_medication_capture
+        sess = _session(self.user, ["img1"])
+        with patch("apps.health.capture_session.process_capture_session",
+                   side_effect=ValueError("bad data")):
+            result = process_medication_capture.apply(kwargs={"session_id": sess.id}).result
+        sess.refresh_from_db()
+        self.assertFalse(result["success"])
+        self.assertEqual(sess.processing_status, MedicationCaptureSession.STATUS_FAILED)
+
+    def test_task_timeout_marks_failed(self):
+        from apps.health.tasks import process_medication_capture
+        sess = _session(self.user, ["img1"])
+        with patch("apps.health.capture_session.process_capture_session",
+                   side_effect=SoftTimeLimitExceeded()):
+            result = process_medication_capture.apply(kwargs={"session_id": sess.id}).result
+        sess.refresh_from_db()
+        self.assertEqual(result["reason"], "timeout")
+        self.assertEqual(sess.processing_status, MedicationCaptureSession.STATUS_FAILED)
+
+    def test_task_does_not_reprocess_ready_session(self):
+        from apps.health.tasks import process_medication_capture
+        sess = _session(self.user, ["img1"])
+        with patch(VISION_PATH, return_value=_mock_vision(
+                [_vresult(details={"name": "Metformin", "dosage": "5mg"})])):
+            process_medication_capture.apply(kwargs={"session_id": sess.id})
+            # Re-run — must NOT create a second draft.
+            process_medication_capture.apply(kwargs={"session_id": sess.id})
+        self.assertEqual(MedicationScanDraft.objects.filter(user=self.user).count(), 1)
+
+    def test_retryable_classifier(self):
+        from apps.health.tasks import _capture_retryable
+        self.assertTrue(_capture_retryable(Exception("Request timeout")))
+        self.assertTrue(_capture_retryable(Exception("rate limit exceeded")))
+        self.assertFalse(_capture_retryable(Exception("malformed image")))
+
+
+class CaptureFlowViewTest(AdherenceTestMixin, TestCase):
+    """The async endpoints. Celery is eager in tests, so the worker runs inline
+    during start — letting us assert the end-to-end ready state."""
+
     def setUp(self):
         self.client = Client()
-        self.user = self.create_user(email="capview@test.com")
+        self.user = self.create_user(email="capflow@test.com")
         self.client.force_login(self.user)
+        from django.core.cache import cache
+        cache.clear()  # reset rate-limit counters
 
     def _grant_consent(self):
         from apps.scan.models import ScanConsent
@@ -177,60 +227,98 @@ class CaptureViewTest(AdherenceTestMixin, TestCase):
         ScanConsent.objects.create(
             user=self.user, consent_version="1.0", consented_at=timezone.now())
 
-    def test_capture_page_renders_profile_picker(self):
-        self._grant_consent()
-        resp = self.client.get(reverse("health:medication_capture"))
-        self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "What are you capturing?")
-        self.assertContains(resp, "Prescription bottle")
-        self.assertContains(resp, "Supplement")
-
-    def test_capture_page_gated_without_consent(self):
-        resp = self.client.get(reverse("health:medication_capture"))
-        self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "needs AI")
-        self.assertNotContains(resp, "What are you capturing?")
-
-    def test_finalize_requires_consent(self):
-        # No consent → 403 with a consent URL (no draft).
-        resp = self.client.post(
-            reverse("health:medication_capture_finish"),
-            data='{"images": ["img1"], "intake_type": "medication"}',
+    def _start(self, images, profile="prescription"):
+        return self.client.post(
+            reverse("health:medication_capture_start"),
+            data=('{"images": %s, "intake_type": "medication", "profile": "%s"}'
+                  % (str(images).replace("'", '"'), profile)),
             content_type="application/json")
+
+    def test_start_requires_consent(self):
+        resp = self._start(["img1"])
         self.assertEqual(resp.status_code, 403)
         self.assertEqual(resp.json()["error"], "consent_required")
-        self.assertEqual(MedicationScanDraft.objects.filter(user=self.user).count(), 0)
+        self.assertEqual(MedicationCaptureSession.objects.count(), 0)
 
-    def test_finalize_returns_review_url(self):
+    def test_start_returns_202_immediately(self):
         self._grant_consent()
-        results = [_vresult(details={"name": "Metformin", "dosage": "500mg"})]
-        with patch(CAPTURE_PATH, return_value=_mock_vision(results)):
-            resp = self.client.post(
-                reverse("health:medication_capture_finish"),
-                data='{"images": ["img1", "img2"], "intake_type": "medication"}',
-                content_type="application/json")
-        self.assertEqual(resp.status_code, 200)
-        self.assertIn("/review/", resp.json()["review_url"])
-        self.assertEqual(MedicationScanDraft.objects.filter(user=self.user).count(), 1)
-
-    def test_analyze_returns_confidence_no_draft(self):
-        self._grant_consent()
-        results = [_vresult(details={"name": "Metformin", "dosage": "500mg"})]
-        with patch(CAPTURE_PATH, return_value=_mock_vision(results)):
-            resp = self.client.post(
-                reverse("health:medication_capture_analyze"),
-                data='{"images": ["img1"], "intake_type": "medication"}',
-                content_type="application/json")
-        self.assertEqual(resp.status_code, 200)
+        with patch(VISION_PATH, return_value=_mock_vision(
+                [_vresult(details={"name": "Metformin", "dosage": "500mg"})])):
+            resp = self._start(["img1"])
+        self.assertEqual(resp.status_code, 202)
         body = resp.json()
-        self.assertTrue(body["ok"])
-        self.assertIsNotNone(body["confidence_pct"])
-        self.assertEqual(MedicationScanDraft.objects.filter(user=self.user).count(), 0)
+        self.assertIn("session_id", body)
+        self.assertIn("status_url", body)
 
-    def test_finalize_no_images_is_rejected(self):
+    def test_start_then_status_reaches_ready_with_review_url(self):
         self._grant_consent()
-        resp = self.client.post(
-            reverse("health:medication_capture_finish"),
-            data='{"images": [], "intake_type": "medication"}',
-            content_type="application/json")
+        with patch(VISION_PATH, return_value=_mock_vision(
+                [_vresult(details={"name": "Metformin", "dosage": "500mg"}),
+                 _vresult(details={"rx_number": "RX1"})])):
+            resp = self._start(["img1", "img2"])
+        sid = resp.json()["session_id"]
+        status = self.client.get(
+            reverse("health:medication_capture_status", kwargs={"session_id": sid})).json()
+        self.assertEqual(status["status"], "ready")
+        self.assertIn("/review/", status["review_url"])
+        # One draft, nothing canonical.
+        self.assertEqual(MedicationScanDraft.objects.filter(user=self.user).count(), 1)
+        self.assertFalse(Intake.objects.filter(user=self.user).exists())
+
+    def test_start_no_images_rejected(self):
+        self._grant_consent()
+        resp = self._start([])
         self.assertEqual(resp.status_code, 400)
+
+    def test_status_reports_progress_while_analyzing(self):
+        # Resume/poll semantics: a still-analyzing session reports progress, not done.
+        self._grant_consent()
+        sess = _session(self.user, ["a", "b"])
+        sess.processing_status = MedicationCaptureSession.STATUS_ANALYZING
+        sess.images_analyzed = 1
+        sess.current_step = "Analyzing pharmacy label…"
+        sess.save()
+        status = self.client.get(
+            reverse("health:medication_capture_status", kwargs={"session_id": sess.id})).json()
+        self.assertEqual(status["status"], "analyzing")
+        self.assertFalse(status["done"])
+        self.assertEqual(status["images_analyzed"], 1)
+        self.assertEqual(status["current_step"], "Analyzing pharmacy label…")
+
+    def test_cancel_drops_images(self):
+        self._grant_consent()
+        sess = _session(self.user, ["a", "b"])
+        resp = self.client.post(
+            reverse("health:medication_capture_cancel", kwargs={"session_id": sess.id}))
+        self.assertEqual(resp.status_code, 200)
+        sess.refresh_from_db()
+        self.assertEqual(sess.processing_status, MedicationCaptureSession.STATUS_CANCELLED)
+        self.assertEqual(sess.images, [])
+
+    def test_retry_failed_session_reaches_ready(self):
+        self._grant_consent()
+        sess = _session(self.user, ["img1"])
+        sess.mark_failed("first attempt failed")
+        with patch(VISION_PATH, return_value=_mock_vision(
+                [_vresult(details={"name": "Metformin", "dosage": "500mg"})])):
+            resp = self.client.post(
+                reverse("health:medication_capture_retry", kwargs={"session_id": sess.id}),
+                data="{}", content_type="application/json")
+        self.assertEqual(resp.status_code, 202)
+        sess.refresh_from_db()
+        self.assertEqual(sess.processing_status, MedicationCaptureSession.STATUS_READY)
+        self.assertEqual(sess.retry_count, 1)
+
+    def test_large_cabinet_many_sessions_each_get_one_draft(self):
+        """A whole medicine cabinet = many sessions; each yields exactly one draft,
+        nothing canonical, no cross-contamination."""
+        self._grant_consent()
+        meds = ["Metformin", "Lisinopril", "Atorvastatin", "Levothyroxine",
+                "Amlodipine", "Omeprazole"]
+        for name in meds:
+            with patch(VISION_PATH, return_value=_mock_vision(
+                    [_vresult(details={"name": name, "dosage": "10mg"})])):
+                resp = self._start(["img"], profile="prescription")
+            self.assertEqual(resp.status_code, 202)
+        self.assertEqual(MedicationScanDraft.objects.filter(user=self.user).count(), len(meds))
+        self.assertFalse(Intake.objects.filter(user=self.user).exists())

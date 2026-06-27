@@ -199,3 +199,69 @@ def build_user_health_summary(self, user_id, target_date_str=None):
             user.email, target, exc_info=True,
         )
         raise self.retry(exc=exc, countdown=30)
+
+
+# ── Guided Capture background processing ──────────────────────────────────────
+# Moves Vision off the web request path: the view creates a MedicationCaptureSession
+# and returns immediately; this task analyzes the images, updates progress, and
+# stages one MedicationScanDraft via the existing acquisition pipeline. The UI polls
+# the session. Reuses the Celery worker (no new queue).
+
+CAPTURE_MAX_RETRIES = 2
+
+
+def _capture_retryable(exc):
+    msg = str(exc).lower()
+    return any(s in msg for s in (
+        "timeout", "timed out", "rate limit", "429", "503", "502",
+        "temporarily", "connection", "unavailable",
+    ))
+
+
+@shared_task(
+    name="health.process_medication_capture",
+    bind=True,
+    max_retries=CAPTURE_MAX_RETRIES,
+    soft_time_limit=300,   # 5 min — bounded multi-image Vision
+    time_limit=330,
+    acks_late=True,
+    default_retry_delay=5,
+)
+def process_medication_capture(self, session_id, retry_count=0):
+    """Analyze one Guided Capture session off the request path."""
+    from apps.health.models import MedicationCaptureSession
+    from apps.health.capture_session import process_capture_session
+
+    try:
+        session = MedicationCaptureSession.objects.get(id=session_id)
+    except MedicationCaptureSession.DoesNotExist:
+        logger.error("capture session %s not found", session_id)
+        return {"success": False, "session_id": session_id, "reason": "not_found"}
+
+    # Don't reprocess a finished/cancelled session.
+    if session.processing_status in (MedicationCaptureSession.STATUS_READY,
+                          MedicationCaptureSession.STATUS_CANCELLED):
+        return {"success": True, "session_id": session_id, "reason": "already_done"}
+
+    try:
+        draft = process_capture_session(session)
+        return {
+            "success": draft is not None,
+            "session_id": session_id,
+            "draft_id": draft.id if draft else None,
+        }
+    except SoftTimeLimitExceeded:
+        logger.error("capture session %s timed out", session_id)
+        session.mark_failed("Analysis took too long. Please retry.")
+        return {"success": False, "session_id": session_id, "reason": "timeout"}
+    except Exception as exc:
+        logger.error("capture session %s failed: %s", session_id, exc, exc_info=True)
+        if _capture_retryable(exc) and retry_count < CAPTURE_MAX_RETRIES:
+            backoff = min(2 ** (retry_count + 1), 20)
+            session.current_step = "Hit a snag — retrying…"
+            session.save(update_fields=["current_step", "updated_at"])
+            raise self.retry(countdown=backoff,
+                             kwargs={"session_id": session_id,
+                                     "retry_count": retry_count + 1})
+        session.mark_failed("We couldn't analyze your photos. Please retry.")
+        return {"success": False, "session_id": session_id, "reason": "error"}

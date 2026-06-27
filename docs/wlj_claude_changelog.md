@@ -7,6 +7,25 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Guided Capture — background Vision processing (off the request path)
+
+Production-grade orchestration for Guided Capture. The acquisition pipeline is unchanged; only WHERE/WHEN Vision runs changed. Previously the capture endpoints ran OpenAI Vision synchronously on the web request path (up to 6 images/request) — the likely cause of the real-world "stuck on Working…" timeout (CLAUDE.md forbids heavy compute on the request path).
+
+**Orchestration (reuses existing infra — Celery, no new queue):** `apps/capture` is the precedent (upload → entry → background Vision → poll). New `MedicationCaptureSession` model (migration 0096) is the status record: `processing_status` (created/analyzing/ready/failed/cancelled), `current_step`, `images_total`/`images_analyzed`, `merged_extracted`, `overall_confidence`, `quality`, `error_message`, `retry_count`, `created_draft`. Images (base64) are TRANSIENT — held only until a draft is staged, then cleared (no raw-image retention); kept on failure so the user can retry.
+
+**Flow:** `CaptureStartView` creates the session and returns **202 immediately** (no Vision on the request path) → `process_medication_capture` Celery task (`apps/health/tasks.py`) runs `process_capture_session` (`apps/health/capture_session.py`): per-image Vision with live progress (`current_step` = "Analyzing pharmacy label…"), combined merge, confidence, then ONE `MedicationScanDraft` via the existing `create_draft_from_scan` → `mark_ready`. The UI polls `CaptureStatusView`. `CaptureRetryView` (re-run a failed session, optionally replacing images) and `CaptureCancelView` (drop images) complete the operator controls.
+
+**UI:** capture page now shows real progress — step text, an N-of-M bar, live confidence/quality, "Ready for review" → redirect; on failure: Retry / Replace photos / Enter manually. Removed the old synchronous `analyze_capture`/`finalize_capture` (and their request-path endpoints) — single path, no drift.
+
+**Failure handling:** task classifies retryable (timeout/rate-limit/5xx) → retry w/ backoff; non-retryable / timeout → `mark_failed` (loud `logger.error`, images preserved). `_enqueue_capture` falls back to inline processing only if dispatch itself fails, so a session never silently stalls.
+
+**Bug fixed during build:** `MedicationCaptureSession.status` collided with `SoftDeleteModel.status` (whose manager filters `status="active"`), which silently hid every row. Renamed the field to `processing_status`; the polled JSON still exposes `status`.
+
+**Files:** apps/health/models.py (+model, migration 0096), apps/health/capture_session.py (process_capture_session; removed sync funcs), apps/health/tasks.py (+task), apps/health/views_acquisition.py (start/status/retry/cancel), apps/health/urls.py, apps/health/admin.py, templates/health/acquisition/capture.html, apps/health/tests/test_capture_session.py (rewritten, 22 tests).
+
+**Verification:** 100 tests green (capture + acquisition + scan) — single/multi image, combined-extraction-richer, real ScanItem shape, confidence-improves, skip-optional, unreadable→failed (images kept), Vision-exception→retry, task success/non-retryable/timeout/retry-classifier/no-reprocess, start→202, status progress/resume, cancel, retry→ready, large-cabinet (many sessions → one draft each), NOTHING canonical until confirm, no duplicate drafts; `manage.py check` clean; no migration drift.
+
+
 ## 2026-06-27 — fix(health): harden single-image scan→draft + loud logging (ScanItem normalization)
 
 Follow-up to the Guided Capture debug. Investigated the suspected silent failure in the single-image `scan:analyze → create_draft_from_scan` path.

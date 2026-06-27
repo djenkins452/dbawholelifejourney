@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — feat(health): Sprint 3J — Medication Acquisition UI (Acquire → Review → Confirm)
+
+The user-facing acquisition workflow, thin over the Sprint-3 service layer. Acquisition only — no Timeline / Treatment / Learning Plans UI.
+
+**Views** (`apps/health/views_acquisition.py`): `MedicationAcquireView` (manual entry — a first-class acquisition method; POST → `create_manual_draft` → review), `MedicationReviewView` (guided review: "Here's what I found" with per-field confidence bands — high/medium/check-this/missing — missing-info note, and duplicate candidates, all editable), `MedicationConfirmView` (POST → `confirm_draft` create/update/ignore through the single canonical write path; user edits applied as confirmation).
+
+**Templates:** `acquisition/acquire.html` (manual form), `acquisition/review.html` (confidence-banded review with duplicate-resolution buttons "Update existing / Create new"). CSP-compliant (nonce styles, no inline handlers), responsive, 16px inputs. **URLs:** `intake/acquire/`, `.../review/`, `.../confirm/`. Discoverable via an "Add & Review" action on the intake dashboard.
+
+**Workflow:** nothing enters canonical state until Confirm; duplicates are surfaced before any write; manual entry runs the same review/confirm path as scans. Confirm-create fires the canonical `started` event; confirm-update records change events — all via the single history writer.
+
+**Files:** apps/health/views_acquisition.py (new), apps/health/urls.py, templates/health/acquisition/{acquire,review}.html (new), templates/health/intake/home.html (entry link), apps/health/tests/test_medication_acquisition.py (+4 UI workflow tests).
+
+**Verification:** 4 UI workflow tests (acquire→draft→review render→confirm-create canonical write; duplicate→update path, no duplicate Intake) + 45 service/state tests green (49 total); intake home loads; `manage.py check` clean; no migration; no drift.
+
+
 ## 2026-06-27 — feat(health): Sprint 3I — acquisition confidence in canonical state
 
 Extends `build_medicine_state._contract` with a composed `acquisition` section so the Chief of Staff understands how trustworthy each record is — never reading raw OCR/extraction (Canon: canonical state is the only source Beth reads).

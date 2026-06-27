@@ -11,6 +11,7 @@ from django.urls import path
 from django.views.generic import RedirectView
 
 from . import views
+from . import views_acquisition
 from . import views_body_composition
 from . import views_cycle
 from . import views_dashboards
@@ -194,6 +195,10 @@ urlpatterns = [
     path("physical/intake/", views.IntakeHomeView.as_view(), name="intake_home"),
     path("physical/intake/list/", views.IntakeListView.as_view(), name="intake_list"),
     path("physical/intake/add/", views.IntakeCreateView.as_view(), name="intake_create"),
+    # Medication Acquisition (Sprint 3J) — Acquire → Review → Confirm
+    path("physical/intake/acquire/", views_acquisition.MedicationAcquireView.as_view(), name="medication_acquire"),
+    path("physical/intake/acquire/<int:draft_id>/review/", views_acquisition.MedicationReviewView.as_view(), name="medication_review"),
+    path("physical/intake/acquire/<int:draft_id>/confirm/", views_acquisition.MedicationConfirmView.as_view(), name="medication_confirm"),
     path("physical/intake/<int:pk>/", views.IntakeDetailView.as_view(), name="intake_detail"),
     path("physical/intake/<int:pk>/edit/", views.IntakeUpdateView.as_view(), name="intake_update"),
     path("physical/intake/<int:pk>/delete/", views.IntakeDeleteView.as_view(), name="intake_delete"),

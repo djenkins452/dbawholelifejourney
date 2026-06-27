@@ -247,3 +247,68 @@ class AcquisitionStateTest(AdherenceTestMixin, TestCase):
         self.assertGreaterEqual(names["Confirmed Med"]["acquisition_confidence"], 0.97)
         self.assertEqual(names["Confirmed Med"]["source"], "manual")
         self.assertTrue(names["Confirmed Med"]["evidence_summary"])  # composed, not raw OCR
+
+
+class AcquisitionUIWorkflowTest(AdherenceTestMixin, TestCase):
+    """Sprint 3J — the Acquire → Review → Confirm workflow via the views."""
+
+    def setUp(self):
+        from django.test import Client
+        self.client = Client()
+        self.user = self.create_user(email="acqui@test.com")
+        self.client.force_login(self.user)
+
+    def test_manual_acquire_creates_draft_and_redirects_to_review(self):
+        from django.urls import reverse
+        resp = self.client.post(reverse("health:medication_acquire"), {
+            "intake_type": "medication", "name": "Metformin", "dose": "500mg",
+            "frequency": "twice_daily",
+        })
+        self.assertEqual(resp.status_code, 302)
+        draft = MedicationScanDraft.objects.get(user=self.user)
+        self.assertIn(f"/{draft.id}/review/", resp.url)
+        self.assertEqual(draft.review_status, MedicationScanDraft.REVIEW_PENDING)
+        # Nothing canonical yet.
+        self.assertFalse(Intake.objects.filter(user=self.user, name="Metformin").exists())
+
+    def test_review_page_renders_with_confidence(self):
+        from django.urls import reverse
+        draft = create_manual_draft(self.user, {"name": "Lantus", "dose": "20u"})
+        resp = self.client.get(
+            reverse("health:medication_review", kwargs={"draft_id": draft.id})
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Here's what I found")
+        self.assertContains(resp, "Lantus")
+
+    def test_confirm_create_writes_canonical_record(self):
+        from django.urls import reverse
+        draft = create_manual_draft(self.user, {"name": "Atorvastatin", "dose": "40mg"})
+        resp = self.client.post(
+            reverse("health:medication_confirm", kwargs={"draft_id": draft.id}),
+            {"action": "create", "name": "Atorvastatin", "dose": "40mg"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(
+            Intake.objects.filter(user=self.user, name="Atorvastatin").count(), 1
+        )
+        draft.refresh_from_db()
+        self.assertEqual(draft.review_status, MedicationScanDraft.REVIEW_CONFIRMED)
+
+    def test_review_shows_duplicate_and_update_path(self):
+        from django.urls import reverse
+        self.create_medicine(self.user, name="Lisinopril", dose="10mg")
+        draft = create_manual_draft(self.user, {"name": "Lisinopril", "dose": "20mg"})
+        resp = self.client.get(
+            reverse("health:medication_review", kwargs={"draft_id": draft.id})
+        )
+        self.assertContains(resp, "Possible match found")
+        # Confirm as update → no duplicate Intake.
+        self.client.post(
+            reverse("health:medication_confirm", kwargs={"draft_id": draft.id}),
+            {"action": "update", "name": "Lisinopril", "dose": "20mg",
+             "target_intake_id": Intake.objects.get(user=self.user, name="Lisinopril").id},
+        )
+        self.assertEqual(Intake.objects.filter(user=self.user, name="Lisinopril").count(), 1)
+        med = Intake.objects.get(user=self.user, name="Lisinopril")
+        self.assertEqual(med.dose, "20mg")

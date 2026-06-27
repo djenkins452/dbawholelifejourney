@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Add Medication - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:intake_home' %}">Intake</a>
+        <span>/</span>
+        <span>Add</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Add a Medication or Supplement</h1>
+            <p class="page-subtitle">Enter what you take — you'll get a chance to review before it's saved.</p>
+        </div>
+    </div>
+
+    <form method="post" action="{% url 'health:medication_acquire' %}" class="acquire-form">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="id_intake_type">Type</label>
+            <select name="intake_type" id="id_intake_type" class="form-select">
+                {% for value, label in intake_types %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        {% for key, label in fields %}
+        <div class="form-group">
+            <label for="id_{{ key }}">{{ label }}{% if key == 'name' %} *{% endif %}</label>
+            <input type="text" name="{{ key }}" id="id_{{ key }}" class="form-input"
+                   {% if key == 'name' %}required{% endif %}>
+        </div>
+        {% endfor %}
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Review &amp; Confirm</button>
+            <a href="{% url 'health:intake_home' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.acquire-form { max-width: 560px; }
+.acquire-form .form-group { margin-bottom: 1rem; }
+.acquire-form label { display: block; font-weight: 600; margin-bottom: 0.35rem; }
+.acquire-form .form-input,
+.acquire-form .form-select { width: 100%; font-size: 16px; padding: 0.6rem; }
+.form-actions { display: flex; gap: 0.75rem; margin-top: 1.5rem; }
+</style>
+{% endblock %}

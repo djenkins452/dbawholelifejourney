@@ -19,11 +19,22 @@
 > Release gate: `python manage.py certify_layers` (re-runs every certified layer; a
 > higher layer cannot certify if a lower one regresses).
 
-**Eight Layer-1 platform capabilities — all implemented, deterministic gate GREEN:**
+**Nine Layer-1 platform capabilities — all implemented, deterministic gate GREEN:**
 Per-Day Truth · Freshness (Law 1) · **Confidence (Law 2)** · **Stability (Law 5)** ·
 Current Truth Objects · Point-in-Time History · Domain Truth Objects · Deterministic
-Provider Registry. Gate module: `apps/core/tests/test_layer1_certification.py` (one
-end-to-end assertion per capability + manifest consistency).
+Provider Registry · **Truth Catalog**. Gate module:
+`apps/core/tests/test_layer1_certification.py` (one end-to-end assertion per capability
++ manifest consistency). The Truth Catalog (`apps/core/truth/catalog.py`) enumerates
+the whole answerable Layer-1 surface from the registered Domain Truth Objects —
+"what truth can WLJ deterministically answer?" — for the registry, Beth, dashboards,
+and certification.
+
+**Layer 1 platform capabilities are COMPLETE.** What remains is *consumer rollout*
+(registering Finance/Faith/Relationships providers + per-domain acceptance — consumers
+of these frozen capabilities) and the **live Deep Acceptance run** (the certification
+gate, production OpenAI). One open architectural question: whether a **truth-Relationships**
+capability (links between truths — value↔target, current↔baseline) belongs in Layer 1
+or Layer 5 (Cross-Domain Intelligence).
 
 The three **trust properties** of every truth object are now complete: Freshness
 (how current), Confidence (how trustworthy — derived from freshness + coverage +
@@ -78,6 +89,7 @@ most basic "did I X / how much X yesterday" questions a Chief of Staff must own.
 | **Confidence** (Law 2) | `apps/core/truth/confidence.py` ⭐ | ✅ (Current+History) | ⬜ | ⬜ | ⬜ | ✅ (auto via CurrentTruth) | ⬜ | ⬜ |
 | **Stability** (Law 5) | `apps/core/truth/stability.py` ⭐ | ✅ (signatures + verify_stable) | n/a | n/a | n/a | ✅ (via CurrentTruth) | n/a | n/a |
 | **Deterministic Provider Registry** | `apps/ai/chatgpt_cos/fact_registry.py` ⭐ | ✅ | ✅ | ⬜ | ✅ | ⬜ | ⬜ | ⬜ |
+| **Truth Catalog** (Capabilities) | `apps/core/truth/catalog.py` ⭐ | ✅ | n/a | n/a | n/a | ✅ | ⬜ | ⬜ |
 
 ✅ complete · 🟡 partial · ⬜ pending · ⭐ domain-agnostic platform module. **Current
 Truth Object** = the authoritative typed value object (`CurrentTruth`) composing a

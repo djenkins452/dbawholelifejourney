@@ -27,6 +27,7 @@ LAYER_1 = {
         "Point-in-Time History",
         "Domain Truth Objects",
         "Deterministic Provider Registry",
+        "Truth Catalog",
     ],
     "platform_modules": [
         "apps.core.truth.freshness",
@@ -36,6 +37,7 @@ LAYER_1 = {
         "apps.core.truth.periods",
         "apps.core.truth.history",
         "apps.core.truth.domain",
+        "apps.core.truth.catalog",
         "apps.ai.chatgpt_cos.fact_registry",
     ],
     "test_modules": [
@@ -46,6 +48,7 @@ LAYER_1 = {
         "apps.core.tests.test_current_truth",
         "apps.core.tests.test_truth_history",
         "apps.core.tests.test_domain_truth",
+        "apps.core.tests.test_truth_catalog",
         "apps.core.tests.test_fact_registry",
         "apps.core.tests.test_layer1_certification",
         # domain consumers (Health first, deterministic fast path)

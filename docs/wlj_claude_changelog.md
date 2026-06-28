@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — feat(core): Platform capability — Truth Catalog + Layer 1 platform capabilities COMPLETE
+
+Adds the Truth Catalog (the "Capabilities" capability) — the enumerable Layer 1 surface: "what truth can WLJ deterministically answer?". New `apps/core/truth/catalog.py`: `truth_catalog()` aggregates every registered Domain Truth Object's `supports()` into `{domain: {current:[...], history:[...]}}`; `can_answer(domain, metric, kind)`, `answerable_metrics`, `catalog_summary()` (domain + answerable-truth counts). Reads class-level declarations only — no user data, no I/O. Consumers: the Provider Registry (discover what each domain answers), Beth (know what's answerable before reaching for the LLM), dashboards, and certification.
+
+**Layer 1 platform capabilities are now COMPLETE — nine, all gate-GREEN (106 tests):** Per-Day Truth · Freshness (L1) · Confidence (L2) · Stability (L5) · Current Truth Objects · Point-in-Time History · Domain Truth Objects · Deterministic Provider Registry · Truth Catalog. Added "Truth Catalog" to the certification manifest (capability + module + `test_truth_catalog` gate module + gate assertion).
+
+Remaining Layer 1 work is consumer rollout (Finance/Faith/Relationships provider registration + per-domain acceptance) and the live Deep Acceptance run (certification gate, production OpenAI) — NOT new platform capabilities. One open architectural question flagged for decision: does a truth-Relationships capability (value↔target, current↔baseline links) belong in Layer 1 or Layer 5.
+
+**Tests:** `apps/core/tests/test_truth_catalog.py` (4). Gate GREEN (106).
+
+**Files:** apps/core/truth/catalog.py (new), apps/core/tests/test_truth_catalog.py (new), apps/core/truth/certification.py, apps/core/tests/test_layer1_certification.py, docs/BETH_LAYER1_TRUTH_INVENTORY.md.
+
+
 ## 2026-06-28 — feat(core): Platform capability — Stability (Architecture Law 5)
 
 Completes the trust envelope (Freshness + Confidence + Stability). Stable Truth: the same question with unchanged data must return the same answer; flapping truth is untrustworthy even when each read is individually correct.

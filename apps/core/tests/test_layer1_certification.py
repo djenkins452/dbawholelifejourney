@@ -30,7 +30,8 @@ class Layer1ManifestTests(SimpleTestCase):
         self.assertEqual(CERT.LAYER_1["name"], "Canonical Truth")
         for cap in ("Per-Day Truth", "Freshness", "Confidence", "Stability",
                     "Current Truth Objects", "Point-in-Time History",
-                    "Domain Truth Objects", "Deterministic Provider Registry"):
+                    "Domain Truth Objects", "Deterministic Provider Registry",
+                    "Truth Catalog"):
             self.assertIn(cap, CERT.LAYER_1["capabilities"])
 
     def test_platform_modules_all_import(self):
@@ -101,6 +102,12 @@ class Layer1CapabilityGateTests(TestCase):
         self.assertEqual(truth.history("workouts", "last_7_days", today=self.today).total(), 1)
         self.assertIn("health", registered_domains())
         self.assertIn("finance", registered_domains())
+
+    def test_truth_catalog_capability(self):
+        from apps.core.truth import catalog as CAT
+        self.assertTrue(CAT.can_answer("health", "steps_today", "current"))
+        self.assertTrue(CAT.can_answer("health", "steps", "history"))
+        self.assertGreater(CAT.catalog_summary()["total_answerable"], 0)
 
     def test_deterministic_provider_registry_capability(self):
         import apps.ai.chatgpt_cos.foundational_facts  # noqa: F401 (registers providers)

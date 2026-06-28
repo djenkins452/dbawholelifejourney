@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — fix(cos): multi-medication composition truncated by the tool loop's 1000-token budget
+
+Differential: single-medication enrichment works ("Tell me about Lantus, why am I taking it" ✅), pure education works ("What is Metformin used for?" ✅), but composing education for MANY medications fails ("Which of my medications are used for diabetes?", "list each medicine I take and what each is commonly used for" ❌).
+
+**Exact failure point / root cause:** `ChatGPTCoSService.generate` calls `ai_service._call_api_with_tools(...)` **without `max_tokens`**, so the CoS tool loop answers within the function's **default 1000 output tokens**. A single medication fits easily; composing an educational purpose for each of ~13 medications (plus the "based on what WLJ knows" personalization) exceeds 1000 tokens — the answer truncates (`finish_reason=length`), and when the model spends budget on the tool-call turn / preamble first, the prose is starved to empty → `model_empty_after_tools` → `_emergency_fallback` ("couldn't pull that together"). The constraint scales with the NUMBER of medications — exactly the observed differential.
+
+**Ruled out (traced, not inferred):** routing (the hybrid correctly reaches the tool loop), OpenAI availability/model (John 3:16 + single-med both work on COS_MODEL), the **acceptance layer** (grep confirms it is NOT applied in the production `generate`/views/task path — it's a smoke-test harness), and the **token governor** (runs ONCE before the loop on `[system, history, user]`, before any tool messages — it cannot break the assistant-tool_calls/tool-result pairing here).
+
+**Minimal fix:** `generate` now passes `max_tokens=getattr(settings, "COS_TOOL_LOOP_MAX_TOKENS", 2000)` to the tool loop — a response budget sufficient for multi-entity composition (≈25+ medications), env-overridable. No routing/prompt/model change.
+
+**Regression tests** (`apps/ai/tests/test_cos_multi_med_composition.py`): `generate` passes a budget ≥ 2000 to the tool loop (was the 1000 default); the tool loop returns a full 13-medication answer intact (every med present — no count truncation in our code); multi-tool-call/result pairing is preserved.
+
+**Files:** apps/ai/chatgpt_cos/service.py, apps/ai/tests/test_cos_multi_med_composition.py.
+
+**Verification:** 32 tests green (multi-med + empty-answer + hybrid + general-lane-model + foundation); `manage.py check` clean; no migration. If a case still fails, the existing `COS_TOOL_LOOP_RESPONSE … finish_reason=… message_content_len=…` / `COS_TOOL_LOOP_EMPTY_FINAL` logs confirm whether truncation/starvation was the mechanism — no new instrumentation needed.
+
+
 ## 2026-06-28 — verify(cos): production model-alignment visibility (COS_MODEL vs OPENAI_MODEL)
 
 Verification for the general-lane model fix. Adds production-visible confirmation that both CoS paths now resolve to the same conversational model — no architecture/routing/prompt change.

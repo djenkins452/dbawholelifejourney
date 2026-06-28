@@ -52,8 +52,10 @@ class CurrentTruth:
         fact shape: present → {value, source, freshness, **detail}; absent →
         {status: unknown, freshness, reason}."""
         if not self.present:
-            return {"status": "unknown", "freshness": self.freshness,
-                    "reason": self.reason}
+            out = {"status": "unknown", "freshness": self.freshness}
+            if self.reason:                 # observability only; omit when empty
+                out["reason"] = self.reason
+            return out
         out = {"value": self.value, "source": self.source,
                "freshness": self.freshness}
         if self.unit:

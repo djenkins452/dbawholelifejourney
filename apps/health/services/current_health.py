@@ -51,9 +51,10 @@ class CurrentHealth:
         if res.get("status") != "ok":
             fresh = classify_period_freshness(
                 has_data=False, requested_date=requested, data_date=None, today=today)
+            # freshness (pending/missing) conveys absence; no verbose reason in the
+            # serialized fact (keeps the bulk facts payload lean).
             return CurrentTruth.absent("health", metric, freshness=fresh,
-                                       source="DailyHealthQueries",
-                                       reason=f"no {res.get('metric', metric)} for the day")
+                                       source="DailyHealthQueries")
 
         data_date = cls._parse_date(res.get("as_of") or res.get("for_date"))
         fresh = classify_period_freshness(

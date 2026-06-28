@@ -23,6 +23,8 @@ Platform-capability-first. The authoritative typed value object for "what is the
 
 **Files:** apps/core/truth/current.py (new), apps/health/services/current_health.py (new), apps/finance/services/current_finance.py (new), apps/core/tests/test_current_truth.py (new), apps/ai/cos_services/health_facts.py (now consumes CurrentHealth), docs/BETH_LAYER1_TRUTH_INVENTORY.md.
 
+Follow-up: `CurrentTruth.to_fact_dict()` omits the `reason` field when empty (kept on the object for observability) — the per-fact `freshness` already conveys absence; this keeps the bulk foundational-facts payload under the 2000-char guard (`test_full_facts_payload_under_2000_chars`).
+
 
 ## 2026-06-28 — refactor(core): Platform capability — Freshness (apps.core.truth.freshness)
 

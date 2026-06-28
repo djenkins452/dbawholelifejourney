@@ -1203,30 +1203,18 @@ class GlucoseEntry(UserOwnedModel):
 
     @property
     def glucose_status(self):
-        """Categorize glucose level for display."""
-        mg_dl = self.value_in_mg_dl
-        if mg_dl < 54:
-            return "very_low"
-        elif mg_dl < 70:
-            return "low"
-        elif mg_dl <= 180:
-            return "normal"
-        elif mg_dl <= 250:
-            return "high"
-        else:
-            return "very_high"
+        """Categorize glucose level. Delegates to the canonical clinical interpreter
+        (apps.health.services.glucose_interpretation) — single source of bands."""
+        from apps.health.services.glucose_interpretation import classify_glucose_mg_dl
+        interp = classify_glucose_mg_dl(self.value_in_mg_dl)
+        return interp["band"] if interp else "normal"
 
     @property
     def glucose_status_display(self):
-        """Human-readable glucose status."""
-        status_labels = {
-            "very_low": "Very Low",
-            "low": "Low",
-            "normal": "In Range",
-            "high": "High",
-            "very_high": "Very High",
-        }
-        return status_labels.get(self.glucose_status, "Unknown")
+        """Human-readable glucose status (canonical interpreter)."""
+        from apps.health.services.glucose_interpretation import classify_glucose_mg_dl
+        interp = classify_glucose_mg_dl(self.value_in_mg_dl)
+        return interp["display"] if interp else "Unknown"
 
 
 class BloodPressureEntry(UserOwnedModel):

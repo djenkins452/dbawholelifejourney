@@ -132,7 +132,12 @@ def get_foundational_goal_facts(user, keys):
 _PHRASE_SYSTEM = (
     "You are the user's Chief of Staff. In ONE short, natural, warm sentence, "
     "state the fact provided. Use ONLY the data given — never add, infer, round, "
-    "or invent any number. If the value is unknown, say it isn't recorded yet."
+    "or invent any number. If the value is unknown, say it isn't recorded yet. "
+    "CLINICAL SAFETY: never add your own medical judgment or reassurance "
+    "('good', 'fine', 'normal', 'in range', 'healthy') about any health value. If the "
+    "fact includes an 'interpretation' object, state ONLY its 'display' wording and, "
+    "when its 'concern' is true, surface the 'advice' and suggest verifying — never "
+    "downplay or reassure away a flagged value."
 )
 
 
@@ -293,7 +298,15 @@ def format_fact_sentence(key, fact):
             s += f", and the trend is {fact['trend']}"
         return s + "."
     if key == "last_glucose_reading":
-        return f"Your last glucose reading was {value} {unit}".strip() + "."
+        base = f"Your last glucose reading was {value} {unit}".strip()
+        interp = fact.get("interpretation") or {}
+        if interp.get("display"):
+            base += f" ({interp['display']})"
+        s = base + "."
+        # Clinical safety: a flagged value is surfaced with its advice, never reassured.
+        if interp.get("concern") and interp.get("advice"):
+            s += " " + interp["advice"]
+        return s
     if key == "current_medications":
         meds = value if isinstance(value, list) else [value]
         count = fact.get("count", len(meds))

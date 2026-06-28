@@ -1343,21 +1343,21 @@ def build_health_state(user):
     if gluc is None:
         state["glucose_status"] = "no_data"
         state["glucose_status_reason"] = "No glucose data logged recently."
-    elif gluc_unit == "mg/dL" and gluc <= 100:
-        state["glucose_status"] = "excellent"
-        state["glucose_status_reason"] = (
-            f"{gluc} {gluc_unit} — healthy range."
-        )
-    elif gluc_unit == "mg/dL" and gluc <= 125:
-        state["glucose_status"] = "good"
-        state["glucose_status_reason"] = (
-            f"{gluc} {gluc_unit} — pre-diabetic range."
-        )
     else:
-        state["glucose_status"] = "fair"
-        state["glucose_status_reason"] = (
-            f"{gluc} {gluc_unit} — elevated."
-        )
+        # CLINICAL SAFETY: classify via the canonical interpreter so a LOW reading is
+        # never mislabeled "excellent/healthy" (the prior <=100 → "excellent" rule
+        # called 43 mg/dL "healthy range" — severe hypoglycemia). Truth → Interpretation.
+        from apps.health.services.glucose_interpretation import interpret
+        _gi = interpret(gluc, gluc_unit)
+        if _gi is None:
+            state["glucose_status"] = "no_data"
+            state["glucose_status_reason"] = "No glucose data logged recently."
+        else:
+            state["glucose_status"] = _gi["band"]
+            reason = f"{gluc} {gluc_unit} — {_gi['display'].lower()}."
+            if _gi["advice"]:
+                reason += " " + _gi["advice"]
+            state["glucose_status_reason"] = reason
     if gluc_var == "high" and state.get("glucose_status") != "no_data":
         state["glucose_status_reason"] += " High variability detected."
 

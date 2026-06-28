@@ -177,6 +177,14 @@ def get_foundational_health_facts(user, keys=None):
                 fact[meta] = st.get(field)
         if "note" in spec:
             fact["note"] = spec["note"]
+        # INTERPRETATION layer (clinical safety): glucose facts carry a deterministic
+        # clinical verdict so narration can never invent reassurance over a dangerous
+        # value (e.g. 43 mg/dL must never read as "good range").
+        if key in ("last_glucose_reading", "average_glucose_yesterday"):
+            from apps.health.services.glucose_interpretation import interpret
+            gi = interpret(val, fact.get("unit", "mg/dL"))
+            if gi:
+                fact["interpretation"] = gi
         out[key] = fact
 
     return _jsonsafe(out)

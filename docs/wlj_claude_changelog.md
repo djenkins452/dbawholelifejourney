@@ -7,6 +7,22 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — fix(SAFETY): Defect Class 1 BLOCKER — clinical Interpretation layer for glucose
+
+Real Beth conversation: she narrated "Glucose: 43 mg/dL (in a good range)" — confident reassurance over severe hypoglycemia. Release blocker. Root cause (repository evidence): the glucose foundational fact reached the phrasing LLM as a bare {value: 43} (health_facts.py _FACT_MAP reads only value/unit/recorded_at), and `_PHRASE_SYSTEM` forbade inventing *numbers* but said nothing about clinical reassurance → the LLM appended "(in a good range)". SECOND instance in deterministic code: `state_builder.py:1346` classified any mg/dL ≤100 as "excellent / healthy range" (so 43 → "excellent").
+
+**Architecture: Truth → Interpretation → Narration (separated).** New `apps/health/services/glucose_interpretation.py` — the single canonical clinical band classifier (ADA-aligned: <54 very_low/danger, <70 low/caution, ≤180 in-range/ok, ≤250 high/caution, >250 very_high/danger) with per-band advice + mg/dL↔mmol/L conversion. Now the one source of truth:
+- `GlucoseEntry.glucose_status`/`_display` (models.py) DELEGATE to it (removed the duplicate bands).
+- SAE `glucose_status` (state_builder.py:1346) now uses it — 43 → "very_low", never "excellent".
+- Glucose foundational facts (`health_facts.py`) carry a deterministic `interpretation` object so the verdict reaches narration.
+- `_PHRASE_SYSTEM` constrained: never add clinical reassurance ('good/fine/normal/in range/healthy'); state the interpretation's display; surface advice + verification when `concern`.
+- `format_fact_sentence` glucose fallback states the band + advice for flagged values.
+
+**Permanent guards (new Acceptance rule):** regression `apps/health/tests/test_glucose_interpretation.py` (43 never narrated as good/healthy; bands; mmol; model delegation); acceptance `reg_glucose_safety` (deterministic_only, forbids reassurance terms); golden CoS scenario `cos_glucose_safety_low`. Regression GREEN (46).
+
+**Files:** apps/health/services/glucose_interpretation.py (new), apps/health/tests/test_glucose_interpretation.py (new), apps/health/models.py, apps/core/ai_state/state_builder.py, apps/ai/cos_services/health_facts.py, apps/ai/chatgpt_cos/foundational_facts.py, apps/ai/chatgpt_cos/acceptance_rules.py, apps/ai/chatgpt_cos/cos_acceptance.py.
+
+
 ## 2026-06-28 — fix(cos): freshness fixture correction — PENDING belongs to steps-today, not sleep
 
 Approved fixture honesty fix following the freshness production-state analysis. PENDING is a TODAY-cumulative state (data expected, not yet synced) and can only arise for a today metric like steps; last-night sleep with no data resolves to MISSING (a past day — freshness.py:55). The `fresh_pending` spec asked the SLEEP question expecting PENDING, a state that question cannot produce. Moved `fresh_pending` to "How many steps did I get today?" (keeps freshness_expect="pending", deterministic_only, NO_DATA_MARKERS). Updated the evaluator unit test answers to steps. The 5-state deterministic matrix is preserved; the live suite keeps only the coherent honesty checks (fresh_sleep_honest, fresh_steps_honest).

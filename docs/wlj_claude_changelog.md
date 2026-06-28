@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — feat(core): Platform capability — Point-in-Time History (apps.core.truth.history)
+
+Platform-capability-first. The symmetric half of Current Truth: "what was my X over a period" (specific date, yesterday, last week, this/last month, this/last quarter, this/last year, custom range). Current Truth answers "now"; History answers "back then". Engines and Beth read the same object.
+
+**New** `apps/core/truth/periods.py` — `resolve_period(name, today, start=, end=)` → `Period(start, end, label)`, domain-agnostic date math for all named periods + custom. **New** `apps/core/truth/history.py` — `HistorySeries` (ordered (date,value) points over a `Period`) with empty-safe aggregates (total/average/maximum/minimum/count/latest/earliest) + `to_dict`; `series_from_rows` builds one from a domain's grouped query rows.
+
+**Health (first consumer):** `apps/health/services/health_history.py` `HealthHistory.steps/sleep/weight(user, period)` — ONE grouped query per call over the canonical model, rows → platform series. No per-day looping; closes the Health point-in-time gap.
+
+**Workout (second consumer — distinct fitness sub-domain, ~zero new code):** `apps/health/services/workout_history.py` `WorkoutHistory.sessions(user, period)` reuses the EXISTING `WorkoutQueries.completed_in_range` over a platform-resolved period → same series object. `.total()` = workouts, `.count()` = days trained.
+
+**Tests:** `apps/core/tests/test_truth_history.py` (13) — period resolution (yesterday/last_7_days/this_week/last_month/last_quarter/this_year/custom/unknown), series aggregates + empty-safety, Health steps history + window exclusion, Workout sessions (second domain). Regression GREEN (38); `manage.py check` clean. No existing files modified — purely additive.
+
+**Inventory:** Platform Capabilities matrix gains a **Point-in-Time History** row (Health ✅ HealthHistory, Workout ✅ WorkoutHistory); capability backlog item #4 marked DELIVERED.
+
+**Files (all new):** apps/core/truth/periods.py, apps/core/truth/history.py, apps/health/services/health_history.py, apps/health/services/workout_history.py, apps/core/tests/test_truth_history.py; docs/BETH_LAYER1_TRUTH_INVENTORY.md.
+
+
 ## 2026-06-28 — feat(core): Platform capability — Current Truth Objects (apps.core.truth.current)
 
 Platform-capability-first. The authoritative typed value object for "what is the user's current X" — one object composing a value (from a domain's deterministic contract / Per-Day Truth) + a freshness verdict (platform Freshness). History stays separate (a value on a past date); Current Truth answers "now/last night/today". Engines and Beth read the same object.

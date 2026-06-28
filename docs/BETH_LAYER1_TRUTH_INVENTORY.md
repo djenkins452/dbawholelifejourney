@@ -42,7 +42,8 @@ most basic "did I X / how much X yesterday" questions a Chief of Staff must own.
 |---|---|---|---|---|---|---|---|---|
 | **Current Truth (raw SAE)** | SAE `state_builder` | ✅ | ✅ | ✅ | ✅ | 🟡 partial | 🟡 partial | 🟡 partial |
 | **Current Truth Objects** | `apps/core/truth/current.py` ⭐ | ✅ `CurrentHealth` | ⬜ | ⬜ | ⬜ | ✅ `CurrentFinance` | ⬜ | ⬜ |
-| **History** | domain `*_queries` | 🟡 (no point-in-time) | n/a | ✅ | ✅ | 🟡 keyword only | 🟡 reading only | ⬜ |
+| **Point-in-Time History** | `apps/core/truth/history.py` + `periods.py` ⭐ | ✅ `HealthHistory` | ✅ `WorkoutHistory` (fitness) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| **History (legacy domain queries)** | domain `*_queries` | 🟡 (now point-in-time via platform) | n/a | ✅ | ✅ | 🟡 keyword only | 🟡 reading only | ⬜ |
 | **Per-Day Truth** | `apps/health/services/daily_health_queries.py` (pattern) | ✅ | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | **Freshness** | `apps/core/truth/freshness.py` | ✅ consumer | ✅ consumer | ⬜ | ⬜ | ✅ consumer | ⬜ | ⬜ |
 | **Deterministic Providers** | `foundational_facts` + domain fact sources | ✅ | ✅ | ⬜ | ✅ | ⬜ | ⬜ | ⬜ |
@@ -62,8 +63,10 @@ zero duplicate composition logic (Health = per-day shape, Finance = sync shape).
    each domain registers its provider once.
 3. **Sync Freshness application** — apply `classify_sync_freshness` to Finance
    (`BankConnection.last_sync_at`), CGM, and any snapshot Current Truth.
-4. **Point-in-time History** — a generic `*_on(date)` / range-retrieval contract every
-   domain implements (closes the Health point-in-time gap and arms range questions).
+4. ~~**Point-in-time History**~~ — ✅ **DELIVERED** as `apps/core/truth/history.py` +
+   `periods.py` (period resolution + `HistorySeries` + aggregates). Consumers:
+   `HealthHistory` (steps/sleep/weight) and `WorkoutHistory` (fitness). Pending consumers:
+   Finance/Faith/Calendar/Relationships register a one-query provider each.
 
 ---
 

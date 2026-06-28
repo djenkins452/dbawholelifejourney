@@ -8,14 +8,18 @@
 > and the worked reference `BETH_HEALTH_INTENT_CONTRACTS.md`.
 > **Date:** 2026-06-26
 >
-> **Validation precedes reasoning (`WLJ_ARCHITECTURE_LAWS.md`, 2026-06-28).** This
-> framework specifies how Beth reasons *once inputs are validated*. Before reasoning,
-> every domain runs the **Answer Precondition Pipeline**: establish Data Freshness
-> (Law 1) and Confidence (Law 2); answer workflow-shaped questions with the
-> **Enumeration+Enrichment** orchestration (Law 3), not one reasoning prompt; answer
-> deterministic questions deterministically, never with an AI-failure message (Law 4);
-> and return identical facts for identical questions over unchanged data (Law 5).
-> Reasoning depth is built **on top of** validated, stable, composed truth.
+> **Intent precedes retrieval; validation precedes reasoning
+> (`WLJ_ARCHITECTURE_LAWS.md`, 2026-06-28).** This framework specifies how Beth
+> reasons *once the question is correctly identified and its inputs validated*.
+> Before any data fetch, **determine exactly what is being asked and scope retrieval
+> to only that question's domains** (Law 0) — never answer a different question because
+> other data is loaded. Then run the rest of the **Answer Precondition Pipeline**:
+> Data Freshness (Law 1) and Confidence (Law 2); workflow-shaped questions use the
+> **Enumeration+Enrichment** orchestration (Law 3), not one reasoning prompt;
+> deterministic questions answer deterministically, never with an AI-failure message
+> (Law 4); identical questions over unchanged data return identical facts (Law 5).
+> Reasoning depth is built **on top of** the right question and validated, stable,
+> composed truth.
 
 ## Purpose & philosophy
 

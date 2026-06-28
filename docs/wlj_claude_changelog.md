@@ -7,6 +7,25 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — docs(arch): add Law 0 — Intent Before Retrieval (governing constitution, NO CODE)
+
+Evolves the Architecture Laws after production evidence that the deepest flaw is upstream of freshness: "Did I workout today?" answered about **sleep** — Beth never validated WHAT was being asked before retrieving. WLJ reasons before validating **intent**, freshness, completeness, confidence, and orchestration. Intent is now the first thing validated.
+
+**`docs/WLJ_ARCHITECTURE_LAWS.md` amended:**
+- **NEW Law 0 — Intent Before Retrieval (the first Law):** determine exactly what is asked; retrieve ONLY the domains that question requires; never answer a different question because other data is available. *Questions determine retrieval; retrieval never determines the answer.* Forbids the available-data-drives-the-answer anti-pattern.
+- The pre-existing foundational laws renamed to the **F-series (F1–F8)** to free the "Law 0" slot; the numbered Laws are now **0 (Intent), 1 (Freshness), 2 (Confidence), 3 (Orchestration), 4 (Deterministic Retrieval), 5 (Stable Truth)**.
+- **Answer Precondition Pipeline now begins with Intent:** Intent → Scope → Freshness → Completeness → Confidence → Strategy → Retrieve → Stability → Reason → Narrate.
+- **Implementation order reset to "trust before intelligence": Law 0 → 4 → 1 → 2 → 3** (right question → honest deterministic answers → fresh → confidence-aware → orchestrated). Law 5 ships alongside 1/4.
+- **Affected subsystems expanded** to the full platform list (Chat, Health, Faith, Purpose, Relationships, Finance, Productivity, Dashboards, Action Center, Physician Mode, Notifications, AI State/Signal/Event engines, Retrieval, Caching, future domains), each with its obligation.
+- Added **Success Criteria** (Part VI) and full migration strategy (breaking vs non-breaking, rollout phases).
+
+**Subordinate docs updated to defer with Law 0:** `MEDICATION_INTELLIGENCE_CANON.md` (intent-scope a medication question), `BETH_ARCHITECTURAL_PRINCIPLES.md` + `BETH_DOMAIN_REASONING_FRAMEWORK.md` (intent precedes retrieval; pipeline starts at intent), `CLAUDE.md` (reference now states the full pipeline + "questions determine retrieval").
+
+**Files:** docs/WLJ_ARCHITECTURE_LAWS.md, docs/MEDICATION_INTELLIGENCE_CANON.md, docs/BETH_ARCHITECTURAL_PRINCIPLES.md, docs/BETH_DOMAIN_REASONING_FRAMEWORK.md, CLAUDE.md.
+
+**Scope:** documentation/governance only — no code, per instruction. Implementation sequenced in Part V for future sprints.
+
+
 ## 2026-06-28 — docs(arch): promote 5 platform Architecture Laws — Validation Before Reasoning (NO CODE)
 
 Architectural governance, not a feature. Production evidence (sleep 5.3h→6.9h a minute apart; stale data shown as current; "assistant unavailable" for a deterministic step count; a retrieve→enrich→assemble question forced through one reasoning prompt) is ONE deficiency: **WLJ reasons before it validates freshness, completeness, and orchestration strategy. That order is backwards.**

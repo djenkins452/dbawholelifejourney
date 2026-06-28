@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — docs(arch): Layer 1 Canonical Truth inventory + gap analysis (Phase 1, NO CODE)
+
+Phase 1 deliverable for the WLJ Application Acceptance program: a complete, evidence-verified inventory of Canonical Truth (Layer 1) across every domain, produced by parallel read-only audits (Health · Faith+Purpose · Finance · Relationships · Productivity/Calendar/Tasks/Journal) and merged into `docs/BETH_LAYER1_TRUTH_INVENTORY.md`. Each gap cites file:line; no speculation. Audits were consistent (no contradictions); cross-cutting themes were found independently by multiple agents.
+
+**Master matrix** (Domain | Canonical Truth | Current Truth | History | Engines | Consumers | Acceptance | Gaps) for Health, Purpose/Goals, Faith, Finance, Relationships, Tasks, Calendar, Journal, Rhythm/Capture, plus a Layer-1 maturity ranking (Goals ✅ reference → Tasks/Journal/Calendar/Health 🟡 → Finance/Faith 🟠 → Relationships 🔴 split-brain).
+
+**Dominant defect class (every audit):** per-day granularity gap — SAE exposes latest/today-rollup/7-day-average but NO specific-day scalar for steps/sleep/glucose/calories, and no deterministic provider for journal-today/appointments-today/workout-today (they hit the tool-loop LLM). This is why Deep Truth Certification can't go GREEN (Law 0/1/4). **Critical gaps** also include the Relationships split-brain (two Person models), missing Domain Truth Contracts (Calendar/Finance/Relationships), broken GDPR exports referencing non-existent models, and a dead finance cross-domain insight rule (key mismatch).
+
+**Implementation roadmap:** 8 batches (1–2h each, Implement → Test → Acceptance GREEN → next). Batches 1–4 (per-day health scalars → journal/appointment/workout deterministic providers → freshness envelope) are the Truth-Certification-to-GREEN critical path; 5–8 broaden Finance/Faith/Relationships and clean ownership.
+
+**Files:** docs/BETH_LAYER1_TRUTH_INVENTORY.md (new). Documentation/inventory only — no code, per the Phase 1 instruction ("completely define Layer 1 so implementation can immediately begin").
+
+
 ## 2026-06-28 — fix(cos): Defect Class 2 — Personal Reasoning consuming deterministic questions
 
 Truth-stabilization sprint, defect-class (not per-question) fix. **Root cause:** "Did I work out today?", "Did I journal today?", "Any appointments today?" carry a personal pronoun, so `_looks_general` is False and the reasoning lane (`_reasoning_lane`) did NOT skip — it called the health planner, which classified them as a health intent and produced **generic health/sleep coaching for a plain yes/no fact**. Law 0 (wrong handler) + Law 4 (a deterministic status question answered via the reasoning/LLM path).

@@ -12,6 +12,8 @@
 
 Go hard on understanding the system. Go slow on changing it. Velocity comes from collapsing investigation time, not from skipping the gate before a write.
 
+And one measure sits above all the rest: **every change exists to make Beth a Chief of Staff that paying customers trust enough to rely on every day.** Correct engineering, passing tests, and clean architecture are necessary but never sufficient — they are the means; a *more trusted Beth* is the end. The implementation is not the product. **Beth is the product.** Optimize the product, not a subsystem in isolation (enforced at §5, the Acceptance Gate).
+
 ## 2. Default Operating Mode
 
 **Work sequentially by default.** A single agent, one step at a time, is the right tool for most WLJ tasks. Reach for heavier machinery only when complexity clearly justifies it:
@@ -53,7 +55,28 @@ Before any code change, all five must hold — otherwise keep investigating or e
 4. **Complies with WLJ Architecture Laws** (phase boundaries, schema/streaming parity, no silent failures, deterministic rendering/decisioning).
 5. **Rollback path + verification plan** — revertible; scoped tests only; expected user/CoS/telemetry behavior stated.
 
-## 5. Incremental Adoption
+## 5. Acceptance Gate — The Three Gates of Done
+
+*The Pre-Write Gate (§4) decides whether to **start** a change. This gate decides whether work is actually **finished**.* It is mandatory before recommending any implementation, declaring any sprint complete, or advising Danny to move on. All three must hold:
+
+1. **Engineering Quality** — correctness, safety, maintainability, scoped tests green, complies with the Architecture Laws.
+2. **Product Quality** — real customer value, less friction, more trust, a better overall experience — not just a greener subsystem.
+3. **Chief-of-Staff Quality** — does Beth behave more like an *elite* Chief of Staff? Would tomorrow morning's conversation with a paying customer be better? Does this move WLJ closer to indispensable?
+
+**Gate 3 is not optional, and Engineering + Product being green does not override it.** A technically excellent, well-tested change that does not materially improve Beth's ability to function as a trusted Chief of Staff is **not done** — name that gap *before* recommending further work or advising Danny to move on. If a sprint passed its tests but Beth is no more trustworthy, say so.
+
+**Self-check (internal — these shape the recommendation; normally do NOT echo them back to Danny):**
+- Does this make Beth more trustworthy?
+- Would a paying customer notice and value this improvement?
+- Does it improve the actual conversational experience?
+- Does it reduce false, stale, irrelevant, or misleading responses?
+- Am I optimizing a subsystem instead of the overall product experience?
+- Am I solving the *governing* problem or only a local implementation problem?
+- If this shipped today, would Beth feel more like an exceptional human Chief of Staff?
+
+Run these silently before every "this is complete" or "move on" recommendation. If you find yourself optimizing architecture without improving Beth, **pause and re-evaluate before recommending anything** — every subsystem exists only to improve Beth's ability to serve the customer.
+
+## 6. Incremental Adoption
 
 We're still learning Opus 4.8. Bias toward the left column.
 
@@ -74,7 +97,7 @@ We're still learning Opus 4.8. Bias toward the left column.
 
 In the right-column areas, use Opus aggressively to *investigate*, then bring a proven, minimal proposal rather than a finished mutation.
 
-## 6. Escalate to Danny when…
+## 7. Escalate to Danny when…
 
 - A fix would touch a protected area's behavior (especially Beth's).
 - Root cause can't be proven and the next step is a change to protected code.
@@ -84,7 +107,7 @@ In the right-column areas, use Opus aggressively to *investigate*, then bring a 
 - Two valid fixes have materially different architectural tradeoffs.
 - A prompt instruction conflicts with an Architecture Law (state it, recommend the compliant path).
 
-## 7. Red Lines (never autonomous)
+## 8. Red Lines (never autonomous)
 
 - Editing or "tidying" the Architecture Laws, Domain Registry, or Signal Ontology.
 - Letting an LLM/Beth fabricate state or turn a rollup into per-item truth.
@@ -95,7 +118,8 @@ In the right-column areas, use Opus aggressively to *investigate*, then bring a 
 - Running the full ~4,400-test suite unprompted, or skipping scoped tests / migration check / changelog before deploy.
 - Destructive git/DB ops (force-push, reset --hard, drop tables) or skipping hooks.
 - Deploying on unproven root cause, or marking a `/goal` done on a failed condition.
+- Declaring a sprint complete or advising Danny to move on when the **Chief-of-Staff gate (§5, Gate 3)** is unmet — even with Engineering and Product gates green.
 
 ---
 
-*Subordinate to WLJ Architecture Laws. Additive — delete with zero effect on existing prompts. Last updated: 2026-05-30.*
+*Subordinate to WLJ Architecture Laws. Additive — delete with zero effect on existing prompts. Last updated: 2026-06-28 (added §5 Acceptance Gate — the three Gates of Done, anchored on "Beth is the product").*

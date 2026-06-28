@@ -7,6 +7,18 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — docs(playbook): add the Chief-of-Staff Acceptance Gate (Beth is the product)
+
+Governance update to `@WLJ_SYSTEM_PROMPTS/00_CORE_STARTUP/WLJ CLAUDE OPUS 4.8 EXECUTION PLAYBOOK.md` — a standing operating principle, integrated (not appended): no recommendation, "complete," or "move on" is valid until it improves Beth as a trusted Chief of Staff.
+
+- **Prime Directive (§1):** added the North Star — every change exists to make Beth a CoS paying customers trust daily; correct engineering/tests/architecture are necessary-not-sufficient means; **the implementation is not the product, Beth is.**
+- **New §5 — Acceptance Gate (The Three Gates of Done):** the exit gate complementing the Pre-Write entry gate (§4). Mandatory before recommending an implementation, declaring a sprint complete, or advising Danny to move on. Three gates: **Engineering Quality**, **Product Quality**, **Chief-of-Staff Quality** — Gate 3 is mandatory and is NOT overridden by green Engineering/Product. Includes the seven internal self-check questions (shape the recommendation, normally not echoed to Danny) and the "optimizing architecture without improving Beth → pause" rule.
+- **Red Lines (§8):** added — declaring complete / advising move-on when Gate 3 is unmet, even with the other gates green.
+- Renumbered §5→§6 (Incremental Adoption), §6→§7 (Escalate), §7→§8 (Red Lines); cross-refs updated; footer dated.
+
+**Files:** @WLJ_SYSTEM_PROMPTS/00_CORE_STARTUP/WLJ CLAUDE OPUS 4.8 EXECUTION PLAYBOOK.md, docs/wlj_claude_changelog.md. Docs/governance only — no code; influences every future WLJ session automatically.
+
+
 ## 2026-06-28 — docs(arch): add Law 0 — Intent Before Retrieval (governing constitution, NO CODE)
 
 Evolves the Architecture Laws after production evidence that the deepest flaw is upstream of freshness: "Did I workout today?" answered about **sleep** — Beth never validated WHAT was being asked before retrieving. WLJ reasons before validating **intent**, freshness, completeness, confidence, and orchestration. Intent is now the first thing validated.

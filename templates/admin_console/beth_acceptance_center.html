@@ -49,6 +49,17 @@
         <button class="ac-run-btn ac-run-primary" name="mode" value="full" data-testid="ac-run-full">Run Full Suite</button>
         <button class="ac-run-btn" name="mode" value="deep" data-testid="ac-run-deep">Run Deep Suite</button>
       </div>
+      <div style="font-size:13px; color:#6b7280; margin:10px 0 4px;">Chief of Staff <span style="color:#9ca3af;">(above Deep — judgment, not facts)</span></div>
+      <div class="ac-controls">
+        {% if cos.enabled %}
+        <button class="ac-run-btn ac-run-primary" name="mode" value="chief_of_staff" data-testid="ac-run-cos">Run Chief of Staff Suite</button>
+        <span class="ac-note" style="margin:0; align-self:center;">Deep is GREEN — judgment evaluation unlocked.</span>
+        {% else %}
+        <button class="ac-run-btn" type="button" disabled data-testid="ac-run-cos-disabled"
+                title="{{ cos.reason }}" style="opacity:.5; cursor:not-allowed;">Run Chief of Staff Suite 🔒</button>
+        <span class="ac-note" style="margin:0; align-self:center; color:#b45309;">{{ cos.reason }}</span>
+        {% endif %}
+      </div>
       <div style="font-size:13px; color:#6b7280; margin:10px 0 4px;">Single category (deep)</div>
       <div class="ac-controls">
         <button class="ac-run-btn" name="mode" value="goals">Run Goals Only</button>

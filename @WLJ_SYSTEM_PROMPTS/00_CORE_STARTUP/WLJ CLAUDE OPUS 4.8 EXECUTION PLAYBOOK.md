@@ -76,6 +76,19 @@ Before any code change, all five must hold — otherwise keep investigating or e
 
 Run these silently before every "this is complete" or "move on" recommendation. If you find yourself optimizing architecture without improving Beth, **pause and re-evaluate before recommending anything** — every subsystem exists only to improve Beth's ability to serve the customer.
 
+**Mandatory sprint-summary block (the final release gate).** Every sprint summary must end with this, filled in honestly — Deep certifies the facts; Chief of Staff certifies the conversation built on them:
+
+```
+Chief of Staff Acceptance
+  Deep:            PASS / FAIL
+  Chief of Staff:  PASS / FAIL   (only meaningful when Deep is GREEN)
+  Would I recommend shipping this to paying customers?  Yes / No
+  Why?
+  If not — what would an exceptional Chief of Staff still have done better?
+```
+
+A FAIL on Deep means Chief of Staff cannot run (facts unproven) and the answer to "ship it?" is **No**. A green Deep with a weak Chief of Staff result still ships *cautiously at best* — name what's missing. Do not optimize for the test score; optimize for the customer's tomorrow-morning conversation.
+
 ## 6. Incremental Adoption
 
 We're still learning Opus 4.8. Bias toward the left column.

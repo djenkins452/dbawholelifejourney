@@ -41,6 +41,14 @@ class BethAcceptanceCenterView(AdminRequiredMixin, TemplateView):
         ctx["latest"] = runs[0] if runs else None
         ctx["suites"] = [s for s in SUITES if s != "full"]
         ctx["depths"] = list(DEPTHS)
+        # Chief-of-Staff layer (above Deep) — enabled only when Deep is GREEN.
+        try:
+            from apps.ai.chatgpt_cos.cos_acceptance_service import cos_status
+            ctx["cos"] = cos_status()
+        except Exception:
+            logger.warning("acceptance: cos_status failed", exc_info=True)
+            ctx["cos"] = {"enabled": False, "deep_grade": None,
+                          "reason": "Chief of Staff status unavailable."}
         return ctx
 
 
@@ -65,6 +73,22 @@ class StartBethAcceptanceView(AdminRequiredMixin, View):
             reap_stale_runs()
         except Exception:
             logger.warning("acceptance: reap on start failed", exc_info=True)
+        # ── Chief-of-Staff layer (above Deep) — gated on a GREEN Deep run ──
+        if request.POST.get("mode") == "chief_of_staff" or \
+                request.POST.get("suite") == "chief_of_staff":
+            from apps.ai.chatgpt_cos.cos_acceptance_service import (
+                CoSDeepNotGreen, create_and_execute_cos,
+            )
+            try:
+                run = create_and_execute_cos(request.user, created_by=request.user)
+            except CoSDeepNotGreen as e:
+                messages.error(request, str(e))
+                return redirect(reverse("admin_console:beth_acceptance"))
+            messages.success(request,
+                             f"Chief-of-Staff suite complete (run #{run.id}, {run.grade}).")
+            return redirect(reverse("admin_console:beth_acceptance_run",
+                                    kwargs={"pk": run.id}))
+
         # Restart path passes suite+depth directly; the buttons pass a mode.
         suite = request.POST.get("suite")
         depth = request.POST.get("depth")

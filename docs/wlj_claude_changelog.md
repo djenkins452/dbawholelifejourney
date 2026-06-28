@@ -7,6 +7,27 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — feat(acceptance): Chief-of-Staff Acceptance Suite (the layer above Deep)
+
+Implement the highest acceptance layer: **Smoke → Full → Deep (Truth Certification) → Chief of Staff.** Deep proves the facts; Chief of Staff evaluates whether Beth handled the *conversation* like a trusted, first-class Chief of Staff built on those facts. No new Beth intelligence — acceptance harness only.
+
+**Engine** (`apps/ai/chatgpt_cos/cos_acceptance.py`, pure functions): a **weighted rubric** (not pass/fail) over 7 dimensions — trust (hard-fail), intent (hard-fail), truth_preservation, holistic, initiative, coaching, customer_confidence (weights sum to 1.0; any hard-fail ⇒ RED; ≥0.90 GREEN / ≥0.75 YELLOW). **Golden scenario library** seeded from real incidents: good-morning-stale-sleep, workout-answered-with-sleep, deterministic-retrieval-failure, medication-education, CGM-false-low-investigation, goal-coaching, daily-planning, weight-trend — each declaring per-dimension `expects`/`forbids` + the Architecture Law, capability, and trust rationale. **Report** ties every failure to *what happened / why it matters to trust / which Law / which missing capability / classification* (Truth · Retrieval · Context · Orchestration · Reasoning · Coaching), grouped to guide engineering priorities.
+
+**Deep dependency ENFORCED** (`cos_acceptance_service.py`): `create_and_execute_cos` reads the latest Deep run and raises `CoSDeepNotGreen` unless GREEN — a conversation built on wrong/stale/unstable facts can't be a good conversation. `cos_status()` powers the UI gate. Runs persist as an `AcceptanceRun(suite_name="chief_of_staff")` — reuses the existing run model/history (no migration).
+
+**UI:** Acceptance Center gains a "Run Chief of Staff Suite" button **directly below Deep** — enabled only when Deep is GREEN, disabled with an explanatory tooltip otherwise (`StartBethAcceptanceView` routes `mode=chief_of_staff` to the gated runner; separate run/score/report via the existing run-detail page).
+
+**Command:** `python manage.py beth_cos_acceptance --user-email …` (gated, prints the Law-tied report).
+
+**Regression support:** every future production conversation is appended to `COS_SCENARIOS` as a permanent evaluation.
+
+**Playbook:** §5 now mandates a "Chief of Staff Acceptance" block in every sprint summary (Deep PASS/FAIL · Chief of Staff PASS/FAIL · ship to paying customers? why? · what would an exceptional CoS still have done better?). The design doc is promoted from design → implemented with the v1 rubric documented.
+
+**Files:** apps/ai/chatgpt_cos/cos_acceptance.py (new), cos_acceptance_service.py (new), apps/ai/management/commands/beth_cos_acceptance.py (new), apps/ai/tests/test_cos_acceptance.py + test_cos_acceptance_service.py (new, 17 tests), apps/admin_console/ai_views.py, templates/admin_console/beth_acceptance_center.html, docs/BETH_CHIEF_OF_STAFF_ACCEPTANCE_SUITE.md, @WLJ_SYSTEM_PROMPTS/00_CORE_STARTUP/WLJ CLAUDE OPUS 4.8 EXECUTION PLAYBOOK.md.
+
+**Verification:** 42 tests green (rubric scoring, Deep gate, persistence, existing acceptance center compat); `manage.py check` clean; **no migration** (reuses AcceptanceRun). The deterministic rubric + gate + report are fully tested without OpenAI; the live Beth scenario runs + the browser UI run on the real stack in the Admin Acceptance Center.
+
+
 ## 2026-06-28 — feat(acceptance): Deep factual-trust categories — Beth's foundation before intelligence
 
 Expand the Beth Acceptance Center's Deep suite to prove Beth's deterministic factual foundation is trustworthy — operationalizing Architecture Laws 0/1/2/4/5 as release-blocking checks. No new Beth intelligence; this is the test/acceptance harness only.

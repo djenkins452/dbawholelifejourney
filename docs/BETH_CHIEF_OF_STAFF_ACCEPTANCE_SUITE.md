@@ -1,11 +1,57 @@
-# Beth Chief-of-Staff Acceptance Suite — DESIGN (not yet implemented)
+# Beth Chief-of-Staff Acceptance Suite
 
-> **Status: design only.** This document specifies the *future* acceptance layer
-> that sits **above** the Deep factual-trust suite. No code yet. It exists so the
-> factual foundation (Deep) is built first and the Chief-of-Staff layer has a clear
-> target to grow into. Governed by `WLJ_ARCHITECTURE_LAWS.md` and the Execution
-> Playbook's **Gate 3 — Chief-of-Staff Quality** (`@WLJ_SYSTEM_PROMPTS/00_CORE_STARTUP/
-> WLJ CLAUDE OPUS 4.8 EXECUTION PLAYBOOK.md`, §5). **Date:** 2026-06-28.
+> **Status: IMPLEMENTED (v1 — deterministic rubric).** The acceptance layer that
+> sits **above** the Deep factual-trust suite. Engine: `apps/ai/chatgpt_cos/
+> cos_acceptance.py` (pure rubric + scenarios + report) and `cos_acceptance_service.py`
+> (Deep gate + live Beth + persistence). Command: `beth_cos_acceptance`. UI: the
+> Acceptance Center "Run Chief of Staff Suite" button (gated). Governed by
+> `WLJ_ARCHITECTURE_LAWS.md` and the Execution Playbook's **Gate 3 — Chief-of-Staff
+> Quality** (§5). **Date:** 2026-06-28.
+>
+> v1 scores deterministically against golden expectations (no OpenAI in the scorer);
+> an LLM-judge refinement of the same rubric is the planned v2 (see "Future").
+
+---
+
+## Implemented rubric (v1)
+
+**Weighted dimensions** (`cos_acceptance.WEIGHTS`, sum = 1.0; **trust** & **intent**
+are HARD-FAIL — a violation zeroes the dimension and fails the scenario):
+
+| Dimension | Weight | Asks |
+|---|---|---|
+| trust | 0.20 (hard-fail) | Increases, not decreases, trust — no stale/overconfident/misleading. |
+| intent | 0.20 (hard-fail) | Answered the question actually asked. |
+| truth_preservation | 0.15 | Explained uncertainty; no false certainty. |
+| holistic | 0.15 | Incorporated *relevant* known context. |
+| initiative | 0.10 | Noticed something worth mentioning unasked. |
+| coaching | 0.10 | Useful, context-specific next step (not a cliché). |
+| customer_confidence | 0.10 | Net: would a paying customer rely on this tomorrow? |
+
+**Grading:** any hard-fail ⇒ RED; else weighted ≥ 0.90 GREEN, ≥ 0.75 YELLOW, else
+RED. A suite run is RED if **any** scenario hard-fails.
+
+**Scenario shape:** each golden scenario declares, per dimension, `expects` (alternative
+signals that demonstrate it — hitting any one satisfies it) and `forbids` (signals
+that break it), plus the `law`, `capability`, `classification`, and `why` (trust
+rationale) used by the report.
+
+**Seed scenario library** (`COS_SCENARIOS`, all from real incidents; append every
+future production conversation here for permanent regression):
+good-morning-stale-sleep · workout-answered-with-sleep · deterministic-retrieval-failure ·
+medication-education · CGM-false-low-investigation · goal-coaching · daily-planning ·
+weight-trend-discussion.
+
+**Report** (`build_report`): suite grade + where Beth was *first-class* vs a *chatbot*,
+and for every failure the five facets — **what happened, why it matters to trust,
+which Architecture Law, which missing capability, and the classification**
+(Truth / Retrieval / Context / Orchestration / Reasoning / Coaching) — grouped into a
+priority list that guides engineering.
+
+**Deep dependency (enforced):** `cos_acceptance_service.create_and_execute_cos` reads
+the latest Deep run and raises `CoSDeepNotGreen` unless it is GREEN; the UI button is
+disabled with the reason as a tooltip. Beth proves her facts before her judgment is
+scored.
 
 ---
 

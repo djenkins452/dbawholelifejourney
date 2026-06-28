@@ -98,7 +98,14 @@ Ordered by "Critical blocks Layer 2" + leverage. Each batch closes a defect clas
    **Remaining sub-item:** a formal `CalendarQueries` contract (C5) — provider reads
    SAE state directly for now; a contract class is the clean home for history/range.
 3. **(folded into Batch 2)** Workout-today delivered via `WorkoutQueries.is_completed_on`.
-4. **Freshness envelope (C1/C3, Law 1/2).** Attach as-of + freshness verdict (current/stale/pending/partial/missing) to the per-day facts; pending/missing answer honestly. *Acceptance: fresh_* GREEN; Deep Truth Certification GREEN target.*
+4. **Freshness envelope (C1/C3, Law 1/2). — 🟢 DELIVERED (health per-day), 2026-06-28.**
+   Every per-day fact now carries a READ `freshness` verdict (`health_facts._day_freshness`):
+   **current** (asked day, complete → cite value), **partial** (today, still accruing →
+   "so far today"), **stale** (most recent older than asked → "from <date>"), **pending**
+   (today, not synced → honest absence), **missing** (absent → honest absence). Phrasing
+   honors the verdict; Beth reads it, never infers it. Tests: `test_daily_health_freshness`
+   (all 5 states). *Acceptance: fresh_current/stale/pending/partial/missing — pending live re-run.*
+   **Remaining sub-item:** extend the same verdict to finance/calendar Current Truth (Batches 5+).
 5. **Finance Layer 1 (C5, H1-H4).** `FinanceQueries` contract; surface `today` spend + `BankConnection.last_sync_at` freshness; fix the dead cross-domain rule keys; add Beth finance facts; seed a finance acceptance suite.
 6. **Faith Layer 1 (H1, H2, H5).** Beth faith foundational facts (last-read, prayer counts/streak, reading-today); seed a faith acceptance suite; (later) reasoning intents + momentum engine.
 7. **Relationships consolidation (C4, C5).** Resolve the split-brain (one canonical `Person`, migrate/bridge), add `relationship_queries.py` + cadence verdict, repoint `SignificantEvent.person`; seed acceptance.

@@ -301,7 +301,11 @@ def format_fact_sentence(key, fact):
             s += f" (target {fact['target']} g)"
         return s + "."
     if key == "sleep_last_night":
-        # Batch 1 — the ACTUAL most-recent night (not a 7-day average).
+        # Batch 1/3 — the ACTUAL most-recent night, with read freshness (Law 1).
+        if fact.get("freshness") == "stale":
+            fd = fact.get("for_date")
+            return (f"I don't have last night's sleep yet — your most recent is "
+                    f"{value} {unit or 'hours'}, from {fd}.")
         return f"You slept {value} {unit or 'hours'} last night."
     if key == "average_sleep_7d":
         s = f"You've been averaging {value} {unit or 'hours'} of sleep"
@@ -325,6 +329,8 @@ def format_fact_sentence(key, fact):
     if key == "next_appointment":
         return f"Your next appointment is {value}."
     if key in ("steps_today", "steps_yesterday"):
+        if key == "steps_today" and fact.get("freshness") == "partial":
+            return f"You've logged {value} steps so far today."
         when = "yesterday" if key == "steps_yesterday" else "today"
         return f"You logged {value} steps {when}."
     if key == "calories_yesterday":

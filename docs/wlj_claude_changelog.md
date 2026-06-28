@@ -7,6 +7,15 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — feat(health): Layer 1 Batch 3 — freshness envelope on per-day facts
+
+Law 1 — every per-day Current Truth now carries a READ `freshness` verdict so Beth states honesty instead of inferring it. `health_facts._day_freshness` classifies: current (asked day, complete → cite value), partial (today, still accruing → "so far today"), stale (most-recent value older than the day asked → "from <date>, I don't have last night yet"), pending (today, not yet synced → honest absence), missing (absent → honest absence). `format_fact_sentence` honors the verdict for steps_today (partial) and sleep_last_night (stale); current/pending/missing keep the plain/honest-absence phrasing.
+
+**Tests:** `apps/health/tests/test_daily_health_freshness.py` (6) — all five states current/stale/missing/partial/pending + yesterday-complete=current. Regression GREEN (71 tests across Batches 1–3).
+
+**Files:** apps/ai/cos_services/health_facts.py (_day_freshness + verdict on facts), apps/ai/chatgpt_cos/foundational_facts.py (freshness-aware phrasing), apps/health/tests/test_daily_health_freshness.py (new), docs/BETH_LAYER1_TRUTH_INVENTORY.md.
+
+
 ## 2026-06-28 — feat(cos): Layer 1 Batch 2 — deterministic status providers (execution_facts)
 
 Closes Critical gap C2: journal-today, workout-today, appointments-today, and next-appointment had NO deterministic provider — they declined through every lane and landed on the tool-loop LLM (Law 4 break) despite the truth already existing.

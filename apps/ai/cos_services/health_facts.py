@@ -122,13 +122,30 @@ def _day_fact(user, key):
         logger.warning("health_facts: day fact failed key=%s", key, exc_info=True)
         return {"status": "unknown", "reason": "per-day retrieval failed"}
     if res.get("status") != "ok":
-        return {"status": "unknown",
+        # Law 1 — distinguish PENDING (today, not yet synced) from MISSING (absent).
+        fresh = "pending" if key == "steps_today" else "missing"
+        return {"status": "unknown", "freshness": fresh,
                 "reason": f"no {res.get('metric', key)} for the requested day"}
     fact = {"value": res["value"], "source": "DailyHealthQueries"}
     for f in ("unit", "for_date", "recorded_at", "as_of", "exact", "count"):
         if f in res:
             fact[f] = res[f]
+    fact["freshness"] = _day_freshness(key, res, today, yest)
     return fact
+
+
+def _day_freshness(key, res, today, yest):
+    """READ the freshness verdict from the data state (Beth never infers it):
+    current = the asked day, complete · partial = today, still accruing ·
+    stale = the most-recent value is older than the day asked about."""
+    if key == "steps_today":
+        return "partial"                       # cumulative, day not over
+    if key == "sleep_last_night":
+        fd = res.get("for_date")
+        return "current" if fd in (today.isoformat(), yest.isoformat()) else "stale"
+    if key == "weight_yesterday":
+        return "current" if res.get("exact") else "stale"
+    return "current"   # steps_yesterday, calories_yesterday, glucose_yesterday
 
 
 def get_foundational_health_facts(user, keys=None):

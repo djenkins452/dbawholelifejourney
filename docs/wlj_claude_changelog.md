@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — governance(core): Layer 1 scope reconciliation (inventory is the PM, not implementation)
+
+Governance checkpoint, not a rollback. Reconciled the implementation against the approved Layer 1 inventory and found three capabilities I built that were NOT in the approved backlog: Confidence, Stability, Truth Catalog. The roadmap — not implementation — defines scope, so these are reclassified (code stays, all GREEN; simply no longer counted as Layer 1 until ratified).
+
+**Approved Layer 1 (6):** Per-Day Truth, Freshness, Current Truth Objects, Point-in-Time History (original inventory) + Domain Truth Objects (approved checkpoint) + Deterministic Provider Registry (original inventory).
+
+**Emerged — pending ratification (recommend ADD to Layer 1):** Confidence (grounded in WLJ_ARCHITECTURE_LAWS Law 2 + Answer Precondition Pipeline step 4) and Stability (Law 5 + pre-existing acceptance unstable_fact, 7 refs). Strong constitutional grounding but never in the inventory backlog.
+
+**Future Backlog (not Layer 1):** Truth Catalog — introspection tooling with no approved-doc basis; serves the registry/Beth, not canonical truth.
+
+**Manifest corrected** (`apps/core/truth/certification.py`): `capabilities` now lists only the 6 approved; added `emerged_pending_ratification` and `future_backlog`; `status` → "pending_live_deep", `frozen` → False, `certified_on` → None (Layer 1 is NOT yet certified — the live Deep run is the gate). `highest_layer()` added; `certify_layers` default now runs the highest present layer's deterministic gate. Gate test renamed `test_layer1_declares_only_APPROVED_capabilities` and asserts the emerged/backlog quarantine.
+
+**Files:** apps/core/truth/certification.py, apps/core/management/commands/certify_layers.py, apps/core/tests/test_layer1_certification.py, docs/BETH_LAYER1_TRUTH_INVENTORY.md. Regression GREEN (32 truth/cert tests).
+
+
 ## 2026-06-28 — feat(core): Platform capability — Truth Catalog + Layer 1 platform capabilities COMPLETE
 
 Adds the Truth Catalog (the "Capabilities" capability) — the enumerable Layer 1 surface: "what truth can WLJ deterministically answer?". New `apps/core/truth/catalog.py`: `truth_catalog()` aggregates every registered Domain Truth Object's `supports()` into `{domain: {current:[...], history:[...]}}`; `can_answer(domain, metric, kind)`, `answerable_metrics`, `catalog_summary()` (domain + answerable-truth counts). Reads class-level declarations only — no user data, no I/O. Consumers: the Provider Registry (discover what each domain answers), Beth (know what's answerable before reaching for the LLM), dashboards, and certification.

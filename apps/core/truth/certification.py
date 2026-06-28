@@ -15,19 +15,30 @@ covers the deterministic foundation that can be enforced in CI on every commit.
 LAYER_1 = {
     "number": 1,
     "name": "Canonical Truth",
-    "status": "certified",            # flip to "certified" only when the gate is GREEN
-    "certified_on": "2026-06-28",
-    "frozen": True,
+    "status": "pending_live_deep",    # deterministic gate GREEN; live Deep run pending
+    "certified_on": None,
+    "frozen": False,
+    # APPROVED Layer 1 scope (original inventory backlog + the approved Domain Truth
+    # architectural checkpoint). The roadmap — not implementation — defines this list.
     "capabilities": [
-        "Per-Day Truth",
-        "Freshness",
-        "Confidence",
-        "Stability",
-        "Current Truth Objects",
-        "Point-in-Time History",
-        "Domain Truth Objects",
-        "Deterministic Provider Registry",
-        "Truth Catalog",
+        "Per-Day Truth",                  # original inventory
+        "Freshness",                      # original inventory
+        "Current Truth Objects",          # original inventory
+        "Point-in-Time History",          # original inventory
+        "Domain Truth Objects",           # approved architectural checkpoint
+        "Deterministic Provider Registry",  # original inventory
+    ],
+    # Governance reconciliation (2026-06-28): these EMERGED during implementation —
+    # they were NOT in the approved Layer 1 inventory. Code exists and is GREEN (not a
+    # rollback), but they are not counted as Layer 1 until ratified by the roadmap owner.
+    "emerged_pending_ratification": [
+        # Strong grounding in the approved constitution → recommend RATIFY into Layer 1:
+        "Confidence",   # WLJ_ARCHITECTURE_LAWS Law 2 + Answer Precondition Pipeline step 4
+        "Stability",    # WLJ_ARCHITECTURE_LAWS Law 5 + pre-existing acceptance unstable_fact
+    ],
+    "future_backlog": [
+        # No grounding in any approved governance doc → recommend FUTURE BACKLOG:
+        "Truth Catalog",  # introspection tooling; serves the registry/Beth, not canonical truth
     ],
     "platform_modules": [
         "apps.core.truth.freshness",
@@ -93,3 +104,9 @@ def certified_layers():
 def highest_certified_layer():
     nums = [l["number"] for l in certified_layers()]
     return max(nums) if nums else 0
+
+
+def highest_layer():
+    """Highest layer PRESENT (built), regardless of certification status — the
+    deterministic release gate runs these even before live-Deep certification."""
+    return max(LAYERS) if LAYERS else 0

@@ -19,27 +19,34 @@
 > Release gate: `python manage.py certify_layers` (re-runs every certified layer; a
 > higher layer cannot certify if a lower one regresses).
 
-**Nine Layer-1 platform capabilities — all implemented, deterministic gate GREEN:**
-Per-Day Truth · Freshness (Law 1) · **Confidence (Law 2)** · **Stability (Law 5)** ·
-Current Truth Objects · Point-in-Time History · Domain Truth Objects · Deterministic
-Provider Registry · **Truth Catalog**. Gate module:
-`apps/core/tests/test_layer1_certification.py` (one end-to-end assertion per capability
-+ manifest consistency). The Truth Catalog (`apps/core/truth/catalog.py`) enumerates
-the whole answerable Layer-1 surface from the registered Domain Truth Objects —
-"what truth can WLJ deterministically answer?" — for the registry, Beth, dashboards,
-and certification.
+### Governance reconciliation (2026-06-28)
 
-**Layer 1 platform capabilities are COMPLETE.** What remains is *consumer rollout*
-(registering Finance/Faith/Relationships providers + per-domain acceptance — consumers
-of these frozen capabilities) and the **live Deep Acceptance run** (the certification
-gate, production OpenAI). One open architectural question: whether a **truth-Relationships**
-capability (links between truths — value↔target, current↔baseline) belongs in Layer 1
-or Layer 5 (Cross-Domain Intelligence).
+> **The inventory — not implementation — defines Layer 1 scope.** A reconciliation
+> against the approved roadmap reclassified three capabilities I built that were NOT in
+> the approved inventory. This is governance, not a rollback: the code stays (it's GREEN);
+> it simply stops being counted as Layer 1 until ratified by the roadmap owner.
 
-The three **trust properties** of every truth object are now complete: Freshness
-(how current), Confidence (how trustworthy — derived from freshness + coverage +
-source), and Stability (provably the same answer across reads via deterministic
-data signatures — backs the acceptance `unstable_fact` rule).
+| Platform Capability | Source | Layer 1? |
+|---|---|---|
+| Per-Day Truth | Original Layer 1 inventory | ✅ Approved |
+| Freshness (Law 1) | Original Layer 1 inventory | ✅ Approved |
+| Current Truth Objects | Original Layer 1 inventory | ✅ Approved |
+| Point-in-Time History | Original Layer 1 inventory | ✅ Approved |
+| Domain Truth Objects | Approved architectural checkpoint | ✅ Approved |
+| Deterministic Provider Registry | Original Layer 1 inventory | ✅ Approved |
+| **Confidence** | **Emerged during implementation** (post-hoc: `WLJ_ARCHITECTURE_LAWS` Law 2 + Answer Precondition Pipeline step 4) | ⏸ **Pending ratification** — recommend ADD to Layer 1 |
+| **Stability** | **Emerged during implementation** (post-hoc: Law 5 + pre-existing acceptance `unstable_fact`, 7 refs) | ⏸ **Pending ratification** — recommend ADD to Layer 1 |
+| **Truth Catalog** | **Emerged during implementation** (no approved-doc basis) | ➡ **Future Backlog** — introspection tooling, serves the registry/Beth, not canonical truth |
+
+**Six APPROVED Layer-1 platform capabilities — all implemented, deterministic gate GREEN:**
+Per-Day Truth · Freshness (Law 1) · Current Truth Objects · Point-in-Time History ·
+Domain Truth Objects · Deterministic Provider Registry. Gate module:
+`apps/core/tests/test_layer1_certification.py`.
+
+Confidence (Law 2) and Stability (Law 5) are implemented and grounded in the approved
+constitution; they await an explicit ratification decision before counting as Layer 1.
+Truth-**Relationships** (links between truths — value↔target, current↔baseline) remains
+an open architectural question: Layer 1 or Layer 5 (Cross-Domain Intelligence).
 
 **Certification status:** the *deterministic foundation* is GREEN and frozen as a
 permanent regression requirement. **Full certification also requires the live Deep
@@ -86,10 +93,10 @@ most basic "did I X / how much X yesterday" questions a Chief of Staff must own.
 | **History (legacy domain queries)** | domain `*_queries` | 🟡 (now point-in-time via platform) | n/a | ✅ | ✅ | 🟡 keyword only | 🟡 reading only | ⬜ |
 | **Per-Day Truth** | `apps/health/services/daily_health_queries.py` (pattern) | ✅ | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | **Freshness** | `apps/core/truth/freshness.py` | ✅ consumer | ✅ consumer | ⬜ | ⬜ | ✅ consumer | ⬜ | ⬜ |
-| **Confidence** (Law 2) | `apps/core/truth/confidence.py` ⭐ | ✅ (Current+History) | ⬜ | ⬜ | ⬜ | ✅ (auto via CurrentTruth) | ⬜ | ⬜ |
-| **Stability** (Law 5) | `apps/core/truth/stability.py` ⭐ | ✅ (signatures + verify_stable) | n/a | n/a | n/a | ✅ (via CurrentTruth) | n/a | n/a |
+| **Confidence** (Law 2) — ⏸ *emerged, pending ratification* | `apps/core/truth/confidence.py` | built (Current+History) | ⬜ | ⬜ | ⬜ | built (auto) | ⬜ | ⬜ |
+| **Stability** (Law 5) — ⏸ *emerged, pending ratification* | `apps/core/truth/stability.py` | built (signatures + verify) | n/a | n/a | n/a | built | n/a | n/a |
 | **Deterministic Provider Registry** | `apps/ai/chatgpt_cos/fact_registry.py` ⭐ | ✅ | ✅ | ⬜ | ✅ | ⬜ | ⬜ | ⬜ |
-| **Truth Catalog** (Capabilities) | `apps/core/truth/catalog.py` ⭐ | ✅ | n/a | n/a | n/a | ✅ | ⬜ | ⬜ |
+| **Truth Catalog** — ➡ *FUTURE BACKLOG (not Layer 1)* | `apps/core/truth/catalog.py` | built | n/a | n/a | n/a | built | ⬜ | ⬜ |
 
 ✅ complete · 🟡 partial · ⬜ pending · ⭐ domain-agnostic platform module. **Current
 Truth Object** = the authoritative typed value object (`CurrentTruth`) composing a

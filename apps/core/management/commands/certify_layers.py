@@ -26,9 +26,11 @@ class Command(BaseCommand):
                             help="List the gate modules and exit (run nothing).")
 
     def handle(self, *args, **opts):
-        up_to = opts["up_to"] or CERT.highest_certified_layer()
+        # Run the deterministic gate for the highest PRESENT layer (the gate runs even
+        # before live-Deep certification, which is a separate runtime gate).
+        up_to = opts["up_to"] or CERT.highest_layer()
         if up_to < 1:
-            self.stdout.write(self.style.WARNING("No certified layers yet."))
+            self.stdout.write(self.style.WARNING("No layers present."))
             return
         modules = CERT.certification_modules(up_to)
 

@@ -15,7 +15,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 EXECUTION_FACT_KEYS = {"journal_today", "workout_today", "workout_yesterday",
-                       "appointments_today", "next_appointment"}
+                       "appointments_today", "next_appointment", "meals_today",
+                       "meds_today", "last_journal"}
 
 
 def get_foundational_execution_facts(user, keys):
@@ -54,6 +55,46 @@ def _resolve(user, key):
 
     if key in ("appointments_today", "next_appointment"):
         return _calendar_fact(user, key)
+
+    if key == "meds_today":
+        # Pre-computed SAE medicine state (never compute adherence on the request path).
+        from apps.core.ai_state.state_engine import get_module_state
+        try:
+            st = get_module_state(user, "medicine", allow_rebuild=False) or {}
+        except Exception:
+            st = {}
+        expected = st.get("expected_today") or 0
+        return {"value": st.get("today_taken", 0), "expected": expected,
+                "missed": st.get("today_missed", 0), "pending": st.get("today_pending", 0),
+                "source": "SAE.medicine", "freshness": CURRENT}
+
+    if key == "last_journal":
+        from apps.core.ai_state.state_engine import get_module_state
+        try:
+            st = get_module_state(user, "journal", allow_rebuild=False) or {}
+        except Exception:
+            st = {}
+        last = st.get("last_entry")
+        if not last:
+            return {"status": "unknown", "freshness": "missing",
+                    "reason": "no journal entries recorded"}
+        return {"value": last, "days_since": st.get("days_since_entry"),
+                "source": "SAE.journal", "freshness": CURRENT}
+
+    if key == "meals_today":
+        # Retrieve the ACTUAL meals (by type), never leak storage concepts like
+        # "food entry". NutritionQueries is the canonical per-meal source.
+        from collections import OrderedDict
+        from apps.health.services.nutrition_queries import NutritionQueries
+        by_meal = OrderedDict((m, []) for m in ("breakfast", "lunch", "dinner", "snack"))
+        for e in NutritionQueries.entries_on_date(user, today):
+            name = (e.food_name or "").strip()
+            if name:
+                by_meal.setdefault(e.meal_type or "snack", []).append(name)
+        meals = {m: items for m, items in by_meal.items() if items}
+        total = sum(len(v) for v in meals.values())
+        return {"value": total, "meals": meals, "source": "NutritionQueries",
+                "freshness": CURRENT}
 
     return {"status": "unsupported_fact", "supported": sorted(EXECUTION_FACT_KEYS)}
 

@@ -72,6 +72,7 @@ _UNKNOWN_SENTENCE = {
     "sleep_last_night": "I don't have last night's sleep recorded yet — it may not have synced.",
     "steps_recent": "I don't have recent step data recorded for you — it may not have synced yet.",
     "next_appointment": "You have nothing else on your calendar today.",
+    "last_journal": "I don't have any journal entries recorded for you yet.",
     "steps_today": "I don't have today's steps yet — they may not have synced.",
     "steps_yesterday": "I don't have yesterday's steps recorded.",
     "calories_yesterday": "I don't have any calories logged for you yesterday.",
@@ -247,6 +248,21 @@ def _classify_execution_fact(text):
         if today_q:
             return "workout_today"
         return None
+    # "did I take my meds today" — adherence status (today-scoped). NOTE: avoid bare
+    # "med" — it is a substring of "consumed" ("calories consumed today").
+    if (any(w in text for w in ("meds", "medication", "medicine", "pill", "dose"))
+            and status_q and today_q and not is_yesterday):
+        return "meds_today"
+    # "when did I last journal" — date of last entry (distinct from journal_today bool).
+    if ("journal" in text or "journaled" in text) and not today_q \
+            and ("when" in text or "last" in text):
+        return "last_journal"
+    # "what did I eat today" — retrieve the actual meals (past-framing, not coaching).
+    if (any(p in text for p in ("did i eat", "have i eaten", "what did i eat",
+                                "what have i eaten", "what i ate", "what i've eaten",
+                                "food did i", "meals did i", "meals have i"))
+            and today_q and not is_yesterday):
+        return "meals_today"
     # journal / appointments status: today-scope only (the question space asks today).
     if is_yesterday:
         return None
@@ -353,6 +369,29 @@ def format_fact_sentence(key, fact):
         return f"{head}: {listed}." if listed else f"{head}."
     if key == "next_appointment":
         return f"Your next appointment is {value}."
+    if key == "meals_today":
+        meals = fact.get("meals") or {}
+        if not value or not meals:
+            return "You haven't logged any food today yet."
+        parts = [f"{meal} — {', '.join(items)}" for meal, items in meals.items()]
+        return "Today you've had " + "; ".join(parts) + "."
+    if key == "meds_today":
+        expected = fact.get("expected", 0)
+        if not expected:
+            return "You don't have any medications scheduled for today."
+        taken, pending = value or 0, fact.get("pending", 0)
+        s = f"You've taken {taken} of {expected} doses today"
+        if pending:
+            s += f", with {pending} still to take"
+        return s + "."
+    if key == "last_journal":
+        days = fact.get("days_since")
+        if days == 0:
+            return "You journaled today."
+        s = f"You last journaled on {value}"
+        if days:
+            s += f" ({days} day{'s' if days != 1 else ''} ago)"
+        return s + "."
     if key in ("steps_today", "steps_yesterday"):
         if key == "steps_today" and fact.get("freshness") == "partial":
             return f"You've logged {value} steps so far today."
@@ -371,7 +410,8 @@ def format_fact_sentence(key, fact):
         bp = f"{value}/{dia}" if dia is not None else f"{value}"
         return f"Your last blood pressure reading was {bp} mmHg."
     if key == "latest_meal_logged":
-        return f"Your most recently logged meal entry was on {value}."
+        # No storage jargon ("meal entry" / "logged ... entry"); plain language.
+        return f"The last time you tracked any food was {value}."
     if key == "active_goal_count":
         return f"You have {value} active goal(s) right now."
     if key == "top_goal":

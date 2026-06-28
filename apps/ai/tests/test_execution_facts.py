@@ -101,6 +101,48 @@ class ExecutionFactRetrievalTests(TestCase):
         self.assertEqual(format_fact_sentence("next_appointment", facts["next_appointment"]),
                          "Your next appointment is Standup at 10:30 AM.")
 
+    def test_meals_today_retrieves_actual_meals_not_storage_jargon(self):
+        # Defect Class 2 — Beth must retrieve breakfast/lunch/dinner, never leak
+        # "meal entry" / storage concepts, and answer WHAT was eaten (not a date).
+        from apps.health.models import FoodEntry
+        self.assertEqual(classify_foundational_fact("What did I eat today?"), "meals_today")
+        f = get_foundational_execution_facts(self.user, ["meals_today"])["meals_today"]
+        self.assertEqual(format_fact_sentence("meals_today", f),
+                         "You haven't logged any food today yet.")
+        FoodEntry.objects.create(user=self.user, food_name="Oatmeal",
+                                 meal_type="breakfast", logged_date=self.today,
+                                 serving_size=1, quantity=1)
+        FoodEntry.objects.create(user=self.user, food_name="Salad",
+                                 meal_type="lunch", logged_date=self.today,
+                                 serving_size=1, quantity=1)
+        f = get_foundational_execution_facts(self.user, ["meals_today"])["meals_today"]
+        s = format_fact_sentence("meals_today", f)
+        self.assertIn("breakfast — Oatmeal", s)
+        self.assertIn("lunch — Salad", s)
+        self.assertNotIn("entry", s.lower())       # no storage jargon
+        self.assertNotIn("food entry", s.lower())
+
+    def test_meds_today_adherence_from_sae(self):
+        # Defect Class 5 — deterministic medication rollout ("did I take my meds today").
+        self.assertEqual(classify_foundational_fact("Did I take my meds today?"), "meds_today")
+        state = {"expected_today": 3, "today_taken": 2, "today_pending": 1, "today_missed": 0}
+        with mock.patch(_GMS, return_value=state):
+            f = get_foundational_execution_facts(self.user, ["meds_today"])["meds_today"]
+        self.assertEqual(format_fact_sentence("meds_today", f),
+                         "You've taken 2 of 3 doses today, with 1 still to take.")
+        with mock.patch(_GMS, return_value={"expected_today": 0}):
+            f = get_foundational_execution_facts(self.user, ["meds_today"])["meds_today"]
+        self.assertEqual(format_fact_sentence("meds_today", f),
+                         "You don't have any medications scheduled for today.")
+
+    def test_last_journal_date_from_sae(self):
+        # Defect Class 5 — deterministic journal rollout ("when did I last journal").
+        self.assertEqual(classify_foundational_fact("When did I last journal?"), "last_journal")
+        with mock.patch(_GMS, return_value={"last_entry": "2026-06-25", "days_since_entry": 3}):
+            f = get_foundational_execution_facts(self.user, ["last_journal"])["last_journal"]
+        self.assertEqual(format_fact_sentence("last_journal", f),
+                         "You last journaled on 2026-06-25 (3 days ago).")
+
     def test_empty_calendar_is_honest(self):
         with mock.patch(_GMS, return_value={"today_events": [], "next_event": None}):
             facts = get_foundational_execution_facts(

@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — fix(cos): Defect Class 2 (raw data leakage) + Class 5 (journal/meds deterministic rollout)
+
+From the real Beth conversation. CLASS 2 — Beth answered "Latest meal logged was..." (leaked the "meal entry" storage concept and returned a date when asked what she ate). Root cause: `latest_meal_logged` reads only SAE `last_food_entry` (a date) and `format_fact_sentence` said "logged meal entry was on <date>" (foundational_facts.py:360). Fix: (a) reworded to plain language ("The last time you tracked any food was <date>"); (b) added a real `meals_today` retrieval via `NutritionQueries.entries_on_date` grouped by `meal_type` (breakfast/lunch/dinner/snack with food names) so "What did I eat today?" returns the ACTUAL meals or an honest "haven't logged any food today yet".
+
+CLASS 5 — deterministic rollout following the existing Layer 1 architecture (read pre-computed SAE state, never compute on request): `meds_today` ("Did I take my meds today?" → taken/expected/pending from SAE medicine state) and `last_journal` ("When did I last journal?" → last_entry + days_since from SAE journal state). Both in `execution_facts` + classifier + narration; honest absence when no data.
+
+Classifier guard: avoided bare "med" keyword (substring of "consumed") — "calories consumed today" no longer mis-routes to meds.
+
+Regression: `test_execution_facts` — meals_today (retrieves real meals, no storage jargon), meds_today (adherence + no-meds-scheduled), last_journal (date + days-ago). Full regression GREEN (58).
+
+**Files:** apps/ai/cos_services/execution_facts.py, apps/ai/chatgpt_cos/foundational_facts.py, apps/ai/tests/test_execution_facts.py.
+
+
 ## 2026-06-28 — fix(SAFETY): Defect Class 1 BLOCKER — clinical Interpretation layer for glucose
 
 Real Beth conversation: she narrated "Glucose: 43 mg/dL (in a good range)" — confident reassurance over severe hypoglycemia. Release blocker. Root cause (repository evidence): the glucose foundational fact reached the phrasing LLM as a bare {value: 43} (health_facts.py _FACT_MAP reads only value/unit/recorded_at), and `_PHRASE_SYSTEM` forbade inventing *numbers* but said nothing about clinical reassurance → the LLM appended "(in a good range)". SECOND instance in deterministic code: `state_builder.py:1346` classified any mg/dL ≤100 as "excellent / healthy range" (so 43 → "excellent").

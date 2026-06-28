@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — feat(core): Layer 1 Certification + Deterministic Provider Registry (final Layer 1 capability)
+
+Completes and certifies Layer 1 (Canonical Truth). Two parts:
+
+**(a) Deterministic Provider Registry — the last Layer 1 platform capability.** New `apps/ai/chatgpt_cos/fact_registry.py` (`register_fact_provider`, `resolve`, ordered predicates + one default). `answer_foundational_fact` now dispatches via the registry instead of hardcoded GOAL/EXECUTION/HEALTH if-branches; the three built-in providers self-register at `foundational_facts` import. Behavior byte-identical (74 fast-path tests green). A new domain registers a provider rather than editing dispatch — the seam that turns the uniform truth layer into Beth-answerable facts by registration.
+
+**(b) Layer Certification mechanism.** New `apps/core/truth/certification.py` — the LAYERS manifest (Layer 1 = Canonical Truth: 6 capabilities, platform modules, gate test modules, status/frozen). New `apps/core/tests/test_layer1_certification.py` — the authoritative permanent gate: one end-to-end assertion per capability (Freshness, Periods, History series, Current Truth, Per-Day Truth, Domain Truth, Provider Registry) + a full classify→registry→domain-truth→phrasing path + manifest consistency. New management command `certify_layers` (`--up-to`, `--list`) — the release gate that re-runs every certified layer; a higher layer cannot certify if a lower one regresses (the permanent no-regression rule).
+
+**Gate result:** all 11 Layer 1 certification modules GREEN (85 tests). The deterministic foundation is frozen as a permanent regression requirement. NOTE: full certification also requires the live Deep Acceptance Center (production OpenAI) — the complementary runtime gate; the deterministic gate is what CI enforces every commit.
+
+**Tests:** `apps/core/tests/test_fact_registry.py` (6), `apps/core/tests/test_layer1_certification.py` (11). Regression GREEN.
+
+**Files:** apps/ai/chatgpt_cos/fact_registry.py (new), apps/core/truth/certification.py (new), apps/core/tests/test_fact_registry.py (new), apps/core/tests/test_layer1_certification.py (new), apps/core/management/commands/certify_layers.py (new), apps/ai/chatgpt_cos/foundational_facts.py (registry dispatch + registration), docs/BETH_LAYER1_TRUTH_INVENTORY.md.
+
+
 ## 2026-06-28 — feat(core): Platform capability — Domain Truth Objects (apps.core.truth.domain)
 
 Architectural checkpoint resolved YES (with evidence): a single canonical per-domain interface, implemented as a THIN FACADE composing the existing platform capabilities — owns no new retrieval logic. Evidence: Health truth had 4 fragmented entry points (get_module_state, CurrentHealth, HealthHistory/WorkoutHistory, raw *_queries); consumers each picked one. The facade gives every consumer (Beth, dashboards, reports, exports, APIs, notifications, engines) one entry point and becomes the registration unit the future Deterministic Provider Registry routes over.

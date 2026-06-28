@@ -378,22 +378,9 @@ def answer_foundational_fact(user, message):
 
     from apps.ai.services import ai_service
 
-    # Route to the right canonical source: goals from build_goal_state, all other
-    # (health/nutrition/medicine) facts from the health-facts source.
-    if key in GOAL_FACT_KEYS:
-        facts = get_foundational_goal_facts(user, [key])
-        fact_source = "get_foundational_goal_facts"
-    elif key in EXECUTION_FACT_KEYS:
-        from apps.ai.cos_services.execution_facts import (
-            get_foundational_execution_facts,
-        )
-        facts = get_foundational_execution_facts(user, [key])
-        fact_source = "get_foundational_execution_facts"
-    else:
-        from apps.ai.cos_services.health_facts import get_foundational_health_facts
-        facts = get_foundational_health_facts(user, [key])
-        fact_source = "get_foundational_health_facts"
-    fact = facts.get(key, {}) if isinstance(facts, dict) else {}
+    # Deterministic Provider Registry routes the key to the owning domain provider
+    # (goal / execution / health-default). New domains register, not branch here.
+    fact, fact_source = _resolve_fact(user, key)
 
     # The guaranteed, deterministic answer built from the payload.
     deterministic = format_fact_sentence(key, fact)
@@ -427,3 +414,42 @@ def answer_foundational_fact(user, message):
         "fast_path": "foundational_fact",
         "fact_key": key,
     }
+
+
+# ============================================================================
+# Deterministic Provider Registry wiring (Layer 1 — last platform capability).
+# New domains register a provider instead of adding an if/elif branch above.
+# ============================================================================
+from apps.ai.chatgpt_cos.fact_registry import (  # noqa: E402
+    register_fact_provider, resolve as _registry_resolve,
+)
+
+
+def _exec_fact_provider(user, keys):
+    from apps.ai.cos_services.execution_facts import get_foundational_execution_facts
+    return get_foundational_execution_facts(user, keys)
+
+
+def _health_fact_provider(user, keys):
+    from apps.ai.cos_services.health_facts import get_foundational_health_facts
+    return get_foundational_health_facts(user, keys)
+
+
+def _register_builtin_fact_providers():
+    register_fact_provider(lambda k: k in GOAL_FACT_KEYS,
+                           get_foundational_goal_facts,
+                           "get_foundational_goal_facts")
+    register_fact_provider(lambda k: k in EXECUTION_FACT_KEYS,
+                           _exec_fact_provider,
+                           "get_foundational_execution_facts")
+    # Default: health/nutrition/medicine facts (all remaining keys).
+    register_fact_provider(lambda k: False, _health_fact_provider,
+                           "get_foundational_health_facts", default=True)
+
+
+_register_builtin_fact_providers()
+
+
+def _resolve_fact(user, key):
+    """Registry-driven dispatch for answer_foundational_fact (returns (fact, source))."""
+    return _registry_resolve(user, key)

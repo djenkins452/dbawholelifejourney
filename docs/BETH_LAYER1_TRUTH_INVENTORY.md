@@ -12,6 +12,29 @@
 
 ---
 
+## Layer 1 Certification (Canonical Truth)
+
+> A layer is complete only when **certified**: implementation done, gate GREEN, frozen
+> as permanent infrastructure that must never regress. Manifest: `apps/core/truth/certification.py`.
+> Release gate: `python manage.py certify_layers` (re-runs every certified layer; a
+> higher layer cannot certify if a lower one regresses).
+
+**Six Layer-1 platform capabilities — all implemented, deterministic gate GREEN (85 tests):**
+Per-Day Truth · Freshness · Current Truth Objects · Point-in-Time History · Domain
+Truth Objects · Deterministic Provider Registry. Gate module:
+`apps/core/tests/test_layer1_certification.py` (one end-to-end assertion per capability
++ manifest consistency).
+
+**Certification status:** the *deterministic foundation* is GREEN and frozen as a
+permanent regression requirement. **Full certification also requires the live Deep
+Acceptance Center run** (production OpenAI stack — cannot run locally); that is the
+complementary runtime gate before the dashboard flips Layer 1 fully GREEN. Health is
+the proven first consumer end-to-end; Finance is the proven second domain on the same
+interfaces. Remaining domain rollouts (Finance/Faith/Relationships full facts +
+acceptance) are *consumers* of the now-frozen capabilities, not new Layer-1 capabilities.
+
+---
+
 ## The dominant cross-cutting defect class (found by every audit)
 
 **Per-day granularity gap.** The SAE exposes *current latest values*, *today rollups*,
@@ -47,7 +70,7 @@ most basic "did I X / how much X yesterday" questions a Chief of Staff must own.
 | **History (legacy domain queries)** | domain `*_queries` | 🟡 (now point-in-time via platform) | n/a | ✅ | ✅ | 🟡 keyword only | 🟡 reading only | ⬜ |
 | **Per-Day Truth** | `apps/health/services/daily_health_queries.py` (pattern) | ✅ | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | **Freshness** | `apps/core/truth/freshness.py` | ✅ consumer | ✅ consumer | ⬜ | ⬜ | ✅ consumer | ⬜ | ⬜ |
-| **Deterministic Providers** | `foundational_facts` + domain fact sources | ✅ | ✅ | ⬜ | ✅ | ⬜ | ⬜ | ⬜ |
+| **Deterministic Provider Registry** | `apps/ai/chatgpt_cos/fact_registry.py` ⭐ | ✅ | ✅ | ⬜ | ✅ | ⬜ | ⬜ | ⬜ |
 
 ✅ complete · 🟡 partial · ⬜ pending · ⭐ domain-agnostic platform module. **Current
 Truth Object** = the authoritative typed value object (`CurrentTruth`) composing a

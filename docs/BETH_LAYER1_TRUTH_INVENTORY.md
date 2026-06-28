@@ -40,6 +40,7 @@ most basic "did I X / how much X yesterday" questions a Chief of Staff must own.
 
 | Capability | Platform home | Health | Execution/Calendar | Tasks/Journal | Goals | Finance | Faith | Relationships |
 |---|---|---|---|---|---|---|---|---|
+| **Domain Truth Object** (canonical interface) | `apps/core/truth/domain.py` ⭐ | ✅ `HealthDomainTruth` | ⬜ | ⬜ | ⬜ | ✅ `FinanceDomainTruth` | ⬜ | ⬜ |
 | **Current Truth (raw SAE)** | SAE `state_builder` | ✅ | ✅ | ✅ | ✅ | 🟡 partial | 🟡 partial | 🟡 partial |
 | **Current Truth Objects** | `apps/core/truth/current.py` ⭐ | ✅ `CurrentHealth` | ⬜ | ⬜ | ⬜ | ✅ `CurrentFinance` | ⬜ | ⬜ |
 | **Point-in-Time History** | `apps/core/truth/history.py` + `periods.py` ⭐ | ✅ `HealthHistory` | ✅ `WorkoutHistory` (fitness) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
@@ -52,6 +53,16 @@ most basic "did I X / how much X yesterday" questions a Chief of Staff must own.
 Truth Object** = the authoritative typed value object (`CurrentTruth`) composing a
 value + a freshness verdict; `CurrentHealth` and `CurrentFinance` both consume it with
 zero duplicate composition logic (Health = per-day shape, Finance = sync shape).
+
+**Domain Truth Object** = the canonical per-domain INTERFACE (`get_domain_truth(user,
+domain)`) exposing `.current(metric)` → CurrentTruth, `.history(metric, period)` →
+HistorySeries, and `.state()` → SAE snapshot. It is a THIN FACADE composing the
+capabilities above (owns no retrieval logic); every consumer — Beth, dashboards,
+reports, exports, APIs, notifications, engines — uses the one interface. Beth's
+foundational fast-path now retrieves health facts via `get_domain_truth(user,
+"health").current(key)`. This is the per-domain registration unit the **Deterministic
+Provider Registry** will route over (the resolved architectural checkpoint: register
+Domain Truth Objects, not scattered providers).
 
 **Capability backlog (build once, then apply to every pending domain above):**
 1. **Per-Day Truth registry** — generalize the `DailyHealthQueries` pattern into a

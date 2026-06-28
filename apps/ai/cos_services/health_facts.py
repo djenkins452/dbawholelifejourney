@@ -101,13 +101,13 @@ _META_FIELDS = ("unit", "trend", "recorded_at", "count", "target", "diastolic",
 
 
 def _day_fact(user, key):
-    """Per-day fact → flat dict, sourced from the Health CURRENT TRUTH object
-    (`CurrentHealth`), which composes Per-Day Truth + Freshness. health_facts is a
-    consumer of the Current Truth capability, not the owner of the composition."""
-    from apps.health.services.current_health import CurrentHealth
-    if key not in CurrentHealth.SUPPORTED:
+    """Per-day fact → flat dict, retrieved through the canonical Health DOMAIN TRUTH
+    interface (`get_domain_truth(user, "health").current(key)`). Beth is a consumer of
+    the one per-domain interface — it does not reach into individual capabilities."""
+    from apps.core.truth.domain import get_domain_truth
+    if key not in _DAY_FACT_KEYS:
         return {"status": "unsupported_fact", "supported": sorted(_DAY_FACT_KEYS)}
-    return CurrentHealth.get(user, key).to_fact_dict()
+    return get_domain_truth(user, "health").current(key).to_fact_dict()
 
 
 def get_foundational_health_facts(user, keys=None):

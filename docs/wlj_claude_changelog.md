@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — feat(core): Platform capability — Domain Truth Objects (apps.core.truth.domain)
+
+Architectural checkpoint resolved YES (with evidence): a single canonical per-domain interface, implemented as a THIN FACADE composing the existing platform capabilities — owns no new retrieval logic. Evidence: Health truth had 4 fragmented entry points (get_module_state, CurrentHealth, HealthHistory/WorkoutHistory, raw *_queries); consumers each picked one. The facade gives every consumer (Beth, dashboards, reports, exports, APIs, notifications, engines) one entry point and becomes the registration unit the future Deterministic Provider Registry routes over.
+
+**New** `apps/core/truth/domain.py`: `DomainTruth` base (`current(metric)` → CurrentTruth, `history(metric, period)` → HistorySeries, `state()` → SAE snapshot, `supports()` introspection) + a registry (`register_domain_truth` decorator, `get_domain_truth(user, domain)`, `registered_domains()`; lazy self-registration of known providers).
+
+**Health (first consumer):** `apps/health/services/health_domain_truth.py` `HealthDomainTruth` composes CurrentHealth + HealthHistory + WorkoutHistory + SAE state behind the one interface. **Finance (second domain, same interface):** `apps/finance/services/finance_domain_truth.py` `FinanceDomainTruth` composes CurrentFinance + SAE finance state (history pending a FinanceHistory provider — registers with no interface change).
+
+**Beth now consumes the interface:** `health_facts._day_fact` retrieves via `get_domain_truth(user, "health").current(key).to_fact_dict()` instead of reaching into CurrentHealth directly — Beth uses the one per-domain interface.
+
+**Tests:** `apps/core/tests/test_domain_truth.py` (7) — registry (known/unknown), Health current+history+state+introspection through one interface, Finance current through the same interface, Beth's fast-path routes through it. Regression GREEN (114).
+
+**Inventory:** Platform Capabilities matrix gains a **Domain Truth Object** row (Health ✅, Finance ✅) + the facade explanation tying it to the Deterministic Provider Registry.
+
+**Files:** apps/core/truth/domain.py (new), apps/health/services/health_domain_truth.py (new), apps/finance/services/finance_domain_truth.py (new), apps/core/tests/test_domain_truth.py (new), apps/ai/cos_services/health_facts.py (consumes the interface), docs/BETH_LAYER1_TRUTH_INVENTORY.md.
+
+
 ## 2026-06-28 — feat(core): Platform capability — Point-in-Time History (apps.core.truth.history)
 
 Platform-capability-first. The symmetric half of Current Truth: "what was my X over a period" (specific date, yesterday, last week, this/last month, this/last quarter, this/last year, custom range). Current Truth answers "now"; History answers "back then". Engines and Beth read the same object.

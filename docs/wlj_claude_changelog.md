@@ -7,6 +7,34 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — fix(cos): general lane used a different model than the tool loop (John 3:16 worked, Metformin didn't)
+
+Differential debugging. "Give me John 3:16" SUCCEEDED while "What is Metformin used for?" failed with "external knowledge service temporarily unavailable" — proving OpenAI + the key + the CoS model all work. The difference is the path.
+
+**First divergence — lane selection (code-proven):**
+- "Give me John 3:16" → `_looks_general` **False** (the "me" pronoun marks it personal) → general lane declines → falls through to the **tool loop** (`_call_api_with_tools`), which is called with **`model=COS_MODEL`** (service.generate).
+- "What is Metformin used for?" → `_looks_general` **True** → **general lane** claims it → `general_answer` → `_call_api` with **no model arg** → `_call_api` used **`self.model = OPENAI_MODEL`**.
+
+So the two CoS paths called OpenAI at the same `cos_chat` endpoint but with **different model settings**. When `OPENAI_MODEL` differs from / is staler-or-invalid vs `COS_MODEL` in the deploy env, the tool-loop path (John 3:16) succeeds on `COS_MODEL` while the general-lane path (Metformin) fails on `OPENAI_MODEL` → None → the "unavailable" message. The med *list* keeps working because the foundational lane has a deterministic fallback; general education has none.
+
+| Stage | John 3:16 | Metformin |
+|---|---|---|
+| `_looks_general` | **False** | **True** |
+| Lane | declines → tool loop | **general_conversation** |
+| Path | `_call_api_with_tools` | `_call_api` |
+| **Model** | **COS_MODEL** | **OPENAI_MODEL (self.model)** ← first material divergence |
+| Endpoint | cos_chat | cos_chat |
+| Outcome | verse returned | None → "…temporarily unavailable" |
+
+**Minimal fix:** the general lane is part of the CoS chat (endpoint `cos_chat`) — it now passes **`model=COS_MODEL`** to `_call_api`, exactly like the tool loop. The model the rest of CoS already uses (proven working by John 3:16) now also serves general/educational answers, so the lane can no longer fail while the tool loop succeeds. (If `COS_MODEL` is unset, `_call_api` falls back to `self.model` as before — no regression.)
+
+**Regression tests** (`apps/ai/tests/test_cos_general_lane_model.py`): the routing divergence (John 3:16 not-general / Metformin general); the general lane passes `COS_MODEL` not `OPENAI_MODEL` (even when they differ); general lane + tool loop now agree on the model; the lane answers when the model is reachable.
+
+**Files:** apps/ai/chatgpt_cos/lanes.py, apps/ai/tests/test_cos_general_lane_model.py.
+
+**Verification:** 60 tests green (general-lane-model + outage + external-knowledge + lanes + hybrid); `manage.py check` clean; no migration.
+
+
 ## 2026-06-27 — diag(cos): instrument _call_api — capture the ACTUAL OpenAI exception (not just None)
 
 `_call_api` collapsed every OpenAI failure into `None`, so "why" was invisible. Instrumented so the real exception is always captured.

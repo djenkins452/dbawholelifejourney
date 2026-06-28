@@ -559,10 +559,17 @@ def general_answer(user, message):
     answer = None
     call_outcome = "none"
     try:
+        from django.conf import settings
         from apps.ai.services import ai_service
         raw = ai_service._call_api(
             system, message, max_tokens=500, temperature=0.5,
             endpoint="cos_chat", user=user,
+            # Use the SAME model as the rest of the CoS chat (the tool loop passes
+            # COS_MODEL). Defaulting to self.model (OPENAI_MODEL) made the general
+            # lane diverge: tool-loop questions ("Give me John 3:16") used COS_MODEL
+            # and worked, while general-lane questions ("What is Metformin used
+            # for?") used a DIFFERENT model and failed when the two settings differ.
+            model=getattr(settings, "COS_MODEL", None),
             # Foreground, user-waiting, no deterministic fallback — a transient
             # breaker from another call must not blank this out (Failure #4).
             bypass_breaker=True,

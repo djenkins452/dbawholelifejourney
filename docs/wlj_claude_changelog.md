@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — fix(cos): freshness fixture correction — PENDING belongs to steps-today, not sleep
+
+Approved fixture honesty fix following the freshness production-state analysis. PENDING is a TODAY-cumulative state (data expected, not yet synced) and can only arise for a today metric like steps; last-night sleep with no data resolves to MISSING (a past day — freshness.py:55). The `fresh_pending` spec asked the SLEEP question expecting PENDING, a state that question cannot produce. Moved `fresh_pending` to "How many steps did I get today?" (keeps freshness_expect="pending", deterministic_only, NO_DATA_MARKERS). Updated the evaluator unit test answers to steps. The 5-state deterministic matrix is preserved; the live suite keeps only the coherent honesty checks (fresh_sleep_honest, fresh_steps_honest).
+
+Future Backlog (approved): "Freshness state-simulation harness" added to `certification.py` — a synthetic acceptance user + per-question health-data setup + time mocking, driven by `freshness_expect`, so the live Deep suite can eventually exercise all 5 states end-to-end. Not built now.
+
+Regression GREEN (56). **STOP CODING** — the live Full + Deep Acceptance run (production OpenAI) is the roadmap owner's gate: GREEN → certify + freeze Layer 1; RED → the report becomes the remaining Layer 1 backlog.
+
+**Files:** apps/ai/chatgpt_cos/acceptance_rules.py, apps/ai/tests/test_acceptance_factual_trust.py, apps/core/truth/certification.py.
+
+
 ## 2026-06-28 — fix(cos): Layer 1 certification sprint — workout-yesterday provider + freshness Acceptance defect
 
 Two Deep-suite failures resolved from repository evidence (not the automated hypothesis).

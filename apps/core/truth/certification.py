@@ -36,6 +36,12 @@ LAYER_1 = {
     "future_backlog": [
         # No grounding in any approved governance doc → FUTURE BACKLOG (not Layer 1):
         "Truth Catalog",  # introspection tooling; serves the registry/Beth, not canonical truth
+        # Acceptance Center evolution (approved for backlog 2026-06-28): a synthetic
+        # acceptance user + per-question health-data setup + time mocking, driven by
+        # `freshness_expect`, so the LIVE Deep suite can exercise the 5-state freshness
+        # matrix end-to-end. Until then the matrix is validated deterministically
+        # (test_daily_health_freshness) and the live suite runs coherent honesty checks.
+        "Freshness state-simulation harness",
     ],
     "platform_modules": [
         "apps.core.truth.freshness",

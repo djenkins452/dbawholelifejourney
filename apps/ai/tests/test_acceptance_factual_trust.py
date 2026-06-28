@@ -60,9 +60,11 @@ class TruthTests(SimpleTestCase):
 class FreshnessTests(SimpleTestCase):
     """Law 1 — distinguish current / stale / pending / partial / missing."""
     def test_pending_must_acknowledge_no_data(self):
+        # PENDING is a today-cumulative state → steps, not sleep (see freshness.py:55).
         spec = _q("fresh_pending")
-        self.assertTrue(_crit(spec, ar.evaluate(spec, "You slept 6.9 hours.")))  # stale-as-current
-        self.assertEqual(ar.evaluate(spec, "I don't have last night's sleep yet — Apple Health hasn't synced."), [])
+        self.assertEqual(spec["freshness_expect"], "pending")
+        self.assertTrue(_crit(spec, ar.evaluate(spec, "You got 6,900 steps.")))  # fabricated-as-current
+        self.assertEqual(ar.evaluate(spec, "I don't have today's steps yet — Apple Health hasn't synced."), [])
 
     def test_current_must_cite_value(self):
         spec = _q("fresh_current")

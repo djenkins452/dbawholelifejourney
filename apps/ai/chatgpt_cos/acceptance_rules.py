@@ -485,7 +485,10 @@ def _freshness_questions():
         ("fresh_stale", "How many hours did I sleep last night?", "stale",
          ["as of", "last synced", "earlier", "from", "hasn't updated", "yesterday",
           "older"], []),
-        ("fresh_pending", "How many hours did I sleep last night?", "pending",
+        # PENDING is a TODAY-cumulative state (data expected, not yet synced) — it can
+        # only arise for a today metric like steps, NOT last-night sleep (a past day,
+        # whose no-data resolves to MISSING). See freshness.py:55.
+        ("fresh_pending", "How many steps did I get today?", "pending",
          list(NO_DATA_MARKERS), []),
         ("fresh_partial", "How many steps did I get today?", "partial",
          ["partial", "some", "incomplete", "still syncing", "only have", "so far",

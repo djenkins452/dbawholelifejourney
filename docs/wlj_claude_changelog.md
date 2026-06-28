@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — fix(cos): Defect Class 2 — Personal Reasoning consuming deterministic questions
+
+Truth-stabilization sprint, defect-class (not per-question) fix. **Root cause:** "Did I work out today?", "Did I journal today?", "Any appointments today?" carry a personal pronoun, so `_looks_general` is False and the reasoning lane (`_reasoning_lane`) did NOT skip — it called the health planner, which classified them as a health intent and produced **generic health/sleep coaching for a plain yes/no fact**. Law 0 (wrong handler) + Law 4 (a deterministic status question answered via the reasoning/LLM path).
+
+**Architectural fix (routing class, not individual questions):** added `_is_deterministic_status_question()` — a conservative detector of presence/status/count phrasings owned by deterministic providers (workout / journal / appointments-calendar) — and made `_reasoning_lane` **DECLINE** (return None, logged `COS_REASONING_DECLINE_DETERMINISTIC`) for them. They fall through to deterministic retrieval instead of becoming coaching. Health REASONING questions ("how is my health", "biggest health risk", "on track for my goal") are untouched — the detector matches only status/count phrasings, so all passing reasoning behavior is preserved.
+
+**Files:** apps/ai/chatgpt_cos/lanes.py, apps/ai/tests/test_reasoning_lane_deterministic_decline.py (new, 4 tests — permanent regression).
+
+**Acceptance score:** before 92% (reported); **after — not re-measured here** (the live Full+Deep suite needs the production OpenAI stack, which I can't run). The routing class is proven fixed deterministically: the planner is no longer invoked for deterministic status questions (test-verified), eliminating the "generic coaching" failures for workout/journal/appointments. The live re-run is required to confirm the new score and re-cluster.
+
+**Verification:** 95 tests green (new decline tests + existing reasoning_lane/conversation_lanes/foundational routing — no regression); `manage.py check` clean; no migration.
+
+**Remaining defect classes:** (1) **Deterministic capability gap** — workout/journal/appointment questions now decline reasoning but still reach the tool loop (LLM-orchestrated) rather than a pure deterministic provider; closing this needs a TODAY-granularity provider (`WorkoutQueries.completed_in_range(user, today, today)` is the contract; the SAE state only has a 7-day count — wiring a today-count is a protected state-builder change needing live verification). (3) **Freshness** — sleep/steps still answer from 7-day averages; honest-as-average framing is in place, but distinguishing current/stale/pending/partial/missing per requested period is not yet complete.
+
+
 ## 2026-06-28 — fix(cos): Truth defect class — deterministic facts falling into the LLM path (steps)
 
 Trust-failure work, not feature work. Clustered the acceptance failures into ARCHITECTURAL DEFECT CLASSES rather than chasing individual questions. The clearest, code-proven class: **the deterministic foundational fast-path is incomplete** — `classify_foundational_fact` returned None for steps / workout / journal / appointments, so those deterministic questions fell into the LLM path (Law 4 violation) and could answer the wrong domain (Law 0).

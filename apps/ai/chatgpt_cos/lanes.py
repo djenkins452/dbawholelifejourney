@@ -34,6 +34,35 @@ def _foundational_lane(user, message, conversation=None):
     return answer_foundational_fact(user, message)
 
 
+# Law 0 / Law 4 — DETERMINISTIC STATUS/COUNT questions belong to deterministic
+# providers (workout/journal/appointments), NOT the reasoning planner. Conservative
+# substrings: presence/status phrasings only, never the reasoning cues ("how is my
+# fitness", "biggest health risk") which must still reach the planner.
+_DETERMINISTIC_STATUS_PATTERNS = (
+    # workout
+    "did i work out", "did i workout", "have i worked out", "have i workout",
+    "did i exercise", "did i train", "did i go to the gym", "workout today",
+    "workout yesterday", "worked out today", "worked out yesterday",
+    "do any workouts", "log a workout",
+    # journal
+    "did i journal", "have i journaled", "did i write a journal",
+    "did i write in my journal", "journal entry today", "journaled today",
+    "have i written a journal",
+    # appointments / calendar
+    "do i have any appointment", "any appointments", "appointments today",
+    "appointment today", "on my calendar", "meetings today", "any meetings",
+    "scheduled today", "what's on my calendar", "whats on my calendar",
+    "do i have anything scheduled",
+)
+
+
+def _is_deterministic_status_question(message):
+    """A yes/no or count question owned by a deterministic provider — answering it
+    with the reasoning planner produces generic coaching for a plain fact (Law 0/4)."""
+    t = (message or "").lower()
+    return any(p in t for p in _DETERMINISTIC_STATUS_PATTERNS)
+
+
 def _reasoning_lane(user, message, conversation=None):
     # Issue #1 reliability fix (isolated; not a reorder, not a health-intent
     # change): a clearly-GENERAL question carries no personal/health markers, so
@@ -43,6 +72,14 @@ def _reasoning_lane(user, message, conversation=None):
     # before the General call ran). Health/personal questions are unaffected
     # (_looks_general is False for anything with a pronoun or WLJ-domain word).
     if _looks_general(message):
+        return None
+    # Law 0/4 (defect class): a deterministic STATUS/COUNT question ("did I work out
+    # today?", "any appointments today?") belongs to a deterministic provider, not
+    # the planner. DECLINE so it never becomes generic sleep coaching — it falls
+    # through to deterministic retrieval instead.
+    if _is_deterministic_status_question(message):
+        logger.info("COS_REASONING_DECLINE_DETERMINISTIC user=%s",
+                    getattr(user, "id", None))
         return None
     from apps.ai.chatgpt_cos.reasoning import answer_reasoning_question
     return answer_reasoning_question(user, message)

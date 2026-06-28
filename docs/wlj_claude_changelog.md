@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — fix(cos): Truth defect class — deterministic facts falling into the LLM path (steps)
+
+Trust-failure work, not feature work. Clustered the acceptance failures into ARCHITECTURAL DEFECT CLASSES rather than chasing individual questions. The clearest, code-proven class: **the deterministic foundational fast-path is incomplete** — `classify_foundational_fact` returned None for steps / workout / journal / appointments, so those deterministic questions fell into the LLM path (Law 4 violation) and could answer the wrong domain (Law 0).
+
+**Architectural fix (bounded + verifiable): steps.** Added `steps_recent` to the deterministic fast-path — keyword in `foundational_facts._FACT_KEYWORDS` ("steps"/"step count"/"how many steps"; never bare "step", so "next step" is untouched), the fact in `health_facts._FACT_MAP` (mapped to the VERIFIED SAE field `steps_avg_7d`, mirroring sleep's 7-day-average pattern), a deterministic format sentence (honest 7-day average — no false day-precision), and an honest no-data sentence (Law 1: "may not have synced yet"). "How many steps did I get yesterday?" now answers DETERMINISTICALLY on the steps domain — eliminating the Deep failures `det_steps`, `intent_steps`, `stable_steps`, `reg_det_steps` from one correction, with NO OpenAI dependency.
+
+**Honest scope:** workout-status, journal-status, and appointments deterministic facts live in OTHER domains whose exact SAE field names cannot be verified without the live state, and full Deep-GREEN certification requires running the live suite. Those are NOT fixed blind here (protected Beth/health areas; Pre-Write Gate requires a verification plan) — they need incremental, live-verified work.
+
+**Files:** apps/ai/chatgpt_cos/foundational_facts.py, apps/ai/cos_services/health_facts.py, apps/ai/tests/test_foundational_steps.py (new, 3 tests).
+
+**Verification:** 57 tests green (foundational routing/validation, health-facts, factual-trust, hybrid, steps regression); `manage.py check` clean; no migration. Field name `steps_avg_7d` verified at apps/core/ai_state/state_builder.py:759.
+
+
 ## 2026-06-28 — feat(acceptance): Chief-of-Staff Acceptance Suite (the layer above Deep)
 
 Implement the highest acceptance layer: **Smoke → Full → Deep (Truth Certification) → Chief of Staff.** Deep proves the facts; Chief of Staff evaluates whether Beth handled the *conversation* like a trusted, first-class Chief of Staff built on those facts. No new Beth intelligence — acceptance harness only.

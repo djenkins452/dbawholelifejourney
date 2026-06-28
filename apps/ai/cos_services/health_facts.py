@@ -76,6 +76,15 @@ _FACT_MAP = {
         # the most recent food/meal entry.
         "module": "nutrition", "value": "last_food_entry",
     },
+    "steps_recent": {
+        # Law 4 fix: "how many steps" previously had NO foundational fact, so it
+        # fell into the LLM path (deterministic question → AI dependency). SAE has
+        # no per-day steps value, so — exactly like sleep_last_night — the canonical
+        # scalar is the 7-day average daily steps. Keeps steps on the deterministic
+        # fast path with honest freshness when there's no data (steps_status).
+        "module": "health", "value": "steps_avg_7d",
+        "note": "7-day average daily steps; SAE has no yesterday-specific value.",
+    },
 }
 
 SUPPORTED_FACTS = sorted(_FACT_MAP.keys())

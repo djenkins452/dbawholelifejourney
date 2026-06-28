@@ -38,6 +38,8 @@ _FACT_KEYWORDS = [
     ("calories_today",       ("calorie", "calories")),
     ("protein_today",        ("protein",)),
     ("sleep_last_night",     ("sleep", "slept", "rest last night")),
+    # "steps" (plural) only — never bare "step" (avoids matching "next step").
+    ("steps_recent",         ("steps", "step count", "how many steps")),
     ("last_blood_pressure_reading", ("blood pressure", "blood-pressure", "bp")),
     ("latest_meal_logged",   ("meal", "meals", "did i eat", "last food")),
     # ----- GOALS domain facts (deterministic, canonical build_goal_state) -----
@@ -66,6 +68,7 @@ _UNKNOWN_SENTENCE = {
     "calories_today": "I don't have any calories logged for you today.",
     "protein_today": "I don't have any protein logged for you today.",
     "sleep_last_night": "I don't have recent sleep data recorded for you.",
+    "steps_recent": "I don't have recent step data recorded for you — it may not have synced yet.",
     "average_sleep_7d": "I don't have enough sleep data to show an average yet.",
     "sleep_trend": "I don't have a sleep trend for you yet.",
     "last_blood_pressure_reading": "I don't have a blood pressure reading recorded for you.",
@@ -247,6 +250,10 @@ def format_fact_sentence(key, fact):
         if fact.get("trend"):
             s += f", and your sleep trend is {fact['trend']}"
         return s + "."
+    if key == "steps_recent":
+        # SAE has only the 7-day average — answer honestly as an average, never as a
+        # specific day (no false precision / no stale-as-current).
+        return f"You've been averaging about {value} steps a day over the past week."
     if key == "sleep_trend":
         return f"Your sleep trend is {value}."
     if key == "last_blood_pressure_reading":

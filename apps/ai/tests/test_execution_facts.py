@@ -36,6 +36,15 @@ class ExecutionFactClassifierTests(TestCase):
         self.assertIsNone(classify_foundational_fact("What workout should I do today?"))
         self.assertIsNone(classify_foundational_fact("Should I journal more often?"))
 
+    def test_workout_yesterday_is_deterministic_not_llm_fallback(self):
+        # CERTIFICATION REGRESSION (det_workouts): "Did I work out yesterday?" must NOT
+        # return None (which routed it to the tool-loop generic fallback). It is a
+        # completed-day deterministic fact, answerable for yesterday as well as today.
+        self.assertEqual(classify_foundational_fact("Did I work out yesterday?"),
+                         "workout_yesterday")
+        self.assertEqual(classify_foundational_fact("Did I workout today?"),
+                         "workout_today")
+
 
 class ExecutionFactRetrievalTests(TestCase):
     @classmethod
@@ -64,6 +73,19 @@ class ExecutionFactRetrievalTests(TestCase):
         self.assertTrue(f["value"])
         self.assertEqual(format_fact_sentence("workout_today", f),
                          "Yes — you've logged a workout today.")
+
+    def test_workout_yesterday_resolves_deterministically(self):
+        from datetime import timedelta
+        yest = self.today - timedelta(days=1)
+        f = get_foundational_execution_facts(self.user, ["workout_yesterday"])["workout_yesterday"]
+        self.assertFalse(f["value"])
+        self.assertEqual(format_fact_sentence("workout_yesterday", f),
+                         "No — you didn't log a workout yesterday.")  # det_workouts: 'didn't'
+        WorkoutSession.objects.create(user=self.user, date=yest, duration_minutes=45)
+        f = get_foundational_execution_facts(self.user, ["workout_yesterday"])["workout_yesterday"]
+        self.assertTrue(f["value"])
+        self.assertEqual(format_fact_sentence("workout_yesterday", f),
+                         "Yes — you logged a workout yesterday.")     # det_workouts: 'workout'
 
     def test_appointments_today_from_calendar_state(self):
         state = {"today_events": [{"title": "Dentist", "start": "9:00 AM"},

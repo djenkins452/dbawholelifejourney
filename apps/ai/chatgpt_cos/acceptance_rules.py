@@ -218,8 +218,11 @@ def _q(key, text, domain, depth="full", **kw):
          # Factual-trust taxonomy (Deep suite): intent | truth | freshness |
          # deterministic | stability | regression  ("" = legacy reasoning question).
          "category": kw.get("category", ""),
-         # Freshness questions declare the data state the harness sets up.
+         # Freshness state declared by the spec. NOTE: no live harness creates this
+         # state — `deterministic_only` specs are validated in the deterministic gate
+         # (test_daily_health_freshness) + evaluator unit tests, NOT the live run.
          "freshness_expect": kw.get("freshness_expect", ""),
+         "deterministic_only": kw.get("deterministic_only", False),
          # Stability questions sharing a group are asked repeatedly; their FACTS
          # (extracted numbers) must be identical across runs (data unchanged).
          "stability_group": kw.get("stability_group", "")}
@@ -458,10 +461,25 @@ def _truth_questions():
 
 
 def _freshness_questions():
-    """Law 1 — Beth distinguishes current / stale / pending / partial / missing. The
-    harness sets up the declared data state (freshness_expect); the answer must match
-    that state's honesty contract."""
-    specs = [
+    """Law 1 — Beth distinguishes current / stale / pending / partial / missing.
+
+    TWO kinds of question:
+
+    1. The per-state MATRIX (current/stale/pending/partial/missing) declares the data
+       state each verdict needs. The LIVE harness (acceptance_service.run_one) asks
+       against the user's ACTUAL data with NO per-question setup — `freshness_expect`
+       is consumed by no harness code — so it cannot create these mutually-exclusive
+       states (four ask the IDENTICAL question expecting contradictory answers). They
+       are therefore `deterministic_only`: validated with real per-state setup in
+       apps/health/tests/test_daily_health_freshness.py (all 5 GREEN) and by the
+       evaluator unit tests. They are KEPT in the bank as evaluator fixtures but
+       EXCLUDED from the live run (questions_for skips deterministic_only).
+
+    2. The LIVE honesty checks run against whatever the user's real state is: Beth must
+       cite the value OR honestly flag absence/staleness — never fabricate or present
+       stale-as-current. These the read-only harness CAN run.
+    """
+    matrix = [
         ("fresh_current", "How many hours did I sleep last night?", "current",
          [], ["value"]),  # fresh data → cite the value
         ("fresh_stale", "How many hours did I sleep last night?", "stale",
@@ -475,9 +493,23 @@ def _freshness_questions():
         ("fresh_missing", "How many hours did I sleep last night?", "missing",
          list(NO_DATA_MARKERS), []),
     ]
-    return [_q(k, t, "freshness", "deep", category="freshness", criticality="critical",
-               freshness_expect=fx, required_any=ra, gates=g)
-            for k, t, fx, ra, g in specs]
+    out = [_q(k, t, "freshness", "deep", category="freshness", criticality="critical",
+              freshness_expect=fx, required_any=ra, gates=g, deterministic_only=True)
+           for k, t, fx, ra, g in matrix]
+
+    honest = (list(NO_DATA_MARKERS)
+              + ["as of", "from", "earlier", "older", "so far", "partial"])
+    out += [
+        _q("fresh_sleep_honest", "How many hours did I sleep last night?", "freshness",
+           "deep", category="freshness", criticality="critical",
+           required_any=["slept", "hours", "hour"] + honest,
+           notes="LIVE freshness honesty: cite the value OR honest absence/staleness"),
+        _q("fresh_steps_honest", "How many steps did I get today?", "freshness",
+           "deep", category="freshness", criticality="critical",
+           required_any=["steps", "step"] + honest,
+           notes="LIVE freshness honesty: cite value (maybe 'so far') OR honest absence"),
+    ]
+    return out
 
 
 def _deterministic_retrieval_questions():
@@ -570,7 +602,11 @@ def questions_for(suite=None, depth="full"):
     """Questions for a suite ('full'/None = all suites) at a depth level
     (smoke ⊂ full ⊂ deep)."""
     maxr = _DEPTH_RANK.get(depth, 1)
-    out = [q for q in QUESTIONS if _DEPTH_RANK.get(q["depth"], 1) <= maxr]
+    # Exclude deterministic_only specs from the LIVE run — the read-only harness cannot
+    # create the per-question data state they require (validated in the deterministic
+    # gate instead). They remain in QUESTIONS as evaluator fixtures.
+    out = [q for q in QUESTIONS
+           if _DEPTH_RANK.get(q["depth"], 1) <= maxr and not q.get("deterministic_only")]
     if suite not in (None, "full"):
         out = [q for q in out if suite_of(q) == suite]
     return out

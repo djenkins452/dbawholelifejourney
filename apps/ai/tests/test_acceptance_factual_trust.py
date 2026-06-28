@@ -80,6 +80,18 @@ class FreshnessTests(SimpleTestCase):
                   ("fresh_current", "fresh_stale", "fresh_pending", "fresh_partial", "fresh_missing")}
         self.assertEqual(states, {"current", "stale", "pending", "partial", "missing"})
 
+    def test_state_matrix_is_deterministic_only_excluded_from_live_run(self):
+        # CERTIFICATION FIX: the per-state matrix cannot be set up by the read-only
+        # live harness, so it must NOT appear in the live deep run (validated in the
+        # deterministic gate). The coherent honesty checks DO run live.
+        live_keys = {q["key"] for q in ar.questions_for("full", "deep")}
+        for k in ("fresh_current", "fresh_stale", "fresh_pending", "fresh_partial",
+                  "fresh_missing"):
+            self.assertNotIn(k, live_keys)                 # excluded from live
+            self.assertTrue(_q(k)["deterministic_only"])   # but kept as a fixture
+        self.assertIn("fresh_sleep_honest", live_keys)     # coherent live check present
+        self.assertIn("fresh_steps_honest", live_keys)
+
 
 class DeterministicRetrievalTests(SimpleTestCase):
     """Law 4 — a deterministic question never hides behind an AI failure."""

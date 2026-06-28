@@ -225,19 +225,28 @@ def classify_foundational_fact(message):
 
 
 def _classify_execution_fact(text):
-    """Deterministic 'did I X today / what's on my calendar' detection. Gated on a
-    status phrasing ('did i'/'have i'/'do i have') so coaching questions ('what
-    workout should I do today') never match. 'yesterday' is out of Batch-2 scope."""
-    if "yesterday" in text:
-        return None
+    """Deterministic 'did I X today/yesterday / what's on my calendar' detection.
+    Gated on a status phrasing ('did i'/'have i'/'do i have') so coaching questions
+    ('what workout should I do today') never match."""
     status_q = any(p in text for p in ("did i", "have i", "do i have", "am i"))
+    is_yesterday = "yesterday" in text
     today_q = any(p in text for p in ("today", "yet", "so far"))
+    is_workout = any(w in text for w in ("work out", "workout", "worked out",
+                                         "exercise", "exercised", "gym"))
+    # WORKOUT status — a completed-day truth answerable for today OR yesterday.
+    # WorkoutQueries.is_completed_on supports any date, so the deterministic provider
+    # must too (this was the certification blocker: yesterday fell to the LLM).
+    if is_workout and status_q:
+        if is_yesterday:
+            return "workout_yesterday"
+        if today_q:
+            return "workout_today"
+        return None
+    # journal / appointments status: today-scope only (the question space asks today).
+    if is_yesterday:
+        return None
     if ("journal" in text or "journaled" in text) and status_q and today_q:
         return "journal_today"
-    if (any(w in text for w in ("work out", "workout", "worked out",
-                                "exercise", "exercised", "gym"))
-            and status_q and today_q):
-        return "workout_today"
     if ("appointment" in text or "on my calendar" in text
             or "on my schedule" in text):
         if "next" in text or "upcoming" in text:
@@ -318,6 +327,9 @@ def format_fact_sentence(key, fact):
     if key == "workout_today":
         return ("Yes — you've logged a workout today." if value
                 else "Not yet — you haven't logged a workout today.")
+    if key == "workout_yesterday":
+        return ("Yes — you logged a workout yesterday." if value
+                else "No — you didn't log a workout yesterday.")
     if key == "appointments_today":
         if not value:
             return "You have nothing on your calendar today."

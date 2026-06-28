@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — fix(cos): Layer 1 certification sprint — workout-yesterday provider + freshness Acceptance defect
+
+Two Deep-suite failures resolved from repository evidence (not the automated hypothesis).
+
+**BLOCKER — workout deterministic provider (det_workouts "Did I work out yesterday?").** Root cause: `foundational_facts._classify_execution_fact` blanket-returned None for any text containing "yesterday" (it was scoped today-only), and no workout-yesterday provider existed — so the question got no deterministic key and fell to the tool-loop generic fallback. Architectural, not symptom: the deterministic provider didn't cover the temporal range the question space requires. Fix: workout status is a completed-day truth answerable for today OR yesterday (`WorkoutQueries.is_completed_on` already supports any date); added `workout_yesterday` to EXECUTION_FACT_KEYS + execution_facts._resolve + classifier + phrasing. Permanent regression: `test_execution_facts` (classify "Did I work out yesterday?" → workout_yesterday; resolves True/False with 'workout'/'didn't' markers for the det_workouts gate).
+
+**Freshness failures = ACCEPTANCE harness/contract defect, NOT implementation.** Evidence: `freshness_expect` is consumed by ZERO harness code (the docstring's "harness sets up the declared data state" was never implemented); `acceptance_service.run_one` asks each question via `svc.generate()` against the user's ACTUAL data with no per-question setup; four specs (fresh_current/stale/pending/missing) ask the IDENTICAL question expecting mutually-exclusive states — at most one can pass against one user's single state. The implementation is correct (classify_period_freshness + CurrentHealth + format_fact_sentence produce the right verdict + honest phrasing per state, proven in test_daily_health_freshness — all 5 GREEN). Fix the suite, not the wording: the per-state matrix is marked `deterministic_only` (kept as evaluator fixtures + validated in the deterministic gate) and EXCLUDED from the live run via `questions_for`; added two coherent LIVE honesty checks (`fresh_sleep_honest`, `fresh_steps_honest`) the read-only harness can actually run (cite value OR honest absence/staleness). Regression: `test_acceptance_factual_trust` asserts the matrix is excluded from the live deep run and the honesty checks are present.
+
+Live deep bank: 108 questions (5 deterministic_only excluded). Regression GREEN (77). NOTE: the live Deep Acceptance run itself (production OpenAI) remains the certification gate — to be re-run by the roadmap owner.
+
+**Files:** apps/ai/chatgpt_cos/foundational_facts.py, apps/ai/cos_services/execution_facts.py, apps/ai/chatgpt_cos/acceptance_rules.py, apps/ai/tests/test_execution_facts.py, apps/ai/tests/test_acceptance_factual_trust.py.
+
+
 ## 2026-06-28 — governance(core): ratify Confidence + Stability into Layer 1; finalize Layer 1 scope
 
 Roadmap-owner decision applied. **Confidence (Law 2)** and **Stability (Law 5)** ratified into Layer 1 as trust properties of Canonical Truth (a value is trustworthy only with value + freshness + confidence + stability). **Truth Catalog** stays in Future Backlog (not Layer 1). Manifest `capabilities` now lists EIGHT approved; `emerged_pending_ratification` cleared; gate test asserts the ratified set + Truth-Catalog quarantine.

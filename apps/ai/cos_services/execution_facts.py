@@ -14,7 +14,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-EXECUTION_FACT_KEYS = {"journal_today", "workout_today",
+EXECUTION_FACT_KEYS = {"journal_today", "workout_today", "workout_yesterday",
                        "appointments_today", "next_appointment"}
 
 
@@ -43,9 +43,13 @@ def _resolve(user, key):
         return {"value": bool(JournalQueries.has_entry_on(user, today)),
                 "source": "JournalQueries", "freshness": CURRENT}
 
-    if key == "workout_today":
+    if key in ("workout_today", "workout_yesterday"):
+        from datetime import timedelta
         from apps.health.services.workout_queries import WorkoutQueries
-        return {"value": bool(WorkoutQueries.is_completed_on(user, today)),
+        day = today if key == "workout_today" else today - timedelta(days=1)
+        # A completed-day boolean: False ("you didn't") is a definitive answer, not
+        # missing data → always CURRENT.
+        return {"value": bool(WorkoutQueries.is_completed_on(user, day)),
                 "source": "WorkoutQueries", "freshness": CURRENT}
 
     if key in ("appointments_today", "next_appointment"):

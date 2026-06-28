@@ -87,8 +87,17 @@ Ordered by "Critical blocks Layer 2" + leverage. Each batch closes a defect clas
    (the contract + `_day_fact` support them; the classifier doesn't yet emit those
    keys), arbitrary-date and range NL ("steps on March 15", "steps last week"), and
    the live Deep re-run to flip det_steps/det_sleep/fresh_* GREEN. *Acceptance: det_steps/sleep/calories, truth_*, intent_* — pending live re-run.*
-2. **Deterministic journal-today & appointments-today providers (C2).** Wire `JournalQueries.has_entry_on` and `build_calendar_state.next_event` into a foundational provider so the declined questions answer deterministically; add a `CalendarQueries` contract (C5). *Acceptance: det_journal, det_appts GREEN.*
-3. **Workout-today fact (C2).** `WorkoutQueries.completed_in_range(today,today)` → SAE `workouts_today` + foundational fact. *Acceptance: det_workouts, intent_workout GREEN.*
+2. **Deterministic providers for status questions (C2). — 🟢 DELIVERED, 2026-06-28.**
+   New `apps/ai/cos_services/execution_facts.py` answers journal-today
+   (`JournalQueries.has_entry_on`), workout-today (`WorkoutQueries.is_completed_on`),
+   appointments-today and next-appointment (pre-computed SAE `calendar` state, never
+   live-computed). The foundational classifier claims them — gated on a status
+   phrasing so coaching questions don't match — so they no longer fall to the
+   tool-loop LLM (Law 4 fixed). Tests: `test_execution_facts` (6). *Acceptance:
+   det_journal, det_appts, det_workouts, intent_workout — pending live re-run.*
+   **Remaining sub-item:** a formal `CalendarQueries` contract (C5) — provider reads
+   SAE state directly for now; a contract class is the clean home for history/range.
+3. **(folded into Batch 2)** Workout-today delivered via `WorkoutQueries.is_completed_on`.
 4. **Freshness envelope (C1/C3, Law 1/2).** Attach as-of + freshness verdict (current/stale/pending/partial/missing) to the per-day facts; pending/missing answer honestly. *Acceptance: fresh_* GREEN; Deep Truth Certification GREEN target.*
 5. **Finance Layer 1 (C5, H1-H4).** `FinanceQueries` contract; surface `today` spend + `BankConnection.last_sync_at` freshness; fix the dead cross-domain rule keys; add Beth finance facts; seed a finance acceptance suite.
 6. **Faith Layer 1 (H1, H2, H5).** Beth faith foundational facts (last-read, prayer counts/streak, reading-today); seed a faith acceptance suite; (later) reasoning intents + momentum engine.

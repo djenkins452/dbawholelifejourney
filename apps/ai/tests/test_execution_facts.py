@@ -1,0 +1,88 @@
+# ==============================================================================
+# File: apps/ai/tests/test_execution_facts.py
+# Description: Batch 2 (Layer 1) — deterministic providers for the status questions
+#   that previously fell to the tool-loop LLM: journaled today? worked out today?
+#   appointments today? next appointment? Each now reads a canonical Domain Truth
+#   Contract / pre-computed SAE state (Architecture Laws 0/1/4). No OpenAI.
+# ==============================================================================
+from datetime import timedelta
+from unittest import mock
+
+from django.contrib.auth import get_user_model
+from django.test import TestCase
+
+from apps.core.utils import get_user_today
+from apps.journal.models import JournalEntry
+from apps.health.models import WorkoutSession
+from apps.ai.chatgpt_cos.foundational_facts import (
+    classify_foundational_fact, format_fact_sentence,
+)
+from apps.ai.cos_services.execution_facts import get_foundational_execution_facts
+
+User = get_user_model()
+_GMS = "apps.core.ai_state.state_engine.get_module_state"
+
+
+class ExecutionFactClassifierTests(TestCase):
+    def test_status_questions_route_to_execution_keys(self):
+        self.assertEqual(classify_foundational_fact("Did I journal today?"), "journal_today")
+        self.assertEqual(classify_foundational_fact("Have I worked out today?"), "workout_today")
+        self.assertEqual(classify_foundational_fact("Do I have any appointments today?"), "appointments_today")
+        self.assertEqual(classify_foundational_fact("What's my next appointment?"), "next_appointment")
+        self.assertEqual(classify_foundational_fact("What's on my calendar?"), "appointments_today")
+
+    def test_coaching_questions_do_not_match(self):
+        # No status phrasing → must NOT be claimed as a deterministic fact.
+        self.assertIsNone(classify_foundational_fact("What workout should I do today?"))
+        self.assertIsNone(classify_foundational_fact("Should I journal more often?"))
+
+
+class ExecutionFactRetrievalTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(email="exec@test.com", password="x")
+        cls.today = get_user_today(cls.user)
+
+    def test_journal_today_true_and_false(self):
+        f = get_foundational_execution_facts(self.user, ["journal_today"])["journal_today"]
+        self.assertFalse(f["value"])
+        self.assertEqual(format_fact_sentence("journal_today", f),
+                         "Not yet — you haven't journaled today.")
+        JournalEntry.objects.create(user=self.user, entry_date=self.today)
+        f = get_foundational_execution_facts(self.user, ["journal_today"])["journal_today"]
+        self.assertTrue(f["value"])
+        self.assertEqual(format_fact_sentence("journal_today", f), "Yes — you've journaled today.")
+
+    def test_workout_today_true_and_false(self):
+        f = get_foundational_execution_facts(self.user, ["workout_today"])["workout_today"]
+        self.assertFalse(f["value"])
+        # status defaults to 'active' (soft-delete field); duration_minutes marks
+        # the session as completed per WorkoutQueries._COMPLETED_Q.
+        WorkoutSession.objects.create(user=self.user, date=self.today,
+                                      duration_minutes=30)
+        f = get_foundational_execution_facts(self.user, ["workout_today"])["workout_today"]
+        self.assertTrue(f["value"])
+        self.assertEqual(format_fact_sentence("workout_today", f),
+                         "Yes — you've logged a workout today.")
+
+    def test_appointments_today_from_calendar_state(self):
+        state = {"today_events": [{"title": "Dentist", "start": "9:00 AM"},
+                                  {"title": "Standup", "start": "10:30 AM"}],
+                 "next_event": {"title": "Standup", "start": "10:30 AM"}}
+        with mock.patch(_GMS, return_value=state):
+            facts = get_foundational_execution_facts(
+                self.user, ["appointments_today", "next_appointment"])
+        appt = facts["appointments_today"]
+        self.assertEqual(appt["value"], 2)
+        self.assertEqual(format_fact_sentence("appointments_today", appt),
+                         "You have 2 appointments today: Dentist at 9:00 AM; Standup at 10:30 AM.")
+        self.assertEqual(format_fact_sentence("next_appointment", facts["next_appointment"]),
+                         "Your next appointment is Standup at 10:30 AM.")
+
+    def test_empty_calendar_is_honest(self):
+        with mock.patch(_GMS, return_value={"today_events": [], "next_event": None}):
+            facts = get_foundational_execution_facts(
+                self.user, ["appointments_today", "next_appointment"])
+        self.assertEqual(format_fact_sentence("appointments_today", facts["appointments_today"]),
+                         "You have nothing on your calendar today.")
+        self.assertEqual(facts["next_appointment"]["status"], "unknown")

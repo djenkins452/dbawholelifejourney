@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — feat(cos): Layer 1 Batch 2 — deterministic status providers (execution_facts)
+
+Closes Critical gap C2: journal-today, workout-today, appointments-today, and next-appointment had NO deterministic provider — they declined through every lane and landed on the tool-loop LLM (Law 4 break) despite the truth already existing.
+
+**New provider** `apps/ai/cos_services/execution_facts.py` (`EXECUTION_FACT_KEYS`, `get_foundational_execution_facts`): journal-today via `JournalQueries.has_entry_on`, workout-today via `WorkoutQueries.is_completed_on`, appointments-today + next-appointment via the pre-computed SAE `calendar` module state (never live-computed on the request path — F-laws). Returns small fact dicts; honest no-data.
+
+**Wiring:** `foundational_facts._classify_execution_fact` claims these questions — gated on a status phrasing ("did i"/"have i"/"do i have") so coaching questions ("what workout should I do today") never match — and `answer_foundational_fact` adds an EXECUTION dispatch branch alongside GOAL/HEALTH. Format sentences for each; honest empty-calendar phrasing.
+
+**Tests:** `apps/ai/tests/test_execution_facts.py` (6) — classifier routing, coaching-question rejection, journal/workout true+false from real rows, appointments + next from calendar state, empty-calendar honesty. Regression GREEN across foundational/lane/acceptance (28+ tests).
+
+**Files:** apps/ai/cos_services/execution_facts.py (new), apps/ai/tests/test_execution_facts.py (new), apps/ai/chatgpt_cos/foundational_facts.py, docs/BETH_LAYER1_TRUTH_INVENTORY.md.
+
+Note: WorkoutSession.status is the soft-delete field (active/archived/deleted), NOT completion — completion is duration_minutes/completed_at/exercises per WorkoutQueries._COMPLETED_Q.
+
+
 ## 2026-06-28 — feat(health): Layer 1 Batch 1 — per-day Canonical Truth (DailyHealthQueries)
 
 Closes the dominant Layer-1 defect class from the inventory: the SAE exposed only 7-day averages, so "how many steps yesterday" / "how did I sleep last night" could not be answered as a real value (they were answered with an average or fell to the LLM). Architecture Laws 0/1/4.

@@ -26,6 +26,8 @@ import json
 import logging
 import re
 
+from apps.ai.cos_services.execution_facts import EXECUTION_FACT_KEYS
+
 logger = logging.getLogger(__name__)
 
 # Deterministic intent -> fact key map (narrow, foundational facts only).
@@ -69,6 +71,7 @@ _UNKNOWN_SENTENCE = {
     "protein_today": "I don't have any protein logged for you today.",
     "sleep_last_night": "I don't have last night's sleep recorded yet — it may not have synced.",
     "steps_recent": "I don't have recent step data recorded for you — it may not have synced yet.",
+    "next_appointment": "You have nothing else on your calendar today.",
     "steps_today": "I don't have today's steps yet — they may not have synced.",
     "steps_yesterday": "I don't have yesterday's steps recorded.",
     "calories_yesterday": "I don't have any calories logged for you yesterday.",
@@ -206,6 +209,11 @@ def classify_foundational_fact(message):
                                "what comes after", "next after", "after goal weight",
                                "comes next in", "next milestone", "next phase")):
         return None
+    # EXECUTION status facts (journaled/worked out/appointments today, next appt) —
+    # deterministic providers that previously fell to the LLM (Batch 2).
+    exec_key = _classify_execution_fact(text)
+    if exec_key:
+        return exec_key
     matched = None
     for key, keywords in _FACT_KEYWORDS:
         if any(kw in text for kw in keywords):
@@ -214,6 +222,28 @@ def classify_foundational_fact(message):
     if matched is None:
         return None
     return _refine_to_day(matched, text)
+
+
+def _classify_execution_fact(text):
+    """Deterministic 'did I X today / what's on my calendar' detection. Gated on a
+    status phrasing ('did i'/'have i'/'do i have') so coaching questions ('what
+    workout should I do today') never match. 'yesterday' is out of Batch-2 scope."""
+    if "yesterday" in text:
+        return None
+    status_q = any(p in text for p in ("did i", "have i", "do i have", "am i"))
+    today_q = any(p in text for p in ("today", "yet", "so far"))
+    if ("journal" in text or "journaled" in text) and status_q and today_q:
+        return "journal_today"
+    if (any(w in text for w in ("work out", "workout", "worked out",
+                                "exercise", "exercised", "gym"))
+            and status_q and today_q):
+        return "workout_today"
+    if ("appointment" in text or "on my calendar" in text
+            or "on my schedule" in text):
+        if "next" in text or "upcoming" in text:
+            return "next_appointment"
+        return "appointments_today"
+    return None
 
 
 def _refine_to_day(key, text):
@@ -278,6 +308,22 @@ def format_fact_sentence(key, fact):
         if fact.get("trend"):
             s += f", and your sleep trend is {fact['trend']}"
         return s + "."
+    if key == "journal_today":
+        return ("Yes — you've journaled today." if value
+                else "Not yet — you haven't journaled today.")
+    if key == "workout_today":
+        return ("Yes — you've logged a workout today." if value
+                else "Not yet — you haven't logged a workout today.")
+    if key == "appointments_today":
+        if not value:
+            return "You have nothing on your calendar today."
+        items = fact.get("items") or []
+        listed = ("; ".join(items)) if items else ""
+        n = value
+        head = f"You have {n} appointment{'s' if n != 1 else ''} today"
+        return f"{head}: {listed}." if listed else f"{head}."
+    if key == "next_appointment":
+        return f"Your next appointment is {value}."
     if key in ("steps_today", "steps_yesterday"):
         when = "yesterday" if key == "steps_yesterday" else "today"
         return f"You logged {value} steps {when}."
@@ -331,6 +377,12 @@ def answer_foundational_fact(user, message):
     if key in GOAL_FACT_KEYS:
         facts = get_foundational_goal_facts(user, [key])
         fact_source = "get_foundational_goal_facts"
+    elif key in EXECUTION_FACT_KEYS:
+        from apps.ai.cos_services.execution_facts import (
+            get_foundational_execution_facts,
+        )
+        facts = get_foundational_execution_facts(user, [key])
+        fact_source = "get_foundational_execution_facts"
     else:
         from apps.ai.cos_services.health_facts import get_foundational_health_facts
         facts = get_foundational_health_facts(user, [key])

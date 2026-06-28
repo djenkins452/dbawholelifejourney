@@ -153,3 +153,20 @@ class DiagnosticCommandTests(TestCase):
             output = self._run()
         self.assertRegex(output, r"client_initialized\s+=\s+True")
         self.assertIn("Configured and client initialized", output)
+
+    @override_settings(COS_MODEL="gpt-4o", OPENAI_MODEL="gpt-4o")
+    def test_reports_model_alignment(self):
+        output = self._run()
+        self.assertRegex(output, r"general_lane_model\s+=\s+gpt-4o")
+        self.assertRegex(output, r"tool_loop_model\s+=\s+gpt-4o")
+        self.assertRegex(output, r"models_aligned\s+=\s+True")
+        self.assertIn("use the SAME model (aligned)", output)
+
+    @override_settings(COS_MODEL="cos-good", OPENAI_MODEL="openai-broken")
+    def test_aligned_even_when_settings_differ(self):
+        # Both CoS paths resolve to COS_MODEL, so they stay aligned regardless of
+        # the (legacy) OPENAI_MODEL value — that's exactly what the fix guarantees.
+        output = self._run()
+        self.assertRegex(output, r"general_lane_model\s+=\s+cos-good")
+        self.assertRegex(output, r"tool_loop_model\s+=\s+cos-good")
+        self.assertRegex(output, r"models_aligned\s+=\s+True")

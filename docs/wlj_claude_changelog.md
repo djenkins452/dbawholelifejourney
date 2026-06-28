@@ -7,6 +7,24 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — verify(cos): production model-alignment visibility (COS_MODEL vs OPENAI_MODEL)
+
+Verification for the general-lane model fix. Adds production-visible confirmation that both CoS paths now resolve to the same conversational model — no architecture/routing/prompt change.
+
+**Startup log** (`apps/ai/apps.py` `AiConfig.ready`): one best-effort INFO line on every boot, visible in deploy logs without CLI —
+`COS_MODEL_ALIGNMENT COS_MODEL=<v> OPENAI_MODEL=<v> general_lane_model=<v> tool_loop_model=<v> aligned=True`. Because both the General lane and the Tool loop now do `COS_MODEL or self.model`, they resolve identically (`aligned=True`).
+
+**Diagnostic** (`diagnose_external_knowledge`) now reports `OPENAI_MODEL`, `COS_MODEL`, `general_lane_model`, `tool_loop_model`, `models_aligned`, and prints "use the SAME model (aligned)" or flags "MODEL DIVERGENCE" (the John-3:16-works / Metformin-fails pattern).
+
+**Local verification:** `COS_MODEL=gpt-4o`, `OPENAI_MODEL=gpt-4o` → both paths `gpt-4o`, `models_aligned=True`. The startup line emits on boot.
+
+**Regression tests** (`apps/ai/tests/test_external_knowledge_service.py`): diagnostic reports the per-path models and `models_aligned=True`; alignment holds even when `OPENAI_MODEL` differs from `COS_MODEL` (proving the fix decouples the General lane from the legacy `OPENAI_MODEL`).
+
+**Files:** apps/ai/apps.py, apps/ai/management/commands/diagnose_external_knowledge.py, apps/ai/tests/test_external_knowledge_service.py.
+
+**Verification:** 15 tests green; startup `COS_MODEL_ALIGNMENT` line fires; `manage.py check` clean; no migration. Production env-var VALUES and live question outcomes are now readable from the deploy logs (`COS_MODEL_ALIGNMENT`) and per-question logs (`COS_LANE_TRACE`, `LLM OK/FAILED class=/status=/classify=`) — no CLI required.
+
+
 ## 2026-06-27 — fix(cos): general lane used a different model than the tool loop (John 3:16 worked, Metformin didn't)
 
 Differential debugging. "Give me John 3:16" SUCCEEDED while "What is Metformin used for?" failed with "external knowledge service temporarily unavailable" — proving OpenAI + the key + the CoS model all work. The difference is the path.

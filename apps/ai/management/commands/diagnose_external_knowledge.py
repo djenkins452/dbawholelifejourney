@@ -29,11 +29,22 @@ class Command(BaseCommand):
         from apps.ai.services import ai_service
 
         key = getattr(settings, "OPENAI_API_KEY", None)
+        openai_model = getattr(settings, "OPENAI_MODEL", None)
+        cos_model = getattr(settings, "COS_MODEL", None)
+        # The model each CoS path RESOLVES to (both `_call_api`/`_call_api_with_tools`
+        # do `model or self.model`, where self.model == OPENAI_MODEL):
+        #   - General lane now passes COS_MODEL  → COS_MODEL or OPENAI_MODEL
+        #   - Tool loop passes COS_MODEL         → COS_MODEL or OPENAI_MODEL
+        general_lane_model = cos_model or openai_model
+        tool_loop_model = cos_model or openai_model
         report = {
             "api_key_configured": bool(key),
             "client_initialized": ai_service.is_available,  # is_available == client is not None
-            "model": getattr(settings, "OPENAI_MODEL", None),
-            "cos_model": getattr(settings, "COS_MODEL", None),
+            "OPENAI_MODEL": openai_model,
+            "COS_MODEL": cos_model,
+            "general_lane_model": general_lane_model,
+            "tool_loop_model": tool_loop_model,
+            "models_aligned": general_lane_model == tool_loop_model,
             "circuit_breaker_active": bool(cache.get("openai_rate_limited")),
         }
 
@@ -41,6 +52,13 @@ class Command(BaseCommand):
         self.stdout.write("-" * 52)
         for k, v in report.items():
             self.stdout.write(f"  {k:24} = {v}")
+        if report["models_aligned"]:
+            self.stdout.write(self.style.SUCCESS(
+                "  → General lane and tool loop use the SAME model (aligned)."))
+        else:
+            self.stdout.write(self.style.ERROR(
+                "  → MODEL DIVERGENCE: general lane and tool loop differ — this is "
+                "the John-3:16-works / Metformin-fails pattern."))
 
         if not report["api_key_configured"]:
             self.stdout.write(self.style.ERROR(

@@ -7,6 +7,25 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — feat(core): Executive Briefing Engine (transition capability — what matters before Beth speaks)
+
+The deterministic morning-briefing capability: synthesizes the whole current state across domains and ranks what matters BEFORE Beth responds, so Beth consumes judgment instead of inventing it. Closes the root cause of incomplete holistic synthesis (Beth knew 5 metrics, spoke about sleep).
+
+Investigation (evidence): no existing engine enumerates ALL truth domains and ranks clinical-safety-first. `compose_executive_brief` is a single-axis speechwriter (executive_brief.py:264); `executive_briefing.py` does raw ORM (the anti-pattern); `build_cos_intelligence` (cos_intelligence.py:253) is the already-wired injection seam into Beth's prompt; health_briefing has clinical-safety-first acute promotion but health-only. So: a NEW thin composer over the truth platform, injected via build_cos_intelligence.
+
+**New** `apps/core/truth/briefing.py` — `build_executive_briefing(user) -> ExecutiveBriefing`. Pure CONSUMER (no raw DB): enumerates `registered_domains()` → `get_domain_truth(user, d).supports()` → `.current(metric)`, reading the value + freshness + confidence already on each `CurrentTruth`. Classifies each into tiers — ACUTE (clinical danger, reusing `glucose_interpretation` — a low glucose outranks every optimization) → ATTENTION (caution/stale/low-confidence) → NORMAL → STALE (no data) — and ranks acute-first. `narrate_briefing()` renders the ranked order (danger first, then watch, then all-clear, then gaps).
+
+**Wired:** `build_cos_intelligence` now adds `executive_briefing` + `executive_briefing_narrative`; `cos_intelligence_narrative` leads the CHIEF OF STAFF STANDING READ with "What matters now: …" so Beth opens with the ranked attention list (rides the existing cos_context injection — no new plumbing).
+
+**Demonstration (glucose 43 + normal weight/steps + stale sleep):** standing read now leads "⚠ Glucose is 43 mg/dL — dangerously low … verify with a fingerstick. Holding steady: steps, weight. No recent data for: … sleep." — vs the old behavior of focusing on sleep.
+
+**Also fixed a real bug the briefing surfaced:** `DailyHealthQueries.calories_on` summed `"calories"` (FieldError) — the field is `total_calories`; the FoodEntry-fallback calorie path never worked.
+
+Guards: `apps/core/tests/test_executive_briefing_engine.py` (danger ranks first; enumerates weight/sleep/steps/glucose; stale flagged; narration opens with danger, never reassures). Permanent scenarios `cos_glucose_safety_low` + `cos_holistic_synthesis` are now satisfied by this engine. Regression GREEN (84).
+
+**Files:** apps/core/truth/briefing.py (new), apps/core/tests/test_executive_briefing_engine.py (new), apps/ai/cos_intelligence.py, apps/health/services/daily_health_queries.py.
+
+
 ## 2026-06-28 — fix(cos): Defect Class 3 (conversation continuity) + Class 4 (holistic synthesis)
 
 From the real Beth conversation.

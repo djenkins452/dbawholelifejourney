@@ -285,6 +285,16 @@ def build_cos_intelligence(user):
             intel["events"] = evs
     except Exception:
         logger.debug("cos_intel: events block failed", exc_info=True)
+    # Executive Briefing — deterministic cross-domain attention ranking (clinical
+    # safety first). Beth reads "what matters most" instead of choosing it herself.
+    try:
+        from apps.core.truth.briefing import build_executive_briefing, narrate_briefing
+        eb = build_executive_briefing(user)
+        if eb.items:
+            intel["executive_briefing"] = eb.to_dict()
+            intel["executive_briefing_narrative"] = narrate_briefing(eb)
+    except Exception:
+        logger.debug("cos_intel: executive briefing block failed", exc_info=True)
     return intel
 
 
@@ -293,6 +303,10 @@ def cos_intelligence_narrative(intel):
     if not intel:
         return None
     lines = []
+    # Executive Briefing FIRST — it ranks clinical-safety-first across domains, so it
+    # leads the standing read (Beth opens with what actually matters, not one metric).
+    if intel.get("executive_briefing_narrative"):
+        lines.append(f"- What matters now: {intel['executive_briefing_narrative']}")
     if intel.get("overall"):
         lines.append(f"- Overall read: {intel['overall']}")
     if intel.get("goal_pace_narrative"):

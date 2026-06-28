@@ -93,7 +93,7 @@ class DailyHealthQueries:
             return {"status": "ok", "value": int(s.total_calories), "unit": "kcal",
                     "for_date": target_date.isoformat()}
         total = (FoodEntry.objects.filter(user=user, logged_date=target_date)
-                 .aggregate(s=Sum("calories"))["s"])
+                 .aggregate(s=Sum("total_calories"))["s"])
         if total:
             return {"status": "ok", "value": int(total), "unit": "kcal",
                     "for_date": target_date.isoformat()}

@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — fix(cos): Defect Class 3 (conversation continuity) + Class 4 (holistic synthesis)
+
+From the real Beth conversation.
+
+CLASS 3 — "Why do you say that?" lost context. Root cause (evidence): the phrase starts with "why do" (a general-knowledge opener in `_GENERAL_OPENERS`) and has no personal pronoun, so `_looks_general` returned True and the SANDBOXED general lane (no history, no personal data) claimed it (lanes.py:551-566). The history-aware path (the tool loop, which loads `conversation_history` at service.py:171,193) was never reached. Fix: added `_FOLLOWUP_CUES` — meta/follow-up phrases that reference Beth's PRIOR answer ("why do you say", "what do you mean", "how do you know", "based on what", "says who"…) now return False from `_looks_general`, so the sandbox declines and the question falls through to the history-aware tool loop. Genuine general-knowledge ("capital of France") still routes general. Regression: `test_followup_continuity`.
+
+CLASS 4 — Beth knew weight/sleep/workout/steps/glucose but spoke almost only about sleep. Root cause (evidence): `overall_progress` curates HEALTH-only working memory that omitted steps (and workouts live in a separate module), and the LLM profile had no enumeration contract (stages.py:1340) so it anchored on the most salient signal. ALSO found a THIRD instance of the glucose blocker: `_health_progress_fallback` (stages.py:1228) called any glucose < 140 "in a good range" (so 43 → "good range"). Fix: (a) glucose now uses the canonical interpreter here too (43 → "very low" + advice); (b) added `steps_avg_7d` to `_H_STATUS` so activity is curated; (c) the fallback now enumerates steps; (d) the `overall_progress` profile now requires "touch EVERY populated facet before naming the one thing to nudge — synthesize, don't summarize." Regression: `test_holistic_synthesis`. KNOWN LIMIT: workouts live in `fitness_state` (separate module) outside this curator's structural health-only guarantee — surfacing workout in the holistic read is a follow-up (route to the multi-domain composer).
+
+Permanent scenarios: `cos_followup_continuity`, `cos_holistic_synthesis`. Regression GREEN (36).
+
+**Files:** apps/ai/chatgpt_cos/lanes.py, apps/ai/chatgpt_cos/reasoning/stages.py, apps/ai/tests/test_followup_continuity.py (new), apps/ai/tests/test_holistic_synthesis.py (new), apps/ai/chatgpt_cos/cos_acceptance.py.
+
+
 ## 2026-06-28 — fix(cos): Defect Class 2 (raw data leakage) + Class 5 (journal/meds deterministic rollout)
 
 From the real Beth conversation. CLASS 2 — Beth answered "Latest meal logged was..." (leaked the "meal entry" storage concept and returned a date when asked what she ate). Root cause: `latest_meal_logged` reads only SAE `last_food_entry` (a date) and `format_fact_sentence` said "logged meal entry was on <date>" (foundational_facts.py:360). Fix: (a) reworded to plain language ("The last time you tracked any food was <date>"); (b) added a real `meals_today` retrieval via `NutritionQueries.entries_on_date` grouped by `meal_type` (breakfast/lunch/dinner/snack with food names) so "What did I eat today?" returns the ACTUAL meals or an honest "haven't logged any food today yet".

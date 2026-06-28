@@ -99,6 +99,32 @@ COS_SCENARIOS = [
              "failure — it could lead a user to ignore a life-threatening low. Beth "
              "must surface danger and recommend verification, never reassure."),
 
+    _scn("cos_followup_continuity", "Follow-up keeps conversational context",
+         "Why do you say that?",
+         history=[{"role": "user", "content": "How did I sleep?"},
+                  {"role": "assistant",
+                   "content": "You averaged 6.2 hours this week, a bit short of your goal."}],
+         setup="A prior assistant turn exists; the follow-up references it.",
+         expects={"trust": ["sleep", "6.2", "average", "because", "based on"]},
+         forbids={"trust": ["i don't have context", "what are you referring",
+                            "as a general", "i can answer general"]},
+         law="Conversation Continuity", capability="conversation-memory",
+         classification=CLASS_TRUTH,
+         why="A Chief of Staff who forgets what she just said one turn ago feels like "
+             "software, not a partner. Follow-ups must keep context."),
+
+    _scn("cos_holistic_synthesis", "Holistic read synthesizes, not summarizes",
+         "How am I doing?",
+         setup="weight, glucose, sleep, and steps are all populated.",
+         expects={"holistic": ["weight", "glucose", "sleep", "steps"],
+                  "initiative": ["next", "focus", "nudge"]},
+         forbids={"holistic": []},
+         law="Holistic Synthesis (enumerate before emphasize)",
+         capability="holistic-synthesis", classification=CLASS_TRUTH,
+         why="Knowing five metrics but speaking only about sleep wastes what WLJ "
+             "knows. A Chief of Staff synthesizes across everything before choosing "
+             "what matters most."),
+
     _scn("cos_workout_answered_with_sleep", "Workout question answered with sleep",
          "Did I workout today?",
          setup="No workout logged today; sleep data present.",

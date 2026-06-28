@@ -243,7 +243,9 @@ def _curate_value(v):
 # reads those keys (structural guarantee against the Harley-task contamination).
 _H_STATUS = ("weight_current", "weight_unit", "latest_glucose",
              "latest_glucose_unit", "bp_systolic", "bp_diastolic",
-             "sleep_avg_hours_7d", "heart_rate_avg_7d", "latest_blood_oxygen")
+             "sleep_avg_hours_7d", "heart_rate_avg_7d", "latest_blood_oxygen",
+             # Activity — so holistic synthesis enumerates it, not just sleep (Defect 4).
+             "steps_avg_7d")
 _H_TRENDS = ("weight_trend", "sleep_trend", "glucose_avg_7d",
              "glucose_variability_label")
 _H_RISKS = ("weight_goal_on_track", "plateau_status", "plateau_risk_label",
@@ -1225,12 +1227,23 @@ def _health_progress_fallback(wm):
         parts.append(s + ".")
     glu = _num(cs.get("latest_glucose"))
     if glu is not None:
-        tag = "in a good range" if glu < 140 else "running a little high"
-        parts.append(f"Glucose is around {glu} {cs.get('latest_glucose_unit', 'mg/dL')} ({tag}).")
+        # CLINICAL SAFETY: never call a value "in a good range" by a naive < 140 rule
+        # (43 mg/dL is severe hypoglycemia). Use the canonical interpreter (Defect 1).
+        from apps.health.services.glucose_interpretation import interpret
+        gi = interpret(glu, cs.get("latest_glucose_unit", "mg/dL"))
+        label = gi["display"].lower() if gi else "recorded"
+        seg = f"Glucose is around {glu} {cs.get('latest_glucose_unit', 'mg/dL')} ({label})"
+        if gi and gi.get("concern"):
+            seg += f" — {gi['advice']}"
+        parts.append(seg + ".")
     sl = _num(cs.get("sleep_avg_hours_7d"))
     if sl is not None:
         tag = "solid" if sl >= 7 else "a bit short"
         parts.append(f"Sleep is averaging {sl} hours ({tag}).")
+    # SYNTHESIS (Defect 4): enumerate activity too — don't collapse to sleep alone.
+    steps = _num(cs.get("steps_avg_7d"))
+    if steps is not None:
+        parts.append(f"You're averaging about {int(steps)} steps a day.")
     if ranked:
         parts.append(f"The main thing to nudge next: {ranked[0].get('concern')}.")
     if not parts:
@@ -1328,7 +1341,12 @@ REASONING_PROFILES = {
         "system": (
             "You are the user's Chief of Staff. Using ONLY the health working "
             "memory provided, give a balanced read on how the user is doing "
-            "against their HEALTH goals — what's going well and what to improve."
+            "against their HEALTH goals — what's going well and what to improve. "
+            "SYNTHESIZE, don't summarize one thing: FIRST briefly touch EVERY facet "
+            "present in the working memory (weight, glucose, sleep, activity/steps — "
+            "whichever are populated) so nothing the user tracks is ignored; THEN name "
+            "the single most important thing to nudge next. Never fixate on one domain "
+            "while silently dropping the others."
             + _HEALTH_GUIDANCE + " Max 160 words."
         ),
         "max_tokens": 260,

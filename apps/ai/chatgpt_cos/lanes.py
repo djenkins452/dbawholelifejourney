@@ -548,9 +548,21 @@ _GENERAL_OPENERS = (
 )
 
 
+# Meta/follow-up cues that reference BETH'S PRIOR ANSWER, not the world. These are
+# conversational, NOT general-knowledge — they must reach the history-aware tool loop
+# (which loads conversation_history) so continuity survives a follow-up (Defect 3).
+_FOLLOWUP_CUES = (
+    "why do you say", "why would you say", "what makes you say", "why do you think that",
+    "what do you mean", "how do you know", "how do you figure", "based on what",
+    "says who", "explain that", "what are you basing", "why is that",
+)
+
+
 def _looks_general(message):
     norm = (message or "").strip().lower()
     if not norm:
+        return False
+    if any(c in norm for c in _FOLLOWUP_CUES):  # follow-up about the prior turn
         return False
     tokens = set(re.findall(r"[a-z']+", norm))
     if tokens & _PERSONAL_PRONOUNS:           # personal -> not general

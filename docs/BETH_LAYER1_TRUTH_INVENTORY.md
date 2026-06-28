@@ -31,6 +31,38 @@ most basic "did I X / how much X yesterday" questions a Chief of Staff must own.
 
 ---
 
+## Platform Capabilities (the architecture — implement once, consume everywhere)
+
+> Implementation is **platform-capability-first**, not domain-first. A capability is
+> built once as a domain-agnostic module and every domain consumes it. "Health Per-Day
+> Scalars" was really **Per-Day Truth**; "Health freshness" was really **Freshness**.
+> Status below tracks consumers, not re-implementations.
+
+| Capability | Platform home | Health | Execution/Calendar | Tasks/Journal | Goals | Finance | Faith | Relationships |
+|---|---|---|---|---|---|---|---|---|
+| **Current Truth** | SAE `state_builder` | ✅ | ✅ | ✅ | ✅ | 🟡 partial | 🟡 partial | 🟡 partial |
+| **History** | domain `*_queries` | 🟡 (no point-in-time) | n/a | ✅ | ✅ | 🟡 keyword only | 🟡 reading only | ⬜ |
+| **Per-Day Truth** | `apps/health/services/daily_health_queries.py` (pattern) | ✅ | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| **Freshness** | `apps/core/truth/freshness.py` ⭐ | ✅ consumer | ✅ consumer | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| **Deterministic Providers** | `foundational_facts` + domain fact sources | ✅ | ✅ | ⬜ | ✅ | ⬜ | ⬜ | ⬜ |
+
+✅ complete · 🟡 partial · ⬜ pending · ⭐ now a domain-agnostic platform module (this batch).
+
+**Capability backlog (build once, then apply to every pending domain above):**
+1. **Per-Day Truth registry** — generalize the `DailyHealthQueries` pattern into a
+   registry/protocol so a domain registers `*_on(user, date)` resolvers and the generic
+   per-day dispatcher handles classification → resolution → freshness → phrasing. Then
+   Finance/Faith/Calendar per-day truth = a registration, not a new pipeline.
+2. **Deterministic Provider registry** — replace the hardcoded GOAL/HEALTH/EXECUTION
+   branches in `answer_foundational_fact` with a registry keyed by fact namespace, so
+   each domain registers its provider once.
+3. **Sync Freshness application** — apply `classify_sync_freshness` to Finance
+   (`BankConnection.last_sync_at`), CGM, and any snapshot Current Truth.
+4. **Point-in-time History** — a generic `*_on(date)` / range-retrieval contract every
+   domain implements (closes the Health point-in-time gap and arms range questions).
+
+---
+
 ## Master Matrix
 
 | Domain | Canonical Truth (tables) | Current Truth (SAE) | History | Engines | Consumers | Acceptance | Headline gaps |

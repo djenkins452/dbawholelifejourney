@@ -122,9 +122,9 @@ def _day_fact(user, key):
         logger.warning("health_facts: day fact failed key=%s", key, exc_info=True)
         return {"status": "unknown", "reason": "per-day retrieval failed"}
     if res.get("status") != "ok":
-        # Law 1 — distinguish PENDING (today, not yet synced) from MISSING (absent).
-        fresh = "pending" if key == "steps_today" else "missing"
-        return {"status": "unknown", "freshness": fresh,
+        # Platform Freshness capability — PENDING (today) vs MISSING (absent).
+        return {"status": "unknown",
+                "freshness": _day_freshness(key, res, today, yest, has_data=False),
                 "reason": f"no {res.get('metric', key)} for the requested day"}
     fact = {"value": res["value"], "source": "DailyHealthQueries"}
     for f in ("unit", "for_date", "recorded_at", "as_of", "exact", "count"):
@@ -134,18 +134,22 @@ def _day_fact(user, key):
     return fact
 
 
-def _day_freshness(key, res, today, yest):
-    """READ the freshness verdict from the data state (Beth never infers it):
-    current = the asked day, complete · partial = today, still accruing ·
-    stale = the most-recent value is older than the day asked about."""
-    if key == "steps_today":
-        return "partial"                       # cumulative, day not over
-    if key == "sleep_last_night":
-        fd = res.get("for_date")
-        return "current" if fd in (today.isoformat(), yest.isoformat()) else "stale"
-    if key == "weight_yesterday":
-        return "current" if res.get("exact") else "stale"
-    return "current"   # steps_yesterday, calories_yesterday, glucose_yesterday
+def _day_freshness(key, res, today, yest, has_data=True):
+    """READ the freshness verdict via the PLATFORM Freshness capability
+    (apps.core.truth.freshness) — Health is a consumer, not the owner of the logic.
+    sleep "last night" and *_yesterday facts are keyed to yesterday; *_today to today;
+    steps_today is cumulative (→ partial)."""
+    from datetime import date as _date
+    from apps.core.truth.freshness import classify_period_freshness
+    requested = today if key.endswith("_today") else yest
+    raw = res.get("as_of") or res.get("for_date")
+    try:
+        data_date = _date.fromisoformat(raw) if raw else None
+    except (TypeError, ValueError):
+        data_date = None
+    return classify_period_freshness(
+        has_data=has_data, requested_date=requested, data_date=data_date,
+        today=today, is_cumulative=(key == "steps_today"))
 
 
 def get_foundational_health_facts(user, keys=None):

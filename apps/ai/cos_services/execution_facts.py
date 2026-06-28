@@ -33,17 +33,20 @@ def get_foundational_execution_facts(user, keys):
 
 def _resolve(user, key):
     from apps.core.utils import get_user_today
+    from apps.core.truth.freshness import CURRENT
     today = get_user_today(user)
 
+    # These are "as of now / today" status facts — the platform Freshness verdict is
+    # CURRENT (a second domain consuming apps.core.truth.freshness, no duplicate logic).
     if key == "journal_today":
         from apps.journal.services.journal_queries import JournalQueries
         return {"value": bool(JournalQueries.has_entry_on(user, today)),
-                "source": "JournalQueries"}
+                "source": "JournalQueries", "freshness": CURRENT}
 
     if key == "workout_today":
         from apps.health.services.workout_queries import WorkoutQueries
         return {"value": bool(WorkoutQueries.is_completed_on(user, today)),
-                "source": "WorkoutQueries"}
+                "source": "WorkoutQueries", "freshness": CURRENT}
 
     if key in ("appointments_today", "next_appointment"):
         return _calendar_fact(user, key)
@@ -67,13 +70,15 @@ def _calendar_fact(user, key):
                        getattr(user, "id", None), exc_info=True)
         st = {}
 
+    from apps.core.truth.freshness import CURRENT, MISSING
     if key == "appointments_today":
         events = st.get("today_events") or []
         return {"value": len(events),
                 "items": [_label(e) for e in events],
-                "source": "calendar_state"}
+                "source": "calendar_state", "freshness": CURRENT}
 
     nxt = st.get("next_event")
     if not nxt:
-        return {"status": "unknown", "reason": "no upcoming appointment today"}
-    return {"value": _label(nxt), "source": "calendar_state"}
+        return {"status": "unknown", "freshness": MISSING,
+                "reason": "no upcoming appointment today"}
+    return {"value": _label(nxt), "source": "calendar_state", "freshness": CURRENT}

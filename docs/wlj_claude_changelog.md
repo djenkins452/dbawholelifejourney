@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — refactor(core): Platform capability — Freshness (apps.core.truth.freshness)
+
+Strategy pivot to platform-capability-first. Freshness was implemented inside health-specific code (Batch 3); extracted it into a domain-agnostic PLATFORM module every domain consumes — "we didn't build Health freshness, we built Freshness."
+
+**New** `apps/core/truth/freshness.py`: canonical verdicts (CURRENT/STALE/PENDING/PARTIAL/MISSING), two generic classifiers — `classify_period_freshness` (per-day/period truth) and `classify_sync_freshness` (synced/snapshot truth, e.g. Finance `BankConnection.last_sync_at`, CGM) — plus `HONESTY_MARKERS` + `satisfies_honesty` (the narration contract, kept in lockstep with the acceptance freshness specs). New package `apps/core/truth/`.
+
+**Consumers wired (no duplicate logic):** Health (`health_facts._day_freshness` now delegates to `classify_period_freshness`; all Batch-3 behavior preserved) and Execution/Calendar (`execution_facts` tags journal/workout/appointments/next-appointment with the platform verdicts). Two domains consuming one module proves the platform nature; Finance/Faith/Relationships are pending consumers (tracked in the inventory's new Platform Capabilities matrix).
+
+**Inventory:** added a **Platform Capabilities** matrix (capability × domain status) + a capability backlog (Per-Day Truth registry, Deterministic Provider registry, Sync Freshness application, Point-in-time History). Roadmap now follows capabilities, not domains.
+
+**Tests:** `apps/core/tests/test_truth_freshness.py` (10) — both classifiers across all five verdicts + honesty markers, in isolation so future consumers inherit the contract. Regression GREEN (43 across platform + Health + execution).
+
+**Files:** apps/core/truth/__init__.py (new), apps/core/truth/freshness.py (new), apps/core/tests/test_truth_freshness.py (new), apps/ai/cos_services/health_facts.py, apps/ai/cos_services/execution_facts.py, docs/BETH_LAYER1_TRUTH_INVENTORY.md.
+
+
 ## 2026-06-28 — feat(health): Layer 1 Batch 3 — freshness envelope on per-day facts
 
 Law 1 — every per-day Current Truth now carries a READ `freshness` verdict so Beth states honesty instead of inferring it. `health_facts._day_freshness` classifies: current (asked day, complete → cite value), partial (today, still accruing → "so far today"), stale (most-recent value older than the day asked → "from <date>, I don't have last night yet"), pending (today, not yet synced → honest absence), missing (absent → honest absence). `format_fact_sentence` honors the verdict for steps_today (partial) and sleep_last_night (stale); current/pending/missing keep the plain/honest-absence phrasing.

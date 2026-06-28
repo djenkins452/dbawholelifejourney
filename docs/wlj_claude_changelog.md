@@ -7,6 +7,27 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — feat(acceptance): Deep factual-trust categories — Beth's foundation before intelligence
+
+Expand the Beth Acceptance Center's Deep suite to prove Beth's deterministic factual foundation is trustworthy — operationalizing Architecture Laws 0/1/2/4/5 as release-blocking checks. No new Beth intelligence; this is the test/acceptance harness only.
+
+**Six new factual-trust categories** (`apps/ai/chatgpt_cos/acceptance_rules.py`, 29 questions, all depth=deep, suite="factual", criticality=critical):
+- **Intent (Law 0):** Beth answers the question actually asked; a wrong-domain answer ("Did I workout today?" → sleep) is a critical failure (forbidden + missing_required_any).
+- **Truth (Law 1/2):** every deterministic fact must cite a VALUE or honestly say it isn't available (new `gate_value`).
+- **Freshness (Law 1):** the five data states — current / stale / pending / partial / missing — each with its honesty contract (`freshness_expect`); presenting stale-as-current fails.
+- **Deterministic Retrieval (Law 4):** weight, sleep, steps, calories, journal, workouts, medications, appointments must never return the OpenAI/"assistant unavailable" message.
+- **Stability (Law 5):** new pure `stability_violations()` + critical `unstable_fact` rule — identical question + unchanged data ⇒ identical numeric facts (the 5.3h vs 6.9h flip).
+- **Regression:** every historical production defect frozen permanently — stale/unstable sleep, wrong-domain retrieval, deterministic-step "assistant unavailable," contradictory factual answers.
+
+**Engine wiring (additive, non-breaking):** `_q` gains `category`/`freshness_expect`/`stability_group`; `evaluate()` adds the `value` gate; `is_critical_rule()` makes wrong-question / uncited-value / unstable-fact release-blocking for the factual categories; `_RULE_CATEGORY` + `CRITICAL_RULES` + `SUITES` + `_DOMAIN_TO_SUITE` extended. Deep is now the release gate for factual correctness — any factual-trust critical ⇒ RED (existing `grade()`).
+
+**Future Chief-of-Staff Acceptance Suite — DESIGNED, not implemented** (`docs/BETH_CHIEF_OF_STAFF_ACCEPTANCE_SUITE.md`): the judgment/proactivity/synthesis/tone layer that sits ABOVE Deep and may only score once Deep is GREEN — the automated form of the Playbook's Gate 3. Trust precedes intelligence.
+
+**Files:** apps/ai/chatgpt_cos/acceptance_rules.py, apps/ai/tests/test_acceptance_factual_trust.py (new, 17 tests), docs/BETH_CHIEF_OF_STAFF_ACCEPTANCE_SUITE.md (new, design).
+
+**Verification:** 81 acceptance tests green (17 new factual-trust + 64 existing, non-breaking); `manage.py check` clean; no migration. Evaluation is pure-function (no DB/OpenAI), so the gates are deterministically tested; the live harness runs them against Beth in the Admin Acceptance Center.
+
+
 ## 2026-06-28 — docs(playbook): add the Chief-of-Staff Acceptance Gate (Beth is the product)
 
 Governance update to `@WLJ_SYSTEM_PROMPTS/00_CORE_STARTUP/WLJ CLAUDE OPUS 4.8 EXECUTION PLAYBOOK.md` — a standing operating principle, integrated (not appended): no recommendation, "complete," or "move on" is valid until it improves Beth as a trusted Chief of Staff.

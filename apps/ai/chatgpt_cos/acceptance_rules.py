@@ -132,7 +132,8 @@ GOAL_INTENTS = ("biggest_goal_risk", "goals_progress", "goals_focus_today",
 HEALTH_INTENTS = ("biggest_health_risk", "overall_progress", "health_focus_today",
                   "health_concerns")
 
-SUITES = ("full", "goals", "health", "checkin", "general", "rhythm", "boundary")
+SUITES = ("full", "goals", "health", "checkin", "general", "rhythm", "boundary",
+          "factual")
 DEPTHS = ("smoke", "full", "deep")
 _DEPTH_RANK = {"smoke": 0, "full": 1, "deep": 2}
 
@@ -149,6 +150,8 @@ _RULE_CATEGORY = [
     ("gate_evidence", "response_quality"),
     ("gate_synthesis", "response_quality"),
     ("gate_actionable", "response_quality"),
+    ("gate_value", "missing_value"),
+    ("unstable_fact", "unstable_fact"),
     ("too_short", "response_quality"),
     ("checkin", "checkin_time_awareness"),
     ("slow_response", "slow_response"),
@@ -156,7 +159,7 @@ _RULE_CATEGORY = [
 
 # Rules that make a question a CRITICAL (release-blocking) failure.
 CRITICAL_RULES = ("empty", "exception", "openai_failure_message", "wrong_domain",
-                  "duplicate_answer")
+                  "duplicate_answer", "unstable_fact")
 CRITICAL_BANNED_CATEGORIES = ("system_language", "deflection")
 
 
@@ -181,6 +184,19 @@ def is_critical_rule(rule, spec=None):
     # healthy goals listed as slipping
     if rule.startswith("missing_required") and spec and spec.get("key", "").startswith("goal_slip"):
         return True
+    # ── Factual-trust criticality (Deep suite, 2026-06-28) ──────────────────
+    # An unstable fact (Law 5) is always release-blocking. For the factual-trust
+    # categories, answering the wrong question (forbidden/missing_required_any on
+    # an intent question, Law 0) or failing to cite a value (Law 1/2) blocks too.
+    if rule.startswith("unstable_fact"):
+        return True
+    cat = spec.get("category", "") if spec else ""
+    if cat in ("intent", "deterministic", "regression") and \
+            rule.startswith(("forbidden", "missing_required_any")):
+        return True
+    if cat in ("truth", "freshness", "deterministic", "regression") and \
+            rule.startswith(("gate_value", "missing_required_any")):
+        return True
     return False
 
 
@@ -198,7 +214,15 @@ def _q(key, text, domain, depth="full", **kw):
          "expect_lane": kw.get("expect_lane", ""),
          "distinct_group": kw.get("distinct_group", ""),
          "criticality": kw.get("criticality", "normal"),
-         "min_len": kw.get("min_len", 0), "notes": kw.get("notes", "")}
+         "min_len": kw.get("min_len", 0), "notes": kw.get("notes", ""),
+         # Factual-trust taxonomy (Deep suite): intent | truth | freshness |
+         # deterministic | stability | regression  ("" = legacy reasoning question).
+         "category": kw.get("category", ""),
+         # Freshness questions declare the data state the harness sets up.
+         "freshness_expect": kw.get("freshness_expect", ""),
+         # Stability questions sharing a group are asked repeatedly; their FACTS
+         # (extracted numbers) must be identical across runs (data unchanged).
+         "stability_group": kw.get("stability_group", "")}
     return d
 
 
@@ -349,13 +373,191 @@ def _rhythm_questions():
     ]
 
 
+# ===========================================================================
+# FACTUAL-TRUST CATEGORIES (Deep suite — "earn the right to be trusted").
+# These prove Beth's deterministic FOUNDATION before any reasoning is graded.
+# They enforce Architecture Laws 0/1/2/4/5 (Intent, Freshness, Confidence,
+# Deterministic Retrieval, Stable Truth). All are critical (release-blocking).
+# Spec: docs/WLJ_ARCHITECTURE_LAWS.md, docs/BETH_GOLD_STANDARD_ACCEPTANCE.md
+# ===========================================================================
+
+# Honest "I don't have it (yet)" — the correct answer when data is pending/missing
+# (Law 1). A freshness-aware answer either cites a value OR acknowledges absence.
+NO_DATA_MARKERS = (
+    "don't have", "do not have", "haven't synced", "hasn't synced", "not synced",
+    "not yet synced", "hasn't updated", "pending", "no data", "not available",
+    "haven't recorded", "nothing recorded", "not yet", "still syncing", "syncing",
+    "haven't received", "no sleep data", "no step", "isn't available", "no record",
+)
+
+
+def acknowledges_no_data(text):
+    t = (text or "").lower()
+    return any(m in t for m in NO_DATA_MARKERS)
+
+
+def has_number(text):
+    return bool(re.search(r"\d", text or ""))
+
+
+def _facts_of(text):
+    """The numeric FACTS in an answer — used to compare stability across runs."""
+    return set(re.findall(r"\d+(?:\.\d+)?", text or ""))
+
+
+def stability_violations(answers):
+    """Law 5. `answers` = responses to the SAME question with unchanged source data.
+    [] if every answer carries identical numeric facts; else a single critical
+    `unstable_fact` violation describing the divergence (e.g. 5.3 vs 6.9)."""
+    sets = [_facts_of(a) for a in answers if (a or "").strip()]
+    if len(sets) < 2:
+        return []
+    if all(s == sets[0] for s in sets):
+        return []
+    rendered = " vs ".join("{" + ",".join(sorted(s)) + "}" for s in sets)
+    return [f"unstable_fact:{rendered}"]
+
+
+def _intent_questions():
+    """Law 0 — Beth answers the question ACTUALLY asked. A wrong-domain answer
+    (sleep when asked about a workout) is a critical failure."""
+    # (key, text, asked-domain terms [required_any], other-domain terms [forbidden])
+    specs = [
+        ("intent_workout", "Did I workout today?",
+         ["workout", "worked out", "exercise", "train", "gym", "no workout",
+          "didn't work out", "haven't worked out", "rest day", "not yet"],
+         ["slept", "hours of sleep", "your weight", "glucose", "blood sugar"]),
+        ("intent_sleep", "How did I sleep last night?",
+         ["slept", "sleep", "hours", "rest", "no sleep data", "haven't synced"],
+         ["workout", "exercise", "your steps", "your weight", "calories"]),
+        ("intent_weight", "What is my weight right now?",
+         ["weigh", "lb", "pound", "kg", "weight"],
+         ["slept", "sleep", "workout", "glucose", "steps"]),
+        ("intent_steps", "How many steps did I get yesterday?",
+         ["step", "walk"],
+         ["slept", "sleep", "your weight", "workout", "glucose"]),
+        ("intent_journal", "Did I journal today?",
+         ["journal", "entry", "wrote", "didn't journal", "no journal", "haven't"],
+         ["workout", "slept", "sleep", "your weight", "steps"]),
+    ]
+    return [_q(k, t, "intent", "deep", category="intent", criticality="critical",
+               required_any=ra, forbidden=fb) for k, t, ra, fb in specs]
+
+
+def _truth_questions():
+    """Laws 1/2 — a deterministic fact answer must cite a VALUE (or honestly say it
+    isn't available); it must never be silent or hand-wave."""
+    specs = [
+        ("truth_weight", "What is my current weight?"),
+        ("truth_glucose", "What was my last glucose reading?"),
+        ("truth_calories", "How many calories have I eaten today?"),
+        ("truth_sleep", "How many hours did I sleep last night?"),
+    ]
+    return [_q(k, t, "truth", "deep", category="truth", criticality="critical",
+               gates=["value"]) for k, t in specs]
+
+
+def _freshness_questions():
+    """Law 1 — Beth distinguishes current / stale / pending / partial / missing. The
+    harness sets up the declared data state (freshness_expect); the answer must match
+    that state's honesty contract."""
+    specs = [
+        ("fresh_current", "How many hours did I sleep last night?", "current",
+         [], ["value"]),  # fresh data → cite the value
+        ("fresh_stale", "How many hours did I sleep last night?", "stale",
+         ["as of", "last synced", "earlier", "from", "hasn't updated", "yesterday",
+          "older"], []),
+        ("fresh_pending", "How many hours did I sleep last night?", "pending",
+         list(NO_DATA_MARKERS), []),
+        ("fresh_partial", "How many steps did I get today?", "partial",
+         ["partial", "some", "incomplete", "still syncing", "only have", "so far",
+          "not all"], []),
+        ("fresh_missing", "How many hours did I sleep last night?", "missing",
+         list(NO_DATA_MARKERS), []),
+    ]
+    return [_q(k, t, "freshness", "deep", category="freshness", criticality="critical",
+               freshness_expect=fx, required_any=ra, gates=g)
+            for k, t, fx, ra, g in specs]
+
+
+def _deterministic_retrieval_questions():
+    """Law 4 — a question WLJ can answer deterministically must NEVER return the
+    'assistant unavailable' / OpenAI-failure message. Covers the canonical domains."""
+    specs = [
+        ("det_weight", "What is my current weight?", ["value"], []),
+        ("det_sleep", "How many hours did I sleep last night?", ["value"], []),
+        ("det_steps", "How many steps did I get yesterday?", ["value"], []),
+        ("det_calories", "How many calories did I eat yesterday?", ["value"], []),
+        ("det_journal", "Did I write a journal entry today?", [],
+         ["journal", "entry", "wrote", "didn't", "no journal", "haven't"]),
+        ("det_workouts", "Did I work out yesterday?", [],
+         ["workout", "worked out", "didn't", "no workout", "rest"]),
+        ("det_meds", "What medications do I take?", [],
+         ["medication", "medicine", "none", "you take", "take"]),
+        ("det_appts", "Do I have any appointments today?", [],
+         ["appointment", "calendar", "none", "no appointment", "scheduled"]),
+    ]
+    return [_q(k, t, "deterministic", "deep", category="deterministic",
+               criticality="critical", gates=g, required_any=ra)
+            for k, t, g, ra in specs]
+
+
+def _stability_questions():
+    """Law 5 — identical question + unchanged data ⇒ identical facts. The harness
+    asks each twice and calls stability_violations() on the pair."""
+    specs = [
+        ("stable_weight", "What is my current weight?", "weight_stable"),
+        ("stable_sleep", "How many hours did I sleep last night?", "sleep_stable"),
+        ("stable_steps", "How many steps did I get yesterday?", "steps_stable"),
+    ]
+    return [_q(k, t, "stability", "deep", category="stability", criticality="critical",
+               stability_group=g) for k, t, g in specs]
+
+
+def _regression_questions():
+    """Every historical production defect, frozen as a permanent test. Once fixed,
+    it can never silently regress."""
+    return [
+        # 2026-06-28 — sleep 5.3h then 6.9h a minute apart (unstable + stale).
+        _q("reg_stale_sleep", "How many hours did I sleep last night?", "regression",
+           "deep", category="regression", criticality="critical",
+           stability_group="reg_sleep_stable",
+           notes="stale/unstable sleep: must be stable + freshness-honest"),
+        # Wrong-domain: 'Did I workout today?' answered about sleep.
+        _q("reg_wrong_domain", "Did I workout today?", "regression", "deep",
+           category="regression", criticality="critical",
+           required_any=["workout", "worked out", "exercise", "no workout",
+                         "didn't work out", "rest day", "haven't"],
+           forbidden=["slept", "hours of sleep", "your weight"],
+           notes="must answer the asked domain, never sleep"),
+        # Deterministic step count returned 'assistant unavailable'.
+        _q("reg_det_steps", "How many steps did I get yesterday?", "regression",
+           "deep", category="regression", criticality="critical", gates=["value"],
+           notes="deterministic retrieval must never be an AI-failure message"),
+        # Contradictory factual answers across repeats.
+        _q("reg_contradictory", "What is my current weight?", "regression", "deep",
+           category="regression", criticality="critical",
+           stability_group="reg_weight_stable",
+           notes="repeated identical question must return identical facts"),
+    ]
+
+
+FACTUAL_TRUST_QUESTIONS = (_intent_questions() + _truth_questions()
+                           + _freshness_questions() + _deterministic_retrieval_questions()
+                           + _stability_questions() + _regression_questions())
+
 QUESTIONS = (_checkin_questions() + _goal_paraphrases() + _health_questions()
-             + _rhythm_questions() + _general_questions() + _boundary_questions())
+             + _rhythm_questions() + _general_questions() + _boundary_questions()
+             + FACTUAL_TRUST_QUESTIONS)
 
 
 _DOMAIN_TO_SUITE = {"goals": "goals", "health": "health", "general": "general",
                     "rhythm": "rhythm", "clarification": "checkin", "agenda": "checkin",
-                    "personal": "boundary"}
+                    "personal": "boundary",
+                    # Factual-trust categories all roll up to the 'factual' suite.
+                    "intent": "factual", "truth": "factual", "freshness": "factual",
+                    "deterministic": "factual", "stability": "factual",
+                    "regression": "factual"}
 
 
 def suite_of(spec):
@@ -443,6 +645,10 @@ def evaluate(spec, text, intent=None, lane=None):
         fails.append("gate_synthesis")
     if "actionable" in gates and not is_actionable(t):
         fails.append("gate_actionable")
+    # Law 1/2 — a deterministic fact must cite a VALUE or honestly say it isn't
+    # available; it may never be vague or silent about the number.
+    if "value" in gates and not (has_number(t) or acknowledges_no_data(t)):
+        fails.append("gate_value")
     # length sanity: a synthesis answer that is too short
     if ("synthesis" in gates or "evidence" in gates) and len(t) < max(40, spec.get("min_len", 0)):
         fails.append("too_short")

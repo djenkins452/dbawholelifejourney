@@ -18,26 +18,23 @@ LAYER_1 = {
     "status": "pending_live_deep",    # deterministic gate GREEN; live Deep run pending
     "certified_on": None,
     "frozen": False,
-    # APPROVED Layer 1 scope (original inventory backlog + the approved Domain Truth
-    # architectural checkpoint). The roadmap — not implementation — defines this list.
+    # APPROVED Layer 1 scope. The roadmap — not implementation — defines this list.
+    # Origin: original inventory backlog · approved Domain Truth checkpoint ·
+    # Confidence/Stability RATIFIED 2026-06-28 as the trust properties of Canonical
+    # Truth (a truth value is not trustworthy without value+freshness+confidence+stability).
     "capabilities": [
         "Per-Day Truth",                  # original inventory
-        "Freshness",                      # original inventory
+        "Freshness",                      # original inventory (Law 1)
+        "Confidence",                     # ratified 2026-06-28 (Law 2)
+        "Stability",                      # ratified 2026-06-28 (Law 5)
         "Current Truth Objects",          # original inventory
         "Point-in-Time History",          # original inventory
         "Domain Truth Objects",           # approved architectural checkpoint
         "Deterministic Provider Registry",  # original inventory
     ],
-    # Governance reconciliation (2026-06-28): these EMERGED during implementation —
-    # they were NOT in the approved Layer 1 inventory. Code exists and is GREEN (not a
-    # rollback), but they are not counted as Layer 1 until ratified by the roadmap owner.
-    "emerged_pending_ratification": [
-        # Strong grounding in the approved constitution → recommend RATIFY into Layer 1:
-        "Confidence",   # WLJ_ARCHITECTURE_LAWS Law 2 + Answer Precondition Pipeline step 4
-        "Stability",    # WLJ_ARCHITECTURE_LAWS Law 5 + pre-existing acceptance unstable_fact
-    ],
+    "emerged_pending_ratification": [],   # cleared — Confidence + Stability ratified above
     "future_backlog": [
-        # No grounding in any approved governance doc → recommend FUTURE BACKLOG:
+        # No grounding in any approved governance doc → FUTURE BACKLOG (not Layer 1):
         "Truth Catalog",  # introspection tooling; serves the registry/Beth, not canonical truth
     ],
     "platform_modules": [

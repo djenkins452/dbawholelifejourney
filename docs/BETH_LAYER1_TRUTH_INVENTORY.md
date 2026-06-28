@@ -34,27 +34,45 @@
 | Point-in-Time History | Original Layer 1 inventory | ✅ Approved |
 | Domain Truth Objects | Approved architectural checkpoint | ✅ Approved |
 | Deterministic Provider Registry | Original Layer 1 inventory | ✅ Approved |
-| **Confidence** | **Emerged during implementation** (post-hoc: `WLJ_ARCHITECTURE_LAWS` Law 2 + Answer Precondition Pipeline step 4) | ⏸ **Pending ratification** — recommend ADD to Layer 1 |
-| **Stability** | **Emerged during implementation** (post-hoc: Law 5 + pre-existing acceptance `unstable_fact`, 7 refs) | ⏸ **Pending ratification** — recommend ADD to Layer 1 |
-| **Truth Catalog** | **Emerged during implementation** (no approved-doc basis) | ➡ **Future Backlog** — introspection tooling, serves the registry/Beth, not canonical truth |
+| **Confidence** | Emerged during implementation; **RATIFIED into Layer 1 (2026-06-28)** — a trust property of Canonical Truth (Law 2) | ✅ Approved |
+| **Stability** | Emerged during implementation; **RATIFIED into Layer 1 (2026-06-28)** — a trust property of Canonical Truth (Law 5) | ✅ Approved |
+| **Truth Catalog** | Emerged during implementation (no approved-doc basis) | ➡ **Future Backlog** (not Layer 1) — introspection tooling, serves the registry/Beth |
 
-**Six APPROVED Layer-1 platform capabilities — all implemented, deterministic gate GREEN:**
-Per-Day Truth · Freshness (Law 1) · Current Truth Objects · Point-in-Time History ·
-Domain Truth Objects · Deterministic Provider Registry. Gate module:
-`apps/core/tests/test_layer1_certification.py`.
+**Ratified Layer 1 = EIGHT capabilities:** Per-Day Truth · Freshness · Confidence ·
+Stability · Current Truth Objects · Point-in-Time History · Domain Truth Objects ·
+Deterministic Provider Registry. A truth value is trustworthy only with all four
+properties — value + freshness + confidence + stability.
 
-Confidence (Law 2) and Stability (Law 5) are implemented and grounded in the approved
-constitution; they await an explicit ratification decision before counting as Layer 1.
-Truth-**Relationships** (links between truths — value↔target, current↔baseline) remains
-an open architectural question: Layer 1 or Layer 5 (Cross-Domain Intelligence).
+**Eight RATIFIED Layer-1 platform capabilities — all implemented, deterministic gate GREEN:**
+Per-Day Truth · Freshness (L1) · Confidence (L2) · Stability (L5) · Current Truth Objects ·
+Point-in-Time History · Domain Truth Objects · Deterministic Provider Registry. Gate
+module: `apps/core/tests/test_layer1_certification.py`.
 
-**Certification status:** the *deterministic foundation* is GREEN and frozen as a
-permanent regression requirement. **Full certification also requires the live Deep
-Acceptance Center run** (production OpenAI stack — cannot run locally); that is the
-complementary runtime gate before the dashboard flips Layer 1 fully GREEN. Health is
-the proven first consumer end-to-end; Finance is the proven second domain on the same
-interfaces. Remaining domain rollouts (Finance/Faith/Relationships full facts +
-acceptance) are *consumers* of the now-frozen capabilities, not new Layer-1 capabilities.
+### Layer 1 completeness ruling (scope boundary)
+
+> **Layer 1 = Canonical Truth FOUNDATION** — the eight domain-agnostic capabilities +
+> the canonical interface, PROVEN end-to-end on a reference domain (Health, full
+> consumer) and cross-domain (Finance: Domain Truth + Current Truth + Confidence +
+> Stability + sync-freshness). That is what Layer 1 requires and it is satisfied.
+
+The ⬜ cells in the matrix (Tasks/Journal/Goals/Faith/Relationships not yet exposing
+Current Truth Objects / History / Domain Truth providers) are **per-domain ROLLOUT of
+current & historical truth** — which the approved Acceptance-Center layer map assigns to
+**Layer 2 (Current Truth)** and **Layer 3 (Historical Retrieval)**, with reasoning at
+**Layer 4 (Domain Intelligence)**. They are *not* Layer 1 foundation gaps, and treating
+them as Layer 1 would re-scope the whole roadmap into Layer 1. This is a deliberate scope
+ruling, not a "finish it in Layer 2" punt: by the approved layer map these belong to L2–L4.
+
+**Original approved backlog — all satisfied:** Per-Day Truth registry (subsumed by
+Current Truth Objects + the Domain Truth registry — domains expose per-day truth via
+`current()`), Deterministic Provider Registry ✅, Sync Freshness application (✅ in
+`CurrentFinance`), Point-in-Time History ✅.
+
+**Certification status:** the deterministic foundation + governance gate are GREEN.
+**Full certification additionally requires the live Deep Acceptance Center run**
+(production OpenAI) — the complementary runtime gate, the roadmap owner's to trigger.
+Truth-**Relationships** (value↔target links) remains an open L1-vs-L5 question, not a
+blocker for the foundation.
 
 ---
 
@@ -93,8 +111,8 @@ most basic "did I X / how much X yesterday" questions a Chief of Staff must own.
 | **History (legacy domain queries)** | domain `*_queries` | 🟡 (now point-in-time via platform) | n/a | ✅ | ✅ | 🟡 keyword only | 🟡 reading only | ⬜ |
 | **Per-Day Truth** | `apps/health/services/daily_health_queries.py` (pattern) | ✅ | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | **Freshness** | `apps/core/truth/freshness.py` | ✅ consumer | ✅ consumer | ⬜ | ⬜ | ✅ consumer | ⬜ | ⬜ |
-| **Confidence** (Law 2) — ⏸ *emerged, pending ratification* | `apps/core/truth/confidence.py` | built (Current+History) | ⬜ | ⬜ | ⬜ | built (auto) | ⬜ | ⬜ |
-| **Stability** (Law 5) — ⏸ *emerged, pending ratification* | `apps/core/truth/stability.py` | built (signatures + verify) | n/a | n/a | n/a | built | n/a | n/a |
+| **Confidence** (Law 2) — ✅ *ratified into Layer 1* | `apps/core/truth/confidence.py` | ✅ (Current+History) | ⬜ | ⬜ | ⬜ | ✅ (auto) | ⬜ | ⬜ |
+| **Stability** (Law 5) — ✅ *ratified into Layer 1* | `apps/core/truth/stability.py` | ✅ (signatures + verify) | n/a | n/a | n/a | ✅ | n/a | n/a |
 | **Deterministic Provider Registry** | `apps/ai/chatgpt_cos/fact_registry.py` ⭐ | ✅ | ✅ | ⬜ | ✅ | ⬜ | ⬜ | ⬜ |
 | **Truth Catalog** — ➡ *FUTURE BACKLOG (not Layer 1)* | `apps/core/truth/catalog.py` | built | n/a | n/a | n/a | built | ⬜ | ⬜ |
 

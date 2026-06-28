@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — governance(core): ratify Confidence + Stability into Layer 1; finalize Layer 1 scope
+
+Roadmap-owner decision applied. **Confidence (Law 2)** and **Stability (Law 5)** ratified into Layer 1 as trust properties of Canonical Truth (a value is trustworthy only with value + freshness + confidence + stability). **Truth Catalog** stays in Future Backlog (not Layer 1). Manifest `capabilities` now lists EIGHT approved; `emerged_pending_ratification` cleared; gate test asserts the ratified set + Truth-Catalog quarantine.
+
+**Layer 1 completeness ruling (from the inventory, not memory):** Layer 1 = the Canonical Truth FOUNDATION — eight domain-agnostic capabilities + the canonical interface, proven end-to-end on Health (full consumer) and cross-domain on Finance. The matrix ⬜ cells (other domains not yet exposing Current Truth Objects/History/Domain Truth) are per-domain ROLLOUT, which the approved Acceptance-Center layer map assigns to Layer 2 (Current Truth) / Layer 3 (Historical Retrieval) / Layer 4 (Domain Intelligence) — NOT Layer 1 foundation gaps. Original approved backlog all satisfied (Per-Day Truth registry subsumed by Current Truth + Domain Truth registry; Provider Registry ✅; Sync Freshness ✅ in CurrentFinance; History ✅).
+
+Status: deterministic foundation + governance gate GREEN (106 tests). Layer 1 READY FOR CERTIFICATION pending the live Deep Acceptance run (roadmap owner's gate). Not a code change beyond manifest/test/docs.
+
+**Files:** apps/core/truth/certification.py, apps/core/tests/test_layer1_certification.py, docs/BETH_LAYER1_TRUTH_INVENTORY.md.
+
+
 ## 2026-06-28 — governance(core): Layer 1 scope reconciliation (inventory is the PM, not implementation)
 
 Governance checkpoint, not a rollback. Reconciled the implementation against the approved Layer 1 inventory and found three capabilities I built that were NOT in the approved backlog: Confidence, Stability, Truth Catalog. The roadmap — not implementation — defines scope, so these are reclassified (code stays, all GREEN; simply no longer counted as Layer 1 until ratified).

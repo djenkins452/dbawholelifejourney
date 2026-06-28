@@ -27,17 +27,16 @@ User = get_user_model()
 
 class Layer1ManifestTests(SimpleTestCase):
     def test_layer1_declares_only_APPROVED_capabilities(self):
-        # Governance: `capabilities` is the APPROVED Layer 1 scope only (inventory +
-        # the approved Domain Truth checkpoint). Implementation must not silently expand it.
+        # Governance: `capabilities` is the APPROVED Layer 1 scope only. Implementation
+        # must not silently expand it. Confidence + Stability RATIFIED 2026-06-28 as the
+        # trust properties of Canonical Truth.
         self.assertEqual(CERT.LAYER_1["name"], "Canonical Truth")
-        for cap in ("Per-Day Truth", "Freshness", "Current Truth Objects",
-                    "Point-in-Time History", "Domain Truth Objects",
-                    "Deterministic Provider Registry"):
+        for cap in ("Per-Day Truth", "Freshness", "Confidence", "Stability",
+                    "Current Truth Objects", "Point-in-Time History",
+                    "Domain Truth Objects", "Deterministic Provider Registry"):
             self.assertIn(cap, CERT.LAYER_1["capabilities"])
-        # Emerged-during-implementation capabilities are quarantined, NOT counted as Layer 1.
-        for cap in ("Confidence", "Stability"):
-            self.assertNotIn(cap, CERT.LAYER_1["capabilities"])
-            self.assertIn(cap, CERT.LAYER_1["emerged_pending_ratification"])
+        self.assertEqual(CERT.LAYER_1["emerged_pending_ratification"], [])
+        # Truth Catalog stays OUT of Layer 1 (future backlog).
         self.assertNotIn("Truth Catalog", CERT.LAYER_1["capabilities"])
         self.assertIn("Truth Catalog", CERT.LAYER_1["future_backlog"])
 

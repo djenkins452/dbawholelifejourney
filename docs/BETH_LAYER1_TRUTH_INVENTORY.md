@@ -40,13 +40,17 @@ most basic "did I X / how much X yesterday" questions a Chief of Staff must own.
 
 | Capability | Platform home | Health | Execution/Calendar | Tasks/Journal | Goals | Finance | Faith | Relationships |
 |---|---|---|---|---|---|---|---|---|
-| **Current Truth** | SAE `state_builder` | ✅ | ✅ | ✅ | ✅ | 🟡 partial | 🟡 partial | 🟡 partial |
+| **Current Truth (raw SAE)** | SAE `state_builder` | ✅ | ✅ | ✅ | ✅ | 🟡 partial | 🟡 partial | 🟡 partial |
+| **Current Truth Objects** | `apps/core/truth/current.py` ⭐ | ✅ `CurrentHealth` | ⬜ | ⬜ | ⬜ | ✅ `CurrentFinance` | ⬜ | ⬜ |
 | **History** | domain `*_queries` | 🟡 (no point-in-time) | n/a | ✅ | ✅ | 🟡 keyword only | 🟡 reading only | ⬜ |
 | **Per-Day Truth** | `apps/health/services/daily_health_queries.py` (pattern) | ✅ | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| **Freshness** | `apps/core/truth/freshness.py` ⭐ | ✅ consumer | ✅ consumer | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| **Freshness** | `apps/core/truth/freshness.py` | ✅ consumer | ✅ consumer | ⬜ | ⬜ | ✅ consumer | ⬜ | ⬜ |
 | **Deterministic Providers** | `foundational_facts` + domain fact sources | ✅ | ✅ | ⬜ | ✅ | ⬜ | ⬜ | ⬜ |
 
-✅ complete · 🟡 partial · ⬜ pending · ⭐ now a domain-agnostic platform module (this batch).
+✅ complete · 🟡 partial · ⬜ pending · ⭐ domain-agnostic platform module. **Current
+Truth Object** = the authoritative typed value object (`CurrentTruth`) composing a
+value + a freshness verdict; `CurrentHealth` and `CurrentFinance` both consume it with
+zero duplicate composition logic (Health = per-day shape, Finance = sync shape).
 
 **Capability backlog (build once, then apply to every pending domain above):**
 1. **Per-Day Truth registry** — generalize the `DailyHealthQueries` pattern into a

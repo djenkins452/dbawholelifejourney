@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — feat(core): Platform capability — Current Truth Objects (apps.core.truth.current)
+
+Platform-capability-first. The authoritative typed value object for "what is the user's current X" — one object composing a value (from a domain's deterministic contract / Per-Day Truth) + a freshness verdict (platform Freshness). History stays separate (a value on a past date); Current Truth answers "now/last night/today". Engines and Beth read the same object.
+
+**New** `apps/core/truth/current.py`: `CurrentTruth` frozen dataclass (domain, metric, present, value, unit, as_of, freshness, source, detail) with `found()`/`absent()` constructors and `to_fact_dict()` — serializes to the flat dict the foundational-fact phrasing layer already consumes, so Current Truth slots in without narration churn.
+
+**Health (first consumer, single source):** new `apps/health/services/current_health.py` `CurrentHealth.get(user, metric)` returns `CurrentTruth`, composing `DailyHealthQueries` (Per-Day Truth) + `classify_period_freshness` (Freshness). `health_facts._day_fact` is now a thin consumer (`CurrentHealth.get(...).to_fact_dict()`) — the composition + `_day_freshness` moved into the domain's authoritative Current Truth source (de-duplication). Behavior byte-preserved (all Batch 1–3 tests green).
+
+**Finance (second consumer — proves domain-agnostic):** new `apps/finance/services/current_finance.py` `CurrentFinance.net_worth`/`month_spending` return the SAME `CurrentTruth` object, value from pre-computed SAE finance state, freshness from `classify_sync_freshness` over `BankConnection.last_sync_at` (the snapshot shape of freshness vs Health's per-day shape) — ZERO new composition logic.
+
+**Tests:** `apps/core/tests/test_current_truth.py` (8) — object serialization, Health consumer (value+freshness+partial+absent), Finance consumer (sync freshness + absent). Regression GREEN (67).
+
+**Inventory:** added **Current Truth Objects** row to the Platform Capabilities matrix (Health ✅ CurrentHealth, Finance ✅ CurrentFinance).
+
+**Files:** apps/core/truth/current.py (new), apps/health/services/current_health.py (new), apps/finance/services/current_finance.py (new), apps/core/tests/test_current_truth.py (new), apps/ai/cos_services/health_facts.py (now consumes CurrentHealth), docs/BETH_LAYER1_TRUTH_INVENTORY.md.
+
+
 ## 2026-06-28 — refactor(core): Platform capability — Freshness (apps.core.truth.freshness)
 
 Strategy pivot to platform-capability-first. Freshness was implemented inside health-specific code (Batch 3); extracted it into a domain-agnostic PLATFORM module every domain consumes — "we didn't build Health freshness, we built Freshness."

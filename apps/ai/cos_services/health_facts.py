@@ -101,55 +101,13 @@ _META_FIELDS = ("unit", "trend", "recorded_at", "count", "target", "diastolic",
 
 
 def _day_fact(user, key):
-    """Resolve a per-day fact key to a concrete value (or {status: unknown}) via the
-    DailyHealthQueries Domain Truth Contract — a specific day, never an average."""
-    from apps.health.services.daily_health_queries import DailyHealthQueries as Q
-    today, yest = Q.today(user), Q.yesterday(user)
-    routes = {
-        "steps_today": lambda: Q.steps_on(user, today),
-        "steps_yesterday": lambda: Q.steps_on(user, yest),
-        "sleep_last_night": lambda: Q.latest_sleep(user),
-        "calories_yesterday": lambda: Q.calories_on(user, yest),
-        "weight_yesterday": lambda: Q.weight_on(user, yest),
-        "glucose_yesterday": lambda: Q.glucose_on(user, yest),
-    }
-    fn = routes.get(key)
-    if fn is None:
+    """Per-day fact → flat dict, sourced from the Health CURRENT TRUTH object
+    (`CurrentHealth`), which composes Per-Day Truth + Freshness. health_facts is a
+    consumer of the Current Truth capability, not the owner of the composition."""
+    from apps.health.services.current_health import CurrentHealth
+    if key not in CurrentHealth.SUPPORTED:
         return {"status": "unsupported_fact", "supported": sorted(_DAY_FACT_KEYS)}
-    try:
-        res = fn()
-    except Exception:
-        logger.warning("health_facts: day fact failed key=%s", key, exc_info=True)
-        return {"status": "unknown", "reason": "per-day retrieval failed"}
-    if res.get("status") != "ok":
-        # Platform Freshness capability — PENDING (today) vs MISSING (absent).
-        return {"status": "unknown",
-                "freshness": _day_freshness(key, res, today, yest, has_data=False),
-                "reason": f"no {res.get('metric', key)} for the requested day"}
-    fact = {"value": res["value"], "source": "DailyHealthQueries"}
-    for f in ("unit", "for_date", "recorded_at", "as_of", "exact", "count"):
-        if f in res:
-            fact[f] = res[f]
-    fact["freshness"] = _day_freshness(key, res, today, yest)
-    return fact
-
-
-def _day_freshness(key, res, today, yest, has_data=True):
-    """READ the freshness verdict via the PLATFORM Freshness capability
-    (apps.core.truth.freshness) — Health is a consumer, not the owner of the logic.
-    sleep "last night" and *_yesterday facts are keyed to yesterday; *_today to today;
-    steps_today is cumulative (→ partial)."""
-    from datetime import date as _date
-    from apps.core.truth.freshness import classify_period_freshness
-    requested = today if key.endswith("_today") else yest
-    raw = res.get("as_of") or res.get("for_date")
-    try:
-        data_date = _date.fromisoformat(raw) if raw else None
-    except (TypeError, ValueError):
-        data_date = None
-    return classify_period_freshness(
-        has_data=has_data, requested_date=requested, data_date=data_date,
-        today=today, is_cumulative=(key == "steps_today"))
+    return CurrentHealth.get(user, key).to_fact_dict()
 
 
 def get_foundational_health_facts(user, keys=None):

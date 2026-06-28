@@ -241,6 +241,7 @@ Every operational feature review must end by answering these five. If any obviou
 
 | Doc | When to Read |
 |-----|-------------|
+| `docs/WLJ_ARCHITECTURE_LAWS.md` | **Platform constitution — ANY subsystem that ingests data or answers a personal question. Validate freshness/completeness/orchestration BEFORE reasoning (5 Laws).** |
 | `docs/WLJ_VISUAL_TRUTH_CONTRACT.md` | **Any homepage/Action Center CSS or template change** |
 | `docs/ENGINE_COS_REFERENCE.md` | **Engine/CoS changes — AUTO-MAINTAIN (see below)** |
 | `docs/INTELLIGENCE_ARCHITECTURE.md` | AI/intelligence feature work |

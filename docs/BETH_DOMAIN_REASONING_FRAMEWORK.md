@@ -7,6 +7,15 @@
 > P10, P11, P13, P24, P25), `BETH_GOLDEN_BEHAVIORS.md`, `BETH_CHANGE_CONTROL.md`,
 > and the worked reference `BETH_HEALTH_INTENT_CONTRACTS.md`.
 > **Date:** 2026-06-26
+>
+> **Validation precedes reasoning (`WLJ_ARCHITECTURE_LAWS.md`, 2026-06-28).** This
+> framework specifies how Beth reasons *once inputs are validated*. Before reasoning,
+> every domain runs the **Answer Precondition Pipeline**: establish Data Freshness
+> (Law 1) and Confidence (Law 2); answer workflow-shaped questions with the
+> **Enumeration+Enrichment** orchestration (Law 3), not one reasoning prompt; answer
+> deterministic questions deterministically, never with an AI-failure message (Law 4);
+> and return identical facts for identical questions over unchanged data (Law 5).
+> Reasoning depth is built **on top of** validated, stable, composed truth.
 
 ## Purpose & philosophy
 

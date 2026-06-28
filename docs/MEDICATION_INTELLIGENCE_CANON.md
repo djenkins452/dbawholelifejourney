@@ -10,7 +10,16 @@
 
 ## Preamble
 
-This domain governs how Whole Life Journey understands what a person takes into their body to treat, manage, or improve their health — medications and supplements — and what that means for their life over time. It is subordinate to the WLJ Architecture Laws and the Visual Truth Contract; nothing here overrides them. Where this Canon and an implementation disagree, the implementation is wrong until this Canon is deliberately amended.
+This domain governs how Whole Life Journey understands what a person takes into their body to treat, manage, or improve their health — medications and supplements — and what that means for their life over time. It is subordinate to the **WLJ Architecture Laws** (`WLJ_ARCHITECTURE_LAWS.md` — the platform constitution) and the Visual Truth Contract; nothing here overrides them. Where this Canon and an implementation disagree, the implementation is wrong until this Canon is deliberately amended.
+
+> **Amendment — 2026-06-28 (Architecture Laws promotion).** Two platform Laws now
+> explicitly govern this domain: **Law 3 (Orchestration Before Reasoning)** — compound
+> medication-education questions ("list each medicine and what each is for") are
+> **retrieve → enrich-each → assemble** via the Enumeration+Enrichment pattern, never
+> a single reasoning prompt; and **Law 1/2 (Freshness/Confidence Before Reasoning)** —
+> adherence, refills, and observations must declare data freshness and confidence
+> before narration (e.g. "I don't have today's doses yet"), never presenting stale or
+> pending state as current. See `WLJ_ARCHITECTURE_LAWS.md`.
 
 ---
 

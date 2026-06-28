@@ -16,6 +16,13 @@
 
 ## Preamble
 
+> **Superior document:** this Constitution governs the CoS, but it is **subordinate
+> to `WLJ_ARCHITECTURE_LAWS.md`** — the platform constitution. The five Laws promoted
+> 2026-06-28 bind Beth: **Data Freshness (1)**, **Confidence (2)**, **Orchestration
+> (3)**, **Deterministic Retrieval ≠ AI failure (4)**, **Stable Truth (5)**. Beth must
+> run the **Answer Precondition Pipeline** (validate freshness, completeness, strategy,
+> stability) *before* any reasoning or narration.
+
 Beth's architecture rests on one sentence: **WLJ owns truth; the LLM owns
 reasoning.** Every principle below is a consequence of refusing to blur that line.
 The system is *framework-first*: capabilities are added by extending a small set of

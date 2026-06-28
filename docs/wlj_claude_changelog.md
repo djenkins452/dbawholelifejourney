@@ -7,6 +7,26 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — docs(arch): promote 5 platform Architecture Laws — Validation Before Reasoning (NO CODE)
+
+Architectural governance, not a feature. Production evidence (sleep 5.3h→6.9h a minute apart; stale data shown as current; "assistant unavailable" for a deterministic step count; a retrieve→enrich→assemble question forced through one reasoning prompt) is ONE deficiency: **WLJ reasons before it validates freshness, completeness, and orchestration strategy. That order is backwards.**
+
+**New canonical document `docs/WLJ_ARCHITECTURE_LAWS.md`** — the platform constitution everything already deferred to but that didn't exist. It records the pre-existing foundational laws (truth/reasoning separation, LLM-last, framework-first, single source of truth, never-compute-on-request-path, no-silent-failures, Visual Truth, briefing-consumer) AND promotes five new Laws, plus the unifying **Answer Precondition Pipeline** (scope → freshness → completeness → confidence → strategy → retrieve → stability → THEN reason):
+- **Law 1 — Data Freshness Before Reasoning:** declare required datasets' as-of/freshness; never present stale/pending as current ("I don't have today's sleep yet").
+- **Law 2 — Confidence Before Conversation:** deterministic confidence (freshness+completeness+source+sync+evidence) on every answer; insufficient confidence is an honest answer, never fabricated certainty.
+- **Law 3 — Orchestration Before Reasoning:** workflow-shaped questions are orchestrated; **Enumeration+Enrichment** ((WLJ set) × (cached non-personal per-item enrichment) → assemble → narrate) is a first-class, generalized pattern (meds, labs, conditions, goals).
+- **Law 4 — Deterministic Retrieval Never Falls Back to AI Failure:** deterministic questions return deterministic answers or a named retrieval failure — never "assistant unavailable."
+- **Law 5 — Stable Truth:** identical question + unchanged source data ⇒ identical factual answer.
+
+The doc also contains the 4 required analytical deliverables: **affected subsystems** (ingestion/sync, Domain Truth Contracts, SAE, Foundational Facts, CoS lanes, enrichment cache, the 14 engines, caching, answer surfaces), **migration strategy** (additive, 7 phases), **breaking vs non-breaking classification** (mostly additive; intended behaviour changes for stale-data honesty / deterministic failure text / orchestrated education; no mandated schema migration), and **implementation order** (Laws 5+4 first, then 1, then 2, then 3).
+
+**Subordinate docs updated to defer here:** `MEDICATION_INTELLIGENCE_CANON.md` (amendment: Law 3 governs medication education; Law 1/2 govern adherence/refills), `BETH_ARCHITECTURAL_PRINCIPLES.md` (superior-document note + the 5 Laws bind Beth), `BETH_DOMAIN_REASONING_FRAMEWORK.md` (validation precedes reasoning), `CLAUDE.md` (reference table: read the Laws for any data/answer subsystem).
+
+**Files:** docs/WLJ_ARCHITECTURE_LAWS.md (new), docs/MEDICATION_INTELLIGENCE_CANON.md, docs/BETH_ARCHITECTURAL_PRINCIPLES.md, docs/BETH_DOMAIN_REASONING_FRAMEWORK.md, CLAUDE.md.
+
+**Scope:** documentation/governance only — no code, per instruction ("First promote these concepts into the governing architecture"). Implementation is sequenced in Part VI for future sprints.
+
+
 ## 2026-06-28 — measure(cos): instrument the tool loop; REVERT the unproven max_tokens raise
 
 Re-opened the multi-medication composition conclusion. The token-starvation hypothesis is **not supported** by the evidence: the diabetes question discusses ~4 medications (nowhere near 1000 tokens), and historically the SHORT "Tell me about Lantus" failed while the LONGER personalized version succeeded — the opposite of what a token cap predicts.

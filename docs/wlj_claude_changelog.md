@@ -7,6 +7,23 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — measure(cos): instrument the tool loop; REVERT the unproven max_tokens raise
+
+Re-opened the multi-medication composition conclusion. The token-starvation hypothesis is **not supported** by the evidence: the diabetes question discusses ~4 medications (nowhere near 1000 tokens), and historically the SHORT "Tell me about Lantus" failed while the LONGER personalized version succeeded — the opposite of what a token cap predicts.
+
+**Measured (deterministic, no inference):** all four medication prompts classify as `_looks_general=False` and are NOT claimed by the foundational or general lanes → they hit the **Personal Reasoning lane (the LLM planner)** first, and only fall to the tool loop if the planner declines. So these requests do not necessarily even reach the tool loop whose budget the prior change raised — which is why that change was premature.
+
+**Reverted:** removed the `max_tokens` override in `service.generate` (back to the default) — the budget stays put until measurements show output-token starvation is the actual limit.
+
+**Added measurement instrumentation** (`_call_api_with_tools`, behavior-unchanged): per round — tool names, prompt/completion tokens (from `response.usage`), finish_reason (`COS_TOOL_LOOP_RESPONSE`); per tool call — name, arg keys, output size (`COS_TOOL_CALL`); and a final summary (`COS_TOOL_LOOP_MEASURE`) with rounds_used, total_tool_calls, tool_names, med_related_tool_calls, total_tool_output_chars, final_content_len, final_completion_tokens, final_finish_reason, and **repeated_retrieval** (same tool fetched across rounds). This answers — with numbers, from production — whether the failure is excessive/recursive tool composition or genuine token starvation.
+
+**Regression tests** (`apps/ai/tests/test_cos_multi_med_composition.py`): the tool loop returns a full 13-med answer intact (no count-truncation in our code) and preserves multi-tool pairing; the measurement logs emit per-round token usage + tool names, the per-call output size, and the summary including `repeated_retrieval` (True when a tool is fetched twice).
+
+**Files:** apps/ai/chatgpt_cos/service.py (revert), apps/ai/services.py (measurement), apps/ai/tests/test_cos_multi_med_composition.py.
+
+**Verification:** 34 tests green; `manage.py check` clean; no migration. Next step is to read the `COS_TOOL_LOOP_MEASURE` / `COS_REASONING_DECLINE` lines for the four prompts in production to identify the real limiting factor before any further change.
+
+
 ## 2026-06-28 — fix(cos): multi-medication composition truncated by the tool loop's 1000-token budget
 
 Differential: single-medication enrichment works ("Tell me about Lantus, why am I taking it" ✅), pure education works ("What is Metformin used for?" ✅), but composing education for MANY medications fails ("Which of my medications are used for diabetes?", "list each medicine I take and what each is commonly used for" ❌).

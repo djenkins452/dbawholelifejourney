@@ -192,13 +192,11 @@ class ChatGPTCoSService:
                 user=self.user,
                 conversation_history=history,
                 model=getattr(settings, "COS_MODEL", None),
-                # Composing educational purposes for MANY medications in one answer
-                # (e.g. "list each medicine I take and what each is used for", 13
-                # meds) exceeds the 1000-token default → the answer truncates or the
-                # prose is starved to empty (model_empty_after_tools → fallback). A
-                # single medication fits easily; raise the budget for multi-entity
-                # composition. (Differential: 1 med works, ~13 fails at 1000.)
-                max_tokens=getattr(settings, "COS_TOOL_LOOP_MAX_TOKENS", 2000),
+                # NOTE: max_tokens intentionally NOT overridden here. The token-
+                # starvation hypothesis is UNPROVEN (a 4-med answer is nowhere near
+                # 1000 tokens), so the budget stays at the default until the tool-
+                # loop MEASUREMENTS (COS_TOOL_LOOP_RESPONSE usage/finish_reason)
+                # show output-token starvation is actually the limiting factor.
             )
         except Exception:
             logger.error("COS_EXCEPTION user=%s stage=tool_loop",

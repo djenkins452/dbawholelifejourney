@@ -647,9 +647,18 @@ class AIService:
         effective_model = model or self.model
         _timeout = get_timeout_for_endpoint(endpoint)
         _last_tool_names = []  # for COS_TOOL_LOOP_EMPTY_FINAL diagnostics
+        # ── Measurement accumulators (differential: tool composition vs token
+        # starvation). Lets production answer, with NUMBERS: how many rounds/tool
+        # calls, whether the med list is fetched once or per-med, tool-output size,
+        # and the final finish_reason/completion tokens. ──
+        _total_tool_calls = 0
+        _total_tool_output_chars = 0
+        _all_tool_names = []
+        _rounds_used = 0
 
         try:
             for _round in range(max_tool_rounds + 1):
+                _rounds_used = _round + 1
                 last_round = _round == max_tool_rounds
                 kwargs = {
                     "model": effective_model,
@@ -670,17 +679,24 @@ class AIService:
                 msg = _choice.message
                 tool_calls = getattr(msg, "tool_calls", None)
                 _content_len = len(msg.content or "")
+                _round_tool_names = [tc.function.name for tc in (tool_calls or [])]
+                _usage = getattr(response, "usage", None)
+                _prompt_toks = getattr(_usage, "prompt_tokens", None) if _usage else None
+                _completion_toks = getattr(_usage, "completion_tokens", None) if _usage else None
                 logger.info(
                     "COS_OPENAI_FINISH endpoint=%s round=%d tool_calls=%d",
                     endpoint, _round, len(tool_calls) if tool_calls else 0,
                 )
-                # TEMP TRACE: full per-response shape to pinpoint empty answers.
+                # MEASUREMENT: per-round shape — tool names, token usage, finish.
                 logger.warning(
                     "COS_TOOL_LOOP_RESPONSE round=%d has_message=%s "
-                    "message_content_len=%d tool_calls_count=%d "
+                    "message_content_len=%d tool_calls_count=%d tool_names=%s "
+                    "prompt_tokens=%s completion_tokens=%s "
                     "finish_reason=%s response_id=%s model=%s",
                     _round, msg is not None, _content_len,
                     len(tool_calls) if tool_calls else 0,
+                    ",".join(_round_tool_names) or "none",
+                    _prompt_toks, _completion_toks,
                     getattr(_choice, "finish_reason", None),
                     getattr(response, "id", None), effective_model,
                 )
@@ -716,11 +732,21 @@ class AIService:
                                 tc.function.name, exc_info=True,
                             )
                             _result = {"ok": False, "code": "dispatch_error"}
+                        _tool_json = _json.dumps(_result)
+                        # MEASUREMENT: count calls + tool output size (detects
+                        # repeated/per-med retrieval and oversized tool results).
+                        _total_tool_calls += 1
+                        _total_tool_output_chars += len(_tool_json)
+                        _all_tool_names.append(tc.function.name)
+                        logger.info(
+                            "COS_TOOL_CALL round=%d tool=%s args_keys=%s output_chars=%d",
+                            _round, tc.function.name, sorted(_args.keys()), len(_tool_json),
+                        )
                         messages.append({
                             "role": "tool",
                             "tool_call_id": tc.id,
                             "name": tc.function.name,
-                            "content": _json.dumps(_result),
+                            "content": _tool_json,
                         })
                     logger.info(
                         "COS_TOOL_ROUND endpoint=%s round=%d tool_calls=%d",
@@ -740,6 +766,24 @@ class AIService:
                         ",".join(_last_tool_names) or "none", len(messages),
                         getattr(_choice, "finish_reason", None),
                     )
+                # MEASUREMENT SUMMARY — the differential, with numbers: did the model
+                # retrieve the med list ONCE or repeatedly? how many rounds/tool calls?
+                # how big were tool outputs? was the FINAL answer truncated
+                # (finish_reason=length) or starved (empty) — i.e. is output-token
+                # starvation actually the limiting factor, or is it tool composition?
+                _med_calls = sum(1 for n in _all_tool_names
+                                 if "medication" in n or "health" in n or "foundational" in n)
+                logger.warning(
+                    "COS_TOOL_LOOP_MEASURE rounds_used=%d total_tool_calls=%d "
+                    "tool_names=%s med_related_tool_calls=%d total_tool_output_chars=%d "
+                    "final_content_len=%d final_completion_tokens=%s "
+                    "final_finish_reason=%s repeated_retrieval=%s",
+                    _rounds_used, _total_tool_calls,
+                    ",".join(_all_tool_names) or "none", _med_calls,
+                    _total_tool_output_chars, len(_final), _completion_toks,
+                    getattr(_choice, "finish_reason", None),
+                    len(_all_tool_names) != len(set(_all_tool_names)),
+                )
                 # Empty string here = "model returned empty content" (case A);
                 # the caller distinguishes this from the None fallback below.
                 return _final

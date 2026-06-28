@@ -19,13 +19,16 @@
 > Release gate: `python manage.py certify_layers` (re-runs every certified layer; a
 > higher layer cannot certify if a lower one regresses).
 
-**Seven Layer-1 platform capabilities — all implemented, deterministic gate GREEN:**
-Per-Day Truth · Freshness · **Confidence (Law 2)** · Current Truth Objects · Point-in-Time
-History · Domain Truth Objects · Deterministic Provider Registry. Gate module:
-`apps/core/tests/test_layer1_certification.py` (one end-to-end assertion per capability
-+ manifest consistency). Confidence (high/medium/low/none) is derived deterministically
-from freshness + coverage + source and composed into every Current Truth object and
-History series (Beth reads it; never invents a hedge).
+**Eight Layer-1 platform capabilities — all implemented, deterministic gate GREEN:**
+Per-Day Truth · Freshness (Law 1) · **Confidence (Law 2)** · **Stability (Law 5)** ·
+Current Truth Objects · Point-in-Time History · Domain Truth Objects · Deterministic
+Provider Registry. Gate module: `apps/core/tests/test_layer1_certification.py` (one
+end-to-end assertion per capability + manifest consistency).
+
+The three **trust properties** of every truth object are now complete: Freshness
+(how current), Confidence (how trustworthy — derived from freshness + coverage +
+source), and Stability (provably the same answer across reads via deterministic
+data signatures — backs the acceptance `unstable_fact` rule).
 
 **Certification status:** the *deterministic foundation* is GREEN and frozen as a
 permanent regression requirement. **Full certification also requires the live Deep
@@ -73,6 +76,7 @@ most basic "did I X / how much X yesterday" questions a Chief of Staff must own.
 | **Per-Day Truth** | `apps/health/services/daily_health_queries.py` (pattern) | ✅ | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | **Freshness** | `apps/core/truth/freshness.py` | ✅ consumer | ✅ consumer | ⬜ | ⬜ | ✅ consumer | ⬜ | ⬜ |
 | **Confidence** (Law 2) | `apps/core/truth/confidence.py` ⭐ | ✅ (Current+History) | ⬜ | ⬜ | ⬜ | ✅ (auto via CurrentTruth) | ⬜ | ⬜ |
+| **Stability** (Law 5) | `apps/core/truth/stability.py` ⭐ | ✅ (signatures + verify_stable) | n/a | n/a | n/a | ✅ (via CurrentTruth) | n/a | n/a |
 | **Deterministic Provider Registry** | `apps/ai/chatgpt_cos/fact_registry.py` ⭐ | ✅ | ✅ | ⬜ | ✅ | ⬜ | ⬜ | ⬜ |
 
 ✅ complete · 🟡 partial · ⬜ pending · ⭐ domain-agnostic platform module. **Current

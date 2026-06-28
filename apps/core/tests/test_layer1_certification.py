@@ -28,7 +28,7 @@ User = get_user_model()
 class Layer1ManifestTests(SimpleTestCase):
     def test_layer1_declares_its_capabilities(self):
         self.assertEqual(CERT.LAYER_1["name"], "Canonical Truth")
-        for cap in ("Per-Day Truth", "Freshness", "Confidence",
+        for cap in ("Per-Day Truth", "Freshness", "Confidence", "Stability",
                     "Current Truth Objects", "Point-in-Time History",
                     "Domain Truth Objects", "Deterministic Provider Registry"):
             self.assertIn(cap, CERT.LAYER_1["capabilities"])
@@ -62,6 +62,14 @@ class Layer1CapabilityGateTests(TestCase):
         self.assertEqual(C.confidence_from_freshness(F.CURRENT), C.HIGH)
         self.assertEqual(C.confidence_from_coverage(1, 7), C.LOW)
         self.assertEqual(C.combine(C.HIGH, C.LOW), C.LOW)
+
+    def test_stability_capability(self):
+        from apps.core.truth import stability as S
+        a = CurrentTruth.found("health", "steps_yesterday", 8123, F.CURRENT)
+        b = CurrentTruth.found("health", "steps_yesterday", 8123, F.STALE)
+        self.assertEqual(S.truth_signature(a), S.truth_signature(b))  # data-stable
+        res = S.verify_stable(lambda: CurrentTruth.found("d", "m", 1, F.CURRENT))
+        self.assertTrue(res["stable"])
 
     def test_period_resolution_capability(self):
         p = resolve_period("yesterday", date(2026, 6, 17))

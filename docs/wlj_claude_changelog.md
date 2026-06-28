@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — feat(core): Platform capability — Stability (Architecture Law 5)
+
+Completes the trust envelope (Freshness + Confidence + Stability). Stable Truth: the same question with unchanged data must return the same answer; flapping truth is untrustworthy even when each read is individually correct.
+
+**New** `apps/core/truth/stability.py`: `signature(*parts)` (deterministic sha256 over canonical JSON), `current_signature`/`series_signature`/`truth_signature` (signature over a truth object's DATA — value/points/as_of — excluding now-relative freshness/confidence), and `verify_stable(retriever, rounds=3)` which proves a retriever doesn't drift across repeated reads. Backs the acceptance `unstable_fact` critical rule with a concrete mechanism.
+
+**Certification:** added "Stability" to the Layer 1 manifest (capability + `apps.core.truth.stability` module + `test_truth_stability` gate module) and a gate assertion. Layer 1 is now **eight** platform capabilities; gate GREEN (101 tests).
+
+**Tests:** `apps/core/tests/test_truth_stability.py` (6) — data-signatures (same data→same sig even with different freshness; different value→different sig; absent≠present) + verify_stable on Health Current Truth and History (no drift across 3 reads).
+
+**Files:** apps/core/truth/stability.py (new), apps/core/tests/test_truth_stability.py (new), apps/core/truth/certification.py, apps/core/tests/test_layer1_certification.py, docs/BETH_LAYER1_TRUTH_INVENTORY.md.
+
+
 ## 2026-06-28 — feat(core): Platform capability — Confidence (Architecture Law 2)
 
 Adds the Confidence platform capability — how much a consumer should trust a piece of truth — composed into every truth object alongside Freshness. Beth READS confidence; she never invents a hedge.

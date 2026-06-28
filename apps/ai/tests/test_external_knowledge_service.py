@@ -56,6 +56,83 @@ class ExternalKnowledgeAvailabilityTests(TestCase):
         self.assertNotIn("temporarily unavailable", out["answer"].lower())
 
 
+class _Status(Exception):
+    """Fake OpenAI-style error carrying an HTTP status_code."""
+    def __init__(self, status, message=""):
+        super().__init__(message or f"status {status}")
+        self.status_code = status
+
+
+class APITimeoutError(Exception):
+    pass
+
+
+class APIConnectionError(Exception):
+    pass
+
+
+class ClassifyLlmErrorTests(TestCase):
+    """The actual exception is mapped to ONE actionable category (status-first)."""
+
+    def test_status_and_class_mapping(self):
+        from apps.ai.services import classify_llm_error
+        self.assertEqual(classify_llm_error(_Status(401)), "authentication")
+        self.assertEqual(classify_llm_error(_Status(403)), "authorization")
+        self.assertEqual(classify_llm_error(_Status(429, "Rate limit reached")), "rate_limit")
+        self.assertEqual(classify_llm_error(
+            _Status(429, "You exceeded your current quota, please check your billing")), "quota")
+        self.assertEqual(classify_llm_error(_Status(404, "model not found")), "model")
+        self.assertEqual(classify_llm_error(_Status(400, "bad request")), "bad_request")
+        self.assertEqual(classify_llm_error(_Status(500, "server error")), "server")
+        self.assertEqual(classify_llm_error(APITimeoutError("Request timed out")), "timeout")
+        self.assertEqual(classify_llm_error(APIConnectionError("Connection error")), "network")
+        self.assertEqual(classify_llm_error(None), "none")
+
+
+class ProbeExternalKnowledgeTests(TestCase):
+    """probe_external_knowledge surfaces the REAL outcome, never collapsed to None."""
+
+    def test_no_client_is_configuration(self):
+        from apps.ai.services import AIService
+        svc = AIService()
+        svc.client = None
+        out = svc.probe_external_knowledge()
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["classification"], "configuration")
+        self.assertIn("no/invalid OPENAI_API_KEY", out["message"])
+
+    def test_live_exception_is_captured_not_swallowed(self):
+        from types import SimpleNamespace
+        from apps.ai.services import AIService
+        svc = AIService()
+        boom = _Status(429, "You exceeded your current quota")
+        svc.client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(
+            create=mock.MagicMock(side_effect=boom))))
+        out = svc.probe_external_knowledge()
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["exception_type"], "_Status")
+        self.assertEqual(out["status_code"], 429)
+        self.assertEqual(out["classification"], "quota")
+        self.assertIn("quota", out["message"].lower())
+
+    def test_call_api_logs_structured_exception(self):
+        from types import SimpleNamespace
+        from apps.ai.services import AIService
+        svc = AIService()
+        svc.client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(
+            create=mock.MagicMock(side_effect=_Status(401, "Invalid API key")))))
+        with mock.patch("time.sleep"):  # don't actually back off
+            with self.assertLogs("apps.ai.services", level="WARNING") as cm:
+                result = svc._call_api("s", "u", endpoint="cos_chat")
+        self.assertIsNone(result)  # still None to callers …
+        blob = "\n".join(cm.output)
+        # … but the REAL exception is now visible.
+        self.assertIn("class=_Status", blob)
+        self.assertIn("status=401", blob)
+        self.assertIn("classify=authentication", blob)
+        self.assertIn("LLM FAILED", blob)
+
+
 class DiagnosticCommandTests(TestCase):
     def _run(self):
         out = StringIO()

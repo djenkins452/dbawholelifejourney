@@ -7,6 +7,27 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-27 — diag(cos): instrument _call_api — capture the ACTUAL OpenAI exception (not just None)
+
+`_call_api` collapsed every OpenAI failure into `None`, so "why" was invisible. Instrumented so the real exception is always captured.
+
+**`classify_llm_error(exc)`** (`apps/ai/services.py`) maps an exception to one actionable category — status-first (robust across SDK versions), then class, then message: configuration / authentication / authorization / quota / rate_limit / model / timeout / network / bad_request / server / unknown.
+
+**`_call_api` logging** now records, per attempt and on final failure, the exception **class**, **HTTP status_code**, and **category** — and the final `LLM FAILED` line logs with `exc_info` (full traceback). Callers still receive `None` (answer path unchanged), but the cause is no longer lost: `LLM FAILED endpoint=cos_chat model=gpt-4o class=AuthenticationError status=401 classify=authentication final_error=…`.
+
+**`AIService.probe_external_knowledge(endpoint)`** makes ONE minimal live call and returns the ACTUAL outcome — `{ok, classification, exception_type, status_code, code, message, model, timeout, api_key_present, is_available}` — never collapsed to None, breaker-bypassed, no retry. `diagnose_external_knowledge --ping` prints it, so the real exception is captured on demand.
+
+**Result for "What is Metformin commonly used for?":** in THIS environment the captured outcome is **classification=configuration** — `is_available` is False (OpenAI client is None because `OPENAI_API_KEY` is unset), so `_call_api` returns None at the guard with **no API call attempted** (no exception thrown; that absence IS the cause). Where a key IS present and a call fails, the instrumentation now records the exact class/status/category (e.g. authentication 401, quota 429, model 404, timeout, network) in logs and via `--ping`.
+
+**Deliverables answered:** (1) exact type — none thrown here (pre-call configuration guard); captured live otherwise. (2) message — "OpenAI client is None (no/invalid OPENAI_API_KEY) — no API call was attempted." (3) HTTP status — N/A here; captured via `status_code` otherwise. (4) category — **configuration** here; classifier distinguishes the rest. (5) minimal fix — this instrumentation (replaces inference with the captured exception); for the configuration cause, set a valid `OPENAI_API_KEY`.
+
+**Regression tests** (`apps/ai/tests/test_external_knowledge_service.py`): `classify_llm_error` status/class mapping (401→auth, 429+quota→quota, 429→rate_limit, 404→model, timeout, network, 500→server); `probe_external_knowledge` reports configuration (no client) and captures a live exception (type/status/category, not swallowed); `_call_api` logs `class=/status=/classify=` + `LLM FAILED`.
+
+**Files:** apps/ai/services.py, apps/ai/management/commands/diagnose_external_knowledge.py, apps/ai/tests/test_external_knowledge_service.py.
+
+**Verification:** 26 tests green; `diagnose_external_knowledge --ping` prints the actual outcome; `manage.py check` clean; no migration.
+
+
 ## 2026-06-27 — diag(cos): "external knowledge service unavailable" is an OpenAI config/env issue (not a code bug)
 
 Investigated why general/hybrid medication questions now fail at the external knowledge step.

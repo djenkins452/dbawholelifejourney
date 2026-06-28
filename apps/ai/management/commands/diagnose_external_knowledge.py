@@ -57,20 +57,22 @@ class Command(BaseCommand):
             return
 
         if options["ping"]:
-            self.stdout.write("\nPinging OpenAI (one minimal call)…")
-            answer = ai_service._call_api(
-                "You are a test.", "Reply with the single word: ok.",
-                max_tokens=5, temperature=0, endpoint="cos_chat",
-                bypass_breaker=True,
-            )
-            if answer:
-                self.stdout.write(self.style.SUCCESS(
-                    f"  LIVE OK — reachable. Reply: {answer!r}"))
+            self.stdout.write("\nPinging OpenAI (one minimal live call)…")
+            # probe_* returns the ACTUAL exception (type/status/message/category),
+            # never collapsed to None — this is the real cause.
+            probe = ai_service.probe_external_knowledge(endpoint="cos_chat")
+            for k in ("endpoint", "model", "timeout", "api_key_present", "is_available",
+                      "ok", "classification", "exception_type", "status_code", "code",
+                      "message", "content"):
+                if k in probe:
+                    self.stdout.write(f"  {k:16} = {probe[k]}")
+            if probe.get("ok"):
+                self.stdout.write(self.style.SUCCESS("\nLIVE OK — external knowledge reachable."))
             else:
                 self.stdout.write(self.style.ERROR(
-                    "  LIVE FAIL — call returned None. Likely invalid key, exhausted "
-                    "quota/billing, an unavailable model, or a network/timeout error. "
-                    "See the 'LLM FAILED endpoint=cos_chat model=… final_error=…' log line."))
+                    f"\nLIVE FAIL — classification={probe.get('classification')!r}. "
+                    "This is the ACTUAL cause (no longer inferred)."))
         else:
             self.stdout.write(self.style.SUCCESS(
-                "\nConfigured and client initialized. Run with --ping to verify a live call."))
+                "\nConfigured and client initialized. Run with --ping to capture the "
+                "ACTUAL live exception (type/status/message/category)."))

@@ -59,6 +59,39 @@ def get_timeout_for_endpoint(endpoint: str) -> int:
     """Return the appropriate timeout for a given endpoint."""
     return ENDPOINT_TIMEOUTS.get(endpoint, LLM_TIMEOUT_UTILITY)
 
+
+def classify_llm_error(exc):
+    """Map an OpenAI/transport exception to a single actionable category so the
+    actual failure is never lost behind a None. Prioritizes HTTP status (robust
+    across SDK versions), then exception class name, then the message."""
+    if exc is None:
+        return "none"
+    status = getattr(exc, "status_code", None)
+    name = type(exc).__name__
+    msg = str(exc).lower()
+    if status == 401 or name == "AuthenticationError":
+        return "authentication"
+    if status == 403 or name == "PermissionDeniedError":
+        return "authorization"
+    if status == 429 or name == "RateLimitError":
+        if any(s in msg for s in ("quota", "insufficient_quota", "billing",
+                                  "exceeded your current quota", "credit")):
+            return "quota"
+        return "rate_limit"
+    if status == 404 or name == "NotFoundError":
+        return "model"  # model/deployment not found
+    if name in ("APITimeoutError", "Timeout", "TimeoutError") or \
+            "timeout" in msg or "timed out" in msg:
+        return "timeout"
+    if name in ("APIConnectionError", "APIConnectionError", "ConnectionError") or \
+            "connection" in msg:
+        return "network"
+    if status == 400 or name == "BadRequestError":
+        return "bad_request"
+    if isinstance(status, int) and 500 <= status < 600:
+        return "server"
+    return "unknown"
+
 # ==========================================================================
 # OpenAI Client Singleton — Thread-safe, connection-pooling
 # ==========================================================================
@@ -199,6 +232,45 @@ class AIService:
     def is_available(self) -> bool:
         """Check if AI service is available."""
         return self.client is not None
+
+    def probe_external_knowledge(self, endpoint: str = "cos_chat"):
+        """Make ONE minimal live OpenAI call and return the ACTUAL outcome — the
+        real exception type/status/message/category, NEVER collapsed to None. For
+        diagnostics: replaces 'returned None' with the concrete cause. Bypasses the
+        circuit breaker; does not retry (one shot, fully reported)."""
+        from django.conf import settings
+        out = {
+            "endpoint": endpoint,
+            "model": self.model,
+            "timeout": get_timeout_for_endpoint(endpoint),
+            "api_key_present": bool(getattr(settings, "OPENAI_API_KEY", None)),
+            "is_available": self.is_available,
+        }
+        if not self.is_available:
+            out.update(ok=False, classification="configuration", exception_type=None,
+                       status_code=None,
+                       message="OpenAI client is None (no/invalid OPENAI_API_KEY) — "
+                               "no API call was attempted.")
+            return out
+        try:
+            resp = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": "Reply with: ok"}],
+                max_tokens=5, temperature=0,
+                timeout=get_timeout_for_endpoint(endpoint),
+            )
+            out.update(ok=True, classification="ok",
+                       content=(resp.choices[0].message.content or "").strip())
+        except Exception as e:
+            out.update(
+                ok=False,
+                exception_type=type(e).__name__,
+                status_code=getattr(e, "status_code", None),
+                code=getattr(e, "code", None),
+                message=str(e),
+                classification=classify_llm_error(e),
+            )
+        return out
 
     def _get_coaching_style_prompt(self, style: str) -> str:
         """Get the coaching style instructions from database."""
@@ -477,16 +549,25 @@ class AIService:
                     is_rate_limit = isinstance(e, RateLimitError)
                 except ImportError:
                     is_rate_limit = '429' in str(e)
+                # Capture the ACTUAL exception detail — class, HTTP status, and a
+                # category — so the real failure is visible, never collapsed to None.
+                _err_class = type(e).__name__
+                _status = getattr(e, "status_code", None)
+                _classify = classify_llm_error(e)
                 if is_rate_limit:
                     cache.set("openai_rate_limited", True, timeout=120)
                     logger.warning(
-                        "LLM RATE LIMITED endpoint=%s attempt=%d/%d latency=%.2fs — circuit breaker set for 120s",
-                        endpoint, attempt, LLM_MAX_RETRIES, elapsed,
+                        "LLM RATE LIMITED endpoint=%s attempt=%d/%d class=%s status=%s "
+                        "classify=%s latency=%.2fs — circuit breaker set 120s — error=%s",
+                        endpoint, attempt, LLM_MAX_RETRIES, _err_class, _status,
+                        _classify, elapsed, e,
                     )
                 else:
                     logger.warning(
-                        "LLM error endpoint=%s attempt=%d/%d latency=%.2fs error=%s",
-                        endpoint, attempt, LLM_MAX_RETRIES, elapsed, e,
+                        "LLM error endpoint=%s attempt=%d/%d class=%s status=%s "
+                        "classify=%s latency=%.2fs error=%s",
+                        endpoint, attempt, LLM_MAX_RETRIES, _err_class, _status,
+                        _classify, elapsed, e,
                     )
                 if attempt < LLM_MAX_RETRIES:
                     if is_rate_limit:
@@ -495,10 +576,16 @@ class AIService:
                         backoff = LLM_BASE_BACKOFF_SECONDS * (2 ** (attempt - 1))
                     time.sleep(backoff)
 
-        # All retries exhausted
+        # All retries exhausted — log the FULL exception (class, status, category,
+        # traceback) so production can see exactly why, not just "returned None".
         logger.error(
-            "LLM FAILED endpoint=%s model=%s retries=%d final_error=%s",
-            endpoint, self.model, LLM_MAX_RETRIES, last_error,
+            "LLM FAILED endpoint=%s model=%s retries=%d class=%s status=%s "
+            "classify=%s final_error=%s",
+            endpoint, model or self.model, LLM_MAX_RETRIES,
+            type(last_error).__name__ if last_error else None,
+            getattr(last_error, "status_code", None),
+            classify_llm_error(last_error), last_error,
+            exc_info=last_error,
         )
         self._log_usage(
             user=user,

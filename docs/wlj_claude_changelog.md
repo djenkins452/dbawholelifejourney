@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — feat(core): Platform capability — Confidence (Architecture Law 2)
+
+Adds the Confidence platform capability — how much a consumer should trust a piece of truth — composed into every truth object alongside Freshness. Beth READS confidence; she never invents a hedge.
+
+**New** `apps/core/truth/confidence.py`: verdicts high/medium/low/none + deterministic classifiers — `confidence_from_freshness` (current→high, partial→medium, stale→low, pending/missing→none), `confidence_from_coverage(present, total)` (≥0.8 high, ≥0.4 medium, >0 low, else none), `confidence_from_source` (device/synced→high, manual→medium, estimated/derived→low), `combine()` (weakest wins — trust is bounded by its weakest input), `is_at_least`.
+
+**Composed into the truth objects (zero provider call-site changes):** `CurrentTruth.__post_init__` derives `confidence = combine(from_freshness, from_source)` (absent → none) and `to_fact_dict()` carries it; `HistorySeries.confidence()` derives from period coverage and `to_dict()` carries it. Health consumes it on both Current Truth and History; Finance inherits it automatically via `CurrentTruth` (every CurrentFinance value now carries a confidence verdict).
+
+**Certification:** added "Confidence" to the Layer 1 manifest capabilities + `apps.core.truth.confidence` platform module + `test_truth_confidence` gate module; certification gate test asserts the capability. Layer 1 is now **seven** platform capabilities; gate GREEN (95 tests).
+
+**Tests:** `apps/core/tests/test_truth_confidence.py` (12) — classifiers (freshness/coverage/source/combine) + composition into Current Truth (high/stale-low/absent-none) and History (full→high, sparse→low).
+
+**Files:** apps/core/truth/confidence.py (new), apps/core/tests/test_truth_confidence.py (new), apps/core/truth/current.py (confidence field + derivation), apps/core/truth/history.py (confidence()), apps/core/truth/certification.py (manifest), apps/core/tests/test_layer1_certification.py (gate), docs/BETH_LAYER1_TRUTH_INVENTORY.md.
+
+
 ## 2026-06-28 — feat(core): Layer 1 Certification + Deterministic Provider Registry (final Layer 1 capability)
 
 Completes and certifies Layer 1 (Canonical Truth). Two parts:

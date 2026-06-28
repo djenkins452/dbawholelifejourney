@@ -28,9 +28,9 @@ User = get_user_model()
 class Layer1ManifestTests(SimpleTestCase):
     def test_layer1_declares_its_capabilities(self):
         self.assertEqual(CERT.LAYER_1["name"], "Canonical Truth")
-        for cap in ("Per-Day Truth", "Freshness", "Current Truth Objects",
-                    "Point-in-Time History", "Domain Truth Objects",
-                    "Deterministic Provider Registry"):
+        for cap in ("Per-Day Truth", "Freshness", "Confidence",
+                    "Current Truth Objects", "Point-in-Time History",
+                    "Domain Truth Objects", "Deterministic Provider Registry"):
             self.assertIn(cap, CERT.LAYER_1["capabilities"])
 
     def test_platform_modules_all_import(self):
@@ -56,6 +56,12 @@ class Layer1CapabilityGateTests(TestCase):
             F.classify_period_freshness(has_data=True, requested_date=self.today,
                                         data_date=self.today, today=self.today,
                                         is_cumulative=True), F.PARTIAL)
+
+    def test_confidence_capability(self):
+        from apps.core.truth import confidence as C
+        self.assertEqual(C.confidence_from_freshness(F.CURRENT), C.HIGH)
+        self.assertEqual(C.confidence_from_coverage(1, 7), C.LOW)
+        self.assertEqual(C.combine(C.HIGH, C.LOW), C.LOW)
 
     def test_period_resolution_capability(self):
         p = resolve_period("yesterday", date(2026, 6, 17))

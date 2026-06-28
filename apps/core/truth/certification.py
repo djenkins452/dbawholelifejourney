@@ -21,6 +21,7 @@ LAYER_1 = {
     "capabilities": [
         "Per-Day Truth",
         "Freshness",
+        "Confidence",
         "Current Truth Objects",
         "Point-in-Time History",
         "Domain Truth Objects",
@@ -28,6 +29,7 @@ LAYER_1 = {
     ],
     "platform_modules": [
         "apps.core.truth.freshness",
+        "apps.core.truth.confidence",
         "apps.core.truth.current",
         "apps.core.truth.periods",
         "apps.core.truth.history",
@@ -37,6 +39,7 @@ LAYER_1 = {
     "test_modules": [
         # platform capabilities
         "apps.core.tests.test_truth_freshness",
+        "apps.core.tests.test_truth_confidence",
         "apps.core.tests.test_current_truth",
         "apps.core.tests.test_truth_history",
         "apps.core.tests.test_domain_truth",

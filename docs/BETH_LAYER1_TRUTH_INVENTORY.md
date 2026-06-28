@@ -19,11 +19,13 @@
 > Release gate: `python manage.py certify_layers` (re-runs every certified layer; a
 > higher layer cannot certify if a lower one regresses).
 
-**Six Layer-1 platform capabilities — all implemented, deterministic gate GREEN (85 tests):**
-Per-Day Truth · Freshness · Current Truth Objects · Point-in-Time History · Domain
-Truth Objects · Deterministic Provider Registry. Gate module:
+**Seven Layer-1 platform capabilities — all implemented, deterministic gate GREEN:**
+Per-Day Truth · Freshness · **Confidence (Law 2)** · Current Truth Objects · Point-in-Time
+History · Domain Truth Objects · Deterministic Provider Registry. Gate module:
 `apps/core/tests/test_layer1_certification.py` (one end-to-end assertion per capability
-+ manifest consistency).
++ manifest consistency). Confidence (high/medium/low/none) is derived deterministically
+from freshness + coverage + source and composed into every Current Truth object and
+History series (Beth reads it; never invents a hedge).
 
 **Certification status:** the *deterministic foundation* is GREEN and frozen as a
 permanent regression requirement. **Full certification also requires the live Deep
@@ -70,6 +72,7 @@ most basic "did I X / how much X yesterday" questions a Chief of Staff must own.
 | **History (legacy domain queries)** | domain `*_queries` | 🟡 (now point-in-time via platform) | n/a | ✅ | ✅ | 🟡 keyword only | 🟡 reading only | ⬜ |
 | **Per-Day Truth** | `apps/health/services/daily_health_queries.py` (pattern) | ✅ | n/a | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | **Freshness** | `apps/core/truth/freshness.py` | ✅ consumer | ✅ consumer | ⬜ | ⬜ | ✅ consumer | ⬜ | ⬜ |
+| **Confidence** (Law 2) | `apps/core/truth/confidence.py` ⭐ | ✅ (Current+History) | ⬜ | ⬜ | ⬜ | ✅ (auto via CurrentTruth) | ⬜ | ⬜ |
 | **Deterministic Provider Registry** | `apps/ai/chatgpt_cos/fact_registry.py` ⭐ | ✅ | ✅ | ⬜ | ✅ | ⬜ | ⬜ | ⬜ |
 
 ✅ complete · 🟡 partial · ⬜ pending · ⭐ domain-agnostic platform module. **Current

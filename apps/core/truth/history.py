@@ -56,6 +56,11 @@ class HistorySeries:
         """Number of data points (e.g. days/sessions with a value)."""
         return len(self.points)
 
+    def confidence(self):
+        """Law 2 — confidence from coverage: how much of the period has data."""
+        from apps.core.truth.confidence import confidence_from_coverage
+        return confidence_from_coverage(self.count(), self.period.days())
+
     def latest(self):
         return self.points[-1] if self.points else None
 
@@ -75,6 +80,7 @@ class HistorySeries:
             "count": self.count(),
             "total": self.total(),
             "average": self.average(),
+            "confidence": self.confidence(),
             "points": [{"date": p.date.isoformat(), "value": p.value}
                        for p in self.points],
         }

@@ -17,6 +17,7 @@ already consumes, so Current Truth slots under the existing narration without ch
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
+from apps.core.truth import confidence as _conf
 from apps.core.truth.freshness import MISSING
 
 
@@ -32,6 +33,16 @@ class CurrentTruth:
     source: str = ""
     detail: Dict[str, Any] = field(default_factory=dict)
     reason: str = ""
+    confidence: str = ""                 # Law 2 — derived from freshness + source
+
+    def __post_init__(self):
+        # CONFIDENCE composes from freshness + source (weakest wins). Derived once
+        # here so every provider gets it free; absent truth is NONE.
+        if not self.confidence:
+            verdict = (_conf.combine(_conf.confidence_from_freshness(self.freshness),
+                                     _conf.confidence_from_source(self.source))
+                       if self.present else _conf.NONE)
+            object.__setattr__(self, "confidence", verdict)
 
     # -- constructors ---------------------------------------------------------
     @classmethod
@@ -57,7 +68,7 @@ class CurrentTruth:
                 out["reason"] = self.reason
             return out
         out = {"value": self.value, "source": self.source,
-               "freshness": self.freshness}
+               "freshness": self.freshness, "confidence": self.confidence}
         if self.unit:
             out["unit"] = self.unit
         out.update(self.detail)

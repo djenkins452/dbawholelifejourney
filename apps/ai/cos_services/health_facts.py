@@ -87,9 +87,48 @@ _FACT_MAP = {
     },
 }
 
-SUPPORTED_FACTS = sorted(_FACT_MAP.keys())
+# Batch 1 — PER-DAY deterministic facts. These bypass the SAE 7-day-average path
+# and read the specific day straight from the canonical models via DailyHealthQueries
+# ("retrieve, never derive"). The classifier (foundational_facts._refine_to_day)
+# routes "yesterday/today/last night" questions here.
+_DAY_FACT_KEYS = {"steps_today", "steps_yesterday", "sleep_last_night",
+                  "calories_yesterday", "weight_yesterday", "glucose_yesterday"}
 
-_META_FIELDS = ("unit", "trend", "recorded_at", "count", "target", "diastolic")
+SUPPORTED_FACTS = sorted(set(_FACT_MAP.keys()) | _DAY_FACT_KEYS)
+
+_META_FIELDS = ("unit", "trend", "recorded_at", "count", "target", "diastolic",
+                "for_date", "as_of", "exact")
+
+
+def _day_fact(user, key):
+    """Resolve a per-day fact key to a concrete value (or {status: unknown}) via the
+    DailyHealthQueries Domain Truth Contract — a specific day, never an average."""
+    from apps.health.services.daily_health_queries import DailyHealthQueries as Q
+    today, yest = Q.today(user), Q.yesterday(user)
+    routes = {
+        "steps_today": lambda: Q.steps_on(user, today),
+        "steps_yesterday": lambda: Q.steps_on(user, yest),
+        "sleep_last_night": lambda: Q.latest_sleep(user),
+        "calories_yesterday": lambda: Q.calories_on(user, yest),
+        "weight_yesterday": lambda: Q.weight_on(user, yest),
+        "glucose_yesterday": lambda: Q.glucose_on(user, yest),
+    }
+    fn = routes.get(key)
+    if fn is None:
+        return {"status": "unsupported_fact", "supported": sorted(_DAY_FACT_KEYS)}
+    try:
+        res = fn()
+    except Exception:
+        logger.warning("health_facts: day fact failed key=%s", key, exc_info=True)
+        return {"status": "unknown", "reason": "per-day retrieval failed"}
+    if res.get("status") != "ok":
+        return {"status": "unknown",
+                "reason": f"no {res.get('metric', key)} for the requested day"}
+    fact = {"value": res["value"], "source": "DailyHealthQueries"}
+    for f in ("unit", "for_date", "recorded_at", "as_of", "exact", "count"):
+        if f in res:
+            fact[f] = res[f]
+    return fact
 
 
 def get_foundational_health_facts(user, keys=None):
@@ -129,6 +168,11 @@ def get_foundational_health_facts(user, keys=None):
 
     out = {}
     for key in requested:
+        # Per-day deterministic facts route to DailyHealthQueries (specific day),
+        # NOT the SAE 7-day-average path.
+        if key in _DAY_FACT_KEYS:
+            out[key] = _jsonsafe(_day_fact(user, key))
+            continue
         spec = _FACT_MAP.get(key)
         if spec is None:
             out[key] = {"status": "unsupported_fact",

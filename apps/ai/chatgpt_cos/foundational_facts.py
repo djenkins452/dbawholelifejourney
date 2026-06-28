@@ -67,8 +67,11 @@ _UNKNOWN_SENTENCE = {
     "current_medications": "I don't have any current medications recorded for you.",
     "calories_today": "I don't have any calories logged for you today.",
     "protein_today": "I don't have any protein logged for you today.",
-    "sleep_last_night": "I don't have recent sleep data recorded for you.",
+    "sleep_last_night": "I don't have last night's sleep recorded yet — it may not have synced.",
     "steps_recent": "I don't have recent step data recorded for you — it may not have synced yet.",
+    "steps_today": "I don't have today's steps yet — they may not have synced.",
+    "steps_yesterday": "I don't have yesterday's steps recorded.",
+    "calories_yesterday": "I don't have any calories logged for you yesterday.",
     "average_sleep_7d": "I don't have enough sleep data to show an average yet.",
     "sleep_trend": "I don't have a sleep trend for you yet.",
     "last_blood_pressure_reading": "I don't have a blood pressure reading recorded for you.",
@@ -203,11 +206,33 @@ def classify_foundational_fact(message):
                                "what comes after", "next after", "after goal weight",
                                "comes next in", "next milestone", "next phase")):
         return None
+    matched = None
     for key, keywords in _FACT_KEYWORDS:
-        for kw in keywords:
-            if kw in text:
-                return key
-    return None
+        if any(kw in text for kw in keywords):
+            matched = key
+            break
+    if matched is None:
+        return None
+    return _refine_to_day(matched, text)
+
+
+def _refine_to_day(key, text):
+    """Batch 1 — when a metric is asked for a SPECIFIC day, route to the per-day
+    deterministic fact (DailyHealthQueries) instead of the 7-day average. 'Retrieve,
+    never derive': "steps yesterday" -> steps_yesterday, "sleep last night" -> the
+    actual last night. Bare "steps" defaults to today."""
+    is_yesterday = "yesterday" in text
+    if key == "steps_recent":
+        return "steps_yesterday" if is_yesterday else "steps_today"
+    if key == "calories_today" and is_yesterday:
+        return "calories_yesterday"
+    if key == "sleep_last_night" and any(
+            w in text for w in ("average", "this week", "past week", "7 day", "7-day",
+                                "weekly", "lately", "typically")):
+        # "average/this-week sleep" stays on the 7-day-average SAE fact; only a
+        # specific-night question ("last night") gets the per-day deterministic fact.
+        return "average_sleep_7d"
+    return key
 
 
 def format_fact_sentence(key, fact):
@@ -245,14 +270,22 @@ def format_fact_sentence(key, fact):
         if fact.get("target"):
             s += f" (target {fact['target']} g)"
         return s + "."
-    if key in ("sleep_last_night", "average_sleep_7d"):
+    if key == "sleep_last_night":
+        # Batch 1 — the ACTUAL most-recent night (not a 7-day average).
+        return f"You slept {value} {unit or 'hours'} last night."
+    if key == "average_sleep_7d":
         s = f"You've been averaging {value} {unit or 'hours'} of sleep"
         if fact.get("trend"):
             s += f", and your sleep trend is {fact['trend']}"
         return s + "."
+    if key in ("steps_today", "steps_yesterday"):
+        when = "yesterday" if key == "steps_yesterday" else "today"
+        return f"You logged {value} steps {when}."
+    if key == "calories_yesterday":
+        return f"You ate {value} calories yesterday."
     if key == "steps_recent":
-        # SAE has only the 7-day average — answer honestly as an average, never as a
-        # specific day (no false precision / no stale-as-current).
+        # Legacy 7-day-average fallback (the classifier now routes to the per-day
+        # fact above); kept honest as an average, never a specific day.
         return f"You've been averaging about {value} steps a day over the past week."
     if key == "sleep_trend":
         return f"Your sleep trend is {value}."

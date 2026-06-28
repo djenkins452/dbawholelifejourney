@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — feat(health): Layer 1 Batch 1 — per-day Canonical Truth (DailyHealthQueries)
+
+Closes the dominant Layer-1 defect class from the inventory: the SAE exposed only 7-day averages, so "how many steps yesterday" / "how did I sleep last night" could not be answered as a real value (they were answered with an average or fell to the LLM). Architecture Laws 0/1/4.
+
+**New deterministic Domain Truth Contract** `apps/health/services/daily_health_queries.py` — `DailyHealthQueries` with `steps_on`, `latest_sleep`, `sleep_on`, `weight_on` (as-of), `glucose_on`, `calories_on`. Each returns a SPECIFIC DAY's value read straight from the canonical model (StepsEntry/SleepEntry/WeightEntry/GlucoseEntry/DailyNutritionSummary), or `{status: no_data}` — never a substitute average. "Retrieve, never derive."
+
+**Foundational-fact wiring:** `foundational_facts._refine_to_day` routes "steps today/yesterday", "sleep last night", "calories yesterday" to the per-day facts; "average/this-week sleep" stays on the existing 7-day `average_sleep_7d`. `health_facts._day_fact` resolves the per-day keys via the contract; `_DAY_FACT_KEYS` bypass the SAE average path. Honest no-data phrasing ("I don't have last night's sleep recorded yet — it may not have synced").
+
+**Tests:** `apps/health/tests/test_daily_health_queries.py` (8) — specific-day value not averaged, honest no-data, classifier routing, end-to-end retrieval + phrasing. Updated `test_foundational_steps` (steps now per-day) and `test_foundation_validation` PROMPTS ("how did I sleep last night" was asserting the 7-day average — the exact defect; replaced with the average-phrased question; the last-night day-fact is covered by the new test). Full regression GREEN (65 tests).
+
+**Remaining Batch 1 sub-items (tracked in inventory):** NL routing for "weight yesterday"/"glucose yesterday" (contract + `_day_fact` already support them), arbitrary-date and range NL, and the live Deep re-run to flip det_steps/det_sleep/fresh_* GREEN (needs production OpenAI stack).
+
+**Files:** apps/health/services/daily_health_queries.py (new), apps/health/tests/test_daily_health_queries.py (new), apps/ai/chatgpt_cos/foundational_facts.py, apps/ai/cos_services/health_facts.py, apps/ai/tests/test_foundational_steps.py, apps/ai/tests/test_foundation_validation.py, docs/BETH_LAYER1_TRUTH_INVENTORY.md.
+
+
 ## 2026-06-28 — docs(arch): Layer 1 Canonical Truth inventory + gap analysis (Phase 1, NO CODE)
 
 Phase 1 deliverable for the WLJ Application Acceptance program: a complete, evidence-verified inventory of Canonical Truth (Layer 1) across every domain, produced by parallel read-only audits (Health · Faith+Purpose · Finance · Relationships · Productivity/Calendar/Tasks/Journal) and merged into `docs/BETH_LAYER1_TRUTH_INVENTORY.md`. Each gap cites file:line; no speculation. Audits were consistent (no contradictions); cross-cutting themes were found independently by multiple agents.

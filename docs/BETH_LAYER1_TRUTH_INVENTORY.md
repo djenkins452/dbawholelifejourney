@@ -75,7 +75,18 @@ most basic "did I X / how much X yesterday" questions a Chief of Staff must own.
 
 Ordered by "Critical blocks Layer 2" + leverage. Each batch closes a defect class and turns its acceptance category GREEN before the next begins.
 
-1. **Per-day health scalars (C1, C3).** Add SAE per-day fields from existing rows — `steps_yesterday/today`, `sleep_last_night` (most-recent SleepEntry), `glucose_yesterday`, `calories_yesterday` — and point the foundational facts at them (replace the average-as-specific answers). *Acceptance: det_steps/sleep/calories, truth_*, intent_* GREEN.*
+1. **Per-day health scalars (C1, C3). — 🟢 DELIVERED (core), 2026-06-28.** New
+   `apps/health/services/daily_health_queries.py` `DailyHealthQueries` contract
+   (`steps_on`, `latest_sleep`, `sleep_on`, `weight_on`, `glucose_on`, `calories_on`
+   — a specific day, never an average). The foundational classifier now routes
+   "steps today/yesterday", "sleep last night", "calories yesterday" to these
+   deterministic per-day facts (`foundational_facts._refine_to_day` +
+   `health_facts._day_fact`); "average sleep" stays on the 7-day fact. Honest
+   no-data ("I don't have last night's sleep yet"). Tests: `test_daily_health_queries`.
+   **Remaining sub-items:** NL routing for "weight yesterday"/"glucose yesterday"
+   (the contract + `_day_fact` support them; the classifier doesn't yet emit those
+   keys), arbitrary-date and range NL ("steps on March 15", "steps last week"), and
+   the live Deep re-run to flip det_steps/det_sleep/fresh_* GREEN. *Acceptance: det_steps/sleep/calories, truth_*, intent_* — pending live re-run.*
 2. **Deterministic journal-today & appointments-today providers (C2).** Wire `JournalQueries.has_entry_on` and `build_calendar_state.next_event` into a foundational provider so the declined questions answer deterministically; add a `CalendarQueries` contract (C5). *Acceptance: det_journal, det_appts GREEN.*
 3. **Workout-today fact (C2).** `WorkoutQueries.completed_in_range(today,today)` → SAE `workouts_today` + foundational fact. *Acceptance: det_workouts, intent_workout GREEN.*
 4. **Freshness envelope (C1/C3, Law 1/2).** Attach as-of + freshness verdict (current/stale/pending/partial/missing) to the per-day facts; pending/missing answer honestly. *Acceptance: fresh_* GREEN; Deep Truth Certification GREEN target.*

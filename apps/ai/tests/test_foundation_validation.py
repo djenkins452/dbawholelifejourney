@@ -55,7 +55,7 @@ PROMPTS = [
     ("What medications am I currently taking?",   "current_medications",  "Metformin"),
     ("How many calories have I consumed today?",  "calories_today",       "1850"),
     ("How much protein have I consumed today?",   "protein_today",        "142"),
-    ("How did I sleep last night?",               "sleep_last_night",     "6.7"),
+    ("What's my average sleep this week?",        "average_sleep_7d",     "6.7"),
     ("What was my last blood pressure reading?",   "last_blood_pressure_reading", "111/72"),
     ("What was the last meal I logged?",           "latest_meal_logged",   "2026-04-07"),
 ]

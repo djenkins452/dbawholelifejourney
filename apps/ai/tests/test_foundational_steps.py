@@ -14,10 +14,12 @@ from apps.ai.cos_services.health_facts import SUPPORTED_FACTS
 
 
 class StepsDeterministicFactTests(SimpleTestCase):
-    def test_steps_questions_route_to_deterministic_fact(self):
-        for q in ("How many steps did I get yesterday?", "How many steps today?",
-                  "what's my step count", "show me my steps"):
-            self.assertEqual(classify_foundational_fact(q), "steps_recent", q)
+    def test_steps_questions_route_to_per_day_deterministic_fact(self):
+        # Batch 1: steps now route to a SPECIFIC DAY (not the 7-day average).
+        self.assertEqual(classify_foundational_fact("How many steps did I get yesterday?"), "steps_yesterday")
+        self.assertEqual(classify_foundational_fact("How many steps today?"), "steps_today")
+        self.assertEqual(classify_foundational_fact("what's my step count"), "steps_today")
+        self.assertEqual(classify_foundational_fact("show me my steps"), "steps_today")
 
     def test_does_not_capture_next_step_or_coaching(self):
         # "step" (singular) must never hijack reasoning/coaching questions.

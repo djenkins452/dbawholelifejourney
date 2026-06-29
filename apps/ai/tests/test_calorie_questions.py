@@ -61,7 +61,8 @@ class CalorieQuestionTests(TestCase):
         key = classify_foundational_fact("What did I eat yesterday?")
         self.assertEqual(key, "meals_yesterday")          # different intent
         ans = format_fact_sentence(key, get_foundational_execution_facts(self.user, [key])[key])
-        self.assertIn("breakfast — Eggs", ans)
+        self.assertIn("Breakfast", ans)
+        self.assertIn("Eggs", ans)
         self.assertNotIn("calorie", ans.lower())          # meals, not a calorie total
 
     def test_no_internal_field_leak_in_calorie_answers(self):

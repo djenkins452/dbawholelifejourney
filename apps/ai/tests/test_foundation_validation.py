@@ -53,7 +53,7 @@ PROMPTS = [
     ("What is my current weight?",                "current_weight",       "298.3"),
     ("What was my last glucose reading?",         "last_glucose_reading", "133"),
     ("What medications am I currently taking?",   "current_medications",  "Metformin"),
-    ("How many calories have I consumed today?",  "calories_today",       "1850"),
+    ("How many calories have I consumed today?",  "calories_today",       "1,850"),
     ("How much protein have I consumed today?",   "protein_today",        "142"),
     ("What's my average sleep this week?",        "average_sleep_7d",     "6.7"),
     ("What was my last blood pressure reading?",   "last_blood_pressure_reading", "111/72"),
@@ -156,7 +156,7 @@ class FormatFactSentenceTests(TestCase):
             "last_glucose_reading": ({"value": 133.0, "unit": "mg/dL"}, "133"),
             "current_medications": ({"value": ["Metformin", "Valsartan"],
                                      "count": 2}, "Metformin"),
-            "calories_today": ({"value": 1850.0, "target": 2000}, "1850"),
+            "calories_today": ({"value": 1850.0, "target": 2000}, "1,850"),
             "protein_today": ({"value": 142.0, "target": 180}, "142"),
             "sleep_last_night": ({"value": 6.7, "unit": "hours",
                                   "trend": "decreasing"}, "6.7"),
@@ -177,5 +177,6 @@ class FormatFactSentenceTests(TestCase):
     def test_zero_is_a_valid_value(self):
         # 0 is a real total (no food logged), rendered as a clean integer.
         s = format_fact_sentence("calories_today", {"value": 0.0, "target": 2000})
-        self.assertIn("0 calories", s)
+        self.assertIn("Calories: 0", s)            # 0 is a real total, clean integer
+        self.assertNotIn("0.0", s)
         self.assertNotIn("haven't", s.lower())

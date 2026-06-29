@@ -341,16 +341,15 @@ def format_fact_sentence(key, fact):
         return (f"You're currently taking {count} medication(s): "
                 f"{', '.join(str(m) for m in meds)}.")
     if key == "calories_today":
-        n = int(value) if isinstance(value, (int, float)) and float(value).is_integer() else value
-        s = f"You've logged {n} calories today"
-        if fact.get("target"):
-            s += f" (target {fact['target']})"
-        return s + "."
+        from apps.core.truth.present import humanize_number, present_remaining
+        if fact.get("target"):       # answer the next question: how much is left
+            return present_remaining("Calories", value, fact["target"]) + "."
+        return f"You've logged {humanize_number(value)} calories today."
     if key == "protein_today":
-        s = f"You've consumed {value} g of protein today"
+        from apps.core.truth.present import humanize_number, present_remaining
         if fact.get("target"):
-            s += f" (target {fact['target']} g)"
-        return s + "."
+            return present_remaining("Protein", value, fact["target"], "g") + "."
+        return f"You've logged {humanize_number(value)} g of protein today."
     if key == "sleep_last_night":
         # Batch 1/3 — the ACTUAL most-recent night, with read freshness (Law 1).
         if fact.get("freshness") == "stale":
@@ -383,15 +382,15 @@ def format_fact_sentence(key, fact):
     if key == "next_appointment":
         return f"Your next appointment is {value}."
     if key in ("meals_today", "meals_yesterday"):
+        from apps.core.truth.present import present_groups
         when = "yesterday" if key == "meals_yesterday" else "today"
         meals = fact.get("meals") or {}
         if not value or not meals:
-            if key == "meals_yesterday":
-                return "You didn't log any food yesterday."
-            return "You haven't logged any food today yet."
-        parts = [f"{meal} — {', '.join(items)}" for meal, items in meals.items()]
-        lead = "Yesterday you had " if when == "yesterday" else "Today you've had "
-        return lead + "; ".join(parts) + "."
+            return ("You didn't log any food yesterday." if when == "yesterday"
+                    else "You haven't logged any food today yet.")
+        # Grouped, bulleted, duplicate-collapsed list — scannable, not a dense sentence.
+        lead = "Yesterday you logged:" if when == "yesterday" else "Today you've logged:"
+        return present_groups(meals.items(), lead=lead)
     if key == "meds_today":
         expected = fact.get("expected", 0)
         if not expected:
@@ -449,9 +448,11 @@ def format_fact_sentence(key, fact):
     return f"{key}: {value} {unit}".strip()
 
 
-# Facts whose answer is gated on a numeric value — answered deterministically so the
-# number is always present (never softened to "you haven't logged anything").
-_NUMERIC_VALUE_KEYS = {"calories_today", "calories_yesterday", "protein_today"}
+# Facts answered DETERMINISTICALLY (LLM rephrase bypassed): numeric-value-gated facts
+# (the number must always appear) and PRESENTATION-formatted facts (the structured/
+# multi-line list must survive — the LLM would flatten it back into a dense sentence).
+_NUMERIC_VALUE_KEYS = {"calories_today", "calories_yesterday", "protein_today",
+                       "meals_today", "meals_yesterday"}
 
 
 def _temporal_or_clinical(fact):

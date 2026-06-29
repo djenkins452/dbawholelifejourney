@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-29 — feat(cos): Human Presentation Standard — one reusable presentation layer
+
+Same deterministic truth, dramatically more readable. New `apps/core/truth/present.py` (complements render.py): `humanize_number` (rounds + thousands separators — 31.2→31, 180.0→180, 1850→1,850), `collapse_items`/`bullet_list` (duplicate collapse — "Pizza, Pizza"→"Pizza (2 servings)"), `present_groups` (grouped, bulleted, scannable lists), `present_remaining` (consumed · remaining · goal — answers the next question before it's asked). Domain-agnostic; not special-cased per domain.
+
+Applied via format_fact_sentence: meals → grouped bulleted duplicate-collapsed list; calories/protein → rounded + remaining-to-goal. Meals added to the deterministic-answer set so the LLM can't flatten the structured list back into a dense sentence.
+
+Before/after (same truth): meals "Today you've had snack — Pistachios, Cashews; dinner — Pizza, Pizza." → a grouped bulleted list with "Homemade Pizza (2 servings)"; protein "31.2 g (target 180.0 g)" → "Protein: 31 g consumed · 149 g remaining (goal 180 g)"; calories "770 (target 1800)" → "Calories: 770 consumed · 1,030 remaining (goal 1,800)".
+
+Inventory in docs/CONVERSATION_OBJECT_MATRIX.md. Tests: test_presentation (primitives) + updated meal/number assertions across test_execution_facts/test_calorie_questions/test_foundation_validation. GREEN (101 incl. Layer 1 gate); no migrations. Change-control: extends the certified Human-Ready Conversation Layer; truth identical, presentation only.
+
+**Files:** apps/core/truth/present.py (new), apps/core/tests/test_presentation.py (new), apps/ai/chatgpt_cos/foundational_facts.py, apps/ai/tests/test_execution_facts.py, apps/ai/tests/test_calorie_questions.py, apps/ai/tests/test_foundation_validation.py.
+
+
 ## 2026-06-29 — feat(cos): Conversation Object capability — every fact defines the conversation that follows
 
 Generalizes the calories→meals win into a reusable capability so we stop fixing follow-ups one at a time. A deterministic fact is now a complete Conversation Object: primary fact + supporting facts + the natural follow-ups it answers from memory (no extra retrieval/query/LLM).

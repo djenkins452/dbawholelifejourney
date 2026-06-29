@@ -117,8 +117,11 @@ class ExecutionFactRetrievalTests(TestCase):
                                  serving_size=1, quantity=1)
         f = get_foundational_execution_facts(self.user, ["meals_today"])["meals_today"]
         s = format_fact_sentence("meals_today", f)
-        self.assertIn("breakfast — Oatmeal", s)
-        self.assertIn("lunch — Salad", s)
+        self.assertIn("Breakfast", s)
+        self.assertIn("Oatmeal", s)
+        self.assertIn("Lunch", s)
+        self.assertIn("Salad", s)
+        self.assertIn("\u2022", s)  # bulleted list
         self.assertNotIn("entry", s.lower())       # no storage jargon
         self.assertNotIn("food entry", s.lower())
 
@@ -133,8 +136,9 @@ class ExecutionFactRetrievalTests(TestCase):
                                  logged_date=yest, serving_size=1, quantity=1)
         f = get_foundational_execution_facts(self.user, ["meals_yesterday"])["meals_yesterday"]
         s = format_fact_sentence("meals_yesterday", f)
-        self.assertIn("Yesterday you had", s)
-        self.assertIn("breakfast — Eggs", s)
+        self.assertIn("Yesterday you logged:", s)
+        self.assertIn("Breakfast", s)
+        self.assertIn("Eggs", s)
         self.assertNotIn("entry", s.lower())
         # empty case
         f2 = get_foundational_execution_facts(

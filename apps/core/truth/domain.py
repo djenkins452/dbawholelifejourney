@@ -22,6 +22,7 @@ from importlib import import_module
 _KNOWN_PROVIDER_MODULES = (
     "apps.health.services.health_domain_truth",
     "apps.finance.services.finance_domain_truth",
+    "apps.core.truth.domain_rollout",   # journal, calendar, tasks, faith, relationships
 )
 
 _REGISTRY = {}

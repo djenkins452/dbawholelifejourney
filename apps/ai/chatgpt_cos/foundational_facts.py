@@ -487,6 +487,10 @@ def answer_foundational_fact(user, message):
         "tools_called": [fact_source],
         "fast_path": "foundational_fact",
         "fact_key": key,
+        # Supporting evidence for DETERMINISTIC conversation memory: a follow-up
+        # ("why do you say that?") is explained from this fact, not an LLM reconstruction.
+        "fact": fact,
+        "basis": deterministic,
     }
 
 

@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — feat(cos): Chief-of-Staff hardening — deterministic conversation memory + full domain rollout + whole-conversation regression
+
+CLASS 1 (highest) — Deterministic Conversation Memory. "Why do you say that?" no longer needs an LLM to reconstruct the thread. New `apps/ai/chatgpt_cos/conversation_memory.py`: after every turn, `route_message` records a STRUCTURED memory on `AssistantConversation.metadata["last_answer"]` = {answer, lane, fact_key, fact, basis} (`answer_foundational_fact` now surfaces its supporting `fact` + `basis`). A new front-of-registry `_why_explainer_lane` answers follow-ups DETERMINISTICALLY from that record (fast_path="conversation_memory", no LLM), citing the actual value + clinical interpretation. The conversation itself is now truth.
+
+CLASS 3 — Full domain rollout. New `apps/core/truth/domain_rollout.py` registers thin `DomainTruth` providers for Journal, Calendar, Tasks, Faith, Relationships (each reads pre-computed SAE state via `DomainTruth.state()` — no new queries). `registered_domains()` now returns all 7; the Executive Briefing enumerates the whole life, limited only by available truth. Briefing gains `_CONCERN_IF_POSITIVE` (overdue tasks / neglected relationships / unanswered prayers → attention when > 0) and `_PREFERRED_METRICS` extended for the new domains.
+
+CLASS 2 — Briefing steers the conversation: `ExecutiveBriefing.next_question()` offers what to dig into next (acute → "talk through your X first?"; attention → "look closer at X?"), appended to the narration.
+
+CLASS 4 — Whole-conversation regression. New `apps/ai/tests/test_customer_conversation_replay.py` replays the ENTIRE customer conversation as one flow (glucose-danger → "why do you say that?" → meals-yesterday → future-timestamp) with the phrasing LLM forced off, asserting NO trust-breaking phrase ("good range"/"meal entry"/"SAE"/"I couldn't pull that together") appears anywhere. Future regressions add whole conversations, not isolated prompts.
+
+Demonstrated end-to-end: glucose → "43 mg/dL (Very Low)… verify with a fingerstick"; "Why do you say that?" → deterministic explanation citing 43/Very Low/dangerously-low from memory (no LLM); "What did I eat yesterday?" → "Yesterday you had breakfast — Eggs." Regression GREEN (103); no migrations.
+
+Tests: `test_conversation_memory` (5), `test_customer_conversation_replay` (2). **Files:** apps/ai/chatgpt_cos/conversation_memory.py (new), apps/core/truth/domain_rollout.py (new), apps/ai/tests/test_conversation_memory.py (new), apps/ai/tests/test_customer_conversation_replay.py (new), apps/ai/chatgpt_cos/lanes.py, apps/ai/chatgpt_cos/foundational_facts.py, apps/core/truth/domain.py, apps/core/truth/briefing.py.
+
+
 ## 2026-06-28 — fix(cos): real-conversation sprint — temporal sanity, continuity (real path), meals-yesterday, briefing voice
 
 Five defect classes from a real Beth conversation, each fixed at the capability (production-path traced, not the response).

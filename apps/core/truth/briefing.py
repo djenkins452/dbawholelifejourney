@@ -29,9 +29,17 @@ _TIER_RANK = {ACUTE: 0, ATTENTION: 1, NORMAL: 2, STALE: 3}
 
 # One representative current metric per concept (avoid double-reporting today+yesterday).
 _PREFERRED_METRICS = {
+    # health + finance
     "glucose_yesterday", "sleep_last_night", "weight_yesterday", "steps_today",
     "calories_yesterday", "net_worth", "month_spending",
+    # journal, calendar, tasks, faith, relationships (domain rollout)
+    "days_since_entry", "today_event_count", "next_event", "overdue_count",
+    "tasks_due_today", "reading_streak", "unanswered_prayers", "neglected_count",
+    "birthdays_today",
 }
+
+# Count metrics that mean "needs attention" when greater than zero (no clinical band).
+_CONCERN_IF_POSITIVE = {"overdue_count", "neglected_count", "unanswered_prayers"}
 
 
 @dataclass(frozen=True)
@@ -76,6 +84,18 @@ class ExecutiveBriefing:
     def headline(self):
         """The single most important item to open with (acute > attention > normal)."""
         return self.items[0] if self.items else None
+
+    def next_question(self):
+        """What a Chief of Staff would offer to dig into next — the briefing should
+        steer the conversation, not just summarize."""
+        h = self.headline()
+        if h is None:
+            return ""
+        if h.tier == ACUTE:
+            return f"Do you want to talk through your {h.label()} first?"
+        if h.tier == ATTENTION:
+            return f"Want me to look closer at your {h.label()}?"
+        return "Anything you'd like to dig into?"
 
     def to_dict(self):
         return {
@@ -135,7 +155,16 @@ def _classify(domain, metric, ct):
         if gi and gi["safety"] == "caution":
             return BriefingItem(tier=ATTENTION, note=gi["display"], **base)
 
-    # 2) Freshness / confidence attention.
+    # 2) Concern counts (overdue tasks, neglected relationships, unanswered prayers).
+    if metric in _CONCERN_IF_POSITIVE:
+        try:
+            n = int(ct.value)
+        except (TypeError, ValueError):
+            n = 0
+        if n > 0:
+            return BriefingItem(tier=ATTENTION, note=f"{n} need attention", **base)
+
+    # 3) Freshness / confidence attention.
     if ct.freshness == F.STALE:
         return BriefingItem(tier=ATTENTION, note="reading is stale", **base)
     from apps.core.truth import confidence as C
@@ -168,4 +197,7 @@ def narrate_briefing(briefing):
     stale = briefing.stale()
     if stale:
         parts.append("No fresh data on: " + ", ".join(i.label() for i in stale) + ".")
+    nxt = briefing.next_question()
+    if nxt:
+        parts.append(nxt)
     return " ".join(p for p in parts if p)

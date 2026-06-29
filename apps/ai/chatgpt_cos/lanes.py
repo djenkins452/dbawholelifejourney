@@ -819,7 +819,26 @@ def _conversation_planner_lane(user, message, conversation=None):
     return None
 
 
+def _why_explainer_lane(user, message, conversation=None):
+    """DETERMINISTIC conversation memory: a follow-up ('why do you say that?') is
+    answered from the STORED last answer + its supporting fact — no LLM reconstruction.
+    Sits at the front so it claims the follow-up before any lane re-answers."""
+    if conversation is None:
+        return None
+    norm = (message or "").strip().lower()
+    if not any(c in norm for c in _FOLLOWUP_CUES):
+        return None
+    from apps.ai.chatgpt_cos.conversation_memory import get_last_answer, compose_why
+    last = get_last_answer(conversation)
+    explanation = compose_why(last) if last else None
+    if not explanation:
+        return None
+    return {"answer": explanation, "lane": "why_explainer",
+            "fast_path": "conversation_memory"}
+
+
 LANE_REGISTRY = (
+    ("why_explainer", _why_explainer_lane),
     ("clarification_reply", _clarification_reply_lane),
     ("conversation_planner", _conversation_planner_lane),
     ("foundational_facts", _foundational_lane),
@@ -842,6 +861,13 @@ def route_message(user, message, conversation=None):
         if result is not None:
             if isinstance(result, dict):
                 result.setdefault("lane", name)
+                # Record the structured memory of this turn so the NEXT follow-up is
+                # explained deterministically (conversation memory).
+                try:
+                    from apps.ai.chatgpt_cos.conversation_memory import record_last_answer
+                    record_last_answer(conversation, name, result)
+                except Exception:
+                    pass
             # 'planner_invoked' = the reasoning lane (which runs the planner) was
             # consulted before the winner. Pair with the adjacent COS_REASONING_PLAN
             # line for the planner RESULT, and BETH_GENERAL_CALL for breaker/outcome.

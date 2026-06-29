@@ -114,15 +114,27 @@ def _repoint(user, topic, tf, last):
 
 
 def _compare(user, topic, tf, last):
-    from apps.ai.chatgpt_cos.conversation_object import fact_for_topic
+    from apps.ai.chatgpt_cos.conversation_object import fact_for_topic, comparison_semantics
     from apps.ai.chatgpt_cos.foundational_facts import answer_fact_by_key
     from apps.core.truth.present import humanize_number
     cur_fact = last.get("fact") or {}
     cur_val = _num(cur_fact.get("value"))
     unit = (cur_fact.get("unit") or "").strip()
 
+    # COMPARISON SEMANTICS: ask the domain how this metric should be compared. The engine
+    # never guesses — it executes the declared contract.
+    sem = comparison_semantics(topic)
+    explanation = ""
+
     comp_fact, comp_label = None, None
-    if tf in ("average", "last_week"):
+    if sem.get("strategy") == "average":
+        # Point readings are noisy (e.g. glucose) → compare against the average baseline,
+        # not point-vs-point, and explain why. (No new retrieval — uses the supporting avg.)
+        sup = (last.get("supporting") or {}).get("average")
+        comp_fact = (sup or {}).get("fact")
+        comp_label = "your recent average"
+        explanation = sem.get("explanation", "")
+    elif tf in ("average", "last_week"):
         sup = (last.get("supporting") or {}).get("average")
         comp_fact = (sup or {}).get("fact")
         comp_label = "your recent average" if tf == "average" else "last week's average"
@@ -145,8 +157,11 @@ def _compare(user, topic, tf, last):
                 direction = "up" if diff > 0 else "down"
                 ans = (f"That's {direction} {humanize_number(abs(diff))} {unit} from "
                        f"{comp_label} ({humanize_number(comp_val)} → {humanize_number(cur_val)})").strip() + "."
+            if explanation:
+                ans += f" I compared against your recent average because {explanation}."
             r = _result(ans, last)
             r["goal"] = goal
+            r["comparison_confidence"] = sem.get("confidence", "medium")
             return r
 
     # Non-numeric topic (e.g. meals): a comparison means SIDE-BY-SIDE — the active

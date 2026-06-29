@@ -123,6 +123,46 @@ def fact_for_topic(topic, timeframe):
     return _FACT_BY_TOPIC.get((topic, timeframe))
 
 
+# ---------------------------------------------------------------------------
+# Comparison Semantics: each metric declares HOW it should be compared, so the
+# comparison engine never guesses — it asks the domain. Knowing how to compare is a
+# different capability from knowing WHAT to compare.
+#   strategy:    "running_total" (accumulates through the day — compare the totals)
+#                "latest"        (a point-in-time reading — compare the readings)
+#                "nightly"       (one value per night — compare the nights)
+#                "average"       (point readings are noisy — compare against the average)
+#   confidence:  how trustworthy this comparison is for a real decision
+#   explanation: why this is the right comparison (surfaced to the customer)
+# ---------------------------------------------------------------------------
+_DEFAULT_SEMANTICS = {"strategy": "latest", "confidence": "medium", "explanation": ""}
+
+COMPARISON_SEMANTICS = {
+    "glucose": {
+        "strategy": "average", "confidence": "high",
+        "explanation": ("individual glucose readings swing a lot through the day, so a "
+                        "single reading rarely reflects your overall control"),
+    },
+    "steps": {"strategy": "running_total", "confidence": "high",
+              "explanation": "steps accumulate through the day, so I compared running totals"},
+    "calories": {"strategy": "running_total", "confidence": "high",
+                 "explanation": "calories accumulate through the day, so I compared running totals"},
+    "protein": {"strategy": "running_total", "confidence": "high",
+                "explanation": "protein accumulates through the day"},
+    "weight": {"strategy": "latest", "confidence": "medium",
+               "explanation": "weight is your most recent weigh-in"},
+    "sleep": {"strategy": "nightly", "confidence": "medium",
+              "explanation": "I compared the two nights"},
+    "blood_pressure": {"strategy": "latest", "confidence": "medium",
+                       "explanation": "I compared your most recent readings"},
+}
+
+
+def comparison_semantics(topic):
+    """The declared Comparison Semantics for a topic (never guesses — defaults to a
+    medium-confidence 'latest' when a topic hasn't declared its own)."""
+    return COMPARISON_SEMANTICS.get(topic, _DEFAULT_SEMANTICS)
+
+
 def spec(fact_key):
     return CONVERSATION_OBJECTS.get(fact_key, {})
 

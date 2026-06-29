@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-29 — feat(cos): Comparison Semantics — Beth chooses the RIGHT comparison, not just a comparison
+
+Beth knew how to compare; she didn't know WHAT should be compared. Glucose was comparing point-vs-point (today's latest reading vs yesterday's latest) — two noisy snapshots a customer can't decide from.
+
+Each metric now declares its Comparison Semantics (conversation_object.py COMPARISON_SEMANTICS): strategy (running_total / latest / nightly / average), confidence, and an explanation. The comparison engine (referential `_compare`) asks the domain and executes — no domain-specific logic in the engine. Glucose declares strategy=average: it compares the latest reading against the recent average AND explains why ("individual glucose readings swing a lot through the day, so a single reading rarely reflects your overall control"), confidence=high. Steps/calories/protein = running_total; weight = latest; sleep = nightly. Confidence travels on the result (comparison_confidence). No new retrieval — uses facts already on the object.
+
+Verified: glucose "Compared to yesterday." → "That's up 18 mg/dL from your recent average (142 → 160). I compared against your recent average because individual glucose readings swing a lot through the day…" (conf=high). Steps "Compared to yesterday." → "down 3923 steps (8123 → 4200)" — running totals, no average detour. Matrix: docs/COMPARISON_SEMANTICS_MATRIX.md. Tests: test_comparison_semantics (per-metric strategy + glucose-not-point-vs-point + steps-running-total). GREEN (110); Layer 1 gate GREEN; no migrations.
+
+**Files:** docs/COMPARISON_SEMANTICS_MATRIX.md (new), apps/ai/tests/test_comparison_semantics.py (new), apps/ai/chatgpt_cos/conversation_object.py, apps/ai/chatgpt_cos/referential.py.
+
+
 ## 2026-06-29 — feat(cos): Intent Fulfillment — Beth accomplishes the objective, not just the literal request
 
 Conversation Goals identify what the customer wants; Intent Fulfillment decides whether the response actually ACCOMPLISHES it. A COMPARE goal was producing two side-by-side lists — technically correct, but not a comparison. The customer asked Beth to compare the days, not to show two lists.

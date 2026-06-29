@@ -22,7 +22,19 @@ def record_last_answer(conversation, lane, result):
     """Persist the structured memory of the turn Beth just produced."""
     if conversation is None or not isinstance(result, dict):
         return
-    if lane == "why_explainer":           # don't overwrite the basis we're explaining
+    if lane == "why_explainer":
+        # Don't overwrite the basis we're explaining — but DO let an explicit goal hint
+        # (a comparison / what-changed follow-up) advance the standing conversation goal.
+        goal = result.get("goal")
+        if goal:
+            try:
+                md = dict(getattr(conversation, "metadata", None) or {})
+                if md.get(_KEY):
+                    md[_KEY]["goal"] = goal
+                    conversation.metadata = md
+                    conversation.save(update_fields=["metadata"])
+            except Exception:
+                logger.warning("record_last_answer goal-update failed", exc_info=True)
         return
     answer = (result.get("answer") or "").strip()
     if not answer:
@@ -31,8 +43,13 @@ def record_last_answer(conversation, lane, result):
         md = dict(getattr(conversation, "metadata", None) or {})
         # Conversational frame: topic (timeframe-independent) + timeframe, so a bare
         # reference ("what about yesterday?") re-points the topic without restating it.
-        from apps.ai.chatgpt_cos.conversation_object import topic_of
+        from apps.ai.chatgpt_cos.conversation_object import topic_of, evolve_goal
         frame = topic_of(result.get("fact_key")) or (None, None)
+        # Conversation GOAL: what the user is trying to accomplish. Evolves from the
+        # previous frame (review → compare → trend), so the objective persists across
+        # turns — not just the subject. An explicit hint from the resolver wins.
+        prev = md.get(_KEY)
+        goal = evolve_goal(prev, frame[0], frame[1], explicit=result.get("goal"))
         md[_KEY] = {
             "answer": answer,
             "lane": lane,
@@ -40,6 +57,7 @@ def record_last_answer(conversation, lane, result):
             "fact_key": result.get("fact_key"),
             "topic": frame[0],                    # e.g. "meals" — survives timeframe changes
             "timeframe": frame[1],                # e.g. "today"
+            "goal": goal,                         # e.g. "compare" — why we're discussing it
             "fact": result.get("fact") or {},
             "basis": (result.get("basis") or "").strip(),
             # Supporting facts for natural follow-ups (read from here, no new retrieval).

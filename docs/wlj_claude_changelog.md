@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-29 — feat(cos): Conversational Goal Tracking — Beth remembers the objective, not just the topic
+
+Production: meals today → yesterday → day-before → "Compared to today." returned today's meals instead of COMPARING. Not a retrieval or referential failure — Beth remembered the topic but forgot the PURPOSE (compare across days). The Conversation Object stored topic/timeframe/facts but no goal.
+
+The Conversation Object now carries two independent concepts: TOPIC (what we're discussing — stable) and GOAL (why — evolves). New goal vocabulary + deterministic `evolve_goal` (conversation_object.py): review → compare → trend → investigate. record_last_answer evolves the goal from the previous frame (a same-topic move to a new timeframe IS the moment a comparison intent emerges) and stores it; a why_explainer follow-up may advance the goal without overwriting the basis.
+
+Behavioral fix: a comparison on a NON-NUMERIC topic (meals) now presents SIDE-BY-SIDE — the active timeframe AND the comparison timeframe together (referential `_side_by_side`), which is the objective the customer actually had. Numeric topics keep the delta. Generalized across every topic.
+
+Verified (production replay): meals today (goal=review) → "what about yesterday?" (goal=compare) → "day before yesterday?" (honest, goal=compare) → "Compared to today." → "Yesterday: • Eggs … Today: • Oatmeal" (real side-by-side). Steps: today (review) → "compared to yesterday" (compare) → fresh meals question resets to review. Tests: test_conversation_goal (evolution + side-by-side + goal persistence + subject-change reset). GREEN (100); Layer 1 gate GREEN; no migrations.
+
+**Files:** apps/ai/tests/test_conversation_goal.py (new), apps/ai/chatgpt_cos/conversation_object.py, apps/ai/chatgpt_cos/conversation_memory.py, apps/ai/chatgpt_cos/referential.py, apps/ai/chatgpt_cos/lanes.py.
+
+
 ## 2026-06-29 — feat(cos): Trust Sprint #1 — topic-aware meta, conversational patterns, presentation consistency
 
 Organized by customer TRUST failure, not code. Five production trust failures clustered into three capabilities (docs/TRUST_FAILURE_INVENTORY.md): TF1/TF4/TF5 are the same capability (resolve a natural utterance against the active Conversation Object).

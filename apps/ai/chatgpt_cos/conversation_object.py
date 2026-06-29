@@ -88,6 +88,31 @@ TOPICS = {
 _FACT_BY_TOPIC = {(topic, tf): k for k, (topic, tf) in TOPICS.items()}
 
 
+# ---------------------------------------------------------------------------
+# Conversation GOAL: what the user is trying to accomplish (independent of topic).
+# The topic stays stable; the goal evolves naturally — review → compare → trend →
+# investigate — so Beth participates in a discussion instead of answering isolated
+# prompts. Generalized across every topic.
+# ---------------------------------------------------------------------------
+GOAL_REVIEW = "review"          # show the fact
+GOAL_COMPARE = "compare"        # A vs B across timeframes
+GOAL_TREND = "trend"            # direction over time / vs average
+GOAL_INVESTIGATE = "investigate"  # why / what changed / what caused it
+
+
+def evolve_goal(prev, new_topic, new_timeframe, explicit=None):
+    """Deterministic goal evolution. `prev` is the previously stored frame (or None).
+    An explicit hint (set by the resolver for an obvious objective) always wins; else
+    a same-topic move to a new timeframe is the moment a COMPARISON intent emerges."""
+    if explicit:
+        return explicit
+    if not prev or not new_topic or prev.get("topic") != new_topic:
+        return GOAL_REVIEW                       # new topic / fresh start
+    if new_timeframe and prev.get("timeframe") != new_timeframe:
+        return GOAL_COMPARE                       # same topic, another day → comparing
+    return prev.get("goal") or GOAL_REVIEW        # unchanged → keep the standing goal
+
+
 def topic_of(fact_key):
     """(topic, timeframe) for a fact_key, or None."""
     return TOPICS.get(fact_key)

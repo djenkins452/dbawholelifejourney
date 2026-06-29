@@ -79,7 +79,12 @@ def resolve_referential(user, message, last):
         return None
     kind, tf = ref
     if kind == "timeframe":
-        return _repoint(user, topic, tf, last) or _on_topic_decline(topic, last, tf)
+        r = _repoint(user, topic, tf, last)
+        if r:
+            # A move to another day of the same topic IS a comparison intent emerging.
+            r["goal"] = "compare"
+            return r
+        return _on_topic_decline(topic, last, tf)
     return _compare(user, topic, tf, last)
 
 
@@ -128,6 +133,8 @@ def _compare(user, topic, tf, last):
             comp_fact = (r or {}).get("fact")
             comp_label = tf.replace("_", " ")
 
+    goal = "trend" if tf in ("average", "last_week", "last_month") else "compare"
+
     if topic in NUMERIC_TOPICS and cur_val is not None and comp_fact:
         comp_val = _num(comp_fact.get("value"))
         if comp_val is not None:
@@ -138,15 +145,51 @@ def _compare(user, topic, tf, last):
                 direction = "up" if diff > 0 else "down"
                 ans = (f"That's {direction} {humanize_number(abs(diff))} {unit} from "
                        f"{comp_label} ({humanize_number(comp_val)} → {humanize_number(cur_val)})").strip() + "."
-            return _result(ans, last)
+            r = _result(ans, last)
+            r["goal"] = goal
+            return r
 
-    # Non-numeric topic (e.g. meals) or a cross-timeframe compare we can't delta →
-    # re-point to that timeframe and present it on-topic. Never drift to coaching.
+    # Non-numeric topic (e.g. meals): a comparison means SIDE-BY-SIDE — the active
+    # timeframe AND the comparison timeframe together, not just one of them. This is the
+    # objective the customer actually had ("compare my meals across days").
     if tf and tf != "average":
-        repointed = _repoint(user, topic, tf, last)
-        if repointed:
-            return repointed
+        side = _side_by_side(user, topic, last, tf)
+        if side:
+            r = _result(side, last)
+            r["goal"] = goal
+            return r
     return _on_topic_decline(topic, last, tf)
+
+
+_TF_LABELS = {"today": "Today", "yesterday": "Yesterday",
+              "day_before_yesterday": "The day before", "last_week": "Last week",
+              "last_month": "Last month"}
+
+
+def _tf_label(tf):
+    return _TF_LABELS.get(tf, (tf or "Then").replace("_", " ").capitalize())
+
+
+def _side_by_side(user, topic, last, comp_tf):
+    """Present the active timeframe and the comparison timeframe together (the real
+    'compare' objective for a non-numeric topic like meals). Deterministic."""
+    comp = _repoint(user, topic, comp_tf, last)
+    if not comp:
+        return None
+    from apps.core.truth.present import present_groups
+    a_lbl, b_lbl = _tf_label(last.get("timeframe")), _tf_label(comp_tf)
+    a_meals = (last.get("fact") or {}).get("meals")
+    b_meals = (comp.get("fact") or {}).get("meals")
+    if a_meals is not None and b_meals is not None:
+        a = present_groups(a_meals.items(), lead=f"{a_lbl}:") or f"{a_lbl}: nothing logged."
+        b = present_groups(b_meals.items(), lead=f"{b_lbl}:") or f"{b_lbl}: nothing logged."
+        return a + "\n\n" + b
+    # Generic fallback: two rendered answers under timeframe headers.
+    a = (last.get("answer") or "").strip()
+    b = (comp.get("answer") or "").strip()
+    if not b:
+        return None
+    return f"{a_lbl}: {a}\n\n{b_lbl}: {b}"
 
 
 def _on_topic_decline(topic, last, tf):

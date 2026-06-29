@@ -905,8 +905,14 @@ def _why_explainer_lane(user, message, conversation=None):
     answer = handler(last, user, **kw)
     if not answer:
         return None
+    # Advance the standing conversation goal when the follow-up implies one.
+    goal = None
+    if handler is compose_comparison:
+        goal = "trend" if kw.get("kind") == "average" else "compare"
+    elif handler is compose_what_changed:
+        goal = "investigate"
     return {"answer": answer, "lane": "why_explainer",
-            "fast_path": "conversation_memory"}
+            "fast_path": "conversation_memory", "goal": goal}
 
 
 def _referential_lane(user, message, conversation=None):

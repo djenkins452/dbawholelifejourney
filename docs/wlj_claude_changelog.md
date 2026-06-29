@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-29 — feat(cos): conversation-object completeness — primary facts carry supporting facts
+
+Production: "How many calories today?" → "200 calories", then "What did I eat?" answered about meal timestamps (latest_meal_logged) instead of the meals behind those calories. Root cause: the active conversation object stored only {answer, lane, fact_key, fact, basis} — no supporting facts — so the follow-up fell to a different fact.
+
+Fix (generalized, NOT nutrition-special): a PRIMARY fact declares the SUPPORTING facts a natural follow-up needs; they are gathered ONCE with the primary answer and stored on the active topic; the follow-up reads them from memory — no new retrieval, no LLM. New `apps/ai/chatgpt_cos/supporting_facts.py` (`gather_supporting` + a registry; calories_today→meals+protein, calories_yesterday→meals — any fact may register). `answer_foundational_fact` attaches `supporting`; `record_last_answer` stores `supporting` + `intent`; new `compose_supporting` follow-up handler; `_why_explainer_lane` routes "what did I eat? / what were they? / which meals?" to it. Declines when the active topic has no such supporting fact, so a standalone meal question still routes normally.
+
+Verified: "How many calories today?" → "You've logged 200 calories today." → "What did I eat?" → "Today you've had breakfast — Oatmeal." (from memory). Tests: `test_supporting_facts` (supporting stored; follow-up from memory; standalone declines; registry-driven generalization). Gate GREEN (35); regression GREEN (51). No migrations. Change-control: this extends the certified Human-Ready Conversation Layer with evidence + regression; deterministic Layer 1 gate GREEN.
+
+**Files:** apps/ai/chatgpt_cos/supporting_facts.py (new), apps/ai/tests/test_supporting_facts.py (new), apps/ai/chatgpt_cos/foundational_facts.py, apps/ai/chatgpt_cos/conversation_memory.py, apps/ai/chatgpt_cos/lanes.py.
+
+
 ## 2026-06-29 — CLOSEOUT: Layer 1 (Canonical Truth) formally CLOSED
 
 Final Layer 1 closeout. Verification audit confirms: certified · frozen · tagged (layer1-canonical-truth-v1 @ d6c187f7) · released · CI-gated · zero TODO/FIXME in the certified modules · no stale "pending/active/incomplete" status references. New permanent entry-point doc `docs/LAYER1_CONSTITUTION.md` (what Layer 1 is/is not, public interfaces, consumers, Architecture Laws, change control, certification history, guaranteed behaviors, known constraints). Inventory annotated: the original Phase-1 audit body is HISTORICAL EVIDENCE; the certified header governs; "consumer wiring incomplete" notes are per-domain rollout (Layer 2/3 / Future Backlog), not incomplete Layer 1. README points to the constitution. Layer 1 is now permanent infrastructure — future work builds upon it, never redefines it. Active layer: Layer 2.

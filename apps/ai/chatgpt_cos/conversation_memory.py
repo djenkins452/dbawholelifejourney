@@ -32,9 +32,12 @@ def record_last_answer(conversation, lane, result):
         md[_KEY] = {
             "answer": answer,
             "lane": lane,
+            "intent": result.get("fact_key"),     # the question's resolved intent
             "fact_key": result.get("fact_key"),
             "fact": result.get("fact") or {},
             "basis": (result.get("basis") or "").strip(),
+            # Supporting facts for natural follow-ups (read from here, no new retrieval).
+            "supporting": result.get("supporting") or {},
         }
         conversation.metadata = md
         conversation.save(update_fields=["metadata"])
@@ -69,6 +72,20 @@ def _time_or_warning(raw, user):
         return None, _FUTURE_WARNING
     from apps.core.truth.render import render_datetime
     return (render_datetime(user, raw) if user else str(raw)), None
+
+
+def compose_supporting(last, user=None, label="meals"):
+    """Answer a follow-up from a SUPPORTING fact already on the active topic — no new
+    retrieval, no LLM. e.g. "what did I eat?" after a calorie answer reads the stored
+    meals. Returns None (so the lane declines to normal routing) when there is no such
+    supporting fact on the active topic."""
+    if not last:
+        return None
+    sup = (last.get("supporting") or {}).get(label)
+    if not sup or not sup.get("fact"):
+        return None
+    from apps.ai.chatgpt_cos.foundational_facts import format_fact_sentence
+    return format_fact_sentence(sup.get("key", ""), sup["fact"])
 
 
 def compose_when(last, user=None):

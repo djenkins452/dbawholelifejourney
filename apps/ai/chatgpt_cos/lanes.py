@@ -833,6 +833,10 @@ _CONCERN_POSITIVE = ("is that good", "is that ok", "is that okay", "is that safe
 _CONCERN_NEGATIVE = ("should i be concerned", "should i worry", "is that bad",
                      "anything to worry", "is that dangerous")
 _CONCERN_CUES = _CONCERN_POSITIVE + _CONCERN_NEGATIVE
+# "what did I eat?" / "what were they?" → read the supporting MEALS off the active topic.
+_SUPPORTING_MEAL_CUES = ("what did i eat", "what were they", "what were those",
+                         "which meals", "what did that include", "what made that up",
+                         "what made up the", "what was that from", "what's that from")
 _MEANING_CUES = ("why is that important", "why is that reading important", "why does that matter",
                  "what does that mean", "what does that mean for me", "why is that significant",
                  "why is this important", "what does this mean")
@@ -848,11 +852,16 @@ def _why_explainer_lane(user, message, conversation=None):
     norm = (message or "").strip().lower()
     from apps.ai.chatgpt_cos.conversation_memory import (
         get_last_answer, compose_why, compose_when, compose_concern,
-        compose_meaning, compose_is_current,
+        compose_meaning, compose_is_current, compose_supporting,
     )
     # Pick the handler by cue (specific → general).
     handler, kw = None, {}
-    if norm in _TIME_FOLLOWUP_EXACT or any(c in norm for c in _TIME_FOLLOWUP_CUES):
+    if any(c in norm for c in _SUPPORTING_MEAL_CUES):
+        # "what did I eat?" / "what were they?" — answer from the supporting facts on
+        # the active topic (the meals behind a calorie total). Declines if none, so a
+        # standalone meal question still routes normally.
+        handler, kw = compose_supporting, {"label": "meals"}
+    elif norm in _TIME_FOLLOWUP_EXACT or any(c in norm for c in _TIME_FOLLOWUP_CUES):
         handler = compose_when
     elif any(c in norm for c in _CURRENT_CUES):
         handler = compose_is_current

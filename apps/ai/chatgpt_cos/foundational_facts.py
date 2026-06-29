@@ -526,7 +526,18 @@ def answer_foundational_fact(user, message):
         # ("why do you say that?") is explained from this fact, not an LLM reconstruction.
         "fact": fact,
         "basis": deterministic,
+        # Supporting facts a natural follow-up will need (e.g. the MEALS behind a
+        # calorie total) — gathered once now, read from memory on the follow-up.
+        "supporting": _gather_supporting(user, key),
     }
+
+
+def _gather_supporting(user, key):
+    try:
+        from apps.ai.chatgpt_cos.supporting_facts import gather_supporting
+        return gather_supporting(user, key)
+    except Exception:
+        return {}
 
 
 # ============================================================================

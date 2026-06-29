@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-29 — feat(cos): Conversation Object capability — every fact defines the conversation that follows
+
+Generalizes the calories→meals win into a reusable capability so we stop fixing follow-ups one at a time. A deterministic fact is now a complete Conversation Object: primary fact + supporting facts + the natural follow-ups it answers from memory (no extra retrieval/query/LLM).
+
+New `apps/ai/chatgpt_cos/conversation_object.py` — a declarative registry: each primary fact_key declares its `supporting` facts (gathered once with the answer) and the follow-up capabilities it offers. `gather_supporting` reads it (single source). New generic, multi-domain handler `compose_comparison` ("compared to yesterday / my average?") driven by a `prior`/`average` supporting fact — wired for calories, steps, sleep, glucose. The existing generic handlers (when/concern/meaning/is_current/supporting/why) already span domains; the lane routes comparison cues to the new one.
+
+Inventory: `docs/CONVERSATION_OBJECT_MATRIX.md` — every deterministic fact's primary/supporting/natural-follow-ups/missing, plus ranked missing capabilities. FUTURE RULE enforced: a fact's declared follow-ups must be backed by the supporting facts they need — `test_conversation_object::ConversationObjectCompletenessTests` (COMPARISON⇒prior/average; SUPPORTING_MEALS⇒meals; supporting keys are real facts).
+
+Verified: "How many steps today?" → "Compared to yesterday?" → "That's down 3923 steps from yesterday (8123 → 4200)." (from memory). "How many calories today?" → "Compared to yesterday?" → "up 200 calories…". Tests: test_conversation_object (comparison across domains + completeness gate). GREEN (68); Layer 1 gate GREEN; no migrations. Change-control: extends the certified Human-Ready Conversation Layer with evidence + regression.
+
+**Files:** apps/ai/chatgpt_cos/conversation_object.py (new), docs/CONVERSATION_OBJECT_MATRIX.md (new), apps/ai/tests/test_conversation_object.py (new), apps/ai/chatgpt_cos/supporting_facts.py, apps/ai/chatgpt_cos/conversation_memory.py, apps/ai/chatgpt_cos/lanes.py.
+
+
 ## 2026-06-29 — feat(cos): conversation-object completeness — primary facts carry supporting facts
 
 Production: "How many calories today?" → "200 calories", then "What did I eat?" answered about meal timestamps (latest_meal_logged) instead of the meals behind those calories. Root cause: the active conversation object stored only {answer, lane, fact_key, fact, basis} — no supporting facts — so the follow-up fell to a different fact.

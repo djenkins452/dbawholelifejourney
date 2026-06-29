@@ -15,24 +15,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# primary fact_key -> tuple of (label, source, provider_key)
-#   source: "execution" → execution_facts · "health" → health_facts
-_SUPPORTING = {
-    "calories_today": (
-        ("meals", "execution", "meals_today"),
-        ("protein", "health", "protein_today"),
-    ),
-    "calories_yesterday": (
-        ("meals", "execution", "meals_yesterday"),
-    ),
-}
-
-
 def gather_supporting(user, fact_key):
-    """Return {label: {"key": provider_key, "fact": fact}} for `fact_key`. Empty when
+    """Return {label: {"key": provider_key, "fact": fact}} for `fact_key`, per its
+    Conversation Object spec (apps/ai/chatgpt_cos/conversation_object.py). Empty when
     the fact declares no supporting facts. Deterministic; no LLM."""
+    from apps.ai.chatgpt_cos.conversation_object import supporting_for
     out = {}
-    for label, source, provider_key in _SUPPORTING.get(fact_key, ()):
+    for label, source, provider_key in supporting_for(fact_key):
         try:
             if source == "execution":
                 from apps.ai.cos_services.execution_facts import (

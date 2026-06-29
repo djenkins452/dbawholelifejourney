@@ -88,6 +88,36 @@ def compose_supporting(last, user=None, label="meals"):
     return format_fact_sentence(sup.get("key", ""), sup["fact"])
 
 
+def _fmt_num(n):
+    return int(n) if float(n).is_integer() else round(n, 1)
+
+
+def compose_comparison(last, user=None, kind="prior"):
+    """'Compared to yesterday / my average?' — answered from the primary value and a
+    SUPPORTING comparison fact ('prior' = yesterday, 'average' = recent average) already
+    on the active topic. No new retrieval, no LLM. Generic across every numeric fact."""
+    if not last:
+        return None
+    fact = last.get("fact") or {}
+    cur = fact.get("value")
+    sup = (last.get("supporting") or {}).get(kind)
+    comp = (sup or {}).get("fact", {}).get("value") if sup else None
+    if cur is None or comp is None:
+        return None
+    try:
+        cur_n, comp_n = float(cur), float(comp)
+    except (TypeError, ValueError):
+        return None
+    unit = fact.get("unit", "")
+    when = "yesterday" if kind == "prior" else "your recent average"
+    diff = cur_n - comp_n
+    if abs(diff) < 1e-9:
+        return f"About the same as {when} — {_fmt_num(cur_n)} {unit}".strip() + "."
+    direction = "up" if diff > 0 else "down"
+    return (f"That's {direction} {_fmt_num(abs(diff))} {unit} from {when} "
+            f"({_fmt_num(comp_n)} → {_fmt_num(cur_n)})").strip() + "."
+
+
 def compose_when(last, user=None):
     """'At what time?' — the timestamp from the SAME stored fact, rendered in the
     user's timezone + 12-hour format, with read-time temporal sanity. No LLM."""

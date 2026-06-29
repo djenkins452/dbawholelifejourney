@@ -837,6 +837,12 @@ _CONCERN_CUES = _CONCERN_POSITIVE + _CONCERN_NEGATIVE
 _SUPPORTING_MEAL_CUES = ("what did i eat", "what were they", "what were those",
                          "which meals", "what did that include", "what made that up",
                          "what made up the", "what was that from", "what's that from")
+# "compared to yesterday / my average?" → comparison from supporting facts.
+_COMPARISON_PRIOR_CUES = ("compared to yesterday", "vs yesterday", "versus yesterday",
+                          "than yesterday", "more or less than yesterday")
+_COMPARISON_AVG_CUES = ("compared to last week", "compared to usual", "vs my average",
+                        "versus my average", "than usual", "than my average",
+                        "what's the trend", "whats the trend", "compared to normal")
 _MEANING_CUES = ("why is that important", "why is that reading important", "why does that matter",
                  "what does that mean", "what does that mean for me", "why is that significant",
                  "why is this important", "what does this mean")
@@ -852,11 +858,15 @@ def _why_explainer_lane(user, message, conversation=None):
     norm = (message or "").strip().lower()
     from apps.ai.chatgpt_cos.conversation_memory import (
         get_last_answer, compose_why, compose_when, compose_concern,
-        compose_meaning, compose_is_current, compose_supporting,
+        compose_meaning, compose_is_current, compose_supporting, compose_comparison,
     )
     # Pick the handler by cue (specific → general).
     handler, kw = None, {}
-    if any(c in norm for c in _SUPPORTING_MEAL_CUES):
+    if any(c in norm for c in _COMPARISON_PRIOR_CUES):
+        handler, kw = compose_comparison, {"kind": "prior"}
+    elif any(c in norm for c in _COMPARISON_AVG_CUES):
+        handler, kw = compose_comparison, {"kind": "average"}
+    elif any(c in norm for c in _SUPPORTING_MEAL_CUES):
         # "what did I eat?" / "what were they?" — answer from the supporting facts on
         # the active topic (the meals behind a calorie total). Declines if none, so a
         # standalone meal question still routes normally.

@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-29 — fix(cos): Executive Briefing prioritizes by SIGNIFICANCE, not domain
+
+The briefing retrieved every domain correctly but chose the wrong LEAD: the within-tier sort key was `i.domain` (alphabetical), so the domain NAME decided priority (calendar < faith < health < … < tasks). A high glucose could sit behind "unanswered prayers" simply because "faith" sorts before "health".
+
+Replaced domain-alphabetical ordering with a deterministic `_significance(item)` score: tier dominates (a danger always outranks any attention item), and within a tier the signal NATURE decides — clinical safety (+500) > time-critical/overdue/missed-dose/deadline (+300) > concern magnitude (count×10). Domain/metric remain ONLY a stable tiebreak, never a priority. `build_executive_briefing` now sorts by `-_significance`.
+
+Before/after — "How am I doing overall?" with a HIGH glucose (210), 9 overdue tasks, 3 unanswered prayers:
+- BEFORE: "Worth a look: unanswered prayers (3 need attention), glucose (High), overdue count (9)… Want me to look closer at your unanswered prayers?" (led with prayers — alphabetical)
+- AFTER: "Worth a look: glucose (High), overdue count (9 need attention), unanswered prayers (3)… Want me to look closer at your glucose?" (leads with the clinically significant value, then the time-critical backlog)
+
+Tests: `test_executive_briefing_engine::SignificancePrioritizationTests` (clinical > time-critical > magnitude; acute always leads; domain only breaks ties). Regression GREEN (40). No migrations.
+
+**Files:** apps/core/truth/briefing.py, apps/core/tests/test_executive_briefing_engine.py.
+
+
 ## 2026-06-29 — feat(cos): Human-Ready Conversation Layer — renderers, complete facts, active-topic follow-ups
 
 The capability layer between Canonical Truth and Beth's words. Beth no longer speaks raw values/ISO/UTC/24-hour/field names; facts arrive user-ready and answer natural follow-ups on the same topic.

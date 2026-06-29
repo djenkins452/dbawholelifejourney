@@ -12,8 +12,10 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.core.truth.briefing import (
-    build_executive_briefing, narrate_briefing, ACUTE,
+    build_executive_briefing, narrate_briefing, ACUTE, ATTENTION, NORMAL,
+    BriefingItem, ExecutiveBriefing, _significance,
 )
+from django.test import SimpleTestCase
 from apps.core.utils import get_user_today
 from apps.health.models import GlucoseEntry, SleepEntry, StepsEntry, WeightEntry
 
@@ -71,3 +73,36 @@ class ExecutiveBriefingEngineTests(TestCase):
         self.assertIn("On track:", text)                   # executive structure
         for word in ("good range", "healthy", "in range"):
             self.assertNotIn(word, text.lower())
+
+
+class SignificancePrioritizationTests(SimpleTestCase):
+    """Prioritization is by SIGNIFICANCE, not domain identity. A world-class CoS leads
+    with danger, then time-critical, then magnitude — regardless of domain name."""
+
+    def _item(self, domain, metric, value, tier, note=""):
+        return BriefingItem(domain, metric, True, value, "", "current", "high", "",
+                            tier, note)
+
+    def test_clinical_outranks_alphabetically_earlier_domain(self):
+        # faith ('unanswered_prayers') sorts first alphabetically; a HIGH glucose must
+        # still lead because clinical significance beats domain name.
+        items = [
+            self._item("faith", "unanswered_prayers", 3, ATTENTION, "3 need attention"),
+            self._item("health", "glucose_yesterday", 210, ATTENTION, "High"),
+            self._item("tasks", "overdue_count", 9, ATTENTION, "9 need attention"),
+        ]
+        ordered = sorted(items, key=lambda i: (-_significance(i), i.domain))
+        self.assertEqual(ordered[0].metric, "glucose_yesterday")   # clinical leads
+        self.assertEqual(ordered[1].metric, "overdue_count")       # time-critical next
+        self.assertEqual(ordered[2].metric, "unanswered_prayers")  # then magnitude
+
+    def test_acute_always_leads_over_any_attention(self):
+        acute = self._item("health", "glucose_yesterday", 43, ACUTE, "danger")
+        attn = self._item("calendar", "today_event_count", 5, ATTENTION)
+        self.assertGreater(_significance(acute), _significance(attn))
+
+    def test_domain_only_breaks_ties_never_decides_priority(self):
+        # Two equal-significance NORMAL items: domain is a stable tiebreak only.
+        a = self._item("relationships", "birthdays_today", 0, NORMAL)
+        b = self._item("calendar", "today_event_count", 2, NORMAL)
+        self.assertEqual(_significance(a), _significance(b))

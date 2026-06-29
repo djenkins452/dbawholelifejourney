@@ -27,6 +27,32 @@ STALE = "stale"          # no value / not synced — name the gap honestly
 
 _TIER_RANK = {ACUTE: 0, ATTENTION: 1, NORMAL: 2, STALE: 3}
 
+# SIGNIFICANCE, not domain identity, decides the lead. A world-class Chief of Staff
+# opens with the most significant thing — danger first, then time-critical, then
+# magnitude — regardless of which domain it lives in. Tier dominates (a danger always
+# outranks any attention item); within a tier these attributes order the items; the
+# domain name is ONLY a deterministic tiebreak, never a priority.
+_TIER_WEIGHT = {ACUTE: 4000, ATTENTION: 2000, NORMAL: 400, STALE: 0}
+_TIME_CRITICAL = {"overdue_count", "tasks_due_today", "next_appointment", "meds_today"}
+_CLINICAL_HINTS = ("glucose", "bp", "blood_pressure", "oxygen", "heart_rate")
+
+
+def _significance(item):
+    """Deterministic significance score (higher = lead). Driven by signal NATURE —
+    clinical safety, time-sensitivity, magnitude — never by domain name."""
+    score = _TIER_WEIGHT.get(item.tier, 0)
+    metric = item.metric or ""
+    if any(h in metric for h in _CLINICAL_HINTS):      # clinical safety is most significant
+        score += 500
+    if metric in _TIME_CRITICAL:                       # deadlines / overdue / missed doses
+        score += 300
+    if metric in _CONCERN_IF_POSITIVE:                 # bigger backlog = more significant
+        try:
+            score += min(int(item.value or 0), 20) * 10
+        except (TypeError, ValueError):
+            pass
+    return score
+
 # One representative current metric per concept (avoid double-reporting today+yesterday).
 _PREFERRED_METRICS = {
     # health + finance
@@ -134,7 +160,8 @@ def build_executive_briefing(user, *, metrics_filter=_PREFERRED_METRICS):
             except Exception:
                 continue
             items.append(_classify(domain, metric, ct))
-    items.sort(key=lambda i: (_TIER_RANK.get(i.tier, 9), i.domain, i.metric))
+    # Order by SIGNIFICANCE (desc), not domain. Domain/metric are a stable tiebreak.
+    items.sort(key=lambda i: (-_significance(i), i.domain, i.metric))
     return ExecutiveBriefing(tuple(items))
 
 

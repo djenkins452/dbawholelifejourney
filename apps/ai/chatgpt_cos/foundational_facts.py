@@ -34,7 +34,8 @@ logger = logging.getLogger(__name__)
 # First keyword that matches wins; the five categories do not overlap.
 _FACT_KEYWORDS = [
     ("current_weight",       ("weight", "weigh", "how much do i weigh")),
-    ("last_glucose_reading", ("glucose", "blood sugar", "blood-sugar", "bloodsugar")),
+    ("last_glucose_reading", ("glucose", "blood glucose", "blood sugar", "blood-sugar",
+                              "bloodsugar", "sugar", " bg", "bg ", "bg?", "my bg")),
     ("current_medications",  ("medication", "medicine", "meds", "what meds",
                               "drugs i", "pills i")),
     ("calories_today",       ("calorie", "calories")),

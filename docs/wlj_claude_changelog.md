@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-29 — feat(cos): Intent Fulfillment — Beth accomplishes the objective, not just the literal request
+
+Conversation Goals identify what the customer wants; Intent Fulfillment decides whether the response actually ACCOMPLISHES it. A COMPARE goal was producing two side-by-side lists — technically correct, but not a comparison. The customer asked Beth to compare the days, not to show two lists.
+
+New layer (Conversation Goal → Intent Fulfillment → Presentation): `apps/ai/chatgpt_cos/fulfillment.py`. For a structured COMPARE (meals), `fulfill_meal_comparison` composes the comparison itself — meal-type gaps ("yesterday included lunch, but today doesn't yet"), items that differed within a shared meal type, shared items ("Pizza appears on both days"), and relative volume ("yesterday was heavier — today is lighter so far"). The comparison IS the answer; the raw lists are only a fallback when nothing is comparable. Numeric topics already fulfill via the delta. Generalized — not meal-special. Engineering contract in docs/INTENT_FULFILLMENT_MATRIX.md (minimum successful response per goal + gaps).
+
+Verified (production replay): meals today → yesterday → "Compared to today." → "Yesterday included lunch, but today doesn't yet. Pizza appears on both days. Yesterday was heavier (4 items vs 2) — today is lighter so far." Tests: test_intent_fulfillment (gaps/overlaps/volume/differed + objective-not-literal). Updated 3 prior tests that asserted the old list behavior. GREEN (105); Layer 1 gate GREEN; no migrations.
+
+**Files:** apps/ai/chatgpt_cos/fulfillment.py (new), docs/INTENT_FULFILLMENT_MATRIX.md (new), apps/ai/tests/test_intent_fulfillment.py (new), apps/ai/chatgpt_cos/referential.py, apps/ai/tests/test_conversation_goal.py, apps/ai/tests/test_referential_resolution.py.
+
+
 ## 2026-06-29 — feat(cos): Conversational Goal Tracking — Beth remembers the objective, not just the topic
 
 Production: meals today → yesterday → day-before → "Compared to today." returned today's meals instead of COMPARING. Not a retrieval or referential failure — Beth remembered the topic but forgot the PURPOSE (compare across days). The Conversation Object stored topic/timeframe/facts but no goal.

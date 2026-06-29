@@ -181,6 +181,12 @@ def _side_by_side(user, topic, last, comp_tf):
     a_meals = (last.get("fact") or {}).get("meals")
     b_meals = (comp.get("fact") or {}).get("meals")
     if a_meals is not None and b_meals is not None:
+        # INTENT FULFILLMENT: the comparison itself is the answer, not two lists.
+        from apps.ai.chatgpt_cos.fulfillment import fulfill_meal_comparison
+        insight = fulfill_meal_comparison(a_lbl, a_meals, b_lbl, b_meals)
+        if insight:
+            return insight
+        # Nothing to compare (e.g. one day empty) → fall back to showing the data.
         a = present_groups(a_meals.items(), lead=f"{a_lbl}:") or f"{a_lbl}: nothing logged."
         b = present_groups(b_meals.items(), lead=f"{b_lbl}:") or f"{b_lbl}: nothing logged."
         return a + "\n\n" + b

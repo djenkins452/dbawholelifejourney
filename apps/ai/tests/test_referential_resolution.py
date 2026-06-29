@@ -70,9 +70,10 @@ class ReferentialConversationTests(TestCase):
         self.assertEqual(r["fast_path"], "referential_resolution")
         self.assertIn("Eggs", r["answer"])
         self.assertEqual(self._frame(), "meals")           # still on meals, not drifted
-        # "Compared to today." — stays on the meals topic (never sleep coaching).
+        # "Compared to today." — the comparison itself, still on the meals topic.
         r = self._turn("Compared to today.")
         self.assertIn("Oatmeal", r["answer"])
+        self.assertIn("differed", r["answer"].lower())
         self.assertEqual(self._frame(), "meals")
 
     def test_steps_comparison_resolves_numerically(self):

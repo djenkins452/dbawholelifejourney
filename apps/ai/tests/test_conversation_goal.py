@@ -76,11 +76,11 @@ class MealsComparisonGoalTests(_ConvBase):
         self._turn("What about the day before yesterday?")
         self.assertEqual(self._goal(), "compare")             # objective persists
         r = self._turn("Compared to today.")
-        # BOTH days present — a real comparison, not a repeat of today.
-        self.assertIn("Yesterday", r["answer"])
+        # The COMPARISON itself — names what differed, not a repeat of today's list.
+        self.assertIn("differed", r["answer"].lower())
         self.assertIn("Eggs", r["answer"])
-        self.assertIn("Today", r["answer"])
         self.assertIn("Oatmeal", r["answer"])
+        self.assertNotIn("you've logged:", r["answer"].lower())
         self.assertEqual(self._goal(), "compare")
 
 

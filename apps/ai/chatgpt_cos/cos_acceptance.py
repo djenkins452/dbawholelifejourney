@@ -119,6 +119,21 @@ COS_SCENARIOS = [
          classification=CLASS_TRUTH,
          why="A Chief of Staff recalls what you ate, not the name of a database row."),
 
+    _scn("cos_active_topic_concern", "Follow-up stays on the active topic",
+         "Should I be concerned?",
+         history=[{"role": "user", "content": "How is my glucose doing today?"},
+                  {"role": "assistant",
+                   "content": "Your last glucose reading was 43 mg/dL (Very Low) — "
+                              "dangerously low; please verify and treat."}],
+         setup="Active topic is glucose (43 mg/dL, Very Low).",
+         expects={"trust": ["glucose", "low", "verify", "yes"]},
+         forbids={"trust": ["sleep", "weight", "your goals", "in a good range",
+                            "healthy range", "nothing to worry"]},
+         law="Active Conversation Topic", capability="active-topic-followup",
+         classification=CLASS_TRUTH,
+         why="'Should I be concerned?' after a glucose answer must stay on glucose and "
+             "answer about the danger — never drift to sleep/weight/coaching."),
+
     _scn("cos_followup_continuity", "Follow-up keeps conversational context",
          "Why do you say that?",
          history=[{"role": "user", "content": "How did I sleep?"},

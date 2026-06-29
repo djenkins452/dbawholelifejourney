@@ -7,6 +7,25 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-29 — feat(cos): Human-Ready Conversation Layer — renderers, complete facts, active-topic follow-ups
+
+The capability layer between Canonical Truth and Beth's words. Beth no longer speaks raw values/ISO/UTC/24-hour/field names; facts arrive user-ready and answer natural follow-ups on the same topic.
+
+**1. User-preference renderers** — new `apps/core/truth/render.py`: `render_date` (MM/DD/YYYY), `render_time` (12-hour AM/PM, user tz), `render_datetime`, `render_relative_time` ("2 hours ago"/"yesterday"). All convert to the user's timezone (`_get_user_tz`); date-only strings are never tz-shifted. No user-facing answer exposes ISO/UTC/24-hour/offsets.
+
+**2. Complete glucose fact** — value + timestamp + freshness (sync) + confidence + interpretation (+ temporal warning when impossible). One object that supports every follow-up.
+
+**3. Active-topic deterministic follow-ups** — `conversation_memory` gains `compose_when` (timestamp, rendered), `compose_concern` (polarity-correct: "Is that good?" → No for a danger; "Should I be concerned?" → Yes; NEVER reassures a flagged value), `compose_meaning` (health meaning from the band, not "because your data says"), `compose_is_current` (freshness + rendered recency). The front-of-registry follow-up lane routes "at what time / why important / what does that mean / should I be concerned / is that good / is that current" to these — all from the SAME stored fact, **staying on the active topic** (never drifts to sleep/weight/coaching), no LLM.
+
+**4. Glucose bands gain a `meaning`** (health explanation) for the "why is that important?" follow-up.
+
+Demonstrated (Eastern tz user): "How is my glucose today?" → "43 mg/dL (Very Low)… verify"; "At what time?" → "recorded on 06/29/2026 at 5:05 AM"; "Why is that important?" → severe-low health meaning; "Should I be concerned?" → "Yes — … verify" (stays glucose); "Is that current?" → "recorded 2 hours ago".
+
+Tests: `test_human_ready_conversation` (renderers + full on-topic conversation + no-leakage + danger polarity), updated `test_conversation_memory`. Scenario `cos_active_topic_concern`. Regression GREEN (74). No migrations.
+
+**Files:** apps/core/truth/render.py (new), apps/ai/tests/test_human_ready_conversation.py (new), apps/ai/chatgpt_cos/conversation_memory.py, apps/ai/chatgpt_cos/lanes.py, apps/health/services/glucose_interpretation.py, apps/ai/chatgpt_cos/cos_acceptance.py, apps/ai/tests/test_conversation_memory.py.
+
+
 ## 2026-06-29 — fix(cos): "At what time?" follow-up — complete glucose fact + deterministic timestamp retrieval
 
 Customer blocker: "What is my glucose?" worked but the follow-up "At what time?" failed. Investigation: the glucose fact DID carry `recorded_at` and the FULL fact was already in conversation memory — but (a) the fact lacked freshness/confidence (not a complete object) and (b) "At what time?" classified to None and no follow-up handler read the timestamp from the stored fact (the why-explainer only matched "why"-type cues). Fix (no new memory, no prompt change): (1) the glucose fact is now a COMPLETE object — value + timestamp + freshness (sync, 6h window) + confidence + interpretation (`health_facts`); (2) `conversation_memory.compose_when` reads the timestamp from the SAME stored fact and formats it ("That was recorded at 8:44 AM on June 29"); (3) the front-of-registry follow-up lane routes time cues ("at what time", "when was that", bare "when?") to `compose_when` — deterministic, no LLM. Future-timestamp case returns the impossible-time warning. Tests: `test_conversation_memory` (at-what-time + future-warning). Demonstrated: "What is my glucose?" → 112 mg/dL → "At what time?" → "That was recorded at 8:44 AM on June 29." No migrations.

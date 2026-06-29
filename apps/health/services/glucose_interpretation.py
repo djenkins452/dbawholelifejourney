@@ -13,20 +13,30 @@ must be surfaced honestly and may recommend verification — never reassured awa
 """
 
 # Narration guidance per band — deterministic, so the verdict is decided BEFORE the LLM.
+# (max_exclusive, band, display, safety, advice, meaning)
 _BANDS = (
-    # (max_exclusive, band, display, safety, advice)
     (54,    "very_low",  "Very Low",  "danger",
      "This is a dangerously low reading (severe hypoglycemia). If accurate it needs "
-     "immediate attention — please verify with a fingerstick and treat if needed."),
+     "immediate attention — please verify with a fingerstick and treat if needed.",
+     "Severe lows can cause confusion, fainting, or worse if untreated, so a reading "
+     "this low matters more than almost any other number."),
     (70,    "low",       "Low",       "caution",
      "This is below the typical range. Consider verifying, and treat if you have "
-     "symptoms of a low."),
-    (181,   "normal",    "In Range",  "ok",     ""),
+     "symptoms of a low.",
+     "Low blood sugar can leave you shaky, foggy, or weak, and can drop further, so "
+     "it's worth catching early."),
+    (181,   "normal",    "In Range",  "ok",     "",
+     "Being in range means your blood sugar is where you want it — good for both how "
+     "you feel now and your long-term health."),
     (251,   "high",      "High",      "caution",
-     "This is above the typical range."),
+     "This is above the typical range.",
+     "Highs that persist contribute to long-term complications, so it's worth watching "
+     "the pattern."),
     (10_000, "very_high", "Very High", "danger",
      "This is well above the typical range. If accurate, please verify and follow your "
-     "care plan."),
+     "care plan.",
+     "Very high readings can signal your body needs attention now and, over time, drive "
+     "serious complications."),
 )
 
 
@@ -41,10 +51,11 @@ def classify_glucose_mg_dl(mg_dl):
         v = float(mg_dl)
     except (TypeError, ValueError):
         return None
-    for ceiling, band, display, safety, advice in _BANDS:
+    for ceiling, band, display, safety, advice, meaning in _BANDS:
         if v < ceiling:
             return {"band": band, "display": display, "safety": safety,
-                    "concern": safety in ("danger", "caution"), "advice": advice}
+                    "concern": safety in ("danger", "caution"), "advice": advice,
+                    "meaning": meaning}
     return None
 
 

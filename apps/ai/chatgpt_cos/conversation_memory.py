@@ -47,34 +47,87 @@ def get_last_answer(conversation):
     return md.get(_KEY)
 
 
+def _topic_label(last):
+    return (last.get("fact_key") or "").replace("_", " ").replace("last ", "") \
+        .replace(" reading", "").strip() or "that"
+
+
 def compose_when(last, user=None):
-    """Deterministic 'at what time?' follow-up — read the timestamp from the SAME
-    stored fact that produced the value. No LLM, no reconstruction."""
+    """'At what time?' — the timestamp from the SAME stored fact, rendered in the
+    user's timezone + 12-hour format. No LLM."""
     if not last:
         return None
     fact = last.get("fact") or {}
     if fact.get("temporal_warning"):
-        return fact["temporal_warning"]        # impossible time → the warning
+        return fact["temporal_warning"]            # impossible time → the warning
     raw = fact.get("recorded_at") or fact.get("as_of") or fact.get("for_date")
     if not raw:
         return "I don't have a confirmed time recorded for that reading."
-    from datetime import datetime
-    try:
-        dt = datetime.fromisoformat(str(raw))
-        try:
-            from django.utils import timezone as _tz
-            if _tz.is_aware(dt):
-                dt = _tz.localtime(dt)
-        except Exception:
-            pass
-        clock = dt.strftime("%I:%M %p").lstrip("0")
-        when = f"{clock} on {dt.strftime('%B')} {dt.day}"
-    except (TypeError, ValueError):
-        when = str(raw)
-    return f"That was recorded at {when}."
+    from apps.core.truth.render import render_datetime
+    when = render_datetime(user, raw) if user else str(raw)
+    return f"That was recorded on {when}." if when else \
+        "I don't have a confirmed time recorded for that reading."
 
 
-def compose_why(last):
+def compose_concern(last, user=None, positive_frame=False):
+    """'Should I be concerned?' (negative frame) / 'Is that good?' (positive frame) —
+    answered from the fact's clinical interpretation, with correct polarity. NEVER
+    reassures over a flagged value (a danger is "not good" AND "yes, be concerned")."""
+    if not last:
+        return None
+    interp = (last.get("fact") or {}).get("interpretation") or {}
+    safety = interp.get("safety")
+    label = _topic_label(last)
+    advice = interp.get("advice") or "this reading needs attention."
+    if safety == "danger":
+        return (f"No — that's not good. {advice}" if positive_frame
+                else f"Yes — {advice}")
+    if safety == "caution":
+        return (f"It's not quite ideal — your {label} is "
+                f"{interp.get('display', 'outside the typical range')}. "
+                f"{interp.get('advice', '')}").strip()
+    if safety == "ok":
+        disp = interp.get("display", "in range")
+        return (f"Yes — your {label} is {disp}, right where you want it."
+                if positive_frame
+                else f"No — your {label} is {disp}, nothing to worry about there.")
+    return ("I don't have a specific concern flag on that one — it looks within your "
+            "usual range, but check with your care team if you're unsure.")
+
+
+def compose_meaning(last, user=None):
+    """'Why is that important? / What does that mean?' — the health meaning from the
+    fact's interpretation (not 'because your data says so')."""
+    if not last:
+        return None
+    interp = (last.get("fact") or {}).get("interpretation") or {}
+    if interp.get("meaning"):
+        lead = f"Your {_topic_label(last)} is {interp.get('display', '')}".strip()
+        return f"{lead}. {interp['meaning']}"
+    return compose_why(last)               # fall back to the basis explanation
+
+
+def compose_is_current(last, user=None):
+    """'Is that current? / When was it recorded?' — freshness + rendered recency."""
+    if not last:
+        return None
+    fact = last.get("fact") or {}
+    if fact.get("temporal_warning"):
+        return fact["temporal_warning"]
+    raw = fact.get("recorded_at") or fact.get("as_of") or fact.get("for_date")
+    fresh = fact.get("freshness")
+    if not raw:
+        return "I can't confirm exactly when that was recorded."
+    rel = ""
+    if user:
+        from apps.core.truth.render import render_relative_time
+        rel = render_relative_time(user, raw)
+    if fresh == "stale":
+        return f"It's a little old — recorded {rel or 'a while ago'}, so it may not be current."
+    return f"Yes — that's your most recent reading, recorded {rel or 'recently'}."
+
+
+def compose_why(last, user=None):
     """Deterministic explanation of the PRIOR answer from its supporting fact —
     no LLM. Returns the explanation string, or None if there's nothing to explain."""
     if not last:

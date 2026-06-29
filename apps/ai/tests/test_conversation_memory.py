@@ -74,8 +74,8 @@ class ConversationMemoryTests(TestCase):
         self.assertIsNotNone(out)
         self.assertEqual(out["fast_path"], "conversation_memory")
         ans = out["answer"].lower()
-        self.assertIn("recorded at", ans)
-        self.assertIn("june 28", ans)
+        self.assertIn("recorded on", ans)
+        self.assertIn("/2026", ans)            # MM/DD/YYYY, user-rendered
 
     def test_when_followup_after_future_timestamp_reports_the_warning(self):
         turn = {"answer": "Your last glucose reading was 95 mg/dL.",

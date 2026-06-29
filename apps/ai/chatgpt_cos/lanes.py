@@ -819,34 +819,56 @@ def _conversation_planner_lane(user, message, conversation=None):
     return None
 
 
-# Time follow-ups about the prior answer ("at what time?", "when was that?").
-_TIME_FOLLOWUP_CUES = (
-    "at what time", "what time", "when was that", "when was it", "when did that",
-    "and when", "what time was",
-)
+# Follow-up cue sets — all answered DETERMINISTICALLY from the active topic's stored
+# fact (no LLM, no topic switch). Order matters: most specific first.
+_TIME_FOLLOWUP_CUES = ("at what time", "what time", "when was that", "when was it",
+                       "when did that", "and when", "what time was")
 _TIME_FOLLOWUP_EXACT = {"when", "when?", "and when?", "when was this?", "what time?"}
+_CURRENT_CUES = ("is that current", "is that recent", "is it current", "is that up to date",
+                 "how recent", "when was it recorded", "when was that recorded", "is it stale")
+# Positive-framed ("is that good/safe?") vs negative-framed ("should I be concerned?")
+# — same fact, opposite polarity in the answer.
+_CONCERN_POSITIVE = ("is that good", "is that ok", "is that okay", "is that safe",
+                     "is that normal", "is that fine", "is that healthy")
+_CONCERN_NEGATIVE = ("should i be concerned", "should i worry", "is that bad",
+                     "anything to worry", "is that dangerous")
+_CONCERN_CUES = _CONCERN_POSITIVE + _CONCERN_NEGATIVE
+_MEANING_CUES = ("why is that important", "why is that reading important", "why does that matter",
+                 "what does that mean", "what does that mean for me", "why is that significant",
+                 "why is this important", "what does this mean")
 
 
 def _why_explainer_lane(user, message, conversation=None):
-    """DETERMINISTIC conversation memory: a follow-up about Beth's prior answer is
-    answered from the STORED fact — 'why do you say that?' from the basis, 'at what
-    time?' from the timestamp on that SAME fact. No LLM reconstruction. Front of the
-    registry so it claims the follow-up before any lane re-answers."""
+    """DETERMINISTIC active-topic follow-ups: a question about Beth's prior answer is
+    answered from the STORED fact — timestamp, concern level, health meaning, currency,
+    or basis — all from the SAME fact object. No LLM reconstruction, no topic switch.
+    Front of the registry so it claims the follow-up before any lane re-answers."""
     if conversation is None:
         return None
     norm = (message or "").strip().lower()
-    is_time = (norm in _TIME_FOLLOWUP_EXACT
-               or any(c in norm for c in _TIME_FOLLOWUP_CUES))
-    is_why = any(c in norm for c in _FOLLOWUP_CUES)
-    if not (is_time or is_why):
-        return None
     from apps.ai.chatgpt_cos.conversation_memory import (
-        get_last_answer, compose_why, compose_when,
+        get_last_answer, compose_why, compose_when, compose_concern,
+        compose_meaning, compose_is_current,
     )
+    # Pick the handler by cue (specific → general).
+    handler, kw = None, {}
+    if norm in _TIME_FOLLOWUP_EXACT or any(c in norm for c in _TIME_FOLLOWUP_CUES):
+        handler = compose_when
+    elif any(c in norm for c in _CURRENT_CUES):
+        handler = compose_is_current
+    elif any(c in norm for c in _MEANING_CUES):
+        handler = compose_meaning
+    elif any(c in norm for c in _CONCERN_CUES):
+        handler = compose_concern
+        kw = {"positive_frame": any(c in norm for c in _CONCERN_POSITIVE)}
+    elif any(c in norm for c in _FOLLOWUP_CUES):
+        handler = compose_why
+    else:
+        return None
     last = get_last_answer(conversation)
     if not last:
         return None
-    answer = compose_when(last, user) if is_time else compose_why(last)
+    answer = handler(last, user, **kw)
     if not answer:
         return None
     return {"answer": answer, "lane": "why_explainer",

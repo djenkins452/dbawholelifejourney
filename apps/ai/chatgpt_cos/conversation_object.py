@@ -53,8 +53,11 @@ CONVERSATION_OBJECTS = {
         "follows": (WHEN, CONCERN, MEANING, CURRENT, COMPARISON, WHY),
     },
     "glucose_yesterday": {
-        "supporting": (),
-        "follows": (WHEN, CONCERN, MEANING, CURRENT, WHY),
+        # The recent average is a TOPIC-level supporting fact — it must travel with the
+        # glucose topic, not just the first reading, so a re-point to yesterday keeps it
+        # available for "compared to my average".
+        "supporting": (("average", "health", "average_glucose_yesterday"),),
+        "follows": (WHEN, CONCERN, MEANING, CURRENT, COMPARISON, WHY),
     },
     # ---- Weight -------------------------------------------------------------
     "weight_yesterday": {"supporting": (), "follows": (WHEN, WHY)},

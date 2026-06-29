@@ -96,6 +96,9 @@ def _result(answer, last, *, fact_key=None, fact=None):
         "fact_key": fact_key if fact_key is not None else (last or {}).get("fact_key"),
         "fact": fact if fact is not None else (last or {}).get("fact") or {},
         "basis": answer,
+        # A comparison stays on the same topic — carry its supporting facts forward so a
+        # later "compared to my average" still finds them (don't strip them on each turn).
+        "supporting": (last or {}).get("supporting") or {},
     }
 
 

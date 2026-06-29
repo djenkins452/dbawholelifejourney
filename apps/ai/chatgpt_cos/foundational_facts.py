@@ -323,7 +323,8 @@ def format_fact_sentence(key, fact):
             s += f", and the trend is {fact['trend']}"
         return s + "."
     if key == "last_glucose_reading":
-        base = f"Your last glucose reading was {value} {unit}".strip()
+        from apps.core.truth.present import humanize_number
+        base = f"Your last glucose reading was {humanize_number(value)} {unit}".strip()
         interp = fact.get("interpretation") or {}
         if interp.get("display"):
             base += f" ({interp['display']})"
@@ -364,6 +365,9 @@ def format_fact_sentence(key, fact):
         return s + "."
     if key == "average_glucose_yesterday":
         return f"Your recent average glucose is {value} {unit or 'mg/dL'}.".replace("  ", " ")
+    if key == "glucose_yesterday":
+        from apps.core.truth.present import humanize_number
+        return f"Yesterday your glucose was {humanize_number(value)} {unit or 'mg/dL'}.".replace("  ", " ")
     if key == "journal_today":
         return ("Yes — you've journaled today." if value
                 else "Not yet — you haven't journaled today.")

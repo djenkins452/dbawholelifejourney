@@ -7,6 +7,20 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-29 — fix(cos): glucose average dropped on re-point + glucose_yesterday bypassed presentation (production trace)
+
+Production disproved the prior report: "What is my BG?" → "What about yesterday?" → "Compared to my average." returned "I don't have a separate average figure." Repository trace (not assumption):
+1. supporting facts are gathered per fact_key; `last_glucose_reading` declares supporting=(average) but `glucose_yesterday` declared supporting=() — so re-pointing the frame to yesterday DROPPED the average (supporting_keys went ['average']→[]). Two turns later the average was gone.
+2. `referential._result` (comparison turns) did not carry supporting forward — even after fixing (1), the "Compared to today." turn reset supporting to {}, so "Compared to my average." still failed.
+3. `glucose_yesterday` had no format case → fell to the default humanized branch → "Glucose yesterday: 105 mg/dL", bypassing the presentation layer. `last_glucose_reading` rendered a raw float "160.0".
+
+Fixes (existing capabilities, no new capability): (a) `glucose_yesterday` declares the average as a topic-level supporting fact + COMPARISON follow-up; (b) `_result` carries the active frame's supporting facts forward (a comparison stays on the same topic); (c) presentation case for `glucose_yesterday` ("Yesterday your glucose was 105 mg/dL") + humanized `last_glucose_reading` value (160, not 160.0).
+
+Verified — full production conversation now matches the architecture: "What about yesterday?" → "Yesterday your glucose was 105 mg/dL." (sup keeps average); "Compared to today." → "down 55 from today … a more meaningful comparison is your recent average: today is 33 below it (138 → 105)."; "Compared to my average." → "down 33 from your recent average (138 → 105)." Permanent regression: test_comparison_semantics::GlucoseAverageSurvivesRepointTests (the exact 4-turn conversation). GREEN (115); Layer 1 gate GREEN; no migrations.
+
+**Files:** apps/ai/chatgpt_cos/conversation_object.py, apps/ai/chatgpt_cos/referential.py, apps/ai/chatgpt_cos/foundational_facts.py, apps/ai/tests/test_comparison_semantics.py.
+
+
 ## 2026-06-29 — fix(cos): Comparison Target vs Semantics — honor the user's target FIRST, recommend additively
 
 Production: glucose "Compared to yesterday." silently compared against the recent average instead of yesterday — statistically better, but NOT what the user asked. The metric's preferred strategy was overriding the user's explicit target. Two separate concepts were collapsed.

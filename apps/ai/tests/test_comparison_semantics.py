@@ -92,6 +92,51 @@ class GlucoseTargetVsSemanticsTests(_Ask):
         self.assertIn("recent average", a)
 
 
+class GlucoseAverageSurvivesRepointTests(TestCase):
+    """Production regression: the recent average must survive a re-point to yesterday so
+    a later "compared to my average" still resolves, and glucose_yesterday must render
+    through the presentation layer (not the raw 'Glucose yesterday: 105' default)."""
+
+    def setUp(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from apps.health.models import GlucoseEntry
+        self.user = User.objects.create_user(email="grepoint@test.com", password="x")
+        now = timezone.now()
+        GlucoseEntry.objects.create(user=self.user, value=160, unit="mg/dL",
+                                    recorded_at=now - timedelta(hours=1))
+        GlucoseEntry.objects.create(user=self.user, value=105, unit="mg/dL",
+                                    recorded_at=now - timedelta(days=1, hours=1))
+        for d in range(2, 7):
+            GlucoseEntry.objects.create(user=self.user, value=140, unit="mg/dL",
+                                        recorded_at=now - timedelta(days=d))
+        from apps.ai.models import AssistantConversation
+        self.conv = AssistantConversation.objects.create(user=self.user)
+
+    def _turn(self, q):
+        from apps.ai.chatgpt_cos.foundational_facts import answer_foundational_fact
+        from apps.ai.chatgpt_cos.conversation_memory import record_last_answer
+        r = (_why_explainer_lane(self.user, q, self.conv)
+             or _referential_lane(self.user, q, self.conv)
+             or answer_foundational_fact(self.user, q))
+        if r:
+            record_last_answer(self.conv, r.get("lane", "foundational_facts"), r)
+            self.conv.refresh_from_db()
+        return r
+
+    def test_full_production_conversation(self):
+        self._turn("What is my BG?")
+        yest = self._turn("What about yesterday?")["answer"]
+        self.assertIn("Yesterday your glucose was", yest)        # presentation, not default
+        self.assertNotIn("Glucose yesterday:", yest)
+        self.assertIn("average", self.conv.metadata["last_answer"]["supporting"])  # kept
+        self._turn("Compared to today.")                          # comparison turn
+        self.assertIn("average", self.conv.metadata["last_answer"]["supporting"])  # still kept
+        avg = self._turn("Compared to my average.")["answer"]
+        self.assertNotIn("don't have", avg.lower())               # the bug is gone
+        self.assertIn("recent average", avg)
+
+
 class StepsComparisonTests(_Ask):
     LAST = {
         "fact_key": "steps_today", "topic": "steps", "timeframe": "today",

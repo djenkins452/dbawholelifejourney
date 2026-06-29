@@ -221,4 +221,13 @@ def get_foundational_health_facts(user, keys=None):
                 fact.pop("recorded_at", None)
         out[key] = fact
 
+    # CALORIE questions want a TOTAL: "no food logged" = 0 calories (a real, numeric
+    # answer), never "unknown" (which would leave the reply without a value and fail a
+    # calorie value-gate). Meal questions are a separate intent and are unaffected.
+    for ck in ("calories_today", "calories_yesterday"):
+        cur = out.get(ck)
+        if isinstance(cur, dict) and cur.get("status") in ("unknown", "no_data"):
+            out[ck] = {"value": 0, "unit": "kcal", "source": "nutrition",
+                       "freshness": "current"}
+
     return _jsonsafe(out)

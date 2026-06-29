@@ -261,13 +261,16 @@ def _classify_execution_fact(text):
     if ("journal" in text or "journaled" in text) and not today_q \
             and ("when" in text or "last" in text):
         return "last_journal"
-    # "what did I eat today/yesterday" — retrieve the actual meals (past-framing).
+    # "what did I eat today/yesterday" — retrieve the actual MEALS (past-framing).
+    # A CALORIE question ("how many calories did I eat") is a different intent — it
+    # wants the calorie TOTAL, not the meal list — so it must NOT match here.
+    _is_calorie_q = "calorie" in text
     _ate = any(p in text for p in ("did i eat", "have i eaten", "what did i eat",
                                    "what have i eaten", "what i ate", "what i've eaten",
                                    "food did i", "meals did i", "meals have i"))
-    if _ate and is_yesterday:
+    if _ate and not _is_calorie_q and is_yesterday:
         return "meals_yesterday"
-    if _ate and today_q:
+    if _ate and not _is_calorie_q and today_q:
         return "meals_today"
     # journal / appointments status: today-scope only (the question space asks today).
     if is_yesterday:
@@ -338,7 +341,8 @@ def format_fact_sentence(key, fact):
         return (f"You're currently taking {count} medication(s): "
                 f"{', '.join(str(m) for m in meds)}.")
     if key == "calories_today":
-        s = f"You've consumed {value} calories today"
+        n = int(value) if isinstance(value, (int, float)) and float(value).is_integer() else value
+        s = f"You've logged {n} calories today"
         if fact.get("target"):
             s += f" (target {fact['target']})"
         return s + "."
@@ -411,7 +415,8 @@ def format_fact_sentence(key, fact):
         when = "yesterday" if key == "steps_yesterday" else "today"
         return f"You logged {value} steps {when}."
     if key == "calories_yesterday":
-        return f"You ate {value} calories yesterday."
+        n = int(value) if isinstance(value, (int, float)) and float(value).is_integer() else value
+        return f"Yesterday you logged {n} calories."
     if key == "steps_recent":
         # Legacy 7-day-average fallback (the classifier now routes to the per-day
         # fact above); kept honest as an average, never a specific day.
@@ -442,6 +447,11 @@ def format_fact_sentence(key, fact):
             return f"Your next goal deadline is in {value} day(s) — \"{title}\"."
         return f"Your next goal deadline is in {value} day(s)."
     return f"{key}: {value} {unit}".strip()
+
+
+# Facts whose answer is gated on a numeric value — answered deterministically so the
+# number is always present (never softened to "you haven't logged anything").
+_NUMERIC_VALUE_KEYS = {"calories_today", "calories_yesterday", "protein_today"}
 
 
 def _temporal_or_clinical(fact):
@@ -479,7 +489,9 @@ def answer_foundational_fact(user, message):
     # unconfirmed" over a valid timestamp), while the follow-up (compose_when) reads the
     # struct — producing contradictory answers from the same fact. Bypassing guarantees
     # the value answer and every follow-up originate from the SAME deterministic object.
-    deterministic_only = _temporal_or_clinical(fact)
+    # Calorie/value-total questions are gated on a numeric VALUE — answer them
+    # deterministically so the number always appears (the LLM rephrase could drop it).
+    deterministic_only = _temporal_or_clinical(fact) or key in _NUMERIC_VALUE_KEYS
     if deterministic_only:
         answer = deterministic
     else:

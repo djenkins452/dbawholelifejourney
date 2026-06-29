@@ -175,5 +175,7 @@ class FormatFactSentenceTests(TestCase):
         self.assertIn("don't have", s)
 
     def test_zero_is_a_valid_value(self):
+        # 0 is a real total (no food logged), rendered as a clean integer.
         s = format_fact_sentence("calories_today", {"value": 0.0, "target": 2000})
-        self.assertIn("0.0 calories", s)
+        self.assertIn("0 calories", s)
+        self.assertNotIn("haven't", s.lower())

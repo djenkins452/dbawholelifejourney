@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-29 — fix(cos): Deep #55 calorie failures — calorie questions answer with a calorie TOTAL
+
+Deep run #55 (efc7a7ae) failed truth_calories and det_calories on gate_value. Root cause: calorie questions were HIJACKED by the meals classifier — "how many calories have I eaten today?" / "...did I eat yesterday?" contain "have I eaten"/"did I eat", so `_classify_execution_fact` routed them to meals_today/meals_yesterday (a meal list, no number) instead of the calorie-total facts. Defect class: calorie-specific questions must return a calorie VALUE, not meal narration.
+
+Fix: (1) the meals cue now excludes any question containing "calorie" — calorie Qs fall through to calories_today / calories_yesterday (a different intent). (2) Calorie facts always carry a numeric total: "no food logged" coerces to 0 (a real answer) instead of "unknown" (which left no number). (3) Calorie facts answer deterministically (`_NUMERIC_VALUE_KEYS`) so the LLM rephrase can never drop the number. (4) Clean integer display + spec wording: "You've logged 0 calories today." / "Yesterday you logged 530 calories."
+
+Preserved: "What did I eat yesterday?" still → meals grouped by type (meals_yesterday); meal vs calorie are distinct intents; no internal field/SAE leakage.
+
+Tests: `test_calorie_questions` (routing; today-no-food=0; yesterday-foods=total; meals still meals; no leak); updated `test_foundation_validation`. GREEN (65). No migrations. NOTE: the live Deep re-run is the production gate (no local OpenAI) — the deterministic gate_value now passes (numeric total always present).
+
+**Files:** apps/ai/chatgpt_cos/foundational_facts.py, apps/ai/cos_services/health_facts.py, apps/ai/tests/test_calorie_questions.py, apps/ai/tests/test_foundation_validation.py.
+
+
 ## 2026-06-29 — fix(SAFETY): Truth Consistency — the architectural split (LLM prose vs deterministic struct)
 
 PROVEN root cause (production trace, not hypothesis). Production chat for Danny runs ChatGPTCoSRuntime → ChatGPTCoSService.generate → route_message (cos_gateway/gateway.py:35; runtime.py:101; service.py:151), so the chatgpt_cos lanes ARE the live path. The split: the VALUE answer ("91 mg/dL, but the reading's time is unconfirmed") was the LLM REPHRASE of the fact (_PHRASE_SYSTEM, foundational_facts.py:469) — the LLM asserted "unconfirmed" though the structured fact had a VALID timestamp (no temporal_warning); the FOLLOW-UP ("recorded on 06/29/2026 at 3:17 AM") was compose_when reading that same valid struct. One answer was non-deterministic prose, the other deterministic struct — so they diverged.

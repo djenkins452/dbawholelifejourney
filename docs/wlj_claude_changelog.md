@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-29 — fix(SAFETY): Defect 2 — glucose timestamp lost by a swallowed NameError in SAE build
+
+Production: "What is my glucose?" → "91 mg/dL", then "At what time?" → "I don't have a confirmed time recorded." Traced the real production path (not the unit test). ROOT CAUSE: my own temporal-sanity commit (4380e0d3) added `timezone.now()` at state_builder.py:914 inside `build_health_state`, but `timezone` is NOT imported in that function's scope. The glucose block is wrapped in `try/except Exception` (line ~1010) that SILENTLY SWALLOWED the NameError — so `state["last_glucose_entry"]` was never set (and every glucose-block line after 914 — context label, freshness, the future warning — was lost on every rebuild). The foundational fact then carried `value` but no `recorded_at`; it WAS stored in conversation memory, but compose_when had no timestamp to return.
+
+Why tests missed it: the conversation-memory unit tests mocked `get_module_state` / hardcoded `recorded_at`, so they never executed `build_health_state`.
+
+Fix: add `from django.utils import timezone` in the glucose block (state_builder.py). One line; restores last_glucose_entry AND everything else after line 914. Verified live: build_health_state now sets last_glucose_entry; "What is my glucose?" → "At what time?" → "That was recorded on 06/29/2026 at 10:38 AM." New regression `apps/core/ai_state/test_health_state_glucose_timestamp.py` runs the REAL builder and asserts value + timestamp both populate — closing the mocked-test gap. GREEN (55). No migrations.
+
+**Files:** apps/core/ai_state/state_builder.py, apps/core/ai_state/test_health_state_glucose_timestamp.py.
+
+
 ## 2026-06-29 — fix(cos): Executive Briefing prioritizes by SIGNIFICANCE, not domain
 
 The briefing retrieved every domain correctly but chose the wrong LEAD: the within-tier sort key was `i.domain` (alphabetical), so the domain NAME decided priority (calendar < faith < health < … < tasks). A high glucose could sit behind "unanswered prayers" simply because "faith" sorts before "health".

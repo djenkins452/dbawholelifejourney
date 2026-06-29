@@ -910,6 +910,7 @@ def build_health_state(user):
             # timezone artifact). REMOVE the impossible time entirely — no consumer
             # (the tool-loop / LLM context included) can narrate what isn't there — and
             # surface a clear warning instead.
+            from django.utils import timezone   # not in this function's scope otherwise
             from apps.core.truth.temporal import validate_timestamp
             if validate_timestamp(latest_glucose[2], timezone.now())["verdict"] == "future":
                 state["last_glucose_entry"] = None

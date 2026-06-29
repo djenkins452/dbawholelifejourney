@@ -8,7 +8,8 @@ A personal life operating system built with calm, clarity, and intention.
 > deterministic truth foundation (value + freshness + confidence + stability, retrieved
 > deterministically, spoken in human-ready language) is certified — production
 > Smoke/Full/Deep GREEN. It is permanent infrastructure and changes only via formal
-> change control. See [`docs/LAYER1_CERTIFICATION.md`](docs/LAYER1_CERTIFICATION.md).
+> change control. Entry point for engineers: [`docs/LAYER1_CONSTITUTION.md`](docs/LAYER1_CONSTITUTION.md)
+> (certification record: [`docs/LAYER1_CERTIFICATION.md`](docs/LAYER1_CERTIFICATION.md)).
 > Active layer: **Layer 2**.
 
 ## Overview

@@ -7,6 +7,13 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-29 — CLOSEOUT: Layer 1 (Canonical Truth) formally CLOSED
+
+Final Layer 1 closeout. Verification audit confirms: certified · frozen · tagged (layer1-canonical-truth-v1 @ d6c187f7) · released · CI-gated · zero TODO/FIXME in the certified modules · no stale "pending/active/incomplete" status references. New permanent entry-point doc `docs/LAYER1_CONSTITUTION.md` (what Layer 1 is/is not, public interfaces, consumers, Architecture Laws, change control, certification history, guaranteed behaviors, known constraints). Inventory annotated: the original Phase-1 audit body is HISTORICAL EVIDENCE; the certified header governs; "consumer wiring incomplete" notes are per-domain rollout (Layer 2/3 / Future Backlog), not incomplete Layer 1. README points to the constitution. Layer 1 is now permanent infrastructure — future work builds upon it, never redefines it. Active layer: Layer 2.
+
+**Files:** docs/LAYER1_CONSTITUTION.md (new), docs/BETH_LAYER1_TRUTH_INVENTORY.md, README.md.
+
+
 ## 2026-06-29 — CERT: Layer 1 (Canonical Truth) CERTIFIED & FROZEN
 
 Production Acceptance Center: Smoke GREEN · Full GREEN · Deep GREEN, validated on real customer conversations. Layer 1 is now the permanent, frozen foundation of WLJ.

@@ -1,5 +1,13 @@
 # Beth Layer 1 — Canonical Truth Inventory & Gap Analysis
 
+> **✅ LAYER 1 CERTIFIED & FROZEN (2026-06-29).** The Certification section below is
+> current and authoritative. **Everything after it — the Master Matrix, Platform
+> Capabilities table, domain audits, maturity ranking, and ranked gaps — is the
+> original Phase-1 audit (HISTORICAL EVIDENCE), preserved as the basis for what became
+> Layer 1 vs. Future Backlog.** Where the audit notes a domain's "consumer wiring
+> incomplete," that is per-domain ROLLOUT (Layer 2/3 / Future Backlog), NOT an
+> incomplete Layer 1 capability. Entry point for engineers: `docs/LAYER1_CONSTITUTION.md`.
+
 > **Phase 1 deliverable.** Complete inventory of Canonical Truth for every WLJ domain,
 > verified against repository evidence (file:line) by parallel audits, merged here.
 > Layer 1 is the foundation everything above depends on. Governed by

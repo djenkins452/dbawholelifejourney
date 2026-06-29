@@ -60,3 +60,29 @@ class ConversationMemoryTests(TestCase):
     def test_compose_why_without_a_fact_uses_prior_text(self):
         why = compose_why({"answer": "You're averaging 6.2 hours of sleep.", "fact": {}})
         self.assertIn("6.2", why)
+
+    def test_at_what_time_followup_reads_timestamp_from_same_fact(self):
+        # CUSTOMER BLOCKER: "What is my glucose?" then "At what time?" must retrieve the
+        # timestamp from the SAME stored fact — deterministically, no LLM.
+        turn = {"answer": "Your last glucose reading was 112 mg/dL.",
+                "fact_key": "last_glucose_reading",
+                "fact": {"value": 112, "unit": "mg/dL",
+                         "recorded_at": "2026-06-28T14:05:00+00:00"}}
+        record_last_answer(self.conv, "foundational_facts", turn)
+        self.conv.refresh_from_db()
+        out = _why_explainer_lane(self.user, "At what time?", self.conv)
+        self.assertIsNotNone(out)
+        self.assertEqual(out["fast_path"], "conversation_memory")
+        ans = out["answer"].lower()
+        self.assertIn("recorded at", ans)
+        self.assertIn("june 28", ans)
+
+    def test_when_followup_after_future_timestamp_reports_the_warning(self):
+        turn = {"answer": "Your last glucose reading was 95 mg/dL.",
+                "fact_key": "last_glucose_reading",
+                "fact": {"value": 95, "temporal_warning":
+                         "That timestamp appears to be in the future, which shouldn't be possible."}}
+        record_last_answer(self.conv, "foundational_facts", turn)
+        self.conv.refresh_from_db()
+        out = _why_explainer_lane(self.user, "At what time?", self.conv)
+        self.assertIn("future", out["answer"].lower())

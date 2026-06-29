@@ -191,6 +191,23 @@ def get_foundational_health_facts(user, keys=None):
             if sae_tw:
                 fact["temporal_warning"] = sae_tw
                 fact.pop("recorded_at", None)
+            # COMPLETE the fact object: value + timestamp + freshness + confidence +
+            # interpretation, so any follow-up ("at what time?") reads ONE object.
+            ra = fact.get("recorded_at")
+            if ra:
+                from datetime import datetime
+                from django.utils import timezone as _tznow2
+                from apps.core.truth.freshness import classify_sync_freshness
+                from apps.core.truth import confidence as _conf
+                try:
+                    _dt = datetime.fromisoformat(str(ra))
+                    fr = classify_sync_freshness(has_data=True, last_sync=_dt,
+                                                 now=_tznow2.now(),
+                                                 stale_after_seconds=6 * 3600)
+                    fact["freshness"] = fr
+                    fact["confidence"] = _conf.confidence_from_freshness(fr)
+                except (TypeError, ValueError):
+                    pass
         # TEMPORAL SANITY: a timestamp in the future is a device-sync/clock artifact.
         # Flag it and drop the impossible time so narration never reports it as real.
         ra = fact.get("recorded_at")

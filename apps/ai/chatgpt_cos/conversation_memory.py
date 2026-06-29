@@ -47,6 +47,33 @@ def get_last_answer(conversation):
     return md.get(_KEY)
 
 
+def compose_when(last, user=None):
+    """Deterministic 'at what time?' follow-up — read the timestamp from the SAME
+    stored fact that produced the value. No LLM, no reconstruction."""
+    if not last:
+        return None
+    fact = last.get("fact") or {}
+    if fact.get("temporal_warning"):
+        return fact["temporal_warning"]        # impossible time → the warning
+    raw = fact.get("recorded_at") or fact.get("as_of") or fact.get("for_date")
+    if not raw:
+        return "I don't have a confirmed time recorded for that reading."
+    from datetime import datetime
+    try:
+        dt = datetime.fromisoformat(str(raw))
+        try:
+            from django.utils import timezone as _tz
+            if _tz.is_aware(dt):
+                dt = _tz.localtime(dt)
+        except Exception:
+            pass
+        clock = dt.strftime("%I:%M %p").lstrip("0")
+        when = f"{clock} on {dt.strftime('%B')} {dt.day}"
+    except (TypeError, ValueError):
+        when = str(raw)
+    return f"That was recorded at {when}."
+
+
 def compose_why(last):
     """Deterministic explanation of the PRIOR answer from its supporting fact —
     no LLM. Returns the explanation string, or None if there's nothing to explain."""

@@ -7,6 +7,13 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-29 — fix(cos): "At what time?" follow-up — complete glucose fact + deterministic timestamp retrieval
+
+Customer blocker: "What is my glucose?" worked but the follow-up "At what time?" failed. Investigation: the glucose fact DID carry `recorded_at` and the FULL fact was already in conversation memory — but (a) the fact lacked freshness/confidence (not a complete object) and (b) "At what time?" classified to None and no follow-up handler read the timestamp from the stored fact (the why-explainer only matched "why"-type cues). Fix (no new memory, no prompt change): (1) the glucose fact is now a COMPLETE object — value + timestamp + freshness (sync, 6h window) + confidence + interpretation (`health_facts`); (2) `conversation_memory.compose_when` reads the timestamp from the SAME stored fact and formats it ("That was recorded at 8:44 AM on June 29"); (3) the front-of-registry follow-up lane routes time cues ("at what time", "when was that", bare "when?") to `compose_when` — deterministic, no LLM. Future-timestamp case returns the impossible-time warning. Tests: `test_conversation_memory` (at-what-time + future-warning). Demonstrated: "What is my glucose?" → 112 mg/dL → "At what time?" → "That was recorded at 8:44 AM on June 29." No migrations.
+
+**Files:** apps/ai/cos_services/health_facts.py, apps/ai/chatgpt_cos/conversation_memory.py, apps/ai/chatgpt_cos/lanes.py, apps/ai/tests/test_conversation_memory.py.
+
+
 ## 2026-06-28 — fix(SAFETY): Impossible Time Detection BLOCKER — remove future glucose timestamp at the source
 
 Beth still reported a future glucose timestamp. Root cause: the prior fix flagged it but LEFT the raw future value in SAE state, so the tool-loop/LLM-context path (which reads SAE state directly, not the foundational fact) still narrated it. Fix at the source: `build_health_state` now REMOVES an impossible (later-than-now) glucose timestamp entirely (`last_glucose_entry = None`) and sets `last_glucose_entry_warning` with the exact message — so no consumer can narrate a time that isn't there. The foundational glucose fact carries the warning (`health_facts`) and the answer surfaces it: "Your last glucose reading was 95 mg/dL (In Range). That timestamp appears to be in the future, which shouldn't be possible. There may be a synchronization or timezone issue…". Tests: `test_temporal_sanity` (SAE-warning surfaced + impossible time removed). No migrations.

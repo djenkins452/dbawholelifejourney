@@ -819,21 +819,37 @@ def _conversation_planner_lane(user, message, conversation=None):
     return None
 
 
+# Time follow-ups about the prior answer ("at what time?", "when was that?").
+_TIME_FOLLOWUP_CUES = (
+    "at what time", "what time", "when was that", "when was it", "when did that",
+    "and when", "what time was",
+)
+_TIME_FOLLOWUP_EXACT = {"when", "when?", "and when?", "when was this?", "what time?"}
+
+
 def _why_explainer_lane(user, message, conversation=None):
-    """DETERMINISTIC conversation memory: a follow-up ('why do you say that?') is
-    answered from the STORED last answer + its supporting fact — no LLM reconstruction.
-    Sits at the front so it claims the follow-up before any lane re-answers."""
+    """DETERMINISTIC conversation memory: a follow-up about Beth's prior answer is
+    answered from the STORED fact — 'why do you say that?' from the basis, 'at what
+    time?' from the timestamp on that SAME fact. No LLM reconstruction. Front of the
+    registry so it claims the follow-up before any lane re-answers."""
     if conversation is None:
         return None
     norm = (message or "").strip().lower()
-    if not any(c in norm for c in _FOLLOWUP_CUES):
+    is_time = (norm in _TIME_FOLLOWUP_EXACT
+               or any(c in norm for c in _TIME_FOLLOWUP_CUES))
+    is_why = any(c in norm for c in _FOLLOWUP_CUES)
+    if not (is_time or is_why):
         return None
-    from apps.ai.chatgpt_cos.conversation_memory import get_last_answer, compose_why
+    from apps.ai.chatgpt_cos.conversation_memory import (
+        get_last_answer, compose_why, compose_when,
+    )
     last = get_last_answer(conversation)
-    explanation = compose_why(last) if last else None
-    if not explanation:
+    if not last:
         return None
-    return {"answer": explanation, "lane": "why_explainer",
+    answer = compose_when(last, user) if is_time else compose_why(last)
+    if not answer:
+        return None
+    return {"answer": answer, "lane": "why_explainer",
             "fast_path": "conversation_memory"}
 
 

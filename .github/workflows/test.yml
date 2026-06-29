@@ -44,6 +44,15 @@ jobs:
       - name: Check for missing migrations
         run: python manage.py makemigrations --check --dry-run
 
+      # ----------------------------------------------------------------------
+      # LAYER 1 CERTIFICATION GATE (Canonical Truth — CERTIFIED & FROZEN).
+      # Mandatory on every merge: the certified foundation must never regress.
+      # No higher layer may bypass this. The live Smoke/Full/Deep Acceptance Center
+      # is the complementary production gate (run with prod credentials).
+      # ----------------------------------------------------------------------
+      - name: Layer 1 Certification Gate (must stay GREEN)
+        run: python manage.py certify_layers --settings=config.settings_test
+
       - name: Run tests
         run: |
           python manage.py test --settings=config.settings_test -v 1

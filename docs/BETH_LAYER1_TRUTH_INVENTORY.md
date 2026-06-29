@@ -12,12 +12,16 @@
 
 ---
 
-## Layer 1 Certification (Canonical Truth)
+## Layer 1 Certification (Canonical Truth) — ✅ CERTIFIED · 🔒 FROZEN
 
-> A layer is complete only when **certified**: implementation done, gate GREEN, frozen
-> as permanent infrastructure that must never regress. Manifest: `apps/core/truth/certification.py`.
-> Release gate: `python manage.py certify_layers` (re-runs every certified layer; a
-> higher layer cannot certify if a lower one regresses).
+> **STATUS: CERTIFIED · FROZEN · FOUNDATION COMPLETE (2026-06-29).**
+> Production Smoke/Full/Deep GREEN + real-conversation validation. Certified commit
+> `d6c187f7`, tag `layer1-canonical-truth-v1`. Full record: `docs/LAYER1_CERTIFICATION.md`.
+> Every approved capability below is **COMPLETE · CERTIFIED · FROZEN**; anything not
+> approved is Future Backlog, NOT Layer 1. Layer 1 now changes only via formal change
+> control (repository evidence → architectural justification → regression → Smoke/Full/
+> Deep → production validation). Manifest: `apps/core/truth/certification.py`; release
+> gate: `python manage.py certify_layers`. Layer 2 is now the active layer.
 
 ### Governance reconciliation (2026-06-28)
 

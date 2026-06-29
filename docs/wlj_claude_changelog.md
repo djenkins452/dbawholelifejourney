@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-29 — CERT: Layer 1 (Canonical Truth) CERTIFIED & FROZEN
+
+Production Acceptance Center: Smoke GREEN · Full GREEN · Deep GREEN, validated on real customer conversations. Layer 1 is now the permanent, frozen foundation of WLJ.
+
+Certified commit d6c187f7 · tag layer1-canonical-truth-v1 · date 2026-06-29. 8 platform capabilities COMPLETE/CERTIFIED/FROZEN (Per-Day Truth, Freshness L1, Confidence L2, Stability L5, Current Truth Objects, Point-in-Time History, Domain Truth Objects, Deterministic Provider Registry) plus the Human-Ready Conversation Layer (renderers, deterministic memory + active-topic follow-ups, clinical interpretation, temporal sanity, significance-ranked Executive Briefing).
+
+Governance: manifest `apps/core/truth/certification.py` → status "certified", frozen True, acceptance_results, certification_commit/tag, production_validated. New permanent snapshot `docs/LAYER1_CERTIFICATION.md`. Inventory + README marked CERTIFIED/FROZEN. CI (`.github/workflows/test.yml`) now runs the mandatory **Layer 1 Certification Gate** (`certify_layers`) on every merge — no higher layer may bypass it. Layer 1 changes only via formal change control (evidence → justification → regression → Smoke/Full/Deep → production validation). Layer 2 is the active layer.
+
+**Files:** apps/core/truth/certification.py, docs/LAYER1_CERTIFICATION.md (new), docs/BETH_LAYER1_TRUTH_INVENTORY.md, .github/workflows/test.yml, README.md.
+
+
 ## 2026-06-29 — fix(cos): Deep #55 calorie failures — calorie questions answer with a calorie TOTAL
 
 Deep run #55 (efc7a7ae) failed truth_calories and det_calories on gate_value. Root cause: calorie questions were HIJACKED by the meals classifier — "how many calories have I eaten today?" / "...did I eat yesterday?" contain "have I eaten"/"did I eat", so `_classify_execution_fact` routed them to meals_today/meals_yesterday (a meal list, no number) instead of the calorie-total facts. Defect class: calorie-specific questions must return a calorie VALUE, not meal narration.

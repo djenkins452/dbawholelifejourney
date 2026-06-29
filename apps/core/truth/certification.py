@@ -15,9 +15,15 @@ covers the deterministic foundation that can be enforced in CI on every commit.
 LAYER_1 = {
     "number": 1,
     "name": "Canonical Truth",
-    "status": "pending_live_deep",    # deterministic gate GREEN; live Deep run pending
-    "certified_on": None,
-    "frozen": False,
+    # CERTIFIED 2026-06-29 — production Smoke/Full/Deep GREEN + real-conversation
+    # validation. FROZEN: permanent infrastructure, change only via formal control.
+    "status": "certified",
+    "certified_on": "2026-06-29",
+    "frozen": True,
+    "certification_commit": "d6c187f734be0e020d56e42e2eacc91285b5db05",
+    "certification_tag": "layer1-canonical-truth-v1",
+    "acceptance_results": {"smoke": "GREEN", "full": "GREEN", "deep": "GREEN"},
+    "production_validated": True,
     # APPROVED Layer 1 scope. The roadmap — not implementation — defines this list.
     # Origin: original inventory backlog · approved Domain Truth checkpoint ·
     # Confidence/Stability RATIFIED 2026-06-28 as the trust properties of Canonical

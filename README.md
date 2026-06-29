@@ -4,6 +4,13 @@ A personal life operating system built with calm, clarity, and intention.
 
 **Built by Beacon Innovations LLC**
 
+> **🟢 Layer 1 — Canonical Truth Foundation: CERTIFIED & FROZEN (2026-06-29).** The
+> deterministic truth foundation (value + freshness + confidence + stability, retrieved
+> deterministically, spoken in human-ready language) is certified — production
+> Smoke/Full/Deep GREEN. It is permanent infrastructure and changes only via formal
+> change control. See [`docs/LAYER1_CERTIFICATION.md`](docs/LAYER1_CERTIFICATION.md).
+> Active layer: **Layer 2**.
+
 ## Overview
 
 Whole Life Journey helps people live with clarity, intention, and steadiness across all areas of life — without pressure or guilt. Unlike single-purpose apps, it integrates journaling, health tracking, and faith (optional) in one calm, connected space.

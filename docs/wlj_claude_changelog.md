@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-29 — fix(SAFETY): Truth Consistency — follow-up can never render a future timestamp the value answer flagged
+
+Production contradiction: "What is my BG?" → "the reading's time is unconfirmed (sync/clock issue)" then "At what time?" → "recorded at 3:17 AM" — both cannot be true (Truth Consistency law). The value answer flagged the timestamp as future/unconfirmed, but the time follow-up rendered that same future timestamp as a concrete clock time. Root cause: the value answer applies temporal sanity (build-time), but the follow-up (`compose_when`/`compose_is_current`) rendered whatever timestamp was on the stored fact WITHOUT re-checking it — so a stored/stale future timestamp (or any path that left recorded_at on the fact) got rendered as "3:17 AM" while the value answer said "unconfirmed".
+
+Fix: temporal sanity AT READ TIME. `_time_or_warning` re-validates the stored timestamp against now in BOTH follow-up handlers; a future timestamp returns the shared `_FUTURE_WARNING` (identical wording) instead of a rendered time. Now a future timestamp can NEVER be rendered as a real time by a follow-up, so it can never contradict the value answer — regardless of what the stored fact contains or which path produced the first answer. Verified: an internally-inconsistent fact (future recorded_at, no warning) yields the warning from both handlers, byte-identical.
+
+Regression `test_conversation_memory::test_truth_consistency_future_timestamp_never_rendered_as_time`. GREEN (26). No migrations.
+
+**Files:** apps/ai/chatgpt_cos/conversation_memory.py, apps/ai/tests/test_conversation_memory.py.
+
+
 ## 2026-06-29 — fix(SAFETY): Defect 2 — glucose timestamp lost by a swallowed NameError in SAE build
 
 Production: "What is my glucose?" → "91 mg/dL", then "At what time?" → "I don't have a confirmed time recorded." Traced the real production path (not the unit test). ROOT CAUSE: my own temporal-sanity commit (4380e0d3) added `timezone.now()` at state_builder.py:914 inside `build_health_state`, but `timezone` is NOT imported in that function's scope. The glucose block is wrapped in `try/except Exception` (line ~1010) that SILENTLY SWALLOWED the NameError — so `state["last_glucose_entry"]` was never set (and every glucose-block line after 914 — context label, freshness, the future warning — was lost on every rebuild). The foundational fact then carried `value` but no `recorded_at`; it WAS stored in conversation memory, but compose_when had no timestamp to return.

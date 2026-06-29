@@ -52,9 +52,28 @@ def _topic_label(last):
         .replace(" reading", "").strip() or "that"
 
 
+# The ONE warning string — shared so the value answer and every time follow-up are
+# byte-identical when a timestamp is in the future (Truth Consistency).
+_FUTURE_WARNING = ("That timestamp appears to be in the future, which shouldn't be "
+                   "possible. There may be a synchronization or timezone issue, so the "
+                   "reading's time is unconfirmed.")
+
+
+def _time_or_warning(raw, user):
+    """Render a stored timestamp, OR the future-warning if it is impossible. TEMPORAL
+    SANITY AT READ TIME guarantees a follow-up can never render a future time as real —
+    so it can never contradict the value answer that flagged it unconfirmed."""
+    from django.utils import timezone
+    from apps.core.truth.temporal import is_future
+    if is_future(raw, timezone.now()):
+        return None, _FUTURE_WARNING
+    from apps.core.truth.render import render_datetime
+    return (render_datetime(user, raw) if user else str(raw)), None
+
+
 def compose_when(last, user=None):
     """'At what time?' — the timestamp from the SAME stored fact, rendered in the
-    user's timezone + 12-hour format. No LLM."""
+    user's timezone + 12-hour format, with read-time temporal sanity. No LLM."""
     if not last:
         return None
     fact = last.get("fact") or {}
@@ -63,8 +82,9 @@ def compose_when(last, user=None):
     raw = fact.get("recorded_at") or fact.get("as_of") or fact.get("for_date")
     if not raw:
         return "I don't have a confirmed time recorded for that reading."
-    from apps.core.truth.render import render_datetime
-    when = render_datetime(user, raw) if user else str(raw)
+    when, warning = _time_or_warning(raw, user)
+    if warning:
+        return warning                             # never render a future time
     return f"That was recorded on {when}." if when else \
         "I don't have a confirmed time recorded for that reading."
 
@@ -118,6 +138,11 @@ def compose_is_current(last, user=None):
     fresh = fact.get("freshness")
     if not raw:
         return "I can't confirm exactly when that was recorded."
+    # Read-time temporal sanity: a future stored time is never reported as real.
+    from django.utils import timezone
+    from apps.core.truth.temporal import is_future
+    if is_future(raw, timezone.now()):
+        return _FUTURE_WARNING
     rel = ""
     if user:
         from apps.core.truth.render import render_relative_time

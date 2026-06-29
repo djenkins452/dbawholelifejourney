@@ -77,6 +77,23 @@ class ConversationMemoryTests(TestCase):
         self.assertIn("recorded on", ans)
         self.assertIn("/2026", ans)            # MM/DD/YYYY, user-rendered
 
+    def test_truth_consistency_future_timestamp_never_rendered_as_time(self):
+        # CONSISTENCY: if the value answer flagged the time unconfirmed (future), the
+        # follow-up must AGREE — never render the future timestamp as a real time.
+        # Even an internally-inconsistent stored fact (future recorded_at, no warning)
+        # must resolve to the warning at READ time.
+        from datetime import timedelta
+        from django.utils import timezone
+        from apps.ai.chatgpt_cos.conversation_memory import compose_when, compose_is_current
+        future = (timezone.now() + timedelta(hours=3)).isoformat()
+        last = {"fact": {"value": 104, "recorded_at": future}}   # no temporal_warning
+        when = compose_when(last, self.user)
+        current = compose_is_current(last, self.user)
+        self.assertIn("future", when.lower())
+        self.assertIn("future", current.lower())
+        self.assertNotIn("recorded on", when.lower())            # never a concrete time
+        self.assertEqual(when, current)                          # both agree, identically
+
     def test_when_followup_after_future_timestamp_reports_the_warning(self):
         turn = {"answer": "Your last glucose reading was 95 mg/dL.",
                 "fact_key": "last_glucose_reading",

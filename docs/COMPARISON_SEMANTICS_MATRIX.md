@@ -46,3 +46,13 @@ prefers the highest-confidence comparison that still fulfills the request.
   average fact (new retrieval; out of scope this sprint).
 - **Finance** windows (daily/weekly/monthly depending on the question).
 - **Heart rate** (resting average vs current).
+
+
+## Comparison Target vs Comparison Semantics (orchestration)
+
+Two separate concepts, in strict order: **Conversation Goal → Comparison TARGET → Comparison SEMANTICS → Presentation.**
+
+- **Target** is the user's explicit request (yesterday / last week / my average / a reading). It is **honored, always** — never silently replaced.
+- **Semantics** is the metric's preferred comparison. It is offered **additively, after** the target answer — a recommendation, never a substitution.
+
+Glucose "Compared to yesterday." now answers **yesterday first** ("up 55 mg/dL from yesterday, 105 → 160"), then offers the average ("a more meaningful comparison is your recent average: today is 18 mg/dL above it"). A target with no data is declined honestly ("I don't have a last month figure for your glucose…"), never substituted. Audit: only `average`-strategy metrics (glucose) ever substituted; `running_total`/`latest`/`nightly` metrics already honored the target. Fixed in the engine orchestration (`referential.py :: _resolve_target` + `_compare`).

@@ -45,7 +45,10 @@ class _Ask(TestCase):
                 or _referential_lane(self.user, q, conv))
 
 
-class GlucoseComparisonTests(_Ask):
+class GlucoseTargetVsSemanticsTests(_Ask):
+    """Comparison TARGET (user's request) is honored first; Comparison SEMANTICS (the
+    average) is offered AFTER — additive, never substitutive."""
+
     LAST = {
         "fact_key": "last_glucose_reading", "topic": "glucose", "timeframe": "today",
         "goal": "compare", "fact": {"value": 160, "unit": "mg/dL"},
@@ -53,13 +56,40 @@ class GlucoseComparisonTests(_Ask):
                                    "fact": {"value": 142, "unit": "mg/dL"}}},
     }
 
-    def test_glucose_compares_against_average_and_explains(self):
+    def setUp(self):
+        super().setUp()
+        from datetime import timedelta
+        from django.utils import timezone
+        from apps.health.models import GlucoseEntry
+        GlucoseEntry.objects.create(user=self.user, value=105, unit="mg/dL",
+                                    recorded_at=timezone.now() - timedelta(days=1, hours=2))
+
+    def test_honors_yesterday_first_then_offers_average(self):
         r = self._ask(self.LAST, "Compared to yesterday.")
-        self.assertIsNotNone(r)
-        self.assertIn("recent average", r["answer"])           # not point-vs-point
-        self.assertIn("142", r["answer"])                      # the average baseline
-        self.assertIn("readings", r["answer"].lower())         # the explanation
+        a = r["answer"]
+        # 1) the user's explicit target is answered FIRST — not replaced.
+        self.assertIn("from yesterday", a)
+        self.assertIn("105", a)
+        # 2) the average is offered AFTERWARD — additive.
+        self.assertIn("recent average", a)
+        self.assertIn("142", a)
+        self.assertLess(a.index("yesterday"), a.index("recent average"))   # sequence
         self.assertEqual(r["comparison_confidence"], "high")
+
+    def test_explicit_average_target_is_not_doubled(self):
+        # User asked FOR the average → answer it; don't append a redundant recommendation.
+        a = self._ask(self.LAST, "Compared to my average.")["answer"]
+        self.assertIn("recent average", a)
+        self.assertNotIn("more meaningful", a)
+
+    def test_missing_target_is_not_silently_substituted(self):
+        # No yesterday reading → say so explicitly, then offer the average. Never pretend
+        # the average was the requested comparison.
+        from apps.health.models import GlucoseEntry
+        GlucoseEntry.objects.all().delete()
+        a = self._ask(self.LAST, "Compared to yesterday.")["answer"]
+        self.assertIn("don't have", a.lower())
+        self.assertIn("recent average", a)
 
 
 class StepsComparisonTests(_Ask):

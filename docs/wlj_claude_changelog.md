@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-29 — fix(cos): Comparison Target vs Semantics — honor the user's target FIRST, recommend additively
+
+Production: glucose "Compared to yesterday." silently compared against the recent average instead of yesterday — statistically better, but NOT what the user asked. The metric's preferred strategy was overriding the user's explicit target. Two separate concepts were collapsed.
+
+Separated them in the orchestration (Goal → TARGET → SEMANTICS → Presentation): `_resolve_target` resolves the user's explicit target and HONORS it always; the metric's `average` semantics is now offered AFTER, additively ("a more meaningful comparison is your recent average: …"). A target with no data is declined honestly ("I don't have a last month figure for your glucose…"), never substituted — including deep-timeline targets (last week/month), which no longer borrow the recent average and mislabel it. Audit: only average-strategy metrics (glucose) ever substituted; running_total/latest/nightly already honored the target.
+
+Verified: glucose "Compared to yesterday." → "That's up 55 mg/dL from yesterday (105 → 160). Individual glucose readings swing a lot through the day, so a single reading rarely reflects your overall control. A more meaningful comparison is your recent average: today is 18 mg/dL above it (142 → 160)." Sequence: answer target, THEN recommend. "Compared to my average." → just the average (no redundant recommendation). Tests: test_comparison_semantics (target-first ordering + no-substitution + missing-target honesty). GREEN (112); Layer 1 gate GREEN; no migrations.
+
+**Files:** apps/ai/chatgpt_cos/referential.py, apps/ai/tests/test_comparison_semantics.py, docs/COMPARISON_SEMANTICS_MATRIX.md.
+
+
 ## 2026-06-29 — feat(cos): Comparison Semantics — Beth chooses the RIGHT comparison, not just a comparison
 
 Beth knew how to compare; she didn't know WHAT should be compared. Glucose was comparing point-vs-point (today's latest reading vs yesterday's latest) — two noisy snapshots a customer can't decide from.

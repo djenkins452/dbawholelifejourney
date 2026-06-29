@@ -113,52 +113,88 @@ def _repoint(user, topic, tf, last):
     return r
 
 
-def _compare(user, topic, tf, last):
-    from apps.ai.chatgpt_cos.conversation_object import fact_for_topic, comparison_semantics
-    from apps.ai.chatgpt_cos.foundational_facts import answer_fact_by_key
+def _delta_sentence(cur_val, comp_val, comp_label, unit):
+    diff = cur_val - comp_val
+    if abs(diff) < 1e-9:
+        return f"About the same as {comp_label} — {_h(cur_val)} {unit}".strip() + "."
+    direction = "up" if diff > 0 else "down"
+    return (f"That's {direction} {_h(abs(diff))} {unit} from {comp_label} "
+            f"({_h(comp_val)} → {_h(cur_val)})").strip() + "."
+
+
+def _h(v):
     from apps.core.truth.present import humanize_number
+    return humanize_number(v)
+
+
+def _resolve_target(user, topic, tf, sem, last):
+    """The user's explicit Comparison TARGET → (fact, label, is_average). HONORED always,
+    independent of the metric's preferred strategy. Only when the user gives no explicit
+    target (tf is None) does the metric's semantics choose the baseline."""
+    from apps.ai.chatgpt_cos.conversation_object import fact_for_topic
+    from apps.ai.chatgpt_cos.foundational_facts import answer_fact_by_key
+    avg = ((last.get("supporting") or {}).get("average") or {}).get("fact")
+    if tf is None:                                   # no explicit target — metric chooses
+        if sem.get("strategy") == "average" and avg:
+            return avg, "your recent average", True
+        prior = ((last.get("supporting") or {}).get("prior") or {}).get("fact")
+        return prior, "yesterday", False
+    if tf == "average":
+        return avg, "your recent average", True
+    if tf in ("last_week", "last_month", "day_before_yesterday"):
+        # We don't have this period's real data (deep-timeline gap). Do NOT substitute
+        # the recent average and pretend it was the requested target — return unavailable
+        # so the caller declines honestly (and may offer the average explicitly).
+        return None, tf.replace("_", " "), False
+    comp_key = fact_for_topic(topic, tf)             # a specific day the user named
+    if comp_key:
+        r = answer_fact_by_key(user, comp_key)
+        return (r or {}).get("fact"), tf.replace("_", " "), False
+    return None, None, False
+
+
+def _compare(user, topic, tf, last):
+    from apps.ai.chatgpt_cos.conversation_object import comparison_semantics
     cur_fact = last.get("fact") or {}
     cur_val = _num(cur_fact.get("value"))
     unit = (cur_fact.get("unit") or "").strip()
-
-    # COMPARISON SEMANTICS: ask the domain how this metric should be compared. The engine
-    # never guesses — it executes the declared contract.
     sem = comparison_semantics(topic)
-    explanation = ""
-
-    comp_fact, comp_label = None, None
-    if sem.get("strategy") == "average":
-        # Point readings are noisy (e.g. glucose) → compare against the average baseline,
-        # not point-vs-point, and explain why. (No new retrieval — uses the supporting avg.)
-        sup = (last.get("supporting") or {}).get("average")
-        comp_fact = (sup or {}).get("fact")
-        comp_label = "your recent average"
-        explanation = sem.get("explanation", "")
-    elif tf in ("average", "last_week"):
-        sup = (last.get("supporting") or {}).get("average")
-        comp_fact = (sup or {}).get("fact")
-        comp_label = "your recent average" if tf == "average" else "last week's average"
-    elif tf:
-        comp_key = fact_for_topic(topic, tf)
-        if comp_key:
-            r = answer_fact_by_key(user, comp_key)
-            comp_fact = (r or {}).get("fact")
-            comp_label = tf.replace("_", " ")
-
     goal = "trend" if tf in ("average", "last_week", "last_month") else "compare"
 
-    if topic in NUMERIC_TOPICS and cur_val is not None and comp_fact:
-        comp_val = _num(comp_fact.get("value"))
+    # 1) HONOR THE USER'S TARGET FIRST — never silently replaced.
+    comp_fact, comp_label, target_is_average = _resolve_target(user, topic, tf, sem, last)
+
+    if topic in NUMERIC_TOPICS and cur_val is not None:
+        comp_val = _num((comp_fact or {}).get("value"))
+        avg_fact = ((last.get("supporting") or {}).get("average") or {}).get("fact")
+        avg_val = _num((avg_fact or {}).get("value"))
+        # The metric prefers an average and the user asked for something else → ADD a
+        # recommendation afterward. Additive, never substitutive.
+        recommend_avg = (sem.get("strategy") == "average" and not target_is_average
+                         and avg_val is not None and avg_fact is not comp_fact)
+
         if comp_val is not None:
-            diff = cur_val - comp_val
-            if abs(diff) < 1e-9:
-                ans = f"About the same as {comp_label} — {humanize_number(cur_val)} {unit}".strip() + "."
-            else:
-                direction = "up" if diff > 0 else "down"
-                ans = (f"That's {direction} {humanize_number(abs(diff))} {unit} from "
-                       f"{comp_label} ({humanize_number(comp_val)} → {humanize_number(cur_val)})").strip() + "."
-            if explanation:
-                ans += f" I compared against your recent average because {explanation}."
+            ans = _delta_sentence(cur_val, comp_val, comp_label, unit)        # the answer
+            if recommend_avg:
+                rd = cur_val - avg_val
+                side = "above" if rd > 0 else ("below" if rd < 0 else "in line with")
+                ans += (f" {sem.get('explanation', '').strip().capitalize()}. A more "
+                        f"meaningful comparison is your recent average: today is "
+                        f"{_h(abs(rd))} {unit} {side} it ({_h(avg_val)} → {_h(cur_val)}).")
+            r = _result(ans, last)
+            r["goal"] = goal
+            r["comparison_confidence"] = sem.get("confidence", "medium")
+            r["comparison_target"] = comp_label
+            return r
+
+        # Target requested but unavailable. Don't silently substitute — say so, then offer
+        # the average if the metric prefers it.
+        if tf and tf not in ("average",) and recommend_avg:
+            rd = cur_val - avg_val
+            side = "above" if rd > 0 else ("below" if rd < 0 else "in line with")
+            ans = (f"I don't have a {comp_label} figure for your {topic} to compare "
+                   f"directly. As a more meaningful comparison, today is {_h(abs(rd))} "
+                   f"{unit} {side} your recent average ({_h(avg_val)} → {_h(cur_val)}).")
             r = _result(ans, last)
             r["goal"] = goal
             r["comparison_confidence"] = sem.get("confidence", "medium")

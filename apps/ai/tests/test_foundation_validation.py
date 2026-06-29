@@ -86,27 +86,28 @@ class FastPathTests(TestCase):
         cls.user.preferences.use_chatgpt_cos = True
         cls.user.preferences.save()
 
-    def test_fast_path_uses_plain_call_api_never_tool_loop(self):
-        for prompt, key, _ in PROMPTS:
+    def test_fast_path_never_uses_tool_loop(self):
+        # The fast path NEVER uses the agentic tool loop. It is EITHER the plain
+        # _call_api phrasing OR — for timestamped/clinical facts (Truth Consistency) —
+        # the deterministic sentence (LLM bypassed so the value answer can't diverge
+        # from a follow-up that reads the same struct).
+        for prompt, key, needle in PROMPTS:
             with self.subTest(prompt=prompt), \
                  mock.patch(_GMS, side_effect=_fake_module_state), \
-                 mock.patch(_CALL_API, return_value="Phrased answer.") as ca, \
+                 mock.patch(_CALL_API, return_value="Phrased answer."), \
                  mock.patch(_CALL_API_TOOLS,
                             side_effect=AssertionError("tool loop used")) as cwt:
                 out = answer_foundational_fact(self.user, prompt)
 
             self.assertIsNotNone(out, prompt)
             self.assertEqual(out["fact_key"], key)
-            self.assertEqual(out["tools_called"], ["get_foundational_health_facts"])
             self.assertEqual(out["tools_advertised"], [])
-            self.assertEqual(out["answer"], "Phrased answer.")
             self.assertEqual(out["fast_path"], "foundational_fact")
-            self.assertTrue(ca.called)
-            self.assertFalse(cwt.called)
-            # The phrasing call carries NO tools / tool_choice.
-            _, kwargs = ca.call_args
-            self.assertNotIn("tools", kwargs)
-            self.assertNotIn("tool_choice", kwargs)
+            self.assertFalse(cwt.called)                     # NEVER the tool loop
+            self.assertTrue(out["answer"])                   # never empty
+            # Either LLM-phrased ("Phrased answer.") or the deterministic fact sentence.
+            self.assertTrue(out["answer"] == "Phrased answer." or needle in out["answer"],
+                            f"{prompt}: {out['answer']!r}")
 
     def test_deterministic_fallback_when_call_api_returns_none(self):
         for prompt, key, needle in PROMPTS:
@@ -141,7 +142,9 @@ class FastPathTests(TestCase):
             result = ChatGPTCoSService(self.user).generate(
                 conv, "What is my current weight?")
         self.assertEqual(result.get("fast_path"), "foundational_fact")
-        self.assertEqual(result["answer"], "Your weight is 298.3 lb.")
+        # weight carries a timestamp → deterministic answer (LLM bypassed); the value
+        # is still present and correct.
+        self.assertIn("298.3", result["answer"])
         self.assertIsNone(result.get("empty_reason"))
 
 

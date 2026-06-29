@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-29 — fix(SAFETY): Truth Consistency — the architectural split (LLM prose vs deterministic struct)
+
+PROVEN root cause (production trace, not hypothesis). Production chat for Danny runs ChatGPTCoSRuntime → ChatGPTCoSService.generate → route_message (cos_gateway/gateway.py:35; runtime.py:101; service.py:151), so the chatgpt_cos lanes ARE the live path. The split: the VALUE answer ("91 mg/dL, but the reading's time is unconfirmed") was the LLM REPHRASE of the fact (_PHRASE_SYSTEM, foundational_facts.py:469) — the LLM asserted "unconfirmed" though the structured fact had a VALID timestamp (no temporal_warning); the FOLLOW-UP ("recorded on 06/29/2026 at 3:17 AM") was compose_when reading that same valid struct. One answer was non-deterministic prose, the other deterministic struct — so they diverged.
+
+Fix (architectural, not wording): any fact carrying a timestamp (recorded_at/as_of/for_date/temporal_warning) or a clinical interpretation is answered DETERMINISTICALLY — the LLM rephrase is bypassed (`answer_foundational_fact` + new `_temporal_or_clinical`). The value answer is now format_fact_sentence over the struct, and every follow-up (compose_when/compose_is_current) reads the same struct, so they CANNOT contradict. Proven with a ROGUE LLM mock returning "...time is unconfirmed": it is bypassed; value answer = "Your last glucose reading was 91 mg/dL (In Range)." and the follow-up renders the real time — both agree. For a future timestamp, both say unconfirmed.
+
+Combined with the prior read-time temporal guard in the follow-up handlers, the invariant holds by construction: the second answer can never return information the first declared unavailable.
+
+Tests: `test_truth_consistency_glucose` (rogue-LLM bypass; valid + future agreement; the invariant). Updated `test_foundation_validation` (timestamped/clinical facts are deterministic, never the tool loop). GREEN (52). No migrations.
+
+**Files:** apps/ai/chatgpt_cos/foundational_facts.py, apps/ai/tests/test_truth_consistency_glucose.py, apps/ai/tests/test_foundation_validation.py.
+
+
 ## 2026-06-29 — fix(SAFETY): Truth Consistency — follow-up can never render a future timestamp the value answer flagged
 
 Production contradiction: "What is my BG?" → "the reading's time is unconfirmed (sync/clock issue)" then "At what time?" → "recorded at 3:17 AM" — both cannot be true (Truth Consistency law). The value answer flagged the timestamp as future/unconfirmed, but the time follow-up rendered that same future timestamp as a concrete clock time. Root cause: the value answer applies temporal sanity (build-time), but the follow-up (`compose_when`/`compose_is_current`) rendered whatever timestamp was on the stored fact WITHOUT re-checking it — so a stored/stale future timestamp (or any path that left recorded_at on the fact) got rendered as "3:17 AM" while the value answer said "unconfirmed".

@@ -444,6 +444,16 @@ def format_fact_sentence(key, fact):
     return f"{key}: {value} {unit}".strip()
 
 
+def _temporal_or_clinical(fact):
+    """A fact whose answer MUST be deterministic (LLM rephrase bypassed) because a
+    follow-up will read the same struct: anything with a timestamp or a clinical
+    interpretation. Keeps the value answer and its follow-ups from ever diverging."""
+    if not isinstance(fact, dict):
+        return False
+    return bool(fact.get("recorded_at") or fact.get("as_of") or fact.get("for_date")
+                or fact.get("temporal_warning") or fact.get("interpretation"))
+
+
 def answer_foundational_fact(user, message):
     """Deterministic foundational-fact fast path.
 
@@ -463,26 +473,35 @@ def answer_foundational_fact(user, message):
     # The guaranteed, deterministic answer built from the payload.
     deterministic = format_fact_sentence(key, fact)
 
-    # Phrase the retrieved truth with the PLAIN _call_api (no tools, no loop).
-    phrased = None
-    try:
-        phrased = ai_service._call_api(
-            _PHRASE_SYSTEM,
-            f"Fact to state ({key}): {json.dumps(fact, default=str)}",
-            max_tokens=120,
-            temperature=0.3,
-            endpoint="cos_chat",
-            user=user,
-        )
-    except Exception:
-        logger.warning("COS_FOUNDATION_PHRASING_FAILED user=%s key=%s",
-                       getattr(user, "id", None), key, exc_info=True)
+    # TRUTH CONSISTENCY: a fact that carries a TIMESTAMP or a CLINICAL interpretation is
+    # answered DETERMINISTICALLY — the LLM rephrase is bypassed. Otherwise the LLM can
+    # assert temporal/clinical claims NOT in the struct (it once said "time is
+    # unconfirmed" over a valid timestamp), while the follow-up (compose_when) reads the
+    # struct — producing contradictory answers from the same fact. Bypassing guarantees
+    # the value answer and every follow-up originate from the SAME deterministic object.
+    deterministic_only = _temporal_or_clinical(fact)
+    if deterministic_only:
+        answer = deterministic
+    else:
+        # Phrase the retrieved truth with the PLAIN _call_api (no tools, no loop).
         phrased = None
-
-    answer = (phrased or "").strip() or deterministic
+        try:
+            phrased = ai_service._call_api(
+                _PHRASE_SYSTEM,
+                f"Fact to state ({key}): {json.dumps(fact, default=str)}",
+                max_tokens=120,
+                temperature=0.3,
+                endpoint="cos_chat",
+                user=user,
+            )
+        except Exception:
+            logger.warning("COS_FOUNDATION_PHRASING_FAILED user=%s key=%s",
+                           getattr(user, "id", None), key, exc_info=True)
+            phrased = None
+        answer = (phrased or "").strip() or deterministic
     logger.info(
-        "COS_FOUNDATION_FASTPATH user=%s key=%s phrased=%s answer_len=%d",
-        getattr(user, "id", None), key, bool((phrased or "").strip()), len(answer),
+        "COS_FOUNDATION_FASTPATH user=%s key=%s deterministic_only=%s answer_len=%d",
+        getattr(user, "id", None), key, deterministic_only, len(answer),
     )
     return {
         "answer": answer,

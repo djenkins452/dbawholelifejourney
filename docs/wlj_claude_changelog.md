@@ -7,6 +7,20 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-29 — feat(cos): Trust Sprint #1 — topic-aware meta, conversational patterns, presentation consistency
+
+Organized by customer TRUST failure, not code. Five production trust failures clustered into three capabilities (docs/TRUST_FAILURE_INVENTORY.md): TF1/TF4/TF5 are the same capability (resolve a natural utterance against the active Conversation Object).
+
+- TF4 Topic-Aware Meta: "Is that an average? / a single reading?" now answered from the active fact's nature — and the recent average offered alongside a single reading (already on the object, no retrieval). Never a clarifying question. New compose_is_average + _AVERAGE_FACT_KEYS.
+- TF5 Conversational Patterns: "what changed? / what caused that?" → the deterministic comparison (compose_what_changed); "anything else? / go deeper" → the remaining supporting facts (compose_more). Reusable across every topic.
+- TF3 Presentation Consistency: format_fact_sentence default branch no longer leaks a raw snake_case key (humanizes the label); added a clean render for average_glucose_yesterday. compose_more surfaced an internal key ("average_glucose_yesterday: 142") — fixed at the root.
+- TF1 Deep Timeline: "day before yesterday", "last month" are now RECOGNIZED so a reference stays ON-TOPIC (honest answer) instead of drifting to another subject. Real N-day/N-month retrieval is the named next sprint.
+
+Wired into the why_explainer lane (meta/pattern cues) and the referential vocabulary (timeline cues). Verified on a glucose object (160 mg/dL, avg 142): "is that an average?" → "No — that's a single reading (160 mg/dL). Your recent average is 142 mg/dL."; "what changed?" → "up 18 mg/dL from your recent average"; "anything else?" → the average (no key leak); "day before yesterday?" → stays on glucose. Tests: test_trust_capabilities (meta + patterns + deep-timeline-on-topic + presentation guard). GREEN (96); Layer 1 gate GREEN; no migrations.
+
+**Files:** docs/TRUST_FAILURE_INVENTORY.md (new), apps/ai/tests/test_trust_capabilities.py (new), apps/ai/chatgpt_cos/conversation_memory.py, apps/ai/chatgpt_cos/lanes.py, apps/ai/chatgpt_cos/referential.py, apps/ai/chatgpt_cos/foundational_facts.py.
+
+
 ## 2026-06-29 — feat(cos): Referential Conversation Resolution — Beth resolves bare references
 
 Production: "What did I eat today?" answered; "What about yesterday?" FAILED; "Compared to today." drifted to sleep coaching. Root cause: the conversation object stored the current fact but not the conversational FRAME — there was no timeframe-independent topic to re-point.

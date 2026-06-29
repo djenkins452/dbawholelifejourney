@@ -362,6 +362,8 @@ def format_fact_sentence(key, fact):
         if fact.get("trend"):
             s += f", and your sleep trend is {fact['trend']}"
         return s + "."
+    if key == "average_glucose_yesterday":
+        return f"Your recent average glucose is {value} {unit or 'mg/dL'}.".replace("  ", " ")
     if key == "journal_today":
         return ("Yes — you've journaled today." if value
                 else "Not yet — you haven't journaled today.")
@@ -445,7 +447,10 @@ def format_fact_sentence(key, fact):
         if title:
             return f"Your next goal deadline is in {value} day(s) — \"{title}\"."
         return f"Your next goal deadline is in {value} day(s)."
-    return f"{key}: {value} {unit}".strip()
+    # TF3 PRESENTATION CONSISTENCY: the default must NEVER leak a raw snake_case key to
+    # the user. Humanize the label so the worst case is still plain language.
+    label = key.replace("_", " ").strip().capitalize()
+    return f"{label}: {value} {unit}".strip()
 
 
 # Facts answered DETERMINISTICALLY (LLM rephrase bypassed): numeric-value-gated facts

@@ -837,6 +837,14 @@ _CONCERN_CUES = _CONCERN_POSITIVE + _CONCERN_NEGATIVE
 _SUPPORTING_MEAL_CUES = ("what did i eat", "what were they", "what were those",
                          "which meals", "what did that include", "what made that up",
                          "what made up the", "what was that from", "what's that from")
+# Topic-aware meta (TF4) + conversational patterns (TF5) — resolve against the active object.
+_IS_AVERAGE_CUES = ("is that an average", "is that the average", "is that a single",
+                    "single reading", "is that just one", "is that one reading",
+                    "is that averaged", "average or a single")
+_WHAT_CHANGED_CUES = ("what changed", "what caused that", "what caused it",
+                      "why the change", "what made it change", "why did it change")
+_MORE_CUES = ("anything else", "go deeper", "tell me more", "what else", "more detail",
+              "any more", "is there more")
 # "compared to yesterday / my average?" → comparison from supporting facts.
 _COMPARISON_PRIOR_CUES = ("compared to yesterday", "vs yesterday", "versus yesterday",
                           "than yesterday", "more or less than yesterday")
@@ -859,10 +867,17 @@ def _why_explainer_lane(user, message, conversation=None):
     from apps.ai.chatgpt_cos.conversation_memory import (
         get_last_answer, compose_why, compose_when, compose_concern,
         compose_meaning, compose_is_current, compose_supporting, compose_comparison,
+        compose_is_average, compose_what_changed, compose_more,
     )
     # Pick the handler by cue (specific → general).
     handler, kw = None, {}
-    if any(c in norm for c in _COMPARISON_PRIOR_CUES):
+    if any(c in norm for c in _IS_AVERAGE_CUES):
+        handler = compose_is_average
+    elif any(c in norm for c in _WHAT_CHANGED_CUES):
+        handler = compose_what_changed
+    elif any(c in norm for c in _MORE_CUES):
+        handler = compose_more
+    elif any(c in norm for c in _COMPARISON_PRIOR_CUES):
         handler, kw = compose_comparison, {"kind": "prior"}
     elif any(c in norm for c in _COMPARISON_AVG_CUES):
         handler, kw = compose_comparison, {"kind": "average"}

@@ -23,7 +23,13 @@ _TF_CUES = {
                   "for yesterday", "what about last night"),
     "today": ("what about today", "how about today", "and today", "for today",
               "and now"),
+    # Deeper timeline — recognized so a reference stays ON-TOPIC (answers honestly)
+    # instead of drifting to another subject. Real N-day/N-month retrieval is the next
+    # Trust Sprint (see docs/TRUST_FAILURE_INVENTORY.md).
+    "day_before_yesterday": ("day before yesterday", "the day before yesterday",
+                             "two days ago", "2 days ago", "what about the day before"),
     "last_week": ("what about last week", "how about last week", "for last week"),
+    "last_month": ("what about last month", "how about last month", "for last month"),
 }
 _COMPARE_MARKERS = ("compared to", "compare to", "how does that compare",
                     "how does it compare", "how do they compare", " versus ", " vs ")
@@ -43,7 +49,7 @@ def _num(v):
 def _classify_reference(norm):
     """('timeframe', tf) | ('compare', tf|None) | None."""
     if any(m in norm for m in _COMPARE_MARKERS):
-        for tf in ("yesterday", "today", "last_week"):
+        for tf in ("day_before_yesterday", "last_month", "last_week", "yesterday", "today"):
             if tf.replace("_", " ") in norm:
                 return ("compare", tf)
         if any(a in norm for a in _AVG_MARKERS):

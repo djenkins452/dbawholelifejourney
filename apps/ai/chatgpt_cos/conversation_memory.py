@@ -124,6 +124,66 @@ def compose_comparison(last, user=None, kind="prior"):
             f"({_fmt_num(comp_n)} → {_fmt_num(cur_n)})").strip() + "."
 
 
+# Facts whose VALUE is an aggregate/average, not a single point-in-time reading.
+_AVERAGE_FACT_KEYS = {"average_sleep_7d", "average_glucose_yesterday", "steps_recent"}
+
+
+def compose_is_average(last, user=None):
+    """TF4 — 'Is that an average? / a single reading?' answered from the active fact's
+    nature, never a clarifying question. Offers the recent average alongside a single
+    reading (already on the object — no new retrieval), anticipating the next question."""
+    fk = (last or {}).get("fact_key")
+    if not fk:
+        return None
+    from apps.core.truth.present import humanize_number
+    fact = last.get("fact") or {}
+    val = fact.get("value")
+    unit = (fact.get("unit") or "").strip()
+    if fk in _AVERAGE_FACT_KEYS:
+        shown = f" ({humanize_number(val)} {unit})".rstrip() if val is not None else ""
+        return f"Yes — that{shown} is an average, not a single reading."
+    # A single/point reading — offer the average too if it's already on hand.
+    avg = ((last.get("supporting") or {}).get("average") or {}).get("fact") or {}
+    base = "No — that's a single reading"
+    if val is not None:
+        base += f" ({humanize_number(val)} {unit})".rstrip()
+    if avg.get("value") is not None:
+        return base + f". Your recent average is {humanize_number(avg['value'])} {unit}".rstrip() + "."
+    return base + ", not an average."
+
+
+def compose_what_changed(last, user=None):
+    """TF5 — 'what changed? / what caused that?' → the deterministic comparison already
+    available on the object (vs yesterday, else vs the recent average)."""
+    for kind in ("prior", "average"):
+        ans = compose_comparison(last, user, kind=kind)
+        if ans:
+            return ans
+    return None
+
+
+def compose_more(last, user=None):
+    """TF5 — 'anything else? / go deeper' → the remaining supporting facts on the active
+    object, each rendered through the presentation layer. No new retrieval, no LLM."""
+    sup = (last or {}).get("supporting") or {}
+    if not sup:
+        return None
+    from apps.ai.chatgpt_cos.foundational_facts import format_fact_sentence
+    parts = []
+    for label, entry in sup.items():
+        if label == "prior":                 # comparison-only, not a standalone detail
+            continue
+        fact = (entry or {}).get("fact")
+        key = (entry or {}).get("key")
+        if fact and key:
+            txt = (format_fact_sentence(key, fact) or "").strip()
+            if txt:
+                parts.append(txt)
+    if not parts:
+        return None
+    return "\n".join(parts)
+
+
 def compose_when(last, user=None):
     """'At what time?' — the timestamp from the SAME stored fact, rendered in the
     user's timezone + 12-hour format, with read-time temporal sanity. No LLM."""

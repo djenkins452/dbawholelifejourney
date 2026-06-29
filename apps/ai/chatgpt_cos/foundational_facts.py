@@ -327,6 +327,9 @@ def format_fact_sentence(key, fact):
         # Clinical safety: a flagged value is surfaced with its advice, never reassured.
         if interp.get("concern") and interp.get("advice"):
             s += " " + interp["advice"]
+        # Temporal sanity: never present an impossible time; surface the warning.
+        if fact.get("temporal_warning"):
+            s += " " + fact["temporal_warning"]
         return s
     if key == "current_medications":
         meds = value if isinstance(value, list) else [value]

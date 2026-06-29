@@ -185,6 +185,12 @@ def get_foundational_health_facts(user, keys=None):
             gi = interpret(val, fact.get("unit", "mg/dL"))
             if gi:
                 fact["interpretation"] = gi
+            # SAE already removed an impossible (future) glucose time and left a
+            # warning — carry it so the foundational answer surfaces it too.
+            sae_tw = st.get("last_glucose_entry_warning")
+            if sae_tw:
+                fact["temporal_warning"] = sae_tw
+                fact.pop("recorded_at", None)
         # TEMPORAL SANITY: a timestamp in the future is a device-sync/clock artifact.
         # Flag it and drop the impossible time so narration never reports it as real.
         ra = fact.get("recorded_at")

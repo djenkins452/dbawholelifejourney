@@ -906,13 +906,19 @@ def build_health_state(user):
             g_unit = latest_glucose[1]
             state["latest_glucose"] = g_val
             state["latest_glucose_unit"] = g_unit
-            state["last_glucose_entry"] = latest_glucose[2].isoformat()
-            # TEMPORAL SANITY: a future timestamp is a device-sync/clock artifact — flag
-            # it so no consumer (Beth's tool-loop included) reports it as a real time.
+            # TEMPORAL SANITY: a timestamp later than now is impossible (device sync /
+            # timezone artifact). REMOVE the impossible time entirely — no consumer
+            # (the tool-loop / LLM context included) can narrate what isn't there — and
+            # surface a clear warning instead.
             from apps.core.truth.temporal import validate_timestamp
             if validate_timestamp(latest_glucose[2], timezone.now())["verdict"] == "future":
+                state["last_glucose_entry"] = None
                 state["last_glucose_entry_warning"] = (
-                    "glucose timestamp is in the future — likely a sync/clock issue")
+                    "That timestamp appears to be in the future, which shouldn't be "
+                    "possible. There may be a synchronization or timezone issue, so the "
+                    "reading's time is unconfirmed.")
+            else:
+                state["last_glucose_entry"] = latest_glucose[2].isoformat()
             # Phase 17: glucose context label for template
             if g_unit == 'mg/dL':
                 if g_val <= 70:

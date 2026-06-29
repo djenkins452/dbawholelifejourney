@@ -7,6 +7,13 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — fix(SAFETY): Impossible Time Detection BLOCKER — remove future glucose timestamp at the source
+
+Beth still reported a future glucose timestamp. Root cause: the prior fix flagged it but LEFT the raw future value in SAE state, so the tool-loop/LLM-context path (which reads SAE state directly, not the foundational fact) still narrated it. Fix at the source: `build_health_state` now REMOVES an impossible (later-than-now) glucose timestamp entirely (`last_glucose_entry = None`) and sets `last_glucose_entry_warning` with the exact message — so no consumer can narrate a time that isn't there. The foundational glucose fact carries the warning (`health_facts`) and the answer surfaces it: "Your last glucose reading was 95 mg/dL (In Range). That timestamp appears to be in the future, which shouldn't be possible. There may be a synchronization or timezone issue…". Tests: `test_temporal_sanity` (SAE-warning surfaced + impossible time removed). No migrations.
+
+**Files:** apps/core/ai_state/state_builder.py, apps/ai/cos_services/health_facts.py, apps/ai/chatgpt_cos/foundational_facts.py, apps/core/tests/test_temporal_sanity.py.
+
+
 ## 2026-06-28 — feat(cos): Chief-of-Staff hardening — deterministic conversation memory + full domain rollout + whole-conversation regression
 
 CLASS 1 (highest) — Deterministic Conversation Memory. "Why do you say that?" no longer needs an LLM to reconstruct the thread. New `apps/ai/chatgpt_cos/conversation_memory.py`: after every turn, `route_message` records a STRUCTURED memory on `AssistantConversation.metadata["last_answer"]` = {answer, lane, fact_key, fact, basis} (`answer_foundational_fact` now surfaces its supporting `fact` + `basis`). A new front-of-registry `_why_explainer_lane` answers follow-ups DETERMINISTICALLY from that record (fast_path="conversation_memory", no LLM), citing the actual value + clinical interpretation. The conversation itself is now truth.

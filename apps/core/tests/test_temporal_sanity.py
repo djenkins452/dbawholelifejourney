@@ -53,3 +53,18 @@ class GlucoseFactTemporalGuardTests(SimpleTestCase):
         self.assertIn("temporal_warning", fact)            # flagged
         self.assertNotIn("recorded_at", fact)              # impossible time dropped
         self.assertEqual(fact["value"], 95)                # the value still stands
+
+    def test_sae_future_warning_is_surfaced_in_the_answer(self):
+        # SAE removed the impossible time and left a warning — Beth must SAY it.
+        from apps.ai.chatgpt_cos.foundational_facts import format_fact_sentence
+        state = {"latest_glucose": 95, "latest_glucose_unit": "mg/dL",
+                 "last_glucose_entry": None,
+                 "last_glucose_entry_warning": "That timestamp appears to be in the "
+                 "future, which shouldn't be possible. There may be a synchronization "
+                 "or timezone issue, so the reading's time is unconfirmed."}
+        with mock.patch(_GMS, return_value=state):
+            fact = get_foundational_health_facts(None, ["last_glucose_reading"])["last_glucose_reading"]
+        self.assertNotIn("recorded_at", fact)
+        answer = format_fact_sentence("last_glucose_reading", fact).lower()
+        self.assertIn("future", answer)
+        self.assertIn("shouldn't be possible", answer)

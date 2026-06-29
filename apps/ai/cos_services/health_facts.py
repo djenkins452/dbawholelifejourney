@@ -185,6 +185,17 @@ def get_foundational_health_facts(user, keys=None):
             gi = interpret(val, fact.get("unit", "mg/dL"))
             if gi:
                 fact["interpretation"] = gi
+        # TEMPORAL SANITY: a timestamp in the future is a device-sync/clock artifact.
+        # Flag it and drop the impossible time so narration never reports it as real.
+        ra = fact.get("recorded_at")
+        if ra:
+            from django.utils import timezone as _tznow
+            from apps.core.truth.temporal import validate_timestamp
+            if validate_timestamp(ra, _tznow.now())["verdict"] == "future":
+                fact["temporal_warning"] = (
+                    "the timestamp on this reading is in the future — likely a sync "
+                    "or clock issue, so the time is unconfirmed")
+                fact.pop("recorded_at", None)
         out[key] = fact
 
     return _jsonsafe(out)

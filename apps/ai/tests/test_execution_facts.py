@@ -122,6 +122,27 @@ class ExecutionFactRetrievalTests(TestCase):
         self.assertNotIn("entry", s.lower())       # no storage jargon
         self.assertNotIn("food entry", s.lower())
 
+    def test_meals_yesterday_retrieves_real_meals(self):
+        # Defect Class 3 — "What did I eat yesterday?" must retrieve real meals.
+        from datetime import timedelta
+        from apps.health.models import FoodEntry
+        self.assertEqual(classify_foundational_fact("What did I eat yesterday?"),
+                         "meals_yesterday")
+        yest = self.today - timedelta(days=1)
+        FoodEntry.objects.create(user=self.user, food_name="Eggs", meal_type="breakfast",
+                                 logged_date=yest, serving_size=1, quantity=1)
+        f = get_foundational_execution_facts(self.user, ["meals_yesterday"])["meals_yesterday"]
+        s = format_fact_sentence("meals_yesterday", f)
+        self.assertIn("Yesterday you had", s)
+        self.assertIn("breakfast — Eggs", s)
+        self.assertNotIn("entry", s.lower())
+        # empty case
+        f2 = get_foundational_execution_facts(
+            User.objects.create_user(email="noeat@test.com", password="x"),
+            ["meals_yesterday"])["meals_yesterday"]
+        self.assertEqual(format_fact_sentence("meals_yesterday", f2),
+                         "You didn't log any food yesterday.")
+
     def test_meds_today_adherence_from_sae(self):
         # Defect Class 5 — deterministic medication rollout ("did I take my meds today").
         self.assertEqual(classify_foundational_fact("Did I take my meds today?"), "meds_today")

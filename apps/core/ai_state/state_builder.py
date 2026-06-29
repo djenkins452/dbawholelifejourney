@@ -907,6 +907,12 @@ def build_health_state(user):
             state["latest_glucose"] = g_val
             state["latest_glucose_unit"] = g_unit
             state["last_glucose_entry"] = latest_glucose[2].isoformat()
+            # TEMPORAL SANITY: a future timestamp is a device-sync/clock artifact — flag
+            # it so no consumer (Beth's tool-loop included) reports it as a real time.
+            from apps.core.truth.temporal import validate_timestamp
+            if validate_timestamp(latest_glucose[2], timezone.now())["verdict"] == "future":
+                state["last_glucose_entry_warning"] = (
+                    "glucose timestamp is in the future — likely a sync/clock issue")
             # Phase 17: glucose context label for template
             if g_unit == 'mg/dL':
                 if g_val <= 70:

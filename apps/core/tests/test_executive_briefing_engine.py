@@ -63,9 +63,11 @@ class ExecutiveBriefingEngineTests(TestCase):
         attention_metrics = {i.metric for i in b.attention()}
         self.assertIn("sleep_last_night", attention_metrics)   # stale sleep surfaced
 
-    def test_narration_opens_with_the_danger(self):
+    def test_narration_reads_like_an_executive_briefing(self):
         text = narrate_briefing(build_executive_briefing(self.user))
-        self.assertTrue(text.startswith("⚠"))
+        self.assertTrue(text.startswith("Top priority"))   # leads with what matters most
+        self.assertIn("⚠", text)
         self.assertIn("43", text)
+        self.assertIn("On track:", text)                   # executive structure
         for word in ("good range", "healthy", "in range"):
             self.assertNotIn(word, text.lower())

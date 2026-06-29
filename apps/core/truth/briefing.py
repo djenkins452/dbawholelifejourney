@@ -146,21 +146,26 @@ def _classify(domain, metric, ct):
 
 
 def narrate_briefing(briefing):
-    """Deterministic narration of the ranked briefing — the order Beth should follow:
-    acute first (with advice), then what to watch, then a brief all-clear. Used as the
-    fallback and as the standing-context summary Beth narrates over."""
+    """Deterministic narration shaped like a MORNING EXECUTIVE BRIEFING, not a health
+    report: lead with the single most important thing, then what's worth a look, then
+    a one-line all-clear, then what we can't see. Beth narrates over this order."""
     if not briefing.items:
         return "I don't have enough recent data to brief you yet."
     parts = []
-    for i in briefing.acute():
-        parts.append(f"⚠ {i.label().title()} is {i.value} {i.unit} — {i.note}".strip())
-    for i in briefing.attention():
-        parts.append(f"{i.label().title()}: {i.value} {i.unit} ({i.note}).".strip())
+    acute = briefing.acute()
+    if acute:
+        for i in acute:
+            parts.append(
+                f"Top priority — ⚠ {i.label().title()} is {i.value} {i.unit}: "
+                f"{i.note}".strip())
+    watch = briefing.attention()
+    if watch:
+        bits = [f"{i.label()} ({i.note})" if i.note else i.label() for i in watch]
+        parts.append("Worth a look: " + ", ".join(bits) + ".")
     well = briefing.normal()
     if well:
-        names = ", ".join(i.label() for i in well)
-        parts.append(f"Holding steady: {names}.")
+        parts.append("On track: " + ", ".join(i.label() for i in well) + ".")
     stale = briefing.stale()
     if stale:
-        parts.append("No recent data for: " + ", ".join(i.label() for i in stale) + ".")
+        parts.append("No fresh data on: " + ", ".join(i.label() for i in stale) + ".")
     return " ".join(p for p in parts if p)

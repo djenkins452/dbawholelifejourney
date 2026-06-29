@@ -73,6 +73,14 @@ def _reasoning_lane(user, message, conversation=None):
     # (_looks_general is False for anything with a pronoun or WLJ-domain word).
     if _looks_general(message):
         return None
+    # CONTINUITY (Defect 2): a meta/follow-up about Beth's PRIOR answer ("why do you
+    # say that?", "what do you mean?") must NOT enter the history-blind planner LLM —
+    # which would re-answer from health truth and drop the conversational thread.
+    # Decline so it falls through to the history-aware tool loop (loads conversation
+    # history). `_looks_general` is False for these, so without this guard the planner
+    # would steal them.
+    if any(c in (message or "").lower() for c in _FOLLOWUP_CUES):
+        return None
     # Law 0/4 (defect class): a deterministic STATUS/COUNT question ("did I work out
     # today?", "any appointments today?") belongs to a deterministic provider, not
     # the planner. DECLINE so it never becomes generic sleep coaching — it falls

@@ -138,7 +138,10 @@ _PHRASE_SYSTEM = (
     "('good', 'fine', 'normal', 'in range', 'healthy') about any health value. If the "
     "fact includes an 'interpretation' object, state ONLY its 'display' wording and, "
     "when its 'concern' is true, surface the 'advice' and suggest verifying — never "
-    "downplay or reassure away a flagged value."
+    "downplay or reassure away a flagged value. "
+            "TEMPORAL SANITY: if the fact includes a 'temporal_warning', say the "
+            "reading's time is unconfirmed (a sync/clock issue) and NEVER report a "
+            "future or impossible timestamp as if it were the current time."
 )
 
 
@@ -257,11 +260,13 @@ def _classify_execution_fact(text):
     if ("journal" in text or "journaled" in text) and not today_q \
             and ("when" in text or "last" in text):
         return "last_journal"
-    # "what did I eat today" — retrieve the actual meals (past-framing, not coaching).
-    if (any(p in text for p in ("did i eat", "have i eaten", "what did i eat",
-                                "what have i eaten", "what i ate", "what i've eaten",
-                                "food did i", "meals did i", "meals have i"))
-            and today_q and not is_yesterday):
+    # "what did I eat today/yesterday" — retrieve the actual meals (past-framing).
+    _ate = any(p in text for p in ("did i eat", "have i eaten", "what did i eat",
+                                   "what have i eaten", "what i ate", "what i've eaten",
+                                   "food did i", "meals did i", "meals have i"))
+    if _ate and is_yesterday:
+        return "meals_yesterday"
+    if _ate and today_q:
         return "meals_today"
     # journal / appointments status: today-scope only (the question space asks today).
     if is_yesterday:
@@ -369,12 +374,16 @@ def format_fact_sentence(key, fact):
         return f"{head}: {listed}." if listed else f"{head}."
     if key == "next_appointment":
         return f"Your next appointment is {value}."
-    if key == "meals_today":
+    if key in ("meals_today", "meals_yesterday"):
+        when = "yesterday" if key == "meals_yesterday" else "today"
         meals = fact.get("meals") or {}
         if not value or not meals:
+            if key == "meals_yesterday":
+                return "You didn't log any food yesterday."
             return "You haven't logged any food today yet."
         parts = [f"{meal} — {', '.join(items)}" for meal, items in meals.items()]
-        return "Today you've had " + "; ".join(parts) + "."
+        lead = "Yesterday you had " if when == "yesterday" else "Today you've had "
+        return lead + "; ".join(parts) + "."
     if key == "meds_today":
         expected = fact.get("expected", 0)
         if not expected:

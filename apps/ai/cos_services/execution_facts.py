@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 EXECUTION_FACT_KEYS = {"journal_today", "workout_today", "workout_yesterday",
                        "appointments_today", "next_appointment", "meals_today",
-                       "meds_today", "last_journal"}
+                       "meals_yesterday", "meds_today", "last_journal"}
 
 
 def get_foundational_execution_facts(user, keys):
@@ -81,13 +81,15 @@ def _resolve(user, key):
         return {"value": last, "days_since": st.get("days_since_entry"),
                 "source": "SAE.journal", "freshness": CURRENT}
 
-    if key == "meals_today":
+    if key in ("meals_today", "meals_yesterday"):
         # Retrieve the ACTUAL meals (by type), never leak storage concepts like
         # "food entry". NutritionQueries is the canonical per-meal source.
         from collections import OrderedDict
+        from datetime import timedelta
         from apps.health.services.nutrition_queries import NutritionQueries
+        day = today if key == "meals_today" else today - timedelta(days=1)
         by_meal = OrderedDict((m, []) for m in ("breakfast", "lunch", "dinner", "snack"))
-        for e in NutritionQueries.entries_on_date(user, today):
+        for e in NutritionQueries.entries_on_date(user, day):
             name = (e.food_name or "").strip()
             if name:
                 by_meal.setdefault(e.meal_type or "snack", []).append(name)

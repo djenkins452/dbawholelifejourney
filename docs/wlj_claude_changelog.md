@@ -7,6 +7,25 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-28 — fix(cos): real-conversation sprint — temporal sanity, continuity (real path), meals-yesterday, briefing voice
+
+Five defect classes from a real Beth conversation, each fixed at the capability (production-path traced, not the response).
+
+CLASS 1 BLOCKER — Temporal Sanity. Beth reported glucose at "21:02 on June 28" when it was ~20:05 (a future timestamp), then crashed to "I couldn't pull that together". Evidence: NO timestamp validation anywhere; a future `recorded_at` flowed unvalidated (state_builder.py:909 → health_facts.py) into the LLM. New `apps/core/truth/temporal.py` (`validate_timestamp`/`is_future`, 5-min skew tolerance). Applied at the fact choke point (`health_facts` flags `temporal_warning` + DROPS the impossible time) and the SAE glucose timestamp (`last_glucose_entry_warning`); `_PHRASE_SYSTEM` gains a temporal clause (never report a future/impossible time as current). Reusable for any timestamped fact.
+
+CLASS 2 — Continuity (RE-OCCURRENCE). The prior `_FOLLOWUP_CUES` fix only made the GENERAL lane decline; the REASONING lane runs first and, because `_looks_general` is False for follow-ups, did NOT skip — it sent "why do you say that?" into the history-blind planner LLM, intermittently stealing it from the history-aware tool loop. Fix: `_reasoning_lane` now early-declines `_FOLLOWUP_CUES` so follow-ups fall through to the tool loop (which loads conversation_history). History was already persisted (tasks.py:160) — the bug was lane theft.
+
+CLASS 3 — Real meals for YESTERDAY. "What did I eat yesterday?" wasn't covered (meals fix was today-only). Added `meals_yesterday` (NutritionQueries.entries_on_date by meal_type); classifier routes today vs yesterday; "Yesterday you had breakfast — …".
+
+CLASS 4 — Briefing voice. `narrate_briefing` reshaped to read like a morning executive briefing (Top priority → Worth a look → On track → No fresh data), not a health report.
+
+CLASS 5 — Meds/Journal rollout (confirmed complete): `meds_today`, `last_journal` from the prior sprint verified wired; meals now today+yesterday.
+
+Permanent guards: `test_temporal_sanity`, `test_followup_continuity`, `test_execution_facts` (meals_yesterday), `test_executive_briefing_engine` (exec voice); scenarios `cos_temporal_sanity_future`, `cos_meals_yesterday`, `cos_followup_continuity`. Demonstrated end-to-end: glucose→"95 mg/dL (In Range)"+temporal flag (no crash); "why do you say that?"→declines to history path; "what did I eat yesterday?"→real meals. Regression GREEN (81).
+
+**Files:** apps/core/truth/temporal.py (new), apps/core/tests/test_temporal_sanity.py (new), apps/ai/cos_services/health_facts.py, apps/core/ai_state/state_builder.py, apps/ai/chatgpt_cos/foundational_facts.py, apps/ai/chatgpt_cos/lanes.py, apps/ai/cos_services/execution_facts.py, apps/core/truth/briefing.py, apps/ai/tests/test_execution_facts.py, apps/core/tests/test_executive_briefing_engine.py, apps/ai/chatgpt_cos/cos_acceptance.py.
+
+
 ## 2026-06-28 — feat(core): Executive Briefing Engine (transition capability — what matters before Beth speaks)
 
 The deterministic morning-briefing capability: synthesizes the whole current state across domains and ranks what matters BEFORE Beth responds, so Beth consumes judgment instead of inventing it. Closes the root cause of incomplete holistic synthesis (Beth knew 5 metrics, spoke about sleep).

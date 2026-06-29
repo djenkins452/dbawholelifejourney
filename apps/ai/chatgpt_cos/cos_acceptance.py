@@ -99,6 +99,26 @@ COS_SCENARIOS = [
              "failure — it could lead a user to ignore a life-threatening low. Beth "
              "must surface danger and recommend verification, never reassure."),
 
+    _scn("cos_temporal_sanity_future", "Future timestamp is never reported as real",
+         "What's my latest glucose reading?",
+         setup="Latest glucose recorded_at is ~1h in the FUTURE (device clock skew).",
+         expects={"trust": ["future", "sync", "clock", "unconfirmed", "verify"]},
+         forbids={"trust": ["at 9:02 pm", "21:02", "recorded at 21:02"]},
+         law="Temporal Sanity", capability="temporal-validation",
+         classification=CLASS_TRUTH,
+         why="Reporting an impossible future time as if it were current — or crashing "
+             "to a fallback over it — destroys confidence in every timestamp."),
+
+    _scn("cos_meals_yesterday", "Yesterday's meals, not a storage concept",
+         "What did I eat yesterday?",
+         setup="Logged breakfast, lunch, dinner yesterday.",
+         expects={"trust": ["breakfast", "lunch", "dinner", "yesterday"]},
+         forbids={"trust": ["meal entry", "latest meal", "food entry", "sae",
+                            "last logged"]},
+         law="Deterministic Retrieval", capability="meal-retrieval",
+         classification=CLASS_TRUTH,
+         why="A Chief of Staff recalls what you ate, not the name of a database row."),
+
     _scn("cos_followup_continuity", "Follow-up keeps conversational context",
          "Why do you say that?",
          history=[{"role": "user", "content": "How did I sleep?"},

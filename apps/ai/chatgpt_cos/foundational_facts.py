@@ -474,7 +474,13 @@ def answer_foundational_fact(user, message):
     key = classify_foundational_fact(message)
     if key is None:
         return None
+    return answer_fact_by_key(user, key)
 
+
+def answer_fact_by_key(user, key):
+    """Answer a KNOWN foundational-fact key deterministically (same result shape as
+    answer_foundational_fact). Used by the referential resolver to re-point the active
+    topic to a new timeframe ("what about yesterday?") without re-classifying a message."""
     from apps.ai.services import ai_service
 
     # Deterministic Provider Registry routes the key to the owning domain provider

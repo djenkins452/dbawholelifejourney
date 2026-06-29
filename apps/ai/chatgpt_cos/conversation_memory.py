@@ -29,11 +29,17 @@ def record_last_answer(conversation, lane, result):
         return
     try:
         md = dict(getattr(conversation, "metadata", None) or {})
+        # Conversational frame: topic (timeframe-independent) + timeframe, so a bare
+        # reference ("what about yesterday?") re-points the topic without restating it.
+        from apps.ai.chatgpt_cos.conversation_object import topic_of
+        frame = topic_of(result.get("fact_key")) or (None, None)
         md[_KEY] = {
             "answer": answer,
             "lane": lane,
             "intent": result.get("fact_key"),     # the question's resolved intent
             "fact_key": result.get("fact_key"),
+            "topic": frame[0],                    # e.g. "meals" — survives timeframe changes
+            "timeframe": frame[1],                # e.g. "today"
             "fact": result.get("fact") or {},
             "basis": (result.get("basis") or "").strip(),
             # Supporting facts for natural follow-ups (read from here, no new retrieval).

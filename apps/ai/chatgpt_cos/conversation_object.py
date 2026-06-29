@@ -62,6 +62,42 @@ CONVERSATION_OBJECTS = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Conversational frame: a TOPIC is the timeframe-independent subject of a fact.
+# (topic, timeframe) <-> fact_key lets a bare reference ("what about yesterday?")
+# re-point the SAME topic to a new timeframe — no restated subject, no topic drift.
+# ---------------------------------------------------------------------------
+TOPICS = {
+    "meals_today": ("meals", "today"),
+    "meals_yesterday": ("meals", "yesterday"),
+    "calories_today": ("calories", "today"),
+    "calories_yesterday": ("calories", "yesterday"),
+    "protein_today": ("protein", "today"),
+    "steps_today": ("steps", "today"),
+    "steps_yesterday": ("steps", "yesterday"),
+    "last_glucose_reading": ("glucose", "today"),
+    "glucose_yesterday": ("glucose", "yesterday"),
+    "current_weight": ("weight", "today"),
+    "weight_yesterday": ("weight", "yesterday"),
+    "sleep_last_night": ("sleep", "today"),
+    "journal_today": ("journal", "today"),
+    "workout_today": ("workout", "today"),
+    "workout_yesterday": ("workout", "yesterday"),
+    "appointments_today": ("calendar", "today"),
+}
+_FACT_BY_TOPIC = {(topic, tf): k for k, (topic, tf) in TOPICS.items()}
+
+
+def topic_of(fact_key):
+    """(topic, timeframe) for a fact_key, or None."""
+    return TOPICS.get(fact_key)
+
+
+def fact_for_topic(topic, timeframe):
+    """The fact_key for a (topic, timeframe), or None if that timeframe isn't tracked."""
+    return _FACT_BY_TOPIC.get((topic, timeframe))
+
+
 def spec(fact_key):
     return CONVERSATION_OBJECTS.get(fact_key, {})
 

@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-29 — feat(cos): Referential Conversation Resolution — Beth resolves bare references
+
+Production: "What did I eat today?" answered; "What about yesterday?" FAILED; "Compared to today." drifted to sleep coaching. Root cause: the conversation object stored the current fact but not the conversational FRAME — there was no timeframe-independent topic to re-point.
+
+The conversation object now stores a FRAME: `topic` (timeframe-independent, e.g. "meals") + `timeframe` (e.g. "today"), via a TOPICS registry in conversation_object.py mapping fact_key ↔ (topic, timeframe). New `apps/ai/chatgpt_cos/referential.py` resolves a bare reference against the active frame: a timeframe reference ("what about yesterday?", "and today?", "how about last week?") re-points the SAME topic to a new timeframe and answers it deterministically (answer_fact_by_key — new, extracted from answer_foundational_fact); a comparison reference ("compared to today", "how does that compare", "compared to my average") composes a numeric delta for numeric topics or re-points + presents for non-numeric ones. Wired as the `referential` lane right after why_explainer and before the reasoning/generic lanes, so a reference never drifts to coaching. Guard: a complete fact question ("how many steps today?") is a NEW subject (classify_foundational_fact resolves it) and is never hijacked by a stale frame.
+
+Generalized across every topic in the registry (meals, weight, sleep, steps, glucose, calories, workouts, calendar, journal) — not nutrition-special.
+
+Verified (production replay): meals today → "what about yesterday?" → yesterday's meals → "compared to today." → today's meals (on-topic, no drift). steps today → "what about yesterday?" → 8123 → "compared to today." → "up 3,923 steps". A following "How many steps today?" answers steps, not the stale meals topic. Tests: test_referential_resolution (classifier + acceptance scenarios + no-hijack). GREEN (90); Layer 1 gate GREEN; no migrations. Change-control: extends the certified Human-Ready Conversation Layer with evidence + regression.
+
+**Files:** apps/ai/chatgpt_cos/referential.py (new), apps/ai/tests/test_referential_resolution.py (new), apps/ai/chatgpt_cos/conversation_object.py, apps/ai/chatgpt_cos/conversation_memory.py, apps/ai/chatgpt_cos/lanes.py, apps/ai/chatgpt_cos/foundational_facts.py.
+
+
 ## 2026-06-29 — feat(cos): Human Presentation Standard — one reusable presentation layer
 
 Same deterministic truth, dramatically more readable. New `apps/core/truth/present.py` (complements render.py): `humanize_number` (rounds + thousands separators — 31.2→31, 180.0→180, 1850→1,850), `collapse_items`/`bullet_list` (duplicate collapse — "Pizza, Pizza"→"Pizza (2 servings)"), `present_groups` (grouped, bulleted, scannable lists), `present_remaining` (consumed · remaining · goal — answers the next question before it's asked). Domain-agnostic; not special-cased per domain.

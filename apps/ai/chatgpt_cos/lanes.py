@@ -894,8 +894,25 @@ def _why_explainer_lane(user, message, conversation=None):
             "fast_path": "conversation_memory"}
 
 
+def _referential_lane(user, message, conversation=None):
+    """REFERENTIAL follow-ups: a bare reference ('what about yesterday?', 'compared to
+    today', 'how about last week?') resolves against the active topic — same subject,
+    new timeframe or comparison — without the user restating it. Runs after the
+    why_explainer (which handles same-fact follow-ups) and before the reasoning/generic
+    lanes, so a reference never drifts into unrelated coaching."""
+    if conversation is None:
+        return None
+    from apps.ai.chatgpt_cos.conversation_memory import get_last_answer
+    from apps.ai.chatgpt_cos.referential import resolve_referential
+    last = get_last_answer(conversation)
+    if not last:
+        return None
+    return resolve_referential(user, message, last)
+
+
 LANE_REGISTRY = (
     ("why_explainer", _why_explainer_lane),
+    ("referential", _referential_lane),
     ("clarification_reply", _clarification_reply_lane),
     ("conversation_planner", _conversation_planner_lane),
     ("foundational_facts", _foundational_lane),

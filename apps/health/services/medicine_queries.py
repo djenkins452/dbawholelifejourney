@@ -88,18 +88,20 @@ class MedicineQueries:
         qs = cls._active_qs(user, classification).prefetch_related("schedules")
         return cls._execution_for_qs(user, qs, get_user_today(user), get_user_now(user).time())
 
-    # -- complete canonical business object ------------------------------------
+    # -- ENTITY COMPLETENESS CONTRACT ------------------------------------------
     @classmethod
-    def profile(cls, user):
-        """The COMPLETE canonical Medication business object — ONE retrieval answers any
-        natural medication question. Each prescription carries its full attributes +
-        today's execution; the summary carries overall today + 7/30/90-day adherence.
-        Prescription only (Medicine = prescription); read live from the canonical models."""
+    def describe(cls, user):
+        """Each active PRESCRIPTION as a CompleteEntity that describes itself across the
+        contract dimensions (identity / definition / status / plan / standing /
+        performance). Read live from the canonical models. Medicine = prescription only."""
+        from datetime import timedelta
+        from apps.core.truth.entity import CompleteEntity
         from apps.core.utils import get_user_now, get_user_today
         from apps.health.medicine_classification import classify_intake
+        from apps.health.medicine_utils import calculate_single_medicine_adherence
         today = get_user_today(user)
         now_time = get_user_now(user).time()
-        meds = []
+        entities = []
         for m in cls._active_qs(user, PRESCRIPTION).prefetch_related("schedules"):
             if classify_intake(m) != PRESCRIPTION:        # final authority (name safety net)
                 continue
@@ -107,26 +109,34 @@ class MedicineQueries:
                            for s in m.schedules.all()
                            if getattr(s, "is_active", True) and s.scheduled_time)
             one = Intake.objects.filter(pk=m.pk)
-            meds.append({
-                "name": m.name,
-                "dose": m.dose,
-                "category": classify_intake(m),
-                "status": m.intake_status,
-                "schedule_times": times,
-                "purpose": m.purpose or "",
-                "is_prn": bool(getattr(m, "is_prn", False)),
-                "today": cls._execution_for_qs(user, one, today, now_time),
-            })
-        meds.sort(key=lambda d: d["name"].lower())
+
+            def _adh(days):
+                return calculate_single_medicine_adherence(
+                    user, m, today - timedelta(days=days), today).get("adherence_rate")
+
+            entities.append(CompleteEntity(
+                kind="medication",
+                identity=m.name,
+                definition={"dose": m.dose, "category": classify_intake(m),
+                            "purpose": m.purpose or "", "is_prn": bool(getattr(m, "is_prn", False))},
+                status=m.intake_status,
+                plan={"schedule": times},
+                standing={"today": cls._execution_for_qs(user, one, today, now_time)},
+                performance={"adherence": {"7d": _adh(7), "30d": _adh(30), "90d": _adh(90)}},
+            ))
+        entities.sort(key=lambda e: e.identity.lower())
+        return entities
+
+    @classmethod
+    def summary(cls, user):
+        """Domain-level rollup across all prescriptions (composed inside Layer 1 so a
+        higher layer still makes ONE call): count + overall today + overall adherence."""
         return {
-            "medications": meds,
-            "count": len(meds),
-            "today": cls.today_execution(user),                       # overall
-            "adherence": {                                            # overall, prescription
-                "7d": cls.adherence_rate(user, 7),
-                "30d": cls.adherence_rate(user, 30),
-                "90d": cls.adherence_rate(user, 90),
-            },
+            "count": len(cls.active_names(user)),
+            "today": cls.today_execution(user),
+            "adherence": {"7d": cls.adherence_rate(user, 7),
+                          "30d": cls.adherence_rate(user, 30),
+                          "90d": cls.adherence_rate(user, 90)},
         }
 
     # -- history / adherence --------------------------------------------------

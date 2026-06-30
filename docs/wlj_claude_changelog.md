@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-30 — refactor(layer1): Entity Completeness Contract — business truth first (describe()/CompleteEntity replaces profile())
+
+Architectural refinement. profile(entity) was a software verb returning a per-domain dict — it worked but the business concept ("a canonical entity completely describes itself") was invisible and each domain invented its own shape. Defined the contract from business truth FIRST, then chose the implementation it implies.
+
+The Layer 1 Entity Completeness Contract (docs/LAYER1_ENTITY_COMPLETENESS_CONTRACT.md): every canonical entity describes itself across six business dimensions — Identity, Definition, Status, Plan, Standing (now vs plan), Performance (over time) — carried with Freshness + Confidence. Universal across Medication/Goal/Task/Calendar/Relationship/Journal/Habit/Workout (only the content per dimension is domain-specific).
+
+Implementation: new apps/core/truth/entity.py::CompleteEntity — one Layer 1 dataclass whose FIELDS are the contract dimensions, so the contract is visible in the type (you cannot return a half-described entity). DomainTruth.describe(entity_type) → list[CompleteEntity] replaces profile(); supports()["entities"] introspects. MedicineDomainTruth.describe("medication") is the reference implementation: each prescription is a CompleteEntity (definition=dose/category/purpose, plan=schedule, standing=today's execution, performance=per-med 7/30/90-day adherence). The medication_profile metric composes entities + the domain summary INSIDE Layer 1, so the higher layer still makes one call.
+
+Why describe()/CompleteEntity over profile(): the business contract is now visible in the type, the shape is identical across every domain (one shape to learn), it is self-policing (a missing dimension is visibly empty), and freshness/confidence travel on every entity. Every future canonical domain implements describe() in this shape.
+
+Verified: the detailed medication question is answered by ONE retrieval whose response naturally contains name/dose/category/status/schedule/taken-today/7-day-adherence (SAE disabled, LLM bypassed). Regression updated to the CompleteEntity contract (every dimension asserted present). GREEN (66); no migrations.
+
+**Files:** docs/LAYER1_ENTITY_COMPLETENESS_CONTRACT.md (new), apps/core/truth/entity.py (new), apps/core/truth/domain.py, apps/health/services/medicine_queries.py, apps/health/services/medicine_domain_truth.py, apps/ai/chatgpt_cos/foundational_facts.py, apps/health/tests/test_medicine_domain_truth.py.
+
+
 ## 2026-06-30 — feat(layer1): complete Medication business object — one retrieval, every attribute
 
 Layer 1 completeness contract: a detailed medication question ("list my prescriptions; for each show dose, category, status, schedule, taken today, my 7-day adherence") forced Beth to assemble fragmented Layer 1 facts. The canonical Medication entity exposed inventory only — not status, per-medication today-execution, or adherence. Higher layers should retrieve ONE complete business object, never fragments.

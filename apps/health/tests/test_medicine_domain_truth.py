@@ -196,35 +196,47 @@ class MedicineDomainTruthTests(TestCase):
         self.assertIn("Metformin", ans)
         self.assertNotIn("Fish Oil", ans)                 # supplement excluded, deterministically
 
-    def test_profile_is_a_complete_business_object(self):
-        # Layer 1 exposes a COMPLETE Medication object — one call, every attribute.
+    def test_describe_returns_complete_entities(self):
+        # Entity Completeness Contract: each prescription is a CompleteEntity describing
+        # itself across ALL business dimensions.
+        from apps.core.truth.entity import CompleteEntity
         rx1, rx2 = self._seed()
         for i in range(8):
             for rx in (rx1, rx2):
                 IntakeLog.objects.create(user=self.user, intake=rx,
                                          scheduled_date=self.today - timedelta(days=i),
                                          log_status="taken")
-        prof = MedicineQueries.profile(self.user)
-        self.assertEqual(prof["count"], 2)
-        names = sorted(m["name"] for m in prof["medications"])
+        entities = MedicineQueries.describe(self.user)
+        self.assertEqual(len(entities), 2)
+        self.assertTrue(all(isinstance(e, CompleteEntity) for e in entities))
+        e = entities[0]
+        self.assertEqual(e.kind, "medication")
+        self.assertTrue(e.identity)                         # Identity
+        self.assertIn("dose", e.definition)                 # Definition
+        self.assertIn("category", e.definition)
+        self.assertTrue(e.status)                           # Status
+        self.assertIn("schedule", e.plan)                   # Plan
+        self.assertIn("today", e.standing)                  # Standing
+        self.assertIn("expected", e.standing["today"])
+        self.assertIn("adherence", e.performance)           # Performance (per-med)
+        self.assertEqual(e.performance["adherence"]["7d"], 100)
+        self.assertTrue(e.freshness and e.confidence)       # Layer 1 trust properties
+        names = sorted(x.identity for x in entities)
         self.assertEqual(names, ["Lisinopril", "Metformin"])
-        m = prof["medications"][0]
-        for attr in ("name", "dose", "category", "status", "schedule_times", "purpose", "today"):
-            self.assertIn(attr, m)                          # every required attribute present
-        self.assertIn("expected", m["today"])               # per-med today execution
-        self.assertEqual(set(prof["adherence"]), {"7d", "30d", "90d"})   # overall adherence
-        self.assertEqual(prof["adherence"]["7d"], 100)
-        # supplements/OTC never in the prescription profile
-        self.assertNotIn("Vitamin D", names)
-        self.assertNotIn("Ibuprofen", names)
+        self.assertNotIn("Vitamin D", names)                # supplements never described as meds
+        # Domain summary (composed inside Layer 1)
+        summ = MedicineQueries.summary(self.user)
+        self.assertEqual(summ["count"], 2)
+        self.assertEqual(set(summ["adherence"]), {"7d", "30d", "90d"})
 
-    def test_profile_pattern_is_on_the_domain_truth(self):
-        # The reusable Layer 1 pattern: get_domain_truth(...).profile()
+    def test_describe_pattern_is_on_the_domain_truth(self):
+        # The reusable Layer 1 pattern: get_domain_truth(...).describe() → CompleteEntity.
+        from apps.core.truth.entity import CompleteEntity
         self._seed()
-        prof = get_domain_truth(self.user, "medicine").profile()
-        self.assertIn("medications", prof)
-        self.assertIn("adherence", prof)
-        self.assertIn("medications", get_domain_truth(self.user, "medicine").supports()["profile"])
+        entities = get_domain_truth(self.user, "medicine").describe()
+        self.assertTrue(entities and all(isinstance(e, CompleteEntity) for e in entities))
+        self.assertIn("medication",
+                      get_domain_truth(self.user, "medicine").supports()["entities"])
 
     def test_single_retrieval_answers_the_full_question(self):
         # ACCEPTANCE: the detailed request is one retrieval of the canonical object —

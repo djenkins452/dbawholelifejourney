@@ -27,7 +27,7 @@ class MedicineDomainTruth(DomainTruth):
                        "medication_execution_today", "medication_profile",
                        "adherence_7d", "adherence_30d", "adherence_90d")
     history_metrics = ("adherence",)
-    profile_entities = ("medications",)
+    entity_types = ("medication",)
 
     # -- current --------------------------------------------------------------
     def current(self, metric):
@@ -42,18 +42,23 @@ class MedicineDomainTruth(DomainTruth):
         raise KeyError(f"medicine current unsupported: {metric!r} "
                        f"(have {self.current_metrics})")
 
-    # -- complete business object (reusable Layer 1 pattern) ------------------
-    def profile(self, entity="medications"):
-        """The COMPLETE canonical Medication object (raw dict) — one retrieval, every
-        attribute. Higher layers consume this; they never assemble fragmented truth."""
-        return MedicineQueries.profile(self.user)
+    # -- Entity Completeness Contract (reusable Layer 1 pattern) --------------
+    def describe(self, entity_type="medication"):
+        """Each prescription as a CompleteEntity (self-describing across the contract
+        dimensions). Higher layers consume complete entities; they never assemble
+        fragmented truth."""
+        return MedicineQueries.describe(self.user)
 
     def _profile_truth(self):
-        prof = MedicineQueries.profile(self.user)
+        # Compose the complete entities + the domain summary INSIDE Layer 1 — the higher
+        # layer makes ONE call and receives one complete object.
+        entities = MedicineQueries.describe(self.user)
+        summary = MedicineQueries.summary(self.user)
         return CurrentTruth.found(
-            _DOMAIN, "medication_profile", prof["count"], CURRENT, source=_SRC,
-            detail={"medications": prof["medications"], "count": prof["count"],
-                    "today": prof["today"], "adherence": prof["adherence"]},
+            _DOMAIN, "medication_profile", summary["count"], CURRENT, source=_SRC,
+            detail={"medications": [e.to_dict() for e in entities],
+                    "count": summary["count"], "today": summary["today"],
+                    "adherence": summary["adherence"]},
         )
 
     def _inventory(self):

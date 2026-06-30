@@ -371,7 +371,7 @@ def format_fact_sentence(key, fact):
         days = {"adherence_7d": 7, "adherence_30d": 30, "adherence_90d": 90}[key]
         return f"Your {days}-day medication adherence is {value}%."
     if key == "medication_profile":
-        meds = fact.get("medications") or []
+        meds = fact.get("medications") or []          # list of CompleteEntity dicts
         if not meds:
             return "You don't have any active prescription medications on file right now."
 
@@ -379,13 +379,14 @@ def format_fact_sentence(key, fact):
             return f"{v}%" if v is not None else "not enough history yet"
         lines = [f"You have {len(meds)} active prescription medication(s):", ""]
         for m in meds:
-            sched = ", ".join(m.get("schedule_times") or []) or "no set schedule"
-            td = m.get("today") or {}
+            d = m.get("definition") or {}
+            sched = ", ".join((m.get("plan") or {}).get("schedule") or []) or "no set schedule"
+            td = (m.get("standing") or {}).get("today") or {}
             took = (f"{td.get('taken', 0)} of {td.get('expected', 0)} taken today"
                     if td.get("expected") else "none scheduled today")
-            detail = ", ".join(x for x in (m.get("dose"), m.get("category"),
+            detail = ", ".join(x for x in (d.get("dose"), d.get("category"),
                                            m.get("status")) if x)
-            lines.append(f"• {m['name']} — {detail}; schedule: {sched}; {took}")
+            lines.append(f"• {m.get('identity')} — {detail}; schedule: {sched}; {took}")
         adh = fact.get("adherence") or {}
         today = fact.get("today") or {}
         lines.append("")

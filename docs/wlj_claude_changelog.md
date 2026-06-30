@@ -7,6 +7,20 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-30 — feat(layer1): Medication domain maturity — complete retrieval surface (single-entity, symmetric entities, combined, remaining)
+
+Maturity certification, not a bug fix. "Became Danny" and ran a large natural-question set against the implementation BEFORE declaring completion. The break attempt exposed that the entities were complete but the RETRIEVAL surface around them was not — the same root cause behind every prior report. Four missing Layer 1 capabilities, now closed:
+
+1. Single-entity retrieval by name — "What's my Metformin dose?", "Am I taking fish oil?", "How is my Metformin adherence?", "When do I take Lisinopril?" answered from the ONE complete entity (MedicineQueries.describe_one + a data-aware single-entity path in answer_foundational_fact). Previously all returned None or the overall.
+2. Symmetric entities — every entity type (not just prescription) supports inventory / execution / adherence / profile. "What's my supplement adherence?", "Did I take my supplements today?", "Review my supplements" now answer correctly instead of returning the supplement LIST. The domain truth is fully parametrized by classification.
+3. Combined cross-entity view — "What am I taking?" / "List everything I take" → current_intake_all across all four categories.
+4. Execution-status slices — "What do I still need to take today?" / "What's left?" → medications_remaining_today (the dose-level pending surface).
+
+The classifier was restructured into one deterministic _classify_medicine routing the whole surface (four entities × inventory/execution/adherence/profile + combined + remaining); profile precedes adherence so a detailed request that mentions "adherence" stays a profile. All answers deterministic (LLM bypassed), proven SAE-disabled. Regression: test_medicine_domain_truth maturity-acceptance question set + the four-entity + dose-level tests. GREEN (148); no migrations; adherence math unchanged.
+
+**Files:** apps/health/services/medicine_queries.py, apps/health/services/medicine_domain_truth.py, apps/ai/cos_services/health_facts.py, apps/ai/chatgpt_cos/foundational_facts.py, apps/health/tests/test_medicine_domain_truth.py.
+
+
 ## 2026-06-30 — feat(layer1): Medication domain — four canonical entities + dose-level execution truth
 
 Five Layer 1 acceptance failures resolved so Medication can become the reference implementation.

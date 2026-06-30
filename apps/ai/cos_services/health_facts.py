@@ -111,10 +111,14 @@ def _day_fact(user, key):
 
 
 # Medication facts answered by the canonical Medicine Domain Truth (read live, never SAE).
-_MEDICINE_DOMAIN_KEYS = {"current_medications", "current_supplements", "current_otc",
-                         "current_wellness", "medication_execution_today",
-                         "medication_profile",
-                         "adherence_7d", "adherence_30d", "adherence_90d"}
+_MEDICINE_DOMAIN_KEYS = {
+    "current_medications", "current_supplements", "current_otc", "current_wellness",
+    "current_intake_all", "medications_remaining_today",
+    "medication_execution_today", "supplement_execution_today",
+    "medication_profile", "supplement_profile",
+    "adherence_7d", "adherence_30d", "adherence_90d",
+    "supplement_adherence_7d", "supplement_adherence_30d", "supplement_adherence_90d",
+}
 
 
 def _medicine_fact(user, key):

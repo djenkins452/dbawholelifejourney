@@ -358,6 +358,55 @@ class MedicineDomainTruthTests(TestCase):
         self.assertIn("4 of 5", ans)                 # NOT "4 of 4"
         self.assertIn("pending", ans.lower())
 
+    def test_maturity_acceptance_natural_question_set(self):
+        # "Become Danny" — the natural-question set that a real user asks. All must answer
+        # from canonical Layer 1 truth with the SAE DISABLED. Single-entity, symmetric
+        # supplement execution/adherence, combined view, remaining-today.
+        from datetime import time
+        from apps.ai.chatgpt_cos.foundational_facts import answer_foundational_fact
+        rx = self._med("Metformin", "prescription")          # 00:01 schedule, prescription
+        self._med("Lisinopril", "prescription")
+        fish = self._med("Fish Oil", "other", intake_type="supplement")   # name → supplement
+        self._med("Ibuprofen", "otc", schedule=False)
+        for i in range(8):
+            IntakeLog.objects.create(user=self.user, intake=rx, scheduled_date=self.today - timedelta(days=i), log_status="taken")
+            IntakeLog.objects.create(user=self.user, intake=fish, scheduled_date=self.today - timedelta(days=i), log_status="taken")
+
+        def ans(q):
+            with _sae_disabled():
+                r = answer_foundational_fact(self.user, q)
+            return (r or {}).get("answer", "")
+
+        # 1) Single-entity retrieval by name
+        a = ans("What's my Metformin dose?")
+        self.assertIn("Metformin", a)
+        self.assertIn("10mg", a)
+        self.assertIn("Fish Oil", ans("Am I taking fish oil?"))    # supplement, by name
+        a = ans("How is my Metformin adherence?")
+        self.assertIn("Metformin", a)
+        self.assertIn("100%", a)                                   # the ONE entity, not overall
+
+        # 2) Supplement is symmetric (execution + adherence + profile), not just a list
+        self.assertIn("supplement adherence", ans("What's my supplement adherence?").lower())
+        self.assertIn("100%", ans("What's my supplement adherence?"))
+        self.assertIn("supplement", ans("Did I take my supplements today?").lower())
+
+        # 3) Combined "everything I take" across all four categories
+        a = ans("What am I taking?")
+        self.assertIn("Metformin", a)
+        self.assertIn("Fish Oil", a)
+        self.assertIn("Ibuprofen", a)
+
+        # 4) Remaining today (the dose-level pending surface)
+        a = ans("What do I still need to take today?")
+        self.assertTrue("nothing left" in a.lower() or "to take today" in a.lower())
+
+        # 5) The four entities still retrieve separately and correctly
+        self.assertIn("Fish Oil", ans("What supplements am I currently taking?"))
+        self.assertNotIn("Metformin", ans("What supplements am I currently taking?"))
+        self.assertIn("Ibuprofen", ans("What OTC medications am I taking?"))
+        self.assertNotIn("Metformin", ans("What OTC medications am I taking?"))
+
     def test_inventory_is_present_not_unknown_when_empty(self):
         # No prescriptions → a real "0", never the SAE-missing "unknown" failure.
         self._med("Vitamin D", "vitamin", intake_type="supplement")

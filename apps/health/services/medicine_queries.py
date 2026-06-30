@@ -178,6 +178,49 @@ class MedicineQueries:
         entities.sort(key=lambda e: e.identity.lower())
         return entities
 
+    # -- single-entity retrieval (by identity) --------------------------------
+    @classmethod
+    def describe_one(cls, user, name):
+        """Retrieve ONE entity by name across ALL categories (prescription/supplement/
+        OTC/wellness) as a CompleteEntity, or None. Longest-name match wins, so "fish oil"
+        beats a stray "oil". The entity describes itself completely (the contract)."""
+        from apps.health.medicine_classification import classify_intake
+        name_l = (name or "").lower()
+        candidates = []
+        for m in Intake.objects.filter(user=user, intake_status=Intake.STATUS_ACTIVE):
+            if m.name and m.name.lower() in name_l:
+                candidates.append(m)
+        if not candidates:
+            return None
+        target = max(candidates, key=lambda m: len(m.name))      # most specific match
+        for e in cls.describe(user, classify_intake(target)):
+            if e.identity == target.name:
+                return e
+        return None
+
+    # -- execution-status slices ----------------------------------------------
+    @classmethod
+    def remaining_today(cls, user, classification=PRESCRIPTION):
+        """Doses still to take today (pending or overdue)."""
+        return [d for d in cls.today_doses(user, classification)
+                if d["status"] in ("pending", "overdue")]
+
+    @classmethod
+    def missed_today(cls, user, classification=PRESCRIPTION):
+        return [d for d in cls.today_doses(user, classification) if d["status"] == "missed"]
+
+    # -- cross-entity combined view -------------------------------------------
+    @classmethod
+    def everything(cls, user):
+        """Everything the user is taking, grouped by the four canonical categories."""
+        from apps.health.medicine_classification import SUPPLEMENT, OTC, WELLNESS
+        return {
+            "prescription": cls.active_names(user, PRESCRIPTION),
+            "supplement": cls.active_names(user, SUPPLEMENT),
+            "otc": cls.active_names(user, OTC),
+            "wellness": cls.active_names(user, WELLNESS),
+        }
+
     @classmethod
     def summary(cls, user, classification=PRESCRIPTION):
         """Domain-level rollup (composed inside Layer 1 so a higher layer still makes ONE

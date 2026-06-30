@@ -16,92 +16,103 @@ from apps.health.services.medicine_queries import MedicineQueries
 _DOMAIN = "medicine"
 _SRC = "MedicineQueries"
 
-# Adherence metric → window (days). "Medication Adherence" = prescription only.
-_ADHERENCE_DAYS = {"adherence_7d": 7, "adherence_30d": 30, "adherence_90d": 90}
-# The FOUR canonical Medication-domain entities. "Medicine" = prescription; the others are
-# their own first-class business entities and NEVER route to prescription.
+# The FOUR canonical Medication-domain entities — SYMMETRIC: every one supports the same
+# retrieval surface (inventory · execution · adherence · profile · single-entity). "Medicine"
+# = prescription; the others are their own first-class entities and never route to prescription.
 from apps.health.medicine_classification import PRESCRIPTION, SUPPLEMENT, OTC, WELLNESS
 _ENTITY_CLASS = {"medication": PRESCRIPTION, "supplement": SUPPLEMENT,
                  "otc": OTC, "wellness": WELLNESS}
-# inventory-list metric → (classification, human noun)
-_INVENTORY = {
-    "current_medications": (PRESCRIPTION, "prescription medication"),
-    "active_medications": (PRESCRIPTION, "prescription medication"),
-    "current_supplements": (SUPPLEMENT, "supplement"),
-    "current_otc": (OTC, "over-the-counter medication"),
-    "current_wellness": (WELLNESS, "wellness product"),
+_NOUN = {PRESCRIPTION: "prescription medication", SUPPLEMENT: "supplement",
+         OTC: "over-the-counter medication", WELLNESS: "wellness product"}
+_INVENTORY = {"current_medications": PRESCRIPTION, "active_medications": PRESCRIPTION,
+              "current_supplements": SUPPLEMENT, "current_otc": OTC,
+              "current_wellness": WELLNESS}
+_EXECUTION = {"medication_execution_today": PRESCRIPTION,
+              "supplement_execution_today": SUPPLEMENT}
+_PROFILE = {"medication_profile": PRESCRIPTION, "supplement_profile": SUPPLEMENT}
+_ADHERENCE = {
+    "adherence_7d": (PRESCRIPTION, 7), "adherence_30d": (PRESCRIPTION, 30),
+    "adherence_90d": (PRESCRIPTION, 90),
+    "supplement_adherence_7d": (SUPPLEMENT, 7), "supplement_adherence_30d": (SUPPLEMENT, 30),
+    "supplement_adherence_90d": (SUPPLEMENT, 90),
 }
 
 
 @register_domain_truth
 class MedicineDomainTruth(DomainTruth):
     domain = _DOMAIN
-    current_metrics = ("current_medications", "active_medications",
-                       "current_supplements", "current_otc", "current_wellness",
-                       "medication_execution_today", "medication_profile",
-                       "adherence_7d", "adherence_30d", "adherence_90d")
+    current_metrics = (tuple(_INVENTORY) + tuple(_EXECUTION) + tuple(_PROFILE)
+                       + tuple(_ADHERENCE)
+                       + ("current_intake_all", "medications_remaining_today"))
     history_metrics = ("adherence",)
     entity_types = ("medication", "supplement", "otc", "wellness")
 
     # -- current --------------------------------------------------------------
     def current(self, metric):
         if metric in _INVENTORY:
-            return self._inventory(metric, *_INVENTORY[metric])
-        if metric == "medication_execution_today":
-            return self._execution_today()
-        if metric == "medication_profile":
-            return self._profile_truth()
-        if metric in _ADHERENCE_DAYS:
-            return self._adherence(metric, _ADHERENCE_DAYS[metric])
+            return self._inventory(metric, _INVENTORY[metric])
+        if metric in _EXECUTION:
+            return self._execution(metric, _EXECUTION[metric])
+        if metric in _PROFILE:
+            return self._profile_truth(metric, _PROFILE[metric])
+        if metric in _ADHERENCE:
+            return self._adherence(metric, *_ADHERENCE[metric])
+        if metric == "current_intake_all":
+            return self._everything()
+        if metric == "medications_remaining_today":
+            return self._remaining()
         raise KeyError(f"medicine current unsupported: {metric!r} "
                        f"(have {self.current_metrics})")
 
     # -- Entity Completeness Contract (reusable Layer 1 pattern) --------------
     def describe(self, entity_type="medication"):
         """Each item of `entity_type` as a CompleteEntity (self-describing across the
-        contract dimensions). Higher layers consume complete entities; they never assemble
-        fragmented truth. entity_type ∈ medication | supplement | otc | wellness."""
-        classification = _ENTITY_CLASS.get(entity_type, PRESCRIPTION)
-        return MedicineQueries.describe(self.user, classification)
+        contract dimensions). entity_type ∈ medication | supplement | otc | wellness."""
+        return MedicineQueries.describe(self.user, _ENTITY_CLASS.get(entity_type, PRESCRIPTION))
 
-    def _profile_truth(self):
-        # Compose the complete entities + the domain summary INSIDE Layer 1 — the higher
-        # layer makes ONE call and receives one complete object.
-        entities = MedicineQueries.describe(self.user)
-        summary = MedicineQueries.summary(self.user)
-        return CurrentTruth.found(
-            _DOMAIN, "medication_profile", summary["count"], CURRENT, source=_SRC,
-            detail={"medications": [e.to_dict() for e in entities],
-                    "count": summary["count"], "today": summary["today"],
-                    "adherence": summary["adherence"]},
-        )
+    def describe_one(self, name):
+        """ONE entity by name (any category) as a CompleteEntity, or None."""
+        return MedicineQueries.describe_one(self.user, name)
 
-    def _inventory(self, metric, classification, noun):
+    # -- per-metric resolvers (symmetric across all entity types) -------------
+    def _inventory(self, metric, classification):
         items = MedicineQueries.active(self.user, classification)
         names = [m["name"] for m in items]
-        # Always PRESENT (read live from canonical truth) — an empty list is a real,
-        # confident answer ("you have no X"), never "unknown".
-        return CurrentTruth.found(
+        return CurrentTruth.found(  # always PRESENT — empty is a real "0", never unknown
             _DOMAIN, metric, names, CURRENT, source=_SRC,
-            detail={"count": len(names), "items": items, "noun": noun},
-        )
+            detail={"count": len(names), "items": items, "noun": _NOUN[classification]})
 
-    def _execution_today(self):
-        ex = MedicineQueries.today_execution(self.user)   # prescription only
+    def _execution(self, metric, classification):
+        ex = MedicineQueries.today_execution(self.user, classification)
+        return CurrentTruth.found(_DOMAIN, metric, ex["taken"], CURRENT, source=_SRC,
+                                  detail={"scope": classification, **ex})
+
+    def _profile_truth(self, metric, classification):
+        entities = MedicineQueries.describe(self.user, classification)
+        summary = MedicineQueries.summary(self.user, classification)
         return CurrentTruth.found(
-            _DOMAIN, "medication_execution_today", ex["taken"], CURRENT, source=_SRC,
-            detail={"expected": ex["expected"], "taken": ex["taken"],
-                    "late": ex["late"], "missed": ex["missed"],
-                    "pending": ex["pending"], "skipped": ex["skipped"]},
-        )
+            _DOMAIN, metric, summary["count"], CURRENT, source=_SRC,
+            detail={"medications": [e.to_dict() for e in entities], "scope": classification,
+                    "noun": _NOUN[classification], **summary})
 
-    def _adherence(self, metric, days):
-        rate = MedicineQueries.adherence_rate(self.user, days)   # prescription only
+    def _adherence(self, metric, classification, days):
+        rate = MedicineQueries.adherence_rate(self.user, days, classification)
         if rate is None:
             return CurrentTruth.absent(_DOMAIN, metric, CURRENT, source=_SRC,
-                                       reason="no expected prescription doses in window")
+                                       reason=f"no expected {classification} doses in window")
         return CurrentTruth.found(_DOMAIN, metric, rate, CURRENT, unit="%", source=_SRC,
-                                  detail={"window_days": days, "scope": "prescription"})
+                                  detail={"window_days": days, "scope": classification})
+
+    def _everything(self):
+        ev = MedicineQueries.everything(self.user)
+        total = sum(len(v) for v in ev.values())
+        return CurrentTruth.found(_DOMAIN, "current_intake_all", total, CURRENT,
+                                  source=_SRC, detail=ev)
+
+    def _remaining(self):
+        doses = MedicineQueries.remaining_today(self.user)
+        return CurrentTruth.found(_DOMAIN, "medications_remaining_today", len(doses),
+                                  CURRENT, source=_SRC, detail={"doses": doses})
 
     # -- history --------------------------------------------------------------
     def history(self, metric, period="last_7_days", **kwargs):

@@ -227,37 +227,11 @@ def classify_foundational_fact(message):
     exec_key = _classify_execution_fact(text)
     if exec_key:
         return exec_key
-    # FOUR canonical Medication-domain ENTITIES. OTC / Supplement / Wellness are their own
-    # first-class entities and must NEVER route to Prescription — checked FIRST so the bare
-    # "medication" keyword can't claim "what OTC medications am I taking".
-    if "otc" in text or "over the counter" in text or "over-the-counter" in text:
-        return "current_otc"
-    if "supplement" in text:
-        return "current_supplements"
-    if "wellness" in text:
-        return "current_wellness"
-    # MEDICATION PROFILE (complete canonical business object) — a detailed/"review" request
-    # ("review my meds for today", "for each one show dose / schedule / taken today /
-    # adherence") is answered by ONE retrieval of the full Medication object. Precedes the
-    # adherence and bare inventory keywords.
-    _med_words = ("medication", "meds", "prescription")
-    _med_detail = ("for each", "dose", "schedule", "category", "status", "taken today",
-                   "for today", "today", "did i take", "rundown", "breakdown",
-                   "full list", "details", "everything")
-    if any(w in text for w in _med_words) and (
-            "for each" in text or "review" in text
-            or (("list" in text or "show" in text or "give me" in text)
-                and any(c in text for c in _med_detail))):
-        return "medication_profile"
-    # MEDICATION ADHERENCE (canonical Medicine Domain Truth) — must precede the bare
-    # "medication" keyword (which maps to the inventory). "Medication Adherence" =
-    # PRESCRIPTION only; a supplement-adherence question is not claimed here.
-    if "adherence" in text and "supplement" not in text:
-        if "90" in text or "ninety" in text:
-            return "adherence_90d"
-        if "30" in text or "thirty" in text or "monthly" in text:
-            return "adherence_30d"
-        return "adherence_7d"
+    # MEDICATION DOMAIN — the full retrieval surface (four entities × inventory /
+    # execution / adherence / profile, plus combined + remaining). Resolved deterministically.
+    med_key = _classify_medicine(text)
+    if med_key:
+        return med_key
     matched = None
     for key, keywords in _FACT_KEYWORDS:
         if any(kw in text for kw in keywords):
@@ -266,6 +240,119 @@ def classify_foundational_fact(message):
     if matched is None:
         return None
     return _refine_to_day(matched, text)
+
+
+def _format_single_entity(ent):
+    """One complete answer for a single named entity (dict from CompleteEntity.to_dict()):
+    answers dose / schedule / purpose / taken-today / adherence from ONE object."""
+    d = ent.get("definition") or {}
+    sched = (ent.get("plan") or {}).get("schedule") or []
+    st = (ent.get("standing") or {}).get("today") or {}
+    perf = (ent.get("performance") or {}).get("adherence") or {}
+    seg = [x for x in (d.get("dose"), d.get("category")) if x]
+    if sched:
+        seg.append("scheduled at " + ", ".join(sched))
+    out = [f"{ent.get('identity')} — {', '.join(seg)}.".replace(" — .", ".")]
+    if d.get("purpose"):
+        out.append(f"Purpose: {d['purpose']}.")
+    if st.get("expected"):
+        pend = f", {st.get('pending', 0)} still pending" if st.get("pending") else ""
+        out.append(f"Today: {st.get('taken', 0)} of {st['expected']} taken{pend}.")
+    if perf.get("7d") is not None:
+        out.append(f"7-day adherence: {perf['7d']}%.")
+    return " ".join(out)
+
+
+def _single_entity_medication(user, message):
+    """Single-entity retrieval: if the message names a SPECIFIC active intake and asks
+    about it (dose / schedule / today / adherence / purpose / "am I taking X"), answer
+    from the ONE complete entity — not the whole inventory. Deterministic, data-aware."""
+    text = (message or "").lower()
+    cues = ("dose", "how's my", "how is my", "how am i doing", "tell me about",
+            "when do i take", "when should i take", "did i take my", "what's my",
+            "what is my", "am i taking", "do i take", "details on", "info on",
+            "purpose of", "what is", "schedule for", "adherence for")
+    if not any(c in text for c in cues):
+        return None
+    # A plural/collection question is NOT single-entity.
+    if any(p in text for p in ("medications", "supplements", "everything", "all my",
+                               "all of my", "all the")):
+        return None
+    from apps.health.services.medicine_queries import MedicineQueries
+    ent = MedicineQueries.describe_one(user, text)
+    if ent is None:
+        return None
+    d = ent.to_dict()
+    answer = _format_single_entity(d)
+    return {"answer": answer, "empty_reason": None, "tools_advertised": [],
+            "tools_called": ["MedicineQueries"], "fast_path": "foundational_fact",
+            "fact_key": "medication_detail", "fact": d, "basis": answer, "supporting": {}}
+
+
+def _med_window(text):
+    if "90" in text or "ninety" in text:
+        return "90d"
+    if "30" in text or "thirty" in text or "monthly" in text:
+        return "30d"
+    return "7d"
+
+
+def _classify_medicine(text):
+    """Deterministic routing across the Medication domain's full retrieval surface.
+    OTC / Supplement / Wellness are first-class and never route to prescription; each
+    entity type supports inventory / execution / adherence / profile symmetrically."""
+    has_otc = "otc" in text or "over the counter" in text or "over-the-counter" in text
+    has_supp = "supplement" in text
+    has_well = "wellness" in text
+    _exec_cue = ("did i take", "have i taken", "taken today", "take today", "still to take")
+    _detail_cue = ("for each", "review", "rundown", "breakdown", "for today")
+
+    # COMBINED — everything I take (only when not scoped to one category).
+    if not (has_otc or has_supp or has_well) and any(
+            p in text for p in ("what am i taking", "what do i take", "everything i take",
+                                "everything i'm taking", "everything i am taking",
+                                "everything i'm on", "everything i am on",
+                                "all my medications and supplements", "all that i take",
+                                "list everything")):
+        return "current_intake_all"
+    # REMAINING / pending today.
+    if any(p in text for p in ("still need to take", "still have to take", "left to take",
+                               "what's left to take", "whats left to take", "remaining dose",
+                               "haven't taken", "have not taken", "what's left today",
+                               "what do i have left", "what's pending", "doses pending")):
+        return "medications_remaining_today"
+
+    # ENTITY-SCOPED routing. Supplement is fully symmetric (inventory/execution/adherence/
+    # profile); OTC/Wellness expose inventory (their execution/adherence use the same
+    # mechanism when needed).
+    if has_supp:
+        # Profile (a "review"/"for each" detail request) precedes adherence — a detailed
+        # request that merely mentions "adherence" is still a profile.
+        if any(c in text for c in _detail_cue):
+            return "supplement_profile"
+        if "adherence" in text:
+            return "supplement_adherence_" + _med_window(text)
+        if any(c in text for c in _exec_cue):
+            return "supplement_execution_today"
+        return "current_supplements"
+    if has_otc:
+        return "current_otc"
+    if has_well:
+        return "current_wellness"
+
+    # PRESCRIPTION (default "medicine" sense).
+    _med_words = ("medication", "meds", "prescription", "prescriptions", "pill")
+    if any(w in text for w in _med_words):
+        if any(c in text for c in _detail_cue) or (
+                ("list" in text or "show" in text or "give me" in text)
+                and any(c in text for c in ("dose", "schedule", "category", "status",
+                                            "today", "details", "everything"))):
+            return "medication_profile"
+        if "adherence" in text:
+            return "adherence_" + _med_window(text)
+        if any(c in text for c in _exec_cue):
+            return "meds_today"
+    return None
 
 
 def _classify_execution_fact(text):
@@ -388,17 +475,48 @@ def format_fact_sentence(key, fact):
             return f"You're not currently {verb} any {noun}s."
         return (f"You're currently {verb} {count} {noun}(s): "
                 f"{', '.join(str(m) for m in items)}.")
-    if key in ("adherence_7d", "adherence_30d", "adherence_90d"):
-        days = {"adherence_7d": 7, "adherence_30d": 30, "adherence_90d": 90}[key]
-        return f"Your {days}-day medication adherence is {value}%."
-    if key == "medication_profile":
+    if key.endswith(("adherence_7d", "adherence_30d", "adherence_90d")):
+        days = 7 if key.endswith("7d") else (30 if key.endswith("30d") else 90)
+        scope = "supplement" if key.startswith("supplement") else "medication"
+        return f"Your {days}-day {scope} adherence is {value}%."
+    if key in ("medication_execution_today", "supplement_execution_today"):
+        noun = "supplement" if key.startswith("supplement") else "medication"
+        expected = fact.get("expected", 0)
+        if not expected:
+            return f"You don't have any {noun}s scheduled for today."
+        pending = fact.get("pending", 0)
+        tail = f", with {pending} still to take" if pending else ""
+        return f"You've taken {fact.get('taken', 0)} of {expected} {noun} dose(s) today{tail}."
+    if key == "current_intake_all":
+        groups = [("prescription medications", fact.get("prescription") or []),
+                  ("supplements", fact.get("supplement") or []),
+                  ("OTC medications", fact.get("otc") or []),
+                  ("wellness products", fact.get("wellness") or [])]
+        present = [(label, items) for label, items in groups if items]
+        if not present:
+            return "You're not currently tracking anything you take."
+        lines = ["Here's everything you're currently taking:", ""]
+        for label, items in present:
+            lines.append(f"{label.capitalize()} ({len(items)}): {', '.join(items)}")
+        return "\n".join(lines)
+    if key == "medications_remaining_today":
+        doses = fact.get("doses") or []
+        if not doses:
+            return "You've taken everything scheduled for today — nothing left."
+        items = ", ".join(f"{d.get('medication')} ({d.get('time')})" for d in doses)
+        return f"You still have {len(doses)} dose(s) to take today: {items}."
+    if key == "medication_detail":
+        return _format_single_entity(fact)
+    if key in ("medication_profile", "supplement_profile"):
+        noun = fact.get("noun") or ("supplement" if key.startswith("supplement")
+                                    else "prescription medication")
         meds = fact.get("medications") or []          # list of CompleteEntity dicts
         if not meds:
-            return "You don't have any active prescription medications on file right now."
+            return f"You don't have any active {noun}s on file right now."
 
         def _pct(v):
             return f"{v}%" if v is not None else "not enough history yet"
-        lines = [f"You have {len(meds)} active prescription medication(s):", ""]
+        lines = [f"You have {len(meds)} active {noun}(s):", ""]
         for m in meds:
             d = m.get("definition") or {}
             sched = ", ".join((m.get("plan") or {}).get("schedule") or []) or "no set schedule"
@@ -417,8 +535,9 @@ def format_fact_sentence(key, fact):
         today = fact.get("today") or {}
         lines.append("")
         lines.append(f"Today: {today.get('taken', 0)} of {today.get('expected', 0)} "
-                     f"prescription doses taken.")
-        lines.append(f"Medication adherence — 7-day: {_pct(adh.get('7d'))}, "
+                     f"{noun} doses taken.")
+        scope_label = "Supplement" if key.startswith("supplement") else "Medication"
+        lines.append(f"{scope_label} adherence — 7-day: {_pct(adh.get('7d'))}, "
                      f"30-day: {_pct(adh.get('30d'))}, 90-day: {_pct(adh.get('90d'))}.")
         return "\n".join(lines)
     if key == "calories_today":
@@ -550,9 +669,14 @@ _NUMERIC_VALUE_KEYS = {"calories_today", "calories_yesterday", "protein_today",
                        "current_medications",
                        # Supplement / OTC / Wellness inventories — exact canonical lists.
                        "current_supplements", "current_otc", "current_wellness",
-                       # medication_profile: the complete structured business object must
-                       # survive verbatim (the LLM would flatten/embellish it).
-                       "medication_profile"}
+                       # Full medication-domain retrieval surface — exact canonical answers.
+                       "current_intake_all", "medications_remaining_today",
+                       "medication_execution_today", "supplement_execution_today",
+                       "supplement_adherence_7d", "supplement_adherence_30d",
+                       "supplement_adherence_90d", "medication_detail",
+                       # profiles: the complete structured business object must survive
+                       # verbatim (the LLM would flatten/embellish it).
+                       "medication_profile", "supplement_profile"}
 
 
 def _temporal_or_clinical(fact):
@@ -571,6 +695,11 @@ def answer_foundational_fact(user, message):
     Returns the same result shape as ChatGPTCoSService.generate, or None if the
     message is not a foundational fact prompt (caller proceeds normally).
     """
+    # Single-entity retrieval (data-aware): "what's my Metformin dose?", "am I taking fish
+    # oil?", "how's my Lantus adherence?" — answered from the ONE complete entity.
+    single = _single_entity_medication(user, message)
+    if single is not None:
+        return single
     key = classify_foundational_fact(message)
     if key is None:
         return None

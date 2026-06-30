@@ -227,15 +227,25 @@ def classify_foundational_fact(message):
     exec_key = _classify_execution_fact(text)
     if exec_key:
         return exec_key
-    # MEDICATION PROFILE (complete canonical business object) — a detailed medication
-    # request ("for each one show dose / schedule / taken today / adherence") is answered
-    # by ONE retrieval of the full Medication object. Must precede both the adherence and
-    # the bare inventory keywords.
+    # FOUR canonical Medication-domain ENTITIES. OTC / Supplement / Wellness are their own
+    # first-class entities and must NEVER route to Prescription — checked FIRST so the bare
+    # "medication" keyword can't claim "what OTC medications am I taking".
+    if "otc" in text or "over the counter" in text or "over-the-counter" in text:
+        return "current_otc"
+    if "supplement" in text:
+        return "current_supplements"
+    if "wellness" in text:
+        return "current_wellness"
+    # MEDICATION PROFILE (complete canonical business object) — a detailed/"review" request
+    # ("review my meds for today", "for each one show dose / schedule / taken today /
+    # adherence") is answered by ONE retrieval of the full Medication object. Precedes the
+    # adherence and bare inventory keywords.
     _med_words = ("medication", "meds", "prescription")
     _med_detail = ("for each", "dose", "schedule", "category", "status", "taken today",
-                   "did i take", "rundown", "breakdown", "full list", "details", "everything")
+                   "for today", "today", "did i take", "rundown", "breakdown",
+                   "full list", "details", "everything")
     if any(w in text for w in _med_words) and (
-            "for each" in text
+            "for each" in text or "review" in text
             or (("list" in text or "show" in text or "give me" in text)
                 and any(c in text for c in _med_detail))):
         return "medication_profile"
@@ -367,6 +377,17 @@ def format_fact_sentence(key, fact):
             return "You don't have any prescription medications on file right now."
         return (f"You're currently taking {count} prescription medication(s): "
                 f"{', '.join(str(m) for m in meds)}.")
+    if key in ("current_supplements", "current_otc", "current_wellness"):
+        items = value if isinstance(value, list) else [value]
+        count = fact.get("count", len(items))
+        noun = fact.get("noun") or {"current_supplements": "supplement",
+                                    "current_otc": "over-the-counter medication",
+                                    "current_wellness": "wellness product"}[key]
+        verb = "tracking" if key == "current_wellness" else "taking"
+        if count == 0:
+            return f"You're not currently {verb} any {noun}s."
+        return (f"You're currently {verb} {count} {noun}(s): "
+                f"{', '.join(str(m) for m in items)}.")
     if key in ("adherence_7d", "adherence_30d", "adherence_90d"):
         days = {"adherence_7d": 7, "adherence_30d": 30, "adherence_90d": 90}[key]
         return f"Your {days}-day medication adherence is {value}%."
@@ -387,6 +408,11 @@ def format_fact_sentence(key, fact):
             detail = ", ".join(x for x in (d.get("dose"), d.get("category"),
                                            m.get("status")) if x)
             lines.append(f"• {m.get('identity')} — {detail}; schedule: {sched}; {took}")
+            # Dose-level truth (never collapsed): show each scheduled dose's status.
+            doses = td.get("doses") or []
+            if len(doses) > 1:
+                for dose in doses:
+                    lines.append(f"    – {dose.get('time')}: {dose.get('status')}")
         adh = fact.get("adherence") or {}
         today = fact.get("today") or {}
         lines.append("")
@@ -522,6 +548,8 @@ _NUMERIC_VALUE_KEYS = {"calories_today", "calories_yesterday", "protein_today",
                        # prescription list — the LLM rephrase could embellish or pull
                        # supplements from broader context. Bypass it (trust contract).
                        "current_medications",
+                       # Supplement / OTC / Wellness inventories — exact canonical lists.
+                       "current_supplements", "current_otc", "current_wellness",
                        # medication_profile: the complete structured business object must
                        # survive verbatim (the LLM would flatten/embellish it).
                        "medication_profile"}

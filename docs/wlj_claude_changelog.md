@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-30 — feat(layer1): Medication domain — four canonical entities + dose-level execution truth
+
+Five Layer 1 acceptance failures resolved so Medication can become the reference implementation.
+
+1-3. Supplement / OTC / Wellness are now FIRST-CLASS canonical entities (not just prescription's leftovers). New inventory metrics current_supplements / current_otc / current_wellness on MedicineDomainTruth; the classifier routes "what supplements / OTC / wellness am I taking" to them BEFORE the bare "medication" keyword — so "What OTC medications am I taking?" never returns prescriptions. describe(entity_type) generalized to all four (medication/supplement/otc/wellness), each a CompleteEntity of the same shape.
+
+4. Execution truth is now evaluated at the SCHEDULED-DOSE level, never collapsed to one medication-level result. New MedicineQueries.today_doses (per-dose status: taken/missed/skipped/pending/overdue) + dose-level today_execution. A dose scheduled later today is reported PENDING and visible in "review my meds for today" — the adherence DENOMINATOR separately keeps the not-yet-due fairness exclusion (two different truths). Metformin AM-taken + PM-pending now reads "4 of 5 doses, 1 pending", not "4 of 4". CompleteEntity.standing carries the per-dose list.
+
+Acceptance (SAE disabled, LLM bypassed): all four entities retrieve separately and correctly; OTC/supplements never route to prescription; "review my prescription medications for today" reports each scheduled dose. Regression: test_medicine_domain_truth (four-entity retrieval + dose-level execution + per-med dose standing). GREEN (118); no migrations. Adherence math unchanged.
+
+**Files:** apps/health/services/medicine_queries.py, apps/health/services/medicine_domain_truth.py, apps/ai/cos_services/health_facts.py, apps/ai/chatgpt_cos/foundational_facts.py, apps/health/tests/test_medicine_domain_truth.py.
+
+
 ## 2026-06-30 — refactor(layer1): Entity Completeness elevated to a permanent LAW (dimensions are the implementation)
 
 Architectural elevation. The contract previously read as "an entity has six dimensions" — making the dimensions the law. Elevated so the LAW is the business capability and the dimensions are merely its current implementation.

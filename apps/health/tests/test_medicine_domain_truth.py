@@ -283,6 +283,81 @@ class MedicineDomainTruthTests(TestCase):
         self.assertIn("7-day", ans.lower())                  # 7-day adherence
         self.assertIn("100%", ans)                           # the adherence value
 
+    def test_four_canonical_entities_retrieve_separately(self):
+        # Prescription / Supplement / OTC / Wellness are FOUR first-class entities; OTC and
+        # supplements never route to prescription. SAE disabled.
+        from apps.ai.chatgpt_cos.foundational_facts import (
+            classify_foundational_fact, answer_fact_by_key,
+        )
+        self._seed()                                # Metformin/Lisinopril Rx, Vitamin D supp, Ibuprofen OTC, Creatine wellness
+
+        def ask(q):
+            key = classify_foundational_fact(q)
+            with _sae_disabled():
+                return key, answer_fact_by_key(self.user, key)["answer"]
+
+        k, a = ask("What prescription medications am I taking?")
+        self.assertEqual(k, "current_medications")
+        self.assertIn("Metformin", a)
+        self.assertNotIn("Vitamin D", a)
+        self.assertNotIn("Ibuprofen", a)
+
+        k, a = ask("What supplements am I currently taking?")
+        self.assertEqual(k, "current_supplements")
+        self.assertIn("Vitamin D", a)
+        self.assertNotIn("Metformin", a)            # supplements ≠ medicine
+
+        k, a = ask("What OTC medications am I currently taking?")
+        self.assertEqual(k, "current_otc")          # NOT current_medications
+        self.assertIn("Ibuprofen", a)
+        self.assertNotIn("Metformin", a)            # OTC never routes to prescription
+
+        k, a = ask("What wellness products am I currently taking?")
+        self.assertEqual(k, "current_wellness")
+        self.assertIn("Creatine", a)
+        self.assertNotIn("Metformin", a)
+
+    def test_execution_truth_is_dose_level_not_collapsed(self):
+        # Metformin AM + PM; AM taken, PM still pending → 4 of 5 doses, NOT "4 of 4".
+        from datetime import time, datetime
+        from django.utils import timezone
+        from apps.health.services.medicine_queries import MedicineQueries
+        from apps.ai.chatgpt_cos.foundational_facts import (
+            classify_foundational_fact, answer_fact_by_key,
+        )
+        metf = self._med("Metformin", "prescription", schedule=False)
+        IntakeSchedule.objects.create(intake=metf, scheduled_time=time(8, 0),
+                                      days_of_week="0,1,2,3,4,5,6", is_active=True)    # AM
+        IntakeSchedule.objects.create(intake=metf, scheduled_time=time(20, 0),
+                                      days_of_week="0,1,2,3,4,5,6", is_active=True)    # PM
+        IntakeLog.objects.create(user=self.user, intake=metf, scheduled_date=self.today,
+                                 log_status="taken")                                  # only AM taken
+        for nm in ("Lisinopril", "Atorvastatin", "Mounjaro"):
+            m = self._med(nm, "prescription", schedule=False)
+            IntakeSchedule.objects.create(intake=m, scheduled_time=time(8, 0),
+                                          days_of_week="0,1,2,3,4,5,6", is_active=True)
+            IntakeLog.objects.create(user=self.user, intake=m, scheduled_date=self.today,
+                                     log_status="taken")
+
+        # Pin "now" to noon so the 8 PM dose is deterministically future (pending).
+        noon = timezone.make_aware(datetime.combine(self.today, time(12, 0)))
+        with mock.patch("apps.core.utils.get_user_now", return_value=noon):
+            ex = MedicineQueries.today_execution(self.user)
+            self.assertEqual(ex["expected"], 5)      # 2 (Metformin) + 3 = 5 scheduled doses
+            self.assertEqual(ex["taken"], 4)
+            self.assertEqual(ex["pending"], 1)       # Metformin PM still pending
+
+            entities = {e.identity: e for e in MedicineQueries.describe(self.user)}
+            doses = entities["Metformin"].standing["today"]["doses"]
+            self.assertEqual([d["status"] for d in doses], ["taken", "pending"])
+
+            key = classify_foundational_fact("Review my prescription medications for today.")
+            self.assertEqual(key, "medication_profile")
+            with _sae_disabled():
+                ans = answer_fact_by_key(self.user, key)["answer"]
+        self.assertIn("4 of 5", ans)                 # NOT "4 of 4"
+        self.assertIn("pending", ans.lower())
+
     def test_inventory_is_present_not_unknown_when_empty(self):
         # No prescriptions → a real "0", never the SAE-missing "unknown" failure.
         self._med("Vitamin D", "vitamin", intake_type="supplement")

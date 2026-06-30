@@ -59,84 +59,135 @@ class MedicineQueries:
     def active_names(cls, user, classification=PRESCRIPTION):
         return [m["name"] for m in cls.active(user, classification)]
 
-    # -- today execution ------------------------------------------------------
+    # -- today execution — at the SCHEDULED-DOSE level -------------------------
+    # Execution truth is evaluated per scheduled dose, never collapsed to one
+    # medication-level result. A dose scheduled later today is reported PENDING (it must
+    # be visible in "review my meds for today"); the adherence DENOMINATOR separately
+    # excludes not-yet-due doses (fairness) — these are two different truths.
     @classmethod
-    def _execution_for_qs(cls, user, qs, today, now_time):
-        """Today's expected/taken/late/missed/skipped/pending for an Intake queryset."""
-        from apps.health.medicine_utils import _enumerate_expected_doses
-        expected = len(_enumerate_expected_doses(qs, today, today, today, now_time))
-        logs = IntakeLog.objects.filter(user=user, intake__in=qs, scheduled_date=today)
-        taken = logs.filter(log_status="taken").count()
-        late = logs.filter(log_status="late").count()
-        missed = logs.filter(log_status="missed").count()
-        skipped = logs.filter(log_status="skipped").count()
-        pending = max(0, expected - (taken + late + missed + skipped))
+    def _med_doses_today(cls, med, logs_for_med, dow, now_time):
+        """The scheduled doses for ONE medication today, each with a status."""
+        times = sorted(s.scheduled_time for s in med.schedules.all()
+                       if getattr(s, "is_active", True) and s.scheduled_time
+                       and s.applies_to_day(dow))
+        # Count-based assignment (robust to logs that don't carry a scheduled_time):
+        # earliest scheduled slots are satisfied first.
+        taken_n = sum(1 for l in logs_for_med if l.log_status in ("taken", "late"))
+        missed_n = sum(1 for l in logs_for_med if l.log_status == "missed")
+        skipped_n = sum(1 for l in logs_for_med if l.log_status == "skipped")
+        assigned = (["taken"] * taken_n + ["missed"] * missed_n + ["skipped"] * skipped_n)
+        doses = []
+        for i, t in enumerate(times):
+            if i < len(assigned):
+                status = assigned[i]
+            else:
+                status = "pending" if t > now_time else "overdue"
+            doses.append({"time": t.strftime("%-I:%M %p"), "status": status})
+        return doses
+
+    @classmethod
+    def today_doses(cls, user, classification=PRESCRIPTION):
+        """Every scheduled dose today across a category → [{medication, time, status}].
+        status ∈ taken | missed | skipped | pending (not yet due) | overdue (past due)."""
+        from collections import defaultdict
+        from apps.core.utils import get_user_now, get_user_today
+        from apps.health.medicine_classification import classify_intake
+        today = get_user_today(user)
+        dow = today.weekday()
+        now_time = get_user_now(user).time()
+        qs = cls._active_qs(user, classification).prefetch_related("schedules")
+        by_med = defaultdict(list)
+        for lg in IntakeLog.objects.filter(user=user, intake__in=qs, scheduled_date=today):
+            by_med[lg.intake_id].append(lg)
+        out = []
+        for m in qs:
+            if classify_intake(m) != classification:
+                continue
+            for d in cls._med_doses_today(m, by_med.get(m.id, []), dow, now_time):
+                out.append({"medication": m.name, **d})
+        return out
+
+    @staticmethod
+    def _summarize_doses(doses):
+        def c(*ss):
+            return sum(1 for d in doses if d["status"] in ss)
         return {
-            "expected": expected,
-            "taken": taken + late,        # taken at all (on time or late)
-            "taken_on_time": taken,
-            "late": late,
-            "missed": missed,
-            "skipped": skipped,
-            "pending": pending,
+            "expected": len(doses),               # ALL scheduled doses today (incl. pending)
+            "taken": c("taken", "late"),
+            "missed": c("missed"),
+            "overdue": c("overdue"),
+            "skipped": c("skipped"),
+            "pending": c("pending", "overdue"),    # not yet taken (future or past-due)
         }
 
     @classmethod
     def today_execution(cls, user, classification=PRESCRIPTION):
-        """Today's prescription dose execution (overall), live from schedules + IntakeLog."""
-        from apps.core.utils import get_user_now, get_user_today
-        qs = cls._active_qs(user, classification).prefetch_related("schedules")
-        return cls._execution_for_qs(user, qs, get_user_today(user), get_user_now(user).time())
+        """Overall today execution at the scheduled-dose level (incl. pending doses)."""
+        return cls._summarize_doses(cls.today_doses(user, classification))
 
     # -- ENTITY COMPLETENESS CONTRACT ------------------------------------------
+    # The four canonical Medication-domain entities (Prescription / Supplement / OTC /
+    # Wellness) are the SAME shape — a CompleteEntity. "kind" carries which one.
+    _KIND = {PRESCRIPTION: "medication", "supplement": "supplement",
+             "otc": "otc", "wellness": "wellness"}
+
     @classmethod
-    def describe(cls, user):
-        """Each active PRESCRIPTION as a CompleteEntity that describes itself across the
-        contract dimensions (identity / definition / status / plan / standing /
-        performance). Read live from the canonical models. Medicine = prescription only."""
+    def describe(cls, user, classification=PRESCRIPTION):
+        """Each active item of `classification` as a CompleteEntity describing itself
+        across the contract dimensions (identity / definition / status / plan / standing /
+        performance). Read live from the canonical models."""
+        from collections import defaultdict
         from datetime import timedelta
         from apps.core.truth.entity import CompleteEntity
         from apps.core.utils import get_user_now, get_user_today
         from apps.health.medicine_classification import classify_intake
         from apps.health.medicine_utils import calculate_single_medicine_adherence
         today = get_user_today(user)
+        dow = today.weekday()
         now_time = get_user_now(user).time()
+        qs = cls._active_qs(user, classification).prefetch_related("schedules")
+        by_med = defaultdict(list)
+        for lg in IntakeLog.objects.filter(user=user, intake__in=qs, scheduled_date=today):
+            by_med[lg.intake_id].append(lg)
+        kind = cls._KIND.get(classification, "medication")
         entities = []
-        for m in cls._active_qs(user, PRESCRIPTION).prefetch_related("schedules"):
-            if classify_intake(m) != PRESCRIPTION:        # final authority (name safety net)
+        for m in qs:
+            if classify_intake(m) != classification:       # final authority (name safety net)
                 continue
             times = sorted(s.scheduled_time.strftime("%-I:%M %p")
                            for s in m.schedules.all()
                            if getattr(s, "is_active", True) and s.scheduled_time)
-            one = Intake.objects.filter(pk=m.pk)
+            doses = cls._med_doses_today(m, by_med.get(m.id, []), dow, now_time)
 
             def _adh(days):
                 return calculate_single_medicine_adherence(
                     user, m, today - timedelta(days=days), today).get("adherence_rate")
 
+            standing = cls._summarize_doses(doses)
+            standing["doses"] = doses                       # per-dose detail (not collapsed)
             entities.append(CompleteEntity(
-                kind="medication",
+                kind=kind,
                 identity=m.name,
                 definition={"dose": m.dose, "category": classify_intake(m),
                             "purpose": m.purpose or "", "is_prn": bool(getattr(m, "is_prn", False))},
                 status=m.intake_status,
                 plan={"schedule": times},
-                standing={"today": cls._execution_for_qs(user, one, today, now_time)},
+                standing={"today": standing},
                 performance={"adherence": {"7d": _adh(7), "30d": _adh(30), "90d": _adh(90)}},
             ))
         entities.sort(key=lambda e: e.identity.lower())
         return entities
 
     @classmethod
-    def summary(cls, user):
-        """Domain-level rollup across all prescriptions (composed inside Layer 1 so a
-        higher layer still makes ONE call): count + overall today + overall adherence."""
+    def summary(cls, user, classification=PRESCRIPTION):
+        """Domain-level rollup (composed inside Layer 1 so a higher layer still makes ONE
+        call): count + overall today (dose-level) + overall adherence."""
         return {
-            "count": len(cls.active_names(user)),
-            "today": cls.today_execution(user),
-            "adherence": {"7d": cls.adherence_rate(user, 7),
-                          "30d": cls.adherence_rate(user, 30),
-                          "90d": cls.adherence_rate(user, 90)},
+            "count": len(cls.active_names(user, classification)),
+            "today": cls.today_execution(user, classification),
+            "adherence": {"7d": cls.adherence_rate(user, 7, classification),
+                          "30d": cls.adherence_rate(user, 30, classification),
+                          "90d": cls.adherence_rate(user, 90, classification)},
         }
 
     # -- history / adherence --------------------------------------------------

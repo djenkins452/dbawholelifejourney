@@ -103,7 +103,8 @@ def _result(answer, last, *, fact_key=None, fact=None):
 
 
 def _repoint(user, topic, tf, last):
-    """Same topic, new timeframe → answer that fact by key (deterministic)."""
+    """Same topic, new timeframe → answer that fact by key (deterministic). An explicit
+    refocus ('what about yesterday?') — so it MOVES the Active Subject."""
     from apps.ai.chatgpt_cos.conversation_object import fact_for_topic
     from apps.ai.chatgpt_cos.foundational_facts import answer_fact_by_key
     new_key = fact_for_topic(topic, tf)
@@ -113,6 +114,7 @@ def _repoint(user, topic, tf, last):
     if r:
         r["lane"] = "referential"
         r["fast_path"] = "referential_resolution"
+        r["active_subject"] = {"fact_key": new_key, "fact": r.get("fact") or {}}
     return r
 
 
@@ -158,7 +160,11 @@ def _resolve_target(user, topic, tf, sem, last):
 
 def _compare(user, topic, tf, last):
     from apps.ai.chatgpt_cos.conversation_object import comparison_semantics
-    cur_fact = last.get("fact") or {}
+    # ANCHOR on the ACTIVE SUBJECT, not whatever was last answered — a comparison must
+    # not let the anchor drift (the production bug: "compared to my average" anchored on
+    # yesterday instead of the current reading under discussion).
+    active = last.get("active_subject") or {}
+    cur_fact = active.get("fact") or last.get("fact") or {}
     cur_val = _num(cur_fact.get("value"))
     unit = (cur_fact.get("unit") or "").strip()
     sem = comparison_semantics(topic)
@@ -167,14 +173,24 @@ def _compare(user, topic, tf, last):
     # 1) HONOR THE USER'S TARGET FIRST — never silently replaced.
     comp_fact, comp_label, target_is_average = _resolve_target(user, topic, tf, sem, last)
 
+    # Comparing "to today" re-centers the Active Subject on the current reading (the user
+    # explicitly named today); any other target leaves the anchor untouched.
+    recenter = None
+    if tf == "today" and comp_fact is not None:
+        from apps.ai.chatgpt_cos.conversation_object import fact_for_topic
+        recenter = {"fact_key": fact_for_topic(topic, "today"), "fact": comp_fact}
+
     if topic in NUMERIC_TOPICS and cur_val is not None:
         comp_val = _num((comp_fact or {}).get("value"))
         avg_fact = ((last.get("supporting") or {}).get("average") or {}).get("fact")
         avg_val = _num((avg_fact or {}).get("value"))
         # The metric prefers an average and the user asked for something else → ADD a
         # recommendation afterward. Additive, never substitutive.
+        # Don't append the average add-on when re-centering on "today" — the anchor is
+        # mid-shift, so the "today is …" phrasing would mislabel the value.
         recommend_avg = (sem.get("strategy") == "average" and not target_is_average
-                         and avg_val is not None and avg_fact is not comp_fact)
+                         and avg_val is not None and avg_fact is not comp_fact
+                         and tf != "today")
 
         if comp_val is not None:
             ans = _delta_sentence(cur_val, comp_val, comp_label, unit)        # the answer
@@ -188,6 +204,8 @@ def _compare(user, topic, tf, last):
             r["goal"] = goal
             r["comparison_confidence"] = sem.get("confidence", "medium")
             r["comparison_target"] = comp_label
+            if recenter:
+                r["active_subject"] = recenter      # user named "today" → re-anchor there
             return r
 
         # Target requested but unavailable. Don't silently substitute — say so, then offer

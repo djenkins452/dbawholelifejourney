@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-30 — feat(cos): Active Subject tracking — the comparison anchor no longer drifts
+
+Production: "What is my BG?" (160) → "What about yesterday?" (105) → "Compared to today." → "Compared to my average." anchored on YESTERDAY (105) instead of the current reading (160) the customer was focused on. Trace (repository evidence): the conversation object tracked topic + goal but NOT an Active Subject; `_compare` anchored cur_val on `last['fact']` (whatever was last answered), so the anchor drifted to yesterday on the re-point and never returned.
+
+The Conversation Object now tracks three independent concepts — Topic, Goal, and ACTIVE SUBJECT (which object owns the conversation, the anchor follow-ups resolve against). Rules: a primary question or an explicit refocus ("what about yesterday?") MOVES the anchor; a pure comparison ("compared to my average") anchors on it but NEVER moves it; "compared to today" re-centers on the current reading (the user explicitly named today). `_compare` now anchors on `active_subject`, not the last answer.
+
+Verified (production replay): What is my BG? [anchor=current] → What about yesterday? [anchor=yesterday] → Compared to today. → "down 55 from today (160 → 105)" [anchor re-centered=current] → Compared to my average. → "up 22 from your recent average (138 → 160)" [anchor=current]. The final comparison uses CURRENT glucose → recent average, not yesterday → average. Tests: test_active_subject (anchor doesn't drift on comparison; re-point moves it; compared-to-today re-centers). Also hardened two glucose tests against the midnight date-boundary (noon-anchored seeding). GREEN (116); Layer 1 gate GREEN; no migrations.
+
+**Files:** apps/ai/tests/test_active_subject.py (new), apps/ai/chatgpt_cos/conversation_memory.py, apps/ai/chatgpt_cos/referential.py, apps/ai/tests/test_comparison_semantics.py.
+
+
 ## 2026-06-29 — fix(cos): glucose average dropped on re-point + glucose_yesterday bypassed presentation (production trace)
 
 Production disproved the prior report: "What is my BG?" → "What about yesterday?" → "Compared to my average." returned "I don't have a separate average figure." Repository trace (not assumption):

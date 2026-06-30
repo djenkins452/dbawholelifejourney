@@ -50,6 +50,17 @@ def record_last_answer(conversation, lane, result):
         # turns — not just the subject. An explicit hint from the resolver wins.
         prev = md.get(_KEY)
         goal = evolve_goal(prev, frame[0], frame[1], explicit=result.get("goal"))
+        # ACTIVE SUBJECT — which object currently owns the conversation, the anchor that
+        # follow-ups ("compared to my average", "is that good?") resolve against. It moves
+        # ONLY on a primary question or an explicit refocus; a comparison NEVER silently
+        # moves it (the resolver passes an explicit active_subject only when it should).
+        if "active_subject" in result:
+            active_subject = result.get("active_subject")
+        elif lane == "foundational_facts" and result.get("fact_key"):
+            active_subject = {"fact_key": result.get("fact_key"),
+                              "fact": result.get("fact") or {}}
+        else:
+            active_subject = (prev or {}).get("active_subject")
         md[_KEY] = {
             "answer": answer,
             "lane": lane,
@@ -58,6 +69,7 @@ def record_last_answer(conversation, lane, result):
             "topic": frame[0],                    # e.g. "meals" — survives timeframe changes
             "timeframe": frame[1],                # e.g. "today"
             "goal": goal,                         # e.g. "compare" — why we're discussing it
+            "active_subject": active_subject,     # the anchor — moves only on explicit refocus
             "fact": result.get("fact") or {},
             "basis": (result.get("basis") or "").strip(),
             # Supporting facts for natural follow-ups (read from here, no new retrieval).

@@ -58,11 +58,15 @@ class GlucoseTargetVsSemanticsTests(_Ask):
 
     def setUp(self):
         super().setUp()
-        from datetime import timedelta
+        from datetime import timedelta, datetime, time
         from django.utils import timezone
+        from apps.core.utils import get_user_today
         from apps.health.models import GlucoseEntry
+        # Anchor at yesterday NOON (date-boundary-safe — a now-minus-26h seed lands
+        # outside the day window when the suite runs near midnight).
+        y = get_user_today(self.user) - timedelta(days=1)
         GlucoseEntry.objects.create(user=self.user, value=105, unit="mg/dL",
-                                    recorded_at=timezone.now() - timedelta(days=1, hours=2))
+                                    recorded_at=timezone.make_aware(datetime.combine(y, time(12, 0))))
 
     def test_honors_yesterday_first_then_offers_average(self):
         r = self._ask(self.LAST, "Compared to yesterday.")
@@ -98,18 +102,22 @@ class GlucoseAverageSurvivesRepointTests(TestCase):
     through the presentation layer (not the raw 'Glucose yesterday: 105' default)."""
 
     def setUp(self):
-        from datetime import timedelta
+        from datetime import timedelta, datetime, time
         from django.utils import timezone
+        from apps.core.utils import get_user_today
         from apps.health.models import GlucoseEntry
         self.user = User.objects.create_user(email="grepoint@test.com", password="x")
-        now = timezone.now()
+        today = get_user_today(self.user)
+
+        def at_noon(d):  # date-boundary-safe anchor
+            return timezone.make_aware(datetime.combine(d, time(12, 0)))
         GlucoseEntry.objects.create(user=self.user, value=160, unit="mg/dL",
-                                    recorded_at=now - timedelta(hours=1))
+                                    recorded_at=timezone.now())
         GlucoseEntry.objects.create(user=self.user, value=105, unit="mg/dL",
-                                    recorded_at=now - timedelta(days=1, hours=1))
+                                    recorded_at=at_noon(today - timedelta(days=1)))
         for d in range(2, 7):
             GlucoseEntry.objects.create(user=self.user, value=140, unit="mg/dL",
-                                        recorded_at=now - timedelta(days=d))
+                                        recorded_at=at_noon(today - timedelta(days=d)))
         from apps.ai.models import AssistantConversation
         self.conv = AssistantConversation.objects.create(user=self.user)
 

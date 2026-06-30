@@ -83,18 +83,19 @@ class DomainTruth:
         from apps.core.ai_state.state_engine import get_module_state
         return get_module_state(self.user, self.domain, allow_rebuild=False) or {}
 
-    # ENTITY COMPLETENESS CONTRACT (reusable Layer 1 pattern) -----------------
-    # Layer 1 exposes COMPLETE business objects; higher layers retrieve ONE object and
-    # never assemble fragmented truth from many calls. `describe(entity_type)` returns the
-    # domain's canonical entities, each a `CompleteEntity` that describes itself across the
-    # contract's business dimensions (identity / definition / status / plan / standing /
-    # performance + freshness/confidence). Every future canonical entity (Goals, Calendar,
-    # Journal, Relationships, …) implements this; Medication is the reference impl.
-    # See apps/core/truth/entity.py + docs/LAYER1_ENTITY_COMPLETENESS_CONTRACT.md.
+    # ENTITY COMPLETENESS LAW (reusable Layer 1 pattern) ----------------------
+    # THE LAW: a canonical entity is complete when it can completely answer the natural
+    # business questions about itself from a SINGLE deterministic retrieval. Higher layers
+    # retrieve that one complete object; they never assemble fragmented truth from many
+    # calls. `describe(entity_type)` is that single retrieval — it returns the domain's
+    # canonical entities, each a `CompleteEntity` (the current canonical implementation of
+    # the law; the dimension set is open). Medication is the reference impl. See
+    # apps/core/truth/entity.py + docs/LAYER1_ENTITY_COMPLETENESS_CONTRACT.md.
     entity_types = ()             # introspection: entity types describe() supports
 
     def describe(self, entity_type=None):
-        """Return list[CompleteEntity] — the domain's canonical entities, complete."""
+        """Single deterministic retrieval of the domain's canonical entities, each a
+        `CompleteEntity` that can answer the natural questions about itself."""
         raise NotImplementedError(f"{self.domain} domain truth exposes no describe()")
 
     def supports(self):

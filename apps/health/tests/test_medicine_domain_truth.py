@@ -229,6 +229,20 @@ class MedicineDomainTruthTests(TestCase):
         self.assertEqual(summ["count"], 2)
         self.assertEqual(set(summ["adherence"]), {"7d", "30d", "90d"})
 
+    def test_completeness_law_dimension_set_is_open(self):
+        # The LAW is "answer the natural questions in one retrieval" — the six dimensions
+        # are the CURRENT implementation, not the law. A domain may attach further
+        # dimensions via `extensions` without changing the architecture.
+        from apps.core.truth.entity import CompleteEntity, CANONICAL_DIMENSIONS
+        self.assertEqual(CANONICAL_DIMENSIONS,
+                         ("identity", "definition", "status", "plan", "standing", "performance"))
+        e = CompleteEntity(kind="medication", identity="Metformin",
+                           extensions={"interactions": ["alcohol"]})
+        self.assertEqual(e.to_dict()["extensions"], {"interactions": ["alcohol"]})
+        # No extensions → key omitted (the canonical six remain the default shape).
+        self.assertNotIn("extensions",
+                         CompleteEntity(kind="medication", identity="x").to_dict())
+
     def test_describe_pattern_is_on_the_domain_truth(self):
         # The reusable Layer 1 pattern: get_domain_truth(...).describe() → CompleteEntity.
         from apps.core.truth.entity import CompleteEntity

@@ -7,6 +7,21 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-30 — refactor(layer1): Entity Completeness elevated to a permanent LAW (dimensions are the implementation)
+
+Architectural elevation. The contract previously read as "an entity has six dimensions" — making the dimensions the law. Elevated so the LAW is the business capability and the dimensions are merely its current implementation.
+
+THE LAW (permanent, implementation-independent): "A canonical entity is complete when it can completely answer the natural business questions about itself from a single deterministic retrieval." It names no fields or types — it is a business-capability statement.
+
+The six dimensions (Identity/Definition/Status/Plan/Standing/Performance + freshness/confidence) are now documented as the CURRENT canonical implementation of the law, not the law. The dimension set is OPEN: CompleteEntity gains an `extensions` map for domain-introduced dimensions, so a future domain can answer a new natural question (or introduce a new universal dimension) without changing the architecture — adding a dimension evolves the implementation, never the law. CANONICAL_DIMENSIONS names the present set.
+
+Review outcome: CompleteEntity + DomainTruth.describe() KEPT — they remain the best implementation of the law (one deterministic retrieval, complete object), now with the law/implementation distinction explicit in the type and the docstrings, and an open dimension set. Doc rewritten to lead with the law, then present the dimensions as the current implementation, with a conformance note (conform by answering natural questions, not by having a fixed field list forever).
+
+Regression: test_completeness_law_dimension_set_is_open (extensions carried; canonical six are the default). GREEN (60); no migrations.
+
+**Files:** docs/LAYER1_ENTITY_COMPLETENESS_CONTRACT.md, apps/core/truth/entity.py, apps/core/truth/domain.py, apps/health/tests/test_medicine_domain_truth.py.
+
+
 ## 2026-06-30 — refactor(layer1): Entity Completeness Contract — business truth first (describe()/CompleteEntity replaces profile())
 
 Architectural refinement. profile(entity) was a software verb returning a per-domain dict — it worked but the business concept ("a canonical entity completely describes itself") was invisible and each domain invented its own shape. Defined the contract from business truth FIRST, then chose the implementation it implies.

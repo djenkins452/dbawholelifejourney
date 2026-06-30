@@ -1,67 +1,79 @@
-# Layer 1 — Entity Completeness Contract
+# Layer 1 — Entity Completeness (Architectural Law)
 
-> Layer 1 owns business truth and exposes **complete business objects**. Higher layers
-> retrieve a complete object; they never assemble fragmented truth from multiple Layer 1
-> calls. This contract is defined from **business truth first** — the implementation
-> reflects it, it does not define it.
+## The Law (permanent, business-first, implementation-independent)
 
-## The contract (business level)
+> **A canonical entity is complete when it can completely answer the natural business
+> questions about itself from a single deterministic retrieval.**
 
-When someone asks about a canonical entity, Layer 1 must guarantee the entity
-**completely describes itself** across six business dimensions:
+This is the law. It does not name dimensions, fields, or types. It is a statement about a
+**business capability**: ask a natural question about the entity, and Layer 1 can answer
+it — fully, deterministically, in one retrieval — without the caller assembling fragments.
 
-| Dimension | The business question it answers |
+Supporting principles (Layer 1 constitution):
+- Layer 1 owns business truth and exposes **complete business objects**.
+- Higher layers **retrieve** a complete object; they never assemble fragmented truth from
+  multiple Layer 1 calls.
+- Truth is **deterministic** and carries its trust properties (Freshness, Confidence).
+
+The law is what must never change. *How* an entity satisfies it may evolve.
+
+---
+
+## The current canonical implementation of the law
+
+Today, an entity satisfies the law by describing itself across **six business
+dimensions**. These dimensions are **not the law** — they are the present-day, canonical
+way we guarantee an entity can answer its natural questions. New universal dimensions may
+be added in future without changing the law or the architecture.
+
+| Dimension | The natural business question it answers |
 |---|---|
-| **Identity** | What is it? (the human name/title) |
-| **Definition** | What specifies it? (its defining attributes) |
+| **Identity** | What is it? |
+| **Definition** | What specifies it? |
 | **Status** | What lifecycle state is it in? |
-| **Plan** | What is *supposed* to happen? (intended schedule / target / cadence) |
-| **Standing** | What is happening *now*, relative to the plan? (today / current) |
-| **Performance** | How has it gone over time? (history / trend / rate) |
+| **Plan** | What is *supposed* to happen? |
+| **Standing** | What is happening *now*, relative to the plan? |
+| **Performance** | How has it gone over time? |
 
-…carried with the Layer 1 trust properties already in force: **Freshness** and
-**Confidence**. An entity is not "complete" until all six dimensions (where the domain
-has them) are present in a single retrieval.
+…each carried with **Freshness** and **Confidence**. The dimension set is **open**: a
+domain may attach additional dimensions (an entity's `extensions`) when a natural question
+isn't covered by the canonical six; a dimension that proves universal is later promoted to
+a named dimension. Adding a dimension evolves the implementation — it does not change the
+law.
 
-## The contract across canonical entities
+### The dimensions across canonical entities
 
 | Entity | Identity | Definition | Status | Plan | Standing | Performance |
 |---|---|---|---|---|---|---|
 | **Medication** | name | dose, category, purpose | active/discontinued | schedule | taken today | 7/30/90-day adherence |
-| **Goal** | title | target, metric, why | active/achieved/abandoned | deadline + target value | progress to date | pace, % to target, trend |
+| **Goal** | title | target, metric, why | active/achieved/abandoned | deadline + target | progress to date | pace, % to target, trend |
 | **Task** | title | description, priority | todo/done/overdue | due date | done? overdue? | completion streak |
 | **Calendar Event** | title | time, location, attendees | upcoming/past/cancelled | start/end | happening today? | attendance history |
-| **Relationship** | person | role, desired cadence | active/lapsed | contact cadence | last contact / due to reach out | contact-frequency trend |
-| **Journal Entry / streak** | date/topic | prompt, mood | drafted/logged | intended cadence | written today? | streak, frequency |
-| **Habit** | name | cadence, target | active/paused | how often | done today? | streak, completion rate |
-| **Workout** | type | planned exercises | planned/completed | sets/reps/plan | done today? | weekly volume, PRs |
+| **Relationship** | person | role, desired cadence | active/lapsed | contact cadence | last contact / due | contact-frequency trend |
+| **Journal / Habit** | date/name | prompt, cadence | logged/active/paused | intended cadence | done today? | streak, rate |
+| **Workout** | type | planned exercises | planned/completed | sets/reps | done today? | weekly volume, PRs |
 
-The dimensions are universal; only the *content* per dimension is domain-specific.
+---
 
-## Implementation chosen — `CompleteEntity` + `describe()`, not `profile()`
+## Implementation (reviewed — kept, as the best current expression of the law)
 
-`profile(entity)` was a generic method returning a per-domain dict — the business concept
-("a complete self-describing entity") was invisible and each domain invented its own
-shape. The chosen implementation makes the **entity** first-class:
+- **`CompleteEntity`** (`apps/core/truth/entity.py`) — the current canonical implementation
+  of the law. Its named fields are the six dimensions; an open `extensions` map carries any
+  further dimensions a domain introduces. The contract is visible in the type, yet the
+  dimension set is not closed.
+- **`DomainTruth.describe(entity_type) → list[CompleteEntity]`** — the single deterministic
+  retrieval. The verb is the business operation ("the entity describes itself"); the return
+  satisfies the law.
+- A domain composes any aggregate (e.g. overall adherence) **inside Layer 1**, so the higher
+  layer still makes one call. **Medication is the reference implementation.**
 
-- **`CompleteEntity`** (`apps/core/truth/entity.py`) — one Layer 1 dataclass whose fields
-  ARE the contract dimensions: `kind, identity, definition, status, plan, standing,
-  performance, freshness, confidence`. Every domain returns this same shape.
-- **`DomainTruth.describe(entity_type)`** → `list[CompleteEntity]`. The verb is the
-  business operation ("the entity describes itself"); the return is the contract shape.
-- A domain may also expose a **summary** (the aggregate across its entities — e.g. overall
-  adherence) composed *inside Layer 1*, so the higher layer still makes one call.
+This is reviewed and kept: it satisfies the law (one deterministic retrieval, complete
+object), makes the *current* dimensions visible in the type, and stays open to new
+dimensions — so the law remains business-first and implementation-independent.
 
-**Medication is the reference implementation.** Every future canonical domain implements
-`describe()` returning `CompleteEntity` objects in the same shape. When a domain adds a new
-entity, it is not complete until its `CompleteEntity` populates every dimension the domain
-has — enforced by regression.
+### Conformance (what regression enforces)
 
-## Why this is the better architecture
-
-- The business contract is **visible in the type** — `CompleteEntity`'s fields are the
-  six dimensions; you cannot return a half-described entity without leaving a dimension empty.
-- The shape is **identical across domains** — Beth (and dashboards, reports, exports) learn
-  one shape, not one bespoke dict per domain.
-- It is **self-policing** — a new entity that omits a dimension is visibly incomplete.
-- It preserves the Layer 1 laws — freshness + confidence travel on every entity.
+A domain conforms to the law when `describe()` returns entities that can answer the natural
+questions about themselves. In practice the regression checks the canonical dimensions are
+populated (where the domain has them) and that one retrieval answers the entity's natural
+questions — not that a fixed list of fields exists forever.

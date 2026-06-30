@@ -21,6 +21,7 @@ from importlib import import_module
 # Domain provider modules that self-register on import (lazy-loaded on first miss).
 _KNOWN_PROVIDER_MODULES = (
     "apps.health.services.health_domain_truth",
+    "apps.health.services.medicine_domain_truth",   # Medication Canonical Truth
     "apps.finance.services.finance_domain_truth",
     "apps.core.truth.domain_rollout",   # journal, calendar, tasks, faith, relationships
 )

@@ -147,15 +147,36 @@ class ExecutionFactRetrievalTests(TestCase):
         self.assertEqual(format_fact_sentence("meals_yesterday", f2),
                          "You didn't log any food yesterday.")
 
-    def test_meds_today_adherence_from_sae(self):
-        # Defect Class 5 — deterministic medication rollout ("did I take my meds today").
+    def test_meds_today_from_canonical_medicine_truth(self):
+        # "Did I take my meds today?" now reads the canonical Medicine Domain Truth
+        # (PRESCRIPTION doses, live from the models) — NOT the SAE snapshot. Proven by
+        # disabling the SAE entirely.
+        from datetime import date, time
+        from apps.health.models import Intake, IntakeSchedule, IntakeLog
+        from apps.core.utils import get_user_today
         self.assertEqual(classify_foundational_fact("Did I take my meds today?"), "meds_today")
-        state = {"expected_today": 3, "today_taken": 2, "today_pending": 1, "today_missed": 0}
-        with mock.patch(_GMS, return_value=state):
+        today = get_user_today(self.user)
+
+        def rx(name):
+            m = Intake.objects.create(user=self.user, name=name, dose="10mg",
+                                      frequency="daily", start_date=date(2026, 1, 1),
+                                      intake_status="active", intake_type="medication",
+                                      category="prescription")
+            IntakeSchedule.objects.create(intake=m, scheduled_time=time(0, 1),
+                                          days_of_week="0,1,2,3,4,5,6", is_active=True)
+            return m
+
+        a, b, c = rx("Metformin"), rx("Lisinopril"), rx("Atorvastatin")
+        IntakeLog.objects.create(user=self.user, intake=a, scheduled_date=today, log_status="taken")
+        IntakeLog.objects.create(user=self.user, intake=b, scheduled_date=today, log_status="taken")
+        with mock.patch(_GMS, side_effect=RuntimeError("SAE DISABLED")):  # canonical, no SAE
             f = get_foundational_execution_facts(self.user, ["meds_today"])["meds_today"]
         self.assertEqual(format_fact_sentence("meds_today", f),
                          "You've taken 2 of 3 doses today, with 1 still to take.")
-        with mock.patch(_GMS, return_value={"expected_today": 0}):
+
+    def test_meds_today_none_scheduled_from_canonical_truth(self):
+        from apps.ai.cos_services.execution_facts import get_foundational_execution_facts
+        with mock.patch(_GMS, side_effect=RuntimeError("SAE DISABLED")):
             f = get_foundational_execution_facts(self.user, ["meds_today"])["meds_today"]
         self.assertEqual(format_fact_sentence("meds_today", f),
                          "You don't have any medications scheduled for today.")

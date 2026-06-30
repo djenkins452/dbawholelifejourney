@@ -7,6 +7,22 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-30 — feat(layer1): Medication Canonical Truth — Medicine Domain Truth (prescription = medicine)
+
+Layer 1 contract validation found: no canonical Medication Domain Truth existed (the code admitted it — "no MedicineQueries contract exists yet"). Medication truth was reconstructed ad-hoc in the SAE precompute and Beth read the SAE snapshot — so when the snapshot was missing/stale, Beth said "I don't have any current medications" (the production failure). Fix = the missing reusable Layer 1 capability, not a Beth workaround.
+
+New canonical capability (read LIVE from Intake/IntakeLog/IntakeSchedule, never the SAE):
+- apps/health/services/medicine_queries.py — MedicineQueries: active() inventory, today_execution(), adherence_rate()/adherence_trend(). Reuses the canonical adherence utility (no duplicate math).
+- apps/health/services/medicine_domain_truth.py — MedicineDomainTruth(DomainTruth), registered as "medicine" (additive Layer 1 registration; frozen Layer 1 unchanged). current() returns CurrentTruth for inventory / today-execution / adherence_7d/30d/90d, with freshness+confidence.
+- 4-way business classification (medicine_classification.py promoted from 3→4): Prescription / Supplement / OTC (its own category) / Wellness. "Medicine" = PRESCRIPTION only.
+
+Routing (Beth retrieves from canonical truth, not SAE): health_facts._MEDICINE_DOMAIN_KEYS → get_domain_truth("medicine") for current_medications + adherence_7d/30d/90d; execution_facts meds_today → MedicineQueries.today_execution; classifier recognizes "X-day medication adherence". The SAE now CACHES this truth (build_medicine_state consumes MedicineQueries — no duplicate ad-hoc query, no longer the source of record).
+
+Acceptance (proven with the SAE DISABLED — get_module_state raises): "what prescription medications am I taking?", "did I take my prescription medications today?", "7/30/90-day medication adherence" all answered from canonical truth. Supplements/OTC/Wellness never counted as medicine; Medication Adherence = prescription only. Inventory returns PRESENT (a real "0"), never the SAE-missing "unknown". Regression: test_medicine_domain_truth (acceptance + 4-way classification + SAE-disabled). Updated SAE-mock medication tests to use real data (the facts no longer read the SAE). GREEN (137 + 38 Layer 2); no migrations.
+
+**Files:** apps/health/services/medicine_queries.py (new), apps/health/services/medicine_domain_truth.py (new), apps/health/tests/test_medicine_domain_truth.py (new), apps/health/medicine_classification.py, apps/core/truth/domain.py, apps/ai/cos_services/health_facts.py, apps/ai/cos_services/execution_facts.py, apps/ai/chatgpt_cos/foundational_facts.py, apps/core/ai_state/state_builder.py, apps/ai/tests/test_execution_facts.py, apps/ai/tests/test_foundation_validation.py, apps/health/tests/test_medication_classification.py.
+
+
 ## 2026-06-30 — fix(health): Medication Adherence = PRESCRIPTION ONLY — trust contract
 
 Production review: Medication Adherence must refer to prescription medications only and never include supplements, vitamins, or wellness products. Investigation: the SAE already split medication vs supplement by intake_type (2026-04-08), but (a) intake_type=medication still let OTC/uncategorized items into "Medication Adherence", and (b) several surfaces computed an UNFILTERED (mixed meds+supplements) rate and labeled it "Medicine adherence" (dashboard_ai → Beth, dashboard cache, action email).

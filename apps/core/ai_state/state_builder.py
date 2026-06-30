@@ -3780,13 +3780,17 @@ def build_medicine_state(user):
             active_meds.values_list('name', flat=True)[:15]
         )
 
-        # Split by intake_type for semantic consumers
-        active_medications = active_meds.filter(intake_type=Intake.INTAKE_TYPE_MEDICATION)
-        active_supplements = active_meds.filter(intake_type=Intake.INTAKE_TYPE_SUPPLEMENT)
-        state['active_medications'] = list(active_medications.values_list('name', flat=True)[:15])
-        state['active_supplements'] = list(active_supplements.values_list('name', flat=True)[:15])
-        state['medication_count'] = active_medications.count()
-        state['supplement_count'] = active_supplements.count()
+        # SAE CACHES the canonical Medicine Domain Truth — it is NOT the source. "Medicine"
+        # = PRESCRIPTION only (business vocabulary); the SAE no longer runs its own ad-hoc
+        # intake_type query (no duplicate truth). Supplements remain a separate category.
+        from apps.health.services.medicine_queries import MedicineQueries
+        from apps.health.medicine_classification import SUPPLEMENT
+        med_names = MedicineQueries.active_names(user)                 # prescription
+        supp_names = MedicineQueries.active_names(user, SUPPLEMENT)
+        state['active_medications'] = med_names[:15]
+        state['active_supplements'] = supp_names[:15]
+        state['medication_count'] = len(med_names)
+        state['supplement_count'] = len(supp_names)
 
         # Refill alerts
         needs_refill = [

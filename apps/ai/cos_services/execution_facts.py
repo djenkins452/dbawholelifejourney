@@ -57,16 +57,14 @@ def _resolve(user, key):
         return _calendar_fact(user, key)
 
     if key == "meds_today":
-        # Pre-computed SAE medicine state (never compute adherence on the request path).
-        from apps.core.ai_state.state_engine import get_module_state
-        try:
-            st = get_module_state(user, "medicine", allow_rebuild=False) or {}
-        except Exception:
-            st = {}
-        expected = st.get("expected_today") or 0
-        return {"value": st.get("today_taken", 0), "expected": expected,
-                "missed": st.get("today_missed", 0), "pending": st.get("today_pending", 0),
-                "source": "SAE.medicine", "freshness": CURRENT}
+        # Canonical Medicine Domain Truth — today's PRESCRIPTION doses, read LIVE from the
+        # models (never the SAE snapshot), so it can't go missing or stale. "Meds" =
+        # prescription only (business vocabulary).
+        from apps.health.services.medicine_queries import MedicineQueries
+        ex = MedicineQueries.today_execution(user)
+        return {"value": ex["taken"], "expected": ex["expected"],
+                "missed": ex["missed"], "pending": ex["pending"],
+                "source": "MedicineQueries", "freshness": CURRENT}
 
     if key == "last_journal":
         from apps.core.ai_state.state_engine import get_module_state

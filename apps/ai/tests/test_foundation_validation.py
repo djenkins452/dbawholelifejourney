@@ -85,6 +85,14 @@ class FastPathTests(TestCase):
         cls.user = User.objects.create_user(email="ff@example.com", password="x")
         cls.user.preferences.use_chatgpt_cos = True
         cls.user.preferences.save()
+        # current_medications now reads the canonical Medicine Domain Truth (live from the
+        # models), not the SAE snapshot — so a real PRESCRIPTION record is required.
+        from datetime import date
+        from apps.health.models import Intake
+        Intake.objects.create(user=cls.user, name="Metformin", dose="500mg",
+                              frequency="daily", start_date=date(2026, 1, 1),
+                              intake_status="active", intake_type="medication",
+                              category="prescription")
 
     def test_fast_path_never_uses_tool_loop(self):
         # The fast path NEVER uses the agentic tool loop. It is EITHER the plain

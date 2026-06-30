@@ -110,6 +110,19 @@ def _day_fact(user, key):
     return get_domain_truth(user, "health").current(key).to_fact_dict()
 
 
+# Medication facts answered by the canonical Medicine Domain Truth (read live, never SAE).
+_MEDICINE_DOMAIN_KEYS = {"current_medications", "medication_execution_today",
+                         "adherence_7d", "adherence_30d", "adherence_90d"}
+
+
+def _medicine_fact(user, key):
+    """Medication fact → flat dict, retrieved through the canonical Medicine DOMAIN TRUTH
+    (`get_domain_truth(user, "medicine").current(key)`). Read live from the canonical
+    models — independent of the SAE snapshot, so it can never go missing or stale."""
+    from apps.core.truth.domain import get_domain_truth
+    return get_domain_truth(user, "medicine").current(key).to_fact_dict()
+
+
 def get_foundational_health_facts(user, keys=None):
     """
     Return focused scalar foundational health facts.
@@ -147,6 +160,12 @@ def get_foundational_health_facts(user, keys=None):
 
     out = {}
     for key in requested:
+        # MEDICATION CANONICAL TRUTH: inventory / today-execution / adherence read LIVE
+        # from the Medicine Domain Truth (never the SAE snapshot), so they can't go
+        # missing or stale. "Medicine" = prescription only.
+        if key in _MEDICINE_DOMAIN_KEYS:
+            out[key] = _jsonsafe(_medicine_fact(user, key))
+            continue
         # Per-day deterministic facts route to DailyHealthQueries (specific day),
         # NOT the SAE 7-day-average path.
         if key in _DAY_FACT_KEYS:

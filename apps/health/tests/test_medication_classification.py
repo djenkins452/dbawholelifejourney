@@ -13,7 +13,7 @@ from django.test import SimpleTestCase, TestCase
 
 from apps.health.models import Intake, IntakeSchedule, IntakeLog
 from apps.health.medicine_classification import (
-    classify_intake, classification_q, PRESCRIPTION, SUPPLEMENT, WELLNESS,
+    classify_intake, classification_q, PRESCRIPTION, SUPPLEMENT, OTC, WELLNESS,
 )
 from apps.health.medicine_utils import calculate_medicine_adherence
 from apps.users.models import TermsAcceptance
@@ -44,9 +44,13 @@ class ClassifyIntakeTests(SimpleTestCase):
                              SUPPLEMENT, cat)
 
     def test_wellness_bucket(self):
-        for cat in ("otc", "performance", "other"):
+        for cat in ("performance", "other"):
             self.assertEqual(classify_intake(_FakeIntake(category=cat, intake_type="medication")),
                              WELLNESS, cat)
+
+    def test_otc_is_its_own_bucket(self):
+        # OTC is no longer folded into Wellness (4-way business vocabulary).
+        self.assertEqual(classify_intake(_FakeIntake(category="otc")), OTC)
 
     def test_supplements_are_never_prescription(self):
         for cat in ("vitamin", "mineral", "amino_acid", "herbal", "probiotic"):

@@ -68,6 +68,9 @@ _UNKNOWN_SENTENCE = {
     "current_weight": "I don't have a current weight recorded for you yet.",
     "last_glucose_reading": "I don't have a recent glucose reading recorded for you.",
     "current_medications": "I don't have any current medications recorded for you.",
+    "adherence_7d": "I don't have enough dose history yet to calculate your medication adherence.",
+    "adherence_30d": "I don't have enough dose history yet to calculate your 30-day medication adherence.",
+    "adherence_90d": "I don't have enough dose history yet to calculate your 90-day medication adherence.",
     "calories_today": "I don't have any calories logged for you today.",
     "protein_today": "I don't have any protein logged for you today.",
     "sleep_last_night": "I don't have last night's sleep recorded yet — it may not have synced.",
@@ -224,6 +227,15 @@ def classify_foundational_fact(message):
     exec_key = _classify_execution_fact(text)
     if exec_key:
         return exec_key
+    # MEDICATION ADHERENCE (canonical Medicine Domain Truth) — must precede the bare
+    # "medication" keyword (which maps to the inventory). "Medication Adherence" =
+    # PRESCRIPTION only; a supplement-adherence question is not claimed here.
+    if "adherence" in text and "supplement" not in text:
+        if "90" in text or "ninety" in text:
+            return "adherence_90d"
+        if "30" in text or "thirty" in text or "monthly" in text:
+            return "adherence_30d"
+        return "adherence_7d"
     matched = None
     for key, keywords in _FACT_KEYWORDS:
         if any(kw in text for kw in keywords):
@@ -339,8 +351,13 @@ def format_fact_sentence(key, fact):
     if key == "current_medications":
         meds = value if isinstance(value, list) else [value]
         count = fact.get("count", len(meds))
-        return (f"You're currently taking {count} medication(s): "
+        if count == 0:
+            return "You don't have any prescription medications on file right now."
+        return (f"You're currently taking {count} prescription medication(s): "
                 f"{', '.join(str(m) for m in meds)}.")
+    if key in ("adherence_7d", "adherence_30d", "adherence_90d"):
+        days = {"adherence_7d": 7, "adherence_30d": 30, "adherence_90d": 90}[key]
+        return f"Your {days}-day medication adherence is {value}%."
     if key == "calories_today":
         from apps.core.truth.present import humanize_number, present_remaining
         if fact.get("target"):       # answer the next question: how much is left
@@ -461,7 +478,9 @@ def format_fact_sentence(key, fact):
 # (the number must always appear) and PRESENTATION-formatted facts (the structured/
 # multi-line list must survive — the LLM would flatten it back into a dense sentence).
 _NUMERIC_VALUE_KEYS = {"calories_today", "calories_yesterday", "protein_today",
-                       "meals_today", "meals_yesterday"}
+                       "meals_today", "meals_yesterday",
+                       # Medication adherence — the % must always appear (canonical truth).
+                       "adherence_7d", "adherence_30d", "adherence_90d"}
 
 
 def _temporal_or_clinical(fact):

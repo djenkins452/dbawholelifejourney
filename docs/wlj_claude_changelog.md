@@ -7,6 +7,20 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-30 — fix(layer1): supplements appeared as prescription medications — trust failure
+
+Production after 40d268ed: "List all of my active prescription medications" returned Fish Oil and Magnesium glycinate (supplements). Trace: (1) the question correctly classifies to the canonical current_medications fact; (2) current_medications was NOT deterministic, so it went through LLM phrasing ("Your current medications include…" — not the canonical format); (3) for the canonical filter to return them, Fish Oil/Magnesium were tagged category='prescription' in production (data mis-tag — the only way a non-insulin item passes the prescription filter).
+
+Three-layer fix:
+- classify_intake gains an unambiguous-supplement-NAME safety net (fish oil, magnesium, omega-3, probiotic, melatonin, glucosamine, turmeric, …) checked before category, so a mis-tagged supplement can NEVER classify as prescription. classification_q mirrors it (so adherence DB queries agree). MedicineQueries.active() applies classify_intake as the FINAL authority per object.
+- current_medications made deterministic (LLM bypassed) — the answer is now EXACTLY the canonical prescription list, with no embellishment or broader-context leak.
+- Data migration 0097_reclassify_mistagged_supplements — safely re-tags items named like supplements but tagged medication/prescription → intake_type='supplement' with a supplement category (targeted, conservative, insulin/real-Rx untouched, idempotent).
+
+Verified: with Fish Oil + Magnesium mis-tagged category='prescription' and the SAE disabled, the prescription inventory is exactly [Atorvastatin, Lantus SoloStar (insulin), Metformin HCL ER, Mounjaro, Valsartan]; Fish Oil appears under supplements. Regression: test_medicine_domain_truth (mis-tagged supplements never in prescription inventory + deterministic exact-list). GREEN (112); migration 0097 valid.
+
+**Files:** apps/health/medicine_classification.py, apps/health/services/medicine_queries.py, apps/ai/chatgpt_cos/foundational_facts.py, apps/health/migrations/0097_reclassify_mistagged_supplements.py (new), apps/health/tests/test_medicine_domain_truth.py.
+
+
 ## 2026-06-30 — feat(layer1): Medication Canonical Truth — Medicine Domain Truth (prescription = medicine)
 
 Layer 1 contract validation found: no canonical Medication Domain Truth existed (the code admitted it — "no MedicineQueries contract exists yet"). Medication truth was reconstructed ad-hoc in the SAE precompute and Beth read the SAE snapshot — so when the snapshot was missing/stale, Beth said "I don't have any current medications" (the production failure). Fix = the missing reusable Layer 1 capability, not a Beth workaround.

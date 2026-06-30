@@ -480,7 +480,11 @@ def format_fact_sentence(key, fact):
 _NUMERIC_VALUE_KEYS = {"calories_today", "calories_yesterday", "protein_today",
                        "meals_today", "meals_yesterday",
                        # Medication adherence — the % must always appear (canonical truth).
-                       "adherence_7d", "adherence_30d", "adherence_90d"}
+                       "adherence_7d", "adherence_30d", "adherence_90d",
+                       # current_medications: the answer must be EXACTLY the canonical
+                       # prescription list — the LLM rephrase could embellish or pull
+                       # supplements from broader context. Bypass it (trust contract).
+                       "current_medications"}
 
 
 def _temporal_or_clinical(fact):

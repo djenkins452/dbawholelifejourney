@@ -28,9 +28,16 @@ class MedicineQueries:
     @classmethod
     def active(cls, user, classification=PRESCRIPTION):
         """Active items of a category → list of canonical inventory dicts (name, dose,
-        frequency, purpose, category, schedule_times, is_prn). Default: prescriptions."""
+        frequency, purpose, category, schedule_times, is_prn). Default: prescriptions.
+
+        The classification_q is a COARSE DB pre-filter; classify_intake() is the FINAL
+        authority per object — so the supplement-name safety net excludes a mis-tagged
+        item (e.g. a "Fish Oil" wrongly tagged category=prescription) even if the DB
+        filter returned it. A supplement can never leak into prescription inventory."""
         out = []
         for m in cls._active_qs(user, classification).prefetch_related("schedules"):
+            if classify_intake(m) != classification:
+                continue
             times = sorted(
                 s.scheduled_time.strftime("%-I:%M %p")
                 for s in m.schedules.all()

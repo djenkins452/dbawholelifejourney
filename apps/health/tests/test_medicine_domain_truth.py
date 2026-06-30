@@ -150,6 +150,52 @@ class MedicineDomainTruthTests(TestCase):
         self.assertEqual(truth.value, 100)
         self.assertEqual(truth.detail["scope"], "prescription")
 
+    def test_mistagged_supplements_never_appear_in_prescription_inventory(self):
+        # Production trust failure (2026-06-30): Fish Oil + Magnesium glycinate were tagged
+        # category='prescription' and appeared under prescription medications. The
+        # supplement-name safety net must exclude them everywhere — even mis-tagged.
+        from datetime import date
+
+        def mistag(name):
+            return Intake.objects.create(user=self.user, name=name, dose="x", frequency="daily",
+                                         start_date=date(2026, 1, 1), intake_status="active",
+                                         intake_type="medication", category="prescription")
+        prod = ["Atorvastatin", "Fish Oil", "Magnesium glycinate",
+                "Metformin HCL ER", "Mounjaro", "Valsartan"]
+        for nm in prod:
+            mistag(nm)
+        Intake.objects.create(user=self.user, name="Lantus SoloStar", dose="x",
+                              frequency="daily", start_date=date(2026, 1, 1),
+                              intake_status="active", intake_type="medication",
+                              category="other", intake_subtype="insulin_basal")
+
+        rx = MedicineQueries.active_names(self.user)
+        self.assertNotIn("Fish Oil", rx)                  # supplement — never medicine
+        self.assertNotIn("Magnesium glycinate", rx)       # supplement — never medicine
+        self.assertEqual(rx, ["Atorvastatin", "Lantus SoloStar", "Metformin HCL ER",
+                              "Mounjaro", "Valsartan"])    # exactly the 5 real prescriptions
+        self.assertIn("Fish Oil", MedicineQueries.active_names(self.user, SUPPLEMENT))
+
+    def test_current_medications_is_deterministic_exactly_the_canonical_list(self):
+        # The answer must be EXACTLY the canonical prescription list — the LLM is bypassed
+        # so it can never embellish or pull supplements from broader context.
+        from apps.ai.chatgpt_cos.foundational_facts import (
+            classify_foundational_fact, answer_fact_by_key, _NUMERIC_VALUE_KEYS,
+        )
+        self.assertIn("current_medications", _NUMERIC_VALUE_KEYS)   # deterministic
+        from datetime import date
+        Intake.objects.create(user=self.user, name="Fish Oil", dose="x", frequency="daily",
+                              start_date=date(2026, 1, 1), intake_status="active",
+                              intake_type="medication", category="prescription")
+        self._med("Metformin", "prescription")
+        key = classify_foundational_fact("List my active prescription medications.")
+        with _sae_disabled(), mock.patch(
+                "apps.ai.services.ai_service._call_api",
+                side_effect=AssertionError("LLM must not be called for current_medications")):
+            ans = answer_fact_by_key(self.user, key)["answer"]
+        self.assertIn("Metformin", ans)
+        self.assertNotIn("Fish Oil", ans)                 # supplement excluded, deterministically
+
     def test_inventory_is_present_not_unknown_when_empty(self):
         # No prescriptions → a real "0", never the SAE-missing "unknown" failure.
         self._med("Vitamin D", "vitamin", intake_type="supplement")

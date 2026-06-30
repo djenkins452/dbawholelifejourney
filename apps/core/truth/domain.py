@@ -83,6 +83,19 @@ class DomainTruth:
         from apps.core.ai_state.state_engine import get_module_state
         return get_module_state(self.user, self.domain, allow_rebuild=False) or {}
 
+    # COMPLETE BUSINESS OBJECT (reusable Layer 1 pattern) ----------------------
+    # Layer 1 exposes COMPLETE business objects; higher layers retrieve ONE object and
+    # never assemble fragmented truth from many calls. A domain's `profile()` composes
+    # all attributes a natural question about the entity needs (inventory + status +
+    # execution + history) into one deterministic object. Every future canonical entity
+    # (Goals, Calendar, Journal, Relationships, …) should implement this. The Medication
+    # domain is the reference implementation.
+    profile_entities = ()         # introspection: entities profile() supports
+
+    def profile(self, entity=None):
+        raise NotImplementedError(f"{self.domain} domain truth exposes no profile()")
+
     def supports(self):
         return {"current": tuple(self.current_metrics),
-                "history": tuple(self.history_metrics)}
+                "history": tuple(self.history_metrics),
+                "profile": tuple(self.profile_entities)}

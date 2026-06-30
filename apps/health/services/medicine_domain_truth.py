@@ -24,9 +24,10 @@ _ADHERENCE_DAYS = {"adherence_7d": 7, "adherence_30d": 30, "adherence_90d": 90}
 class MedicineDomainTruth(DomainTruth):
     domain = _DOMAIN
     current_metrics = ("current_medications", "active_medications",
-                       "medication_execution_today",
+                       "medication_execution_today", "medication_profile",
                        "adherence_7d", "adherence_30d", "adherence_90d")
     history_metrics = ("adherence",)
+    profile_entities = ("medications",)
 
     # -- current --------------------------------------------------------------
     def current(self, metric):
@@ -34,10 +35,26 @@ class MedicineDomainTruth(DomainTruth):
             return self._inventory()
         if metric == "medication_execution_today":
             return self._execution_today()
+        if metric == "medication_profile":
+            return self._profile_truth()
         if metric in _ADHERENCE_DAYS:
             return self._adherence(metric, _ADHERENCE_DAYS[metric])
         raise KeyError(f"medicine current unsupported: {metric!r} "
                        f"(have {self.current_metrics})")
+
+    # -- complete business object (reusable Layer 1 pattern) ------------------
+    def profile(self, entity="medications"):
+        """The COMPLETE canonical Medication object (raw dict) — one retrieval, every
+        attribute. Higher layers consume this; they never assemble fragmented truth."""
+        return MedicineQueries.profile(self.user)
+
+    def _profile_truth(self):
+        prof = MedicineQueries.profile(self.user)
+        return CurrentTruth.found(
+            _DOMAIN, "medication_profile", prof["count"], CURRENT, source=_SRC,
+            detail={"medications": prof["medications"], "count": prof["count"],
+                    "today": prof["today"], "adherence": prof["adherence"]},
+        )
 
     def _inventory(self):
         meds = MedicineQueries.active(self.user)          # prescription only

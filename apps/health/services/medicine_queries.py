@@ -61,14 +61,9 @@ class MedicineQueries:
 
     # -- today execution ------------------------------------------------------
     @classmethod
-    def today_execution(cls, user, classification=PRESCRIPTION):
-        """Today's expected / taken / late / missed / skipped / pending doses, computed
-        live from schedules + IntakeLog (default: prescriptions only)."""
-        from apps.core.utils import get_user_now, get_user_today
+    def _execution_for_qs(cls, user, qs, today, now_time):
+        """Today's expected/taken/late/missed/skipped/pending for an Intake queryset."""
         from apps.health.medicine_utils import _enumerate_expected_doses
-        today = get_user_today(user)
-        now_time = get_user_now(user).time()
-        qs = cls._active_qs(user, classification).prefetch_related("schedules")
         expected = len(_enumerate_expected_doses(qs, today, today, today, now_time))
         logs = IntakeLog.objects.filter(user=user, intake__in=qs, scheduled_date=today)
         taken = logs.filter(log_status="taken").count()
@@ -84,6 +79,54 @@ class MedicineQueries:
             "missed": missed,
             "skipped": skipped,
             "pending": pending,
+        }
+
+    @classmethod
+    def today_execution(cls, user, classification=PRESCRIPTION):
+        """Today's prescription dose execution (overall), live from schedules + IntakeLog."""
+        from apps.core.utils import get_user_now, get_user_today
+        qs = cls._active_qs(user, classification).prefetch_related("schedules")
+        return cls._execution_for_qs(user, qs, get_user_today(user), get_user_now(user).time())
+
+    # -- complete canonical business object ------------------------------------
+    @classmethod
+    def profile(cls, user):
+        """The COMPLETE canonical Medication business object — ONE retrieval answers any
+        natural medication question. Each prescription carries its full attributes +
+        today's execution; the summary carries overall today + 7/30/90-day adherence.
+        Prescription only (Medicine = prescription); read live from the canonical models."""
+        from apps.core.utils import get_user_now, get_user_today
+        from apps.health.medicine_classification import classify_intake
+        today = get_user_today(user)
+        now_time = get_user_now(user).time()
+        meds = []
+        for m in cls._active_qs(user, PRESCRIPTION).prefetch_related("schedules"):
+            if classify_intake(m) != PRESCRIPTION:        # final authority (name safety net)
+                continue
+            times = sorted(s.scheduled_time.strftime("%-I:%M %p")
+                           for s in m.schedules.all()
+                           if getattr(s, "is_active", True) and s.scheduled_time)
+            one = Intake.objects.filter(pk=m.pk)
+            meds.append({
+                "name": m.name,
+                "dose": m.dose,
+                "category": classify_intake(m),
+                "status": m.intake_status,
+                "schedule_times": times,
+                "purpose": m.purpose or "",
+                "is_prn": bool(getattr(m, "is_prn", False)),
+                "today": cls._execution_for_qs(user, one, today, now_time),
+            })
+        meds.sort(key=lambda d: d["name"].lower())
+        return {
+            "medications": meds,
+            "count": len(meds),
+            "today": cls.today_execution(user),                       # overall
+            "adherence": {                                            # overall, prescription
+                "7d": cls.adherence_rate(user, 7),
+                "30d": cls.adherence_rate(user, 30),
+                "90d": cls.adherence_rate(user, 90),
+            },
         }
 
     # -- history / adherence --------------------------------------------------

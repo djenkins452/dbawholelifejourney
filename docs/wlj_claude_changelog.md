@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-30 — feat(layer1): complete Medication business object — one retrieval, every attribute
+
+Layer 1 completeness contract: a detailed medication question ("list my prescriptions; for each show dose, category, status, schedule, taken today, my 7-day adherence") forced Beth to assemble fragmented Layer 1 facts. The canonical Medication entity exposed inventory only — not status, per-medication today-execution, or adherence. Higher layers should retrieve ONE complete business object, never fragments.
+
+New reusable Layer 1 pattern: DomainTruth.profile(entity) — composes the COMPLETE business object (inventory + status + execution + history) for a domain. MedicineDomainTruth is the reference implementation; every future canonical entity (Goals, Calendar, Journal, Relationships) follows it. MedicineQueries.profile(user) returns each prescription with name/dose/category/status/schedule/purpose + today's execution, plus an overall summary (today + 7/30/90-day adherence) — read live from the canonical models. Exposed as the medication_profile current-metric and the profile() method.
+
+Retrieval: the detailed request classifies to medication_profile (precedes adherence + bare inventory), routed through get_domain_truth("medicine"), rendered deterministically (LLM bypassed) as a structured report. The simple "what meds am I taking" still → current_medications.
+
+Acceptance (proven, SAE disabled + LLM asserted-not-called): the full question is answered by ONE retrieval whose response naturally contains name, dose (10mg), category (prescription), status (active), schedule, "taken today", and 7-day adherence (100%). Supplements/OTC never in the profile. Regression: test_medicine_domain_truth (complete object + profile pattern + single-retrieval acceptance). GREEN (84); no migrations.
+
+**Files:** apps/core/truth/domain.py, apps/health/services/medicine_queries.py, apps/health/services/medicine_domain_truth.py, apps/ai/cos_services/health_facts.py, apps/ai/chatgpt_cos/foundational_facts.py, apps/health/tests/test_medicine_domain_truth.py.
+
+
 ## 2026-06-30 — fix(layer1): supplements appeared as prescription medications — trust failure
 
 Production after 40d268ed: "List all of my active prescription medications" returned Fish Oil and Magnesium glycinate (supplements). Trace: (1) the question correctly classifies to the canonical current_medications fact; (2) current_medications was NOT deterministic, so it went through LLM phrasing ("Your current medications include…" — not the canonical format); (3) for the canonical filter to return them, Fish Oil/Magnesium were tagged category='prescription' in production (data mis-tag — the only way a non-insulin item passes the prescription filter).

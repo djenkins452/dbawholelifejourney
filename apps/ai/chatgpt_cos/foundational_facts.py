@@ -227,6 +227,18 @@ def classify_foundational_fact(message):
     exec_key = _classify_execution_fact(text)
     if exec_key:
         return exec_key
+    # MEDICATION PROFILE (complete canonical business object) — a detailed medication
+    # request ("for each one show dose / schedule / taken today / adherence") is answered
+    # by ONE retrieval of the full Medication object. Must precede both the adherence and
+    # the bare inventory keywords.
+    _med_words = ("medication", "meds", "prescription")
+    _med_detail = ("for each", "dose", "schedule", "category", "status", "taken today",
+                   "did i take", "rundown", "breakdown", "full list", "details", "everything")
+    if any(w in text for w in _med_words) and (
+            "for each" in text
+            or (("list" in text or "show" in text or "give me" in text)
+                and any(c in text for c in _med_detail))):
+        return "medication_profile"
     # MEDICATION ADHERENCE (canonical Medicine Domain Truth) — must precede the bare
     # "medication" keyword (which maps to the inventory). "Medication Adherence" =
     # PRESCRIPTION only; a supplement-adherence question is not claimed here.
@@ -358,6 +370,30 @@ def format_fact_sentence(key, fact):
     if key in ("adherence_7d", "adherence_30d", "adherence_90d"):
         days = {"adherence_7d": 7, "adherence_30d": 30, "adherence_90d": 90}[key]
         return f"Your {days}-day medication adherence is {value}%."
+    if key == "medication_profile":
+        meds = fact.get("medications") or []
+        if not meds:
+            return "You don't have any active prescription medications on file right now."
+
+        def _pct(v):
+            return f"{v}%" if v is not None else "not enough history yet"
+        lines = [f"You have {len(meds)} active prescription medication(s):", ""]
+        for m in meds:
+            sched = ", ".join(m.get("schedule_times") or []) or "no set schedule"
+            td = m.get("today") or {}
+            took = (f"{td.get('taken', 0)} of {td.get('expected', 0)} taken today"
+                    if td.get("expected") else "none scheduled today")
+            detail = ", ".join(x for x in (m.get("dose"), m.get("category"),
+                                           m.get("status")) if x)
+            lines.append(f"• {m['name']} — {detail}; schedule: {sched}; {took}")
+        adh = fact.get("adherence") or {}
+        today = fact.get("today") or {}
+        lines.append("")
+        lines.append(f"Today: {today.get('taken', 0)} of {today.get('expected', 0)} "
+                     f"prescription doses taken.")
+        lines.append(f"Medication adherence — 7-day: {_pct(adh.get('7d'))}, "
+                     f"30-day: {_pct(adh.get('30d'))}, 90-day: {_pct(adh.get('90d'))}.")
+        return "\n".join(lines)
     if key == "calories_today":
         from apps.core.truth.present import humanize_number, present_remaining
         if fact.get("target"):       # answer the next question: how much is left
@@ -484,7 +520,10 @@ _NUMERIC_VALUE_KEYS = {"calories_today", "calories_yesterday", "protein_today",
                        # current_medications: the answer must be EXACTLY the canonical
                        # prescription list — the LLM rephrase could embellish or pull
                        # supplements from broader context. Bypass it (trust contract).
-                       "current_medications"}
+                       "current_medications",
+                       # medication_profile: the complete structured business object must
+                       # survive verbatim (the LLM would flatten/embellish it).
+                       "medication_profile"}
 
 
 def _temporal_or_clinical(fact):

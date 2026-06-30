@@ -196,6 +196,67 @@ class MedicineDomainTruthTests(TestCase):
         self.assertIn("Metformin", ans)
         self.assertNotIn("Fish Oil", ans)                 # supplement excluded, deterministically
 
+    def test_profile_is_a_complete_business_object(self):
+        # Layer 1 exposes a COMPLETE Medication object — one call, every attribute.
+        rx1, rx2 = self._seed()
+        for i in range(8):
+            for rx in (rx1, rx2):
+                IntakeLog.objects.create(user=self.user, intake=rx,
+                                         scheduled_date=self.today - timedelta(days=i),
+                                         log_status="taken")
+        prof = MedicineQueries.profile(self.user)
+        self.assertEqual(prof["count"], 2)
+        names = sorted(m["name"] for m in prof["medications"])
+        self.assertEqual(names, ["Lisinopril", "Metformin"])
+        m = prof["medications"][0]
+        for attr in ("name", "dose", "category", "status", "schedule_times", "purpose", "today"):
+            self.assertIn(attr, m)                          # every required attribute present
+        self.assertIn("expected", m["today"])               # per-med today execution
+        self.assertEqual(set(prof["adherence"]), {"7d", "30d", "90d"})   # overall adherence
+        self.assertEqual(prof["adherence"]["7d"], 100)
+        # supplements/OTC never in the prescription profile
+        self.assertNotIn("Vitamin D", names)
+        self.assertNotIn("Ibuprofen", names)
+
+    def test_profile_pattern_is_on_the_domain_truth(self):
+        # The reusable Layer 1 pattern: get_domain_truth(...).profile()
+        self._seed()
+        prof = get_domain_truth(self.user, "medicine").profile()
+        self.assertIn("medications", prof)
+        self.assertIn("adherence", prof)
+        self.assertIn("medications", get_domain_truth(self.user, "medicine").supports()["profile"])
+
+    def test_single_retrieval_answers_the_full_question(self):
+        # ACCEPTANCE: the detailed request is one retrieval of the canonical object —
+        # the answer naturally contains name, dose, category, status, schedule, taken
+        # today, and 7-day adherence. SAE disabled; LLM bypassed (deterministic).
+        from apps.ai.chatgpt_cos.foundational_facts import (
+            classify_foundational_fact, answer_fact_by_key, _NUMERIC_VALUE_KEYS,
+        )
+        rx1, rx2 = self._seed()
+        for i in range(8):
+            for rx in (rx1, rx2):
+                IntakeLog.objects.create(user=self.user, intake=rx,
+                                         scheduled_date=self.today - timedelta(days=i),
+                                         log_status="taken")
+        q = ("List all of my active prescription medications. For each one show: Name, "
+             "Dose, Category, Status, Schedule, Whether I took it today, "
+             "My 7-day medication adherence.")
+        key = classify_foundational_fact(q)
+        self.assertEqual(key, "medication_profile")          # one canonical retrieval
+        self.assertIn("medication_profile", _NUMERIC_VALUE_KEYS)   # deterministic
+        with _sae_disabled(), mock.patch(
+                "apps.ai.services.ai_service._call_api",
+                side_effect=AssertionError("LLM must not be called")):
+            ans = answer_fact_by_key(self.user, key)["answer"]
+        self.assertIn("Metformin", ans)
+        self.assertIn("10mg", ans)                           # dose
+        self.assertIn("prescription", ans.lower())           # category
+        self.assertIn("active", ans.lower())                 # status
+        self.assertIn("taken today", ans.lower())            # whether taken today
+        self.assertIn("7-day", ans.lower())                  # 7-day adherence
+        self.assertIn("100%", ans)                           # the adherence value
+
     def test_inventory_is_present_not_unknown_when_empty(self):
         # No prescriptions → a real "0", never the SAE-missing "unknown" failure.
         self._med("Vitamin D", "vitamin", intake_type="supplement")

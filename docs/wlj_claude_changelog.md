@@ -7,6 +7,24 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-30 — fix(layer2): bare "Why?" after a reasoning answer — production-path divergence (release blocker)
+
+Production: "How am I doing overall?" (reasoning lane) → "Why?" → Assistant Unavailable. Trace (repository evidence, no assumption):
+1. "How am I doing overall?" answered by the personal_reasoning lane (Planner, overall_progress).
+2. "Why?" reached why_explainer FIRST but it DECLINED.
+3. The Conversation Object DID survive — record_last_answer captured the reasoning answer (all keys present).
+4. compose_why WORKS on it (falls back to the answer text). The deterministic path didn't activate only because the cue set omitted the most natural form: bare one-word "Why?". `_FOLLOWUP_CUES` had "why do you say"/"why is that" but not "why".
+5. So "Why?" cascaded to the planner, which can't plan a bare "why" → general fallback → Assistant Unavailable.
+
+Root cause: cue-coverage divergence (NOT a missing Conversation Object or a broken follow-up engine — both work). Fix: a `_WHY_EXACT` set ({"why","why though","but why","how come",…}) matched EXACTLY (norm stripped of trailing punctuation), so bare "Why?" routes to compose_why while a substantive "why did I gain weight?" is never swallowed (cascades to the planner). No new capability; no Layer 2 redesign.
+
+Verified: reasoning answer → "Why?" → "I said that from your tracked data — Overall you're doing well…" (stays in the conversation). Guard verified: "Why did I gain weight?" declines → cascades to the planner. Regression: test_layer2_certification Conversation tier (bare-why resolves; substantive-why not swallowed). GREEN (44 across the affected modules). Change-control fix to certified Layer 2.
+
+Honest status of the rest of the defining chain: "Tell me more / What changed? / Anything else?" after a *reasoning* answer decline deterministically and cascade to the planner — a reasoning answer carries no supporting/prior facts for those composers (a substance gap, a separate class from this cue divergence), flagged for the next investigation rather than patched here.
+
+**Files:** apps/ai/chatgpt_cos/lanes.py, apps/ai/tests/test_layer2_certification.py.
+
+
 ## 2026-06-30 — feat(layer2): Executive Reasoning — Layer 2 BUILT, VALIDATED, CERTIFIED, FROZEN
 
 Layer 2 reasons OVER Layer 1 truth and never creates truth. Most of the reasoning layer was built across this week's sprints (Conversation Objects, Goals, Active Subject, Comparison Semantics, Intent Fulfillment, Referential Resolution, Trust capabilities); this sprint inventories it, fills the reusable-engine gaps, and runs the full certification lifecycle mirroring Layer 1.

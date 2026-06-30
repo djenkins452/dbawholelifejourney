@@ -854,6 +854,11 @@ _COMPARISON_AVG_CUES = ("compared to last week", "compared to usual", "vs my ave
 _MEANING_CUES = ("why is that important", "why is that reading important", "why does that matter",
                  "what does that mean", "what does that mean for me", "why is that significant",
                  "why is this important", "what does this mean")
+# Bare one-word "why" follow-ups — the most natural form, which the verbose _FOLLOWUP_CUES
+# missed (production blocker: "How am I doing?" → "Why?" → Assistant unavailable). EXACT
+# match only, so a real reasoning question ("why did I gain weight?") is never swallowed.
+_WHY_EXACT = {"why", "why though", "but why", "and why", "how come", "how so",
+              "why not", "why that", "why is that", "and why is that"}
 
 
 def _why_explainer_lane(user, message, conversation=None):
@@ -864,6 +869,7 @@ def _why_explainer_lane(user, message, conversation=None):
     if conversation is None:
         return None
     norm = (message or "").strip().lower()
+    norm_bare = norm.rstrip("?.! ")        # "Why?" → "why"
     from apps.ai.chatgpt_cos.conversation_memory import (
         get_last_answer, compose_why, compose_when, compose_concern,
         compose_meaning, compose_is_current, compose_supporting, compose_comparison,
@@ -895,7 +901,7 @@ def _why_explainer_lane(user, message, conversation=None):
     elif any(c in norm for c in _CONCERN_CUES):
         handler = compose_concern
         kw = {"positive_frame": any(c in norm for c in _CONCERN_POSITIVE)}
-    elif any(c in norm for c in _FOLLOWUP_CUES):
+    elif norm_bare in _WHY_EXACT or any(c in norm for c in _FOLLOWUP_CUES):
         handler = compose_why
     else:
         return None

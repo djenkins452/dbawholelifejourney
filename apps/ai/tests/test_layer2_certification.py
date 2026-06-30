@@ -142,6 +142,26 @@ class Layer2ConversationTests(TestCase):
         ans = self._turn("Compared to today.")["answer"]
         self.assertIn("lunch", ans.lower())       # the comparison itself, not two lists
 
+    def test_reasoning_answer_then_bare_why_stays_in_the_conversation(self):
+        # Production blocker: "How am I doing overall?" (reasoning lane) → "Why?" returned
+        # Assistant Unavailable, because bare "Why?" matched no follow-up cue and cascaded
+        # to the planner. The reasoning answer IS recorded; bare "Why?" must resolve
+        # deterministically from it — no leaving the executive-reasoning conversation.
+        record_last_answer(self.conv, "personal_reasoning", {
+            "answer": "Overall you're doing well — glucose stable, weight trending down.",
+            "fast_path": "reasoning"})
+        self.conv.refresh_from_db()
+        out = _why_explainer_lane(self.user, "Why?", self.conv)
+        self.assertIsNotNone(out)                          # was: declined → unavailable
+        self.assertIn("doing well", out["answer"])         # explained from the prior answer
+
+    def test_bare_why_does_not_swallow_a_real_reasoning_question(self):
+        record_last_answer(self.conv, "personal_reasoning",
+                           {"answer": "Overall you're doing well.", "fast_path": "reasoning"})
+        self.conv.refresh_from_db()
+        # A substantive "why" question is NOT a follow-up — it must cascade to the planner.
+        self.assertIsNone(_why_explainer_lane(self.user, "Why did I gain weight?", self.conv))
+
     def test_steps_referential_and_recenter(self):
         StepsEntry.objects.create(user=self.user, count=4200, logged_date=self.today)
         StepsEntry.objects.create(user=self.user, count=8123, logged_date=self.yest)

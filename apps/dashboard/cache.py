@@ -204,9 +204,11 @@ class DashboardCacheService:
 
         todays_schedules.sort(key=lambda x: x['schedule'].scheduled_time)
 
-        # Step 4: Medicine adherence - correct calculation against expected doses
+        # Step 4: Medication adherence = PRESCRIPTION ONLY (trust contract 2026-06-30) —
+        # the dashboard "medicine adherence" number must never include supplements/wellness.
         from apps.health.medicine_utils import calculate_medicine_adherence
-        adherence_result = calculate_medicine_adherence(user, week_ago_date, today)
+        adherence_result = calculate_medicine_adherence(
+            user, week_ago_date, today, classification="prescription")
         adherence_rate = adherence_result['adherence_rate']
         taken_count = adherence_result['taken_doses']
         missed_count = adherence_result['missed_doses']

@@ -73,15 +73,17 @@ class PhysicianSummaryServiceTest(AdherenceTestMixin, TestCase):
     def test_adherence_from_canonical_utility(self):
         from apps.core.utils import get_user_today
         from apps.health.medicine_utils import calculate_medicine_adherence_rate
-        from apps.health.models import Intake
-        med = self.create_medicine(self.user, name="Metformin", dose="500mg")
+        # Metformin is a PRESCRIPTION — category must be set for it to count toward
+        # Medication Adherence (trust contract 2026-06-30: prescription only).
+        med = self.create_medicine(self.user, name="Metformin", dose="500mg",
+                                   category="prescription")
         sched = self.create_schedule(med)
         today = get_user_today(self.user)
         for i in range(1, 5):
             self.create_log(self.user, med, today - timedelta(days=i))
         s = build_physician_summary(self.user)
         expected = calculate_medicine_adherence_rate(
-            self.user, days=7, intake_type=Intake.INTAKE_TYPE_MEDICATION)
+            self.user, days=7, classification="prescription")
         self.assertEqual(s["adherence"]["medication_7d"], expected)
 
     def test_only_approved_observations_with_discussion_items(self):

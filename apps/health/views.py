@@ -3309,11 +3309,12 @@ class IntakeHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         context["medication_count"] = len(active_medicines)
         context["supplement_count"] = len(active_supplements)
         # int 0-100, or None when there are no expected doses to measure against.
+        # Medication = PRESCRIPTION ONLY (trust contract 2026-06-30).
         context["medication_adherence_7d"] = calculate_medicine_adherence_rate(
-            user, days=7, intake_type=Intake.INTAKE_TYPE_MEDICATION
+            user, days=7, classification="prescription"
         )
         context["supplement_adherence_7d"] = calculate_medicine_adherence_rate(
-            user, days=7, intake_type=Intake.INTAKE_TYPE_SUPPLEMENT
+            user, days=7, classification="supplement"
         )
 
         # Get today's scheduled doses — batch-load logs to avoid N+1 queries.

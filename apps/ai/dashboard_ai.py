@@ -563,12 +563,20 @@ class DashboardAI:
                     data['medicines_upcoming_today'] = upcoming_doses_today
                     data['medicines_done_today'] = missed_doses_today == 0 and upcoming_doses_today == 0
 
-                # Medicine adherence this week (correct: expected vs taken)
+                # TRUST CONTRACT (2026-06-30): Medication Adherence = PRESCRIPTION ONLY.
+                # The previous unfiltered call merged supplements/vitamins into the
+                # "medicine_adherence_rate" — a mixed metric mislabeled as medication.
                 from apps.health.medicine_utils import calculate_medicine_adherence
-                adherence = calculate_medicine_adherence(
+                med_adherence = calculate_medicine_adherence(
+                    self.user, today - timedelta(days=7), today,
+                    classification="prescription",
+                )
+                data['medication_adherence_rate'] = med_adherence['adherence_rate']
+                # The all-ingestibles number is EXPLICITLY "Health Routine Adherence".
+                routine_adherence = calculate_medicine_adherence(
                     self.user, today - timedelta(days=7), today
                 )
-                data['medicine_adherence_rate'] = adherence['adherence_rate']
+                data['health_routine_adherence_rate'] = routine_adherence['adherence_rate']
 
                 # Medicines needing refill
                 needs_refill = active_medicines.filter(

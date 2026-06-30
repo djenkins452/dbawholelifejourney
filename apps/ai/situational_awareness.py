@@ -398,9 +398,9 @@ def _get_medication_adherence(user):
     """
     try:
         from apps.health.medicine_utils import calculate_medicine_adherence_rate
-        from apps.health.models import Intake
+        # Medication Adherence = PRESCRIPTION ONLY (trust contract 2026-06-30).
         rate = calculate_medicine_adherence_rate(
-            user, days=7, intake_type=Intake.INTAKE_TYPE_MEDICATION,
+            user, days=7, classification="prescription",
         )
         if rate is None:
             return None  # No active medications or insufficient data

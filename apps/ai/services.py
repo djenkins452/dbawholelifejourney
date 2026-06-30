@@ -1352,10 +1352,15 @@ Match your response to your coaching style."""
         if user_data.get('recent_prs_count', 0) > 0:
             context_parts.append(f"Set {user_data['recent_prs_count']} personal records this month")
 
-        if user_data.get('medicine_adherence_rate') is not None:
-            rate = user_data['medicine_adherence_rate']
-            # Always report the actual rate — never editorialize
-            context_parts.append(f"Medicine adherence at {rate}% this week")
+        # Medication Adherence = PRESCRIPTION ONLY (trust contract). Supplements/wellness
+        # are never folded into this number; the all-ingestibles figure is reported
+        # separately and explicitly as "Health routine adherence".
+        if user_data.get('medication_adherence_rate') is not None:
+            rate = user_data['medication_adherence_rate']
+            context_parts.append(f"Medication adherence at {rate}% this week")
+        if user_data.get('health_routine_adherence_rate') is not None:
+            rrate = user_data['health_routine_adherence_rate']
+            context_parts.append(f"Health routine adherence at {rrate}% this week")
 
         if user_data.get('medicines_need_refill', 0) > 0:
             context_parts.append(f"{user_data['medicines_need_refill']} medicines need refill soon")

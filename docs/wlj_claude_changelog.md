@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-30 — fix(health): Medication Adherence = PRESCRIPTION ONLY — trust contract
+
+Production review: Medication Adherence must refer to prescription medications only and never include supplements, vitamins, or wellness products. Investigation: the SAE already split medication vs supplement by intake_type (2026-04-08), but (a) intake_type=medication still let OTC/uncategorized items into "Medication Adherence", and (b) several surfaces computed an UNFILTERED (mixed meds+supplements) rate and labeled it "Medicine adherence" (dashboard_ai → Beth, dashboard cache, action email).
+
+Canonical classifier (apps/health/medicine_classification.py — single source of truth): classify_intake / classification_q bucket every Intake into Prescription (category=prescription + insulin), Supplement (vitamin/mineral/amino_acid/herbal/probiotic/hormonal), or Wellness/Nutrition (otc/performance/other). Strict by design: an uncategorized medication is Wellness, so a supplement can never leak into the medication number (tag prescriptions category='prescription'; insulin is always prescription).
+
+calculate_medicine_adherence[_rate] gained a `classification` filter. Every medication-labeled surface now scopes to prescription: state_builder (adherence_7d=prescription, supplement_adherence_7d=supplement, NEW health_routine_adherence_7d=all/explicitly-named), dashboard_ai (medication_adherence_rate + health_routine_adherence_rate), services.py Beth wording ("Medication adherence at X%" + separate "Health routine adherence" — a mixed metric is never labeled Medication Adherence), dashboard/cache.py, physician_summary, health/views, situational_awareness. The CoS chain (cos_context.medication_adherence_state → standing_context → Beth) reads the prescription-scoped SAE.
+
+Permanent regression: test_medication_classification — classifier buckets every category; supplements are never prescription; prescription vs supplement adherence are DISJOINT (Rx 100% taken + supplement 0% → metrics differ, routine sits between, never the medication number). Updated test_physician_summary (Metformin now tagged category='prescription'). GREEN (130 across affected modules); no migrations (reads existing fields). Doc: docs/MEDICATION_ADHERENCE_TRUST_CONTRACT.md.
+
+**Files:** apps/health/medicine_classification.py (new), apps/health/tests/test_medication_classification.py (new), docs/MEDICATION_ADHERENCE_TRUST_CONTRACT.md (new), apps/health/medicine_utils.py, apps/core/ai_state/state_builder.py, apps/ai/dashboard_ai.py, apps/ai/services.py, apps/dashboard/cache.py, apps/health/physician_summary.py, apps/health/views.py, apps/ai/situational_awareness.py, apps/health/tests/test_physician_summary.py.
+
+
 ## 2026-06-30 — fix(layer2): bare "Why?" after a reasoning answer — production-path divergence (release blocker)
 
 Production: "How am I doing overall?" (reasoning lane) → "Why?" → Assistant Unavailable. Trace (repository evidence, no assumption):

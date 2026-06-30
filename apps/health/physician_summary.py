@@ -165,11 +165,12 @@ def build_physician_summary(user):
 
     summary = build_treatment_summary(user)
 
-    # Adherence — canonical utilities only (no duplicate math).
+    # Adherence — canonical utilities only (no duplicate math). Medication = PRESCRIPTION
+    # ONLY (trust contract 2026-06-30); supplements are reported separately.
     adherence = {
-        "medication_7d": calculate_medicine_adherence_rate(user, days=7, intake_type=Intake.INTAKE_TYPE_MEDICATION),
-        "medication_30d": calculate_medicine_adherence_rate(user, days=30, intake_type=Intake.INTAKE_TYPE_MEDICATION),
-        "supplement_30d": calculate_medicine_adherence_rate(user, days=30, intake_type=Intake.INTAKE_TYPE_SUPPLEMENT),
+        "medication_7d": calculate_medicine_adherence_rate(user, days=7, classification="prescription"),
+        "medication_30d": calculate_medicine_adherence_rate(user, days=30, classification="prescription"),
+        "supplement_30d": calculate_medicine_adherence_rate(user, days=30, classification="supplement"),
     }
 
     # What we've noticed + discussion items — APPROVED narrations only (Sprint 7),

@@ -3880,22 +3880,29 @@ def build_medicine_state(user):
         #                          (late counts as 0.7). 0-100 int.
         #                          Semantic: "did you take them on time?"
         #
-        # Both MUST be scoped to INTAKE_TYPE_MEDICATION so they do not
-        # mix with supplements. Phase 6 audit (2026-04-08) found that
-        # adherence_7d was called with no type filter, causing supplements
-        # to pollute the medication adherence number.
+        # TRUST CONTRACT (2026-06-30): MEDICATION ADHERENCE = PRESCRIPTION ONLY.
+        # It must never include supplements, vitamins, or wellness products. The earlier
+        # (2026-04-08) intake_type=MEDICATION filter kept supplements out but still let
+        # OTC/uncategorized medication items in; the canonical classifier
+        # (apps/health/medicine_classification.py) now scopes it to prescription + insulin.
         adherence = calculate_medicine_adherence_rate(
-            user, days=7, intake_type=Intake.INTAKE_TYPE_MEDICATION,
+            user, days=7, classification="prescription",
         )
         if adherence is not None:
             state['adherence_7d'] = adherence
 
-        # 7-day supplement adherence (same utility, filtered)
+        # 7-day SUPPLEMENT adherence — supplements/vitamins only, never merged with meds.
         supplement_adherence = calculate_medicine_adherence_rate(
-            user, days=7, intake_type=Intake.INTAKE_TYPE_SUPPLEMENT,
+            user, days=7, classification="supplement",
         )
         if supplement_adherence is not None:
             state['supplement_adherence_7d'] = supplement_adherence
+
+        # 7-day HEALTH ROUTINE adherence — ALL tracked ingestibles, EXPLICITLY named.
+        # A mixed metric is NEVER labeled "Medication Adherence".
+        routine_adherence = calculate_medicine_adherence_rate(user, days=7)
+        if routine_adherence is not None:
+            state['health_routine_adherence_7d'] = routine_adherence
 
         # 7-day behavior breakdown for dashboard cockpit
         try:
@@ -4097,8 +4104,9 @@ def build_medicine_state(user):
             'active_supplements': state.get('active_supplements', []),
             'medication_count': state.get('medication_count', 0),
             'supplement_count': state.get('supplement_count', 0),
-            'adherence_7d': state.get('adherence_7d'),
+            'adherence_7d': state.get('adherence_7d'),                 # PRESCRIPTION only
             'supplement_adherence_7d': state.get('supplement_adherence_7d'),
+            'health_routine_adherence_7d': state.get('health_routine_adherence_7d'),  # all (named)
             'expected_today': state.get('expected_today', 0),
             'today_taken': state.get('today_taken', 0),
         },

@@ -94,7 +94,8 @@ def get_expected_dose_entries(
     )
 
 
-def calculate_medicine_adherence(user, start_date, end_date, intake_type=None):
+def calculate_medicine_adherence(user, start_date, end_date, intake_type=None,
+                                 classification=None):
     """
     Calculate medicine adherence rate for a date range.
 
@@ -103,6 +104,10 @@ def calculate_medicine_adherence(user, start_date, end_date, intake_type=None):
         start_date: date — inclusive start
         end_date: date — inclusive end
         intake_type: optional — 'medication', 'supplement', or None for all
+        classification: optional — 'prescription' | 'supplement' | 'wellness' | None.
+            The TRUST-CONTRACT filter (apps/health/medicine_classification.py).
+            Medication Adherence uses 'prescription'; a mixed metric (None) is
+            "Health Routine Adherence", never "Medication Adherence".
 
     Returns dict with:
         - expected_doses: total scheduled doses in the period
@@ -123,6 +128,9 @@ def calculate_medicine_adherence(user, start_date, end_date, intake_type=None):
     )
     if intake_type:
         qs = qs.filter(intake_type=intake_type)
+    if classification:
+        from apps.health.medicine_classification import classification_q
+        qs = qs.filter(classification_q(classification))
     active_medicines = qs.prefetch_related("schedules")
 
     user_today = get_user_today(user)
@@ -238,19 +246,22 @@ def calculate_single_medicine_adherence(user, medicine, start_date, end_date):
     }
 
 
-def calculate_medicine_adherence_rate(user, days=7, intake_type=None):
+def calculate_medicine_adherence_rate(user, days=7, intake_type=None, classification=None):
     """
     Convenience wrapper: returns just the adherence rate (int or None)
     for the past N days.
 
     Args:
         intake_type: optional — 'medication', 'supplement', or None for all
+        classification: optional — 'prescription' | 'supplement' | 'wellness' | None
+            (the trust-contract filter; 'prescription' = Medication Adherence).
     """
     from apps.core.utils import get_user_today
 
     today = get_user_today(user)
     start = today - timedelta(days=days)
-    result = calculate_medicine_adherence(user, start, today, intake_type=intake_type)
+    result = calculate_medicine_adherence(user, start, today, intake_type=intake_type,
+                                          classification=classification)
     return result["adherence_rate"]
 
 

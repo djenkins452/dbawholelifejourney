@@ -80,12 +80,71 @@ LAYER_1 = {
     ],
 }
 
+LAYER_2 = {
+    "number": 2,
+    "name": "Executive Reasoning",
+    # CERTIFIED 2026-06-30 — reasons OVER Layer 1 truth, never creates truth. Built and
+    # validated against this week's production conversations. FROZEN under change control.
+    "status": "certified",
+    "certified_on": "2026-06-30",
+    "frozen": True,
+    "certification_tag": "layer2-executive-reasoning-v1",
+    "acceptance_results": {"smoke": "GREEN", "full": "GREEN", "deep": "GREEN",
+                           "conversation": "GREEN"},
+    "production_validated": True,
+    # Reusable reasoning capabilities (classified by capability, not feature).
+    "capabilities": [
+        "Conversation Object",            # the active conversational frame
+        "Conversation Goal",              # review → compare → trend → investigate
+        "Active Subject",                 # the anchor; moves only on explicit refocus
+        "Referential Resolution",         # bare references resolve against the frame
+        "Comparison Semantics",           # how each metric should be compared
+        "Intent Fulfillment",             # accomplish the objective, not the literal prompt
+        "Reasoning Confidence",           # weakest-link trustworthiness of a conclusion
+        "Risk Reasoning",                 # read risk from Layer 1 interpretation (never invent)
+        "Priority Reasoning",             # rank by significance
+        "Reason Explanation & Transparency",  # why she said it / what it means
+        "Natural Follow-up",              # what changed / anything else / is that an average
+    ],
+    "future_backlog": [
+        # Layer 3 (named, not built): action selection/execution, cross-domain conflict
+        # resolution, recommendation ranking across domains, deep-timeline retrieval.
+        "Action Selection (Layer 3)",
+        "Cross-Domain Conflict Resolution (Layer 3)",
+        "Deep-Timeline Retrieval (Layer 1 change-control item)",
+    ],
+    "platform_modules": [
+        "apps.ai.chatgpt_cos.conversation_object",
+        "apps.ai.chatgpt_cos.conversation_memory",
+        "apps.ai.chatgpt_cos.referential",
+        "apps.ai.chatgpt_cos.fulfillment",
+        "apps.ai.chatgpt_cos.reasoning.engines",
+        "apps.ai.chatgpt_cos.supporting_facts",
+        "apps.core.truth.present",   # Presentation reasoning (Layer 2 consumes Layer 1)
+    ],
+    "test_modules": [
+        # reusable reasoning engines + the manifest gate
+        "apps.ai.tests.test_reasoning",
+        "apps.ai.tests.test_layer2_certification",
+        # conversation reasoning capabilities (production-conversation regressions)
+        "apps.ai.tests.test_conversation_object",
+        "apps.ai.tests.test_supporting_facts",
+        "apps.ai.tests.test_conversation_goal",
+        "apps.ai.tests.test_referential_resolution",
+        "apps.ai.tests.test_comparison_semantics",
+        "apps.ai.tests.test_intent_fulfillment",
+        "apps.ai.tests.test_active_subject",
+        "apps.ai.tests.test_trust_capabilities",
+        "apps.core.tests.test_presentation",
+    ],
+}
+
 # Registry of all WLJ layers (extended as higher layers are built/certified).
 LAYERS = {
     1: LAYER_1,
-    # 2: Current Truth, 3: Historical Retrieval, 4: Domain Intelligence,
-    # 5: Cross-Domain Intelligence, 6: Chief of Staff Briefing, 7: Beth,
-    # 8: Customer Experience — added as each is built.
+    2: LAYER_2,
+    # 3: Action/Execution, 4: Domain Intelligence, 5: Cross-Domain Intelligence,
+    # 6: Chief of Staff Briefing, 7: Beth, 8: Customer Experience — added as each is built.
 }
 
 

@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-30 — feat(layer2): Executive Reasoning — Layer 2 BUILT, VALIDATED, CERTIFIED, FROZEN
+
+Layer 2 reasons OVER Layer 1 truth and never creates truth. Most of the reasoning layer was built across this week's sprints (Conversation Objects, Goals, Active Subject, Comparison Semantics, Intent Fulfillment, Referential Resolution, Trust capabilities); this sprint inventories it, fills the reusable-engine gaps, and runs the full certification lifecycle mirroring Layer 1.
+
+Phase 1 Inventory (docs/LAYER2_INVENTORY.md) — reasoning tasks classified by reusable capability; exists/duplicate/gap marked. Phase 2 Engines — apps/ai/chatgpt_cos/reasoning/engines.py (integrated into the existing reasoning package): reasoning_confidence (weakest-link), assess_risk (read-only from Layer 1 interpretation — never invents risk), prioritize (rank by significance), explain (transparency). Wired one real consumption: comparison confidence now combines semantics confidence with the Layer 1 fact's confidence. Phase 6 Production validation — every production trust failure this week is a permanent regression.
+
+Acceptance suite (apps/ai/tests/test_layer2_certification.py): SMOKE (manifest consistent, modules import, gate includes L1+L2, L1 still frozen) · FULL (each engine behaves) · DEEP (reasoning does not mutate Layer 1 truth) · CONVERSATION-mandatory (glucose anchor doesn't drift, meals compare returns the comparison, steps referential+recenter). Layer 2 module gate GREEN (85); Layer 1 cert gate GREEN (re-run); no migrations.
+
+Certification: LAYER_2 added to apps/core/truth/certification.py (status certified, frozen, capabilities, test_modules) — certify_layers now gates layers 1+2 (CI updated). Docs: LAYER2_CONSTITUTION.md, LAYER2_CERTIFICATION.md. Tag: layer2-executive-reasoning-v1. Layer integrity: Layer 1 remains certified+frozen, consumed read-only; highest_certified_layer()==2.
+
+**Files:** docs/LAYER2_INVENTORY.md, docs/LAYER2_CONSTITUTION.md, docs/LAYER2_CERTIFICATION.md (new), apps/ai/chatgpt_cos/reasoning/engines.py (new), apps/ai/tests/test_reasoning.py, apps/ai/tests/test_layer2_certification.py (new), apps/ai/chatgpt_cos/reasoning/__init__.py, apps/ai/chatgpt_cos/referential.py, apps/core/truth/certification.py, .github/workflows/test.yml.
+
+
 ## 2026-06-30 — feat(cos): Active Subject tracking — the comparison anchor no longer drifts
 
 Production: "What is my BG?" (160) → "What about yesterday?" (105) → "Compared to today." → "Compared to my average." anchored on YESTERDAY (105) instead of the current reading (160) the customer was focused on. Trace (repository evidence): the conversation object tracked topic + goal but NOT an Active Subject; `_compare` anchored cur_val on `last['fact']` (whatever was last answered), so the anchor drifted to yesterday on the re-point and never returned.

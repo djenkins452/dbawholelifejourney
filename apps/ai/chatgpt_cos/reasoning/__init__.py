@@ -20,10 +20,23 @@ from apps.ai.chatgpt_cos.reasoning.plan import (
     RetrievalPlan,
     parse_plan,
 )
+# Layer 2 reusable reasoning engines (deterministic reasoning primitives).
+from apps.ai.chatgpt_cos.reasoning.engines import (
+    reasoning_confidence,
+    confidence_rank,
+    assess_risk,
+    prioritize,
+    explain,
+)
 
 __all__ = [
     "answer_reasoning_question",
     "IMPLEMENTED_INTENTS",
     "RetrievalPlan",
     "parse_plan",
+    "reasoning_confidence",
+    "confidence_rank",
+    "assess_risk",
+    "prioritize",
+    "explain",
 ]

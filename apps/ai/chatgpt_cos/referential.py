@@ -202,7 +202,12 @@ def _compare(user, topic, tf, last):
                         f"{_h(abs(rd))} {unit} {side} it ({_h(avg_val)} → {_h(cur_val)}).")
             r = _result(ans, last)
             r["goal"] = goal
-            r["comparison_confidence"] = sem.get("confidence", "medium")
+            # Layer 2 Reasoning Confidence: the conclusion is only as trustworthy as its
+            # weakest input — combine the metric's semantics confidence with the Layer 1
+            # fact's own confidence (read-only).
+            from apps.ai.chatgpt_cos.reasoning.engines import reasoning_confidence
+            r["comparison_confidence"] = reasoning_confidence(
+                sem.get("confidence"), cur_fact.get("confidence"))
             r["comparison_target"] = comp_label
             if recenter:
                 r["active_subject"] = recenter      # user named "today" → re-anchor there

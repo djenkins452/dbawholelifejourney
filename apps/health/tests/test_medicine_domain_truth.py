@@ -457,6 +457,27 @@ class MedicineDomainTruthTests(TestCase):
         self.assertIn("Metformin", a)
         self.assertNotIn("OldStatin", a)          # ended before June 1
 
+    def test_short_name_resolves_fuller_stored_name(self):
+        # Production failure: med stored "Metformin HCL ER", user asks "Metformin" — the
+        # full-name-substring match failed and the query fell through to an error. A
+        # distinctive name token must resolve it.
+        from datetime import date, time
+        from apps.ai.chatgpt_cos.foundational_facts import answer_foundational_fact
+        m = Intake.objects.create(user=self.user, name="Metformin HCL ER", dose="500mg",
+                                  frequency="daily", start_date=date(2026, 1, 1),
+                                  intake_status="active", intake_type="medication",
+                                  category="prescription")
+        IntakeSchedule.objects.create(intake=m, scheduled_time=time(8, 0),
+                                      days_of_week="0,1,2,3,4,5,6", is_active=True)
+        with _sae_disabled():
+            self.assertIn("2026-01-01",
+                          answer_foundational_fact(self.user, "When did I start Metformin?")["answer"])
+            self.assertIn("500mg",
+                          answer_foundational_fact(self.user, "What's my Metformin dose?")["answer"])
+        # A generic name-word must not false-match.
+        with _sae_disabled():
+            self.assertIsNone(answer_foundational_fact(self.user, "When did I start my daily routine?"))
+
     def test_inventory_is_present_not_unknown_when_empty(self):
         # No prescriptions → a real "0", never the SAE-missing "unknown" failure.
         self._med("Vitamin D", "vitamin", intake_type="supplement")

@@ -7,6 +7,17 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-07-01 — fix(layer1): "When did I start Metformin?" errored — short name did not resolve fuller stored name
+
+Production acceptance failure: "When did I start Metformin?" errored while the other historical queries (condition / discontinued / point-in-time) succeeded. Root cause (proven): the med is stored as "Metformin HCL ER"; describe_one matched only when the FULL stored name was a substring of the question, so "metformin hcl er" ∉ "when did i start metformin" → no match → _medication_history returned None → the question fell through to the tool loop and errored. The other history queries don't depend on name matching, so they passed — which is exactly why only this one failed.
+
+Fix (retrieval correction, no redesign): MedicineQueries._match_intake resolves an Intake by the full stored name OR a distinctive name TOKEN (≥4 chars, minus generic med-name stopwords like "daily"/"tablet"), so a short name resolves a fuller stored name; most-specific match wins. describe_one uses it. "When did I start Metformin?" / "What's my Metformin dose?" now resolve "Metformin HCL ER"; a generic word ("daily routine") does not false-match.
+
+Complete Medication business acceptance suite re-run: GREEN (71). Regression: test_short_name_resolves_fuller_stored_name. No migrations.
+
+**Files:** apps/health/services/medicine_queries.py, apps/health/tests/test_medicine_domain_truth.py.
+
+
 ## 2026-06-30 — feat(layer1): Medication historical truth + condition mapping — domain now FULLY certified
 
 The two remaining Layer 1 gaps (history + condition), implemented from canonical data that already exists (no new capture needed): Intake.start_date/end_date + the append-only MedicationEvent ledger (started/discontinued/dose_changed) + Intake.purpose.

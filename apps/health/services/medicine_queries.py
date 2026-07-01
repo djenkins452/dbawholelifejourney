@@ -179,20 +179,46 @@ class MedicineQueries:
         return entities
 
     # -- single-entity retrieval (by identity) --------------------------------
+    # Generic med-name words that must NOT match on their own (a med "Daily Vitamin" is
+    # not matched by "daily routine").
+    _NAME_STOPWORDS = frozenset((
+        "daily", "tablet", "tablets", "capsule", "capsules", "extended", "release",
+        "oral", "once", "twice", "softgel", "chewable", "liquid", "spray", "cream",
+        "solution", "injection", "generic", "brand",
+    ))
+
+    @classmethod
+    def _match_intake(cls, user, text):
+        """Resolve ONE active Intake mentioned in `text`. Matches the full stored name OR a
+        distinctive name TOKEN (≥4 chars), so a short name ("Metformin") resolves a fuller
+        stored name ("Metformin HCL ER"). Most-specific (longest) match wins."""
+        import re
+        text_l = (text or "").lower()
+        text_words = set(re.findall(r"[a-z0-9]+", text_l))
+        best, best_score = None, 0
+        for m in Intake.objects.filter(user=user, intake_status=Intake.STATUS_ACTIVE):
+            mn = (m.name or "").lower()
+            if not mn:
+                continue
+            if mn in text_l:                                     # full-name match — strongest
+                score = 100 + len(mn)
+            else:
+                toks = [w for w in re.findall(r"[a-z0-9]+", mn)
+                        if len(w) >= 4 and w not in cls._NAME_STOPWORDS]
+                matched = [w for w in toks if w in text_words]
+                score = max((len(w) for w in matched), default=0)
+            if score > best_score:
+                best, best_score = m, score
+        return best
+
     @classmethod
     def describe_one(cls, user, name):
-        """Retrieve ONE entity by name across ALL categories (prescription/supplement/
-        OTC/wellness) as a CompleteEntity, or None. Longest-name match wins, so "fish oil"
-        beats a stray "oil". The entity describes itself completely (the contract)."""
+        """Retrieve ONE entity by name across ALL categories as a CompleteEntity, or None.
+        A short name resolves a fuller stored name. The entity describes itself completely."""
         from apps.health.medicine_classification import classify_intake
-        name_l = (name or "").lower()
-        candidates = []
-        for m in Intake.objects.filter(user=user, intake_status=Intake.STATUS_ACTIVE):
-            if m.name and m.name.lower() in name_l:
-                candidates.append(m)
-        if not candidates:
+        target = cls._match_intake(user, name)
+        if target is None:
             return None
-        target = max(candidates, key=lambda m: len(m.name))      # most specific match
         for e in cls.describe(user, classify_intake(target)):
             if e.identity == target.name:
                 return e

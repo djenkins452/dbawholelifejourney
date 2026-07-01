@@ -289,6 +289,109 @@ def _single_entity_medication(user, message):
             "fact_key": "medication_detail", "fact": d, "basis": answer, "supporting": {}}
 
 
+_MONTHS = {m: i for i, m in enumerate(
+    ["january", "february", "march", "april", "may", "june", "july", "august",
+     "september", "october", "november", "december"], start=1)}
+_MONTHS.update({m[:3]: i for m, i in list(_MONTHS.items())})
+
+
+def _parse_history_date(text, today):
+    import re
+    from datetime import date
+    if "last month" in text:
+        y, m = (today.year, today.month - 1) if today.month > 1 else (today.year - 1, 12)
+        return date(y, m, 1)
+    mo = re.search(r"\b(" + "|".join(_MONTHS) + r")\s+(\d{1,2})\b", text)
+    if mo:
+        d = date(today.year, _MONTHS[mo.group(1)], int(mo.group(2)))
+        return d.replace(year=today.year - 1) if d > today else d
+    iso = re.search(r"\b(\d{4})-(\d{2})-(\d{2})\b", text)
+    if iso:
+        return date(int(iso.group(1)), int(iso.group(2)), int(iso.group(3)))
+    return None
+
+
+def _hist_result(answer, fact_key, detail):
+    return {"answer": answer, "empty_reason": None, "tools_advertised": [],
+            "tools_called": ["MedicineQueries"], "fast_path": "foundational_fact",
+            "fact_key": fact_key, "fact": detail, "basis": answer, "supporting": {}}
+
+
+def _medication_history(user, message):
+    """Layer 1 medication HISTORY + condition mapping (deterministic, data-aware): point-
+    in-time inventory, lifecycle (start/stopped), dose-change history, condition/purpose,
+    and program-change. Parameters (name / condition / date / window) are read from the
+    message and resolved against canonical truth."""
+    text = (message or "").lower()
+    from datetime import date  # noqa
+    from apps.core.utils import get_user_today
+    from apps.health.services.medicine_queries import MedicineQueries
+    med_word = any(w in text for w in ("medication", "meds", "prescription", "pill",
+                                       "taking", "take", "on for"))
+
+    # 1) Per-med lifecycle — "when did I start X", "when did X's dose change".
+    ent = MedicineQueries.describe_one(user, text)
+    if ent is not None:
+        name = ent.identity
+        if "when" in text and ("start" in text or "begin" in text or "put on" in text):
+            d = MedicineQueries.started_on(user, name)
+            return _hist_result(
+                f"You started {name} on {d}." if d else
+                f"I don't have a start date on record for {name}.",
+                "medication_started", {"name": name, "date": d})
+        if "dose" in text and ("change" in text or "changed" in text or "history" in text):
+            ch = MedicineQueries.dose_changes(user, name)
+            if not ch:
+                ans = f"{name}'s dose hasn't changed on record."
+            else:
+                ans = f"{name} dose changes: " + "; ".join(
+                    f"{c['date']}: {c['from']} → {c['to']}" for c in ch) + "."
+            return _hist_result(ans, "medication_dose_history", {"name": name, "changes": ch})
+
+    # 2) Condition / purpose — "which medications are for diabetes".
+    _conditions = ("diabetes", "blood pressure", "hypertension", "cholesterol", "thyroid",
+                   "depression", "anxiety", "pain", "allergy", "acid reflux", "heartburn")
+    cond = next((c for c in _conditions if c in text), None)
+    if cond and ("which" in text or "what" in text or "for" in text) and med_word:
+        names = MedicineQueries.for_condition(user, cond)
+        return _hist_result(
+            (f"Your prescriptions for {cond}: {', '.join(names)}." if names
+             else f"You don't have any prescriptions on file for {cond}."),
+            "medications_for_condition", {"condition": cond, "names": names})
+
+    # 3) Discontinued / stopped.
+    if med_word and any(k in text for k in ("stopped", "discontinued", "no longer",
+                                            "came off", "quit", "have i stopped")):
+        d = MedicineQueries.discontinued(user)
+        return _hist_result(
+            ("You haven't discontinued any medications on record." if not d else
+             "You've stopped: " + "; ".join(f"{x['name']} ({x['date']})" for x in d) + "."),
+            "discontinued_medications", {"discontinued": d})
+
+    # 4) Program change over a window — "has my medication program changed in 90 days".
+    if med_word and ("program" in text or "changed" in text or "changes" in text) and \
+            any(k in text for k in ("last", "past", "90", "60", "30", "month", "days")):
+        days = 90 if "90" in text else (60 if "60" in text else 30)
+        ch = MedicineQueries.program_changes(user, days)
+        return _hist_result(
+            (f"No changes to your medication program in the last {days} days." if not ch else
+             f"In the last {days} days: " + "; ".join(
+                 f"{c['name']} — {c['event']} ({c['date']})" for c in ch) + "."),
+            "medication_program_changes", {"days": days, "changes": ch})
+
+    # 5) Point-in-time inventory — "what was I taking on June 1 / last month".
+    if any(p in text for p in ("was i taking", "were i taking", "what was i on",
+                               "what medications was i")):
+        d = _parse_history_date(text, get_user_today(user))
+        if d:
+            names = MedicineQueries.taking_on(user, d)
+            return _hist_result(
+                (f"On {d.isoformat()} you were taking: {', '.join(names)}." if names
+                 else f"I have nothing on record as active on {d.isoformat()}."),
+                "taking_on_date", {"date": d.isoformat(), "names": names})
+    return None
+
+
 def _med_window(text):
     if "90" in text or "ninety" in text:
         return "90d"
@@ -695,6 +798,13 @@ def answer_foundational_fact(user, message):
     Returns the same result shape as ChatGPTCoSService.generate, or None if the
     message is not a foundational fact prompt (caller proceeds normally).
     """
+    # Medication HISTORY + condition mapping (data-aware) — checked BEFORE present-time
+    # single-entity, so "when did my Mounjaro dose CHANGE?" isn't captured by the "dose"
+    # attribute cue: "when did I start Metformin?", "which prescriptions are for diabetes?",
+    # "what was I taking on June 1?".
+    hist = _medication_history(user, message)
+    if hist is not None:
+        return hist
     # Single-entity retrieval (data-aware): "what's my Metformin dose?", "am I taking fish
     # oil?", "how's my Lantus adherence?" — answered from the ONE complete entity.
     single = _single_entity_medication(user, message)

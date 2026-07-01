@@ -407,6 +407,56 @@ class MedicineDomainTruthTests(TestCase):
         self.assertIn("Ibuprofen", ans("What OTC medications am I taking?"))
         self.assertNotIn("Metformin", ans("What OTC medications am I taking?"))
 
+    def test_historical_and_condition_layer1_truth(self):
+        # Layer 1 medication HISTORY + condition mapping — answered deterministically from
+        # canonical truth (Intake lifecycle + MedicationEvent ledger + purpose), SAE off.
+        from datetime import date
+        from apps.health.models import Intake, MedicationEvent
+        from apps.ai.chatgpt_cos.foundational_facts import answer_foundational_fact
+
+        def med(name, purpose="", start=date(2026, 1, 1), end=None, category="prescription"):
+            return Intake.objects.create(
+                user=self.user, name=name, dose="10mg", frequency="daily",
+                start_date=start, end_date=end, intake_status="active",
+                intake_type="medication", category=category, purpose=purpose)
+        metf = med("Metformin", "diabetes / blood sugar")
+        med("Lisinopril", "blood pressure", start=date(2026, 2, 1))
+        med("Atorvastatin", "high cholesterol")
+        mounj = med("Mounjaro", "diabetes", start=date(2026, 3, 1))
+        old = med("OldStatin", "cholesterol", start=date(2026, 1, 1), end=date(2026, 5, 1))
+        MedicationEvent.objects.create(user=self.user, intake=mounj, event_type="dose_changed",
+                                       effective_date=date(2026, 5, 15),
+                                       previous_value={"dose": "5mg"}, new_value={"dose": "10mg"})
+        MedicationEvent.objects.create(user=self.user, intake=old, event_type="discontinued",
+                                       effective_date=date(2026, 5, 1),
+                                       new_value={"end_date": "2026-05-01"})
+
+        def ans(q):
+            with _sae_disabled():
+                return (answer_foundational_fact(self.user, q) or {}).get("answer", "")
+
+        # lifecycle: start date
+        self.assertIn("2026-01-01", ans("When did I start Metformin?"))
+        # condition mapping (synonym-aware)
+        self.assertIn("Metformin", ans("Which prescriptions are for diabetes?"))
+        self.assertIn("Lisinopril", ans("Which prescriptions are for blood pressure?"))
+        self.assertIn("Atorvastatin", ans("Which prescriptions are for cholesterol?"))
+        self.assertNotIn("Metformin", ans("Which prescriptions are for cholesterol?"))
+        # dose-change history
+        a = ans("When did my Mounjaro dose change?")
+        self.assertIn("2026-05-15", a)
+        self.assertIn("5mg", a)
+        self.assertIn("10mg", a)
+        # discontinued / stopped
+        self.assertIn("OldStatin", ans("What prescriptions have I stopped?"))
+        # program change over a window
+        a = ans("Has my medication program changed over the last 90 days?")
+        self.assertTrue("Mounjaro" in a or "OldStatin" in a)
+        # point-in-time inventory
+        a = ans("What was I taking on June 1?")
+        self.assertIn("Metformin", a)
+        self.assertNotIn("OldStatin", a)          # ended before June 1
+
     def test_inventory_is_present_not_unknown_when_empty(self):
         # No prescriptions → a real "0", never the SAE-missing "unknown" failure.
         self._med("Vitamin D", "vitamin", intake_type="supplement")

@@ -221,6 +221,96 @@ class MedicineQueries:
             "wellness": cls.active_names(user, WELLNESS),
         }
 
+    # -- HISTORY (point-in-time inventory + lifecycle ledger) -----------------
+    # Current state is the Intake projection; the MedicationEvent ledger is the canonical
+    # HISTORY ("what changed, when, why"). These read both, live — never the SAE.
+    @classmethod
+    def taking_on(cls, user, on_date):
+        """Point-in-time inventory: everything active on `on_date` (start_date on/before it
+        and not ended before it). Includes since-discontinued items — that is the point."""
+        from django.db.models import Q
+        mgr = getattr(Intake, "all_objects", Intake.objects)   # include discontinued/soft-deleted
+        qs = (mgr.filter(user=user, start_date__lte=on_date)
+                 .filter(Q(end_date__isnull=True) | Q(end_date__gte=on_date)))
+        return sorted({m.name for m in qs})
+
+    @classmethod
+    def discontinued(cls, user):
+        """Medications the user has STOPPED (canonical DISCONTINUED ledger)."""
+        from apps.health.models import MedicationEvent
+        evs = (MedicationEvent.objects
+               .filter(user=user, event_type=MedicationEvent.EVENT_DISCONTINUED)
+               .select_related("intake").order_by("-effective_date"))
+        return [{"name": e.intake.name, "date": e.effective_date.isoformat()} for e in evs]
+
+    @classmethod
+    def dose_changes(cls, user, name=None):
+        """Dose-change history from the ledger (name, date, from → to)."""
+        from apps.health.models import MedicationEvent
+        evs = (MedicationEvent.objects
+               .filter(user=user, event_type=MedicationEvent.EVENT_DOSE_CHANGED)
+               .select_related("intake").order_by("-effective_date"))
+        if name:
+            evs = evs.filter(intake__name__icontains=name)
+        return [{"name": e.intake.name, "date": e.effective_date.isoformat(),
+                 "from": (e.previous_value or {}).get("dose"),
+                 "to": (e.new_value or {}).get("dose")} for e in evs]
+
+    @classmethod
+    def started_on(cls, user, name):
+        """When the user started a named medication (Intake.start_date)."""
+        m = (Intake.objects.filter(user=user, name__icontains=name)
+             .order_by("start_date").first())
+        return m.start_date.isoformat() if (m and m.start_date) else None
+
+    @classmethod
+    def program_changes(cls, user, days):
+        """Every real treatment change in the last N days (excludes the tracking-began
+        backfill marker) — answers 'has my medication program changed?'."""
+        from datetime import timedelta
+        from apps.core.utils import get_user_today
+        from apps.health.models import MedicationEvent
+        since = get_user_today(user) - timedelta(days=days)
+        evs = (MedicationEvent.objects
+               .filter(user=user, effective_date__gte=since)
+               .exclude(event_type=MedicationEvent.EVENT_TRACKING_BEGAN)
+               .select_related("intake").order_by("-effective_date"))
+        return [{"name": e.intake.name, "event": e.get_event_type_display(),
+                 "date": e.effective_date.isoformat()} for e in evs]
+
+    # -- CONDITION / PURPOSE mapping ------------------------------------------
+    _CONDITION_SYNONYMS = {
+        "diabetes": ("diabet", "blood sugar", "glucose", "a1c", "sugar"),
+        "blood pressure": ("blood pressure", "hypertension", "bp"),
+        "cholesterol": ("cholesterol", "lipid", "statin"),
+        "thyroid": ("thyroid",),
+        "depression": ("depress", "mood"),
+        "anxiety": ("anxiety", "anxious"),
+        "pain": ("pain", "analgesic"),
+        "allergy": ("allerg",),
+        "acid reflux": ("reflux", "heartburn", "gerd", "acid"),
+    }
+
+    @classmethod
+    def _condition_tokens(cls, condition):
+        c = (condition or "").lower()
+        for key, toks in cls._CONDITION_SYNONYMS.items():
+            if key in c or any(t in c for t in toks):
+                return toks
+        return (c,)
+
+    @classmethod
+    def for_condition(cls, user, condition, classification=PRESCRIPTION):
+        """Medications whose purpose matches a condition (synonym-aware). Canonical
+        med→condition mapping is the Intake.purpose field."""
+        from django.db.models import Q
+        from apps.health.medicine_classification import classify_intake
+        q = Q()
+        for t in cls._condition_tokens(condition):
+            q |= Q(purpose__icontains=t)
+        qs = cls._active_qs(user, classification).filter(q)
+        return sorted(m.name for m in qs if classify_intake(m) == classification)
+
     @classmethod
     def summary(cls, user, classification=PRESCRIPTION):
         """Domain-level rollup (composed inside Layer 1 so a higher layer still makes ONE

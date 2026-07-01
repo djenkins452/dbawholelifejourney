@@ -7,6 +7,19 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-06-30 — feat(layer1): Medication historical truth + condition mapping — domain now FULLY certified
+
+The two remaining Layer 1 gaps (history + condition), implemented from canonical data that already exists (no new capture needed): Intake.start_date/end_date + the append-only MedicationEvent ledger (started/discontinued/dose_changed) + Intake.purpose.
+
+MedicineQueries: taking_on(date) (point-in-time inventory, includes since-discontinued items), discontinued() (from the DISCONTINUED ledger), dose_changes(name) (from → to, dated), started_on(name), program_changes(days), for_condition(condition) (synonym-aware over purpose). New data-aware retrieval path `_medication_history` (parameters — name/condition/date/window — read from the message, resolved against canonical truth; runs before the present-time single-entity path so "when did my dose CHANGE?" isn't captured by the "dose" cue). Deterministic answers, no LLM, no Beth/prompt changes.
+
+Acceptance (SAE disabled): "When did I start Metformin?" → start date; "Which prescriptions are for diabetes / blood pressure / cholesterol?" → correct meds (synonym-aware); "When did my Mounjaro dose change?" → 5mg → 10mg (2026-05-15); "What prescriptions have I stopped?" → discontinued list; "Has my medication program changed over the last 90 days?" → the ledger events; "What was I taking on June 1?" → point-in-time inventory (excludes items ended before that date). Regression: test_medicine_domain_truth::test_historical_and_condition_layer1_truth. GREEN (123); no migrations.
+
+Medication now answers the full Layer 1 truth: current state · today execution (dose-level) · adherence · single-entity · four canonical entities · historical inventory · lifecycle & dose-change history · condition/purpose mapping. FULLY CERTIFIED as the reference Layer 1 implementation.
+
+**Files:** apps/health/services/medicine_queries.py, apps/ai/chatgpt_cos/foundational_facts.py, apps/health/tests/test_medicine_domain_truth.py.
+
+
 ## 2026-06-30 — feat(layer1): Medication domain maturity — complete retrieval surface (single-entity, symmetric entities, combined, remaining)
 
 Maturity certification, not a bug fix. "Became Danny" and ran a large natural-question set against the implementation BEFORE declaring completion. The break attempt exposed that the entities were complete but the RETRIEVAL surface around them was not — the same root cause behind every prior report. Four missing Layer 1 capabilities, now closed:

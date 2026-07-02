@@ -7,6 +7,13 @@
 # ================================================================# WLJ Change History
 
 
+## 2026-07-01 — fix(cos): biggest_health_risk deterministic fallback — actionable, evidence-backed (Acceptance Run #62)
+
+Run #62 failed gate_actionable on "What's my biggest health risk right now?" (deterministic fallback path; infra healthy). Root cause: the FALLBACK RESPONSE SHAPE, not truth/rule/routing. _rank_health_concerns returned only {concern, action} (no evidence/why); the sleep action was passive and used "wind-down" (hyphen) where the action cue is "wind down" (space) -> no cue matched -> gate_actionable failed. Fix (systemic): every health concern is now {concern, evidence, action, why} with a concrete cue-bearing action; _health_risk_fallback narrates top risk + evidence + concrete next step + why. Rule unchanged, no OpenAI, no routing change. Regression test_health_risk_fallback validates the rendered response against the real is_actionable rule. GREEN (9). No migrations.
+
+**Files:** apps/ai/chatgpt_cos/reasoning/stages.py, apps/ai/tests/test_health_risk_fallback.py.
+
+
 ## 2026-07-01 — fix(layer1): "When did I start Metformin?" errored — short name did not resolve fuller stored name
 
 Production acceptance failure: "When did I start Metformin?" errored while the other historical queries (condition / discontinued / point-in-time) succeeded. Root cause (proven): the med is stored as "Metformin HCL ER"; describe_one matched only when the FULL stored name was a substring of the question, so "metformin hcl er" ∉ "when did i start metformin" → no match → _medication_history returned None → the question fell through to the tool loop and errored. The other history queries don't depend on name matching, so they passed — which is exactly why only this one failed.

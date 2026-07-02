@@ -304,57 +304,86 @@ def _rank_health_concerns(buckets):
     """Evidence-ranked health concerns as plain COACHING language (never raw
     labels/enums). Severity reflects clinical meaningfulness — glucose/diabetes
     management and sleep outrank muscle/nutrition — not the biggest numeric gap.
-    Returns an ordered list of {concern, action} dicts (highest priority first).
+
+    Each concern is a COMPLETE risk object: {concern, evidence, action, why} — the risk
+    named, the EVIDENCE behind it, a CONCRETE next action (always a specific behavior an
+    'actionable' answer needs), and WHY it matters. This shape lets the deterministic
+    fallback narrate an actionable, evidence-backed answer without OpenAI.
     """
     risks = buckets.get("active_risks") or {}
     gp = buckets.get("goal_progress") or {}
     cs = buckets.get("current_status") or {}
     tr = buckets.get("major_trends") or {}
     nc = buckets.get("nutrition_context") or {}
-    out = []  # (severity, concern, action)
+    out = []  # (severity, {concern, evidence, action, why})
+
+    def add(sev, concern, evidence, action, why):
+        out.append((sev, {"concern": concern, "evidence": evidence,
+                          "action": action, "why": why}))
 
     # Diabetes / glucose management — highest stakes (chronic condition).
     glu, glu_avg = _num(cs.get("latest_glucose")), _num(tr.get("glucose_avg_7d"))
     if (glu and glu >= 180) or (glu_avg and glu_avg >= 154):
-        out.append((5, "your blood sugar has been running high lately",
-                    "a short walk after meals and steadier carb timing is the highest-leverage move"))
+        ev = []
+        if glu:
+            ev.append(f"your most recent reading was {int(glu)} mg/dL")
+        if glu_avg:
+            ev.append(f"your 7-day average is {int(glu_avg)} mg/dL")
+        add(5, "your blood sugar has been running high lately",
+            " and ".join(ev) or "your recent readings have been above range",
+            "take a 10–15 minute walk after each meal and keep your carb timing steady",
+            "sustained high glucose is the main driver of long-term diabetes complications")
     elif _nonbenign(risks.get("glucose_variability_label")):
-        out.append((3, "your blood sugar has been swinging more than usual",
-                    "more consistent meal timing and portions will help smooth it out"))
+        add(3, "your blood sugar has been swinging more than usual",
+            "your recent readings have been less stable than your usual pattern",
+            "keep your meal timing and portions consistent from day to day",
+            "big swings are harder on your body than a steady, in-range level")
 
     # Sleep — foundational; affects everything else.
     sleep = _num(cs.get("sleep_avg_hours_7d"))
     if sleep is not None and sleep < 6.5:
-        out.append((4, "you've been averaging under 6.5 hours of sleep, which makes everything else harder",
-                    "protecting a consistent bedtime this week is the best next step"))
+        add(4, "you've been averaging under 6.5 hours of sleep, which makes everything else harder",
+            f"you're averaging about {round(sleep, 1)} hours a night over the past week",
+            "protect a consistent bedtime tonight and aim for lights-out about 30 minutes earlier",
+            "short sleep raises appetite and blood sugar and drains the energy for everything else")
     elif tr.get("sleep_trend") == "decreasing":
-        out.append((2, "your sleep has been trending down",
-                    "an earlier wind-down a few nights would help"))
+        add(2, "your sleep has been trending down",
+            "your recent nights have been getting shorter than your usual",
+            "set a consistent bedtime and start winding down about 30 minutes earlier for a few nights",
+            "catching the slide early keeps it from becoming a deficit that drags on the rest of your health")
 
     # Weight-loss pace.
     if gp.get("weight_goal_on_track") is False:
-        out.append((3, "your weight-loss pace is a bit behind where you'd planned",
-                    "a small, steady calorie adjustment beats a big change"))
+        add(3, "your weight-loss pace is a bit behind where you'd planned",
+            "your recent rate is slower than the plan you set",
+            "log your meals and trim about 100–200 calories a day rather than making a big change",
+            "a small, steady deficit is far more sustainable than a sharp cut")
 
     # Plateau.
     if _nonbenign(risks.get("plateau_risk_label")):
-        out.append((2, "your weight loss looks like it may be stalling",
-                    "a short diet break or a training tweak can restart progress"))
+        add(2, "your weight loss looks like it may be stalling",
+            "your weight trend has flattened out recently",
+            "take a short diet break or add a heavier workout day to restart progress",
+            "a deliberate change breaks a plateau better than just doing more of the same")
 
     # Muscle preservation.
     if _nonbenign(risks.get("muscle_loss_risk_level")):
-        out.append((2, "you may be losing some muscle along with the fat",
-                    "keeping protein up and strength-training 2–3× a week protects it"))
+        add(2, "you may be losing some muscle along with the fat",
+            "your recent trend suggests some lean mass is coming off too",
+            "keep your protein up and strength-train 2–3× a week",
+            "protecting muscle keeps your metabolism up and the results lasting")
 
     # Nutrition — only a genuine late-day gap, never early-day; lowest priority.
     for slot, what in (("protein_g", "protein"), ("calories", "calories")):
         if (nc.get(slot) or {}).get("interpretation") in (
                 "below_typical_for_time_of_day", "nothing_logged_today"):
-            out.append((1, f"your {what} is running low for today",
-                        f"a {what}-focused next meal would close the gap"))
+            add(1, f"your {what} is running low for today",
+                f"you're below your usual {what} for this point in the day",
+                f"make your next meal {what}-focused to close the gap",
+                f"hitting your {what} target supports your energy and your goals")
 
     out.sort(key=lambda x: -x[0])
-    return [{"concern": c, "action": a} for _s, c, a in out]
+    return [c for _s, c in out]
 
 
 # ---- Fix 2: time-aware intra-day nutrition interpretation ------------------
@@ -1197,15 +1226,23 @@ def build_working_memory(plan, truth, user=None):
 # Stage 4 — OpenAI reasoning over working memory (one plain _call_api + fallback)
 # ----------------------------------------------------------------------------
 def _health_risk_fallback(wm):
-    # biggest_health_risk: concern + (coaching) explanation + recommended action.
+    # biggest_health_risk: the complete risk answer — top risk + EVIDENCE + a CONCRETE
+    # next action + WHY it matters (mirrors the goal fallbacks; satisfies gate_actionable
+    # deterministically because every concern carries a specific behavior).
     ranked = (wm.get("facts") or {}).get("ranked_concerns") or []
     if not ranked:
-        return ("Your health metrics look steady right now — nothing stands out "
-                "as a concern. Keep doing what's working.")
+        return ("Your health metrics look steady right now — nothing stands out as a "
+                "concern. Keep protecting a consistent bedtime and staying active.")
     top = ranked[0]
-    return ("The main thing worth your attention right now: "
-            + top.get("concern", "")
-            + ". A good next step: " + top.get("action", "take the next concrete action on its current milestone") + ".")
+    parts = ["The main thing worth your attention right now: "
+             + top.get("concern", "").rstrip(".") + "."]
+    if top.get("evidence"):
+        parts.append("The evidence: " + top["evidence"].rstrip(".") + ".")
+    parts.append("A concrete next step: "
+                 + top.get("action", "protect a consistent bedtime tonight").rstrip(".") + ".")
+    if top.get("why"):
+        parts.append("Why it matters: " + top["why"].rstrip(".") + ".")
+    return " ".join(parts)
 
 
 def _health_progress_fallback(wm):

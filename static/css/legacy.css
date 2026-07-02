@@ -605,3 +605,35 @@ body.theme-ember .legacy-root {
     .lg-field-half { width: 100%; }
     .lg-form .lg-field-half + .lg-field-half { margin-left: 0; }
 }
+
+/* ==========================================================================
+   Phase 2 — Story Discovery Engine (editor)
+   ========================================================================== */
+.editor-discover { color: #fff; background: linear-gradient(160deg, #27394b, #1b2937); border-color: transparent; }
+.editor-discover:hover { color: #fff; filter: brightness(1.08); }
+.editor-discover.is-loading { opacity: .8; cursor: progress; }
+.editor-discover svg { color: var(--lg-sidebar-gold); }
+
+.discovery-panel:empty { display: none; }
+.discovery { border: 1px solid var(--lg-border); border-radius: 12px; background: var(--lg-surface-2); padding: 14px; margin-bottom: 14px; }
+.discovery-msg { font-size: 13px; color: var(--lg-ink-soft); line-height: 1.5; }
+.discovery-head { display: flex; align-items: center; justify-content: space-between; }
+.discovery-title { font-family: var(--lg-serif); font-size: 15px; }
+.discovery-x { border: 0; background: transparent; font-size: 20px; line-height: 1; color: var(--lg-muted); cursor: pointer; padding: 0 4px; }
+.discovery-lead { font-size: 12px; color: var(--lg-muted); margin: 4px 0 12px; }
+
+.disc-group { margin-bottom: 12px; }
+.disc-group-title { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--lg-muted); margin-bottom: 6px; }
+.disc-item { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; cursor: pointer; }
+.disc-item input { margin-top: 3px; accent-color: var(--lg-accent); }
+.disc-label { font-size: 13px; color: var(--lg-ink); line-height: 1.4; }
+.disc-sub { color: var(--lg-ink-soft); }
+.disc-tag { display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 99px; margin-left: 4px; background: #efe9dd; color: #7d715b; vertical-align: middle; }
+.disc-new { background: #f0e2c9; color: #8a6428; }
+.disc-low { background: #f2ebe2; color: #a08a6a; }
+.disc-add { display: inline-block; font-size: 12px; color: var(--lg-accent); text-decoration: none; margin-top: 4px; }
+.disc-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--lg-border); }
+.disc-actions .lg-btn-primary, .disc-actions .lg-btn-quiet, .disc-actions .lg-btn-ghost { padding: 7px 13px; font-size: 12px; }
+
+.editor-manual { margin-top: 6px; }
+.editor-manual summary { font-size: 12px; color: var(--lg-ink-soft); cursor: pointer; font-weight: 600; padding: 4px 0; }

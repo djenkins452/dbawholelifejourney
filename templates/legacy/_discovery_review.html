@@ -1,0 +1,44 @@
+{# Discovery Review panel — rendered into the editor's Connections card. #}
+<div class="discovery" data-memory-pk="{{ memory.pk }}">
+{% if status == 'unavailable' %}
+    <p class="discovery-msg">Discovery is resting right now. Your memory is saved — you can connect people and places by hand below.</p>
+{% elif status == 'empty' %}
+    <p class="discovery-msg">Write a little more of your story, then tap Discover.</p>
+{% elif status == 'nothing' %}
+    <p class="discovery-msg">I read it closely but didn't find anything to suggest yet. You can still connect people and places by hand below.</p>
+{% else %}
+    <div class="discovery-head">
+        <h4 class="discovery-title">Here's what I understood</h4>
+        <button type="button" class="discovery-x js-discovery-cancel" aria-label="Dismiss">×</button>
+    </div>
+    <p class="discovery-lead">Uncheck anything that's not right. Nothing is added until you confirm.</p>
+
+    <form method="post" action="{% url 'legacy:discovery_confirm' memory.pk %}" class="discovery-form">
+        {% csrf_token %}
+        {% for g in groups %}
+        <div class="disc-group">
+            <div class="disc-group-title">{{ g.label }}</div>
+            {% for d in g.items %}
+            <label class="disc-item">
+                <input type="checkbox" name="accept" value="{{ d.id }}" checked>
+                <span class="disc-label">
+                    {{ d.label }}
+                    {% if d.kind == 'person' and d.detail.relationship %}<span class="disc-sub">· {{ d.detail.relationship }}</span>{% endif %}
+                    {% if d.kind == 'person' or d.kind == 'place' %}{% if d.detail.is_new %}<span class="disc-tag disc-new">new</span>{% else %}<span class="disc-tag">already yours</span>{% endif %}{% endif %}
+                    {% if d.confidence == 'low' %}<span class="disc-tag disc-low">low confidence</span>{% endif %}
+                </span>
+            </label>
+            {% endfor %}
+            {% if g.kind == 'person' %}<a href="{% url 'legacy:person_new' %}" class="disc-add">+ Add someone</a>{% endif %}
+            {% if g.kind == 'place' %}<a href="{% url 'legacy:place_new' %}" class="disc-add">+ Add a place</a>{% endif %}
+        </div>
+        {% endfor %}
+
+        <div class="disc-actions">
+            <button type="submit" class="lg-btn-primary">Add selected</button>
+            <button type="submit" name="accept_all" value="1" class="lg-btn-quiet">Accept all</button>
+            <button type="button" class="lg-btn-ghost js-discovery-cancel">Cancel</button>
+        </div>
+    </form>
+{% endif %}
+</div>

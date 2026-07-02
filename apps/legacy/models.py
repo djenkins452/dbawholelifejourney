@@ -329,6 +329,79 @@ class MemoryRevision(models.Model):
 # ──────────────────────────────────────────────────────────────────────────
 # Relationship — first-class typed edge between people
 # ──────────────────────────────────────────────────────────────────────────
+class MemoryDiscovery(models.Model):
+    """
+    A single proposal from the Story Discovery Engine (Phase 2).
+
+    The engine reads a memory's text and proposes everything it understood —
+    people, relationships, places, human/calendar/relative time, life stage,
+    events, quotes, artifacts, media references, themes, values, traditions,
+    emotions. **Nothing here is canonical.** A discovery is `proposed` until the
+    user reviews it. Accepting a person/place discovery is the promotion gate:
+    it creates/links a real Person/Place graph node and connects it to the
+    memory. All other accepted discoveries are preserved as user-confirmed,
+    confidence-scored attested enrichment on the memory (extensible to
+    first-class nodes in a later slice). Rejected/undecided rows remain as an
+    audit of what was proposed — provenance is never bypassed.
+    """
+
+    class Kind(models.TextChoices):
+        PERSON = 'person', 'Person'
+        RELATIONSHIP = 'relationship', 'Relationship'
+        PLACE = 'place', 'Place'
+        HUMAN_TIME = 'human_time', 'Human time'
+        CALENDAR_TIME = 'calendar_time', 'Calendar time'
+        LIFE_STAGE = 'life_stage', 'Life stage'
+        RELATIVE_TIME = 'relative_time', 'Relative time'
+        EVENT = 'event', 'Event'
+        QUOTE = 'quote', 'Quote'
+        ARTIFACT = 'artifact', 'Artifact'
+        MEDIA_REF = 'media_ref', 'Media reference'
+        THEME = 'theme', 'Theme'
+        VALUE = 'value', 'Value'
+        TRADITION = 'tradition', 'Tradition'
+        EMOTION = 'emotion', 'Emotion'
+
+    class Confidence(models.TextChoices):
+        HIGH = 'high', 'High'
+        MEDIUM = 'medium', 'Medium'
+        LOW = 'low', 'Low'
+
+    class Status(models.TextChoices):
+        PROPOSED = 'proposed', 'Proposed'
+        ACCEPTED = 'accepted', 'Accepted'
+        REJECTED = 'rejected', 'Rejected'
+
+    memory = models.ForeignKey(Memory, on_delete=models.CASCADE, related_name='discoveries')
+    kind = models.CharField(max_length=16, choices=Kind.choices, db_index=True)
+    label = models.CharField(max_length=500)
+    detail = models.JSONField(default=dict, blank=True)
+    confidence = models.CharField(max_length=6, choices=Confidence.choices, default=Confidence.MEDIUM)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PROPOSED, db_index=True)
+
+    # Set when a person/place discovery is promoted into a real graph node.
+    linked_person = models.ForeignKey(
+        'Person', on_delete=models.SET_NULL, null=True, blank=True, related_name='discoveries')
+    linked_place = models.ForeignKey(
+        'Place', on_delete=models.SET_NULL, null=True, blank=True, related_name='discoveries')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    # Display order for the Kind groups in the review panel.
+    _ORDER = {
+        'person': 0, 'relationship': 1, 'place': 2, 'human_time': 3, 'calendar_time': 4,
+        'life_stage': 5, 'relative_time': 6, 'event': 7, 'quote': 8, 'artifact': 9,
+        'media_ref': 10, 'theme': 11, 'value': 12, 'tradition': 13, 'emotion': 14,
+    }
+
+    class Meta:
+        ordering = ['status', 'kind', 'id']
+
+    def __str__(self):
+        return f"{self.get_kind_display()}: {self.label}"
+
+
 class Relationship(LegacyOwnedModel):
     """A typed, directional, time-bounded relationship between two people."""
 

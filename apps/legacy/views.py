@@ -20,10 +20,14 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import CreateView, DetailView, TemplateView, UpdateView
 
+from django.template.loader import render_to_string
+
 from apps.legacy.forms import ContributorForm, OutputForm, PersonForm, PlaceForm
 from apps.legacy.models import (
-    Contributor, Media, Memory, MemoryRevision, Output, Person, Place, Relationship,
+    Contributor, Media, Memory, MemoryDiscovery, MemoryRevision, Output, Person, Place,
+    Relationship,
 )
+from apps.legacy.services import discovery as discovery_svc
 from apps.legacy.services.home import build_home_context
 from apps.legacy.services.media_utils import guess_media_type
 
@@ -270,6 +274,54 @@ class MemorySaveView(LegacyContextMixin, View):
             messages.success(request, "Memory set aside.")
             return redirect("legacy:library")
         messages.success(request, "Draft saved.")
+        return redirect("legacy:editor", pk=memory.pk)
+
+
+class MemoryDiscoverView(LegacyContextMixin, View):
+    """
+    Story Discovery Engine entry point. Upserts the memory, runs discovery, and
+    returns the rendered Discovery Review panel (HTML). Proposal-first: nothing
+    is promoted to canonical truth here.
+    """
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        pk = request.POST.get("pk") or None
+        title = (request.POST.get("title") or "").strip()
+        body = request.POST.get("body") or ""
+
+        if pk:
+            memory = get_object_or_404(Memory.all_objects, pk=pk, user=user)
+        else:
+            memory = Memory(user=user, created_via=Memory.CREATED_VIA_MANUAL,
+                            source_kind=Memory.SourceKind.OWNER)
+        memory.title = title
+        memory.body = body
+        if memory.pk:
+            memory.updated_by = user
+        memory.save()
+
+        status, _ = discovery_svc.run_discovery(memory)
+        html = render_to_string("legacy/_discovery_review.html", {
+            "memory": memory,
+            "groups": discovery_svc.grouped_proposals(memory),
+            "status": status,
+        }, request=request)
+        return JsonResponse({"ok": True, "pk": memory.pk, "status": status, "html": html})
+
+
+class DiscoveryConfirmView(LegacyContextMixin, View):
+    """Promotion gate — accept selected (or all) discoveries, reject the rest."""
+
+    def post(self, request, pk, *args, **kwargs):
+        memory = get_object_or_404(Memory.all_objects, pk=pk, user=request.user)
+        accept_all = request.POST.get("accept_all") == "1"
+        accepted_ids = request.POST.getlist("accept")
+        n = discovery_svc.confirm_discoveries(memory, accepted_ids, accept_all=accept_all)
+        if n:
+            messages.success(request, f"Added {n} connection{'s' if n != 1 else ''} to this memory.")
+        else:
+            messages.success(request, "Nothing added.")
         return redirect("legacy:editor", pk=memory.pk)
 
 

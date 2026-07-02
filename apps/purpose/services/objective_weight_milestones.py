@@ -19,11 +19,32 @@ write).
 
 from decimal import Decimal
 import logging
+import re
 from typing import Optional
 
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+# Conservative weight-target parse for TITLE-FORM milestones — the SAME
+# heuristic goal_pace (`_nearest_weight_milestone`) uses to DISPLAY these as the
+# "next milestone": the title must mention weight/lb and carry a plausible
+# body-weight number (80–500 lb). Anything else (e.g. "Run first 10K") parses to
+# None and is left as a manual achievement milestone.
+_WEIGHT_TITLE_NUM = re.compile(r"(\d{2,3}(?:\.\d+)?)")
+
+
+def _parse_weight_target_from_title(title) -> Optional[Decimal]:
+    tl = (title or "").lower()
+    if "weight" not in tl and "lb" not in tl:
+        return None
+    hit = _WEIGHT_TITLE_NUM.search(title or "")
+    if not hit:
+        return None
+    val = float(hit.group(1))
+    if 80 <= val <= 500:
+        return Decimal(str(val))
+    return None
 
 
 def _latest_weight_lb(user) -> Optional[Decimal]:
@@ -48,7 +69,7 @@ def _latest_weight_lb(user) -> Optional[Decimal]:
     return Decimal(str(entry.value_in_lb))
 
 
-def evaluate_weight_milestones(user) -> int:
+def evaluate_weight_milestones(user, emit: bool = True) -> int:
     """Re-evaluate every objective weight milestone for ``user``.
 
     Bidirectional convergence:
@@ -110,12 +131,43 @@ def evaluate_weight_milestones(user) -> int:
         # domain event so the Significant Event Pipeline reacts in the moment
         # (recognize → notify → re-plan) instead of waiting for the 3-hour CoS
         # Event Engine scheduler. Un-completions (TRUE→FALSE) are not events.
-        if should_complete:
-            _emit_milestone_achieved(user, milestone, current)
+        if should_complete and emit:
+            _emit_milestone_achieved(user, milestone, current, target)
+
+    # ── Title-form weight milestones (objective_metric IS NULL) ─────────
+    # A weight milestone written only as a TITLE ("Reach 284.9 lb", "Goal
+    # Weight of 289.9") is the common production shape — most rungs were never
+    # wired to the objective_* columns (only ONE France rung was, via migration
+    # 0018). goal_pace already PARSES these titles to DISPLAY them as the "next
+    # milestone", but the evaluator never COMPLETED them — so a rung you
+    # actually crossed showed as "next" forever and the mission froze (France
+    # stuck at 1/12). Complete them ONE-WAY (achievement: never auto-uncomplete,
+    # to respect a manual toggle) using the SAME conservative parse goal_pace
+    # uses, and emit the significant event so the full propagation chain fires.
+    # Non-weight achievements ("Run first 10K") parse to None → left manual
+    # (Phase-1 back-compat contract preserved).
+    for milestone in GoalMilestone.objects.filter(
+            goal__user=user, goal__status="active",
+            objective_metric__isnull=True, completed=False).select_related("goal"):
+        target = _parse_weight_target_from_title(milestone.title)
+        if target is None or current > target:
+            continue
+        milestone.completed = True
+        milestone.completed_date = timezone.localdate()
+        milestone.save(update_fields=["completed", "completed_date", "updated_at"])
+        changed += 1
+        logger.info(
+            "TITLE_WEIGHT_MILESTONE user=%s milestone=%s current=%s target=%s "
+            "→ completed (title-form, one-way)",
+            user.id, milestone.id, current, target,
+        )
+        if emit:
+            _emit_milestone_achieved(user, milestone, current, target)
+
     return changed
 
 
-def _emit_milestone_achieved(user, milestone, current) -> None:
+def _emit_milestone_achieved(user, milestone, current, target_value=None) -> None:
     """Fire ``purpose.milestone.completed`` on a milestone achievement.
 
     Fail-soft: this evaluator runs on the weight-write request path AND inside
@@ -127,7 +179,10 @@ def _emit_milestone_achieved(user, milestone, current) -> None:
     try:
         from apps.core.events.domain_events import EventTypes, safe_emit_event
 
+        # objective-form carries the target on the row; title-form passes it in.
         target = milestone.objective_target_value
+        if target is None:
+            target = target_value
         safe_emit_event(
             EventTypes.PURPOSE_MILESTONE_COMPLETED,
             user,
@@ -172,7 +227,9 @@ def recompute_objective_milestones(user) -> int:
     future endpoints.
     """
     try:
-        return evaluate_weight_milestones(user)
+        # Repair = converge truth silently (emit=False); re-announcing an old
+        # achievement during a repair sweep would be misleading.
+        return evaluate_weight_milestones(user, emit=False)
     except Exception:
         logger.warning(
             "recompute_objective_milestones failed for user=%s",

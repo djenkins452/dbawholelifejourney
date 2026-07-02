@@ -55,6 +55,33 @@ Beth sees it on the NEXT message  (recent_cos_events → CoS standing read)
 + notification center / bell + push/SMS/email per DNE policy
 ```
 
+### Stage-1 hardening (v1.1, 2026-07-02) — title-form milestone detection
+
+A propagation-integrity investigation of a live case (the France milestone still
+showed 1/12 with the achieved rung as "next") proved the pipeline was correct but
+**never fired**. Propagation stopped at **Stage 1 (Milestone Detection)**:
+
+- The dashboard Mission card reads milestone truth **LIVE** (`LifeGoal.milestone_count`,
+  `completed_milestone_count`, `next_milestone` — direct `.count()`/`.filter()`), so it
+  faithfully reported the DB: the milestone was genuinely still incomplete.
+- `evaluate_weight_milestones` only completed **objective-form** rows
+  (`objective_metric="weight_lb"`). Migration 0018 wired **only** the France 289.9 rung to
+  objective form; the 284.9 rung Danny crossed is **title-form** (`objective_metric` NULL).
+- `goal_pace` *parses* title-form titles to **display** them as "next", but the evaluator
+  never **completed** them — an asymmetry that froze the mission and showed an achieved rung
+  as "next" forever.
+
+Fix (strengthen detection, not the dashboard): `evaluate_weight_milestones` now also
+completes **title-form weight milestones** — one-way (achievement; never auto-uncomplete, to
+respect manual toggles) — using the *same* conservative parse `goal_pace` uses (title mentions
+weight/lb + a plausible 80–500 lb number; non-weight achievements like "Run first 10K" stay
+manual). It emits `purpose.milestone.completed` for them too, so the full reflex fires. An
+`emit` flag lets bulk convergence run silently. Because the dashboard reads live, completion
+now moves `completed_milestone_count` and `next_milestone` **immediately** — no snapshot, no
+scheduler. Data migration `0019_converge_title_form_weight_milestones` converges already-crossed
+title-form rungs at deploy (silently — a backfilled past achievement is not re-announced as a
+fresh alert; genuinely new crossings notify event-driven).
+
 ### What makes an event significant (v1)
 
 Defined in `apps/ai/significant_events.py :: SIGNIFICANT_EVENT_TYPES`:

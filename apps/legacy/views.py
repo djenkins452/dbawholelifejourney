@@ -15,13 +15,15 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views import View
-from django.views.generic import TemplateView
+from django.views.generic import CreateView, DetailView, TemplateView, UpdateView
 
-from apps.legacy.models import Media, Memory, MemoryRevision
+from apps.legacy.forms import PersonForm, PlaceForm
+from apps.legacy.models import Media, Memory, MemoryRevision, Person, Place, Relationship
 from apps.legacy.services.home import build_home_context
+from apps.legacy.services.media_utils import guess_media_type
 
 
 # ── Shared ─────────────────────────────────────────────────────────────────
@@ -186,6 +188,10 @@ class EditorView(LegacyContextMixin, TemplateView):
             )
         ctx["memory"] = memory
         ctx["media_items"] = list(memory.media.all()) if memory else []
+        ctx["all_people"] = Person.objects.filter(user=self.request.user)
+        ctx["all_places"] = Place.objects.filter(user=self.request.user)
+        ctx["selected_people"] = set(memory.people.values_list("pk", flat=True)) if memory else set()
+        ctx["selected_places"] = set(memory.places.values_list("pk", flat=True)) if memory else set()
         return ctx
 
 
@@ -239,6 +245,14 @@ class MemorySaveView(LegacyContextMixin, View):
 
         memory.save()
 
+        # Graph links (who's in it / where it happened) — validated to the owner.
+        if "people" in request.POST:
+            ids = request.POST.getlist("people")
+            memory.people.set(Person.objects.filter(user=user, pk__in=ids))
+        if "places" in request.POST:
+            ids = request.POST.getlist("places")
+            memory.places.set(Place.objects.filter(user=user, pk__in=ids))
+
         if action == "autosave" or request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return JsonResponse({
                 "ok": True,
@@ -276,22 +290,13 @@ class MemoryRestoreView(LegacyContextMixin, View):
 class MediaAddView(LegacyContextMixin, View):
     """Basic media upload attached to an existing memory."""
 
-    _EXT_TYPE = {
-        "jpg": Media.MediaType.PHOTO, "jpeg": Media.MediaType.PHOTO, "png": Media.MediaType.PHOTO,
-        "gif": Media.MediaType.PHOTO, "webp": Media.MediaType.PHOTO, "heic": Media.MediaType.PHOTO,
-        "mp4": Media.MediaType.VIDEO, "mov": Media.MediaType.VIDEO, "m4v": Media.MediaType.VIDEO,
-        "mp3": Media.MediaType.AUDIO, "m4a": Media.MediaType.AUDIO, "wav": Media.MediaType.AUDIO,
-        "pdf": Media.MediaType.DOCUMENT, "doc": Media.MediaType.DOCUMENT, "docx": Media.MediaType.DOCUMENT,
-    }
-
     def post(self, request, pk, *args, **kwargs):
         memory = get_object_or_404(Memory.all_objects, pk=pk, user=request.user)
         f = request.FILES.get("file")
         if f:
-            ext = (f.name.rsplit(".", 1)[-1] if "." in f.name else "").lower()
             media = Media.objects.create(
                 user=request.user,
-                media_type=self._EXT_TYPE.get(ext, Media.MediaType.OTHER),
+                media_type=guess_media_type(f.name),
                 file=f,
                 original_filename=f.name[:255],
                 created_via=Media.CREATED_VIA_MANUAL,
@@ -302,3 +307,253 @@ class MediaAddView(LegacyContextMixin, View):
                 memory.save(update_fields=["primary_media", "updated_at"])
             messages.success(request, "Added to this memory.")
         return redirect("legacy:editor", pk=memory.pk)
+
+
+# ── People ─────────────────────────────────────────────────────────────────
+class PeopleView(LegacyContextMixin, TemplateView):
+    template_name = "legacy/people.html"
+    nav_active = "people"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        q = (self.request.GET.get("q") or "").strip()
+        people = Person.objects.filter(user=self.request.user)
+        if q:
+            people = people.filter(Q(display_name__icontains=q) | Q(also_known_as__icontains=q))
+        ctx["people"] = people.select_related("primary_photo")
+        ctx["q"] = q
+        ctx["total_count"] = people.count()
+        return ctx
+
+
+class PersonFormMixin(LegacyContextMixin):
+    model = Person
+    form_class = PersonForm
+    template_name = "legacy/person_form.html"
+    nav_active = "people"
+
+    def get_success_url(self):
+        return reverse("legacy:person_detail", args=[self.object.pk])
+
+
+class PersonCreateView(PersonFormMixin, CreateView):
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["heading"] = "Add someone"
+        return ctx
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        form.instance.created_via = Person.CREATED_VIA_MANUAL
+        messages.success(self.request, "Person added.")
+        return super().form_valid(form)
+
+
+class PersonEditView(PersonFormMixin, UpdateView):
+    def get_queryset(self):
+        return Person.all_objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["heading"] = "Edit person"
+        return ctx
+
+    def form_valid(self, form):
+        messages.success(self.request, "Saved.")
+        return super().form_valid(form)
+
+
+class PersonProfileView(LegacyContextMixin, DetailView):
+    model = Person
+    template_name = "legacy/person_detail.html"
+    context_object_name = "person"
+    nav_active = "people"
+
+    def get_queryset(self):
+        return Person.all_objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        person = self.object
+        memories = person.memories.all().select_related("primary_media").order_by("-created_at")
+        ctx["memories"] = memories
+        ctx["media"] = Media.objects.filter(memories__in=memories).distinct()[:12]
+        ctx["places"] = Place.objects.filter(memories__in=memories).distinct()
+        ctx["relationships"] = (
+            Relationship.objects.filter(Q(from_person=person) | Q(to_person=person))
+            .select_related("from_person", "to_person")
+        )
+        # Contributor attribution seen across this person's memories.
+        contributors = set()
+        for m in memories:
+            if m.contributor_id:
+                contributors.add(m.contributor.name)
+        ctx["contributors"] = sorted(contributors)
+        return ctx
+
+
+class PersonArchiveView(LegacyContextMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        p = get_object_or_404(Person.all_objects, pk=pk, user=request.user)
+        p.archive()
+        messages.success(request, "Person set aside.")
+        return redirect("legacy:people")
+
+
+class PersonRestoreView(LegacyContextMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        p = get_object_or_404(Person.all_objects, pk=pk, user=request.user)
+        p.restore()
+        messages.success(request, "Person restored.")
+        return redirect("legacy:person_detail", pk=p.pk)
+
+
+# ── Places ─────────────────────────────────────────────────────────────────
+class PlacesView(LegacyContextMixin, TemplateView):
+    template_name = "legacy/places.html"
+    nav_active = "places"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        q = (self.request.GET.get("q") or "").strip()
+        places = Place.objects.filter(user=self.request.user)
+        if q:
+            places = places.filter(Q(name__icontains=q) | Q(location_text__icontains=q))
+        ctx["places"] = places.select_related("primary_photo")
+        ctx["q"] = q
+        ctx["total_count"] = places.count()
+        return ctx
+
+
+class PlaceFormMixin(LegacyContextMixin):
+    model = Place
+    form_class = PlaceForm
+    template_name = "legacy/place_form.html"
+    nav_active = "places"
+
+    def get_success_url(self):
+        return reverse("legacy:place_detail", args=[self.object.pk])
+
+
+class PlaceCreateView(PlaceFormMixin, CreateView):
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["heading"] = "Add a place"
+        return ctx
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        form.instance.created_via = Place.CREATED_VIA_MANUAL
+        messages.success(self.request, "Place added.")
+        return super().form_valid(form)
+
+
+class PlaceEditView(PlaceFormMixin, UpdateView):
+    def get_queryset(self):
+        return Place.all_objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["heading"] = "Edit place"
+        return ctx
+
+    def form_valid(self, form):
+        messages.success(self.request, "Saved.")
+        return super().form_valid(form)
+
+
+class PlaceProfileView(LegacyContextMixin, DetailView):
+    model = Place
+    template_name = "legacy/place_detail.html"
+    context_object_name = "place"
+    nav_active = "places"
+
+    def get_queryset(self):
+        return Place.all_objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        place = self.object
+        memories = place.memories.all().select_related("primary_media").order_by("-created_at")
+        ctx["memories"] = memories
+        ctx["media"] = Media.objects.filter(memories__in=memories).distinct()[:12]
+        ctx["people"] = Person.objects.filter(memories__in=memories).distinct()
+        ctx["dated_memories"] = memories.exclude(occurred_on__isnull=True).order_by("occurred_on")
+        return ctx
+
+
+class PlaceArchiveView(LegacyContextMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        p = get_object_or_404(Place.all_objects, pk=pk, user=request.user)
+        p.archive()
+        messages.success(request, "Place set aside.")
+        return redirect("legacy:places")
+
+
+class PlaceRestoreView(LegacyContextMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        p = get_object_or_404(Place.all_objects, pk=pk, user=request.user)
+        p.restore()
+        messages.success(request, "Place restored.")
+        return redirect("legacy:place_detail", pk=p.pk)
+
+
+# ── Media ──────────────────────────────────────────────────────────────────
+MEDIA_TYPE_CHOICES = [("all", "All")] + list(Media.MediaType.choices)
+
+
+class MediaLibraryView(LegacyContextMixin, TemplateView):
+    template_name = "legacy/media.html"
+    nav_active = "media"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        req = self.request.GET
+        q = (req.get("q") or "").strip()
+        mtype = req.get("type", "all")
+        if mtype not in dict(MEDIA_TYPE_CHOICES):
+            mtype = "all"
+        media = Media.objects.filter(user=self.request.user)
+        if mtype != "all":
+            media = media.filter(media_type=mtype)
+        if q:
+            media = media.filter(Q(caption__icontains=q) | Q(original_filename__icontains=q))
+        ctx["media"] = media.order_by("-created_at")
+        ctx["q"] = q
+        ctx["mtype"] = mtype
+        ctx["type_choices"] = MEDIA_TYPE_CHOICES
+        ctx["total_count"] = media.count()
+        return ctx
+
+
+class MediaUploadView(LegacyContextMixin, View):
+    def post(self, request, *args, **kwargs):
+        files = request.FILES.getlist("file")
+        count = 0
+        for f in files:
+            Media.objects.create(
+                user=request.user,
+                media_type=guess_media_type(f.name),
+                file=f,
+                original_filename=f.name[:255],
+                created_via=Media.CREATED_VIA_MANUAL,
+            )
+            count += 1
+        if count:
+            messages.success(request, f"Added {count} item{'s' if count != 1 else ''}.")
+        return redirect("legacy:media")
+
+
+class MediaDetailView(LegacyContextMixin, DetailView):
+    model = Media
+    template_name = "legacy/media_detail.html"
+    context_object_name = "item"
+    nav_active = "media"
+
+    def get_queryset(self):
+        return Media.all_objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["memories"] = self.object.memories.all()
+        return ctx

@@ -1,0 +1,50 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="mediadetail">
+    <a href="{% url 'legacy:media' %}" class="editor-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M15 18l-6-6 6-6"/></svg>
+        Media
+    </a>
+
+    <div class="mediadetail-cols">
+        <div class="mediadetail-preview type-{{ item.media_type }}">
+            {% if item.file %}
+                {% if item.media_type == 'photo' %}<img src="{{ item.file.url }}" alt="{{ item.caption }}">
+                {% elif item.media_type == 'audio' %}<audio controls src="{{ item.file.url }}"></audio>
+                {% elif item.media_type == 'video' %}<video controls src="{{ item.file.url }}"></video>
+                {% else %}<a href="{{ item.file.url }}" class="lg-btn-quiet" target="_blank" rel="noopener">Open {{ item.get_media_type_display|lower }}</a>{% endif %}
+            {% else %}
+                <span class="media-thumb-kind">{{ item.get_media_type_display }}</span>
+            {% endif %}
+        </div>
+
+        <aside class="mediadetail-side">
+            <h1 class="mediadetail-title">{{ item.caption|default:item.original_filename|default:"Untitled" }}</h1>
+            <p class="mediadetail-meta">{{ item.get_media_type_display }}{% if item.taken_on %} · {{ item.taken_on }}{% endif %}</p>
+
+            <section class="lg-card">
+                <h2 class="lg-card-h">Where this appears</h2>
+                {% if memories %}
+                <ul class="mediadetail-links">
+                    {% for m in memories %}<li><a href="{% url 'legacy:editor' m.pk %}" class="lg-link">{{ m.title|default:"Untitled memory" }}</a></li>{% endfor %}
+                </ul>
+                {% else %}
+                <p class="editor-aside-note">Not yet connected to a memory. Add it to one from the memory editor.</p>
+                {% endif %}
+            </section>
+
+            <section class="lg-card">
+                <h2 class="lg-card-h">Provenance</h2>
+                <p class="editor-aside-note">
+                    Added by {{ item.user.get_full_name|default:item.user.email }} · {{ item.get_created_via_display }}<br>
+                    {{ item.created_at|date:"M j, Y" }}
+                    {% if item.source_note %}<br>Source: {{ item.source_note }}{% endif %}
+                </p>
+            </section>
+
+            {% if item.file %}<a href="{{ item.file.url }}" download class="lg-btn-quiet">Download</a>{% endif %}
+        </aside>
+    </div>
+</div>
+{% endblock %}

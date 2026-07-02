@@ -42317,3 +42317,20 @@ This uses `or ''` to convert any falsy value (None, empty string, missing key) t
 **Verification:** 31 scoped Legacy tests green (model, view, auth, status-transition, append/supersede, media-upload, template render); `manage.py check` + `makemigrations --check` clean. Manually verified in-browser end to end: create draft (autosave), edit, Add to Legacy, filter Draft vs Legacy, time-frame filter, archive + restore, card ⇄ list. Fixed one browser-only bug found during verification: a submit button `name="action"` shadowed `form.action` (autosave POSTed to a bad URL) — JS now reads the action from the attribute.
 
 **Files:** new `templates/legacy/{library,editor,_state_badge,_memory_actions}.html`, `apps/legacy/migrations/0003_*`, `apps/legacy/tests/test_library_editor.py`; edited `apps/legacy/{models,views,urls}.py`, `apps/legacy/tests/test_foundation.py`, `templates/legacy/base_legacy.html`, `static/css/legacy.css`, `static/js/legacy.js`, `docs/wlj_claude_changelog.md`.
+
+
+## 2026-07-02 — feat(legacy): Legacy Domain — Phase 1 Slice 3 (People, Places, Media)
+
+**Why:** Third Legacy slice — makes Legacy *browsable*, not just writable: explore the people, places, and media connected to your life. Fully inside the Legacy experience (no Beth, no CoS, WLJ dashboard untouched, approved visual direction preserved). No new models or migrations — builds on the Slice-1 canonical models.
+
+**What:**
+- **People:** browse (warm avatar/monogram cards, search, empty state), add/edit (`PersonForm`), and **Person Profile** — "Who they were" bio, related **Stories**, **Photos & media**, **Relationships**, **Places**, and **Remembered by** (contributor attribution). Soft archive/restore.
+- **Places:** browse (cards, search, empty state), add/edit (`PlaceForm`), and **Place Profile** — "What it was", related **Stories**, **Media**, **People here**, and an **Across the years** timeline of dated memories. Soft archive/restore.
+- **Media:** library with **type filter** (All/Photo/Video/Audio/Document/Letter/Other), search, and **multi-file upload**; **Media Detail** with photo/audio/video preview, download, provenance (added-by / created-via / source), and the memories it appears in. Captions/filenames shown per tile.
+- **Graph linking (supporting foundation):** the Memory Editor gained "Who's in this memory" / "Where did this happen" multi-selects (associated to the form via the HTML5 `form` attribute so autosave + actions persist them). This populates the profiles above and uses the real `MemoryPerson`/`MemoryPlace` through-models — no shortcuts that would block future graph/relationship expansion. Auto-suggested connections remain a later (assistant) seam.
+- Refactor: extracted `templates/legacy/_memory_card.html` (shared by library + profiles); added `services/media_utils.guess_media_type` (shared by both upload paths).
+- Data integrity: soft-delete/archive only (no hard delete); created_via / attribution / provenance preserved; ownership-scoped querysets on every view.
+
+**Verification:** 48 scoped Legacy tests green (model, view, auth, search/filter, template render, media upload, editor linking, profile relations); `manage.py check` + `makemigrations --check` clean (no migrations needed). Verified in-browser: created a person + place, viewed both profiles, linked the existing memory to a person via the editor and confirmed it appears under the person's Stories, and confirmed the Media library + type filters + empty states render. No console errors; assistant chat widget still suppressed inside Legacy.
+
+**Files:** new `apps/legacy/forms.py`, `apps/legacy/services/media_utils.py`, `apps/legacy/tests/test_people_places_media.py`, `templates/legacy/{people,person_form,person_detail,places,place_form,place_detail,media,media_detail,_memory_card}.html`; edited `apps/legacy/{views,urls}.py`, `apps/legacy/tests/test_foundation.py`, `templates/legacy/{library,editor,base_legacy}.html`, `static/css/legacy.css`, `static/js/legacy.js`, `docs/wlj_claude_changelog.md`.

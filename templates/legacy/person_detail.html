@@ -1,0 +1,92 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="profile">
+    <a href="{% url 'legacy:people' %}" class="editor-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M15 18l-6-6 6-6"/></svg>
+        People
+    </a>
+
+    <div class="profile-head">
+        <span class="profile-avatar">
+            {% if person.primary_photo and person.primary_photo.file %}<img src="{{ person.primary_photo.file.url }}" alt="{{ person.display_name }}">{% else %}{{ person.display_name|slice:":1"|upper }}{% endif %}
+        </span>
+        <div class="profile-headinfo">
+            <h1 class="profile-name">{{ person.display_name }}</h1>
+            <p class="profile-sub">
+                {% if person.relationship_label %}{{ person.relationship_label }}{% endif %}
+                {% if person.birth_year or person.death_year %} · {{ person.birth_year|default:"?" }}–{{ person.death_year|default:"" }}{% endif %}
+                {% if person.also_known_as %} · "{{ person.also_known_as }}"{% endif %}
+            </p>
+            <div class="profile-actions">
+                <a href="{% url 'legacy:editor_new' %}" class="lg-btn-primary">Remember about them</a>
+                <a href="{% url 'legacy:person_edit' person.pk %}" class="lg-btn-quiet">Edit</a>
+                {% if person.status == 'active' %}
+                <form method="post" action="{% url 'legacy:person_archive' person.pk %}" class="m-action-form">{% csrf_token %}<button type="submit" class="lg-btn-ghost">Set aside</button></form>
+                {% else %}
+                <form method="post" action="{% url 'legacy:person_restore' person.pk %}" class="m-action-form">{% csrf_token %}<button type="submit" class="lg-btn-quiet">Restore</button></form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if person.bio %}
+    <section class="lg-card profile-bio">
+        <h2 class="profile-sec-title">Who they were</h2>
+        <p>{{ person.bio|linebreaks }}</p>
+    </section>
+    {% endif %}
+
+    <section class="profile-sec">
+        <h2 class="profile-sec-title">Stories{% if memories %} ({{ memories.count }}){% endif %}</h2>
+        {% if memories %}
+        <div class="mgrid">{% for m in memories %}{% include "legacy/_memory_card.html" with m=m %}{% endfor %}</div>
+        {% else %}
+        <p class="profile-empty">You've not told a story about {{ person.display_name }} yet. <a href="{% url 'legacy:editor_new' %}" class="lg-link">Tell one →</a></p>
+        {% endif %}
+    </section>
+
+    {% if media %}
+    <section class="profile-sec">
+        <h2 class="profile-sec-title">Photos &amp; media</h2>
+        <div class="media-strip">
+            {% for md in media %}
+            <a href="{% url 'legacy:media_detail' md.pk %}" class="media-thumb type-{{ md.media_type }}">
+                {% if md.file and md.media_type == 'photo' %}<img src="{{ md.file.url }}" alt="{{ md.caption }}">{% else %}<span class="media-thumb-kind">{{ md.get_media_type_display }}</span>{% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if relationships %}
+    <section class="profile-sec">
+        <h2 class="profile-sec-title">Relationships</h2>
+        <div class="chips">
+            {% for r in relationships %}
+            <span class="chip">
+                {% if r.from_person_id == person.pk %}{{ r.relationship_type }} <a href="{% url 'legacy:person_detail' r.to_person.pk %}">{{ r.to_person.display_name }}</a>
+                {% else %}<a href="{% url 'legacy:person_detail' r.from_person.pk %}">{{ r.from_person.display_name }}</a> — {{ r.relationship_type }}{% endif %}
+            </span>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if places %}
+    <section class="profile-sec">
+        <h2 class="profile-sec-title">Places</h2>
+        <div class="chips">
+            {% for pl in places %}<a href="{% url 'legacy:place_detail' pl.pk %}" class="chip chip-link">{{ pl.name }}</a>{% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if contributors %}
+    <section class="profile-sec">
+        <h2 class="profile-sec-title">Remembered by</h2>
+        <div class="chips">{% for c in contributors %}<span class="chip">{{ c }}</span>{% endfor %}</div>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

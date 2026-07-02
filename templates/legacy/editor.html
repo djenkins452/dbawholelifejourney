@@ -50,8 +50,28 @@
         <aside class="editor-aside">
             <section class="lg-card editor-connections">
                 <div class="lg-card-headrow"><h3 class="lg-card-h">Connections</h3></div>
-                <p class="editor-aside-note">When you finish, people, places, and dates you mentioned will be gently suggested here — nothing is added without your yes.</p>
-                <p class="editor-aside-soon">Coming soon.</p>
+
+                <div class="editor-link-field">
+                    <label for="memoryPeople">Who's in this memory</label>
+                    <select name="people" id="memoryPeople" form="memoryForm" multiple class="editor-multiselect">
+                        {% for p in all_people %}
+                        <option value="{{ p.pk }}"{% if p.pk in selected_people %} selected{% endif %}>{{ p.display_name }}</option>
+                        {% endfor %}
+                    </select>
+                    <a href="{% url 'legacy:person_new' %}" class="editor-link-add">+ Add someone</a>
+                </div>
+
+                <div class="editor-link-field">
+                    <label for="memoryPlaces">Where did this happen</label>
+                    <select name="places" id="memoryPlaces" form="memoryForm" multiple class="editor-multiselect">
+                        {% for pl in all_places %}
+                        <option value="{{ pl.pk }}"{% if pl.pk in selected_places %} selected{% endif %}>{{ pl.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <a href="{% url 'legacy:place_new' %}" class="editor-link-add">+ Add a place</a>
+                </div>
+
+                <p class="editor-aside-note">Dates and new names you mention will be suggested automatically in a later release — nothing is ever added without your yes.</p>
             </section>
 
             <section class="lg-card editor-media">

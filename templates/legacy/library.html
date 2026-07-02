@@ -76,28 +76,7 @@
         </div>
         {% else %}
         <div class="mgrid">
-            {% for m in memories %}
-            <div class="mcard">
-                <a href="{% url 'legacy:editor' m.pk %}" class="mcard-imglink">
-                    <div class="mcard-img type-{{ m.entry_type }}">
-                        {% if m.primary_media and m.primary_media.file %}<img src="{{ m.primary_media.file.url }}" alt="{{ m.title }}">{% else %}
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="rcard-img-ico"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-                        {% endif %}
-                    </div>
-                </a>
-                <div class="mcard-body">
-                    <div class="mcard-headrow">
-                        <a href="{% url 'legacy:editor' m.pk %}" class="mcard-title">{{ m.title|default:"Untitled memory" }}</a>
-                        {% include "legacy/_state_badge.html" with m=m %}
-                    </div>
-                    <p class="mcard-snippet">{{ m.body|truncatechars:96 }}</p>
-                    <div class="mcard-foot">
-                        <span class="mcard-meta">{% if m.occurred_on %}{{ m.occurred_on }}{% else %}{{ m.created_at|date:"M j, Y" }}{% endif %} · {% if m.attributed_to %}{{ m.attributed_to.display_name }}{% else %}You{% endif %}</span>
-                        <span class="mcard-actions">{% include "legacy/_memory_actions.html" with m=m %}</span>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
+            {% for m in memories %}{% include "legacy/_memory_card.html" with m=m %}{% endfor %}
         </div>
         {% endif %}
     {% else %}

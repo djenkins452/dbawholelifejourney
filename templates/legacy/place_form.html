@@ -1,0 +1,26 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="lg-formpage">
+    <a href="{% if form.instance.pk %}{% url 'legacy:place_detail' form.instance.pk %}{% else %}{% url 'legacy:places' %}{% endif %}" class="editor-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M15 18l-6-6 6-6"/></svg>
+        {% if form.instance.pk %}Back to place{% else %}Places{% endif %}
+    </a>
+    <h1 class="lg-formpage-title">{{ heading }}</h1>
+
+    <form method="post" class="lg-form lg-card">
+        {% csrf_token %}
+        {% for field in form %}
+        <div class="lg-field">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<div class="lg-field-err">{{ field.errors|striptags }}</div>{% endif %}
+        </div>
+        {% endfor %}
+        <div class="lg-form-actions">
+            <a href="{% if form.instance.pk %}{% url 'legacy:place_detail' form.instance.pk %}{% else %}{% url 'legacy:places' %}{% endif %}" class="lg-btn-quiet">Cancel</a>
+            <button type="submit" class="lg-btn-primary">Save</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

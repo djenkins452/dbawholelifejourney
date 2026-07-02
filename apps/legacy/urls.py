@@ -29,22 +29,29 @@ urlpatterns = [
     path("memories/<int:pk>/archive/", views.MemoryArchiveView.as_view(), name="memory_archive"),
     path("memories/<int:pk>/restore/", views.MemoryRestoreView.as_view(), name="memory_restore"),
     path("memories/<int:pk>/media/add/", views.MediaAddView.as_view(), name="memory_media_add"),
-    path("people/", _placeholder(
-        "people", "People",
-        "The people who shaped you — a wall of faces, each a living portrait."),
-        name="people"),
-    path("places/", _placeholder(
-        "places", "Places",
-        "The places that mattered — homes, towns, a favorite table."),
-        name="places"),
+    # People (Slice 3)
+    path("people/", views.PeopleView.as_view(), name="people"),
+    path("people/new/", views.PersonCreateView.as_view(), name="person_new"),
+    path("people/<int:pk>/", views.PersonProfileView.as_view(), name="person_detail"),
+    path("people/<int:pk>/edit/", views.PersonEditView.as_view(), name="person_edit"),
+    path("people/<int:pk>/archive/", views.PersonArchiveView.as_view(), name="person_archive"),
+    path("people/<int:pk>/restore/", views.PersonRestoreView.as_view(), name="person_restore"),
+
+    # Places (Slice 3)
+    path("places/", views.PlacesView.as_view(), name="places"),
+    path("places/new/", views.PlaceCreateView.as_view(), name="place_new"),
+    path("places/<int:pk>/", views.PlaceProfileView.as_view(), name="place_detail"),
+    path("places/<int:pk>/edit/", views.PlaceEditView.as_view(), name="place_edit"),
+    path("places/<int:pk>/archive/", views.PlaceArchiveView.as_view(), name="place_archive"),
+    path("places/<int:pk>/restore/", views.PlaceRestoreView.as_view(), name="place_restore"),
     path("timeline/", _placeholder(
         "timeline", "Timeline",
         "A gentle lens across the years of your life."),
         name="timeline"),
-    path("media/", _placeholder(
-        "media", "Media",
-        "Photos, voices, letters, and film — doorways to memory."),
-        name="media"),
+    # Media (Slice 3)
+    path("media/", views.MediaLibraryView.as_view(), name="media"),
+    path("media/upload/", views.MediaUploadView.as_view(), name="media_upload"),
+    path("media/<int:pk>/", views.MediaDetailView.as_view(), name="media_detail"),
     path("relationships/", _placeholder(
         "relationships", "Relationships",
         "How the people in your life are connected."),

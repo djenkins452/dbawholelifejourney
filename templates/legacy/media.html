@@ -1,0 +1,80 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="lib">
+    <div class="lib-head">
+        <div>
+            <h1 class="lib-title">Media</h1>
+            <p class="lib-sub">Photos, voices, letters, and film — doorways to memory.</p>
+        </div>
+        <form method="post" action="{% url 'legacy:media_upload' %}" enctype="multipart/form-data" class="media-upload-form">
+            {% csrf_token %}
+            <label class="lg-btn-primary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Upload
+                <input type="file" name="file" multiple class="editor-media-input js-autoupload">
+            </label>
+        </form>
+    </div>
+
+    <nav class="lib-pills" aria-label="Filter by media type">
+        {% for key, label in type_choices %}
+        <a href="?type={{ key }}{% if q %}&q={{ q }}{% endif %}" class="lib-pill{% if mtype == key %} active{% endif %}">{{ label }}</a>
+        {% endfor %}
+    </nav>
+
+    <form class="lib-toolbar" method="get">
+        <input type="hidden" name="type" value="{{ mtype }}">
+        <div class="lib-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm legacy-search-ico"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="search" name="q" value="{{ q }}" class="lib-search-input" placeholder="Search media…" aria-label="Search media">
+        </div>
+    </form>
+
+    {% if media %}
+    <div class="media-grid">
+        {% for md in media %}
+        <a href="{% url 'legacy:media_detail' md.pk %}" class="media-cell">
+            <span class="media-tile type-{{ md.media_type }}">
+                {% if md.file and md.media_type == 'photo' %}
+                <img src="{{ md.file.url }}" alt="{{ md.caption|default:md.original_filename }}">
+                {% else %}
+                <span class="media-tile-kind">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="media-tile-ico">
+                        {% if md.media_type == 'audio' %}<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+                        {% elif md.media_type == 'video' %}<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/>
+                        {% elif md.media_type == 'letter' %}<path d="M4 4h16v16H4z"/><path d="M4 4l8 8 8-8"/>
+                        {% else %}<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>{% endif %}
+                    </svg>
+                    {{ md.get_media_type_display }}
+                </span>
+                {% endif %}
+            </span>
+            <span class="media-cell-cap">{{ md.caption|default:md.original_filename|default:md.get_media_type_display }}</span>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="lib-empty">
+        <span class="lib-empty-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        </span>
+        {% if q or mtype != 'all' %}
+        <h2 class="lib-empty-title">No media match</h2>
+        <p class="lib-empty-blurb">Try a different filter or search.</p>
+        <a href="{% url 'legacy:media' %}" class="btn-quiet">Clear filters</a>
+        {% else %}
+        <h2 class="lib-empty-title">Bring your photos, voices, and letters home</h2>
+        <p class="lib-empty-blurb">Every photo is a doorway to a memory. Start by adding a few.</p>
+        <form method="post" action="{% url 'legacy:media_upload' %}" enctype="multipart/form-data" class="media-upload-form">
+            {% csrf_token %}
+            <label class="lg-btn-primary">
+                Upload your first
+                <input type="file" name="file" multiple class="editor-media-input js-autoupload">
+            </label>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

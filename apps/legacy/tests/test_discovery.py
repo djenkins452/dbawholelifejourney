@@ -59,7 +59,9 @@ class RunDiscoveryTests(TestCase):
         self.assertEqual(status, "ok")
         qs = MemoryDiscovery.objects.filter(memory=self.memory)
         self.assertEqual(qs.filter(kind="person").count(), 2)
-        self.assertEqual(qs.filter(kind="relationship").count(), 2)
+        # Relationship is folded into the person (no separate redundant rows).
+        self.assertEqual(qs.filter(kind="relationship").count(), 0)
+        self.assertEqual(qs.get(kind="person", label="Marvin").detail.get("relationship"), "father")
         self.assertEqual(qs.filter(kind="place").count(), 1)
         self.assertTrue(qs.filter(kind="quote", label="Quit swinging from the ass.").exists())
         self.assertEqual(qs.filter(kind="theme").count(), 2)
@@ -79,6 +81,30 @@ class RunDiscoveryTests(TestCase):
         joe = MemoryDiscovery.objects.get(memory=self.memory, kind="person", label="Uncle Joe")
         self.assertFalse(joe.detail["is_new"])
         self.assertIsNotNone(joe.detail["matched_person_id"])
+
+    def test_possible_duplicate_detection(self):
+        Person.objects.create(user=self.user, display_name="Marvin Jenkins")
+        D.run_discovery(self.memory, extractor=lambda t: FAKE)
+        marvin = MemoryDiscovery.objects.get(memory=self.memory, kind="person", label="Marvin")
+        self.assertFalse(marvin.detail["is_new"])
+        self.assertIsNone(marvin.detail["matched_person_id"])   # not an exact match
+        self.assertTrue(marvin.detail["candidates"])            # but a possible duplicate
+        self.assertEqual(marvin.detail["candidates"][0]["name"], "Marvin Jenkins")
+
+    def test_existing_person_carries_stats(self):
+        joe = Person.objects.create(user=self.user, display_name="Uncle Joe")
+        Memory.objects.create(user=self.user, title="another").people.add(joe)
+        D.run_discovery(self.memory, extractor=lambda t: FAKE)
+        d = MemoryDiscovery.objects.get(memory=self.memory, kind="person", label="Uncle Joe")
+        self.assertIsNotNone(d.detail["matched"])
+        self.assertGreaterEqual(d.detail["matched"]["stories"], 1)
+
+    def test_summary_text(self):
+        _, _ = D.run_discovery(self.memory, extractor=lambda t: FAKE)
+        text = D.summary_text(D.grouped_proposals(self.memory))
+        self.assertIn("2 people", text)
+        self.assertIn("1 place", text)
+        self.assertIn(" and ", text)
 
     def test_unavailable_when_no_data(self):
         status, props = D.run_discovery(self.memory, extractor=lambda t: None)
@@ -125,6 +151,18 @@ class ConfirmTests(TestCase):
         self.assertFalse(MemoryDiscovery.objects.filter(memory=self.memory, status="proposed").exists())
         self.assertTrue(MemoryDiscovery.objects.filter(memory=self.memory, status="rejected").exists())
         self.assertFalse(Place.objects.filter(user=self.user, name="Soddy Daisy").exists())
+
+    def test_duplicate_resolution_links_chosen_person(self):
+        MemoryDiscovery.objects.filter(memory=self.memory).delete()
+        existing = Person.objects.create(user=self.user, display_name="Marvin Jenkins")
+        D.run_discovery(self.memory, extractor=lambda t: FAKE)
+        marvin_d = MemoryDiscovery.objects.get(memory=self.memory, kind="person", label="Marvin")
+        # User resolves the possible-match to the existing person.
+        D.confirm_discoveries(self.memory, accepted_ids=[marvin_d.id],
+                              resolutions={str(marvin_d.id): str(existing.id)})
+        # Linked the existing person; did NOT create a second "Marvin".
+        self.assertIn(existing, self.memory.people.all())
+        self.assertFalse(Person.objects.filter(user=self.user, display_name="Marvin").exists())
 
     def test_accept_links_existing_person_no_duplicate(self):
         MemoryDiscovery.objects.filter(memory=self.memory).delete()

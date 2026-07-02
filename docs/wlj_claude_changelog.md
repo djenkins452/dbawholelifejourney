@@ -42366,3 +42366,21 @@ This uses `or ''` to convert any falsy value (None, empty string, missing key) t
 **Verification:** 74 scoped Legacy tests green (13 new; OpenAI call always mocked — parsing, confidence mapping, existing-person matching, promotion, selective accept/reject, re-run, view + auth); `check` + `makemigrations --check` clean. **Verified end-to-end in-browser with LIVE OpenAI**: wrote a natural childhood memory → Discover proposed 17 items across People/Relationships/Places/Human-time/Calendar-time/Life-stage/Relative-time/Events/Quotes/Artifacts/Themes (people & place correctly flagged "new"); confirming created Person nodes (Uncle Joe Sneed·uncle, Marvin·father, Grandma Gloria·grandmother) + Soddy Daisy place, all linked to the memory. No console errors; chat widget suppressed.
 
 **Files:** new `apps/legacy/services/discovery.py`, `apps/legacy/migrations/0006_memorydiscovery.py`, `apps/legacy/tests/test_discovery.py`, `templates/legacy/_discovery_review.html`; edited `apps/legacy/{models,views,urls}.py`, `templates/legacy/{editor,base_legacy}.html`, `static/js/legacy.js`, `static/css/legacy.css`, `docs/wlj_claude_changelog.md`.
+
+
+## 2026-07-02 — polish(legacy): Story Discovery panel — "I understood your story" (Phase 2 refinement)
+
+**Why:** Refinement (not redesign) of the Discovery Review panel so the signature moment feels proud, warm, and effortless instead of like a checklist. Workflow unchanged: proposal-first, user confirmation, nothing canonical automatically.
+
+**What:**
+- **Proud, warm panel** — "✨ Here's what I understood" with a subtle reassurance summary ("Legacy found 3 people, 2 places, 1 event and 2 themes."). Empty categories are hidden (unchanged); only meaningful discoveries show.
+- **Rich People/Place cards** — monogram avatar + name + relationship stacked (relationship now folded onto the person, not a separate redundant "Relationships" row) + status. Unchecked rows dim (`:has`). Soft categories (human time, calendar time, life stage, relative time, events, quotes, artifacts, themes, values, traditions, emotions) render as warm selectable **chips** instead of checkboxes.
+- **Existing-person resolution** — an exact match shows "Already in your Legacy · N stories · M photos" and an "existing" tag and links to that person on apply. A **possible duplicate** shows a "possible match" tag and a "Is this someone you've already added?" chooser (radio between the candidate(s) and "a new person"); the choice is honored at promotion time (`resolve_<id>` → `confirm_discoveries(resolutions=...)`), so the user resolves duplicates *before* anything is created.
+- **Confidence, sparingly** — only low-confidence items get a subtle "unsure" tag; medium/high shown clean (anti-clutter reading of the spec).
+- **Rename** — primary action is now **Apply discoveries** (was "Add selected"); redundant "Accept all" removed since items default to checked. Footer reminds "Nothing is saved to your Legacy until you apply."
+- **Human Time** — the prompt already preserves the story's own phrasing ("Christmas of 2000", "after Grandpa died") and only surfaces when supported; hidden-empty-sections means it never shows a fabricated placeholder.
+- Fixed a template bug: a multi-line `{# #}` comment (single-line only in Django) was rendering as literal text in the injected panel.
+
+**Verification:** 78 scoped Legacy tests green (4 new: possible-duplicate detection, existing-person stats, duplicate resolution honored at promotion, summary text; OpenAI always mocked); `check` + `makemigrations --check` clean (no model change). Verified in-browser with LIVE OpenAI: a Christmas memory produced the proud summary + rich cards with **Marvin flagged "existing · 1 story"**, Carol/Grandpa/Gorman "new", human-time "Christmas of 2000", a verbatim quote, tradition, and emotions as chips; **Apply discoveries** linked the existing Marvin (no duplicate) and promoted the rest. No console errors; chat widget suppressed.
+
+**Files:** edited `apps/legacy/services/discovery.py`, `apps/legacy/views.py`, `apps/legacy/tests/test_discovery.py`, `templates/legacy/_discovery_review.html`, `templates/legacy/base_legacy.html`, `static/css/legacy.css`, `docs/wlj_claude_changelog.md`.

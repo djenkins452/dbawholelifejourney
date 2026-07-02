@@ -1,4 +1,4 @@
-{# Discovery Review panel — rendered into the editor's Connections card. #}
+{# Discovery Review — proposal-first; nothing is saved until the user applies. #}
 <div class="discovery" data-memory-pk="{{ memory.pk }}">
 {% if status == 'unavailable' %}
     <p class="discovery-msg">Discovery is resting right now. Your memory is saved — you can connect people and places by hand below.</p>
@@ -8,37 +8,88 @@
     <p class="discovery-msg">I read it closely but didn't find anything to suggest yet. You can still connect people and places by hand below.</p>
 {% else %}
     <div class="discovery-head">
-        <h4 class="discovery-title">Here's what I understood</h4>
+        <div class="discovery-heading">
+            <span class="discovery-spark" aria-hidden="true">✨</span>
+            <h4 class="discovery-title">Here's what I understood</h4>
+        </div>
         <button type="button" class="discovery-x js-discovery-cancel" aria-label="Dismiss">×</button>
     </div>
-    <p class="discovery-lead">Uncheck anything that's not right. Nothing is added until you confirm.</p>
+    {% if summary %}<p class="discovery-summary">Legacy found {{ summary }}.</p>{% endif %}
 
     <form method="post" action="{% url 'legacy:discovery_confirm' memory.pk %}" class="discovery-form">
         {% csrf_token %}
         {% for g in groups %}
+        {% if g.kind == 'person' %}
         <div class="disc-group">
-            <div class="disc-group-title">{{ g.label }}</div>
+            <div class="disc-group-title">People</div>
             {% for d in g.items %}
-            <label class="disc-item">
-                <input type="checkbox" name="accept" value="{{ d.id }}" checked>
-                <span class="disc-label">
-                    {{ d.label }}
-                    {% if d.kind == 'person' and d.detail.relationship %}<span class="disc-sub">· {{ d.detail.relationship }}</span>{% endif %}
-                    {% if d.kind == 'person' or d.kind == 'place' %}{% if d.detail.is_new %}<span class="disc-tag disc-new">new</span>{% else %}<span class="disc-tag">already yours</span>{% endif %}{% endif %}
-                    {% if d.confidence == 'low' %}<span class="disc-tag disc-low">low confidence</span>{% endif %}
+            <label class="disc-person{% if not d.detail.is_new %} is-known{% endif %}">
+                <input type="checkbox" name="accept" value="{{ d.id }}" checked class="disc-person-check">
+                <span class="disc-person-av">{{ d.label|slice:":1"|upper }}</span>
+                <span class="disc-person-main">
+                    <span class="disc-person-name">{{ d.label }}</span>
+                    {% if d.detail.relationship %}<span class="disc-person-rel">{{ d.detail.relationship|title }}</span>{% endif %}
+                    {% if d.detail.matched %}<span class="disc-person-stats">Already in your Legacy · {{ d.detail.matched.stories }} {% if d.detail.matched.stories == 1 %}story{% else %}stories{% endif %}{% if d.detail.matched.photos %} · {{ d.detail.matched.photos }} photos{% endif %}</span>{% endif %}
+                    {% if d.detail.candidates %}
+                    <span class="disc-resolve">
+                        <span class="disc-resolve-q">Is this someone you've already added?</span>
+                        {% for c in d.detail.candidates %}
+                        <label class="disc-radio"><input type="radio" name="resolve_{{ d.id }}" value="{{ c.id }}"> {{ c.name }} <span class="disc-muted">· {{ c.stories }} {% if c.stories == 1 %}story{% else %}stories{% endif %}</span></label>
+                        {% endfor %}
+                        <label class="disc-radio"><input type="radio" name="resolve_{{ d.id }}" value="new" checked> No — a new person</label>
+                    </span>
+                    {% endif %}
+                </span>
+                <span class="disc-person-status">
+                    {% if d.detail.candidates %}<span class="disc-tag disc-dup">possible match</span>
+                    {% elif d.detail.matched %}<span class="disc-tag disc-known">existing</span>
+                    {% else %}<span class="disc-tag disc-new">new</span>{% endif %}
+                    {% if d.confidence == 'low' %}<span class="disc-tag disc-low">unsure</span>{% endif %}
                 </span>
             </label>
             {% endfor %}
-            {% if g.kind == 'person' %}<a href="{% url 'legacy:person_new' %}" class="disc-add">+ Add someone</a>{% endif %}
-            {% if g.kind == 'place' %}<a href="{% url 'legacy:place_new' %}" class="disc-add">+ Add a place</a>{% endif %}
+            <a href="{% url 'legacy:person_new' %}" class="disc-add">+ Add someone</a>
         </div>
+        {% elif g.kind == 'place' %}
+        <div class="disc-group">
+            <div class="disc-group-title">Places</div>
+            {% for d in g.items %}
+            <label class="disc-person{% if not d.detail.is_new %} is-known{% endif %}">
+                <input type="checkbox" name="accept" value="{{ d.id }}" checked class="disc-person-check">
+                <span class="disc-person-av disc-place-av">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                </span>
+                <span class="disc-person-main">
+                    <span class="disc-person-name">{{ d.label }}</span>
+                </span>
+                <span class="disc-person-status">
+                    {% if d.detail.is_new %}<span class="disc-tag disc-new">new</span>{% else %}<span class="disc-tag disc-known">existing</span>{% endif %}
+                    {% if d.confidence == 'low' %}<span class="disc-tag disc-low">unsure</span>{% endif %}
+                </span>
+            </label>
+            {% endfor %}
+            <a href="{% url 'legacy:place_new' %}" class="disc-add">+ Add a place</a>
+        </div>
+        {% else %}
+        <div class="disc-group">
+            <div class="disc-group-title">{{ g.label }}</div>
+            <div class="disc-chips">
+                {% for d in g.items %}
+                <label class="disc-chip{% if d.confidence == 'low' %} is-unsure{% endif %}">
+                    <input type="checkbox" name="accept" value="{{ d.id }}" checked>
+                    <span class="disc-chip-face">{{ d.label }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
         {% endfor %}
 
         <div class="disc-actions">
-            <button type="submit" class="lg-btn-primary">Add selected</button>
-            <button type="submit" name="accept_all" value="1" class="lg-btn-quiet">Accept all</button>
+            <button type="submit" class="lg-btn-primary">Apply discoveries</button>
             <button type="button" class="lg-btn-ghost js-discovery-cancel">Cancel</button>
         </div>
+        <p class="disc-foot">Nothing is saved to your Legacy until you apply.</p>
     </form>
 {% endif %}
 </div>

@@ -77,8 +77,59 @@ Guidance:
 - Extract only what the text supports. Respond with ONLY the JSON, no prose."""
 
 
+_SUMMARY = {
+    "person": ("person", "people"), "place": ("place", "places"),
+    "event": ("event", "events"), "quote": ("quote", "quotes"),
+    "theme": ("theme", "themes"), "value": ("value", "values"),
+    "artifact": ("artifact", "artifacts"), "tradition": ("tradition", "traditions"),
+    "emotion": ("emotion", "emotions"), "human_time": ("moment in time", "moments in time"),
+    "calendar_time": ("date", "dates"), "life_stage": ("life stage", "life stages"),
+    "relative_time": ("moment", "moments"), "media_ref": ("media mention", "media mentions"),
+}
+
+
 def is_available():
     return bool(getattr(settings, "OPENAI_API_KEY", None))
+
+
+def _person_stats(person):
+    if not person:
+        return None
+    from apps.legacy.models import Media
+    stories = person.memories.count()
+    photos = Media.objects.filter(
+        memories__in=person.memories.all(), media_type="photo").distinct().count()
+    return {"stories": stories, "photos": photos}
+
+
+def _similar(a, b):
+    """Loose name similarity for possible-duplicate detection (not exact match)."""
+    a, b = a.lower().strip(), b.lower().strip()
+    if a == b:
+        return False
+    at, bt = set(a.split()), set(b.split())
+    if at & bt:                      # shared token (e.g. a surname)
+        return True
+    if a in b or b in a:             # one contains the other
+        return True
+    for x in at:                     # nickname/prefix (Marv/Marvin)
+        for y in bt:
+            if len(x) >= 3 and len(y) >= 3 and (x.startswith(y) or y.startswith(x)):
+                return True
+    return False
+
+
+def summary_text(groups):
+    parts = []
+    for g in groups:
+        n = len(g["items"])
+        sing, plur = _SUMMARY.get(g["kind"], (g["label"].lower(), g["label"].lower()))
+        parts.append(f"{n} {sing if n == 1 else plur}")
+    if not parts:
+        return ""
+    if len(parts) == 1:
+        return parts[0]
+    return ", ".join(parts[:-1]) + " and " + parts[-1]
 
 
 def _client():
@@ -184,16 +235,22 @@ def run_discovery(memory, extractor=None):
         name = (p.get("name") or "").strip()
         if not name:
             continue
-        match = existing_people.get(name.lower())
         rel = (p.get("relationship") or "").strip()
+        match = existing_people.get(name.lower())
+        candidates = []
+        if not match:
+            candidates = [person for lname, person in existing_people.items()
+                          if _similar(name, person.display_name)]
+        # Relationship stays tied to the person (shown on the person card); we
+        # deliberately do not create a separate, redundant relationship row.
         add(MemoryDiscovery.Kind.PERSON, name, p.get("confidence"), {
             "relationship": rel,
+            "is_new": match is None and not candidates,
             "matched_person_id": match.id if match else None,
-            "is_new": match is None,
+            "matched": _person_stats(match) if match else None,
+            "candidates": [dict(id=c.id, name=c.display_name, **_person_stats(c))
+                           for c in candidates[:3]],
         })
-        if rel:
-            add(MemoryDiscovery.Kind.RELATIONSHIP, rel.title(), p.get("confidence"),
-                {"person_name": name, "relationship": rel})
 
     for pl in data.get("places", []) or []:
         name = (pl.get("name") or "").strip()
@@ -252,14 +309,17 @@ def grouped_proposals(memory):
     ]
 
 
-def confirm_discoveries(memory, accepted_ids=None, accept_all=False):
+def confirm_discoveries(memory, accepted_ids=None, accept_all=False, resolutions=None):
     """
     Promotion gate. Accept the chosen proposals (or all), reject the rest.
     Person/Place acceptances create/link real graph nodes and connect them to
-    the memory. Returns the number accepted.
+    the memory. `resolutions` maps a person-discovery id -> an existing Person id
+    (link to it) or "new" (force-create), for duplicate resolution.
+    Returns the number accepted.
     """
     from apps.legacy.models import MemoryDiscovery, Person, Place
 
+    resolutions = resolutions or {}
     accepted_ids = set(int(i) for i in (accepted_ids or []))
     proposals = MemoryDiscovery.objects.filter(
         memory=memory, status=MemoryDiscovery.Status.PROPOSED)
@@ -277,9 +337,13 @@ def confirm_discoveries(memory, accepted_ids=None, accept_all=False):
 
         if d.kind == MemoryDiscovery.Kind.PERSON:
             person = None
-            mid = d.detail.get("matched_person_id")
-            if mid:
-                person = Person.all_objects.filter(pk=mid, user=user).first()
+            res = resolutions.get(str(d.id)) or resolutions.get(d.id)
+            if res and res != "new":
+                person = Person.all_objects.filter(pk=res, user=user).first()
+            elif res != "new":
+                mid = d.detail.get("matched_person_id")
+                if mid:
+                    person = Person.all_objects.filter(pk=mid, user=user).first()
             if person is None:
                 person = Person.objects.create(
                     user=user, display_name=d.label,

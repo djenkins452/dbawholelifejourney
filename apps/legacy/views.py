@@ -302,10 +302,12 @@ class MemoryDiscoverView(LegacyContextMixin, View):
         memory.save()
 
         status, _ = discovery_svc.run_discovery(memory)
+        groups = discovery_svc.grouped_proposals(memory)
         html = render_to_string("legacy/_discovery_review.html", {
             "memory": memory,
-            "groups": discovery_svc.grouped_proposals(memory),
+            "groups": groups,
             "status": status,
+            "summary": discovery_svc.summary_text(groups),
         }, request=request)
         return JsonResponse({"ok": True, "pk": memory.pk, "status": status, "html": html})
 
@@ -317,7 +319,10 @@ class DiscoveryConfirmView(LegacyContextMixin, View):
         memory = get_object_or_404(Memory.all_objects, pk=pk, user=request.user)
         accept_all = request.POST.get("accept_all") == "1"
         accepted_ids = request.POST.getlist("accept")
-        n = discovery_svc.confirm_discoveries(memory, accepted_ids, accept_all=accept_all)
+        resolutions = {k[len("resolve_"):]: v for k, v in request.POST.items()
+                       if k.startswith("resolve_")}
+        n = discovery_svc.confirm_discoveries(
+            memory, accepted_ids, accept_all=accept_all, resolutions=resolutions)
         if n:
             messages.success(request, f"Added {n} connection{'s' if n != 1 else ''} to this memory.")
         else:

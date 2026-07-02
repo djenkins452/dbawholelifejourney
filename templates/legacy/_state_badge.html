@@ -1,0 +1,9 @@
+{% if m.status == 'archived' %}
+<span class="state-badge state-archived">Set aside</span>
+{% elif m.entry_state == 'legacy' %}
+<span class="state-badge state-legacy">Legacy</span>
+{% elif m.entry_state == 'shared' %}
+<span class="state-badge state-shared">Shared</span>
+{% else %}
+<span class="state-badge state-draft">Draft</span>
+{% endif %}

@@ -42301,3 +42301,19 @@ This uses `or ''` to convert any falsy value (None, empty string, missing key) t
 **Deferred (intentionally):** user-facing release notes / help / teaching entries are held until Legacy is enabled beyond early access (flag currently OFF for all). Slices 2–4 (Editor+Library, People/Places/Media + profiles, Dashboard/Contributors/Outputs) follow.
 
 **Files:** new `apps/legacy/**`, `static/css/legacy.css`, `static/js/legacy.js`, `templates/legacy/**`; edited `apps/core/domain_registry/descriptors.py`, `apps/core/context_processors.py`, `config/settings.py`, `config/urls.py`, `templates/base.html`, `docs/wlj_claude_changelog.md`.
+
+
+## 2026-07-02 — feat(legacy): Legacy Domain — Phase 1 Slice 2 (Memory Library + Editor)
+
+**Why:** Second Legacy slice — the capture + management core, fully inside the Legacy experience (no Beth, no CoS, WLJ dashboard untouched, approved visual direction preserved).
+
+**What:**
+- **Memory Library** (`legacy:library`, replaces the Slice-1 placeholder): warm **card view + calm list view** (not an admin grid), search (title/body), **status filter** (All / Draft / Legacy / Archived) as pills, **time-frame filter** (Today / This week / This month / This year / All time / Custom, by capture date), sort (newest/oldest/recently-updated/title), view toggle, thoughtful empty states (first-run / no-match / archived-empty), and per-item Edit / Set-aside (archive) / Restore actions. State badges (Draft/Legacy/Shared/Set aside).
+- **Memory Editor** (`legacy:editor_new` + `legacy:editor <pk>`, replaces placeholders): serif title + large journal-style writing area, **debounced autosave** (JSON endpoint; new memories are created on first autosave and the URL updates in place), explicit **Save draft / Add to Legacy / Set aside** actions, **basic media upload** (photo/audio/video/doc → `Media`, auto-sets primary photo), and **voice-to-text + Analyze placeholders only** (no AI). Connections + Media side panels per the UI blueprint.
+- **Data integrity:** new append-only **`MemoryRevision`** — editing a memory that is already IN a person's Legacy snapshots its prior telling first (edits *deepen*, never overwrite; the minimal append/supersede pattern). Added **`updated_by`** (last-editor attribution). Provenance preserved across edits (source_kind / attributed_to / contributor / created_via). Soft-delete maintained; **no hard delete** — "Set aside" (archive) is reversible via Restore.
+- **Navigation:** Home → Stories/New, Library ⇄ Editor, Editor → back to Stories. Django messages now render inside the Legacy shell.
+- Assets: Library/Editor styles added to `legacy.css`; `legacy.js` gains autosave, filter/media auto-submit, and CSP-safe placeholder toasts.
+
+**Verification:** 31 scoped Legacy tests green (model, view, auth, status-transition, append/supersede, media-upload, template render); `manage.py check` + `makemigrations --check` clean. Manually verified in-browser end to end: create draft (autosave), edit, Add to Legacy, filter Draft vs Legacy, time-frame filter, archive + restore, card ⇄ list. Fixed one browser-only bug found during verification: a submit button `name="action"` shadowed `form.action` (autosave POSTed to a bad URL) — JS now reads the action from the attribute.
+
+**Files:** new `templates/legacy/{library,editor,_state_badge,_memory_actions}.html`, `apps/legacy/migrations/0003_*`, `apps/legacy/tests/test_library_editor.py`; edited `apps/legacy/{models,views,urls}.py`, `apps/legacy/tests/test_foundation.py`, `templates/legacy/base_legacy.html`, `static/css/legacy.css`, `static/js/legacy.js`, `docs/wlj_claude_changelog.md`.

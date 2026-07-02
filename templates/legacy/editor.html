@@ -1,0 +1,87 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="editor" data-memory-pk="{% if memory %}{{ memory.pk }}{% endif %}">
+    <div class="editor-top">
+        <a href="{% url 'legacy:library' %}" class="editor-back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M15 18l-6-6 6-6"/></svg>
+            Stories
+        </a>
+        <div class="editor-top-right">
+            {% if memory %}{% include "legacy/_state_badge.html" with m=memory %}{% endif %}
+            <span class="editor-autosave" id="editorAutosave">{% if memory %}Saved{% else %}Draft{% endif %}</span>
+        </div>
+    </div>
+
+    <div class="editor-cols">
+        <form class="editor-main" id="memoryForm" method="post" action="{% url 'legacy:memory_save' %}">
+            {% csrf_token %}
+            <input type="hidden" name="pk" id="memoryPk" value="{% if memory %}{{ memory.pk }}{% endif %}">
+
+            <input type="text" name="title" id="memoryTitle" class="editor-title"
+                   placeholder="Give this memory a title…" value="{{ memory.title|default:'' }}"
+                   autocomplete="off">
+
+            <div class="editor-toolbar">
+                <button type="button" class="editor-tool js-legacy-soon" data-note="Voice-to-text is coming soon.">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                    Talk
+                </button>
+                <button type="button" class="editor-tool js-legacy-soon" data-note="Connections (people, places, dates) will be suggested here soon.">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M3 12h3M18 12h3M12 3v3M12 18v3"/></svg>
+                    Analyze
+                </button>
+            </div>
+
+            <textarea name="body" id="memoryBody" class="editor-body"
+                      placeholder="Tap Talk, or just start writing…">{{ memory.body|default:'' }}</textarea>
+
+            <div class="editor-actions">
+                <button type="submit" name="action" value="draft" class="lg-btn-quiet">Save draft</button>
+                <button type="submit" name="action" value="legacy" class="lg-btn-primary">Add to Legacy</button>
+                {% if memory and memory.status == 'active' %}
+                <button type="submit" name="action" value="archive" class="lg-btn-ghost">Set aside</button>
+                {% elif memory and memory.status == 'archived' %}
+                <span class="editor-archived-note">Set aside — restore it from Stories.</span>
+                {% endif %}
+            </div>
+        </form>
+
+        <aside class="editor-aside">
+            <section class="lg-card editor-connections">
+                <div class="lg-card-headrow"><h3 class="lg-card-h">Connections</h3></div>
+                <p class="editor-aside-note">When you finish, people, places, and dates you mentioned will be gently suggested here — nothing is added without your yes.</p>
+                <p class="editor-aside-soon">Coming soon.</p>
+            </section>
+
+            <section class="lg-card editor-media">
+                <div class="lg-card-headrow"><h3 class="lg-card-h">Media</h3></div>
+                {% if media_items %}
+                <div class="editor-media-grid">
+                    {% for md in media_items %}
+                    <div class="editor-media-thumb type-{{ md.media_type }}">
+                        {% if md.file and md.media_type == 'photo' %}<img src="{{ md.file.url }}" alt="{{ md.caption }}">{% else %}
+                        <span class="editor-media-kind">{{ md.get_media_type_display }}</span>{% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if memory %}
+                <form method="post" action="{% url 'legacy:memory_media_add' memory.pk %}" enctype="multipart/form-data" class="editor-media-add">
+                    {% csrf_token %}
+                    <label class="editor-media-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        Add a photo, audio, or document
+                        <input type="file" name="file" class="editor-media-input" id="mediaFileInput">
+                    </label>
+                </form>
+                {% else %}
+                <p class="editor-aside-note">Photos and audio can be added once you've saved this memory.</p>
+                {% endif %}
+            </section>
+        </aside>
+    </div>
+</div>
+
+<div class="legacy-toast" id="legacyToast" hidden></div>
+{% endblock %}

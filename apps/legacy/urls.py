@@ -21,14 +21,14 @@ urlpatterns = [
         "dashboard", "Dashboard",
         "Your operational overview — what needs tending, and a quiet sense of your record."),
         name="dashboard"),
-    path("memories/", _placeholder(
-        "stories", "Stories",
-        "Every memory you've kept, gathered here to browse, revisit, and tend."),
-        name="library"),
-    path("memories/new/", _placeholder(
-        "stories", "Remember",
-        "A calm, unhurried space to tell a story — by voice or by writing."),
-        name="editor_new"),
+    # Memory Library + Editor (Slice 2)
+    path("memories/", views.LibraryView.as_view(), name="library"),
+    path("memories/new/", views.EditorView.as_view(), name="editor_new"),
+    path("memories/save/", views.MemorySaveView.as_view(), name="memory_save"),
+    path("memories/<int:pk>/edit/", views.EditorView.as_view(), name="editor"),
+    path("memories/<int:pk>/archive/", views.MemoryArchiveView.as_view(), name="memory_archive"),
+    path("memories/<int:pk>/restore/", views.MemoryRestoreView.as_view(), name="memory_restore"),
+    path("memories/<int:pk>/media/add/", views.MediaAddView.as_view(), name="memory_media_add"),
     path("people/", _placeholder(
         "people", "People",
         "The people who shaped you — a wall of faces, each a living portrait."),

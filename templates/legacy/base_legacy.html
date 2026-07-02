@@ -11,7 +11,7 @@ themes, CSP, and scripts. The floating assistant widget is suppressed here
 {% block title %}{{ page_title|default:"Legacy" }} · Legacy{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/legacy.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'css/legacy.css' %}?v=3">
 {% endblock %}
 
 {# Suppress the global Chief-of-Staff chat widget inside Legacy #}
@@ -26,6 +26,13 @@ themes, CSP, and scripts. The floating assistant widget is suppressed here
         {% include "legacy/_topbar.html" %}
 
         <main id="main-content" class="legacy-scroll">
+            {% if messages %}
+            <div class="legacy-messages" role="status">
+                {% for m in messages %}
+                <div class="legacy-msg legacy-msg-{{ m.tags }}">{{ m }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
             {% block legacy_content %}{% endblock %}
         </main>
 
@@ -40,5 +47,5 @@ themes, CSP, and scripts. The floating assistant widget is suppressed here
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/legacy.js' %}?v=1"></script>
+<script src="{% static 'js/legacy.js' %}?v=3"></script>
 {% endblock %}

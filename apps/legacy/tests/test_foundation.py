@@ -121,7 +121,8 @@ class ViewTests(TestCase):
         self.assertNotContains(resp, "First Day of School")
 
     def test_placeholder_pages_render(self):
-        for name in ("dashboard", "library", "people", "places", "media",
+        # 'library' and the editor became real pages in Slice 2.
+        for name in ("dashboard", "people", "places", "media",
                      "contributors", "outputs", "studio"):
             resp = self.client.get(reverse(f"legacy:{name}"))
             self.assertEqual(resp.status_code, 200, name)

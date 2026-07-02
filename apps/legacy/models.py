@@ -244,6 +244,12 @@ class Memory(LegacyOwnedModel):
         Contributor, on_delete=models.SET_NULL, null=True, blank=True, related_name='memories',
     )
     provenance_note = models.CharField(max_length=255, blank=True)
+    # Who last edited this memory (multi-contributor attribution). The owner
+    # (user) is the creator; updated_by tracks the most recent editor.
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='legacy_edited_memories',
+    )
 
     # Graph connections.
     people = models.ManyToManyField(Person, through='MemoryPerson', related_name='memories', blank=True)
@@ -289,6 +295,35 @@ class MemoryPlace(models.Model):
 
     class Meta:
         unique_together = ['memory', 'place']
+
+
+class MemoryRevision(models.Model):
+    """
+    Append-only snapshot of a Memory's prior content.
+
+    Preservation truth is not destroyed by editing: when a Memory that is
+    already IN a person's Legacy (canonical) is edited, its previous telling is
+    snapshotted here first. Revisions are never edited or deleted — editing
+    *deepens*, it does not overwrite (see docs/WLJ_LEGACY_DOMAIN_UX_ARCHITECTURE
+    §8.2 and the Attestation→Assertion model). This is the Phase-1, minimal
+    expression of the append/supersede pattern.
+    """
+
+    memory = models.ForeignKey(Memory, on_delete=models.CASCADE, related_name='revisions')
+    title = models.CharField(max_length=255, blank=True)
+    body = models.TextField(blank=True)
+    entry_state = models.CharField(max_length=10, blank=True)
+    edited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='legacy_memory_revisions',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Revision of {self.memory_id} @ {self.created_at:%Y-%m-%d %H:%M}"
 
 
 # ──────────────────────────────────────────────────────────────────────────

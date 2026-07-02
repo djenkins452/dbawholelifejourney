@@ -1,0 +1,15 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="lg-placeholder">
+    <div class="lg-placeholder-card">
+        <span class="lg-placeholder-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22v-6"/><path d="M12 16c-3 0-5-2-5-5 0-1 .4-2 1-3-1-.6-1.5-1.6-1.5-2.7C6.5 3.5 8 2 10 2c.9 0 1.6.3 2 .8.4-.5 1.1-.8 2-.8 2 0 3.5 1.5 3.5 3.3 0 1.1-.5 2.1-1.5 2.7.6 1 1 2 1 3 0 3-2 5-5 5z"/></svg>
+        </span>
+        <h1 class="lg-placeholder-title">{{ page_title }}</h1>
+        <p class="lg-placeholder-blurb">{{ page_blurb }}</p>
+        <p class="lg-placeholder-note">This part of your Legacy is being prepared.</p>
+        <a href="{% url 'legacy:home' %}" class="btn-quiet">‹ Back to the Hearth</a>
+    </div>
+</div>
+{% endblock %}

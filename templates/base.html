@@ -412,7 +412,9 @@
 
     <!-- WLJ Assistant Chat Widget -->
     {% if user.is_authenticated %}
+    {% block global_chat_widget %}
     {% include "components/chat_widget.html" %}
+    {% endblock %}
     {% endif %}
 
     <!-- Global @mention autocomplete (all text fields) -->

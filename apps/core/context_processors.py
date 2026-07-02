@@ -161,6 +161,7 @@ def theme_context(request):
         'documents_enabled': _module_defaults.get('documents', True),
         'meals_enabled': _module_defaults.get('meals', True),
         'sports_enabled': _module_defaults.get('sports', False),
+        'legacy_enabled': _module_defaults.get('legacy', False),
         # AI flags - defaults
         'ai_enabled': False,
         'ai_data_consent': False,
@@ -208,6 +209,7 @@ def theme_context(request):
             context['documents_enabled'] = module_map.get('documents', False)
             context['meals_enabled'] = module_map.get('meals', False)
             context['sports_enabled'] = module_map.get('sports', False)
+            context['legacy_enabled'] = module_map.get('legacy', False)
             # AI toggles
             context['ai_enabled'] = prefs.ai_enabled
             context['ai_data_consent'] = prefs.ai_data_consent

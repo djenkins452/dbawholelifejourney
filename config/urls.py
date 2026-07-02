@@ -140,6 +140,7 @@ urlpatterns = [
     path('v2/', lambda request: __import__('django.shortcuts', fromlist=['redirect']).redirect('/dashboard/', permanent=True)),
     # Sports — Team tracking & game-day signals
     path('sports/', include('apps.sports.urls', namespace='sports')),
+    path('legacy/', include('apps.legacy.urls', namespace='legacy')),
     # Signal Feedback & Insights API
     path('api/signals/', include('apps.core.signals.urls', namespace='signals')),
     # Owner Financial Command Center (superuser only)

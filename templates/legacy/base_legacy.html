@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% comment %}
+The immersive Legacy shell. Overrides base.html's body block to take over the
+full viewport with Legacy's own sidebar + top bar, while inheriting WLJ auth,
+themes, CSP, and scripts. The floating assistant widget is suppressed here
+(Legacy is a fully standalone, non-Beth experience in Phase 1).
+{% endcomment %}
+
+{% block title %}{{ page_title|default:"Legacy" }} · Legacy{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/legacy.css' %}?v=2">
+{% endblock %}
+
+{# Suppress the global Chief-of-Staff chat widget inside Legacy #}
+{% block global_chat_widget %}{% endblock %}
+
+{% block body %}
+<a href="#main-content" class="skip-link">Skip to content</a>
+<div class="legacy-root" data-theme-scope="legacy">
+    {% include "legacy/_sidebar.html" %}
+
+    <div class="legacy-main">
+        {% include "legacy/_topbar.html" %}
+
+        <main id="main-content" class="legacy-scroll">
+            {% block legacy_content %}{% endblock %}
+        </main>
+
+        <div class="legacy-statusbar" aria-hidden="true">
+            <span class="legacy-saved">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-xs"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+                All changes saved
+            </span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/legacy.js' %}?v=1"></script>
+{% endblock %}

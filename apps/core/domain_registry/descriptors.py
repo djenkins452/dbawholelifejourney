@@ -25,16 +25,25 @@ class DomainClass:
     KNOWLEDGE = 'knowledge'       # Structured knowledge store (Documents)
     CONTEXT = 'context'           # Contextual enrichment (Travel, future)
     SYSTEM = 'system'             # Internal infrastructure (observability, etc.)
+    PRESERVATION = 'preservation'  # Preservation domain (Legacy): append-only, testimonial,
+                                   # conflict-preserving, multi-contributor, outlives the owner.
+                                   # See docs/WLJ_LEGACY_DOMAIN_ARCHITECTURE.md §13.1.
 
-    ALL = {BEHAVIORAL, INFLUENCE, KNOWLEDGE, CONTEXT, SYSTEM}
+    ALL = {BEHAVIORAL, INFLUENCE, KNOWLEDGE, CONTEXT, SYSTEM, PRESERVATION}
 
-    # Domains that represent a user's life area
+    # Domains that represent a user's life area.
+    # PRESERVATION is intentionally NOT included: Legacy is a standalone
+    # preservation domain and must stay out of cross-domain / CoS iteration
+    # (get_user_life_domains()) during its no-assistant phase.
     USER_LIFE_DOMAINS = {BEHAVIORAL}
 
     # Domains that can be a cross-domain signal source
     CROSS_DOMAIN_SOURCES = {INFLUENCE}
 
-    # Domains that participate in CoS context assembly
+    # Domains that participate in CoS context assembly.
+    # NOTE: PRESERVATION is intentionally EXCLUDED for now — the Legacy domain is built
+    # as a fully standalone product with NO assistant (Beth) integration. It is promoted
+    # into CoS participation only when the assistant becomes a Legacy consumer (later phase).
     COS_PARTICIPATING = {BEHAVIORAL, INFLUENCE, KNOWLEDGE}
 
 

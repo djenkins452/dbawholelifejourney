@@ -191,6 +191,7 @@ INSTALLED_APPS = [
     'apps.dashboard_v2',  # Dashboard V2 — Life Command Center (experimental)
     'apps.dashboard_v3',  # Dashboard V3 — CoS-first experimental surface (/dashboard-v3/)
     'apps.sports',  # Sports context domain — team tracking & game-day signals
+    'apps.legacy',  # Legacy — Personal Legacy Operating System (preservation domain)
     'assistant',
     'django_apscheduler',
     'djstripe',

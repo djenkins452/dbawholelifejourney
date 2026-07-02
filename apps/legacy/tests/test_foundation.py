@@ -121,8 +121,8 @@ class ViewTests(TestCase):
         self.assertNotContains(resp, "First Day of School")
 
     def test_placeholder_pages_render(self):
-        # library/editor (Slice 2) and people/places/media (Slice 3) are now real.
-        for name in ("dashboard", "contributors", "outputs", "studio"):
+        # Only timeline/relationships/search/settings remain placeholders after Slice 4.
+        for name in ("timeline", "relationships", "search", "settings"):
             resp = self.client.get(reverse(f"legacy:{name}"))
             self.assertEqual(resp.status_code, 200, name)
             self.assertContains(resp, "being prepared")

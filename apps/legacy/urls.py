@@ -17,15 +17,15 @@ urlpatterns = [
     path("", views.HearthView.as_view(), name="home"),
 
     # Destinations arriving in later Phase-1 slices — graceful placeholders for now.
-    path("dashboard/", _placeholder(
-        "dashboard", "Dashboard",
-        "Your operational overview — what needs tending, and a quiet sense of your record."),
-        name="dashboard"),
+    # Dashboard + Studio/Review (Slice 4)
+    path("dashboard/", views.StudioView.as_view(), name="dashboard"),
+    path("studio/", views.ReviewView.as_view(), name="studio"),
     # Memory Library + Editor (Slice 2)
     path("memories/", views.LibraryView.as_view(), name="library"),
     path("memories/new/", views.EditorView.as_view(), name="editor_new"),
     path("memories/save/", views.MemorySaveView.as_view(), name="memory_save"),
     path("memories/<int:pk>/edit/", views.EditorView.as_view(), name="editor"),
+    path("memories/<int:pk>/state/", views.MemorySetStateView.as_view(), name="memory_set_state"),
     path("memories/<int:pk>/archive/", views.MemoryArchiveView.as_view(), name="memory_archive"),
     path("memories/<int:pk>/restore/", views.MemoryRestoreView.as_view(), name="memory_restore"),
     path("memories/<int:pk>/media/add/", views.MediaAddView.as_view(), name="memory_media_add"),
@@ -56,18 +56,19 @@ urlpatterns = [
         "relationships", "Relationships",
         "How the people in your life are connected."),
         name="relationships"),
-    path("contributors/", _placeholder(
-        "contributors", "Contributors",
-        "The family who help you remember — a life is remembered together."),
-        name="contributors"),
-    path("outputs/", _placeholder(
-        "outputs", "Outputs",
-        "Turn your memories into something to hold or share."),
-        name="outputs"),
-    path("studio/", _placeholder(
-        "studio", "Studio",
-        "A quiet workshop for tending your life's record."),
-        name="studio"),
+    # Contributors / Family (Slice 4)
+    path("contributors/", views.ContributorsView.as_view(), name="contributors"),
+    path("contributors/new/", views.ContributorCreateView.as_view(), name="contributor_new"),
+    path("contributors/<int:pk>/", views.ContributorDetailView.as_view(), name="contributor_detail"),
+    path("contributors/<int:pk>/edit/", views.ContributorEditView.as_view(), name="contributor_edit"),
+    path("contributors/<int:pk>/archive/", views.ContributorArchiveView.as_view(), name="contributor_archive"),
+
+    # Outputs / Create (Slice 4)
+    path("outputs/", views.OutputsView.as_view(), name="outputs"),
+    path("outputs/new/", views.OutputCreateView.as_view(), name="output_new"),
+    path("outputs/<int:pk>/", views.OutputDetailView.as_view(), name="output_detail"),
+    path("outputs/<int:pk>/archive/", views.OutputArchiveView.as_view(), name="output_archive"),
+
     path("search/", _placeholder(
         "search", "Search",
         "Reach for a memory — a name, a place, a year, or something someone used to say."),

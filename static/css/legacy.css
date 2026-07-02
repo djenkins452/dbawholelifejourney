@@ -562,3 +562,46 @@ body.theme-ember .legacy-root {
 .media-cell { display: flex; flex-direction: column; gap: 6px; text-decoration: none; }
 .media-cell:hover .media-tile { transform: translateY(-2px); box-shadow: 0 14px 30px -20px rgba(30,25,15,.5); }
 .media-cell-cap { font-size: 12px; color: var(--lg-ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ==========================================================================
+   Slice 4 — Dashboard, Studio/Review, Contributors, Outputs
+   ========================================================================== */
+
+/* Dashboard */
+.dash-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 22px; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-bottom: 28px; }
+.stat-card {
+    background: var(--lg-surface); border: 1px solid var(--lg-border); border-radius: 12px;
+    padding: 16px 14px; display: flex; flex-direction: column; gap: 2px; text-decoration: none;
+    transition: transform .12s, box-shadow .12s;
+}
+.stat-card:hover { transform: translateY(-2px); box-shadow: var(--lg-shadow); }
+.stat-value { font-family: var(--lg-serif); font-size: 28px; color: var(--lg-ink); }
+.stat-label { font-size: 12px; color: var(--lg-muted); }
+
+.dash-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 22px; align-items: start; }
+.dash-side { display: flex; flex-direction: column; gap: 12px; }
+.needs-card { display: flex; align-items: center; gap: 12px; background: var(--lg-surface); border: 1px solid var(--lg-border); border-radius: 12px; padding: 14px; text-decoration: none; }
+.needs-card:hover { border-color: var(--lg-border-strong); }
+.needs-n { font-family: var(--lg-serif); font-size: 24px; color: var(--lg-accent-ink); flex: none; min-width: 30px; }
+.needs-t { font-size: 13px; color: var(--lg-ink-soft); }
+
+/* Studio / Review */
+.review-sec { margin-bottom: 30px; }
+.review-count { font-size: 13px; color: var(--lg-muted); font-weight: 400; }
+.review-btn { padding: 6px 12px; font-size: 12px; }
+.mrow-actions { display: inline-flex; gap: 6px; align-items: center; }
+
+/* Contributors */
+.invite-note { margin-bottom: 22px; }
+
+/* Outputs / forms */
+.lg-formpage-sub { color: var(--lg-ink-soft); font-size: 14px; margin-bottom: 18px; line-height: 1.55; }
+.lg-field-half { display: inline-flex; width: calc(50% - 8px); vertical-align: top; }
+.lg-form .lg-field-half + .lg-field-half { margin-left: 16px; }
+
+@media (max-width: 1040px) {
+    .dash-cols { grid-template-columns: 1fr; }
+    .lg-field-half { width: 100%; }
+    .lg-form .lg-field-half + .lg-field-half { margin-left: 0; }
+}

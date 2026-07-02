@@ -1,0 +1,94 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="lib">
+    <div class="lib-head">
+        <div>
+            <h1 class="lib-title">Studio</h1>
+            <p class="lib-sub">A quiet workshop for tending your life's record — no rush, nothing is lost.</p>
+        </div>
+    </div>
+
+    {% if not drafts and not submissions and not media_no_context and not unlinked %}
+    <div class="lib-empty">
+        <span class="lib-empty-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M20 6L9 17l-5-5"/></svg>
+        </span>
+        <h2 class="lib-empty-title">Nothing needs tending right now</h2>
+        <p class="lib-empty-blurb">When you leave a memory unfinished, family adds one, or media needs a story, it'll wait for you here.</p>
+        <a href="{% url 'legacy:editor_new' %}" class="lg-btn-primary">Tell a memory</a>
+    </div>
+    {% endif %}
+
+    {% if drafts %}
+    <section class="review-sec">
+        <h2 class="lg-section-title">Unfinished memories <span class="review-count">{{ drafts.count }}</span></h2>
+        <div class="mlist">
+            {% for m in drafts %}
+            <div class="mrow">
+                <a href="{% url 'legacy:editor' m.pk %}" class="mrow-main">
+                    <span class="mrow-title">{{ m.title|default:"Untitled memory" }}</span>
+                    <span class="mrow-snippet">{{ m.body|truncatechars:100 }}</span>
+                </a>
+                <span class="mrow-actions">
+                    <a href="{% url 'legacy:editor' m.pk %}" class="lg-btn-quiet review-btn">Continue</a>
+                    <form method="post" action="{% url 'legacy:memory_set_state' m.pk %}" class="m-action-form">{% csrf_token %}<input type="hidden" name="to" value="legacy"><input type="hidden" name="next" value="{% url 'legacy:studio' %}"><button type="submit" class="lg-btn-primary review-btn">Add to Legacy</button></form>
+                    <form method="post" action="{% url 'legacy:memory_archive' m.pk %}" class="m-action-form">{% csrf_token %}<input type="hidden" name="next" value="{% url 'legacy:studio' %}"><button type="submit" class="lg-btn-ghost review-btn">Set aside</button></form>
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if submissions %}
+    <section class="review-sec">
+        <h2 class="lg-section-title">From your family <span class="review-count">{{ submissions.count }}</span></h2>
+        <div class="mlist">
+            {% for m in submissions %}
+            <div class="mrow">
+                <a href="{% url 'legacy:editor' m.pk %}" class="mrow-main">
+                    <span class="mrow-title">{{ m.title|default:"Untitled memory" }}</span>
+                    <span class="mrow-snippet">{% if m.contributor %}from {{ m.contributor.name }} · {% endif %}{{ m.body|truncatechars:90 }}</span>
+                </a>
+                <span class="mrow-actions">
+                    <a href="{% url 'legacy:editor' m.pk %}" class="lg-btn-quiet review-btn">Read &amp; keep</a>
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if media_no_context %}
+    <section class="review-sec">
+        <h2 class="lg-section-title">Media without a story <span class="review-count">{{ media_no_context.count }}</span></h2>
+        <div class="media-strip">
+            {% for md in media_no_context %}
+            <a href="{% url 'legacy:media_detail' md.pk %}" class="media-thumb type-{{ md.media_type }}">
+                {% if md.file and md.media_type == 'photo' %}<img src="{{ md.file.url }}" alt="{{ md.caption }}">{% else %}<span class="media-thumb-kind">{{ md.get_media_type_display }}</span>{% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if unlinked %}
+    <section class="review-sec">
+        <h2 class="lg-section-title">Not yet connected <span class="review-count">{{ unlinked.count }}</span></h2>
+        <p class="profile-empty">Memories that aren't linked to a person or place yet.</p>
+        <div class="mlist">
+            {% for m in unlinked %}
+            <div class="mrow">
+                <a href="{% url 'legacy:editor' m.pk %}" class="mrow-main">
+                    <span class="mrow-title">{{ m.title|default:"Untitled memory" }}</span>
+                    <span class="mrow-snippet">{{ m.body|truncatechars:100 }}</span>
+                </a>
+                <span class="mrow-actions"><a href="{% url 'legacy:editor' m.pk %}" class="lg-btn-quiet review-btn">Connect</a></span>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

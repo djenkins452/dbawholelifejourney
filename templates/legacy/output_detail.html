@@ -1,0 +1,29 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="lg-formpage">
+    <a href="{% url 'legacy:outputs' %}" class="editor-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M15 18l-6-6 6-6"/></svg>
+        Outputs
+    </a>
+
+    <div class="profile-head">
+        <span class="profile-avatar type-memory">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        </span>
+        <div class="profile-headinfo">
+            <h1 class="profile-name">{{ output.title|default:output.get_output_type_display }}</h1>
+            <p class="profile-sub">{{ output.get_output_type_display }} · from {{ output.get_scope_kind_display }}{% if output.scope_person %} ({{ output.scope_person.display_name }}){% elif output.scope_place %} ({{ output.scope_place.name }}){% endif %} · for {{ output.get_audience_display }}</p>
+            <div class="profile-actions">
+                <span class="state-badge state-draft">{{ output.get_generation_status_display }}</span>
+                <form method="post" action="{% url 'legacy:output_archive' output.pk %}" class="m-action-form">{% csrf_token %}<button type="submit" class="lg-btn-ghost">Set aside</button></form>
+            </div>
+        </div>
+    </div>
+
+    <section class="lg-card">
+        <h2 class="lg-card-h">Preview</h2>
+        <p class="editor-aside-note">This is a placeholder. When generation ships, your {{ output.get_output_type_display|lower }} will be composed here from your Legacy — grounded in your real memories, honest about what's uncertain, and never altering the underlying truth. You'll be able to regenerate it, differently, as often as you like.</p>
+    </section>
+</div>
+{% endblock %}

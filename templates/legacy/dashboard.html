@@ -1,0 +1,89 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="lib">
+    <div class="lib-head">
+        <div>
+            <h1 class="lib-title">Dashboard</h1>
+            <p class="lib-sub">A quiet overview of your record — and what's waiting for you.</p>
+        </div>
+    </div>
+
+    <div class="dash-actions">
+        <a href="{% url 'legacy:editor_new' %}" class="lg-btn-primary">New memory</a>
+        <a href="{% url 'legacy:studio' %}" class="lg-btn-quiet">Review drafts</a>
+        <a href="{% url 'legacy:person_new' %}" class="lg-btn-quiet">Add person</a>
+        <a href="{% url 'legacy:place_new' %}" class="lg-btn-quiet">Add place</a>
+        <a href="{% url 'legacy:media' %}" class="lg-btn-quiet">Upload media</a>
+        <a href="{% url 'legacy:output_new' %}" class="lg-btn-quiet">Create output</a>
+    </div>
+
+    <div class="stat-grid">
+        <a href="{% url 'legacy:library' %}" class="stat-card"><span class="stat-value">{{ counts.memories }}</span><span class="stat-label">Memories</span></a>
+        <a href="{% url 'legacy:library' %}?status=draft" class="stat-card"><span class="stat-value">{{ counts.drafts }}</span><span class="stat-label">Drafts</span></a>
+        <a href="{% url 'legacy:library' %}?status=legacy" class="stat-card"><span class="stat-value">{{ counts.legacy }}</span><span class="stat-label">In your Legacy</span></a>
+        <a href="{% url 'legacy:library' %}?status=archived" class="stat-card"><span class="stat-value">{{ counts.archived }}</span><span class="stat-label">Set aside</span></a>
+        <a href="{% url 'legacy:people' %}" class="stat-card"><span class="stat-value">{{ counts.people }}</span><span class="stat-label">People</span></a>
+        <a href="{% url 'legacy:places' %}" class="stat-card"><span class="stat-value">{{ counts.places }}</span><span class="stat-label">Places</span></a>
+        <a href="{% url 'legacy:media' %}" class="stat-card"><span class="stat-value">{{ counts.media }}</span><span class="stat-label">Media</span></a>
+        <a href="{% url 'legacy:contributors' %}" class="stat-card"><span class="stat-value">{{ counts.contributors }}</span><span class="stat-label">Contributors</span></a>
+        <a href="{% url 'legacy:outputs' %}" class="stat-card"><span class="stat-value">{{ counts.outputs }}</span><span class="stat-label">Outputs</span></a>
+    </div>
+
+    <div class="dash-cols">
+        <section class="dash-main">
+            <div class="lib-section-head">
+                <h2 class="lg-section-title">Recent activity</h2>
+            </div>
+
+            <nav class="lib-pills" aria-label="Filter by status">
+                {% for key, label in status_choices %}
+                <a href="?status={{ key }}&tf={{ tf }}" class="lib-pill{% if status == key %} active{% endif %}">{{ label }}</a>
+                {% endfor %}
+            </nav>
+            <form class="lib-toolbar" method="get">
+                <input type="hidden" name="status" value="{{ status }}">
+                <div class="lib-selects">
+                    <select name="tf" class="lib-select lg-autosubmit" aria-label="Time frame">
+                        {% for key, label in timeframe_choices %}
+                        <option value="{{ key }}"{% if tf == key %} selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% if tf == 'custom' %}
+                <div class="lib-custom">
+                    <label>From <input type="date" name="start" value="{{ start }}" class="lib-date"></label>
+                    <label>To <input type="date" name="end" value="{{ end }}" class="lib-date"></label>
+                    <button type="submit" class="btn-quiet">Apply</button>
+                </div>
+                {% endif %}
+            </form>
+
+            {% if recent %}
+            <div class="mlist">
+                {% for m in recent %}
+                <div class="mrow">
+                    <a href="{% url 'legacy:editor' m.pk %}" class="mrow-main">
+                        <span class="mrow-title">{{ m.title|default:"Untitled memory" }}</span>
+                        <span class="mrow-snippet">{{ m.body|truncatechars:90 }}</span>
+                    </a>
+                    <span class="mrow-meta">{{ m.updated_at|date:"M j, Y" }}</span>
+                    {% include "legacy/_state_badge.html" with m=m %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="profile-empty">Nothing in this window yet.</p>
+            {% endif %}
+        </section>
+
+        <aside class="dash-side">
+            <h2 class="lg-section-title">Needs you</h2>
+            <a href="{% url 'legacy:studio' %}" class="needs-card"><span class="needs-n">{{ review.drafts }}</span><span class="needs-t">unfinished memories to continue</span></a>
+            <a href="{% url 'legacy:studio' %}" class="needs-card"><span class="needs-n">{{ review.submissions }}</span><span class="needs-t">family submissions to welcome</span></a>
+            <a href="{% url 'legacy:studio' %}" class="needs-card"><span class="needs-n">{{ review.media_no_context }}</span><span class="needs-t">media without a story</span></a>
+            <a href="{% url 'legacy:studio' %}" class="needs-card"><span class="needs-n">{{ review.unlinked }}</span><span class="needs-t">memories not yet connected to people or places</span></a>
+        </aside>
+    </div>
+</div>
+{% endblock %}

@@ -20,8 +20,10 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import CreateView, DetailView, TemplateView, UpdateView
 
-from apps.legacy.forms import PersonForm, PlaceForm
-from apps.legacy.models import Media, Memory, MemoryRevision, Person, Place, Relationship
+from apps.legacy.forms import ContributorForm, OutputForm, PersonForm, PlaceForm
+from apps.legacy.models import (
+    Contributor, Media, Memory, MemoryRevision, Output, Person, Place, Relationship,
+)
 from apps.legacy.services.home import build_home_context
 from apps.legacy.services.media_utils import guess_media_type
 
@@ -269,6 +271,26 @@ class MemorySaveView(LegacyContextMixin, View):
             return redirect("legacy:library")
         messages.success(request, "Draft saved.")
         return redirect("legacy:editor", pk=memory.pk)
+
+
+class MemorySetStateView(LegacyContextMixin, View):
+    """Change a memory's entry_state (draft/legacy) without touching its content."""
+
+    def post(self, request, pk, *args, **kwargs):
+        memory = get_object_or_404(Memory.all_objects, pk=pk, user=request.user)
+        to = request.POST.get("to")
+        if to == "legacy":
+            memory.entry_state = Memory.EntryState.LEGACY
+        elif to == "draft":
+            memory.entry_state = Memory.EntryState.DRAFT
+        else:
+            return redirect(request.POST.get("next") or "legacy:studio")
+        if memory.status != "active":
+            memory.status = "active"
+        memory.updated_by = request.user
+        memory.save()
+        messages.success(request, "Added to your Legacy." if to == "legacy" else "Moved to drafts.")
+        return redirect(request.POST.get("next") or "legacy:studio")
 
 
 class MemoryArchiveView(LegacyContextMixin, View):
@@ -557,3 +579,232 @@ class MediaDetailView(LegacyContextMixin, DetailView):
         ctx = super().get_context_data(**kwargs)
         ctx["memories"] = self.object.memories.all()
         return ctx
+
+
+# ── Timeframe helper (shared) ────────────────────────────────────────────────
+def filter_timeframe(qs, tf, start_str, end_str, field="created_at"):
+    now = timezone.now()
+    start = None
+    if tf == "today":
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    elif tf == "week":
+        start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    elif tf == "month":
+        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    elif tf == "year":
+        start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    if start is not None:
+        qs = qs.filter(**{f"{field}__gte": start})
+    if tf == "custom":
+        cs, ce = _parse_date(start_str), _parse_date(end_str)
+        if cs:
+            qs = qs.filter(**{f"{field}__date__gte": cs})
+        if ce:
+            qs = qs.filter(**{f"{field}__date__lte": ce})
+    return qs
+
+
+# ── Dashboard (overview) ─────────────────────────────────────────────────────
+class StudioView(LegacyContextMixin, TemplateView):
+    """Operational overview — counts, filters, recent activity, pending review, quick actions."""
+
+    template_name = "legacy/dashboard.html"
+    nav_active = "dashboard"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        user = self.request.user
+        req = self.request.GET
+        tf = req.get("tf", "all")
+        if tf not in dict(TIMEFRAME_CHOICES):
+            tf = "all"
+        status = req.get("status", "all")
+        if status not in dict(STATUS_CHOICES):
+            status = "all"
+
+        active_mem = Memory.objects.filter(user=user)
+        archived_mem = Memory.all_objects.filter(user=user, status="archived")
+
+        ctx["counts"] = {
+            "memories": active_mem.count(),
+            "drafts": active_mem.filter(entry_state=Memory.EntryState.DRAFT).count(),
+            "legacy": active_mem.filter(entry_state__in=[Memory.EntryState.LEGACY, Memory.EntryState.SHARED]).count(),
+            "archived": archived_mem.count(),
+            "people": Person.objects.filter(user=user).count(),
+            "places": Place.objects.filter(user=user).count(),
+            "media": Media.objects.filter(user=user).count(),
+            "contributors": Contributor.objects.filter(user=user).count(),
+            "outputs": Output.objects.filter(user=user).count(),
+        }
+
+        # Recent activity — memories in the selected time frame / status.
+        recent = active_mem if status != "archived" else archived_mem
+        if status == "draft":
+            recent = recent.filter(entry_state=Memory.EntryState.DRAFT)
+        elif status == "legacy":
+            recent = recent.filter(entry_state__in=[Memory.EntryState.LEGACY, Memory.EntryState.SHARED])
+        recent = filter_timeframe(recent, tf, req.get("start"), req.get("end"))
+        ctx["recent"] = recent.order_by("-updated_at")[:8]
+
+        # Pending review counts (drives the Studio review queue).
+        ctx["review"] = {
+            "drafts": active_mem.filter(entry_state=Memory.EntryState.DRAFT).count(),
+            "submissions": active_mem.filter(source_kind=Memory.SourceKind.CONTRIBUTOR).count(),
+            "media_no_context": Media.objects.filter(user=user, memories__isnull=True).distinct().count(),
+            "unlinked": active_mem.filter(people__isnull=True, places__isnull=True).distinct().count(),
+        }
+
+        ctx.update({
+            "tf": tf, "status": status,
+            "start": req.get("start", ""), "end": req.get("end", ""),
+            "timeframe_choices": TIMEFRAME_CHOICES, "status_choices": STATUS_CHOICES,
+        })
+        return ctx
+
+
+# ── Studio / Review Queue ────────────────────────────────────────────────────
+class ReviewView(LegacyContextMixin, TemplateView):
+    """The workshop: one warm place to tend drafts, submissions, and gaps."""
+
+    template_name = "legacy/review.html"
+    nav_active = "studio"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        user = self.request.user
+        active = Memory.objects.filter(user=user)
+        ctx["drafts"] = active.filter(entry_state=Memory.EntryState.DRAFT).order_by("-updated_at")
+        ctx["submissions"] = (
+            active.filter(source_kind=Memory.SourceKind.CONTRIBUTOR)
+            .select_related("contributor").order_by("-created_at")
+        )
+        ctx["media_no_context"] = Media.objects.filter(user=user, memories__isnull=True).distinct()
+        ctx["unlinked"] = active.filter(people__isnull=True, places__isnull=True).distinct().order_by("-created_at")
+        return ctx
+
+
+# ── Contributors / Family ────────────────────────────────────────────────────
+class ContributorsView(LegacyContextMixin, TemplateView):
+    template_name = "legacy/contributors.html"
+    nav_active = "contributors"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["contributors"] = Contributor.objects.filter(user=self.request.user)
+        return ctx
+
+
+class ContributorFormMixin(LegacyContextMixin):
+    model = Contributor
+    form_class = ContributorForm
+    template_name = "legacy/contributor_form.html"
+    nav_active = "contributors"
+
+    def get_success_url(self):
+        return reverse("legacy:contributor_detail", args=[self.object.pk])
+
+
+class ContributorCreateView(ContributorFormMixin, CreateView):
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["heading"] = "Add a contributor"
+        return ctx
+
+    def form_valid(self, form):
+        import uuid
+        form.instance.user = self.request.user
+        form.instance.created_via = Contributor.CREATED_VIA_MANUAL
+        form.instance.invite_token = uuid.uuid4().hex
+        form.instance.invite_status = Contributor.InviteStatus.INVITED
+        messages.success(self.request, "Contributor added.")
+        return super().form_valid(form)
+
+
+class ContributorEditView(ContributorFormMixin, UpdateView):
+    def get_queryset(self):
+        return Contributor.all_objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["heading"] = "Edit contributor"
+        return ctx
+
+    def form_valid(self, form):
+        messages.success(self.request, "Saved.")
+        return super().form_valid(form)
+
+
+class ContributorDetailView(LegacyContextMixin, DetailView):
+    model = Contributor
+    template_name = "legacy/contributor_detail.html"
+    context_object_name = "contributor"
+    nav_active = "contributors"
+
+    def get_queryset(self):
+        return Contributor.all_objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        memories = self.object.memories.all().order_by("-created_at")
+        ctx["memories"] = memories
+        ctx["media"] = Media.objects.filter(memories__in=memories).distinct()[:12]
+        return ctx
+
+
+class ContributorArchiveView(LegacyContextMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        c = get_object_or_404(Contributor.all_objects, pk=pk, user=request.user)
+        c.archive()
+        messages.success(request, "Contributor set aside.")
+        return redirect("legacy:contributors")
+
+
+# ── Output Generator / Create ────────────────────────────────────────────────
+class OutputsView(LegacyContextMixin, TemplateView):
+    template_name = "legacy/outputs.html"
+    nav_active = "outputs"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["outputs"] = Output.objects.filter(user=self.request.user).order_by("-created_at")
+        return ctx
+
+
+class OutputCreateView(LegacyContextMixin, CreateView):
+    model = Output
+    form_class = OutputForm
+    template_name = "legacy/output_form.html"
+    nav_active = "outputs"
+
+    def get_form_kwargs(self):
+        kw = super().get_form_kwargs()
+        kw["user"] = self.request.user
+        return kw
+
+    def get_success_url(self):
+        return reverse("legacy:output_detail", args=[self.object.pk])
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        form.instance.created_via = Output.CREATED_VIA_MANUAL
+        form.instance.generation_status = Output.GenerationStatus.DRAFT
+        messages.success(self.request, "Output created (placeholder — generation comes later).")
+        return super().form_valid(form)
+
+
+class OutputDetailView(LegacyContextMixin, DetailView):
+    model = Output
+    template_name = "legacy/output_detail.html"
+    context_object_name = "output"
+    nav_active = "outputs"
+
+    def get_queryset(self):
+        return Output.all_objects.filter(user=self.request.user)
+
+
+class OutputArchiveView(LegacyContextMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        o = get_object_or_404(Output.all_objects, pk=pk, user=request.user)
+        o.archive()
+        messages.success(request, "Output set aside.")
+        return redirect("legacy:outputs")

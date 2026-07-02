@@ -1,0 +1,45 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="lib">
+    <div class="lib-head">
+        <div>
+            <h1 class="lib-title">Outputs</h1>
+            <p class="lib-sub">Turn your memories into something to hold or share. Nothing here is final — you can always make another.</p>
+        </div>
+        <a href="{% url 'legacy:output_new' %}" class="lg-btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Create something
+        </a>
+    </div>
+
+    {% if outputs %}
+    <div class="mgrid">
+        {% for o in outputs %}
+        <a href="{% url 'legacy:output_detail' o.pk %}" class="mcard">
+            <div class="mcard-img type-memory">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="rcard-img-ico"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            </div>
+            <div class="mcard-body">
+                <div class="mcard-headrow">
+                    <span class="mcard-title">{{ o.title|default:o.get_output_type_display }}</span>
+                    <span class="state-badge state-draft">{{ o.get_generation_status_display }}</span>
+                </div>
+                <p class="mcard-snippet">{{ o.get_output_type_display }} · {{ o.get_scope_kind_display }} · for {{ o.get_audience_display }}</p>
+                <div class="mcard-foot"><span class="mcard-meta">{{ o.created_at|date:"M j, Y" }}</span></div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="lib-empty">
+        <span class="lib-empty-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        </span>
+        <h2 class="lib-empty-title">Make a gift from your memories</h2>
+        <p class="lib-empty-blurb">A memoir, a photo album, a story for the grandkids. There's no rush, and you can make as many as you like.</p>
+        <a href="{% url 'legacy:output_new' %}" class="lg-btn-primary">Create your first</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

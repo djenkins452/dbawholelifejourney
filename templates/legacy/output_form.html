@@ -1,0 +1,44 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="lg-formpage">
+    <a href="{% url 'legacy:outputs' %}" class="editor-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M15 18l-6-6 6-6"/></svg>
+        Outputs
+    </a>
+    <h1 class="lg-formpage-title">Create something</h1>
+    <p class="lg-formpage-sub">Choose what to make, from what, and who it's for. This creates a placeholder — generation comes in a later release, and it never changes your memories.</p>
+
+    <form method="post" class="lg-form lg-card">
+        {% csrf_token %}
+        <div class="lg-field">
+            <label for="{{ form.output_type.id_for_label }}">What to make</label>
+            {{ form.output_type }}
+        </div>
+        <div class="lg-field">
+            <label for="{{ form.scope_kind.id_for_label }}">From</label>
+            {{ form.scope_kind }}
+        </div>
+        <div class="lg-field lg-field-half">
+            <label for="{{ form.scope_person.id_for_label }}">A person (optional)</label>
+            {{ form.scope_person }}
+        </div>
+        <div class="lg-field lg-field-half">
+            <label for="{{ form.scope_place.id_for_label }}">A place (optional)</label>
+            {{ form.scope_place }}
+        </div>
+        <div class="lg-field">
+            <label for="{{ form.audience.id_for_label }}">For whom</label>
+            {{ form.audience }}
+        </div>
+        <div class="lg-field">
+            <label for="{{ form.title.id_for_label }}">Name it (optional)</label>
+            {{ form.title }}
+        </div>
+        <div class="lg-form-actions">
+            <a href="{% url 'legacy:outputs' %}" class="lg-btn-quiet">Cancel</a>
+            <button type="submit" class="lg-btn-primary">Create</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

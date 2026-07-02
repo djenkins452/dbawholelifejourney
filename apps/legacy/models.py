@@ -379,9 +379,11 @@ class Output(LegacyOwnedModel):
         COLLECTION = 'collection', 'A collection'
 
     class Audience(models.TextChoices):
-        ADULTS = 'adults', 'For adults'
-        CHILD = 'child', 'For a child'
-        FAMILY = 'family', 'For the family'
+        ME = 'me', 'Me'
+        FAMILY = 'family', 'Family'
+        CHILDREN = 'children', 'Children'
+        GRANDCHILDREN = 'grandchildren', 'Grandchildren'
+        PUBLIC = 'public', 'Public'
 
     class GenerationStatus(models.TextChoices):
         DRAFT = 'draft', 'Draft'
@@ -401,7 +403,7 @@ class Output(LegacyOwnedModel):
         Place, on_delete=models.SET_NULL, null=True, blank=True, related_name='outputs',
     )
     audience = models.CharField(
-        max_length=10, choices=Audience.choices, default=Audience.FAMILY,
+        max_length=14, choices=Audience.choices, default=Audience.FAMILY,
     )
     generation_status = models.CharField(
         max_length=12, choices=GenerationStatus.choices, default=GenerationStatus.DRAFT,

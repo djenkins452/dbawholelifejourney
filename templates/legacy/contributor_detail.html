@@ -1,0 +1,57 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="profile">
+    <a href="{% url 'legacy:contributors' %}" class="editor-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M15 18l-6-6 6-6"/></svg>
+        Contributors
+    </a>
+
+    <div class="profile-head">
+        <span class="profile-avatar">{{ contributor.name|slice:":1"|upper }}</span>
+        <div class="profile-headinfo">
+            <h1 class="profile-name">{{ contributor.name }}</h1>
+            <p class="profile-sub">
+                {% if contributor.relationship_label %}{{ contributor.relationship_label }} · {% endif %}{{ contributor.get_permission_level_display }} · {{ contributor.get_invite_status_display }}
+            </p>
+            <div class="profile-actions">
+                <a href="{% url 'legacy:contributor_edit' contributor.pk %}" class="lg-btn-quiet">Edit</a>
+                {% if contributor.status == 'active' %}
+                <form method="post" action="{% url 'legacy:contributor_archive' contributor.pk %}" class="m-action-form">{% csrf_token %}<button type="submit" class="lg-btn-ghost">Set aside</button></form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <section class="lg-card">
+        <h2 class="lg-card-h">Invitation</h2>
+        <p class="editor-aside-note">
+            {% if contributor.email %}{{ contributor.email }}<br>{% endif %}
+            A secure invitation link will be generated here when invitations ship. Bot protection and email verification are planned for that release.
+        </p>
+        {% if contributor.invite_token %}<p class="editor-aside-note">Placeholder link: <code>/legacy/contribute/{{ contributor.invite_token }}/</code> (not active yet)</p>{% endif %}
+    </section>
+
+    <section class="profile-sec">
+        <h2 class="profile-sec-title">Their contributions{% if memories %} ({{ memories.count }}){% endif %}</h2>
+        {% if memories %}
+        <div class="mgrid">{% for m in memories %}{% include "legacy/_memory_card.html" with m=m %}{% endfor %}</div>
+        {% else %}
+        <p class="profile-empty">{{ contributor.name }} hasn't contributed a memory yet.</p>
+        {% endif %}
+    </section>
+
+    {% if media %}
+    <section class="profile-sec">
+        <h2 class="profile-sec-title">Media they added</h2>
+        <div class="media-strip">
+            {% for md in media %}
+            <a href="{% url 'legacy:media_detail' md.pk %}" class="media-thumb type-{{ md.media_type }}">
+                {% if md.file and md.media_type == 'photo' %}<img src="{{ md.file.url }}" alt="{{ md.caption }}">{% else %}<span class="media-thumb-kind">{{ md.get_media_type_display }}</span>{% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

@@ -2,7 +2,7 @@
 
 from django import forms
 
-from apps.legacy.models import Person, Place
+from apps.legacy.models import Contributor, Output, Person, Place
 
 
 class PersonForm(forms.ModelForm):
@@ -38,3 +38,43 @@ class PlaceForm(forms.ModelForm):
                 "class": "lg-textarea", "rows": 6,
                 "placeholder": "What was this place? What happened here? What did it feel like?"}),
         }
+
+
+class ContributorForm(forms.ModelForm):
+    class Meta:
+        model = Contributor
+        fields = ["name", "email", "relationship_label", "permission_level"]
+        widgets = {
+            "name": forms.TextInput(attrs={
+                "class": "lg-input", "placeholder": "Their name", "autocomplete": "off"}),
+            "email": forms.EmailInput(attrs={
+                "class": "lg-input", "placeholder": "Email (for a future invitation)"}),
+            "relationship_label": forms.TextInput(attrs={
+                "class": "lg-input", "placeholder": "e.g. your daughter, an old friend"}),
+            "permission_level": forms.Select(attrs={"class": "lg-input"}),
+        }
+
+
+class OutputForm(forms.ModelForm):
+    class Meta:
+        model = Output
+        fields = ["title", "output_type", "scope_kind", "scope_person", "scope_place", "audience"]
+        widgets = {
+            "title": forms.TextInput(attrs={
+                "class": "lg-input", "placeholder": "Give it a name (optional)", "autocomplete": "off"}),
+            "output_type": forms.Select(attrs={"class": "lg-input"}),
+            "scope_kind": forms.Select(attrs={"class": "lg-input"}),
+            "scope_person": forms.Select(attrs={"class": "lg-input"}),
+            "scope_place": forms.Select(attrs={"class": "lg-input"}),
+            "audience": forms.Select(attrs={"class": "lg-input"}),
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if user is not None:
+            self.fields["scope_person"].queryset = Person.objects.filter(user=user)
+            self.fields["scope_place"].queryset = Place.objects.filter(user=user)
+        self.fields["scope_person"].required = False
+        self.fields["scope_place"].required = False
+        self.fields["scope_person"].empty_label = "—"
+        self.fields["scope_place"].empty_label = "—"

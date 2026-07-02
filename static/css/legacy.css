@@ -695,3 +695,36 @@ body.theme-ember .legacy-root {
 .disc-foot { font-size: 11px; color: var(--lg-muted); margin-top: 8px; }
 .discovery-msg { font-size: 13px; color: var(--lg-ink-soft); line-height: 1.5; }
 .discovery-x { border: 0; background: transparent; font-size: 20px; line-height: 1; color: var(--lg-muted); cursor: pointer; padding: 0 2px; }
+
+/* ==========================================================================
+   Phase 2 refinement — inline edit + Memory Prompts
+   ========================================================================== */
+/* Edit affordance stays secondary */
+.disc-edit-btn, .disc-chip-editbtn { border: 0; background: transparent; color: var(--lg-muted); cursor: pointer; padding: 2px; opacity: 0; transition: opacity .12s, color .12s; display: inline-grid; place-items: center; }
+.disc-edit-btn svg, .disc-chip-editbtn svg { width: 13px; height: 13px; }
+.disc-person:hover .disc-edit-btn, .disc-chipwrap:hover .disc-chip-editbtn, .disc-person.is-editing .disc-edit-btn { opacity: 1; }
+.disc-edit-btn:hover, .disc-chip-editbtn:hover { color: var(--lg-accent); }
+
+/* Inline edit fields (people / places) — hidden until editing */
+.disc-edit { display: none; flex-direction: column; gap: 6px; padding-top: 2px; }
+.disc-person.is-editing .disc-view { display: none; }
+.disc-person.is-editing .disc-edit { display: flex; }
+.disc-edit-in { width: 100%; border: 1px solid var(--lg-border); border-radius: 8px; padding: 6px 9px; font-size: 13px; background: var(--lg-surface); color: var(--lg-ink); }
+.disc-edit-in:focus { outline: none; border-color: var(--lg-border-strong); }
+.disc-edit-done { align-self: flex-start; font-size: 12px; font-weight: 600; color: var(--lg-accent); background: transparent; border: 0; cursor: pointer; padding: 2px 0; }
+
+/* Chip inline edit */
+.disc-chipwrap { position: relative; display: inline-flex; align-items: center; gap: 2px; }
+.disc-chipwrap.is-editing .disc-chip { display: none; }
+.disc-chip-edit { border: 1px solid var(--lg-border-strong); border-radius: 99px; padding: 5px 12px; font-size: 12.5px; background: var(--lg-surface); color: var(--lg-ink); width: 160px; }
+.disc-chip-edit:focus { outline: none; border-color: var(--lg-accent); }
+.disc-chipwrap.is-editing .disc-chip-edit { display: inline-block; }
+
+/* Memory Prompts — visually distinct from Discovery */
+.memory-prompts { margin-top: 6px; margin-bottom: 4px; padding: 14px; border-radius: 12px; background: linear-gradient(180deg, #f3efe6, #efe9dc); border: 1px solid #e7ddc8; }
+.mp-head { display: flex; align-items: center; gap: 7px; font-family: var(--lg-serif); font-size: 14px; color: #6f5f3d; margin-bottom: 10px; }
+.mp-icon { font-size: 14px; }
+.mp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.mp-item { display: block; width: 100%; text-align: left; font-size: 13px; line-height: 1.45; color: var(--lg-ink); background: rgba(255,255,255,.55); border: 1px solid rgba(120,100,60,.14); border-radius: 9px; padding: 9px 11px; cursor: pointer; transition: background .12s, border-color .12s; }
+.mp-item:hover { background: #fff; border-color: #d9c9a6; }
+.mp-foot { font-size: 11px; color: #8b7c5c; margin-top: 10px; }

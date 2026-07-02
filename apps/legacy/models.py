@@ -261,6 +261,11 @@ class Memory(LegacyOwnedModel):
 
     significance = models.PositiveSmallIntegerField(default=0)
 
+    # Optional, story-aware preservation prompts from the Discovery Engine
+    # ("You mentioned your grandfather but never described what he was like").
+    # Suggestions only — never interview questions, never required.
+    discovery_prompts = models.JSONField(default=list, blank=True)
+
     class Meta:
         ordering = ['-created_at']
         verbose_name_plural = 'Memories'

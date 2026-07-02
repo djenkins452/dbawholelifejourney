@@ -55,7 +55,8 @@ be present; use an empty array if you found nothing for it):
   "themes":        [{"text": str, "confidence": 0.0-1.0}],
   "values":        [{"text": str, "confidence": 0.0-1.0}],
   "traditions":    [{"text": str, "confidence": 0.0-1.0}],
-  "emotions":      [{"text": str, "confidence": 0.0-1.0}]
+  "emotions":      [{"text": str, "confidence": 0.0-1.0}],
+  "prompts":       [str]
 }
 
 Guidance:
@@ -74,6 +75,13 @@ Guidance:
 - artifacts: physical objects that carry meaning (a bracelet, a glove, a truck).
 - themes/values/traditions/emotions: only when reasonably supported. Do not overreach.
 - confidence is 0.0-1.0 for how clearly the text supports each item.
+- prompts: 3-5 SHORT, SPECIFIC, optional preservation suggestions based on what
+  this story leaves out. ALWAYS reference something concrete the author actually
+  wrote. Good: "You mentioned your grandfather but never described what he was
+  like." / "You wrote about the fishing trip but not what happened afterward." /
+  "You mentioned Christmas but not who celebrated with you." NEVER generic ("Tell
+  me more"), never filler. If the story is already rich, return fewer. These are
+  gentle nudges for the author to preserve more — not questions you are asking.
 - Extract only what the text supports. Respond with ONLY the JSON, no prose."""
 
 
@@ -226,9 +234,13 @@ def run_discovery(memory, extractor=None):
         if not label or (kind, label.lower()) in already:
             return
         already.add((kind, label.lower()))
+        d = detail or {}
+        # Keep the engine's original proposal so a future version of Legacy can
+        # learn from the user's corrections (not implemented now).
+        d.setdefault("original_label", label[:500])
         created.append(MemoryDiscovery(
             memory=memory, kind=kind, label=label[:500],
-            confidence=_conf(confidence), detail=detail or {},
+            confidence=_conf(confidence), detail=d,
         ))
 
     for p in data.get("people", []) or []:
@@ -280,6 +292,12 @@ def run_discovery(memory, extractor=None):
     if created:
         MemoryDiscovery.objects.bulk_create(created)
 
+    # Optional, story-aware memory prompts (never required; suggestions only).
+    prompts = [str(p).strip() for p in (data.get("prompts") or []) if str(p).strip()][:5]
+    if memory.discovery_prompts != prompts:
+        memory.discovery_prompts = prompts
+        memory.save(update_fields=["discovery_prompts", "updated_at"])
+
     proposed = list(MemoryDiscovery.objects.filter(
         memory=memory, status=MemoryDiscovery.Status.PROPOSED))
     return ("ok" if proposed else "nothing"), proposed
@@ -309,17 +327,20 @@ def grouped_proposals(memory):
     ]
 
 
-def confirm_discoveries(memory, accepted_ids=None, accept_all=False, resolutions=None):
+def confirm_discoveries(memory, accepted_ids=None, accept_all=False, resolutions=None, edits=None):
     """
     Promotion gate. Accept the chosen proposals (or all), reject the rest.
     Person/Place acceptances create/link real graph nodes and connect them to
     the memory. `resolutions` maps a person-discovery id -> an existing Person id
-    (link to it) or "new" (force-create), for duplicate resolution.
-    Returns the number accepted.
+    (link to it) or "new" (force-create), for duplicate resolution. `edits` maps
+    a discovery id -> {label, relationship, location, notes} — inline corrections
+    the user made; the engine's original value is preserved on the row for future
+    learning. Returns the number accepted.
     """
     from apps.legacy.models import MemoryDiscovery, Person, Place
 
     resolutions = resolutions or {}
+    edits = edits or {}
     accepted_ids = set(int(i) for i in (accepted_ids or []))
     proposals = MemoryDiscovery.objects.filter(
         memory=memory, status=MemoryDiscovery.Status.PROPOSED)
@@ -335,6 +356,24 @@ def confirm_discoveries(memory, accepted_ids=None, accept_all=False, resolutions
             d.save(update_fields=["status", "decided_at"])
             continue
 
+        # Apply inline edits (preserving the engine's original for future learning).
+        e = edits.get(str(d.id)) or edits.get(d.id)
+        if e:
+            new_label = (e.get("label") or "").strip()
+            if new_label and new_label != d.label:
+                d.detail.setdefault("original_label", d.label)
+                d.detail["edited"] = True
+                d.label = new_label[:500]
+            if e.get("relationship") is not None:
+                rel = (e.get("relationship") or "").strip()
+                if rel != (d.detail.get("relationship") or ""):
+                    d.detail["edited"] = True
+                    d.detail["relationship"] = rel
+            if e.get("location"):
+                d.detail["location"] = e["location"].strip()
+            if e.get("notes"):
+                d.detail["notes"] = e["notes"].strip()
+
         if d.kind == MemoryDiscovery.Kind.PERSON:
             person = None
             res = resolutions.get(str(d.id)) or resolutions.get(d.id)
@@ -348,6 +387,7 @@ def confirm_discoveries(memory, accepted_ids=None, accept_all=False, resolutions
                 person = Person.objects.create(
                     user=user, display_name=d.label,
                     relationship_label=(d.detail.get("relationship") or "")[:120],
+                    bio=(d.detail.get("notes") or ""),
                     created_via=Person.CREATED_VIA_MANUAL,
                 )
             elif not person.relationship_label and d.detail.get("relationship"):
@@ -363,7 +403,9 @@ def confirm_discoveries(memory, accepted_ids=None, accept_all=False, resolutions
                 place = Place.all_objects.filter(pk=mid, user=user).first()
             if place is None:
                 place = Place.objects.create(
-                    user=user, name=d.label, created_via=Place.CREATED_VIA_MANUAL)
+                    user=user, name=d.label,
+                    location_text=(d.detail.get("location") or ""),
+                    created_via=Place.CREATED_VIA_MANUAL)
             memory.places.add(place)
             d.linked_place = place
 

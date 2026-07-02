@@ -30,6 +30,10 @@ FAKE = {
     "values": [{"text": "Hard work", "confidence": 0.5}],
     "traditions": [{"text": "Summer fishing trips", "confidence": 0.5}],
     "emotions": [{"text": "Joy", "confidence": 0.6}],
+    "prompts": [
+        "You mentioned Uncle Joe but never described what he was like.",
+        "You wrote about the fishing trip but not what happened afterward.",
+    ],
 }
 
 
@@ -106,6 +110,17 @@ class RunDiscoveryTests(TestCase):
         self.assertIn("1 place", text)
         self.assertIn(" and ", text)
 
+    def test_prompts_persisted(self):
+        D.run_discovery(self.memory, extractor=lambda t: FAKE)
+        self.memory.refresh_from_db()
+        self.assertEqual(len(self.memory.discovery_prompts), 2)
+        self.assertIn("Uncle Joe", self.memory.discovery_prompts[0])
+
+    def test_original_label_stored_for_learning(self):
+        D.run_discovery(self.memory, extractor=lambda t: FAKE)
+        d = MemoryDiscovery.objects.get(memory=self.memory, kind="quote")
+        self.assertEqual(d.detail.get("original_label"), d.label)
+
     def test_unavailable_when_no_data(self):
         status, props = D.run_discovery(self.memory, extractor=lambda t: None)
         self.assertEqual(status, "unavailable")
@@ -151,6 +166,20 @@ class ConfirmTests(TestCase):
         self.assertFalse(MemoryDiscovery.objects.filter(memory=self.memory, status="proposed").exists())
         self.assertTrue(MemoryDiscovery.objects.filter(memory=self.memory, status="rejected").exists())
         self.assertFalse(Place.objects.filter(user=self.user, name="Soddy Daisy").exists())
+
+    def test_inline_edit_applied_and_original_preserved(self):
+        marvin = MemoryDiscovery.objects.get(memory=self.memory, kind="person", label="Marvin")
+        D.confirm_discoveries(self.memory, accepted_ids=[marvin.id], edits={
+            str(marvin.id): {"label": "Marvin Jenkins Sr.", "relationship": "stepfather"},
+        })
+        # Promoted using the edited values...
+        self.assertTrue(Person.objects.filter(
+            user=self.user, display_name="Marvin Jenkins Sr.", relationship_label="stepfather").exists())
+        self.assertFalse(Person.objects.filter(user=self.user, display_name="Marvin").exists())
+        # ...while preserving the engine's original for future learning.
+        marvin.refresh_from_db()
+        self.assertTrue(marvin.detail.get("edited"))
+        self.assertEqual(marvin.detail.get("original_label"), "Marvin")
 
     def test_duplicate_resolution_links_chosen_person(self):
         MemoryDiscovery.objects.filter(memory=self.memory).delete()

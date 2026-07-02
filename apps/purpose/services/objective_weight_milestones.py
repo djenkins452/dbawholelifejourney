@@ -106,7 +106,50 @@ def evaluate_weight_milestones(user) -> int:
             "current=%s target=%s op=lte → completed=%s",
             user.id, milestone.id, current, target, should_complete,
         )
+        # A FALSE→TRUE transition is a mission-significant ACHIEVEMENT — emit the
+        # domain event so the Significant Event Pipeline reacts in the moment
+        # (recognize → notify → re-plan) instead of waiting for the 3-hour CoS
+        # Event Engine scheduler. Un-completions (TRUE→FALSE) are not events.
+        if should_complete:
+            _emit_milestone_achieved(user, milestone, current)
     return changed
+
+
+def _emit_milestone_achieved(user, milestone, current) -> None:
+    """Fire ``purpose.milestone.completed`` on a milestone achievement.
+
+    Fail-soft: this evaluator runs on the weight-write request path AND inside
+    read-path pace computations (cos_intelligence), so emission must never raise.
+    The event only fires on the real FALSE→TRUE transition (the evaluator is
+    idempotent — subsequent calls find ``completed=True`` and skip), so it is
+    emitted exactly once per achievement.
+    """
+    try:
+        from apps.core.events.domain_events import EventTypes, safe_emit_event
+
+        target = milestone.objective_target_value
+        safe_emit_event(
+            EventTypes.PURPOSE_MILESTONE_COMPLETED,
+            user,
+            {
+                "milestone_id": milestone.id,
+                "goal_id": milestone.goal_id,
+                "title": milestone.title,
+                "metric": "weight_lb",
+                "target_value": float(target) if target is not None else None,
+                "target_date": (milestone.target_date.isoformat()
+                                if milestone.target_date else None),
+                "current_weight": float(current),
+                "achieved_date": (milestone.completed_date
+                                  or timezone.localdate()).isoformat(),
+            },
+            source="objective_weight_milestones",
+        )
+    except Exception:
+        logger.warning(
+            "objective_weight_milestone emit failed (milestone=%s)",
+            getattr(milestone, "id", "?"), exc_info=True,
+        )
 
 
 def recompute_objective_milestones(user) -> int:

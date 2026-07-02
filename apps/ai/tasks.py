@@ -233,6 +233,47 @@ def cos_keepalive_task(self):
         raise self.retry(exc=exc)
 
 
+@shared_task(
+    name="apps.ai.tasks.react_to_significant_event",
+    bind=True,
+    max_retries=1,
+    default_retry_delay=30,
+    soft_time_limit=60,
+    time_limit=90,
+    acks_late=True,
+)
+def react_to_significant_event_task(self, user_id, event_type, data):
+    """Background reaction for the Significant Event Pipeline.
+
+    Enqueued by the event-bus subscribers (apps/core/events/subscribers.py) so
+    the emitting request path stays fast. Runs the Chief-of-Staff reflex:
+    recognize → judge → update dependent truth → persist → notify → re-plan.
+    """
+    from django.contrib.auth import get_user_model
+
+    from apps.ai.significant_events import react_to_significant_event
+
+    User = get_user_model()
+    user = User.objects.filter(pk=user_id, is_active=True).first()
+    if user is None:
+        return {"status": "user_not_found", "user_id": user_id}
+    try:
+        result = react_to_significant_event(user, event_type, data or {})
+        result.setdefault("status", "ok")
+        return result
+    except SoftTimeLimitExceeded:
+        logger.warning("react_to_significant_event soft-time-limit: user=%s",
+                       user_id)
+        return {"status": "soft_timeout", "user_id": user_id}
+    except Exception as exc:
+        logger.warning("react_to_significant_event_task failed: user=%s",
+                       user_id, exc_info=True)
+        try:
+            raise self.retry(exc=exc, countdown=30)
+        except Exception:
+            return {"status": "failed", "user_id": user_id}
+
+
 # =============================================================================
 # Register the clean ChatGPT CoS generation task with the Celery WORKER.
 # It lives in apps.ai.chatgpt_cos.tasks — a sub-package that

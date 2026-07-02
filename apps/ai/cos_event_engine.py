@@ -54,6 +54,11 @@ _DOMAIN_MODULE = {
 }
 
 _PREFIX = "cos_event:"
+# One-time achievement wins (persisted by the Significant Event Pipeline under
+# `cos_event:win:...`) are STICKY: a milestone/goal you reached is true forever,
+# so re-detection must NEVER auto-resolve it just because it isn't re-detected on
+# the next scan. It stays active until Danny reads/dismisses it.
+_WIN_PREFIX = f"{_PREFIX}win:"
 
 
 @dataclass
@@ -422,6 +427,7 @@ def run_cos_event_engine(user):
         resolved += _resolve(GuidanceItem.objects.filter(
             user=user, is_active=True, dedupe_key__startswith=_PREFIX
         ).exclude(dedupe_key__startswith=op_prefix).exclude(
+            dedupe_key__startswith=_WIN_PREFIX).exclude(
             dedupe_key__in=strat_keys))
 
         if op_ok:

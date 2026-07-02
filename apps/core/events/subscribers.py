@@ -173,6 +173,43 @@ def on_task_event_invalidate_state(event):
     _invalidate_and_warm_sae(event.user, "tasks")
 
 
+# =========================================================================
+# Significant Event Pipeline — the Chief-of-Staff reflex (v1)
+# =========================================================================
+#
+# Mission-significant events (a milestone or goal reaching completion) must be
+# recognized and acted on IN THE MOMENT — not on the 3-hour CoS Event Engine
+# schedule. Before this, a `purpose.*` event only invalidated the SAE 'goals'
+# cache (above); nothing evaluated significance, notified Danny, or re-planned
+# until the scheduler happened to run.
+#
+# These subscribers evaluate significance and ENQUEUE the reaction on a
+# background worker, so the emitting request path stays fast (Observability
+# Performance Law). See apps/ai/significant_events.py.
+
+@subscribe("purpose.milestone.completed")
+def on_milestone_completed_react(event):
+    """Recognize + react to a milestone completion (Significant Event Pipeline)."""
+    try:
+        from apps.ai.significant_events import enqueue_significant_event_reaction
+        enqueue_significant_event_reaction(
+            event.user, event.event_type, event.data)
+    except Exception:
+        logger.warning("significant_event: milestone subscriber failed",
+                       exc_info=True)
+
+
+@subscribe("purpose.goal.completed")
+def on_goal_completed_react(event):
+    """Recognize + react to a goal completion (Significant Event Pipeline)."""
+    try:
+        from apps.ai.significant_events import enqueue_significant_event_reaction
+        enqueue_significant_event_reaction(
+            event.user, event.event_type, event.data)
+    except Exception:
+        logger.warning("significant_event: goal subscriber failed", exc_info=True)
+
+
 @subscribe("faith.*")
 def on_faith_event_invalidate_state(event):
     """Invalidate SAE + warm 'faith' module in background (Phase 3)."""

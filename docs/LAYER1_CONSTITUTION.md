@@ -7,6 +7,11 @@
 >
 > Certified commit `d6c187f7` · tag `layer1-canonical-truth-v1` · GitHub Release of the
 > same name · Acceptance: Smoke GREEN · Full GREEN · Deep GREEN · production-validated.
+>
+> **Building a new canonical domain?** Follow the
+> [Layer 1 Domain Framework](LAYER1_DOMAIN_FRAMEWORK.md) — the reusable process (design
+> standard, certification gates, acceptance playbook, maturity model, lessons learned)
+> extracted from the Medication reference implementation.
 
 ---
 

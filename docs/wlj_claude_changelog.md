@@ -6,6 +6,23 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-01 — docs(arch): Layer 1 Domain Framework — the reusable certification process extracted from Medication
+
+Medication passed Smoke, Full, Deep, and Beth production acceptance and was designated the reference implementation for Layer 1 Canonical Truth. This captures WHAT WE LEARNED as permanent, reusable architecture so every future canonical domain (Goals, Calendar, Relationships, Finance, …) follows the same process instead of fixing isolated bugs. Documentation/governance only — no code, no migrations. Describes the reusable process, not Medication.
+
+New docs (all `docs/LAYER1_*`), tied together by an entry-point index:
+- **LAYER1_DOMAIN_FRAMEWORK.md** (new) — entry point; maps the five documents and defers to WLJ_ARCHITECTURE_LAWS + the Entity Completeness Contract + the Layer 1 Constitution.
+- **LAYER1_DOMAIN_DEVELOPMENT_STANDARD.md** (new) — how a domain is DESIGNED: business-first (questions before models), architecture-before-implementation (facade → deterministic query layer → canonical models; one call), entity completeness (CompleteEntity six dimensions + open extensions; single-entity + symmetric + combined), canonical truth (read live, one calculation), business vocabulary (a word means one thing, pinned to one classifier), deterministic retrieval, acceptance philosophy. Generalized from Medication with a Goal illustration.
+- **LAYER1_DOMAIN_CERTIFICATION_STANDARD.md** (new) — the cumulative, ordered gates: Architecture Review → Technical Validation → Smoke → Full → Deep → Beth Production (Chief-of-Staff, gated on Deep GREEN) → Production Conversation Validation → recorded certification (manifest + tag + CI gate) → the two-consecutive-GREEN stable-tag rule. A domain is not certified until every gate passes.
+- **LAYER1_BUSINESS_ACCEPTANCE_PLAYBOOK.md** (new) — the METHODOLOGY, not test cases: the five lenses (think like a customer; think like Danny; attempt to break it; test natural business questions; follow conversational threads), when to stop (until you struggle to find another reasonable business question), the honesty rules (validate the product not the code; every defect becomes a permanent regression; production is the final authority), and the end-of-sprint debrief.
+- **LAYER1_CAPABILITY_MATURITY_MODEL.md** (new) — the progression Symptoms → Capability → Architecture → Business Contract → Entity Completeness → Acceptance → Certification, with the central insight that maturity (advancing a stage retires a class of failures) beats turning individual tests green.
+- **LAYER1_LESSONS_LEARNED.md** (new) — 17 lessons grounded in the concrete moment that taught each (contracts before software; complete entities ≠ complete retrieval surface; a word means one thing; read live not from a snapshot; present-but-zero vs unknown; every defect regressed; validate the product; production is authority; trust before intelligence; root-cause the class not the phrasing; symmetry is completeness; deferred = phased-with-trigger; …).
+
+Wired into the docs graph: LAYER1_CONSTITUTION.md points to the framework for new-domain work; CLAUDE.md reference table gains a row (read the framework when building/maturing any Layer 1 domain). No release-notes/help updates — internal architecture/developer documentation, not a user-facing feature.
+
+**Files:** docs/LAYER1_DOMAIN_FRAMEWORK.md (new), docs/LAYER1_DOMAIN_DEVELOPMENT_STANDARD.md (new), docs/LAYER1_DOMAIN_CERTIFICATION_STANDARD.md (new), docs/LAYER1_BUSINESS_ACCEPTANCE_PLAYBOOK.md (new), docs/LAYER1_CAPABILITY_MATURITY_MODEL.md (new), docs/LAYER1_LESSONS_LEARNED.md (new), docs/LAYER1_CONSTITUTION.md, CLAUDE.md.
+
+
 
 ## 2026-07-01 — fix(cos): biggest_health_risk deterministic fallback — actionable, evidence-backed (Acceptance Run #62)
 

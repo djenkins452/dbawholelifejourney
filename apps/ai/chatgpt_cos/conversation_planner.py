@@ -39,6 +39,26 @@ _GREETING_CUES = (
 _GREETING_EXACT = {"morning", "good morning", "good evening", "good afternoon",
                    "hey", "hi", "hello", "gm", "hiya", "howdy"}
 
+# A check-in ("how are you feeling?") expects a short AFFECTIVE self-report. These
+# recognise a plausible feeling reply so that ANYTHING ELSE (a question, an
+# unrelated new subject, a general-knowledge query) is treated as a PIVOT that
+# abandons the check-in — an interrupted or failed check-in must never trap the
+# next conversation in personal coaching.
+_FEELING_WORDS = (
+    "tired", "exhausted", "good", "great", "fine", "ok", "okay", "meh", "rough",
+    "stressed", "stress", "anxious", "overwhelmed", "drained", "low", "awful",
+    "struggling", "heavy", "off", "tough", "hard", "better", "worse", "happy",
+    "sad", "angry", "frustrated", "calm", "energized", "motivated", "alright",
+    "decent", "blah", "fantastic", "terrible", "not bad", "not great", "not good",
+    "so-so", "could be better", "hanging in", "been better", "pretty good",
+    "really good", "doing well", "doing ok", "doing okay", "doing good", "doing fine",
+)
+_FEELING_LEADS = (
+    "i'm ", "im ", "i am ", "i feel", "feeling ", "i've been", "ive been",
+    "i have been", "just ", "a bit", "a little", "kind of", "kinda", "honestly",
+    "pretty ", "not ",
+)
+
 
 def _norm(s):
     return re.sub(r"\s+", " ", (s or "").strip().lower())
@@ -68,6 +88,21 @@ def _looks_like_question(message):
         "show me", "give me", "remind me", "list "))
 
 
+def _is_plausible_feeling(message):
+    """True only when the message reads as a short AFFECTIVE reply to a check-in.
+    A question, a new subject, or a general-knowledge query is NOT a feeling —
+    it's a pivot that must abandon the check-in (so a failed/interrupted check-in
+    cannot trap an unrelated conversation)."""
+    n = _norm(message)
+    if not n or _looks_like_question(message):
+        return False
+    if len(n.split()) > 14:                    # a long message isn't a terse feeling
+        return False
+    if any(f in n for f in _FEELING_WORDS):
+        return True
+    return any(n.startswith(lead) for lead in _FEELING_LEADS)
+
+
 # --- Conversation STATE (deterministic; persisted in conversation.metadata) -----
 def read_state(conversation):
     try:
@@ -91,6 +126,20 @@ def write_state(conversation, **fields):
         conversation.save(update_fields=["metadata"])
     except Exception:
         logger.warning("conversation_planner: write_state failed", exc_info=True)
+
+
+def clear_state(conversation):
+    """Abandon the current conversation state so a pending personal interaction
+    (e.g. an interrupted/failed check-in) cannot contaminate the next turn."""
+    if conversation is None:
+        return
+    try:
+        md = dict(getattr(conversation, "metadata", None) or {})
+        if md.pop(STATE_KEY, None) is not None:
+            conversation.metadata = md
+            conversation.save(update_fields=["metadata"])
+    except Exception:
+        logger.warning("conversation_planner: clear_state failed", exc_info=True)
 
 
 def last_assistant_text(conversation):
@@ -127,14 +176,20 @@ def plan(user, conversation, message):
                     last_beth_act="checked_in")
         return {"handler": "checkin_open"}
 
-    # 3) Post-check-in response — brief now (unless Danny asked a fresh question).
+    # 3) Post-check-in response. A check-in expects a short AFFECTIVE reply — brief
+    #    on that. ANYTHING ELSE (a question, a general-knowledge query, an unrelated
+    #    new subject) is a PIVOT: ABANDON the check-in and route normally. This is
+    #    the self-heal that a pending check-in previously lacked (unlike pending
+    #    clarification, which already clears on a non-reply), so an interrupted or
+    #    FAILED check-in can no longer trap the next unrelated conversation in
+    #    personal coaching.
     if cur == "check_in" and not is_critique(message):
-        if _looks_like_question(message):
-            write_state(conversation, state="engaged", last_beth_act="answered")
-            return {"handler": "route"}
-        write_state(conversation, state="briefing", objective="executive_briefing",
-                    last_beth_act="briefed", feeling=_norm(message)[:120])
-        return {"handler": "brief_after_checkin", "feeling": _norm(message)}
+        if _is_plausible_feeling(message):
+            write_state(conversation, state="briefing", objective="executive_briefing",
+                        last_beth_act="briefed", feeling=_norm(message)[:120])
+            return {"handler": "brief_after_checkin", "feeling": _norm(message)}
+        clear_state(conversation)
+        return {"handler": "route"}
 
     # 4) Default — no conversational intervention.
     return {"handler": "route"}

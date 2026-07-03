@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-03 — fix(cos): Conversation State Management — an interrupted/failed check-in no longer traps the next conversation
+
+Completes the Conversation Continuity capability (the prior general_continuity fix handled one branch; business testing exposed another state-transition failure). Sequence: (1) a personal CHECK-IN begins ("how are you feeling?"), (2) the user responds, (3) the assistant hits a TEMPORARY FAILURE (so the response turn doesn't advance the state — it stays pending at "check_in"), (4) the user starts a COMPLETELY UNRELATED general conversation, (5) Beth stays TRAPPED in the personal-coaching state instead of transitioning.
+
+Investigated the full conversation state machine (`conversation_planner.py`: greeting→check_in→briefing / critique→repair, state in `AssistantConversation.metadata["conversation_state"]`; clarification state in `metadata["pending_clarification"]`). Root cause (class): a pending CHECK-IN state does NOT self-heal on a pivot — `plan()` force-treated ANY non-question as the feeling reply → `brief_after_checkin` (personal coaching). By contrast, the CLARIFICATION state already self-heals (`_clarification_reply_lane` clears the pending on a non-reply and routes fresh). So a stale/interrupted check-in (left pending by a failed turn) captured the next message — even an unrelated new conversation — as if it were the check-in response.
+
+Fix (strengthen the existing state machine — no new architecture): the check-in now self-heals like clarification. `plan()` briefs ONLY when the reply is a plausible short AFFECTIVE self-report (`_is_plausible_feeling`: a feeling word or a first-person "I'm/I feel/I've been…" lead, not a question, ≤14 words); ANYTHING ELSE (a question, a general-knowledge query, an unrelated new subject) is a PIVOT that ABANDONS the check-in via new `clear_state()` and routes normally. Result: an interrupted or failed personal interaction can no longer contaminate the next unrelated conversation — a stale "check_in" state is cleared the moment the user asks/says something that isn't a feeling. The happy path (greeting → "I'm doing ok" → executive brief) is unchanged; proactive/notification check-ins don't set this state, so they're unaffected.
+
+Regression (`apps/ai/tests/test_conversation_state_management.py`, 10 tests, natural multi-turn threads across entry points, NO OpenAI): the reported failure sequence (check-in → temporary failure leaves it pending → "Who was Jezebel?" → routes to general_conversation, NOT personal coaching, state cleared); a non-question unrelated statement also escapes; the full recovery arc (check-in → pivot → a later clean greeting opens a fresh check-in); the happy-path feeling→brief preserved; plus unit coverage of `_is_plausible_feeling` / `plan()` / `clear_state`. GREEN; 76 across the conversation/routing suites (p26/p27/p29/p31, continuity, conversation_goal, active_subject, referential) still GREEN. No model change, no migration.
+
+**Files:** apps/ai/chatgpt_cos/conversation_planner.py, apps/ai/tests/test_conversation_state_management.py.
+
+
 ## 2026-07-03 — feat(cos): Conversation Continuity — external/general threads no longer abandoned mid-conversation
 
 Capability maturity (not a one-question fix). Production: Beth answered a general-knowledge question ("Who was Jezebel?") via the general lane, then the SAME-thread follow-up ("How come the Bible has books of Matthew, Mark, Luke, and John…") was abandoned and replaced with unrelated personal SLEEP coaching. Investigated the whole conversation-continuity + routing architecture (not just this prompt).

@@ -140,6 +140,18 @@ def compose_comparison(last, user=None, kind="prior"):
     comp = (sup or {}).get("fact", {}).get("value") if sup else None
     if cur is None or comp is None:
         return None
+    # EVIDENCE INTEGRITY: a "previous"/comparison reading must actually precede the
+    # current one and be a distinct value — a predecessor identical to current with
+    # no earlier timestamp (the production "previous 113 == current 113" case), or
+    # timestamped out of order, is not evidence Beth can stand behind. Investigate.
+    from apps.core.truth import integrity as _integrity
+    verdict = _integrity.validate_evidence({
+        "value": cur, "recorded_at": fact.get("recorded_at") or fact.get("as_of"),
+        "predecessor": {"value": comp,
+                        "recorded_at": (sup or {}).get("fact", {}).get("recorded_at")},
+    })
+    if not verdict["ok"]:
+        return verdict["investigation"]
     try:
         cur_n, comp_n = float(cur), float(comp)
     except (TypeError, ValueError):

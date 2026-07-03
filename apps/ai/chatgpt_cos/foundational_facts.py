@@ -143,9 +143,13 @@ _PHRASE_SYSTEM = (
     "fact includes an 'interpretation' object, state ONLY its 'display' wording and, "
     "when its 'concern' is true, surface the 'advice' and suggest verifying — never "
     "downplay or reassure away a flagged value. "
-            "TEMPORAL SANITY: if the fact includes a 'temporal_warning', say the "
-            "reading's time is unconfirmed (a sync/clock issue) and NEVER report a "
-            "future or impossible timestamp as if it were the current time."
+            "EVIDENCE INTEGRITY: if the fact includes an 'integrity' object whose "
+            "'ok' is false, the evidence contradicts itself — do NOT confidently "
+            "state the value. Instead say you've spotted something that doesn't add "
+            "up and will verify it first (use the provided 'investigation' wording). "
+            "If the fact includes a 'temporal_warning', say the reading's time is "
+            "unconfirmed (a sync/clock issue) and NEVER report a future or impossible "
+            "timestamp as if it were the current time."
 )
 
 
@@ -538,6 +542,19 @@ def format_fact_sentence(key, fact):
     ):
         return _UNKNOWN_SENTENCE.get(key, "That isn't recorded for you yet.")
 
+    # EVIDENCE INTEGRITY gate: the evidence contradicts itself (impossible timestamp,
+    # duplicated/out-of-order predecessor, stale-as-current). A CoS does NOT
+    # confidently present a value she can't stand behind — she transitions to
+    # investigation. Preserve any upstream temporal_warning wording verbatim.
+    from apps.core.truth import integrity as _integrity
+    if _integrity.failed(fact):
+        msg = _integrity.investigation_for(fact)
+        tw = fact.get("temporal_warning")
+        if tw and msg and tw not in msg:
+            msg = f"{msg} ({tw})"
+        if msg:
+            return msg
+
     value = fact.get("value")
     unit = (fact.get("unit") or "").strip()
 
@@ -788,6 +805,11 @@ def _temporal_or_clinical(fact):
     interpretation. Keeps the value answer and its follow-ups from ever diverging."""
     if not isinstance(fact, dict):
         return False
+    # A FAILED integrity verdict must be answered deterministically — the investigation
+    # must never be rephrased by the LLM back into a confident value.
+    from apps.core.truth import integrity as _integrity
+    if _integrity.failed(fact):
+        return True
     return bool(fact.get("recorded_at") or fact.get("as_of") or fact.get("for_date")
                 or fact.get("temporal_warning") or fact.get("interpretation"))
 

@@ -233,17 +233,16 @@ def get_foundational_health_facts(user, keys=None):
                     fact["confidence"] = _conf.confidence_from_freshness(fr)
                 except (TypeError, ValueError):
                     pass
-        # TEMPORAL SANITY: a timestamp in the future is a device-sync/clock artifact.
-        # Flag it and drop the impossible time so narration never reports it as real.
-        ra = fact.get("recorded_at")
-        if ra:
-            from django.utils import timezone as _tznow
-            from apps.core.truth.temporal import validate_timestamp
-            if validate_timestamp(ra, _tznow.now())["verdict"] == "future":
-                fact["temporal_warning"] = (
-                    "the timestamp on this reading is in the future — likely a sync "
-                    "or clock issue, so the time is unconfirmed")
-                fact.pop("recorded_at", None)
+        # EVIDENCE INTEGRITY (Layer 1): validate the assembled evidence BEFORE it can
+        # be presented — future timestamp, out-of-order/duplicate predecessor,
+        # stale-as-current — and attach the verdict so every downstream consumer
+        # (the answer, every follow-up, the phrasing prompt) reads it instead of
+        # re-checking. Subsumes the old ad-hoc future-timestamp guard (which it
+        # keeps: a future time is still flagged and the impossible value dropped).
+        from apps.core.truth import integrity as _integrity
+        _presented = "current" if (key.startswith("current_") or
+                                   key == "last_glucose_reading") else None
+        _integrity.attach(fact, presented_as=_presented)
         out[key] = fact
 
     # CALORIE questions want a TOTAL: "no food logged" = 0 calories (a real, numeric

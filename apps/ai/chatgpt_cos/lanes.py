@@ -551,8 +551,8 @@ _DOMAIN_WORDS = (
 _GENERAL_OPENERS = (
     "who ", "who was", "who is", "what is", "what was", "what are", "what's",
     "whats ", "explain", "define", "tell me about", "write out", "how does",
-    "how do", "how did", "when did", "when was", "where is", "where was",
-    "why is", "why do", "why does", "describe", "what does",
+    "how do", "how did", "how come", "when did", "when was", "where is",
+    "where was", "why is", "why do", "why does", "describe", "what does",
 )
 
 
@@ -746,28 +746,31 @@ def _greeting_word(user, message=None):
 
 
 def _overnight_facts(user):
-    """1–2 concrete overnight/yesterday facts + a strong-signal flag. Cache-first
-    (SAE), best-effort: any missing fact is simply omitted."""
-    facts, strong = [], False
+    """1–2 concrete overnight facts + a strong-signal flag + the GROUNDED sleep
+    fact (for temporal-trust follow-ups). Cache-first (SAE), best-effort.
+
+    Temporal Grounding: the sleep statement is built by `sleep_last_night_grounded`
+    which NEVER mislabels a 7-night average as 'last night' and attaches the window
+    / record date / freshness, so 'which last night? is that stale?' can be
+    verified deterministically instead of failing."""
+    facts, strong, sleep_fact = [], False, None
     try:
         from apps.ai.cos_services import get_domain_state
+        from apps.ai.chatgpt_cos.temporal_grounding import sleep_last_night_grounded
         env = get_domain_state(user, "health")
         st = (env.get("state") if isinstance(env, dict) else None) or {}
-        h = st.get("sleep_last_night_hours") or st.get("sleep_avg_hours_7d")
-        if isinstance(h, (int, float)) and h > 0:
-            if h < 6.5:
-                facts.append(f"You got about {h:g} hours of sleep last night — a bit short.")
-                strong = True
-            else:
-                facts.append(f"You got about {h:g} hours of sleep last night.")
+        sentence, is_strong, sleep_fact = sleep_last_night_grounded(user, st)
+        if sentence:
+            facts.append(sentence)
+            strong = strong or is_strong
     except Exception:
         logger.warning("checkin: overnight facts failed", exc_info=True)
-    return facts[:2], strong
+    return facts[:2], strong, sleep_fact
 
 
 def _morning_checkin(user, message):
     greeting = _greeting_word(user, message)
-    facts, strong = _overnight_facts(user)
+    facts, strong, sleep_fact = _overnight_facts(user)
     parts = [f"{greeting}, Danny."]
     if facts:
         parts.append(" ".join(facts))
@@ -777,8 +780,16 @@ def _morning_checkin(user, message):
     else:
         parts.append("Before we get into the day — how are you feeling, and is there "
                      "anything you want to tell me first?")
-    return {"answer": " ".join(parts), "tools_called": [], "tools_advertised": [],
-            "lane": "conversation_checkin"}
+    result = {"answer": " ".join(parts), "tools_called": [], "tools_advertised": [],
+              "lane": "conversation_checkin"}
+    # Ground the time-relative sleep statement as the ACTIVE SUBJECT so a
+    # freshness/temporal challenge ('what date are you calling last night? is
+    # that stale?') routes into deterministic trust-verification, not a failure.
+    if sleep_fact and sleep_fact.get("value") is not None:
+        result["fact_key"] = "sleep_last_night"
+        result["fact"] = sleep_fact
+        result["active_subject"] = {"fact_key": "sleep_last_night", "fact": sleep_fact}
+    return result
 
 
 def _post_checkin_brief(user, message, feeling):
@@ -937,6 +948,11 @@ def _why_explainer_lane(user, message, conversation=None):
     last = get_last_answer(conversation)
     if not last:
         return None
+    # A follow-up to a GENERAL / EXTERNAL answer belongs to general_continuity —
+    # never explain general knowledge as "your tracked data". Yield so a
+    # referential follow-up ("why is that term…?") continues the general thread.
+    if last.get("lane") in ("general_conversation", "general_continuity"):
+        return None
     answer = handler(last, user, **kw)
     if not answer:
         return None
@@ -948,6 +964,38 @@ def _why_explainer_lane(user, message, conversation=None):
         goal = "investigate"
     return {"answer": answer, "lane": "why_explainer",
             "fast_path": "conversation_memory", "goal": goal}
+
+
+def _temporal_lane(user, message, conversation=None):
+    """Temporal Grounding & Data Freshness Awareness.
+
+    (1) Always answer the current date / time / timezone deterministically — a
+    CoS that speaks in time-relative terms must know the clock.
+    (2) When the user CHALLENGES the freshness/window of a time-relative
+    statement ('what date are you calling last night?', 'is that stale?', 'which
+    record?', 'when was it synced?'), enter deterministic TRUST-VERIFICATION over
+    the last grounded temporal fact — never fail the conversation. Declines when
+    there is no clock question and no groundable temporal fact to verify."""
+    from apps.ai.chatgpt_cos import temporal_grounding as tg
+    res = tg.answer_datetime(user, message)
+    if res is not None:
+        return res
+    if conversation is not None and tg.is_temporal_trust_challenge(message):
+        from apps.ai.chatgpt_cos.conversation_memory import get_last_answer
+        last = get_last_answer(conversation)
+        res = tg.verify_temporal_trust(user, last, message)
+        if res is not None:
+            # Keep the grounded temporal fact as the active subject so REPEATED
+            # trust challenges ('...and how old is it?') keep verifying instead of
+            # losing the thread after the first answer.
+            fact = (last or {}).get("fact") or \
+                ((last or {}).get("active_subject") or {}).get("fact")
+            if fact:
+                res["fact_key"] = (last or {}).get("fact_key") or fact.get("key")
+                res["fact"] = fact
+                res["active_subject"] = {"fact_key": res["fact_key"], "fact": fact}
+            return res
+    return None
 
 
 def _referential_lane(user, message, conversation=None):
@@ -995,44 +1043,71 @@ _PERSONAL_AGENDA_CUES = (
     "where do i stand", "how am i", "should i", "do i have", "what do i have",
 )
 
-# Generic follow-up cues (no question mark, but clearly a continuation).
+# Multi-word follow-up cues that clearly reference the prior general answer.
 _CONTINUATION_CUES = (
-    "tell me more", "more", "go on", "and then", "what about", "what else",
-    "how so", "why not", "for example", "such as", "like what", "go deeper",
-    "keep going", "continue", "elaborate", "expand on", "who else",
+    "tell me more", "go on", "and then", "what about", "what else", "how so",
+    "for example", "such as", "like what", "go deeper", "keep going",
+    "expand on that", "say more", "anything else", "more on that", "who else",
 )
-_CONTINUATION_OPENERS = frozenset((
-    "who", "what", "when", "where", "why", "how", "which", "whom", "whose",
-    "was", "were", "is", "are", "does", "did", "do", "can", "could", "would",
-    "tell", "explain", "describe", "and", "so", "but", "name", "list", "give",
+# Bare follow-ups (EXACT match) — elliptical asks that only make sense as a
+# continuation of the prior answer.
+_BARE_FOLLOWUPS = frozenset((
+    "why", "why though", "but why", "and why", "how come", "how so", "why not",
+    "why that", "why is that", "so", "then what", "more", "go on", "continue",
+    "elaborate", "keep going", "and then", "go deeper", "and", "more please",
 ))
+# Pronouns that BACK-REFERENCE the prior answer — the mark of an elliptical
+# follow-up. NOT the personal possessives (my/our); those signal a personal pivot.
+_REFERENTIAL_TOKENS = frozenset((
+    "that", "those", "them", "it", "this", "these", "they", "he", "she", "him",
+    "his", "her", "its", "their", "there",
+))
+_ELLIPTICAL_STARTS = ("and ", "but ", "or ", "also ", "what about", "how about")
+
+# WLJ-owned PERSONAL-TRUTH markers — a question about the user's own data/life
+# (health/diabetes/milestone/…) that must reach deterministic providers, NEVER be
+# captured as general/external.
+_PERSONAL_TRUTH_MARKERS = (
+    "how is my", "how's my", "hows my", "how are my", "how am i", "is my ",
+    "what is my", "what's my", "whats my", "my health", "my diabetes",
+    "my next milestone", "my milestone", "my mission", "my progress", "my a1c",
+    "my blood sugar", "my medication", "am i on track", "how's my",
+)
 
 
 def _is_explicit_personal_request(message):
-    """True when the message explicitly turns to the user's OWN data/life — the
-    only thing that ends an active general/external thread."""
+    """True when the message turns to the user's OWN data/life — the only thing
+    that ends an active general/external thread. Recognises WLJ-owned personal
+    truth (health/diabetes/milestone/…) so it can never be captured as general."""
     norm = (message or "").strip().lower()
     if not norm:
         return True
     tokens = set(re.findall(r"[a-z']+", norm))
     if (tokens & _PERSONAL_PRONOUNS) and any(d in norm for d in _DOMAIN_WORDS):
         return True
-    return any(c in norm for c in _PERSONAL_AGENDA_CUES)
+    if any(c in norm for c in _PERSONAL_AGENDA_CUES):
+        return True
+    return any(c in norm for c in _PERSONAL_TRUTH_MARKERS)
 
 
 def _is_continuation(message):
-    """True when the message continues the inquiry — a question or a generic
-    follow-up cue — as opposed to a personal statement or a command."""
-    norm = (message or "").strip().lower()
-    if not norm:
+    """True ONLY for a genuine ELLIPTICAL / REFERENTIAL follow-up to the prior
+    general answer: a bare follow-up cue ('why?'), a conjunctive elliptical ('and
+    the Old Testament?'), or a SHORT question that back-references the prior
+    subject ('why is that term…?'). A SELF-CONTAINED new question (general,
+    boundary, or personal) is NOT a continuation — continuity is never a
+    catch-all — so it routes normally."""
+    n = (message or "").strip().lower()
+    if not n:
         return False
-    if norm.endswith("?"):
+    if n.rstrip("?.! ") in _BARE_FOLLOWUPS:
         return True
-    if any(c in norm for c in _CONTINUATION_CUES):
+    if any(c in n for c in _CONTINUATION_CUES):
         return True
-    parts = norm.split()
-    first = parts[0].strip(",.!?") if parts else ""
-    return first in _CONTINUATION_OPENERS
+    if len(n.split()) <= 10 and any(n.startswith(s) for s in _ELLIPTICAL_STARTS):
+        return True
+    tokens = set(re.findall(r"[a-z']+", n))
+    return bool(tokens & _REFERENTIAL_TOKENS) and len(n.split()) <= 14
 
 
 def _general_continuity_lane(user, message, conversation=None):
@@ -1056,6 +1131,11 @@ def _general_continuity_lane(user, message, conversation=None):
 
 
 LANE_REGISTRY = (
+    # Temporal Grounding runs FIRST: current date/time is always answerable, and
+    # a freshness/temporal challenge to a grounded time-relative statement enters
+    # deterministic trust-verification before any other lane (or coaching) can
+    # claim it. It declines for everything else, so normal routing is unaffected.
+    ("temporal", _temporal_lane),
     ("why_explainer", _why_explainer_lane),
     ("referential", _referential_lane),
     ("clarification_reply", _clarification_reply_lane),

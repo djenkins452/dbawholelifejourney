@@ -322,6 +322,15 @@ body.theme-ember .legacy-root {
     background: transparent; color: var(--lg-ink-soft); border: 1px solid transparent;
     border-radius: 10px; padding: 9px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
 }
+.lg-danger { color: #c0392b; }
+.lg-danger:hover { color: #fff; background: #c0392b; }
+
+/* Media: set-aside (archive) + two-stage delete */
+.lib-pills-sub { margin-top: -4px; margin-bottom: 14px; }
+.media-cell.is-archived { opacity: .78; }
+.mediadetail-manage { margin-top: 16px; }
+.mediadetail-manage-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.mediadetail-setaside { font-size: 13px; color: var(--lg-ink-soft); margin-bottom: 10px; }
 .lg-btn-ghost:hover { background: var(--lg-surface-2); color: var(--lg-ink); }
 
 /* Flash messages */
@@ -635,6 +644,19 @@ body.theme-ember .legacy-root {
 
 .disc-group { margin-bottom: 12px; }
 .disc-group-title { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--lg-muted); margin-bottom: 6px; }
+
+/* Collapsible super-sections keep the panel calm as Discovery grows. */
+.disc-section { border-top: 1px solid var(--lg-border); padding: 10px 0 2px; }
+.disc-section:first-of-type { border-top: 0; }
+.disc-section-sum { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; padding: 2px 0 8px; }
+.disc-section-sum::-webkit-details-marker { display: none; }
+.disc-section-title { flex: 1; font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--lg-ink); }
+.disc-section-count { font-size: 11px; font-weight: 600; color: var(--lg-muted); background: var(--lg-surface-2); border-radius: 999px; padding: 1px 8px; }
+.disc-section-sum::after { content: "⌃"; color: var(--lg-muted); transform: rotate(180deg); transition: transform .15s; font-size: 12px; }
+.disc-section:not([open]) .disc-section-sum::after { transform: rotate(0deg); }
+.disc-section:not([open]) .disc-section-sum { padding-bottom: 2px; }
+.disc-section .disc-group:last-child { margin-bottom: 4px; }
+
 .disc-item { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; cursor: pointer; }
 .disc-item input { margin-top: 3px; accent-color: var(--lg-accent); }
 .disc-label { font-size: 13px; color: var(--lg-ink); line-height: 1.4; }

@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 215,
+    "fields": {
+      "title": "Legacy: tidy up your media, and a calmer Discovery panel",
+      "description": "A couple of small refinements to Legacy. You can now tidy your media the same forgiving way you handle stories: set a photo or clip aside to take it out of your library without deleting it, then either restore it or permanently delete it — with a clear confirmation so nothing disappears by accident. And when Legacy reads a story and shows you what it understood, those findings are now grouped into calm, collapsible sections — People, Places, Life, Time, Meaning, and Media — so the panel stays easy to scan even when there's a lot to review. Nothing is ever hidden or applied on its own; you still choose what to keep.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-03",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-03T13:00:00Z",
+      "updated_at": "2026-07-03T13:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 214,
     "fields": {
       "title": "Legacy now listens, keeps photos with their stories, and welcomes your written life",

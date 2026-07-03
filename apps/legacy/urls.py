@@ -61,6 +61,9 @@ urlpatterns = [
     path("media/", views.MediaLibraryView.as_view(), name="media"),
     path("media/upload/", views.MediaUploadView.as_view(), name="media_upload"),
     path("media/<int:pk>/", views.MediaDetailView.as_view(), name="media_detail"),
+    path("media/<int:pk>/archive/", views.MediaArchiveView.as_view(), name="media_archive"),
+    path("media/<int:pk>/restore/", views.MediaRestoreView.as_view(), name="media_restore"),
+    path("media/<int:pk>/delete-forever/", views.MediaDeleteForeverView.as_view(), name="media_delete_forever"),
     path("relationships/", _placeholder(
         "relationships", "Relationships",
         "How the people in your life are connected."),

@@ -138,12 +138,15 @@ def _similar(a, b):
     return False
 
 
-def summary_text(groups):
+def summary_text(sections):
+    # Accepts the sectioned proposals (or a flat group list) and flattens to
+    # a human count summary.
     parts = []
-    for g in groups:
-        n = len(g["items"])
-        sing, plur = _SUMMARY.get(g["kind"], (g["label"].lower(), g["label"].lower()))
-        parts.append(f"{n} {sing if n == 1 else plur}")
+    for entry in sections:
+        for g in entry.get("groups", [entry]):
+            n = len(g["items"])
+            sing, plur = _SUMMARY.get(g["kind"], (g["label"].lower(), g["label"].lower()))
+            parts.append(f"{n} {sing if n == 1 else plur}")
     if not parts:
         return ""
     if len(parts) == 1:
@@ -335,15 +338,29 @@ def run_discovery(memory, extractor=None):
     return ("ok" if proposed else "nothing"), proposed
 
 
+# Kind groups gather into a few calm, human super-sections so the panel stays
+# readable as Discovery finds more. Order here is the order sections appear in.
+_SECTIONS = [
+    ("People", {"person", "relationship"}),
+    ("Places", {"place"}),
+    ("Life", {"milestone"}),
+    ("Time", {"human_time", "calendar_time", "life_stage", "relative_time"}),
+    ("Meaning", {"event", "quote", "theme", "value", "tradition", "emotion"}),
+    ("Media", {"media_ref", "artifact"}),
+]
+
+
 def grouped_proposals(memory):
-    """Proposed discoveries grouped by kind, in display order, for the review UI."""
+    """Proposed discoveries grouped by kind and gathered into collapsible
+    super-sections (People / Places / Life / Time / Meaning / Media) for the
+    review UI. Sections keep the panel readable as understanding grows."""
     from apps.legacy.models import MemoryDiscovery
 
     proposals = MemoryDiscovery.objects.filter(
         memory=memory, status=MemoryDiscovery.Status.PROPOSED)
-    groups = {}
+    by_kind = {}
     for d in proposals:
-        groups.setdefault(d.kind, []).append(d)
+        by_kind.setdefault(d.kind, []).append(d)
     order = MemoryDiscovery._ORDER
     headings = {
         "person": "People", "relationship": "Relationships", "place": "Places",
@@ -354,10 +371,33 @@ def grouped_proposals(memory):
         "media_ref": "Media", "theme": "Themes", "value": "Values",
         "tradition": "Traditions", "emotion": "Emotions",
     }
-    return [
-        {"kind": k, "label": headings.get(k, k.title()), "items": v}
-        for k, v in sorted(groups.items(), key=lambda kv: order.get(kv[0], 99))
-    ]
+
+    def group_for(kind):
+        return {"kind": kind, "label": headings.get(kind, kind.title()),
+                "items": by_kind[kind]}
+
+    sections, placed = [], set()
+    for title, kinds in _SECTIONS:
+        present = sorted((k for k in kinds if k in by_kind),
+                         key=lambda k: order.get(k, 99))
+        if not present:
+            continue
+        placed.update(present)
+        groups = [group_for(k) for k in present]
+        sections.append({
+            "title": title, "groups": groups,
+            "count": sum(len(g["items"]) for g in groups),
+        })
+    # Any kind not assigned to a named section still shows, never dropped.
+    leftover = sorted((k for k in by_kind if k not in placed),
+                      key=lambda k: order.get(k, 99))
+    if leftover:
+        groups = [group_for(k) for k in leftover]
+        sections.append({
+            "title": "More", "groups": groups,
+            "count": sum(len(g["items"]) for g in groups),
+        })
+    return sections
 
 
 def confirm_discoveries(memory, accepted_ids=None, accept_all=False, resolutions=None, edits=None):

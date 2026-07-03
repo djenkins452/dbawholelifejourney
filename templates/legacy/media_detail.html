@@ -44,6 +44,27 @@
             </section>
 
             {% if item.file %}<a href="{{ item.file.url }}" download class="lg-btn-quiet">Download</a>{% endif %}
+
+            <section class="lg-card mediadetail-manage">
+                {% if item.status == 'archived' %}
+                <p class="mediadetail-setaside">This is set aside. Restore it to use it again, or delete it permanently.</p>
+                <div class="mediadetail-manage-row">
+                    <form method="post" action="{% url 'legacy:media_restore' item.pk %}">{% csrf_token %}
+                        <button type="submit" class="lg-btn-quiet">Restore</button>
+                    </form>
+                    <form method="post" action="{% url 'legacy:media_delete_forever' item.pk %}">{% csrf_token %}
+                        <button type="button" class="lg-btn-ghost lg-danger js-confirm-delete"
+                                data-confirm-title="Permanently delete this media?"
+                                data-confirm-msg="This can't be undone — it will be removed from Legacy and from every story it's attached to.">Delete forever</button>
+                    </form>
+                </div>
+                {% else %}
+                <form method="post" action="{% url 'legacy:media_archive' item.pk %}">{% csrf_token %}
+                    <button type="submit" class="lg-btn-ghost">Set aside</button>
+                </form>
+                <p class="editor-aside-note">Setting aside keeps it out of your library without deleting it. You can restore or permanently delete it afterwards.</p>
+                {% endif %}
+            </section>
         </aside>
     </div>
 </div>

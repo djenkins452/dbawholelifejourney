@@ -171,6 +171,28 @@ class MediaTests(TestCase):
         md = Media.objects.create(user=self.other, media_type=Media.MediaType.PHOTO)
         self.assertEqual(self.client.get(reverse("legacy:media_detail", args=[md.pk])).status_code, 404)
 
+    def test_two_stage_delete(self):
+        md = Media.objects.create(user=self.user, media_type=Media.MediaType.PHOTO)
+        # Delete forever is refused until it's set aside.
+        self.client.post(reverse("legacy:media_delete_forever", args=[md.pk]))
+        self.assertTrue(Media.all_objects.filter(pk=md.pk).exists())
+        # Set aside → drops out of the active library.
+        self.client.post(reverse("legacy:media_archive", args=[md.pk]))
+        md.refresh_from_db(); self.assertEqual(md.status, "archived")
+        self.assertNotIn(md, Media.objects.all())
+        # Archived view surfaces it.
+        r = self.client.get(reverse("legacy:media"), {"status": "archived"})
+        self.assertContains(r, "Set aside")
+        # Now delete forever removes it for good.
+        self.client.post(reverse("legacy:media_delete_forever", args=[md.pk]))
+        self.assertFalse(Media.all_objects.filter(pk=md.pk).exists())
+
+    def test_restore(self):
+        md = Media.objects.create(user=self.user, media_type=Media.MediaType.PHOTO)
+        md.archive()
+        self.client.post(reverse("legacy:media_restore", args=[md.pk]))
+        md.refresh_from_db(); self.assertEqual(md.status, "active")
+
 
 class EditorLinkingTests(TestCase):
     def setUp(self):

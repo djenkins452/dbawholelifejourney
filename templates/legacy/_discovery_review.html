@@ -18,7 +18,11 @@
 
     <form method="post" action="{% url 'legacy:discovery_confirm' memory.pk %}" class="discovery-form">
         {% csrf_token %}
-        {% for g in groups %}
+        {% for section in groups %}
+        <details class="disc-section" open>
+            <summary class="disc-section-sum"><span class="disc-section-title">{{ section.title }}</span><span class="disc-section-count">{{ section.count }}</span></summary>
+            <div class="disc-section-body">
+        {% for g in section.groups %}
         {% if g.kind == 'person' %}
         <div class="disc-group">
             <div class="disc-group-title">People</div>
@@ -147,6 +151,9 @@
             </div>
         </div>
         {% endif %}
+        {% endfor %}
+            </div>
+        </details>
         {% endfor %}
 
         {% if prompts %}

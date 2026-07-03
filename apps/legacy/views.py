@@ -666,7 +666,11 @@ class MediaLibraryView(LegacyContextMixin, TemplateView):
         mtype = req.get("type", "all")
         if mtype not in dict(MEDIA_TYPE_CHOICES):
             mtype = "all"
-        media = Media.objects.filter(user=self.request.user)
+        status = "archived" if req.get("status") == "archived" else "active"
+        if status == "archived":
+            media = Media.all_objects.filter(user=self.request.user, status="archived")
+        else:
+            media = Media.objects.filter(user=self.request.user)
         if mtype != "all":
             media = media.filter(media_type=mtype)
         if q:
@@ -674,6 +678,8 @@ class MediaLibraryView(LegacyContextMixin, TemplateView):
         ctx["media"] = media.order_by("-created_at")
         ctx["q"] = q
         ctx["mtype"] = mtype
+        ctx["status"] = status
+        ctx["archived_count"] = Media.all_objects.filter(user=self.request.user, status="archived").count()
         ctx["type_choices"] = MEDIA_TYPE_CHOICES
         ctx["total_count"] = media.count()
         return ctx
@@ -717,6 +723,36 @@ class MediaDetailView(LegacyContextMixin, DetailView):
         ctx = super().get_context_data(**kwargs)
         ctx["memories"] = self.object.memories.all()
         return ctx
+
+
+class MediaArchiveView(LegacyContextMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        media = get_object_or_404(Media.all_objects, pk=pk, user=request.user)
+        media.archive()
+        messages.success(request, "Set aside.")
+        return redirect("legacy:media_detail", pk=media.pk)
+
+
+class MediaRestoreView(LegacyContextMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        media = get_object_or_404(Media.all_objects, pk=pk, user=request.user)
+        media.restore()
+        messages.success(request, "Restored.")
+        return redirect("legacy:media_detail", pk=media.pk)
+
+
+class MediaDeleteForeverView(LegacyContextMixin, View):
+    """Two-stage delete for media — only a set-aside item can be removed for good.
+    The file leaves the library and every story it was attached to."""
+
+    def post(self, request, pk, *args, **kwargs):
+        media = get_object_or_404(Media.all_objects, pk=pk, user=request.user)
+        if media.status != "archived":
+            messages.error(request, "Set it aside first — only set-aside media can be permanently deleted.")
+            return redirect("legacy:media_detail", pk=media.pk)
+        media.delete()  # hard delete — gone for good
+        messages.success(request, "Permanently deleted.")
+        return redirect("%s?status=archived" % reverse("legacy:media"))
 
 
 # ── Timeframe helper (shared) ────────────────────────────────────────────────

@@ -128,23 +128,36 @@ class TrustVerificationTests(_TemporalBase):
         self.assertFalse(tg.is_temporal_trust_challenge("how did I sleep?"))
 
     def test_verify_average_clarifies_it_is_not_last_night(self):
-        r = tg.verify_temporal_trust(
+        r = tg.verify_last_claim(
             self.user, self._avg_last(), "What date are you calling last night?")
         self.assertIsNotNone(r)
-        self.assertEqual(r["lane"], "temporal")
+        self.assertEqual(r["lane"], "trust_verification")
         self.assertIn("average", r["answer"].lower())
         self.assertIn("not last night", r["answer"].lower())
 
     def test_verify_stale_challenge_preserves_trust(self):
-        r = tg.verify_temporal_trust(self.user, self._avg_last(),
-                                     "I think your data is stale.")
+        r = tg.verify_last_claim(self.user, self._avg_last(),
+                                 "I think your data is stale.")
         self.assertIsNotNone(r)
         self.assertTrue(len(r["answer"]) > 0)
 
-    def test_verify_declines_when_no_temporal_fact(self):
-        # A non-time-relative last answer → nothing to verify (route on).
+    def test_verify_declines_for_general_knowledge_answer(self):
+        # A challenge to GENERAL knowledge is not a personal-data trust
+        # investigation — verify_last_claim yields (general lanes handle it).
         last = {"lane": "general_conversation", "answer": "Jezebel was a queen."}
-        self.assertIsNone(tg.verify_temporal_trust(self.user, last, "is that stale?"))
+        self.assertIsNone(tg.verify_last_claim(self.user, last, "are you sure?"))
+
+    def test_verify_ungrounded_personal_claim_acknowledges_uncertainty(self):
+        # A personal narrative claim with NO structured fact → Beth must NOT
+        # restate it; she acknowledges she can't confirm the exact record.
+        last = {"lane": "personal_reasoning",
+                "answer": "Your energy has been trending down this week."}
+        r = tg.verify_last_claim(self.user, last, "how do you know that?")
+        self.assertIsNotNone(r)
+        self.assertEqual(r["lane"], "trust_verification")
+        self.assertIn("unconfirmed", r["answer"].lower())
+        self.assertNotIn("trending down this week.", r["answer"].lower()
+                         .split("i told you")[0])  # not led with a restated claim
 
 
 # ── End-to-end — natural multi-turn conversations through the router ───────
@@ -173,10 +186,10 @@ class TemporalGroundingE2ETests(_TemporalBase):
                      "freshness": "current"}}
         # The conversation has shifted to TRUST — Beth must verify, not fail.
         r1 = self._route("What date are you calling last night?")
-        self.assertEqual(r1["lane"], "temporal")
+        self.assertEqual(r1["lane"], "trust_verification")
         self.assertIn("not last night", r1["answer"].lower())
         r2 = self._route("I think your data is stale.")
-        self.assertEqual(r2["lane"], "temporal")
+        self.assertEqual(r2["lane"], "trust_verification")
 
     @mock.patch("apps.ai.services.ai_service._call_api", side_effect=_mock_general)
     def test_time_question_during_checkin_is_not_briefed(self, _m):
@@ -185,3 +198,49 @@ class TemporalGroundingE2ETests(_TemporalBase):
         self._route("Good morning")
         r = self._route("What time is it?")
         self.assertEqual(r["lane"], "temporal")
+
+
+# ── The production trust-investigation conversation (VERIFY mode) ──────────
+
+class TrustInvestigationConversationTests(_TemporalBase):
+    """The reported production conversation: a sleep claim is challenged three
+    ways. Beth must recognise the conversation has become a TRUST INVESTIGATION
+    and CHANGE OPERATING MODE every turn — proving evidence / acknowledging
+    uncertainty — and NEVER repeat the raw claim or pivot to coaching."""
+
+    def setUp(self):
+        super().setUp()
+        # Beth's prior assertion (however produced) is on the conversation.
+        self.conv = FakeConversation({"last_answer": {
+            "lane": "conversation_checkin", "fact_key": "sleep_last_night",
+            "fact": {"key": "sleep_last_night", "value": 4.8, "unit": "hours",
+                     "window": "7-night average", "aggregate": True,
+                     "for_date": (self.today - timedelta(days=1)).isoformat(),
+                     "freshness": "current", "source": "your sleep tracker"}}})
+
+    def _route(self, msg):
+        return route_message(self.user, msg, self.conv)
+
+    @mock.patch("apps.ai.services.ai_service._call_api", side_effect=_mock_general)
+    def test_three_turn_trust_investigation_changes_mode_every_turn(self, _m):
+        for msg in ("What date are you referring to as last night?",
+                    "I think your data is stale.",
+                    "Was that actually last night or just the most recent record?"):
+            r = self._route(msg)
+            self.assertIsNotNone(r, msg)
+            # Beth changed operating mode into VERIFY — not coaching, not a re-answer.
+            self.assertEqual(r["lane"], "trust_verification", msg)
+            ans = r["answer"].lower()
+            # Never simply repeats the original claim as settled.
+            self.assertNotIn("you got about 4.8 hours of sleep last night", ans, msg)
+            self.assertNotIn("sleep has been trending", ans, msg)  # no coaching pivot
+
+    @mock.patch("apps.ai.services.ai_service._call_api", side_effect=_mock_general)
+    def test_ungrounded_claim_challenge_enters_verify_not_reanswer(self, _m):
+        # Even a claim with NO structured fact must enter VERIFY (honest
+        # uncertainty), never a bare restatement.
+        self.conv.metadata["last_answer"] = {
+            "lane": "personal_reasoning",
+            "answer": "You slept about 4.8 hours last night."}
+        r = self._route("Are you sure that was actually last night?")
+        self.assertEqual(r["lane"], "trust_verification")

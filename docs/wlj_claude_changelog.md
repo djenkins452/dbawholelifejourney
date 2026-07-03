@@ -6,6 +6,24 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-03 — feat(cos): Conversation Operating Model — first-class VERIFY mode (Beth changes mode when trust is questioned)
+
+Holistic conversation-architecture investigation, not another lane patch. Production: Beth said "You slept about 4.8 hours last night"; the user challenged it three ways ("What date are you referring to as last night?", "I think your data is stale", "Was that actually last night or just the most recent record?") and Beth failed / repeated the claim. The issue was NOT dates/sleep/routing — Beth never recognised the conversation had become a TRUST INVESTIGATION and never changed operating mode; she kept trying to answer instead of proving her evidence.
+
+Operating-model analysis: Beth's model is a flat 12-lane claim-or-decline registry where "mode" is implicit (whichever lane claims). A production-ready CoS switches OPERATING MODE by the turn's speech act — ANSWER / VERIFY-EVIDENCE / REPAIR / CLARIFY / CONTINUE. Those modes existed only as fragments, and the VERIFY mode in particular was bolted onto ONE lane (temporal) conditioned on ONE fact shape (a grounded temporal fact) and a narrow cue list — so a differently-phrased challenge, or a claim not recorded in that exact shape, fell through and Beth re-answered. The gap: a robust, first-class VERIFY mode over Beth's LAST assertion, independent of what it was.
+
+Smallest change that closes it (no new layer, no duplication — generalise the existing temporal lane into the operating model's trust dimension):
+- **Trust-challenge recognition is now a SPEECH ACT**, not a narrow cue list: `is_trust_challenge` (alias of the broadened `is_temporal_trust_challenge`) recognises the production phrasings and the general challenge acts ("referring to", "was that actually … or just the most recent", "how do you know", "prove it", "what's that based on", "are you sure", "your data is stale", "where'd you get that", …).
+- **Unified `verify_last_claim(user, last, message)`** replaces the temporal-only verifier as the lane's entry point. It verifies WHATEVER Beth last asserted: a sleep/"last night" claim → grounded against the canonical `SleepEntry` (source · date · sync time · freshness) even if the prior turn recorded no structured fact; any grounded fact → `_verify_generic_fact` (source/date/freshness); an UNGROUNDED personal narrative claim → honest "I can't point to the exact record — treat it as unconfirmed", and it NEVER restates the claim as settled. A challenge to GENERAL knowledge yields (not a personal-data investigation).
+- The lane (registry index 0) runs FIRST and takes precedence, emits lane `trust_verification`, acknowledges the mode shift ("Fair question — here's what that's based on…"), and re-attaches the grounded fact as the active subject so a MULTI-TURN trust investigation keeps verifying.
+
+Result: the temporal verifier + the "explain your evidence" intent are now coordinated behaviors of ONE operating mode. When trust is questioned, Beth stops answering/coaching and proves evidence or acknowledges uncertainty — every turn — instead of repeating the claim.
+
+Regression (`apps/ai/tests/test_temporal_grounding.py`): new `TrustInvestigationConversationTests` replays the exact production 3-turn conversation — each turn routes to `trust_verification`, never repeats "4.8 hours of sleep last night", never pivots to coaching; an ungrounded personal claim challenge also enters VERIFY (honest uncertainty, no restatement); a general-knowledge challenge yields. GREEN (17); 134 across the conversation/routing/trust/foundation suites still GREEN. No model change, no migration.
+
+**Files:** apps/ai/chatgpt_cos/temporal_grounding.py, apps/ai/chatgpt_cos/lanes.py, apps/ai/tests/test_temporal_grounding.py.
+
+
 ## 2026-07-03 — fix(cos): Conversation Continuity over-claim — general_continuity is referential-only, yields to WLJ truth (Acceptance Run #71 RED→GREEN)
 
 Release-blocking routing regression from the general_continuity lane. Acceptance Run #71 (full/deep) RED / untrustworthy: 12 critical infrastructure failures, all routing to lane=general_continuity, intent=None, openai=False, fallback=True, returning the external-knowledge outage message — for first-turn general questions (photosynthesis, Hamlet, compound interest, REST API, Delphi, CTE, weather-vs-climate), boundary questions (diabetes, "milestone in project management"), AND WLJ-owned personal truth ("How is my health?", "How is my diabetes doing?", "What is my next milestone?").

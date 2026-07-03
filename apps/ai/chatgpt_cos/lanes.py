@@ -967,23 +967,26 @@ def _why_explainer_lane(user, message, conversation=None):
 
 
 def _temporal_lane(user, message, conversation=None):
-    """Temporal Grounding & Data Freshness Awareness.
+    """Temporal Grounding + VERIFY MODE (the Conversation Operating Model's trust
+    dimension).
 
-    (1) Always answer the current date / time / timezone deterministically — a
-    CoS that speaks in time-relative terms must know the clock.
-    (2) When the user CHALLENGES the freshness/window of a time-relative
-    statement ('what date are you calling last night?', 'is that stale?', 'which
-    record?', 'when was it synced?'), enter deterministic TRUST-VERIFICATION over
-    the last grounded temporal fact — never fail the conversation. Declines when
-    there is no clock question and no groundable temporal fact to verify."""
+    (1) Current date/time/timezone — always answerable deterministically.
+    (2) When the user CHALLENGES the validity/freshness/source of Beth's prior
+    statement, the conversation has become a TRUST INVESTIGATION — its purpose
+    changed from getting advice to establishing trust. Beth CHANGES OPERATING
+    MODE: she stops answering/coaching and enters deterministic VERIFY mode over
+    her LAST assertion (prove the record, source, timestamp, freshness; acknowledge
+    uncertainty honestly; never restate the claim as settled). Runs FIRST so a
+    trust challenge is addressed before any lane can re-answer or coach. Declines
+    when there's no clock question and no prior assertion to verify."""
     from apps.ai.chatgpt_cos import temporal_grounding as tg
     res = tg.answer_datetime(user, message)
     if res is not None:
         return res
-    if conversation is not None and tg.is_temporal_trust_challenge(message):
+    if conversation is not None and tg.is_trust_challenge(message):
         from apps.ai.chatgpt_cos.conversation_memory import get_last_answer
         last = get_last_answer(conversation)
-        res = tg.verify_temporal_trust(user, last, message)
+        res = tg.verify_last_claim(user, last, message)
         if res is not None:
             # Keep the grounded temporal fact as the active subject so REPEATED
             # trust challenges ('...and how old is it?') keep verifying instead of

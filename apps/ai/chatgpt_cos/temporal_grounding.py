@@ -184,14 +184,36 @@ _TRUST_CUES = (
     "how confident", "are you confident", "how do you know that's last night",
     "i think your data is stale", "your data is stale", "that data is stale",
     "is that current", "is this current",
+    # Broader TRUST-INVESTIGATION speech acts — the conversation's PURPOSE has
+    # changed from getting advice to establishing trust (production phrasings).
+    "referring to", "are you referring", "what are you calling",
+    "was that actually", "is that actually", "actually last night",
+    "most recent record", "the most recent", "just the most recent", "or just the",
+    "how do you know", "how would you know", "prove it", "prove that",
+    "what's your evidence", "what is your evidence", "show me the evidence",
+    "show me the record", "verify that", "can you verify", "double check that",
+    "double-check that", "where did you get", "where'd you get",
+    "where are you getting", "what's that based on", "whats that based on",
+    "what is that based on", "based on what", "says who", "are you certain",
+    "you sure", "you sure about", "i don't think that's right",
+    "i dont think that's right", "that can't be right", "that cant be right",
+    "i don't believe", "i dont believe", "that seems wrong",
+    "that doesn't sound right", "that doesnt sound right", "is that reliable",
+    "how reliable", "what source", "what's the source", "which source",
 )
 
 
 def is_temporal_trust_challenge(message):
-    """The user is questioning the freshness/window of a time-relative statement —
-    the conversation has shifted from the topic to TRUST."""
+    """The user is questioning the validity/freshness/source of Beth's PRIOR
+    statement — the conversation has shifted from the topic to TRUST. Broad by
+    design: recognising the SPEECH ACT (not one fact shape or a narrow cue list)
+    is what lets Beth reliably CHANGE OPERATING MODE into verification."""
     n = (message or "").strip().lower()
     return bool(n) and any(c in n for c in _TRUST_CUES)
+
+
+# The same recognition read intent-first — a trust challenge is not only temporal.
+is_trust_challenge = is_temporal_trust_challenge
 
 
 def verify_temporal_trust(user, last, message):
@@ -217,24 +239,76 @@ def verify_temporal_trust(user, last, message):
     # Sleep gets fully-grounded verification straight from the canonical record
     # (one indexed read — this is a direct user question, not the hot path).
     if fk == "sleep_last_night" or (fk or "").startswith("sleep"):
-        return _result(_verify_sleep(user, fact, message))
+        return _result(_verify_sleep(user, fact, message), lane="trust_verification")
 
-    # Generic temporal fact — verify from the metadata we already hold.
-    parts = []
-    if window:
-        parts.append(f"I'm referring to your {window}")
-    if for_date:
-        parts.append(f"the record dated {for_date}")
-    if freshness == "stale":
-        parts.append("and I've flagged it as not fully current — treat it as the "
-                     "most recent I have, not necessarily the latest")
-    elif freshness in ("pending", "missing"):
-        parts.append("and I don't have a confirmed current value for it")
-    elif freshness == "current":
-        parts.append("and it's the most recent reading I have")
-    if not parts:
+    return _result(_verify_generic_fact(user, fact, message),
+                   lane="trust_verification")
+
+
+def _verify_generic_fact(user, fact, message):
+    """Present the EVIDENCE behind a grounded fact — source, record date,
+    freshness — with honest uncertainty. Never restates the claim as settled."""
+    parts = ["Fair question — here's what that's based on."]
+    if fact.get("source"):
+        parts.append(f"Source: {fact['source']}.")
+    fd = fact.get("for_date") or fact.get("record_date")
+    if fd:
+        parts.append(f"The record is dated {fd}.")
+    if fact.get("window"):
+        parts.append(f"I'm treating it as your {fact['window']}.")
+    fr = fact.get("freshness")
+    if fr == "stale":
+        parts.append("I've flagged it as not fully current — treat it as the most "
+                     "recent I have, not necessarily the latest.")
+    elif fr in ("pending", "missing"):
+        parts.append("I don't have a confirmed current value — treat it as unconfirmed.")
+    elif fr == "current":
+        parts.append("It's the most recent reading I have.")
+    return " ".join(parts)
+
+
+def verify_last_claim(user, last, message):
+    """VERIFY MODE — the conversation has become a TRUST INVESTIGATION. Prove the
+    EVIDENCE behind Beth's LAST assertion (source · record · timestamp · freshness),
+    acknowledge uncertainty honestly, and NEVER restate the claim as settled. Works
+    on WHATEVER Beth last asserted — a structured fact, a grounded temporal fact,
+    or an ungrounded narrative claim. Returns a result dict, or None only when
+    there is no prior assertion at all (so the caller routes on)."""
+    last = last or {}
+    # A challenge to GENERAL/EXTERNAL knowledge is not a personal-data trust
+    # investigation — don't verify general facts as "your tracked data". Let the
+    # general lanes / tool loop handle it.
+    if (last.get("lane") or "") in ("general_conversation", "general_continuity"):
         return None
-    return _result(". ".join(p[0].upper() + p[1:] for p in [", ".join(parts)]) + ".")
+    answer = (last.get("answer") or "").strip()
+    fact = last.get("fact") or (last.get("active_subject") or {}).get("fact") or {}
+    fk = (last.get("fact_key") or fact.get("key") or "")
+    low = answer.lower()
+
+    # Sleep / "last night" claims → verify against the canonical sleep record
+    # (works even if the prior turn recorded no structured fact — it reads the
+    # record directly, so an ungrounded narrative claim is still provable).
+    if fk.startswith("sleep") or "last night" in low or \
+            ("sleep" in low and ("hour" in low or "slept" in low)):
+        return _result(_verify_sleep(user, fact, message), lane="trust_verification")
+
+    # Any other grounded fact carrying temporal/source metadata → present it.
+    if fact.get("for_date") or fact.get("record_date") or fact.get("recorded_at") \
+            or fact.get("freshness") or fact.get("source"):
+        return _result(_verify_generic_fact(user, fact, message),
+                       lane="trust_verification")
+
+    # An UNGROUNDED narrative claim → be honest about the evidence, acknowledge the
+    # mode shift, and do NOT restate the claim as if it were settled.
+    if answer:
+        snippet = answer if len(answer) <= 140 else answer[:137].rstrip() + "…"
+        return _result(
+            "Fair question — let me be straight about the evidence rather than just "
+            f"restating it. I told you “{snippet}” from your tracked data, but I "
+            "can't point to the exact record behind it right now, so please treat it "
+            "as unconfirmed until I can show you the specific reading. Want me to pull "
+            "the source record?", lane="trust_verification")
+    return None
 
 
 def _verify_sleep(user, fact, message):

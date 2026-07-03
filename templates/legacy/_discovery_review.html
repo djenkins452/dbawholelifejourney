@@ -135,6 +135,24 @@
             </div>
             {% endfor %}
         </div>
+        {% elif g.kind == 'existing_media' %}
+        <div class="disc-group">
+            <div class="disc-group-title">Photos &amp; media you already have</div>
+            <p class="disc-media-hint">Already in your library — attach any that belong with this story. Nothing is moved or duplicated.</p>
+            {% for d in g.items %}
+            <label class="disc-existing-media" data-disc="{{ d.id }}">
+                <input type="checkbox" name="accept" value="{{ d.id }}" checked class="disc-person-check" title="Accepted — uncheck to skip">
+                <span class="disc-em-thumb type-{{ d.detail.media_type }}">
+                    {% if d.detail.is_photo and d.detail.thumb_url %}<img src="{{ d.detail.thumb_url }}" alt="">{% else %}<span class="disc-em-kind">{{ d.detail.media_type_display }}</span>{% endif %}
+                </span>
+                <span class="disc-em-main">
+                    <span class="disc-person-name">{{ d.label }}</span>
+                    <span class="disc-person-rel">{{ d.detail.media_type_display }}</span>
+                </span>
+                <span class="disc-tag disc-known">already uploaded</span>
+            </label>
+            {% endfor %}
+        </div>
         {% else %}
         <div class="disc-group">
             <div class="disc-group-title">{{ g.label }}</div>

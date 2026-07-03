@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 216,
+    "fields": {
+      "title": "Legacy connects your existing photos to the story you're telling",
+      "description": "When you write a story, Legacy now also looks through the photos and media you've already added and gently suggests any that seem to belong with it — shown right in the panel with a thumbnail and an \"already uploaded\" tag. It's only a suggestion: nothing attaches until you say so, a photo can belong to as many stories as you like, and it's never moved or duplicated. So the picture of the farmhouse you uploaded last month can quietly find its way to the story about summers there.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-03",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-03T14:00:00Z",
+      "updated_at": "2026-07-03T14:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 215,
     "fields": {
       "title": "Legacy: tidy up your media, and a calmer Discovery panel",

@@ -42540,3 +42540,16 @@ This uses `or ''` to convert any falsy value (None, empty string, missing key) t
 **Verification:** 64 scoped Legacy tests green (2 new: media two-stage delete lifecycle incl. archived-view + restore; discovery tests still pass against the new section shape); `check` clean. Verified LIVE in-browser: set-aside → Restore/Delete-forever with the correct confirmation copy; and a rich 1985 story ran through live Discovery producing six collapsible sections (People 3 · Places 2 · Life 1 · Time 3 · Meaning 5 · Media 1) with counts, all open, cards intact. No Legacy console errors.
 
 **Files:** `apps/legacy/views.py` (media lifecycle views, archived library filter), `apps/legacy/urls.py`, `apps/legacy/services/discovery.py` (sectioned proposals + robust summary), `templates/legacy/{media,media_detail,_discovery_review}.html`, `static/css/legacy.css` (css v16), `apps/legacy/tests/test_people_places_media.py`, `apps/core/fixtures/release_notes.json`.
+
+
+## 2026-07-03 — polish(legacy): Beta Polish Pass #3 — existing-media discovery
+
+**Why:** Media relates to stories, but the connection was one-directional — you could attach media while writing, yet Legacy never noticed that a photo you'd *already* uploaded belonged with the story in front of you. This closes that loop, the same proposal-first way everything else in Discovery works. No architecture/Canonical-Truth redesign; no Beth/CoS; the existing AI extraction is untouched (this pass is deterministic and adds no API cost).
+
+**What:**
+- **Story Discovery now searches your existing media.** After reading a story, Legacy deterministically scans photos/clips already in your library and, when a caption or filename shares a meaningful word with the story, suggests attaching them — shown in the Discovery panel's **Media** section with a thumbnail and an "already uploaded" tag. Nothing attaches until you apply; media is only linked (never moved or duplicated); items already on the story are skipped; generic tokens (photo, scan, copy, final…) and stopwords are ignored to avoid noise.
+- New `MemoryDiscovery.EXISTING_MEDIA` kind (migration 0010), a `_suggest_existing_media()` matcher, section/heading/summary wiring, a confirm branch that associates the shared `Media` (and sets it as primary photo if the memory has none), and a warm panel row.
+
+**Verification:** 27 discovery tests green (3 new: keyword match surfaces related & excludes unrelated media; already-attached media skipped; accepting associates without duplicating); full 67-test Legacy sweep green earlier this session; `check` + `makemigrations --check` clean; migration 0010 applied. Verified LIVE: uploaded an unattached `grandmother_farmhouse_1985.jpg` to the library, wrote a story about a grandmother's farmhouse, ran live Discovery — the photo surfaced under Media ("already uploaded"); applying attached it to the memory (1 thumbnail, no duplicate).
+
+**Files:** `apps/legacy/models.py` (+kind, _ORDER), `apps/legacy/migrations/0010_alter_memorydiscovery_kind.py`, `apps/legacy/services/discovery.py` (matcher + wiring + summary), `templates/legacy/_discovery_review.html`, `static/css/legacy.css` (css v17), `apps/legacy/tests/test_discovery.py`, `apps/core/fixtures/release_notes.json`.

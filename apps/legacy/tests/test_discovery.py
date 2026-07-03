@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from apps.legacy.models import MemoryDiscovery, Memory, Person, Place
+from apps.legacy.models import Media, MemoryDiscovery, Memory, Person, Place
 from apps.legacy.services import discovery as D
 
 User = get_user_model()
@@ -75,6 +75,27 @@ class RunDiscoveryTests(TestCase):
         self.assertEqual(qs.filter(kind="theme").count(), 2)
         # All start as proposals — nothing canonical.
         self.assertTrue(all(d.status == "proposed" for d in qs))
+
+    def test_suggests_existing_media_by_keyword(self):
+        # Story mentions "fishing"; a photo captioned similarly should surface.
+        related = Media.objects.create(
+            user=self.user, media_type=Media.MediaType.PHOTO, caption="Fishing at the lake")
+        unrelated = Media.objects.create(
+            user=self.user, media_type=Media.MediaType.PHOTO, caption="Christmas morning")
+        D.run_discovery(self.memory, extractor=lambda t: FAKE)
+        em = MemoryDiscovery.objects.filter(memory=self.memory, kind="existing_media")
+        ids = [d.detail.get("media_id") for d in em]
+        self.assertIn(related.pk, ids)
+        self.assertNotIn(unrelated.pk, ids)
+
+    def test_existing_media_skips_already_attached(self):
+        attached = Media.objects.create(
+            user=self.user, media_type=Media.MediaType.PHOTO, caption="Fishing day")
+        self.memory.media.add(attached)
+        D.run_discovery(self.memory, extractor=lambda t: FAKE)
+        ids = [d.detail.get("media_id") for d in
+               MemoryDiscovery.objects.filter(memory=self.memory, kind="existing_media")]
+        self.assertNotIn(attached.pk, ids)
 
     def test_confidence_mapping(self):
         D.run_discovery(self.memory, extractor=lambda t: FAKE)
@@ -168,6 +189,16 @@ class ConfirmTests(TestCase):
         self.assertIn(soddy, self.memory.places.all())
         # No proposals remain.
         self.assertEqual(MemoryDiscovery.objects.filter(memory=self.memory, status="proposed").count(), 0)
+
+    def test_accepting_existing_media_associates_without_duplicating(self):
+        media = Media.objects.create(
+            user=self.user, media_type=Media.MediaType.PHOTO, caption="Fishing trip")
+        D.run_discovery(self.memory, extractor=lambda t: FAKE)   # re-run to pick it up
+        em = MemoryDiscovery.objects.get(memory=self.memory, kind="existing_media")
+        D.confirm_discoveries(self.memory, accepted_ids=[em.id])
+        self.assertIn(media, self.memory.media.all())
+        # Same media row — never duplicated.
+        self.assertEqual(Media.objects.filter(user=self.user, caption="Fishing trip").count(), 1)
 
     def test_selective_accept_rejects_the_rest(self):
         joe = MemoryDiscovery.objects.get(memory=self.memory, kind="person", label="Uncle Joe")

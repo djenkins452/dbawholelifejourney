@@ -14,11 +14,71 @@ proposals are promoted into real Person/Place graph nodes.
 
 import json
 import logging
+import re
 
 from django.conf import settings
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+# Common words that carry no matching signal when pairing a story with media.
+_STOPWORDS = {
+    "this", "that", "there", "their", "them", "then", "they", "were", "with",
+    "from", "have", "here", "your", "yours", "about", "which", "would", "could",
+    "should", "when", "what", "where", "been", "into", "over", "some", "just",
+    "like", "made", "make", "back", "very", "much", "more", "most", "only",
+    "also", "them", "than", "onto", "upon", "each", "both", "same", "still",
+    "after", "before", "again", "because", "while", "these", "those", "being",
+    "everything", "something", "nothing", "remember", "memory", "story",
+}
+# Media captions/filenames often carry generic tokens that shouldn't match.
+_MEDIA_STOPWORDS = {
+    "photo", "photos", "image", "images", "img", "picture", "pictures", "pic",
+    "pics", "scan", "scanned", "video", "clip", "audio", "recording", "file",
+    "untitled", "copy", "final", "edit", "edited", "version", "download",
+}
+
+
+def _significant_words(text):
+    return {w for w in re.findall(r"[a-z]{4,}", (text or "").lower())
+            if w not in _STOPWORDS}
+
+
+def _suggest_existing_media(memory, user, text, created):
+    """Deterministically surface media the user already uploaded that seems to
+    belong with this story (caption / filename shares a meaningful word). It is
+    only a suggestion — nothing attaches until the user applies, media is never
+    duplicated, and media already on this memory is skipped. No AI, no cost."""
+    from apps.legacy.models import Media, MemoryDiscovery
+
+    story_words = _significant_words(text)
+    if not story_words:
+        return
+    attached = set(memory.media.values_list("id", flat=True))
+    matches = []
+    for m in Media.objects.filter(user=user).exclude(id__in=attached):
+        hay = " ".join(x for x in (m.caption, m.original_filename) if x)
+        tokens = set(re.findall(r"[a-z]{4,}", hay.lower())) - _MEDIA_STOPWORDS
+        overlap = tokens & story_words
+        if overlap:
+            matches.append((len(overlap), m, sorted(overlap)[:4]))
+    matches.sort(key=lambda t: t[0], reverse=True)
+    for _, m, overlap in matches[:6]:
+        is_photo = m.media_type == Media.MediaType.PHOTO
+        created.append(MemoryDiscovery(
+            memory=memory,
+            kind=MemoryDiscovery.Kind.EXISTING_MEDIA,
+            label=(m.caption or m.original_filename or m.get_media_type_display())[:500],
+            confidence=MemoryDiscovery.Confidence.MEDIUM,
+            detail={
+                "media_id": m.id,
+                "media_type": m.media_type,
+                "media_type_display": m.get_media_type_display(),
+                "is_photo": is_photo,
+                "thumb_url": m.file.url if (is_photo and m.file) else "",
+                "matched_on": overlap,
+            },
+        ))
 
 # One kind per meaningful category of understanding.
 _TEXT_KINDS = {
@@ -104,6 +164,7 @@ _SUMMARY = {
     "emotion": ("emotion", "emotions"), "human_time": ("moment in time", "moments in time"),
     "calendar_time": ("date", "dates"), "life_stage": ("life stage", "life stages"),
     "relative_time": ("moment", "moments"), "media_ref": ("media mention", "media mentions"),
+    "existing_media": ("photo you already have", "photos you already have"),
 }
 
 
@@ -324,6 +385,9 @@ def run_discovery(memory, extractor=None):
             conf = item.get("confidence") if isinstance(item, dict) else None
             add(kind, label, conf)
 
+    # Existing media the user already uploaded that seems to belong here.
+    _suggest_existing_media(memory, user, text, created)
+
     if created:
         MemoryDiscovery.objects.bulk_create(created)
 
@@ -346,7 +410,7 @@ _SECTIONS = [
     ("Life", {"milestone"}),
     ("Time", {"human_time", "calendar_time", "life_stage", "relative_time"}),
     ("Meaning", {"event", "quote", "theme", "value", "tradition", "emotion"}),
-    ("Media", {"media_ref", "artifact"}),
+    ("Media", {"existing_media", "media_ref", "artifact"}),
 ]
 
 
@@ -368,7 +432,8 @@ def grouped_proposals(memory):
         "human_time": "Human time", "calendar_time": "Calendar time",
         "life_stage": "Life stage", "relative_time": "Relative time",
         "event": "Events", "quote": "Quotes", "artifact": "Artifacts",
-        "media_ref": "Media", "theme": "Themes", "value": "Values",
+        "media_ref": "Media", "existing_media": "Photos & media you already have",
+        "theme": "Themes", "value": "Values",
         "tradition": "Traditions", "emotion": "Emotions",
     }
 
@@ -512,6 +577,17 @@ def confirm_discoveries(memory, accepted_ids=None, accept_all=False, resolutions
                 milestone.save(update_fields=["year", "updated_at"])
             memory.milestones.add(milestone)
             d.linked_milestone = milestone
+
+        elif d.kind == MemoryDiscovery.Kind.EXISTING_MEDIA:
+            # Associate an already-uploaded media item — never duplicate it.
+            from apps.legacy.models import Media
+            mid = d.detail.get("media_id")
+            media = Media.all_objects.filter(pk=mid, user=user).first() if mid else None
+            if media:
+                memory.media.add(media)
+                if media.media_type == Media.MediaType.PHOTO and not memory.primary_media_id:
+                    memory.primary_media = media
+                    memory.save(update_fields=["primary_media", "updated_at"])
 
         d.status = MemoryDiscovery.Status.ACCEPTED
         d.decided_at = now

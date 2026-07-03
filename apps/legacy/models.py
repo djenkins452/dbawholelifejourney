@@ -418,6 +418,7 @@ class MemoryDiscovery(models.Model):
         QUOTE = 'quote', 'Quote'
         ARTIFACT = 'artifact', 'Artifact'
         MEDIA_REF = 'media_ref', 'Media reference'
+        EXISTING_MEDIA = 'existing_media', 'Media you already have'
         THEME = 'theme', 'Theme'
         VALUE = 'value', 'Value'
         TRADITION = 'tradition', 'Tradition'
@@ -456,6 +457,7 @@ class MemoryDiscovery(models.Model):
         'person': 0, 'relationship': 1, 'place': 2, 'milestone': 3, 'human_time': 4,
         'calendar_time': 5, 'life_stage': 6, 'relative_time': 7, 'event': 8, 'quote': 9,
         'artifact': 10, 'media_ref': 11, 'theme': 12, 'value': 13, 'tradition': 14, 'emotion': 15,
+        'existing_media': 16,
     }
 
     class Meta:

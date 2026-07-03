@@ -16,6 +16,7 @@
             {% if place.location_text %}<p class="profile-sub">{{ place.location_text }}</p>{% endif %}
             <div class="profile-actions">
                 <a href="{% url 'legacy:editor_new' %}" class="lg-btn-primary">Remember this place</a>
+                {% if map_url %}<a href="{{ map_url }}" target="_blank" rel="noopener" class="lg-btn-quiet">Open in Google Maps ↗</a>{% endif %}
                 <a href="{% url 'legacy:place_edit' place.pk %}" class="lg-btn-quiet">Edit</a>
                 {% if place.status == 'active' %}
                 <form method="post" action="{% url 'legacy:place_archive' place.pk %}" class="m-action-form">{% csrf_token %}<button type="submit" class="lg-btn-ghost">Set aside</button></form>

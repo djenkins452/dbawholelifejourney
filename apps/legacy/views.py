@@ -182,6 +182,86 @@ class LibraryView(LegacyContextMixin, TemplateView):
         return ctx
 
 
+def build_story_connections(memory):
+    """The PERSISTENT connections for a memory (what is now attached), for the
+    Connections panel after Discovery is applied. Reads the memory's real
+    relations (people/places/milestones/media) plus accepted enriched
+    discoveries (themes/quotes/time/…) as read-only chips. Empty sections are
+    omitted — an empty 'Relationships' must never look broken."""
+    if memory is None or not memory.pk:
+        return []
+
+    people = list(memory.people.all())
+    places = list(memory.places.all())
+    milestones = list(memory.milestones.all())
+    media = list(memory.media.all())
+
+    # Relationships that involve people in this story (a mention is NOT a
+    # relationship — only real Relationship rows count).
+    rels = []
+    if people:
+        pids = [p.pk for p in people]
+        rels = list(Relationship.objects.filter(user=memory.user).filter(
+            Q(from_person_id__in=pids) | Q(to_person_id__in=pids)
+        ).select_related("from_person", "to_person"))
+
+    # Accepted enriched discoveries → read-only chips.
+    chips = {}
+    for d in MemoryDiscovery.objects.filter(
+            memory=memory, status=MemoryDiscovery.Status.ACCEPTED):
+        chips.setdefault(d.kind, []).append(d.label)
+
+    sections = []
+    if people:
+        sections.append({"key": "people", "label": "People", "kind": "people",
+            "count": len(people), "open": True, "items": [{
+                "name": p.display_name, "sub": p.relationship_label,
+                "letter": (p.display_name or "?")[:1].upper(),
+                "url": reverse("legacy:person_detail", args=[p.pk])} for p in people]})
+    if places:
+        sections.append({"key": "places", "label": "Places", "kind": "places",
+            "count": len(places), "open": True, "items": [{
+                "name": p.name, "sub": p.location_text,
+                "url": reverse("legacy:place_detail", args=[p.pk])} for p in places]})
+    if rels:
+        sections.append({"key": "relationships", "label": "Relationships",
+            "kind": "relationships", "count": len(rels), "open": True, "items": [{
+                "name": "%s & %s" % (r.from_person.display_name, r.to_person.display_name),
+                "sub": r.relationship_type,
+                "url": reverse("legacy:person_detail", args=[r.from_person.pk])} for r in rels]})
+    if milestones:
+        sections.append({"key": "milestones", "label": "Life Milestones",
+            "kind": "milestones", "count": len(milestones), "open": True, "items": [{
+                "name": m.title,
+                "sub": m.get_kind_display() + ((" · %s" % m.year) if m.year else ""),
+                "url": reverse("legacy:milestone_detail", args=[m.pk])} for m in milestones]})
+    if media:
+        sections.append({"key": "media", "label": "Media", "kind": "media",
+            "count": len(media), "open": True, "items": [{
+                "is_photo": m.media_type == Media.MediaType.PHOTO,
+                "thumb": m.file.url if (m.media_type == Media.MediaType.PHOTO and m.file) else "",
+                "kind_display": m.get_media_type_display(), "type": m.media_type,
+                "url": reverse("legacy:media_detail", args=[m.pk])} for m in media]})
+
+    def chip_section(key, label, kinds):
+        labels = []
+        for k in kinds:
+            labels += chips.get(k, [])
+        if labels:
+            sections.append({"key": key, "label": label, "kind": "chips",
+                             "count": len(labels), "open": False, "chips": labels})
+
+    chip_section("time", "Time", ["human_time", "calendar_time", "relative_time", "life_stage"])
+    chip_section("events", "Events", ["event"])
+    chip_section("quotes", "Quotes", ["quote"])
+    chip_section("themes", "Themes", ["theme"])
+    chip_section("values", "Values", ["value"])
+    chip_section("traditions", "Traditions", ["tradition"])
+    chip_section("emotions", "Emotions", ["emotion"])
+    chip_section("artifacts", "Artifacts", ["artifact"])
+    return sections
+
+
 # ── Editor ─────────────────────────────────────────────────────────────────
 class EditorView(LegacyContextMixin, TemplateView):
     template_name = "legacy/editor.html"
@@ -201,6 +281,8 @@ class EditorView(LegacyContextMixin, TemplateView):
         ctx["all_places"] = Place.objects.filter(user=self.request.user)
         ctx["selected_people"] = set(memory.people.values_list("pk", flat=True)) if memory else set()
         ctx["selected_places"] = set(memory.places.values_list("pk", flat=True)) if memory else set()
+        # Persistent Story Connections — what is now attached to this memory.
+        ctx["connections"] = build_story_connections(memory)
         # If discovery already ran (e.g. an imported story), show the existing
         # proposals on load — review & apply without re-running (or re-charging).
         if memory and MemoryDiscovery.objects.filter(
@@ -666,6 +748,13 @@ class PlaceProfileView(LegacyContextMixin, DetailView):
         ctx["media"] = Media.objects.filter(memories__in=memories).distinct()[:12]
         ctx["people"] = Person.objects.filter(memories__in=memories).distinct()
         ctx["dated_memories"] = memories.exclude(occurred_on__isnull=True).order_by("occurred_on")
+        # A Google Maps link (new tab) when we have coordinates or an address.
+        from urllib.parse import quote
+        if place.latitude is not None and place.longitude is not None:
+            ctx["map_url"] = "https://www.google.com/maps?q=%s,%s" % (place.latitude, place.longitude)
+        elif place.location_text:
+            q = quote("%s %s" % (place.name, place.location_text))
+            ctx["map_url"] = "https://www.google.com/maps/search/?api=1&query=%s" % q
         return ctx
 
 

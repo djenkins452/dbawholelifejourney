@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 220,
+    "fields": {
+      "title": "See everything connected to your story",
+      "description": "After Legacy reads a story and you apply what it found, those people, places, milestones, photos, and moments no longer disappear — they stay visible in a tidy Connections panel beside your story. Each section shows a count and expands when you want detail, and everything is one tap away: a person opens their profile, a place opens its page (with an Open in Google Maps link when a location is known), a photo opens its detail. It all stays put when you reload the page, and your attached photos are always shown. Now it's obvious: Legacy found these things, you approved them, and they're a lasting part of the story.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-03",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-03T18:00:00Z",
+      "updated_at": "2026-07-03T18:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 219,
     "fields": {
       "title": "Legacy identifies the places you mention — using what it already knows",

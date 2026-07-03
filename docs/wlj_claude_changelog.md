@@ -42696,3 +42696,19 @@ The chosen area biases the single keyless OpenStreetMap query ("Nauti K's, Knoxv
 **Verification:** 137 scoped Legacy tests green (2 new: known-Legacy-places injected into the prompt; run_discovery hands known places to the model); `check` + `makemigrations --check` clean. Verified LIVE (home = Maryville, TN): "After the game we grabbed burgers at Brackins Blues Club downtown" → identified **Brackins Blues Club · Maryville, Tennessee**, tagged **Verified**, reasoning "A local business known for burgers located in downtown Maryville, TN" — an actual downtown-Maryville venue, resolved purely from geographic context.
 
 **Files:** `apps/legacy/services/discovery.py` (prompt classification + geographic-reasoning guidance, `_known_place_context`, known-places injection), `apps/legacy/tests/test_cleanup_and_place.py`.
+
+
+## 2026-07-03 — feat(legacy): persistent Story Connections panel (applied Discovery no longer disappears)
+
+**Why:** After a user clicked Apply Discoveries the Connections panel went empty, making it look like everything Legacy found had vanished. Discovery results now graduate into a persistent Story Connections view so the user always sees what is attached to the memory. UX refinement only — no redesign of the experience, Canonical Truth, or Discovery; no Beth/CoS; no cross-domain intelligence.
+
+**What:**
+- **Persistent Story Connections** (`build_story_connections` + `_story_connections.html`): a calm, collapsible, counted panel of what is NOW attached — People, Places, Relationships, Life Milestones, Media, and read-only chip groups for the confirmed enriched details (Time, Events, Quotes, Themes, Values, Traditions, Emotions, Artifacts) drawn from accepted MemoryDiscovery rows. Navigable sections open by default; chip groups collapsed. **Empty sections are omitted** — an empty "Relationships" never appears (and a *mention* is not a relationship: only real `Relationship` rows count).
+- **Discovery Review is temporary, Connections are permanent.** The editor shows the Discovery Review while proposals exist; on Apply (a normal POST → reload) it shows the persistent Connections. While a review is open, the connections are hidden; cancelling a review restores them (JS).
+- **Everything is clickable per the navigation rules:** person → Person Profile, place → Place Profile, media → Media Detail, milestone → Milestone Detail — the story stays in the editor otherwise.
+- **Place Profile gains a Google Maps link** (new tab) built from coordinates, else from the address — shown only when a location exists.
+- **Attached media reliably persists** on reload (already loaded into the drag-drop Media card; also listed as clickable thumbnails in the Connections Media section).
+
+**Verification:** 147 scoped Legacy tests green (10 new: counts/URLs for people/places/milestones/media, empty-Relationships omitted, real Relationship shown, accepted-only enriched chips, empty state, editor renders + persists on reload, attached media on reload, place map link from coords / from address / none without location); `check` + `makemigrations --check` clean (no model change). Verified LIVE end to end: wrote a story → Discover (connections hidden during review) → **Apply → editor immediately showed Story Connections** (People 2, Places 1, Time 3, Events 1, Emotions 1) → **reload kept them** → a person chip opened the Person Profile; the story stayed in the editor throughout.
+
+**Files:** `apps/legacy/views.py` (`build_story_connections`, EditorView context, PlaceProfileView map_url), `templates/legacy/_story_connections.html` (new), `templates/legacy/{editor,place_detail}.html`, `static/js/legacy.js` (show/hide connections vs review; js v12), `static/css/legacy.css` (css v21), `apps/legacy/tests/test_connections.py` (new), `apps/core/fixtures/release_notes.json`.

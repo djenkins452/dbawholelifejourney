@@ -1,0 +1,44 @@
+{% comment %}Persistent Story Connections — what is now attached to this memory. Read-only overview; clicking navigates to profiles/detail. Empty sections are omitted upstream.{% endcomment %}
+{% if sections %}
+<div class="story-connections">
+    <p class="sc-lead">Now part of this story — tap any to open it.</p>
+    {% for s in sections %}
+    <details class="sc-section"{% if s.open %} open{% endif %}>
+        <summary class="sc-sum"><span class="sc-label">{{ s.label }}</span><span class="sc-count">{{ s.count }}</span></summary>
+        <div class="sc-body">
+        {% if s.kind == 'people' %}
+            {% for it in s.items %}
+            <a href="{{ it.url }}" class="sc-person">
+                <span class="sc-av">{{ it.letter }}</span>
+                <span class="sc-person-main"><span class="sc-name">{{ it.name }}</span>{% if it.sub %}<span class="sc-sub">{{ it.sub|title }}</span>{% endif %}</span>
+            </a>
+            {% endfor %}
+        {% elif s.kind == 'places' or s.kind == 'milestones' or s.kind == 'relationships' %}
+            {% for it in s.items %}
+            <a href="{{ it.url }}" class="sc-row">
+                <span class="sc-row-ico">
+                    {% if s.kind == 'places' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    {% elif s.kind == 'milestones' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 22V4"/><path d="M4 4h11l-1.5 3L15 10H4"/></svg>
+                    {% else %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/></svg>{% endif %}
+                </span>
+                <span class="sc-row-main"><span class="sc-name">{{ it.name }}</span>{% if it.sub %}<span class="sc-sub">{{ it.sub }}</span>{% endif %}</span>
+            </a>
+            {% endfor %}
+        {% elif s.kind == 'media' %}
+            <div class="sc-media">
+                {% for it in s.items %}
+                <a href="{{ it.url }}" class="sc-media-thumb type-{{ it.type }}" title="{{ it.kind_display }}">
+                    {% if it.is_photo and it.thumb %}<img src="{{ it.thumb }}" alt="">{% else %}<span class="sc-media-kind">{{ it.kind_display }}</span>{% endif %}
+                </a>
+                {% endfor %}
+            </div>
+        {% elif s.kind == 'chips' %}
+            <div class="sc-chips">{% for c in s.chips %}<span class="sc-chip">{{ c }}</span>{% endfor %}</div>
+        {% endif %}
+        </div>
+    </details>
+    {% endfor %}
+</div>
+{% else %}
+<p class="editor-aside-note">Nothing is connected yet. Tap <strong>Discover</strong> and Legacy will find the people, places, and moments in your story — you choose what to keep.</p>
+{% endif %}

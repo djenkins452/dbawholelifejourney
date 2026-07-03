@@ -60,6 +60,8 @@
 
                 <div id="discoveryPanel" class="discovery-panel">{% if discovery_groups %}{% include "legacy/_discovery_review.html" with memory=memory groups=discovery_groups status="ok" summary=discovery_summary prompts=discovery_prompts cleanup=discovery_cleanup %}{% endif %}</div>
 
+                <div id="storyConnections"{% if discovery_groups %} hidden{% endif %}>{% include "legacy/_story_connections.html" with sections=connections %}</div>
+
                 <details class="editor-manual">
                     <summary>Or connect by hand</summary>
                 <div class="editor-link-field">

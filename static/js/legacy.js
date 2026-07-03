@@ -203,6 +203,9 @@
                             }
                         }
                         discoveryPanel.innerHTML = d.html || '';
+                        // While reviewing findings, hide the persistent connections.
+                        var sc = document.getElementById('storyConnections');
+                        if (sc) { sc.hidden = true; }
                         discoveryPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     }
                 }).catch(function () {
@@ -224,7 +227,12 @@
             }
             document.addEventListener('click', function (e) {
                 if (!e.target.closest) { return; }
-                if (e.target.closest('.js-discovery-cancel')) { discoveryPanel.innerHTML = ''; return; }
+                if (e.target.closest('.js-discovery-cancel')) {
+                    discoveryPanel.innerHTML = '';
+                    var scx = document.getElementById('storyConnections');
+                    if (scx) { scx.hidden = false; }
+                    return;
+                }
                 var editBtn = e.target.closest('.js-disc-edit');
                 if (editBtn) {
                     e.preventDefault(); e.stopPropagation();

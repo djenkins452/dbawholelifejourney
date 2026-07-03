@@ -168,52 +168,70 @@ def sleep_last_night_grounded(user, state):
     return None, False, None
 
 
-# ── Trust-Verification Mode (the conversation shifted to TRUST) ─────────────
+# ── Clarification vs Trust Challenge ───────────────────────────────────────
+#
+# A production-ready CoS ANSWERS a simple question before escalating. Asking
+# "which date / which record / what source / when recorded" is a CLARIFICATION —
+# answer it directly, no mode change. Only when the user CHALLENGES the
+# correctness / freshness / provenance / trustworthiness of the prior claim does
+# the conversation's PURPOSE change → VERIFY mode. Keep these disjoint.
 
-_TRUST_CUES = (
+# CLARIFICATION — asking FOR a detail about the prior statement. Answer directly.
+_CLARIFICATION_CUES = (
+    "what date", "which date", "what day", "which day", "what date are you",
     "which record", "what record", "which sleep record", "which night",
-    "what night", "what date are you calling", "what date is that",
-    "which last night", "what timeframe", "what window", "what time window",
-    "how old is", "how old's", "how recent", "is that stale", "is it stale",
-    "is the data stale", "is that old", "how stale", "when was this synced",
-    "when was it synced", "when did it sync", "last sync", "synchronized",
-    "synchronised", "when was this synchronized", "when was it recorded",
-    "when was that recorded", "are you sure you're looking at",
-    "sure you're looking at", "sure that's today", "sure it's today",
-    "sure that's last night", "is this today", "is that today", "up to date",
-    "how confident", "are you confident", "how do you know that's last night",
-    "i think your data is stale", "your data is stale", "that data is stale",
-    "is that current", "is this current",
-    # Broader TRUST-INVESTIGATION speech acts — the conversation's PURPOSE has
-    # changed from getting advice to establishing trust (production phrasings).
-    "referring to", "are you referring", "what are you calling",
-    "was that actually", "is that actually", "actually last night",
-    "most recent record", "the most recent", "just the most recent", "or just the",
-    "how do you know", "how would you know", "prove it", "prove that",
-    "what's your evidence", "what is your evidence", "show me the evidence",
-    "show me the record", "verify that", "can you verify", "double check that",
-    "double-check that", "where did you get", "where'd you get",
-    "where are you getting", "what's that based on", "whats that based on",
-    "what is that based on", "based on what", "says who", "are you certain",
-    "you sure", "you sure about", "i don't think that's right",
-    "i dont think that's right", "that can't be right", "that cant be right",
-    "i don't believe", "i dont believe", "that seems wrong",
-    "that doesn't sound right", "that doesnt sound right", "is that reliable",
-    "how reliable", "what source", "what's the source", "which source",
+    "what night", "which last night", "referring to", "are you referring",
+    "what are you calling", "what timeframe", "which timeframe", "what window",
+    "what time window", "when was it recorded", "when was that recorded",
+    "when was this recorded", "when recorded", "when was it synced",
+    "when was this synced", "when did it sync", "when synced", "last sync",
+    "when was this synchronized", "when synchronized", "what source",
+    "what's the source", "whats the source", "which source", "where's that from",
+    "where is that from", "where does that come from", "how old is", "how old's",
+    "how recent", "how many days old",
+)
+
+# TRUST CHALLENGE — questioning the CORRECTNESS / FRESHNESS / PROVENANCE /
+# TRUSTWORTHINESS of the prior claim. Only THIS enters VERIFY mode.
+_TRUST_CHALLENGE_CUES = (
+    "is that stale", "is it stale", "is the data stale", "is that old", "how stale",
+    "your data is stale", "that data is stale", "i think your data is stale",
+    "i think the data is stale", "data might be stale", "i think that's stale",
+    "are you sure", "you sure", "are you certain", "you certain", "how confident",
+    "are you confident", "how do you know", "how would you know", "prove it",
+    "prove that", "what's your evidence", "what is your evidence",
+    "show me the evidence", "verify that", "can you verify", "double check",
+    "double-check", "sanity check", "that can't be right", "that cant be right",
+    "that's wrong", "thats wrong", "that's not right", "thats not right",
+    "i don't believe", "i dont believe", "i don't think that's right",
+    "i dont think that's right", "that doesn't sound right", "that doesnt sound right",
+    "that seems wrong", "is that reliable", "how reliable", "is that accurate",
+    "is that correct", "is that current", "is this current", "up to date",
+    "was that actually", "is that actually", "actually last night or",
+    "or just the most recent", "just the most recent record", "the most recent record",
+    "are you sure you're looking at", "sure you're looking at", "sure that's today",
+    "sure it's today", "based on what", "says who", "where did you get",
+    "where'd you get", "where are you getting",
 )
 
 
-def is_temporal_trust_challenge(message):
-    """The user is questioning the validity/freshness/source of Beth's PRIOR
-    statement — the conversation has shifted from the topic to TRUST. Broad by
-    design: recognising the SPEECH ACT (not one fact shape or a narrow cue list)
-    is what lets Beth reliably CHANGE OPERATING MODE into verification."""
+def is_clarification_question(message):
+    """The user is asking FOR a detail about Beth's prior statement (which date /
+    record / source / when recorded). Answer it directly — NOT a mode change."""
     n = (message or "").strip().lower()
-    return bool(n) and any(c in n for c in _TRUST_CUES)
+    return bool(n) and any(c in n for c in _CLARIFICATION_CUES)
 
 
-# The same recognition read intent-first — a trust challenge is not only temporal.
-is_trust_challenge = is_temporal_trust_challenge
+def is_trust_challenge(message):
+    """The user is CHALLENGING the correctness/freshness/provenance/trustworthiness
+    of Beth's prior claim — the conversation's PURPOSE has changed. Only this
+    enters VERIFY mode. A trust challenge takes precedence over a clarification."""
+    n = (message or "").strip().lower()
+    return bool(n) and any(c in n for c in _TRUST_CHALLENGE_CUES)
+
+
+# Backward-compatible name (now narrowed to genuine challenges only).
+is_temporal_trust_challenge = is_trust_challenge
 
 
 def verify_temporal_trust(user, last, message):
@@ -308,6 +326,79 @@ def verify_last_claim(user, last, message):
             "can't point to the exact record behind it right now, so please treat it "
             "as unconfirmed until I can show you the specific reading. Want me to pull "
             "the source record?", lane="trust_verification")
+    return None
+
+
+def answer_clarification(user, last, message):
+    """ANSWER a clarification question about Beth's prior statement DIRECTLY (the
+    date / record / source / timestamp) — a normal answer, NOT a trust
+    investigation. A world-class CoS just answers 'which date?' before escalating.
+    Returns a result dict (lane 'clarification_answer'), or None if there's nothing
+    groundable to clarify (so the caller routes on)."""
+    last = last or {}
+    if (last.get("lane") or "") in ("general_conversation", "general_continuity"):
+        return None
+    answer = (last.get("answer") or "").strip()
+    fact = last.get("fact") or (last.get("active_subject") or {}).get("fact") or {}
+    fk = (last.get("fact_key") or fact.get("key") or "")
+    low = answer.lower()
+    n = (message or "").strip().lower()
+    if fk.startswith("sleep") or "last night" in low or \
+            ("sleep" in low and ("hour" in low or "slept" in low)):
+        return _result(_clarify_sleep(user, fact, n), lane="clarification_answer")
+    if fact.get("for_date") or fact.get("record_date") or fact.get("source"):
+        txt = _clarify_generic(user, fact, n)
+        if txt:
+            return _result(txt, lane="clarification_answer")
+    return None
+
+
+def _clarify_sleep(user, fact, n):
+    rec = _latest_sleep_record(user)
+    ctx = now_context(user)
+    d = None
+    if rec and rec.get("sleep_date"):
+        d = rec["sleep_date"]
+    elif fact.get("for_date"):
+        try:
+            d = date.fromisoformat(fact["for_date"])
+        except Exception:
+            d = None
+    if any(c in n for c in ("recorded", "sync", "synchron")):
+        if rec and rec.get("recorded_at"):
+            when = _fmt_date_long(rec["recorded_at"].astimezone(ctx["now"].tzinfo).date())
+            t = _fmt_time(rec["recorded_at"].astimezone(ctx["now"].tzinfo))
+            src = rec.get("source") or "your tracker"
+            return f"It came in from {src}, recorded {when} at {t}."
+        return "I don't have an exact recording time saved for that one."
+    if any(c in n for c in ("source", "where", "from")):
+        src = (rec or {}).get("source") or fact.get("source") or "your sleep tracker"
+        if d:
+            return (f"It's from {src} — your sleep record for the night ending "
+                    f"{_fmt_date_long(d)}.")
+        return f"It's from {src}."
+    if any(c in n for c in ("how old", "how recent", "days old")):
+        if d:
+            days = (ctx["today"] - d).days
+            age = "last night" if days <= 1 else f"{days} days old"
+            return f"It's your sleep record for {_fmt_date_long(d)} — {age}."
+        return "I can't confirm how recent that record is right now."
+    # Default: which date / record / "referring to".
+    if d:
+        return (f"The night ending {_fmt_date_long(d)} — that's your most recent "
+                "sleep record.")
+    return "I don't have a specific dated sleep record to point to right now."
+
+
+def _clarify_generic(user, fact, n):
+    fd = fact.get("for_date") or fact.get("record_date")
+    src = fact.get("source")
+    if any(c in n for c in ("source", "where", "from")) and src:
+        return f"That's from {src}" + (f", dated {fd}." if fd else ".")
+    if fd:
+        return f"That's the record dated {fd}" + (f" (from {src})." if src else ".")
+    if src:
+        return f"That's from {src}."
     return None
 
 

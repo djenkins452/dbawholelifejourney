@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-03 — refine(cos): Conversation Operating Model — answer clarifications directly; VERIFY only on a real trust challenge
+
+Behavior-first refinement of the VERIFY mode. The prior pass made trust recognition robust but OVER-TRIGGERED: it treated a simple CLARIFICATION question ("What date are you referring to as last night?") as a trust investigation. A world-class CoS just ANSWERS that ("The night ending July 2 — your most recent sleep record") and only escalates to VERIFY when the user actually challenges validity ("I think your data is stale"). The desired progression is Question → Answer → (if trust is challenged) → VERIFY, not Question → VERIFY.
+
+Change (no new architecture; split one recognition into two): the broad trust cue-set is split into disjoint intents — `is_clarification_question` (asking FOR a detail: which date / which record / what source / when recorded / how old → answer directly) and `is_trust_challenge` (questioning correctness/freshness/provenance/trustworthiness: "is that stale", "are you sure", "that can't be right", "prove it", "how do you know", "was that actually X or just the most recent" → VERIFY). New `answer_clarification` / `_clarify_sleep` give a concise DIRECT answer (date · record · source · sync time) with NO mode-change framing (no "fair question", no "unconfirmed"). The temporal lane now checks a trust challenge FIRST (it takes precedence), then a clarification — so a challenge escalates to VERIFY while a plain follow-up is simply answered. Multi-turn anchor preserved across both (clarify → clarify → challenge keeps its subject).
+
+Result: Beth remains natural — "which date?" is answered in one line, the conversation continues, and she only shifts into evidence/verification when the user explicitly doubts the data. Modes stop being more complicated than the moment requires.
+
+Regression (`apps/ai/tests/test_temporal_grounding.py`): `test_natural_progression_answer_then_verify` — turn 1 clarification → `clarification_answer` (not defensive, no VERIFY framing); turn 2 challenge → `trust_verification`; turn 3 correctness challenge → `trust_verification`, never repeats the raw claim or pivots to coaching. `test_challenge_vs_clarification_detection` locks the disjoint intents. GREEN (17); 129 across conversation/routing/trust/foundation suites still GREEN. No model change, no migration.
+
+**Files:** apps/ai/chatgpt_cos/temporal_grounding.py, apps/ai/chatgpt_cos/lanes.py, apps/ai/tests/test_temporal_grounding.py.
+
+
 ## 2026-07-03 — feat(cos): Conversation Operating Model — first-class VERIFY mode (Beth changes mode when trust is questioned)
 
 Holistic conversation-architecture investigation, not another lane patch. Production: Beth said "You slept about 4.8 hours last night"; the user challenged it three ways ("What date are you referring to as last night?", "I think your data is stale", "Was that actually last night or just the most recent record?") and Beth failed / repeated the claim. The issue was NOT dates/sleep/routing — Beth never recognised the conversation had become a TRUST INVESTIGATION and never changed operating mode; she kept trying to answer instead of proving her evidence.

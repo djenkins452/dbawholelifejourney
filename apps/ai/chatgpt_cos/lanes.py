@@ -983,21 +983,34 @@ def _temporal_lane(user, message, conversation=None):
     res = tg.answer_datetime(user, message)
     if res is not None:
         return res
-    if conversation is not None and tg.is_trust_challenge(message):
-        from apps.ai.chatgpt_cos.conversation_memory import get_last_answer
-        last = get_last_answer(conversation)
+    if conversation is None:
+        return None
+    from apps.ai.chatgpt_cos.conversation_memory import get_last_answer
+    last = get_last_answer(conversation)
+
+    def _keep_subject(result):
+        # Keep the grounded fact as the active subject so a MULTI-TURN thread
+        # (clarify → clarify, or clarify → challenge) keeps its anchor.
+        fact = (last or {}).get("fact") or \
+            ((last or {}).get("active_subject") or {}).get("fact")
+        if fact and isinstance(result, dict):
+            result["fact_key"] = (last or {}).get("fact_key") or fact.get("key")
+            result["fact"] = fact
+            result["active_subject"] = {"fact_key": result["fact_key"], "fact": fact}
+        return result
+
+    # A genuine TRUST CHALLENGE (correctness/freshness/provenance) → VERIFY mode.
+    # Checked FIRST — a challenge takes precedence over a look-alike clarification.
+    if tg.is_trust_challenge(message):
         res = tg.verify_last_claim(user, last, message)
         if res is not None:
-            # Keep the grounded temporal fact as the active subject so REPEATED
-            # trust challenges ('...and how old is it?') keep verifying instead of
-            # losing the thread after the first answer.
-            fact = (last or {}).get("fact") or \
-                ((last or {}).get("active_subject") or {}).get("fact")
-            if fact:
-                res["fact_key"] = (last or {}).get("fact_key") or fact.get("key")
-                res["fact"] = fact
-                res["active_subject"] = {"fact_key": res["fact_key"], "fact": fact}
-            return res
+            return _keep_subject(res)
+    # A CLARIFICATION question about the prior statement → just ANSWER it directly.
+    # A world-class CoS answers "which date?" without escalating into verification.
+    if tg.is_clarification_question(message):
+        res = tg.answer_clarification(user, last, message)
+        if res is not None:
+            return _keep_subject(res)
     return None
 
 

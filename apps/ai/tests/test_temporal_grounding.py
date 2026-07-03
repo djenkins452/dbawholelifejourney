@@ -119,13 +119,23 @@ class TrustVerificationTests(_TemporalBase):
                          "for_date": (self.today - timedelta(days=1)).isoformat(),
                          "freshness": "current"}}
 
-    def test_challenge_detection(self):
-        for m in ("What date are you calling last night?", "I think your data is stale.",
-                  "How old is the data you're using?", "When was this synchronized?",
-                  "Are you sure you're looking at today's information?",
-                  "Which sleep record are you referring to?"):
-            self.assertTrue(tg.is_temporal_trust_challenge(m), m)
-        self.assertFalse(tg.is_temporal_trust_challenge("how did I sleep?"))
+    def test_challenge_vs_clarification_detection(self):
+        # CHALLENGES (correctness / freshness / provenance) → VERIFY.
+        for m in ("I think your data is stale.", "Are you sure?",
+                  "Was that actually last night or just the most recent record?",
+                  "That can't be right.", "How do you know that?", "Prove it.",
+                  "Are you sure you're looking at today's information?"):
+            self.assertTrue(tg.is_trust_challenge(m), m)
+        # CLARIFICATIONS — asking FOR a detail → answer directly, NOT a challenge.
+        for m in ("What date are you referring to as last night?",
+                  "Which sleep record are you referring to?",
+                  "When was this synchronized?", "What's the source?",
+                  "How old is the data you're using?"):
+            self.assertFalse(tg.is_trust_challenge(m), m)
+            self.assertTrue(tg.is_clarification_question(m), m)
+        # A plain topic question is neither.
+        self.assertFalse(tg.is_trust_challenge("how did I sleep?"))
+        self.assertFalse(tg.is_clarification_question("how did I sleep?"))
 
     def test_verify_average_clarifies_it_is_not_last_night(self):
         r = tg.verify_last_claim(
@@ -184,10 +194,10 @@ class TemporalGroundingE2ETests(_TemporalBase):
                      "window": "7-night average",
                      "for_date": (self.today - timedelta(days=1)).isoformat(),
                      "freshness": "current"}}
-        # The conversation has shifted to TRUST — Beth must verify, not fail.
-        r1 = self._route("What date are you calling last night?")
-        self.assertEqual(r1["lane"], "trust_verification")
-        self.assertIn("not last night", r1["answer"].lower())
+        # A clarification is ANSWERED directly (no mode change).
+        r1 = self._route("What date are you referring to as last night?")
+        self.assertEqual(r1["lane"], "clarification_answer")
+        # Only an explicit challenge enters VERIFY.
         r2 = self._route("I think your data is stale.")
         self.assertEqual(r2["lane"], "trust_verification")
 
@@ -222,18 +232,26 @@ class TrustInvestigationConversationTests(_TemporalBase):
         return route_message(self.user, msg, self.conv)
 
     @mock.patch("apps.ai.services.ai_service._call_api", side_effect=_mock_general)
-    def test_three_turn_trust_investigation_changes_mode_every_turn(self, _m):
-        for msg in ("What date are you referring to as last night?",
-                    "I think your data is stale.",
-                    "Was that actually last night or just the most recent record?"):
-            r = self._route(msg)
-            self.assertIsNotNone(r, msg)
-            # Beth changed operating mode into VERIFY — not coaching, not a re-answer.
-            self.assertEqual(r["lane"], "trust_verification", msg)
-            ans = r["answer"].lower()
-            # Never simply repeats the original claim as settled.
-            self.assertNotIn("you got about 4.8 hours of sleep last night", ans, msg)
-            self.assertNotIn("sleep has been trending", ans, msg)  # no coaching pivot
+    def test_natural_progression_answer_then_verify(self, _m):
+        # Turn 1 — a CLARIFICATION. A world-class CoS simply ANSWERS it: no mode
+        # change, no trust recovery, just the date/record.
+        r1 = self._route("What date are you referring to as last night?")
+        self.assertEqual(r1["lane"], "clarification_answer")
+        self.assertNotIn("unconfirmed", r1["answer"].lower())      # not defensive
+        self.assertNotIn("fair question", r1["answer"].lower())    # not VERIFY framing
+
+        # Turn 2 — NOW the user challenges validity. The conversation's purpose has
+        # changed → VERIFY mode.
+        r2 = self._route("I think your data is stale.")
+        self.assertEqual(r2["lane"], "trust_verification")
+
+        # Turn 3 — a correctness challenge stays in VERIFY, and never just repeats
+        # the original claim or pivots to coaching.
+        r3 = self._route("Was that actually last night or just the most recent record?")
+        self.assertEqual(r3["lane"], "trust_verification")
+        ans = r3["answer"].lower()
+        self.assertNotIn("you got about 4.8 hours of sleep last night", ans)
+        self.assertNotIn("sleep has been trending", ans)
 
     @mock.patch("apps.ai.services.ai_service._call_api", side_effect=_mock_general)
     def test_ungrounded_claim_challenge_enters_verify_not_reanswer(self, _m):

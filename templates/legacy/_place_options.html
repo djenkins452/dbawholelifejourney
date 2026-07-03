@@ -18,6 +18,9 @@
             </span>
         </label>
         {% endfor %}
+        {% if d.detail.lookup and d.detail.search_area.text %}
+        <span class="disc-place-searched">{% if d.detail.search_area.source == 'home' %}Searched near your home · {{ d.detail.search_area.text }}{% else %}Searched near {{ d.detail.search_area.text }}{% endif %}</span>
+        {% endif %}
         {% for c in d.detail.lookup %}
         <label class="disc-place-opt">
             <input type="radio" name="resolve_{{ d.id }}" value="lookup:{{ forloop.counter0 }}"{% if d.detail.lookup|length == 1 and forloop.first and not d.detail.existing %} checked{% endif %}>
@@ -25,7 +28,7 @@
                 <span class="disc-place-opt-title">{{ c.name }}</span>
                 <span class="disc-place-opt-sub">{{ c.display|default:"Location found" }}</span>
             </span>
-            <span class="disc-tag disc-verified">found</span>
+            {% if d.detail.lookup_confidence == 'verified' %}<span class="disc-tag disc-verified">verified</span>{% else %}<span class="disc-tag disc-possible">possible match</span>{% endif %}
         </label>
         {% endfor %}
         <label class="disc-place-opt">

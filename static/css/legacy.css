@@ -688,8 +688,10 @@ body.theme-ember .legacy-root {
 .disc-cleanup-undo:hover { color: #33502f; }
 
 /* Place verification — existing / found / personal options */
-.disc-verified { background: #dfeaf3; color: #3c6089; }
+.disc-verified { background: #dbeede; color: #3a6b47; }
+.disc-possible { background: #f0e7d3; color: #8a6f34; }
 .disc-personal { background: #efe7db; color: #856a44; }
+.disc-place-searched { display: block; font-size: 11px; color: var(--lg-muted); margin: 1px 0 3px 2px; font-style: italic; }
 .disc-place-card { padding: 6px 0 8px; }
 .disc-place-head { display: flex; align-items: center; gap: 8px; }
 .disc-place-name-wrap { flex: 1; display: flex; flex-direction: column; min-width: 0; }

@@ -43,6 +43,69 @@ _GENERIC_PRIVATE = (
 )
 
 
+_STATE_NAMES = {
+    "alabama", "alaska", "arizona", "arkansas", "california", "colorado",
+    "connecticut", "delaware", "florida", "georgia", "hawaii", "idaho",
+    "illinois", "indiana", "iowa", "kansas", "kentucky", "louisiana", "maine",
+    "maryland", "massachusetts", "michigan", "minnesota", "mississippi",
+    "missouri", "montana", "nebraska", "nevada", "ohio", "oklahoma", "oregon",
+    "pennsylvania", "tennessee", "texas", "utah", "vermont", "virginia",
+    "washington", "wisconsin", "wyoming",
+}
+_STATE_ABBR = {
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL",
+    "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT",
+    "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI",
+    "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
+}
+# Capitalized words that follow "in/to/near" but are not places.
+_NOT_A_PLACE = {
+    "january", "february", "march", "april", "may", "june", "july", "august",
+    "september", "october", "november", "december", "monday", "tuesday",
+    "wednesday", "thursday", "friday", "saturday", "sunday", "mom", "dad",
+    "grandma", "grandpa", "god", "christ", "jesus", "church", "school", "work",
+    "town", "college", "high",
+}
+
+
+def explicit_location(text, exclude=None):
+    """Priority 1 — an explicit location the author named in the story itself
+    ("Riverside, California", "in Gatlinburg"). Returns {text, source} or None."""
+    exclude = {e.lower() for e in (exclude or set())}
+    t = text or ""
+    # Strong: "City, State" (full name or 2-letter abbreviation).
+    m = re.search(r"\b([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,2}),\s*"
+                  r"([A-Za-z]{2,})\b", t)
+    if m:
+        city, state = m.group(1).strip(), m.group(2).strip()
+        if state.lower() in _STATE_NAMES or state.upper() in _STATE_ABBR:
+            return {"text": "%s, %s" % (city, state), "source": "story"}
+    # Softer: "in/to/near/visiting <Capitalized place>" — conservative.
+    m2 = re.search(r"\b(?:in|to|near|around|through|visiting|from|reached|toward|"
+                   r"outside)\s+([A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?)", t)
+    if m2:
+        loc = m2.group(1).strip()
+        first = loc.split()[0].lower()
+        if loc.lower() not in exclude and first not in _NOT_A_PLACE and first not in exclude:
+            return {"text": loc, "source": "story"}
+    return None
+
+
+def home_location(user):
+    """Priority 3 — the user's configured home (existing Preferences, no new
+    settings). Returns {text, source} or None."""
+    prefs = getattr(user, "preferences", None)
+    city = (getattr(prefs, "location_city", "") or "").strip() if prefs else ""
+    if not city:
+        return None
+    country = (getattr(prefs, "location_country", "") or "").strip() if prefs else ""
+    text = city
+    if country and country.lower() not in ("united states", "usa", "us", "u.s.") \
+            and "," not in city:
+        text = "%s, %s" % (city, country)
+    return {"text": text, "source": "home"}
+
+
 def is_personal_place(name):
     """True when a place name looks private/personal and should NOT be searched."""
     n = " " + (name or "").strip().lower() + " "
@@ -69,14 +132,17 @@ def _fmt_address(addr):
     return line1, city, state, country
 
 
-def lookup_place(name, limit=4):
+def lookup_place(name, near=None, limit=4):
     """Return up to `limit` candidate matches for a public place, each a dict of
-    NAME + LOCATION only. Empty list on no match or any failure — never raises."""
+    NAME + LOCATION only. `near` is a location string ("Knoxville, Tennessee")
+    that biases the search — thinking like a human who knows roughly where the
+    place is. Empty list on no match or any failure — never raises."""
     q = (name or "").strip()
     if not q:
         return []
+    query = "%s, %s" % (q, near) if near else q
     params = urllib.parse.urlencode({
-        "q": q, "format": "jsonv2", "addressdetails": 1,
+        "q": query, "format": "jsonv2", "addressdetails": 1,
         "namedetails": 1, "limit": max(1, min(limit, 6)),
     })
     req = urllib.request.Request(

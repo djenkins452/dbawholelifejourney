@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 218,
+    "fields": {
+      "title": "Legacy figures out which place you meant",
+      "description": "When you mention a place in a story, Legacy is now much better at identifying the right one — because it uses what it already knows before searching. If your story names a city (\"we were visiting Riverside, California\"), it searches there. If you already mentioned another place nearby (\"we left UT Medical Center and stopped at Nauti K's\"), it understands the second place is near the first. And if you don't mention a location at all (\"I stopped by Nauti K's after work\"), it searches close to the home town in your Preferences. It shows you where it looked and marks a result as Verified or a Possible match, and you always confirm before anything is saved. The result: you rarely have to type a city or an address yourself.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-03",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-03T16:00:00Z",
+      "updated_at": "2026-07-03T16:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 217,
     "fields": {
       "title": "Legacy tidies your writing and finds the places you mention",

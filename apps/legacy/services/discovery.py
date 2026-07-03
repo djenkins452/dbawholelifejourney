@@ -375,6 +375,20 @@ def run_discovery(memory, extractor=None, place_lookup_fn=None):
                            for c in candidates[:3]],
         })
 
+    # Determine a search AREA before looking anything up — context beats a bare
+    # name. Priority: (1) an explicit location in the story, else (2) a location
+    # from another place already resolved in this same story, else (3) the user's
+    # configured home. This is why "Nauti K's" alone still resolves near home,
+    # and "…left UT Medical Center and stopped at Nauti K's" resolves near Knoxville.
+    person_names = {(p.get("name") or "") for p in (data.get("people") or [])}
+    story_ctx = place_lookup_fn.explicit_location(memory.body or "", exclude=person_names)
+    home_ctx = place_lookup_fn.home_location(user)
+    story_place_ctx = None   # Priority 2 — filled as places in this story resolve
+
+    def _ctx_from_place(place):
+        loc = (place.location_text or "").strip()
+        return {"text": loc, "source": "story"} if loc else None
+
     place_lookup_budget = 3   # cap external lookups per Discover — keep it fast
     for pl in data.get("places", []) or []:
         name = (pl.get("name") or "").strip()
@@ -389,12 +403,25 @@ def run_discovery(memory, extractor=None, place_lookup_fn=None):
         if not match and not personal:
             ex_candidates = [p for lname, p in existing_places.items()
                              if _place_similar(name, p.name)]
-        lookups = []
-        # Only verify PUBLIC places we don't already have. Personal places
-        # ("Grandma's house") are never searched.
+        # An existing place we already know the location of seeds context for the
+        # rest of the story (Priority 2 — "UT Medical Center" → Knoxville).
+        if story_place_ctx is None and match:
+            story_place_ctx = _ctx_from_place(match)
+
+        lookups, search_area = [], None
+        # Only verify PUBLIC places we don't already have. Personal places are
+        # never searched.
         if not match and not ex_candidates and not personal and place_lookup_budget > 0:
-            lookups = place_lookup_fn.lookup_place(name)
+            search_area = story_ctx or story_place_ctx or home_ctx
+            near = search_area["text"] if search_area else None
+            lookups = place_lookup_fn.lookup_place(name, near=near)
             place_lookup_budget -= 1
+            # A resolved public place seeds context for later places in the story.
+            if lookups and story_place_ctx is None:
+                c0 = lookups[0]
+                city_state = ", ".join(x for x in (c0.get("city"), c0.get("state")) if x)
+                if city_state:
+                    story_place_ctx = {"text": city_state, "source": "story"}
         add(MemoryDiscovery.Kind.PLACE, name, pl.get("confidence"), {
             "matched_place_id": match.id if match else None,
             "is_new": match is None and not ex_candidates,
@@ -403,6 +430,10 @@ def run_discovery(memory, extractor=None, place_lookup_fn=None):
             "existing": [dict(id=p.id, name=p.name, **_place_stats(p))
                          for p in ex_candidates[:3]],
             "lookup": lookups,
+            "search_area": search_area,
+            # High confidence when exactly one match; otherwise a possible match.
+            "lookup_confidence": ("verified" if len(lookups) == 1
+                                  else ("possible" if lookups else None)),
         })
 
     for ml in data.get("milestones", []) or []:

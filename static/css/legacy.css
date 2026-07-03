@@ -728,3 +728,25 @@ body.theme-ember .legacy-root {
 .mp-item { display: block; width: 100%; text-align: left; font-size: 13px; line-height: 1.45; color: var(--lg-ink); background: rgba(255,255,255,.55); border: 1px solid rgba(120,100,60,.14); border-radius: 9px; padding: 9px 11px; cursor: pointer; transition: background .12s, border-color .12s; }
 .mp-item:hover { background: #fff; border-color: #d9c9a6; }
 .mp-foot { font-size: 11px; color: #8b7c5c; margin-top: 10px; }
+
+/* ==========================================================================
+   Import Engine
+   ========================================================================== */
+.lg-field-opt { color: var(--lg-muted); font-weight: 400; }
+.editor-provenance { display: flex; align-items: center; gap: 8px; max-width: 1120px; margin: 0 auto 12px; padding: 8px 14px; background: #f2ede2; border: 1px solid #e6dcc6; border-radius: 10px; font-size: 12.5px; color: #6f5f3d; }
+.editor-provenance svg { flex: none; }
+
+.import-run { margin-bottom: 20px; }
+.import-run-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.import-run-actions form { margin: 0; }
+
+.import-chunks { display: flex; flex-direction: column; gap: 8px; }
+.import-chunk { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; background: var(--lg-surface); border: 1px solid var(--lg-border); border-radius: 11px; padding: 12px 14px; }
+.import-chunk.is-imported { background: var(--lg-surface-2); }
+.ic-index { width: 30px; height: 30px; border-radius: 8px; background: var(--lg-bg); border: 1px solid var(--lg-border); display: grid; place-items: center; font-size: 13px; font-weight: 600; color: var(--lg-ink-soft); }
+.import-chunk.is-imported .ic-index { background: #f0e2c9; border-color: #e6d3ad; color: #8a6428; }
+.ic-main { min-width: 0; }
+.ic-title { font-size: 14px; font-weight: 600; color: var(--lg-ink); }
+.ic-preview { font-size: 12px; color: var(--lg-muted); line-height: 1.45; margin: 2px 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ic-meta { font-size: 11px; color: var(--lg-muted); }
+.ic-action form { margin: 0; }

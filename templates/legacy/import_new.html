@@ -1,0 +1,42 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="lg-formpage">
+    <a href="{% url 'legacy:imports' %}" class="editor-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M15 18l-6-6 6-6"/></svg>
+        Imports
+    </a>
+    <h1 class="lg-formpage-title">Import a document</h1>
+    <p class="lg-formpage-sub">Upload a text file (.txt or .md) or paste the text. Legacy will parse it into stories you can review and import a few at a time — each one runs through the same Discovery, and nothing becomes part of your Legacy until you approve it.</p>
+
+    <form method="post" enctype="multipart/form-data" class="lg-form lg-card">
+        {% csrf_token %}
+        <div class="lg-field">
+            <label for="{{ form.source_name.id_for_label }}">What is this document?</label>
+            {{ form.source_name }}
+            {% if form.source_name.errors %}<div class="lg-field-err">{{ form.source_name.errors|striptags }}</div>{% endif %}
+        </div>
+        <div class="lg-field">
+            <label for="{{ form.source_type.id_for_label }}">Where did it come from?</label>
+            {{ form.source_type }}
+        </div>
+        <div class="lg-field">
+            <label>Upload a file <span class="lg-field-opt">(.txt / .md)</span></label>
+            <label class="editor-media-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Choose a file
+                {{ form.file }}
+            </label>
+        </div>
+        <div class="lg-field">
+            <label for="{{ form.paste.id_for_label }}">…or paste the text</label>
+            {{ form.paste }}
+        </div>
+        {% if form.non_field_errors %}<div class="lg-field-err">{{ form.non_field_errors|striptags }}</div>{% endif %}
+        <div class="lg-form-actions">
+            <a href="{% url 'legacy:imports' %}" class="lg-btn-quiet">Cancel</a>
+            <button type="submit" class="lg-btn-primary">Parse into stories</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

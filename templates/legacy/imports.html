@@ -1,0 +1,39 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="lib">
+    <div class="lib-head">
+        <div>
+            <a href="{% url 'legacy:studio' %}" class="editor-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M15 18l-6-6 6-6"/></svg> Studio</a>
+            <h1 class="lib-title">Import a document</h1>
+            <p class="lib-sub">Bring an autobiography, a journal, or a ChatGPT/Claude conversation into Legacy — each story goes through the same Discovery you'd get by writing it yourself.</p>
+        </div>
+        <a href="{% url 'legacy:import_new' %}" class="lg-btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New import
+        </a>
+    </div>
+
+    {% if batches %}
+    <div class="mlist">
+        {% for b in batches %}
+        <a href="{% url 'legacy:import_detail' b.pk %}" class="mrow">
+            <span class="mrow-main">
+                <span class="mrow-title">{{ b.source_name }}</span>
+                <span class="mrow-snippet">{{ b.get_source_type_display }} · {{ b.imported_count }} of {{ b.total_chunks }} imported</span>
+            </span>
+            <span class="mrow-meta">{{ b.created_at|date:"M j, Y" }}</span>
+            <span class="state-badge {% if b.import_status == 'complete' %}state-legacy{% else %}state-draft{% endif %}">{{ b.get_import_status_display }}</span>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="lib-empty">
+        <span class="lib-empty-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>
+        <h2 class="lib-empty-title">Already wrote your story somewhere else?</h2>
+        <p class="lib-empty-blurb">Import an autobiography, journal, memoir, or a ChatGPT/Claude conversation. Legacy will turn each story into a draft you review — nothing is added until you approve it.</p>
+        <a href="{% url 'legacy:import_new' %}" class="lg-btn-primary">Import a document</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

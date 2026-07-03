@@ -266,6 +266,12 @@ class Memory(LegacyOwnedModel):
     # Suggestions only — never interview questions, never required.
     discovery_prompts = models.JSONField(default=list, blank=True)
 
+    # Import provenance — set when a memory was created by the Import Engine from
+    # an existing document. Always visible on the memory. (created_via='import'.)
+    import_batch = models.ForeignKey(
+        'ImportBatch', on_delete=models.SET_NULL, null=True, blank=True, related_name='memories')
+    import_chunk = models.PositiveIntegerField(null=True, blank=True)
+
     class Meta:
         ordering = ['-created_at']
         verbose_name_plural = 'Memories'
@@ -493,3 +499,79 @@ class Output(LegacyOwnedModel):
 
     def __str__(self):
         return self.title or f"{self.get_output_type_display()} #{self.pk}"
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Import Engine — convert existing documents into Legacy Canonical Truth
+# ──────────────────────────────────────────────────────────────────────────
+class ImportBatch(LegacyOwnedModel):
+    """
+    A document being imported into Legacy (an autobiography, a ChatGPT/Claude
+    conversation, a journal, a memoir, a Word/PDF, plain text…). The document is
+    parsed into ImportChunks; importing a chunk creates a draft Memory that runs
+    through the SAME Story Discovery Engine as a hand-written story. Nothing
+    bypasses Canonical Truth, Discovery, or provenance.
+    """
+
+    class SourceType(models.TextChoices):
+        CHATGPT = 'chatgpt', 'ChatGPT conversation'
+        CLAUDE = 'claude', 'Claude conversation'
+        WORD = 'word', 'Word document'
+        PDF = 'pdf', 'PDF'
+        JOURNAL = 'journal', 'Journal'
+        MEMOIR = 'memoir', 'Existing memoir'
+        PLAIN_TEXT = 'plain_text', 'Plain text'
+        OTHER = 'other', 'Other'
+
+    class Status(models.TextChoices):
+        PARSED = 'parsed', 'Parsed'
+        IMPORTING = 'importing', 'Importing'
+        COMPLETE = 'complete', 'Complete'
+        FAILED = 'failed', 'Failed'
+
+    source_name = models.CharField(max_length=255)
+    source_type = models.CharField(max_length=12, choices=SourceType.choices, default=SourceType.OTHER)
+    # NB: distinct from the inherited soft-delete `status` (active/archived/deleted).
+    import_status = models.CharField(max_length=12, choices=Status.choices, default=Status.PARSED)
+    total_chunks = models.PositiveIntegerField(default=0)
+    imported_count = models.PositiveIntegerField(default=0)
+    notes = models.CharField(max_length=500, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name_plural = 'Import batches'
+
+    def __str__(self):
+        return self.source_name
+
+    def refresh_counts(self):
+        self.imported_count = self.chunks.filter(status=ImportChunk.Status.IMPORTED).count()
+        if self.imported_count >= self.total_chunks and self.total_chunks:
+            self.import_status = self.Status.COMPLETE
+        self.save(update_fields=["imported_count", "import_status", "updated_at"])
+
+
+class ImportChunk(models.Model):
+    """One intelligently-chunked unit of a document, ready to become a Memory."""
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        IMPORTED = 'imported', 'Imported'
+        SKIPPED = 'skipped', 'Skipped'
+
+    batch = models.ForeignKey(ImportBatch, on_delete=models.CASCADE, related_name='chunks')
+    index = models.PositiveIntegerField()
+    title = models.CharField(max_length=255, blank=True)
+    body = models.TextField()
+    source_ref = models.CharField(max_length=120, blank=True, help_text="e.g. 'message 7'")
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    memory = models.ForeignKey(
+        Memory, on_delete=models.SET_NULL, null=True, blank=True, related_name='import_chunks')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['index']
+        unique_together = ['batch', 'index']
+
+    def __str__(self):
+        return f"{self.batch_id}#{self.index}: {self.title or self.source_ref}"

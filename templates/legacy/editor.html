@@ -13,6 +13,13 @@
         </div>
     </div>
 
+    {% if memory and memory.import_batch %}
+    <div class="editor-provenance">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span>Imported from <strong>{{ memory.import_batch.source_name }}</strong> · story {{ memory.import_chunk }} ({{ memory.import_batch.get_source_type_display }}) · {{ memory.created_at|date:"M j, Y" }}</span>
+    </div>
+    {% endif %}
+
     <div class="editor-cols">
         <form class="editor-main" id="memoryForm" method="post" action="{% url 'legacy:memory_save' %}">
             {% csrf_token %}
@@ -51,7 +58,7 @@
             <section class="lg-card editor-connections">
                 <div class="lg-card-headrow"><h3 class="lg-card-h">Connections</h3></div>
 
-                <div id="discoveryPanel" class="discovery-panel"></div>
+                <div id="discoveryPanel" class="discovery-panel">{% if discovery_groups %}{% include "legacy/_discovery_review.html" with memory=memory groups=discovery_groups status="ok" summary=discovery_summary prompts=discovery_prompts %}{% endif %}</div>
 
                 <details class="editor-manual">
                     <summary>Or connect by hand</summary>

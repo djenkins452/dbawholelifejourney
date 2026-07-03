@@ -20,6 +20,12 @@ urlpatterns = [
     # Dashboard + Studio/Review (Slice 4)
     path("dashboard/", views.StudioView.as_view(), name="dashboard"),
     path("studio/", views.ReviewView.as_view(), name="studio"),
+
+    # Import Engine (Phase 2)
+    path("import/", views.ImportsView.as_view(), name="imports"),
+    path("import/new/", views.ImportCreateView.as_view(), name="import_new"),
+    path("import/<int:pk>/", views.ImportDetailView.as_view(), name="import_detail"),
+    path("import/<int:pk>/run/", views.ImportRunView.as_view(), name="import_run"),
     # Memory Library + Editor (Slice 2)
     path("memories/", views.LibraryView.as_view(), name="library"),
     path("memories/new/", views.EditorView.as_view(), name="editor_new"),

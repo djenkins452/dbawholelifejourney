@@ -78,3 +78,32 @@ class OutputForm(forms.ModelForm):
         self.fields["scope_place"].required = False
         self.fields["scope_person"].empty_label = "—"
         self.fields["scope_place"].empty_label = "—"
+
+
+class ImportForm(forms.Form):
+    """Create an import from an uploaded text file or pasted text."""
+
+    from apps.legacy.models import ImportBatch as _IB
+
+    source_name = forms.CharField(
+        max_length=255,
+        widget=forms.TextInput(attrs={
+            "class": "lg-input", "autocomplete": "off",
+            "placeholder": "What is this document? (e.g. My autobiography)"}))
+    source_type = forms.ChoiceField(
+        choices=_IB.SourceType.choices,
+        widget=forms.Select(attrs={"class": "lg-input"}))
+    file = forms.FileField(
+        required=False,
+        widget=forms.ClearableFileInput(attrs={"class": "editor-media-input"}))
+    paste = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={
+            "class": "lg-textarea", "rows": 10,
+            "placeholder": "…or paste the text of the document here"}))
+
+    def clean(self):
+        cleaned = super().clean()
+        if not cleaned.get("file") and not (cleaned.get("paste") or "").strip():
+            raise forms.ValidationError("Upload a text file or paste the document's text.")
+        return cleaned

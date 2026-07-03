@@ -22,12 +22,13 @@ from django.views.generic import CreateView, DetailView, TemplateView, UpdateVie
 
 from django.template.loader import render_to_string
 
-from apps.legacy.forms import ContributorForm, OutputForm, PersonForm, PlaceForm
+from apps.legacy.forms import ContributorForm, ImportForm, OutputForm, PersonForm, PlaceForm
 from apps.legacy.models import (
-    Contributor, Media, Memory, MemoryDiscovery, MemoryRevision, Output, Person, Place,
-    Relationship,
+    Contributor, ImportBatch, ImportChunk, Media, Memory, MemoryDiscovery, MemoryRevision,
+    Output, Person, Place, Relationship,
 )
 from apps.legacy.services import discovery as discovery_svc
+from apps.legacy.services import import_engine
 from apps.legacy.services.home import build_home_context
 from apps.legacy.services.media_utils import guess_media_type
 
@@ -198,6 +199,14 @@ class EditorView(LegacyContextMixin, TemplateView):
         ctx["all_places"] = Place.objects.filter(user=self.request.user)
         ctx["selected_people"] = set(memory.people.values_list("pk", flat=True)) if memory else set()
         ctx["selected_places"] = set(memory.places.values_list("pk", flat=True)) if memory else set()
+        # If discovery already ran (e.g. an imported story), show the existing
+        # proposals on load — review & apply without re-running (or re-charging).
+        if memory and MemoryDiscovery.objects.filter(
+                memory=memory, status=MemoryDiscovery.Status.PROPOSED).exists():
+            groups = discovery_svc.grouped_proposals(memory)
+            ctx["discovery_groups"] = groups
+            ctx["discovery_summary"] = discovery_svc.summary_text(groups)
+            ctx["discovery_prompts"] = memory.discovery_prompts
         return ctx
 
 
@@ -873,3 +882,88 @@ class OutputArchiveView(LegacyContextMixin, View):
         o.archive()
         messages.success(request, "Output set aside.")
         return redirect("legacy:outputs")
+
+
+# ── Import Engine ────────────────────────────────────────────────────────────
+class ImportsView(LegacyContextMixin, TemplateView):
+    template_name = "legacy/imports.html"
+    nav_active = "studio"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["batches"] = ImportBatch.objects.filter(user=self.request.user)
+        return ctx
+
+
+class ImportCreateView(LegacyContextMixin, View):
+    template_name = "legacy/import_new.html"
+    nav_active = "studio"
+
+    def get(self, request, *args, **kwargs):
+        from django.shortcuts import render
+        return render(request, self.template_name, {"form": ImportForm(), "nav_active": "studio"})
+
+    def post(self, request, *args, **kwargs):
+        from django.shortcuts import render
+        form = ImportForm(request.POST, request.FILES)
+        if not form.is_valid():
+            return render(request, self.template_name, {"form": form, "nav_active": "studio"})
+
+        f = form.cleaned_data.get("file")
+        if f:
+            try:
+                raw = f.read().decode("utf-8", errors="replace")
+            except Exception:
+                messages.error(request, "Couldn't read that file as text.")
+                return render(request, self.template_name, {"form": form, "nav_active": "studio"})
+            name = form.cleaned_data["source_name"] or f.name
+        else:
+            raw = form.cleaned_data["paste"]
+            name = form.cleaned_data["source_name"]
+
+        from apps.legacy.services.import_adapters import ImportNotAvailable
+        try:
+            batch = import_engine.create_batch(
+                request.user, name, form.cleaned_data["source_type"], raw)
+        except ImportNotAvailable as e:
+            messages.error(request, str(e))
+            return render(request, self.template_name, {"form": form, "nav_active": "studio"})
+
+        messages.success(request, f"Parsed into {batch.total_chunks} stories. Review below, then import a few to verify.")
+        return redirect("legacy:import_detail", pk=batch.pk)
+
+
+class ImportDetailView(LegacyContextMixin, DetailView):
+    model = ImportBatch
+    template_name = "legacy/import_detail.html"
+    context_object_name = "batch"
+    nav_active = "studio"
+
+    def get_queryset(self):
+        return ImportBatch.all_objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["chunks"] = self.object.chunks.select_related("memory").all()
+        ctx["pending"] = self.object.chunks.filter(status=ImportChunk.Status.PENDING).count()
+        return ctx
+
+
+class ImportRunView(LegacyContextMixin, View):
+    """Import a chosen set of chunks — never everything implicitly."""
+
+    def post(self, request, pk, *args, **kwargs):
+        batch = get_object_or_404(ImportBatch.all_objects, pk=pk, user=request.user)
+        indices = request.POST.getlist("index")
+        limit = None
+        if request.POST.get("mode") == "next":
+            limit = int(request.POST.get("count") or 2)
+            indices = None
+        elif request.POST.get("mode") == "all":
+            indices = None  # all pending
+        memories = import_engine.import_chunks(batch, indices=indices, limit=limit)
+        messages.success(
+            request,
+            f"Imported {len(memories)} {'story' if len(memories) == 1 else 'stories'} as drafts. "
+            "Review each, run its discoveries, then add it to your Legacy.")
+        return redirect("legacy:import_detail", pk=batch.pk)

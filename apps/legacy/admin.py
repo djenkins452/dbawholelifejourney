@@ -1,7 +1,8 @@
 from django.contrib import admin
 
 from apps.legacy.models import (
-    Contributor, Media, Memory, Output, Person, Place, Relationship,
+    Contributor, ImportBatch, ImportChunk, Media, Memory, Output, Person, Place,
+    Relationship,
 )
 
 
@@ -46,3 +47,15 @@ class ContributorAdmin(admin.ModelAdmin):
 class OutputAdmin(admin.ModelAdmin):
     list_display = ("__str__", "user", "output_type", "scope_kind", "generation_status", "status")
     list_filter = ("output_type", "generation_status")
+
+
+@admin.register(ImportBatch)
+class ImportBatchAdmin(admin.ModelAdmin):
+    list_display = ("source_name", "user", "source_type", "import_status", "imported_count", "total_chunks", "created_at")
+    list_filter = ("source_type", "import_status")
+
+
+@admin.register(ImportChunk)
+class ImportChunkAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "batch", "index", "status", "memory")
+    list_filter = ("status",)

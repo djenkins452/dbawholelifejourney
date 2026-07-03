@@ -7,6 +7,10 @@
             <h1 class="lib-title">Studio</h1>
             <p class="lib-sub">A quiet workshop for tending your life's record — no rush, nothing is lost.</p>
         </div>
+        <a href="{% url 'legacy:imports' %}" class="lg-btn-quiet">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Import a document
+        </a>
     </div>
 
     {% if not drafts and not submissions and not media_no_context and not unlinked %}

@@ -40,7 +40,6 @@ urlpatterns = [
     path("memories/<int:pk>/media/add/", views.MediaAddView.as_view(), name="memory_media_add"),
     path("memories/<int:pk>/media/<int:media_pk>/remove/", views.MemoryMediaRemoveView.as_view(), name="memory_media_remove"),
     path("memories/<int:pk>/cleanup/undo/", views.MemoryCleanupUndoView.as_view(), name="memory_cleanup_undo"),
-    path("discoveries/<int:pk>/place-lookup/", views.PlaceLookupAgainView.as_view(), name="place_lookup_again"),
     # People (Slice 3)
     path("people/", views.PeopleView.as_view(), name="people"),
     path("people/new/", views.PersonCreateView.as_view(), name="person_new"),

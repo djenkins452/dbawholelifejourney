@@ -18,12 +18,9 @@
             </span>
         </label>
         {% endfor %}
-        {% if d.detail.lookup and d.detail.search_area.text %}
-        <span class="disc-place-searched">{% if d.detail.search_area.source == 'home' %}Searched near your home · {{ d.detail.search_area.text }}{% else %}Searched near {{ d.detail.search_area.text }}{% endif %}</span>
-        {% endif %}
         {% for c in d.detail.lookup %}
         <label class="disc-place-opt">
-            <input type="radio" name="resolve_{{ d.id }}" value="lookup:{{ forloop.counter0 }}"{% if d.detail.lookup|length == 1 and forloop.first and not d.detail.existing %} checked{% endif %}>
+            <input type="radio" name="resolve_{{ d.id }}" value="lookup:{{ forloop.counter0 }}"{% if forloop.first and not d.detail.existing %} checked{% endif %}>
             <span class="disc-place-opt-main">
                 <span class="disc-place-opt-title">{{ c.name }}</span>
                 <span class="disc-place-opt-sub">{{ c.display|default:"Location found" }}</span>
@@ -31,15 +28,20 @@
             {% if d.detail.lookup_confidence == 'verified' %}<span class="disc-tag disc-verified">verified</span>{% else %}<span class="disc-tag disc-possible">possible match</span>{% endif %}
         </label>
         {% endfor %}
+        {% if d.detail.reasoning %}
+        <span class="disc-place-why"><span class="disc-place-why-label">Why Legacy chose this:</span> {{ d.detail.reasoning }}</span>
+        {% endif %}
+        {% if d.detail.lookup and not d.detail.personal %}
+        <span class="disc-place-unsure">Not the right one? Keep your wording below.</span>
+        {% elif not d.detail.lookup and not d.detail.personal and not d.detail.existing %}
+        <span class="disc-place-unsure">Legacy couldn’t confidently identify this place.</span>
+        {% endif %}
         <label class="disc-place-opt">
             <input type="radio" name="resolve_{{ d.id }}" value="mine"{% if d.detail.personal or not d.detail.lookup and not d.detail.existing %} checked{% endif %}>
             <span class="disc-place-opt-main">
-                <span class="disc-place-opt-title">{% if d.detail.personal %}It’s a personal place{% else %}Use the name as I wrote it{% endif %}</span>
+                <span class="disc-place-opt-title">{% if d.detail.personal %}It’s a personal place{% else %}Keep my wording{% endif %}</span>
                 <span class="disc-place-opt-sub">“{{ d.label }}” — just the name, no address</span>
             </span>
         </label>
-        {% if not d.detail.personal %}
-        <button type="button" class="disc-place-again js-place-again" data-disc="{{ d.id }}" data-url="{% url 'legacy:place_lookup_again' d.id %}">Search again</button>
-        {% endif %}
     {% endif %}
 </div>

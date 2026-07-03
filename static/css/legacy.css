@@ -691,7 +691,6 @@ body.theme-ember .legacy-root {
 .disc-verified { background: #dbeede; color: #3a6b47; }
 .disc-possible { background: #f0e7d3; color: #8a6f34; }
 .disc-personal { background: #efe7db; color: #856a44; }
-.disc-place-searched { display: block; font-size: 11px; color: var(--lg-muted); margin: 1px 0 3px 2px; font-style: italic; }
 .disc-place-card { padding: 6px 0 8px; }
 .disc-place-head { display: flex; align-items: center; gap: 8px; }
 .disc-place-name-wrap { flex: 1; display: flex; flex-direction: column; min-width: 0; }
@@ -704,8 +703,9 @@ body.theme-ember .legacy-root {
 .disc-place-opt-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .disc-place-opt-title { font-size: 12.5px; font-weight: 600; color: var(--lg-ink); }
 .disc-place-opt-sub { font-size: 11px; color: var(--lg-muted); }
-.disc-place-again { align-self: flex-start; margin-left: 26px; background: transparent; border: 0; padding: 2px 0; font-size: 11.5px; font-weight: 600; color: var(--lg-accent); cursor: pointer; }
-.disc-place-again:disabled { color: var(--lg-muted); cursor: default; }
+.disc-place-why { margin-left: 26px; font-size: 11px; color: var(--lg-muted); line-height: 1.5; }
+.disc-place-why-label { font-weight: 600; color: var(--lg-ink-soft); }
+.disc-place-unsure { margin-left: 26px; font-size: 11px; color: var(--lg-muted); font-style: italic; }
 
 .disc-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--lg-border); }
 .disc-actions .lg-btn-primary, .disc-actions .lg-btn-quiet, .disc-actions .lg-btn-ghost { padding: 7px 13px; font-size: 12px; }

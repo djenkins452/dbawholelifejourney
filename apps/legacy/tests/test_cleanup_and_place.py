@@ -71,118 +71,84 @@ class PersonalPlaceHeuristicTests(TestCase):
             self.assertFalse(PL.is_personal_place(name), name)
 
 
-class PlaceLookupParsingTests(TestCase):
-    def test_parses_name_and_location_only(self):
-        fake_json = (
-            b'[{"lat":"33.84","lon":"-117.95",'
-            b'"display_name":"Marie Callender\'s, 540, North Euclid Street, Anaheim, CA, USA",'
-            b'"namedetails":{"name":"Marie Callender\'s"},'
-            b'"address":{"house_number":"540","road":"North Euclid Street",'
-            b'"city":"Anaheim","state":"California","country":"United States"}}]')
-
-        class FakeResp:
-            def read(self_inner): return fake_json
-            def __enter__(self_inner): return self_inner
-            def __exit__(self_inner, *a): return False
-
-        with patch("urllib.request.urlopen", return_value=FakeResp()):
-            out = PL.lookup_place("Marie Callender's")
-        self.assertEqual(len(out), 1)
-        c = out[0]
-        self.assertEqual(c["name"], "Marie Callender's")
-        self.assertEqual(c["city"], "Anaheim")
-        self.assertEqual(c["state"], "California")
-        self.assertEqual(c["lat"], "33.84")
-        self.assertIn("Anaheim", c["display"])
-
-    def test_network_failure_returns_empty(self):
-        with patch("urllib.request.urlopen", side_effect=OSError("no network")):
-            self.assertEqual(PL.lookup_place("Somewhere"), [])
-
-
-# ── Phase 3 — Place verification woven into Discovery + Apply ─────────────────
-_CANDIDATE = {
-    "name": "Marie Callender's", "line1": "540 N Euclid St", "city": "Anaheim",
-    "state": "California", "country": "United States",
-    "lat": "33.84", "lon": "-117.95", "display": "540 N Euclid St, Anaheim, California",
-}
-
-
-def _place_stub(personal=False, candidates=None):
+# ── Phase 3 — Place resolution INLINE from the Discovery OpenAI call ──────────
+def _place_stub(personal=False, home=None):
+    """place_lookup_fn no longer looks anything up — it only supplies the
+    personal-place safety net and the home context handed to the model."""
     return SimpleNamespace(
-        is_personal_place=lambda n: personal,
-        lookup_place=lambda n, **k: list(candidates or []),
-        explicit_location=lambda text, exclude=None: None,
-        home_location=lambda user: None,
+        is_personal_place=lambda n: personal or PL.is_personal_place(n),
+        home_location=lambda user: home,
     )
 
 
-class PlaceVerificationPipelineTests(TestCase):
+def _resolved(name="Marie Callender's", **kw):
+    """An extractor 'places' entry carrying an inline resolution from OpenAI."""
+    d = {"name": name, "confidence": 0.9, "personal": False,
+         "official_name": "Marie Callender's", "line1": "540 N Euclid St",
+         "city": "Anaheim", "state": "California", "country": "United States",
+         "lat": 33.84, "lon": -117.95, "place_confidence": "high",
+         "reasoning": "A well-known restaurant near your home."}
+    d.update(kw)
+    return d
+
+
+class PlaceResolutionPipelineTests(TestCase):
     def setUp(self):
         self.user = _make_user()
         self.memory = Memory.objects.create(
             user=self.user, title="After the wedding",
             body="We ate at Marie Callender's after the wedding.")
 
-    def _run(self, personal=False, candidates=None):
-        D.run_discovery(
-            self.memory,
-            extractor=lambda t: {"places": [{"name": "Marie Callender's", "confidence": 0.9}]},
-            place_lookup_fn=_place_stub(personal, candidates))
+    def _run(self, place):
+        D.run_discovery(self.memory, extractor=lambda t: {"places": [place]},
+                        place_lookup_fn=_place_stub())
         return MemoryDiscovery.objects.get(memory=self.memory, kind="place")
 
-    def test_public_place_gets_lookup_candidates(self):
-        d = self._run(candidates=[_CANDIDATE])
+    def test_high_confidence_public_place_is_verified(self):
+        d = self._run(_resolved(place_confidence="high"))
         self.assertFalse(d.detail["personal"])
         self.assertEqual(len(d.detail["lookup"]), 1)
         self.assertEqual(d.detail["lookup"][0]["city"], "Anaheim")
+        self.assertEqual(d.detail["lookup_confidence"], "verified")
+        self.assertIn("well-known", d.detail["reasoning"])
 
-    def test_personal_place_is_not_looked_up(self):
-        self.memory.body = "We sat on the porch at Grandma's house."
-        self.memory.save()
-        D.run_discovery(
-            self.memory,
-            extractor=lambda t: {"places": [{"name": "Grandma's house", "confidence": 0.9}]},
-            place_lookup_fn=_place_stub(personal=True, candidates=[_CANDIDATE]))
-        d = MemoryDiscovery.objects.get(memory=self.memory, kind="place")
+    def test_medium_confidence_is_possible_match(self):
+        d = self._run(_resolved(place_confidence="medium"))
+        self.assertEqual(d.detail["lookup_confidence"], "possible")
+
+    def test_low_confidence_stays_unresolved(self):
+        d = self._run(_resolved(place_confidence="low"))
+        self.assertEqual(d.detail["lookup"], [])
+        self.assertIsNone(d.detail["lookup_confidence"])
+
+    def test_confident_but_no_location_is_unresolved(self):
+        d = self._run(_resolved(place_confidence="high", line1=None, city=None, state=None))
+        self.assertEqual(d.detail["lookup"], [])
+
+    def test_personal_flag_from_model(self):
+        d = self._run({"name": "Marie Callender's", "confidence": 0.9,
+                       "personal": True, "place_confidence": None})
         self.assertTrue(d.detail["personal"])
         self.assertEqual(d.detail["lookup"], [])
 
-    def test_personal_place_not_falsely_matched_to_generic_word(self):
-        # "Grandma's house" must NOT match an existing "The lake house" on "house".
-        Place.objects.create(user=self.user, name="The lake house")
-        self.memory.body = "We spent summers at Grandma's house by the water."
+    def test_personal_heuristic_safety_net(self):
+        # Model forgot to flag it, but the name is obviously private.
+        self.memory.body = "We sat on the porch at Grandma's house."
         self.memory.save()
-        D.run_discovery(
-            self.memory,
-            extractor=lambda t: {"places": [{"name": "Grandma's house", "confidence": 0.9}]},
-            place_lookup_fn=_place_stub(personal=True))
-        d = MemoryDiscovery.objects.get(memory=self.memory, kind="place")
+        d = self._run({"name": "Grandma's house", "confidence": 0.9,
+                       "personal": False, "place_confidence": "high",
+                       "line1": "1 Main St", "city": "Nowhere", "state": "TN"})
         self.assertTrue(d.detail["personal"])
-        self.assertEqual(d.detail["existing"], [])
-        self.assertIsNone(d.detail["matched_place_id"])
+        self.assertEqual(d.detail["lookup"], [])
 
-    def test_existing_legacy_place_skips_lookup(self):
+    def test_existing_legacy_place_wins_over_resolution(self):
         Place.objects.create(user=self.user, name="Marie Callender's")
-        called = {"n": 0}
-
-        def counting_lookup(n, **k):
-            called["n"] += 1
-            return [_CANDIDATE]
-
-        D.run_discovery(
-            self.memory,
-            extractor=lambda t: {"places": [{"name": "Marie Callender's", "confidence": 0.9}]},
-            place_lookup_fn=SimpleNamespace(
-                is_personal_place=lambda n: False, lookup_place=counting_lookup,
-                explicit_location=lambda text, exclude=None: None,
-                home_location=lambda user: None))
-        d = MemoryDiscovery.objects.get(memory=self.memory, kind="place")
+        d = self._run(_resolved())      # model resolved it, but we already have it
         self.assertIsNotNone(d.detail["matched_place_id"])
-        self.assertEqual(called["n"], 0)   # never looked up — we already have it
+        self.assertEqual(d.detail["lookup"], [])
 
-    def test_apply_adopts_verified_place_with_coordinates(self):
-        d = self._run(candidates=[_CANDIDATE])
+    def test_apply_adopts_resolved_place_with_coordinates(self):
+        d = self._run(_resolved())
         D.confirm_discoveries(self.memory, accepted_ids=[d.id],
                               resolutions={str(d.id): "lookup:0"})
         p = Place.objects.get(user=self.user, name="Marie Callender's")
@@ -190,143 +156,53 @@ class PlaceVerificationPipelineTests(TestCase):
         self.assertEqual(str(p.latitude), "33.840000")
         self.assertIn(p, self.memory.places.all())
 
-    def test_apply_uses_existing_place_no_duplicate(self):
-        existing = Place.objects.create(user=self.user, name="Marie Callender's")
-        d = self._run(candidates=[_CANDIDATE])
-        # detail.matched_place_id already points at existing (exact name match)
-        D.confirm_discoveries(self.memory, accepted_ids=[d.id],
-                              resolutions={str(d.id): "existing:%d" % existing.pk})
-        self.assertEqual(Place.objects.filter(user=self.user, name="Marie Callender's").count(), 1)
-        self.assertIn(existing, self.memory.places.all())
-
-    def test_apply_default_creates_personal_place_name_only(self):
-        d = self._run(personal=True)
-        D.confirm_discoveries(self.memory, accepted_ids=[d.id])   # no resolution
+    def test_apply_default_creates_name_only_place(self):
+        d = self._run(_resolved(place_confidence="low"))   # unresolved
+        D.confirm_discoveries(self.memory, accepted_ids=[d.id])
         p = Place.objects.get(user=self.user, name="Marie Callender's")
         self.assertEqual(p.location_text, "")
         self.assertIsNone(p.latitude)
 
 
-class PlaceContextResolutionTests(TestCase):
-    """Priority order for the search area: story-explicit → other place in the
-    story → home. Legacy uses context so the user rarely types a city."""
-
+class HomeContextTests(TestCase):
     def setUp(self):
         self.user = _make_user()
 
-    class _Recording:
-        """Delegates the pure helpers to the real module, records lookup calls."""
-        def __init__(self, results=None, home=None):
-            self.calls = []
-            self.results = results or {}
-            self._home = home
-
-        def is_personal_place(self, n):
-            return PL.is_personal_place(n)
-
-        def explicit_location(self, text, exclude=None):
-            return PL.explicit_location(text, exclude)
-
-        def home_location(self, user):
-            return self._home
-
-        def lookup_place(self, name, near=None):
-            self.calls.append((name, near))
-            return list(self.results.get(name, []))
-
-    def _mem(self, body):
-        return Memory.objects.create(user=self.user, title="Trip", body=body)
-
-    def _near_for(self, rec, name):
-        return dict((n, near) for n, near in rec.calls).get(name)
-
-    def test_explicit_story_location_wins(self):
-        m = self._mem("We were visiting Riverside, California and stopped at K's.")
-        rec = self._Recording(home={"text": "Maryville, Tennessee", "source": "home"})
-        D.run_discovery(m, extractor=lambda t: {"places": [{"name": "K's", "confidence": 0.9}]},
-                        place_lookup_fn=rec)
-        self.assertEqual(self._near_for(rec, "K's"), "Riverside, California")
-
-    def test_home_used_when_no_story_location(self):
-        m = self._mem("I stopped by Nauti K's after work.")
-        rec = self._Recording(home={"text": "Maryville, Tennessee", "source": "home"})
-        D.run_discovery(m, extractor=lambda t: {"places": [{"name": "Nauti K's", "confidence": 0.9}]},
-                        place_lookup_fn=rec)
-        self.assertEqual(self._near_for(rec, "Nauti K's"), "Maryville, Tennessee")
-
-    def test_prior_looked_up_place_seeds_context(self):
-        m = self._mem("We left UT Medical Center and stopped at Nauti K's.")
-        rec = self._Recording(results={
-            "UT Medical Center": [{"name": "UT Medical Center", "city": "Knoxville",
-                                   "state": "Tennessee", "display": "Knoxville, TN"}]})
-        D.run_discovery(m, extractor=lambda t: {"places": [
-            {"name": "UT Medical Center", "confidence": 0.9},
-            {"name": "Nauti K's", "confidence": 0.9}]}, place_lookup_fn=rec)
-        # Nauti K's inherits Knoxville from the place resolved just before it.
-        self.assertEqual(self._near_for(rec, "Nauti K's"), "Knoxville, Tennessee")
-
-    def test_existing_legacy_place_seeds_context(self):
-        Place.objects.create(user=self.user, name="UT Medical Center",
-                             location_text="Knoxville, Tennessee")
-        m = self._mem("We left UT Medical Center and stopped at Nauti K's.")
-        rec = self._Recording()
-        D.run_discovery(m, extractor=lambda t: {"places": [
-            {"name": "UT Medical Center", "confidence": 0.9},
-            {"name": "Nauti K's", "confidence": 0.9}]}, place_lookup_fn=rec)
-        # UT Medical Center already known → its location contexts Nauti K's.
-        self.assertEqual(self._near_for(rec, "Nauti K's"), "Knoxville, Tennessee")
-        # The known place itself is never looked up.
-        self.assertNotIn("UT Medical Center", [c[0] for c in rec.calls])
-
-    def test_confidence_and_search_area_recorded(self):
-        m = self._mem("We ate at Marie Callender's.")
-        rec = self._Recording(
-            results={"Marie Callender's": [_CANDIDATE]},
-            home={"text": "Anaheim, California", "source": "home"})
-        D.run_discovery(m, extractor=lambda t: {"places": [{"name": "Marie Callender's", "confidence": 0.9}]},
-                        place_lookup_fn=rec)
-        d = MemoryDiscovery.objects.get(memory=m, kind="place")
-        self.assertEqual(d.detail["lookup_confidence"], "verified")
-        self.assertEqual(d.detail["search_area"]["source"], "home")
-
-
-class PlaceHelperTests(TestCase):
-    def test_explicit_location_city_state(self):
-        self.assertEqual(
-            PL.explicit_location("We were visiting Riverside, California today.")["text"],
-            "Riverside, California")
-        self.assertEqual(
-            PL.explicit_location("Grew up in Knoxville, TN.")["text"], "Knoxville, TN")
-
-    def test_explicit_location_bare_city(self):
-        self.assertEqual(PL.explicit_location("We stopped in Gatlinburg.")["text"], "Gatlinburg")
-
-    def test_explicit_location_ignores_months_and_people(self):
-        self.assertIsNone(PL.explicit_location("We married in June."))
-        self.assertIsNone(PL.explicit_location("We drove to Marvin.", exclude={"Marvin"}))
-
-    def test_home_location_from_preferences(self):
-        self.user = _make_user("h@example.com")
+    def test_home_from_preferences(self):
         self.user.preferences.location_city = "Maryville"
         self.user.preferences.location_country = "United States"
         self.user.preferences.save()
         self.assertEqual(PL.home_location(self.user)["text"], "Maryville")
 
-    def test_lookup_appends_near_to_query(self):
+    def test_home_is_added_to_the_discovery_prompt(self):
+        captured = {}
+
+        def fake_create(**kw):
+            captured["messages"] = kw["messages"]
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content='{"places":[]}'))])
+
+        fake_client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=fake_create)))
+        with patch("apps.legacy.services.discovery._client", return_value=fake_client):
+            D._extract("We ate at K's.", home="Maryville, Tennessee")
+        self.assertIn("Maryville, Tennessee", captured["messages"][1]["content"])
+
+    def test_run_discovery_hands_home_to_the_model(self):
+        self.user.preferences.location_city = "Maryville"
+        self.user.preferences.save()
+        m = Memory.objects.create(user=self.user, title="x",
+                                  body="I stopped by Nauti K's after work.")
         seen = {}
 
-        class FakeResp:
-            def read(self_inner): return b"[]"
-            def __enter__(self_inner): return self_inner
-            def __exit__(self_inner, *a): return False
+        def fake_extract(t, home=None):
+            seen["home"] = home
+            return {"places": []}
 
-        def fake_urlopen(req, timeout=None):
-            seen["url"] = req.full_url
-            return FakeResp()
-
-        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
-            PL.lookup_place("Nauti K's", near="Knoxville, Tennessee")
-        self.assertIn("Knoxville", seen["url"])
+        with patch("apps.legacy.services.discovery.is_available", return_value=True), \
+             patch("apps.legacy.services.discovery._extract", side_effect=fake_extract):
+            D.run_discovery(m)   # place_lookup_fn defaults to the real home reader
+        self.assertEqual(seen["home"], "Maryville")
 
 
 class DiscoverViewCleanupTests(TestCase):

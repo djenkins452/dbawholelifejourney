@@ -384,29 +384,6 @@ class MemoryCleanupUndoView(LegacyContextMixin, View):
         return redirect("legacy:editor", pk=memory.pk)
 
 
-class PlaceLookupAgainView(LegacyContextMixin, View):
-    """Re-run place verification for a single place discovery ('Search again')."""
-
-    def post(self, request, pk, *args, **kwargs):
-        d = get_object_or_404(
-            MemoryDiscovery, pk=pk, memory__user=request.user,
-            kind=MemoryDiscovery.Kind.PLACE)
-        from apps.legacy.services import place_lookup
-        # Reuse the context we determined for this place (explicit story location
-        # / a nearby place / home), else fall back to the user's home.
-        area = d.detail.get("search_area") or place_lookup.home_location(request.user)
-        near = area["text"] if area else None
-        lookups = place_lookup.lookup_place(d.label, near=near)
-        d.detail["lookup"] = lookups
-        d.detail["search_area"] = area
-        d.detail["personal"] = place_lookup.is_personal_place(d.label)
-        d.detail["lookup_confidence"] = (
-            "verified" if len(lookups) == 1 else ("possible" if lookups else None))
-        d.save(update_fields=["detail"])
-        html = render_to_string("legacy/_place_options.html", {"d": d}, request=request)
-        return JsonResponse({"ok": True, "html": html, "count": len(lookups)})
-
-
 class MemorySetStateView(LegacyContextMixin, View):
     """Change a memory's entry_state (draft/legacy) without touching its content."""
 

@@ -103,7 +103,7 @@ be present; use an empty array if you found nothing for it):
 
 {
   "people":        [{"name": str, "relationship": str, "confidence": 0.0-1.0}],
-  "places":        [{"name": str, "confidence": 0.0-1.0}],
+  "places":        [{"name": str, "personal": bool, "official_name": str|null, "line1": str|null, "city": str|null, "state": str|null, "country": str|null, "lat": number|null, "lon": number|null, "place_confidence": "high"|"medium"|"low"|null, "reasoning": str|null, "confidence": 0.0-1.0}],
   "human_time":    [{"text": str, "confidence": 0.0-1.0}],
   "calendar_time": [{"text": str, "year": int|null, "month": int|null, "precision": "year|month|day|approx", "confidence": 0.0-1.0}],
   "life_stage":    [{"text": str, "confidence": 0.0-1.0}],
@@ -124,6 +124,24 @@ Guidance:
 - people.relationship is the person's relationship to the author when it can be
   inferred (father, mother, grandfather, uncle, friend, coach, pastor, sibling,
   spouse, child, neighbor, teacher). Leave "" if unknown. Do not invent people.
+- places: put the place as the author named it in `name`, then RESOLVE it:
+  * PERSONAL/private places (Grandma's house, Dad's shop, the old barn, the
+    fishing hole, our cabin) → set "personal": true and DO NOT identify them;
+    leave every address/coordinate field null and place_confidence null.
+  * PUBLIC places (restaurant, church, school, park, business, landmark) → try to
+    identify the real official place using context you ALREADY have, in priority:
+    (1) an explicit location named in the story ("Riverside, California");
+    (2) another place already in the SAME story ("we left UT Medical Center and
+    stopped at Nauti K's" → Nauti K's is near Knoxville); (3) the author's home
+    location (provided to you) — prefer a well-known place within ~30-50 miles of
+    home when the story names no nearer location.
+  * When confident, fill official_name, line1 (street address), city, state,
+    country, lat, lon; set place_confidence "high" (very confident) or "medium"
+    (plausible but unsure); and give a SHORT reasoning ("A well-known business
+    about 15 miles from your home in Maryville, TN").
+  * If you cannot confidently identify it, set place_confidence "low" and leave
+    address and coordinates null. NEVER fabricate an address or coordinates and
+    never guess — a wrong address is far worse than an unresolved place.
 - human_time is how humans actually remember time: "Summer 1969", "Early 1980s",
   "During high school", "Before Haley was born", "After Grandpa died". Preserve
   the phrasing from the story.
@@ -260,18 +278,26 @@ def _client():
         return None
 
 
-def _extract(text):
-    """Call OpenAI and return the parsed dict, or None on any failure."""
+def _extract(text, home=None):
+    """Call OpenAI and return the parsed dict, or None on any failure. `home` is
+    the author's configured home location, given to the model ONLY to help it
+    identify public places when the story names no nearer location."""
     client = _client()
     if client is None:
         return None
     model = getattr(settings, "LEGACY_DISCOVERY_MODEL", getattr(settings, "OPENAI_MODEL", "gpt-4o"))
+    user_content = text[:8000]
+    if home:
+        user_content += (
+            "\n\n[Context Legacy already knows — the author's home location is %s. "
+            "Use it ONLY to help identify public places when the story names no "
+            "nearer location. Do not add it as a discovered place.]" % home)
     try:
         resp = client.chat.completions.create(
             model=model,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": text[:8000]},
+                {"role": "user", "content": user_content},
             ],
             temperature=0.2,
             max_tokens=2000,
@@ -317,10 +343,15 @@ def run_discovery(memory, extractor=None, place_lookup_fn=None):
     if len(text) < 12:
         return "empty", []
 
+    # The user's home location is handed to the same Discovery call so OpenAI can
+    # resolve public places with context — no second lookup, no extra request.
+    home_ctx = place_lookup_fn.home_location(memory.user)
+    home_text = home_ctx["text"] if home_ctx else None
+
     if extractor is None:
         if not is_available():
             return "unavailable", []
-        extractor = _extract
+        extractor = lambda t: _extract(t, home=home_text)
 
     data = extractor(text)
     if not data:
@@ -375,53 +406,53 @@ def run_discovery(memory, extractor=None, place_lookup_fn=None):
                            for c in candidates[:3]],
         })
 
-    # Determine a search AREA before looking anything up — context beats a bare
-    # name. Priority: (1) an explicit location in the story, else (2) a location
-    # from another place already resolved in this same story, else (3) the user's
-    # configured home. This is why "Nauti K's" alone still resolves near home,
-    # and "…left UT Medical Center and stopped at Nauti K's" resolves near Knoxville.
-    person_names = {(p.get("name") or "") for p in (data.get("people") or [])}
-    story_ctx = place_lookup_fn.explicit_location(memory.body or "", exclude=person_names)
-    home_ctx = place_lookup_fn.home_location(user)
-    story_place_ctx = None   # Priority 2 — filled as places in this story resolve
-
-    def _ctx_from_place(place):
-        loc = (place.location_text or "").strip()
-        return {"text": loc, "source": "story"} if loc else None
-
-    place_lookup_budget = 3   # cap external lookups per Discover — keep it fast
+    # Places carry their resolution INLINE from the same Discovery call — OpenAI
+    # identified the public place using the story + the home context we supplied.
+    # We still search Legacy first (never duplicate) and keep a personal-place
+    # safety net. No second lookup, no network request here.
     for pl in data.get("places", []) or []:
         name = (pl.get("name") or "").strip()
         if not name:
             continue
-        personal = place_lookup_fn.is_personal_place(name)
+        # Trust the model's personal flag, with the heuristic as a safety net.
+        personal = bool(pl.get("personal")) or place_lookup_fn.is_personal_place(name)
         match = existing_places.get(name.lower())
-        # Search Legacy first — never create a duplicate of a place you already
-        # have. Personal places ("Grandma's house") are not fuzzy-matched: they'd
-        # collide on generic words like "house".
+        # Search Legacy first — never duplicate a place you already have. Personal
+        # places aren't fuzzy-matched (they'd collide on generic words like "house").
         ex_candidates = []
         if not match and not personal:
             ex_candidates = [p for lname, p in existing_places.items()
                              if _place_similar(name, p.name)]
-        # An existing place we already know the location of seeds context for the
-        # rest of the story (Priority 2 — "UT Medical Center" → Knoxville).
-        if story_place_ctx is None and match:
-            story_place_ctx = _ctx_from_place(match)
 
-        lookups, search_area = [], None
-        # Only verify PUBLIC places we don't already have. Personal places are
-        # never searched.
-        if not match and not ex_candidates and not personal and place_lookup_budget > 0:
-            search_area = story_ctx or story_place_ctx or home_ctx
-            near = search_area["text"] if search_area else None
-            lookups = place_lookup_fn.lookup_place(name, near=near)
-            place_lookup_budget -= 1
-            # A resolved public place seeds context for later places in the story.
-            if lookups and story_place_ctx is None:
-                c0 = lookups[0]
-                city_state = ", ".join(x for x in (c0.get("city"), c0.get("state")) if x)
-                if city_state:
-                    story_place_ctx = {"text": city_state, "source": "story"}
+        pconf = (pl.get("place_confidence") or "").lower()
+        reasoning = (pl.get("reasoning") or "").strip()
+        lookups, lookup_confidence = [], None
+        # Adopt the model's identification only for a confident PUBLIC place we
+        # don't already have — and only if it actually gave us a location. Low
+        # confidence stays unresolved; we never fabricate an address.
+        if not match and not ex_candidates and not personal and pconf in ("high", "medium"):
+            if any(pl.get(k) for k in ("line1", "city", "state")):
+                lookups = [{
+                    "name": (pl.get("official_name") or name)[:200],
+                    "line1": (pl.get("line1") or "")[:200],
+                    "city": (pl.get("city") or "")[:120],
+                    "state": (pl.get("state") or "")[:120],
+                    "country": (pl.get("country") or "")[:120],
+                    "lat": str(pl.get("lat")) if pl.get("lat") is not None else "",
+                    "lon": str(pl.get("lon")) if pl.get("lon") is not None else "",
+                    "display": ", ".join(x for x in (
+                        pl.get("line1"), pl.get("city"), pl.get("state")) if x),
+                }]
+                lookup_confidence = "verified" if pconf == "high" else "possible"
+
+        # Internal-only log for debugging/refinement — never shown to the user.
+        logger.info(
+            "[legacy.place_resolution] mem=%s name=%r personal=%s existing=%s "
+            "resolved=%r confidence=%s home=%r reason=%r",
+            memory.pk, name, personal, bool(match or ex_candidates),
+            (lookups[0]["display"] if lookups else None), pconf or None,
+            home_text, reasoning or None)
+
         add(MemoryDiscovery.Kind.PLACE, name, pl.get("confidence"), {
             "matched_place_id": match.id if match else None,
             "is_new": match is None and not ex_candidates,
@@ -430,10 +461,8 @@ def run_discovery(memory, extractor=None, place_lookup_fn=None):
             "existing": [dict(id=p.id, name=p.name, **_place_stats(p))
                          for p in ex_candidates[:3]],
             "lookup": lookups,
-            "search_area": search_area,
-            # High confidence when exactly one match; otherwise a possible match.
-            "lookup_confidence": ("verified" if len(lookups) == 1
-                                  else ("possible" if lookups else None)),
+            "lookup_confidence": lookup_confidence,
+            "reasoning": reasoning if lookups else "",
         })
 
     for ml in data.get("milestones", []) or []:

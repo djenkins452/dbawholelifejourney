@@ -120,24 +120,6 @@
                 }).catch(function () { undo.disabled = false; });
                 return;
             }
-            var again = e.target.closest('.js-place-again');
-            if (again) {
-                e.preventDefault();
-                var card = again.closest('.disc-place-card');
-                var opts = card && card.querySelector('.disc-place-opts');
-                var mForm2 = document.getElementById('memoryForm');
-                again.disabled = true; again.textContent = 'Searching…';
-                fetch(again.getAttribute('data-url'), {
-                    method: 'POST',
-                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrfFrom(mForm2) },
-                    credentials: 'same-origin'
-                }).then(function (r) { return r.json(); }).then(function (d) {
-                    if (d && d.ok && opts) {
-                        opts.outerHTML = d.html;
-                    } else if (again) { again.disabled = false; again.textContent = 'Search again'; }
-                }).catch(function () { again.disabled = false; again.textContent = 'Search again'; });
-                return;
-            }
         });
 
         // Voice capture — browser speech-to-text, transcribed live into the story.

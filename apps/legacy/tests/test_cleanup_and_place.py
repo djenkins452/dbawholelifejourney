@@ -195,7 +195,7 @@ class HomeContextTests(TestCase):
                                   body="I stopped by Nauti K's after work.")
         seen = {}
 
-        def fake_extract(t, home=None):
+        def fake_extract(t, home=None, known_places=None):
             seen["home"] = home
             return {"places": []}
 
@@ -203,6 +203,38 @@ class HomeContextTests(TestCase):
              patch("apps.legacy.services.discovery._extract", side_effect=fake_extract):
             D.run_discovery(m)   # place_lookup_fn defaults to the real home reader
         self.assertEqual(seen["home"], "Maryville")
+
+    def test_known_legacy_places_added_to_prompt(self):
+        captured = {}
+
+        def fake_create(**kw):
+            captured["messages"] = kw["messages"]
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content='{"places":[]}'))])
+
+        fake_client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=fake_create)))
+        with patch("apps.legacy.services.discovery._client", return_value=fake_client):
+            D._extract("We ate at K's.",
+                       known_places="UT Medical Center (Knoxville, TN)")
+        self.assertIn("Knoxville", captured["messages"][1]["content"])
+
+    def test_run_discovery_hands_known_places_to_the_model(self):
+        Place.objects.create(user=self.user, name="UT Medical Center",
+                             location_text="Knoxville, TN")
+        m = Memory.objects.create(user=self.user, title="x",
+                                  body="We stopped at Nauti K's.")
+        seen = {}
+
+        def fake_extract(t, home=None, known_places=None):
+            seen["kp"] = known_places
+            return {"places": []}
+
+        with patch("apps.legacy.services.discovery.is_available", return_value=True), \
+             patch("apps.legacy.services.discovery._extract", side_effect=fake_extract):
+            D.run_discovery(m)
+        self.assertIn("UT Medical Center", seen["kp"] or "")
+        self.assertIn("Knoxville", seen["kp"] or "")
 
 
 class DiscoverViewCleanupTests(TestCase):

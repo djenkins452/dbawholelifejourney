@@ -124,24 +124,33 @@ Guidance:
 - people.relationship is the person's relationship to the author when it can be
   inferred (father, mother, grandfather, uncle, friend, coach, pastor, sibling,
   spouse, child, neighbor, teacher). Leave "" if unknown. Do not invent people.
-- places: put the place as the author named it in `name`, then RESOLVE it:
+- places: put the place as the author named it in `name`, then CLASSIFY and RESOLVE
+  it. First classify what it appears to be: a public business, landmark, park,
+  school, church, hospital, government building, a PERSONAL place, or unknown.
   * PERSONAL/private places (Grandma's house, Dad's shop, the old barn, the
-    fishing hole, our cabin) → set "personal": true and DO NOT identify them;
-    leave every address/coordinate field null and place_confidence null.
-  * PUBLIC places (restaurant, church, school, park, business, landmark) → try to
-    identify the real official place using context you ALREADY have, in priority:
-    (1) an explicit location named in the story ("Riverside, California");
-    (2) another place already in the SAME story ("we left UT Medical Center and
-    stopped at Nauti K's" → Nauti K's is near Knoxville); (3) the author's home
-    location (provided to you) — prefer a well-known place within ~30-50 miles of
-    home when the story names no nearer location.
-  * When confident, fill official_name, line1 (street address), city, state,
-    country, lat, lon; set place_confidence "high" (very confident) or "medium"
-    (plausible but unsure); and give a SHORT reasoning ("A well-known business
-    about 15 miles from your home in Maryville, TN").
+    fishing hole, our cabin, a family home) → set "personal": true, identify
+    NOTHING, leave every address/coordinate field null and place_confidence null.
+  * PUBLIC places → identify the REAL place using CONTEXTUAL REASONING BEFORE
+    factual recall. Do NOT assume the place could be anywhere in the country —
+    bias HEAVILY toward the geographic context you have, and assume the place is
+    within driving distance of it unless the story says otherwise. Use context in
+    priority: (1) an explicit location named in the story ("Riverside,
+    California"); (2) other locations or places already identified in THIS story
+    ("we left UT Medical Center and stopped at Nauti K's" → Nauti K's is near
+    Knoxville); (3) places already in the author's Legacy and their locations
+    (given below); (4) the author's home city/state (given below) — prefer a
+    place within ~30-50 miles of home when the story names no nearer location.
+    Example: "I stopped at Nauti K's after work" for someone who lives in
+    Maryville, Tennessee almost certainly means a business near Maryville —
+    identify THAT one, not a similarly named place elsewhere.
+  * Only when genuinely confident: fill official_name, city, state, country and
+    set place_confidence "high"; add line1 (street) and lat/lon ONLY if you are
+    highly confident of them; give a SHORT reasoning ("A local business about 15
+    miles from your home in Maryville, TN"). If it is plausible but you are not
+    sure, use place_confidence "medium" instead.
   * If you cannot confidently identify it, set place_confidence "low" and leave
-    address and coordinates null. NEVER fabricate an address or coordinates and
-    never guess — a wrong address is far worse than an unresolved place.
+    the address and coordinates null. NEVER invent a name, address, or
+    coordinates — a wrong detail is far worse than an unresolved place.
 - human_time is how humans actually remember time: "Summer 1969", "Early 1980s",
   "During high school", "Before Haley was born", "After Grandpa died". Preserve
   the phrasing from the story.
@@ -278,20 +287,34 @@ def _client():
         return None
 
 
-def _extract(text, home=None):
-    """Call OpenAI and return the parsed dict, or None on any failure. `home` is
-    the author's configured home location, given to the model ONLY to help it
-    identify public places when the story names no nearer location."""
+def _known_place_context(user):
+    """A short list of places already in the author's Legacy that have a known
+    location — handed to the model as geographic context for resolving places."""
+    from apps.legacy.models import Place
+    parts = ["%s (%s)" % (p.name, p.location_text)
+             for p in Place.objects.filter(user=user).exclude(location_text="")[:12]]
+    return "; ".join(parts) or None
+
+
+def _extract(text, home=None, known_places=None):
+    """Call OpenAI and return the parsed dict, or None on any failure. `home` and
+    `known_places` are geographic context given to the model ONLY to help it
+    identify public places near the right area — never added as discovered items."""
     client = _client()
     if client is None:
         return None
     model = getattr(settings, "LEGACY_DISCOVERY_MODEL", getattr(settings, "OPENAI_MODEL", "gpt-4o"))
     user_content = text[:8000]
+    ctx = []
     if home:
+        ctx.append("The author's home location is %s." % home)
+    if known_places:
+        ctx.append("Places already in the author's Legacy, with locations: %s." % known_places)
+    if ctx:
         user_content += (
-            "\n\n[Context Legacy already knows — the author's home location is %s. "
-            "Use it ONLY to help identify public places when the story names no "
-            "nearer location. Do not add it as a discovered place.]" % home)
+            "\n\n[Context Legacy already knows — use ONLY to help identify public "
+            "places near the right area; do not add these as discovered places. %s]"
+            % " ".join(ctx))
     try:
         resp = client.chat.completions.create(
             model=model,
@@ -343,15 +366,17 @@ def run_discovery(memory, extractor=None, place_lookup_fn=None):
     if len(text) < 12:
         return "empty", []
 
-    # The user's home location is handed to the same Discovery call so OpenAI can
-    # resolve public places with context — no second lookup, no extra request.
+    # The user's home + already-known Legacy places are handed to the SAME
+    # Discovery call so OpenAI resolves public places with real geographic
+    # context — no second lookup, no extra request.
     home_ctx = place_lookup_fn.home_location(memory.user)
     home_text = home_ctx["text"] if home_ctx else None
+    known_places = _known_place_context(memory.user)
 
     if extractor is None:
         if not is_available():
             return "unavailable", []
-        extractor = lambda t: _extract(t, home=home_text)
+        extractor = lambda t: _extract(t, home=home_text, known_places=known_places)
 
     data = extractor(text)
     if not data:

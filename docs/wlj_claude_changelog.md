@@ -6,6 +6,24 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-03 — feat(dashboard): Executive Dashboard interpretation maturity — mission PROGRESS awareness
+
+Dashboard capability maturity (NOT a redesign, NOT Beth, NO new architecture/layer/engine). The dashboard presents truth correctly but its executive INTERPRETATION was immature: after achieving a mission-significant milestone the mission card still read "Maintaining" — factually defensible, but it failed to communicate the executive state ("if Danny glanced for five seconds, would he understand how the mission is progressing?"). Broader weakness (not a single label): every dashboard interpretation read DIRECTION from the nightly `GoalMomentumSnapshot` trend + habit signals (workouts/steps/sleep/journal/nutrition) — i.e. it interpreted BEHAVIOUR, and was blind to MISSION PROGRESS (milestone events + pace vs plan), the axis an executive actually judges a mission by.
+
+Fix (strengthen the existing deterministic classifier in `apps/dashboard_v3/services/composer.py` — Layer 1 still owns truth; the dashboard remains an independent consumer):
+- New deterministic `_mission_progress_read(goal, next_milestone, today)` reads ONLY milestone truth already on the goal (completed_date, target_date) — no scoring, no fabrication, one indexed lookup. Resolves a live executive event: `milestone_reached` (a completion within a 14-day window; pace `ahead` if it landed on/before its target date, else `recovering`) or `behind` (the next milestone's target date passed uncompleted).
+- Three progress-aware states added to the existing 6: `AHEAD_OF_PLAN` (ring "AHEAD"), `MILESTONE_WIN` (ring "MILESTONE", label "Milestone reached"), `BEHIND_PLAN` (ring "REFOCUS", label "Behind plan"), each with tone + fixed base line. `_build_mission_status` now lets a live progress event DOMINATE the habit-trend classification (an executive who just hit a milestone never sees "Maintaining"); it falls through to the unchanged habit-trend logic only when there is no progress event.
+- New `_mission_status_narrative` composes the executive read deterministically — what changed (the actual milestone title + count) · why/trajectory (fixed base line) · next focus (the actual next milestone) · one grounded habit clause. Habit-state narratives are byte-identical to before.
+- `_build_mission_panel` ("How things are going") made consistent: a milestone reached / behind-plan event LEADS the panel (no more generic "Steady"/"Underway" after a win); otherwise the persisted-momentum-trend behaviour is unchanged.
+- Progress read computed ONCE in `_build_mission_card` and shared by the panel + status so they always agree.
+
+Scope discipline: the accountability cards (per-domain drift — a different axis), the shared executive-summary trajectory, and the SAE goal-state classifier (other consumers of shared truth) were reviewed and deliberately left unchanged — matching them would couple the dashboard to Beth/shared truth, which the task forbids.
+
+Acceptance/regression (`apps/dashboard_v3/tests/test_composer.py`): the exact reported case (stable momentum + strong habits + a milestone cleared ON TIME → `AHEAD_OF_PLAN`, ring "AHEAD", narrative names the milestone + next focus — NOT "Maintaining"); milestone-reached-late → `MILESTONE_WIN`; next-milestone-overdue → `BEHIND_PLAN`; the panel reflects the milestone; plus two back-compat guards (an undated completion and a completion outside the 14-day window do NOT dominate — habit trend still governs). GREEN (6 new; full mission suite passes). Existing habit-trend/narrative tests unchanged and passing. NOTE: one PRE-EXISTING failure in `RhythmInteractionModeTests.test_preview_mode_groups_future_items_by_time_no_checkboxes` is a wall-clock flake (13:00/18:00 items, no frozen clock; fails after 13:00) — confirmed identical on the stashed baseline, unrelated to this change. No model change, no migration.
+
+**Files:** apps/dashboard_v3/services/composer.py, apps/dashboard_v3/tests/test_composer.py.
+
+
 ## 2026-07-02 — fix(cos): Significant Event Pipeline v1.1 — Stage-1 propagation gap (title-form milestone detection)
 
 Propagation-integrity investigation of a live case: the France 2027 mission still showed 1/12 with the achieved rung (284.9 lb) as "next" after Danny crossed it at 283.1 lb. Not a dashboard bug and NOT a downstream-propagation bug — traced every stage against repository + production evidence and proved propagation STOPPED at Stage 1 (Milestone Detection); everything downstream was correct but never fired.

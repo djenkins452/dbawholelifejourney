@@ -282,6 +282,17 @@ _STATE_IMPROVING = "IMPROVING"
 _STATE_MAINTAINING = "MAINTAINING"
 _STATE_SLIPPING = "SLIPPING"
 _STATE_AT_RISK = "AT_RISK"
+# Progress-aware states (Mission Progress Maturity). The states above read HABIT
+# momentum (behaviours). These read MISSION PROGRESS (milestone events + pace vs
+# plan) — the axis an executive actually judges the mission by. A milestone
+# reached, or a milestone target that slipped, is a stronger "how are things
+# going" signal than a stable habit trend, so these DOMINATE the classification
+# when a real progress event exists. Both derive from deterministic milestone
+# truth already on the goal (completed_date, target_date) — no scoring, no
+# fabrication, no new architecture.
+_STATE_AHEAD_OF_PLAN = "AHEAD_OF_PLAN"     # a milestone landed on/before its target date
+_STATE_MILESTONE_WIN = "MILESTONE_WIN"     # a milestone was just reached (late but done)
+_STATE_BEHIND_PLAN = "BEHIND_PLAN"         # a milestone target passed without completing
 
 # Ring centre word — answers "what am I doing right now" without a number.
 _RING_WORD = {
@@ -291,6 +302,9 @@ _RING_WORD = {
     _STATE_MAINTAINING: "STEADY",
     _STATE_SLIPPING: "RECOVER",
     _STATE_AT_RISK: "REFOCUS",
+    _STATE_AHEAD_OF_PLAN: "AHEAD",
+    _STATE_MILESTONE_WIN: "MILESTONE",
+    _STATE_BEHIND_PLAN: "REFOCUS",
 }
 
 # Human label for the status pill.
@@ -301,6 +315,9 @@ _STATE_LABEL = {
     _STATE_MAINTAINING: "Maintaining",
     _STATE_SLIPPING: "Slipping",
     _STATE_AT_RISK: "Needs attention",
+    _STATE_AHEAD_OF_PLAN: "Ahead of plan",
+    _STATE_MILESTONE_WIN: "Milestone reached",
+    _STATE_BEHIND_PLAN: "Behind plan",
 }
 
 # Tone reuses the existing momentum indicator classes (up / flat / down).
@@ -311,6 +328,9 @@ _STATE_TONE = {
     _STATE_MAINTAINING: "flat",
     _STATE_SLIPPING: "down",
     _STATE_AT_RISK: "down",
+    _STATE_AHEAD_OF_PLAN: "up",
+    _STATE_MILESTONE_WIN: "up",
+    _STATE_BEHIND_PLAN: "down",
 }
 
 # Fixed base coaching line per state — executive-coach tone, approved verbatim.
@@ -339,6 +359,19 @@ _STATE_BASE = {
     _STATE_AT_RISK: (
         "Several mission drivers need attention. The good news: momentum can "
         "return quickly when small routines come back online."
+    ),
+    _STATE_AHEAD_OF_PLAN: (
+        "You're ahead of your own plan — the last milestone landed on or before "
+        "its target date. Keep the routine that got you here."
+    ),
+    _STATE_MILESTONE_WIN: (
+        "You just cleared a mission milestone — real forward progress. Bank it "
+        "and carry the momentum into the next rung."
+    ),
+    _STATE_BEHIND_PLAN: (
+        "A milestone target passed without completing. This is recoverable — "
+        "refocus on the single rung in front of you and protect the routine "
+        "that moves it."
     ),
 }
 
@@ -502,11 +535,15 @@ def _build_mission_card(user) -> dict | None:
     if snap and snap.momentum_trend:
         momentum = _MOMENTUM_DISPLAY.get(snap.momentum_trend)
 
-    # "How things are going" panel — always present for an active mission.
-    # Prefers the real persisted momentum trend; falls back to a deterministic,
-    # milestone-grounded state (neutral trend, never a fabricated direction)
-    # when the nightly momentum snapshot has not been computed yet.
-    panel = _build_mission_panel(goal, snap)
+    # Deterministic MISSION-PROGRESS read (milestone events + pace vs plan) —
+    # the executive axis that complements habit-momentum. Computed ONCE here and
+    # shared by both the panel and the status classifier so they always agree.
+    progress_read = _mission_progress_read(goal, nm, today)
+
+    # "How things are going" panel — always present for an active mission. A
+    # live progress event (milestone reached / behind plan) LEADS; otherwise it
+    # prefers the persisted momentum trend, then a milestone-grounded fallback.
+    panel = _build_mission_panel(goal, snap, progress_read)
 
     # Days remaining — only when a real future target date exists.
     days_remaining = None
@@ -547,7 +584,7 @@ def _build_mission_card(user) -> dict | None:
         # Phase 3.5 — the milestone PHASE shapes how movement is judged.
         phase = _mission_movement_phase(goal)
         signals = _evaluate_mission_signals(states, phase)
-        status = _build_mission_status(goal, snap, signals, today)
+        status = _build_mission_status(goal, snap, signals, today, progress_read)
         # Always-on Weight Status block — read-only over the SAE health snapshot
         # already read above + the next milestone already evaluated above.
         # Returns None for non-weight missions; that omits the block in
@@ -600,16 +637,44 @@ def _build_mission_card(user) -> dict | None:
     }
 
 
-def _build_mission_panel(goal, snap) -> dict:
+def _build_mission_panel(goal, snap, progress: dict | None = None) -> dict:
     """The "How things are going" panel — always present for an active mission.
 
-    Truth contract: the trend direction may ONLY come from a real persisted
-    ``GoalMomentumSnapshot``. When one exists we narrate it with the fixed,
-    pre-approved coaching line for that trend. When the nightly snapshot has
-    not been computed yet we still render the panel, but with a NEUTRAL ("flat")
-    indicator and a milestone-grounded line — we never invent a rising/falling
-    direction. ``is_fallback`` lets the template tone the indicator down.
+    Precedence:
+      1. A live MISSION-PROGRESS event (a milestone just cleared, or a milestone
+         target that slipped) — the strongest, most concrete "how are things
+         going" answer, composed deterministically from milestone truth.
+      2. Otherwise a real persisted ``GoalMomentumSnapshot`` trend, narrated with
+         the fixed, pre-approved coaching line for that trend.
+      3. Otherwise a NEUTRAL ("flat") milestone-grounded fallback — we never
+         invent a rising/falling direction. ``is_fallback`` tones it down.
     """
+    prog = progress or {}
+    if prog.get("event") == "milestone_reached":
+        if prog.get("pace") == "ahead":
+            traj = "You're ahead of your plan."
+        else:
+            traj = "Momentum is back — carry it into the next rung."
+        nxt = (f" Next: {prog['next_title']}." if prog.get("next_title")
+               else " Set your next milestone to keep a concrete target.")
+        return {
+            "label": "Milestone reached",
+            "trend": "up",
+            "narrative": f"You cleared “{prog.get('last_title')}”. {traj}{nxt}",
+            "is_fallback": False,
+        }
+    if prog.get("event") == "behind":
+        od = prog.get("next_days_overdue") or 0
+        unit = "day" if od == 1 else "days"
+        return {
+            "label": "Behind plan",
+            "trend": "down",
+            "narrative": (f"“{prog.get('next_title')}” passed its target "
+                          f"{od} {unit} ago without completing. Recoverable — "
+                          f"refocus on that one rung."),
+            "is_fallback": False,
+        }
+
     if snap and snap.momentum_trend in _MISSION_PANEL_NARRATIVE:
         md = _MOMENTUM_DISPLAY.get(snap.momentum_trend, {})
         return {
@@ -1069,7 +1134,117 @@ def _evaluate_mission_signals(states: dict, phase: str = "foundation") -> list[d
     return signals
 
 
-def _build_mission_status(goal, snap, signals: list[dict], today) -> dict:
+_RECENT_MILESTONE_DAYS = 14  # a completion within this window is "what changed"
+
+
+def _mission_progress_read(goal, next_milestone, today) -> dict:
+    """Deterministic MISSION-PROGRESS assessment — the axis an executive judges a
+    mission by (milestones cleared / pace vs plan), complementing the HABIT
+    momentum signals. Reads only GoalMilestone truth already on the goal
+    (completed_date, target_date). No scoring, no fabrication, no new queries
+    beyond one indexed lookup for the most-recent completion.
+
+    Returns ``{event, last_title, last_days_ago, last_on_time, completed, total,
+    next_title, next_overdue, next_days_overdue, pace}`` where ``event`` is
+    ``"milestone_reached"`` (a completion within the recent window),
+    ``"behind"`` (the next milestone's target date has passed, uncompleted), or
+    ``None``.
+    """
+    out = {
+        "event": None, "last_title": None, "last_days_ago": None,
+        "last_on_time": None, "completed": 0, "total": 0,
+        "next_title": None, "next_overdue": False, "next_days_overdue": None,
+        "pace": None,
+    }
+    try:
+        out["total"] = goal.milestone_count
+        out["completed"] = goal.completed_milestone_count
+
+        # Most-recent DATED completion. (Test fixtures create completed=True with
+        # no completed_date; those legitimately don't count as a fresh event —
+        # production completions always stamp completed_date.)
+        last = (goal.milestones
+                .filter(completed=True, completed_date__isnull=False)
+                .order_by("-completed_date").first())
+        if last is not None:
+            out["last_title"] = last.title
+            out["last_days_ago"] = (today - last.completed_date).days
+            if last.target_date is not None:
+                out["last_on_time"] = last.completed_date <= last.target_date
+
+        # Next milestone timing.
+        nm = next_milestone
+        if nm is not None:
+            out["next_title"] = nm.title
+            if nm.target_date is not None and nm.target_date < today:
+                out["next_overdue"] = True
+                out["next_days_overdue"] = (today - nm.target_date).days
+
+        # Resolve the executive event. A recent WIN is the more salient "what
+        # changed" and wins over an overdue-next (target dates that are close).
+        # -1 lower bound tolerates a ±1 day user-timezone skew vs completed_date.
+        if out["last_days_ago"] is not None and \
+                -1 <= out["last_days_ago"] <= _RECENT_MILESTONE_DAYS:
+            out["event"] = "milestone_reached"
+            out["pace"] = "ahead" if out["last_on_time"] else "recovering"
+        elif out["next_overdue"]:
+            out["event"] = "behind"
+            out["pace"] = "behind"
+    except Exception:
+        # Progress-awareness is additive: any read failure degrades to the
+        # habit-trend classification, never breaks the card.
+        logger.warning("MISSION progress read failed for goal=%s",
+                       getattr(goal, "id", "?"), exc_info=True)
+    return out
+
+
+def _mission_status_narrative(state, prog, helping, watching, needs) -> str:
+    """Compose the executive narrative deterministically: what changed · why /
+    trajectory · next focus · one grounded habit clause. A progress state LEADS
+    with the concrete milestone change (actual title + count) and names the next
+    focus; habit states keep the original base+signal composition unchanged.
+    Nothing is fabricated — every clause names real truth."""
+    prog = prog or {}
+    event = prog.get("event")
+
+    if event == "milestone_reached":
+        days = prog.get("last_days_ago")
+        when = ("today" if days is not None and days <= 0
+                else "yesterday" if days == 1 else f"{days} days ago")
+        completed, total = prog.get("completed", 0), prog.get("total", 0)
+        count = f" ({completed} of {total})" if total else ""
+        parts = [f"Milestone reached — you cleared “{prog.get('last_title')}” "
+                 f"{when}{count}.", _STATE_BASE[state]]
+        if prog.get("next_title"):
+            parts.append(f"Next focus: {prog['next_title']}.")
+        if helping and helping[0].get("help_frag"):
+            parts.append(helping[0]["help_frag"])
+        return " ".join(p for p in parts if p)
+
+    if event == "behind":
+        od = prog.get("next_days_overdue") or 0
+        unit = "day" if od == 1 else "days"
+        parts = [f"Behind plan — “{prog.get('next_title')}” was due {od} "
+                 f"{unit} ago and isn't complete yet.", _STATE_BASE[state]]
+        if needs and needs[0].get("need_frag"):
+            parts.append(needs[0]["need_frag"])
+        elif helping and helping[0].get("help_frag"):
+            parts.append(helping[0]["help_frag"])
+        return " ".join(p for p in parts if p)
+
+    # Habit-trend states — the ORIGINAL composition, unchanged.
+    parts = [_STATE_BASE[state]]
+    if helping and helping[0].get("help_frag"):
+        parts.append(helping[0]["help_frag"])
+    if needs and needs[0].get("need_frag"):
+        parts.append(needs[0]["need_frag"])
+    elif watching and watching[0].get("watch_frag"):
+        parts.append(watching[0]["watch_frag"])
+    return " ".join(parts)
+
+
+def _build_mission_status(goal, snap, signals: list[dict], today,
+                          progress: dict | None = None) -> dict:
     """Deterministic, explainable mission-state classifier (Phase 3A/3B).
 
     Truth rules:
@@ -1105,8 +1280,21 @@ def _build_mission_status(goal, snap, signals: list[dict], today) -> dict:
     watching = _apply_priority(watching, pinned)
     needs = _apply_priority(needs, pinned)
     trend = snap.momentum_trend if snap and snap.momentum_trend else None
+    prog = progress or {}
+    prog_event = prog.get("event")
 
-    if trend == "rising":
+    # ── PROGRESS DOMINATES ─────────────────────────────────────────────
+    # A milestone just cleared, or a milestone target that slipped, is a
+    # stronger executive read than a habit trend — an executive who just hit a
+    # mission milestone must never see "Maintaining". These are real,
+    # deterministic events, so they take precedence; we fall through to the
+    # habit-trend classification ONLY when there is no live progress event.
+    if prog_event == "milestone_reached":
+        state = (_STATE_AHEAD_OF_PLAN if prog.get("pace") == "ahead"
+                 else _STATE_MILESTONE_WIN)
+    elif prog_event == "behind":
+        state = _STATE_BEHIND_PLAN
+    elif trend == "rising":
         state = _STATE_IMPROVING if helping else _STATE_BUILDING_MOMENTUM
     elif trend == "falling":
         state = _STATE_AT_RISK if len(needs) >= 3 else _STATE_SLIPPING
@@ -1123,19 +1311,9 @@ def _build_mission_status(goal, snap, signals: list[dict], today) -> dict:
         # honest state is "getting started".
         state = _STATE_BUILDING_MOMENTUM if helping else _STATE_GETTING_STARTED
 
-    # Grounded narrative — truthful + encouraging. Fixed base line + the single
-    # most relevant helping clause + ONE forward clause: a real need when one
-    # exists, otherwise a constructive "worth watching" clause so the card never
-    # ends on a flat note (and never piles a watch clause on top of a need).
-    # Every clause names an ACTUAL tracked signal; nothing is fabricated.
-    parts = [_STATE_BASE[state]]
-    if helping and helping[0].get("help_frag"):
-        parts.append(helping[0]["help_frag"])
-    if needs and needs[0].get("need_frag"):
-        parts.append(needs[0]["need_frag"])
-    elif watching and watching[0].get("watch_frag"):
-        parts.append(watching[0]["watch_frag"])
-    narrative = " ".join(parts)
+    # Executive narrative — what changed · why/trajectory · next focus · one
+    # grounded habit clause. Deterministic; every clause names ACTUAL truth.
+    narrative = _mission_status_narrative(state, prog, helping, watching, needs)
 
     # Display — one column per polarity, in the mission-priority order from
     # _apply_priority (pinned signals first) then the fixed signal order. Phase D:

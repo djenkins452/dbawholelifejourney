@@ -1068,9 +1068,11 @@ class MissionCardTests(TestCase):
         self.assertIn(status["state"], {
             "GETTING_STARTED", "BUILDING_MOMENTUM", "IMPROVING",
             "MAINTAINING", "SLIPPING", "AT_RISK",
+            "AHEAD_OF_PLAN", "MILESTONE_WIN", "BEHIND_PLAN",
         })
         self.assertIn(status["ring_word"], {
             "BUILDING", "MOMENTUM", "ON TRACK", "STEADY", "RECOVER", "REFOCUS",
+            "AHEAD", "MILESTONE",
         })
 
     def test_getting_started_when_no_signals_no_momentum(self):
@@ -1132,6 +1134,117 @@ class MissionCardTests(TestCase):
         status = self._status()
         self.assertEqual(status["state"], "MAINTAINING")
         self.assertEqual(status["ring_word"], "STEADY")
+
+    # ── Mission Progress Maturity — progress dominates habit trend ────────
+    #
+    # The reported executive-interpretation defect: after achieving a
+    # mission-significant milestone the card still read "Maintaining". These
+    # assert the deterministic interpretation now communicates the executive
+    # situation — what changed, trajectory, next focus — not a habit plateau.
+
+    def _panel(self):
+        return build_dashboard_v3_context(self.user)["mission"]["panel"]
+
+    def test_recent_milestone_reached_on_time_reads_ahead_not_maintaining(self):
+        # EXACT reported case: stable momentum + strong habits would classify as
+        # MAINTAINING — but a milestone was just cleared ON TIME. The executive
+        # read must be "Ahead of plan", never "Maintaining".
+        from datetime import date, timedelta
+        goal = self._goal(title="France 2027")
+        self._momentum(goal, trend="stable")
+        self._seed_state(
+            fitness={"workouts_7d": 4},
+            health={"sleep_avg_hours_7d": 7.5},
+        )
+        self._milestone(goal, title="Reach 284.9 lb", completed=True,
+                        completed_date=date.today(),
+                        target_date=date.today() + timedelta(days=5))
+        self._milestone(goal, title="Reach 279.9 lb",
+                        target_date=date.today() + timedelta(days=60))
+        status = self._status()
+        self.assertNotEqual(status["state"], "MAINTAINING")
+        self.assertEqual(status["state"], "AHEAD_OF_PLAN")
+        self.assertEqual(status["ring_word"], "AHEAD")
+        self.assertEqual(status["tone"], "up")
+        # Narrative communicates WHAT CHANGED + NEXT FOCUS, grounded in truth.
+        self.assertIn("Milestone reached", status["narrative"])
+        self.assertIn("Reach 284.9 lb", status["narrative"])
+        self.assertIn("Next focus: Reach 279.9 lb", status["narrative"])
+
+    def test_recent_milestone_reached_late_reads_milestone_win(self):
+        from datetime import date, timedelta
+        goal = self._goal(title="Late win")
+        self._momentum(goal, trend="stable")
+        self._seed_state(fitness={"workouts_7d": 4})
+        # Completed AFTER its target date → still a win, but not "ahead".
+        self._milestone(goal, title="Reach 284.9 lb", completed=True,
+                        completed_date=date.today(),
+                        target_date=date.today() - timedelta(days=2))
+        status = self._status()
+        self.assertEqual(status["state"], "MILESTONE_WIN")
+        self.assertEqual(status["ring_word"], "MILESTONE")
+        self.assertEqual(status["tone"], "up")
+
+    def test_next_milestone_overdue_reads_behind_plan(self):
+        from datetime import date, timedelta
+        goal = self._goal(title="Slipped target")
+        self._momentum(goal, trend="stable")
+        self._seed_state(fitness={"workouts_7d": 4})
+        # An incomplete milestone whose target date has passed, no recent win.
+        self._milestone(goal, title="Reach 284.9 lb",
+                        target_date=date.today() - timedelta(days=6))
+        status = self._status()
+        self.assertEqual(status["state"], "BEHIND_PLAN")
+        self.assertEqual(status["ring_word"], "REFOCUS")
+        self.assertEqual(status["tone"], "down")
+        self.assertIn("Behind plan", status["narrative"])
+        self.assertIn("days ago", status["narrative"])
+
+    def test_progress_event_updates_the_how_things_are_going_panel(self):
+        # The panel must agree with the status — a milestone reached is not
+        # "Steady"/"Underway".
+        from datetime import date, timedelta
+        goal = self._goal(title="Panel progress")
+        self._momentum(goal, trend="stable")
+        self._milestone(goal, title="Reach 284.9 lb", completed=True,
+                        completed_date=date.today(),
+                        target_date=date.today() + timedelta(days=5))
+        self._milestone(goal, title="Reach 279.9 lb",
+                        target_date=date.today() + timedelta(days=60))
+        panel = self._panel()
+        self.assertEqual(panel["label"], "Milestone reached")
+        self.assertEqual(panel["trend"], "up")
+        self.assertIn("Reach 284.9 lb", panel["narrative"])
+        self.assertIn("ahead of your plan", panel["narrative"].lower())
+
+    def test_undated_completion_does_not_trigger_progress_state(self):
+        # Back-compat: a completed milestone with NO completed_date (the legacy
+        # fixture shape) is not a fresh event — habit trend still governs.
+        goal = self._goal(title="Undated")
+        self._momentum(goal, trend="stable")
+        self._seed_state(
+            fitness={"workouts_7d": 4},
+            health={"sleep_avg_hours_7d": 7.5},
+        )
+        self._milestone(goal, title="Old win", completed=True)  # no completed_date
+        status = self._status()
+        self.assertEqual(status["state"], "MAINTAINING")
+
+    def test_stale_completion_outside_window_does_not_dominate(self):
+        # A completion older than the recent window is not "what changed now" —
+        # the habit-trend classification resumes.
+        from datetime import date, timedelta
+        goal = self._goal(title="Old progress")
+        self._momentum(goal, trend="stable")
+        self._seed_state(
+            fitness={"workouts_7d": 4},
+            health={"sleep_avg_hours_7d": 7.5},
+        )
+        self._milestone(goal, title="Long-ago rung", completed=True,
+                        completed_date=date.today() - timedelta(days=40),
+                        target_date=date.today() - timedelta(days=45))
+        status = self._status()
+        self.assertEqual(status["state"], "MAINTAINING")
 
     def test_narrative_references_actual_signals(self):
         # Copy must ground in real signals — not generic personalisation.

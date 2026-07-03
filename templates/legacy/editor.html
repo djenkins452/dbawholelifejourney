@@ -30,9 +30,9 @@
                    autocomplete="off">
 
             <div class="editor-toolbar">
-                <button type="button" class="editor-tool js-legacy-soon" data-note="Voice-to-text is coming soon.">
+                <button type="button" class="editor-tool editor-talk" id="talkBtn" aria-pressed="false">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-                    Talk
+                    <span id="talkBtnLabel">Talk</span>
                 </button>
                 <button type="button" class="editor-tool editor-discover" id="discoverBtn" data-url="{% url 'legacy:memory_discover' %}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 14l.7 1.8L21.5 16.5 19.7 17.2 19 19l-.7-1.8L16.5 16.5l1.8-.7z"/></svg>
@@ -85,30 +85,25 @@
                 </details>
             </section>
 
-            <section class="lg-card editor-media">
+            <section class="lg-card editor-media" id="editorMedia">
                 <div class="lg-card-headrow"><h3 class="lg-card-h">Media</h3></div>
-                {% if media_items %}
-                <div class="editor-media-grid">
+                <p class="editor-media-hint">Drop the photos, audio, or video that belong with this story. They stay with the story — nothing is duplicated.</p>
+                <div class="editor-media-grid" id="editorMediaGrid"{% if not media_items %} hidden{% endif %}>
                     {% for md in media_items %}
-                    <div class="editor-media-thumb type-{{ md.media_type }}">
-                        {% if md.file and md.media_type == 'photo' %}<img src="{{ md.file.url }}" alt="{{ md.caption }}">{% else %}
-                        <span class="editor-media-kind">{{ md.get_media_type_display }}</span>{% endif %}
+                    <div class="editor-media-thumb type-{{ md.media_type }}" data-media-id="{{ md.pk }}">
+                        {% if md.file and md.media_type == 'photo' %}<img src="{{ md.file.url }}" alt="{{ md.caption }}">{% else %}<span class="editor-media-kind">{{ md.get_media_type_display }}</span>{% endif %}
+                        <button type="button" class="editor-media-rm js-media-remove" data-media-id="{{ md.pk }}" aria-label="Remove from this story">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+                        </button>
                     </div>
                     {% endfor %}
                 </div>
-                {% endif %}
-                {% if memory %}
-                <form method="post" action="{% url 'legacy:memory_media_add' memory.pk %}" enctype="multipart/form-data" class="editor-media-add">
-                    {% csrf_token %}
-                    <label class="editor-media-btn">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                        Add a photo, audio, or document
-                        <input type="file" name="file" class="editor-media-input" id="mediaFileInput">
-                    </label>
-                </form>
-                {% else %}
-                <p class="editor-aside-note">Photos and audio can be added once you've saved this memory.</p>
-                {% endif %}
+                <label class="editor-media-drop" id="mediaDrop">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="editor-media-drop-ico"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span class="editor-media-drop-main">Drop photos here, or browse</span>
+                    <span class="editor-media-drop-sub">Photos, video, audio, or documents</span>
+                    <input type="file" name="file" class="editor-media-input" id="mediaFileInput" multiple accept="image/*,audio/*,video/*,.pdf,.doc,.docx">
+                </label>
             </section>
         </aside>
     </div>

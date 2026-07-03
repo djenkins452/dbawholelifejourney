@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 214,
+    "fields": {
+      "title": "Legacy now listens, keeps photos with their stories, and welcomes your written life",
+      "description": "Legacy just got easier and more natural to use. You can now tap Talk and simply speak — your words are transcribed live as you go, and everything works exactly the same whether you spoke a memory or typed it. Photos and media now belong with the story you're writing: drag them straight onto a memory (or browse to add several at once), see them previewed, and remove any before you save — nothing is ever duplicated. The home page is clearer too: \"Add Photos & Media\" is where your photos, video, and audio go, while a new \"Import your life\" brings in memoirs, journals, and ChatGPT or Claude exports and turns them into stories. And if a file lands in the wrong place, Legacy gently points you to the right one instead of showing an error.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-03",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-03T12:00:00Z",
+      "updated_at": "2026-07-03T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 213,
     "fields": {
       "title": "Your Chief of Staff keeps thinking even if you leave the page",

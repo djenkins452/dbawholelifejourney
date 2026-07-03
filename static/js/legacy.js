@@ -87,19 +87,62 @@
         document.querySelectorAll('.lg-autosubmit').forEach(function (sel) {
             sel.addEventListener('change', function () { if (sel.form) sel.form.submit(); });
         });
-        var mediaInput = document.getElementById('mediaFileInput');
-        if (mediaInput) {
-            mediaInput.addEventListener('change', function () { if (mediaInput.files.length && mediaInput.form) mediaInput.form.submit(); });
-        }
         // Media library / any file input that should submit its form on selection.
         document.querySelectorAll('.js-autoupload').forEach(function (inp) {
             inp.addEventListener('change', function () { if (inp.files.length && inp.form) inp.form.submit(); });
         });
 
-        // Placeholder buttons (voice-to-text, analyze) — no AI in Phase 1.
+        // Placeholder buttons — anything genuinely not built yet.
         document.querySelectorAll('.js-legacy-soon').forEach(function (btn) {
             btn.addEventListener('click', function () { toast(btn.getAttribute('data-note') || 'Coming soon.'); });
         });
+
+        // Voice capture — browser speech-to-text, transcribed live into the story.
+        var talkBtn = document.getElementById('talkBtn');
+        var voiceBody = document.getElementById('memoryBody');
+        var talkLabel = document.getElementById('talkBtnLabel');
+        if (talkBtn && voiceBody) {
+            var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SR) {
+                talkBtn.addEventListener('click', function () {
+                    toast('Voice needs a browser like Chrome or Safari — you can keep typing here.');
+                });
+            } else {
+                var rec = new SR();
+                rec.continuous = true; rec.interimResults = true; rec.lang = 'en-US';
+                var listening = false, baseText = '';
+                function setListening(on) {
+                    listening = on;
+                    talkBtn.classList.toggle('is-recording', on);
+                    talkBtn.setAttribute('aria-pressed', String(on));
+                    if (talkLabel) { talkLabel.textContent = on ? 'Listening…' : 'Talk'; }
+                }
+                talkBtn.addEventListener('click', function () {
+                    if (listening) { rec.stop(); return; }
+                    baseText = voiceBody.value ? voiceBody.value.replace(/\s+$/, '') + ' ' : '';
+                    try { rec.start(); } catch (e) { /* already starting */ }
+                });
+                rec.onstart = function () { setListening(true); };
+                rec.onend = function () { setListening(false); };
+                rec.onerror = function (e) {
+                    setListening(false);
+                    if (e && (e.error === 'not-allowed' || e.error === 'service-not-allowed')) {
+                        toast('Microphone access is blocked — allow it in your browser to talk.');
+                    }
+                };
+                rec.onresult = function (e) {
+                    var interim = '', finalTxt = '';
+                    for (var i = e.resultIndex; i < e.results.length; i++) {
+                        var t = e.results[i][0].transcript;
+                        if (e.results[i].isFinal) { finalTxt += t; } else { interim += t; }
+                    }
+                    if (finalTxt) { baseText += finalTxt; }
+                    voiceBody.value = baseText + interim;
+                    // Feed autosave + Discover exactly as if typed.
+                    voiceBody.dispatchEvent(new Event('input', { bubbles: true }));
+                };
+            }
+        }
 
         // Story Discovery Engine — Discover button.
         var discoverBtn = document.getElementById('discoverBtn');
@@ -225,6 +268,114 @@
             }
             if (title) { title.addEventListener('input', schedule); }
             if (body) { body.addEventListener('input', schedule); }
+
+            // Media belongs with the story — attach while writing (drag-drop / multi).
+            // A memory must exist to hang media on, so save first if needed.
+            function ensureSaved() {
+                return new Promise(function (resolve, reject) {
+                    if (pkInput && pkInput.value) { resolve(pkInput.value); return; }
+                    if (indicator) { indicator.textContent = 'Saving…'; }
+                    var fd = new FormData(form); fd.set('action', 'autosave');
+                    fetch(actionUrl, {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrfFrom(form) },
+                        body: fd, credentials: 'same-origin'
+                    }).then(function (r) { return r.json(); }).then(function (d) {
+                        if (d && d.ok && d.pk) {
+                            if (pkInput && !pkInput.value) {
+                                pkInput.value = d.pk;
+                                if (d.edit_url && window.history.replaceState) { window.history.replaceState({}, '', d.edit_url); }
+                            }
+                            lastSaved = snapshot();
+                            if (indicator) { indicator.textContent = 'Saved ' + (d.saved_at || ''); }
+                            resolve(d.pk);
+                        } else { reject(); }
+                    }).catch(reject);
+                });
+            }
+
+            var mediaPanel = document.getElementById('editorMedia');
+            if (mediaPanel) {
+                var grid = document.getElementById('editorMediaGrid');
+                var fileInput = document.getElementById('mediaFileInput');
+                var drop = document.getElementById('mediaDrop');
+
+                function appendThumb(it) {
+                    if (!grid) { return; }
+                    var d = document.createElement('div');
+                    d.className = 'editor-media-thumb type-' + it.type;
+                    d.setAttribute('data-media-id', it.id);
+                    if (it.is_photo && it.thumb_url) {
+                        var img = document.createElement('img'); img.src = it.thumb_url; img.alt = ''; d.appendChild(img);
+                    } else {
+                        var s = document.createElement('span'); s.className = 'editor-media-kind'; s.textContent = it.kind_display; d.appendChild(s);
+                    }
+                    var rm = document.createElement('button');
+                    rm.type = 'button'; rm.className = 'editor-media-rm js-media-remove';
+                    rm.setAttribute('data-media-id', it.id); rm.setAttribute('aria-label', 'Remove from this story');
+                    rm.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
+                    d.appendChild(rm);
+                    grid.appendChild(d);
+                    grid.hidden = false;
+                }
+
+                function uploadFiles(files) {
+                    if (!files || !files.length) { return; }
+                    mediaPanel.classList.add('is-uploading');
+                    ensureSaved().then(function (pk) {
+                        var fd = new FormData();
+                        for (var i = 0; i < files.length; i++) { fd.append('file', files[i]); }
+                        return fetch('/legacy/memories/' + pk + '/media/add/', {
+                            method: 'POST',
+                            headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrfFrom(form) },
+                            body: fd, credentials: 'same-origin'
+                        });
+                    }).then(function (r) { return r.json(); }).then(function (d) {
+                        mediaPanel.classList.remove('is-uploading');
+                        if (d && d.ok) {
+                            (d.items || []).forEach(appendThumb);
+                            if (d.skipped) { toast(d.skipped); }
+                        } else { toast('That didn\'t upload — try again in a moment.'); }
+                    }).catch(function () {
+                        mediaPanel.classList.remove('is-uploading');
+                        toast('That didn\'t upload — try again in a moment.');
+                    });
+                }
+
+                if (fileInput) {
+                    fileInput.addEventListener('change', function () { uploadFiles(fileInput.files); fileInput.value = ''; });
+                }
+                if (drop) {
+                    ['dragenter', 'dragover'].forEach(function (ev) {
+                        drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('is-drag'); });
+                    });
+                    drop.addEventListener('dragleave', function (e) {
+                        if (!drop.contains(e.relatedTarget)) { drop.classList.remove('is-drag'); }
+                    });
+                    drop.addEventListener('drop', function (e) {
+                        e.preventDefault(); drop.classList.remove('is-drag');
+                        if (e.dataTransfer && e.dataTransfer.files) { uploadFiles(e.dataTransfer.files); }
+                    });
+                }
+
+                document.addEventListener('click', function (e) {
+                    var rm = e.target.closest && e.target.closest('.js-media-remove');
+                    if (!rm) { return; }
+                    e.preventDefault();
+                    var id = rm.getAttribute('data-media-id');
+                    var pk = pkInput ? pkInput.value : '';
+                    var thumb = rm.closest('.editor-media-thumb');
+                    if (!pk || !id) { if (thumb) { thumb.parentNode.removeChild(thumb); } return; }
+                    fetch('/legacy/memories/' + pk + '/media/' + id + '/remove/', {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrfFrom(form) },
+                        credentials: 'same-origin'
+                    }).then(function (r) { return r.json(); }).then(function (d) {
+                        if (d && d.ok && thumb) { thumb.parentNode.removeChild(thumb); }
+                    }).catch(function () {});
+                });
+            }
+
             // Save any pending edits when leaving.
             window.addEventListener('beforeunload', function () { if (snapshot() !== lastSaved) { navigator.sendBeacon && (function () {
                 var fd = new FormData(form); fd.set('action', 'autosave');

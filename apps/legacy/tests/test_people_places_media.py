@@ -154,6 +154,12 @@ class MediaTests(TestCase):
         media = Media.objects.get(user=self.user)
         self.assertEqual(media.media_type, Media.MediaType.AUDIO)
 
+    def test_upload_skips_narrative_text(self):
+        # A memoir .txt should be guided to Import, never filed as media.
+        f = SimpleUploadedFile("memoir.txt", b"Chapter 1", content_type="text/plain")
+        self.client.post(reverse("legacy:media_upload"), {"file": f})
+        self.assertEqual(Media.objects.filter(user=self.user).count(), 0)
+
     def test_detail_shows_memory_links(self):
         media = Media.objects.create(user=self.user, media_type=Media.MediaType.PHOTO, caption="pic")
         m = Memory.objects.create(user=self.user, title="Linked memory")
@@ -182,6 +188,67 @@ class EditorLinkingTests(TestCase):
         m.refresh_from_db()
         self.assertIn(person, m.people.all())
         self.assertIn(place, m.places.all())
+
+
+class EditorMediaWorkflowTests(TestCase):
+    def setUp(self):
+        self.user = _make_user()
+        self.client.force_login(self.user)
+
+    def test_multi_upload_returns_json_and_attaches(self):
+        m = Memory.objects.create(user=self.user, title="Wedding")
+        f1 = SimpleUploadedFile("a.jpg", b"img", content_type="image/jpeg")
+        f2 = SimpleUploadedFile("b.jpg", b"img", content_type="image/jpeg")
+        r = self.client.post(reverse("legacy:memory_media_add", args=[m.pk]),
+                             {"file": [f1, f2]},
+                             HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(len(data["items"]), 2)
+        self.assertEqual(m.media.count(), 2)
+        # First photo becomes the primary.
+        m.refresh_from_db()
+        self.assertIsNotNone(m.primary_media_id)
+
+    def test_upload_skips_narrative_text_with_guidance(self):
+        m = Memory.objects.create(user=self.user, title="Story")
+        f = SimpleUploadedFile("journal.md", b"# My life", content_type="text/markdown")
+        r = self.client.post(reverse("legacy:memory_media_add", args=[m.pk]),
+                             {"file": f}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        data = r.json()
+        self.assertEqual(len(data["items"]), 0)
+        self.assertTrue(data["skipped"])
+        self.assertEqual(m.media.count(), 0)
+
+    def test_remove_detaches_but_keeps_media(self):
+        m = Memory.objects.create(user=self.user, title="Story")
+        media = Media.objects.create(user=self.user, media_type=Media.MediaType.PHOTO)
+        m.media.add(media); m.primary_media = media; m.save()
+        r = self.client.post(
+            reverse("legacy:memory_media_remove", args=[m.pk, media.pk]),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertTrue(r.json()["ok"])
+        m.refresh_from_db()
+        self.assertEqual(m.media.count(), 0)
+        self.assertIsNone(m.primary_media_id)
+        # Media itself is not deleted — it may belong to other stories.
+        self.assertTrue(Media.objects.filter(pk=media.pk).exists())
+
+
+class ImportValidationTests(TestCase):
+    def setUp(self):
+        self.user = _make_user()
+        self.client.force_login(self.user)
+
+    def test_import_rejects_photo_without_500(self):
+        f = SimpleUploadedFile("photo.jpg", b"\xff\xd8\xff", content_type="image/jpeg")
+        r = self.client.post(reverse("legacy:import_new"),
+                             {"source_name": "x", "source_type": "plain_text", "file": f})
+        self.assertEqual(r.status_code, 200)          # re-renders, never 500
+        self.assertContains(r, "Add Photos &amp; Media")
+        from apps.legacy.models import ImportBatch
+        self.assertEqual(ImportBatch.objects.filter(user=self.user).count(), 0)
 
 
 class TimelineTests(TestCase):

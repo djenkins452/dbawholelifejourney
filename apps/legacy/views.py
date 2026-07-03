@@ -30,7 +30,9 @@ from apps.legacy.models import (
 from apps.legacy.services import discovery as discovery_svc
 from apps.legacy.services import import_engine
 from apps.legacy.services.home import build_home_context
-from apps.legacy.services.media_utils import guess_media_type
+from apps.legacy.services.media_utils import (
+    guess_media_type, is_narrative_text, is_visual_media,
+)
 
 
 # ── Shared ─────────────────────────────────────────────────────────────────
@@ -398,13 +400,23 @@ class MemoryDeleteForeverView(LegacyContextMixin, View):
         return redirect("%s?status=archived" % reverse("legacy:library"))
 
 
+def _is_ajax(request):
+    return request.headers.get("x-requested-with") == "XMLHttpRequest"
+
+
 class MediaAddView(LegacyContextMixin, View):
-    """Basic media upload attached to an existing memory."""
+    """Attach one or more media files to a memory (drag-drop / multi-upload aware)."""
 
     def post(self, request, pk, *args, **kwargs):
         memory = get_object_or_404(Memory.all_objects, pk=pk, user=request.user)
-        f = request.FILES.get("file")
-        if f:
+        files = request.FILES.getlist("file")
+        items, skipped = [], None
+        for f in files:
+            # Written life belongs in Import — guide, never 500.
+            if is_narrative_text(f.name):
+                skipped = ("That looks like written text — bring memoirs, journals, "
+                           "and exports in through Import your life.")
+                continue
             media = Media.objects.create(
                 user=request.user,
                 media_type=guess_media_type(f.name),
@@ -416,7 +428,37 @@ class MediaAddView(LegacyContextMixin, View):
             if media.media_type == Media.MediaType.PHOTO and not memory.primary_media_id:
                 memory.primary_media = media
                 memory.save(update_fields=["primary_media", "updated_at"])
+            is_photo = media.media_type == Media.MediaType.PHOTO
+            items.append({
+                "id": media.pk,
+                "type": media.media_type,
+                "kind_display": media.get_media_type_display(),
+                "is_photo": is_photo,
+                "thumb_url": media.file.url if (is_photo and media.file) else "",
+                "name": media.original_filename,
+            })
+        if _is_ajax(request):
+            return JsonResponse({"ok": True, "items": items, "skipped": skipped})
+        if items:
             messages.success(request, "Added to this memory.")
+        if skipped:
+            messages.info(request, skipped)
+        return redirect("legacy:editor", pk=memory.pk)
+
+
+class MemoryMediaRemoveView(LegacyContextMixin, View):
+    """Detach media from a memory before saving. Media is shared, so we only
+    unlink it here — the file stays in the library and with any other stories."""
+
+    def post(self, request, pk, media_pk, *args, **kwargs):
+        memory = get_object_or_404(Memory.all_objects, pk=pk, user=request.user)
+        media = get_object_or_404(Media.all_objects, pk=media_pk, user=request.user)
+        memory.media.remove(media)
+        if memory.primary_media_id == media.pk:
+            memory.primary_media = None
+            memory.save(update_fields=["primary_media", "updated_at"])
+        if _is_ajax(request):
+            return JsonResponse({"ok": True})
         return redirect("legacy:editor", pk=memory.pk)
 
 
@@ -640,8 +682,12 @@ class MediaLibraryView(LegacyContextMixin, TemplateView):
 class MediaUploadView(LegacyContextMixin, View):
     def post(self, request, *args, **kwargs):
         files = request.FILES.getlist("file")
-        count = 0
+        count, skipped = 0, 0
         for f in files:
+            # Written life belongs in Import — don't quietly file it as a document.
+            if is_narrative_text(f.name):
+                skipped += 1
+                continue
             Media.objects.create(
                 user=request.user,
                 media_type=guess_media_type(f.name),
@@ -652,6 +698,9 @@ class MediaUploadView(LegacyContextMixin, View):
             count += 1
         if count:
             messages.success(request, f"Added {count} item{'s' if count != 1 else ''}.")
+        if skipped:
+            messages.info(request, "Some written-text files were skipped — bring "
+                                   "memoirs and journals in through Import your life.")
         return redirect("legacy:media")
 
 
@@ -940,6 +989,11 @@ class ImportCreateView(LegacyContextMixin, View):
             return render(request, self.template_name, {"form": form, "nav_active": "studio"})
 
         f = form.cleaned_data.get("file")
+        if f and is_visual_media(f.name):
+            messages.error(request, "That looks like a photo, video, or audio clip — "
+                                    "add it under Add Photos & Media. Import is for "
+                                    "written stories like memoirs, journals, and exports.")
+            return render(request, self.template_name, {"form": form, "nav_active": "studio"})
         if f:
             try:
                 raw = f.read().decode("utf-8", errors="replace")

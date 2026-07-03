@@ -93,11 +93,11 @@
                     </span>
                     <span class="disc-place-name-wrap">
                         <span class="disc-person-name">{{ d.label }}</span>
-                        <span class="disc-person-rel">{% if d.detail.matched or d.detail.existing %}already in your Legacy{% elif d.detail.personal %}looks like a personal place{% elif d.detail.lookup_confidence == 'verified' %}place identified{% elif d.detail.lookup %}possible place found{% else %}a new place{% endif %}</span>
+                        <span class="disc-person-rel">{% if d.detail.matched %}already in your Legacy{% elif d.detail.personal %}looks like a personal place{% elif d.detail.lookup_confidence == 'verified' %}place identified{% elif d.detail.lookup %}possible place found{% else %}a new place{% endif %}</span>
                     </span>
                     <span class="disc-person-status">
                         {% if d.detail.personal %}<span class="disc-tag disc-personal">personal</span>
-                        {% elif d.detail.matched or d.detail.existing %}<span class="disc-tag disc-known">existing</span>
+                        {% elif d.detail.matched %}<span class="disc-tag disc-known">existing</span>
                         {% elif d.detail.lookup_confidence == 'verified' %}<span class="disc-tag disc-verified">verified</span>
                         {% elif d.detail.lookup %}<span class="disc-tag disc-possible">possible</span>
                         {% else %}<span class="disc-tag disc-new">new</span>{% endif %}

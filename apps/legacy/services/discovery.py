@@ -219,24 +219,62 @@ def _place_stats(place):
     return {"stories": stories, "photos": photos}
 
 
-# Generic words that shouldn't, on their own, make two place names "similar"
-# ("Grandma's house" vs "The lake house" must NOT match on "house").
+# Generic words that must NEVER, on their own, make two place names "similar"
+# ("Watts Bar Lake" vs "The lake house" must not collapse on "lake"). A shared
+# generic token carries no matching signal. False positives are worse than
+# false negatives — when in doubt, do not match.
 _PLACE_GENERIC = {
-    "the", "a", "an", "our", "my", "old", "new", "of", "and", "at",
-    "house", "home", "place", "house's", "homeplace",
+    "the", "a", "an", "our", "my", "old", "new", "of", "and", "at", "to",
+    "in", "on", "st", "rd", "ave", "dr",
+    "house", "home", "place", "homeplace",
+    "lake", "church", "school", "store", "shop", "park", "river", "cabin",
+    "barn", "restaurant", "bar", "grill", "road", "street", "drive", "farm",
+    "camp", "club", "cafe", "diner", "inn", "hotel", "motel", "pub", "tavern",
+    "county", "city", "town", "village", "center", "centre",
 }
 
 
+def _place_norm(s):
+    """Lowercase, fold possessives ("Callender's" → "callenders"), drop other
+    punctuation, collapse spaces."""
+    s = (s or "").lower().replace("'", "").replace("’", "")
+    s = re.sub(r"[^a-z0-9\s]", " ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _place_tokens(s):
+    """Distinctive tokens of a place name — generic words removed."""
+    return set(_place_norm(s).split()) - _PLACE_GENERIC
+
+
+def _place_shares_any_word(a, b):
+    """Raw token overlap (incl. generic) — used only to decide whether a rejected
+    pair is worth logging."""
+    return bool(set(_place_norm(a).split()) & set(_place_norm(b).split()))
+
+
 def _place_similar(a, b):
-    """Place-name similarity that ignores generic words to avoid false matches."""
-    a, b = a.lower().strip(), b.lower().strip()
-    if a == b:
+    """CONSERVATIVE place-name similarity. Exact (after normalization) always
+    matches; otherwise a fuzzy match requires STRONG distinctive overlap — a
+    single shared word (especially a generic one) is never enough."""
+    na, nb = _place_norm(a), _place_norm(b)
+    if not na or not nb:
         return False
-    at = set(a.split()) - _PLACE_GENERIC
-    bt = set(b.split()) - _PLACE_GENERIC
-    if at & bt:                       # shared meaningful token
+    if na == nb:                      # e.g. "Marie Callender's" == "Marie Callenders"
         return True
-    if len(a) >= 5 and (a in b or b in a):
+    at, bt = _place_tokens(a), _place_tokens(b)
+    if not at or not bt:              # one side has no distinctive tokens
+        return False
+    shared = at & bt
+    if not shared:
+        return False
+    smaller = at if len(at) <= len(bt) else bt
+    # One name's distinctive tokens are fully contained in the other's AND there
+    # are at least two of them ("Nauti K's" ⊂ "Nauti K's Riverside Bar & Grill").
+    if shared == smaller and len(smaller) >= 2:
+        return True
+    # Or at least two shared distinctive tokens.
+    if len(shared) >= 2:
         return True
     return False
 
@@ -387,7 +425,10 @@ def run_discovery(memory, extractor=None, place_lookup_fn=None):
 
     user = memory.user
     existing_people = {p.display_name.lower(): p for p in Person.objects.filter(user=user)}
-    existing_places = {p.name.lower(): p for p in Place.objects.filter(user=user)}
+    existing_place_objs = list(Place.objects.filter(user=user))
+    existing_places = {p.name.lower(): p for p in existing_place_objs}
+    # Normalized index so "Marie Callender's" == "Marie Callenders" is an exact hit.
+    existing_places_norm = {_place_norm(p.name): p for p in existing_place_objs}
     existing_milestones = {m.title.lower(): m for m in LifeMilestone.objects.filter(user=user)}
     already = {
         (d.kind, d.label.lower())
@@ -441,13 +482,29 @@ def run_discovery(memory, extractor=None, place_lookup_fn=None):
             continue
         # Trust the model's personal flag, with the heuristic as a safety net.
         personal = bool(pl.get("personal")) or place_lookup_fn.is_personal_place(name)
-        match = existing_places.get(name.lower())
-        # Search Legacy first — never duplicate a place you already have. Personal
-        # places aren't fuzzy-matched (they'd collide on generic words like "house").
+        # Exact match (name or normalized name) is the ONLY thing we treat as
+        # "already in your Legacy". Everything else is at most a possible match.
+        match = existing_places.get(name.lower()) or existing_places_norm.get(_place_norm(name))
+        # Conservative possible-match search — same category only (a public
+        # geographic place must never collapse into a personal place), strong
+        # distinctive overlap only, generic words carry no signal.
         ex_candidates = []
-        if not match and not personal:
-            ex_candidates = [p for lname, p in existing_places.items()
-                             if _place_similar(name, p.name)]
+        if not match:
+            for p in existing_place_objs:
+                if not _place_shares_any_word(name, p.name):
+                    continue                      # no shared words at all — skip silently
+                p_personal = place_lookup_fn.is_personal_place(p.name)
+                if p_personal != personal:
+                    logger.debug("[legacy.place_match] rejected discovered=%r existing=%r "
+                                 "reason=cross-category(%s vs %s)", name, p.name,
+                                 "personal" if personal else "public",
+                                 "personal" if p_personal else "public")
+                    continue
+                if _place_similar(name, p.name):
+                    ex_candidates.append(p)
+                else:
+                    logger.debug("[legacy.place_match] rejected discovered=%r existing=%r "
+                                 "reason=weak/generic-overlap", name, p.name)
 
         pconf = (pl.get("place_confidence") or "").lower()
         reasoning = (pl.get("reasoning") or "").strip()
@@ -480,11 +537,12 @@ def run_discovery(memory, extractor=None, place_lookup_fn=None):
 
         add(MemoryDiscovery.Kind.PLACE, name, pl.get("confidence"), {
             "matched_place_id": match.id if match else None,
-            "is_new": match is None and not ex_candidates,
+            "is_new": match is None,   # fuzzy candidates are 'possible', not known
             "personal": personal,
             "matched": (dict(name=match.name, **_place_stats(match)) if match else None),
-            "existing": [dict(id=p.id, name=p.name, **_place_stats(p))
-                         for p in ex_candidates[:3]],
+            "existing": [dict(id=p.id, name=p.name, location=p.location_text,
+                              personal=place_lookup_fn.is_personal_place(p.name),
+                              **_place_stats(p)) for p in ex_candidates[:3]],
             "lookup": lookups,
             "lookup_confidence": lookup_confidence,
             "reasoning": reasoning if lookups else "",

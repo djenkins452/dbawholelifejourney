@@ -9,18 +9,9 @@
         </span>
     </label>
     {% else %}
-        {% for ex in d.detail.existing %}
-        <label class="disc-place-opt">
-            <input type="radio" name="resolve_{{ d.id }}" value="existing:{{ ex.id }}"{% if forloop.first and d.detail.existing|length == 1 and not d.detail.lookup %} checked{% endif %}>
-            <span class="disc-place-opt-main">
-                <span class="disc-place-opt-title">Already in your Legacy · {{ ex.name }}</span>
-                <span class="disc-place-opt-sub">{{ ex.stories }} {% if ex.stories == 1 %}story{% else %}stories{% endif %}{% if ex.photos %} · {{ ex.photos }} photos{% endif %} · use existing</span>
-            </span>
-        </label>
-        {% endfor %}
         {% for c in d.detail.lookup %}
         <label class="disc-place-opt">
-            <input type="radio" name="resolve_{{ d.id }}" value="lookup:{{ forloop.counter0 }}"{% if forloop.first and not d.detail.existing %} checked{% endif %}>
+            <input type="radio" name="resolve_{{ d.id }}" value="lookup:{{ forloop.counter0 }}"{% if forloop.first %} checked{% endif %}>
             <span class="disc-place-opt-main">
                 <span class="disc-place-opt-title">{{ c.name }}</span>
                 <span class="disc-place-opt-sub">{{ c.display|default:"Location found" }}</span>
@@ -31,17 +22,28 @@
         {% if d.detail.reasoning %}
         <span class="disc-place-why"><span class="disc-place-why-label">Why Legacy chose this:</span> {{ d.detail.reasoning }}</span>
         {% endif %}
-        {% if d.detail.lookup and not d.detail.personal %}
-        <span class="disc-place-unsure">Not the right one? Keep your wording below.</span>
-        {% elif not d.detail.lookup and not d.detail.personal and not d.detail.existing %}
-        <span class="disc-place-unsure">Legacy couldn’t confidently identify this place.</span>
-        {% endif %}
         <label class="disc-place-opt">
-            <input type="radio" name="resolve_{{ d.id }}" value="mine"{% if d.detail.personal or not d.detail.lookup and not d.detail.existing %} checked{% endif %}>
+            <input type="radio" name="resolve_{{ d.id }}" value="mine"{% if d.detail.personal or not d.detail.lookup %} checked{% endif %}>
             <span class="disc-place-opt-main">
                 <span class="disc-place-opt-title">{% if d.detail.personal %}It’s a personal place{% else %}Keep my wording{% endif %}</span>
                 <span class="disc-place-opt-sub">“{{ d.label }}” — just the name, no address</span>
             </span>
         </label>
+        {% if d.detail.existing %}
+        <div class="disc-place-maybe">
+            <span class="disc-place-maybe-q">This might already be in your Legacy — is it the same place?</span>
+            {% for ex in d.detail.existing %}
+            <label class="disc-place-opt disc-place-opt-maybe">
+                <input type="radio" name="resolve_{{ d.id }}" value="existing:{{ ex.id }}">
+                <span class="disc-place-opt-main">
+                    <span class="disc-place-opt-title">{{ ex.name }}</span>
+                    <span class="disc-place-opt-sub">{% if ex.personal %}Personal place{% else %}Public place{% endif %}{% if ex.location %} · {{ ex.location }}{% endif %} · {{ ex.stories }} {% if ex.stories == 1 %}story{% else %}stories{% endif %}{% if ex.photos %} · {{ ex.photos }} photos{% endif %}</span>
+                </span>
+                <span class="disc-tag disc-possible">possible match</span>
+            </label>
+            {% endfor %}
+            <span class="disc-place-maybe-note">If it’s not the same place, keep your wording above.</span>
+        </div>
+        {% endif %}
     {% endif %}
 </div>

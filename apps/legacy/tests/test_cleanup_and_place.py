@@ -164,6 +164,70 @@ class PlaceResolutionPipelineTests(TestCase):
         self.assertIsNone(p.latitude)
 
 
+class ConservativePlaceMatchingTests(TestCase):
+    """Wrong matches are worse than none — matching must be conservative."""
+
+    def test_shared_generic_word_never_matches(self):
+        for a, b in [
+            ("Watts Bar Lake", "The lake house"),
+            ("Watts Bar Lake", "Watts Bar Marina"),   # single distinctive token
+            ("First Baptist Church", "Second Baptist Church"),
+            ("Maryville High School", "Maryville Elementary School"),
+            ("The Old Barn", "The Red Barn"),
+            ("Corner Store", "Hardware Store"),
+        ]:
+            self.assertFalse(D._place_similar(a, b), "%s ~ %s" % (a, b))
+
+    def test_exact_and_normalized_names_match(self):
+        self.assertTrue(D._place_similar("Marie Callender's", "Marie Callenders"))
+        self.assertTrue(D._place_similar("UT Medical Center", "ut medical center"))
+
+    def test_strong_distinctive_overlap_matches(self):
+        # One name's distinctive tokens fully contained in the other (>=2).
+        self.assertTrue(D._place_similar("Nauti K's", "Nauti K's Riverside Bar & Grill"))
+        self.assertTrue(D._place_similar("Cades Cove Loop", "Cades Cove"))
+
+    def setUp(self):
+        self.user = _make_user()
+        self.memory = Memory.objects.create(
+            user=self.user, title="Fishing", body="We went fishing at Watts Bar Lake.")
+
+    def test_public_place_never_collapses_into_personal(self):
+        Place.objects.create(user=self.user, name="The lake house")   # personal
+        D.run_discovery(
+            self.memory,
+            extractor=lambda t: {"places": [{"name": "Watts Bar Lake", "confidence": 0.9,
+                                             "personal": False, "place_confidence": "low"}]},
+            place_lookup_fn=_place_stub())
+        d = MemoryDiscovery.objects.get(memory=self.memory, kind="place")
+        self.assertIsNone(d.detail["matched_place_id"])   # not "already in your Legacy"
+        self.assertEqual(d.detail["existing"], [])        # not even a possible match
+        self.assertTrue(d.detail["is_new"])
+
+    def test_same_category_strong_match_is_a_possible_match_not_silent(self):
+        existing = Place.objects.create(user=self.user, name="Nauti K's Riverside Bar & Grill")
+        m = Memory.objects.create(user=self.user, title="x", body="We went to Nauti K's.")
+        D.run_discovery(
+            m,
+            extractor=lambda t: {"places": [{"name": "Nauti K's", "confidence": 0.9,
+                                             "personal": False, "place_confidence": "low"}]},
+            place_lookup_fn=_place_stub())
+        d = MemoryDiscovery.objects.get(memory=m, kind="place")
+        # Presented as a POSSIBLE match (candidate) — never silently merged.
+        self.assertIsNone(d.detail["matched_place_id"])
+        self.assertEqual([e["id"] for e in d.detail["existing"]], [existing.pk])
+
+    def test_exact_name_is_already_in_legacy(self):
+        existing = Place.objects.create(user=self.user, name="Watts Bar Lake")
+        D.run_discovery(
+            self.memory,
+            extractor=lambda t: {"places": [{"name": "watts bar lake", "confidence": 0.9,
+                                             "personal": False, "place_confidence": "low"}]},
+            place_lookup_fn=_place_stub())
+        d = MemoryDiscovery.objects.get(memory=self.memory, kind="place")
+        self.assertEqual(d.detail["matched_place_id"], existing.pk)   # exact → already in Legacy
+
+
 class HomeContextTests(TestCase):
     def setUp(self):
         self.user = _make_user()

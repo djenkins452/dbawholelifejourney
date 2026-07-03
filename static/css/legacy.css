@@ -703,6 +703,10 @@ body.theme-ember .legacy-root {
 .disc-place-opt-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .disc-place-opt-title { font-size: 12.5px; font-weight: 600; color: var(--lg-ink); }
 .disc-place-opt-sub { font-size: 11px; color: var(--lg-muted); }
+.disc-place-maybe { margin: 6px 0 0 26px; padding: 8px 10px; border: 1px dashed var(--lg-border-strong); border-radius: 9px; display: flex; flex-direction: column; gap: 5px; }
+.disc-place-maybe-q { font-size: 11.5px; font-weight: 600; color: var(--lg-ink-soft); }
+.disc-place-maybe .disc-place-opt { margin-left: 0; }
+.disc-place-maybe-note { font-size: 10.5px; color: var(--lg-muted); font-style: italic; }
 .disc-place-why { margin-left: 26px; font-size: 11px; color: var(--lg-muted); line-height: 1.5; }
 .disc-place-why-label { font-weight: 600; color: var(--lg-ink-soft); }
 .disc-place-unsure { margin-left: 26px; font-size: 11px; color: var(--lg-muted); font-style: italic; }

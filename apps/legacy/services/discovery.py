@@ -182,6 +182,38 @@ def _person_stats(person):
     return {"stories": stories, "photos": photos}
 
 
+def _place_stats(place):
+    if not place:
+        return None
+    from apps.legacy.models import Media
+    stories = place.memories.count()
+    photos = Media.objects.filter(
+        memories__in=place.memories.all(), media_type="photo").distinct().count()
+    return {"stories": stories, "photos": photos}
+
+
+# Generic words that shouldn't, on their own, make two place names "similar"
+# ("Grandma's house" vs "The lake house" must NOT match on "house").
+_PLACE_GENERIC = {
+    "the", "a", "an", "our", "my", "old", "new", "of", "and", "at",
+    "house", "home", "place", "house's", "homeplace",
+}
+
+
+def _place_similar(a, b):
+    """Place-name similarity that ignores generic words to avoid false matches."""
+    a, b = a.lower().strip(), b.lower().strip()
+    if a == b:
+        return False
+    at = set(a.split()) - _PLACE_GENERIC
+    bt = set(b.split()) - _PLACE_GENERIC
+    if at & bt:                       # shared meaningful token
+        return True
+    if len(a) >= 5 and (a in b or b in a):
+        return True
+    return False
+
+
 def _similar(a, b):
     """Loose name similarity for possible-duplicate detection (not exact match)."""
     a, b = a.lower().strip(), b.lower().strip()
@@ -267,16 +299,19 @@ def _conf(value):
     return MemoryDiscovery.Confidence.LOW
 
 
-def run_discovery(memory, extractor=None):
+def run_discovery(memory, extractor=None, place_lookup_fn=None):
     """
     Run discovery on a memory and (re)build its `proposed` discoveries.
 
     Returns (status, discoveries):
       status in {"ok", "empty", "unavailable", "nothing"}.
     Accepted/rejected discoveries are preserved; only prior `proposed` rows are
-    refreshed. `extractor` is injectable for tests (defaults to the OpenAI call).
+    refreshed. `extractor` is injectable for tests (defaults to the OpenAI call);
+    `place_lookup_fn` is the place-verification module (defaults to the real one).
     """
     from apps.legacy.models import LifeMilestone, MemoryDiscovery, Person, Place
+    if place_lookup_fn is None:
+        from apps.legacy.services import place_lookup as place_lookup_fn
 
     text = ("%s\n%s" % (memory.title, memory.body)).strip()
     if len(text) < 12:
@@ -340,14 +375,34 @@ def run_discovery(memory, extractor=None):
                            for c in candidates[:3]],
         })
 
+    place_lookup_budget = 3   # cap external lookups per Discover — keep it fast
     for pl in data.get("places", []) or []:
         name = (pl.get("name") or "").strip()
         if not name:
             continue
+        personal = place_lookup_fn.is_personal_place(name)
         match = existing_places.get(name.lower())
+        # Search Legacy first — never create a duplicate of a place you already
+        # have. Personal places ("Grandma's house") are not fuzzy-matched: they'd
+        # collide on generic words like "house".
+        ex_candidates = []
+        if not match and not personal:
+            ex_candidates = [p for lname, p in existing_places.items()
+                             if _place_similar(name, p.name)]
+        lookups = []
+        # Only verify PUBLIC places we don't already have. Personal places
+        # ("Grandma's house") are never searched.
+        if not match and not ex_candidates and not personal and place_lookup_budget > 0:
+            lookups = place_lookup_fn.lookup_place(name)
+            place_lookup_budget -= 1
         add(MemoryDiscovery.Kind.PLACE, name, pl.get("confidence"), {
             "matched_place_id": match.id if match else None,
-            "is_new": match is None,
+            "is_new": match is None and not ex_candidates,
+            "personal": personal,
+            "matched": (dict(name=match.name, **_place_stats(match)) if match else None),
+            "existing": [dict(id=p.id, name=p.name, **_place_stats(p))
+                         for p in ex_candidates[:3]],
+            "lookup": lookups,
         })
 
     for ml in data.get("milestones", []) or []:
@@ -483,6 +538,13 @@ def confirm_discoveries(memory, accepted_ids=None, accept_all=False, resolutions
         except (TypeError, ValueError):
             return None
 
+    def _dec(v):
+        from decimal import Decimal, InvalidOperation
+        try:
+            return Decimal(str(v)).quantize(Decimal("0.000001"))
+        except (TypeError, ValueError, InvalidOperation):
+            return None
+
     valid_kinds = set(LifeMilestone.Kind.values)
     resolutions = resolutions or {}
     edits = edits or {}
@@ -545,9 +607,31 @@ def confirm_discoveries(memory, accepted_ids=None, accept_all=False, resolutions
 
         elif d.kind == MemoryDiscovery.Kind.PLACE:
             place = None
-            mid = d.detail.get("matched_place_id")
-            if mid:
-                place = Place.all_objects.filter(pk=mid, user=user).first()
+            choice = resolutions.get(str(d.id)) or resolutions.get(d.id) or ""
+            lookups = d.detail.get("lookup") or []
+            # 1) Use an existing Legacy place (exact match or a chosen candidate) —
+            #    never duplicate a place you already have.
+            if choice.startswith("existing:"):
+                place = Place.all_objects.filter(pk=choice.split(":", 1)[1], user=user).first()
+            elif d.detail.get("matched_place_id") and not choice:
+                place = Place.all_objects.filter(pk=d.detail["matched_place_id"], user=user).first()
+            # 2) Adopt a verified public place (name + location only).
+            if place is None and choice.startswith("lookup:"):
+                try:
+                    cand = lookups[int(choice.split(":", 1)[1])]
+                except (ValueError, IndexError):
+                    cand = None
+                if cand:
+                    place = Place.objects.create(
+                        user=user,
+                        name=cand.get("name") or d.label,
+                        location_text=", ".join(x for x in (
+                            cand.get("line1"), cand.get("city"), cand.get("state"),
+                            cand.get("country")) if x)[:255],
+                        latitude=_dec(cand.get("lat")),
+                        longitude=_dec(cand.get("lon")),
+                        created_via=Place.CREATED_VIA_MANUAL)
+            # 3) Fall back to a personal place — the user's wording, no address.
             if place is None:
                 place = Place.objects.create(
                     user=user, name=d.label,

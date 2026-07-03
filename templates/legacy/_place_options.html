@@ -1,0 +1,42 @@
+{% comment %}Place verification options — existing Legacy place / verified public place / personal place. Reused by 'Search again'. The user always chooses.{% endcomment %}
+<div class="disc-place-opts" data-disc="{{ d.id }}">
+    {% if d.detail.matched %}
+    <label class="disc-place-opt">
+        <input type="radio" name="resolve_{{ d.id }}" value="existing:{{ d.detail.matched_place_id }}" checked>
+        <span class="disc-place-opt-main">
+            <span class="disc-place-opt-title">Already in your Legacy · {{ d.detail.matched.name }}</span>
+            <span class="disc-place-opt-sub">{{ d.detail.matched.stories }} {% if d.detail.matched.stories == 1 %}story{% else %}stories{% endif %}{% if d.detail.matched.photos %} · {{ d.detail.matched.photos }} photos{% endif %} · use existing</span>
+        </span>
+    </label>
+    {% else %}
+        {% for ex in d.detail.existing %}
+        <label class="disc-place-opt">
+            <input type="radio" name="resolve_{{ d.id }}" value="existing:{{ ex.id }}"{% if forloop.first and d.detail.existing|length == 1 and not d.detail.lookup %} checked{% endif %}>
+            <span class="disc-place-opt-main">
+                <span class="disc-place-opt-title">Already in your Legacy · {{ ex.name }}</span>
+                <span class="disc-place-opt-sub">{{ ex.stories }} {% if ex.stories == 1 %}story{% else %}stories{% endif %}{% if ex.photos %} · {{ ex.photos }} photos{% endif %} · use existing</span>
+            </span>
+        </label>
+        {% endfor %}
+        {% for c in d.detail.lookup %}
+        <label class="disc-place-opt">
+            <input type="radio" name="resolve_{{ d.id }}" value="lookup:{{ forloop.counter0 }}"{% if d.detail.lookup|length == 1 and forloop.first and not d.detail.existing %} checked{% endif %}>
+            <span class="disc-place-opt-main">
+                <span class="disc-place-opt-title">{{ c.name }}</span>
+                <span class="disc-place-opt-sub">{{ c.display|default:"Location found" }}</span>
+            </span>
+            <span class="disc-tag disc-verified">found</span>
+        </label>
+        {% endfor %}
+        <label class="disc-place-opt">
+            <input type="radio" name="resolve_{{ d.id }}" value="mine"{% if d.detail.personal or not d.detail.lookup and not d.detail.existing %} checked{% endif %}>
+            <span class="disc-place-opt-main">
+                <span class="disc-place-opt-title">{% if d.detail.personal %}It’s a personal place{% else %}Use the name as I wrote it{% endif %}</span>
+                <span class="disc-place-opt-sub">“{{ d.label }}” — just the name, no address</span>
+            </span>
+        </label>
+        {% if not d.detail.personal %}
+        <button type="button" class="disc-place-again js-place-again" data-disc="{{ d.id }}" data-url="{% url 'legacy:place_lookup_again' d.id %}">Search again</button>
+        {% endif %}
+    {% endif %}
+</div>

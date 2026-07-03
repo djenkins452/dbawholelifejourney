@@ -12,6 +12,21 @@ from apps.legacy.services import discovery as D
 
 User = get_user_model()
 
+# Place verification hits the network — never in tests. Default to "no match";
+# individual tests override with their own patch when they need candidates.
+_place_patch = None
+
+
+def setUpModule():
+    global _place_patch
+    _place_patch = patch("apps.legacy.services.place_lookup.lookup_place", return_value=[])
+    _place_patch.start()
+
+
+def tearDownModule():
+    if _place_patch is not None:
+        _place_patch.stop()
+
 FAKE = {
     "people": [
         {"name": "Uncle Joe", "relationship": "uncle", "confidence": 0.9},

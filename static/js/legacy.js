@@ -97,6 +97,49 @@
             btn.addEventListener('click', function () { toast(btn.getAttribute('data-note') || 'Coming soon.'); });
         });
 
+        // Cleanup undo + place "Search again" (delegated — panel is injected).
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest) { return; }
+            var undo = e.target.closest('.js-cleanup-undo');
+            if (undo) {
+                e.preventDefault();
+                var wrap = undo.closest('[data-cleanup]');
+                var mForm = document.getElementById('memoryForm');
+                undo.disabled = true;
+                fetch(undo.getAttribute('data-url'), {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrfFrom(mForm) },
+                    credentials: 'same-origin'
+                }).then(function (r) { return r.json(); }).then(function (d) {
+                    if (d && d.ok) {
+                        var b = document.getElementById('memoryBody');
+                        if (b) { b.value = d.body; b.dispatchEvent(new Event('input', { bubbles: true })); }
+                        if (wrap) { wrap.parentNode.removeChild(wrap); }
+                        toast('Restored your original wording.');
+                    } else { undo.disabled = false; }
+                }).catch(function () { undo.disabled = false; });
+                return;
+            }
+            var again = e.target.closest('.js-place-again');
+            if (again) {
+                e.preventDefault();
+                var card = again.closest('.disc-place-card');
+                var opts = card && card.querySelector('.disc-place-opts');
+                var mForm2 = document.getElementById('memoryForm');
+                again.disabled = true; again.textContent = 'Searching…';
+                fetch(again.getAttribute('data-url'), {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrfFrom(mForm2) },
+                    credentials: 'same-origin'
+                }).then(function (r) { return r.json(); }).then(function (d) {
+                    if (d && d.ok && opts) {
+                        opts.outerHTML = d.html;
+                    } else if (again) { again.disabled = false; again.textContent = 'Search again'; }
+                }).catch(function () { again.disabled = false; again.textContent = 'Search again'; });
+                return;
+            }
+        });
+
         // Voice capture — browser speech-to-text, transcribed live into the story.
         var talkBtn = document.getElementById('talkBtn');
         var voiceBody = document.getElementById('memoryBody');
@@ -167,6 +210,14 @@
                             pkInput.value = d.pk;
                             if (window.history.replaceState) {
                                 window.history.replaceState({}, '', '/legacy/memories/' + d.pk + '/edit/');
+                            }
+                        }
+                        // Cleanup phase: reflect the gently tidied text in the editor.
+                        if (d.cleaned_body) {
+                            var bodyEl = document.getElementById('memoryBody');
+                            if (bodyEl && bodyEl.value !== d.cleaned_body) {
+                                bodyEl.value = d.cleaned_body;
+                                bodyEl.dispatchEvent(new Event('input', { bubbles: true }));
                             }
                         }
                         discoveryPanel.innerHTML = d.html || '';

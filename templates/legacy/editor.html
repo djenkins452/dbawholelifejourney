@@ -58,7 +58,7 @@
             <section class="lg-card editor-connections">
                 <div class="lg-card-headrow"><h3 class="lg-card-h">Connections</h3></div>
 
-                <div id="discoveryPanel" class="discovery-panel">{% if discovery_groups %}{% include "legacy/_discovery_review.html" with memory=memory groups=discovery_groups status="ok" summary=discovery_summary prompts=discovery_prompts %}{% endif %}</div>
+                <div id="discoveryPanel" class="discovery-panel">{% if discovery_groups %}{% include "legacy/_discovery_review.html" with memory=memory groups=discovery_groups status="ok" summary=discovery_summary prompts=discovery_prompts cleanup=discovery_cleanup %}{% endif %}</div>
 
                 <details class="editor-manual">
                     <summary>Or connect by hand</summary>

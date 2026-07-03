@@ -674,6 +674,37 @@ body.theme-ember .legacy-root {
 .disc-new { background: #f0e2c9; color: #8a6428; }
 .disc-low { background: #f2ebe2; color: #a08a6a; }
 .disc-add { display: inline-block; font-size: 12px; color: var(--lg-accent); text-decoration: none; margin-top: 4px; }
+
+/* Cleanup phase — the gentle copy-edit summary + undo */
+.disc-cleanup { background: #eef3ec; border: 1px solid #d7e4d5; border-radius: 10px; padding: 11px 13px; margin-bottom: 14px; }
+.disc-cleanup-head { display: flex; gap: 9px; align-items: flex-start; }
+.disc-cleanup-ico { flex: 0 0 20px; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: #5f8c62; color: #fff; }
+.disc-cleanup-ico svg { width: 12px; height: 12px; }
+.disc-cleanup-body { display: flex; flex-direction: column; gap: 1px; }
+.disc-cleanup-title { font-size: 13px; font-weight: 700; color: #33502f; }
+.disc-cleanup-sub { font-size: 12px; font-weight: 600; color: #4f6b52; }
+.disc-cleanup-note { font-size: 11px; color: #6b7c68; line-height: 1.5; margin-top: 2px; }
+.disc-cleanup-undo { margin-top: 9px; background: transparent; border: 0; padding: 0; font-size: 12px; font-weight: 600; color: #5f7d5c; text-decoration: underline; cursor: pointer; }
+.disc-cleanup-undo:hover { color: #33502f; }
+
+/* Place verification — existing / found / personal options */
+.disc-verified { background: #dfeaf3; color: #3c6089; }
+.disc-personal { background: #efe7db; color: #856a44; }
+.disc-place-card { padding: 6px 0 8px; }
+.disc-place-head { display: flex; align-items: center; gap: 8px; }
+.disc-place-name-wrap { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.disc-place-opts { display: flex; flex-direction: column; gap: 5px; margin: 8px 0 2px 26px; }
+.disc-place-opt { display: flex; align-items: center; gap: 9px; padding: 7px 9px; border: 1px solid var(--lg-border); border-radius: 9px; cursor: pointer; transition: border-color .12s, background .12s; }
+.disc-place-opt:hover { border-color: var(--lg-border-strong); }
+.disc-place-opt input { accent-color: var(--lg-accent); margin: 0; }
+.disc-place-opt input:checked ~ .disc-place-opt-main .disc-place-opt-title { color: var(--lg-ink); }
+.disc-place-opt:has(input:checked) { border-color: var(--lg-accent); background: var(--lg-surface-2); }
+.disc-place-opt-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.disc-place-opt-title { font-size: 12.5px; font-weight: 600; color: var(--lg-ink); }
+.disc-place-opt-sub { font-size: 11px; color: var(--lg-muted); }
+.disc-place-again { align-self: flex-start; margin-left: 26px; background: transparent; border: 0; padding: 2px 0; font-size: 11.5px; font-weight: 600; color: var(--lg-accent); cursor: pointer; }
+.disc-place-again:disabled { color: var(--lg-muted); cursor: default; }
+
 .disc-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--lg-border); }
 .disc-actions .lg-btn-primary, .disc-actions .lg-btn-quiet, .disc-actions .lg-btn-ghost { padding: 7px 13px; font-size: 12px; }
 

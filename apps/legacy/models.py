@@ -123,6 +123,10 @@ class Place(LegacyOwnedModel):
     name = models.CharField(max_length=200, db_index=True)
     location_text = models.CharField(max_length=255, blank=True)
     description = models.TextField(blank=True, help_text="A 'what it was' narrative")
+    # Set when a public place is verified via lookup (name + location only —
+    # no deep research). Blank for personal places like "Grandma's house".
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     primary_photo = models.ForeignKey(
         Media, on_delete=models.SET_NULL, null=True, blank=True, related_name='primary_for_places',
     )
@@ -314,6 +318,11 @@ class Memory(LegacyOwnedModel):
     # ("You mentioned your grandfather but never described what he was like").
     # Suggestions only — never interview questions, never required.
     discovery_prompts = models.JSONField(default=list, blank=True)
+
+    # Cleanup phase (before Discovery): the user's ORIGINAL wording, preserved so
+    # the gentle copy-edit can always be undone. Set only when cleanup changed
+    # something. The user's voice is never lost.
+    cleanup_original_body = models.TextField(blank=True, default="")
 
     # Import provenance — set when a memory was created by the Import Engine from
     # an existing document. Always visible on the memory. (created_via='import'.)

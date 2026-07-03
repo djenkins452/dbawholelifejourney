@@ -209,6 +209,10 @@ class EditorView(LegacyContextMixin, TemplateView):
             ctx["discovery_groups"] = groups
             ctx["discovery_summary"] = discovery_svc.summary_text(groups)
             ctx["discovery_prompts"] = memory.discovery_prompts
+            # Surface the cleanup undo if the story was tidied and not yet reverted.
+            if memory.cleanup_original_body and memory.cleanup_original_body != memory.body:
+                ctx["discovery_cleanup"] = {"changed": True, "changes": [],
+                                            "original": memory.cleanup_original_body}
         return ctx
 
 
@@ -312,6 +316,17 @@ class MemoryDiscoverView(LegacyContextMixin, View):
             memory.updated_by = user
         memory.save()
 
+        # Phase 1 — Cleanup: gently copy-edit the writing before Discovery runs.
+        # Never changes voice/meaning; always safe; the original is preserved.
+        from apps.legacy.services import cleanup as cleanup_svc
+        cleanup = cleanup_svc.run_cleanup(body)
+        if cleanup["changed"]:
+            memory.cleanup_original_body = cleanup["original"]
+            memory.body = cleanup["cleaned"]
+            memory.save(update_fields=["cleanup_original_body", "body", "updated_at"])
+
+        # Phase 2 & 3 — Discovery runs on the cleaned text; place verification is
+        # folded into the place discoveries.
         status, _ = discovery_svc.run_discovery(memory)
         groups = discovery_svc.grouped_proposals(memory)
         html = render_to_string("legacy/_discovery_review.html", {
@@ -320,8 +335,12 @@ class MemoryDiscoverView(LegacyContextMixin, View):
             "status": status,
             "summary": discovery_svc.summary_text(groups),
             "prompts": memory.discovery_prompts,
+            "cleanup": cleanup,
         }, request=request)
-        return JsonResponse({"ok": True, "pk": memory.pk, "status": status, "html": html})
+        return JsonResponse({
+            "ok": True, "pk": memory.pk, "status": status, "html": html,
+            "cleaned_body": memory.body if cleanup["changed"] else None,
+        })
 
 
 class DiscoveryConfirmView(LegacyContextMixin, View):
@@ -348,6 +367,36 @@ class DiscoveryConfirmView(LegacyContextMixin, View):
         else:
             messages.success(request, "Nothing added.")
         return redirect("legacy:editor", pk=memory.pk)
+
+
+class MemoryCleanupUndoView(LegacyContextMixin, View):
+    """Undo the gentle copy-edit and restore the user's original wording."""
+
+    def post(self, request, pk, *args, **kwargs):
+        memory = get_object_or_404(Memory.all_objects, pk=pk, user=request.user)
+        if memory.cleanup_original_body:
+            memory.body = memory.cleanup_original_body
+            memory.cleanup_original_body = ""
+            memory.updated_by = request.user
+            memory.save(update_fields=["body", "cleanup_original_body", "updated_at"])
+        if _is_ajax(request):
+            return JsonResponse({"ok": True, "body": memory.body})
+        return redirect("legacy:editor", pk=memory.pk)
+
+
+class PlaceLookupAgainView(LegacyContextMixin, View):
+    """Re-run place verification for a single place discovery ('Search again')."""
+
+    def post(self, request, pk, *args, **kwargs):
+        d = get_object_or_404(
+            MemoryDiscovery, pk=pk, memory__user=request.user,
+            kind=MemoryDiscovery.Kind.PLACE)
+        from apps.legacy.services import place_lookup
+        d.detail["lookup"] = place_lookup.lookup_place(d.label)
+        d.detail["personal"] = place_lookup.is_personal_place(d.label)
+        d.save(update_fields=["detail"])
+        html = render_to_string("legacy/_place_options.html", {"d": d}, request=request)
+        return JsonResponse({"ok": True, "html": html, "count": len(d.detail["lookup"])})
 
 
 class MemorySetStateView(LegacyContextMixin, View):

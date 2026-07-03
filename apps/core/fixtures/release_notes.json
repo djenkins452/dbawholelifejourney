@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 217,
+    "fields": {
+      "title": "Legacy tidies your writing and finds the places you mention",
+      "description": "Telling a story just got easier. When you tap Discover, Legacy now quietly cleans up your writing first — fixing spelling, punctuation, and grammar and breaking up long paragraphs, without ever changing your words, voice, or meaning. You'll see a short note of what was tidied, and you can undo it in one tap to keep your original wording. Then, when you mention a real place like a restaurant or a church, Legacy helps identify the correct one so you don't have to type an address: it checks whether the place is already in your Legacy, recognizes personal spots like \"Grandma's house\" and offers to keep them as personal places, and looks up the name and location of public places for you to confirm. Nothing is ever changed automatically — you always review and choose before anything is saved.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-03",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-03T15:00:00Z",
+      "updated_at": "2026-07-03T15:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 216,
     "fields": {
       "title": "Legacy connects your existing photos to the story you're telling",

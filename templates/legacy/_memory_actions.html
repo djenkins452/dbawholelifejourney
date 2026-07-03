@@ -9,6 +9,15 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
     </button>
 </form>
+<form method="post" action="{% url 'legacy:memory_delete_forever' m.pk %}" class="m-action-form">
+    {% csrf_token %}
+    <button type="button" class="m-action m-danger js-confirm-delete"
+            title="Delete forever"
+            data-confirm-title="Permanently delete this memory?"
+            data-confirm-msg="This can't be undone — “{{ m.title|default:'Untitled memory'|escapejs }}” will be removed from Legacy for good.">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+    </button>
+</form>
 {% else %}
 <form method="post" action="{% url 'legacy:memory_archive' m.pk %}" class="m-action-form">
     {% csrf_token %}

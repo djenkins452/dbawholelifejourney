@@ -750,3 +750,27 @@ body.theme-ember .legacy-root {
 .ic-preview { font-size: 12px; color: var(--lg-muted); line-height: 1.45; margin: 2px 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .ic-meta { font-size: 11px; color: var(--lg-muted); }
 .ic-action form { margin: 0; }
+
+/* ==========================================================================
+   Import polish + confirmation modal + danger button
+   ========================================================================== */
+.lg-btn-danger { background: #b5473a; color: #fff; border: 1px solid transparent; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.lg-btn-danger:hover { background: #9d3b30; }
+.m-danger:hover { background: #fbecea; color: #b5473a; border-color: #efc9c2; }
+
+.legacy-modal { position: fixed; inset: 0; z-index: 80; background: rgba(30, 25, 15, .45); display: grid; place-items: center; padding: 20px; }
+.legacy-modal[hidden] { display: none; }
+.legacy-modal-card { background: var(--lg-surface); border: 1px solid var(--lg-border); border-radius: 14px; box-shadow: 0 30px 60px -20px rgba(0,0,0,.5); padding: 24px; max-width: 400px; width: 100%; }
+.legacy-modal-title { font-family: var(--lg-serif); font-size: 19px; margin-bottom: 8px; color: var(--lg-ink); }
+.legacy-modal-msg { font-size: 13.5px; color: var(--lg-ink-soft); line-height: 1.5; }
+.legacy-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+.import-stats { margin-bottom: 20px; }
+.import-stats-head { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 16px; }
+.import-stats-head .discovery-spark { font-size: 18px; }
+.stat-card.stat-plain { cursor: default; }
+.stat-card.stat-plain:hover { transform: none; box-shadow: var(--lg-shadow); }
+
+.import-continue { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; background: #f3efe6; border: 1px solid #e7ddc8; border-radius: 12px; padding: 14px 18px; margin-bottom: 22px; }
+.import-continue > span { font-size: 14px; color: #6f5f3d; font-family: var(--lg-serif); }
+.import-list-title { margin: 6px 0 12px; }

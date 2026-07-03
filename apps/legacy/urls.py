@@ -36,6 +36,7 @@ urlpatterns = [
     path("memories/<int:pk>/state/", views.MemorySetStateView.as_view(), name="memory_set_state"),
     path("memories/<int:pk>/archive/", views.MemoryArchiveView.as_view(), name="memory_archive"),
     path("memories/<int:pk>/restore/", views.MemoryRestoreView.as_view(), name="memory_restore"),
+    path("memories/<int:pk>/delete-forever/", views.MemoryDeleteForeverView.as_view(), name="memory_delete_forever"),
     path("memories/<int:pk>/media/add/", views.MediaAddView.as_view(), name="memory_media_add"),
     # People (Slice 3)
     path("people/", views.PeopleView.as_view(), name="people"),

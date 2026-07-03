@@ -383,6 +383,20 @@ class MemoryRestoreView(LegacyContextMixin, View):
         return redirect(request.POST.get("next") or "legacy:library")
 
 
+class MemoryDeleteForeverView(LegacyContextMixin, View):
+    """Two-stage delete: only a memory ALREADY set aside (archived) can be
+    permanently removed. Outside the archive, 'delete' means Set aside."""
+
+    def post(self, request, pk, *args, **kwargs):
+        memory = get_object_or_404(Memory.all_objects, pk=pk, user=request.user)
+        if memory.status != "archived":
+            messages.error(request, "Set the memory aside first — only set-aside memories can be permanently deleted.")
+            return redirect("legacy:editor", pk=memory.pk)
+        memory.delete()  # hard delete — gone for good
+        messages.success(request, "Memory permanently deleted.")
+        return redirect("%s?status=archived" % reverse("legacy:library"))
+
+
 class MediaAddView(LegacyContextMixin, View):
     """Basic media upload attached to an existing memory."""
 
@@ -706,10 +720,20 @@ class StudioView(LegacyContextMixin, TemplateView):
             "archived": archived_mem.count(),
             "people": Person.objects.filter(user=user).count(),
             "places": Place.objects.filter(user=user).count(),
+            "relationships": Relationship.objects.filter(user=user).count(),
             "media": Media.objects.filter(user=user).count(),
             "contributors": Contributor.objects.filter(user=user).count(),
             "outputs": Output.objects.filter(user=user).count(),
+            "imports": ImportBatch.objects.filter(user=user).count(),
+            "imported_stories": active_mem.filter(import_batch__isnull=False).count(),
+            "waiting_review": active_mem.filter(
+                import_batch__isnull=False, entry_state=Memory.EntryState.DRAFT).count(),
+            "suggestions": MemoryDiscovery.objects.filter(
+                memory__user=user, status=MemoryDiscovery.Status.PROPOSED).count(),
         }
+        ctx["recently_imported"] = (
+            active_mem.filter(import_batch__isnull=False)
+            .select_related("import_batch").order_by("-created_at")[:5])
 
         # Recent activity — memories in the selected time frame / status.
         recent = active_mem if status != "archived" else archived_mem
@@ -946,6 +970,10 @@ class ImportDetailView(LegacyContextMixin, DetailView):
         ctx = super().get_context_data(**kwargs)
         ctx["chunks"] = self.object.chunks.select_related("memory").all()
         ctx["pending"] = self.object.chunks.filter(status=ImportChunk.Status.PENDING).count()
+        ctx["stats"] = import_engine.batch_stats(self.object)
+        ctx["next_review"] = (
+            self.object.memories.filter(entry_state=Memory.EntryState.DRAFT)
+            .order_by("import_chunk").first())
         return ctx
 
 

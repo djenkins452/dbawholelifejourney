@@ -26,10 +26,30 @@
         <a href="{% url 'legacy:library' %}?status=archived" class="stat-card"><span class="stat-value">{{ counts.archived }}</span><span class="stat-label">Set aside</span></a>
         <a href="{% url 'legacy:people' %}" class="stat-card"><span class="stat-value">{{ counts.people }}</span><span class="stat-label">People</span></a>
         <a href="{% url 'legacy:places' %}" class="stat-card"><span class="stat-value">{{ counts.places }}</span><span class="stat-label">Places</span></a>
+        <a href="{% url 'legacy:relationships' %}" class="stat-card"><span class="stat-value">{{ counts.relationships }}</span><span class="stat-label">Relationships</span></a>
         <a href="{% url 'legacy:media' %}" class="stat-card"><span class="stat-value">{{ counts.media }}</span><span class="stat-label">Media</span></a>
         <a href="{% url 'legacy:contributors' %}" class="stat-card"><span class="stat-value">{{ counts.contributors }}</span><span class="stat-label">Contributors</span></a>
         <a href="{% url 'legacy:outputs' %}" class="stat-card"><span class="stat-value">{{ counts.outputs }}</span><span class="stat-label">Outputs</span></a>
+        <a href="{% url 'legacy:imports' %}" class="stat-card"><span class="stat-value">{{ counts.imported_stories }}</span><span class="stat-label">Imported stories</span></a>
+        <a href="{% url 'legacy:library' %}?status=draft" class="stat-card"><span class="stat-value">{{ counts.waiting_review }}</span><span class="stat-label">Waiting for review</span></a>
+        <a href="{% url 'legacy:library' %}?status=draft" class="stat-card"><span class="stat-value">{{ counts.suggestions }}</span><span class="stat-label">Discoveries pending</span></a>
     </div>
+
+    {% if recently_imported %}
+    <div class="lib-section-head"><h2 class="lg-section-title">Recently imported</h2></div>
+    <div class="mlist">
+        {% for m in recently_imported %}
+        <a href="{% url 'legacy:editor' m.pk %}" class="mrow">
+            <span class="mrow-main">
+                <span class="mrow-title">{{ m.title|default:"Untitled story" }}</span>
+                <span class="mrow-snippet">from {{ m.import_batch.source_name }}</span>
+            </span>
+            <span class="mrow-meta">{{ m.created_at|date:"M j, Y" }}</span>
+            {% include "legacy/_state_badge.html" with m=m %}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
 
     <div class="dash-cols">
         <section class="dash-main">

@@ -58,6 +58,31 @@
             });
         }
 
+        // Confirmation modal (two-stage permanent delete, etc.).
+        var confirmModal = document.getElementById('confirmModal');
+        if (confirmModal) {
+            var pendingForm = null;
+            var okBtn = document.getElementById('confirmOk');
+            var titleEl = document.getElementById('confirmTitle');
+            var msgEl = document.getElementById('confirmMsg');
+            function closeConfirm() { confirmModal.hidden = true; pendingForm = null; }
+            document.addEventListener('click', function (e) {
+                var trig = e.target.closest && e.target.closest('.js-confirm-delete');
+                if (trig) {
+                    e.preventDefault();
+                    pendingForm = trig.closest('form');
+                    if (titleEl) { titleEl.textContent = trig.getAttribute('data-confirm-title') || 'Permanently delete this?'; }
+                    if (msgEl) { msgEl.textContent = trig.getAttribute('data-confirm-msg') || 'This action cannot be undone.'; }
+                    confirmModal.hidden = false;
+                    return;
+                }
+                if (e.target.closest && e.target.closest('.js-confirm-cancel')) { closeConfirm(); return; }
+                if (e.target === confirmModal) { closeConfirm(); }
+            });
+            if (okBtn) { okBtn.addEventListener('click', function () { if (pendingForm) { pendingForm.submit(); } }); }
+            document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !confirmModal.hidden) { closeConfirm(); } });
+        }
+
         // Library: auto-submit on select / file change.
         document.querySelectorAll('.lg-autosubmit').forEach(function (sel) {
             sel.addEventListener('change', function () { if (sel.form) sel.form.submit(); });

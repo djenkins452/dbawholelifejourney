@@ -4,43 +4,79 @@
 <div class="lib">
     <a href="{% url 'legacy:imports' %}" class="editor-back">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M15 18l-6-6 6-6"/></svg>
-        Imports
+        Your imports
     </a>
 
     <div class="lib-head">
         <div>
             <h1 class="lib-title">{{ batch.source_name }}</h1>
-            <p class="lib-sub">{{ batch.get_source_type_display }} · imported {{ batch.created_at|date:"M j, Y" }} · {{ batch.imported_count }} of {{ batch.total_chunks }} stories imported</p>
+            <p class="lib-sub">{{ batch.total_chunks }} stories found · {{ batch.imported_count }} brought into Legacy so far</p>
         </div>
     </div>
+
+    {% if stats.stories_imported %}
+    <div class="lg-card import-stats">
+        <div class="import-stats-head">
+            <span class="discovery-spark" aria-hidden="true">✨</span>
+            <div>
+                <h3 class="lg-card-h">Your life is coming together</h3>
+                <p class="editor-aside-note">{{ stats.stories_imported }} of {{ stats.stories_total }} stories read — here's the richness Legacy has found so far.</p>
+            </div>
+        </div>
+        <div class="stat-grid">
+            <div class="stat-card stat-plain"><span class="stat-value">{{ stats.stories_imported }}</span><span class="stat-label">Stories read</span></div>
+            <div class="stat-card stat-plain"><span class="stat-value">{{ stats.people }}</span><span class="stat-label">People</span></div>
+            <div class="stat-card stat-plain"><span class="stat-value">{{ stats.relationships }}</span><span class="stat-label">Relationships</span></div>
+            <div class="stat-card stat-plain"><span class="stat-value">{{ stats.places }}</span><span class="stat-label">Places</span></div>
+            <div class="stat-card stat-plain"><span class="stat-value">{{ stats.events }}</span><span class="stat-label">Events</span></div>
+            <div class="stat-card stat-plain"><span class="stat-value">{{ stats.quotes }}</span><span class="stat-label">Quotes</span></div>
+            <div class="stat-card stat-plain"><span class="stat-value">{{ stats.themes }}</span><span class="stat-label">Themes</span></div>
+            <div class="stat-card stat-plain"><span class="stat-value">{{ stats.traditions }}</span><span class="stat-label">Traditions</span></div>
+            <div class="stat-card stat-plain"><span class="stat-value">{{ stats.artifacts }}</span><span class="stat-label">Keepsakes</span></div>
+            {% if stats.existing_matched %}<div class="stat-card stat-plain"><span class="stat-value">{{ stats.existing_matched }}</span><span class="stat-label">People you'd already added</span></div>{% endif %}
+        </div>
+    </div>
+    {% endif %}
 
     {% if pending %}
     <div class="lg-card import-run">
-        <h3 class="lg-card-h">Import stories</h3>
-        <p class="editor-aside-note">Start with a couple to verify everything looks right. Each becomes a <strong>draft</strong> that runs through Discovery — review it, apply its discoveries, then add it to your Legacy. {{ pending }} still to import.</p>
+        <h3 class="lg-card-h">Bring your stories in</h3>
+        <p class="editor-aside-note">Start with a few to see how it feels. Each one becomes a <strong>draft</strong> that Legacy reads and understands — you review it, apply what it found, then add it to your Legacy. {{ pending }} still waiting.</p>
         <div class="import-run-actions">
-            <form method="post" action="{% url 'legacy:import_run' batch.pk %}">{% csrf_token %}<input type="hidden" name="mode" value="next"><input type="hidden" name="count" value="2"><button type="submit" class="lg-btn-primary">Import the next 2 (verify)</button></form>
-            <form method="post" action="{% url 'legacy:import_run' batch.pk %}">{% csrf_token %}<input type="hidden" name="mode" value="all"><button type="submit" class="lg-btn-quiet">Import all {{ pending }} remaining</button></form>
+            <form method="post" action="{% url 'legacy:import_run' batch.pk %}">{% csrf_token %}<input type="hidden" name="mode" value="next"><input type="hidden" name="count" value="2"><button type="submit" class="lg-btn-primary">Read the next 2 stories</button></form>
+            <form method="post" action="{% url 'legacy:import_run' batch.pk %}">{% csrf_token %}<input type="hidden" name="mode" value="next"><input type="hidden" name="count" value="10"><button type="submit" class="lg-btn-quiet">Read the next 10</button></form>
+            <form method="post" action="{% url 'legacy:import_run' batch.pk %}">{% csrf_token %}<input type="hidden" name="mode" value="all"><button type="submit" class="lg-btn-ghost">Read all {{ pending }} remaining</button></form>
         </div>
     </div>
     {% else %}
-    <div class="lg-card import-run"><p class="editor-aside-note">All stories from this document have been imported as drafts. Review them in <a href="{% url 'legacy:library' %}?status=draft" class="lg-link">Stories</a>.</p></div>
+    <div class="lg-card import-run">
+        <p class="editor-aside-note">Every story from this document is in your Legacy as a draft. Review them in <a href="{% url 'legacy:library' %}?status=draft" class="lg-link">Stories</a>.</p>
+    </div>
     {% endif %}
 
+    {% if next_review %}
+    <div class="import-continue">
+        <span>Ready to review what Legacy found?</span>
+        <a href="{% url 'legacy:editor' next_review.pk %}" class="lg-btn-primary">Review the next story ›</a>
+        <a href="{% url 'legacy:library' %}?status=draft" class="lg-link">See all drafts</a>
+    </div>
+    {% endif %}
+
+    <h2 class="lg-section-title import-list-title">Stories in {{ batch.source_name }}</h2>
     <div class="import-chunks">
         {% for c in chunks %}
         <div class="import-chunk{% if c.status == 'imported' %} is-imported{% endif %}">
             <div class="ic-index">{{ c.index }}</div>
             <div class="ic-main">
-                <div class="ic-title">{{ c.title|default:"Untitled" }}</div>
+                <div class="ic-title">{{ c.title|default:"Untitled story" }}</div>
                 <div class="ic-preview">{{ c.body|truncatechars:180 }}</div>
-                <div class="ic-meta">{{ c.source_ref }}{% if c.body %} · {{ c.body|wordcount }} words{% endif %}</div>
+                <div class="ic-meta">{% if c.body %}{{ c.body|wordcount }} words{% endif %}</div>
             </div>
             <div class="ic-action">
                 {% if c.status == 'imported' %}
-                    {% if c.memory %}<a href="{% url 'legacy:editor' c.memory.pk %}" class="lg-btn-quiet review-btn">Review draft</a>{% else %}<span class="state-badge state-legacy">imported</span>{% endif %}
+                    {% if c.memory %}<a href="{% url 'legacy:editor' c.memory.pk %}" class="lg-btn-quiet review-btn">Review</a>{% else %}<span class="state-badge state-legacy">read</span>{% endif %}
                 {% else %}
-                    <form method="post" action="{% url 'legacy:import_run' batch.pk %}">{% csrf_token %}<input type="hidden" name="index" value="{{ c.index }}"><button type="submit" class="lg-btn-quiet review-btn">Import this one</button></form>
+                    <form method="post" action="{% url 'legacy:import_run' batch.pk %}">{% csrf_token %}<input type="hidden" name="index" value="{{ c.index }}"><button type="submit" class="lg-btn-quiet review-btn">Read this one</button></form>
                 {% endif %}
             </div>
         </div>

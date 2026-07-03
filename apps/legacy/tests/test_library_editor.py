@@ -174,6 +174,24 @@ class ArchiveRestoreTests(TestCase):
         self.assertEqual(self.memory.status, "active")
         self.assertTrue(Memory.objects.filter(pk=self.memory.pk).exists())
 
+    def test_delete_forever_only_when_archived(self):
+        m = Memory.objects.create(user=self.user, title="X")
+        # Not archived → refuses; memory still exists.
+        self.client.post(reverse("legacy:memory_delete_forever", args=[m.pk]))
+        self.assertTrue(Memory.all_objects.filter(pk=m.pk).exists())
+        # Archive, then delete forever → gone for good.
+        m.archive()
+        self.client.post(reverse("legacy:memory_delete_forever", args=[m.pk]))
+        self.assertFalse(Memory.all_objects.filter(pk=m.pk).exists())
+
+    def test_cannot_delete_others_memory(self):
+        other = _make_user("stranger@example.com")
+        om = Memory.objects.create(user=other, title="Theirs")
+        om.archive()
+        r = self.client.post(reverse("legacy:memory_delete_forever", args=[om.pk]))
+        self.assertEqual(r.status_code, 404)
+        self.assertTrue(Memory.all_objects.filter(pk=om.pk).exists())
+
     def test_full_status_lifecycle(self):
         m = Memory.objects.create(user=self.user, title="Life")
         self.assertEqual(m.entry_state, "draft")

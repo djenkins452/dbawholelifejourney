@@ -11,7 +11,7 @@ themes, CSP, and scripts. The floating assistant widget is suppressed here
 {% block title %}{{ page_title|default:"Legacy" }} · Legacy{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/legacy.css' %}?v=10">
+<link rel="stylesheet" href="{% static 'css/legacy.css' %}?v=12">
 {% endblock %}
 
 {# Suppress the global Chief-of-Staff chat widget inside Legacy #}
@@ -43,9 +43,20 @@ themes, CSP, and scripts. The floating assistant widget is suppressed here
             </span>
         </div>
     </div>
+
+    <div class="legacy-modal" id="confirmModal" hidden>
+        <div class="legacy-modal-card" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle">
+            <h3 class="legacy-modal-title" id="confirmTitle">Permanently delete this?</h3>
+            <p class="legacy-modal-msg" id="confirmMsg">This action cannot be undone.</p>
+            <div class="legacy-modal-actions">
+                <button type="button" class="lg-btn-quiet js-confirm-cancel">Cancel</button>
+                <button type="button" class="lg-btn-danger" id="confirmOk">Delete forever</button>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/legacy.js' %}?v=6"></script>
+<script src="{% static 'js/legacy.js' %}?v=7"></script>
 {% endblock %}

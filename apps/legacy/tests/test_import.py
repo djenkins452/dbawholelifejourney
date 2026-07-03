@@ -106,6 +106,19 @@ class EngineTests(TestCase):
         self.assertTrue(MemoryDiscovery.objects.filter(memory=memories[0]).exists())
         self.assertTrue(MemoryDiscovery.objects.filter(memory=memories[0], status="proposed").exists())
 
+    def test_batch_stats(self):
+        from apps.legacy.tests.test_discovery import FAKE
+        batch = import_engine.create_batch(self.user, "My story", "chatgpt", SAMPLE)
+        with patch.object(D, "is_available", return_value=True), \
+             patch.object(D, "_extract", return_value=FAKE):
+            import_engine.import_chunks(batch, limit=2)
+        stats = import_engine.batch_stats(batch)
+        self.assertEqual(stats["stories_imported"], 2)
+        self.assertEqual(stats["stories_total"], 2)
+        self.assertGreaterEqual(stats["people"], 1)
+        self.assertGreaterEqual(stats["quotes"], 1)
+        self.assertGreaterEqual(stats["relationships"], 1)
+
 
 class ImportViewTests(TestCase):
     def setUp(self):

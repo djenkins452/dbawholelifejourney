@@ -44,6 +44,9 @@ class DashboardTests(TestCase):
         self.assertEqual(r.context["counts"]["legacy"], 1)
         self.assertEqual(r.context["counts"]["people"], 1)
         self.assertEqual(r.context["counts"]["contributors"], 1)
+        # Expanded stats for the testing dashboard.
+        for key in ("relationships", "imports", "imported_stories", "waiting_review", "suggestions"):
+            self.assertIn(key, r.context["counts"])
 
     def test_status_filter_recent(self):
         r = self.client.get(reverse("legacy:dashboard"), {"status": "legacy"})

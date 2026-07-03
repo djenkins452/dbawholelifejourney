@@ -78,3 +78,38 @@ def import_chunks(batch, indices=None, limit=None, run_discovery=True):
 
     batch.refresh_counts()
     return memories
+
+
+def batch_stats(batch):
+    """Warm, human statistics for an import — reveals the richness being preserved."""
+    from apps.legacy.models import MemoryDiscovery
+
+    mem_ids = list(batch.memories.values_list("id", flat=True))
+    d = MemoryDiscovery.objects.filter(memory_id__in=mem_ids).exclude(
+        status=MemoryDiscovery.Status.REJECTED)
+
+    def k(kind):
+        return d.filter(kind=kind).count()
+
+    people = list(d.filter(kind=MemoryDiscovery.Kind.PERSON))
+    relationships = sum(1 for p in people if (p.detail or {}).get("relationship"))
+    accepted_people = [p for p in people if p.status == MemoryDiscovery.Status.ACCEPTED]
+    new_people = sum(1 for p in accepted_people if (p.detail or {}).get("is_new"))
+    existing_matched = len(accepted_people) - new_people
+
+    return {
+        "stories_imported": batch.imported_count,
+        "stories_total": batch.total_chunks,
+        "people": len(people),
+        "places": k(MemoryDiscovery.Kind.PLACE),
+        "relationships": relationships,
+        "quotes": k(MemoryDiscovery.Kind.QUOTE),
+        "themes": k(MemoryDiscovery.Kind.THEME),
+        "traditions": k(MemoryDiscovery.Kind.TRADITION),
+        "artifacts": k(MemoryDiscovery.Kind.ARTIFACT),
+        "events": k(MemoryDiscovery.Kind.EVENT),
+        "media": k(MemoryDiscovery.Kind.MEDIA_REF),
+        "values": k(MemoryDiscovery.Kind.VALUE),
+        "new_people": new_people,
+        "existing_matched": existing_matched,
+    }

@@ -56,6 +56,7 @@ be present; use an empty array if you found nothing for it):
   "values":        [{"text": str, "confidence": 0.0-1.0}],
   "traditions":    [{"text": str, "confidence": 0.0-1.0}],
   "emotions":      [{"text": str, "confidence": 0.0-1.0}],
+  "milestones":    [{"title": str, "kind": str, "year": int|null, "confidence": 0.0-1.0}],
   "prompts":       [str]
 }
 
@@ -74,6 +75,15 @@ Guidance:
 - quotes: exact meaningful things people said or repeated. Keep them verbatim.
 - artifacts: physical objects that carry meaning (a bracelet, a glove, a truck).
 - themes/values/traditions/emotions: only when reasonably supported. Do not overreach.
+- milestones: MAJOR life chapters the story marks — marriage, bought first house,
+  graduation, military service, first job / started career, retirement, birth of a
+  child or grandchild, meeting significant people, moving/relocation, baptism /
+  started a church, divorce, a diagnosis or recovery, death of a parent or spouse,
+  starting or selling a business, a major vacation. `title` is specific ("Bought
+  our first house", "Met Eric and Carrie"). `kind` is one of: marriage, home,
+  education, military, career, birth, death, faith, health, relocation, travel,
+  business, relationship, other. `year` when the text supports it, else null. Only
+  when the story genuinely marks a chapter — most events are NOT milestones.
 - confidence is 0.0-1.0 for how clearly the text supports each item.
 - prompts: 3-5 SHORT, SPECIFIC, optional preservation suggestions based on what
   this story leaves out. ALWAYS reference something concrete the author actually
@@ -87,6 +97,7 @@ Guidance:
 
 _SUMMARY = {
     "person": ("person", "people"), "place": ("place", "places"),
+    "milestone": ("life milestone", "life milestones"),
     "event": ("event", "events"), "quote": ("quote", "quotes"),
     "theme": ("theme", "themes"), "value": ("value", "values"),
     "artifact": ("artifact", "artifacts"), "tradition": ("tradition", "traditions"),
@@ -201,7 +212,7 @@ def run_discovery(memory, extractor=None):
     Accepted/rejected discoveries are preserved; only prior `proposed` rows are
     refreshed. `extractor` is injectable for tests (defaults to the OpenAI call).
     """
-    from apps.legacy.models import MemoryDiscovery, Person, Place
+    from apps.legacy.models import LifeMilestone, MemoryDiscovery, Person, Place
 
     text = ("%s\n%s" % (memory.title, memory.body)).strip()
     if len(text) < 12:
@@ -222,6 +233,7 @@ def run_discovery(memory, extractor=None):
     user = memory.user
     existing_people = {p.display_name.lower(): p for p in Person.objects.filter(user=user)}
     existing_places = {p.name.lower(): p for p in Place.objects.filter(user=user)}
+    existing_milestones = {m.title.lower(): m for m in LifeMilestone.objects.filter(user=user)}
     already = {
         (d.kind, d.label.lower())
         for d in MemoryDiscovery.objects.filter(memory=memory).exclude(status=MemoryDiscovery.Status.PROPOSED)
@@ -274,6 +286,26 @@ def run_discovery(memory, extractor=None):
             "is_new": match is None,
         })
 
+    for ml in data.get("milestones", []) or []:
+        title = (ml.get("title") or "").strip()
+        if not title:
+            continue
+        match = existing_milestones.get(title.lower())
+        candidates = []
+        if not match:
+            candidates = [m for lname, m in existing_milestones.items()
+                          if _similar(title, m.title)]
+        add(MemoryDiscovery.Kind.MILESTONE, title, ml.get("confidence"), {
+            "kind": (ml.get("kind") or "other"),
+            "year": ml.get("year"),
+            "is_new": match is None and not candidates,
+            "matched_milestone_id": match.id if match else None,
+            "matched": ({"stories": match.memories.count(), "year": match.year}
+                        if match else None),
+            "candidates": [dict(id=c.id, title=c.title, year=c.year, stories=c.memories.count())
+                           for c in candidates[:3]],
+        })
+
     for ct in data.get("calendar_time", []) or []:
         label = (ct.get("text") or "").strip()
         if not label and ct.get("year"):
@@ -315,6 +347,7 @@ def grouped_proposals(memory):
     order = MemoryDiscovery._ORDER
     headings = {
         "person": "People", "relationship": "Relationships", "place": "Places",
+        "milestone": "Life milestones",
         "human_time": "Human time", "calendar_time": "Calendar time",
         "life_stage": "Life stage", "relative_time": "Relative time",
         "event": "Events", "quote": "Quotes", "artifact": "Artifacts",
@@ -337,8 +370,15 @@ def confirm_discoveries(memory, accepted_ids=None, accept_all=False, resolutions
     the user made; the engine's original value is preserved on the row for future
     learning. Returns the number accepted.
     """
-    from apps.legacy.models import MemoryDiscovery, Person, Place
+    from apps.legacy.models import LifeMilestone, MemoryDiscovery, Person, Place
 
+    def _int(v):
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return None
+
+    valid_kinds = set(LifeMilestone.Kind.values)
     resolutions = resolutions or {}
     edits = edits or {}
     accepted_ids = set(int(i) for i in (accepted_ids or []))
@@ -373,6 +413,8 @@ def confirm_discoveries(memory, accepted_ids=None, accept_all=False, resolutions
                 d.detail["location"] = e["location"].strip()
             if e.get("notes"):
                 d.detail["notes"] = e["notes"].strip()
+            if e.get("year") is not None:
+                d.detail["year"] = _int(e.get("year"))
 
         if d.kind == MemoryDiscovery.Kind.PERSON:
             person = None
@@ -408,6 +450,28 @@ def confirm_discoveries(memory, accepted_ids=None, accept_all=False, resolutions
                     created_via=Place.CREATED_VIA_MANUAL)
             memory.places.add(place)
             d.linked_place = place
+
+        elif d.kind == MemoryDiscovery.Kind.MILESTONE:
+            milestone = None
+            res = resolutions.get(str(d.id)) or resolutions.get(d.id)
+            if res and res != "new":
+                milestone = LifeMilestone.all_objects.filter(pk=res, user=user).first()
+            elif res != "new":
+                mid = d.detail.get("matched_milestone_id")
+                if mid:
+                    milestone = LifeMilestone.all_objects.filter(pk=mid, user=user).first()
+            kind = d.detail.get("kind")
+            kind = kind if kind in valid_kinds else LifeMilestone.Kind.OTHER
+            year = _int(d.detail.get("year"))
+            if milestone is None:
+                milestone = LifeMilestone.objects.create(
+                    user=user, title=d.label[:200], kind=kind, year=year,
+                    created_via=LifeMilestone.CREATED_VIA_MANUAL)
+            elif year and not milestone.year:
+                milestone.year = year
+                milestone.save(update_fields=["year", "updated_at"])
+            memory.milestones.add(milestone)
+            d.linked_milestone = milestone
 
         d.status = MemoryDiscovery.Status.ACCEPTED
         d.decided_at = now

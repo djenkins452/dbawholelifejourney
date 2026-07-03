@@ -33,7 +33,26 @@
         <a href="{% url 'legacy:imports' %}" class="stat-card"><span class="stat-value">{{ counts.imported_stories }}</span><span class="stat-label">Imported stories</span></a>
         <a href="{% url 'legacy:library' %}?status=draft" class="stat-card"><span class="stat-value">{{ counts.waiting_review }}</span><span class="stat-label">Waiting for review</span></a>
         <a href="{% url 'legacy:library' %}?status=draft" class="stat-card"><span class="stat-value">{{ counts.suggestions }}</span><span class="stat-label">Discoveries pending</span></a>
+        <a href="{% url 'legacy:timeline' %}" class="stat-card"><span class="stat-value">{{ counts.milestones }}</span><span class="stat-label">Life milestones</span></a>
     </div>
+
+    {% if top_milestones %}
+    <div class="lib-section-head">
+        <h2 class="lg-section-title">Your biggest chapters</h2>
+        <a href="{% url 'legacy:timeline' %}" class="lg-link">See timeline</a>
+    </div>
+    <div class="mlist">
+        {% for m in top_milestones %}
+        <a href="{% url 'legacy:milestone_detail' m.pk %}" class="mrow">
+            <span class="mrow-main">
+                <span class="mrow-title">{{ m.title }}</span>
+                <span class="mrow-snippet">{{ m.get_kind_display }}{% if m.year %} · {{ m.year }}{% endif %}</span>
+            </span>
+            <span class="mrow-meta">{{ m.n }} {% if m.n == 1 %}story{% else %}stories{% endif %} connected</span>
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
 
     {% if recently_imported %}
     <div class="lib-section-head"><h2 class="lg-section-title">Recently imported</h2></div>

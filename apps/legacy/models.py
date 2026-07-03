@@ -136,6 +136,53 @@ class Place(LegacyOwnedModel):
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# Life Milestone — a major chapter of a life (an organizing layer, not an owner)
+# ──────────────────────────────────────────────────────────────────────────
+class LifeMilestone(LegacyOwnedModel):
+    """
+    A major chapter of a person's life — Marriage, Bought First House, Birth of
+    a Child, Moved to Tennessee, Met Eric and Carrie, Retirement…
+
+    A Milestone is a purely ASSOCIATIVE organizing layer. It does NOT own Stories
+    or Media — Stories keep owning their own media and context. Many Stories (and
+    through them People, Places, Media, Quotes, Themes) simply share one or more
+    Milestones, which lets a whole life be organized by its chapters (e.g. "1997")
+    and later powers the Timeline and milestone-scoped Outputs — without any
+    manual organizing and without moving or duplicating anything.
+    """
+
+    class Kind(models.TextChoices):
+        MARRIAGE = 'marriage', 'Marriage'
+        HOME = 'home', 'Home'
+        EDUCATION = 'education', 'Education'
+        MILITARY = 'military', 'Military'
+        CAREER = 'career', 'Career'
+        BIRTH = 'birth', 'Birth'
+        DEATH = 'death', 'Loss'
+        FAITH = 'faith', 'Faith'
+        HEALTH = 'health', 'Health'
+        RELOCATION = 'relocation', 'Move'
+        TRAVEL = 'travel', 'Travel'
+        BUSINESS = 'business', 'Business'
+        RELATIONSHIP = 'relationship', 'Relationship'
+        OTHER = 'other', 'Milestone'
+
+    title = models.CharField(max_length=200, db_index=True)
+    kind = models.CharField(max_length=14, choices=Kind.choices, default=Kind.OTHER)
+    year = models.PositiveIntegerField(null=True, blank=True, db_index=True)
+    description = models.TextField(blank=True)
+    significance = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['-year', 'title']
+        verbose_name = 'Life milestone'
+        verbose_name_plural = 'Life milestones'
+
+    def __str__(self):
+        return self.title
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # Contributor — a family co-author
 # ──────────────────────────────────────────────────────────────────────────
 class Contributor(LegacyOwnedModel):
@@ -255,6 +302,8 @@ class Memory(LegacyOwnedModel):
     people = models.ManyToManyField(Person, through='MemoryPerson', related_name='memories', blank=True)
     places = models.ManyToManyField(Place, through='MemoryPlace', related_name='memories', blank=True)
     media = models.ManyToManyField(Media, related_name='memories', blank=True)
+    # Associative only — a story shares milestones; milestones never own the story.
+    milestones = models.ManyToManyField('LifeMilestone', related_name='memories', blank=True)
     primary_media = models.ForeignKey(
         Media, on_delete=models.SET_NULL, null=True, blank=True, related_name='cover_for_memories',
     )
@@ -360,6 +409,7 @@ class MemoryDiscovery(models.Model):
         PERSON = 'person', 'Person'
         RELATIONSHIP = 'relationship', 'Relationship'
         PLACE = 'place', 'Place'
+        MILESTONE = 'milestone', 'Life milestone'
         HUMAN_TIME = 'human_time', 'Human time'
         CALENDAR_TIME = 'calendar_time', 'Calendar time'
         LIFE_STAGE = 'life_stage', 'Life stage'
@@ -395,15 +445,17 @@ class MemoryDiscovery(models.Model):
         'Person', on_delete=models.SET_NULL, null=True, blank=True, related_name='discoveries')
     linked_place = models.ForeignKey(
         'Place', on_delete=models.SET_NULL, null=True, blank=True, related_name='discoveries')
+    linked_milestone = models.ForeignKey(
+        'LifeMilestone', on_delete=models.SET_NULL, null=True, blank=True, related_name='discoveries')
 
     created_at = models.DateTimeField(auto_now_add=True)
     decided_at = models.DateTimeField(null=True, blank=True)
 
     # Display order for the Kind groups in the review panel.
     _ORDER = {
-        'person': 0, 'relationship': 1, 'place': 2, 'human_time': 3, 'calendar_time': 4,
-        'life_stage': 5, 'relative_time': 6, 'event': 7, 'quote': 8, 'artifact': 9,
-        'media_ref': 10, 'theme': 11, 'value': 12, 'tradition': 13, 'emotion': 14,
+        'person': 0, 'relationship': 1, 'place': 2, 'milestone': 3, 'human_time': 4,
+        'calendar_time': 5, 'life_stage': 6, 'relative_time': 7, 'event': 8, 'quote': 9,
+        'artifact': 10, 'media_ref': 11, 'theme': 12, 'value': 13, 'tradition': 14, 'emotion': 15,
     }
 
     class Meta:

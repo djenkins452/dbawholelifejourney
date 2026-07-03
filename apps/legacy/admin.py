@@ -1,8 +1,8 @@
 from django.contrib import admin
 
 from apps.legacy.models import (
-    Contributor, ImportBatch, ImportChunk, Media, Memory, Output, Person, Place,
-    Relationship,
+    Contributor, ImportBatch, ImportChunk, LifeMilestone, Media, Memory, Output, Person,
+    Place, Relationship,
 )
 
 
@@ -59,3 +59,10 @@ class ImportBatchAdmin(admin.ModelAdmin):
 class ImportChunkAdmin(admin.ModelAdmin):
     list_display = ("__str__", "batch", "index", "status", "memory")
     list_filter = ("status",)
+
+
+@admin.register(LifeMilestone)
+class LifeMilestoneAdmin(admin.ModelAdmin):
+    list_display = ("title", "user", "kind", "year", "status")
+    list_filter = ("kind",)
+    search_fields = ("title",)

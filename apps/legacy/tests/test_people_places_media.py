@@ -7,7 +7,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from apps.legacy.models import (
-    Contributor, Media, Memory, Person, Place, Relationship,
+    Contributor, LifeMilestone, Media, Memory, Person, Place, Relationship,
 )
 
 User = get_user_model()
@@ -182,3 +182,33 @@ class EditorLinkingTests(TestCase):
         m.refresh_from_db()
         self.assertIn(person, m.people.all())
         self.assertIn(place, m.places.all())
+
+
+class TimelineTests(TestCase):
+    def setUp(self):
+        self.user = _make_user()
+        self.other = _make_user("tl_other@example.com")
+        self.client.force_login(self.user)
+
+    def test_timeline_and_milestone_detail(self):
+        ms = LifeMilestone.objects.create(user=self.user, title="Married Heather", kind="marriage", year=1997)
+        m = Memory.objects.create(user=self.user, title="Wedding day")
+        m.milestones.add(ms)
+        r = self.client.get(reverse("legacy:timeline"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Married Heather")
+        self.assertContains(r, "1997")
+        r2 = self.client.get(reverse("legacy:milestone_detail", args=[ms.pk]))
+        self.assertContains(r2, "Wedding day")   # story appears in the chapter
+
+    def test_empty_timeline(self):
+        r = self.client.get(reverse("legacy:timeline"))
+        self.assertContains(r, "chapters will gather here")
+
+    def test_cannot_view_others_milestone(self):
+        ms = LifeMilestone.objects.create(user=self.other, title="Theirs")
+        self.assertEqual(self.client.get(reverse("legacy:milestone_detail", args=[ms.pk])).status_code, 404)
+
+    def test_login_required(self):
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse("legacy:timeline")).status_code, 302)

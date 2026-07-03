@@ -53,10 +53,9 @@ urlpatterns = [
     path("places/<int:pk>/edit/", views.PlaceEditView.as_view(), name="place_edit"),
     path("places/<int:pk>/archive/", views.PlaceArchiveView.as_view(), name="place_archive"),
     path("places/<int:pk>/restore/", views.PlaceRestoreView.as_view(), name="place_restore"),
-    path("timeline/", _placeholder(
-        "timeline", "Timeline",
-        "A gentle lens across the years of your life."),
-        name="timeline"),
+    # Timeline & Life Milestones (emergent chapters)
+    path("timeline/", views.TimelineView.as_view(), name="timeline"),
+    path("milestones/<int:pk>/", views.MilestoneDetailView.as_view(), name="milestone_detail"),
     # Media (Slice 3)
     path("media/", views.MediaLibraryView.as_view(), name="media"),
     path("media/upload/", views.MediaUploadView.as_view(), name="media_upload"),

@@ -774,3 +774,27 @@ body.theme-ember .legacy-root {
 .import-continue { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; background: #f3efe6; border: 1px solid #e7ddc8; border-radius: 12px; padding: 14px 18px; margin-bottom: 22px; }
 .import-continue > span { font-size: 14px; color: #6f5f3d; font-family: var(--lg-serif); }
 .import-list-title { margin: 6px 0 12px; }
+
+/* ==========================================================================
+   Life Milestones + Timeline
+   ========================================================================== */
+.disc-milestone-av { background: linear-gradient(135deg, #7d8bb0, #57608a) !important; }
+.disc-milestone-av svg { width: 17px; height: 17px; }
+
+.timeline { max-width: 900px; margin: 0 auto; }
+.tl-year { display: grid; grid-template-columns: 80px 1fr; gap: 18px; padding-bottom: 8px; }
+.tl-year-rail { position: relative; text-align: right; padding-right: 18px; border-right: 2px solid var(--lg-border); }
+.tl-year-label { font-family: var(--lg-serif); font-size: 18px; color: var(--lg-ink); position: sticky; top: 8px; }
+.tl-year-label.tl-undated { font-size: 14px; color: var(--lg-muted); }
+.tl-milestones { display: flex; flex-direction: column; gap: 10px; padding-bottom: 22px; }
+.tl-card { display: flex; flex-direction: column; gap: 3px; background: var(--lg-surface); border: 1px solid var(--lg-border); border-radius: 12px; padding: 13px 16px; text-decoration: none; transition: transform .12s, box-shadow .12s; position: relative; }
+.tl-card::before { content: ""; position: absolute; left: -25px; top: 18px; width: 9px; height: 9px; border-radius: 50%; background: var(--lg-sidebar-gold); border: 2px solid var(--lg-surface); }
+.tl-card:hover { transform: translateY(-1px); box-shadow: var(--lg-shadow); }
+.tl-card-kind { font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--lg-muted); }
+.tl-card-title { font-family: var(--lg-serif); font-size: 16px; color: var(--lg-ink); }
+.tl-card-stats { font-size: 12px; color: var(--lg-muted); }
+
+.milestone-quotes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.milestone-quotes li { font-family: var(--lg-serif); font-size: 15px; color: var(--lg-ink); background: var(--lg-surface-2); border-left: 3px solid var(--lg-sidebar-gold); border-radius: 4px; padding: 8px 12px; }
+
+@media (max-width: 720px) { .tl-year { grid-template-columns: 56px 1fr; gap: 12px; } }

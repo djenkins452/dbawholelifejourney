@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
@@ -24,8 +24,8 @@ from django.template.loader import render_to_string
 
 from apps.legacy.forms import ContributorForm, ImportForm, OutputForm, PersonForm, PlaceForm
 from apps.legacy.models import (
-    Contributor, ImportBatch, ImportChunk, Media, Memory, MemoryDiscovery, MemoryRevision,
-    Output, Person, Place, Relationship,
+    Contributor, ImportBatch, ImportChunk, LifeMilestone, Media, Memory, MemoryDiscovery,
+    MemoryRevision, Output, Person, Place, Relationship,
 )
 from apps.legacy.services import discovery as discovery_svc
 from apps.legacy.services import import_engine
@@ -334,7 +334,8 @@ class DiscoveryConfirmView(LegacyContextMixin, View):
         edits = {}
         for k, v in request.POST.items():
             for prefix, field in (("edit_label_", "label"), ("edit_rel_", "relationship"),
-                                  ("edit_loc_", "location"), ("edit_notes_", "notes")):
+                                  ("edit_loc_", "location"), ("edit_notes_", "notes"),
+                                  ("edit_year_", "year")):
                 if k.startswith(prefix):
                     edits.setdefault(k[len(prefix):], {})[field] = v
         n = discovery_svc.confirm_discoveries(
@@ -730,7 +731,12 @@ class StudioView(LegacyContextMixin, TemplateView):
                 import_batch__isnull=False, entry_state=Memory.EntryState.DRAFT).count(),
             "suggestions": MemoryDiscovery.objects.filter(
                 memory__user=user, status=MemoryDiscovery.Status.PROPOSED).count(),
+            "milestones": LifeMilestone.objects.filter(user=user).count(),
         }
+        top = list(LifeMilestone.objects.filter(user=user)
+                   .annotate(n=Count("memories", distinct=True)).order_by("-n", "-year")[:5])
+        ctx["top_milestones"] = top
+        ctx["most_connected"] = top[0] if top else None
         ctx["recently_imported"] = (
             active_mem.filter(import_batch__isnull=False)
             .select_related("import_batch").order_by("-created_at")[:5])
@@ -995,3 +1001,64 @@ class ImportRunView(LegacyContextMixin, View):
             f"Imported {len(memories)} {'story' if len(memories) == 1 else 'stories'} as drafts. "
             "Review each, run its discoveries, then add it to your Legacy.")
         return redirect("legacy:import_detail", pk=batch.pk)
+
+
+# ── Timeline & Milestones (emergent chapters) ────────────────────────────────
+class TimelineView(LegacyContextMixin, TemplateView):
+    """A life timeline that emerges from Life Milestones — not manually maintained."""
+
+    template_name = "legacy/timeline.html"
+    nav_active = "timeline"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        user = self.request.user
+        milestones = LifeMilestone.objects.filter(user=user)
+
+        rows = []
+        for m in milestones:
+            memories = m.memories.all()
+            rows.append({
+                "m": m,
+                "stories": memories.count(),
+                "photos": Media.objects.filter(
+                    memories__in=memories, media_type=Media.MediaType.PHOTO).distinct().count(),
+                "people": Person.objects.filter(memories__in=memories).distinct().count(),
+            })
+
+        # Group by year (most recent first); undated last.
+        years, undated = {}, []
+        for r in rows:
+            y = r["m"].year
+            (years.setdefault(y, []) if y else undated).append(r)
+        ctx["year_groups"] = [
+            {"year": y, "rows": years[y]}
+            for y in sorted(years.keys(), reverse=True)
+        ]
+        ctx["undated"] = undated
+        ctx["milestone_count"] = milestones.count()
+        return ctx
+
+
+class MilestoneDetailView(LegacyContextMixin, DetailView):
+    """A chapter of a life — everything connected through this milestone."""
+
+    model = LifeMilestone
+    template_name = "legacy/milestone_detail.html"
+    context_object_name = "milestone"
+    nav_active = "timeline"
+
+    def get_queryset(self):
+        return LifeMilestone.all_objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        memories = self.object.memories.all().select_related("primary_media").order_by("-created_at")
+        ctx["memories"] = memories
+        ctx["people"] = Person.objects.filter(memories__in=memories).distinct()
+        ctx["places"] = Place.objects.filter(memories__in=memories).distinct()
+        ctx["media"] = Media.objects.filter(memories__in=memories).distinct()[:12]
+        ctx["quotes"] = list(MemoryDiscovery.objects.filter(
+            memory__in=memories, kind=MemoryDiscovery.Kind.QUOTE,
+            status=MemoryDiscovery.Status.ACCEPTED).values_list("label", flat=True)[:8])
+        return ctx

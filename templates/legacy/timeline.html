@@ -1,0 +1,54 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="lib">
+    <div class="lib-head">
+        <div>
+            <h1 class="lib-title">Timeline</h1>
+            <p class="lib-sub">The chapters of your life, coming together on their own — nothing to organize by hand.</p>
+        </div>
+    </div>
+
+    {% if milestone_count %}
+    <div class="timeline">
+        {% for grp in year_groups %}
+        <div class="tl-year">
+            <div class="tl-year-rail"><span class="tl-year-label">{{ grp.year }}</span></div>
+            <div class="tl-milestones">
+                {% for r in grp.rows %}
+                <a href="{% url 'legacy:milestone_detail' r.m.pk %}" class="tl-card">
+                    <span class="tl-card-kind">{{ r.m.get_kind_display }}</span>
+                    <span class="tl-card-title">{{ r.m.title }}</span>
+                    <span class="tl-card-stats">{{ r.stories }} {% if r.stories == 1 %}story{% else %}stories{% endif %}{% if r.photos %} · {{ r.photos }} photos{% endif %}{% if r.people %} · {{ r.people }} {% if r.people == 1 %}person{% else %}people{% endif %}{% endif %}</span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+        {% if undated %}
+        <div class="tl-year">
+            <div class="tl-year-rail"><span class="tl-year-label tl-undated">Sometime</span></div>
+            <div class="tl-milestones">
+                {% for r in undated %}
+                <a href="{% url 'legacy:milestone_detail' r.m.pk %}" class="tl-card">
+                    <span class="tl-card-kind">{{ r.m.get_kind_display }}</span>
+                    <span class="tl-card-title">{{ r.m.title }}</span>
+                    <span class="tl-card-stats">{{ r.stories }} {% if r.stories == 1 %}story{% else %}stories{% endif %}{% if r.photos %} · {{ r.photos }} photos{% endif %}</span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="lib-empty">
+        <span class="lib-empty-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="8" cy="6" r="1.6" fill="currentColor"/><circle cx="14" cy="12" r="1.6" fill="currentColor"/><circle cx="10" cy="18" r="1.6" fill="currentColor"/></svg>
+        </span>
+        <h2 class="lib-empty-title">Your life's chapters will gather here</h2>
+        <p class="lib-empty-blurb">As you tell stories, Legacy notices the big chapters — a wedding, a first house, a birth, a move — and quietly builds your timeline. You never have to organize it.</p>
+        <a href="{% url 'legacy:editor_new' %}" class="lg-btn-primary">Tell a story</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

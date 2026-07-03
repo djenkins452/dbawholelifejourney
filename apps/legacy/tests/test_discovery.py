@@ -30,6 +30,10 @@ FAKE = {
     "values": [{"text": "Hard work", "confidence": 0.5}],
     "traditions": [{"text": "Summer fishing trips", "confidence": 0.5}],
     "emotions": [{"text": "Joy", "confidence": 0.6}],
+    "milestones": [
+        {"title": "Married Heather", "kind": "marriage", "year": 1997, "confidence": 0.9},
+        {"title": "Bought our first house", "kind": "home", "year": 1997, "confidence": 0.8},
+    ],
     "prompts": [
         "You mentioned Uncle Joe but never described what he was like.",
         "You wrote about the fishing trip but not what happened afterward.",
@@ -110,6 +114,15 @@ class RunDiscoveryTests(TestCase):
         self.assertIn("1 place", text)
         self.assertIn(" and ", text)
 
+    def test_milestones_discovered(self):
+        D.run_discovery(self.memory, extractor=lambda t: FAKE)
+        ms = MemoryDiscovery.objects.filter(memory=self.memory, kind="milestone")
+        self.assertEqual(ms.count(), 2)
+        m = ms.get(label="Married Heather")
+        self.assertEqual(m.detail.get("year"), 1997)
+        self.assertEqual(m.detail.get("kind"), "marriage")
+        self.assertTrue(m.detail.get("is_new"))
+
     def test_prompts_persisted(self):
         D.run_discovery(self.memory, extractor=lambda t: FAKE)
         self.memory.refresh_from_db()
@@ -166,6 +179,36 @@ class ConfirmTests(TestCase):
         self.assertFalse(MemoryDiscovery.objects.filter(memory=self.memory, status="proposed").exists())
         self.assertTrue(MemoryDiscovery.objects.filter(memory=self.memory, status="rejected").exists())
         self.assertFalse(Place.objects.filter(user=self.user, name="Soddy Daisy").exists())
+
+    def test_milestone_promoted_and_associated(self):
+        from apps.legacy.models import LifeMilestone
+        ms = MemoryDiscovery.objects.get(memory=self.memory, kind="milestone", label="Married Heather")
+        D.confirm_discoveries(self.memory, accepted_ids=[ms.id])
+        milestone = LifeMilestone.objects.get(user=self.user, title="Married Heather")
+        self.assertEqual(milestone.year, 1997)
+        self.assertEqual(milestone.kind, "marriage")
+        # Associative only — the story links the milestone; the milestone doesn't own it.
+        self.assertIn(milestone, self.memory.milestones.all())
+        ms.refresh_from_db()
+        self.assertEqual(ms.linked_milestone, milestone)
+
+    def test_milestone_edit_year_applied(self):
+        ms = MemoryDiscovery.objects.get(memory=self.memory, kind="milestone", label="Married Heather")
+        D.confirm_discoveries(self.memory, accepted_ids=[ms.id],
+                              edits={str(ms.id): {"year": "1998"}})
+        from apps.legacy.models import LifeMilestone
+        self.assertTrue(LifeMilestone.objects.filter(user=self.user, title="Married Heather", year=1998).exists())
+
+    def test_milestone_matches_existing_no_duplicate(self):
+        from apps.legacy.models import LifeMilestone
+        MemoryDiscovery.objects.filter(memory=self.memory).delete()
+        LifeMilestone.objects.create(user=self.user, title="Married Heather", kind="marriage", year=1997)
+        D.run_discovery(self.memory, extractor=lambda t: FAKE)
+        ms = MemoryDiscovery.objects.get(memory=self.memory, kind="milestone", label="Married Heather")
+        self.assertFalse(ms.detail["is_new"])
+        self.assertIsNotNone(ms.detail["matched_milestone_id"])
+        D.confirm_discoveries(self.memory, accepted_ids=[ms.id])
+        self.assertEqual(LifeMilestone.objects.filter(user=self.user, title="Married Heather").count(), 1)
 
     def test_inline_edit_applied_and_original_preserved(self):
         marvin = MemoryDiscovery.objects.get(memory=self.memory, kind="person", label="Marvin")

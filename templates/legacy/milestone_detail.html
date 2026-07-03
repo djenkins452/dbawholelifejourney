@@ -1,0 +1,67 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="profile">
+    <a href="{% url 'legacy:timeline' %}" class="editor-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M15 18l-6-6 6-6"/></svg>
+        Timeline
+    </a>
+
+    <div class="profile-head">
+        <span class="profile-avatar disc-milestone-av">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 22V4"/><path d="M4 4h11l-1.5 3L15 10H4"/></svg>
+        </span>
+        <div class="profile-headinfo">
+            <h1 class="profile-name">{{ milestone.title }}</h1>
+            <p class="profile-sub">{{ milestone.get_kind_display }}{% if milestone.year %} · {{ milestone.year }}{% endif %} · {{ memories.count }} {% if memories.count == 1 %}story{% else %}stories{% endif %}</p>
+        </div>
+    </div>
+
+    {% if milestone.description %}
+    <section class="lg-card profile-bio"><p>{{ milestone.description|linebreaks }}</p></section>
+    {% endif %}
+
+    <section class="profile-sec">
+        <h2 class="profile-sec-title">Stories in this chapter</h2>
+        {% if memories %}
+        <div class="mgrid">{% for m in memories %}{% include "legacy/_memory_card.html" with m=m %}{% endfor %}</div>
+        {% else %}
+        <p class="profile-empty">No stories are connected to this chapter yet.</p>
+        {% endif %}
+    </section>
+
+    {% if media %}
+    <section class="profile-sec">
+        <h2 class="profile-sec-title">Photos &amp; media</h2>
+        <div class="media-strip">
+            {% for md in media %}
+            <a href="{% url 'legacy:media_detail' md.pk %}" class="media-thumb type-{{ md.media_type }}">
+                {% if md.file and md.media_type == 'photo' %}<img src="{{ md.file.url }}" alt="{{ md.caption }}">{% else %}<span class="media-thumb-kind">{{ md.get_media_type_display }}</span>{% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if people %}
+    <section class="profile-sec">
+        <h2 class="profile-sec-title">People in this chapter</h2>
+        <div class="chips">{% for p in people %}<a href="{% url 'legacy:person_detail' p.pk %}" class="chip chip-link">{{ p.display_name }}</a>{% endfor %}</div>
+    </section>
+    {% endif %}
+
+    {% if places %}
+    <section class="profile-sec">
+        <h2 class="profile-sec-title">Places</h2>
+        <div class="chips">{% for pl in places %}<a href="{% url 'legacy:place_detail' pl.pk %}" class="chip chip-link">{{ pl.name }}</a>{% endfor %}</div>
+    </section>
+    {% endif %}
+
+    {% if quotes %}
+    <section class="profile-sec">
+        <h2 class="profile-sec-title">Things said</h2>
+        <ul class="milestone-quotes">{% for q in quotes %}<li>“{{ q }}”</li>{% endfor %}</ul>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

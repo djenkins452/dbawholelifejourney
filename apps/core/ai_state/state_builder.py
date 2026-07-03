@@ -637,8 +637,20 @@ def build_health_state(user):
         else:
             state["sleep_trend"] = "insufficient_data"
 
-        # Dashboard cockpit fields: consistency score + avg hours
-        if avg_duration:
+        # Dashboard cockpit fields: consistency score + avg hours.
+        # CANONICAL 7-night average — one authoritative record per night + the
+        # time-asleep metric, so Beth's "recent average" is computed from the same
+        # truth as the nightly value (never a mix of in-bed/asleep or duplicate
+        # multi-source rows). Falls back to the in-bed average only if the accessor
+        # is unavailable.
+        try:
+            from apps.health.services.sleep_queries import recent_average_hours
+            _canon_avg = recent_average_hours(user)
+        except Exception:
+            _canon_avg = None
+        if _canon_avg is not None:
+            state["sleep_avg_hours_7d"] = _canon_avg
+        elif avg_duration:
             state["sleep_avg_hours_7d"] = round(float(avg_duration) / 60, 1)
         durations = list(
             recent_sleep.filter(total_duration_minutes__isnull=False)
@@ -1200,17 +1212,20 @@ def build_health_state(user):
     # ── Sleep Status ─────────────────────────────────────────
     # Also add last-night-specific keys so the tile can show the
     # most recent entry without querying the model directly.
+    # CANONICAL SLEEP TRUTH (Layer 1): read the authoritative last-night record
+    # via the single sleep-truth accessor — deterministic record selection (source
+    # precedence, most-complete) and the time-ASLEEP metric Apple Health displays.
+    # Replaces a non-deterministic `.first()` over `-sleep_date` that read
+    # `total_duration_minutes` (time in bed) — so every consumer now observes the
+    # same value as each other and as Apple Health. See docs + sleep_queries.py.
     try:
-        last_sleep = (
-            SleepEntry.objects.filter(user=user)
-            .order_by('-sleep_date')
-            .values_list('total_duration_minutes', 'quality_score', 'sleep_date')
-            .first()
-        )
-        if last_sleep and last_sleep[0]:
-            state["sleep_last_night_hours"] = round(float(last_sleep[0]) / 60, 1)
-            state["sleep_last_night_quality"] = last_sleep[1]
-            state["sleep_last_night_date"] = last_sleep[2].isoformat() if last_sleep[2] else None
+        from apps.health.services.sleep_queries import last_night as _sleep_last_night
+        ln = _sleep_last_night(user)
+        if ln:
+            state["sleep_last_night_hours"] = ln["hours"]
+            state["sleep_last_night_quality"] = ln["quality"]
+            state["sleep_last_night_date"] = (
+                ln["date"].isoformat() if ln.get("date") else None)
     except Exception:
         pass
 

@@ -6,6 +6,21 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-03 — fix(health): Layer 1 Canonical Sleep Truth — every consumer observes the same night
+
+Layer 1 Canonical Truth integrity investigation (NOT a HealthKit/importer/Beth patch). Production: Apple Health showed a night as **6 hr 9 min** (time asleep) while Beth reported **4.8 hr** for the SAME night — BP/Weight agreed, only sleep diverged. Temporal Grounding had already fixed WHICH night; this was the VALUE diverging on the agreed record.
+
+Truth-lineage trace found the first divergence point in the **SAE** (`state_builder.py`), not in HealthKit, the importer, or Beth. Two Layer 1 defects, both silent:
+- **Non-deterministic record selection.** `sleep_last_night_hours` was `SleepEntry...order_by("-sleep_date").first()` — no source precedence, no tie-break. A night with more than one record (Apple full-night + a partial/manual row) could resolve to a *different* record per call. That is a Layer 1 failure: two reads of the "same truth" disagree.
+- **Wrong duration field.** It read `total_duration_minutes` (time **in bed**) while `signal_collector` and Apple's headline figure use time **asleep** (`asleep_duration_minutes`). Consumers were reading different columns and calling both "sleep."
+
+Fix — strengthen Layer 1, no new layer, no redesign. New canonical accessor `apps/health/services/sleep_queries.py` (`last_night` / `recent_average_hours`) is the ONE deterministic source of truth for sleep duration, with exactly **two documented, tested, deterministic transformations**: (1) duration = time asleep, falling back to in-bed only when asleep was never recorded (manual/legacy rows); (2) authoritative record per night = source precedence (wearable > manual) then most-complete — a total ordering, never an arbitrary `.first()`. The SAE now reads `sleep_last_night_hours` / `_quality` / `_date` and `sleep_avg_hours_7d` from this accessor, so the SAE — the single distribution point every downstream sleep consumer (Beth, dashboard, briefing, cos_context, executive_state) reads — hands every consumer the same value, and that value matches what the user sees in Apple Health. Backward-compatible: rows with only `total_duration_minutes` (asleep absent) resolve to the same numbers as before, so existing single-source tests are unchanged. Untouched: sleep_trend / sleep_avg_duration_7d / sleep_consistency_score still use in-bed intentionally.
+
+Permanent Truth-Lineage regression (`apps/health/tests/test_sleep_truth_lineage.py`, 6 tests): a known 6 hr 9 min Apple night must surface as 369 min (asleep, NOT 375 in-bed); the production two-record case (Apple 369 + manual 288) must deterministically pick the Apple record → 6.1 hr, NEVER the 288/4.8 hr partial; recent average dedupes by night on the authoritative record; and `build_health_state` `sleep_last_night_hours` MUST equal the canonical value. GREEN (6); 72 across truth-lineage + single-source-of-truth + health-contract + temporal-grounding suites GREEN. No model change, no migration (service + repointed reads only). Pre-existing date-sensitive `SleepTrendTests` failures confirmed unrelated (fail identically on stashed baseline).
+
+**Files:** apps/health/services/sleep_queries.py (new), apps/core/ai_state/state_builder.py, apps/health/tests/test_sleep_truth_lineage.py.
+
+
 ## 2026-07-03 — refine(cos): Conversation Operating Model — answer clarifications directly; VERIFY only on a real trust challenge
 
 Behavior-first refinement of the VERIFY mode. The prior pass made trust recognition robust but OVER-TRIGGERED: it treated a simple CLARIFICATION question ("What date are you referring to as last night?") as a trust investigation. A world-class CoS just ANSWERS that ("The night ending July 2 — your most recent sleep record") and only escalates to VERIFY when the user actually challenges validity ("I think your data is stale"). The desired progression is Question → Answer → (if trust is challenged) → VERIFY, not Question → VERIFY.

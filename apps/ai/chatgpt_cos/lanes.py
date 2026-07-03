@@ -602,6 +602,24 @@ def general_answer(user, message):
     (deterministic fallback on LLM failure — P5)."""
     if not _looks_general(message):
         return None
+    return _general_llm_answer(user, message)
+
+
+def general_continuation(user, message, prior=None):
+    """Continue an ACTIVE general-knowledge thread (Conversation Continuity).
+
+    Same sandbox as ``general_answer`` (NO personal data) but does NOT re-run the
+    stateless ``_looks_general`` gate — the ACTIVE SUBJECT, not per-message
+    keyword matching, keeps the thread alive — and carries the recent general
+    exchange so follow-ups ('who wrote them?', 'how come…') resolve in context.
+    This is what lets a general conversation CONTINUE across differently-phrased
+    follow-ups instead of being re-classified from scratch every turn."""
+    return _general_llm_answer(user, message, prior=prior, lane="general_continuity")
+
+
+def _general_llm_answer(user, message, prior=None, lane="general_conversation"):
+    """Shared sandboxed general-knowledge LLM call. NO personal data in the
+    prompt. Always returns an answer dict (graceful outage fallback — P5)."""
     system = (
         f"You are {_cos_name(user)}, the user's Chief of Staff — but you can also "
         "answer general questions like a knowledgeable, warm assistant. Answer "
@@ -610,6 +628,17 @@ def general_answer(user, message):
         "user's personal data, health, goals, faith, or schedule. If you are not "
         "sure of a fact, say so briefly rather than guessing."
     )
+    if prior:
+        # Continuity context — the immediately-prior general answer so the
+        # follow-up resolves naturally. Still strictly general (no personal data).
+        system += (
+            "\n\nThis is a CONTINUING general-knowledge conversation. For context, "
+            "the most recent thing you told the user was:\n\"" +
+            (prior or "").strip()[:1200] +
+            "\"\nAnswer their follow-up as a natural continuation of that thread, "
+            "staying strictly on general knowledge; do NOT pivot to the user's "
+            "personal data, health, goals, faith practice, or schedule."
+        )
     # --- Issue #1 instrumentation (root-cause trace; no behavior change) ---
     from django.core.cache import cache
     breaker_before = bool(cache.get("openai_rate_limited"))
@@ -656,16 +685,16 @@ def general_answer(user, message):
             "knowledge service is temporarily unavailable right now. Please try again "
             "in a minute.")
     logger.info(
-        "BETH_GENERAL_CALL user=%s breaker_before=%s call_outcome=%s "
+        "BETH_GENERAL_CALL user=%s lane=%s breaker_before=%s call_outcome=%s "
         "fallback_used=%s qlen=%d",
-        getattr(user, "id", None), breaker_before, call_outcome,
+        getattr(user, "id", None), lane, breaker_before, call_outcome,
         fallback_used, len(message or ""),
     )
     return {
         "answer": answer,
         "tools_called": [],
         "tools_advertised": [],
-        "lane": "general_conversation",
+        "lane": lane,
     }
 
 
@@ -937,6 +966,95 @@ def _referential_lane(user, message, conversation=None):
     return resolve_referential(user, message, last)
 
 
+# ---------------------------------------------------------------------------
+# Lane — General Conversation Continuity. Conversation Continuity is a
+# first-class CoS capability: an ACTIVE conversation continues until the user
+# EXPLICITLY changes subject. Beth tracks the Active Subject for PERSONAL threads
+# (why_explainer / referential), but a general/EXTERNAL thread ("Who was
+# Jezebel?" → "How come the Bible has Matthew, Mark, Luke, John?") had no
+# continuity: the stateless `_looks_general` re-classified each turn, so a
+# differently-phrased follow-up fell through to the personal-coaching lanes and
+# Beth abandoned the active discussion for unrelated sleep guidance.
+#
+# This lane closes that class. When the last answer came from the general lane
+# (the Active Subject is an external thread) and the new message CONTINUES the
+# inquiry — a question / follow-up, not an explicit personal request — it stays
+# in the general lane. It is placed BEFORE the personal lanes (next_rhythm /
+# cos_briefing / personal_reasoning) precisely so unsolicited personal coaching
+# can never interrupt an active unrelated conversation.
+# ---------------------------------------------------------------------------
+
+# The ONLY things that end an active general thread: the user EXPLICITLY turns to
+# their own data/life. A personal-agenda cue, or a personal pronoun tied to a WLJ
+# domain word ("how's MY sleep", "what's on MY calendar").
+_PERSONAL_AGENDA_CUES = (
+    "what's next", "whats next", "what is next", "what should i do",
+    "what do i do next", "check in", "how am i doing", "how am i tracking",
+    "plan my day", "plan the day", "my agenda", "what's on my", "whats on my",
+    "brief me", "how's my day", "hows my day", "wrap up my", "what needs my",
+    "where do i stand", "how am i", "should i", "do i have", "what do i have",
+)
+
+# Generic follow-up cues (no question mark, but clearly a continuation).
+_CONTINUATION_CUES = (
+    "tell me more", "more", "go on", "and then", "what about", "what else",
+    "how so", "why not", "for example", "such as", "like what", "go deeper",
+    "keep going", "continue", "elaborate", "expand on", "who else",
+)
+_CONTINUATION_OPENERS = frozenset((
+    "who", "what", "when", "where", "why", "how", "which", "whom", "whose",
+    "was", "were", "is", "are", "does", "did", "do", "can", "could", "would",
+    "tell", "explain", "describe", "and", "so", "but", "name", "list", "give",
+))
+
+
+def _is_explicit_personal_request(message):
+    """True when the message explicitly turns to the user's OWN data/life — the
+    only thing that ends an active general/external thread."""
+    norm = (message or "").strip().lower()
+    if not norm:
+        return True
+    tokens = set(re.findall(r"[a-z']+", norm))
+    if (tokens & _PERSONAL_PRONOUNS) and any(d in norm for d in _DOMAIN_WORDS):
+        return True
+    return any(c in norm for c in _PERSONAL_AGENDA_CUES)
+
+
+def _is_continuation(message):
+    """True when the message continues the inquiry — a question or a generic
+    follow-up cue — as opposed to a personal statement or a command."""
+    norm = (message or "").strip().lower()
+    if not norm:
+        return False
+    if norm.endswith("?"):
+        return True
+    if any(c in norm for c in _CONTINUATION_CUES):
+        return True
+    parts = norm.split()
+    first = parts[0].strip(",.!?") if parts else ""
+    return first in _CONTINUATION_OPENERS
+
+
+def _general_continuity_lane(user, message, conversation=None):
+    """Continue an ACTIVE general/external thread so a personal-coaching lane can
+    never hijack it. Claims ONLY when: (1) the last answer came from the general
+    lane, (2) the message is NOT an explicit personal request, and (3) it is a
+    continuation (a question / follow-up). Otherwise declines so the normal lanes
+    run — a genuine personal pivot is always honoured."""
+    if conversation is None:
+        return None
+    from apps.ai.chatgpt_cos.conversation_memory import get_last_answer
+    last = get_last_answer(conversation)
+    if not last or last.get("lane") not in (
+            "general_conversation", "general_continuity"):
+        return None  # no active external thread → nothing to continue
+    if _is_explicit_personal_request(message):
+        return None  # user explicitly changed subject to something personal
+    if not _is_continuation(message):
+        return None  # a personal statement/command, not a continued inquiry
+    return general_continuation(user, message, prior=last.get("answer") or "")
+
+
 LANE_REGISTRY = (
     ("why_explainer", _why_explainer_lane),
     ("referential", _referential_lane),
@@ -944,6 +1062,9 @@ LANE_REGISTRY = (
     ("conversation_planner", _conversation_planner_lane),
     ("foundational_facts", _foundational_lane),
     ("clarification", _clarification_lane),
+    # Continue an active EXTERNAL/general thread BEFORE any personal-coaching lane
+    # can claim the follow-up (Conversation Continuity).
+    ("general_continuity", _general_continuity_lane),
     ("next_rhythm", _next_rhythm_lane),
     ("cos_briefing", _cos_briefing_lane),
     ("personal_reasoning", _reasoning_lane),

@@ -386,6 +386,34 @@ class HealthKitManager {
         )
     }
 
+    // MARK: - Historical Sleep Replay
+
+    /// One-time HISTORICAL SLEEP REPLAY. Normal sync only fetches a rolling 7-day
+    /// window, so nights older than a week still reflect whatever importer wrote them.
+    /// This re-imports every sleep session in [from, to] through the EXACT SAME pipeline
+    /// normal sync uses — `fetchSleep` (session-grouped, wake-dated) →
+    /// `APIClient.submitHealthMetrics` → the production server importer. It does NOT
+    /// create a separate importer or bypass any production code.
+    ///
+    /// Idempotent: the server keys each night on sync_id `sleep-<wakeDate>` and
+    /// update-or-skips, so an existing night is corrected IN PLACE, nights are never
+    /// duplicated, and the replay is safe to re-run if interrupted. A single continuous
+    /// `fetchSleep` over the whole range is used deliberately (not per-month chunks) so
+    /// that a night straddling any boundary is never re-fragmented.
+    func syncSleepHistory(from: Date, to: Date) async throws -> SyncResult {
+        let sessions = try await fetchSleep(from: from, to: to)
+        guard !sessions.isEmpty else {
+            return SyncResult(created: 0, updated: 0, skipped: 0, errors: 0)
+        }
+        let response = try await APIClient.shared.submitHealthMetrics(sessions)
+        return SyncResult(
+            created: response.created,
+            updated: response.updated,
+            skipped: response.skipped,
+            errors: response.errors.count
+        )
+    }
+
     // MARK: - Fetch Steps
 
     private func fetchSteps(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {

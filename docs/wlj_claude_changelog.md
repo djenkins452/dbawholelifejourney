@@ -6,6 +6,21 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — feat(ios): one-time historical sleep replay — re-import every night through the fixed importer
+
+Follow-up to the sleep-import fix. Verified first: the iOS HealthKit sync uses a hardcoded ROLLING 7-DAY window (`HealthKitManager.syncHealthData` lines 293–294: `endDate = Date()`, `startDate = -7 days`); it is not parameterized (all 6 callers invoke it arg-less), but the underlying `fetchSleep(from:to:)` (and every `fetch*`) already accepts an arbitrary range, and the ingest endpoint is range-agnostic + now idempotent. So the corrected importer only ever replays the last 7 nights — older nights keep whatever the old importer wrote. Confirmed the hypothesis.
+
+Implemented a one-time historical sleep replay using the EXACT production pipeline (no separate importer, no bypass):
+- `HealthKitManager.syncSleepHistory(from:to:)` — calls the same `fetchSleep` (session-grouped, wake-dated) → `APIClient.submitHealthMetrics` → the production server `process_sleep_metric`. A single continuous `fetchSleep` over the whole range (not per-month chunks) so a night straddling any boundary is never re-fragmented. Idempotent: the server keys each night on sync_id `sleep-<wakeDate>` and update-or-skips, so an existing (even mis-imported) night is corrected IN PLACE, nights are never duplicated, and the replay is safe to re-run if interrupted.
+- `SettingsView`: a "Re-import Sleep History" button under "Sync Now" (Jan 1, 2026 → now) with a result alert ("N new, M corrected, K unchanged"). One-time, user-initiated.
+
+Server: no change needed — the importer deployed in the prior fix already provides wake-instant dating + idempotent update-or-skip, which is exactly what makes the replay correct old rows in place. Added a regression proving that server contract: `test_replay_corrects_previously_misimported_night` — a night stored by the old importer with wrong values, re-sent through the importer, is corrected in place (no duplicate, correct asleep, canonical latest). `apps/mobile/tests/test_sleep_ingest.py` now 7 tests GREEN.
+
+Deploy: the server test lands on main now; the replay UI takes effect on the next Xcode build. ACCEPTANCE is on-device: after running the replay, compare several nights (early January, mid-year, recent) in WLJ against Apple Health — the replay is complete only once those agree.
+
+**Files:** ios/WLJWrapper/WLJWrapper/Services/HealthKitManager.swift, ios/WLJWrapper/WLJWrapper/Views/SettingsView.swift, apps/mobile/tests/test_sleep_ingest.py.
+
+
 ## 2026-07-04 — fix(health): HealthKit sleep import — date last night by the WAKE instant, stop fragmenting/mis-dating nights
 
 Production: Apple Health showed Jul 4 = 6 hr 30 min asleep (bed 10:07 PM → wake ~4:57 AM). WLJ showed no Jul 4 at first; after a manual Xcode sync, Jul 4 appeared but with the WRONG data — last night's 6.5h landed on **Jul 3**, and records had impossible times (11:38 PM → 11:49 PM claiming 6.5h). Weight/HR/BP synced fine — the failure was isolated to sleep. NOT a canonical-truth / Beth / dashboard issue: the truth diverged at IMPORT.

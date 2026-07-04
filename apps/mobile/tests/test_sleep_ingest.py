@@ -103,6 +103,27 @@ class SleepIngestTests(TestCase):
         self.assertEqual(SleepEntry.objects.filter(
             user=self.user, sleep_date="2026-07-04").count(), 1)
 
+    # ── Historical replay corrects a previously mis-imported night IN PLACE ────
+    def test_replay_corrects_previously_misimported_night(self):
+        # A night that the OLD buggy importer stored with wrong values (same
+        # sync_id "sleep-<date>"). Re-sending the CORRECT payload through the same
+        # importer (what the historical replay does) must overwrite it in place —
+        # no duplicate, correct values, and it is the canonical latest.
+        SleepEntry.objects.create(
+            user=self.user, sleep_date="2026-07-04", source="apple_health",
+            sync_id="sleep-2026-07-04", total_duration_minutes=281,
+            asleep_duration_minutes=281, stage_deep_minutes=22, stage_rem_minutes=72,
+            stage_light_minutes=187, bedtime="2026-07-04T03:49:00Z",
+            wake_time="2026-07-04T08:40:00Z")
+        process_health_metric(self.user, _sleep_metric(
+            date="2026-07-04", bedtime="2026-07-04T02:07:00Z",
+            wake_time="2026-07-04T08:57:00Z", deep=70, rem=95, light=225, awake=20))
+        self.assertEqual(SleepEntry.objects.filter(
+            user=self.user, sleep_date="2026-07-04").count(), 1)     # no duplicate
+        e = SleepEntry.objects.get(user=self.user, sleep_date="2026-07-04")
+        self.assertEqual(e.asleep_duration_minutes, 390)             # corrected in place
+        self.assertEqual(last_night(self.user)["date"].isoformat(), "2026-07-04")
+
     # ── An oversized total is CLAMPED, never dropped (a night must never vanish) ─
     def test_oversized_total_is_clamped_not_dropped(self):
         r = process_health_metric(self.user, _sleep_metric(

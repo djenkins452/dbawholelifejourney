@@ -12,10 +12,13 @@ struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
 
     @State private var isSyncing = false
+    @State private var isReplaying = false
     @State private var isConnecting = false
     @State private var showSyncError = false
     @State private var showConnectError = false
     @State private var showSyncSuccess = false
+    @State private var showReplayResult = false
+    @State private var replayResult: String = ""
     @State private var syncError: String = ""
     @State private var connectError: String = ""
 
@@ -60,6 +63,22 @@ struct SettingsView: View {
                         }
                     }
                     .disabled(isSyncing || !appState.healthKitAuthorized)
+
+                    // One-time historical sleep replay: re-import every night since
+                    // Jan 1, 2026 through the same pipeline so older nights are
+                    // corrected by the fixed importer. Idempotent — safe to re-run.
+                    Button(action: replaySleepHistory) {
+                        HStack {
+                            if isReplaying {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            } else {
+                                Image(systemName: "clock.arrow.circlepath")
+                            }
+                            Text(isReplaying ? "Re-importing sleep history..." : "Re-import Sleep History")
+                        }
+                    }
+                    .disabled(isReplaying || isSyncing || !appState.healthKitAuthorized)
                 } header: {
                     Text("Health")
                 } footer: {
@@ -215,6 +234,11 @@ struct SettingsView: View {
             } message: {
                 Text("Your health data has been synced successfully.")
             }
+            .alert("Sleep History Re-imported", isPresented: $showReplayResult) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(replayResult)
+            }
         }
     }
 
@@ -313,6 +337,41 @@ struct SettingsView: View {
                     syncError = error.localizedDescription
                     showSyncError = true
                     isSyncing = false
+                }
+            }
+        }
+    }
+
+    private func replaySleepHistory() {
+        isReplaying = true
+
+        Task {
+            do {
+                // One-time historical replay: re-import every sleep session since
+                // Jan 1, 2026 through the same pipeline normal sync uses, so nights
+                // older than the rolling 7-day window are corrected by the fixed
+                // importer. Idempotent (server update-or-skips by sync_id).
+                var comps = DateComponents()
+                comps.year = 2026
+                comps.month = 1
+                comps.day = 1
+                let start = Calendar.current.date(from: comps) ?? Date()
+                let result = try await HealthKitManager.shared.syncSleepHistory(
+                    from: start, to: Date()
+                )
+
+                await MainActor.run {
+                    replayResult = "\(result.created) new night(s), \(result.updated) corrected, "
+                        + "\(result.skipped) already up to date."
+                        + (result.errors > 0 ? " \(result.errors) error(s)." : "")
+                    showReplayResult = true
+                    isReplaying = false
+                }
+            } catch {
+                await MainActor.run {
+                    syncError = error.localizedDescription
+                    showSyncError = true
+                    isReplaying = false
                 }
             }
         }

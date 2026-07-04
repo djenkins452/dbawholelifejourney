@@ -290,3 +290,110 @@ class PreservationLayerTests(TestCase):
         self.assertTrue(faith["examples"])            # representative examples present
         self.assertEqual(concepts["Custom Tags"]["status"], "unknown")
         self.assertEqual(concepts["Career"]["status"], "awaiting")
+
+
+# A family record does NOT imply marriage. F1 (Marvin + Barbara, child Danny) has
+# NO marriage evidence; F2 (Marvin + Gloria) has a MARR event.
+MARR_GED = """0 HEAD
+0 @I1@ INDI
+1 NAME Marvin Lynn /Jenkins/
+0 @I2@ INDI
+1 NAME Barbara Jean /Dorff/
+0 @I3@ INDI
+1 NAME Gloria Ann /Katzell/
+0 @I4@ INDI
+1 NAME Danny Ray /Jenkins/
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 CHIL @I4@
+0 @F2@ FAM
+1 HUSB @I1@
+1 WIFE @I3@
+1 MARR
+2 DATE 1980
+0 TRLR
+"""
+
+
+class MarriageEvidenceTests(TestCase):
+    """A GEDCOM FAM is a family UNIT — marriage is only recorded with real evidence."""
+
+    def test_family_without_marriage_event_is_not_married(self):
+        ged = ("0 HEAD\n0 @I1@ INDI\n1 NAME A /X/\n0 @I2@ INDI\n1 NAME B /Y/\n"
+               "0 @I3@ INDI\n1 NAME C /X/\n0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n"
+               "1 CHIL @I3@\n0 TRLR\n")
+        fam = next(c for c in gedcom_parser.parse_gedcom(ged) if c["kind"] == "gedcom_family")
+        self.assertIsNone(fam["data"]["couple_type"])
+
+    def test_marr_event_means_married(self):
+        ged = ("0 HEAD\n0 @I1@ INDI\n1 NAME A /X/\n0 @I2@ INDI\n1 NAME B /Y/\n"
+               "0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n1 MARR\n2 DATE 1990\n0 TRLR\n")
+        fam = next(c for c in gedcom_parser.parse_gedcom(ged) if c["kind"] == "gedcom_family")
+        self.assertEqual(fam["data"]["couple_type"], "married")
+
+    def test_divorce_means_former(self):
+        ged = ("0 HEAD\n0 @I1@ INDI\n1 NAME A /X/\n0 @I2@ INDI\n1 NAME B /Y/\n"
+               "0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n1 MARR\n2 DATE 1990\n"
+               "1 DIV\n2 DATE 2001\n0 TRLR\n")
+        fam = next(c for c in gedcom_parser.parse_gedcom(ged) if c["kind"] == "gedcom_family")
+        self.assertEqual(fam["data"]["couple_type"], "former")
+
+    def test_commit_does_not_invent_marriage(self):
+        from django.db.models import Q
+        from apps.legacy.models import Person, Relationship
+        from apps.legacy.services.import_engine import commit_genealogy
+        u = _make_user("marr@example.com")
+        commit_genealogy(create_batch(u, "Tree", "gedcom", MARR_GED, classifier=lambda x: {}))
+        p = lambda s: Person.objects.get(user=u, display_name__icontains=s)
+        marvin, barbara, gloria, danny = p("Marvin"), p("Barbara"), p("Gloria"), p("Danny")
+
+        def married(a, b):
+            return Relationship.objects.filter(
+                user=u, relationship_type__icontains="married").filter(
+                Q(from_person=a, to_person=b) | Q(from_person=b, to_person=a)).exists()
+
+        # Marvin + Barbara: a family unit, NEVER married (no evidence).
+        self.assertFalse(married(marvin, barbara))
+        # Marvin + Gloria: MARR event ⇒ married.
+        self.assertTrue(married(marvin, gloria))
+        # Both are still biological parents of Danny.
+        self.assertTrue(Relationship.objects.filter(
+            user=u, from_person=marvin, to_person=danny, relationship_type__icontains="parent").exists())
+        self.assertTrue(Relationship.objects.filter(
+            user=u, from_person=barbara, to_person=danny, relationship_type__icontains="parent").exists())
+
+
+class MarriageRepairMigrationTests(TestCase):
+    """The data migration removes marriages the old importer inferred, keeps real ones."""
+
+    def test_repair_removes_only_inferred_marriages(self):
+        import importlib
+        from django.apps import apps as django_apps
+        from django.db.models import Q
+        from apps.legacy.models import Person, Relationship, ImportBatch, ImportChunk
+
+        u = _make_user("repairmig@example.com")
+        batch = ImportBatch.objects.create(user=u, source_name="t", source_type="gedcom")
+
+        def person(name, xref):
+            return Person.objects.create(user=u, display_name=name,
+                                         source_batch=batch, gedcom_xref=xref)
+        marvin, barbara, gloria = person("Marvin", "@I1@"), person("Barbara", "@I2@"), person("Gloria", "@I3@")
+        # Legacy chunks (no couple_type key) — F1 has NO marriage fields, F2 does.
+        ImportChunk.objects.create(batch=batch, index=1, chunk_kind="gedcom_family",
+            data={"husb": "@I1@", "wife": "@I2@", "marriage_year": None, "marriage_place": ""})
+        ImportChunk.objects.create(batch=batch, index=2, chunk_kind="gedcom_family",
+            data={"husb": "@I1@", "wife": "@I3@", "marriage_year": 1980, "marriage_place": ""})
+        # Both marriages as the old importer created them.
+        Relationship.objects.create(user=u, from_person=marvin, to_person=barbara, relationship_type="married to")
+        Relationship.objects.create(user=u, from_person=marvin, to_person=gloria, relationship_type="married to")
+
+        mod = importlib.import_module("apps.legacy.migrations.0025_repair_inferred_marriages")
+        mod.repair(django_apps, None)
+
+        def married(a, b):
+            return Relationship.objects.filter(relationship_type__icontains="married").filter(
+                Q(from_person=a, to_person=b) | Q(from_person=b, to_person=a)).exists()
+        self.assertFalse(married(marvin, barbara))   # inferred (no evidence) → removed
+        self.assertTrue(married(marvin, gloria))     # real (marriage year) → kept

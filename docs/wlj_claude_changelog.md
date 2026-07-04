@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — fix(legacy): GEDCOM import no longer invents marriages (Canonical Truth) + repair migration (D1)
+
+Canonical Truth correctness fix. A GEDCOM FAM record is a family UNIT (husband, wife, children) — it does NOT by itself mean the couple married. The old importer created a "married to" relationship for every FAM with a husband and wife, inventing marriages that never existed (e.g. Danny's unmarried biological parents Marvin + Barbara showed as a married couple).
+
+**Importer now requires marriage evidence.** New `gedcom_parser._marriage_bond(rec)` reads the family record's events: `DIV`/`DIVF`/`ANUL` ⇒ `former` (they were married, then divorced/annulled), `MARR`/`MARB`/`MARC`/`MARL`/`MARS` ⇒ `married`, otherwise `None`. Stored as `couple_type` on the family chunk. `commit_genealogy` only creates a spouse relationship when `couple_type` is set (via `_couple_type()`, which also infers from marriage year/date/place for legacy chunks parsed before the field existed) — "former spouse of" for a divorced couple, "married to" for a married one. Parent-child links are always created regardless, so an unmarried couple stay connected through their children.
+
+**Existing data repaired.** Data migration `0025_repair_inferred_marriages` walks every imported family and deletes the "married to" links the old importer inferred where the record has no marriage evidence — the user never has to hand-edit importer-invented marriages. O(N) (in-memory person/xref map, bulk id delete), idempotent; real marriages and "former spouse" links are never touched.
+
+**Acceptance (verified on a fresh import through the real pipeline + the repair migration on existing data):** Marvin + Barbara → NOT married, both still biological parents of Danny; Marvin + Gloria (MARR event) → married. The Family View draws Marvin & Gloria as an adjacent couple and Barbara as a separate co-parent — no invented marriage line.
+
+**Files:** apps/legacy/services/gedcom_parser.py (`_marriage_bond`, `couple_type`), apps/legacy/services/import_engine.py (`_couple_type`, conditional spouse link in `commit_genealogy`), apps/legacy/migrations/0025_repair_inferred_marriages.py, apps/legacy/tests/test_gedcom.py (marriage-evidence + repair-migration tests). 76 legacy import/family tests green.
+
+
 ## 2026-07-04 — refactor(cos): One evolving executive picture — interpret() merges conversation-reported evidence
 
 Architectural correction (no new layer/engine/capability). Deterministic truth already flowed through ONE picture (SAE → interpret() → ExecutiveSignals → consumers), but conversation-reported evidence had diverged: the accomplishment store was read DIRECTLY by Decision Support, and subjective state was passed per-call to the brief only. So "I made up Wednesday and Friday's workouts" updated a cache only Decision Support could see — the Morning Brief, Executive Summary, and Goal reasoning could not. That violated the one-brain principle.

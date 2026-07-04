@@ -90,6 +90,25 @@ def _event(node, tag):
     return _val(e, "DATE"), _val(e, "PLAC")
 
 
+# A GEDCOM FAM record defines a family UNIT — a husband, a wife, their children. It
+# does NOT by itself mean the couple married. A marriage relationship is only true
+# when the record carries explicit marriage evidence.
+_MARRIAGE_TAGS = ("MARR", "MARB", "MARC", "MARL", "MARS")   # marriage / banns / contract / licence / settlement
+_FORMER_TAGS = ("DIV", "DIVF", "ANUL")                       # divorce / annulment ⇒ they WERE married
+
+
+def _marriage_bond(rec):
+    """The couple's true bond from a FAM record: 'former' if there is divorce /
+    annulment evidence, 'married' if there is marriage evidence, else None (a family
+    unit with no marriage — the couple is NOT drawn or recorded as married)."""
+    tags = {c["tag"] for c in rec["children"]}
+    if tags & set(_FORMER_TAGS):
+        return "former"
+    if tags & set(_MARRIAGE_TAGS):
+        return "married"
+    return None
+
+
 def _clean_name(node):
     raw = _val(node, "NAME")
     if not raw:
@@ -348,6 +367,7 @@ def parse_gedcom(raw):
         children = [names.get(c["value"], "") for c in rec["children"] if c["tag"] == "CHIL"]
         children = [c for c in children if c]
         mdate, mplace = _event(rec, "MARR")
+        couple_type = _marriage_bond(rec)          # 'married' | 'former' | None
         pair = " & ".join(x for x in (husb, wife) if x) or "Family"
         lines = []
         marr = _when_where(mdate, mplace, "Married")
@@ -371,6 +391,7 @@ def parse_gedcom(raw):
                 "children": [c["value"] for c in rec["children"] if c["tag"] == "CHIL"],
                 "marriage_year": _year(mdate), "marriage_date": _full_date(mdate),
                 "marriage_place": mplace,
+                "couple_type": couple_type,
                 "facts": _facts(rec),
             },
         })

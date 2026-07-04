@@ -236,6 +236,20 @@ def narrative_pending(batch):
         chunk_kind__in=list(ImportChunk.NARRATIVE_KINDS)).count()
 
 
+def _couple_type(family_data):
+    """The couple's true bond for a gedcom_family chunk: 'married' | 'former' | None.
+    New chunks carry `couple_type` from the parser (marriage-evidence aware). Legacy
+    chunks parsed before that field existed are inferred from the marriage fields —
+    a marriage year/date/place means there WAS marriage evidence; their absence means
+    the family unit had no marriage and none should be invented."""
+    if "couple_type" in family_data:
+        return family_data["couple_type"]
+    if family_data.get("marriage_year") or family_data.get("marriage_date") \
+            or family_data.get("marriage_place"):
+        return "married"
+    return None
+
+
 def commit_genealogy(batch):
     """Commit a GEDCOM batch's structured people + families into Canonical Truth:
     Person records (with birth/death years) and spouse / parent-child Relationships.
@@ -311,8 +325,14 @@ def commit_genealogy(batch):
         d = ch.data or {}
         husb = xref_to_person.get(d.get("husb"))
         wife = xref_to_person.get(d.get("wife"))
-        _link(husb, wife, "married to",
-              started_year=d.get("marriage_year"), started_date=_d(d.get("marriage_date")))
+        # A FAM record is a family UNIT — it does NOT imply marriage. Only create a
+        # spouse relationship when the GEDCOM carries real marriage evidence (a
+        # MARR/DIV/… event). Otherwise the couple are linked only through their
+        # children, never invented as married.
+        ctype = _couple_type(d)
+        if ctype:
+            _link(husb, wife, "former spouse of" if ctype == "former" else "married to",
+                  started_year=d.get("marriage_year"), started_date=_d(d.get("marriage_date")))
         for x in (d.get("children") or []):
             child = xref_to_person.get(x)
             for parent in (husb, wife):

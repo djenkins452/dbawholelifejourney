@@ -6,6 +6,21 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — feat(legacy): Family Tree completion — clean family-unit layout + orthogonal connectors (Deployment 1)
+
+The Family View data model was right but the visualization overlapped people, had no clear connectors, and didn't read as a family. Replaced the layout algorithm entirely with a deterministic **family-unit** layout that guarantees no overlaps and looks like a real family tree.
+
+**Layout (`_layout` rewrite):** Generations are measured relative to the focus. Descendants are a proper **tidy tree** (each leaf gets its own column; every parent sits over the middle of its children — no overlap possible). Siblings flank the focus on its own row in birth order. Ancestors fan upward: each parent couple is centred over its children, then the whole row is **collision-packed** (`_pack_row` — sort by desired centre, enforce a minimum gap, re-centre the row) so ancestors can never overlap either. Constants retuned (visible 44px couple gap, 108px row gap, 48px unit gap).
+
+**Connectors:** Parent→children are now **orthogonal T's** (a stem down from the couple, a horizontal bus across the children, a riser up to each child) — the universal visual language of a family tree, not diagonal spaghetti. One T per real parent unit: a couple draws a single T to all its children; two non-coupled co-parents (e.g. a father + a mother who never married) draw separate stems and are never joined by a phantom marriage line. Couples are joined by a short **typed** connector (married / partner / former / affair). Edge model simplified from up/down to a single `link` lineage colour + typed couple lines; legend updated.
+
+**Default scope:** grandparents → focus → grandchildren (ANCESTOR_LEVELS=2, DESCENDANT_LEVELS=2). Opens centred on the current user; clicking anyone rebuilds the tree around them (already wired via `?focus=`).
+
+**Verified:** the acceptance shape (Danny centred, Heather beside, siblings on his row, Marvin/Gloria/Barbara correctly modelled above, children below) renders with **zero card overlaps** — confirmed by rendering the computed layout to standalone HTML and screenshotting it, plus a `test_no_two_cards_overlap` pairwise assertion. 49 family tests green.
+
+**Files:** apps/legacy/services/family_tree.py (constants + `_pack_row` + full `_layout` rewrite), templates/legacy/family.html (legend), static/css/legacy.css (v39, `.fam-edge-link` orthogonal connector + legend), apps/legacy/tests/test_family_layout.py + test_family.py (edge-type + overlap + generation + re-center tests updated/added).
+
+
 ## 2026-07-04 — feat(cos): Workout retrieval — workout queryable by point in time (WI-3)
 
 "Did you see my workout?", "Over 40,000 lbs total", "did I work out on 7/2?" were search failures. Treated Workout exactly like Sleep & Weight. The truth already existed (canonical `WorkoutQueries.completed_on` + `WorkoutSession.total_volume`, which is load-aware) — the gap was retrieval. New `workout_history` lane (before `foundational_facts`) resolves the date via the shared `date_reference` resolver, DEFAULTING to today when none is given (a bare "did you see my workout?" means today), and reads the canonical completed-workout truth for that day: existence, total volume, duration. Volume phrasings ("Over 40,000 lbs total", "total volume") trigger it even without a workout word. Uses COMPLETED sessions only (Visual Truth Contract). Honest "I don't see a completed workout <when>" when the day has none; declines non-workout questions.

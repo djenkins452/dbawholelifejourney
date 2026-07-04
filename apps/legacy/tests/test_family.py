@@ -83,7 +83,7 @@ class FamilyGraphTests(TestCase):
         self.assertFalse(by_name["Marvin Jenkins"]["living"])
         self.assertTrue(by_name["Danny Jenkins"]["living"])
         kinds = {e["type"] for e in g["edges"]}
-        self.assertTrue({"up", "down"} & kinds)   # parent lines (coloured by side of focus)
+        self.assertIn("link", kinds)   # orthogonal parent→child connectors
         self.assertTrue(any(k.startswith("couple") for k in kinds))   # typed spouse connector
 
     def test_family_view_renders(self):
@@ -183,8 +183,8 @@ class FocalViewTests(TestCase):
             self._parent(chain[i], chain[i + 1])
         far = build_family_view(self.user, focus_pk=chain[5].pk)
         names = {n["name"] for n in far["nodes"]}
-        self.assertIn("G2", names)          # 3 generations up is included
-        self.assertNotIn("G1", names)       # 4 up is beyond the bounded neighborhood
+        self.assertIn("G3", names)          # 2 generations up (grandparents) is included
+        self.assertNotIn("G2", names)       # 3 up is beyond the bounded neighborhood
         self.assertNotIn("G0", names)
 
     def test_siblings_and_spouse_sit_on_the_focus_row(self):
@@ -236,9 +236,14 @@ class FocalViewTests(TestCase):
         self.assertEqual([r["name"] for r in panel["children"]], ["Kid"])
         self.assertEqual([r["name"] for r in panel["siblings"]], ["Sib"])
 
-    def test_edges_coloured_by_side_of_focus(self):
+    def test_parent_and_child_connectors_present(self):
         me = self._p("Me", is_self=True); dad = self._p("Dad"); kid = self._p("Kid")
         self._parent(dad, me); self._parent(me, kid)
-        kinds = {e["type"] for e in build_family_view(self.user, focus_pk=me.pk)["edges"]}
-        self.assertIn("up", kinds)      # the line to a parent (above focus)
-        self.assertIn("down", kinds)    # the line to a child (below focus)
+        edges = build_family_view(self.user, focus_pk=me.pk)["edges"]
+        kinds = {e["type"] for e in edges}
+        self.assertIn("link", kinds)    # orthogonal T-connectors for both parent & child
+        # Dad→Me link (above) and Me→Kid link (below) both exist.
+        by = {n["name"]: n for n in build_family_view(self.user, focus_pk=me.pk)["nodes"]}
+        ys = sorted({e["y1"] for e in edges if e["type"] == "link"}
+                    | {e["y2"] for e in edges if e["type"] == "link"})
+        self.assertGreaterEqual(len(ys), 3)   # spans dad-row, focus-row, kid-row buses/risers

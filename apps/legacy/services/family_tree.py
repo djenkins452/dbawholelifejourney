@@ -22,13 +22,37 @@ from collections import defaultdict, deque
 
 # Card geometry (kept in sync with .fam-node in legacy.css).
 CARD_W, CARD_H = 176, 96
-GAP_X, GAP_Y = 34, 96
-ROW_STRIDE = CARD_H + GAP_Y
-COL_STRIDE = CARD_W + GAP_X
-COUPLE_HALF = (CARD_W + 16) / 2       # spouses sit this far either side of centre
+UNIT_GAP = 48                          # horizontal gap between adjacent family units
+COUPLE_GAP = 44                        # visible gap between two partners in a couple
+COUPLE_HALF = (CARD_W + COUPLE_GAP) / 2   # each partner sits this far off the couple centre
+ROW_GAP = 108                          # vertical gap between generation rows
+ROW_STRIDE = CARD_H + ROW_GAP
+COL_STRIDE = CARD_W + UNIT_GAP
 
-ANCESTOR_LEVELS = 3      # parents, grandparents, great-grandparents
+ANCESTOR_LEVELS = 2      # parents, grandparents
 DESCENDANT_LEVELS = 2    # children, grandchildren
+
+
+def _pack_row(units):
+    """Place a row of family units left→right by desired centre, guaranteeing NO
+    horizontal overlap (each unit starts at least UNIT_GAP past the previous one),
+    then shift the whole row so its mean centre matches the mean desired centre —
+    keeping parents sitting over the middle of their children. Mutates each unit
+    dict with a `left`. `units` = [{members, width, desired}, …]."""
+    units.sort(key=lambda u: u["desired"])
+    prev_right = None
+    for u in units:
+        left = u["desired"] - u["width"] / 2.0
+        if prev_right is not None and left < prev_right + UNIT_GAP:
+            left = prev_right + UNIT_GAP
+        u["left"] = left
+        prev_right = left + u["width"]
+    if units:
+        cur = sum(u["left"] + u["width"] / 2.0 for u in units) / len(units)
+        des = sum(u["desired"] for u in units) / len(units)
+        shift = des - cur
+        for u in units:
+            u["left"] += shift
 
 _PARENT_OF = ("parent of", "father of", "mother of", "mom of", "dad of", "mum of",
               "guardian of")   # step-parent / adoptive parent contain "parent of"
@@ -145,6 +169,15 @@ def _restrict(edges, keep):
 
 
 def _layout(user, people, parents, children, spouses, couples, focus_pk, me_pk):
+    """Lay out the family AROUND the focus as clean generation rows of family UNITS.
+
+    Descendants are a tidy tree (each leaf gets its own column, every parent sits
+    over the middle of its children — so nothing overlaps). Siblings flank the focus
+    on its own row. Ancestors fan upward: each parent couple is centred over its
+    children, then the whole row is collision-packed so it can never overlap. Every
+    parent→children link is an orthogonal T (a stem down from the couple, a bus
+    across the children, a riser up to each child) — the visual language of a family
+    tree, not a web of diagonals. Couples are joined by a short typed connector."""
     from apps.legacy.models import RelationshipAlias
 
     pids = {p.pk for p in people}
@@ -152,7 +185,7 @@ def _layout(user, people, parents, children, spouses, couples, focus_pk, me_pk):
     if focus_pk not in pids:
         focus_pk = next(iter(pids))
 
-    # 1. Generation RELATIVE to focus (parents up, children down, spouse level).
+    # Generation RELATIVE to focus (parents −1, children +1, spouse same level).
     gen = {focus_pk: 0}
     dq = deque([focus_pk])
     while dq:
@@ -170,121 +203,145 @@ def _layout(user, people, parents, children, spouses, couples, focus_pk, me_pk):
     for p in people:
         gen.setdefault(p.pk, 0)
 
-    pos = {}
-    leaf = [0.0]
+    def bkey(pk):
+        return (P[pk].birth_year or 0, P[pk].display_name or "")
 
-    def partner_of(pk):
-        sp = sorted(s for s in spouses.get(pk, ())
-                    if s in pids and gen.get(s) == gen.get(pk) and s not in pos)
-        return sp[0] if sp else None
+    def couple_partner(pk):
+        """A spouse of pk on the same row that forms an actual couple (earliest-born
+        preferred, for a stable pairing)."""
+        best = None
+        for s in spouses.get(pk, ()):
+            if (s in pids and gen.get(s) == gen.get(pk)
+                    and frozenset((pk, s)) in couples):
+                if best is None or bkey(s) < bkey(best):
+                    best = s
+        return best
 
-    # 2a. Descendants of the focus — a tidy tree, children centred under the couple.
-    def place_down(pk, stack):
-        if pk in pos:
-            return pos[pk]
-        if pk in stack:
-            return None
-        stack = stack | {pk}
-        partner = partner_of(pk)
-        kidset = set(children.get(pk, ()))
-        if partner:
-            kidset |= set(children.get(partner, ()))
-        kids = sorted(k for k in kidset
-                      if k in pids and gen.get(k) == gen.get(pk) + 1
-                      and k not in pos and k not in stack)
-        centers = [c for c in (place_down(k, stack) for k in kids) if c is not None]
-        center = sum(centers) / len(centers) if centers else leaf[0] * COL_STRIDE
-        if not centers:
-            leaf[0] += 1
-        if partner and partner not in pos:
-            pos[pk] = center - COUPLE_HALF
-            pos[partner] = center + COUPLE_HALF
-            return center
-        pos[pk] = center
-        return center
+    def unit_width(members):
+        return CARD_W if len(members) == 1 else 2 * CARD_W + COUPLE_GAP
 
-    place_down(focus_pk, set())
+    def order_couple(a, b):
+        return [a, b] if bkey(a) <= bkey(b) else [b, a]
 
-    # 2b. Siblings share the focus's row, flanking the focus's block.
-    sib = []
+    center = {}     # pk -> centre x (float)
+    used = set()
+
+    def set_unit_center(members, cx):
+        if len(members) == 1:
+            center[members[0]] = cx
+        else:
+            m0, m1 = members
+            center[m0] = cx - COUPLE_HALF
+            center[m1] = cx + COUPLE_HALF
+
+    def make_unit(pk):
+        used.add(pk)
+        mate = couple_partner(pk)
+        if mate and mate not in used:
+            used.add(mate)
+            return order_couple(pk, mate)
+        return [pk]
+
+    # ── Descendants: a tidy tree rooted at the focus's couple ──────────────────
+    cursor = [0.0]
+
+    def child_units_of(members, cg):
+        kids = set()
+        for m in members:
+            for c in children.get(m, ()):
+                if c in pids and gen.get(c) == cg and c not in used:
+                    kids.add(c)
+        out = []
+        for k in sorted(kids, key=bkey):
+            if k not in used:
+                out.append(make_unit(k))
+        return out
+
+    def tidy(members):
+        g = gen[members[0]]
+        kids = child_units_of(members, g + 1)
+        w = unit_width(members)
+        if not kids:
+            cx = cursor[0] + w / 2.0
+            cursor[0] += w + UNIT_GAP
+        else:
+            kcenters = [tidy(k) for k in kids]
+            cx = (min(kcenters) + max(kcenters)) / 2.0
+        set_unit_center(members, cx)
+        return cx
+
+    focus_unit = make_unit(focus_pk)
+    focus_center = tidy(focus_unit)
+
+    # ── Siblings: flank the focus on its own row, in birth order ───────────────
+    row0_centers = [center[pk] for pk in center if gen.get(pk) == 0]
+    bmin = min(row0_centers) - CARD_W / 2.0
+    bmax = max(row0_centers) + CARD_W / 2.0
+    sibs = []
     for par in parents.get(focus_pk, ()):
-        for k in children.get(par, ()):
-            if (k in pids and k != focus_pk and gen.get(k) == 0
-                    and k not in pos and k not in sib):
-                sib.append(k)
-    sib.sort(key=lambda k: (P[k].birth_year or 0, P[k].display_name))
-    row0 = [x for x in pos if gen.get(x) == 0]
-    left_x = (min(pos[x] for x in row0) if row0 else 0) - COL_STRIDE
-    right_x = (max(pos[x] for x in row0) if row0 else 0) + COL_STRIDE
-    half = (len(sib) + 1) // 2
-    lx = left_x
-    for k in reversed(sib[:half]):
-        pos[k] = lx; lx -= COL_STRIDE
-    rx = right_x
-    for k in sib[half:]:
-        pos[k] = rx; rx += COL_STRIDE
+        if par in pids:
+            for k in children.get(par, ()):
+                if (k in pids and k != focus_pk and gen.get(k) == 0
+                        and k not in used and k not in sibs):
+                    sibs.append(k)
+    sibs.sort(key=bkey)
+    fb = bkey(focus_pk)
+    left_sibs = [k for k in sibs if bkey(k) <= fb][::-1]   # nearest-older first, going left
+    right_sibs = [k for k in sibs if bkey(k) > fb]
+    step = CARD_W + UNIT_GAP
+    lx = bmin - UNIT_GAP - CARD_W / 2.0
+    for k in left_sibs:
+        used.add(k); center[k] = lx; lx -= step
+    rx = bmax + UNIT_GAP + CARD_W / 2.0
+    for k in right_sibs:
+        used.add(k); center[k] = rx; rx += step
 
-    # 2c. Ancestors — a pedigree fanning up, couples together, centred over children.
-    def _units(pks):
-        units, used = [], set()
-        for a in sorted(pks, key=lambda k: (P[k].birth_year or 0, P[k].display_name)):
-            if a in used:
-                continue
-            mate = next((b for b in pks if b != a and b not in used
-                         and frozenset((a, b)) in couples), None)
-            if mate:
-                units.append([a, mate]); used |= {a, mate}
-            else:
-                units.append([a]); used.add(a)
-        return units
+    # ── Ancestors: parent couples centred over their children, then packed ─────
+    g = -1
+    while g >= -ANCESTOR_LEVELS:
+        row_pks = [pk for pk in pids if gen.get(pk) == g and pk not in center]
+        if row_pks:
+            units, seen = [], set()
+            for pk in sorted(row_pks, key=bkey):
+                if pk in seen:
+                    continue
+                mate = couple_partner(pk)
+                if mate and mate in row_pks and mate not in seen:
+                    units.append(order_couple(pk, mate)); seen |= {pk, mate}
+                else:
+                    units.append([pk]); seen.add(pk)
+            row_units = []
+            for members in units:
+                kids = [center[c] for m in members for c in children.get(m, ())
+                        if c in center and gen.get(c) == g + 1]
+                desired = sum(kids) / len(kids) if kids else focus_center
+                row_units.append({"members": members, "width": unit_width(members),
+                                  "desired": desired})
+            _pack_row(row_units)
+            for u in row_units:
+                set_unit_center(u["members"], u["left"] + u["width"] / 2.0)
+        g -= 1
 
-    def place_up(child_pks, depth):
-        cps = [c for c in child_pks if c in pos]
-        if not cps:
-            return
-        ps = set()
-        for c in cps:
-            ps |= {pp for pp in parents.get(c, ()) if pp in pids and gen.get(pp) == gen[c] - 1
-                   and pp not in pos}
-        if not ps:
-            return
-        center = sum(pos[c] for c in cps) / len(cps)
-        spread = COL_STRIDE * (1.7 ** (depth - 1))
-        units = _units(ps)
-        start = center - spread * (len(units) - 1) / 2.0
-        for i, unit in enumerate(units):
-            ux = start + i * spread
-            if len(unit) == 2:
-                pos[unit[0]] = ux - COUPLE_HALF
-                pos[unit[1]] = ux + COUPLE_HALF
-            else:
-                pos[unit[0]] = ux
-        for pp in ps:
-            place_up([pp], depth + 1)
+    for p in people:                                   # any straggler → near focus
+        center.setdefault(p.pk, focus_center)
 
-    place_up([focus_pk] + sib, 1)
-    # place any straggler (e.g. a step-parent couple) near their partner / focus
-    for p in people:
-        if p.pk not in pos:
-            mate = next((s for s in spouses.get(p.pk, ()) if s in pos), None)
-            pos[p.pk] = (pos[mate] + COUPLE_HALF) if mate is not None else 0.0
-
-    # 3. Normalise to screen coordinates.
+    # ── Screen coordinates ─────────────────────────────────────────────────────
     min_gen = min(gen.values())
-    min_x = min(pos.values()) if pos else 0
-    off_x = CARD_W / 2 - min_x
+    min_center = min(center.values()) if center else 0
+    off_x = CARD_W / 2.0 - min_center
 
     aliases = defaultdict(list)
-    for a in RelationshipAlias.objects.filter(user=user, person_id__in=pids).exclude(person__isnull=True):
+    for a in RelationshipAlias.objects.filter(
+            user=user, person_id__in=pids).exclude(person__isnull=True):
         aliases[a.person_id].append(a.label)
 
     coords, nodes = {}, []
     fx = fy = 0
     max_cx = 0
     for p in people:
-        cx = pos[p.pk] + off_x
+        cx = center[p.pk] + off_x
         y = (gen[p.pk] - min_gen) * ROW_STRIDE
-        cy = y + CARD_H / 2
+        cy = y + CARD_H / 2.0
         coords[p.pk] = (cx, cy, y)
         max_cx = max(max_cx, cx)
         search = " ".join([p.display_name, p.also_known_as or ""] + aliases.get(p.pk, [])).lower()
@@ -294,32 +351,59 @@ def _layout(user, people, parents, children, spouses, couples, focus_pk, me_pk):
             "birth": p.birth_year, "death": p.death_year,
             "birth_display": p.display_birth, "death_display": p.display_death,
             "living": p.death_year is None, "rel": p.relationship_label,
-            "x": round(cx - CARD_W / 2), "y": round(y), "cx": round(cx), "cy": round(cy),
+            "x": round(cx - CARD_W / 2.0), "y": round(y), "cx": round(cx), "cy": round(cy),
             "search": search, "is_self": p.pk == me_pk, "is_focus": p.pk == focus_pk,
         })
         if p.pk == focus_pk:
             fx, fy = cx, cy
 
-    # 4. Connectors. Children descend from the couple midpoint (or a single parent).
+    # ── Connectors ─────────────────────────────────────────────────────────────
+    # Orthogonal parent→children T's, grouped by the actual parent unit (a couple
+    # draws ONE T to all its children; two non-coupled parents draw separate stems).
     edges = []
+    groups = {}   # frozenset(parent members) -> {stem_x, p_bottom, kids:[cx,…]}
+
+    def group_for(members):
+        key = frozenset(members)
+        if key not in groups:
+            xs = [coords[m][0] for m in members]
+            groups[key] = {"stem_x": sum(xs) / len(xs),
+                           "p_bottom": coords[members[0]][2] + CARD_H, "kids": []}
+        return groups[key]
+
     for cpk in pids:
         if cpk not in coords:
             continue
-        ccx, _ccy, cy_top = coords[cpk][0], coords[cpk][1], coords[cpk][2]
-        ps = [pp for pp in parents.get(cpk, ()) if pp in coords and gen.get(pp) == gen[cpk] - 1]
-        if not ps:
+        pv = [pp for pp in parents.get(cpk, ())
+              if pp in coords and gen.get(pp) == gen.get(cpk) - 1]
+        if not pv:
             continue
-        side = "up" if gen[cpk] <= 0 else "down"
-        coupled = [pp for pp in ps if any(frozenset((pp, o)) in couples for o in ps if o != pp)]
-        if len(ps) == 2 and frozenset(ps) in couples:
-            px = (coords[ps[0]][0] + coords[ps[1]][0]) / 2
-            py = coords[ps[0]][2] + CARD_H
-            edges.append({"type": side, "x1": round(px), "y1": round(py),
-                          "x2": round(ccx), "y2": round(cy_top)})
+        pair = None
+        for i in range(len(pv)):
+            for j in range(i + 1, len(pv)):
+                if frozenset((pv[i], pv[j])) in couples:
+                    pair = [pv[i], pv[j]]; break
+            if pair:
+                break
+        if pair:
+            group_for(pair)["kids"].append(coords[cpk][0])
         else:
-            for pp in ps:
-                edges.append({"type": side, "x1": round(coords[pp][0]), "y1": round(coords[pp][2] + CARD_H),
-                              "x2": round(ccx), "y2": round(cy_top)})
+            for pp in pv:
+                group_for([pp])["kids"].append(coords[cpk][0])
+
+    for grp in groups.values():
+        stem_x, p_bottom, kids = grp["stem_x"], grp["p_bottom"], grp["kids"]
+        bus_y = p_bottom + ROW_GAP / 2.0
+        child_top = p_bottom + ROW_GAP
+        xs = kids + [stem_x]
+        edges.append({"type": "link", "x1": round(stem_x), "y1": round(p_bottom),
+                      "x2": round(stem_x), "y2": round(bus_y)})
+        edges.append({"type": "link", "x1": round(min(xs)), "y1": round(bus_y),
+                      "x2": round(max(xs)), "y2": round(bus_y)})
+        for kx in kids:
+            edges.append({"type": "link", "x1": round(kx), "y1": round(bus_y),
+                          "x2": round(kx), "y2": round(child_top)})
+
     for key, style in couples.items():
         a, b = tuple(key)
         if a in coords and b in coords and gen.get(a) == gen.get(b):
@@ -327,8 +411,8 @@ def _layout(user, people, parents, children, spouses, couples, focus_pk, me_pk):
                           "x1": round(coords[a][0]), "y1": round(coords[a][1]),
                           "x2": round(coords[b][0]), "y2": round(coords[b][1])})
 
-    height = (max(gen.values()) - min_gen + 1) * ROW_STRIDE - GAP_Y if gen else 0
-    return {"nodes": nodes, "edges": edges, "width": round(max_cx + CARD_W / 2),
+    height = (max(gen.values()) - min_gen + 1) * ROW_STRIDE - ROW_GAP if gen else 0
+    return {"nodes": nodes, "edges": edges, "width": round(max_cx + CARD_W / 2.0),
             "height": round(height), "shown": len(people),
             "focus": focus_pk, "focus_x": round(fx), "focus_y": round(fy), "me": me_pk}
 

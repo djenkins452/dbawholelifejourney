@@ -1023,14 +1023,17 @@ a.fam-result { text-decoration: none; }
     background: rgba(255,255,255,.82); border: 1px solid var(--lg-border); border-radius: 10px; padding: 7px 11px; }
 .fam-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--lg-ink-soft); }
 .fam-legend-line { width: 18px; height: 0; border-top-width: 2.5px; border-top-style: solid; }
+.fam-legend-link { border-top-color: #a98a5a; border-top-width: 2.5px; }
 .fam-legend-up { border-top-color: #5b7fb0; }
 .fam-legend-down { border-top-color: #6a9a5b; }
 .fam-legend-married { border-top-color: var(--lg-sidebar-gold, #c9a34e); border-top-width: 3px; }
 .fam-legend-partner { border-top-color: #4c9a8f; border-top-width: 3px; }
 .fam-legend-former { border-top-color: var(--lg-sidebar-gold, #c9a34e); border-top-style: dashed; }
 
-/* Relationship connectors. Parent→child by side; couples typed. */
+/* Relationship connectors. Parent→child as orthogonal T's (one lineage colour);
+   couples joined by a short typed connector. */
 .fam-edge { fill: none; }
+.fam-edge-link { stroke: #b39763; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .fam-edge-up { stroke: #5b7fb0; stroke-width: 2; }
 .fam-edge-down { stroke: #6a9a5b; stroke-width: 2; }
 .fam-edge-couple-married { stroke: var(--lg-sidebar-gold, #c9a34e); stroke-width: 3; }

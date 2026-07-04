@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 239,
+    "fields": {
+      "title": "The Family tree now looks like a family",
+      "description": "The Family view has been rebuilt to read the way a family tree should. It opens centered on you, with parents and grandparents above, brothers and sisters beside you, and children and grandchildren below — never overlapping. Clean connectors show exactly how everyone is related: a marriage line joins spouses, and parent-to-child lines branch down to each child. People who were never married aren't drawn as a couple. Click anyone to bring them to the center and see their family.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-04",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-04T14:00:00Z",
+      "updated_at": "2026-07-04T14:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 238,
     "fields": {
       "title": "The Canonical Truth Roadmap — see everything Legacy is preserving for you",

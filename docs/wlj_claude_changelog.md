@@ -6,6 +6,21 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — feat(legacy): Family Tree — calm 3-generation view, big cards, click-to-recenter (D1 iteration)
+
+Reworked the Family View for readability per real-data acceptance feedback. The tree now reads as a family at a glance instead of a dense graph.
+
+- **Strict THREE generations only.** `_neighborhood` rewritten to the immediate family: the focus's parents (+ their spouses = step-parents), the focus + spouse(s) + siblings, and the focus's children. Grandparents, grandchildren, aunts/uncles, cousins, nieces/nephews, and in-laws are never rendered — they appear only when you navigate to that person. (`ANCESTOR_LEVELS`/`DESCENDANT_LEVELS` = 1.)
+- **Bigger vertical cards** (208×150): avatar, full name, birth–death/living, and a small **Details** link. Generation labels down the left gutter ("Generation 1 · Parents", "2 · You & Siblings", "3 · Children").
+- **Click behaviour redesigned.** Clicking anywhere on a card **recenters** the family on that person (the tree rebuilds around them, same rules); only the small **Details** link opens the Person Profile. CSP-safe (delegated listener, no inline handlers).
+- **Permanent right-side panel removed** — the tree now uses the full width; the profile is reached via Details.
+- **Semantic connectors.** Parent→child links are solid for a biological bond, **dashed** for step / adoptive / foster / guardian (`_edges` now records a per-edge `link_style`, threaded through `_restrict`/`_layout` to each child's riser). Couples stay typed (married / former / partner / affair). Two co-parents who never married are never joined by a marriage line. Legend simplified to "Biological · Married" (solid) / "Step · Adopted · Former" (dashed).
+
+**Verified LIVE** (real Django view + template JS, GEDCOM imported through the production pipeline): with Danny focused the tree shows exactly Marvin, Barbara, Gloria (parents), Danny + Heather + siblings, and the children — no grandparents/grandchildren; zero overlaps; generation labels present; clicking Marvin rebuilds 3 generations around Marvin (Walter & Ada become his parents, Danny his child); Details links resolve to the profile. 31 family tests green (new: 3-gen exclusion, dashed step connector, tree-chrome markers; updated bounded-neighborhood + panel-removal assertions).
+
+**Files:** apps/legacy/services/family_tree.py (constants, `_neighborhood`, `_edges` link_style, `_restrict`, `_layout` labels/gutter/styled risers, callers), templates/legacy/family.html (cards, gutter labels, legend, recenter JS, panel removed), static/css/legacy.css (v40 — big cards, gen labels, solid/dashed edges, legend), apps/legacy/tests/test_family_layout.py + test_family.py + test_relationship_categories.py.
+
+
 ## 2026-07-04 — fix(legacy): Family Tree — mathematical no-overlap guarantee + category self-heal (D1 hardening)
 
 Follow-up after real-data acceptance testing. Two robustness fixes so the tree is correct on the LIVE view with imported genealogy, not just synthetic tests:

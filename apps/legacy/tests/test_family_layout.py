@@ -94,6 +94,17 @@ class LayoutTests(TestCase):
         self.assertIn("link", types)            # orthogonal parent→child T-connectors
         self.assertIn("couple-married", types)  # Danny↔Heather and Marvin↔Gloria
 
+    def test_step_parent_drawn_with_dashed_connector(self):
+        # A step / adoptive / guardian bond must render dashed, a biological one solid.
+        me = self._p("Kid", birth_year=2000)
+        dad = self._p("Bio Dad", birth_year=1970)
+        stepdad = self._p("Step Dad", birth_year=1972)
+        self._rel(dad, me, "parent of")
+        self._rel(stepdad, me, "step-parent of")
+        types = {e["type"] for e in family_tree.build_family_view(self.user, focus_pk=me.pk)["edges"]}
+        self.assertIn("link", types)          # the biological bond is solid
+        self.assertIn("link-dashed", types)   # the step bond is dashed
+
     def test_no_two_cards_overlap(self):
         # The headline acceptance criterion: the tree never overlaps people.
         g = self._family()
@@ -107,17 +118,26 @@ class LayoutTests(TestCase):
                 self.assertFalse(dx and dy,
                                  "%s overlaps %s" % (a["name"], b["name"]))
 
-    def test_three_generations_and_grandchild(self):
-        # Grandparents above, focus, children below — and a grandchild one row lower.
+    def test_only_three_generations_grandparents_and_grandchildren_excluded(self):
+        # STRICT 3-generation window: grandparents and grandchildren must NOT appear
+        # when Danny is the focus — only parents, Danny+spouse+siblings, children.
         self._family()
         gpa = self._p("Ada Jenkins", birth_year=1910)
-        self._rel(gpa, self.marvin, "parent of")     # Marvin's mother = Danny's grandmother
+        self._rel(gpa, self.marvin, "parent of")      # Danny's grandmother
         grand = self._p("Milo Jenkins", birth_year=2028)
         self._rel(self.haley, grand, "parent of")     # Danny's grandchild
-        g = family_tree.build_family_view(self.user, focus_pk=self.danny.pk)
-        by = {n["name"]: n for n in g["nodes"]}
-        self.assertLess(by["Ada Jenkins"]["y"], by["Marvin Jenkins"]["y"])       # grandparent highest
-        self.assertGreater(by["Milo Jenkins"]["y"], by["Haley Jenkins"]["y"])    # grandchild lowest
+        names = {n["name"] for n in
+                 family_tree.build_family_view(self.user, focus_pk=self.danny.pk)["nodes"]}
+        self.assertNotIn("Ada Jenkins", names)        # grandparent excluded
+        self.assertNotIn("Milo Jenkins", names)       # grandchild excluded
+        # The immediate family IS present.
+        for who in ["Marvin Jenkins", "Barbara Dorff", "Gloria Jenkins",
+                    "Heather Puller", "Haley Jenkins", "Julie Mae Jenkins"]:
+            self.assertIn(who, names)
+        # Navigating to Marvin brings HIS parent (Ada) into view — 3 gens around Marvin.
+        marvin_names = {n["name"] for n in
+                        family_tree.build_family_view(self.user, focus_pk=self.marvin.pk)["nodes"]}
+        self.assertIn("Ada Jenkins", marvin_names)
 
     def test_tree_builds_even_when_category_not_backfilled(self):
         # Real-data safety: relationships imported before the relationship_category

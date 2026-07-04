@@ -81,7 +81,7 @@ class ConsumerTests(TestCase):
         me = self._p("Me"); sp = self._p("Sp"); boss = self._p("Boss")
         Relationship.objects.create(user=self.user, from_person=me, to_person=sp, relationship_type="married to")
         Relationship.objects.create(user=self.user, from_person=me, to_person=boss, relationship_type="manager of")
-        parents, children, spouses, couples = family_tree._edges(self.user)
+        parents, children, spouses, couples, link_style = family_tree._edges(self.user)
         self.assertIn(sp.pk, spouses[me.pk])          # spouse (romantic) is in the family graph
         self.assertNotIn(boss.pk, spouses[me.pk])     # manager (professional) is NOT
         self.assertEqual(children[me.pk], set())      # boss not treated as a child either

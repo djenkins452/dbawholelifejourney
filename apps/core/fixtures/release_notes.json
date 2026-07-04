@@ -4,7 +4,7 @@
     "pk": 239,
     "fields": {
       "title": "The Family tree now looks like a family",
-      "description": "The Family view has been rebuilt to read the way a family tree should. It opens centered on you, with parents and grandparents above, brothers and sisters beside you, and children and grandchildren below — never overlapping. Clean connectors show exactly how everyone is related: a marriage line joins spouses, and parent-to-child lines branch down to each child. People who were never married aren't drawn as a couple. Click anyone to bring them to the center and see their family.",
+      "description": "The Family view has been rebuilt to read the way a family tree should — calm, focused, and understandable at a glance. It opens centered on you and shows just three generations at a time: your parents above, your spouse and brothers and sisters beside you, and your children below. Cards are larger, with a photo, name, and dates. Clean connectors show exactly how everyone is related — solid lines for biological and married bonds, dashed for step, adopted, or former, and people who were never married are never drawn as a couple. Click any card to bring that person to the center and see their immediate family; click Details to open their full profile.",
       "entry_type": "improvement",
       "version": "",
       "release_date": "2026-07-04",

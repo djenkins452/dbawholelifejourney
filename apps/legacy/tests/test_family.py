@@ -183,8 +183,8 @@ class FocalViewTests(TestCase):
             self._parent(chain[i], chain[i + 1])
         far = build_family_view(self.user, focus_pk=chain[5].pk)
         names = {n["name"] for n in far["nodes"]}
-        self.assertIn("G3", names)          # 2 generations up (grandparents) is included
-        self.assertNotIn("G2", names)       # 3 up is beyond the bounded neighborhood
+        self.assertIn("G4", names)          # 1 generation up (parents) is included
+        self.assertNotIn("G3", names)       # grandparents are NOT shown (3-gen window)
         self.assertNotIn("G0", names)
 
     def test_siblings_and_spouse_sit_on_the_focus_row(self):
@@ -213,16 +213,18 @@ class FocalViewTests(TestCase):
         self.assertEqual(len(idx), 4)
         self.assertTrue(all("text" in r and "id" in r and "name" in r for r in idx))
 
-    def test_view_renders_panel_and_search_data(self):
+    def test_view_renders_tree_chrome(self):
         self.client.force_login(self.user)
         me = self._p("Me", is_self=True); dad = self._p("Dad"); self._parent(dad, me)
         r = self.client.get(reverse("legacy:family"))
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "is-focus")
         self.assertContains(r, "famSearchData")     # full-family search index present
-        self.assertContains(r, "fam-panel")         # side profile panel
-        self.assertContains(r, "View full profile")
+        self.assertContains(r, "fam-node-details")  # per-card Details link (opens profile)
+        self.assertContains(r, "fam-genlabel")      # generation labels
+        self.assertContains(r, "data-recenter")     # click-card-to-recenter
         self.assertContains(r, "fam-legend")        # relationship-line legend
+        self.assertNotContains(r, "fam-panel")      # permanent side panel removed
 
     def test_panel_lists_focus_relatives(self):
         me = self._p("Me", is_self=True); dad = self._p("Dad"); sp = self._p("Sp")

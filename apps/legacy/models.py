@@ -670,6 +670,10 @@ class ImportChunk(models.Model):
     chunk_kind = models.CharField(
         max_length=20, choices=Kind.choices, default=Kind.STORY, db_index=True)
     kind_confidence = models.CharField(max_length=6, blank=True)  # high / medium / low
+    # Structured payload for deterministic kinds (e.g. GEDCOM person/family:
+    # xref, sex, birth/death year, spouse & child links) so a queue can be
+    # committed into canonical People + Relationships without re-parsing.
+    data = models.JSONField(default=dict, blank=True)
     memory = models.ForeignKey(
         Memory, on_delete=models.SET_NULL, null=True, blank=True, related_name='import_chunks')
     created_at = models.DateTimeField(auto_now_add=True)

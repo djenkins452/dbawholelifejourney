@@ -101,6 +101,12 @@ def _clean_name(node):
     return name or "Unknown person"
 
 
+def _year(date_str):
+    """The 4-digit year from a GEDCOM date ('3 MAR 1945' → 1945), or None."""
+    m = re.search(r"\b(\d{4})\b", date_str or "")
+    return int(m.group(1)) if m else None
+
+
 def _when_where(date, place, verb):
     if not date and not place:
         return ""
@@ -163,6 +169,11 @@ def parse_gedcom(raw):
             "body": "\n".join(lines) or name,
             "source_ref": (rec["xref"] or "individual").strip("@"),
             "kind": "gedcom_person", "confidence": "high",
+            "data": {
+                "xref": rec["xref"] or "", "name": name, "sex": _val(rec, "SEX").upper(),
+                "birth_year": _year(bdate), "death_year": _year(ddate),
+                "birth_place": bplace, "death_place": dplace,
+            },
         })
 
     for rec in fams:
@@ -189,6 +200,11 @@ def parse_gedcom(raw):
             "body": "\n".join(lines) or pair,
             "source_ref": (rec["xref"] or "family").strip("@"),
             "kind": "gedcom_family", "confidence": "high",
+            "data": {
+                "husb": _val(rec, "HUSB"), "wife": _val(rec, "WIFE"),
+                "children": [c["value"] for c in rec["children"] if c["tag"] == "CHIL"],
+                "marriage_year": _year(mdate), "marriage_place": mplace,
+            },
         })
 
     # Append narrative notes after the structured records, renumbering.

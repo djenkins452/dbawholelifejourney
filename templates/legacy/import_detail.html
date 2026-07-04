@@ -62,6 +62,13 @@
     </div>
     {% endif %}
 
+    {% if genealogy_pending %}
+    <div class="import-commit">
+        <span>Legacy read {{ genealogy_pending }} genealogy {{ genealogy_pending|pluralize:"record,records" }} from this file. Add them to your family and they'll appear in your Family view — with their births, marriages, and children.</span>
+        <form method="post" action="{% url 'legacy:import_commit_genealogy' batch.pk %}">{% csrf_token %}<button type="submit" class="lg-btn-primary">Add to my family</button></form>
+    </div>
+    {% endif %}
+
     <h2 class="lg-section-title import-list-title">What Legacy found in {{ batch.source_name }}</h2>
     <p class="editor-aside-note import-queues-intro">One upload, sorted into review queues. Nothing enters your Legacy until you review it.</p>
     {% for q in queues %}

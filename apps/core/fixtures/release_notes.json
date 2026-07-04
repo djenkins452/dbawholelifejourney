@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 226,
+    "fields": {
+      "title": "Family View — explore the people in your Legacy",
+      "description": "There's a new Family view in Legacy. It shows the people you've added — by hand, through your stories, or by importing a family tree — as an interactive tree you can pan, zoom, and drag. Each person appears as a card with their photo (or initials), name, and years, and tapping one opens their full profile: their stories, photos, places, life milestones, relationships, and more. If you imported a GEDCOM family tree, use 'Add to my family' on the import to bring those people and their marriages and children into the tree. It's not genealogy software — it's a warm window into everything Legacy knows about the people you love.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-07-03",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-07-03T23:30:00Z",
+      "updated_at": "2026-07-03T23:30:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 225,
     "fields": {
       "title": "Import your family tree (GEDCOM) — kept as genealogy, not stories",

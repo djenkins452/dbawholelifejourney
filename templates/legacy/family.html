@@ -1,0 +1,139 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="lib-head">
+    <div>
+        <h1 class="lib-title">Your family</h1>
+        <p class="lib-sub">Everyone Legacy knows, and how they connect. Tap anyone to open their story.</p>
+    </div>
+</div>
+
+{% if graph.count %}
+<div class="famview" id="famView">
+    <div class="fam-controls">
+        <button type="button" class="fam-ctrl" data-fam="zoomin" aria-label="Zoom in">+</button>
+        <button type="button" class="fam-ctrl" data-fam="zoomout" aria-label="Zoom out">−</button>
+        <button type="button" class="fam-ctrl" data-fam="reset" aria-label="Fit to view">⤢</button>
+    </div>
+    <div class="fam-stage" id="famStage">
+        <div class="fam-canvas" id="famCanvas">
+            <svg class="fam-edges" width="{{ graph.width }}" height="{{ graph.height }}" aria-hidden="true">
+                {% for e in graph.edges %}<line x1="{{ e.x1 }}" y1="{{ e.y1 }}" x2="{{ e.x2 }}" y2="{{ e.y2 }}" class="fam-edge fam-edge-{{ e.type }}" />{% endfor %}
+            </svg>
+            {% for n in graph.nodes %}
+            <a class="fam-node{% if not n.living %} is-deceased{% endif %}" href="{% url 'legacy:person_detail' n.id %}" data-x="{{ n.x }}" data-y="{{ n.y }}">
+                <span class="fam-node-av">{% if n.photo %}<img src="{{ n.photo }}" alt="">{% else %}{{ n.initials }}{% endif %}</span>
+                <span class="fam-node-main">
+                    <span class="fam-node-name">{{ n.name }}</span>
+                    <span class="fam-node-meta">{% if n.birth %}{{ n.birth }}{% endif %}{% if n.birth or n.death %} – {% endif %}{% if n.death %}{{ n.death }}{% elif n.birth %}living{% endif %}{% if n.rel %} · {{ n.rel }}{% endif %}</span>
+                </span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    <p class="fam-hint">Drag to move · scroll or pinch to zoom · click a person to open their profile</p>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function () {
+    var stage = document.getElementById('famStage');
+    var canvas = document.getElementById('famCanvas');
+    if (!stage || !canvas) { return; }
+
+    // Position cards from their data coords (CSP-safe — set via JS, not inline style).
+    canvas.querySelectorAll('.fam-node').forEach(function (n) {
+        n.style.left = n.getAttribute('data-x') + 'px';
+        n.style.top = n.getAttribute('data-y') + 'px';
+    });
+
+    var scale = 1, tx = 40, ty = 40;
+    function apply() { canvas.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')'; }
+
+    function fit() {
+        var cw = canvas.scrollWidth || 1, sw = stage.clientWidth || 1;
+        scale = Math.min(1, Math.max(0.3, (sw - 80) / cw));
+        tx = Math.max(20, (sw - cw * scale) / 2);
+        ty = 30;
+        apply();
+    }
+    fit();
+
+    function clampScale(s) { return Math.min(2.5, Math.max(0.25, s)); }
+
+    // Pan by dragging the background (not the cards, which are links).
+    var dragging = false, sx = 0, sy = 0, startTx = 0, startTy = 0;
+    stage.addEventListener('pointerdown', function (e) {
+        if (e.target.closest('.fam-node')) { return; }
+        dragging = true; sx = e.clientX; sy = e.clientY; startTx = tx; startTy = ty;
+        try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+        stage.classList.add('is-panning');
+    });
+    stage.addEventListener('pointermove', function (e) {
+        if (!dragging) { return; }
+        tx = startTx + (e.clientX - sx); ty = startTy + (e.clientY - sy); apply();
+    });
+    function endPan() { dragging = false; stage.classList.remove('is-panning'); }
+    stage.addEventListener('pointerup', endPan);
+    stage.addEventListener('pointercancel', endPan);
+
+    function zoomAt(mx, my, factor) {
+        var ns = clampScale(scale * factor);
+        tx = mx - (mx - tx) * (ns / scale);
+        ty = my - (my - ty) * (ns / scale);
+        scale = ns; apply();
+    }
+
+    stage.addEventListener('wheel', function (e) {
+        e.preventDefault();
+        var r = stage.getBoundingClientRect();
+        zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.1 : 0.9);
+    }, { passive: false });
+
+    document.querySelectorAll('.fam-ctrl').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var a = b.getAttribute('data-fam');
+            if (a === 'reset') { fit(); return; }
+            var r = stage.getBoundingClientRect();
+            zoomAt(r.width / 2, r.height / 2, a === 'zoomin' ? 1.2 : 0.8);
+        });
+    });
+
+    // Two-finger pinch zoom on touch.
+    var pinch0 = 0, pinchScale0 = 1;
+    function dist(t) {
+        var dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+    stage.addEventListener('touchstart', function (e) {
+        if (e.touches.length === 2) { pinch0 = dist(e.touches); pinchScale0 = scale; }
+    }, { passive: true });
+    stage.addEventListener('touchmove', function (e) {
+        if (e.touches.length === 2 && pinch0) {
+            e.preventDefault();
+            var r = stage.getBoundingClientRect();
+            var mx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left;
+            var my = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
+            var target = clampScale(pinchScale0 * (dist(e.touches) / pinch0));
+            tx = mx - (mx - tx) * (target / scale);
+            ty = my - (my - ty) * (target / scale);
+            scale = target; apply();
+        }
+    }, { passive: false });
+    stage.addEventListener('touchend', function (e) { if (e.touches.length < 2) { pinch0 = 0; } });
+})();
+</script>
+
+{% else %}
+<div class="lib-empty">
+    <span class="lib-empty-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="7" r="3"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/><circle cx="4.5" cy="10" r="2"/><circle cx="19.5" cy="10" r="2"/></svg>
+    </span>
+    <h2 class="lib-empty-title">Your family will gather here</h2>
+    <p class="lib-empty-blurb">As you add the people in your life — by hand, through your stories, or by importing a family tree — they'll appear here, connected. Every person is someone with stories, photos, and memories, not just dates.</p>
+    <div class="lib-empty-actions">
+        <a href="{% url 'legacy:person_new' %}" class="lg-btn-primary">Add someone</a>
+        <a href="{% url 'legacy:import_new' %}" class="lg-btn-quiet">Import a family tree</a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

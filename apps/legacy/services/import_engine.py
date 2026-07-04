@@ -60,7 +60,7 @@ def create_batch(user, source_name, source_type, raw_text, classifier=None):
         rows.append(ImportChunk(
             batch=batch, index=c["index"], title=c["title"][:255],
             body=c["body"], source_ref=c["source_ref"][:120],
-            chunk_kind=kind, kind_confidence=conf))
+            chunk_kind=kind, kind_confidence=conf, data=c.get("data") or {}))
     ImportChunk.objects.bulk_create(rows)
     return batch
 
@@ -166,6 +166,69 @@ def narrative_pending(batch):
     return batch.chunks.filter(
         status=ImportChunk.Status.PENDING,
         chunk_kind__in=list(ImportChunk.NARRATIVE_KINDS)).count()
+
+
+def commit_genealogy(batch):
+    """Commit a GEDCOM batch's structured people + families into Canonical Truth:
+    Person records (with birth/death years) and spouse / parent-child Relationships.
+    Deterministic, idempotent (dedupes people by name, links by triple). Returns
+    (people_created, links_created). Genealogy — no Discovery."""
+    from apps.legacy.models import ImportChunk, Person, Relationship
+
+    user = batch.user
+    xref_to_person = {}
+    people_created = 0
+
+    for ch in batch.chunks.filter(chunk_kind="gedcom_person"):
+        d = ch.data or {}
+        name = (d.get("name") or ch.title or "Unknown person").strip()
+        person = Person.objects.filter(user=user, display_name__iexact=name).first()
+        if person is None:
+            person = Person.objects.create(
+                user=user, display_name=name[:200],
+                birth_year=d.get("birth_year"), death_year=d.get("death_year"),
+                created_via=Person.CREATED_VIA_IMPORT)
+            people_created += 1
+        else:
+            fields = []
+            if not person.birth_year and d.get("birth_year"):
+                person.birth_year = d["birth_year"]; fields.append("birth_year")
+            if not person.death_year and d.get("death_year"):
+                person.death_year = d["death_year"]; fields.append("death_year")
+            if fields:
+                person.save(update_fields=fields + ["updated_at"])
+        if d.get("xref"):
+            xref_to_person[d["xref"]] = person
+        if ch.status != ImportChunk.Status.IMPORTED:
+            ch.status = ImportChunk.Status.IMPORTED
+            ch.save(update_fields=["status"])
+
+    links_created = 0
+
+    def _link(a, b, rtype):
+        nonlocal links_created
+        if not a or not b or a.pk == b.pk:
+            return
+        _, made = Relationship.objects.get_or_create(
+            user=user, from_person=a, to_person=b, relationship_type=rtype)
+        if made:
+            links_created += 1
+
+    for ch in batch.chunks.filter(chunk_kind="gedcom_family"):
+        d = ch.data or {}
+        husb = xref_to_person.get(d.get("husb"))
+        wife = xref_to_person.get(d.get("wife"))
+        _link(husb, wife, "married to")
+        for x in (d.get("children") or []):
+            child = xref_to_person.get(x)
+            for parent in (husb, wife):
+                _link(parent, child, "parent of")
+        if ch.status != ImportChunk.Status.IMPORTED:
+            ch.status = ImportChunk.Status.IMPORTED
+            ch.save(update_fields=["status"])
+
+    batch.refresh_counts()
+    return people_created, links_created
 
 
 def batch_stats(batch):

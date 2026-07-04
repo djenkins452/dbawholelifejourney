@@ -26,6 +26,8 @@ urlpatterns = [
     path("import/new/", views.ImportCreateView.as_view(), name="import_new"),
     path("import/<int:pk>/", views.ImportDetailView.as_view(), name="import_detail"),
     path("import/<int:pk>/run/", views.ImportRunView.as_view(), name="import_run"),
+    path("import/<int:pk>/commit-genealogy/", views.GenealogyCommitView.as_view(), name="import_commit_genealogy"),
+    path("family/", views.FamilyView.as_view(), name="family"),
     # Memory Library + Editor (Slice 2)
     path("memories/", views.LibraryView.as_view(), name="library"),
     path("memories/new/", views.EditorView.as_view(), name="editor_new"),

@@ -73,12 +73,29 @@
     </section>
     {% endif %}
 
+    {% if milestones %}
+    <section class="profile-sec">
+        <h2 class="profile-sec-title">Life milestones</h2>
+        <div class="chips">
+            {% for ms in milestones %}<a href="{% url 'legacy:milestone_detail' ms.pk %}" class="chip chip-link">{{ ms.title }}{% if ms.year %} · {{ ms.year }}{% endif %}</a>{% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
     {% if places %}
     <section class="profile-sec">
         <h2 class="profile-sec-title">Places</h2>
         <div class="chips">
             {% for pl in places %}<a href="{% url 'legacy:place_detail' pl.pk %}" class="chip chip-link">{{ pl.name }}</a>{% endfor %}
         </div>
+    </section>
+    {% endif %}
+
+    {% if aliases %}
+    <section class="profile-sec">
+        <h2 class="profile-sec-title">Known to Legacy as</h2>
+        <div class="chips">{% for a in aliases %}<span class="chip">"{{ a.label }}"</span>{% endfor %}</div>
+        <p class="profile-empty">Legacy resolves these words to {{ person.display_name }} automatically when you import or tell stories.</p>
     </section>
     {% endif %}
 

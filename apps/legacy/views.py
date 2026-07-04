@@ -28,6 +28,7 @@ from apps.legacy.models import (
     MemoryRevision, Output, Person, Place, Relationship,
 )
 from apps.legacy.services import discovery as discovery_svc
+from apps.legacy.services import family_tree
 from apps.legacy.services import import_engine
 from apps.legacy.services.home import build_home_context
 from apps.legacy.services.media_utils import (
@@ -659,6 +660,10 @@ class PersonProfileView(LegacyContextMixin, DetailView):
             Relationship.objects.filter(Q(from_person=person) | Q(to_person=person))
             .select_related("from_person", "to_person")
         )
+        # Aliases the keeper has taught Legacy for this person ("Dad" → Marvin).
+        ctx["aliases"] = list(person.aliases.all())
+        # Life milestones this person is part of (through their stories).
+        ctx["milestones"] = LifeMilestone.objects.filter(memories__in=memories).distinct()
         # Contributor attribution seen across this person's memories.
         contributors = set()
         for m in memories:
@@ -1280,6 +1285,9 @@ class ImportDetailView(LegacyContextMixin, DetailView):
         # Classification → review queues grouped by what each unit was understood to be.
         ctx["queues"] = import_engine.review_queues(self.object)
         ctx["narrative_pending"] = import_engine.narrative_pending(self.object)
+        ctx["genealogy_pending"] = self.object.chunks.filter(
+            chunk_kind__in=["gedcom_person", "gedcom_family"],
+            status=ImportChunk.Status.PENDING).count()
         ctx["stats"] = import_engine.batch_stats(self.object)
         ctx["next_review"] = (
             self.object.memories.filter(entry_state=Memory.EntryState.DRAFT)
@@ -1305,6 +1313,33 @@ class ImportRunView(LegacyContextMixin, View):
             f"Imported {len(memories)} {'story' if len(memories) == 1 else 'stories'} as drafts. "
             "Review each, run its discoveries, then add it to your Legacy.")
         return redirect("legacy:import_detail", pk=batch.pk)
+
+
+class GenealogyCommitView(LegacyContextMixin, View):
+    """Commit a GEDCOM batch's genealogy queues into canonical People + Relationships."""
+
+    def post(self, request, pk, *args, **kwargs):
+        batch = get_object_or_404(ImportBatch.all_objects, pk=pk, user=request.user)
+        people, links = import_engine.commit_genealogy(batch)
+        if people or links:
+            messages.success(
+                request,
+                f"Added {people} {'person' if people == 1 else 'people'} and "
+                f"{links} family {'connection' if links == 1 else 'connections'} to your family.")
+        else:
+            messages.info(request, "Everyone from this file is already in your family.")
+        return redirect("legacy:family")
+
+
+# ── Family View (a window into Canonical Truth, not a genealogy database) ─────
+class FamilyView(LegacyContextMixin, TemplateView):
+    template_name = "legacy/family.html"
+    nav_active = "family"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["graph"] = family_tree.build_family_graph(self.request.user)
+        return ctx
 
 
 # ── Timeline & Milestones (emergent chapters) ────────────────────────────────

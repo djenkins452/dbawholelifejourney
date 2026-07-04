@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 227,
+    "fields": {
+      "title": "Family View now feels like a family tree",
+      "description": "The Family view now lays your family out as a proper tree: parents above, children below, siblings beside each other, and spouses together — so the generations are easy to read at a glance. It opens centered on you, and a new 🏠 Me button always brings you back home. You can also search your family by name or nickname and jump straight to anyone. Set who you are with 'This is me' on any person's profile.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-03",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-04T00:00:00Z",
+      "updated_at": "2026-07-04T00:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 226,
     "fields": {
       "title": "Family View — explore the people in your Legacy",

@@ -21,6 +21,11 @@
             <div class="profile-actions">
                 <a href="{% url 'legacy:editor_new' %}" class="lg-btn-primary">Remember about them</a>
                 <a href="{% url 'legacy:person_edit' person.pk %}" class="lg-btn-quiet">Edit</a>
+                {% if person.is_self %}
+                <span class="lg-btn-ghost profile-you">This is you</span>
+                {% else %}
+                <form method="post" action="{% url 'legacy:person_set_self' person.pk %}" class="m-action-form">{% csrf_token %}<button type="submit" class="lg-btn-ghost">This is me</button></form>
+                {% endif %}
                 {% if person.status == 'active' %}
                 <form method="post" action="{% url 'legacy:person_archive' person.pk %}" class="m-action-form">{% csrf_token %}<button type="submit" class="lg-btn-ghost">Set aside</button></form>
                 {% else %}

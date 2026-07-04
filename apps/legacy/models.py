@@ -105,6 +105,9 @@ class Person(LegacyOwnedModel):
     # Significance is multi-typed/perspectival in the full model; Phase 1 keeps a
     # single ordinal for ranking prominence. 0 = unset.
     significance = models.PositiveSmallIntegerField(default=0)
+    # The keeper's own node in the Family tree — the "home" position the view
+    # centers on. At most one per user (enforced when set).
+    is_self = models.BooleanField(default=False, db_index=True)
 
     class Meta:
         ordering = ['display_name']

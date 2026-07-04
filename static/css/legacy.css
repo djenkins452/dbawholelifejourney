@@ -973,3 +973,22 @@ body.theme-ember .legacy-root {
 .lib-empty-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
 .import-commit { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; background: #eef3ec; border: 1px solid #d6e2cf; border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; }
 .import-commit > span { font-size: 14px; color: #4a5a41; font-family: var(--lg-serif); flex: 1 1 240px; }
+
+/* Family View — toolbar, search, center-on-me, highlight */
+.fam-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.fam-search { position: relative; flex: 1 1 280px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--lg-border); border-radius: 11px; padding: 8px 12px; background: var(--lg-surface); color: var(--lg-muted); }
+.fam-search-in { flex: 1; border: 0; outline: none; background: transparent; font-size: 14px; color: var(--lg-ink); }
+.fam-results { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20; max-height: 320px; overflow-y: auto;
+    background: var(--lg-surface); border: 1px solid var(--lg-border); border-radius: 11px; box-shadow: 0 18px 40px -22px rgba(30,25,15,.55); padding: 5px; }
+.fam-result { display: flex; flex-direction: column; align-items: flex-start; width: 100%; text-align: left; border: 0; background: transparent; cursor: pointer; padding: 8px 10px; border-radius: 8px; }
+.fam-result:hover { background: var(--lg-surface-2); }
+.fam-result-name { font-size: 13.5px; font-weight: 600; color: var(--lg-ink); }
+.fam-result-meta { font-size: 11px; color: var(--lg-muted); }
+.fam-result-none { font-size: 13px; color: var(--lg-muted); font-style: italic; padding: 10px; }
+.fam-home { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--lg-sidebar-gold, #c9a34e); border-radius: 11px; padding: 8px 14px;
+    background: var(--lg-surface); color: var(--lg-accent-ink, #7a5b1e); font-size: 14px; font-weight: 600; cursor: pointer; }
+.fam-home:hover { background: #f6efdd; }
+.fam-node.is-me { border-color: var(--lg-sidebar-gold, #c9a34e); box-shadow: 0 0 0 2px var(--lg-sidebar-gold, #c9a34e), 0 10px 22px -16px rgba(30,25,15,.5); }
+.fam-node.is-me .fam-node-av { background: var(--lg-sidebar-gold, #c9a34e); color: #3a2f14; }
+.fam-node.is-highlight { border-color: var(--lg-accent, #b07a2b); box-shadow: 0 0 0 3px rgba(176,122,43,.35), 0 12px 26px -16px rgba(30,25,15,.55); z-index: 4; }
+.profile-you { cursor: default; opacity: .85; }

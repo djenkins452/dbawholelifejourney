@@ -43055,3 +43055,22 @@ The taller cover and padded footer are **scoped to the story card** (`.mcard-img
 NOTE on live verification: an authenticated browser screenshot was not possible — root cause now identified: `SESSION_COOKIE_SECURE=True` while the local preview serves over http://localhost, so the browser rejects the session cookie entirely (no login can persist over http). Verified instead via Django's test client (the real view→template render, which asserts the tree renders with the committed people) plus unit tests and a JS syntax check.
 
 **Files:** new `apps/legacy/services/family_tree.py`, `templates/legacy/family.html`, `apps/legacy/tests/test_family.py`, `apps/legacy/migrations/0015_importchunk_data.py`; edited `apps/legacy/models.py` (ImportChunk.data), `apps/legacy/services/{gedcom_parser.py, import_engine.py}` (structured data + commit_genealogy), `apps/legacy/views.py` (FamilyView, GenealogyCommitView, profile aliases+milestones, genealogy_pending), `apps/legacy/urls.py`, `templates/legacy/{_sidebar.html, import_detail.html, person_detail.html, base_legacy.html}`, `static/css/legacy.css` (v27), `apps/core/fixtures/release_notes.json`.
+
+
+## 2026-07-03 — refine(legacy): Family View — a true family tree (hierarchy, center-on-me, search)
+
+**Why:** The Family View imported correctly but read as a generic graph. Turn it into an intuitive family tree: generations stack vertically, the keeper is the home position, and any person is one search away. Visualization refinement only — no redesign of the Family domain, Canonical Truth, GEDCOM import, or the Person Profile; no Beth/CoS.
+
+**What:**
+- **Tidy hierarchical layout** (`family_tree.build_family_graph` rewrite): generations are distinct vertical levels (ancestors above, descendants below); a single O(n) post-order sweep centers each parent over its already-placed children, so siblings sit adjacent, spouses sit adjacent, and children descend centered beneath a couple — no more long horizontal chain. Scales to large imported trees; tolerates multiple spouses, disconnected branches, and cycles (guarded).
+- **"Me" / home position:** new `Person.is_self` (migration 0016) marks the keeper's node; `build_family_graph` resolves "me" by that flag, else by a name match to the WLJ user's full name. The view **opens centered on me**, a permanent **🏠 Me** control re-centers on the keeper (distinct from Fit-to-tree), and a **"This is me"** action on the Person Profile sets it (exclusive — only one me). The me node is gold-ringed.
+- **Family search:** a search box matches by name / nickname / alias (built from each node's `search` text incl. `also_known_as` + learned relationship aliases); picking a result **centers and highlights** that person without opening anything (the tree stays navigation — click to open the profile).
+- **Navigation kept:** pan (drag), zoom (wheel / +− / pinch), Fit-to-tree — plus the new center-on-me and search-center. All CSP-safe (nonce'd script, JS-set positions, server-rendered SVG edges).
+
+**Extension points preserved (not built):** shared-stories/photos/milestones/health overlays — the layout emits per-node coords the client can decorate.
+
+**Verification:** 204 scoped Legacy tests green (6 new: child centered under the couple, node search text, is_self resolves me + me below roots, name-match resolves me, no-me-when-unknown, "This is me" is exclusive). `check` + `makemigrations --check` clean; migration 0016 applied to dev; Family-View inline JS passes `node --check`; test-client render confirms the search box, 🏠 Me control, me-node ring, center coords, and node search text.
+
+NOTE on live verification: still no in-browser screenshot — `SESSION_COOKIE_SECURE=True` vs the http://localhost preview means the browser drops the session cookie, so no login persists locally (fix for local dev: serve https or set `SESSION_COOKIE_SECURE=False`). Verified via the test client (real view→template render), unit tests, and JS syntax check.
+
+**Files:** `apps/legacy/services/family_tree.py`, `apps/legacy/models.py` (Person.is_self), `apps/legacy/views.py` (PersonSetSelfView), `apps/legacy/urls.py`, `templates/legacy/{family.html, person_detail.html, base_legacy.html}`, `static/css/legacy.css` (v28), `apps/legacy/migrations/0016_person_is_self.py`, `apps/legacy/tests/test_family.py`, `apps/core/fixtures/release_notes.json`.

@@ -1342,6 +1342,20 @@ class FamilyView(LegacyContextMixin, TemplateView):
         return ctx
 
 
+class PersonSetSelfView(LegacyContextMixin, View):
+    """Mark a person as the keeper (the 'me' / home node in the Family tree)."""
+
+    def post(self, request, pk, *args, **kwargs):
+        person = get_object_or_404(Person.all_objects, pk=pk, user=request.user)
+        Person.objects.filter(user=request.user, is_self=True).exclude(pk=person.pk).update(is_self=False)
+        if not person.is_self:
+            person.is_self = True
+            person.save(update_fields=["is_self", "updated_at"])
+        messages.success(request, f"Got it — you're {person.display_name} in your family tree.")
+        nxt = request.POST.get("next")
+        return redirect(nxt) if nxt else redirect("legacy:person_detail", pk=person.pk)
+
+
 # ── Timeline & Milestones (emergent chapters) ────────────────────────────────
 class TimelineView(LegacyContextMixin, TemplateView):
     """A life timeline that emerges from Life Milestones — not manually maintained."""

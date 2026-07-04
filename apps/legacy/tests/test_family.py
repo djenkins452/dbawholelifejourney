@@ -93,3 +93,55 @@ class FamilyGraphTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Marvin Jenkins")
         self.assertContains(r, "fam-node")
+
+    def test_children_centered_under_parents(self):
+        batch = create_batch(self.user, "Tree", "gedcom", SAMPLE, classifier=_boom)
+        commit_genealogy(batch)
+        by = {n["name"]: n for n in family_tree.build_family_graph(self.user)["nodes"]}
+        mid = (by["Marvin Jenkins"]["cx"] + by["Betty Jenkins"]["cx"]) / 2
+        self.assertLessEqual(abs(by["Danny Jenkins"]["cx"] - mid), 2)   # child centered under couple
+
+    def test_search_text_on_nodes(self):
+        batch = create_batch(self.user, "Tree", "gedcom", SAMPLE, classifier=_boom)
+        commit_genealogy(batch)
+        marvin = next(n for n in family_tree.build_family_graph(self.user)["nodes"]
+                      if n["name"] == "Marvin Jenkins")
+        self.assertIn("marvin jenkins", marvin["search"])
+
+
+class SelfMeTests(TestCase):
+    def setUp(self):
+        self.user = _make_user()
+
+    def _tree(self):
+        commit_genealogy(create_batch(self.user, "Tree", "gedcom", SAMPLE, classifier=_boom))
+
+    def test_is_self_flag_resolves_me(self):
+        self._tree()
+        danny = Person.objects.get(user=self.user, display_name="Danny Jenkins")
+        danny.is_self = True; danny.save()
+        g = family_tree.build_family_graph(self.user)
+        self.assertEqual(g["me"], danny.pk)
+        self.assertGreater(g["me_y"], 0)     # a generation below the roots
+        self.assertTrue(next(n for n in g["nodes"] if n["id"] == danny.pk)["is_self"])
+
+    def test_name_match_resolves_me(self):
+        self.user.first_name = "Danny"; self.user.last_name = "Jenkins"; self.user.save()
+        self._tree()
+        danny = Person.objects.get(user=self.user, display_name="Danny Jenkins")
+        self.assertEqual(family_tree.build_family_graph(self.user)["me"], danny.pk)
+
+    def test_no_me_when_unknown(self):
+        self._tree()
+        self.assertIsNone(family_tree.build_family_graph(self.user)["me"])
+
+    def test_set_self_is_exclusive(self):
+        self.client.force_login(self.user)
+        self._tree()
+        danny = Person.objects.get(user=self.user, display_name="Danny Jenkins")
+        marvin = Person.objects.get(user=self.user, display_name="Marvin Jenkins")
+        marvin.is_self = True; marvin.save()
+        self.client.post(reverse("legacy:person_set_self", args=[danny.pk]))
+        danny.refresh_from_db(); marvin.refresh_from_db()
+        self.assertTrue(danny.is_self)
+        self.assertFalse(marvin.is_self)     # only one "me"

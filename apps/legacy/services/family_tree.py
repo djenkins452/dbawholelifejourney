@@ -1,14 +1,14 @@
 """
 Family View — a visualization of Canonical Truth, not a genealogy database.
 
-Builds a laid-out family graph from the People + Relationships Legacy already
-holds (however they arrived — added by hand, discovered in a story, or committed
-from a GEDCOM). Parent/child and spouse edges are read from the free-text
-relationship types with keyword matching; generations are computed by longest
-path from the roots. Pure read model — no writes, no Discovery, no CoS.
+Lays the People + Relationships Legacy already holds out as a TIDY FAMILY TREE:
+generations stack vertically (ancestors above, descendants below), children are
+centered beneath their parents, siblings sit side by side, spouses adjacent. The
+keeper's own node ("me") is found so the view can open centered on them.
 
-Coordinates are emitted so the client can position cards and draw edges; nothing
-here decides styling.
+Layout is O(n) (a single post-order sweep that centers each parent over its
+already-placed children) so it scales to large imported trees. Pure read model —
+no writes, no Discovery, no CoS. Coordinates only; styling lives in the client.
 """
 
 from collections import defaultdict
@@ -33,28 +33,33 @@ def _initials(name):
     return (parts[0][:1] + parts[-1][:1]).upper()
 
 
-def _order_row(row, spouses):
-    """Order a generation so spouses sit next to each other."""
-    placed, seen = [], set()
-    for p in row:
-        if p.pk in seen:
-            continue
-        placed.append(p)
-        seen.add(p.pk)
-        for other in row:
-            if other.pk not in seen and other.pk in spouses.get(p.pk, ()):
-                placed.append(other)
-                seen.add(other.pk)
-    return placed
+def _resolve_self(user, people):
+    """The keeper's own Person node: an explicit is_self, else a name match to
+    the WLJ user's full name, else None (the view then just fits the whole tree)."""
+    for p in people:
+        if p.is_self:
+            return p.pk
+    full = ""
+    getter = getattr(user, "get_full_name", None)
+    if callable(getter):
+        full = (getter() or "").strip().lower()
+    if full:
+        for p in people:
+            if p.display_name.strip().lower() == full:
+                return p.pk
+    return None
 
 
 def build_family_graph(user):
-    from apps.legacy.models import Person, Relationship
+    from apps.legacy.models import Person, Relationship, RelationshipAlias
 
+    empty = {"nodes": [], "edges": [], "width": 0, "height": 0, "count": 0,
+             "me": None, "me_x": 0, "me_y": 0}
     people = list(Person.objects.filter(user=user).select_related("primary_photo"))
     if not people:
-        return {"nodes": [], "edges": [], "width": 0, "height": 0, "count": 0}
+        return empty
     pids = {p.pk for p in people}
+    P = {p.pk: p for p in people}
 
     parents, children, spouses = defaultdict(set), defaultdict(set), defaultdict(set)
     for r in Relationship.objects.filter(user=user):
@@ -69,13 +74,13 @@ def build_family_graph(user):
         elif any(k in typ for k in _SPOUSE):
             spouses[f].add(t); spouses[t].add(f)
 
-    # Generation = longest path from a root (someone with no known parent).
+    # Vertical level = longest path from a root (someone with no known parent).
     gen = {}
 
     def _gen(pk, stack):
         if pk in gen:
             return gen[pk]
-        if pk in stack:                 # defensive cycle guard
+        if pk in stack:
             return 0
         ps = [pp for pp in parents.get(pk, ()) if pp in pids]
         gen[pk] = (max(_gen(pp, stack | {pk}) for pp in ps) + 1) if ps else 0
@@ -84,32 +89,78 @@ def build_family_graph(user):
     for p in people:
         _gen(p.pk, set())
 
-    by_gen = defaultdict(list)
-    for p in people:
-        by_gen[gen[p.pk]].append(p)
+    # Tidy horizontal layout: place a person's children first, then center the
+    # person (and their spouse) over them. Leaves take sequential slots, so
+    # siblings land adjacent and subtrees never overlap.
+    placed = {}
+    leaf = [0.0]
 
-    # Lay out each generation as a centered row.
-    rows = {g: _order_row(by_gen[g], spouses) for g in by_gen}
-    max_cols = max(len(r) for r in rows.values())
-    total_w = max_cols * COL_STRIDE - GAP_X
-    pos = {}
-    nodes = []
-    for g in sorted(rows):
-        row = rows[g]
-        row_w = len(row) * COL_STRIDE - GAP_X
-        x0 = (total_w - row_w) / 2
-        y = g * ROW_STRIDE
-        for i, p in enumerate(row):
-            x = x0 + i * COL_STRIDE
-            pos[p.pk] = (x, y)
-            photo = (p.primary_photo.file.url
-                     if (p.primary_photo and p.primary_photo.file) else "")
-            nodes.append({
-                "id": p.pk, "name": p.display_name, "initials": _initials(p.display_name),
-                "photo": photo, "birth": p.birth_year, "death": p.death_year,
-                "living": p.death_year is None,
-                "rel": p.relationship_label, "x": round(x), "y": round(y),
-            })
+    def _partner(pk):
+        sp = sorted(s for s in spouses.get(pk, ()) if s in pids)
+        return sp[0] if sp else None
+
+    def _place(pk, stack):
+        if pk in placed:
+            return placed[pk]
+        if pk in stack:
+            return None
+        stack = stack | {pk}
+        partner = _partner(pk)
+        kid_set = set(children.get(pk, ()))
+        if partner:
+            kid_set |= set(children.get(partner, ()))
+        kids = sorted(k for k in kid_set
+                      if k in pids and k not in placed and k not in stack)
+        centers = [c for c in (_place(k, stack) for k in kids) if c is not None]
+        if centers:
+            center = sum(centers) / len(centers)
+        else:
+            center = leaf[0] * COL_STRIDE
+            leaf[0] += 1
+        if partner and partner not in placed and partner not in stack:
+            placed[pk] = center - COL_STRIDE * 0.5
+            placed[partner] = center + COL_STRIDE * 0.5
+        else:
+            placed[pk] = center
+        return placed[pk]
+
+    roots = sorted((p.pk for p in people if not (parents.get(p.pk, set()) & pids)),
+                   key=lambda k: (gen.get(k, 0), P[k].display_name))
+    for rpk in roots:
+        _place(rpk, set())
+    for p in people:                       # cycles / disconnected branches
+        if p.pk not in placed:
+            _place(p.pk, set())
+
+    minx = min(placed.values())
+    offset = CARD_W / 2 - minx             # so the leftmost card starts at x=0
+
+    aliases = defaultdict(list)
+    for a in RelationshipAlias.objects.filter(user=user).exclude(person__isnull=True):
+        aliases[a.person_id].append(a.label)
+
+    self_pk = _resolve_self(user, people)
+    pos, nodes = {}, []
+    me_x = me_y = 0
+    max_cx = 0
+    for p in people:
+        cx = placed[p.pk] + offset
+        cy = gen[p.pk] * ROW_STRIDE + CARD_H / 2
+        pos[p.pk] = (cx, cy)
+        max_cx = max(max_cx, cx)
+        photo = (p.primary_photo.file.url
+                 if (p.primary_photo and p.primary_photo.file) else "")
+        aka = aliases.get(p.pk, [])
+        search = " ".join([p.display_name, p.also_known_as or ""] + aka).lower()
+        nodes.append({
+            "id": p.pk, "name": p.display_name, "initials": _initials(p.display_name),
+            "photo": photo, "birth": p.birth_year, "death": p.death_year,
+            "living": p.death_year is None, "rel": p.relationship_label,
+            "x": round(cx - CARD_W / 2), "y": round(gen[p.pk] * ROW_STRIDE),
+            "cx": round(cx), "cy": round(cy), "search": search, "is_self": p.pk == self_pk,
+        })
+        if p.pk == self_pk:
+            me_x, me_y = cx, cy
 
     edges = []
     for cpk, pset in parents.items():
@@ -120,8 +171,8 @@ def build_family_graph(user):
             if ppk in pos:
                 px, py = pos[ppk]
                 edges.append({"type": "parent",
-                              "x1": round(px + CARD_W / 2), "y1": round(py + CARD_H),
-                              "x2": round(cx + CARD_W / 2), "y2": round(cy)})
+                              "x1": round(px), "y1": round(py + CARD_H / 2),
+                              "x2": round(cx), "y2": round(cy - CARD_H / 2)})
     drawn = set()
     for a, sset in spouses.items():
         for b in sset:
@@ -130,10 +181,10 @@ def build_family_graph(user):
                 continue
             drawn.add(key)
             ax, ay = pos[a]; bx, by = pos[b]
-            edges.append({"type": "spouse",
-                          "x1": round(ax + CARD_W / 2), "y1": round(ay + CARD_H / 2),
-                          "x2": round(bx + CARD_W / 2), "y2": round(by + CARD_H / 2)})
+            edges.append({"type": "spouse", "x1": round(ax), "y1": round(ay),
+                          "x2": round(bx), "y2": round(by)})
 
     height = (max(gen.values()) + 1) * ROW_STRIDE - GAP_Y
-    return {"nodes": nodes, "edges": edges,
-            "width": round(total_w), "height": round(height), "count": len(people)}
+    return {"nodes": nodes, "edges": edges, "width": round(max_cx + CARD_W / 2),
+            "height": round(height), "count": len(people),
+            "me": self_pk, "me_x": round(me_x), "me_y": round(me_y)}

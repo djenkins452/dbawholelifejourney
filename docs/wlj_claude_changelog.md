@@ -43010,3 +43010,17 @@ The taller cover and padded footer are **scoped to the story card** (`.mcard-img
 **Verification:** 189 scoped Legacy tests green (14 new across GEDCOM parse/detect/malformed + auto-detect-wrong-type + genealogy-never-stories + queues-include-genealogy + low-confidence-narrative→unknown + fact-stays-fact). `check` + `makemigrations --check` clean; migration 0013 applied to dev. Rendered a GEDCOM import via the test client: it shows the Genealogy queues with the parsed people (Marvin Jenkins) held "In review", and the Home/Imports/Library pages show no comment leaks.
 
 **Files:** `apps/legacy/services/gedcom_parser.py` (new), `apps/legacy/services/{import_engine.py, import_classifier.py}`, `apps/legacy/models.py` (gedcom kinds + GEDCOM source type + Needs-clarification label), `apps/legacy/forms.py` (.ged accept), `apps/legacy/views.py` (import success message), `apps/legacy/migrations/0013_*`, `apps/legacy/tests/{test_gedcom.py (new), test_import_classification.py}`, `apps/core/fixtures/release_notes.json`.
+
+
+## 2026-07-03 — refine(legacy): Import orchestrator — "Help Legacy understand" + GEDCOM notes to Discovery
+
+**Why:** Refinements to the import orchestrator (no redesign of importer/Discovery/Canonical Truth/GEDCOM; no Beth/CoS). The uncertainty queue should feel like *teaching* Legacy, and GEDCOM's structured facts should stay out of Discovery while its free-text notes flow through it.
+
+**What:**
+- **Renamed the uncertainty queue** from "Needs clarification" to **"Help Legacy understand"** — the user isn't fixing mistakes, they're teaching Legacy. Blurb reframed as guidance ("Tell it what they are and it'll remember"). The per-item chip label softened to "Not sure yet" (`ImportChunk.Kind.UNKNOWN` display; migration 0014).
+- **Unknown is never story (unchanged philosophy, reaffirmed):** genuinely-unidentifiable units stay in *Help Legacy understand*; only a true API-unavailable fallback still defaults to story so imports never break.
+- **GEDCOM mostly bypasses Discovery:** structured INDI/FAM data (names, births, deaths, marriages, children) is parsed deterministically into genealogy queues and never sent to Story Discovery or the AI classifier. A substantial narrative `NOTE`/biography (≥140 chars, reassembled across GEDCOM `CONT`/`CONC`) is now split out as its OWN un-kinded unit that *does* go through classification/Discovery ("Note about <name>") — so a note that's really a story can become one, while the family record stays structured facts. Short notes remain pinned to their record.
+
+**Verification:** 192 scoped Legacy tests green (5 new: narrative-note split into its own unit, short-note stays with record, only-notes-hit-the-classifier while structured GEDCOM bypasses it, plus the queue-label change flows through existing queue tests). `check` + `makemigrations --check` clean; migration 0014 applied to dev.
+
+**Files:** `apps/legacy/services/{gedcom_parser.py, import_engine.py}`, `apps/legacy/models.py`, `apps/legacy/migrations/0014_*`, `apps/legacy/tests/test_gedcom.py`.

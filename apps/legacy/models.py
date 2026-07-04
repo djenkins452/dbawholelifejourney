@@ -654,7 +654,7 @@ class ImportChunk(models.Model):
         DESCRIPTION = 'description', 'Description'
         GEDCOM_PERSON = 'gedcom_person', 'Genealogy person'
         GEDCOM_FAMILY = 'gedcom_family', 'Genealogy family'
-        UNKNOWN = 'unknown', 'Needs clarification'
+        UNKNOWN = 'unknown', 'Not sure yet'
 
     # Kinds that legitimately become a narrative Memory (run through Discovery).
     # Everything else is an entity/fact held in its review queue — never auto-storied.

@@ -58,6 +58,30 @@ def _val(node, tag):
     return c["value"] if c else ""
 
 
+def _full_text(node):
+    """Reassemble a value across GEDCOM CONT (new line) / CONC (concatenation)."""
+    if not node:
+        return ""
+    out = node["value"]
+    for c in node["children"]:
+        if c["tag"] == "CONT":
+            out += "\n" + c["value"]
+        elif c["tag"] == "CONC":
+            out += c["value"]
+    return out.strip()
+
+
+def _notes(node):
+    """All narrative NOTE text on a record, joined."""
+    parts = [_full_text(c) for c in node["children"] if c["tag"] == "NOTE"]
+    return "\n\n".join(p for p in parts if p).strip()
+
+
+# A NOTE longer than this is narrative free-text — it goes through Discovery as its
+# own unit rather than being pinned to the structured record.
+_NOTE_NARRATIVE_MIN = 140
+
+
 def _event(node, tag):
     """A BIRT/DEAT/MARR sub-record → (date, place)."""
     e = _child(node, tag)
@@ -105,6 +129,18 @@ def parse_gedcom(raw):
 
     chunks = []
     idx = 0
+    # Narrative NOTEs are collected as SEPARATE, un-kinded units so they flow
+    # through Discovery (a note may be a story, a fact, a quote). Structured
+    # genealogy stays deterministic and never touches Discovery.
+    note_chunks = []
+
+    def _emit_note(text, about):
+        note_chunks.append({
+            "title": ("Note about %s" % about)[:255],
+            "body": text,
+            "source_ref": "note",
+            # No `kind` → classified as prose, then Discovery where appropriate.
+        })
 
     for rec in indis:
         name = _clean_name(rec)
@@ -116,9 +152,11 @@ def parse_gedcom(raw):
             sex, _when_where(bdate, bplace, "Born"), _when_where(ddate, dplace, "Died")) if x)
         if life:
             lines.append(life)
-        note = _val(rec, "NOTE")
-        if note:
-            lines.append(note)
+        note = _notes(rec)
+        if note and len(note) < _NOTE_NARRATIVE_MIN:
+            lines.append(note)              # short note stays with the structured record
+        elif note:
+            _emit_note(note, name)          # narrative note → its own Discovery unit
         idx += 1
         chunks.append({
             "index": idx, "title": name[:255],
@@ -140,6 +178,11 @@ def parse_gedcom(raw):
             lines.append(marr)
         if children:
             lines.append("Children: " + ", ".join(children))
+        note = _notes(rec)
+        if note and len(note) < _NOTE_NARRATIVE_MIN:
+            lines.append(note)
+        elif note:
+            _emit_note(note, pair)
         idx += 1
         chunks.append({
             "index": idx, "title": pair[:255],
@@ -147,5 +190,11 @@ def parse_gedcom(raw):
             "source_ref": (rec["xref"] or "family").strip("@"),
             "kind": "gedcom_family", "confidence": "high",
         })
+
+    # Append narrative notes after the structured records, renumbering.
+    for nc in note_chunks:
+        idx += 1
+        nc["index"] = idx
+        chunks.append(nc)
 
     return chunks

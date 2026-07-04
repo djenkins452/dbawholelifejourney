@@ -74,6 +74,26 @@ class GedcomParserTests(TestCase):
     def test_malformed_gedcom_does_not_raise(self):
         self.assertEqual(gedcom_parser.parse_gedcom("garbage\nnot gedcom\n"), [])
 
+    def test_narrative_note_split_into_discovery_unit(self):
+        ged = (
+            "0 HEAD\n0 @I1@ INDI\n1 NAME Marvin /Jenkins/\n1 SEX M\n1 BIRT\n2 DATE 1945\n"
+            "1 NOTE Marvin loved to fish. Every summer he would take the whole\n"
+            "2 CONT family to the lake before dawn and we spent the entire day out\n"
+            "2 CONT on the water telling stories and laughing together.\n0 TRLR\n")
+        chunks = gedcom_parser.parse_gedcom(ged)
+        notes = [c for c in chunks if not c.get("kind")]
+        people = [c for c in chunks if c.get("kind") == "gedcom_person"]
+        self.assertEqual(len(notes), 1)                    # note became its own unit
+        self.assertIn("Note about Marvin Jenkins", notes[0]["title"])
+        self.assertIn("loved to fish", notes[0]["body"])
+        self.assertNotIn("loved to fish", people[0]["body"])   # split OUT of the structured record
+
+    def test_short_note_stays_with_record(self):
+        ged = ("0 HEAD\n0 @I1@ INDI\n1 NAME Bo /Kin/\n1 NOTE Nickname was Bo.\n0 TRLR\n")
+        chunks = gedcom_parser.parse_gedcom(ged)
+        self.assertTrue(all(c.get("kind") == "gedcom_person" for c in chunks))
+        self.assertIn("Nickname was Bo.", chunks[0]["body"])
+
 
 class GedcomImportTests(TestCase):
     def setUp(self):
@@ -104,3 +124,21 @@ class GedcomImportTests(TestCase):
         self.assertIn("gedcom_family", queues)
         self.assertEqual(queues["gedcom_person"]["count"], 3)
         self.assertFalse(queues["gedcom_person"]["is_narrative"])
+
+    def test_only_notes_go_through_classifier(self):
+        ged = (
+            "0 HEAD\n0 @I1@ INDI\n1 NAME Marvin /Jenkins/\n1 BIRT\n2 DATE 1945\n"
+            "1 NOTE Marvin loved to fish and would take the whole family to the lake "
+            "every single summer before dawn, and we spent the entire day out on the "
+            "water telling stories and laughing together until the sun went down.\n0 TRLR\n")
+        calls = {"n": 0}
+
+        def classifier(units):
+            calls["n"] += 1
+            return {u["index"]: ("story", "high") for u in units}
+
+        batch = create_batch(self.user, "Tree", "gedcom", ged, classifier=classifier)
+        self.assertEqual(calls["n"], 1)   # classifier ran ONCE, for the note only
+        kinds = set(batch.chunks.values_list("chunk_kind", flat=True))
+        self.assertIn("gedcom_person", kinds)   # structured, bypassed the classifier
+        self.assertIn("story", kinds)           # the note, classified

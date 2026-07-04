@@ -130,7 +130,7 @@ _QUEUE_ORDER = [
     ("description", "Descriptions", "Descriptive passages."),
     ("gedcom_person", "Genealogy — people", "Individuals from your family tree."),
     ("gedcom_family", "Genealogy — families", "Marriages and children from your family tree."),
-    ("unknown", "Needs clarification", "Legacy wasn't sure — nothing here becomes a story until you say so."),
+    ("unknown", "Help Legacy understand", "A few things Legacy wasn't sure about. Tell it what they are and it'll remember — nothing here becomes a story until you do."),
 ]
 
 

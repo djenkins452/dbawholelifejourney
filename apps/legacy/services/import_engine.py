@@ -24,10 +24,11 @@ def _iso_to_date(iso):
         return None
 
 
-def backfill_gedcom_dates(user):
+def backfill_gedcom_dates(user, progress=None):
     """Fill missing full dates (birth/death) onto already-committed genealogy
     people, recovering them from each import chunk's structured data or body text.
     Non-destructive; only sets a date that's currently empty. Returns count updated.
+    `progress(n)` (optional) is called every 100 chunks with the running count.
 
     O(N): the user's people are loaded ONCE into in-memory lookup maps (by
     xref-key and by normalized name), so there is no per-chunk query and no
@@ -46,9 +47,13 @@ def backfill_gedcom_dates(user):
             by_key[(p.source_batch_id, p.gedcom_xref)] = p
 
     changed = {}   # pk -> person (deduped; a person may match several chunks)
+    seen = 0
     for batch in ImportBatch.all_objects.filter(user=user, source_type="gedcom"):
         for ch in batch.chunks.filter(chunk_kind="gedcom_person").only(
                 "data", "body", "chunk_kind", "batch_id"):
+            seen += 1
+            if progress and seen % 100 == 0:
+                progress(seen)
             d = ch.data or {}
             body_b, body_d = dates_from_body(ch.body)
             b_iso = d.get("birth_date") or body_b

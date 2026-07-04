@@ -88,17 +88,39 @@ def _looks_like_question(message):
         "show me", "give me", "remind me", "list "))
 
 
+def _opens_with_feeling(n):
+    """The reply OPENS with affect — a feeling lead ("I'm…", "feeling…") or a feeling
+    word within its first few words. This lets an ELABORATED feeling answer ("I'm
+    feeling good, rested — I know 6.4 isn't my 7 hours, but that's good for me") still
+    read as a check-in reply, while a long UNRELATED statement or request (which does
+    not open with affect) is not trapped as one."""
+    head = " ".join(n.split()[:8])
+    if any(head.startswith(lead) for lead in _FEELING_LEADS):
+        return True
+    padded = f" {head} "
+    return any(f" {w} " in padded for w in _FEELING_WORDS)
+
+
 def _is_plausible_feeling(message):
-    """True only when the message reads as a short AFFECTIVE reply to a check-in.
-    A question, a new subject, or a general-knowledge query is NOT a feeling —
-    it's a pivot that must abandon the check-in (so a failed/interrupted check-in
-    cannot trap an unrelated conversation)."""
+    """True when the message reads as an AFFECTIVE reply to a check-in — INCLUDING an
+    elaborated one. A question, an imperative/new subject, or a general-knowledge query
+    is NOT a feeling — it is a pivot that abandons the check-in (so a failed/interrupted
+    check-in cannot trap an unrelated conversation).
+
+    Root-cause note: length is NOT the test. An honest feeling answer is often long
+    ("I'm feeling good. Rested actually. I know 6.4 isn't my 7 hours, but 6.4 is good
+    for me.") — the old 14-word cap misread that as a subject change and dropped the
+    primary morning happy path to a generic failure. What matters is whether the reply
+    OPENS with affect, not how many words follow."""
     n = _norm(message)
     if not n or _looks_like_question(message):
         return False
-    if len(n.split()) > 14:                    # a long message isn't a terse feeling
-        return False
-    if any(f in n for f in _FEELING_WORDS):
+    # A short reply carrying any affect word is clearly a feeling.
+    if len(n.split()) <= 14 and any(f in n for f in _FEELING_WORDS):
+        return True
+    # A longer reply is a feeling ONLY when it OPENS affectively — so an elaborated
+    # "I'm good, rested, …" counts, but a long request/new subject does not.
+    if _opens_with_feeling(n):
         return True
     return any(n.startswith(lead) for lead in _FEELING_LEADS)
 

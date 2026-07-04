@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — fix(cos): Morning check-in happy path — an elaborated feeling reply reaches the briefing (WI-2)
+
+The primary morning happy path failed. Beth: "Good morning…" → user: "I am feeling good. Rested actually. I know 6.4 isn't my 7 hours, but 6.4 is good for me." → generic failure. Reproduced end-to-end: greeting sets the check-in state, but the reply returned planner handler `route` (not `brief_after_checkin`), so every lane declined → `route_message` returned None → tool-loop generic failure.
+
+Root cause (not a patch): `conversation_planner._is_plausible_feeling` used a 14-word cap as a proxy for "feeling vs pivot." An honest feeling answer is often long and elaborated ("I'm good, rested, 6.4 isn't my 7 but it's good for me") — 19 words — so the cap misread it as a subject change and abandoned the check-in. Length was the wrong test; what matters is whether the reply OPENS with affect.
+
+Fix: recognize an affective OPENING. A short reply with any feeling word stays a feeling; a longer reply is a feeling only when it opens with a feeling lead ("I'm…", "feeling…", "honestly…") or a feeling word in its first few words (`_opens_with_feeling`). A question or an imperative/new-subject request does NOT open affectively, so a pivot still abandons the check-in and is never trapped (protected). `_post_checkin_brief` was already correct, so restoring the classification restores the whole path: greeting → feeling → executive morning briefing.
+
+Certified with the exact production conversation: greeting → "I am feeling good. Rested actually. I know 6.4 isn't my 7 hours, but 6.4 is good for me." now routes to `conversation_brief` ("Got it. Looking at everything together, today is more manageable than it probably feels…"). Regression `apps/ai/tests/test_checkin_happy_path.py` (6): the production message + elaborated feelings of any length recognized, short feelings still recognized, questions/new-subjects/requests remain pivots (not trapped), and the full routed greeting→feeling→brief flow returns a briefing (never None). 16 across check-in + conversation-planning GREEN. No model change, no migration.
+
+**Files:** apps/ai/chatgpt_cos/conversation_planner.py, apps/ai/tests/test_checkin_happy_path.py.
+
+
 ## 2026-07-04 — fix(health): Sleep dashboard context sync — the trend graph follows the history period you're viewing
 
 Dashboard Context Synchronization (not a graph redesign). On the Sleep page the history list and the trend graph could describe DIFFERENT time periods at once: paging history back to May still showed the graph's most-recent-14-days (July). The page presented two truths, and because the graph sits directly above the records, the eye reads it as summarizing those records.

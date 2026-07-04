@@ -1414,6 +1414,47 @@ class RelationshipsView(LegacyContextMixin, TemplateView):
         return ctx
 
 
+class PersonMergeView(LegacyContextMixin, View):
+    """Merge a duplicate person into a surviving person (holistic, irreversible)."""
+
+    template_name = "legacy/merge.html"
+
+    def _others(self, request, person):
+        return [
+            {"id": p.pk, "name": p.display_name,
+             "meta": (("%s–%s" % (p.birth_year or "", p.death_year or ""))
+                      if (p.birth_year or p.death_year) else ""),
+             "text": ("%s %s" % (p.display_name, p.also_known_as or "")).lower()}
+            for p in Person.objects.filter(user=request.user).exclude(pk=person.pk)
+            .only("pk", "display_name", "also_known_as", "birth_year", "death_year")
+        ]
+
+    def get(self, request, pk, *args, **kwargs):
+        from django.shortcuts import render
+        person = get_object_or_404(Person.all_objects, pk=pk, user=request.user)
+        return render(request, self.template_name, {
+            "person": person, "others": self._others(request, person),
+            "nav_active": "people"})
+
+    def post(self, request, pk, *args, **kwargs):
+        from apps.legacy.services.person_merge import merge_people
+        loser = get_object_or_404(Person.all_objects, pk=pk, user=request.user)
+        into = request.POST.get("into")
+        winner = get_object_or_404(Person.all_objects, pk=into, user=request.user) if into else None
+        if winner is None:
+            messages.error(request, "Choose the person to merge into.")
+            return redirect("legacy:person_merge", pk=loser.pk)
+        name = loser.display_name
+        try:
+            merge_people(request.user, loser=loser, winner=winner)
+        except ValueError as e:
+            messages.error(request, str(e))
+            return redirect("legacy:person_merge", pk=loser.pk)
+        messages.success(
+            request, f"Merged {name} into {winner.display_name}. Everything now lives on one person.")
+        return redirect("legacy:person_detail", pk=winner.pk)
+
+
 class PersonSetSelfView(LegacyContextMixin, View):
     """Mark a person as the keeper (the 'me' / home node in the Family tree)."""
 

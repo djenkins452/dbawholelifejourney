@@ -26,6 +26,7 @@
                 {% else %}
                 <form method="post" action="{% url 'legacy:person_set_self' person.pk %}" class="m-action-form">{% csrf_token %}<button type="submit" class="lg-btn-ghost">This is me</button></form>
                 {% endif %}
+                <a href="{% url 'legacy:person_merge' person.pk %}" class="lg-btn-ghost">Merge with existing person</a>
                 {% if person.status == 'active' %}
                 <form method="post" action="{% url 'legacy:person_archive' person.pk %}" class="m-action-form">{% csrf_token %}<button type="submit" class="lg-btn-ghost">Set aside</button></form>
                 {% else %}

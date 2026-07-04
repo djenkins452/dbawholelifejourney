@@ -1,0 +1,85 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="lib merge-page">
+    <a href="{% url 'legacy:person_detail' person.pk %}" class="editor-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M15 18l-6-6 6-6"/></svg>
+        {{ person.display_name }}
+    </a>
+
+    <div class="lib-head">
+        <div>
+            <h1 class="lib-title">Merge {{ person.display_name }}</h1>
+            <p class="lib-sub">If this is the same person as someone else in your Legacy, merge them into one. Everything — stories, photos, media, places, relationships, milestones, quotes, and aliases — moves to the person you choose, and this record is removed.</p>
+        </div>
+    </div>
+
+    <form method="post" id="mergeForm" class="merge-form">
+        {% csrf_token %}
+        <input type="hidden" name="into" id="mergeInto">
+
+        <div class="merge-picker" id="mergePicker">
+            <label class="merge-label">Which person is {{ person.display_name }} a duplicate of?</label>
+            <div class="fam-search merge-search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="search" id="mergeSearch" class="fam-search-in" placeholder="Search for the surviving person…" autocomplete="off">
+            </div>
+            <div class="merge-results" id="mergeResults"></div>
+        </div>
+
+        <div class="merge-confirm lg-card" id="mergeConfirm" hidden>
+            <p class="merge-confirm-q">Merge <strong>{{ person.display_name }}</strong> into <strong id="mergeChosenName"></strong>?</p>
+            <p class="merge-confirm-note">Everything from {{ person.display_name }} moves to <span id="mergeChosenName2"></span>. {{ person.display_name }} will be permanently removed. This can't be undone.</p>
+            <div class="merge-confirm-actions">
+                <button type="submit" class="lg-btn-primary">Merge them into one person</button>
+                <button type="button" class="lg-btn-quiet" id="mergeCancel">Choose someone else</button>
+            </div>
+        </div>
+    </form>
+
+    {{ others|json_script:"mergePeople" }}
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function () {
+    var input = document.getElementById('mergeSearch');
+    var results = document.getElementById('mergeResults');
+    var into = document.getElementById('mergeInto');
+    var picker = document.getElementById('mergePicker');
+    var confirm = document.getElementById('mergeConfirm');
+    var chosen1 = document.getElementById('mergeChosenName');
+    var chosen2 = document.getElementById('mergeChosenName2');
+    var cancel = document.getElementById('mergeCancel');
+    if (!input) { return; }
+    var data = [];
+    try { data = JSON.parse(document.getElementById('mergePeople').textContent) || []; } catch (e) {}
+
+    function render(q) {
+        results.innerHTML = '';
+        if (!q) { return; }
+        var hits = [];
+        for (var i = 0; i < data.length && hits.length < 20; i++) {
+            if (data[i].text.indexOf(q) > -1) { hits.push(data[i]); }
+        }
+        if (!hits.length) { results.innerHTML = '<div class="merge-result-none">No one matches.</div>'; return; }
+        hits.forEach(function (r) {
+            var b = document.createElement('button');
+            b.type = 'button'; b.className = 'merge-result';
+            b.innerHTML = '<span class="merge-result-name"></span><span class="merge-result-meta"></span>';
+            b.querySelector('.merge-result-name').textContent = r.name;
+            b.querySelector('.merge-result-meta').textContent = r.meta;
+            b.addEventListener('click', function () {
+                into.value = r.id;
+                chosen1.textContent = r.name; chosen2.textContent = r.name;
+                picker.hidden = true; confirm.hidden = false;
+            });
+            results.appendChild(b);
+        });
+    }
+    input.addEventListener('input', function () { render(input.value.trim().toLowerCase()); });
+    cancel.addEventListener('click', function () {
+        into.value = ''; confirm.hidden = true; picker.hidden = false; input.value = ''; results.innerHTML = '';
+    });
+})();
+</script>
+{% endblock %}

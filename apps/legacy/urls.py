@@ -29,6 +29,7 @@ urlpatterns = [
     path("import/<int:pk>/commit-genealogy/", views.GenealogyCommitView.as_view(), name="import_commit_genealogy"),
     path("family/", views.FamilyView.as_view(), name="family"),
     path("people/<int:pk>/this-is-me/", views.PersonSetSelfView.as_view(), name="person_set_self"),
+    path("people/<int:pk>/merge/", views.PersonMergeView.as_view(), name="person_merge"),
     # Memory Library + Editor (Slice 2)
     path("memories/", views.LibraryView.as_view(), name="library"),
     path("memories/new/", views.EditorView.as_view(), name="editor_new"),

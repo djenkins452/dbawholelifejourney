@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 231,
+    "fields": {
+      "title": "Merge duplicate people into one",
+      "description": "If the same person shows up twice in your Legacy — say \"Marvin Jenkins\" and \"Marvin Lynn Jenkins\" — you can now merge them. Open a person's profile, choose \"Merge with existing person,\" and pick who they really are. Everything moves to the surviving person: their stories, photos, media, places, relationships, milestones, quotes, and aliases. The duplicate disappears, nothing is left behind, and the old name still works in search.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-07-04",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-04T04:00:00Z",
+      "updated_at": "2026-07-04T04:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 230,
     "fields": {
       "title": "People opens on the family closest to you",

@@ -1085,3 +1085,19 @@ a.fam-result { text-decoration: none; }
 .pager-btn:hover { background: var(--lg-surface-2); }
 .pager-btn.is-off { color: var(--lg-muted); opacity: .5; pointer-events: none; }
 .pager-info { font-size: 13px; color: var(--lg-muted); }
+
+/* Person merge */
+.merge-page { max-width: 640px; }
+.merge-form { margin-top: 6px; }
+.merge-label { display: block; font-size: 13px; font-weight: 600; color: var(--lg-ink); margin-bottom: 8px; }
+.merge-search { margin-bottom: 4px; }
+.merge-results { display: flex; flex-direction: column; gap: 3px; max-height: 340px; overflow-y: auto; }
+.merge-result { display: flex; flex-direction: column; align-items: flex-start; width: 100%; text-align: left; border: 1px solid var(--lg-border); background: var(--lg-surface); border-radius: 10px; padding: 9px 12px; cursor: pointer; }
+.merge-result:hover { background: var(--lg-surface-2); border-color: var(--lg-border-strong, #d8cbb0); }
+.merge-result-name { font-size: 14px; font-weight: 600; color: var(--lg-ink); }
+.merge-result-meta { font-size: 11.5px; color: var(--lg-muted); }
+.merge-result-none { font-size: 13px; color: var(--lg-muted); font-style: italic; padding: 10px; }
+.merge-confirm { margin-top: 14px; }
+.merge-confirm-q { font-family: var(--lg-serif); font-size: 17px; color: var(--lg-ink); margin: 0 0 6px; }
+.merge-confirm-note { font-size: 13px; color: var(--lg-ink-soft); margin: 0 0 14px; }
+.merge-confirm-actions { display: flex; gap: 10px; flex-wrap: wrap; }

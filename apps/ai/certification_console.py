@@ -67,6 +67,30 @@ def _daily_wrapup(user, force=False):
     return {"ok": bool(text), "summary": "Daily wrap-up / agenda generated.", "preview": text}
 
 
+def _rebuild_executive_interpretation(user, force=False):
+    """REAL path: the executive interpretation engine (interpret → ExecutiveSignals).
+    Read-only; shows the raw executive read the brief narrates."""
+    from apps.ai.chatgpt_cos.executive_interpretation import interpret
+    sig = interpret(user)
+    preview = (
+        f"Headline: {sig.headline}\n"
+        f"Workload: {sig.workload} — {sig.workload_summary}\n"
+        f"Primary challenge: {sig.primary_challenge}\n"
+        f"Disposition: {sig.disposition or '—'}\n"
+        f"Highest leverage: {sig.highest_leverage or '—'}\n"
+        f"Reconciliation: {sig.reconciliation or '—'}")
+    return {"ok": True, "summary": "Executive interpretation rebuilt.", "preview": preview}
+
+
+def _refresh_standing_context(user, force=False):
+    """REAL path: the post-save intelligence chain (fire_intelligence) — SAE state
+    update → PIE insights → PRIE predictions. Idempotent; no outward-facing effect."""
+    from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
+    fire_intelligence(user, "health")
+    return {"ok": True,
+            "summary": "Standing context refreshed (SAE state + insights re-run)."}
+
+
 # Ordered registry. Each entry's `run(user, force)` calls a production path and returns
 # {ok, summary, preview?, message_id?, buttons?}. UI + command both iterate this.
 ACTIONS = {
@@ -91,6 +115,23 @@ ACTIONS = {
         "desc": "The deterministic end-of-day agenda / wrap-up.",
         "run": _daily_wrapup, "creates_message": False,
     },
+    "rebuild_executive_interpretation": {
+        "label": "Rebuild Executive Interpretation",
+        "desc": "Re-run the executive interpretation engine and show the raw read "
+                "(headline, workload, challenge, disposition) the brief narrates.",
+        "run": _rebuild_executive_interpretation, "creates_message": False,
+    },
+    "refresh_standing_context": {
+        "label": "Refresh Standing Context",
+        "desc": "Re-run the intelligence chain (SAE state → insights → predictions) so "
+                "Beth reads fresh context. No outward-facing effect.",
+        "run": _refresh_standing_context, "creates_message": False,
+    },
+    # DEFERRED (need a safe/dry-run mode before they become one-click buttons):
+    #   • Evening Wrap-up — time-window routing + daily dedup internals.
+    #   • Significant Event Review — react_to_significant_event NOTIFIES (push) and
+    #     persists a MAJOR_WIN into the real strategic layer (outward-facing; would
+    #     pollute real data). Keep it out of a one-click surface until it has a dry run.
 }
 
 

@@ -6,6 +6,15 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — feat(dev): Certification Console — add Rebuild Executive Interpretation + Refresh Standing Context
+
+Advanced the Executive Certification Console toward the stated roadmap by registering two more REAL production paths (same shared registry; the template renders new buttons automatically): **Rebuild Executive Interpretation** (`executive_interpretation.interpret` → shows the raw executive read — headline, workload, challenge, disposition, reconciliation — the brief narrates; read-only) and **Refresh Standing Context** (`intelligence_hook.fire_intelligence` → SAE state → PIE insights → PRIE predictions; idempotent, no outward-facing effect). Both verified running for a fresh user via the existing `test_every_registered_action_runs_the_real_path`.
+
+Deliberately DEFERRED (documented in the registry) until they have a safe/dry-run mode: **Evening Wrap-up** (time-window routing + daily dedup internals) and **Significant Event Review** (`react_to_significant_event` NOTIFIES via push and persists a MAJOR_WIN into the real strategic layer — outward-facing, would pollute real data; not safe as a one-click button yet). No model change, no migration.
+
+**Files:** apps/ai/certification_console.py.
+
+
 ## 2026-07-04 — feat(dev): in-app Executive Certification Console — trigger production behaviors from the app
 
 The management command is good for automation but assumes shell/SSH access — the product owner performing Executive Certification interacts with the app, not the Django server. Built a developer-only testing surface INSIDE WLJ so Beth's production behaviors can be generated and validated without the shell. The management command remains; both now call ONE shared implementation.

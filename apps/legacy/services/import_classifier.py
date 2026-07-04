@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 _KINDS = [
     "story", "journal_entry", "letter", "fact", "person", "relationship_alias",
     "place", "milestone", "timeline_event", "quote", "artifact", "media_ref",
-    "biography", "description", "unknown",
+    "biography", "description", "gedcom_person", "gedcom_family", "unknown",
 ]
 
 SYSTEM_PROMPT = """You triage a personal document being imported into a life-\
@@ -50,7 +50,9 @@ Classify each unit as exactly one of:
 
 Judge by what the text IS, not by its topic. A single document legitimately contains \
 many different kinds. When a unit is a plain fact (a date, a name, a pet, a statistic), \
-classify it as "fact", never "story".
+classify it as "fact", never "story". When you genuinely cannot tell what a unit is, \
+return "unknown" with low confidence — NEVER default an uncertain unit to "story". \
+Forcing uncertain content into stories pollutes the record.
 
 Return ONLY JSON: {"classifications": [{"index": <int>, "kind": "<one kind>", "confidence": "high|medium|low"}]}"""
 
@@ -136,6 +138,8 @@ def classify_chunks(units, classifier=None, batch_size=40):
 
     valid = set(_KINDS)
 
+    narrative = {"story", "journal_entry", "letter"}
+
     def _clean(pair):
         kind, conf = (pair or ("story", ""))
         kind = str(kind or "").strip().lower()
@@ -144,6 +148,10 @@ def classify_chunks(units, classifier=None, batch_size=40):
         conf = str(conf or "").strip().lower()
         if conf not in ("high", "medium", "low"):
             conf = ""
+        # Unknown is NOT story: never force an uncertain unit into the Story queue.
+        # A low-confidence narrative goes to Needs Clarification instead.
+        if kind in narrative and conf == "low":
+            kind = "unknown"
         return (kind, conf)
 
     result = {}

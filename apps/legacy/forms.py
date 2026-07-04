@@ -97,7 +97,7 @@ class ImportForm(forms.Form):
         required=False,
         widget=forms.ClearableFileInput(attrs={
             "class": "editor-media-input",
-            "accept": ".txt,.md,.markdown,.doc,.docx,.pdf,text/plain,text/markdown"}))
+            "accept": ".txt,.md,.markdown,.doc,.docx,.pdf,.ged,.gedcom,text/plain,text/markdown"}))
     paste = forms.CharField(
         required=False,
         widget=forms.Textarea(attrs={

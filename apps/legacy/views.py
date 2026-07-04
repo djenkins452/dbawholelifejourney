@@ -1256,7 +1256,11 @@ class ImportCreateView(LegacyContextMixin, View):
             messages.error(request, str(e))
             return render(request, self.template_name, {"form": form, "nav_active": "studio"})
 
-        messages.success(request, f"Parsed into {batch.total_chunks} stories. Review below, then import a few to verify.")
+        messages.success(
+            request,
+            f"Legacy read this and understood {batch.total_chunks} "
+            f"{'piece' if batch.total_chunks == 1 else 'pieces'} of information. "
+            "They're sorted into review queues below — nothing enters your Legacy until you review it.")
         return redirect("legacy:import_detail", pk=batch.pk)
 
 

@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 225,
+    "fields": {
+      "title": "Import your family tree (GEDCOM) — kept as genealogy, not stories",
+      "description": "You can now bring a family-tree file (GEDCOM, the standard genealogy export) into Legacy. Legacy recognizes it automatically and reads the people and families straight into dedicated genealogy review queues — with names, births, deaths, marriages and children preserved as structured records, never mashed into stories. As always, nothing enters your Legacy until you review it. And when Legacy isn't sure what a piece of a document is, it now sets it aside as 'Needs clarification' instead of guessing it's a story.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-07-03",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-03T23:00:00Z",
+      "updated_at": "2026-07-03T23:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 224,
     "fields": {
       "title": "Import understands your whole document, not just stories",

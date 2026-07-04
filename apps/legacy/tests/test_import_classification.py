@@ -55,6 +55,17 @@ class ClassifierTests(TestCase):
         out = classify_chunks(units, classifier=lambda u: {0: ("banana", "high")})
         self.assertEqual(out[0][0], "unknown")
 
+    def test_low_confidence_narrative_needs_clarification(self):
+        # "Unknown is not story": an uncertain narrative must not silently be a story.
+        out = classify_chunks([{"index": 0, "title": "", "body": "x"}],
+                              classifier=lambda u: {0: ("story", "low")})
+        self.assertEqual(out[0][0], "unknown")
+
+    def test_low_confidence_fact_stays_fact(self):
+        out = classify_chunks([{"index": 0, "title": "", "body": "x"}],
+                              classifier=lambda u: {0: ("fact", "low")})
+        self.assertEqual(out[0][0], "fact")
+
 
 class CreateBatchClassifyTests(TestCase):
     def setUp(self):

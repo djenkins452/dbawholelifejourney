@@ -594,6 +594,7 @@ class ImportBatch(LegacyOwnedModel):
         JOURNAL = 'journal', 'Journal'
         MEMOIR = 'memoir', 'Existing memoir'
         PLAIN_TEXT = 'plain_text', 'Plain text'
+        GEDCOM = 'gedcom', 'Genealogy (GEDCOM)'
         OTHER = 'other', 'Other'
 
     class Status(models.TextChoices):
@@ -651,7 +652,9 @@ class ImportChunk(models.Model):
         MEDIA_REF = 'media_ref', 'Media reference'
         BIOGRAPHY = 'biography', 'Biography'
         DESCRIPTION = 'description', 'Description'
-        UNKNOWN = 'unknown', 'Unknown'
+        GEDCOM_PERSON = 'gedcom_person', 'Genealogy person'
+        GEDCOM_FAMILY = 'gedcom_family', 'Genealogy family'
+        UNKNOWN = 'unknown', 'Needs clarification'
 
     # Kinds that legitimately become a narrative Memory (run through Discovery).
     # Everything else is an entity/fact held in its review queue — never auto-storied.

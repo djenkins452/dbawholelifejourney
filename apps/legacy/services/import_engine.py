@@ -22,14 +22,29 @@ def create_batch(user, source_name, source_type, raw_text, classifier=None):
     before anything is imported. Imports nothing. `classifier` is injectable for
     tests (defaults to the OpenAI classification call, which fails safe to story)."""
     from apps.legacy.models import ImportBatch, ImportChunk
-    from apps.legacy.services import import_classifier
+    from apps.legacy.services import gedcom_parser, import_classifier
 
-    adapter = get_adapter(source_type)
-    segments = adapter(raw_text or "")
-    chunks = chunk(segments)
+    # ONE importer, auto-routing: a genealogy file is recognized even if the user
+    # didn't say so — they just gave Legacy "their life".
+    if source_type != "gedcom" and gedcom_parser.looks_like_gedcom(raw_text):
+        source_type = "gedcom"
 
-    # Classification precedes extraction — the orchestrator's first act.
-    kinds = import_classifier.classify_chunks(chunks, classifier=classifier)
+    if source_type == "gedcom":
+        # Structured knowledge → parsed straight into pre-classified genealogy
+        # chunks. Never flattened into stories, never sent to the AI classifier.
+        chunks = gedcom_parser.parse_gedcom(raw_text or "")
+    else:
+        adapter = get_adapter(source_type)
+        segments = adapter(raw_text or "")
+        chunks = chunk(segments)
+
+    # Classification precedes extraction. Chunks a structured parser already
+    # classified keep their kind; only prose units go to the AI classifier.
+    to_classify = [c for c in chunks if not c.get("kind")]
+    kinds = import_classifier.classify_chunks(to_classify, classifier=classifier)
+    for c in chunks:
+        if c.get("kind"):
+            kinds[c["index"]] = (c["kind"], c.get("confidence", "high"))
 
     batch = ImportBatch.objects.create(
         user=user,
@@ -113,7 +128,9 @@ _QUEUE_ORDER = [
     ("media_ref", "Media references", "Mentions of photos, video, or audio."),
     ("biography", "Biographies", "Longer accounts of a person's life."),
     ("description", "Descriptions", "Descriptive passages."),
-    ("unknown", "Unsorted", "Legacy wasn't sure — you decide."),
+    ("gedcom_person", "Genealogy — people", "Individuals from your family tree."),
+    ("gedcom_family", "Genealogy — families", "Marriages and children from your family tree."),
+    ("unknown", "Needs clarification", "Legacy wasn't sure — nothing here becomes a story until you say so."),
 ]
 
 

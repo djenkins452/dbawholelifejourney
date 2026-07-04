@@ -109,5 +109,15 @@ def answer(user, message, conversation=None):
     if sig is None:
         return None
     record(user, sig.label)
+    # The same report often carries a subjective read ("I was FULL OF ENERGY and made
+    # up …") — record it into the one picture too, so every consumer reflects it.
+    try:
+        from apps.ai.chatgpt_cos.executive_interpretation import classify_subjective_energy
+        from apps.ai.chatgpt_cos.executive_evidence import record_subjective
+        polarity = classify_subjective_energy(message)
+        if polarity:
+            record_subjective(user, polarity)
+    except Exception:
+        pass
     return {"answer": _compose(sig), "tools_called": [], "tools_advertised": [],
             "lane": "accomplishment", "accomplishment": sig.label}

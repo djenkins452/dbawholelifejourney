@@ -6,6 +6,15 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — fix(cos): the LLM conversation path now sees today's reported evidence (root cause)
+
+Production contradicted the architecture proof: the merge reached only the deterministic composers (compose_executive_brief, decision_support) via interpret()->ExecutiveSignals. The path that talks to Danny is the LLM, whose context is cos_context (SAE + engine outputs). It never calls interpret(), never gets ExecutiveSignals, never read executive_evidence — so reported evidence was invisible to it.
+
+Fix (no redesign, no second brain): surface the SAME executive_evidence into the LLM context. format_cos_system_injection now renders a labeled "TODAY'S REPORTED EVIDENCE" block read LIVE from executive_evidence.today(user) — NOT the cached context dict (normal turns reuse a readiness-cached cos_context; a builder field would be stale), matching the existing medication-guard live-read pattern. The block gives today's subjective + accomplishments and instructs the model to trust the lived experience, reason from the accomplishments, and own the miss if challenged. Accomplishment lane also records the subjective carried in the same message; classifier learned "full of energy". Certified against the ACTUAL routed path. Regression apps/ai/tests/test_llm_reported_evidence.py (3). 43 GREEN. No migration.
+
+**Files:** apps/core/ai_orchestrator/cos_context.py, apps/ai/chatgpt_cos/accomplishment.py, apps/ai/chatgpt_cos/executive_interpretation.py, apps/ai/tests/test_llm_reported_evidence.py (new).
+
+
 ## 2026-07-04 — refactor(legacy): Clarification engine — Legacy preserves evidence, the user resolves ambiguity (D1)
 
 Simplified the marriage model per the principle **Legacy preserves facts; the user resolves ambiguity — Legacy never infers truth.** Removed "Likely" as a Canonical-Truth / user-facing state. Marriage status is now exactly two things:

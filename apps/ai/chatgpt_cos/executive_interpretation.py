@@ -63,7 +63,9 @@ _POSITIVE_ENERGY = (
     "refreshed", "rested", "energized", "energetic", "good", "great", "fantastic",
     "wonderful", "ready", "strong", "solid", "recharged", "clear headed",
     "clear-headed", "sharp", "alert", "fresh", "well rested", "feel fine", "feeling fine",
-    "feel good", "feeling good", "feel great", "on top of it",
+    "feel good", "feeling good", "feel great", "on top of it", "full of energy",
+    "lots of energy", "so much energy", "tons of energy", "felt great", "felt good",
+    "plenty of energy",
 )
 _NEGATIVE_ENERGY = (
     "tired", "exhausted", "drained", "wiped", "rough", "worn out", "worn-out",

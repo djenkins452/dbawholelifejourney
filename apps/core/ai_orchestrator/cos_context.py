@@ -6263,6 +6263,48 @@ def format_cos_system_injection(context, user_message=None):
         logger.debug("CoS standing-read section failed", exc_info=True)
 
     # ══════════════════════════════════════════════════════════════
+    # TODAY'S REPORTED EVIDENCE — what Danny told Beth TODAY (subjective state,
+    # accomplishments). This is the SAME evidence the deterministic composers see via
+    # interpret(); surfaced here so the CONVERSATIONAL (LLM) path reflects the same
+    # evolving executive picture. Read LIVE (like the medication guard above), NOT from
+    # the possibly-cached context dict, so it is fresh on every turn.
+    # ══════════════════════════════════════════════════════════════
+    _ev_user = context.get('_user')
+    if _ev_user is not None:
+        try:
+            from apps.ai.chatgpt_cos.executive_evidence import today as _reported_today
+            _reported = _reported_today(_ev_user)
+        except Exception:
+            _reported = {}
+        context['today_reported_evidence'] = _reported   # labeled block on the context
+        _subj = _reported.get('subjective')
+        _accs = _reported.get('accomplishments') or []
+        if _subj or _accs:
+            _ev = ["TODAY'S REPORTED EVIDENCE (what Danny told you TODAY — treat as "
+                   "current truth; it has ALREADY updated today's executive picture):"]
+            if _subj == 'positive':
+                _ev.append(
+                    "• Danny reported feeling GOOD / refreshed today — trust this lived "
+                    "experience over the raw sleep number; do NOT frame today as an "
+                    "energy-management day unless NEW evidence says otherwise.")
+            elif _subj == 'negative':
+                _ev.append(
+                    "• Danny reported feeling LOW / drained today — energy is a real "
+                    "constraint today; factor it in.")
+            if _accs:
+                _ev.append(
+                    "• Already accomplished today: " + "; ".join(_accs) + ". Danny is "
+                    "AHEAD of plan — this earns recovery latitude. Reason from it; do "
+                    "not make him re-tell you, and do not treat it as merely a workout "
+                    "fact to look up.")
+            _ev.append(
+                "If your answer contradicts or forgets this evidence, you have missed "
+                "something Danny already told you today — acknowledge and OWN it if he "
+                "challenges you.")
+            lines.append("\n".join(_ev))
+            lines.append("")
+
+    # ══════════════════════════════════════════════════════════════
     # SECTION 0: PHASE 4 DECISION RULES (HARD CONTRACT)
     # These instructions govern HOW the LLM constructs every response.
     # They are not preferences. They are not guidance. They are the

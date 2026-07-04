@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — feat(dev): in-app Executive Certification Console — trigger production behaviors from the app
+
+The management command is good for automation but assumes shell/SSH access — the product owner performing Executive Certification interacts with the app, not the Django server. Built a developer-only testing surface INSIDE WLJ so Beth's production behaviors can be generated and validated without the shell. The management command remains; both now call ONE shared implementation.
+
+- **Shared implementation** `apps/ai/certification_console.py` — an ordered `ACTIONS` registry where each action's `run(user, force)` invokes a REAL production path (no duplicated business logic, no alternate implementations): Generate Proactive Guidance (`ProactiveCheckInService.generate_cdce_correlation_check_in` — the card with the Tell me more / How to use this / Got it buttons, created in the user's chat), Generate Morning Check-in (`lanes._morning_checkin`), Generate Executive Brief (`compose_executive_brief`), Generate Daily Wrap-up (`build_daily_agenda`). `run_action` never raises; returns a display dict. Add actions by registering another production entry point — this is the seed of the Executive Certification Console (the manual counterpart to the automated Acceptance Center).
+- **Refactor**: `trigger_proactive_checkin` management command now calls `certification_console.run_action(user, "proactive_guidance", force=...)` — same shared path, no duplicated logic.
+- **In-app console**: staff-gated `ExecutiveCertificationConsoleView` at `/assistant/dev/certification/` (GET renders the action buttons; POST runs an action via the shared service). Template `ai/certification_console.html` with a Force toggle and a result/preview panel; CSP-compliant (nonce script, `data-action` delegation, no inline handlers). A staff-only "Certification" link added to the System area of the nav. Never shown to normal users (403 for non-staff on GET and POST).
+
+Regression `apps/ai/tests/test_certification_console.py` (7): every registered action runs its real path, proactive guidance creates a card with the buttons, briefing actions return preview text, the management command drives the SAME `run_action` (proving one shared path), and the view is staff-gated (non-staff 403; staff 200 + runs). 11 GREEN with the guidance-card suite. No model change, no migration. Engineering Certification validates the implementation; Executive Certification validates the Chief of Staff.
+
+**Files:** apps/ai/certification_console.py (new), apps/ai/management/commands/trigger_proactive_checkin.py, apps/ai/views.py, apps/ai/urls.py, templates/ai/certification_console.html (new), templates/components/navigation.html, apps/ai/tests/test_certification_console.py (new).
+
+
 ## 2026-07-04 — feat(cos): Listening & Evidence Reconciliation — the user's own report is evidence (Layer 2)
 
 Production failure: Beth "You slept about 6.4 hours." → user "I am feeling good. 6.4 hours of sleep is good for me and I am feeling refreshed." → Beth "The bigger challenge today is your energy." The facts weren't wrong — Beth IGNORED what the user told her. A Chief of Staff receives two sources of truth (objective: 6.4h; subjective: "I feel refreshed") and RECONCILES them; the user's report is evidence that should shape the recommendation.

@@ -117,6 +117,19 @@
                 </li>
                 {% endif %}
 
+                <!-- Executive Certification Console (developer-only) -->
+                {% if user.is_staff %}
+                <li>
+                    <a href="{% url 'ai:certification_console' %}" class="nav-link {% if request.resolver_match.url_name == 'certification_console' %}active{% endif %}">
+                        <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 11l3 3L22 4"/>
+                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                        </svg>
+                        <span>Certification</span>
+                    </a>
+                </li>
+                {% endif %}
+
                 <!-- Capture - Audio recording and transcription -->
                 {% if capture_enabled %}
                 <li>

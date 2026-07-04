@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% comment %}
+DEVELOPER-ONLY Executive Certification Console. Each button triggers the REAL
+production generation path via the shared apps.ai.certification_console — the manual
+counterpart to the automated Acceptance Center. Staff-gated at the view.
+{% endcomment %}
+{% block title %}Executive Certification Console - WLJ{% endblock %}
+
+{% block content %}
+<div class="ec-console">
+    <header class="ec-header">
+        <h1>Executive Certification Console</h1>
+        <p class="ec-sub">Developer-only. Each action runs the real production pipeline —
+            the same code the scheduler, a greeting, or an event would execute — so you can
+            validate the Chief of Staff without the shell.</p>
+        <label class="ec-force">
+            <input type="checkbox" id="ec-force" checked>
+            Force (bypass cadence throttle &amp; prior dismissal)
+        </label>
+    </header>
+
+    <div class="ec-actions">
+        {% for key, label, desc, creates_message in actions %}
+        <div class="ec-card">
+            <div class="ec-card-text">
+                <span class="ec-card-title">{{ label }}</span>
+                <span class="ec-card-desc">{{ desc }}</span>
+            </div>
+            <button type="button" class="ec-run-btn" data-action="ec-run" data-key="{{ key }}"
+                    {% if creates_message %}data-creates-message="1"{% endif %}>Generate</button>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="ec-result" id="ec-result" hidden>
+        <div class="ec-result-summary" id="ec-result-summary"></div>
+        <pre class="ec-result-preview" id="ec-result-preview"></pre>
+    </div>
+</div>
+
+{% csrf_token %}
+
+<style nonce="{{ csp_nonce }}">
+    .ec-console { max-width: 820px; margin: 0 auto; padding: var(--space-4, 16px); }
+    .ec-header h1 { margin: 0 0 6px; font-size: 1.5rem; }
+    .ec-sub { color: var(--color-text-secondary, #6b7280); margin: 0 0 12px; }
+    .ec-force { display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem;
+        color: var(--color-text-secondary, #6b7280); margin-bottom: 16px; }
+    .ec-actions { display: flex; flex-direction: column; gap: 10px; }
+    .ec-card { display: flex; align-items: center; justify-content: space-between; gap: 16px;
+        background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e7eb);
+        border-radius: var(--radius-lg, 12px); padding: 14px 16px; }
+    .ec-card-text { display: flex; flex-direction: column; gap: 3px; }
+    .ec-card-title { font-weight: 600; }
+    .ec-card-desc { font-size: 0.85rem; color: var(--color-text-secondary, #6b7280); }
+    .ec-run-btn { flex: 0 0 auto; min-height: 44px; padding: 8px 18px; border: none;
+        border-radius: 8px; background: var(--color-primary, #2563eb); color: #fff;
+        font-weight: 600; cursor: pointer; }
+    .ec-run-btn:disabled { opacity: 0.6; cursor: default; }
+    .ec-result { margin-top: 18px; background: var(--color-surface, #fff);
+        border: 1px solid var(--color-border, #e5e7eb); border-radius: 12px; padding: 14px 16px; }
+    .ec-result-summary { font-weight: 600; margin-bottom: 8px; }
+    .ec-result-summary.err { color: #b91c1c; }
+    .ec-result-preview { white-space: pre-wrap; word-break: break-word; margin: 0;
+        font-family: inherit; font-size: 0.92rem; color: var(--color-text, #111827); }
+    @media (max-width: 480px) { .ec-card { flex-direction: column; align-items: stretch; }
+        .ec-run-btn { width: 100%; } }
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function () {
+    function csrf() {
+        var el = document.querySelector('input[name=csrfmiddlewaretoken]');
+        return el ? el.value : '';
+    }
+    var resultBox = document.getElementById('ec-result');
+    var summaryEl = document.getElementById('ec-result-summary');
+    var previewEl = document.getElementById('ec-result-preview');
+
+    function run(btn) {
+        var key = btn.dataset.key;
+        var force = document.getElementById('ec-force').checked;
+        var original = btn.textContent;
+        btn.disabled = true; btn.textContent = 'Generating…';
+        fetch('{% url "ai:certification_console" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+            body: JSON.stringify({ action: key, force: force })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            resultBox.hidden = false;
+            summaryEl.textContent = data.summary || (data.ok ? 'Done.' : 'Failed.');
+            summaryEl.className = 'ec-result-summary' + (data.ok ? '' : ' err');
+            var preview = data.preview || '';
+            if (data.buttons && data.buttons.length) {
+                preview += '\n\nButtons: ' + data.buttons.join('  •  ');
+            }
+            if (data.message_id) {
+                preview += '\n\n(Created in your chat — open the assistant panel to interact.)';
+            }
+            previewEl.textContent = preview;
+        })
+        .catch(function () {
+            resultBox.hidden = false;
+            summaryEl.textContent = 'Request failed.';
+            summaryEl.className = 'ec-result-summary err';
+            previewEl.textContent = '';
+        })
+        .finally(function () { btn.disabled = false; btn.textContent = original; });
+    }
+
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-action="ec-run"]');
+        if (btn) run(btn);
+    });
+})();
+</script>
+{% endblock %}

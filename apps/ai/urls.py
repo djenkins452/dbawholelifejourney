@@ -17,6 +17,10 @@ urlpatterns = [
     # Assistant Dashboard Page
     path('', views.AssistantDashboardView.as_view(), name='dashboard'),
 
+    # Executive Certification Console (DEVELOPER-ONLY, staff-gated)
+    path('dev/certification/', views.ExecutiveCertificationConsoleView.as_view(),
+         name='certification_console'),
+
     # Opening Message / Daily Check-in
     path('api/opening/', views.AssistantOpeningView.as_view(), name='api_opening'),
 

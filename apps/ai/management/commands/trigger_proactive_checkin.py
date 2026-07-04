@@ -35,40 +35,24 @@ class Command(BaseCommand):
             help="The correlation narrative to surface.")
 
     def handle(self, *args, **options):
-        from apps.ai.proactive_checkins import ProactiveCheckInService
+        # Calls the SAME shared implementation as the in-app Executive Certification
+        # Console — no duplicated business logic.
+        from apps.ai.certification_console import run_action
 
         try:
             user = User.objects.get(email=options["email"])
         except User.DoesNotExist:
             raise CommandError(f"No user with email {options['email']}")
 
-        correlation_type = "sleep_mood"
-        svc = ProactiveCheckInService(user)
+        result = run_action(user, "proactive_guidance", force=options["force"])
 
-        if options["force"]:
-            # Dev bypass: ignore the cadence throttle and any prior "Got it" dismissal.
-            svc.throttler.can_send = lambda *a, **k: True
-            try:
-                from django.core.cache import cache
-                cache.delete(f"wlj:guidance_dismissed:{user.id}:{correlation_type}")
-            except Exception:
-                pass
-
-        msg = svc.generate_cdce_correlation_check_in(
-            correlation_type=correlation_type,
-            narrative=options["narrative"],
-            strength="strong",
-            domains=["sleep", "journal"],
-        )
-
-        if not msg:
-            self.stdout.write(self.style.WARNING(
-                "No card produced (throttled or already dismissed). Re-run with --force."))
+        if not result.get("ok"):
+            self.stdout.write(self.style.WARNING(result.get("summary", "No card produced.")))
             return
 
-        labels = [q.get("label") for q in (msg.quick_replies or [])]
-        self.stdout.write(self.style.SUCCESS(
-            f"Created proactive card id={msg.id} for {user.email}"))
-        self.stdout.write(f"  content: {msg.content}")
-        self.stdout.write(f"  buttons: {labels}")
+        self.stdout.write(self.style.SUCCESS(f"{result['summary']} ({user.email})"))
+        if result.get("preview"):
+            self.stdout.write(f"  content: {result['preview']}")
+        if result.get("buttons"):
+            self.stdout.write(f"  buttons: {result['buttons']}")
         self.stdout.write("Open the assistant panel to see it and click the buttons.")

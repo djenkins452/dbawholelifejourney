@@ -24,7 +24,7 @@ import logging
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
@@ -82,6 +82,33 @@ class CalibrationDebugView(LoginRequiredMixin, View):
             })
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
+
+
+class ExecutiveCertificationConsoleView(LoginRequiredMixin, View):
+    """DEVELOPER-ONLY in-app Executive Certification Console. GET renders the action
+    buttons; POST runs an action against the REAL production path via the SAME shared
+    implementation the management command uses (apps.ai.certification_console). Staff-
+    gated — never shown to normal users. The manual counterpart to the Acceptance
+    Center: it validates the Chief of Staff, not the implementation."""
+
+    def get(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            return JsonResponse({'error': 'staff only'}, status=403)
+        from apps.ai.certification_console import action_list
+        return render(request, "ai/certification_console.html",
+                      {"actions": action_list()})
+
+    def post(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            return JsonResponse({'ok': False, 'summary': 'staff only'}, status=403)
+        try:
+            data = json.loads(request.body or b"{}")
+        except (ValueError, TypeError):
+            data = {}
+        key = data.get("action")
+        force = bool(data.get("force"))
+        from apps.ai.certification_console import run_action
+        return JsonResponse(run_action(request.user, key, force=force))
 
 
 class AssistantMixin:

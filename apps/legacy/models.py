@@ -98,6 +98,11 @@ class Person(LegacyOwnedModel):
     )
     birth_year = models.PositiveIntegerField(null=True, blank=True)
     death_year = models.PositiveIntegerField(null=True, blank=True)
+    # Full dates when known (e.g. from GEDCOM "29 MAR 1971"). The *_year fields
+    # always hold the year for compact views; these hold the exact day when we
+    # have it, so Legacy can show "29 Mar 1971" instead of just "1971".
+    birth_date = models.DateField(null=True, blank=True)
+    death_date = models.DateField(null=True, blank=True)
     bio = models.TextField(blank=True, help_text="A 'who they were' narrative")
     primary_photo = models.ForeignKey(
         Media, on_delete=models.SET_NULL, null=True, blank=True, related_name='primary_for_people',
@@ -115,6 +120,21 @@ class Person(LegacyOwnedModel):
 
     def __str__(self):
         return self.display_name
+
+    @property
+    def display_birth(self):
+        return fmt_life_date(self.birth_date, self.birth_year)
+
+    @property
+    def display_death(self):
+        return fmt_life_date(self.death_date, self.death_year)
+
+
+def fmt_life_date(full, year):
+    """'29 Mar 1971' when the exact day is known, else '1971', else ''."""
+    if full:
+        return "%d %s %d" % (full.day, full.strftime("%b"), full.year)
+    return str(year) if year else ""
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -552,6 +572,9 @@ class Relationship(LegacyOwnedModel):
     notes = models.TextField(blank=True)
     started_year = models.PositiveIntegerField(null=True, blank=True)
     ended_year = models.PositiveIntegerField(null=True, blank=True)
+    # Full dates when known (e.g. GEDCOM marriage/divorce day).
+    started_date = models.DateField(null=True, blank=True)
+    ended_date = models.DateField(null=True, blank=True)
 
     class Meta:
         ordering = ['from_person__display_name']
@@ -566,6 +589,14 @@ class Relationship(LegacyOwnedModel):
                 if value == self.relationship_type:
                     return label
         return self.relationship_type or "Unknown"
+
+    @property
+    def display_started(self):
+        return fmt_life_date(self.started_date, self.started_year)
+
+    @property
+    def display_ended(self):
+        return fmt_life_date(self.ended_date, self.ended_year)
 
 
 # ──────────────────────────────────────────────────────────────────────────

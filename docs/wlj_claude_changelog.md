@@ -43154,3 +43154,16 @@ NOTE on live verification: still no in-browser screenshot — `SESSION_COOKIE_SE
 **Verification:** 233 scoped Legacy tests green (7 new: `type_label` maps stored value→friendly label + Unknown; create with all fields (type/status/start/end/notes); create requires the other person; edit changes type + year; delete; the form renders the vocabulary + picker; new types map into the family graph — Guardian→parent, Partner→spouse row). `check` + `makemigrations --check` clean; migration 0017 applied to dev; the relationship-form JS passes `node --check`. (Browser screenshot not possible locally — verified via the test client's real render + these unit tests.)
 
 **Files:** `apps/legacy/models.py` (vocabulary + `rel_status` + `type_label`), `apps/legacy/forms.py` (RelationshipForm), `apps/legacy/views.py` (create/edit/delete + `_FAMILY`), `apps/legacy/urls.py`, `apps/legacy/services/family_tree.py` (keyword mapping), `templates/legacy/{relationship_form.html (new), person_detail.html, base_legacy.html}`, `static/css/legacy.css` (v33), `apps/legacy/migrations/0017_*`, `apps/legacy/tests/test_relationship_types.py` (new), `apps/core/fixtures/release_notes.json`.
+
+
+## 2026-07-04 — feat(legacy): Full Dates (Deployment 4/4)
+
+**Why:** GEDCOM carries exact dates ("29 MAR 1971") but Legacy stored only years. Preserve and show them; fall back to the year when that's all that's known; never invent missing information. Refinement of the People/Family domain; no redesign; no Beth/CoS.
+
+**What:**
+- **Full-date fields:** `Person.birth_date` / `death_date` and `Relationship.started_date` / `ended_date` (DateField, alongside the existing year fields; migration 0018). The GEDCOM parser (`_full_date`) now extracts an exact date ONLY when the day+month+year are all present ("3 MAR 1945" → 1945-03-03); approximate/month-only/year-only dates keep just the year. `commit_genealogy` stores births, deaths, and marriage dates (and backfills them on re-import).
+- **Display "29 Mar 1971" everywhere it fits:** `Person.display_birth/display_death` (and `Relationship.display_started/ended`) show the exact day when known, else the year, else nothing. Wired into the Person Profile header, People cards, the Family side-panel (head + relative rows), and the relationship list. The dense Family-tree node cards keep the compact year, by design.
+
+**Verification:** 240 scoped Legacy tests green (7 new: `_full_date` returns a date only with a day (month-only / year-only / ABT / invalid → None); the parser stores both full date and year; commit sets `birth_date`/`death_date` and shows "3 Mar 1945" while a year-only person shows "1948"; marriage full date → relationship `started_date` + "7 Jun 1997"; display prefers full date, falls back to year, empty when unknown). `check` + `makemigrations --check` clean; migration 0018 applied to dev. (Browser screenshot not possible locally — verified via the test client + these unit tests.)
+
+**Files:** `apps/legacy/models.py` (date fields + `display_*` + `fmt_life_date`), `apps/legacy/services/{gedcom_parser.py, import_engine.py, family_tree.py}`, `templates/legacy/{person_detail.html, _pcard.html, _fam_relative.html, family.html}`, `apps/legacy/migrations/0018_*`, `apps/legacy/tests/test_full_dates.py` (new), `apps/core/fixtures/release_notes.json`.

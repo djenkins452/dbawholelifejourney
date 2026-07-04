@@ -15,7 +15,7 @@
             <h1 class="profile-name">{{ person.display_name }}</h1>
             <p class="profile-sub">
                 {% if person.relationship_label %}{{ person.relationship_label }}{% endif %}
-                {% if person.birth_year or person.death_year %} · {{ person.birth_year|default:"?" }}–{{ person.death_year|default:"" }}{% endif %}
+                {% if person.display_birth or person.display_death %} · {{ person.display_birth|default:"?" }}–{{ person.display_death|default:"" }}{% endif %}
                 {% if person.also_known_as %} · "{{ person.also_known_as }}"{% endif %}
             </p>
             <div class="profile-actions">
@@ -81,7 +81,7 @@
                     <a href="{% url 'legacy:person_detail' r.from_person.pk %}" class="lg-link">{{ r.from_person.display_name }}</a> — <span class="rel-type">{{ r.type_label }}</span>
                     {% endif %}
                     {% if r.rel_status and r.rel_status != 'current' %}<span class="rel-status-tag">{{ r.get_rel_status_display }}</span>{% endif %}
-                    {% if r.started_year or r.ended_year %}<span class="rel-years-tag">{{ r.started_year|default:"" }}{% if r.started_year or r.ended_year %}–{% endif %}{{ r.ended_year|default:"" }}</span>{% endif %}
+                    {% if r.display_started or r.display_ended %}<span class="rel-years-tag">{{ r.display_started }}{% if r.display_started or r.display_ended %}–{% endif %}{{ r.display_ended }}</span>{% endif %}
                 </span>
                 {% if r.from_person_id == person.pk %}<a href="{% url 'legacy:relationship_edit' r.pk %}" class="rel-edit">Edit</a>{% endif %}
             </li>

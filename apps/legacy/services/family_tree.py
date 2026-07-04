@@ -61,6 +61,7 @@ def _person_row(p):
     return {
         "id": p.pk, "name": p.display_name, "initials": _initials(p.display_name),
         "birth": p.birth_year, "death": p.death_year, "living": p.death_year is None,
+        "birth_display": p.display_birth, "death_display": p.display_death,
         "rel": p.relationship_label,
         "photo": (p.primary_photo.file.url
                   if (p.primary_photo and p.primary_photo.file) else ""),
@@ -208,6 +209,7 @@ def _layout(user, people, parents, children, spouses, focus_pk, me_pk):
         nodes.append({
             "id": p.pk, "name": p.display_name, "initials": _initials(p.display_name),
             "photo": photo, "birth": p.birth_year, "death": p.death_year,
+            "birth_display": p.display_birth, "death_display": p.display_death,
             "living": p.death_year is None, "rel": p.relationship_label,
             "x": round(cx - CARD_W / 2), "y": round(gen[p.pk] * ROW_STRIDE),
             "cx": round(cx), "cy": round(cy), "search": search,
@@ -280,8 +282,9 @@ def build_family_view(user, focus_pk=None):
     from apps.legacy.models import Person
 
     all_people = list(Person.objects.filter(user=user).only(
-        "pk", "display_name", "is_self", "also_known_as", "birth_year",
-        "death_year", "relationship_label", "primary_photo").select_related("primary_photo"))
+        "pk", "display_name", "is_self", "also_known_as", "birth_year", "death_year",
+        "birth_date", "death_date", "relationship_label", "primary_photo",
+    ).select_related("primary_photo"))
     total = len(all_people)
     if not all_people:
         return {"nodes": [], "edges": [], "width": 0, "height": 0, "shown": 0,

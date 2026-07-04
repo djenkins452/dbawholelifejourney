@@ -62,7 +62,7 @@
             <span class="fam-panel-av{% if not p.person.living %} is-deceased{% endif %}">{% if p.person.photo %}<img src="{{ p.person.photo }}" alt="">{% else %}{{ p.person.initials }}{% endif %}</span>
             <div class="fam-panel-id">
                 <h2 class="fam-panel-name">{{ p.person.name }}</h2>
-                <p class="fam-panel-years">{% if p.person.birth %}{{ p.person.birth }}{% endif %}{% if p.person.birth or p.person.death %}–{% endif %}{% if p.person.death %}{{ p.person.death }}{% endif %}{% if not p.person.death and p.person.birth %} · living{% endif %}</p>
+                <p class="fam-panel-years">{% if p.person.birth_display %}{{ p.person.birth_display }}{% endif %}{% if p.person.birth_display or p.person.death_display %} – {% endif %}{% if p.person.death_display %}{{ p.person.death_display }}{% elif p.person.birth_display %}living{% endif %}</p>
                 {% if p.is_self %}<span class="fam-you-badge">This is you</span>{% elif p.person.rel %}<span class="fam-you-badge fam-rel-badge">{{ p.person.rel }}</span>{% endif %}
             </div>
         </div>

@@ -173,7 +173,14 @@ def commit_genealogy(batch):
     Person records (with birth/death years) and spouse / parent-child Relationships.
     Deterministic, idempotent (dedupes people by name, links by triple). Returns
     (people_created, links_created). Genealogy — no Discovery."""
+    from datetime import date
     from apps.legacy.models import ImportChunk, Person, Relationship
+
+    def _d(iso):
+        try:
+            return date.fromisoformat(iso) if iso else None
+        except (TypeError, ValueError):
+            return None
 
     user = batch.user
     xref_to_person = {}
@@ -187,14 +194,17 @@ def commit_genealogy(batch):
             person = Person.objects.create(
                 user=user, display_name=name[:200],
                 birth_year=d.get("birth_year"), death_year=d.get("death_year"),
+                birth_date=_d(d.get("birth_date")), death_date=_d(d.get("death_date")),
                 created_via=Person.CREATED_VIA_IMPORT)
             people_created += 1
         else:
             fields = []
-            if not person.birth_year and d.get("birth_year"):
-                person.birth_year = d["birth_year"]; fields.append("birth_year")
-            if not person.death_year and d.get("death_year"):
-                person.death_year = d["death_year"]; fields.append("death_year")
+            for f in ("birth_year", "death_year"):
+                if not getattr(person, f) and d.get(f):
+                    setattr(person, f, d[f]); fields.append(f)
+            for f in ("birth_date", "death_date"):
+                if not getattr(person, f) and _d(d.get(f)):
+                    setattr(person, f, _d(d[f])); fields.append(f)
             if fields:
                 person.save(update_fields=fields + ["updated_at"])
         if d.get("xref"):
@@ -205,12 +215,13 @@ def commit_genealogy(batch):
 
     links_created = 0
 
-    def _link(a, b, rtype):
+    def _link(a, b, rtype, **extra):
         nonlocal links_created
         if not a or not b or a.pk == b.pk:
             return
         _, made = Relationship.objects.get_or_create(
-            user=user, from_person=a, to_person=b, relationship_type=rtype)
+            user=user, from_person=a, to_person=b, relationship_type=rtype,
+            defaults=extra)
         if made:
             links_created += 1
 
@@ -218,7 +229,8 @@ def commit_genealogy(batch):
         d = ch.data or {}
         husb = xref_to_person.get(d.get("husb"))
         wife = xref_to_person.get(d.get("wife"))
-        _link(husb, wife, "married to")
+        _link(husb, wife, "married to",
+              started_year=d.get("marriage_year"), started_date=_d(d.get("marriage_date")))
         for x in (d.get("children") or []):
             child = xref_to_person.get(x)
             for parent in (husb, wife):

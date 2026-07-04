@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 233,
+    "fields": {
+      "title": "Exact dates from your family tree are preserved",
+      "description": "When you import a family tree, Legacy now keeps the exact dates it contains — so a birthday shows as \"29 Mar 1971\" instead of just \"1971,\" on profiles, People cards, and the Family view. Deaths and marriage dates are kept too. When only a year is known, Legacy still shows the year, and it never guesses a date it doesn't have.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-04",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-04T06:00:00Z",
+      "updated_at": "2026-07-04T06:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 232,
     "fields": {
       "title": "Describe relationships the way they really were",

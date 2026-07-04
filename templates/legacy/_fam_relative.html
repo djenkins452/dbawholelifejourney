@@ -4,6 +4,6 @@ Clicking re-centers the tree on that person.{% endcomment %}
     <span class="fam-rel-av{% if not r.living %} is-deceased{% endif %}">{% if r.photo %}<img src="{{ r.photo }}" alt="">{% else %}{{ r.initials }}{% endif %}</span>
     <span class="fam-rel-main">
         <span class="fam-rel-name">{{ r.name }}</span>
-        <span class="fam-rel-meta">{% if r.birth %}{{ r.birth }}{% endif %}{% if r.birth or r.death %}–{% endif %}{% if r.death %}{{ r.death }}{% endif %}{% if r.rel %} · {{ r.rel }}{% endif %}</span>
+        <span class="fam-rel-meta">{% if r.birth_display %}{{ r.birth_display }}{% endif %}{% if r.birth_display or r.death_display %}–{% endif %}{% if r.death_display %}{{ r.death_display }}{% endif %}{% if r.rel %} · {{ r.rel }}{% endif %}</span>
     </span>
 </a>

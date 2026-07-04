@@ -107,6 +107,27 @@ def _year(date_str):
     return int(m.group(1)) if m else None
 
 
+_GED_MONTHS = {"JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6,
+               "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12}
+
+
+def _full_date(date_str):
+    """ISO string ('1971-03-29') for a GEDCOM date that gives day + month + year,
+    else None. Approximate/partial dates (ABT, BEF, month-only, year-only) return
+    None here — the year is still preserved separately via `_year`."""
+    from datetime import date
+    up = (date_str or "").upper()
+    ym = re.search(r"\b(\d{4})\b", up)
+    mm = re.search(r"\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b", up)
+    dm = re.search(r"\b(\d{1,2})\s+(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b", up)
+    if ym and mm and dm:
+        try:
+            return date(int(ym.group(1)), _GED_MONTHS[mm.group(1)], int(dm.group(1))).isoformat()
+        except ValueError:
+            return None
+    return None
+
+
 def _when_where(date, place, verb):
     if not date and not place:
         return ""
@@ -172,6 +193,7 @@ def parse_gedcom(raw):
             "data": {
                 "xref": rec["xref"] or "", "name": name, "sex": _val(rec, "SEX").upper(),
                 "birth_year": _year(bdate), "death_year": _year(ddate),
+                "birth_date": _full_date(bdate), "death_date": _full_date(ddate),
                 "birth_place": bplace, "death_place": dplace,
             },
         })
@@ -203,7 +225,8 @@ def parse_gedcom(raw):
             "data": {
                 "husb": _val(rec, "HUSB"), "wife": _val(rec, "WIFE"),
                 "children": [c["value"] for c in rec["children"] if c["tag"] == "CHIL"],
-                "marriage_year": _year(mdate), "marriage_place": mplace,
+                "marriage_year": _year(mdate), "marriage_date": _full_date(mdate),
+                "marriage_place": mplace,
             },
         })
 

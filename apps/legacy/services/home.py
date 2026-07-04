@@ -10,6 +10,8 @@ This is a read-only assembler over the domain — no heavy computation, safe on
 the request path.
 """
 
+import datetime
+
 from django.utils import timezone
 
 
@@ -27,13 +29,17 @@ def build_home_context(user):
     now = timezone.now()
     month_count = memories.filter(created_at__year=now.year, created_at__month=now.month).count()
 
-    resurfaced = [
-        _memory_card(m)
-        for m in memories.filter(entry_state=Memory.EntryState.LEGACY)
-        .order_by("-created_at")[:4]
-    ]
+    # Real Memory objects so the Hearth renders the SAME canonical story card
+    # (templates/legacy/_memory_card.html) used everywhere else — one design.
+    resurfaced = list(
+        memories.filter(entry_state=Memory.EntryState.LEGACY)
+        .select_related("primary_media", "attributed_to").order_by("-created_at")[:4]
+    )
     if not resurfaced:
-        resurfaced = [_memory_card(m) for m in memories.order_by("-created_at")[:4]]
+        resurfaced = list(
+            memories.select_related("primary_media", "attributed_to")
+            .order_by("-created_at")[:4]
+        )
 
     draft = memories.filter(entry_state=Memory.EntryState.DRAFT).order_by("-updated_at").first()
 
@@ -65,16 +71,26 @@ def build_home_context(user):
     }
 
 
-def _memory_card(m):
-    return {
-        "pk": m.pk,
-        "title": m.title or "Untitled memory",
-        "description": (m.body[:90] + "…") if len(m.body) > 90 else m.body,
-        "meta_date": _date_label(m),
-        "teller": (m.attributed_to.display_name if m.attributed_to else "You"),
-        "image_url": (m.primary_media.file.url if (m.primary_media and m.primary_media.file) else None),
-        "type": m.entry_type,
-    }
+class _SampleStory:
+    """Duck-typed stand-in so the empty-state Hearth renders the SAME canonical
+    story card (_memory_card.html) as real memories — never a second design.
+    Not persisted; pk is None so the card links to the library and omits actions."""
+
+    pk = None
+    status = "active"
+    attributed_to = None
+    occurred_precision = "exact"
+
+    def __init__(self, title, body, entry_state, entry_type, occurred_on):
+        self.title = title
+        self.body = body
+        self.entry_state = entry_state
+        self.entry_type = entry_type
+        self.occurred_on = occurred_on
+        self.created_at = occurred_on
+
+    def cover_media(self):
+        return None
 
 
 def _today_card(memories, now):
@@ -93,14 +109,6 @@ def _today_card(memories, now):
     }
 
 
-def _date_label(m):
-    if not m.occurred_on:
-        return ""
-    if m.occurred_precision == "year":
-        return m.occurred_on.strftime("%Y")
-    return m.occurred_on.strftime("%b %-d, %Y")
-
-
 def _human_when(dt, now):
     delta = now - dt
     if delta.days <= 0:
@@ -116,18 +124,18 @@ def _sample_home():
         "greeting_name": "",
         "hero_subtitle": "This is your Legacy. Capture it. Cherish it. Share it.",
         "recently_resurfaced": [
-            {"pk": None, "title": "First Day of School",
-             "description": "A memory from August 1974 that became meaningful again today.",
-             "meta_date": "Aug 28, 1974", "teller": "You", "image_url": None, "type": "memory"},
-            {"pk": None, "title": "The Blue Chevy",
-             "description": "You and your brother restored this together.",
-             "meta_date": "Jun 12, 1978", "teller": "You", "image_url": None, "type": "object"},
-            {"pk": None, "title": "Pine Lake Cabin",
-             "description": "Many memories live here. Want to explore?",
-             "meta_date": "1976 – 1995", "teller": "You", "image_url": None, "type": "place"},
-            {"pk": None, "title": "Prom Night",
-             "description": "Lisa found this photo and wanted to share it.",
-             "meta_date": "May 15, 1981", "teller": "Lisa", "image_url": None, "type": "memory"},
+            _SampleStory("First Day of School",
+                         "A memory from August 1974 that became meaningful again today.",
+                         "legacy", "memory", datetime.date(1974, 8, 28)),
+            _SampleStory("The Blue Chevy",
+                         "You and your brother restored this together.",
+                         "legacy", "object", datetime.date(1978, 6, 12)),
+            _SampleStory("Pine Lake Cabin",
+                         "Many memories live here. Want to explore?",
+                         "legacy", "place", datetime.date(1976, 7, 1)),
+            _SampleStory("Prom Night",
+                         "Lisa found this photo and wanted to share it.",
+                         "legacy", "memory", datetime.date(1981, 5, 15)),
         ],
         "today": {
             "date_label": "Today in Your Legacy",

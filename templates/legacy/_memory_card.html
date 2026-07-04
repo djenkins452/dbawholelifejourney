@@ -1,12 +1,13 @@
 {# Reusable memory card. Expects `m`. Approved layout: clean title header on top,
    large cover photo in the middle (the dominant visual), date + actions at the
    bottom. The title NEVER sits on the image — readability wins over decoration. #}
+{% if m.pk %}{% url 'legacy:editor' m.pk as card_href %}{% else %}{% url 'legacy:library' as card_href %}{% endif %}
 <div class="mcard">
     <div class="mcard-head">
-        <a href="{% url 'legacy:editor' m.pk %}" class="mcard-title">{{ m.title|default:"Untitled memory" }}</a>
+        <a href="{{ card_href }}" class="mcard-title">{{ m.title|default:"Untitled memory" }}</a>
         {% include "legacy/_state_badge.html" with m=m %}
     </div>
-    <a href="{% url 'legacy:editor' m.pk %}" class="mcard-imglink">
+    <a href="{{ card_href }}" class="mcard-imglink">
         {% with cover=m.cover_media %}
         <div class="mcard-img type-{{ m.entry_type }}{% if not cover %} is-empty{% endif %}">
             {% if cover %}<img src="{{ cover.file.url }}" alt="{{ m.title }}">
@@ -18,6 +19,6 @@
     </a>
     <div class="mcard-foot">
         <span class="mcard-meta">{% if m.occurred_on %}{{ m.occurred_on }}{% else %}{{ m.created_at|date:"M j, Y" }}{% endif %} · {% if m.attributed_to %}{{ m.attributed_to.display_name }}{% else %}You{% endif %}</span>
-        <span class="mcard-actions">{% include "legacy/_memory_actions.html" with m=m %}</span>
+        {% if m.pk %}<span class="mcard-actions">{% include "legacy/_memory_actions.html" with m=m %}</span>{% endif %}
     </div>
 </div>

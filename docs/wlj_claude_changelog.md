@@ -42842,3 +42842,19 @@ The taller cover and padded footer are **scoped to the story card** (`.mcard-img
 **Verification:** Verified via Django test client (authoritative): story card DOM order is header → title → image → footer, the title renders in the header and never inside the image link, and photoless cards fall back to a text snippet; Places still render with `.mcard-body`/no `.mcard-head` (compact card preserved). 20 legacy render tests green; `check` clean; CSS v24. (Browser pixel screenshot was blocked by an environment race — two dev servers sharing port 8010 from a concurrent session prevented login — so structural verification via the test client was used instead.)
 
 **Files:** `templates/legacy/_memory_card.html`, `static/css/legacy.css` (css v24), `templates/legacy/base_legacy.html`, `apps/core/fixtures/release_notes.json`.
+
+
+## 2026-07-03 — refactor(legacy): one canonical Story Card everywhere (consistency audit)
+
+**Why:** After the Story Card was corrected, the Legacy Home "Recently resurfaced" section was still rendering the OLD card design (its own `rcard` component: photo-first, title/preview below, inconsistent with the approved layout). Consolidate so there is exactly ONE Story Card implementation across Legacy. UI consistency audit; no redesign; no Beth/CoS.
+
+**Audit result:** Every place a story is shown as a photo card now uses the single canonical `templates/legacy/_memory_card.html` (Library, Person/Place/Contributor/Milestone detail already did). The Home "Recently resurfaced" was the lone holdout on a second card component (`rcard`) — now consolidated. Everywhere else a story appears as a compact **list row** (`.mrow`: Dashboard "recent", Studio/Review drafts & submissions, imported list) or is a **different entity** (Timeline milestone cards, Output cards) — none overlay text on a photo, so those are left as-is by design.
+
+**What:**
+- **Home "Recently resurfaced"** now renders the canonical `_memory_card` in the standard `.mgrid` — identical to the Stories Library (title header on top, dominant cover photo, date/actions footer; the title is never on the image).
+- `build_home_context` returns **real `Memory` objects** for the resurfaced row (was dict "cards"). For the empty-state sample, a small duck-typed `_SampleStory` renders through the exact same canonical template — so there is never a second design, even out of the box. `_memory_card.html` guards the pk-based link/actions so the pk-less sample renders safely (links to the library, no edit/delete actions).
+- **Deleted** the entire `rcard` component (markup + `.rcard*` CSS + `.resurfaced-row` grid). Kept only the shared `.rcard-img-ico` placeholder-icon class (used by the canonical card and the Places/Outputs cards).
+
+**Verification:** 168 scoped Legacy tests green; `check` + `makemigrations --check` clean. Rendered BOTH Home states via the Django test client (real view→template pipeline): empty state uses `.mcard` (old `.rcard` absent) and shows the sample stories with no error; real-data state renders canonical cards in DOM order header→title→image→footer, with the cover image and a working editor link. Grep confirms no `.rcard` card structure remains anywhere. (A live authenticated browser screenshot was again blocked by the preview environment — a stray second dev server plus CSRF-origin/session-hash mismatches on the preview host prevented login — so verification used the authoritative test-client render; the `.mcard` visual itself was validated when the card was built.)
+
+**Files:** `apps/legacy/services/home.py` (real Memory objects + `_SampleStory`, removed dict helper), `templates/legacy/home.html` (canonical include in `.mgrid`), `templates/legacy/_memory_card.html` (pk-guard for sample), `static/css/legacy.css` (removed `rcard`/`resurfaced-row`; css v25), `templates/legacy/base_legacy.html`.

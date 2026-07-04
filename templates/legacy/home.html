@@ -49,24 +49,8 @@
                         <button type="button" class="lg-arrow" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
                     </div>
                 </div>
-                <div class="resurfaced-row">
-                    {% for c in recently_resurfaced %}
-                    <a class="rcard" {% if c.pk %}href="{% url 'legacy:library' %}"{% else %}href="{% url 'legacy:library' %}"{% endif %}>
-                        <div class="rcard-img type-{{ c.type }}">
-                            {% if c.image_url %}<img src="{{ c.image_url }}" alt="{{ c.title }}">{% else %}
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="rcard-img-ico"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-                            {% endif %}
-                        </div>
-                        <div class="rcard-body">
-                            <h3 class="rcard-title">{{ c.title }}</h3>
-                            <p class="rcard-desc">{{ c.description }}</p>
-                            <div class="rcard-meta">
-                                <span>{{ c.meta_date }}{% if c.teller %} · {{ c.teller }}{% endif %}</span>
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="rcard-bookmark"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-                            </div>
-                        </div>
-                    </a>
-                    {% endfor %}
+                <div class="mgrid resurfaced-grid">
+                    {% for story in recently_resurfaced %}{% include "legacy/_memory_card.html" with m=story %}{% endfor %}
                 </div>
             </section>
         </div>

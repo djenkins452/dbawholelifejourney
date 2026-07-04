@@ -212,18 +212,9 @@
 .lg-arrow svg { width: 15px; height: 15px; }
 .lg-arrow:hover { border-color: var(--lg-border-strong); }
 
-/* Resurfaced cards */
-.resurfaced-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-.rcard { background: var(--lg-surface); border: 1px solid var(--lg-border); border-radius: 12px; overflow: hidden; text-decoration: none; color: inherit; display: flex; flex-direction: column; transition: transform .14s, box-shadow .14s; }
-.rcard:hover { transform: translateY(-2px); box-shadow: 0 14px 30px -20px rgba(30, 25, 15, .5); }
-.rcard-img { height: 104px; display: grid; place-items: center; color: rgba(255, 255, 255, .9); }
-.rcard-img img { width: 100%; height: 100%; object-fit: cover; }
+/* Recently resurfaced reuses the canonical story card (.mcard) in a standard grid,
+   so there is ONE story-card design across Legacy. */
 .rcard-img-ico { width: 30px; height: 30px; opacity: .85; }
-.rcard-body { padding: 12px 13px 13px; }
-.rcard-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
-.rcard-desc { font-size: 12px; color: var(--lg-muted); line-height: 1.4; min-height: 34px; }
-.rcard-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; font-size: 11px; color: var(--lg-muted); }
-.rcard-bookmark { width: 15px; height: 15px; }
 
 /* Type gradients (used for placeholder media tiles) */
 .type-memory { background: linear-gradient(135deg, #cba46c, #9a774a); }
@@ -278,7 +269,6 @@
 /* ── Responsive ──────────────────────────────────────────────────────── */
 @media (max-width: 1040px) {
     .hearth-grid { grid-template-columns: 1fr; }
-    .resurfaced-row { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 720px) {
     .legacy-sidebar { width: 68px; }

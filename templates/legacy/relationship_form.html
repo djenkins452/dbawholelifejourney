@@ -1,0 +1,109 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="lib merge-page">
+    <a href="{% url 'legacy:person_detail' person.pk %}" class="editor-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M15 18l-6-6 6-6"/></svg>
+        {{ person.display_name }}
+    </a>
+
+    <div class="lib-head">
+        <div>
+            <h1 class="lib-title">{% if mode == 'create' %}Add a relationship{% else %}Edit relationship{% endif %}</h1>
+            <p class="lib-sub">Not every relationship is a marriage, and not every parent comes from one. Describe it as it really was.</p>
+        </div>
+    </div>
+
+    <form method="post" class="rel-form" id="relForm">
+        {% csrf_token %}
+
+        {% if mode == 'create' %}
+        <input type="hidden" name="to_person" id="relTo">
+        <div class="rel-field" id="relPicker">
+            <label class="merge-label">Who is this relationship with?</label>
+            <div class="fam-search merge-search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="search" id="relSearch" class="fam-search-in" placeholder="Search people…" autocomplete="off">
+            </div>
+            <div class="merge-results" id="relResults"></div>
+        </div>
+        <p class="rel-chosen" id="relChosen" hidden><strong>{{ person.display_name }}</strong> and <strong id="relChosenName"></strong> <button type="button" class="lg-link-sm" id="relChangeBtn">change</button></p>
+        {% else %}
+        <p class="rel-chosen"><strong>{{ person.display_name }}</strong> and <strong>{{ rel.to_person.display_name }}</strong></p>
+        {% endif %}
+
+        <div class="rel-field">
+            <label for="{{ form.relationship_type.id_for_label }}">{{ person.display_name }} is the…</label>
+            {{ form.relationship_type }}
+            {% if form.relationship_type.errors %}<span class="form-err">{{ form.relationship_type.errors.0 }}</span>{% endif %}
+        </div>
+        <div class="rel-field">
+            <label for="{{ form.rel_status.id_for_label }}">Status</label>
+            {{ form.rel_status }}
+        </div>
+        <div class="rel-field rel-years">
+            <div><label for="{{ form.started_year.id_for_label }}">Started</label>{{ form.started_year }}</div>
+            <div><label for="{{ form.ended_year.id_for_label }}">Ended</label>{{ form.ended_year }}</div>
+        </div>
+        <div class="rel-field">
+            <label for="{{ form.notes.id_for_label }}">Notes</label>
+            {{ form.notes }}
+        </div>
+
+        <div class="rel-actions">
+            <button type="submit" class="lg-btn-primary">Save relationship</button>
+            {% if mode == 'edit' %}
+            <a href="{% url 'legacy:person_detail' person.pk %}" class="lg-btn-quiet">Cancel</a>
+            {% endif %}
+        </div>
+    </form>
+
+    {% if mode == 'edit' %}
+    <form method="post" action="{% url 'legacy:relationship_delete' rel.pk %}" class="rel-delete-form">{% csrf_token %}
+        <button type="submit" class="lg-btn-ghost lg-danger">Remove this relationship</button>
+    </form>
+    {% endif %}
+
+    {% if mode == 'create' %}{{ others|json_script:"relPeople" }}{% endif %}
+</div>
+
+{% if mode == 'create' %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+    var input = document.getElementById('relSearch');
+    var results = document.getElementById('relResults');
+    var to = document.getElementById('relTo');
+    var picker = document.getElementById('relPicker');
+    var chosen = document.getElementById('relChosen');
+    var chosenName = document.getElementById('relChosenName');
+    var changeBtn = document.getElementById('relChangeBtn');
+    if (!input) { return; }
+    var data = [];
+    try { data = JSON.parse(document.getElementById('relPeople').textContent) || []; } catch (e) {}
+    function render(q) {
+        results.innerHTML = '';
+        if (!q) { return; }
+        var hits = [];
+        for (var i = 0; i < data.length && hits.length < 20; i++) {
+            if (data[i].text.indexOf(q) > -1) { hits.push(data[i]); }
+        }
+        if (!hits.length) { results.innerHTML = '<div class="merge-result-none">No one matches.</div>'; return; }
+        hits.forEach(function (r) {
+            var b = document.createElement('button');
+            b.type = 'button'; b.className = 'merge-result';
+            b.textContent = r.name;
+            b.addEventListener('click', function () {
+                to.value = r.id; chosenName.textContent = r.name;
+                picker.hidden = true; chosen.hidden = false;
+            });
+            results.appendChild(b);
+        });
+    }
+    input.addEventListener('input', function () { render(input.value.trim().toLowerCase()); });
+    if (changeBtn) { changeBtn.addEventListener('click', function () {
+        to.value = ''; chosen.hidden = true; picker.hidden = false; input.value = ''; results.innerHTML = '';
+    }); }
+})();
+</script>
+{% endif %}
+{% endblock %}

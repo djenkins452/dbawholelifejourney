@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 232,
+    "fields": {
+      "title": "Describe relationships the way they really were",
+      "description": "Relationships in Legacy are no longer just \"spouse\" or \"parent.\" You can now choose from many types — spouse, former spouse, partner, fiancé, parent, step parent, adoptive parent, guardian, sibling, half sibling, friend, coworker, mentor, pastor, neighbor, and more — and set whether it's current, former, or estranged, along with when it started and ended and any notes. Add, edit, or remove relationships right from a person's profile. Not every parent comes from a marriage, and now Legacy can say so.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-07-04",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-04T05:00:00Z",
+      "updated_at": "2026-07-04T05:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 231,
     "fields": {
       "title": "Merge duplicate people into one",

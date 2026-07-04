@@ -2,7 +2,28 @@
 
 from django import forms
 
-from apps.legacy.models import Contributor, Output, Person, Place
+from apps.legacy.models import (
+    RELATIONSHIP_TYPE_CHOICES, Contributor, Output, Person, Place, Relationship,
+)
+
+
+class RelationshipForm(forms.ModelForm):
+    """Edit what KIND of relationship this is, plus its status, span, and notes."""
+
+    relationship_type = forms.ChoiceField(
+        choices=[("", "Unknown")] + list(RELATIONSHIP_TYPE_CHOICES),
+        required=False, label="Relationship",
+        widget=forms.Select(attrs={"class": "lg-input"}))
+
+    class Meta:
+        model = Relationship
+        fields = ["relationship_type", "rel_status", "started_year", "ended_year", "notes"]
+        widgets = {
+            "rel_status": forms.Select(attrs={"class": "lg-input"}),
+            "started_year": forms.NumberInput(attrs={"class": "lg-input", "placeholder": "Started (year)"}),
+            "ended_year": forms.NumberInput(attrs={"class": "lg-input", "placeholder": "Ended (year)"}),
+            "notes": forms.Textarea(attrs={"class": "lg-textarea", "rows": 3, "placeholder": "Anything worth remembering about this relationship…"}),
+        }
 
 
 class PersonForm(forms.ModelForm):

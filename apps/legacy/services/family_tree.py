@@ -25,9 +25,11 @@ COL_STRIDE = CARD_W + GAP_X
 ANCESTOR_LEVELS = 3      # parents, grandparents, great-grandparents
 DESCENDANT_LEVELS = 2    # children, grandchildren
 
-_PARENT_OF = ("parent of", "father of", "mother of", "mom of", "dad of", "mum of")
+_PARENT_OF = ("parent of", "father of", "mother of", "mom of", "dad of", "mum of",
+              "guardian of")   # step-parent / adoptive parent contain "parent of"
 _CHILD_OF = ("child of", "son of", "daughter of")
-_SPOUSE = ("married", "spouse", "husband", "wife", "wed", "partner")
+_SPOUSE = ("married", "spouse", "husband", "wife", "wed", "partner",
+           "fianc", "boyfriend", "girlfriend", "relationship with")
 
 
 def _initials(name):

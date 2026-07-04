@@ -22,7 +22,9 @@ from django.views.generic import CreateView, DetailView, TemplateView, UpdateVie
 
 from django.template.loader import render_to_string
 
-from apps.legacy.forms import ContributorForm, ImportForm, OutputForm, PersonForm, PlaceForm
+from apps.legacy.forms import (
+    ContributorForm, ImportForm, OutputForm, PersonForm, PlaceForm, RelationshipForm,
+)
 from apps.legacy.models import (
     Contributor, ImportBatch, ImportChunk, LifeMilestone, Media, Memory, MemoryDiscovery,
     MemoryRevision, Output, Person, Place, Relationship,
@@ -1385,7 +1387,8 @@ class RelationshipsView(LegacyContextMixin, TemplateView):
         "parent", "father", "mother", "mom", "dad", "mum", "child", "son",
         "daughter", "married", "spouse", "husband", "wife", "wed", "partner",
         "brother", "sister", "sibling", "grand", "aunt", "uncle", "cousin",
-        "niece", "nephew", "in-law", "step", "half",
+        "niece", "nephew", "in-law", "step", "half", "guardian", "adoptive",
+        "fianc", "boyfriend", "girlfriend", "relationship with",
     )
 
     def get_context_data(self, **kwargs):
@@ -1453,6 +1456,83 @@ class PersonMergeView(LegacyContextMixin, View):
         messages.success(
             request, f"Merged {name} into {winner.display_name}. Everything now lives on one person.")
         return redirect("legacy:person_detail", pk=winner.pk)
+
+
+class RelationshipCreateView(LegacyContextMixin, View):
+    """Add a relationship from a person to another (any type — not just family)."""
+
+    template_name = "legacy/relationship_form.html"
+    nav_active = "people"
+
+    def _others(self, request, person):
+        return [
+            {"id": p.pk, "name": p.display_name,
+             "text": ("%s %s" % (p.display_name, p.also_known_as or "")).lower()}
+            for p in Person.objects.filter(user=request.user).exclude(pk=person.pk)
+            .only("pk", "display_name", "also_known_as")
+        ]
+
+    def get(self, request, person_pk, *args, **kwargs):
+        from django.shortcuts import render
+        person = get_object_or_404(Person.all_objects, pk=person_pk, user=request.user)
+        return render(request, self.template_name, {
+            "form": RelationshipForm(), "person": person, "mode": "create",
+            "others": self._others(request, person), "nav_active": "people"})
+
+    def post(self, request, person_pk, *args, **kwargs):
+        from django.shortcuts import render
+        person = get_object_or_404(Person.all_objects, pk=person_pk, user=request.user)
+        form = RelationshipForm(request.POST)
+        to_id = request.POST.get("to_person")
+        to_person = Person.all_objects.filter(user=request.user, pk=to_id).first() if to_id else None
+        if form.is_valid() and to_person and to_person.pk != person.pk:
+            rel = form.save(commit=False)
+            rel.user = request.user
+            rel.from_person = person
+            rel.to_person = to_person
+            rel.save()
+            messages.success(request, f"Relationship with {to_person.display_name} saved.")
+            return redirect("legacy:person_detail", pk=person.pk)
+        if not to_person:
+            messages.error(request, "Choose the other person.")
+        return render(request, self.template_name, {
+            "form": form, "person": person, "mode": "create",
+            "others": self._others(request, person), "nav_active": "people"})
+
+
+class RelationshipEditView(LegacyContextMixin, View):
+    """Edit a relationship's type, status, span, and notes."""
+
+    template_name = "legacy/relationship_form.html"
+    nav_active = "people"
+
+    def get(self, request, pk, *args, **kwargs):
+        from django.shortcuts import render
+        rel = get_object_or_404(Relationship, pk=pk, user=request.user)
+        return render(request, self.template_name, {
+            "form": RelationshipForm(instance=rel), "rel": rel, "person": rel.from_person,
+            "mode": "edit", "nav_active": "people"})
+
+    def post(self, request, pk, *args, **kwargs):
+        from django.shortcuts import render
+        rel = get_object_or_404(Relationship, pk=pk, user=request.user)
+        form = RelationshipForm(request.POST, instance=rel)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Relationship updated.")
+            return redirect("legacy:person_detail", pk=rel.from_person_id)
+        return render(request, self.template_name, {
+            "form": form, "rel": rel, "person": rel.from_person, "mode": "edit",
+            "nav_active": "people"})
+
+
+class RelationshipDeleteView(LegacyContextMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        rel = get_object_or_404(Relationship, pk=pk, user=request.user)
+        anchor = rel.from_person_id
+        rel.delete()
+        messages.success(request, "Relationship removed.")
+        return redirect("legacy:person_detail", pk=anchor)
 
 
 class PersonSetSelfView(LegacyContextMixin, View):

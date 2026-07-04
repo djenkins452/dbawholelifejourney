@@ -65,19 +65,32 @@
     </section>
     {% endif %}
 
-    {% if relationships %}
     <section class="profile-sec">
-        <h2 class="profile-sec-title">Relationships</h2>
-        <div class="chips">
-            {% for r in relationships %}
-            <span class="chip">
-                {% if r.from_person_id == person.pk %}{{ r.relationship_type }} <a href="{% url 'legacy:person_detail' r.to_person.pk %}">{{ r.to_person.display_name }}</a>
-                {% else %}<a href="{% url 'legacy:person_detail' r.from_person.pk %}">{{ r.from_person.display_name }}</a> — {{ r.relationship_type }}{% endif %}
-            </span>
-            {% endfor %}
+        <div class="profile-sec-head">
+            <h2 class="profile-sec-title">Relationships</h2>
+            <a href="{% url 'legacy:relationship_new' person.pk %}" class="lg-link-sm">+ Add a relationship</a>
         </div>
+        {% if relationships %}
+        <ul class="rel-list">
+            {% for r in relationships %}
+            <li class="rel-row">
+                <span class="rel-desc">
+                    {% if r.from_person_id == person.pk %}
+                    <span class="rel-type">{{ r.type_label }}</span> <a href="{% url 'legacy:person_detail' r.to_person.pk %}" class="lg-link">{{ r.to_person.display_name }}</a>
+                    {% else %}
+                    <a href="{% url 'legacy:person_detail' r.from_person.pk %}" class="lg-link">{{ r.from_person.display_name }}</a> — <span class="rel-type">{{ r.type_label }}</span>
+                    {% endif %}
+                    {% if r.rel_status and r.rel_status != 'current' %}<span class="rel-status-tag">{{ r.get_rel_status_display }}</span>{% endif %}
+                    {% if r.started_year or r.ended_year %}<span class="rel-years-tag">{{ r.started_year|default:"" }}{% if r.started_year or r.ended_year %}–{% endif %}{{ r.ended_year|default:"" }}</span>{% endif %}
+                </span>
+                {% if r.from_person_id == person.pk %}<a href="{% url 'legacy:relationship_edit' r.pk %}" class="rel-edit">Edit</a>{% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="profile-empty">No relationships recorded yet. <a href="{% url 'legacy:relationship_new' person.pk %}" class="lg-link">Add one →</a></p>
+        {% endif %}
     </section>
-    {% endif %}
 
     {% if milestones %}
     <section class="profile-sec">

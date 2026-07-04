@@ -30,6 +30,9 @@ urlpatterns = [
     path("family/", views.FamilyView.as_view(), name="family"),
     path("people/<int:pk>/this-is-me/", views.PersonSetSelfView.as_view(), name="person_set_self"),
     path("people/<int:pk>/merge/", views.PersonMergeView.as_view(), name="person_merge"),
+    path("people/<int:person_pk>/relationships/new/", views.RelationshipCreateView.as_view(), name="relationship_new"),
+    path("relationships/<int:pk>/edit/", views.RelationshipEditView.as_view(), name="relationship_edit"),
+    path("relationships/<int:pk>/delete/", views.RelationshipDeleteView.as_view(), name="relationship_delete"),
     # Memory Library + Editor (Slice 2)
     path("memories/", views.LibraryView.as_view(), name="library"),
     path("memories/new/", views.EditorView.as_view(), name="editor_new"),

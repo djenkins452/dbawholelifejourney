@@ -489,8 +489,53 @@ class MemoryDiscovery(models.Model):
         return f"{self.get_kind_display()}: {self.label}"
 
 
+# Curated relationship vocabulary (value = the canonical directional phrase the
+# Family graph reads; label = what the user sees). Not every parent comes from a
+# marriage; not every romantic relationship is a marriage. "Other" allows a
+# free-typed phrase; "" is Unknown.
+RELATIONSHIP_TYPE_CHOICES = [
+    ("Family — partners", (
+        ("married to", "Spouse"),
+        ("former spouse of", "Former spouse"),
+        ("partner of", "Partner"),
+        ("fiancé of", "Fiancé(e)"),
+        ("boyfriend of", "Boyfriend"),
+        ("girlfriend of", "Girlfriend"),
+        ("had a relationship with", "Affair / other romantic"),
+    )),
+    ("Family — parents & children", (
+        ("parent of", "Parent"),
+        ("step-parent of", "Step parent"),
+        ("adoptive parent of", "Adoptive parent"),
+        ("guardian of", "Guardian"),
+        ("child of", "Child"),
+    )),
+    ("Family — siblings", (
+        ("sibling of", "Sibling"),
+        ("half-sibling of", "Half sibling"),
+        ("step-sibling of", "Step sibling"),
+    )),
+    ("Beyond family", (
+        ("friend of", "Friend"),
+        ("coworker of", "Coworker"),
+        ("manager of", "Manager"),
+        ("mentor of", "Mentor"),
+        ("pastor of", "Pastor"),
+        ("teacher of", "Teacher"),
+        ("neighbor of", "Neighbor"),
+        ("related to", "Other"),
+    )),
+]
+
+
 class Relationship(LegacyOwnedModel):
     """A typed, directional, time-bounded relationship between two people."""
+
+    class RelStatus(models.TextChoices):
+        CURRENT = 'current', 'Current'
+        FORMER = 'former', 'Former'
+        ESTRANGED = 'estranged', 'Estranged'
+        UNKNOWN = 'unknown', 'Unknown'
 
     from_person = models.ForeignKey(
         Person, on_delete=models.CASCADE, related_name='relationships_from',
@@ -499,8 +544,11 @@ class Relationship(LegacyOwnedModel):
         Person, on_delete=models.CASCADE, related_name='relationships_to',
     )
     relationship_type = models.CharField(
-        max_length=120, help_text="e.g. 'father of', 'mentored by', 'married to'",
+        max_length=120, blank=True, help_text="e.g. 'father of', 'mentored by', 'married to'",
     )
+    # Whether the relationship is ongoing, ended, estranged, or unknown — separate
+    # from what KIND of relationship it is.
+    rel_status = models.CharField(max_length=10, choices=RelStatus.choices, blank=True)
     notes = models.TextField(blank=True)
     started_year = models.PositiveIntegerField(null=True, blank=True)
     ended_year = models.PositiveIntegerField(null=True, blank=True)
@@ -509,7 +557,15 @@ class Relationship(LegacyOwnedModel):
         ordering = ['from_person__display_name']
 
     def __str__(self):
-        return f"{self.from_person} — {self.relationship_type} — {self.to_person}"
+        return f"{self.from_person} — {self.relationship_type or 'unknown'} — {self.to_person}"
+
+    @property
+    def type_label(self):
+        for _group, opts in RELATIONSHIP_TYPE_CHOICES:
+            for value, label in opts:
+                if value == self.relationship_type:
+                    return label
+        return self.relationship_type or "Unknown"
 
 
 # ──────────────────────────────────────────────────────────────────────────

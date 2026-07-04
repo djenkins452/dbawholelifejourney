@@ -43200,3 +43200,17 @@ NOTE on live verification: still no in-browser screenshot — `SESSION_COOKIE_SE
 **Verification:** 251 scoped Legacy tests green (3 new: `dates_from_body` parses "Born 3 MAR 1945 … Died 12 DEC 2010"; commit recovers dates from body when structured data lacks them; `backfill_gedcom_dates` fills existing people → "3 Mar 1945"). Reproduced Danny's exact situation end-to-end (commit, then strip dates + binding to mimic the old state): BEFORE repair People shows the family but no full date; AFTER running the migration repair, People opens to Parents (Marvin & Betty), shows "3 Mar 1945", the Family panel shows it too, and the keeper is bound. `check` + `makemigrations --check` clean; migration 0020 applied (repair executed) on dev.
 
 **Files:** `apps/legacy/services/gedcom_parser.py` (`dates_from_body`), `apps/legacy/services/import_engine.py` (`_iso_to_date`, body-date fallback in commit, `backfill_gedcom_dates`), `apps/legacy/migrations/0020_backfill_dates_bind_self.py` (new data migration), `apps/legacy/tests/test_full_dates.py`.
+
+
+## 2026-07-04 — refactor(legacy): Family View — family-UNIT pedigree layout (algorithm replacement)
+
+**Why:** The layout placed people by global generation number, which floated siblings and married-in spouses onto the wrong rows (Danny's siblings appeared on his parents' line) and drew non-couples as couples. This is a graph-layout problem, not styling — the algorithm was replaced. No redesign of Canonical Truth/GEDCOM/Person Profile; no Beth/CoS.
+
+**What (new `family_tree` layout):**
+- **Generations measured RELATIVE to the focus** (BFS: parents one level up, children one level down, spouse and siblings on the SAME level). Siblings can never land on a parent row again.
+- **Family-unit layout:** the focus's descendants are a tidy tree with **children centered beneath the couple midpoint**; **siblings sit on the focus's row**, flanking; **ancestors fan upward as a pedigree**, each **couple placed together** and centered over their children (spread widens per generation to avoid crossings).
+- **Relationship-type-aware connectors:** parent→child lines (blue to parents, green to children); couple connectors styled by the actual type — **married** (solid gold), **partner** (solid teal), **former spouse** (dashed), **affair** (dotted), **unknown** (neutral). Two people who were never a couple (e.g. unmarried biological parents) get **no** couple line — they connect to the child individually. Children of a married couple descend from the couple's midpoint. Legend updated (Parents / Children / Married / Partner / Former).
+
+**Verification against Danny's family shape:** 256 scoped Legacy tests green (5 new layout tests + edge-type fix): focus row holds focus + spouse + siblings on the same y (siblings not floated up); spouse adjacent and child centered under the couple; parents above the focus; **Marvin↔Barbara (never married) have no couple line while Marvin↔Gloria (married) do**; up/down/couple-married connectors all present and rendered. `check` + `makemigrations --check` clean (no schema change); Family JS passes `node --check`; a full render confirms the typed connector classes and the new legend.
+
+**Files:** `apps/legacy/services/family_tree.py` (algorithm replacement — relative generations, family-unit layout, typed couple edges), `static/css/legacy.css` (typed connectors + legend; v35), `templates/legacy/{family.html, base_legacy.html}`, `apps/legacy/tests/{test_family.py, test_family_layout.py (new)}`, `apps/core/fixtures/release_notes.json`.

@@ -84,7 +84,7 @@ class FamilyGraphTests(TestCase):
         self.assertTrue(by_name["Danny Jenkins"]["living"])
         kinds = {e["type"] for e in g["edges"]}
         self.assertTrue({"up", "down"} & kinds)   # parent lines (coloured by side of focus)
-        self.assertIn("spouse", kinds)
+        self.assertTrue(any(k.startswith("couple") for k in kinds))   # typed spouse connector
 
     def test_family_view_renders(self):
         self.client.force_login(self.user)

@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 235,
+    "fields": {
+      "title": "The Family view now reads like a real family tree",
+      "description": "The Family view has a new layout built around family units, so it reads the way a family tree should: your parents sit together above you, your spouse beside you, your siblings on your row, and your children centered below the two of you. Relationship lines now show what each connection actually is — a solid line for marriage, a distinct line for a partner, a dashed line for a former spouse — and two people who were never a couple are no longer drawn as one.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-04",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-04T08:00:00Z",
+      "updated_at": "2026-07-04T08:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 234,
     "fields": {
       "title": "More accurate family relationships",

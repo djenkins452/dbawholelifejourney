@@ -69,24 +69,22 @@
     </div>
     {% endif %}
 
-    {% if likely_marriages %}
+    {% if clarifications %}
     <section class="lg-card marriage-review">
         <div class="import-coverage-head">
-            <h3 class="lg-card-h">Marriages to confirm</h3>
-            <p class="editor-aside-note">This file didn't record a marriage event for these couples, but they share several children — so they were <strong>likely</strong> married. Legacy won't assume it. Confirm the ones that are right; the rest stay as co-parents.</p>
+            <h3 class="lg-card-h">A few things to clarify</h3>
+            <p class="editor-aside-note">Legacy preserves what the file actually records and never guesses. These couples raised a family together but the file has no marriage record, so Legacy can't tell either way. You decide — the rest stay as they are.</p>
         </div>
         <ul class="marriage-list">
-            {% for m in likely_marriages %}
+            {% for c in clarifications %}
             <li class="marriage-row">
                 <span class="marriage-pair">
-                    <a href="{% url 'legacy:person_detail' m.husb.pk %}" class="lg-link">{{ m.husb.display_name }}</a>
-                    <span class="marriage-amp">&amp;</span>
-                    <a href="{% url 'legacy:person_detail' m.wife.pk %}" class="lg-link">{{ m.wife.display_name }}</a>
-                    <span class="marriage-hint">{{ m.children }} shared {{ m.children|pluralize:"child,children" }}</span>
+                    <span class="marriage-q">{{ c.question }}</span>
+                    <span class="marriage-hint">{{ c.reason }}</span>
                 </span>
                 <span class="marriage-actions">
-                    <form method="post" action="{% url 'legacy:import_marriage_review' batch.pk m.index %}">{% csrf_token %}<input type="hidden" name="action" value="confirm"><button type="submit" class="lg-btn-quiet">They were married</button></form>
-                    <form method="post" action="{% url 'legacy:import_marriage_review' batch.pk m.index %}">{% csrf_token %}<input type="hidden" name="action" value="dismiss"><button type="submit" class="lg-btn-ghost">Not married</button></form>
+                    <form method="post" action="{% url 'legacy:import_clarify' batch.pk c.ref %}">{% csrf_token %}<input type="hidden" name="answer" value="yes"><button type="submit" class="lg-btn-quiet">Yes, married</button></form>
+                    <form method="post" action="{% url 'legacy:import_clarify' batch.pk c.ref %}">{% csrf_token %}<input type="hidden" name="answer" value="no"><button type="submit" class="lg-btn-ghost">No, co-parents</button></form>
                 </span>
             </li>
             {% endfor %}

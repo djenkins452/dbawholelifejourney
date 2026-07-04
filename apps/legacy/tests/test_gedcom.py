@@ -399,8 +399,8 @@ class MarriageRepairMigrationTests(TestCase):
         self.assertTrue(married(marvin, gloria))     # real (marriage year) → kept
 
 
-# A lasting family unit (three shared children) with NO marriage event — the "likely"
-# tier. Legacy suggests marriage for confirmation but never asserts it.
+# A lasting family unit (three shared children) with NO marriage event — the
+# needs-clarification case. Legacy asks the user; it never asserts a marriage.
 LIKELY_GED = """0 HEAD
 0 @I1@ INDI
 1 NAME Marvin Lynn /Jenkins/
@@ -422,38 +422,41 @@ LIKELY_GED = """0 HEAD
 """
 
 
-class MarriageConfidenceTests(TestCase):
-    """Known / Likely / Unknown — the importer reasons about confidence."""
+class MarriageStatusTests(TestCase):
+    """Known vs Needs-Clarification — the importer preserves evidence, never infers."""
 
     def _fam(self, ged):
         return next(c for c in gedcom_parser.parse_gedcom(ged) if c["kind"] == "gedcom_family")
 
-    def test_multiple_children_no_marriage_is_likely(self):
+    def test_multiple_children_no_marriage_needs_clarification(self):
         fam = self._fam(LIKELY_GED)
-        self.assertEqual(fam["data"]["couple_type"], "married")
-        self.assertEqual(fam["data"]["couple_confidence"], "likely")
+        # NOT inferred as married — couple_type stays None, only a question is raised.
+        self.assertIsNone(fam["data"]["couple_type"])
+        self.assertEqual(fam["data"]["marriage_status"], "needs_clarification")
 
-    def test_single_child_no_marriage_is_not_a_couple(self):
+    def test_single_child_no_marriage_raises_no_question(self):
         ged = ("0 HEAD\n0 @I1@ INDI\n1 NAME A /X/\n0 @I2@ INDI\n1 NAME B /Y/\n"
                "0 @I3@ INDI\n1 NAME C /X/\n0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n"
                "1 CHIL @I3@\n0 TRLR\n")
         fam = self._fam(ged)
         self.assertIsNone(fam["data"]["couple_type"])
-        self.assertIsNone(fam["data"]["couple_confidence"])
+        self.assertIsNone(fam["data"]["marriage_status"])
 
     def test_marr_is_known(self):
         ged = ("0 HEAD\n0 @I1@ INDI\n1 NAME A /X/\n0 @I2@ INDI\n1 NAME B /Y/\n"
                "0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n1 MARR\n2 DATE 1990\n0 TRLR\n")
         fam = self._fam(ged)
-        self.assertEqual(fam["data"]["couple_confidence"], "known")
+        self.assertEqual(fam["data"]["couple_type"], "married")
+        self.assertEqual(fam["data"]["marriage_status"], "known")
 
 
-class LikelyMarriageReviewTests(TestCase):
-    """A likely marriage is surfaced for confirmation, never auto-asserted."""
+class ClarificationEngineTests(TestCase):
+    """Incomplete marriage evidence becomes a QUESTION; the user resolves it, and only
+    then does it enter Canonical Truth. The importer never asserts a marriage."""
 
     def setUp(self):
         from apps.legacy.services.import_engine import commit_genealogy
-        self.user = _make_user("likely@example.com")
+        self.user = _make_user("clarify@example.com")
         self.batch = create_batch(self.user, "Tree", "gedcom", LIKELY_GED, classifier=lambda x: {})
         commit_genealogy(self.batch)
 
@@ -468,25 +471,26 @@ class LikelyMarriageReviewTests(TestCase):
         return Relationship.objects.filter(user=self.user, relationship_type__icontains="married").filter(
             Q(from_person=a, to_person=b) | Q(from_person=b, to_person=a)).exists()
 
-    def test_likely_not_asserted_but_surfaced(self):
-        from apps.legacy.services.import_engine import likely_marriages
+    def test_gap_becomes_a_question_not_a_marriage(self):
+        from apps.legacy.services import clarification
         marvin, barbara = self._pair()
-        self.assertFalse(self._married(marvin, barbara))          # NOT drawn as married
-        lm = likely_marriages(self.batch)
-        self.assertEqual(len(lm), 1)                               # surfaced for review
-        self.assertEqual({lm[0]["husb"].pk, lm[0]["wife"].pk}, {marvin.pk, barbara.pk})
-        self.assertEqual(lm[0]["children"], 3)
+        self.assertFalse(self._married(marvin, barbara))          # NOTHING asserted
+        q = clarification.pending(self.batch)
+        self.assertEqual(len(q), 1)                               # a question is raised
+        self.assertEqual(q[0]["kind"], "marriage")
+        self.assertEqual({q[0]["husband"].pk, q[0]["wife"].pk}, {marvin.pk, barbara.pk})
+        self.assertIn("3 shared children", q[0]["reason"])        # internal reason for asking
 
-    def test_confirm_records_marriage(self):
-        from apps.legacy.services.import_engine import likely_marriages, confirm_marriage
+    def test_answer_yes_records_marriage(self):
+        from apps.legacy.services import clarification
         marvin, barbara = self._pair()
-        confirm_marriage(self.batch, likely_marriages(self.batch)[0]["index"])
-        self.assertTrue(self._married(marvin, barbara))            # now married
-        self.assertEqual(likely_marriages(self.batch), [])        # no longer suggested
+        clarification.resolve(self.batch, clarification.pending(self.batch)[0]["ref"], "yes")
+        self.assertTrue(self._married(marvin, barbara))           # now in Canonical Truth
+        self.assertEqual(clarification.pending(self.batch), [])   # question resolved
 
-    def test_dismiss_keeps_them_unmarried(self):
-        from apps.legacy.services.import_engine import likely_marriages, dismiss_marriage
+    def test_answer_no_keeps_co_parents(self):
+        from apps.legacy.services import clarification
         marvin, barbara = self._pair()
-        dismiss_marriage(self.batch, likely_marriages(self.batch)[0]["index"])
-        self.assertFalse(self._married(marvin, barbara))          # still co-parents only
-        self.assertEqual(likely_marriages(self.batch), [])        # not asked again
+        clarification.resolve(self.batch, clarification.pending(self.batch)[0]["ref"], "no")
+        self.assertFalse(self._married(marvin, barbara))          # still just co-parents
+        self.assertEqual(clarification.pending(self.batch), [])   # not asked again

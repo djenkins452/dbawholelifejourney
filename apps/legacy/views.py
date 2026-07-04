@@ -1317,9 +1317,10 @@ class ImportDetailView(LegacyContextMixin, DetailView):
         ctx["genealogy_pending"] = self.object.chunks.filter(
             chunk_kind__in=["gedcom_person", "gedcom_family"],
             status=ImportChunk.Status.PENDING).count()
-        # Marriages the importer thinks are LIKELY but won't assert — for the user
-        # to confirm or dismiss (only meaningful once genealogy has been committed).
-        ctx["likely_marriages"] = import_engine.likely_marriages(self.object)
+        # Questions the clarification engine needs the user to answer (e.g. a family
+        # unit with no marriage record). Only meaningful once genealogy is committed.
+        from apps.legacy.services import clarification
+        ctx["clarifications"] = clarification.pending(self.object)
         ctx["stats"] = import_engine.batch_stats(self.object)
         ctx["next_review"] = (
             self.object.memories.filter(entry_state=Memory.EntryState.DRAFT)
@@ -1388,18 +1389,18 @@ class GenealogyCommitView(LegacyContextMixin, View):
         return redirect("legacy:family")
 
 
-class MarriageReviewView(LegacyContextMixin, View):
-    """Confirm or dismiss a marriage the importer flagged as LIKELY. Confirm records
-    a real 'married to' relationship; dismiss keeps the couple as co-parents. Either
-    way the decision is remembered so it isn't asked again."""
+class ClarificationResolveView(LegacyContextMixin, View):
+    """Resolve a clarification question the engine raised. The user answers; Legacy
+    writes the answer into Canonical Truth — it never guesses on the user's behalf."""
 
-    def post(self, request, pk, index, *args, **kwargs):
+    def post(self, request, pk, ref, *args, **kwargs):
+        from apps.legacy.services import clarification
         batch = get_object_or_404(ImportBatch.all_objects, pk=pk, user=request.user)
-        if request.POST.get("action") == "confirm":
-            import_engine.confirm_marriage(batch, int(index))
+        answer = "yes" if request.POST.get("answer") == "yes" else "no"
+        clarification.resolve(batch, int(ref), answer)
+        if answer == "yes":
             messages.success(request, "Recorded as married.")
         else:
-            import_engine.dismiss_marriage(batch, int(index))
             messages.info(request, "Left unmarried — they remain co-parents.")
         return redirect("legacy:import_detail", pk=batch.pk)
 

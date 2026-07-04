@@ -6,6 +6,24 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — refactor(legacy): Clarification engine — Legacy preserves evidence, the user resolves ambiguity (D1)
+
+Simplified the marriage model per the principle **Legacy preserves facts; the user resolves ambiguity — Legacy never infers truth.** Removed "Likely" as a Canonical-Truth / user-facing state. Marriage status is now exactly two things:
+
+- **Known** — explicit marriage/divorce evidence → recorded as married/former.
+- **Needs Clarification** — a family unit with no marriage event but several shared children. The importer does NOT infer a marriage (couple_type stays `None`); it records the GAP, and a new **clarification engine** turns it into a plain question the user answers.
+
+"Likely" survives only as the INTERNAL reason a question is asked ("N shared children, no marriage record"), never a stored state and never drawn in the tree.
+
+**Separation of concerns:** the importer (`import_engine`) only preserves evidence (`couple_type` + `marriage_status` on the family chunk) and asserts a spouse link solely on `known`. A new **`apps/legacy/services/clarification.py`** owns the questions: `pending(batch)` (open questions) and `resolve(batch, ref, 'yes'|'no')` (writes the answer into Canonical Truth; decision remembered on the chunk as `marriage_clarified`). The import page shows "A few things to clarify" with the question ("Were X and Y married?"), the reason, and Yes-married / No-co-parents — CSP-safe POST forms.
+
+**Renames:** parser `_marriage_bond` → `(couple_type, marriage_status)` with `needs_clarification`; `couple_confidence` → `marriage_status`; `import_engine.likely_marriages/confirm_marriage/dismiss_marriage` removed → `clarification.pending/resolve`; view `MarriageReviewView` → `ClarificationResolveView`; url `import_marriage_review` → `import_clarify`. Migration 0025 made clarification-aware (an unclear family's old inferred marriage is removed and re-surfaced as a question; a user-confirmed marriage is kept).
+
+**Verified on real data:** Marvin + Barbara (4 shared children, no MARR) → a clarification question, nothing asserted; answering "yes" records the marriage, "no" keeps them co-parents; Marvin + Gloria (MARR) → known married. 75 legacy tests green.
+
+**Files:** apps/legacy/services/gedcom_parser.py, apps/legacy/services/import_engine.py, apps/legacy/services/clarification.py (NEW), apps/legacy/migrations/0025_repair_inferred_marriages.py, apps/legacy/views.py, apps/legacy/urls.py, templates/legacy/import_detail.html, static/css/legacy.css (v42), apps/legacy/tests/test_gedcom.py.
+
+
 ## 2026-07-04 — feat(legacy): GEDCOM marriage inference by CONFIDENCE — Known / Likely / Unknown (D1)
 
 Refinement of the marriage-truth fix: the importer now reasons about relationship CONFIDENCE instead of treating every missing MARR tag identically, because genealogy sources are often incomplete.

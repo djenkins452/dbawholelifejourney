@@ -237,18 +237,19 @@ def narrative_pending(batch):
 
 
 def _couple_bond(family_data):
-    """The couple's bond for a gedcom_family chunk as (couple_type, confidence):
-    ('married'/'former', 'known') with real evidence, ('married', 'likely') for a
-    multi-child family unit with no marriage event, or (None, None). New chunks carry
-    `couple_confidence` from the parser; legacy chunks are inferred — marriage
-    year/date/place ⇒ known married; otherwise >= 2 shared children ⇒ likely."""
-    if "couple_confidence" in family_data:
-        return family_data.get("couple_type"), family_data.get("couple_confidence")
+    """The couple's marriage evidence for a gedcom_family chunk as (couple_type,
+    status): ('married'/'former', 'known') with real evidence, (None,
+    'needs_clarification') for a multi-child family unit with no marriage event (a
+    QUESTION, not a marriage), or (None, None). New chunks carry `marriage_status`
+    from the parser; legacy chunks are inferred — marriage year/date/place ⇒ known
+    married; otherwise >= 2 shared children ⇒ needs_clarification."""
+    if "marriage_status" in family_data:
+        return family_data.get("couple_type"), family_data.get("marriage_status")
     if family_data.get("marriage_year") or family_data.get("marriage_date") \
             or family_data.get("marriage_place"):
         return "married", "known"
     if len(family_data.get("children") or []) >= 2:
-        return "married", "likely"
+        return None, "needs_clarification"
     return None, None
 
 
@@ -328,12 +329,12 @@ def commit_genealogy(batch):
         husb = xref_to_person.get(d.get("husb"))
         wife = xref_to_person.get(d.get("wife"))
         # A FAM record is a family UNIT — it does NOT imply marriage. Only assert a
-        # spouse relationship on KNOWN evidence (a MARR/DIV/… event). A 'likely'
-        # marriage (a multi-child family with no marriage event) is NOT asserted —
-        # it is surfaced for the user to confirm (see `likely_marriages`). Either way
-        # the couple stay linked through their children.
-        ctype, conf = _couple_bond(d)
-        if ctype and conf == "known":
+        # spouse relationship on KNOWN evidence (a MARR/DIV/… event). A family unit
+        # with no marriage event is NEVER inferred as married — it becomes a question
+        # the clarification engine asks the user (see services/clarification.py).
+        # Either way the couple stay linked through their children.
+        ctype, status = _couple_bond(d)
+        if ctype and status == "known":
             _link(husb, wife, "former spouse of" if ctype == "former" else "married to",
                   started_year=d.get("marriage_year"), started_date=_d(d.get("marriage_date")))
         for x in (d.get("children") or []):
@@ -359,65 +360,6 @@ def _family_persons(batch, d):
     hp = Person.objects.filter(user=user, source_batch=batch, gedcom_xref=hx).first() if hx else None
     wp = Person.objects.filter(user=user, source_batch=batch, gedcom_xref=wx).first() if wx else None
     return hp, wp
-
-
-def likely_marriages(batch):
-    """Family units the importer thinks were LIKELY a marriage (several shared
-    children, no marriage event) but is not confident enough to assert. Surfaced so
-    the user can confirm or dismiss — Legacy suggests, the user decides. Excludes
-    families already confirmed/dismissed or already married. Returns [] until the
-    batch's people have been committed."""
-    from django.db.models import Q
-    from apps.legacy.models import Relationship
-    user = batch.user
-    out = []
-    for ch in batch.chunks.filter(chunk_kind="gedcom_family").order_by("index"):
-        d = ch.data or {}
-        if d.get("marriage_review") in ("confirmed", "dismissed"):
-            continue
-        ctype, conf = _couple_bond(d)
-        if conf != "likely":
-            continue
-        hp, wp = _family_persons(batch, d)
-        if not hp or not wp or hp.pk == wp.pk:
-            continue
-        if Relationship.objects.filter(user=user, relationship_type__icontains="married").filter(
-                Q(from_person=hp, to_person=wp) | Q(from_person=wp, to_person=hp)).exists():
-            continue
-        out.append({"index": ch.index, "husb": hp, "wife": wp,
-                    "children": len(d.get("children") or [])})
-    return out
-
-
-def confirm_marriage(batch, index):
-    """The user confirms a likely marriage → record it as a real 'married to'
-    relationship (now KNOWN) and remember the decision so it isn't asked again."""
-    from apps.legacy.models import ImportChunk, Relationship
-    ch = batch.chunks.filter(chunk_kind="gedcom_family", index=index).first()
-    if not ch:
-        return False
-    d = ch.data or {}
-    hp, wp = _family_persons(batch, d)
-    if hp and wp and hp.pk != wp.pk:
-        Relationship.objects.get_or_create(
-            user=batch.user, from_person=hp, to_person=wp, relationship_type="married to")
-    d["marriage_review"] = "confirmed"
-    ch.data = d
-    ch.save(update_fields=["data"])
-    return True
-
-
-def dismiss_marriage(batch, index):
-    """The user says a likely couple were NOT married → remember it (they remain
-    co-parents; no marriage is created and it won't be suggested again)."""
-    ch = batch.chunks.filter(chunk_kind="gedcom_family", index=index).first()
-    if not ch:
-        return False
-    d = ch.data or {}
-    d["marriage_review"] = "dismissed"
-    ch.data = d
-    ch.save(update_fields=["data"])
-    return True
 
 
 def rebuild_genealogy(user):

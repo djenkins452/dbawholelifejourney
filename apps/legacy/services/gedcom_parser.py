@@ -91,24 +91,28 @@ def _event(node, tag):
 
 
 # A GEDCOM FAM record defines a family UNIT — a husband, a wife, their children. It
-# does NOT by itself mean the couple married. Rather than treating every missing MARR
-# tag as identical, the importer reasons about CONFIDENCE, since genealogy sources are
-# often incomplete:
-#   known   — explicit marriage/divorce evidence           → recorded as married/former
-#   likely  — a family unit with several shared children    → surfaced for confirmation,
-#             but no marriage event                            NOT asserted as married
-#   (none)  — a single shared child / no support            → parent-child only
+# does NOT by itself mean the couple married. Legacy PRESERVES EVIDENCE; it never
+# infers truth. Marriage status is one of exactly two things:
+#   known               — explicit marriage/divorce evidence → recorded as married/former
+#   needs_clarification — a family unit strong enough to be worth asking about (several
+#                         shared children) but with no marriage event. This is NOT a
+#                         marriage; the importer records the GAP and the clarification
+#                         engine asks the user. (Its internal reason — "several shared
+#                         children" — is why we ask, never a user-facing "likely" state.)
+# Everything else carries no marriage and raises no question.
 _MARRIAGE_TAGS = ("MARR", "MARB", "MARC", "MARL", "MARS")   # marriage / banns / contract / licence / settlement
 _FORMER_TAGS = ("DIV", "DIVF", "ANUL")                       # divorce / annulment ⇒ they WERE married
-_LIKELY_MIN_CHILDREN = 2     # a lasting family unit — enough to suggest, never to assert
+_CLARIFY_MIN_CHILDREN = 2    # a lasting family unit — enough to ASK, never to assert
 
 
 def _marriage_bond(rec):
-    """The couple's bond from a FAM record as (couple_type, confidence):
-      ('former',  'known')  — divorce / annulment evidence (they were married)
-      ('married', 'known')  — explicit marriage evidence
-      ('married', 'likely') — no marriage event, but >= 2 shared children (suggest only)
-      (None,      None)     — no evidence and too little signal → not a couple
+    """A FAM record's marriage evidence as (couple_type, status):
+      ('former',  'known')               — divorce / annulment evidence (were married)
+      ('married', 'known')               — explicit marriage evidence
+      (None,      'needs_clarification') — no marriage event, but >= 2 shared children
+      (None,       None)                 — nothing to record or ask
+    Note: couple_type is NEVER 'married' without KNOWN evidence — an unclear family
+    unit produces a QUESTION, not an inferred marriage.
     """
     tags = {c["tag"] for c in rec["children"]}
     if tags & set(_FORMER_TAGS):
@@ -116,8 +120,8 @@ def _marriage_bond(rec):
     if tags & set(_MARRIAGE_TAGS):
         return "married", "known"
     n_children = sum(1 for c in rec["children"] if c["tag"] == "CHIL")
-    if n_children >= _LIKELY_MIN_CHILDREN:
-        return "married", "likely"
+    if n_children >= _CLARIFY_MIN_CHILDREN:
+        return None, "needs_clarification"
     return None, None
 
 
@@ -379,7 +383,7 @@ def parse_gedcom(raw):
         children = [names.get(c["value"], "") for c in rec["children"] if c["tag"] == "CHIL"]
         children = [c for c in children if c]
         mdate, mplace = _event(rec, "MARR")
-        couple_type, couple_confidence = _marriage_bond(rec)
+        couple_type, marriage_status = _marriage_bond(rec)
         pair = " & ".join(x for x in (husb, wife) if x) or "Family"
         lines = []
         marr = _when_where(mdate, mplace, "Married")
@@ -404,7 +408,7 @@ def parse_gedcom(raw):
                 "marriage_year": _year(mdate), "marriage_date": _full_date(mdate),
                 "marriage_place": mplace,
                 "couple_type": couple_type,
-                "couple_confidence": couple_confidence,
+                "marriage_status": marriage_status,
                 "facts": _facts(rec),
             },
         })

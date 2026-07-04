@@ -1194,7 +1194,8 @@ a.fam-result { text-decoration: none; }
 .marriage-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .marriage-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--lg-border); }
 .marriage-row:first-child { border-top: 0; }
-.marriage-pair { font-size: 14px; color: var(--lg-ink); display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.marriage-pair { font-size: 14px; color: var(--lg-ink); display: inline-flex; flex-direction: column; gap: 3px; }
+.marriage-q { font-weight: 600; }
 .marriage-amp { color: var(--lg-muted); }
 .marriage-hint { font-size: 12px; color: var(--lg-muted); font-style: italic; }
 .marriage-actions { display: inline-flex; gap: 8px; }

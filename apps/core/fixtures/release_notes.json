@@ -4,7 +4,7 @@
     "pk": 240,
     "fields": {
       "title": "Legacy no longer guesses at marriages when you import a family tree",
-      "description": "Family tree files don't always record whether a couple actually married. Legacy now handles this honestly. When a marriage is recorded in the file, it's shown as a marriage. When two people simply share a child, they're kept as parents — never assumed to be married. And when a couple clearly raised a family together but the file has no marriage record, Legacy flags them under “Marriages to confirm” on the import page, where you can confirm or leave them as co-parents. Legacy suggests; you decide. Nothing is ever invented.",
+      "description": "Family tree files don't always record whether a couple actually married. Legacy now handles this honestly. When a marriage is recorded in the file, it's shown as a marriage. When two people simply share a child, they're kept as parents — never assumed to be married. And when a couple clearly raised a family together but the file has no marriage record, Legacy doesn't guess — it asks. On the import page, under “A few things to clarify,” you'll see a simple question like “Were these two married?” with the reason it's asking. You answer; Legacy records it. Legacy preserves the facts; you resolve anything the file left unclear. Nothing is ever invented.",
       "entry_type": "improvement",
       "version": "",
       "release_date": "2026-07-04",

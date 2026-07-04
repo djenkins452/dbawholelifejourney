@@ -4,33 +4,43 @@
 <div class="lib-head">
     <div>
         <h1 class="lib-title">Your family</h1>
-        <p class="lib-sub">Everyone Legacy knows, and how they connect. Tap anyone to open their story.</p>
+        <p class="lib-sub">Exploring one person's family at a time. Click anyone to bring them to the center.</p>
     </div>
 </div>
 
-{% if graph.count %}
-<div class="famview" id="famView" data-me-x="{{ graph.me_x }}" data-me-y="{{ graph.me_y }}" data-has-me="{% if graph.me %}1{% else %}0{% endif %}">
+{% if graph.shown %}
+<div class="famview" id="famView" data-focus-x="{{ graph.focus_x }}" data-focus-y="{{ graph.focus_y }}">
     <div class="fam-toolbar">
         <div class="fam-search">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="search" id="famSearch" class="fam-search-in" placeholder="Search your family by name or nickname…" autocomplete="off" aria-label="Search family">
+            <input type="search" id="famSearch" class="fam-search-in" placeholder="Search your whole family by name or nickname…" autocomplete="off" aria-label="Search family">
             <div class="fam-results" id="famResults" hidden></div>
         </div>
-        {% if graph.me %}<button type="button" class="fam-home" data-fam="me"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg> Me</button>{% endif %}
+        {% if graph.me %}<a class="fam-home" href="{% url 'legacy:family' %}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg> Me</a>{% endif %}
     </div>
+
+    {% if focus_node %}
+    <div class="fam-focusbar">
+        <span>Viewing <strong>{{ focus_node.name }}</strong>'s family{% if graph.count > graph.shown %} · {{ graph.count }} people in your whole tree{% endif %}</span>
+        <a href="{% url 'legacy:person_detail' graph.focus %}" class="lg-link">Open {{ focus_node.name }}'s profile →</a>
+    </div>
+    {% endif %}
+
     <div class="fam-stage" id="famStage">
         <div class="fam-controls">
             <button type="button" class="fam-ctrl" data-fam="zoomin" aria-label="Zoom in">+</button>
             <button type="button" class="fam-ctrl" data-fam="zoomout" aria-label="Zoom out">−</button>
-            <button type="button" class="fam-ctrl" data-fam="fit" aria-label="Fit whole tree">⤢</button>
+            <button type="button" class="fam-ctrl" data-fam="fit" aria-label="Fit this family">⤢</button>
         </div>
         <div class="fam-canvas" id="famCanvas">
             <svg class="fam-edges" width="{{ graph.width }}" height="{{ graph.height }}" aria-hidden="true">
                 {% for e in graph.edges %}<line x1="{{ e.x1 }}" y1="{{ e.y1 }}" x2="{{ e.x2 }}" y2="{{ e.y2 }}" class="fam-edge fam-edge-{{ e.type }}" />{% endfor %}
             </svg>
             {% for n in graph.nodes %}
-            <a class="fam-node{% if not n.living %} is-deceased{% endif %}{% if n.is_self %} is-me{% endif %}" href="{% url 'legacy:person_detail' n.id %}"
-               data-id="{{ n.id }}" data-x="{{ n.x }}" data-y="{{ n.y }}" data-cx="{{ n.cx }}" data-cy="{{ n.cy }}" data-search="{{ n.search }}">
+            <a class="fam-node{% if not n.living %} is-deceased{% endif %}{% if n.is_self %} is-me{% endif %}{% if n.is_focus %} is-focus{% endif %}"
+               href="{% if n.is_focus %}{% url 'legacy:person_detail' n.id %}{% else %}{% url 'legacy:family' %}?focus={{ n.id }}{% endif %}"
+               data-x="{{ n.x }}" data-y="{{ n.y }}" data-cx="{{ n.cx }}" data-cy="{{ n.cy }}"
+               {% if n.is_focus %}title="Open {{ n.name }}'s profile"{% else %}title="Center on {{ n.name }}"{% endif %}>
                 <span class="fam-node-av">{% if n.photo %}<img src="{{ n.photo }}" alt="">{% else %}{{ n.initials }}{% endif %}</span>
                 <span class="fam-node-main">
                     <span class="fam-node-name">{{ n.name }}</span>
@@ -40,7 +50,8 @@
             {% endfor %}
         </div>
     </div>
-    <p class="fam-hint">Drag to move · scroll or pinch to zoom · click a person to open their profile</p>
+    <p class="fam-hint">Click a relative to center on them · click the highlighted person to open their profile · drag to move · scroll or pinch to zoom</p>
+    {{ search_index|json_script:"famSearchData" }}
 </div>
 
 <script nonce="{{ csp_nonce }}">
@@ -50,85 +61,70 @@
     var canvas = document.getElementById('famCanvas');
     if (!view || !stage || !canvas) { return; }
 
-    var nodeEls = Array.prototype.slice.call(canvas.querySelectorAll('.fam-node'));
-    nodeEls.forEach(function (n) {
+    canvas.querySelectorAll('.fam-node').forEach(function (n) {
         n.style.left = n.getAttribute('data-x') + 'px';
         n.style.top = n.getAttribute('data-y') + 'px';
     });
 
     var scale = 1, tx = 40, ty = 40;
     function apply() { canvas.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')'; }
-    function clampScale(s) { return Math.min(2.5, Math.max(0.2, s)); }
+    function clampScale(s) { return Math.min(2.5, Math.max(0.25, s)); }
 
     function fit() {
-        var cw = canvas.scrollWidth || 1;
-        var sw = stage.clientWidth || 1;
-        scale = clampScale(Math.min(1, (sw - 80) / cw));
-        tx = Math.max(20, (sw - cw * scale) / 2);
-        ty = 30;
-        apply();
+        var cw = canvas.scrollWidth || 1, ch = canvas.scrollHeight || 1;
+        var sw = stage.clientWidth || 1, sh = stage.clientHeight || 1;
+        scale = clampScale(Math.min(1, Math.min((sw - 60) / cw, (sh - 60) / ch)));
+        tx = (sw - cw * scale) / 2; ty = 26; apply();
     }
-
     function centerOn(cx, cy, s) {
         if (s) { scale = clampScale(s); }
         var r = stage.getBoundingClientRect();
-        tx = r.width / 2 - cx * scale;
-        ty = r.height / 2 - cy * scale;
-        apply();
+        tx = r.width / 2 - cx * scale; ty = Math.max(24, r.height / 2 - cy * scale); apply();
     }
 
-    // Open centered on "me" when we know who that is; otherwise fit the whole tree.
-    if (view.getAttribute('data-has-me') === '1') {
-        centerOn(parseFloat(view.getAttribute('data-me-x')) || 0,
-                 parseFloat(view.getAttribute('data-me-y')) || 0, 1);
-    } else {
-        fit();
-    }
+    // Open centered on the focal person — the neighborhood is small, so it fits.
+    centerOn(parseFloat(view.getAttribute('data-focus-x')) || 0,
+             parseFloat(view.getAttribute('data-focus-y')) || 0, 1);
 
-    // Pan by dragging the background (cards are links).
-    var dragging = false, sx = 0, sy = 0, sTx = 0, sTy = 0;
+    var dragging = false, sx = 0, sy = 0, sTx = 0, sTy = 0, moved = false;
     stage.addEventListener('pointerdown', function (e) {
         if (e.target.closest('.fam-node') || e.target.closest('.fam-controls')) { return; }
-        dragging = true; sx = e.clientX; sy = e.clientY; sTx = tx; sTy = ty;
+        dragging = true; moved = false; sx = e.clientX; sy = e.clientY; sTx = tx; sTy = ty;
         try { stage.setPointerCapture(e.pointerId); } catch (err) {}
         stage.classList.add('is-panning');
     });
     stage.addEventListener('pointermove', function (e) {
         if (!dragging) { return; }
-        tx = sTx + (e.clientX - sx); ty = sTy + (e.clientY - sy); apply();
+        tx = sTx + (e.clientX - sx); ty = sTy + (e.clientY - sy);
+        if (Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) > 4) { moved = true; }
+        apply();
     });
     function endPan() { dragging = false; stage.classList.remove('is-panning'); }
     stage.addEventListener('pointerup', endPan);
     stage.addEventListener('pointercancel', endPan);
+    // Suppress the click→navigate if the pointer was actually a drag.
+    canvas.addEventListener('click', function (e) {
+        if (moved) { e.preventDefault(); moved = false; }
+    }, true);
 
     function zoomAt(mx, my, factor) {
         var ns = clampScale(scale * factor);
-        tx = mx - (mx - tx) * (ns / scale);
-        ty = my - (my - ty) * (ns / scale);
-        scale = ns; apply();
+        tx = mx - (mx - tx) * (ns / scale); ty = my - (my - ty) * (ns / scale); scale = ns; apply();
     }
     stage.addEventListener('wheel', function (e) {
         e.preventDefault();
         var r = stage.getBoundingClientRect();
         zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.1 : 0.9);
     }, { passive: false });
-
-    function meNode() { return canvas.querySelector('.fam-node.is-me'); }
-    function goMe() {
-        var m = meNode();
-        if (m) { centerOn(parseFloat(m.getAttribute('data-cx')), parseFloat(m.getAttribute('data-cy')), 1); highlight(m); }
-    }
-    document.querySelectorAll('[data-fam]').forEach(function (b) {
+    document.querySelectorAll('.fam-ctrl').forEach(function (b) {
         b.addEventListener('click', function () {
             var a = b.getAttribute('data-fam');
             if (a === 'fit') { fit(); return; }
-            if (a === 'me') { goMe(); return; }
             var r = stage.getBoundingClientRect();
             zoomAt(r.width / 2, r.height / 2, a === 'zoomin' ? 1.2 : 0.8);
         });
     });
 
-    // Two-finger pinch zoom.
     var pinch0 = 0, pinchS0 = 1;
     function dist(t) { var dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY; return Math.sqrt(dx * dx + dy * dy); }
     stage.addEventListener('touchstart', function (e) { if (e.touches.length === 2) { pinch0 = dist(e.touches); pinchS0 = scale; } }, { passive: true });
@@ -139,53 +135,38 @@
             var mx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left;
             var my = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
             var target = clampScale(pinchS0 * (dist(e.touches) / pinch0));
-            tx = mx - (mx - tx) * (target / scale); ty = my - (my - ty) * (target / scale);
-            scale = target; apply();
+            tx = mx - (mx - tx) * (target / scale); ty = my - (my - ty) * (target / scale); scale = target; apply();
         }
     }, { passive: false });
     stage.addEventListener('touchend', function (e) { if (e.touches.length < 2) { pinch0 = 0; } });
 
-    // Highlight (center-on without opening).
-    var hl = null;
-    function highlight(el) {
-        if (hl) { hl.classList.remove('is-highlight'); }
-        hl = el; if (el) { el.classList.add('is-highlight'); }
-    }
-
-    // Search by name / nickname / alias → center + highlight (opens nothing).
+    // Search the WHOLE family → selecting re-centers the tree on that person.
     var input = document.getElementById('famSearch');
     var results = document.getElementById('famResults');
-    var index = nodeEls.map(function (n) {
-        return { el: n, text: n.getAttribute('data-search') || '',
-                 name: (n.querySelector('.fam-node-name') || {}).textContent || '',
-                 meta: (n.querySelector('.fam-node-meta') || {}).textContent || '' };
-    });
+    var data = [];
+    try { data = JSON.parse(document.getElementById('famSearchData').textContent) || []; } catch (e) {}
+    var base = '{% url "legacy:family" %}';
     function renderResults(q) {
         results.innerHTML = '';
         if (!q) { results.hidden = true; return; }
-        var hits = index.filter(function (r) { return r.text.indexOf(q) > -1; }).slice(0, 14);
+        var hits = [];
+        for (var i = 0; i < data.length && hits.length < 16; i++) {
+            if (data[i].text.indexOf(q) > -1) { hits.push(data[i]); }
+        }
         if (!hits.length) { results.innerHTML = '<div class="fam-result fam-result-none">No one matches.</div>'; results.hidden = false; return; }
         hits.forEach(function (r) {
-            var d = document.createElement('button');
-            d.type = 'button'; d.className = 'fam-result';
-            d.innerHTML = '<span class="fam-result-name"></span><span class="fam-result-meta"></span>';
-            d.querySelector('.fam-result-name').textContent = r.name;
-            d.querySelector('.fam-result-meta').textContent = r.meta;
-            d.addEventListener('click', function () {
-                centerOn(parseFloat(r.el.getAttribute('data-cx')), parseFloat(r.el.getAttribute('data-cy')), 1);
-                highlight(r.el);
-                results.hidden = true; input.value = r.name;
-            });
-            results.appendChild(d);
+            var a = document.createElement('a');
+            a.className = 'fam-result'; a.href = base + '?focus=' + r.id;
+            a.innerHTML = '<span class="fam-result-name"></span><span class="fam-result-meta"></span>';
+            a.querySelector('.fam-result-name').textContent = r.name;
+            a.querySelector('.fam-result-meta').textContent = r.meta;
+            results.appendChild(a);
         });
         results.hidden = false;
     }
     if (input) {
         input.addEventListener('input', function () { renderResults(input.value.trim().toLowerCase()); });
-        input.addEventListener('focus', function () { if (input.value.trim()) { renderResults(input.value.trim().toLowerCase()); } });
-        document.addEventListener('click', function (e) {
-            if (!e.target.closest('.fam-search')) { results.hidden = true; }
-        });
+        document.addEventListener('click', function (e) { if (!e.target.closest('.fam-search')) { results.hidden = true; } });
     }
 })();
 </script>

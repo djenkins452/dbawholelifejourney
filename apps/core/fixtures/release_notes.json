@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 228,
+    "fields": {
+      "title": "Family View now explores one person at a time",
+      "description": "The Family view now works the way a family tree should. Instead of showing your whole tree at once, it shows one person's immediate family — their parents above, spouse and siblings beside them, and children below — so it's easy to read at a glance. Click any relative and the tree re-centers on them; click the highlighted person to open their full profile. Search finds anyone in your whole family and brings them to the center, and the 🏠 Me button always returns to you. The Relationships page has also come to life, pointing to your Family view and showing what's coming next for friends, coworkers, mentors, and more.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-04",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-04T01:00:00Z",
+      "updated_at": "2026-07-04T01:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 227,
     "fields": {
       "title": "Family View now feels like a family tree",

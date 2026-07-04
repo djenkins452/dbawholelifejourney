@@ -7,6 +7,7 @@ from django.urls import reverse
 
 from apps.legacy.models import Person, Relationship
 from apps.legacy.services import family_tree
+from apps.legacy.services.family_tree import build_family_view
 from apps.legacy.services.import_engine import commit_genealogy, create_batch
 from apps.legacy.tests.test_gedcom import SAMPLE
 
@@ -145,3 +146,78 @@ class SelfMeTests(TestCase):
         danny.refresh_from_db(); marvin.refresh_from_db()
         self.assertTrue(danny.is_self)
         self.assertFalse(marvin.is_self)     # only one "me"
+
+
+class FocalViewTests(TestCase):
+    def setUp(self):
+        self.user = _make_user()
+
+    def _p(self, name, **kw):
+        return Person.objects.create(user=self.user, display_name=name, **kw)
+
+    def _parent(self, parent, child):
+        Relationship.objects.create(user=self.user, from_person=parent,
+                                    to_person=child, relationship_type="parent of")
+
+    def _spouse(self, a, b):
+        Relationship.objects.create(user=self.user, from_person=a,
+                                    to_person=b, relationship_type="married to")
+
+    def test_focus_defaults_to_me(self):
+        me = self._p("Me", is_self=True)
+        dad = self._p("Dad"); self._parent(dad, me)
+        g = build_family_view(self.user)
+        self.assertEqual(g["focus"], me.pk)
+        self.assertIn(dad.pk, {n["id"] for n in g["nodes"]})
+
+    def test_focus_param_recenters(self):
+        me = self._p("Me", is_self=True)
+        dad = self._p("Dad"); self._parent(dad, me)
+        g = build_family_view(self.user, focus_pk=dad.pk)
+        self.assertEqual(g["focus"], dad.pk)
+        self.assertEqual(next(n for n in g["nodes"] if n["is_focus"])["name"], "Dad")
+
+    def test_neighborhood_is_bounded(self):
+        chain = [self._p("G%d" % i) for i in range(6)]      # G0 (top) .. G5 (bottom)
+        for i in range(5):
+            self._parent(chain[i], chain[i + 1])
+        far = build_family_view(self.user, focus_pk=chain[5].pk)
+        names = {n["name"] for n in far["nodes"]}
+        self.assertIn("G2", names)          # 3 generations up is included
+        self.assertNotIn("G1", names)       # 4 up is beyond the bounded neighborhood
+        self.assertNotIn("G0", names)
+
+    def test_siblings_and_spouse_sit_on_the_focus_row(self):
+        me = self._p("Me", is_self=True)
+        sib = self._p("Sib"); sp = self._p("Sp"); dad = self._p("Dad")
+        self._parent(dad, me); self._parent(dad, sib); self._spouse(me, sp)
+        g = build_family_view(self.user, focus_pk=me.pk)
+        by = {n["name"]: n for n in g["nodes"]}
+        self.assertEqual(by["Sib"]["y"], by["Me"]["y"])     # sibling beside
+        self.assertEqual(by["Sp"]["y"], by["Me"]["y"])      # spouse beside (not floated up)
+        self.assertLess(by["Dad"]["y"], by["Me"]["y"])      # parent above
+
+    def test_children_below_the_couple(self):
+        me = self._p("Me", is_self=True); sp = self._p("Sp"); kid = self._p("Kid")
+        self._spouse(me, sp); self._parent(me, kid); self._parent(sp, kid)
+        g = build_family_view(self.user, focus_pk=me.pk)
+        by = {n["name"]: n for n in g["nodes"]}
+        self.assertGreater(by["Kid"]["y"], by["Me"]["y"])   # child below
+        mid = (by["Me"]["cx"] + by["Sp"]["cx"]) / 2
+        self.assertLessEqual(abs(by["Kid"]["cx"] - mid), 2)  # centered under the couple
+
+    def test_search_index_spans_all_people(self):
+        for i in range(4):
+            self._p("Person%d" % i)
+        idx = family_tree.family_search_index(self.user)
+        self.assertEqual(len(idx), 4)
+        self.assertTrue(all("text" in r and "id" in r and "name" in r for r in idx))
+
+    def test_view_renders_focus_and_search_data(self):
+        self.client.force_login(self.user)
+        me = self._p("Me", is_self=True); dad = self._p("Dad"); self._parent(dad, me)
+        r = self.client.get(reverse("legacy:family"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "is-focus")
+        self.assertContains(r, "famSearchData")     # full-family search index present
+        self.assertContains(r, "'s family")         # focus bar

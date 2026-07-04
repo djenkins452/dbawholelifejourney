@@ -70,10 +70,7 @@ urlpatterns = [
     path("media/<int:pk>/archive/", views.MediaArchiveView.as_view(), name="media_archive"),
     path("media/<int:pk>/restore/", views.MediaRestoreView.as_view(), name="media_restore"),
     path("media/<int:pk>/delete-forever/", views.MediaDeleteForeverView.as_view(), name="media_delete_forever"),
-    path("relationships/", _placeholder(
-        "relationships", "Relationships",
-        "How the people in your life are connected."),
-        name="relationships"),
+    path("relationships/", views.RelationshipsView.as_view(), name="relationships"),
     # Contributors / Family (Slice 4)
     path("contributors/", views.ContributorsView.as_view(), name="contributors"),
     path("contributors/new/", views.ContributorCreateView.as_view(), name="contributor_new"),

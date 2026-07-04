@@ -43074,3 +43074,19 @@ NOTE on live verification: an authenticated browser screenshot was not possible 
 NOTE on live verification: still no in-browser screenshot — `SESSION_COOKIE_SECURE=True` vs the http://localhost preview means the browser drops the session cookie, so no login persists locally (fix for local dev: serve https or set `SESSION_COOKIE_SECURE=False`). Verified via the test client (real view→template render), unit tests, and JS syntax check.
 
 **Files:** `apps/legacy/services/family_tree.py`, `apps/legacy/models.py` (Person.is_self), `apps/legacy/views.py` (PersonSetSelfView), `apps/legacy/urls.py`, `templates/legacy/{family.html, person_detail.html, base_legacy.html}`, `static/css/legacy.css` (v28), `apps/legacy/migrations/0016_person_is_self.py`, `apps/legacy/tests/test_family.py`, `apps/core/fixtures/release_notes.json`.
+
+
+## 2026-07-04 — refine(legacy): Family View becomes focal (ego-centric) + Relationships explorer
+
+**Why:** A family tree always has a focus; rendering the whole 1,500-person graph was correct but unusable. Make the Family View behave the way people expect — show ONE person's immediate family and re-center when you click someone. Visualization refinement only; no redesign of Canonical Truth, GEDCOM import, or the Person Profile; no Beth/CoS.
+
+**What:**
+- **Focal (ego-centric) Family View** (`build_family_view`): never renders the whole graph — it builds the bounded family AROUND one person (ancestors up to great-grandparents, descendants down to grandchildren, plus siblings and spouses), so a 1,500-person import stays fast and fits without zooming. The tidy layout stacks generations vertically (parents above, children below), places siblings and spouses beside the focus, and centers children beneath their couple. **Spouse-generation fix:** a married-in spouse (no ancestors in view) now sits on the couple's row instead of floating to the top (fixpoint over spouse pairs).
+- **Click to re-center:** clicking any relative navigates to `?focus=<pk>` and rebuilds the tree around them; the highlighted focal person's card (and a focus bar) opens their full Profile. A **🏠 Me** control returns to the keeper, and **search spans the WHOLE family** (a lightweight all-people index via `family_search_index`, embedded with `json_script`) — selecting anyone re-centers the tree on them, not just pans to a dot. Pan / zoom / pinch / fit retained; all CSP-safe (nonce'd script, JS-set positions, server SVG edges, drag-vs-click guard).
+- **Relationships page** (was a "being prepared" placeholder): now a real explorer — family points to the Family view (no duplication), any non-family connections already captured are listed, and a roadmap shows the relationship kinds coming next (friends, coworkers, mentors, faith, neighbours, service). New `RelationshipsView` + template.
+
+**Extension points preserved:** the per-node coordinate model still supports future overlays (shared stories/photos/milestones/health); multiple spouses / step / half / adoption are tolerated by the layout.
+
+**Verification:** 211 scoped Legacy tests green (7 new: focus defaults to me, focus param re-centers, neighborhood is bounded (great-grandparents in / 4-up out), siblings + spouse sit on the focus row, children centered below the couple, search index spans all people, view renders focus + search data). `check` + `makemigrations --check` clean (no schema change); Family-View JS passes `node --check`; test-client renders confirm the focal bar, is-focus node, whole-family search index, and the Relationships explorer (no placeholder, Family link, non-family list, roadmap).
+
+**Files:** `apps/legacy/services/family_tree.py`, `apps/legacy/views.py` (FamilyView focal + RelationshipsView), `apps/legacy/urls.py`, `templates/legacy/{family.html, relationships.html (new), base_legacy.html}`, `static/css/legacy.css` (v29), `apps/legacy/tests/test_family.py`, `apps/core/fixtures/release_notes.json`.

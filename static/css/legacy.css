@@ -992,3 +992,18 @@ body.theme-ember .legacy-root {
 .fam-node.is-me .fam-node-av { background: var(--lg-sidebar-gold, #c9a34e); color: #3a2f14; }
 .fam-node.is-highlight { border-color: var(--lg-accent, #b07a2b); box-shadow: 0 0 0 3px rgba(176,122,43,.35), 0 12px 26px -16px rgba(30,25,15,.55); z-index: 4; }
 .profile-you { cursor: default; opacity: .85; }
+
+/* Family View — focal-person bar + focused node */
+.fam-focusbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+    background: #f3efe6; border: 1px solid #e7ddc8; border-radius: 11px; padding: 10px 16px; margin-bottom: 12px; }
+.fam-focusbar > span { font-size: 13.5px; color: #6f5f3d; }
+.fam-node.is-focus { border-color: var(--lg-accent, #b07a2b); box-shadow: 0 0 0 3px rgba(176,122,43,.30), 0 14px 28px -16px rgba(30,25,15,.55); z-index: 5; }
+.fam-node.is-focus.is-me { box-shadow: 0 0 0 3px var(--lg-sidebar-gold, #c9a34e), 0 14px 28px -16px rgba(30,25,15,.55); }
+a.fam-result { text-decoration: none; }
+
+/* Relationships explorer */
+.rel-family-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 22px; }
+.rel-roadmap { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
+.rel-roadmap-item { display: flex; flex-direction: column; gap: 3px; padding: 13px 15px; background: var(--lg-surface); border: 1px solid var(--lg-border); border-radius: 11px; }
+.rel-roadmap-title { font-size: 14px; font-weight: 600; color: var(--lg-ink); }
+.rel-roadmap-blurb { font-size: 12px; color: var(--lg-muted); }

@@ -1338,7 +1338,54 @@ class FamilyView(LegacyContextMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["graph"] = family_tree.build_family_graph(self.request.user)
+        graph = family_tree.build_family_view(
+            self.request.user, self.request.GET.get("focus"))
+        ctx["graph"] = graph
+        ctx["focus_node"] = next((n for n in graph["nodes"] if n["is_focus"]), None)
+        # Search spans the WHOLE family, not just the rendered neighborhood.
+        ctx["search_index"] = family_tree.family_search_index(self.request.user)
+        return ctx
+
+
+class RelationshipsView(LegacyContextMixin, TemplateView):
+    """Relationships explorer. Family lives in the Family view (no duplication);
+    this is where the OTHER relationships in a life will grow — friends, coworkers,
+    mentors, faith, neighbours, service. v1 points to Family + shows the roadmap
+    and any non-family connections already captured."""
+
+    template_name = "legacy/relationships.html"
+    nav_active = "relationships"
+
+    _FAMILY = (
+        "parent", "father", "mother", "mom", "dad", "mum", "child", "son",
+        "daughter", "married", "spouse", "husband", "wife", "wed", "partner",
+        "brother", "sister", "sibling", "grand", "aunt", "uncle", "cousin",
+        "niece", "nephew", "in-law", "step", "half",
+    )
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        user = self.request.user
+        fam = 0
+        non_family = []
+        for r in (Relationship.objects.filter(user=user)
+                  .select_related("from_person", "to_person")):
+            t = (r.relationship_type or "").lower()
+            if any(k in t for k in self._FAMILY):
+                fam += 1
+            else:
+                non_family.append(r)
+        ctx["family_count"] = fam
+        ctx["non_family"] = non_family
+        ctx["people_count"] = Person.objects.filter(user=user).count()
+        ctx["roadmap"] = [
+            ("Friends", "The people you chose"),
+            ("Coworkers & managers", "Who you worked alongside"),
+            ("Mentors & teachers", "Who shaped you"),
+            ("Faith", "Pastors, small groups, church family"),
+            ("Neighbors", "The people next door"),
+            ("Military & service", "Those you served with"),
+        ]
         return ctx
 
 

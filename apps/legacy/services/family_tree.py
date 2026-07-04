@@ -1,14 +1,16 @@
 """
-Family View — a visualization of Canonical Truth, not a genealogy database.
+Family View — a focal-person window into Canonical Truth, not a graph database.
 
-Lays the People + Relationships Legacy already holds out as a TIDY FAMILY TREE:
-generations stack vertically (ancestors above, descendants below), children are
-centered beneath their parents, siblings sit side by side, spouses adjacent. The
-keeper's own node ("me") is found so the view can open centered on them.
+A family tree always has a FOCUS. This module never renders the whole imported
+graph; it renders the family AROUND one person — their ancestors above (parents →
+grandparents → great-grandparents), their spouse and siblings beside them, and
+their descendants below (children → grandchildren). Click anyone and they become
+the new focus; the neighborhood is recomputed around them. Because only a bounded
+neighborhood is ever built, a 1,500-person import stays fast and readable.
 
-Layout is O(n) (a single post-order sweep that centers each parent over its
-already-placed children) so it scales to large imported trees. Pure read model —
-no writes, no Discovery, no CoS. Coordinates only; styling lives in the client.
+Layout is the tidy post-order sweep (parents centered over their children); the
+client then centers the viewport on the focus. Pure read model — no writes, no
+Discovery, no CoS. Coordinates only; styling lives in the client.
 """
 
 from collections import defaultdict
@@ -18,6 +20,10 @@ CARD_W, CARD_H = 176, 96
 GAP_X, GAP_Y = 30, 92
 ROW_STRIDE = CARD_H + GAP_Y
 COL_STRIDE = CARD_W + GAP_X
+
+# How far the focal neighborhood reaches (kept small so it fits without zooming).
+ANCESTOR_LEVELS = 3      # parents, grandparents, great-grandparents
+DESCENDANT_LEVELS = 2    # children, grandchildren
 
 _PARENT_OF = ("parent of", "father of", "mother of", "mom of", "dad of", "mum of")
 _CHILD_OF = ("child of", "son of", "daughter of")
@@ -33,9 +39,23 @@ def _initials(name):
     return (parts[0][:1] + parts[-1][:1]).upper()
 
 
+def _edges(user):
+    """Parent/child/spouse adjacency over ALL of the user's relationships."""
+    from apps.legacy.models import Relationship
+    parents, children, spouses = defaultdict(set), defaultdict(set), defaultdict(set)
+    for r in Relationship.objects.filter(user=user).values_list(
+            "from_person_id", "to_person_id", "relationship_type"):
+        f, t, typ = r[0], r[1], (r[2] or "").lower()
+        if any(k in typ for k in _PARENT_OF):
+            children[f].add(t); parents[t].add(f)
+        elif any(k in typ for k in _CHILD_OF):
+            children[t].add(f); parents[f].add(t)
+        elif any(k in typ for k in _SPOUSE):
+            spouses[f].add(t); spouses[t].add(f)
+    return parents, children, spouses
+
+
 def _resolve_self(user, people):
-    """The keeper's own Person node: an explicit is_self, else a name match to
-    the WLJ user's full name, else None (the view then just fits the whole tree)."""
     for p in people:
         if p.is_self:
             return p.pk
@@ -50,31 +70,42 @@ def _resolve_self(user, people):
     return None
 
 
-def build_family_graph(user):
-    from apps.legacy.models import Person, Relationship, RelationshipAlias
+def _neighborhood(focus, parents, children, spouses):
+    """The bounded set of people around `focus` we actually render."""
+    keep = {focus}
+    frontier = {focus}
+    for _ in range(ANCESTOR_LEVELS):
+        nxt = set()
+        for p in frontier:
+            nxt |= parents.get(p, set())
+        keep |= nxt
+        frontier = nxt
+        if not frontier:
+            break
+    frontier = {focus}
+    for _ in range(DESCENDANT_LEVELS):
+        nxt = set()
+        for p in frontier:
+            nxt |= children.get(p, set())
+        keep |= nxt
+        frontier = nxt
+        if not frontier:
+            break
+    for par in parents.get(focus, set()):     # siblings share a parent with focus
+        keep |= children.get(par, set())
+    for p in [focus] + list(children.get(focus, set())):  # spouses → couples show
+        keep |= spouses.get(p, set())
+    return keep
 
-    empty = {"nodes": [], "edges": [], "width": 0, "height": 0, "count": 0,
-             "me": None, "me_x": 0, "me_y": 0}
-    people = list(Person.objects.filter(user=user).select_related("primary_photo"))
-    if not people:
-        return empty
+
+def _layout(user, people, parents, children, spouses, focus_pk, me_pk):
+    """Tidy layout of a set of people. `people` is a list of Person; adjacency
+    dicts are already restricted to this set. Returns the graph payload."""
+    from apps.legacy.models import RelationshipAlias
+
     pids = {p.pk for p in people}
     P = {p.pk: p for p in people}
 
-    parents, children, spouses = defaultdict(set), defaultdict(set), defaultdict(set)
-    for r in Relationship.objects.filter(user=user):
-        f, t = r.from_person_id, r.to_person_id
-        if f not in pids or t not in pids:
-            continue
-        typ = (r.relationship_type or "").lower()
-        if any(k in typ for k in _PARENT_OF):
-            children[f].add(t); parents[t].add(f)
-        elif any(k in typ for k in _CHILD_OF):
-            children[t].add(f); parents[f].add(t)
-        elif any(k in typ for k in _SPOUSE):
-            spouses[f].add(t); spouses[t].add(f)
-
-    # Vertical level = longest path from a root (someone with no known parent).
     gen = {}
 
     def _gen(pk, stack):
@@ -89,11 +120,24 @@ def build_family_graph(user):
     for p in people:
         _gen(p.pk, set())
 
-    # Tidy horizontal layout: place a person's children first, then center the
-    # person (and their spouse) over them. Leaves take sequential slots, so
-    # siblings land adjacent and subtrees never overlap.
-    placed = {}
-    leaf = [0.0]
+    # Spouses share a generation — a married-in spouse (no ancestors in view)
+    # sits on the couple's row, not floated to the top. Fixpoint over spouse pairs.
+    changed = True
+    while changed:
+        changed = False
+        for a, sset in spouses.items():
+            if a not in gen:
+                continue
+            for b in sset:
+                if b not in gen:
+                    continue
+                m = max(gen[a], gen[b])
+                if gen[a] != m:
+                    gen[a] = m; changed = True
+                if gen[b] != m:
+                    gen[b] = m; changed = True
+
+    placed, leaf = {}, [0.0]
 
     def _partner(pk):
         sp = sorted(s for s in spouses.get(pk, ()) if s in pids)
@@ -109,8 +153,7 @@ def build_family_graph(user):
         kid_set = set(children.get(pk, ()))
         if partner:
             kid_set |= set(children.get(partner, ()))
-        kids = sorted(k for k in kid_set
-                      if k in pids and k not in placed and k not in stack)
+        kids = sorted(k for k in kid_set if k in pids and k not in placed and k not in stack)
         centers = [c for c in (_place(k, stack) for k in kids) if c is not None]
         if centers:
             center = sum(centers) / len(centers)
@@ -128,20 +171,19 @@ def build_family_graph(user):
                    key=lambda k: (gen.get(k, 0), P[k].display_name))
     for rpk in roots:
         _place(rpk, set())
-    for p in people:                       # cycles / disconnected branches
+    for p in people:
         if p.pk not in placed:
             _place(p.pk, set())
 
-    minx = min(placed.values())
-    offset = CARD_W / 2 - minx             # so the leftmost card starts at x=0
+    minx = min(placed.values()) if placed else 0
+    offset = CARD_W / 2 - minx
 
     aliases = defaultdict(list)
-    for a in RelationshipAlias.objects.filter(user=user).exclude(person__isnull=True):
+    for a in RelationshipAlias.objects.filter(user=user, person_id__in=pids).exclude(person__isnull=True):
         aliases[a.person_id].append(a.label)
 
-    self_pk = _resolve_self(user, people)
     pos, nodes = {}, []
-    me_x = me_y = 0
+    fx = fy = 0
     max_cx = 0
     for p in people:
         cx = placed[p.pk] + offset
@@ -150,17 +192,17 @@ def build_family_graph(user):
         max_cx = max(max_cx, cx)
         photo = (p.primary_photo.file.url
                  if (p.primary_photo and p.primary_photo.file) else "")
-        aka = aliases.get(p.pk, [])
-        search = " ".join([p.display_name, p.also_known_as or ""] + aka).lower()
+        search = " ".join([p.display_name, p.also_known_as or ""] + aliases.get(p.pk, [])).lower()
         nodes.append({
             "id": p.pk, "name": p.display_name, "initials": _initials(p.display_name),
             "photo": photo, "birth": p.birth_year, "death": p.death_year,
             "living": p.death_year is None, "rel": p.relationship_label,
             "x": round(cx - CARD_W / 2), "y": round(gen[p.pk] * ROW_STRIDE),
-            "cx": round(cx), "cy": round(cy), "search": search, "is_self": p.pk == self_pk,
+            "cx": round(cx), "cy": round(cy), "search": search,
+            "is_self": p.pk == me_pk, "is_focus": p.pk == focus_pk,
         })
-        if p.pk == self_pk:
-            me_x, me_y = cx, cy
+        if p.pk == focus_pk:
+            fx, fy = cx, cy
 
     edges = []
     for cpk, pset in parents.items():
@@ -170,8 +212,7 @@ def build_family_graph(user):
         for ppk in pset:
             if ppk in pos:
                 px, py = pos[ppk]
-                edges.append({"type": "parent",
-                              "x1": round(px), "y1": round(py + CARD_H / 2),
+                edges.append({"type": "parent", "x1": round(px), "y1": round(py + CARD_H / 2),
                               "x2": round(cx), "y2": round(cy - CARD_H / 2)})
     drawn = set()
     for a, sset in spouses.items():
@@ -184,7 +225,91 @@ def build_family_graph(user):
             edges.append({"type": "spouse", "x1": round(ax), "y1": round(ay),
                           "x2": round(bx), "y2": round(by)})
 
-    height = (max(gen.values()) + 1) * ROW_STRIDE - GAP_Y
+    height = ((max(gen.values()) + 1) * ROW_STRIDE - GAP_Y) if gen else 0
     return {"nodes": nodes, "edges": edges, "width": round(max_cx + CARD_W / 2),
-            "height": round(height), "count": len(people),
-            "me": self_pk, "me_x": round(me_x), "me_y": round(me_y)}
+            "height": round(height), "shown": len(people),
+            "focus": focus_pk, "focus_x": round(fx), "focus_y": round(fy), "me": me_pk}
+
+
+def _restrict(edges_dicts, keep):
+    """Restrict parent/child/spouse dicts to a keep-set."""
+    parents, children, spouses = edges_dicts
+    def r(d):
+        out = defaultdict(set)
+        for k in keep:
+            out[k] = {v for v in d.get(k, set()) if v in keep}
+        return out
+    return r(parents), r(children), r(spouses)
+
+
+def build_family_view(user, focus_pk=None):
+    """The family AROUND a focal person (their branch only). Defaults the focus to
+    the keeper ('me'); pass focus_pk to re-center on anyone. Bounded + fast."""
+    from apps.legacy.models import Person
+
+    all_people = list(Person.objects.filter(user=user).only(
+        "pk", "display_name", "is_self", "also_known_as", "birth_year",
+        "death_year", "relationship_label", "primary_photo").select_related("primary_photo"))
+    total = len(all_people)
+    if not all_people:
+        return {"nodes": [], "edges": [], "width": 0, "height": 0, "shown": 0,
+                "count": 0, "focus": None, "focus_x": 0, "focus_y": 0, "me": None}
+
+    by_id = {p.pk: p for p in all_people}
+    parents, children, spouses = _edges(user)
+    me_pk = _resolve_self(user, all_people)
+
+    # Resolve the focus: an explicitly requested (owned) person, else me, else a
+    # sensible default (the most-connected person, so the first view isn't lonely).
+    focus = None
+    try:
+        focus = int(focus_pk) if focus_pk else None
+    except (TypeError, ValueError):
+        focus = None
+    if focus not in by_id:
+        focus = None
+    if focus is None:
+        focus = me_pk
+    if focus is None:
+        focus = max(all_people, key=lambda p: len(parents.get(p.pk, ())) +
+                    len(children.get(p.pk, ())) + len(spouses.get(p.pk, ()))).pk
+
+    keep = _neighborhood(focus, parents, children, spouses)
+    people = [by_id[pk] for pk in keep if pk in by_id]
+    rp, rc, rs = _restrict((parents, children, spouses), set(keep))
+    graph = _layout(user, people, rp, rc, rs, focus, me_pk)
+    graph["count"] = total
+    return graph
+
+
+def family_search_index(user):
+    """A lightweight index of EVERY person (id, name, meta, search text) so the
+    Family search finds anyone — selecting one re-centers the tree on them."""
+    from apps.legacy.models import Person, RelationshipAlias
+    aliases = defaultdict(list)
+    for a in RelationshipAlias.objects.filter(user=user).exclude(person__isnull=True):
+        aliases[a.person_id].append(a.label)
+    out = []
+    for p in Person.objects.filter(user=user).only(
+            "pk", "display_name", "also_known_as", "birth_year", "death_year"):
+        meta = ""
+        if p.birth_year or p.death_year:
+            meta = "%s – %s" % (p.birth_year or "", p.death_year or "")
+        text = " ".join([p.display_name, p.also_known_as or ""] + aliases.get(p.pk, [])).lower()
+        out.append({"id": p.pk, "name": p.display_name, "meta": meta, "text": text})
+    return out
+
+
+# Retained: full-graph builder (not used by the focal page, kept for tests/tools).
+def build_family_graph(user):
+    from apps.legacy.models import Person
+    people = list(Person.objects.filter(user=user).select_related("primary_photo"))
+    if not people:
+        return {"nodes": [], "edges": [], "width": 0, "height": 0, "count": 0,
+                "shown": 0, "me": None, "focus": None, "focus_x": 0, "focus_y": 0}
+    parents, children, spouses = _edges(user)
+    me_pk = _resolve_self(user, people)
+    g = _layout(user, people, parents, children, spouses, me_pk, me_pk)
+    g["count"] = len(people)
+    g["me_x"], g["me_y"] = g["focus_x"], g["focus_y"]
+    return g

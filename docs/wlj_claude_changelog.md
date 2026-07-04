@@ -6,6 +6,15 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — feat(dev): on-demand trigger for proactive guidance cards (certification)
+
+There was NO on-demand developer mechanism to surface a proactive guidance card (the CDCE cross-domain-correlation card with the "Tell me more / How to use this / Got it" buttons) — no management command, debug endpoint, admin action, feature flag, or dev button. The only path was the scheduler cadence (`run_proactive_guidance_scheduler`), which you can't wait on for certification.
+
+Added the smallest developer-only mechanism: management command `trigger_proactive_checkin`. It calls the REAL production generator (`ProactiveCheckInService.generate_cdce_correlation_check_in`) — same card, same quick_replies, same dismissal metadata — so what you certify is exactly what production surfaces. `--force` bypasses the throttle and clears any prior "Got it" dismissal so a card is always produced. Usage: `python manage.py trigger_proactive_checkin --email you@example.com --force`, then open the assistant panel to see it and click the buttons. Dev-only (a management command, not an endpoint). No model change, no migration.
+
+**Files:** apps/ai/management/commands/trigger_proactive_checkin.py (new).
+
+
 ## 2026-07-04 — fix(ai): Interactive guidance card buttons now work — Tell me more / How to use this / Got it (WI-1)
 
 Guidance/insight cards ("I've noticed a pattern across your Sleep & Journal data…") showed buttons "Tell me more", "How to use this", "Got it" that did nothing — a broken promise. Root cause: those cards use quick-reply actions `chat` (Tell me more / How to use this) and `dismiss` (Got it), but the server `handle_quick_reply` map had NO handler for either — every click returned "I'm not sure how to handle that action." The client rendered the buttons but also never carried the `chat` action's pre-written question (`reply.value`).

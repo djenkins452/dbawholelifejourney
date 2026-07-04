@@ -519,47 +519,71 @@ class HealthKitManager {
                 dateFormatter.dateFormat = "yyyy-MM-dd"
                 let isoFormatter = ISO8601DateFormatter()
 
-                // Group samples by sleep session (consecutive samples)
-                var sleepSessions: [String: SleepSession] = [:]
+                // Group samples into SLEEP SESSIONS by time-contiguity — NOT by each
+                // sample's own end-date. A night crosses midnight (bedtime ~10 PM, wake
+                // ~5 AM), so dating each sample by its own local end-date fragments one
+                // night across two days: last night's sleep splits into a small pre-
+                // midnight record and a post-midnight record, each mis-dated. Instead we
+                // walk the (start-sorted) samples and only start a NEW session when there
+                // is a real gap (> 60 min) between one sample's end and the next's start
+                // (a nap vs the night). Each session is then dated once, by its WAKE
+                // (latest end) instant — matching how Apple Health attributes a night.
+                let sessionGapSeconds: TimeInterval = 60 * 60
+                var sessions: [SleepSession] = []
+                var current: SleepSession? = nil
+                var currentEnd: Date? = nil
 
                 for sample in (samples as? [HKCategorySample]) ?? [] {
-                    // Use wake date as the "sleep date"
-                    let sleepDate = dateFormatter.string(from: sample.endDate)
-
-                    if sleepSessions[sleepDate] == nil {
-                        sleepSessions[sleepDate] = SleepSession(date: sleepDate)
+                    if let end = currentEnd,
+                       sample.startDate.timeIntervalSince(end) > sessionGapSeconds {
+                        if let finished = current { sessions.append(finished) }
+                        current = nil
+                        currentEnd = nil
                     }
+                    if current == nil {
+                        current = SleepSession(date: "")
+                        current!.bedtime = sample.startDate
+                        current!.wakeTime = sample.endDate
+                    }
+
+                    // Track the session span (earliest bedtime, latest wake).
+                    if current!.bedtime == nil || sample.startDate < current!.bedtime! {
+                        current!.bedtime = sample.startDate
+                    }
+                    if current!.wakeTime == nil || sample.endDate > current!.wakeTime! {
+                        current!.wakeTime = sample.endDate
+                    }
+                    currentEnd = max(currentEnd ?? sample.endDate, sample.endDate)
 
                     let duration = sample.endDate.timeIntervalSince(sample.startDate) / 60 // minutes
 
-                    // Track earliest bedtime and latest wake time
-                    if sleepSessions[sleepDate]!.bedtime == nil ||
-                       sample.startDate < sleepSessions[sleepDate]!.bedtime! {
-                        sleepSessions[sleepDate]!.bedtime = sample.startDate
-                    }
-                    if sleepSessions[sleepDate]!.wakeTime == nil ||
-                       sample.endDate > sleepSessions[sleepDate]!.wakeTime! {
-                        sleepSessions[sleepDate]!.wakeTime = sample.endDate
-                    }
-
-                    // Categorize by sleep stage
+                    // Categorize by sleep stage.
                     switch sample.value {
+                    case HKCategoryValueSleepAnalysis.inBed.rawValue:
+                        // The "in bed" container overlaps the whole night AND the stage
+                        // samples. Counting it would double-count the entire duration
+                        // (in bed + core + deep + rem ≈ 2×). Use it only to hold the
+                        // session together / define the span — never as sleep minutes.
+                        break
                     case HKCategoryValueSleepAnalysis.awake.rawValue:
-                        sleepSessions[sleepDate]!.awakeMinutes += Int(duration)
+                        current!.awakeMinutes += Int(duration)
                     case HKCategoryValueSleepAnalysis.asleepREM.rawValue:
-                        sleepSessions[sleepDate]!.remMinutes += Int(duration)
+                        current!.remMinutes += Int(duration)
                     case HKCategoryValueSleepAnalysis.asleepCore.rawValue:
-                        sleepSessions[sleepDate]!.lightMinutes += Int(duration)
+                        current!.lightMinutes += Int(duration)
                     case HKCategoryValueSleepAnalysis.asleepDeep.rawValue:
-                        sleepSessions[sleepDate]!.deepMinutes += Int(duration)
+                        current!.deepMinutes += Int(duration)
                     default:
-                        // Generic asleep or in bed
-                        sleepSessions[sleepDate]!.totalMinutes += Int(duration)
+                        // .asleepUnspecified — older / third-party data without stages.
+                        current!.totalMinutes += Int(duration)
                     }
                 }
+                if let finished = current { sessions.append(finished) }
 
-                // Convert sessions to metrics
-                for (date, session) in sleepSessions {
+                // Convert sessions to metrics, each dated ONCE by its wake (end) day.
+                for session in sessions {
+                    guard let wake = session.wakeTime ?? session.bedtime else { continue }
+                    let date = dateFormatter.string(from: wake)
                     let totalMinutes = session.totalMinutes + session.deepMinutes +
                                       session.remMinutes + session.lightMinutes + session.awakeMinutes
 

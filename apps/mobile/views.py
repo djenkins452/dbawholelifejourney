@@ -866,8 +866,17 @@ def process_sleep_metric(user, metric_date, source, sync_id, data):
     except (TypeError, ValueError):
         raise ValueError(f"Invalid total_minutes: {total_minutes}")
 
-    if total_minutes < 0 or total_minutes > 1440:  # Max 24 hours
+    if total_minutes < 0:
         raise ValueError(f"Sleep minutes out of range: {total_minutes}")
+    if total_minutes > 1440:  # Max 24 hours
+        # A double-counted (inBed container + stage samples) or multi-source night can
+        # exceed 24h. NEVER drop the night — that silently loses last night's sleep
+        # entirely (the record just never appears). Clamp to 24h instead of raising.
+        logger.warning(
+            "[HEALTH_SYNC] Clamping oversized sleep total: user=%s minutes=%s",
+            getattr(user, "id", None), total_minutes,
+        )
+        total_minutes = 1440
 
     # Parse optional fields
     deep_minutes = data.get("deep_minutes")
@@ -887,13 +896,31 @@ def process_sleep_metric(user, metric_date, source, sync_id, data):
         except ValueError:
             pass
 
+    wake_time_from_payload = False
     if data.get("wake_time"):
         try:
             wake_time = datetime.fromisoformat(
                 data["wake_time"].replace("Z", "+00:00")
             )
+            wake_time_from_payload = True
         except ValueError:
             pass
+
+    # AUTHORITATIVE NIGHT DATE (root-cause fix for mis-dated sleep): Apple attributes a
+    # sleep session to the day you WAKE UP. A night crosses midnight (e.g. bedtime
+    # 10:07 PM, wake 4:57 AM), so a client that dates the record by anything other than
+    # the wake instant — or that fragments the night across midnight — lands last
+    # night's sleep on the wrong day. Derive sleep_date from the real wake instant in
+    # the USER's timezone, so the server is the source of truth for the date. Falls
+    # back to the client-provided date when wake_time is absent/unparseable.
+    if wake_time_from_payload and wake_time is not None:
+        try:
+            from apps.core.utils import _get_user_tz
+            metric_date = timezone.localtime(wake_time, _get_user_tz(user)).date()
+        except Exception:
+            logger.warning(
+                "sleep: wake-date derivation failed; using client date", exc_info=True
+            )
 
     # If no bedtime/wake_time provided, create defaults
     if not bedtime:

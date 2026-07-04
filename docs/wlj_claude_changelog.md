@@ -6,6 +6,23 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — fix(health): HealthKit sleep import — date last night by the WAKE instant, stop fragmenting/mis-dating nights
+
+Production: Apple Health showed Jul 4 = 6 hr 30 min asleep (bed 10:07 PM → wake ~4:57 AM). WLJ showed no Jul 4 at first; after a manual Xcode sync, Jul 4 appeared but with the WRONG data — last night's 6.5h landed on **Jul 3**, and records had impossible times (11:38 PM → 11:49 PM claiming 6.5h). Weight/HR/BP synced fine — the failure was isolated to sleep. NOT a canonical-truth / Beth / dashboard issue: the truth diverged at IMPORT.
+
+Root cause: a sleep night crosses midnight, and the iOS importer dated every sleep SAMPLE by its own local end-date (`HealthKitManager.fetchSleep`). So one physical night fragmented across two days — the pre-midnight portion bucketed under Jul 3, the post-midnight portion under Jul 4 — and the server trusted whatever date the client sent. The night that should be "Jul 4, 6h30m" was split and mis-dated. Additionally the iOS summed an `.inBed` container sample (which overlaps the stage samples) into the total, double-counting duration, and the server hard-REJECTED any total > 24h, which silently dropped a whole night.
+
+Fixes (earliest root cause first):
+- **iOS (`HealthKitManager.swift`, root cause):** group sleep samples into SLEEP SESSIONS by time-contiguity (a new session only starts on a > 60-min gap — a nap vs the night), and date each session ONCE by its WAKE (latest end) instant — matching how Apple attributes a night. Excludes the `.inBed` container from summed minutes (it overlaps the stages, so counting it double-counts ≈2×). `.asleepUnspecified` (older/third-party) still counts. One night → one correctly-dated record.
+- **Server (`apps/mobile/views.py :: process_sleep_metric`, authoritative + defensive):** derive `sleep_date` from the actual wake instant (`wake_time`) in the USER's timezone (`_get_user_tz`), so the server is the source of truth for the night's date regardless of any client date quirk — a midnight-crossing session is dated by wake, falling back to the client date only when `wake_time` is absent. And CLAMP an oversized total (> 1440) to 24h with a warning instead of raising — a night must never silently vanish.
+
+Verified: replaying the production case (client mis-dates last night to Jul 3, wake_time = 08:57 UTC = 4:57 AM EDT Jul 4) now creates a Jul 4 record at 6.5h (asleep 390 = 6 hr 30 min, matching Apple), leaves the real Jul 3 record intact, and canonical `last_night()` returns Jul 4 — so dashboard and the CoS agree with Apple Health. The existing `test_ingest_sleep` still passes (wake-date derivation is backward-compatible).
+
+Permanent regression `apps/mobile/tests/test_sleep_ingest.py` (7): stages + time-asleep-excludes-awake, the ROOT-CAUSE case (midnight-crossing night dated by wake not the client date), Jul-4-after-existing-Jul-3 becomes the canonical latest, resync updates-not-duplicates, multiple same-night segments collapse to one record, oversized total clamped-not-dropped. 71 across mobile ingest + canonical sleep truth + single-source-of-truth GREEN. No migration.
+
+Note: the server fix + tests deploy to production on push to main; the iOS grouping fix takes effect on the next Xcode build/sync of the WLJ app.
+
+
 ## 2026-07-03 — refine(cos): Decision Support judgment — sound like Danny's Chief of Staff, not a consultant
 
 Refinement of the Decision Support capability (no architecture change — same lane, same detect→assess→compose pipeline, same Layer 1/Layer 2 boundary). The response correctly recognized the decision/tradeoff/recovery/meds/sleep but still read like a general executive consultant, not someone who knows Danny and today's context. Improved the JUDGMENT in `apps/ai/chatgpt_cos/decision_support.py`:

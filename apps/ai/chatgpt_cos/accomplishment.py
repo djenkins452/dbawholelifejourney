@@ -78,32 +78,19 @@ def detect(message):
     return None
 
 
-# ── Per-day evidence store (cache) ─────────────────────────────────────────
-def _key(user):
-    from apps.core.utils import get_user_today
-    return f"wlj:accomplishments:{user.id}:{get_user_today(user).isoformat()}"
-
-
+# ── Per-day evidence — persisted in the SHARED executive-evidence store, which
+#    interpret() merges into the one executive picture. This module records; every
+#    consumer reads through interpret()/ExecutiveSignals, not this cache directly. ──
 def record(user, label):
-    try:
-        from django.core.cache import cache
-        k = _key(user)
-        items = list(cache.get(k) or [])
-        if label not in items:
-            items.append(label)
-        cache.set(k, items, 22 * 3600)
-    except Exception:
-        logger.warning("accomplishment: record failed", exc_info=True)
+    from apps.ai.chatgpt_cos.executive_evidence import record_accomplishment
+    record_accomplishment(user, label)
 
 
 def todays(user):
-    """Today's reported accomplishment labels (list). Read by Decision Support so the
-    recommendation reflects everything already accomplished today."""
-    try:
-        from django.core.cache import cache
-        return list(cache.get(_key(user)) or [])
-    except Exception:
-        return []
+    """Today's reported accomplishment labels (list). Kept for compatibility; the
+    canonical consumer path is interpret() → ExecutiveSignals.accomplishments."""
+    from apps.ai.chatgpt_cos.executive_evidence import today
+    return today(user).get("accomplishments", [])
 
 
 def _compose(sig):

@@ -49,6 +49,9 @@ class ExecutiveSignals:
     # with the objective read. "" | positive_over_debt | confirmed_good |
     # confirmed_low | negative_no_debt ──
     reconciliation: str = ""
+    # ── Conversation-reported accomplishments TODAY (merged from the evidence store).
+    # The single place downstream consumers learn what the user has already done. ──
+    accomplishments: list = field(default_factory=list)
 
     def to_dict(self):
         return asdict(self)
@@ -240,6 +243,21 @@ def interpret(user, low_energy=False, subjective=None):
     workload, wsummary = _interpret_workload(tw)
     has_backlog = (tw["total"] - (tw["today"] + tw["overdue"])) >= 3
 
+    # ── MERGE conversation-reported evidence into the ONE picture ────────────────
+    # What the user told Beth today (subjective state, accomplishments) lives in the
+    # shared executive-evidence store, NOT the deterministic SAE. Reading it HERE — the
+    # single construction point — is what lets every consumer (brief, decision support,
+    # summary, goal review) reflect the same evolving understanding without each one
+    # reading caches. When the store is empty, behavior is byte-identical to before.
+    try:
+        from apps.ai.chatgpt_cos.executive_evidence import today as _reported_today
+        _reported = _reported_today(user)
+    except Exception:
+        _reported = {"accomplishments": [], "subjective": None}
+    reported_accomplishments = _reported.get("accomplishments") or []
+    if subjective is None:
+        subjective = _reported.get("subjective")   # an explicit param still overrides
+
     # Reconcile the user's EXPLICIT report with the objective sleep-debt read. The
     # reconciliation narrative fires only for an explicit `subjective` report; the
     # legacy `low_energy` flag (used by other callers) keeps its original meaning.
@@ -306,6 +324,12 @@ def interpret(user, low_energy=False, subjective=None):
         disposition = "I'd protect the few things that truly matter and let the rest slide"
     ease_load = recovery
 
+    # Accomplishments already banked today are part of the picture: the user is ahead
+    # of plan, which earns recovery latitude. The MERGE happens here, once; consumers
+    # simply present `accomplishments` in their own context.
+    if reported_accomplishments:
+        ease_load = True
+
     # ── ADAPT behavior from learned personal knowledge (P36) ──
     deprioritized, tone, directive_explanations = _behavior_adapt(user)
     if deprioritized and primary_challenge == "energy":
@@ -332,7 +356,8 @@ def interpret(user, low_energy=False, subjective=None):
         backlog_can_wait=has_backlog, ease_load=ease_load,
         deprioritized=deprioritized, tone=tone,
         directive_explanations=directive_explanations,
-        reconciliation=reconciliation)
+        reconciliation=reconciliation,
+        accomplishments=reported_accomplishments)
 
 
 def _behavior_adapt(user):

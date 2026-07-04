@@ -6,6 +6,21 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — refactor(cos): One evolving executive picture — interpret() merges conversation-reported evidence
+
+Architectural correction (no new layer/engine/capability). Deterministic truth already flowed through ONE picture (SAE → interpret() → ExecutiveSignals → consumers), but conversation-reported evidence had diverged: the accomplishment store was read DIRECTLY by Decision Support, and subjective state was passed per-call to the brief only. So "I made up Wednesday and Friday's workouts" updated a cache only Decision Support could see — the Morning Brief, Executive Summary, and Goal reasoning could not. That violated the one-brain principle.
+
+Fix — move the merge UP into interpret(), the single construction point, so every consumer stays thin and simply presents the shared understanding:
+- New `executive_evidence.py` — the per-day persistence of what the user TOLD Beth today (accomplishments, subjective). Not a capability; just the "reported half" of the one picture.
+- `interpret(user)` now READS that store and merges it: `subjective` falls back to the recorded report (an explicit param still overrides), reported accomplishments populate the new `ExecutiveSignals.accomplishments` and grant recovery latitude (`ease_load`). When the store is empty, output is byte-identical to before (existing behavior protected).
+- `decision_support.assess` no longer reads the cache — it reads `sig.accomplishments` from the shared picture. `accomplishment.record/todays` delegate to the shared store.
+- `compose_executive_brief` gains a momentum beat that narrates `sig.accomplishments` — so the Morning Brief reflects accomplishments with NO consumer-specific wiring. `_post_checkin_brief` records the subjective report to the store so it evolves today's understanding for everyone, not just that brief.
+
+Certified (`apps/ai/tests/test_one_executive_picture.py`, 5): interpret() merges accomplishments (+ ease_load) and subjective (without a param); the Morning Brief reflects accomplishments; Decision Support reads the PICTURE not the cache (mocking interpret to drop accomplishments removes the framing even while the cache holds them); and the full production sequence — "I feel refreshed" → "I made up Wednesday and Friday's workouts" → "I won't be doing the bike ride tonight" (Decision Support recommends recovery citing the workouts) → a fresh Executive Brief reflects the same accomplishments — all from one evolving understanding. 88 across one-picture + decision-support + reconciliation + accomplishment + check-in + P32–P36 GREEN. No model change, no migration.
+
+**Files:** apps/ai/chatgpt_cos/executive_evidence.py (new), apps/ai/chatgpt_cos/executive_interpretation.py, apps/ai/chatgpt_cos/decision_support.py, apps/ai/chatgpt_cos/executive_brief.py, apps/ai/chatgpt_cos/accomplishment.py, apps/ai/chatgpt_cos/lanes.py, apps/ai/tests/test_one_executive_picture.py (new).
+
+
 ## 2026-07-04 — feat(legacy): Family Tree — calm 3-generation view, big cards, click-to-recenter (D1 iteration)
 
 Reworked the Family View for readability per real-data acceptance feedback. The tree now reads as a family at a glance instead of a dense graph.

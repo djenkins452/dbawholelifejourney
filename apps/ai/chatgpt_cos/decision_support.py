@@ -253,15 +253,10 @@ def assess(user, signal):
                     or signal.heat or signal.kind in ("end_of_day", "fatigue"))
     a = DecisionAssessment()
 
-    # EXECUTIVE STATE EVOLUTION: accomplishments the user reported TODAY are evidence
-    # the executive picture must reflect — a big day already banked raises the recovery
-    # need and makes rest the high-value call. Beth reasons from today's evolved state,
-    # not the morning's.
-    try:
-        from apps.ai.chatgpt_cos.accomplishment import todays as _todays
-        accomplishments = _todays(user)
-    except Exception:
-        accomplishments = []
+    # EXECUTIVE STATE EVOLUTION: today's reported accomplishments come from the ONE
+    # executive picture (interpret merged them from the evidence store) — Decision
+    # Support does NOT read the cache itself; it presents the shared understanding.
+    accomplishments = list(getattr(sig, "accomplishments", []) or [])
 
     # WHY the situation points where it does (holistic, evidence-cited).
     if signal.heat:

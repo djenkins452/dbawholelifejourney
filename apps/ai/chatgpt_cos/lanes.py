@@ -852,6 +852,14 @@ def _post_checkin_brief(user, message, feeling):
         subjective = classify_subjective_energy(feeling)
     except Exception:
         subjective = None
+    # Persist the reported state into the ONE executive picture so it evolves today's
+    # understanding for every consumer — not just this brief.
+    if subjective:
+        try:
+            from apps.ai.chatgpt_cos.executive_evidence import record_subjective
+            record_subjective(user, subjective)
+        except Exception:
+            pass
     heavy = subjective == "negative" or any(w in f for w in _NEGATIVE_FEELING)
     lead = ("Thanks for telling me. " if heavy else "Got it. ")
     try:

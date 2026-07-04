@@ -180,6 +180,18 @@ def _safe_interpret(user, low_energy=False, subjective=None):
         return ExecutiveSignals()
 
 
+def _momentum_story(sig):
+    """Narrate today's already-banked accomplishments — the brief presents the shared
+    picture's `accomplishments` in its own context (ahead of plan → recovery latitude)."""
+    acc = list(getattr(sig, "accomplishments", []) or [])
+    if not acc:
+        return ""
+    joined = acc[0] if len(acc) == 1 else ", ".join(acc[:-1]) + " and " + acc[-1]
+    return (f"First, you've already {joined} today — so you're ahead of plan, not behind "
+            "it. That earns some recovery latitude, and I'll factor it into today's "
+            "priorities.")
+
+
 def _reconciliation_story(sig):
     """The LISTENING beat — narrate how the user's OWN report reconciled with the
     numbers. Fires only when the report meaningfully shaped the read, so Beth is
@@ -301,6 +313,11 @@ def compose_executive_brief(user, *, lead="", low_energy=False, subjective=None)
     story = []
     if lead:
         story.append(lead.strip())
+    # The brief reflects what the user has already done today — straight from the one
+    # executive picture (interpret merged it), no consumer-specific cache read.
+    momentum = _momentum_story(sig)
+    if momentum:
+        story.append(momentum)
     recon = _reconciliation_story(sig)
     if recon:
         # The user gave us evidence — reconcile it FIRST, then the day.

@@ -69,6 +69,31 @@
     </div>
     {% endif %}
 
+    {% if likely_marriages %}
+    <section class="lg-card marriage-review">
+        <div class="import-coverage-head">
+            <h3 class="lg-card-h">Marriages to confirm</h3>
+            <p class="editor-aside-note">This file didn't record a marriage event for these couples, but they share several children — so they were <strong>likely</strong> married. Legacy won't assume it. Confirm the ones that are right; the rest stay as co-parents.</p>
+        </div>
+        <ul class="marriage-list">
+            {% for m in likely_marriages %}
+            <li class="marriage-row">
+                <span class="marriage-pair">
+                    <a href="{% url 'legacy:person_detail' m.husb.pk %}" class="lg-link">{{ m.husb.display_name }}</a>
+                    <span class="marriage-amp">&amp;</span>
+                    <a href="{% url 'legacy:person_detail' m.wife.pk %}" class="lg-link">{{ m.wife.display_name }}</a>
+                    <span class="marriage-hint">{{ m.children }} shared {{ m.children|pluralize:"child,children" }}</span>
+                </span>
+                <span class="marriage-actions">
+                    <form method="post" action="{% url 'legacy:import_marriage_review' batch.pk m.index %}">{% csrf_token %}<input type="hidden" name="action" value="confirm"><button type="submit" class="lg-btn-quiet">They were married</button></form>
+                    <form method="post" action="{% url 'legacy:import_marriage_review' batch.pk m.index %}">{% csrf_token %}<input type="hidden" name="action" value="dismiss"><button type="submit" class="lg-btn-ghost">Not married</button></form>
+                </span>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
     {% if batch.coverage.needs_support or batch.coverage.unknown or batch.coverage.supported %}
     <section class="lg-card import-coverage">
         <div class="import-coverage-head">

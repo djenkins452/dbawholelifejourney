@@ -1188,3 +1188,14 @@ a.fam-result { text-decoration: none; }
 .roadmap-status.status-unknown { color: var(--lg-muted); }
 .roadmap-status.status-modeled { color: #4a7a3a; }
 .roadmap-recommend { font-size: 12.5px; color: var(--lg-ink-soft); }
+
+/* Likely-marriage review — importer suggests, the user decides */
+.marriage-review { margin-bottom: 22px; }
+.marriage-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.marriage-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--lg-border); }
+.marriage-row:first-child { border-top: 0; }
+.marriage-pair { font-size: 14px; color: var(--lg-ink); display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.marriage-amp { color: var(--lg-muted); }
+.marriage-hint { font-size: 12px; color: var(--lg-muted); font-style: italic; }
+.marriage-actions { display: inline-flex; gap: 8px; }
+.marriage-actions form { margin: 0; }

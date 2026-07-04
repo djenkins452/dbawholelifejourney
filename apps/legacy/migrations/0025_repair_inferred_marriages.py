@@ -31,7 +31,12 @@ def repair(apps, schema_editor):
     for data, batch_id in (ImportChunk.objects.filter(chunk_kind="gedcom_family")
                            .values_list("data", "batch_id")):
         d = data or {}
-        if "couple_type" in d:
+        # Keep only marriages with KNOWN evidence. A 'likely' inference (multi-child
+        # family, no marriage event) is not evidence — its old inferred marriage is
+        # removed here and re-surfaced for the user to confirm.
+        if "couple_confidence" in d:
+            has_marriage = d.get("couple_type") is not None and d.get("couple_confidence") == "known"
+        elif "couple_type" in d:
             has_marriage = d["couple_type"] is not None
         else:
             has_marriage = bool(d.get("marriage_year") or d.get("marriage_date")

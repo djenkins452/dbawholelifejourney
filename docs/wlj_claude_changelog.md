@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — feat(legacy): GEDCOM marriage inference by CONFIDENCE — Known / Likely / Unknown (D1)
+
+Refinement of the marriage-truth fix: the importer now reasons about relationship CONFIDENCE instead of treating every missing MARR tag identically, because genealogy sources are often incomplete.
+
+- **Known** — explicit marriage evidence (`MARR`/`MARB`/`MARC`/`MARL`/`MARS`) or divorce/annulment (`DIV`/`DIVF`/`ANUL`, ⇒ former). Recorded as a real married/former relationship and drawn in the tree.
+- **Likely** — a lasting family unit (≥ 2 shared children) with NO marriage event. Legacy does NOT assert it — the couple are surfaced on the import page under **"Marriages to confirm"** with *They were married* / *Not married* actions. Until confirmed they are NOT drawn as married (they remain co-parents), so an unmarried couple like Danny's parents never appears married.
+- **Unknown** — a single shared child / no support. Parent-child links only; no marriage suggested.
+
+`gedcom_parser._marriage_bond` now returns `(couple_type, confidence)` stored as `couple_type` + `couple_confidence`. `commit_genealogy` asserts a spouse link only when confidence is `known`; `likely_marriages(batch)` / `confirm_marriage` / `dismiss_marriage` drive the review (decision remembered on the chunk so it isn't re-asked). Repair migration 0025 made confidence-aware (a likely inference is not "evidence" — its old inferred marriage is removed and re-surfaced for confirmation).
+
+**Files:** apps/legacy/services/gedcom_parser.py (`_marriage_bond` confidence, `_LIKELY_MIN_CHILDREN`, `couple_confidence`), apps/legacy/services/import_engine.py (`_couple_bond`, known-only assertion, `likely_marriages`/`confirm_marriage`/`dismiss_marriage`, `_family_persons`), apps/legacy/migrations/0025_repair_inferred_marriages.py (confidence-aware), apps/legacy/views.py (`MarriageReviewView`, import-detail context), apps/legacy/urls.py (`import_marriage_review`), templates/legacy/import_detail.html ("Marriages to confirm"), static/css/legacy.css (v41), apps/legacy/tests/test_gedcom.py (confidence + review-flow tests). Verified on real data: Marvin + Barbara (4 shared children, no MARR) → surfaced as likely, NOT married; Marvin + Gloria (MARR) → married. 60+ tests green.
+
+
 ## 2026-07-04 — fix(legacy): GEDCOM import no longer invents marriages (Canonical Truth) + repair migration (D1)
 
 Canonical Truth correctness fix. A GEDCOM FAM record is a family UNIT (husband, wife, children) — it does NOT by itself mean the couple married. The old importer created a "married to" relationship for every FAM with a husband and wife, inventing marriages that never existed (e.g. Danny's unmarried biological parents Marvin + Barbara showed as a married couple).

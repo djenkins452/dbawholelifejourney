@@ -397,3 +397,96 @@ class MarriageRepairMigrationTests(TestCase):
                 Q(from_person=a, to_person=b) | Q(from_person=b, to_person=a)).exists()
         self.assertFalse(married(marvin, barbara))   # inferred (no evidence) → removed
         self.assertTrue(married(marvin, gloria))     # real (marriage year) → kept
+
+
+# A lasting family unit (three shared children) with NO marriage event — the "likely"
+# tier. Legacy suggests marriage for confirmation but never asserts it.
+LIKELY_GED = """0 HEAD
+0 @I1@ INDI
+1 NAME Marvin Lynn /Jenkins/
+0 @I2@ INDI
+1 NAME Barbara Jean /Dorff/
+0 @I3@ INDI
+1 NAME Danny Ray /Jenkins/
+0 @I4@ INDI
+1 NAME Julie Mae /Jenkins/
+0 @I5@ INDI
+1 NAME Lynne Anne /Jenkins/
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 CHIL @I3@
+1 CHIL @I4@
+1 CHIL @I5@
+0 TRLR
+"""
+
+
+class MarriageConfidenceTests(TestCase):
+    """Known / Likely / Unknown — the importer reasons about confidence."""
+
+    def _fam(self, ged):
+        return next(c for c in gedcom_parser.parse_gedcom(ged) if c["kind"] == "gedcom_family")
+
+    def test_multiple_children_no_marriage_is_likely(self):
+        fam = self._fam(LIKELY_GED)
+        self.assertEqual(fam["data"]["couple_type"], "married")
+        self.assertEqual(fam["data"]["couple_confidence"], "likely")
+
+    def test_single_child_no_marriage_is_not_a_couple(self):
+        ged = ("0 HEAD\n0 @I1@ INDI\n1 NAME A /X/\n0 @I2@ INDI\n1 NAME B /Y/\n"
+               "0 @I3@ INDI\n1 NAME C /X/\n0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n"
+               "1 CHIL @I3@\n0 TRLR\n")
+        fam = self._fam(ged)
+        self.assertIsNone(fam["data"]["couple_type"])
+        self.assertIsNone(fam["data"]["couple_confidence"])
+
+    def test_marr_is_known(self):
+        ged = ("0 HEAD\n0 @I1@ INDI\n1 NAME A /X/\n0 @I2@ INDI\n1 NAME B /Y/\n"
+               "0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n1 MARR\n2 DATE 1990\n0 TRLR\n")
+        fam = self._fam(ged)
+        self.assertEqual(fam["data"]["couple_confidence"], "known")
+
+
+class LikelyMarriageReviewTests(TestCase):
+    """A likely marriage is surfaced for confirmation, never auto-asserted."""
+
+    def setUp(self):
+        from apps.legacy.services.import_engine import commit_genealogy
+        self.user = _make_user("likely@example.com")
+        self.batch = create_batch(self.user, "Tree", "gedcom", LIKELY_GED, classifier=lambda x: {})
+        commit_genealogy(self.batch)
+
+    def _pair(self):
+        from apps.legacy.models import Person
+        return (Person.objects.get(user=self.user, display_name__icontains="Marvin"),
+                Person.objects.get(user=self.user, display_name__icontains="Barbara"))
+
+    def _married(self, a, b):
+        from django.db.models import Q
+        from apps.legacy.models import Relationship
+        return Relationship.objects.filter(user=self.user, relationship_type__icontains="married").filter(
+            Q(from_person=a, to_person=b) | Q(from_person=b, to_person=a)).exists()
+
+    def test_likely_not_asserted_but_surfaced(self):
+        from apps.legacy.services.import_engine import likely_marriages
+        marvin, barbara = self._pair()
+        self.assertFalse(self._married(marvin, barbara))          # NOT drawn as married
+        lm = likely_marriages(self.batch)
+        self.assertEqual(len(lm), 1)                               # surfaced for review
+        self.assertEqual({lm[0]["husb"].pk, lm[0]["wife"].pk}, {marvin.pk, barbara.pk})
+        self.assertEqual(lm[0]["children"], 3)
+
+    def test_confirm_records_marriage(self):
+        from apps.legacy.services.import_engine import likely_marriages, confirm_marriage
+        marvin, barbara = self._pair()
+        confirm_marriage(self.batch, likely_marriages(self.batch)[0]["index"])
+        self.assertTrue(self._married(marvin, barbara))            # now married
+        self.assertEqual(likely_marriages(self.batch), [])        # no longer suggested
+
+    def test_dismiss_keeps_them_unmarried(self):
+        from apps.legacy.services.import_engine import likely_marriages, dismiss_marriage
+        marvin, barbara = self._pair()
+        dismiss_marriage(self.batch, likely_marriages(self.batch)[0]["index"])
+        self.assertFalse(self._married(marvin, barbara))          # still co-parents only
+        self.assertEqual(likely_marriages(self.batch), [])        # not asked again

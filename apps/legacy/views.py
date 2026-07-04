@@ -1317,6 +1317,9 @@ class ImportDetailView(LegacyContextMixin, DetailView):
         ctx["genealogy_pending"] = self.object.chunks.filter(
             chunk_kind__in=["gedcom_person", "gedcom_family"],
             status=ImportChunk.Status.PENDING).count()
+        # Marriages the importer thinks are LIKELY but won't assert — for the user
+        # to confirm or dismiss (only meaningful once genealogy has been committed).
+        ctx["likely_marriages"] = import_engine.likely_marriages(self.object)
         ctx["stats"] = import_engine.batch_stats(self.object)
         ctx["next_review"] = (
             self.object.memories.filter(entry_state=Memory.EntryState.DRAFT)
@@ -1383,6 +1386,22 @@ class GenealogyCommitView(LegacyContextMixin, View):
         else:
             messages.info(request, "Everyone from this file is already in your family.")
         return redirect("legacy:family")
+
+
+class MarriageReviewView(LegacyContextMixin, View):
+    """Confirm or dismiss a marriage the importer flagged as LIKELY. Confirm records
+    a real 'married to' relationship; dismiss keeps the couple as co-parents. Either
+    way the decision is remembered so it isn't asked again."""
+
+    def post(self, request, pk, index, *args, **kwargs):
+        batch = get_object_or_404(ImportBatch.all_objects, pk=pk, user=request.user)
+        if request.POST.get("action") == "confirm":
+            import_engine.confirm_marriage(batch, int(index))
+            messages.success(request, "Recorded as married.")
+        else:
+            import_engine.dismiss_marriage(batch, int(index))
+            messages.info(request, "Left unmarried — they remain co-parents.")
+        return redirect("legacy:import_detail", pk=batch.pk)
 
 
 class CanonicalRoadmapView(LegacyContextMixin, TemplateView):

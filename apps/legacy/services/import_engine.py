@@ -16,13 +16,20 @@ from apps.legacy.services.import_adapters import chunk, get_adapter
 logger = logging.getLogger(__name__)
 
 
-def create_batch(user, source_name, source_type, raw_text):
-    """Parse a document into an ImportBatch + pending ImportChunks (imports nothing)."""
+def create_batch(user, source_name, source_type, raw_text, classifier=None):
+    """Parse a document into an ImportBatch + pending ImportChunks and CLASSIFY
+    what each unit is (story / fact / person / place / milestone / quote / …)
+    before anything is imported. Imports nothing. `classifier` is injectable for
+    tests (defaults to the OpenAI classification call, which fails safe to story)."""
     from apps.legacy.models import ImportBatch, ImportChunk
+    from apps.legacy.services import import_classifier
 
     adapter = get_adapter(source_type)
     segments = adapter(raw_text or "")
     chunks = chunk(segments)
+
+    # Classification precedes extraction — the orchestrator's first act.
+    kinds = import_classifier.classify_chunks(chunks, classifier=classifier)
 
     batch = ImportBatch.objects.create(
         user=user,
@@ -32,11 +39,14 @@ def create_batch(user, source_name, source_type, raw_text):
         import_status=ImportBatch.Status.PARSED,
         created_via=ImportBatch.CREATED_VIA_IMPORT,
     )
-    ImportChunk.objects.bulk_create([
-        ImportChunk(batch=batch, index=c["index"], title=c["title"][:255],
-                    body=c["body"], source_ref=c["source_ref"][:120])
-        for c in chunks
-    ])
+    rows = []
+    for c in chunks:
+        kind, conf = kinds.get(c["index"], ("story", ""))
+        rows.append(ImportChunk(
+            batch=batch, index=c["index"], title=c["title"][:255],
+            body=c["body"], source_ref=c["source_ref"][:120],
+            chunk_kind=kind, kind_confidence=conf))
+    ImportChunk.objects.bulk_create(rows)
     return batch
 
 
@@ -50,7 +60,14 @@ def import_chunks(batch, indices=None, limit=None, run_discovery=True):
 
     qs = batch.chunks.filter(status=ImportChunk.Status.PENDING).order_by("index")
     if indices:
+        # Explicit per-chunk pick — honour the user's choice even if it was
+        # classified as something other than a story (a deliberate override).
         qs = qs.filter(index__in=[int(i) for i in indices])
+    else:
+        # Bulk import ("read the next N / all") only turns NARRATIVE units into
+        # story Memories. Facts and entities never silently become stories —
+        # they wait in their own review queues.
+        qs = qs.filter(chunk_kind__in=list(ImportChunk.NARRATIVE_KINDS))
     pending = list(qs[:limit] if limit else qs)
 
     memories = []
@@ -78,6 +95,60 @@ def import_chunks(batch, indices=None, limit=None, run_discovery=True):
 
     batch.refresh_counts()
     return memories
+
+
+# Display order + warm labels for the review queues shown after classification.
+_QUEUE_ORDER = [
+    ("story", "Stories", "Narrative memories — these run through Discovery."),
+    ("journal_entry", "Journal entries", "Dated personal entries."),
+    ("letter", "Letters", "Letters written to or by you."),
+    ("fact", "Facts", "Concise facts — dates, names, details. These are not stories."),
+    ("person", "People", "People described in this document."),
+    ("relationship_alias", "Relationship aliases", "Words like “Dad” — who do they mean?"),
+    ("place", "Places", "Places named in this document."),
+    ("milestone", "Life milestones", "Marriages, births, moves — the big chapters."),
+    ("timeline_event", "Timeline events", "Dated events that anchor your timeline."),
+    ("quote", "Quotes", "Sayings and memorable lines."),
+    ("artifact", "Artifacts", "Objects that carry meaning."),
+    ("media_ref", "Media references", "Mentions of photos, video, or audio."),
+    ("biography", "Biographies", "Longer accounts of a person's life."),
+    ("description", "Descriptions", "Descriptive passages."),
+    ("unknown", "Unsorted", "Legacy wasn't sure — you decide."),
+]
+
+
+def review_queues(batch):
+    """Group a batch's chunks into ordered, labelled review queues by what each
+    unit was classified as. The orchestrator's output — one upload, many queues."""
+    from apps.legacy.models import ImportChunk
+
+    by_kind = {}
+    for ch in batch.chunks.all():
+        by_kind.setdefault(ch.chunk_kind, []).append(ch)
+
+    queues = []
+    for kind, label, blurb in _QUEUE_ORDER:
+        items = by_kind.get(kind)
+        if not items:
+            continue
+        queues.append({
+            "kind": kind,
+            "label": label,
+            "blurb": blurb,
+            "items": items,
+            "count": len(items),
+            "pending": sum(1 for c in items if c.status == ImportChunk.Status.PENDING),
+            "is_narrative": kind in {k.value for k in ImportChunk.NARRATIVE_KINDS},
+        })
+    return queues
+
+
+def narrative_pending(batch):
+    """How many narrative units are still waiting to be brought in as stories."""
+    from apps.legacy.models import ImportChunk
+    return batch.chunks.filter(
+        status=ImportChunk.Status.PENDING,
+        chunk_kind__in=list(ImportChunk.NARRATIVE_KINDS)).count()
 
 
 def batch_stats(batch):

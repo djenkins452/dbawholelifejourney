@@ -2,8 +2,15 @@ from django.contrib import admin
 
 from apps.legacy.models import (
     Contributor, ImportBatch, ImportChunk, LifeMilestone, Media, Memory, Output, Person,
-    Place, Relationship,
+    Place, Relationship, RelationshipAlias,
 )
+
+
+@admin.register(RelationshipAlias)
+class RelationshipAliasAdmin(admin.ModelAdmin):
+    list_display = ("label", "alias", "person", "user")
+    search_fields = ("alias", "label")
+    raw_id_fields = ("person", "user")
 
 
 @admin.register(Memory)

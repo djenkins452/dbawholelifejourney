@@ -1273,6 +1273,9 @@ class ImportDetailView(LegacyContextMixin, DetailView):
         ctx = super().get_context_data(**kwargs)
         ctx["chunks"] = self.object.chunks.select_related("memory").all()
         ctx["pending"] = self.object.chunks.filter(status=ImportChunk.Status.PENDING).count()
+        # Classification → review queues grouped by what each unit was understood to be.
+        ctx["queues"] = import_engine.review_queues(self.object)
+        ctx["narrative_pending"] = import_engine.narrative_pending(self.object)
         ctx["stats"] = import_engine.batch_stats(self.object)
         ctx["next_review"] = (
             self.object.memories.filter(entry_state=Memory.EntryState.DRAFT)

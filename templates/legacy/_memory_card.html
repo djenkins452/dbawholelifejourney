@@ -1,6 +1,6 @@
-{# Reusable memory card. Expects `m`. Approved layout: clean title header on top,
-   large cover photo in the middle (the dominant visual), date + actions at the
-   bottom. The title NEVER sits on the image — readability wins over decoration. #}
+{% comment %}Canonical story card. Expects `m` (a Memory or a duck-typed sample).
+Approved layout: clean title header on top, large cover photo in the middle,
+footer at the bottom. Text is NEVER placed over the image.{% endcomment %}
 {% if m.pk %}{% url 'legacy:editor' m.pk as card_href %}{% else %}{% url 'legacy:library' as card_href %}{% endif %}
 <div class="mcard">
     <div class="mcard-head">

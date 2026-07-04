@@ -625,12 +625,37 @@ class ImportBatch(LegacyOwnedModel):
 
 
 class ImportChunk(models.Model):
-    """One intelligently-chunked unit of a document, ready to become a Memory."""
+    """One unit of a document. The importer first CLASSIFIES what each unit IS
+    (`chunk_kind`) — a story, a fact, a person, a place, a milestone, a quote, a
+    relationship alias… — then routes it to the right review queue. Narrative
+    units become draft Memories through Discovery; facts and entities are held
+    for review and never silently become stories."""
 
     class Status(models.TextChoices):
         PENDING = 'pending', 'Pending'
         IMPORTED = 'imported', 'Imported'
         SKIPPED = 'skipped', 'Skipped'
+
+    class Kind(models.TextChoices):
+        STORY = 'story', 'Story'
+        JOURNAL = 'journal_entry', 'Journal entry'
+        LETTER = 'letter', 'Letter'
+        FACT = 'fact', 'Fact'
+        PERSON = 'person', 'Person'
+        RELATIONSHIP_ALIAS = 'relationship_alias', 'Relationship alias'
+        PLACE = 'place', 'Place'
+        MILESTONE = 'milestone', 'Life milestone'
+        TIMELINE_EVENT = 'timeline_event', 'Timeline event'
+        QUOTE = 'quote', 'Quote'
+        ARTIFACT = 'artifact', 'Artifact'
+        MEDIA_REF = 'media_ref', 'Media reference'
+        BIOGRAPHY = 'biography', 'Biography'
+        DESCRIPTION = 'description', 'Description'
+        UNKNOWN = 'unknown', 'Unknown'
+
+    # Kinds that legitimately become a narrative Memory (run through Discovery).
+    # Everything else is an entity/fact held in its review queue — never auto-storied.
+    NARRATIVE_KINDS = frozenset({Kind.STORY, Kind.JOURNAL, Kind.LETTER})
 
     batch = models.ForeignKey(ImportBatch, on_delete=models.CASCADE, related_name='chunks')
     index = models.PositiveIntegerField()
@@ -638,6 +663,10 @@ class ImportChunk(models.Model):
     body = models.TextField()
     source_ref = models.CharField(max_length=120, blank=True, help_text="e.g. 'message 7'")
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    # What the orchestrator understood this unit to be (classification precedes extraction).
+    chunk_kind = models.CharField(
+        max_length=20, choices=Kind.choices, default=Kind.STORY, db_index=True)
+    kind_confidence = models.CharField(max_length=6, blank=True)  # high / medium / low
     memory = models.ForeignKey(
         Memory, on_delete=models.SET_NULL, null=True, blank=True, related_name='import_chunks')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -648,3 +677,26 @@ class ImportChunk(models.Model):
 
     def __str__(self):
         return f"{self.batch_id}#{self.index}: {self.title or self.source_ref}"
+
+    @property
+    def is_narrative(self):
+        return self.chunk_kind in ImportChunk.NARRATIVE_KINDS
+
+
+class RelationshipAlias(LegacyOwnedModel):
+    """A relational term the keeper uses — "Dad", "Mom", "Coach", "Pastor" — mapped
+    to the actual Person it refers to. Learned once (on review) and reused on every
+    future import, so Legacy resolves "Dad → Marvin Jenkins" without asking again.
+    An alias with no person yet is an open question awaiting the user's answer."""
+
+    alias = models.CharField(max_length=80, db_index=True, help_text="normalized, lowercased")
+    label = models.CharField(max_length=80, help_text="as written, e.g. 'Dad'")
+    person = models.ForeignKey(
+        Person, on_delete=models.CASCADE, null=True, blank=True, related_name='aliases')
+
+    class Meta:
+        unique_together = ['user', 'alias']
+        verbose_name_plural = 'Relationship aliases'
+
+    def __str__(self):
+        return f"{self.label} → {self.person.display_name if self.person else '?'}"

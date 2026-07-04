@@ -392,6 +392,7 @@ class MemoryDiscoverView(LegacyContextMixin, View):
         else:
             memory = Memory(user=user, created_via=Memory.CREATED_VIA_MANUAL,
                             source_kind=Memory.SourceKind.OWNER)
+        title_was_empty = not title
         memory.title = title
         memory.body = body
         if memory.pk:
@@ -419,9 +420,12 @@ class MemoryDiscoverView(LegacyContextMixin, View):
             "prompts": memory.discovery_prompts,
             "cleanup": cleanup,
         }, request=request)
+        # Auto-title: only offered when the author left the title blank.
+        suggested_title = memory.title if (title_was_empty and (memory.title or "").strip()) else None
         return JsonResponse({
             "ok": True, "pk": memory.pk, "status": status, "html": html,
             "cleaned_body": memory.body if cleanup["changed"] else None,
+            "suggested_title": suggested_title,
         })
 
 
@@ -570,8 +574,11 @@ class MemoryMediaRemoveView(LegacyContextMixin, View):
         memory = get_object_or_404(Memory.all_objects, pk=pk, user=request.user)
         media = get_object_or_404(Media.all_objects, pk=media_pk, user=request.user)
         memory.media.remove(media)
+        # If the cover was removed, promote the next attached photo so the story
+        # tile keeps a consistent thumbnail instead of falling back to a placeholder.
         if memory.primary_media_id == media.pk:
-            memory.primary_media = None
+            memory.primary_media = memory.media.filter(
+                media_type=Media.MediaType.PHOTO).exclude(pk=media.pk).order_by("pk").first()
             memory.save(update_fields=["primary_media", "updated_at"])
         if _is_ajax(request):
             return JsonResponse({"ok": True})

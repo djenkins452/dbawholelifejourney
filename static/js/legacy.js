@@ -194,6 +194,14 @@
                                 window.history.replaceState({}, '', '/legacy/memories/' + d.pk + '/edit/');
                             }
                         }
+                        // Auto-title: fill an empty title with the suggestion (editable).
+                        if (d.suggested_title) {
+                            var titleEl = document.getElementById('memoryTitle');
+                            if (titleEl && !titleEl.value.trim()) {
+                                titleEl.value = d.suggested_title;
+                                titleEl.dispatchEvent(new Event('input', { bubbles: true }));
+                            }
+                        }
                         // Cleanup phase: reflect the gently tidied text in the editor.
                         if (d.cleaned_body) {
                             var bodyEl = document.getElementById('memoryBody');

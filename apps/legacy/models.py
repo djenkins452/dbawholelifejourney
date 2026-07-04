@@ -340,6 +340,16 @@ class Memory(LegacyOwnedModel):
     def __str__(self):
         return self.title or f"Memory #{self.pk}"
 
+    def cover_media(self):
+        """The image used as this story's thumbnail — the chosen primary photo if
+        set, otherwise the first attached photo. Guarantees a consistent tile
+        whenever the story has any photo, even if the primary was removed."""
+        pm = self.primary_media
+        if pm and pm.media_type == Media.MediaType.PHOTO and pm.file:
+            return pm
+        return self.media.filter(
+            media_type=Media.MediaType.PHOTO).exclude(file="").order_by("pk").first()
+
     @property
     def has_audio(self):
         return self.media.filter(media_type=Media.MediaType.AUDIO).exists()

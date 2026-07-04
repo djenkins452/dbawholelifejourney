@@ -2,9 +2,9 @@
 <div class="mcard">
     <a href="{% url 'legacy:editor' m.pk %}" class="mcard-imglink">
         <div class="mcard-img type-{{ m.entry_type }}">
-            {% if m.primary_media and m.primary_media.file %}<img src="{{ m.primary_media.file.url }}" alt="{{ m.title }}">{% else %}
+            {% with cover=m.cover_media %}{% if cover %}<img src="{{ cover.file.url }}" alt="{{ m.title }}">{% else %}
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="rcard-img-ico"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-            {% endif %}
+            {% endif %}{% endwith %}
         </div>
     </a>
     <div class="mcard-body">

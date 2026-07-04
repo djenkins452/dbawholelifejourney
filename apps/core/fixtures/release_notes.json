@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 221,
+    "fields": {
+      "title": "Legacy suggests a title for your story",
+      "description": "One less thing to think about: if you haven't given your story a title when you tap Discover, Legacy now suggests a simple, natural one based on what you wrote — and you can edit it however you like before saving. If you've already written your own title, Legacy leaves it exactly as is. We also made sure your photos stay put: a picture you add to a story stays attached through saving, reloading, and reopening, and each story keeps a clean, readable tile with a consistent thumbnail. Nothing feels temporary, and nothing gets lost.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-03",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-03T19:00:00Z",
+      "updated_at": "2026-07-03T19:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 220,
     "fields": {
       "title": "See everything connected to your story",

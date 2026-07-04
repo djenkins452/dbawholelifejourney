@@ -117,7 +117,8 @@ be present; use an empty array if you found nothing for it):
   "traditions":    [{"text": str, "confidence": 0.0-1.0}],
   "emotions":      [{"text": str, "confidence": 0.0-1.0}],
   "milestones":    [{"title": str, "kind": str, "year": int|null, "confidence": 0.0-1.0}],
-  "prompts":       [str]
+  "prompts":       [str],
+  "suggested_title": str|null
 }
 
 Guidance:
@@ -179,6 +180,12 @@ Guidance:
   "You mentioned Christmas but not who celebrated with you." NEVER generic ("Tell
   me more"), never filler. If the story is already rich, return fewer. These are
   gentle nudges for the author to preserve more — not questions you are asking.
+- suggested_title: a concise, natural title that SUMMARIZES this story in about
+  3-7 words — a plain summary, NOT creative or poetic writing. Base it only on
+  what the author actually wrote (a key moment, place, person, or theme). Good:
+  "A Difficult Week at Work", "Fishing at Watts Bar Lake", "The Summer of 1985",
+  "Sunday Dinners at Grandma's". Use title case. Return null if the story is too
+  short or vague to title well.
 - Extract only what the text supports. Respond with ONLY the JSON, no prose."""
 
 
@@ -419,6 +426,12 @@ def run_discovery(memory, extractor=None, place_lookup_fn=None):
     data = extractor(text)
     if not data:
         return "unavailable", []
+
+    # Propose a title only when the author hasn't written one — never overwrite.
+    suggested_title = (data.get("suggested_title") or "").strip()
+    if suggested_title and not (memory.title or "").strip():
+        memory.title = suggested_title[:255]
+        memory.save(update_fields=["title", "updated_at"])
 
     # Refresh proposals: clear previous undecided ones, keep accepted/rejected.
     MemoryDiscovery.objects.filter(memory=memory, status=MemoryDiscovery.Status.PROPOSED).delete()

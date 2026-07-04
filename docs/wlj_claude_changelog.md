@@ -6,6 +6,15 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — feat(cos): Historical weight retrieval — weight queryable by point in time (WI-4)
+
+"What was my weight on 7/1?" → search failure (current + yesterday worked; specific historical dates didn't). Treated Weight exactly like Sleep. Extracted the date-reference parser I built for sleep into a SHARED `apps/ai/chatgpt_cos/date_reference.py :: resolve_reference_date` (explicit M/D, M/D/Y, "July 1", ISO, N days/nights ago, day-before-yesterday, yesterday, last <weekday>) — `sleep_history` now delegates to it (behavior identical; sleep-specific "the night before" phrasing kept in its wrapper; all sleep tests still green, protected). New `apps/health/services/weight_queries.py :: on_date` (the authoritative weight for a user-local day, timezone-correct range so a late reading is dated right) and `weight_history` lane (before `foundational_facts`) that resolves the date and reads that day's weight — declines when there is no date reference so the existing current-weight path is untouched. Never inferred: an honest "I don't have a weight reading for <date>" when the day has none.
+
+Certified: "What was my weight on 7/1?" → "On Wednesday, July 1 you weighed 285.7 lb."; ISO / yesterday / last-weekday resolve to the right day; missing day is honest; current weight & non-weight questions decline. Regression `apps/ai/tests/test_weight_history.py` (7) + sleep protected + registry guards updated. No model change, no migration.
+
+**Files:** apps/ai/chatgpt_cos/date_reference.py (new), apps/health/services/weight_queries.py (new), apps/ai/chatgpt_cos/weight_history.py (new), apps/ai/chatgpt_cos/sleep_history.py, apps/ai/chatgpt_cos/lanes.py, apps/ai/tests/test_conversation_lanes.py, apps/ai/tests/test_weight_history.py (new).
+
+
 ## 2026-07-04 — feat(legacy): Permanent preservation layer + Canonical Truth Roadmap
 
 Extended the preservation guarantee from "captured in the import session" to a **permanent, durable layer**. Every imported fact Canonical Truth cannot yet model is now written to a new `PreservedFact` row at commit time — tied to the Person it describes, tagged with the CONCEPT it belongs to (Occupation→**Career**, Residence→**Places**, Burial→**Life Events**, Baptism→**Faith Journey**, Military/custom→**Custom Tags**, etc.). This makes the promise real: when a canonical domain is built later, it backfills straight from these rows — **no user ever re-imports a file.**

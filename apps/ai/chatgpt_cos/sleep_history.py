@@ -76,54 +76,21 @@ def resolve_night_date(user, message):
     """Resolve a HISTORICAL point-in-time expression to a concrete wake date, or None.
 
     Returns None for "last night"/"tonight"/no reference, so the existing current-night
-    path keeps answering those (protects existing behavior)."""
+    path keeps answering those (protects existing behavior). Sleep-specific phrasing
+    ("the night before" / "night before last" → the night before last night) is handled
+    here; everything else delegates to the shared date-reference resolver."""
     n = (message or "").lower()
     try:
         today = _today(user)
     except Exception:
         logger.warning("sleep_history: today failed", exc_info=True)
         return None
-
-    # ISO date (most specific).
-    m = _ISO_RE.search(n)
-    if m:
-        try:
-            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-        except ValueError:
-            return None
-    # M/D or M/D/Y.
-    m = _MD_RE.search(n)
-    if m:
-        yr = int(m.group(3)) if m.group(3) else None
-        return _most_recent_past(int(m.group(1)), int(m.group(2)), today, yr)
-    # Month name + day.
-    m = _MONTH_RE.search(n)
-    if m:
-        yr = int(m.group(3)) if m.group(3) else None
-        return _most_recent_past(_MONTHS[m.group(1)[:3]], int(m.group(2)), today, yr)
-    # N nights/days ago.
-    m = _NAGO_RE.search(n)
-    if m:
-        tok = m.group(1)
-        num = int(tok) if tok.isdigit() else _NUMWORDS.get(tok, 0)
-        return today - timedelta(days=num) if num else None
-    # "two nights ago" phrased without a digit already handled above via numwords.
-    # Named relatives → the night before last night (today − 1).
+    # Sleep-specific relative phrasing → the night before last night (today − 1).
     if any(p in n for p in ("night before last", "the night before", "previous night",
                             "night before")):
         return today - timedelta(days=1)
-    if "day before yesterday" in n:
-        return today - timedelta(days=2)
-    if "yesterday" in n:
-        return today - timedelta(days=1)
-    # Weekday ("last monday", "monday", "this past tuesday").
-    for name, wd in _WEEKDAYS.items():
-        if name in n:
-            delta = (today.weekday() - wd) % 7
-            if delta == 0:            # same weekday → the most recent PAST one
-                delta = 7
-            return today - timedelta(days=delta)
-    return None
+    from apps.ai.chatgpt_cos.date_reference import resolve_reference_date
+    return resolve_reference_date(user, message, include_today=False)
 
 
 def _fmt(d):

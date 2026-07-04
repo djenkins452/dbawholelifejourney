@@ -45,6 +45,15 @@ def _sleep_history_lane(user, message, conversation=None):
     return sleep_history.answer(user, message, conversation)
 
 
+def _weight_history_lane(user, message, conversation=None):
+    """HISTORICAL WEIGHT RETRIEVAL: a weight question about a specific/historical date
+    ("what was my weight on 7/1?") retrieves THAT day's canonical weight. Declines for
+    non-weight questions and for current weight (no date), so existing paths are
+    untouched. Runs BEFORE the foundational fact lane."""
+    from apps.ai.chatgpt_cos import weight_history
+    return weight_history.answer(user, message, conversation)
+
+
 def _decision_support_lane(user, message, conversation=None):
     """Layer 2 DECISION SUPPORT: when the user is COMMUNICATING A DECISION (abandoning
     a plan, reprioritizing, accepting a tradeoff, giving up, or calling it a night)
@@ -1196,6 +1205,8 @@ LANE_REGISTRY = (
     # question about a specific night ("what did I sleep on 7/1?") retrieves THAT
     # night instead of always returning "last night". Declines otherwise.
     ("sleep_history", _sleep_history_lane),
+    # HISTORICAL WEIGHT RETRIEVAL — same, for "what was my weight on 7/1?".
+    ("weight_history", _weight_history_lane),
     ("foundational_facts", _foundational_lane),
     ("clarification", _clarification_lane),
     # Continue an active EXTERNAL/general thread BEFORE any personal-coaching lane

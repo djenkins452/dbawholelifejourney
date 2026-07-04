@@ -45,9 +45,45 @@ class ExecutiveSignals:
     deprioritized: list = field(default_factory=list)  # things NOT to elevate (learned)
     tone: str = ""                     # learned communication preference (e.g. "direct")
     directive_explanations: list = field(default_factory=list)  # "why do you think that?"
+    # ── Listening & Evidence Reconciliation: how the user's OWN report reconciled
+    # with the objective read. "" | positive_over_debt | confirmed_good |
+    # confirmed_low | negative_no_debt ──
+    reconciliation: str = ""
 
     def to_dict(self):
         return asdict(self)
+
+
+# ── Subjective evidence: the user's OWN report of how they feel. This is EVIDENCE the
+# reconciliation weighs against the objective sleep read — never ignored. ──────────
+_POSITIVE_ENERGY = (
+    "refreshed", "rested", "energized", "energetic", "good", "great", "fantastic",
+    "wonderful", "ready", "strong", "solid", "recharged", "clear headed",
+    "clear-headed", "sharp", "alert", "fresh", "well rested", "feel fine", "feeling fine",
+    "feel good", "feeling good", "feel great", "on top of it",
+)
+_NEGATIVE_ENERGY = (
+    "tired", "exhausted", "drained", "wiped", "rough", "worn out", "worn-out",
+    "groggy", "sluggish", "low energy", "no energy", "beat", "spent", "awful",
+    "terrible", "foggy", "run down", "run-down", "wrecked", "shattered", "depleted",
+    "dragging", "burnt out", "burned out", "not good", "not great", "not rested",
+    "didn't sleep", "barely slept", "can't focus", "cant focus",
+)
+
+
+def classify_subjective_energy(text):
+    """Classify the user's reported energy from their own words → 'positive' /
+    'negative' / None. Negatives win ties (err toward caution — a mixed 'ok but tired'
+    is a concern). This is the SUBJECTIVE half of the evidence the reconciliation
+    weighs; it is deterministic and never overrides the number silently."""
+    t = (text or "").lower()
+    if not t:
+        return None
+    if any(w in t for w in _NEGATIVE_ENERGY):
+        return "negative"
+    if any(w in t for w in _POSITIVE_ENERGY):
+        return "positive"
+    return None
 
 
 def _text(item):
@@ -186,18 +222,42 @@ def _headline(workload, recovery, has_backlog):
     return base + "."
 
 
-def interpret(user, low_energy=False):
+def interpret(user, low_energy=False, subjective=None):
     """Produce ExecutiveSignals — ALL executive judgment — from deterministic facts
-    plus the conversation's energy signal (`low_energy`, owned by the Conversation
-    Planner). The Composer narrates these conclusions; it never invents them (P35).
-    Deterministic, request-path-safe, degrades gracefully."""
+    plus the user's OWN reported state. The Composer narrates these conclusions; it
+    never invents them (P35). Deterministic, request-path-safe, degrades gracefully.
+
+    LISTENING & EVIDENCE RECONCILIATION: `subjective` ('positive'/'negative'/None,
+    owned by the check-in) is the user's lived report — EVIDENCE, not noise. We
+    reconcile it with the objective sleep read rather than blindly trusting either. A
+    short night the user says felt refreshing is NOT an energy-management day; a normal
+    night the user says felt terrible IS. The number is never silently overridden, but
+    lived experience is never ignored (`low_energy=True` folds into a negative report)."""
     tw = _task_horizons(user)
     es = _exec_summary(user)
     health = _health_read(user)
 
     workload, wsummary = _interpret_workload(tw)
     has_backlog = (tw["total"] - (tw["today"] + tw["overdue"])) >= 3
-    recovery = bool(health["recovery_needed"] or low_energy)
+
+    # Reconcile the user's EXPLICIT report with the objective sleep-debt read. The
+    # reconciliation narrative fires only for an explicit `subjective` report; the
+    # legacy `low_energy` flag (used by other callers) keeps its original meaning.
+    objective_recovery = bool(health["recovery_needed"])
+    reconciliation = ""
+    if subjective == "positive" and objective_recovery:
+        # Short night on paper, but the user reports feeling good/refreshed → do NOT
+        # assert an energy-management day; trust the lived experience, watch & adjust.
+        reconciliation, recovery = "positive_over_debt", False
+    elif subjective == "positive":
+        reconciliation, recovery = "confirmed_good", False
+    elif subjective == "negative":
+        # The user reports low energy — trust it, whether or not the number agrees.
+        recovery = True
+        reconciliation = "confirmed_low" if objective_recovery else "negative_no_debt"
+    else:
+        # No explicit report → legacy behavior: objective read OR the low_energy flag.
+        recovery = bool(objective_recovery or low_energy)
 
     biggest_risk = _text(es.get("biggest_risk"))
     if not biggest_risk and recovery:
@@ -224,9 +284,19 @@ def interpret(user, low_energy=False):
     # ── Executive JUDGMENTS (the Chief-of-Staff opinions — owned HERE, P35) ──
     # What is the real limiter today, and the stance/levers that follow from it.
     primary_challenge, challenge_reason, disposition, levers = "none", "", "", []
-    if recovery:
+    if reconciliation == "positive_over_debt":
+        # The user's report contests the sleep-debt read — honor it. Energy is NOT the
+        # framed challenge today; we watch it rather than manage it.
+        primary_challenge = "none"
+        challenge_reason = "your lived experience matters more than the raw number this morning"
+        disposition = ("I'd take your word that you feel good and treat today as a normal "
+                       "day — watching your energy rather than managing it")
+    elif recovery:
         primary_challenge = "energy"
-        challenge_reason = "more than the number of open items"
+        challenge_reason = (
+            "you're telling me you're running low, and I trust that over the number"
+            if reconciliation == "negative_no_debt"
+            else "more than the number of open items")
         disposition = "I wouldn't try to catch up on everything today"
         levers = ["protect your energy", "keep nutrition steady",
                   "take care of the one thing that's genuinely due"]
@@ -261,7 +331,8 @@ def interpret(user, low_energy=False):
         disposition=disposition, recommendation_levers=levers,
         backlog_can_wait=has_backlog, ease_load=ease_load,
         deprioritized=deprioritized, tone=tone,
-        directive_explanations=directive_explanations)
+        directive_explanations=directive_explanations,
+        reconciliation=reconciliation)
 
 
 def _behavior_adapt(user):

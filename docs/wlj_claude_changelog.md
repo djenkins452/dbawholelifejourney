@@ -6,6 +6,25 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — feat(cos): Listening & Evidence Reconciliation — the user's own report is evidence (Layer 2)
+
+Production failure: Beth "You slept about 6.4 hours." → user "I am feeling good. 6.4 hours of sleep is good for me and I am feeling refreshed." → Beth "The bigger challenge today is your energy." The facts weren't wrong — Beth IGNORED what the user told her. A Chief of Staff receives two sources of truth (objective: 6.4h; subjective: "I feel refreshed") and RECONCILES them; the user's report is evidence that should shape the recommendation.
+
+How Beth incorporated subjective state before: the check-in only checked for NEGATIVE feeling words (to set `low_energy`); a POSITIVE report that CONTESTED the short-sleep read was ignored — the executive interpretation asserted `primary_challenge=energy` purely from sleep < 6.5h. It was neither incorporated into reasoning nor allowed to modify the interpretation.
+
+Correct behavior (implemented; Layer 2 unchanged, interpretation strengthened): the user's report is a first-class input to `executive_interpretation.interpret(user, low_energy, subjective)`. `classify_subjective_energy(text)` → positive/negative/None (negatives win ties). Reconciliation (the number is never silently overridden, lived experience never ignored):
+- **feels better than expected** (short night + positive) → `positive_over_debt`: do NOT frame an energy-management day; trust the report, watch & adjust.
+- **feels worse than expected** (normal night + negative) → `negative_no_debt`: energy IS the constraint, from the report not the number.
+- **confirms** (both agree) → `confirmed_low` / `confirmed_good`: reinforced.
+- **no report** → legacy behavior preserved exactly (objective read OR `low_energy`).
+
+`compose_executive_brief(..., subjective=)` LEADS with the reconciliation (the listening beat) when the report shaped the read, so the user hears Beth weigh what they said. `_post_checkin_brief` classifies the feeling and passes it through. The 6.4h positive case now reads: "That's actually encouraging. 6.4 hours is below your long-term goal, but what matters more this morning is that you're telling me you feel refreshed — and I trust your lived experience. So rather than treating today as an energy-management day, I'll pay attention to how your energy actually holds up. Good start; we'll adjust only if it fades." — the production failure line ("the bigger challenge today is your energy") is gone.
+
+Certified with the exact production conversation (routed greeting → positive feeling → reconciled brief). Regression `apps/ai/tests/test_evidence_reconciliation.py` (11): classifier, all four reconciliation cases at the interpretation level, the brief reconciles-and-never-asserts-energy / feels-worse-leads-with-listening, no-report preserves existing behavior, and the routed production conversation. 56 across reconciliation + P32–P35 brief/interpretation + check-in GREEN (fixed a regression where folding `low_energy` into the report rerouted plain low-energy briefs; the reconciliation now fires only on an explicit report). No model change, no migration.
+
+**Files:** apps/ai/chatgpt_cos/executive_interpretation.py, apps/ai/chatgpt_cos/executive_brief.py, apps/ai/chatgpt_cos/lanes.py, apps/ai/tests/test_evidence_reconciliation.py.
+
+
 ## 2026-07-04 — feat(dev): on-demand trigger for proactive guidance cards (certification)
 
 There was NO on-demand developer mechanism to surface a proactive guidance card (the CDCE cross-domain-correlation card with the "Tell me more / How to use this / Got it" buttons) — no management command, debug endpoint, admin action, feature flag, or dev button. The only path was the scheduler cadence (`run_proactive_guidance_scheduler`), which you can't wait on for certification.

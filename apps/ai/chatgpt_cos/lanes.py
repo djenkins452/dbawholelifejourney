@@ -818,11 +818,19 @@ def _morning_checkin(user, message):
 
 def _post_checkin_brief(user, message, feeling):
     f = (feeling or "").lower()
-    heavy = any(w in f for w in _NEGATIVE_FEELING)
+    # Listening & Evidence Reconciliation: the user's OWN report is evidence the brief
+    # must weigh against the objective sleep read — not ignore.
+    try:
+        from apps.ai.chatgpt_cos.executive_interpretation import classify_subjective_energy
+        subjective = classify_subjective_energy(feeling)
+    except Exception:
+        subjective = None
+    heavy = subjective == "negative" or any(w in f for w in _NEGATIVE_FEELING)
     lead = ("Thanks for telling me. " if heavy else "Got it. ")
     try:
         from apps.ai.chatgpt_cos.executive_brief import compose_executive_brief
-        answer = compose_executive_brief(user, lead=lead, low_energy=heavy)
+        answer = compose_executive_brief(user, lead=lead, low_energy=heavy,
+                                         subjective=subjective)
     except Exception:
         logger.warning("post_checkin_brief: compose failed", exc_info=True)
         answer = lead + "Here's your day at a glance."

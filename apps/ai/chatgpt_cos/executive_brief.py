@@ -170,14 +170,40 @@ def _is_raw_workload_claim(t):
 
 
 # ── Section composers (each returns a sentence/paragraph or "") ────────────
-def _safe_interpret(user, low_energy=False):
+def _safe_interpret(user, low_energy=False, subjective=None):
     try:
         from apps.ai.chatgpt_cos.executive_interpretation import interpret
-        return interpret(user, low_energy=low_energy)
+        return interpret(user, low_energy=low_energy, subjective=subjective)
     except Exception:
         logger.warning("executive_brief: interpretation failed", exc_info=True)
         from apps.ai.chatgpt_cos.executive_interpretation import ExecutiveSignals
         return ExecutiveSignals()
+
+
+def _reconciliation_story(sig):
+    """The LISTENING beat — narrate how the user's OWN report reconciled with the
+    numbers. Fires only when the report meaningfully shaped the read, so Beth is
+    visibly weighing lived experience against the objective signal, not ignoring it."""
+    r = sig.reconciliation
+    sh = getattr(sig, "sleep_hours", None)
+    num = f"{round(sh, 1)} hours" if isinstance(sh, (int, float)) and sh else "a short night"
+    if r == "positive_over_debt":
+        return (f"That's actually encouraging. {num[0].upper()}{num[1:]} is below your "
+                "long-term goal, but what matters more this morning is that you're telling "
+                "me you feel refreshed — and I trust your lived experience. So rather than "
+                "treating today as an energy-management day, I'll pay attention to how your "
+                "energy actually holds up. Good start; we'll adjust only if it fades.")
+    if r == "confirmed_good":
+        return ("Good to hear — and the numbers don't argue with you. Nothing about this "
+                "morning says slow down, so let's put that energy to work.")
+    if r == "negative_no_debt":
+        return ("On paper you got a reasonable night, but you're telling me you're running "
+                "low — and I'll trust that over the number. Let's keep the load light and "
+                "protect your energy today.")
+    if r == "confirmed_low":
+        return ("That matches what I was seeing — a short night, and you're feeling it. So "
+                "energy is the real constraint today.")
+    return ""
 
 
 def _cap(s):
@@ -261,22 +287,36 @@ def _priority_story(sig):
     return " ".join(out)
 
 
-def compose_executive_brief(user, *, lead="", low_energy=False):
+def compose_executive_brief(user, *, lead="", low_energy=False, subjective=None):
     """Compose ONE coherent executive CONVERSATION by NARRATING ExecutiveSignals
     (P35: the composer is a speechwriter — it never invents priorities, leverage,
     recommendations, or executive opinions; those come from interpretation). Synthesis
     over enumeration, no headings, evidence only when it strengthens the point,
-    conflicts already reconciled upstream. Deterministic; degrades gracefully."""
-    sig = _safe_interpret(user, low_energy=low_energy)
+    conflicts already reconciled upstream. Deterministic; degrades gracefully.
+
+    `subjective` ('positive'/'negative'/None) is the user's OWN reported state; when it
+    shaped the read, the brief LEADS with the reconciliation (the listening beat)
+    instead of the generic thesis — so the user hears that Beth weighed what they said."""
+    sig = _safe_interpret(user, low_energy=low_energy, subjective=subjective)
     story = []
     if lead:
         story.append(lead.strip())
-    story.append(_thesis(sig))
-    if sig.primary_challenge == "energy":
-        story.append(_energy_story(sig, low_energy))
-        story.append(_recommendation(sig))
+    recon = _reconciliation_story(sig)
+    if recon:
+        # The user gave us evidence — reconcile it FIRST, then the day.
+        story.append(recon)
+        if sig.reconciliation in ("positive_over_debt", "confirmed_good"):
+            story.append(_priority_story(sig))          # not an energy day
+        else:                                           # negative_no_debt / confirmed_low
+            story.append(_energy_story(sig, True))
+            story.append(_recommendation(sig))
     else:
-        story.append(_priority_story(sig))
+        story.append(_thesis(sig))
+        if sig.primary_challenge == "energy":
+            story.append(_energy_story(sig, low_energy))
+            story.append(_recommendation(sig))
+        else:
+            story.append(_priority_story(sig))
     if sig.backlog_can_wait:
         story.append("The rest of your backlog can wait — none of it is due today.")
     agenda = _agenda_narrative(user, sig.ease_load, deprioritized=sig.deprioritized)

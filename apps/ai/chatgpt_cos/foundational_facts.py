@@ -67,6 +67,7 @@ GOAL_FACT_KEYS = {"top_goal", "active_goal_count", "goals_overdue",
 _UNKNOWN_SENTENCE = {
     "current_weight": "I don't have a current weight recorded for you yet.",
     "last_glucose_reading": "I don't have a recent glucose reading recorded for you.",
+    "previous_glucose_reading": "I don't have a previous glucose reading recorded for you.",
     "current_medications": "I don't have any current medications recorded for you.",
     "adherence_7d": "I don't have enough dose history yet to calculate your medication adherence.",
     "adherence_30d": "I don't have enough dose history yet to calculate your 30-day medication adherence.",
@@ -236,6 +237,11 @@ def classify_foundational_fact(message):
     med_key = _classify_medicine(text)
     if med_key:
         return med_key
+    # PRIOR-READING TRUTH: "what was the PREVIOUS/PRIOR glucose reading?" is a
+    # DISTINCT reading from the current one — checked BEFORE the keyword loop so the
+    # "glucose" term can never collapse it into last_glucose_reading (current).
+    if _is_previous_glucose_query(text):
+        return "previous_glucose_reading"
     matched = None
     for key, keywords in _FACT_KEYWORDS:
         if any(kw in text for kw in keywords):
@@ -244,6 +250,21 @@ def classify_foundational_fact(message):
     if matched is None:
         return None
     return _refine_to_day(matched, text)
+
+
+_GLUCOSE_TERMS = ("glucose", "blood sugar", "blood glucose", "bloodsugar",
+                  "blood-sugar", " bg ", " bg?")
+_PREVIOUS_QUALIFIERS = ("previous", "prior", "before that", "before it",
+                        "before this", "the one before", "one before",
+                        "reading before", "earlier reading", "reading prior")
+
+
+def _is_previous_glucose_query(text):
+    """A question about the PREVIOUS glucose reading (a glucose term + an
+    earlier-reading qualifier) — never the current/latest reading."""
+    t = f" {text} "
+    return (any(g in t for g in _GLUCOSE_TERMS) and
+            any(q in text for q in _PREVIOUS_QUALIFIERS))
 
 
 def _format_single_entity(ent):
@@ -532,6 +553,24 @@ def _refine_to_day(key, text):
     return key
 
 
+def _humanize_minutes(mins):
+    """A short, human gap: 'a few minutes', '25 minutes', 'about 1 hour',
+    'about 2 hours 10 minutes'. Deterministic."""
+    try:
+        m = int(mins)
+    except (TypeError, ValueError):
+        return "a short time"
+    if m < 2:
+        return "about a minute"
+    if m < 60:
+        return f"{m} minutes"
+    h, r = divmod(m, 60)
+    hh = f"{h} hour" + ("s" if h != 1 else "")
+    if r == 0:
+        return f"about {hh}"
+    return f"about {hh} {r} minutes"
+
+
 def format_fact_sentence(key, fact):
     """Build a deterministic factual sentence straight from the payload.
 
@@ -541,6 +580,14 @@ def format_fact_sentence(key, fact):
         "unknown", "unsupported_fact",
     ):
         return _UNKNOWN_SENTENCE.get(key, "That isn't recorded for you yet.")
+
+    # PRIOR-READING TRUTH: "previous reading" when there is no earlier reading is said
+    # PLAINLY — never substituted with the current reading (the production defect).
+    if fact.get("status") == "no_previous":
+        if fact.get("has_current"):
+            return ("You only have one glucose reading on record, so there isn't an "
+                    "earlier reading before it yet.")
+        return "I don't have any glucose readings recorded for you yet."
 
     # EVIDENCE INTEGRITY gate: the evidence contradicts itself (impossible timestamp,
     # duplicated/out-of-order predecessor, stale-as-current). A CoS does NOT
@@ -576,6 +623,27 @@ def format_fact_sentence(key, fact):
         # Temporal sanity: never present an impossible time; surface the warning.
         if fact.get("temporal_warning"):
             s += " " + fact["temporal_warning"]
+        return s
+    if key == "previous_glucose_reading":
+        from apps.core.truth.present import humanize_number
+        s = f"Your previous glucose reading was {humanize_number(value)} {unit}".strip()
+        interp = fact.get("interpretation") or {}
+        if interp.get("display"):
+            s += f" ({interp['display']})"
+        rel = fact.get("relation") or {}
+        mins = rel.get("minutes_before_current")
+        if mins is not None:
+            s += f", recorded {_humanize_minutes(mins)} before your current reading"
+        cv = rel.get("current_value")
+        direction = rel.get("direction")
+        if cv is not None and direction in ("rose", "fell"):
+            verb = "risen" if direction == "rose" else "fallen"
+            s += f" — glucose has since {verb} to {humanize_number(cv)}"
+        elif cv is not None and direction == "held":
+            s += f" — your current reading is the same, {humanize_number(cv)}"
+        s += "."
+        if interp.get("concern") and interp.get("advice"):
+            s += " " + interp["advice"]
         return s
     if key == "current_medications":
         meds = value if isinstance(value, list) else [value]
@@ -796,7 +864,11 @@ _NUMERIC_VALUE_KEYS = {"calories_today", "calories_yesterday", "protein_today",
                        "supplement_adherence_90d", "medication_detail",
                        # profiles: the complete structured business object must survive
                        # verbatim (the LLM would flatten/embellish it).
-                       "medication_profile", "supplement_profile"}
+                       "medication_profile", "supplement_profile",
+                       # Prior-reading truth: the previous reading must be stated
+                       # deterministically (distinct value + relation to current), and
+                       # the "only one reading" case must never be embellished.
+                       "previous_glucose_reading"}
 
 
 def _temporal_or_clinical(fact):

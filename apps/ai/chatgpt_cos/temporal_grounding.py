@@ -189,6 +189,10 @@ _CLARIFICATION_CUES = (
     "what's the source", "whats the source", "which source", "where's that from",
     "where is that from", "where does that come from", "how old is", "how old's",
     "how recent", "how many days old",
+    # PROVENANCE — "where did that number come from?" / "what's that based on?".
+    # Answer the SOURCE directly; disjoint from the trust cues below.
+    "come from", "where did that", "where did the", "where did this",
+    "that based on", "this based on",
 )
 
 # TRUST CHALLENGE — questioning the CORRECTNESS / FRESHNESS / PROVENANCE /
@@ -212,6 +216,13 @@ _TRUST_CHALLENGE_CUES = (
     "are you sure you're looking at", "sure you're looking at", "sure that's today",
     "sure it's today", "based on what", "says who", "where did you get",
     "where'd you get", "where are you getting",
+    # TEMPORAL IMPOSSIBILITY — the user asserts a timestamp/value can't be true given
+    # the actual time. This is a challenge to the evidence → VERIFY / evidence integrity.
+    "that's impossible", "thats impossible", "that is impossible", "impossible",
+    "it's only", "it is only", "its only", "but it's only", "but its only",
+    "how could it be", "how can it be", "in the future",
+    "future timestamp", "timestamp is in the future", "that timestamp",
+    "can't be later", "cant be later", "hasn't happened yet", "hasnt happened yet",
 )
 
 
@@ -228,6 +239,24 @@ def is_trust_challenge(message):
     enters VERIFY mode. A trust challenge takes precedence over a clarification."""
     n = (message or "").strip().lower()
     return bool(n) and any(c in n for c in _TRUST_CHALLENGE_CUES)
+
+
+# The subset of trust challenges that dispute a TIMESTAMP as temporally impossible
+# ("that's impossible", "it's only 10:11", "that's in the future", "how could it be
+# 11:07 when it's 10:11"). These get a TIMESTAMP RECONCILIATION against the real clock.
+_TEMPORAL_IMPOSSIBILITY_CUES = (
+    "impossible", "it's only", "it is only", "its only", "in the future",
+    "future timestamp", "timestamp is in the future", "how could it be",
+    "how can it be", "can't be later", "cant be later", "hasn't happened yet",
+    "hasnt happened yet", "that timestamp",
+)
+
+
+def is_temporal_impossibility_challenge(message):
+    """A trust challenge specifically disputing a timestamp as impossible/in the
+    future — answered by reconciling the referenced record's time with the clock."""
+    n = (message or "").strip().lower()
+    return bool(n) and any(c in n for c in _TEMPORAL_IMPOSSIBILITY_CUES)
 
 
 # Backward-compatible name (now narrowed to genuine challenges only).
@@ -261,6 +290,43 @@ def verify_temporal_trust(user, last, message):
 
     return _result(_verify_generic_fact(user, fact, message),
                    lane="trust_verification")
+
+
+def _reconcile_timestamp(user, fact):
+    """Reconcile a referenced record's recorded time with the real clock, for a
+    temporal-impossibility challenge. Cites the record's time AND now, so Beth
+    addresses the user's specific objection instead of a generic 'that's based on…'.
+    Returns None when there is no timestamp to reconcile (caller routes on)."""
+    from datetime import datetime
+    ra = fact.get("recorded_at") or fact.get("as_of")
+    if not ra:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(ra))
+        ctx = now_context(user)
+        tz = ctx["now"].tzinfo
+        dt = dt.astimezone(tz) if dt.tzinfo else dt
+    except Exception:
+        return None
+    when = f"{_fmt_date_long(dt.date())} at {_fmt_time(dt)}"
+    now_s = f"{ctx['time_12h']} on {ctx['date_long']}"
+    if dt <= ctx["now"]:
+        # The record is in the PAST relative to now — the impossibility the user sees
+        # is a clock/timezone mismatch, not a real future reading. Reconcile plainly.
+        return (f"Let me reconcile that. The reading I referenced was recorded {when}, "
+                f"and right now it's {now_s} — so its timestamp is in the past, not the "
+                "future. If it looks off on your end, that's almost always a device "
+                "clock or timezone mismatch between your app and the record. Want me to "
+                "re-check the source directly?")
+    # Genuinely in the future (defensive — integrity should have already caught it):
+    # do NOT stand behind it; investigate.
+    from apps.core.truth import integrity as _integrity
+    v = _integrity.validate_evidence({"value": fact.get("value"), "recorded_at": ra},
+                                     ctx["now"])
+    return v.get("investigation") or (
+        f"That timestamp reads {when}, which is later than right now ({now_s}) — that "
+        "shouldn't be possible, so I won't stand behind it until I've checked whether "
+        "it's a sync or clock issue.")
 
 
 def _verify_generic_fact(user, fact, message):
@@ -302,6 +368,21 @@ def verify_last_claim(user, last, message):
     fact = last.get("fact") or (last.get("active_subject") or {}).get("fact") or {}
     fk = (last.get("fact_key") or fact.get("key") or "")
     low = answer.lower()
+
+    # EVIDENCE INTEGRITY FIRST: if the referenced reading itself is self-contradictory
+    # (an impossible/future timestamp), a challenge like "that's impossible, it's only
+    # 10:11" is CORRECT — do not defend the value, investigate it.
+    from apps.core.truth import integrity as _integrity
+    if _integrity.failed(fact):
+        return _result(_integrity.investigation_for(fact), lane="trust_verification")
+
+    # TEMPORAL IMPOSSIBILITY: the user says the timestamp can't be true given the
+    # actual time. Reconcile the referenced record's recorded time against the real
+    # clock — cite both, and explain a genuine future time or a clock/tz mismatch.
+    if is_temporal_impossibility_challenge(message):
+        rec = _reconcile_timestamp(user, fact)
+        if rec:
+            return _result(rec, lane="trust_verification")
 
     # Sleep / "last night" claims → verify against the canonical sleep record
     # (works even if the prior turn recorded no structured fact — it reads the
@@ -346,7 +427,9 @@ def answer_clarification(user, last, message):
     if fk.startswith("sleep") or "last night" in low or \
             ("sleep" in low and ("hour" in low or "slept" in low)):
         return _result(_clarify_sleep(user, fact, n), lane="clarification_answer")
-    if fact.get("for_date") or fact.get("record_date") or fact.get("source"):
+    if (fact.get("for_date") or fact.get("record_date") or fact.get("provenance")
+            or fact.get("recorded_at") or fact.get("as_of")
+            or _clean_source(fact.get("source"))):
         txt = _clarify_generic(user, fact, n)
         if txt:
             return _result(txt, lane="clarification_answer")
@@ -390,15 +473,43 @@ def _clarify_sleep(user, fact, n):
     return "I don't have a specific dated sleep record to point to right now."
 
 
+def _clean_source(source):
+    """The human-facing source, ignoring internal pipeline debug strings
+    ('SAE.health.latest_glucose') which must never be shown as provenance."""
+    if not source or str(source).startswith("SAE."):
+        return None
+    return source
+
+
 def _clarify_generic(user, fact, n):
+    """Answer a PROVENANCE / clarification question about a generic (non-sleep) fact —
+    e.g. a glucose reading: its source and when it was recorded. Answers the
+    SOURCE/timestamp, never restates the value."""
     fd = fact.get("for_date") or fact.get("record_date")
-    src = fact.get("source")
-    if any(c in n for c in ("source", "where", "from")) and src:
-        return f"That's from {src}" + (f", dated {fd}." if fd else ".")
+    src = fact.get("provenance") or _clean_source(fact.get("source"))
+    ra = fact.get("recorded_at") or fact.get("as_of")
+    when = None
+    if ra:
+        try:
+            from datetime import datetime
+            dt = datetime.fromisoformat(str(ra))
+            ctx = now_context(user)
+            tz = ctx["now"].tzinfo
+            dt = dt.astimezone(tz) if dt.tzinfo else dt
+            when = f"{_fmt_date_long(dt.date())} at {_fmt_time(dt)}"
+        except Exception:
+            when = None
+    provenance_asked = any(c in n for c in ("source", "where", "from", "come from",
+                                            "based on", "get that", "get it"))
+    if provenance_asked or src or when:
+        if src and when:
+            return f"That's from {src}, recorded {when}."
+        if src:
+            return f"That's from {src}" + (f", dated {fd}." if fd else ".")
+        if when:
+            return f"That reading was recorded {when}."
     if fd:
-        return f"That's the record dated {fd}" + (f" (from {src})." if src else ".")
-    if src:
-        return f"That's from {src}."
+        return f"That's the record dated {fd}."
     return None
 
 

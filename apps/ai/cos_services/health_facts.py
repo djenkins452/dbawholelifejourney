@@ -129,6 +129,41 @@ def _medicine_fact(user, key):
     return get_domain_truth(user, "medicine").current(key).to_fact_dict()
 
 
+def _previous_glucose_fact(user):
+    """The immediately-prior glucose reading as a complete fact dict — value,
+    timestamp, provenance, freshness, clinical interpretation, and its relation to
+    the current reading. Distinguishes "only one reading" (no earlier reading) from
+    "no readings at all" — it NEVER substitutes the latest reading for the previous."""
+    from apps.health.services import glucose_queries
+    from apps.health.services.glucose_interpretation import interpret
+    from apps.core.truth import integrity as _integrity
+    try:
+        prev = glucose_queries.previous(user)
+    except Exception:
+        logger.warning("health_facts: previous glucose read failed", exc_info=True)
+        return {"status": "unknown", "reason": "could not read glucose history"}
+    if prev is None:
+        has_current = False
+        try:
+            has_current = glucose_queries.latest(user) is not None
+        except Exception:
+            pass
+        return {"status": "no_previous", "has_current": has_current,
+                "reason": ("only one glucose reading on record" if has_current
+                           else "no glucose readings on record")}
+    fact = {
+        "value": prev["value"], "unit": prev["unit"],
+        "recorded_at": prev["recorded_at"], "provenance": prev["source"],
+        "freshness": prev["freshness"], "relation": prev.get("relation") or {},
+        "presented_as": "previous",
+    }
+    gi = interpret(prev["value"], prev["unit"])
+    if gi:
+        fact["interpretation"] = gi
+    _integrity.attach(fact)         # validate the prior reading's own timestamp too
+    return fact
+
+
 def get_foundational_health_facts(user, keys=None):
     """
     Return focused scalar foundational health facts.
@@ -177,6 +212,12 @@ def get_foundational_health_facts(user, keys=None):
         if key in _DAY_FACT_KEYS:
             out[key] = _jsonsafe(_day_fact(user, key))
             continue
+        # PRIOR-READING TRUTH: the immediately-prior glucose reading — DISTINCT and
+        # EARLIER than the current one. Canonical Layer 1 accessor, never the SAE
+        # "latest" (previous must never collapse into current).
+        if key == "previous_glucose_reading":
+            out[key] = _jsonsafe(_previous_glucose_fact(user))
+            continue
         spec = _FACT_MAP.get(key)
         if spec is None:
             out[key] = {"status": "unsupported_fact",
@@ -210,6 +251,18 @@ def get_foundational_health_facts(user, keys=None):
             gi = interpret(val, fact.get("unit", "mg/dL"))
             if gi:
                 fact["interpretation"] = gi
+            # PROVENANCE: the human-facing source (device/manual), so "where did that
+            # come from?" answers the SOURCE — not the SAE pipeline debug string.
+            if key == "last_glucose_reading":
+                fact["presented_as"] = "current"
+                try:
+                    from apps.health.services import glucose_queries as _gq
+                    _lt = _gq.latest(user)
+                    if _lt and _lt.get("source"):
+                        fact["provenance"] = _lt["source"]
+                except Exception:
+                    logger.warning("health_facts: glucose provenance failed",
+                                   exc_info=True)
             # SAE already removed an impossible (future) glucose time and left a
             # warning — carry it so the foundational answer surfaces it too.
             sae_tw = st.get("last_glucose_entry_warning")

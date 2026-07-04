@@ -42794,3 +42794,19 @@ The chosen area biases the single keyless OpenStreetMap query ("Nauti K's, Knoxv
 **Verification:** 168 scoped Legacy tests green (12 new: associate-to-many-no-duplication + idempotent, sets primary when missing, detach keeps other links + media survives, ownership 404, suggestions share person/place/milestone / none without stories, Media Detail shows attached stories + connections + picker + detach link); `check` + `makemigrations --check` clean (M2M only — no migration); JS syntax validated. Verified LIVE all three scenarios: (1) drop-first on a new story attaches + persists on reload; (2) linked one photo to multiple stories with no duplication ("In these stories (3)"); (3) detached from one story — it stayed on the others and in the library ("the photo stays in your library").
 
 **Files:** `static/js/legacy.js` (single-flight `ensurePk`; media-picker search; js v14), `apps/legacy/views.py` (`suggest_stories_for_media`, MediaDetailView context, MediaAssociateView, MediaStoryDetachView), `apps/legacy/urls.py`, `templates/legacy/media_detail.html` (attached stories + connections + associate picker), `static/css/legacy.css` (css v23), `apps/legacy/tests/test_media_associations.py` (new), `apps/core/fixtures/release_notes.json`.
+
+
+## 2026-07-03 — fix(legacy): story cards — readable title above the photo (approved layout)
+
+**Why:** The story card read title-over/around the photo, hurting readability. Implement the approved two-area layout — readability wins over decoration. UI refinement only; no redesign of the Story Library, experience, or visual language; no Beth/CoS.
+
+**What:** `_memory_card.html` restructured into three clean bands:
+1. **Title header** (top) — story title + status badge on the solid card background. The title NEVER sits on the image — no transparency, no overlay, no text-shadow tricks.
+2. **Cover photo** (middle) — the dominant visual, ~70% of card height (208px), using the existing `cover_media` logic, `object-fit: cover` for consistent cropping. Photoless stories show a short text preview in this band (or the placeholder icon) so every card keeps the same shape.
+3. **Footer** (bottom) — date + edit/actions on the clean card background beneath the image.
+
+The taller cover and padded footer are **scoped to the story card** (`.mcard-imglink .mcard-img`, `.mcard > .mcard-foot`) so the Places and Outputs cards — which reuse the `.mcard` shell with `.mcard-body` — keep their existing compact preview unchanged.
+
+**Verification:** Verified via Django test client (authoritative): story card DOM order is header → title → image → footer, the title renders in the header and never inside the image link, and photoless cards fall back to a text snippet; Places still render with `.mcard-body`/no `.mcard-head` (compact card preserved). 20 legacy render tests green; `check` clean; CSS v24. (Browser pixel screenshot was blocked by an environment race — two dev servers sharing port 8010 from a concurrent session prevented login — so structural verification via the test client was used instead.)
+
+**Files:** `templates/legacy/_memory_card.html`, `static/css/legacy.css` (css v24), `templates/legacy/base_legacy.html`, `apps/core/fixtures/release_notes.json`.

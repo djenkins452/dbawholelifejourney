@@ -415,15 +415,26 @@ body.theme-ember .legacy-root {
 .mgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
 .mcard { background: var(--lg-surface); border: 1px solid var(--lg-border); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; transition: transform .14s, box-shadow .14s; }
 .mcard:hover { transform: translateY(-2px); box-shadow: 0 14px 30px -20px rgba(30, 25, 15, .5); }
+/* Story card — approved layout: clean title header on top, above the image. */
+.mcard-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 12px 14px 10px; }
+.mcard-title { font-size: 14.5px; font-weight: 600; line-height: 1.3; color: var(--lg-ink); text-decoration: none; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mcard-title:hover { color: var(--lg-accent-ink); }
 .mcard-imglink { display: block; }
-.mcard-img { height: 118px; display: grid; place-items: center; color: rgba(255, 255, 255, .9); }
-.mcard-img img { width: 100%; height: 100%; object-fit: cover; }
+.mcard-img { height: 118px; display: grid; place-items: center; background: var(--lg-surface-2); color: rgba(255, 255, 255, .9); }
+.mcard-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mcard-img.is-empty { color: var(--lg-muted); }
+/* Story cover is the dominant middle band (~70% of card height). Scoped to the
+   story card's linked image so Places/Outputs cards keep their compact preview. */
+.mcard-imglink .mcard-img { height: 208px; }
+.mcard-img-snippet { padding: 0 18px; font-size: 12.5px; line-height: 1.55; color: var(--lg-ink-soft); text-align: center; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+/* Card body (Places / Outputs cards) — title + snippet + meta stacked below image. */
 .mcard-body { padding: 13px 14px; display: flex; flex-direction: column; gap: 6px; }
 .mcard-headrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.mcard-title { font-size: 14px; font-weight: 600; color: var(--lg-ink); text-decoration: none; }
-.mcard-title:hover { color: var(--lg-accent-ink); }
 .mcard-snippet { font-size: 12px; color: var(--lg-muted); line-height: 1.45; min-height: 34px; }
-.mcard-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
+/* Footer — date + edit/actions. The story card gets its own clean padded band
+   beneath the image; body-nested footers (Places/Outputs) keep their inline form. */
+.mcard-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.mcard > .mcard-foot { padding: 9px 14px 11px; margin-top: 0; }
 .mcard-meta { font-size: 11px; color: var(--lg-muted); }
 .mcard-actions, .mrow-actions { display: inline-flex; gap: 4px; }
 

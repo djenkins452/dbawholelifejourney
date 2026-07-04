@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 223,
+    "fields": {
+      "title": "Cleaner, more readable story cards",
+      "description": "Your story cards in Legacy now put the title on a clean background at the top, with the photo shown large below it and the date underneath. The title is always easy to read — never sitting on top of the image. Stories without a photo yet show a short preview of their text instead, so every card looks tidy and consistent.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-03",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-03T21:00:00Z",
+      "updated_at": "2026-07-03T21:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 222,
     "fields": {
       "title": "One photo can belong to many memories",

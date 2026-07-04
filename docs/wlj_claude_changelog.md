@@ -6,6 +6,17 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — feat(cos): Executive State Evolution — the recommendation reflects today's accomplishments (WI-1)
+
+Production: user made up two workouts, then "I won't be doing the bike ride tonight." Beth accepted the decision but failed to connect it to what was already accomplished — she kept reasoning from the morning executive state. The problem was NOT Decision Support existing; it was that today's picture didn't EVOLVE as the user reported updates.
+
+Strengthened the existing Decision Support reasoning (no new layer): `decision_support.assess` now CONSUMES today's reported accomplishments (the WI-2 per-day evidence store, `accomplishment.todays(user)`). When accomplishments exist, the recommendation reflects them — `a.accomplished` becomes "you've already {…} today — that's ahead of plan, not behind it" and the most-important shifts to "recovery — you've already banked more than today asked for, so protecting it is the highest-value move now." Also recognized "I won't be doing the bike ride tonight" as a decision (added ride/bike/cycling to the workout commitment lexicon and "won't be doing"/"not doing the" to the abandon cues — narrow additions, over-broad ones avoided).
+
+Certified with the exact production sequence: "I made up my workouts from Wednesday and Friday" (recorded) → "I won't be doing the bike ride tonight" → decision_support answers "…you've already made up 2 missed workouts (Wednesday, Friday) today — that's ahead of plan, not behind it… recovery… is the highest-value move now." Without any reported accomplishment the endorse framing is unchanged (existing behavior protected). Regression `apps/ai/tests/test_executive_state_evolution.py` (4) + decision_support suite green. No model change, no migration.
+
+**Files:** apps/ai/chatgpt_cos/decision_support.py, apps/ai/tests/test_executive_state_evolution.py (new).
+
+
 ## 2026-07-04 — feat(cos): Recognize mission-significant accomplishments (WI-2)
 
 Production: "I made up my workouts from Wednesday and Friday." → Beth missed the significance (kept the morning interpretation). A reported accomplishment is not a workout fact to look up — it materially changes today's picture (effort → recovery need → priorities). New `apps/ai/chatgpt_cos/accomplishment.py`: `detect` recognizes a first-person REPORT (made-up / completed workouts; extracts count + weekdays; DECLINES questions so it never steals "did you see my workout?"); `answer` celebrates appropriately AND RECORDS it to a per-user, per-day evidence store (`todays(user)`) the rest of the executive reasoning consumes. New `accomplishment` lane before the retrieval lanes (so "made up my workouts from Wednesday and Friday" is recognized as a report, not retrieved as Wednesday's workout).

@@ -49,6 +49,7 @@ _ABANDON = (
     "not making it to", "gonna bail", "im bailing", "not going to bother",
     "dont think im going to", "dont think ill", "dont think i will",
     "dont think im gonna", "probably wont", "not going to happen tonight",
+    "wont be doing", "not be doing", "wont do", "not gonna do", "not doing the",
 )
 _SKIP = ("skip",)                      # "skip X" — pair with a commitment word
 _END_OF_DAY = (
@@ -108,7 +109,8 @@ def _activity_phrase(ctx):
 # Commitments a decision can touch (for holistic, not single-domain, reasoning).
 _COMMITMENTS = {
     "workout": ("work out", "working out", "workout", "exercise", "gym", "training",
-                "train", "lift", "lifting", "run", "cardio", "session"),
+                "train", "lift", "lifting", "run", "cardio", "session", "ride", "rides",
+                "bike", "biking", "cycling", "bike ride"),
     "nutrition": ("protein", "shake", "drink", "meal", "dinner", "eat", "eating",
                   "nutrition", "calories", "macros", "food"),
     "faith": ("church", "service", "worship", "mass", "bible", "devotion", "pray",
@@ -251,6 +253,16 @@ def assess(user, signal):
                     or signal.heat or signal.kind in ("end_of_day", "fatigue"))
     a = DecisionAssessment()
 
+    # EXECUTIVE STATE EVOLUTION: accomplishments the user reported TODAY are evidence
+    # the executive picture must reflect — a big day already banked raises the recovery
+    # need and makes rest the high-value call. Beth reasons from today's evolved state,
+    # not the morning's.
+    try:
+        from apps.ai.chatgpt_cos.accomplishment import todays as _todays
+        accomplishments = _todays(user)
+    except Exception:
+        accomplishments = []
+
     # WHY the situation points where it does (holistic, evidence-cited).
     if signal.heat:
         a.reasons.append("you were out in the heat")
@@ -297,6 +309,16 @@ def assess(user, signal):
     if signal.active_day:
         sun = " out in the sun" if signal.heat else ""
         a.accomplished = f"{signal.activity}{sun} is real activity and real living — not a day off"
+
+    # 1b) REPORTED accomplishments take precedence — today's executive picture EVOLVED.
+    #     What was already banked makes recovery the highest-value decision now.
+    if accomplishments:
+        joined = accomplishments[0] if len(accomplishments) == 1 else (
+            ", ".join(accomplishments[:-1]) + " and " + accomplishments[-1])
+        a.accomplished = (f"you've already {joined} today — that's ahead of plan, not "
+                          "behind it")
+        a.most_important = ("recovery — you've already banked more than today asked for, "
+                            "so protecting it is the highest-value move now")
 
     # 2) Tier what he's dropping by EFFORT vs BENEFIT — the CoS judgment. A physical day
     #    (activity or heat) creates genuine recovery need, which makes the LOW-EFFORT

@@ -119,6 +119,19 @@ class LayoutTests(TestCase):
         self.assertLess(by["Ada Jenkins"]["y"], by["Marvin Jenkins"]["y"])       # grandparent highest
         self.assertGreater(by["Milo Jenkins"]["y"], by["Haley Jenkins"]["y"])    # grandchild lowest
 
+    def test_tree_builds_even_when_category_not_backfilled(self):
+        # Real-data safety: relationships imported before the relationship_category
+        # backfill have a blank category. The tree must STILL populate (self-heal
+        # from the familial relationship_type), not collapse to just the focus.
+        self._family()
+        Relationship.objects.filter(user=self.user).update(relationship_category="")
+        g = family_tree.build_family_view(self.user, focus_pk=self.danny.pk)
+        names = {n["name"] for n in g["nodes"]}
+        self.assertIn("Heather Puller", names)      # spouse still present
+        self.assertIn("Marvin Jenkins", names)      # parent still present
+        self.assertIn("Haley Jenkins", names)       # child still present
+        self.assertTrue(any(e["type"] == "couple-married" for e in g["edges"]))
+
     def test_clicking_rebuilds_around_new_focus(self):
         # Re-centering on the father makes HIM the focus (gen 0), not a panned view.
         self._family()

@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — fix(legacy): Family Tree — mathematical no-overlap guarantee + category self-heal (D1 hardening)
+
+Follow-up after real-data acceptance testing. Two robustness fixes so the tree is correct on the LIVE view with imported genealogy, not just synthetic tests:
+
+1. **Overlap is now mathematically impossible.** Added a final per-row sweep (`_layout`): after placement, every generation row is swept left→right at family-UNIT granularity and any overlapping unit is pushed past the previous one by `UNIT_GAP`. Rows sit on distinct y's, so a per-row 1-D sweep guarantees no two cards can ever overlap — regardless of how messy the imported shape is. Stress-tested: 35-person messy tree (remarriages, 7-sibling sibships, missing birth years, 4 generations), every person tried as focus → zero overlaps, 9ms worst-case build.
+
+2. **`_edges` self-heals when `relationship_category` is blank.** The Family View filtered family membership strictly on the stored `relationship_category`. Relationships imported before the category backfill (migration 0022) have a blank category — under the strict filter the tree rendered EMPTY (just the focus). Now membership uses the authoritative category when present but falls back to the familial `relationship_type` keywords when it's blank, so the tree always populates. An explicit non-family category still excludes. This is the most likely cause of a live tree that "shows no one / no lines" on data whose backfill migration hasn't deployed.
+
+**Verified LIVE** (real Django view + real template JS + a GEDCOM imported through `create_batch`/`commit_genealogy`, self bound via `bind_self`): Danny centred, grandparents/parents above, siblings + spouse beside, children below, orthogonal connectors with visible strokes, self-heal confirmed by blanking all categories and re-rendering (14 nodes/21 edges still built). 50 family tests green (new `test_no_two_cards_overlap`, `test_tree_builds_even_when_category_not_backfilled`).
+
+**Files:** apps/legacy/services/family_tree.py (`_layout` final sweep, `_edges` self-heal), apps/legacy/tests/test_family_layout.py.
+
+
 ## 2026-07-04 — feat(cos): Executive State Evolution — the recommendation reflects today's accomplishments (WI-1)
 
 Production: user made up two workouts, then "I won't be doing the bike ride tonight." Beth accepted the decision but failed to connect it to what was already accomplished — she kept reasoning from the morning executive state. The problem was NOT Decision Support existing; it was that today's picture didn't EVOLVE as the user reported updates.

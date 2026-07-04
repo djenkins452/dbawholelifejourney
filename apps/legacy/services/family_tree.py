@@ -103,24 +103,40 @@ def _resolve_self(user, people):
 
 def _edges(user):
     """parent/child adjacency + typed couple links for the FAMILY-tree subset of
-    the user's relationships. Membership in the family tree is decided by the ONE
-    stored category (family / romantic) — the Family View owns no 'is this family?'
-    keyword logic. The keyword matching below only picks the graph ROLE
-    (parent / child / spouse) and the couple's connector style — both structural,
-    both live here alone."""
+    the user's relationships.
+
+    Membership is decided by the ONE stored category (family / romantic) when it is
+    present — the Family View owns no 'is this family?' policy. But it SELF-HEALS: a
+    relationship whose category is blank (e.g. imported before the category backfill
+    ran) is still included when its TYPE is clearly familial, so the tree never
+    renders empty just because a migration hasn't caught up. A relationship with an
+    explicit NON-family category is always excluded. The keyword matching picks the
+    graph ROLE (parent / child / spouse) and the couple's connector style."""
     from apps.legacy.models import Relationship
+    fam_cats = set(Relationship.FAMILY_TREE_CATEGORIES)
     parents, children, spouses = defaultdict(set), defaultdict(set), defaultdict(set)
     couples = {}   # frozenset({a, b}) -> style
-    for r in Relationship.objects.filter(
-            user=user,
-            relationship_category__in=list(Relationship.FAMILY_TREE_CATEGORIES),
-    ).values_list("from_person_id", "to_person_id", "relationship_type"):
-        f, t, typ = r[0], r[1], (r[2] or "").lower()
+    for f, t, typ, cat in Relationship.objects.filter(user=user).values_list(
+            "from_person_id", "to_person_id", "relationship_type",
+            "relationship_category"):
+        typ = (typ or "").lower()
         if any(k in typ for k in _PARENT_OF):
-            children[f].add(t); parents[t].add(f)
+            role = "parent"
         elif any(k in typ for k in _CHILD_OF):
-            children[t].add(f); parents[f].add(t)
+            role = "child"
         elif any(k in typ for k in _COUPLE):
+            role = "couple"
+        else:
+            continue
+        # Authoritative category wins; a blank category falls back to the familial
+        # role we just derived (self-heals pre-backfill data).
+        if cat and cat not in fam_cats:
+            continue
+        if role == "parent":
+            children[f].add(t); parents[t].add(f)
+        elif role == "child":
+            children[t].add(f); parents[f].add(t)
+        else:
             spouses[f].add(t); spouses[t].add(f)
             couples[frozenset((f, t))] = _couple_style(typ)
     return parents, children, spouses, couples
@@ -324,6 +340,41 @@ def _layout(user, people, parents, children, spouses, couples, focus_pk, me_pk):
 
     for p in people:                                   # any straggler → near focus
         center.setdefault(p.pk, focus_center)
+
+    # ── Final guarantee: no two cards overlap, ever ────────────────────────────
+    # Whatever the placement produced (real imported data has messier shapes than
+    # any synthetic test), sweep each generation row left→right at UNIT granularity
+    # and push overlapping units apart. Rows are on distinct y's, so a per-row 1-D
+    # sweep makes overlap mathematically impossible.
+    rows = defaultdict(list)
+    for pk in center:
+        if pk in pids:
+            rows[gen.get(pk, 0)].append(pk)
+    for g, pks in rows.items():
+        pset = set(pks)
+        used, units = set(), []
+        for pk in sorted(pks, key=lambda k: center[k]):
+            if pk in used:
+                continue
+            mate = next((s for s in spouses.get(pk, ())
+                         if s in pset and s not in used
+                         and frozenset((pk, s)) in couples), None)
+            members = sorted([pk, mate], key=lambda k: center[k]) if mate else [pk]
+            for m in members:
+                used.add(m)
+            c = sum(center[m] for m in members) / len(members)
+            units.append({"members": members, "c": c, "w": unit_width(members)})
+        units.sort(key=lambda u: u["c"])
+        prev_right = None
+        for u in units:
+            left = u["c"] - u["w"] / 2.0
+            if prev_right is not None and left < prev_right + UNIT_GAP:
+                left = prev_right + UNIT_GAP
+            shift = (left + u["w"] / 2.0) - u["c"]
+            if shift:
+                for m in u["members"]:
+                    center[m] += shift
+            prev_right = left + u["w"]
 
     # ── Screen coordinates ─────────────────────────────────────────────────────
     min_gen = min(gen.values())

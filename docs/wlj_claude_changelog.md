@@ -6,6 +6,23 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-03 — refine(cos): Decision Support judgment — sound like Danny's Chief of Staff, not a consultant
+
+Refinement of the Decision Support capability (no architecture change — same lane, same detect→assess→compose pipeline, same Layer 1/Layer 2 boundary). The response correctly recognized the decision/tradeoff/recovery/meds/sleep but still read like a general executive consultant, not someone who knows Danny and today's context. Improved the JUDGMENT in `apps/ai/chatgpt_cos/decision_support.py`:
+
+1. **Recognizes what today already WAS.** A new active/social-day signal (`_ACTIVE_DAY` lexicon + `_activity_phrase`; `DecisionSignal.active_day`/`activity`, also inferred from heat+long-day) lets Beth open with the accomplishment: "you've already had a real day — a day at the pool out in the sun is real activity and real living, not a day off. So easing off tonight isn't slacking; it's earned." Being at the pool all day ≠ sitting around.
+
+2. **Weights the tradeoffs instead of a flat list.** The assessment now tiers what he's dropping by WEIGHT — `non_negotiable` (meds: "if you do nothing else… the one piece that isn't optional"), `worth_the_effort` (recommended), `deferrable` (let go guilt-free), `protect` (sleep). Not everything gets equal treatment.
+
+3. **Effort-vs-benefit.** On a physical day (activity or heat) the LOW-EFFORT protein shake is elevated to `worth_the_effort` ("about two minutes, your body genuinely needs the recovery after a physical day — high payoff for almost no effort, the one I'd still knock out") and ranked ABOVE the workout, which is released ("you already moved plenty today; a formal workout on top of a physical day isn't the difference-maker"). Skipping the workout is reasonable; the shake may not be — because the effort is trivial and the benefit real. (When nutrition isn't in play, a heat day still offers the effortless water hedge — never both, so he isn't buried in nudges.)
+
+4. **Recovery as intentional strategy, not "doing less."** "The right move tonight is recovery… and I mean that as a deliberate call, not just doing less: after a day like this, resting is what protects tomorrow and keeps the mission moving." Frames tonight against long-term MISSION success, not perfect health.
+
+Composition rewritten to narrate these tiers in a personal, mission-aware CoS voice. Certification (production conversation, the standard): "I have been out in the hot sun all day at the pool with friends and am tired." → "I am not going to work out or get to my protein drink… just need to take my nightly meds and I am done." now yields an answer that acknowledges the day lived, weights meds > shake > workout by effort/benefit, and frames rest as strategy — the "that's exactly what I needed to hear" bar. Regression `apps/ai/tests/test_decision_support.py` updated (tiered/personalized assertions: accomplishment recognized, recovery-as-deliberate-strategy, meds non-negotiable, shake elevated above workout by effort-vs-benefit). 42 across decision-support + conversation-lanes GREEN. No model change, no migration.
+
+**Files:** apps/ai/chatgpt_cos/decision_support.py, apps/ai/tests/test_decision_support.py.
+
+
 ## 2026-07-03 — feat(cos): Decision Support — the first Layer 2 Chief-of-Staff capability (evaluate decisions, don't retrieve facts)
 
 The first Layer 2 capability. Layer 1 answers "what is true" (facts); Layer 2 answers "given everything true right now, is this a good decision?" Production failure: user said "I'm not going to work out or get to my protein drink. I'm about done tonight. Just need to take my nightly meds and I am done." Beth listed the medications — factually correct, a total failure of the conversation. The user was not asking for medication information; he was communicating the plan for the rest of the evening, and the hidden question was "given the day I've had, does this sound right?" Root cause: a decision that merely NAMES a fact ("meds") was claimed by the foundational fact lane and retrieved, instead of being recognized as a tradeoff to evaluate.

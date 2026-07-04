@@ -86,6 +86,24 @@ _HEAT = ("hot sun", "in the sun", "sun all day", "the heat", "so hot", "out in t
          "heat all day", "scorching", "sweating all day", "humidity")
 _LONG_DAY = ("all day", "with friends", "been out", "outside all day", "on my feet",
              "long day", "busy day", "out all day", "running around")
+# An ACTIVE / physical / social day. The point: the user already DID something today —
+# so easing off tonight is not "falling behind," and the body has real recovery need
+# (which changes the effort-vs-benefit math on recovery nutrition). Drives the
+# "you've already had a real day" framing.
+_ACTIVE_DAY = ("pool", "swim", "swimming", "beach", "lake", "hike", "hiking", "walked",
+               "walking", "yard work", "mowing", "golf", "kayak", "boating", "played",
+               "on my feet", "with friends", "cookout", "bbq", "ballgame")
+
+
+def _activity_phrase(ctx):
+    """A personal, specific description of what the day actually WAS (not generic)."""
+    if any(w in ctx for w in ("pool", "swim", "beach", "lake")):
+        return "a day at the pool"
+    if any(w in ctx for w in ("hike", "walk", "golf", "kayak", "boating", "yard", "mowing")):
+        return "a day on your feet"
+    if any(w in ctx for w in ("friends", "cookout", "bbq", "ballgame", "played")):
+        return "a full day out with friends"
+    return "a full, active day"
 
 # Commitments a decision can touch (for holistic, not single-domain, reasoning).
 _COMMITMENTS = {
@@ -112,6 +130,8 @@ class DecisionSignal:
     kind: str                                  # abandon|end_of_day|change_mind|give_up_goal|fatigue
     abandoned: list = field(default_factory=list)   # commitments being let go
     kept: list = field(default_factory=list)        # commitments explicitly kept
+    active_day: bool = False                        # already had a physical/social day
+    activity: str = ""                              # e.g. "a day at the pool"
     heat: bool = False
     long_day: bool = False
     fatigue: bool = False
@@ -183,20 +203,30 @@ def detect_decision(message, recent_context=""):
         abandoned.remove("sleep")
         kept.append("sleep")
 
+    heat = any(h in ctx for h in _HEAT)
+    long_day = any(l in ctx for l in _LONG_DAY)
+    # An active/physical/social day was already accomplished today (explicit activity,
+    # or an outdoor day = heat + long day). This reframes "doing less" as "earned rest."
+    active_day = any(w in ctx for w in _ACTIVE_DAY) or (heat and long_day)
     return DecisionSignal(
         kind=kind, abandoned=abandoned, kept=kept,
-        heat=any(h in ctx for h in _HEAT),
-        long_day=any(l in ctx for l in _LONG_DAY),
-        fatigue=fatigue or any(f in ctx for f in _FATIGUE))
+        heat=heat, long_day=long_day,
+        fatigue=fatigue or any(f in ctx for f in _FATIGUE),
+        active_day=active_day,
+        activity=_activity_phrase(ctx) if active_day else "")
 
 
 @dataclass
 class DecisionAssessment:
     posture: str = "endorse"           # endorse | endorse_with_hedge | reflect | caution
     most_important: str = ""
+    accomplished: str = ""             # what today already WAS (not a nothing day)
     reasons: list = field(default_factory=list)
-    deferrable: list = field(default_factory=list)   # (commitment, why)
-    protect: list = field(default_factory=list)      # (commitment, why)
+    # Tiers by WEIGHT — not everything the user is dropping deserves equal treatment:
+    non_negotiable: list = field(default_factory=list)  # (thing, why) — do it regardless
+    worth_the_effort: list = field(default_factory=list)  # cheap + high-value: recommend
+    deferrable: list = field(default_factory=list)   # fine to let go, guilt-free
+    protect: list = field(default_factory=list)      # the recovery essentials (sleep)
     risks: list = field(default_factory=list)
     hedge: str = ""
 
@@ -262,31 +292,52 @@ def assess(user, signal):
     else:
         a.most_important = "protecting the essentials and letting the rest go"
 
+    # 1) Recognize what today ALREADY was — an active/social day is not a day off, so
+    #    easing up tonight is earned, not slacking.
+    if signal.active_day:
+        sun = " out in the sun" if signal.heat else ""
+        a.accomplished = f"{signal.activity}{sun} is real activity and real living — not a day off"
+
+    # 2) Tier what he's dropping by EFFORT vs BENEFIT — the CoS judgment. A physical day
+    #    (activity or heat) creates genuine recovery need, which makes the LOW-EFFORT
+    #    protein shake worth the two minutes even when the workout clearly is not.
+    physical_day = bool(signal.active_day or signal.heat)
     for c in signal.abandoned:
         if c == "workout":
+            moved = ("you already moved plenty today, so " if signal.active_day else "")
             a.deferrable.append(("the workout",
-                                 "one missed session doesn't move your trend — showing "
-                                 "up tomorrow with real energy does"))
+                                 f"{moved}one skipped session won't move your trend — "
+                                 "and a formal workout on top of a physical day isn't "
+                                 "the difference-maker"))
         elif c == "nutrition":
-            a.deferrable.append(("the protein drink",
-                                 "a single skipped drink is minor next to actually "
-                                 "recovering"))
+            if physical_day:
+                a.worth_the_effort.append((
+                    "the protein shake",
+                    "it's about two minutes and your body genuinely needs the recovery "
+                    "after a physical day — that's a high payoff for almost no effort, "
+                    "so it's the one I'd still knock out"))
+            else:
+                a.deferrable.append(("the protein drink",
+                                     "one skipped drink is minor next to actually resting"))
         elif c == "faith":
             a.deferrable.append(("church",
-                                 "resting when you're depleted is a fair tradeoff to "
-                                 "make on purpose"))
+                                 "resting when you're genuinely depleted is a fair "
+                                 "tradeoff to make on purpose"))
 
+    # 3) Weight the non-negotiable distinctly from the nice-to-haves.
     if "meds" in signal.kept:
-        a.protect.append(("your meds",
-                          "keeping those is exactly right — that's the non-negotiable"))
+        a.non_negotiable.append(("your meds",
+                                 "take those no matter what — that's the one piece that "
+                                 "isn't optional"))
     a.protect.append(("a real night's sleep",
                       "it does more for tomorrow than anything you'd force yourself to "
                       "do right now"))
 
-    # A genuinely low-cost hedge, offered — never pushed.
-    if signal.heat and "nutrition" in signal.abandoned:
-        a.hedge = ("if it's no effort, a glass of water before bed will help you bounce "
-                   "back from the heat — but only if it's easy")
+    # 4) A low-cost optional optimization — offered only when there's no shake already
+    #    on the table, so he never gets a pile of nudges.
+    if signal.heat and "nutrition" not in signal.abandoned and not a.worth_the_effort:
+        a.hedge = ("a glass of water before bed — you sweated a lot today, and it's "
+                   "effortless — but only if it's easy")
         a.posture = "endorse_with_hedge"
     return a
 
@@ -346,14 +397,32 @@ def compose(signal, assessment):
         return " ".join(parts)
 
     # endorse / endorse_with_hedge
+    # Acknowledge the day already lived — rest is earned, not a shortfall.
+    if a.accomplished:
+        acc = a.accomplished
+        parts.append(f"First though — you've already had a real day. {acc[0].upper()}{acc[1:]}. "
+                     "So easing off tonight isn't slacking; it's earned.")
+    # Recovery as a DELIBERATE strategy for the mission — not merely "doing less."
     why = (" — " + ", ".join(a.reasons)) if a.reasons else ""
-    parts.append(f"The most important thing right now is {a.most_important}{why}.")
+    if a.most_important == "recovery tonight":
+        parts.append(f"The right move tonight is recovery{why}. And I mean that as a "
+                     "deliberate call, not just doing less: after a day like this, "
+                     "resting is what protects tomorrow and keeps the mission moving.")
+    else:
+        parts.append(f"The most important thing right now is {a.most_important}{why}.")
+    # Weighted guidance — non-negotiable, then the one cheap high-value thing, then
+    # what to release, then the recovery essential.
+    if a.non_negotiable:
+        parts.append("If you do nothing else: " + _join_why(a.non_negotiable) + ".")
+    if a.worth_the_effort:
+        parts.append("If you've got two minutes in you, " + _join_why(a.worth_the_effort)
+                     + ". Everything else can wait.")
     if a.deferrable:
-        parts.append("What you're setting aside is fine: " + _join_why(a.deferrable) + ".")
+        parts.append("Let the rest go guilt-free — " + _join_why(a.deferrable) + ".")
     if a.protect:
-        parts.append("What's worth protecting: " + _join_why(a.protect) + ".")
+        parts.append("Then " + _join_why(a.protect) + ".")
     if a.hedge:
-        parts.append("One optional thing — " + a.hedge + ".")
+        parts.append("One optional, no-effort thing — " + a.hedge + ".")
     return " ".join(parts)
 
 

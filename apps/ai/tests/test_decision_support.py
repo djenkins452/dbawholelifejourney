@@ -67,16 +67,26 @@ class DecisionCompositionTests(SimpleTestCase):
                                return_value=_FakeSignals()):
             return ds.compose(signal, ds.assess(_FakeUser(), signal))
 
-    def test_endorses_rest_and_never_lists_medications(self):
+    def test_endorses_rest_with_personal_tiered_judgment(self):
         sig = ds.DecisionSignal(kind="abandon", abandoned=["workout", "nutrition"],
-                                kept=["meds"], heat=True, long_day=True, fatigue=True)
+                                kept=["meds"], heat=True, long_day=True, fatigue=True,
+                                active_day=True, activity="a day at the pool")
         out = self._compose(sig).lower()
-        # Reasons about the tradeoff, protects the essentials, explains WHY.
+        # 1) recognizes what was already accomplished today (not a nothing day)
+        self.assertTrue("real day" in out or "not a day off" in out)
+        self.assertIn("pool", out)
+        # 2) recovery framed as a DELIBERATE strategy for the mission, not "doing less"
         self.assertIn("recovery", out)
-        self.assertTrue("meds" in out and "exactly right" in out)   # meds protected, not listed
-        self.assertIn("workout", out)                                # names what's set aside
-        self.assertTrue(any(w in out for w in ("because", "—", "does more")))  # WHY present
-        self.assertIn("water", out)                                  # heat hedge, optional
+        self.assertTrue("deliberate" in out and "mission" in out)
+        # 3) meds are the NON-NEGOTIABLE (weighted above the rest), never listed out
+        self.assertTrue("meds" in out and ("no matter what" in out or "nothing else" in out))
+        # 4) effort-vs-benefit — the low-effort shake is elevated ABOVE the workout
+        self.assertTrue("two minutes" in out and "effort" in out)
+        pool_shake = out.index("two minutes")
+        self.assertIn("workout", out)
+        self.assertTrue(out.index("let the rest go") > pool_shake)   # shake ranked first
+        # WHY throughout
+        self.assertIn("—", out)
 
     def test_giving_up_a_goal_reflects_rather_than_endorsing(self):
         sig = ds.DecisionSignal(kind="give_up_goal", abandoned=["goal"])

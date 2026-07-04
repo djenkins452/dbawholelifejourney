@@ -177,56 +177,72 @@ def _facts(rec):
     return out
 
 
-# GEDCOM tag → (status, human concept, recommendation). status is one of:
+# GEDCOM tag → (status, granular label, canonical CONCEPT). status is one of:
 #   'supported'      — Legacy has a canonical home for it today
-#   'needs_support'  — recognized, but Legacy has no destination yet (preserved + reported)
+#   'needs_support'  — recognized, no destination yet → preserved permanently + reported
 #   'structural'     — used to build People/Relationships, not a standalone fact
+# The CONCEPT is deliberately conceptual, not structural: Occupation → Career,
+# Residence → Places, Burial → Life Events, Baptism → Faith Journey. It IS the
+# roadmap bucket and the recommended canonical domain.
 GEDCOM_COVERAGE = {
-    "BIRT": ("supported", "Births", None),
-    "DEAT": ("supported", "Deaths", None),
-    "MARR": ("supported", "Marriages", None),
-    "NOTE": ("supported", "Notes", None),
-    "OBJE": ("supported", "Media references", None),
+    "BIRT": ("supported", "Births", "Births"),
+    "DEAT": ("supported", "Deaths", "Deaths"),
+    "MARR": ("supported", "Marriages", "Marriages"),
+    "NOTE": ("supported", "Notes", "Notes"),
+    "OBJE": ("supported", "Media references", "Media"),
     "SEX": ("structural", "Sex", None),
     "NAME": ("structural", "Name", None),
-    # Recognized, but no canonical destination yet — preserved and reported:
-    "OCCU": ("needs_support", "Occupation", "an Occupation / work-history domain"),
-    "EDUC": ("needs_support", "Education", "an Education domain"),
-    "GRAD": ("needs_support", "Graduation", "an Education domain"),
-    "RELI": ("needs_support", "Religion", "a Faith domain"),
-    "BAPM": ("needs_support", "Baptism", "a Faith / sacraments domain"),
-    "CHR": ("needs_support", "Christening", "a Faith / sacraments domain"),
-    "CONF": ("needs_support", "Confirmation", "a Faith / sacraments domain"),
-    "ORDN": ("needs_support", "Ordination", "a Faith domain"),
-    "BURI": ("needs_support", "Burial", "a Burial / cemetery domain"),
-    "CREM": ("needs_support", "Cremation", "a Burial domain"),
-    "IMMI": ("needs_support", "Immigration", "an Immigration / migration domain"),
-    "EMIG": ("needs_support", "Emigration", "an Immigration / migration domain"),
-    "NATU": ("needs_support", "Naturalization", "a Citizenship domain"),
-    "RESI": ("needs_support", "Residence", "a Residence / address-history domain"),
-    "ADDR": ("needs_support", "Address", "a Contact / address domain"),
-    "PHON": ("needs_support", "Phone", "a Contact domain"),
-    "EMAIL": ("needs_support", "Email", "a Contact domain"),
-    "WWW": ("needs_support", "Website", "a Contact domain"),
-    "TITL": ("needs_support", "Title / honorific", "a Titles field on Person"),
-    "PROP": ("needs_support", "Property", "a Property domain"),
-    "EVEN": ("needs_support", "Custom life event", "a general Life-Events domain"),
-    "FACT": ("needs_support", "Custom fact", "a general Facts domain"),
-    "SOUR": ("needs_support", "Source citation", "a Sources / citations domain"),
-    "REPO": ("needs_support", "Repository", "a Sources domain"),
-    "DIV": ("needs_support", "Divorce", "divorce dates on the marriage relationship"),
-    "CENS": ("needs_support", "Census record", "a Records / sources domain"),
-    "PROB": ("needs_support", "Probate", "a Records domain"),
-    "WILL": ("needs_support", "Will", "a Records domain"),
-    "RETI": ("needs_support", "Retirement", "an Occupation / work-history domain"),
+    # Recognized, no canonical home yet — preserved permanently, grouped by concept:
+    "OCCU": ("needs_support", "Occupation", "Career"),
+    "RETI": ("needs_support", "Retirement", "Career"),
+    "EDUC": ("needs_support", "Education", "Education"),
+    "GRAD": ("needs_support", "Graduation", "Education"),
+    "RELI": ("needs_support", "Religion", "Faith Journey"),
+    "BAPM": ("needs_support", "Baptism", "Faith Journey"),
+    "CHR": ("needs_support", "Christening", "Faith Journey"),
+    "CONF": ("needs_support", "Confirmation", "Faith Journey"),
+    "ORDN": ("needs_support", "Ordination", "Faith Journey"),
+    "BURI": ("needs_support", "Burial", "Life Events"),
+    "CREM": ("needs_support", "Cremation", "Life Events"),
+    "PROB": ("needs_support", "Probate", "Life Events"),
+    "WILL": ("needs_support", "Will", "Life Events"),
+    "EVEN": ("needs_support", "Life event", "Life Events"),
+    "FACT": ("needs_support", "Personal fact", "Life Events"),
+    "CENS": ("needs_support", "Census record", "Life Events"),
+    "IMMI": ("needs_support", "Immigration", "Immigration"),
+    "EMIG": ("needs_support", "Emigration", "Immigration"),
+    "NATU": ("needs_support", "Naturalization", "Immigration"),
+    "RESI": ("needs_support", "Residence", "Places"),
+    "PROP": ("needs_support", "Property", "Places"),
+    "ADDR": ("needs_support", "Address", "Contact"),
+    "PHON": ("needs_support", "Phone", "Contact"),
+    "EMAIL": ("needs_support", "Email", "Contact"),
+    "WWW": ("needs_support", "Website", "Contact"),
+    "TITL": ("needs_support", "Title / honorific", "Titles & Honors"),
+    "SOUR": ("needs_support", "Source citation", "Sources & Citations"),
+    "REPO": ("needs_support", "Repository", "Sources & Citations"),
+    "DIV": ("needs_support", "Divorce", "Relationships"),
 }
+
+# Where custom / unrecognized tags are preserved on the roadmap.
+UNKNOWN_CONCEPT = "Custom Tags"
+
+
+def classify_fact(tag):
+    """Map a raw GEDCOM tag to (status, granular label, canonical concept). Any tag
+    Legacy doesn't recognize — including custom `_XXXX` tags — is preserved under the
+    'Custom Tags' concept, never dropped."""
+    info = GEDCOM_COVERAGE.get(tag)
+    if info is not None:
+        return info
+    return ("unknown", tag, UNKNOWN_CONCEPT)
 
 
 def analyze_coverage(chunks):
     """A completeness report over parsed chunks: what Legacy preserved into
-    Canonical Truth, what it preserved but has no home for (with a recommendation),
+    Canonical Truth, what it preserved but has no home for yet (grouped by concept),
     and what it didn't recognize. Nothing is ever dropped — this is the audit that
-    proves it and becomes Legacy's roadmap."""
+    proves it, and the same concepts drive the Canonical Truth Roadmap."""
     from collections import Counter
     people = sum(1 for c in chunks if c.get("kind") == "gedcom_person")
     families = sum(1 for c in chunks if c.get("kind") == "gedcom_family")
@@ -239,24 +255,27 @@ def analyze_coverage(chunks):
     needs = {}
     unknown = {}
     for tag, n in tags.items():
-        info = GEDCOM_COVERAGE.get(tag)
-        if info is None:
-            unknown[tag] = unknown.get(tag, 0) + n         # unrecognized / custom (_XXXX)
-        elif info[0] == "structural":
+        status, label, concept = classify_fact(tag)
+        if status == "structural":
             continue
-        elif info[0] == "supported":
-            supported[info[1]] = supported.get(info[1], 0) + n
+        elif status == "supported":
+            supported[concept] = supported.get(concept, 0) + n
+        elif status == "unknown":
+            unknown[tag] = unknown.get(tag, 0) + n         # custom (_XXXX) / unrecognized
         else:
-            e = needs.setdefault(info[1], {"concept": info[1], "count": 0,
-                                           "recommendation": info[2]})
+            e = needs.setdefault(concept, {"concept": concept, "count": 0, "labels": set()})
             e["count"] += n
+            e["labels"].add(label)
 
     supported_list = ([{"concept": "People", "count": people}] if people else [])
     supported_list += ([{"concept": "Families & relationships", "count": families}] if families else [])
     supported_list += [{"concept": c, "count": n} for c, n in sorted(supported.items())]
+    needs_list = [{"concept": e["concept"], "count": e["count"],
+                   "labels": sorted(e["labels"])}
+                  for e in needs.values()]
     return {
         "supported": supported_list,
-        "needs_support": sorted(needs.values(), key=lambda x: (-x["count"], x["concept"])),
+        "needs_support": sorted(needs_list, key=lambda x: (-x["count"], x["concept"])),
         "unknown": [{"tag": t, "count": n} for t, n in sorted(unknown.items())],
         "preserved_total": int(sum(tags.values())) + people + families,
     }

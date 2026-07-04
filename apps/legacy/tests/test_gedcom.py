@@ -192,13 +192,16 @@ class GedcomPreservationTests(TestCase):
         supported = {r["concept"] for r in report["supported"]}
         self.assertIn("People", supported)
         self.assertIn("Births", supported)
+        # needs_support is grouped by CONCEPT (conceptual, not structural):
+        # Occupation→Career, Religion/Baptism→Faith Journey, Burial→Life Events, …
         needs = {r["concept"] for r in report["needs_support"]}
-        for concept in ("Occupation", "Religion", "Baptism", "Residence",
-                        "Immigration", "Burial", "Source citation"):
+        for concept in ("Career", "Faith Journey", "Places", "Immigration",
+                        "Life Events", "Sources & Citations"):
             self.assertIn(concept, needs)
-        # Every needs-support item carries an actionable recommendation.
-        for row in report["needs_support"]:
-            self.assertTrue(row["recommendation"])
+        # The granular fact-types are preserved as labels under each concept.
+        faith = next(r for r in report["needs_support"] if r["concept"] == "Faith Journey")
+        self.assertIn("Baptism", faith["labels"])
+        self.assertIn("Religion", faith["labels"])
         # A custom tag Legacy doesn't recognize is preserved and surfaced, not lost.
         self.assertIn("_MILT", {r["tag"] for r in report["unknown"]})
 
@@ -216,4 +219,74 @@ class GedcomPreservationTests(TestCase):
                              classifier=lambda units: {})
         self.assertIn("needs_support", batch.coverage)
         needs = {r["concept"] for r in batch.coverage["needs_support"]}
-        self.assertIn("Occupation", needs)
+        self.assertIn("Career", needs)
+
+
+class PreservationLayerTests(TestCase):
+    """The permanent preservation layer — facts Canonical Truth can't model yet are
+    stored durably (never trapped in one import session), so a future domain
+    backfills without any re-import."""
+
+    def _commit(self, email):
+        from apps.legacy.services.import_engine import commit_genealogy
+        u = _make_user(email)
+        batch = create_batch(u, "Tree", "gedcom", RICH, classifier=lambda units: {})
+        commit_genealogy(batch)
+        return u, batch
+
+    def test_commit_writes_permanent_preserved_facts(self):
+        from apps.legacy.models import PreservedFact
+        u, batch = self._commit("layer1@example.com")
+        pf = PreservedFact.objects.filter(user=u)
+        tags = set(pf.values_list("original_tag", flat=True))
+        # Every unsupported fact is a durable row — including the custom tag.
+        for tag in ("OCCU", "RELI", "BAPM", "RESI", "IMMI", "BURI", "SOUR", "_MILT"):
+            self.assertIn(tag, tags)
+        # Grouped by concept, tied to the Person, with the raw value kept verbatim.
+        occu = pf.get(original_tag="OCCU")
+        self.assertEqual(occu.concept, "Career")
+        self.assertEqual(occu.value, "Railroad conductor")
+        self.assertIsNotNone(occu.person_id)
+
+    def test_supported_facts_are_not_preserved(self):
+        from apps.legacy.models import PreservedFact
+        u, _ = self._commit("layer2@example.com")
+        # BIRT went to Canonical Truth (Person.birth_date), never the holding layer.
+        self.assertFalse(PreservedFact.objects.filter(user=u, original_tag="BIRT").exists())
+
+    def test_custom_tag_marked_not_yet_recognized(self):
+        from apps.legacy.models import PreservedFact
+        u, _ = self._commit("layer3@example.com")
+        milt = PreservedFact.objects.get(user=u, original_tag="_MILT")
+        self.assertEqual(milt.fact_status, PreservedFact.FactStatus.UNKNOWN)
+        self.assertEqual(milt.concept, "Custom Tags")
+
+    def test_preservation_is_idempotent(self):
+        from apps.legacy.models import PreservedFact
+        from apps.legacy.services.import_engine import commit_genealogy
+        u, batch = self._commit("layer4@example.com")
+        first = PreservedFact.objects.filter(user=u).count()
+        commit_genealogy(batch)                       # re-commit
+        self.assertEqual(PreservedFact.objects.filter(user=u).count(), first)
+
+    def test_facts_persist_independently_of_the_import_session(self):
+        # The core promise: query preserved facts with no reference to the batch —
+        # a future Military domain would read exactly this, no re-import required.
+        from apps.legacy.models import PreservedFact
+        u, batch = self._commit("layer5@example.com")
+        batch.delete()   # even if the batch record is gone, the facts remain
+        self.assertTrue(PreservedFact.objects.filter(user=u, concept="Career").exists())
+
+    def test_roadmap_aggregates_by_concept_from_real_data(self):
+        from apps.legacy.services.preservation import preservation_roadmap
+        u, _ = self._commit("layer6@example.com")
+        roadmap = preservation_roadmap(u)
+        concepts = {c["concept"]: c for c in roadmap["concepts"]}
+        for concept in ("Career", "Faith Journey", "Life Events", "Immigration",
+                        "Places", "Sources & Citations", "Custom Tags"):
+            self.assertIn(concept, concepts)
+        faith = concepts["Faith Journey"]
+        self.assertEqual(faith["count"], 2)           # RELI + BAPM
+        self.assertTrue(faith["examples"])            # representative examples present
+        self.assertEqual(concepts["Custom Tags"]["status"], "unknown")
+        self.assertEqual(concepts["Career"]["status"], "awaiting")

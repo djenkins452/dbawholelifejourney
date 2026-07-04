@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 238,
+    "fields": {
+      "title": "The Canonical Truth Roadmap — see everything Legacy is preserving for you",
+      "description": "The details Legacy can't fully organize yet — occupations, church records, military service, burials, immigration, and more — are now kept permanently in a preservation layer instead of only inside a single import. A new Canonical Truth Roadmap page shows everything Legacy is holding, grouped by concept, with real examples from your own imports. The best part: when Legacy grows a home for one of these — a Career section, a Faith Journey, a Military record — your preserved facts move in automatically. You'll never have to re-import a file.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-07-04",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-04T13:00:00Z",
+      "updated_at": "2026-07-04T13:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 237,
     "fields": {
       "title": "Legacy imports now keep everything — nothing is thrown away",

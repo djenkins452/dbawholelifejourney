@@ -1,0 +1,57 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="lib">
+    <div class="lib-head">
+        <div>
+            <a href="{% url 'legacy:imports' %}" class="editor-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M15 18l-6-6 6-6"/></svg> Imports</a>
+            <h1 class="lib-title">Canonical Truth Roadmap</h1>
+            <p class="lib-sub">Everything Legacy has safely preserved but cannot yet fully model — built entirely from what you've imported, not from guesswork. Each concept below is a candidate for Canonical Truth to grow into. When it does, these facts move in automatically — you'll never re-import a file.</p>
+        </div>
+    </div>
+
+    {% if roadmap.concepts %}
+    <div class="lg-card roadmap-summary">
+        <p class="editor-aside-note">Legacy is holding <strong>{{ roadmap.total }}</strong> preserved {{ roadmap.total|pluralize:"fact,facts" }} across <strong>{{ roadmap.concepts|length }}</strong> {{ roadmap.concepts|length|pluralize:"concept,concepts" }}{% if roadmap.people_touched %}, touching {{ roadmap.people_touched }} {{ roadmap.people_touched|pluralize:"person,people" }}{% endif %}. None of it is lost — it's waiting for a canonical home.</p>
+    </div>
+
+    <div class="roadmap-grid">
+        {% for c in roadmap.concepts %}
+        <section class="roadmap-card">
+            <div class="roadmap-card-head">
+                <h2 class="roadmap-concept">{{ c.concept }}</h2>
+                <span class="roadmap-count">{{ c.count }} preserved {{ c.count|pluralize:"fact,facts" }}</span>
+            </div>
+            {% if c.labels %}
+            <p class="roadmap-labels">{{ c.labels|join:" · " }}</p>
+            {% endif %}
+            {% if c.examples %}
+            <ul class="roadmap-examples">
+                {% for ex in c.examples %}
+                <li class="roadmap-example">{{ ex|truncatechars:80 }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            <div class="roadmap-card-foot">
+                {% if c.status == 'unknown' %}
+                <span class="roadmap-status status-unknown">Preserved — not yet recognized</span>
+                {% elif c.status == 'modeled' %}
+                <span class="roadmap-status status-modeled">Now in Canonical Truth</span>
+                {% else %}
+                <span class="roadmap-status status-awaiting">Awaiting canonical model</span>
+                <span class="roadmap-recommend">Recommended domain: <strong>{{ c.concept }}</strong></span>
+                {% endif %}
+            </div>
+        </section>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="lib-empty">
+        <span class="lib-empty-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 2v20M2 12h20"/></svg></span>
+        <h2 class="lib-empty-title">Nothing preserved yet</h2>
+        <p class="lib-empty-blurb">When you import a family tree or document, any detail Legacy can't yet model — occupations, church records, military service, burials — is preserved here rather than discarded. This page becomes the roadmap for how your Legacy grows.</p>
+        <a href="{% url 'legacy:import_new' %}" class="lg-btn-primary">Import a document</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

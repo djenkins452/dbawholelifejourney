@@ -6,6 +6,23 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — feat(legacy): Permanent preservation layer + Canonical Truth Roadmap
+
+Extended the preservation guarantee from "captured in the import session" to a **permanent, durable layer**. Every imported fact Canonical Truth cannot yet model is now written to a new `PreservedFact` row at commit time — tied to the Person it describes, tagged with the CONCEPT it belongs to (Occupation→**Career**, Residence→**Places**, Burial→**Life Events**, Baptism→**Faith Journey**, Military/custom→**Custom Tags**, etc.). This makes the promise real: when a canonical domain is built later, it backfills straight from these rows — **no user ever re-imports a file.**
+
+**Conceptual, not structural.** Per Danny's directive, Legacy no longer asks "what table should I build?" — it identifies the *concept*. `GEDCOM_COVERAGE` now maps each tag to a canonical concept (the roadmap bucket / recommended domain); `classify_fact()` is the single classifier; unknown/custom `_XXXX` tags are preserved under "Custom Tags", never dropped.
+
+**Canonical Truth Roadmap** (`/legacy/roadmap/`, new page) aggregates the permanent layer by concept — count of preserved records, the granular fact-types seen, representative real examples, and status (Awaiting canonical model / Not yet recognized / In Canonical Truth). The roadmap is built *entirely from real imported data*, so it becomes the evidence-driven plan for how Canonical Truth should grow. Idempotent (dedupe fingerprint — re-commit never duplicates); facts survive even if the batch record is deleted.
+
+The per-import Completeness report now groups "needs a home" by concept, adds the reassurance "**This information has NOT been lost**", and links to the roadmap.
+
+**Files:** apps/legacy/models.py (`PreservedFact` model), apps/legacy/migrations/0024_preservedfact.py, apps/legacy/services/gedcom_parser.py (concept-based `GEDCOM_COVERAGE`, `classify_fact`, concept-grouped `analyze_coverage`), apps/legacy/services/preservation.py (NEW — `preserve_facts`, `preservation_roadmap`), apps/legacy/services/import_engine.py (`commit_genealogy` writes PreservedFacts for people + families), apps/legacy/views.py (`CanonicalRoadmapView`, commit message), apps/legacy/urls.py (`roadmap`), templates/legacy/roadmap.html (NEW), templates/legacy/import_detail.html + imports.html (roadmap link, reassurance), static/css/legacy.css (v38), apps/legacy/tests/test_gedcom.py (6 new tests: permanent facts written, supported facts not preserved, custom-tag status, idempotency, survives batch deletion, roadmap aggregation).
+
+**Why:** Danny's directive — "Do NOT leave unsupported information only inside the import session. Instead create a permanent preservation layer… If we build Military six months from now, Legacy should already possess every military fact ever imported… The importer becomes the engine that drives the future evolution of Canonical Truth."
+
+**Verification:** 19 test_gedcom + 29 import tests green; roadmap + import detail pages rendered via test client (concepts, examples, reassurance, recommended-domain all present); `makemigrations --check` clean.
+
+
 ## 2026-07-04 — feat(legacy): Universal ingestion — preserve every fact, never silently discard
 
 Reframed the Import Orchestrator from "GEDCOM importer" toward the universal ingestion engine for Canonical Truth: **if a source contains information, Legacy preserves it — even when there is no canonical destination yet.** Previously the GEDCOM parser kept only NAME/SEX/BIRT/DEAT/NOTE (people) and HUSB/WIFE/CHIL/MARR (families) and silently dropped everything else — occupation, religion, baptism, confirmation, ordination, burial, cremation, residence, address, immigration, naturalization, military service, titles, custom life events, source citations, and custom `_XXXX` tags.

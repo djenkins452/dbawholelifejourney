@@ -858,6 +858,69 @@ class ImportChunk(models.Model):
         return self.chunk_kind in ImportChunk.NARRATIVE_KINDS
 
 
+class PreservedFact(LegacyOwnedModel):
+    """Legacy's PERMANENT preservation layer — the promise that nothing is ever
+    lost. Every imported fact that Canonical Truth cannot yet model lands here as a
+    durable row (not trapped inside one import session), tied to the Person it
+    describes and tagged with the CONCEPT it belongs to (Career, Faith Journey,
+    Military, Life Events…). When a canonical domain is later built, it backfills
+    straight from these rows — no user ever re-imports a file. This is how Canonical
+    Truth grows: from what people actually entrusted to Legacy, not developer guesses.
+    The Canonical Truth Roadmap is simply an aggregation of these rows by concept."""
+
+    class FactStatus(models.TextChoices):
+        AWAITING = 'awaiting', 'Awaiting canonical model'
+        UNKNOWN = 'unknown', 'Preserved — not yet recognized'
+        MODELED = 'modeled', 'Migrated into Canonical Truth'
+
+    # Provenance — where this fact came from, and who it's about.
+    source_batch = models.ForeignKey(
+        ImportBatch, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='preserved_facts')
+    person = models.ForeignKey(
+        Person, on_delete=models.CASCADE, null=True, blank=True,
+        related_name='preserved_facts')
+    subject_label = models.CharField(
+        max_length=200, blank=True, help_text="Who/what this is about when no Person is linked")
+    source_format = models.CharField(max_length=20, default='gedcom', db_index=True)
+
+    # Concept over structure: the roadmap groups by `concept`; `label` is the granular
+    # fact-type; `original_tag` keeps the exact source tag so migration is lossless.
+    concept = models.CharField(
+        max_length=60, db_index=True, help_text="Canonical concept: Career, Faith Journey, Military…")
+    label = models.CharField(max_length=80, help_text="Granular fact type: Occupation, Baptism…")
+    original_tag = models.CharField(max_length=40, help_text="Exact source tag, e.g. OCCU, _MILT")
+
+    # The preserved content — kept verbatim so a future model can read it back.
+    value = models.CharField(max_length=2000, blank=True)
+    fact_date = models.CharField(max_length=80, blank=True, help_text="Raw source date string")
+    fact_place = models.CharField(max_length=255, blank=True)
+    original_data = models.JSONField(default=dict, blank=True)
+
+    fact_status = models.CharField(
+        max_length=12, choices=FactStatus.choices, default=FactStatus.AWAITING, db_index=True)
+    # Fingerprint for idempotent re-commit (never duplicate the same preserved fact).
+    dedupe_key = models.CharField(max_length=64, db_index=True, blank=True)
+
+    class Meta:
+        ordering = ['concept', '-created_at']
+        indexes = [models.Index(fields=['user', 'concept'])]
+
+    def __str__(self):
+        who = self.person.display_name if self.person_id else (self.subject_label or "?")
+        return f"{who} · {self.label}: {self.value[:40]}"
+
+    @property
+    def summary(self):
+        """One-line human example for the roadmap ('Railroad conductor · 1965')."""
+        bits = [self.value] if self.value else []
+        if self.fact_place and self.fact_place not in self.value:
+            bits.append(self.fact_place)
+        if self.fact_date:
+            bits.append(self.fact_date)
+        return " · ".join(b for b in bits if b) or self.label
+
+
 class RelationshipAlias(LegacyOwnedModel):
     """A relational term the keeper uses — "Dad", "Mom", "Coach", "Pastor" — mapped
     to the actual Person it refers to. Learned once (on review) and reused on every

@@ -8,10 +8,13 @@
             <h1 class="lib-title">Import a document</h1>
             <p class="lib-sub">Bring an autobiography, a journal, or a ChatGPT/Claude conversation into Legacy — each story goes through the same Discovery you'd get by writing it yourself.</p>
         </div>
-        <a href="{% url 'legacy:import_new' %}" class="lg-btn-primary">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            New import
-        </a>
+        <div class="lib-head-actions">
+            <a href="{% url 'legacy:roadmap' %}" class="lg-btn-quiet">Canonical Truth Roadmap</a>
+            <a href="{% url 'legacy:import_new' %}" class="lg-btn-primary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                New import
+            </a>
+        </div>
     </div>
 
     {% if batches %}

@@ -27,6 +27,7 @@ urlpatterns = [
     path("import/<int:pk>/", views.ImportDetailView.as_view(), name="import_detail"),
     path("import/<int:pk>/run/", views.ImportRunView.as_view(), name="import_run"),
     path("import/<int:pk>/commit-genealogy/", views.GenealogyCommitView.as_view(), name="import_commit_genealogy"),
+    path("roadmap/", views.CanonicalRoadmapView.as_view(), name="roadmap"),
     path("family/", views.FamilyView.as_view(), name="family"),
     path("family/rebuild/", views.GenealogyRebuildView.as_view(), name="family_rebuild"),
     path("people/<int:pk>/this-is-me/", views.PersonSetSelfView.as_view(), name="person_set_self"),

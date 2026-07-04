@@ -73,7 +73,7 @@
     <section class="lg-card import-coverage">
         <div class="import-coverage-head">
             <h3 class="lg-card-h">Completeness report</h3>
-            <p class="editor-aside-note">Everything in this file was preserved — nothing was thrown away. Here's what Legacy stored as Canonical Truth, what it's holding because there's no home for it yet, and what it didn't recognize.</p>
+            <p class="editor-aside-note">Everything in this file was preserved — nothing was thrown away. Here's what Legacy stored as Canonical Truth, what it's safely holding because there's no home for it yet, and what it didn't recognize.</p>
         </div>
 
         {% if batch.coverage.supported %}
@@ -89,14 +89,14 @@
 
         {% if batch.coverage.needs_support %}
         <div class="coverage-group coverage-needs">
-            <h4 class="coverage-group-title"><span class="coverage-dot warn" aria-hidden="true">•</span> Preserved — needs a home in Legacy</h4>
-            <p class="coverage-note">This information is safe inside this import. Legacy doesn't have a canonical place to keep it yet. Each one below is a recommendation — nothing is created until you approve it.</p>
+            <h4 class="coverage-group-title"><span class="coverage-dot warn" aria-hidden="true">•</span> Preserved — waiting for a canonical home</h4>
+            <p class="coverage-note"><strong>This information has NOT been lost.</strong> Legacy has safely preserved every one of these, grouped by the concept they belong to. When Legacy grows a home for a concept, they move in automatically — you'll never re-import this file.</p>
             <ul class="coverage-list">
                 {% for row in batch.coverage.needs_support %}
                 <li class="coverage-row coverage-row-rec">
                     <span class="coverage-concept">{{ row.concept }}</span>
                     <span class="coverage-count">{{ row.count }}</span>
-                    {% if row.recommendation %}<span class="coverage-rec">Recommend adding {{ row.recommendation }}</span>{% endif %}
+                    {% if row.labels %}<span class="coverage-rec">{{ row.labels|join:", " }}</span>{% endif %}
                 </li>
                 {% endfor %}
             </ul>
@@ -114,6 +114,8 @@
             </ul>
         </div>
         {% endif %}
+
+        <a href="{% url 'legacy:roadmap' %}" class="coverage-roadmap-link">See everything Legacy is preserving — the Canonical Truth Roadmap →</a>
     </section>
     {% endif %}
 

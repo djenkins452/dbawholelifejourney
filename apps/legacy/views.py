@@ -1377,10 +1377,26 @@ class GenealogyCommitView(LegacyContextMixin, View):
             messages.success(
                 request,
                 f"Added {people} {'person' if people == 1 else 'people'} and "
-                f"{links} family {'connection' if links == 1 else 'connections'} to your family.")
+                f"{links} family {'connection' if links == 1 else 'connections'} to your family. "
+                "Everything else in the file has been safely preserved — see the "
+                "Canonical Truth Roadmap.")
         else:
             messages.info(request, "Everyone from this file is already in your family.")
         return redirect("legacy:family")
+
+
+class CanonicalRoadmapView(LegacyContextMixin, TemplateView):
+    """The Canonical Truth Roadmap — everything Legacy has permanently preserved but
+    cannot yet model, aggregated by concept from real imported data. The roadmap for
+    how Canonical Truth should grow, driven by what users entrusted to Legacy."""
+    template_name = "legacy/roadmap.html"
+    nav_active = "studio"
+
+    def get_context_data(self, **kwargs):
+        from apps.legacy.services.preservation import preservation_roadmap
+        ctx = super().get_context_data(**kwargs)
+        ctx["roadmap"] = preservation_roadmap(self.request.user)
+        return ctx
 
 
 # ── Family View (a window into Canonical Truth, not a genealogy database) ─────

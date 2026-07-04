@@ -243,6 +243,7 @@ def commit_genealogy(batch):
     (people_created, links_created). Genealogy — no Discovery."""
     from apps.legacy.models import ImportChunk, Person, Relationship
     from apps.legacy.services.gedcom_parser import dates_from_body
+    from apps.legacy.services.preservation import preserve_facts
 
     _d = _iso_to_date
     user = batch.user
@@ -287,6 +288,9 @@ def commit_genealogy(batch):
                 person.save(update_fields=fields + ["updated_at"])
         if xref:
             xref_to_person[xref] = person
+        # PERMANENT preservation — every fact Canonical Truth can't model yet is
+        # stored durably against this Person, never left only inside the session.
+        preserve_facts(user, batch, person, name, (d.get("facts") or []))
         if ch.status != ImportChunk.Status.IMPORTED:
             ch.status = ImportChunk.Status.IMPORTED
             ch.save(update_fields=["status"])
@@ -313,6 +317,8 @@ def commit_genealogy(batch):
             child = xref_to_person.get(x)
             for parent in (husb, wife):
                 _link(parent, child, "parent of")
+        # Family-level facts (e.g. divorce) preserved too — nothing left behind.
+        preserve_facts(user, batch, None, ch.title, (d.get("facts") or []))
         if ch.status != ImportChunk.Status.IMPORTED:
             ch.status = ImportChunk.Status.IMPORTED
             ch.save(update_fields=["status"])

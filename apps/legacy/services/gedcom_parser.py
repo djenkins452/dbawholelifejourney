@@ -128,6 +128,20 @@ def _full_date(date_str):
     return None
 
 
+def dates_from_body(body):
+    """Recover (birth_iso, death_iso) from a gedcom_person chunk's rendered body
+    ("… Born 3 MAR 1945 in …· Died 12 DEC 2010 …") — used to backfill full dates
+    onto people imported before structured dates were captured."""
+    b = d = None
+    mb = re.search(r"Born\s+([^·\n]+)", body or "")
+    if mb:
+        b = _full_date(mb.group(1))
+    md = re.search(r"Died\s+([^·\n]+)", body or "")
+    if md:
+        d = _full_date(md.group(1))
+    return b, d
+
+
 def _when_where(date, place, verb):
     if not date and not place:
         return ""

@@ -16,6 +16,52 @@ from apps.legacy.services.import_adapters import chunk, get_adapter
 logger = logging.getLogger(__name__)
 
 
+def _iso_to_date(iso):
+    from datetime import date
+    try:
+        return date.fromisoformat(iso) if iso else None
+    except (TypeError, ValueError):
+        return None
+
+
+def backfill_gedcom_dates(user):
+    """Fill missing full dates (birth/death) onto already-committed genealogy
+    people, recovering them from each import chunk's structured data or body text.
+    Non-destructive; only sets a date that's currently empty. Returns count updated."""
+    from apps.legacy.models import ImportBatch, Person
+    from apps.legacy.services.gedcom_parser import dates_from_body
+
+    updated = 0
+    for batch in ImportBatch.all_objects.filter(user=user, source_type="gedcom"):
+        for ch in batch.chunks.filter(chunk_kind="gedcom_person"):
+            d = ch.data or {}
+            body_b, body_d = dates_from_body(ch.body)
+            b_iso = d.get("birth_date") or body_b
+            de_iso = d.get("death_date") or body_d
+            if not b_iso and not de_iso:
+                continue
+            person = None
+            if d.get("xref"):
+                person = Person.all_objects.filter(
+                    user=user, source_batch=batch, gedcom_xref=d["xref"]).first()
+            if person is None:
+                name = (d.get("name") or ch.title or "").strip()
+                if name:
+                    person = Person.all_objects.filter(
+                        user=user, display_name__iexact=name).first()
+            if person is None:
+                continue
+            fields = []
+            if person.birth_date is None and _iso_to_date(b_iso):
+                person.birth_date = _iso_to_date(b_iso); fields.append("birth_date")
+            if person.death_date is None and _iso_to_date(de_iso):
+                person.death_date = _iso_to_date(de_iso); fields.append("death_date")
+            if fields:
+                person.save(update_fields=fields + ["updated_at"])
+                updated += 1
+    return updated
+
+
 def create_batch(user, source_name, source_type, raw_text, classifier=None):
     """Parse a document into an ImportBatch + pending ImportChunks and CLASSIFY
     what each unit is (story / fact / person / place / milestone / quote / …)
@@ -173,15 +219,10 @@ def commit_genealogy(batch):
     Person records (with birth/death years) and spouse / parent-child Relationships.
     Deterministic, idempotent (dedupes people by name, links by triple). Returns
     (people_created, links_created). Genealogy — no Discovery."""
-    from datetime import date
     from apps.legacy.models import ImportChunk, Person, Relationship
+    from apps.legacy.services.gedcom_parser import dates_from_body
 
-    def _d(iso):
-        try:
-            return date.fromisoformat(iso) if iso else None
-        except (TypeError, ValueError):
-            return None
-
+    _d = _iso_to_date
     user = batch.user
     xref_to_person = {}
     people_created = 0
@@ -194,6 +235,11 @@ def commit_genealogy(batch):
         d = ch.data or {}
         name = (d.get("name") or ch.title or "Unknown person").strip()
         xref = (d.get("xref") or "").strip()
+        # Full dates from the structured payload, or recovered from the body text
+        # (so people imported before dates were captured still get them on re-commit).
+        body_b, body_d = dates_from_body(ch.body)
+        birth_iso = d.get("birth_date") or body_b
+        death_iso = d.get("death_date") or body_d
         person = None
         if xref:
             person = Person.all_objects.filter(
@@ -202,7 +248,7 @@ def commit_genealogy(batch):
             person = Person.objects.create(
                 user=user, display_name=name[:200],
                 birth_year=d.get("birth_year"), death_year=d.get("death_year"),
-                birth_date=_d(d.get("birth_date")), death_date=_d(d.get("death_date")),
+                birth_date=_d(birth_iso), death_date=_d(death_iso),
                 source_batch=batch, gedcom_xref=xref[:40],
                 created_via=Person.CREATED_VIA_IMPORT)
             people_created += 1
@@ -211,9 +257,10 @@ def commit_genealogy(batch):
             for f in ("birth_year", "death_year"):
                 if not getattr(person, f) and d.get(f):
                     setattr(person, f, d[f]); fields.append(f)
-            for f in ("birth_date", "death_date"):
-                if not getattr(person, f) and _d(d.get(f)):
-                    setattr(person, f, _d(d[f])); fields.append(f)
+            if not person.birth_date and _d(birth_iso):
+                person.birth_date = _d(birth_iso); fields.append("birth_date")
+            if not person.death_date and _d(death_iso):
+                person.death_date = _d(death_iso); fields.append("death_date")
             if fields:
                 person.save(update_fields=fields + ["updated_at"])
         if xref:

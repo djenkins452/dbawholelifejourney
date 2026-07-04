@@ -88,3 +88,36 @@ class DisplayTests(TestCase):
     def test_display_empty_when_unknown(self):
         p = Person.objects.create(user=self.user, display_name="Z")
         self.assertEqual(p.display_birth, "")
+
+
+class BackfillTests(TestCase):
+    def setUp(self):
+        self.user = _make_user()
+
+    def test_dates_from_body(self):
+        b, d = gedcom_parser.dates_from_body(
+            "Male · Born 3 MAR 1945 in Knoxville, Tennessee · Died 12 DEC 2010 in Maryville")
+        self.assertEqual(b, "1945-03-03")
+        self.assertEqual(d, "2010-12-12")
+
+    def test_commit_recovers_dates_from_body(self):
+        # Simulate a pre-date-capture import: chunks whose structured data lacks
+        # dates but whose body still reads "Born 3 MAR 1945".
+        batch = create_batch(self.user, "T", "gedcom", SAMPLE, classifier=_boom)
+        for ch in batch.chunks.filter(chunk_kind="gedcom_person"):
+            ch.data.pop("birth_date", None); ch.data.pop("death_date", None)
+            ch.save(update_fields=["data"])
+        commit_genealogy(batch)
+        marvin = Person.objects.get(user=self.user, display_name="Marvin Jenkins")
+        self.assertEqual(marvin.birth_date, datetime.date(1945, 3, 3))    # recovered from body
+
+    def test_backfill_fills_existing_people(self):
+        from apps.legacy.services import import_engine
+        batch = create_batch(self.user, "T", "gedcom", SAMPLE, classifier=_boom)
+        commit_genealogy(batch)
+        Person.objects.filter(user=self.user).update(birth_date=None, death_date=None)  # old state
+        updated = import_engine.backfill_gedcom_dates(self.user)
+        self.assertGreater(updated, 0)
+        marvin = Person.objects.get(user=self.user, display_name="Marvin Jenkins")
+        self.assertEqual(marvin.birth_date, datetime.date(1945, 3, 3))
+        self.assertEqual(marvin.display_birth, "3 Mar 1945")

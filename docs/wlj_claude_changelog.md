@@ -43186,3 +43186,17 @@ NOTE on live verification: still no in-browser screenshot — `SESSION_COOKIE_SE
 **Danny's existing import:** the fix prevents recurrence; to repair the already-imported tree, open **Family → "Looks off?" → Rebuild** once (it rebuilds from the original GEDCOM chunks). After that, Danny → exactly two biological parents, correct spouse/siblings/child.
 
 **Files:** `apps/legacy/models.py` (provenance + `LegacyProfile`), `apps/legacy/services/{self_binding.py (new), import_engine.py (commit fix + rebuild + validate), family_tree.py}`, `apps/legacy/views.py` (binding + GenealogyRebuildView), `apps/legacy/urls.py`, `templates/legacy/{family_rebuild.html (new), family.html, base_legacy.html}`, `static/css/legacy.css` (v34), `apps/legacy/migrations/0019_*`, `apps/legacy/tests/test_graph_integrity.py` (new), `apps/core/fixtures/release_notes.json`.
+
+
+## 2026-07-04 — fix(legacy): complete Deployments 1 & 4 for already-imported data (People Home + Full Dates)
+
+**Why:** Both features were correct for NEW imports but not visible on Danny's existing tree, which was committed before they existed. People fell back to browse-all (his "me" was never bound), and births showed only years (his people had `birth_date=NULL`, captured before the date parser). Data-completion fix; no redesign; no Beth/CoS.
+
+**Root causes & fixes:**
+- **Full Dates (D4):** the exact dates were never lost — they're still in each import chunk's rendered body ("Born 3 MAR 1945"). Added `gedcom_parser.dates_from_body` and made `commit_genealogy` fall back to it, and a non-destructive `backfill_gedcom_dates(user)` that fills any empty `Person.birth_date`/`death_date` from the chunk's data or body (matched by xref, else name). So dates now appear on People cards, the Person Profile, and the Family panel for imported people — exactly where the GEDCOM had a full date; year-only stays a year.
+- **People Home (D1):** People already opens on the immediate family whenever the keeper is resolvable; the gap was that Danny's "me" wasn't bound. The earlier fuzzy binding ("Danny Jenkins" → "Danny Ray Jenkins") resolves it, and the migration below binds it explicitly.
+- **One-time repair migration (0020, runs on deploy):** for every user with people, bind the keeper (so Family/People open on them) and backfill full dates onto existing people. Guarded per-user so it can never fail a deploy; safe no-op for users without genealogy.
+
+**Verification:** 251 scoped Legacy tests green (3 new: `dates_from_body` parses "Born 3 MAR 1945 … Died 12 DEC 2010"; commit recovers dates from body when structured data lacks them; `backfill_gedcom_dates` fills existing people → "3 Mar 1945"). Reproduced Danny's exact situation end-to-end (commit, then strip dates + binding to mimic the old state): BEFORE repair People shows the family but no full date; AFTER running the migration repair, People opens to Parents (Marvin & Betty), shows "3 Mar 1945", the Family panel shows it too, and the keeper is bound. `check` + `makemigrations --check` clean; migration 0020 applied (repair executed) on dev.
+
+**Files:** `apps/legacy/services/gedcom_parser.py` (`dates_from_body`), `apps/legacy/services/import_engine.py` (`_iso_to_date`, body-date fallback in commit, `backfill_gedcom_dates`), `apps/legacy/migrations/0020_backfill_dates_bind_self.py` (new data migration), `apps/legacy/tests/test_full_dates.py`.

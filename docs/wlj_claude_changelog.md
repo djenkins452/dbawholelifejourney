@@ -6,6 +6,15 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — feat(cos): Workout retrieval — workout queryable by point in time (WI-3)
+
+"Did you see my workout?", "Over 40,000 lbs total", "did I work out on 7/2?" were search failures. Treated Workout exactly like Sleep & Weight. The truth already existed (canonical `WorkoutQueries.completed_on` + `WorkoutSession.total_volume`, which is load-aware) — the gap was retrieval. New `workout_history` lane (before `foundational_facts`) resolves the date via the shared `date_reference` resolver, DEFAULTING to today when none is given (a bare "did you see my workout?" means today), and reads the canonical completed-workout truth for that day: existence, total volume, duration. Volume phrasings ("Over 40,000 lbs total", "total volume") trigger it even without a workout word. Uses COMPLETED sessions only (Visual Truth Contract). Honest "I don't see a completed workout <when>" when the day has none; declines non-workout questions.
+
+Certified: "Did you see my workout?" → "Yes, I see your workout today: 1 session — Push Day; 40,200 lb total volume; 62 min."; "Over 40,000 lbs total" → "Today you lifted 40,200 lb of total volume…"; duration/explicit-date variants; real completed session found end-to-end. Regression `apps/ai/tests/test_workout_history.py` (7); weight + sleep protected; registry guards updated. No model change, no migration.
+
+**Files:** apps/ai/chatgpt_cos/workout_history.py (new), apps/ai/chatgpt_cos/lanes.py, apps/ai/tests/test_conversation_lanes.py, apps/ai/tests/test_workout_history.py (new).
+
+
 ## 2026-07-04 — feat(cos): Historical weight retrieval — weight queryable by point in time (WI-4)
 
 "What was my weight on 7/1?" → search failure (current + yesterday worked; specific historical dates didn't). Treated Weight exactly like Sleep. Extracted the date-reference parser I built for sleep into a SHARED `apps/ai/chatgpt_cos/date_reference.py :: resolve_reference_date` (explicit M/D, M/D/Y, "July 1", ISO, N days/nights ago, day-before-yesterday, yesterday, last <weekday>) — `sleep_history` now delegates to it (behavior identical; sleep-specific "the night before" phrasing kept in its wrapper; all sleep tests still green, protected). New `apps/health/services/weight_queries.py :: on_date` (the authoritative weight for a user-local day, timezone-correct range so a late reading is dated right) and `weight_history` lane (before `foundational_facts`) that resolves the date and reads that day's weight — declines when there is no date reference so the existing current-weight path is untouched. Never inferred: an honest "I don't have a weight reading for <date>" when the day has none.

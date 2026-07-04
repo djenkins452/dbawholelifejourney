@@ -45,6 +45,14 @@ def _sleep_history_lane(user, message, conversation=None):
     return sleep_history.answer(user, message, conversation)
 
 
+def _workout_history_lane(user, message, conversation=None):
+    """WORKOUT RETRIEVAL: "did you see my workout?", "over 40,000 lbs total", "did I
+    work out on 7/2?" — reads the canonical completed-workout truth (existence, total
+    volume, duration) for the referenced day (default today). Declines otherwise."""
+    from apps.ai.chatgpt_cos import workout_history
+    return workout_history.answer(user, message, conversation)
+
+
 def _weight_history_lane(user, message, conversation=None):
     """HISTORICAL WEIGHT RETRIEVAL: a weight question about a specific/historical date
     ("what was my weight on 7/1?") retrieves THAT day's canonical weight. Declines for
@@ -1207,6 +1215,8 @@ LANE_REGISTRY = (
     ("sleep_history", _sleep_history_lane),
     # HISTORICAL WEIGHT RETRIEVAL — same, for "what was my weight on 7/1?".
     ("weight_history", _weight_history_lane),
+    # WORKOUT RETRIEVAL — "did you see my workout?", "over 40,000 lbs total".
+    ("workout_history", _workout_history_lane),
     ("foundational_facts", _foundational_lane),
     ("clarification", _clarification_lane),
     # Continue an active EXTERNAL/general thread BEFORE any personal-coaching lane

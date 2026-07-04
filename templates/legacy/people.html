@@ -5,7 +5,7 @@
     <div class="lib-head">
         <div>
             <h1 class="lib-title">People</h1>
-            <p class="lib-sub">The people who shaped you — each a living portrait.</p>
+            <p class="lib-sub">{% if mode == 'home' %}The people closest to you. Browse everyone below.{% else %}The people who shaped you — each a living portrait.{% endif %}</p>
         </div>
         <a href="{% url 'legacy:person_new' %}" class="lg-btn-primary">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -16,23 +16,52 @@
     <form class="lib-toolbar" method="get">
         <div class="lib-search">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm legacy-search-ico"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="search" name="q" value="{{ q }}" class="lib-search-input" placeholder="Search people…" aria-label="Search people">
+            <input type="search" name="q" value="{{ q }}" class="lib-search-input" placeholder="Search all {{ total_count }} people…" aria-label="Search people">
         </div>
     </form>
 
-    {% if people %}
-    <div class="pgrid">
-        {% for p in people %}
-        <a href="{% url 'legacy:person_detail' p.pk %}" class="pcard">
-            <span class="pcard-avatar">
-                {% if p.primary_photo and p.primary_photo.file %}<img src="{{ p.primary_photo.file.url }}" alt="{{ p.display_name }}">{% else %}{{ p.display_name|slice:":1"|upper }}{% endif %}
-            </span>
-            <span class="pcard-name">{{ p.display_name }}</span>
-            {% if p.relationship_label %}<span class="pcard-rel">{{ p.relationship_label }}</span>{% endif %}
-            {% with c=p.memories.count %}<span class="pcard-count">{{ c }} {% if c == 1 %}memory{% else %}memories{% endif %}</span>{% endwith %}
-        </a>
-        {% endfor %}
+    {% if mode == 'home' %}
+    <section class="profile-sec">
+        <h2 class="profile-sec-title">You</h2>
+        <div class="pgrid">{% include "legacy/_pcard.html" with p=home.me %}</div>
+    </section>
+    {% if home.parents %}
+    <section class="profile-sec"><h2 class="profile-sec-title">Parents</h2>
+        <div class="pgrid">{% for p in home.parents %}{% include "legacy/_pcard.html" with p=p %}{% endfor %}</div></section>
+    {% endif %}
+    {% if home.spouses %}
+    <section class="profile-sec"><h2 class="profile-sec-title">{% if home.spouses|length > 1 %}Spouses{% else %}Spouse{% endif %}</h2>
+        <div class="pgrid">{% for p in home.spouses %}{% include "legacy/_pcard.html" with p=p %}{% endfor %}</div></section>
+    {% endif %}
+    {% if home.siblings %}
+    <section class="profile-sec"><h2 class="profile-sec-title">Siblings</h2>
+        <div class="pgrid">{% for p in home.siblings %}{% include "legacy/_pcard.html" with p=p %}{% endfor %}</div></section>
+    {% endif %}
+    {% if home.children %}
+    <section class="profile-sec"><h2 class="profile-sec-title">Children</h2>
+        <div class="pgrid">{% for p in home.children %}{% include "legacy/_pcard.html" with p=p %}{% endfor %}</div></section>
+    {% endif %}
+    <div class="people-browse-all">
+        <a href="?view=all" class="lg-btn-quiet">Browse all {{ total_count }} people →</a>
     </div>
+
+    {% else %}
+    {% if page_obj.object_list %}
+    {% if not q %}
+    <p class="people-allnote">
+        {% if no_me %}Browsing everyone. Open your own profile and choose “This is me” to make People open on your closest family.{% else %}Browsing all {{ total_count }} people. <a href="{% url 'legacy:people' %}" class="lg-link">Back to your family</a>.{% endif %}
+    </p>
+    {% endif %}
+    <div class="pgrid">
+        {% for p in page_obj %}{% include "legacy/_pcard.html" with p=p %}{% endfor %}
+    </div>
+    {% if page_obj.paginator.num_pages > 1 %}
+    <nav class="pager" aria-label="People pages">
+        {% if page_obj.has_previous %}<a class="pager-btn" href="?{% if q %}q={{ q|urlencode }}{% else %}view=all{% endif %}&page={{ page_obj.previous_page_number }}">← Previous</a>{% else %}<span class="pager-btn is-off">← Previous</span>{% endif %}
+        <span class="pager-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}<a class="pager-btn" href="?{% if q %}q={{ q|urlencode }}{% else %}view=all{% endif %}&page={{ page_obj.next_page_number }}">Next →</a>{% else %}<span class="pager-btn is-off">Next →</span>{% endif %}
+    </nav>
+    {% endif %}
     {% else %}
     <div class="lib-empty">
         <span class="lib-empty-mark" aria-hidden="true">
@@ -41,13 +70,14 @@
         {% if q %}
         <h2 class="lib-empty-title">No one matches</h2>
         <p class="lib-empty-blurb">Try a different search.</p>
-        <a href="{% url 'legacy:people' %}" class="btn-quiet">Clear search</a>
+        <a href="{% url 'legacy:people' %}" class="lg-btn-quiet">Clear search</a>
         {% else %}
         <h2 class="lib-empty-title">The people who shaped you will gather here</h2>
         <p class="lib-empty-blurb">Start with one — a parent, a friend, someone you miss.</p>
         <a href="{% url 'legacy:person_new' %}" class="lg-btn-primary">Add the first person</a>
         {% endif %}
     </div>
+    {% endif %}
     {% endif %}
 </div>
 {% endblock %}

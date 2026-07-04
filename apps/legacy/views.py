@@ -591,15 +591,42 @@ class PeopleView(LegacyContextMixin, TemplateView):
     template_name = "legacy/people.html"
     nav_active = "people"
 
+    PAGE_SIZE = 40
+
     def get_context_data(self, **kwargs):
+        from django.core.paginator import Paginator
         ctx = super().get_context_data(**kwargs)
+        user = self.request.user
         q = (self.request.GET.get("q") or "").strip()
-        people = Person.objects.filter(user=self.request.user)
-        if q:
-            people = people.filter(Q(display_name__icontains=q) | Q(also_known_as__icontains=q))
-        ctx["people"] = people.select_related("primary_photo")
+        view_mode = self.request.GET.get("view")
+        page = self.request.GET.get("page")
+        base = Person.objects.filter(user=user).select_related("primary_photo")
         ctx["q"] = q
-        ctx["total_count"] = people.count()
+        ctx["total_count"] = base.count()
+
+        counted = base.annotate(mcount=Count("memories", distinct=True))
+        if q:
+            # Search spans everyone, paginated.
+            results = counted.filter(
+                Q(display_name__icontains=q) | Q(also_known_as__icontains=q)
+            ).order_by("display_name")
+            ctx["mode"] = "search"
+            ctx["page_obj"] = Paginator(results, self.PAGE_SIZE).get_page(page)
+        elif view_mode == "all" or page:
+            # Browse everyone, paginated — never render thousands at once.
+            ctx["mode"] = "all"
+            ctx["page_obj"] = Paginator(counted.order_by("display_name"), self.PAGE_SIZE).get_page(page)
+        else:
+            # People Home — the people who matter most, not the whole database.
+            home = family_tree.home_relatives(user)
+            if home:
+                ctx["mode"] = "home"
+                ctx["home"] = home
+            else:
+                # No 'me' yet → fall back to a browsable, paged list.
+                ctx["mode"] = "all"
+                ctx["no_me"] = True
+                ctx["page_obj"] = Paginator(counted.order_by("display_name"), self.PAGE_SIZE).get_page(page)
         return ctx
 
 

@@ -43105,3 +43105,18 @@ NOTE on live verification: still no in-browser screenshot — `SESSION_COOKIE_SE
 **Verification:** 213 scoped Legacy tests green (3 new: panel lists the focus's parents/spouse/children/siblings, edges coloured by side of focus (up/down), view renders the panel + legend + search index; the placeholder test dropped Relationships now that it's real). `check` + `makemigrations --check` clean (no schema change); Family JS passes `node --check`; a test-client render confirms the profile panel, This-is-you badge, This-is-me card badge + star, legend, and blue/green relationship lines, with the focus's parent/spouse/child all listed in the panel.
 
 **Files:** `apps/legacy/services/family_tree.py` (edge colours + sibling ties + panel data), `apps/legacy/views.py`, `templates/legacy/{family.html, _fam_relative.html (new), base_legacy.html}`, `static/css/legacy.css` (v30), `apps/legacy/tests/{test_family.py, test_foundation.py}`, `apps/core/fixtures/release_notes.json`.
+
+
+## 2026-07-04 — feat(legacy): People Home (Deployment 1/4) — close family first, paged browsing
+
+**Why:** The People page rendered every person at once — after a genealogy import that could be thousands. The first experience should be personal, and browsing must page. Refinement of the People domain; no redesign; no Beth/CoS.
+
+**What:**
+- **People Home:** opening People now shows the keeper's closest family — **You, Parents, Spouse(s), Siblings, Children** (three generations), grouped — instead of the whole database, with a "Browse all N people →" affordance. Resolved from the keeper's `is_self` node (`family_tree.home_relatives`); if "me" isn't set yet, People falls back to a paged browse with a gentle prompt to set "This is me".
+- **Paged browsing:** "Browse all" and search now paginate (40 per page, Django `Paginator`) with Previous / page-of / Next controls — never rendering thousands at once. Cards carry an annotated memory count (no N+1).
+- **Search still spans everyone** (paginated), matching name or nickname.
+- New reusable `_pcard.html` person card.
+
+**Verification:** 219 scoped Legacy tests green (7 new: home shows close family and NOT a distant stranger + the browse affordance; `home_relatives` helper; no-me fallback to browse; browse-all paginates (46→2 pages, page 2 has previous/no-next); search spans everyone; empty state). `check` + `makemigrations --check` clean (no schema change). Test-client renders confirm the grouped Home (You/Parents/Spouse/Siblings/Children), the browse-all pager, and search. (Live browser screenshot not possible locally — `SESSION_COOKIE_SECURE` vs http preview — verified via the test client's real view→template render.)
+
+**Files:** `apps/legacy/services/family_tree.py` (home_relatives), `apps/legacy/views.py` (PeopleView home/search/all + pagination), `templates/legacy/{people.html, _pcard.html (new), base_legacy.html}`, `static/css/legacy.css` (v31), `apps/legacy/tests/test_people_home.py` (new), `apps/core/fixtures/release_notes.json`.

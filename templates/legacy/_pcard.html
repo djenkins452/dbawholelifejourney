@@ -1,0 +1,9 @@
+{% comment %}Person card. Expects `p` (a Person; may carry an annotated `mcount`).{% endcomment %}
+<a href="{% url 'legacy:person_detail' p.pk %}" class="pcard">
+    <span class="pcard-avatar">
+        {% if p.primary_photo and p.primary_photo.file %}<img src="{{ p.primary_photo.file.url }}" alt="{{ p.display_name }}">{% else %}{{ p.display_name|slice:":1"|upper }}{% endif %}
+    </span>
+    <span class="pcard-name">{{ p.display_name }}</span>
+    {% if p.relationship_label %}<span class="pcard-rel">{{ p.relationship_label }}</span>{% elif p.birth_year or p.death_year %}<span class="pcard-rel">{{ p.birth_year|default:"" }}{% if p.birth_year or p.death_year %}–{% endif %}{{ p.death_year|default:"" }}</span>{% endif %}
+    {% with c=p.mcount|default:p.memories.count %}<span class="pcard-count">{{ c }} {% if c == 1 %}memory{% else %}memories{% endif %}</span>{% endwith %}
+</a>

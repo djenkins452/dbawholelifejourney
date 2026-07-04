@@ -333,6 +333,34 @@ def build_family_view(user, focus_pk=None):
     return graph
 
 
+def home_relatives(user):
+    """The keeper's closest family for the People Home — you, parents, spouse(s),
+    siblings, children (three generations). Returns Person objects grouped, or
+    None when 'me' isn't known yet. Read-only."""
+    from apps.legacy.models import Person
+    people = list(Person.objects.filter(user=user).select_related("primary_photo"))
+    if not people:
+        return None
+    by_id = {p.pk: p for p in people}
+    me_pk = _resolve_self(user, people)
+    if me_pk is None:
+        return None
+    parents, children, spouses = _edges(user)
+
+    def rows(ids):
+        return [by_id[i] for i in ids if i in by_id]
+
+    sib_ids = {k for par in parents.get(me_pk, ()) for k in children.get(par, ())
+               if k != me_pk}
+    return {
+        "me": by_id[me_pk],
+        "parents": rows(sorted(parents.get(me_pk, ()))),
+        "spouses": rows(sorted(spouses.get(me_pk, ()))),
+        "siblings": rows(sorted(sib_ids)),
+        "children": rows(sorted(children.get(me_pk, ()))),
+    }
+
+
 def family_search_index(user):
     """A lightweight index of EVERY person (id, name, meta, search text) so the
     Family search finds anyone — selecting one re-centers the tree on them."""

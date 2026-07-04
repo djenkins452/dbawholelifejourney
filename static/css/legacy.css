@@ -1076,3 +1076,12 @@ a.fam-result { text-decoration: none; }
     .famview { flex-direction: column; }
     .fam-panel { flex-basis: auto; width: 100%; max-height: none; }
 }
+
+/* People Home + paging */
+.people-browse-all { margin: 22px 0 6px; }
+.people-allnote { font-size: 13px; color: var(--lg-muted); margin: 0 0 14px; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 24px 0 6px; }
+.pager-btn { font-size: 13.5px; font-weight: 600; color: var(--lg-accent-ink, #7a5b1e); text-decoration: none; padding: 8px 14px; border: 1px solid var(--lg-border); border-radius: 10px; background: var(--lg-surface); }
+.pager-btn:hover { background: var(--lg-surface-2); }
+.pager-btn.is-off { color: var(--lg-muted); opacity: .5; pointer-events: none; }
+.pager-info { font-size: 13px; color: var(--lg-muted); }

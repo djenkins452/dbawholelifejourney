@@ -1179,6 +1179,16 @@ def route_message(user, message, conversation=None):
         if result is not None:
             if isinstance(result, dict):
                 result.setdefault("lane", name)
+                # RESPONSE COHERENCE: re-ground the FINISHED response's sense of time
+                # before it is recorded or presented, so no composed answer ever mixes
+                # two parts of day (e.g. an evening greeting + a "this morning" check-in).
+                # One choke point → every composed response reads as one coherent person.
+                if result.get("answer"):
+                    try:
+                        from apps.ai.chatgpt_cos.response_coherence import harmonize
+                        result["answer"] = harmonize(result["answer"], user)
+                    except Exception:
+                        logger.warning("route: coherence pass failed", exc_info=True)
                 # Record the structured memory of this turn so the NEXT follow-up is
                 # explained deterministically (conversation memory).
                 try:

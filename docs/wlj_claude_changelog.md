@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-03 — feat(cos): Response Coherence Validation — every finished response reads as one coherent person
+
+Production Ready CoS capability, not a greeting/check-in patch. Production: at 8:16 PM Beth said "Good evening…" immediately followed by "…how are you feeling this morning?" Each fragment is individually valid; the COMPLETED response is temporally impossible — two different "current" parts of day in one message. Root cause: `_morning_checkin` composes a time-aware greeting (`_greeting_word` → "Good evening") with a hardcoded "this morning" check-in fragment (the strong-sleep branch); the fragments are generated correctly but never validated TOGETHER before presentation.
+
+Capability: **Response Coherence Validation** — a deterministic pass (`apps/ai/chatgpt_cos/response_coherence.py`) that re-grounds a finished response's sense of "now" to the actual clock, applied to EVERY composed response at the single choke point they all pass through (`lanes.route_message`) — so it does NOT patch any one composer. It re-grounds only PRESENT-MOMENT phrase families: salutations ("Good evening"), present-wellbeing frames ("feeling this morning", "enjoy your evening"), and agenda openers ("This evening you've still got…"). Legitimate historical/scheduled references ("you slept 6 hours last night", "your 8am workout this morning is done", "I'll call you this evening") are NOT present-moment frames and are never rewritten (a present-frame classifier: sentence-initial, or a wellbeing cue immediately before, or a present subject — you/we/i/there/it as a whole word — immediately after). `part_of_day` is the single source of truth (buckets identical to the greeting composer, so greeting and check-in can never disagree). Public API: `harmonize` (choke-point repair, never raises), `repair`, `coherence_issues`, `is_coherent` (for certification), plus `greeting_word`/`this_part_phrase` authorities.
+
+Result — the 8:16 PM check-in now reads "Good evening, Danny. … Before we dive into today — how are you feeling this evening…?" Executive brief (already time-aware from the hour) and every other composed response pass through unchanged when already coherent (harmonize is a no-op when the text already matches the clock).
+
+Regression (`apps/ai/tests/test_response_coherence.py`, 9 tests): the exact production case (evening greeting + "this morning") repaired to coherent; a wrong greeting re-grounded; matching-time left untouched; historical/scheduled references never rewritten; a per-family × per-part-of-day matrix (greeting / check-in / executive summary / mission update at morning/afternoon/evening) all coherent; and the REAL routed path (`route_message` with a mocked evening/afternoon/morning clock and the strong-sleep branch) never mixes two parts of day. Certification: routed check-in at morning/afternoon/evening each reads as one coherent person. 88 across coherence + conversation-planner + lanes + human-ready + temporal-grounding + conversation-memory + prior-reading GREEN except the 2 known PRE-EXISTING stale registry-order guards. No model change, no migration.
+
+**Files:** apps/ai/chatgpt_cos/response_coherence.py (new), apps/ai/tests/test_response_coherence.py (new), apps/ai/chatgpt_cos/lanes.py.
+
+
 ## 2026-07-03 — feat(cos): Prior-Reading Truth + Provenance + Temporal-Impossibility — close the glucose production gaps
 
 Production-conversation validation of the Evidence Integrity capability proved it was incomplete: the integrity machinery was sound, but the risky user intents never reached it. Closed as ONE coherent unit (Evidence Integrity + Provenance + Prior-Reading Truth), routed-path validated — not glucose-only patches. Four gaps, from the exact production flow:

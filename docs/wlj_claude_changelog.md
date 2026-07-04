@@ -6,6 +6,15 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — feat(cos): Recognize mission-significant accomplishments (WI-2)
+
+Production: "I made up my workouts from Wednesday and Friday." → Beth missed the significance (kept the morning interpretation). A reported accomplishment is not a workout fact to look up — it materially changes today's picture (effort → recovery need → priorities). New `apps/ai/chatgpt_cos/accomplishment.py`: `detect` recognizes a first-person REPORT (made-up / completed workouts; extracts count + weekdays; DECLINES questions so it never steals "did you see my workout?"); `answer` celebrates appropriately AND RECORDS it to a per-user, per-day evidence store (`todays(user)`) the rest of the executive reasoning consumes. New `accomplishment` lane before the retrieval lanes (so "made up my workouts from Wednesday and Friday" is recognized as a report, not retrieved as Wednesday's workout).
+
+Certified: the report → "That's a genuine win — made up 2 missed workouts (Wednesday, Friday) means you've banked more work than today's plan asked for… you've earned recovery now…", and records "made up 2 missed workouts (Wednesday, Friday)". Regression `apps/ai/tests/test_accomplishment.py` (8). Registry guards updated. No migration. (WI-1 consumes this evidence.)
+
+**Files:** apps/ai/chatgpt_cos/accomplishment.py (new), apps/ai/chatgpt_cos/lanes.py, apps/ai/tests/test_conversation_lanes.py, apps/ai/tests/test_accomplishment.py (new).
+
+
 ## 2026-07-04 — feat(legacy): Family Tree completion — clean family-unit layout + orthogonal connectors (Deployment 1)
 
 The Family View data model was right but the visualization overlapped people, had no clear connectors, and didn't read as a family. Replaced the layout algorithm entirely with a deterministic **family-unit** layout that guarantees no overlaps and looks like a real family tree.

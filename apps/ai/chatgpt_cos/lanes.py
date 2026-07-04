@@ -34,6 +34,16 @@ def _foundational_lane(user, message, conversation=None):
     return answer_foundational_fact(user, message)
 
 
+def _accomplishment_lane(user, message, conversation=None):
+    """RECOGNIZE MISSION-SIGNIFICANT ACCOMPLISHMENTS: a first-person REPORT of what the
+    user did ("I made up my workouts from Wednesday and Friday", "I got my workout in")
+    is celebrated and RECORDED as today's evidence — so the rest of the executive
+    reasoning reflects it. Runs before the retrieval lanes so a report isn't mistaken
+    for a query. Declines questions."""
+    from apps.ai.chatgpt_cos import accomplishment
+    return accomplishment.answer(user, message, conversation)
+
+
 def _sleep_history_lane(user, message, conversation=None):
     """HISTORICAL SLEEP RETRIEVAL: a sleep question about a specific/historical point
     in time ("what did I sleep on 7/1?", "the night before?", "last Monday?") is
@@ -1209,6 +1219,10 @@ LANE_REGISTRY = (
     # merely names a fact ("just need to take my nightly meds and I'm done") is a
     # tradeoff to evaluate, not a fact to look up. Declines for real questions.
     ("decision_support", _decision_support_lane),
+    # RECOGNIZE ACCOMPLISHMENTS: a report of what was done today ("I made up my
+    # workouts") is celebrated + recorded as today's evidence — before the retrieval
+    # lanes so it isn't mistaken for a query.
+    ("accomplishment", _accomplishment_lane),
     # HISTORICAL SLEEP RETRIEVAL runs BEFORE the foundational fact lane so a sleep
     # question about a specific night ("what did I sleep on 7/1?") retrieves THAT
     # night instead of always returning "last night". Declines otherwise.

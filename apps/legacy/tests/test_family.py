@@ -83,7 +83,7 @@ class FamilyGraphTests(TestCase):
         self.assertFalse(by_name["Marvin Jenkins"]["living"])
         self.assertTrue(by_name["Danny Jenkins"]["living"])
         kinds = {e["type"] for e in g["edges"]}
-        self.assertIn("parent", kinds)
+        self.assertTrue({"up", "down"} & kinds)   # parent lines (coloured by side of focus)
         self.assertIn("spouse", kinds)
 
     def test_family_view_renders(self):
@@ -213,11 +213,32 @@ class FocalViewTests(TestCase):
         self.assertEqual(len(idx), 4)
         self.assertTrue(all("text" in r and "id" in r and "name" in r for r in idx))
 
-    def test_view_renders_focus_and_search_data(self):
+    def test_view_renders_panel_and_search_data(self):
         self.client.force_login(self.user)
         me = self._p("Me", is_self=True); dad = self._p("Dad"); self._parent(dad, me)
         r = self.client.get(reverse("legacy:family"))
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "is-focus")
         self.assertContains(r, "famSearchData")     # full-family search index present
-        self.assertContains(r, "'s family")         # focus bar
+        self.assertContains(r, "fam-panel")         # side profile panel
+        self.assertContains(r, "View full profile")
+        self.assertContains(r, "fam-legend")        # relationship-line legend
+
+    def test_panel_lists_focus_relatives(self):
+        me = self._p("Me", is_self=True); dad = self._p("Dad"); sp = self._p("Sp")
+        kid = self._p("Kid"); sib = self._p("Sib")
+        self._parent(dad, me); self._parent(dad, sib); self._spouse(me, sp)
+        self._parent(me, kid)
+        panel = build_family_view(self.user, focus_pk=me.pk)["panel"]
+        self.assertTrue(panel["is_self"])
+        self.assertEqual([r["name"] for r in panel["parents"]], ["Dad"])
+        self.assertEqual([r["name"] for r in panel["spouses"]], ["Sp"])
+        self.assertEqual([r["name"] for r in panel["children"]], ["Kid"])
+        self.assertEqual([r["name"] for r in panel["siblings"]], ["Sib"])
+
+    def test_edges_coloured_by_side_of_focus(self):
+        me = self._p("Me", is_self=True); dad = self._p("Dad"); kid = self._p("Kid")
+        self._parent(dad, me); self._parent(me, kid)
+        kinds = {e["type"] for e in build_family_view(self.user, focus_pk=me.pk)["edges"]}
+        self.assertIn("up", kinds)      # the line to a parent (above focus)
+        self.assertIn("down", kinds)    # the line to a child (below focus)

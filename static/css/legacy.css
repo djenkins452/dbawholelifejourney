@@ -1007,3 +1007,72 @@ a.fam-result { text-decoration: none; }
 .rel-roadmap-item { display: flex; flex-direction: column; gap: 3px; padding: 13px 15px; background: var(--lg-surface); border: 1px solid var(--lg-border); border-radius: 11px; }
 .rel-roadmap-title { font-size: 14px; font-weight: 600; color: var(--lg-ink); }
 .rel-roadmap-blurb { font-size: 12px; color: var(--lg-muted); }
+
+/* ==========================================================================
+   Family View v2 — two-column (tree + profile panel), coloured lines, legend
+   ========================================================================== */
+.famview { display: flex; gap: 18px; align-items: flex-start; }
+.fam-main { flex: 1 1 auto; min-width: 0; }
+.fam-panel { flex: 0 0 322px; align-self: stretch; background: var(--lg-surface); border: 1px solid var(--lg-border);
+    border-radius: 16px; padding: 18px 18px 20px; position: relative; max-height: calc(68vh + 92px); display: flex; flex-direction: column; }
+
+/* Controls now a top-left horizontal bar; legend top-right. */
+.fam-controls { position: absolute; top: 12px; left: 12px; right: auto; z-index: 3; display: flex; flex-direction: row; gap: 6px; }
+.fam-ctrl-wide { width: auto; padding: 0 12px; gap: 7px; font-size: 13px; font-weight: 600; }
+.fam-legend { position: absolute; top: 14px; right: 14px; z-index: 3; display: flex; flex-wrap: wrap; gap: 12px;
+    background: rgba(255,255,255,.82); border: 1px solid var(--lg-border); border-radius: 10px; padding: 7px 11px; }
+.fam-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--lg-ink-soft); }
+.fam-legend-line { width: 18px; height: 0; border-top-width: 2.5px; border-top-style: solid; }
+.fam-legend-up { border-top-color: #5b7fb0; }
+.fam-legend-down { border-top-color: #6a9a5b; }
+.fam-legend-spouse { border-top-color: var(--lg-sidebar-gold, #c9a34e); }
+.fam-legend-sibling { border-top-style: dotted; border-top-color: #9b7bb0; }
+
+/* Coloured relationship lines. */
+.fam-edge-up { stroke: #5b7fb0; stroke-width: 2; }
+.fam-edge-down { stroke: #6a9a5b; stroke-width: 2; }
+.fam-edge-spouse { stroke: var(--lg-sidebar-gold, #c9a34e); stroke-width: 2.5; }
+.fam-edge-sibling { stroke: #9b7bb0; stroke-width: 1.6; stroke-dasharray: 2 4; }
+
+/* Focus / me markers on cards. */
+.fam-node-badge { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+    font-size: 10.5px; font-weight: 700; letter-spacing: .02em; color: #3a2f14; background: var(--lg-sidebar-gold, #c9a34e);
+    border-radius: 20px; padding: 2px 10px; box-shadow: 0 4px 10px -6px rgba(30,25,15,.5); }
+.fam-node-star { position: absolute; top: 8px; right: 9px; color: var(--lg-sidebar-gold, #c9a34e); font-size: 15px; line-height: 1; }
+
+/* Side profile panel. */
+.fam-panel-close { position: absolute; top: 12px; right: 12px; width: 28px; height: 28px; display: grid; place-items: center;
+    border-radius: 8px; text-decoration: none; color: var(--lg-muted); font-size: 20px; line-height: 1; }
+.fam-panel-close:hover { background: var(--lg-surface-2); color: var(--lg-ink); }
+.fam-panel-head { display: flex; gap: 13px; align-items: center; padding-right: 26px; }
+.fam-panel-av { flex: 0 0 auto; width: 60px; height: 60px; border-radius: 14px; overflow: hidden; display: grid; place-items: center;
+    background: var(--lg-sidebar, #3a3226); color: #f3ead6; font-family: var(--lg-serif); font-size: 20px; font-weight: 600; }
+.fam-panel-av img { width: 100%; height: 100%; object-fit: cover; }
+.fam-panel-av.is-deceased { opacity: .85; }
+.fam-panel-name { font-family: var(--lg-serif); font-size: 20px; color: var(--lg-ink); margin: 0; line-height: 1.15; }
+.fam-panel-years { font-size: 12.5px; color: var(--lg-muted); margin: 3px 0 6px; }
+.fam-you-badge { display: inline-block; font-size: 11px; font-weight: 600; color: #3a2f14; background: var(--lg-sidebar-gold, #c9a34e); border-radius: 20px; padding: 2px 10px; }
+.fam-you-badge.fam-rel-badge { background: var(--lg-surface-2); color: var(--lg-ink-soft); border: 1px solid var(--lg-border); }
+.fam-panel-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--lg-border); margin: 14px 0 8px; }
+.fam-tab { padding: 8px 10px; font-size: 13px; color: var(--lg-muted); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.fam-tab.is-active { color: var(--lg-ink); font-weight: 600; border-bottom-color: var(--lg-accent, #b07a2b); }
+.fam-tab:hover { color: var(--lg-ink); }
+.fam-panel-body { overflow-y: auto; flex: 1; margin: 0 -4px; padding: 0 4px; }
+.fam-panel-sec { margin-top: 10px; }
+.fam-panel-h { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--lg-muted); margin: 0 0 4px; }
+.fam-panel-empty { font-size: 13px; color: var(--lg-muted); font-style: italic; margin-top: 12px; }
+.fam-rel { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 10px; text-decoration: none; color: inherit; }
+.fam-rel:hover { background: var(--lg-surface-2); }
+.fam-rel-av { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; overflow: hidden; display: grid; place-items: center;
+    background: var(--lg-sidebar, #3a3226); color: #f3ead6; font-size: 12px; font-weight: 600; }
+.fam-rel-av img { width: 100%; height: 100%; object-fit: cover; }
+.fam-rel-av.is-deceased { opacity: .82; }
+.fam-rel-main { min-width: 0; display: flex; flex-direction: column; }
+.fam-rel-name { font-size: 13.5px; font-weight: 600; color: var(--lg-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fam-rel-meta { font-size: 11px; color: var(--lg-muted); }
+.fam-panel-cta { margin-top: 14px; text-align: center; }
+
+@media (max-width: 900px) {
+    .famview { flex-direction: column; }
+    .fam-panel { flex-basis: auto; width: 100%; max-height: none; }
+}

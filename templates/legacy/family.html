@@ -10,49 +10,81 @@
 
 {% if graph.shown %}
 <div class="famview" id="famView" data-focus-x="{{ graph.focus_x }}" data-focus-y="{{ graph.focus_y }}">
-    <div class="fam-toolbar">
-        <div class="fam-search">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="search" id="famSearch" class="fam-search-in" placeholder="Search your whole family by name or nickname…" autocomplete="off" aria-label="Search family">
-            <div class="fam-results" id="famResults" hidden></div>
+    <div class="fam-main">
+        <div class="fam-toolbar">
+            <div class="fam-search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="search" id="famSearch" class="fam-search-in" placeholder="Search your whole family by name or nickname…" autocomplete="off" aria-label="Search family">
+                <div class="fam-results" id="famResults" hidden></div>
+            </div>
+            {% if graph.me %}<a class="fam-home" href="{% url 'legacy:family' %}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg> This is me</a>{% endif %}
         </div>
-        {% if graph.me %}<a class="fam-home" href="{% url 'legacy:family' %}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg> Me</a>{% endif %}
+
+        <div class="fam-stage" id="famStage">
+            <div class="fam-controls">
+                <button type="button" class="fam-ctrl" data-fam="zoomout" aria-label="Zoom out">−</button>
+                <button type="button" class="fam-ctrl" data-fam="zoomin" aria-label="Zoom in">+</button>
+                <button type="button" class="fam-ctrl fam-ctrl-wide" data-fam="fit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg> Fit to view</button>
+            </div>
+            <div class="fam-legend">
+                <span class="fam-legend-item"><span class="fam-legend-line fam-legend-up"></span>Parents</span>
+                <span class="fam-legend-item"><span class="fam-legend-line fam-legend-down"></span>Children</span>
+                <span class="fam-legend-item"><span class="fam-legend-line fam-legend-spouse"></span>Spouse</span>
+                <span class="fam-legend-item"><span class="fam-legend-line fam-legend-sibling"></span>Siblings</span>
+            </div>
+            <div class="fam-canvas" id="famCanvas">
+                <svg class="fam-edges" width="{{ graph.width }}" height="{{ graph.height }}" aria-hidden="true">
+                    {% for e in graph.edges %}<line x1="{{ e.x1 }}" y1="{{ e.y1 }}" x2="{{ e.x2 }}" y2="{{ e.y2 }}" class="fam-edge fam-edge-{{ e.type }}" />{% endfor %}
+                </svg>
+                {% for n in graph.nodes %}
+                <a class="fam-node{% if not n.living %} is-deceased{% endif %}{% if n.is_self %} is-me{% endif %}{% if n.is_focus %} is-focus{% endif %}"
+                   href="{% if n.is_focus %}{% url 'legacy:person_detail' n.id %}{% else %}{% url 'legacy:family' %}?focus={{ n.id }}{% endif %}"
+                   data-x="{{ n.x }}" data-y="{{ n.y }}" data-cx="{{ n.cx }}" data-cy="{{ n.cy }}"
+                   {% if n.is_focus %}title="Open {{ n.name }}'s profile"{% else %}title="Center on {{ n.name }}"{% endif %}>
+                    {% if n.is_self %}<span class="fam-node-badge">This is me</span>{% endif %}
+                    <span class="fam-node-av">{% if n.photo %}<img src="{{ n.photo }}" alt="">{% else %}{{ n.initials }}{% endif %}</span>
+                    <span class="fam-node-main">
+                        <span class="fam-node-name">{{ n.name }}</span>
+                        <span class="fam-node-meta">{% if n.birth %}{{ n.birth }}{% endif %}{% if n.birth or n.death %} – {% endif %}{% if n.death %}{{ n.death }}{% elif n.birth %}living{% endif %}</span>
+                    </span>
+                    {% if n.is_self %}<span class="fam-node-star" aria-hidden="true">★</span>{% endif %}
+                </a>
+                {% endfor %}
+            </div>
+            <p class="fam-hint">Click a relative to center on them · click the highlighted person to open their profile · drag to pan · scroll to zoom</p>
+        </div>
     </div>
 
-    {% if focus_node %}
-    <div class="fam-focusbar">
-        <span>Viewing <strong>{{ focus_node.name }}</strong>'s family{% if graph.count > graph.shown %} · {{ graph.count }} people in your whole tree{% endif %}</span>
-        <a href="{% url 'legacy:person_detail' graph.focus %}" class="lg-link">Open {{ focus_node.name }}'s profile →</a>
-    </div>
-    {% endif %}
-
-    <div class="fam-stage" id="famStage">
-        <div class="fam-controls">
-            <button type="button" class="fam-ctrl" data-fam="zoomin" aria-label="Zoom in">+</button>
-            <button type="button" class="fam-ctrl" data-fam="zoomout" aria-label="Zoom out">−</button>
-            <button type="button" class="fam-ctrl" data-fam="fit" aria-label="Fit this family">⤢</button>
+    {% with p=graph.panel %}
+    <aside class="fam-panel" id="famPanel">
+        <a href="{% url 'legacy:family' %}" class="fam-panel-close" aria-label="Back to me" title="Back to me">×</a>
+        <div class="fam-panel-head">
+            <span class="fam-panel-av{% if not p.person.living %} is-deceased{% endif %}">{% if p.person.photo %}<img src="{{ p.person.photo }}" alt="">{% else %}{{ p.person.initials }}{% endif %}</span>
+            <div class="fam-panel-id">
+                <h2 class="fam-panel-name">{{ p.person.name }}</h2>
+                <p class="fam-panel-years">{% if p.person.birth %}{{ p.person.birth }}{% endif %}{% if p.person.birth or p.person.death %}–{% endif %}{% if p.person.death %}{{ p.person.death }}{% endif %}{% if not p.person.death and p.person.birth %} · living{% endif %}</p>
+                {% if p.is_self %}<span class="fam-you-badge">This is you</span>{% elif p.person.rel %}<span class="fam-you-badge fam-rel-badge">{{ p.person.rel }}</span>{% endif %}
+            </div>
         </div>
-        <div class="fam-canvas" id="famCanvas">
-            <svg class="fam-edges" width="{{ graph.width }}" height="{{ graph.height }}" aria-hidden="true">
-                {% for e in graph.edges %}<line x1="{{ e.x1 }}" y1="{{ e.y1 }}" x2="{{ e.x2 }}" y2="{{ e.y2 }}" class="fam-edge fam-edge-{{ e.type }}" />{% endfor %}
-            </svg>
-            {% for n in graph.nodes %}
-            <a class="fam-node{% if not n.living %} is-deceased{% endif %}{% if n.is_self %} is-me{% endif %}{% if n.is_focus %} is-focus{% endif %}"
-               href="{% if n.is_focus %}{% url 'legacy:person_detail' n.id %}{% else %}{% url 'legacy:family' %}?focus={{ n.id }}{% endif %}"
-               data-x="{{ n.x }}" data-y="{{ n.y }}" data-cx="{{ n.cx }}" data-cy="{{ n.cy }}"
-               {% if n.is_focus %}title="Open {{ n.name }}'s profile"{% else %}title="Center on {{ n.name }}"{% endif %}>
-                <span class="fam-node-av">{% if n.photo %}<img src="{{ n.photo }}" alt="">{% else %}{{ n.initials }}{% endif %}</span>
-                <span class="fam-node-main">
-                    <span class="fam-node-name">{{ n.name }}</span>
-                    <span class="fam-node-meta">{% if n.birth %}{{ n.birth }}{% endif %}{% if n.birth or n.death %} – {% endif %}{% if n.death %}{{ n.death }}{% elif n.birth %}living{% endif %}{% if n.rel %} · {{ n.rel }}{% endif %}</span>
-                </span>
-            </a>
-            {% endfor %}
+        <div class="fam-panel-tabs">
+            <span class="fam-tab is-active">Overview</span>
+            <a class="fam-tab" href="{% url 'legacy:person_detail' graph.focus %}#stories">Stories</a>
+            <a class="fam-tab" href="{% url 'legacy:person_detail' graph.focus %}#media">Media</a>
         </div>
-    </div>
-    <p class="fam-hint">Click a relative to center on them · click the highlighted person to open their profile · drag to move · scroll or pinch to zoom</p>
-    {{ search_index|json_script:"famSearchData" }}
+        <div class="fam-panel-body">
+            {% if p.parents %}<div class="fam-panel-sec"><h3 class="fam-panel-h">Parents</h3>{% for r in p.parents %}{% include "legacy/_fam_relative.html" with r=r %}{% endfor %}</div>{% endif %}
+            {% if p.spouses %}<div class="fam-panel-sec"><h3 class="fam-panel-h">{% if p.spouses|length > 1 %}Spouses{% else %}Spouse{% endif %}</h3>{% for r in p.spouses %}{% include "legacy/_fam_relative.html" with r=r %}{% endfor %}</div>{% endif %}
+            {% if p.children %}<div class="fam-panel-sec"><h3 class="fam-panel-h">Children</h3>{% for r in p.children %}{% include "legacy/_fam_relative.html" with r=r %}{% endfor %}</div>{% endif %}
+            {% if p.siblings %}<div class="fam-panel-sec"><h3 class="fam-panel-h">Siblings</h3>{% for r in p.siblings %}{% include "legacy/_fam_relative.html" with r=r %}{% endfor %}</div>{% endif %}
+            {% if not p.parents and not p.spouses and not p.children and not p.siblings %}
+            <p class="fam-panel-empty">No family connections recorded for {{ p.person.name }} yet.</p>
+            {% endif %}
+        </div>
+        <a href="{% url 'legacy:person_detail' graph.focus %}" class="lg-btn-primary fam-panel-cta">View full profile</a>
+    </aside>
+    {% endwith %}
 </div>
+{{ search_index|json_script:"famSearchData" }}
 
 <script nonce="{{ csp_nonce }}">
 (function () {
@@ -69,7 +101,6 @@
     var scale = 1, tx = 40, ty = 40;
     function apply() { canvas.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')'; }
     function clampScale(s) { return Math.min(2.5, Math.max(0.25, s)); }
-
     function fit() {
         var cw = canvas.scrollWidth || 1, ch = canvas.scrollHeight || 1;
         var sw = stage.clientWidth || 1, sh = stage.clientHeight || 1;
@@ -81,14 +112,12 @@
         var r = stage.getBoundingClientRect();
         tx = r.width / 2 - cx * scale; ty = Math.max(24, r.height / 2 - cy * scale); apply();
     }
-
-    // Open centered on the focal person — the neighborhood is small, so it fits.
     centerOn(parseFloat(view.getAttribute('data-focus-x')) || 0,
              parseFloat(view.getAttribute('data-focus-y')) || 0, 1);
 
     var dragging = false, sx = 0, sy = 0, sTx = 0, sTy = 0, moved = false;
     stage.addEventListener('pointerdown', function (e) {
-        if (e.target.closest('.fam-node') || e.target.closest('.fam-controls')) { return; }
+        if (e.target.closest('.fam-node') || e.target.closest('.fam-controls') || e.target.closest('.fam-legend')) { return; }
         dragging = true; moved = false; sx = e.clientX; sy = e.clientY; sTx = tx; sTy = ty;
         try { stage.setPointerCapture(e.pointerId); } catch (err) {}
         stage.classList.add('is-panning');
@@ -102,10 +131,7 @@
     function endPan() { dragging = false; stage.classList.remove('is-panning'); }
     stage.addEventListener('pointerup', endPan);
     stage.addEventListener('pointercancel', endPan);
-    // Suppress the click→navigate if the pointer was actually a drag.
-    canvas.addEventListener('click', function (e) {
-        if (moved) { e.preventDefault(); moved = false; }
-    }, true);
+    canvas.addEventListener('click', function (e) { if (moved) { e.preventDefault(); moved = false; } }, true);
 
     function zoomAt(mx, my, factor) {
         var ns = clampScale(scale * factor);
@@ -140,7 +166,6 @@
     }, { passive: false });
     stage.addEventListener('touchend', function (e) { if (e.touches.length < 2) { pinch0 = 0; } });
 
-    // Search the WHOLE family → selecting re-centers the tree on that person.
     var input = document.getElementById('famSearch');
     var results = document.getElementById('famResults');
     var data = [];
@@ -168,6 +193,10 @@
         input.addEventListener('input', function () { renderResults(input.value.trim().toLowerCase()); });
         document.addEventListener('click', function (e) { if (!e.target.closest('.fam-search')) { results.hidden = true; } });
     }
+    window.addEventListener('resize', function () {
+        centerOn(parseFloat(view.getAttribute('data-focus-x')) || 0,
+                 parseFloat(view.getAttribute('data-focus-y')) || 0, scale);
+    });
 })();
 </script>
 

@@ -43090,3 +43090,18 @@ NOTE on live verification: still no in-browser screenshot — `SESSION_COOKIE_SE
 **Verification:** 211 scoped Legacy tests green (7 new: focus defaults to me, focus param re-centers, neighborhood is bounded (great-grandparents in / 4-up out), siblings + spouse sit on the focus row, children centered below the couple, search index spans all people, view renders focus + search data). `check` + `makemigrations --check` clean (no schema change); Family-View JS passes `node --check`; test-client renders confirm the focal bar, is-focus node, whole-family search index, and the Relationships explorer (no placeholder, Family link, non-family list, roadmap).
 
 **Files:** `apps/legacy/services/family_tree.py`, `apps/legacy/views.py` (FamilyView focal + RelationshipsView), `apps/legacy/urls.py`, `templates/legacy/{family.html, relationships.html (new), base_legacy.html}`, `static/css/legacy.css` (v29), `apps/legacy/tests/test_family.py`, `apps/core/fixtures/release_notes.json`.
+
+
+## 2026-07-04 — refine(legacy): Family View — profile panel, colour-coded lines, focus marker (matching approved mockup)
+
+**Why:** Match the approved Family-tree design Danny liked: a side profile panel beside the tree, colour-coded relationship lines with a legend, and a clear "this is me" marker. Visualization refinement only; no redesign of Canonical Truth, GEDCOM import, or the Person Profile; no Beth/CoS.
+
+**What:**
+- **Side profile panel:** the Family View is now two columns — the focal tree on the left, a **profile panel on the right** showing the focal person's photo, name, years, a "This is you" / relationship badge, an Overview with **Parents / Spouse / Children / Siblings** (each a clickable mini-row that re-centers the tree), Stories/Media tabs that jump to the full profile, and a **View full profile** button. Server-rendered from the focus — no extra request; clicking any relative re-focuses and the panel follows. Direct relatives are listed in full even when the tree crops distant branches.
+- **Colour-coded relationship lines + legend:** parent→child lines are blue **above** the focus (Parents) and green **below** (Children); spouse ties are gold; sibling ties are a light dotted purple in the gap between adjacent siblings. A legend on the canvas names each.
+- **Focus / me markers:** the keeper's card shows a gold **"This is me"** badge + star and gold ring; the current focal card gets an accent ring.
+- **Controls** moved to a top-left bar (− + · Fit to view) with the legend top-right, matching the mockup. Pan / zoom / pinch retained; responsive (panel stacks under the tree below 900px).
+
+**Verification:** 213 scoped Legacy tests green (3 new: panel lists the focus's parents/spouse/children/siblings, edges coloured by side of focus (up/down), view renders the panel + legend + search index; the placeholder test dropped Relationships now that it's real). `check` + `makemigrations --check` clean (no schema change); Family JS passes `node --check`; a test-client render confirms the profile panel, This-is-you badge, This-is-me card badge + star, legend, and blue/green relationship lines, with the focus's parent/spouse/child all listed in the panel.
+
+**Files:** `apps/legacy/services/family_tree.py` (edge colours + sibling ties + panel data), `apps/legacy/views.py`, `templates/legacy/{family.html, _fam_relative.html (new), base_legacy.html}`, `static/css/legacy.css` (v30), `apps/legacy/tests/{test_family.py, test_foundation.py}`, `apps/core/fixtures/release_notes.json`.

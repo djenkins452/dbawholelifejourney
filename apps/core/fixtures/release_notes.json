@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 229,
+    "fields": {
+      "title": "Family View gets a profile panel and color-coded connections",
+      "description": "The Family view now shows a profile panel beside the tree: click anyone and their photo, dates, parents, spouse, children, and siblings appear on the right — each one clickable to move through the family — with a button to open their full profile. Relationship lines are now color-coded so the tree is easy to read at a glance: blue up to parents, green down to children, gold between spouses, and a dotted line for siblings, with a legend to match. Your own card is marked so you always know where you are.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-04",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-04T02:00:00Z",
+      "updated_at": "2026-07-04T02:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 228,
     "fields": {
       "title": "Family View now explores one person at a time",

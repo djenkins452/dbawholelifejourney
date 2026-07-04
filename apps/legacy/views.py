@@ -1338,10 +1338,8 @@ class FamilyView(LegacyContextMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        graph = family_tree.build_family_view(
+        ctx["graph"] = family_tree.build_family_view(
             self.request.user, self.request.GET.get("focus"))
-        ctx["graph"] = graph
-        ctx["focus_node"] = next((n for n in graph["nodes"] if n["is_focus"]), None)
         # Search spans the WHOLE family, not just the rendered neighborhood.
         ctx["search_index"] = family_tree.family_search_index(self.request.user)
         return ctx

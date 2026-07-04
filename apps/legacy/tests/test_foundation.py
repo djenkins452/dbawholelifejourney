@@ -121,8 +121,8 @@ class ViewTests(TestCase):
         self.assertNotContains(resp, "First Day of School")
 
     def test_placeholder_pages_render(self):
-        # Timeline became real (Life Milestones); relationships/search/settings remain.
-        for name in ("relationships", "search", "settings"):
+        # Timeline + Relationships became real; search/settings remain placeholders.
+        for name in ("search", "settings"):
             resp = self.client.get(reverse(f"legacy:{name}"))
             self.assertEqual(resp.status_code, 200, name)
             self.assertContains(resp, "being prepared")

@@ -55,6 +55,16 @@ def _edges(user):
     return parents, children, spouses
 
 
+def _person_row(p):
+    return {
+        "id": p.pk, "name": p.display_name, "initials": _initials(p.display_name),
+        "birth": p.birth_year, "death": p.death_year, "living": p.death_year is None,
+        "rel": p.relationship_label,
+        "photo": (p.primary_photo.file.url
+                  if (p.primary_photo and p.primary_photo.file) else ""),
+    }
+
+
 def _resolve_self(user, people):
     for p in people:
         if p.is_self:
@@ -204,16 +214,21 @@ def _layout(user, people, parents, children, spouses, focus_pk, me_pk):
         if p.pk == focus_pk:
             fx, fy = cx, cy
 
+    focus_gen = gen.get(focus_pk, 0)
     edges = []
+    # Parent→child lines, coloured by side of the focus: ancestors above (up),
+    # descendants below (down) — matching the legend.
     for cpk, pset in parents.items():
         if cpk not in pos:
             continue
         cx, cy = pos[cpk]
+        etype = "up" if gen.get(cpk, 0) <= focus_gen else "down"
         for ppk in pset:
             if ppk in pos:
                 px, py = pos[ppk]
-                edges.append({"type": "parent", "x1": round(px), "y1": round(py + CARD_H / 2),
+                edges.append({"type": etype, "x1": round(px), "y1": round(py + CARD_H / 2),
                               "x2": round(cx), "y2": round(cy - CARD_H / 2)})
+    # Spouse ties.
     drawn = set()
     for a, sset in spouses.items():
         for b in sset:
@@ -224,6 +239,21 @@ def _layout(user, people, parents, children, spouses, focus_pk, me_pk):
             ax, ay = pos[a]; bx, by = pos[b]
             edges.append({"type": "spouse", "x1": round(ax), "y1": round(ay),
                           "x2": round(bx), "y2": round(by)})
+    # Sibling ties — a light dotted connector in the gap between adjacent siblings.
+    sib_drawn = set()
+    for ppk, kids in children.items():
+        row = sorted((k for k in kids if k in pos), key=lambda k: pos[k][0])
+        for i in range(len(row) - 1):
+            a, b = row[i], row[i + 1]
+            key = tuple(sorted((a, b)))
+            if key in sib_drawn:
+                continue
+            ax, ay = pos[a]; bx, by = pos[b]
+            if abs(round(ay) - round(by)) <= 1 and abs(bx - ax) <= COL_STRIDE + 1:
+                sib_drawn.add(key)
+                edges.append({"type": "sibling",
+                              "x1": round(ax + CARD_W / 2), "y1": round(ay),
+                              "x2": round(bx - CARD_W / 2), "y2": round(by)})
 
     height = ((max(gen.values()) + 1) * ROW_STRIDE - GAP_Y) if gen else 0
     return {"nodes": nodes, "edges": edges, "width": round(max_cx + CARD_W / 2),
@@ -279,6 +309,27 @@ def build_family_view(user, focus_pk=None):
     rp, rc, rs = _restrict((parents, children, spouses), set(keep))
     graph = _layout(user, people, rp, rc, rs, focus, me_pk)
     graph["count"] = total
+
+    # Side profile panel for the focal person — ALL their direct relatives
+    # (even any cropped from the tree view), each a link that re-centers.
+    def _rows(idset):
+        seen, out = set(), []
+        for pk in idset:
+            if pk in by_id and pk not in seen:
+                seen.add(pk)
+                out.append(_person_row(by_id[pk]))
+        return out
+
+    fp = by_id[focus]
+    sib_ids = [k for par in parents.get(focus, ()) for k in children.get(par, ())
+               if k != focus]
+    graph["panel"] = {
+        "person": _person_row(fp), "is_self": focus == me_pk,
+        "parents": _rows(sorted(parents.get(focus, ()))),
+        "spouses": _rows(sorted(spouses.get(focus, ()))),
+        "children": _rows(sorted(children.get(focus, ()))),
+        "siblings": _rows(sorted(set(sib_ids))),
+    }
     return graph
 
 

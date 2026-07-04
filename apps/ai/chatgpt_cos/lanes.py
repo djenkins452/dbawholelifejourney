@@ -34,6 +34,19 @@ def _foundational_lane(user, message, conversation=None):
     return answer_foundational_fact(user, message)
 
 
+def _decision_support_lane(user, message, conversation=None):
+    """Layer 2 DECISION SUPPORT: when the user is COMMUNICATING A DECISION (abandoning
+    a plan, reprioritizing, accepting a tradeoff, giving up, or calling it a night)
+    rather than asking for a fact, evaluate the tradeoff against the whole situation
+    and help them decide — instead of retrieving facts (the production failure: "just
+    need to take my nightly meds and I'm done" → a medication list). Declines for
+    everything else, so fact/reasoning routing is unaffected. Runs BEFORE the
+    foundational fact lane so a decision that merely NAMES a fact (meds, protein) is
+    not mistaken for a request to retrieve it."""
+    from apps.ai.chatgpt_cos import decision_support
+    return decision_support.respond(user, message, conversation)
+
+
 # Law 0 / Law 4 — DETERMINISTIC STATUS/COUNT questions belong to deterministic
 # providers (workout/journal/appointments), NOT the reasoning planner. Conservative
 # substrings: presence/status phrasings only, never the reasoning cues ("how is my
@@ -1156,6 +1169,10 @@ LANE_REGISTRY = (
     ("referential", _referential_lane),
     ("clarification_reply", _clarification_reply_lane),
     ("conversation_planner", _conversation_planner_lane),
+    # Layer 2 DECISION SUPPORT runs BEFORE fact retrieval: a voiced decision that
+    # merely names a fact ("just need to take my nightly meds and I'm done") is a
+    # tradeoff to evaluate, not a fact to look up. Declines for real questions.
+    ("decision_support", _decision_support_lane),
     ("foundational_facts", _foundational_lane),
     ("clarification", _clarification_lane),
     # Continue an active EXTERNAL/general thread BEFORE any personal-coaching lane

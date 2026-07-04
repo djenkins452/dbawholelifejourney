@@ -78,12 +78,19 @@ def _resolve_self(user, people):
 
 
 def _edges(user):
-    """parent/child adjacency + typed couple links over all of the user's rels."""
+    """parent/child adjacency + typed couple links for the FAMILY-tree subset of
+    the user's relationships. Membership in the family tree is decided by the ONE
+    stored category (family / romantic) — the Family View owns no 'is this family?'
+    keyword logic. The keyword matching below only picks the graph ROLE
+    (parent / child / spouse) and the couple's connector style — both structural,
+    both live here alone."""
     from apps.legacy.models import Relationship
     parents, children, spouses = defaultdict(set), defaultdict(set), defaultdict(set)
     couples = {}   # frozenset({a, b}) -> style
-    for r in Relationship.objects.filter(user=user).values_list(
-            "from_person_id", "to_person_id", "relationship_type"):
+    for r in Relationship.objects.filter(
+            user=user,
+            relationship_category__in=list(Relationship.FAMILY_TREE_CATEGORIES),
+    ).values_list("from_person_id", "to_person_id", "relationship_type"):
         f, t, typ = r[0], r[1], (r[2] or "").lower()
         if any(k in typ for k in _PARENT_OF):
             children[f].add(t); parents[t].add(f)

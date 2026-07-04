@@ -1398,44 +1398,41 @@ class FamilyView(LegacyContextMixin, TemplateView):
 
 
 class RelationshipsView(LegacyContextMixin, TemplateView):
-    """Relationships explorer. Family lives in the Family view (no duplication);
-    this is where the OTHER relationships in a life will grow — friends, coworkers,
-    mentors, faith, neighbours, service. v1 points to Family + shows the roadmap
-    and any non-family connections already captured."""
+    """The canonical relationship HUB. Every relationship in a life lives here,
+    grouped by its stored category (the single classifier — no keyword logic in
+    this view). Family/romantic launch the Family View (a specialized
+    visualization); the other categories list their people and grow over time."""
 
     template_name = "legacy/relationships.html"
     nav_active = "relationships"
 
-    _FAMILY = (
-        "parent", "father", "mother", "mom", "dad", "mum", "child", "son",
-        "daughter", "married", "spouse", "husband", "wife", "wed", "partner",
-        "brother", "sister", "sibling", "grand", "aunt", "uncle", "cousin",
-        "niece", "nephew", "in-law", "step", "half", "guardian", "adoptive",
-        "fianc", "boyfriend", "girlfriend", "relationship with",
-    )
+    # Non-family categories to surface as hub sections, in order, with a blurb for
+    # the ones not yet populated (a live roadmap, not a hardcoded one).
+    _SECTIONS = [
+        ("social", "Friends", "The people you chose"),
+        ("professional", "Professional", "Coworkers, managers, mentors, clients"),
+        ("faith", "Faith", "Pastors, small groups, church family"),
+        ("education", "Education", "Teachers, coaches, classmates"),
+        ("military", "Military & service", "Those you served with"),
+        ("community", "Neighbors & community", "The people around you"),
+        ("medical", "Care", "Doctors, nurses, caregivers"),
+        ("other", "Other", "Everyone else"),
+    ]
 
     def get_context_data(self, **kwargs):
+        from collections import defaultdict
         ctx = super().get_context_data(**kwargs)
         user = self.request.user
-        fam = 0
-        non_family = []
+        groups = defaultdict(list)
         for r in (Relationship.objects.filter(user=user)
                   .select_related("from_person", "to_person")):
-            t = (r.relationship_type or "").lower()
-            if any(k in t for k in self._FAMILY):
-                fam += 1
-            else:
-                non_family.append(r)
-        ctx["family_count"] = fam
-        ctx["non_family"] = non_family
+            groups[r.relationship_category].append(r)
+        fam_cats = list(Relationship.FAMILY_TREE_CATEGORIES)
+        ctx["family_count"] = sum(len(groups.get(c, [])) for c in fam_cats)
         ctx["people_count"] = Person.objects.filter(user=user).count()
-        ctx["roadmap"] = [
-            ("Friends", "The people you chose"),
-            ("Coworkers & managers", "Who you worked alongside"),
-            ("Mentors & teachers", "Who shaped you"),
-            ("Faith", "Pastors, small groups, church family"),
-            ("Neighbors", "The people next door"),
-            ("Military & service", "Those you served with"),
+        ctx["sections"] = [
+            {"key": key, "label": label, "blurb": blurb, "items": groups.get(key, [])}
+            for key, label, blurb in self._SECTIONS
         ]
         return ctx
 

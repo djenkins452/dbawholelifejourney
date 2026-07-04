@@ -555,8 +555,64 @@ RELATIONSHIP_TYPE_CHOICES = [
 ]
 
 
+# ── THE canonical relationship classifier — the ONE place a relationship_type is
+#    mapped to a category. Everything (Family View, Relationships hub, future
+#    social graphs / Beth) reads the STORED category; nothing else keyword-matches.
+#    Order matters: the first group whose keyword is present wins.
+_CATEGORY_KEYWORDS = [
+    ("romantic", ("married", "spouse", "husband", "wife", "wed", "partner",
+                  "fianc", "boyfriend", "girlfriend", "relationship with", "affair")),
+    ("family", ("parent", "father", "mother", "mom", "dad", "mum", "child", "son",
+                "daughter", "sibling", "brother", "sister", "half", "grand", "aunt",
+                "uncle", "cousin", "niece", "nephew", "in-law", "step", "adoptive",
+                "guardian")),
+    ("professional", ("coworker", "colleague", "manager", "boss", "mentor",
+                      "employer", "employee", "client")),
+    ("faith", ("pastor", "priest", "minister", "rabbi", "imam", "church",
+               "congregation", "chaplain")),
+    ("education", ("teacher", "professor", "tutor", "classmate", "student", "coach",
+                   "instructor", "principal")),
+    ("military", ("military", "commander", "platoon", "regiment", "squad", "served with")),
+    ("medical", ("doctor", "nurse", "physician", "therapist", "caregiver", "surgeon")),
+    ("community", ("neighbor", "neighbour")),
+    ("social", ("friend",)),
+]
+
+
+def classify_category(relationship_type):
+    """Map a relationship_type to its canonical category. The single source of
+    truth; consumers read the stored `relationship_category`, never call this."""
+    t = (relationship_type or "").lower().strip()
+    if not t:
+        return "unknown"
+    for cat, kws in _CATEGORY_KEYWORDS:
+        if any(k in t for k in kws):
+            return cat
+    return "other"
+
+
 class Relationship(LegacyOwnedModel):
-    """A typed, directional, time-bounded relationship between two people."""
+    """A typed, directional, time-bounded relationship between two people. This
+    model is the canonical truth for ALL relationships — family, romantic,
+    professional, social, faith, and beyond. Specialized views (the Family tree,
+    a future professional network, etc.) are just filtered visualizations of it."""
+
+    class Category(models.TextChoices):
+        FAMILY = 'family', 'Family'
+        ROMANTIC = 'romantic', 'Romantic'
+        PROFESSIONAL = 'professional', 'Professional'
+        SOCIAL = 'social', 'Social'
+        FAITH = 'faith', 'Faith'
+        EDUCATION = 'education', 'Education'
+        MILITARY = 'military', 'Military'
+        COMMUNITY = 'community', 'Community'
+        MEDICAL = 'medical', 'Medical'
+        OTHER = 'other', 'Other'
+        UNKNOWN = 'unknown', 'Unknown'
+
+    # The categories the Family View visualizes: blood/legal kin AND the couple
+    # bonds (marriage/partnership) that form a family tree.
+    FAMILY_TREE_CATEGORIES = frozenset({Category.FAMILY, Category.ROMANTIC})
 
     class RelStatus(models.TextChoices):
         CURRENT = 'current', 'Current'
@@ -573,6 +629,10 @@ class Relationship(LegacyOwnedModel):
     relationship_type = models.CharField(
         max_length=120, blank=True, help_text="e.g. 'father of', 'mentored by', 'married to'",
     )
+    # STORED category, derived from the type by `classify_category` on save. Every
+    # consumer reads this column; none re-classifies. Backfilled for existing rows.
+    relationship_category = models.CharField(
+        max_length=14, choices=Category.choices, default=Category.UNKNOWN, db_index=True)
     # Whether the relationship is ongoing, ended, estranged, or unknown — separate
     # from what KIND of relationship it is.
     rel_status = models.CharField(max_length=10, choices=RelStatus.choices, blank=True)
@@ -585,6 +645,13 @@ class Relationship(LegacyOwnedModel):
 
     class Meta:
         ordering = ['from_person__display_name']
+
+    def save(self, *args, **kwargs):
+        # The category is a denormalization of the type via the ONE classifier.
+        self.relationship_category = classify_category(self.relationship_type)
+        if "update_fields" in kwargs and kwargs["update_fields"] is not None:
+            kwargs["update_fields"] = set(kwargs["update_fields"]) | {"relationship_category"}
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.from_person} — {self.relationship_type or 'unknown'} — {self.to_person}"

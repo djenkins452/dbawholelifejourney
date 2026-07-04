@@ -43227,3 +43227,18 @@ NOTE on live verification: still no in-browser screenshot — `SESSION_COOKIE_SE
 **Verification:** 27 scoped tests green (backfill + integrity + gedcom); a query-count harness shows `N=200 → 4 queries`, `N=800 → 5 queries` (was ~2N full scans); `check` + `makemigrations --check` clean. Behaviour is unchanged — only the cost.
 
 **Files:** `apps/legacy/services/import_engine.py` (`backfill_gedcom_dates` rewritten O(N) + bulk_update), `apps/legacy/migrations/0020_backfill_dates_bind_self.py` (`atomic = False`).
+
+
+## 2026-07-04 — refactor(legacy): Relationships domain becomes the canonical hub (one stored category, one classifier)
+
+**Why:** The architecture was already right (GEDCOM writes canonical `Relationship` rows; the Family View reads them), but "is this family?" was decided by duplicated keyword lists (`family_tree` + `RelationshipsView._FAMILY`), and the Relationships page hid family. Strengthen and simplify — one stored category, one classifier, Relationships as the hub. No redesign of Canonical Truth / People / Family / GEDCOM; no Beth/CoS. `People → Relationships → specialized views`.
+
+**What:**
+- **Stored `relationship_category`** on `Relationship` (family / romantic / professional / social / faith / education / military / community / medical / other / unknown; migration 0021), kept in sync by `save()` from the type. **Backfilled** for existing rows (migration 0022 — O(N), bulk_update, non-atomic, guarded, with progress logging).
+- **ONE classifier:** `classify_category(relationship_type)` in `models.py` is the single source that maps a type to a category. Removed the duplicated `RelationshipsView._FAMILY` keyword list entirely. (The keyword matching left in `family_tree` is only graph ROLE — parent vs child vs spouse — and couple connector STYLE; both structural, both in one place, not category logic.)
+- **Family View consumes the stored category:** `_edges` now queries `relationship_category__in=Relationship.FAMILY_TREE_CATEGORIES` ({family, romantic}) — it owns no "is this family?" logic; it's explicitly a visualization of the family-category subset. Add any new relationship type and Family is unaffected unless its category is family/romantic.
+- **Relationships is the hub:** the page now shows every relationship grouped by its stored category (Friends, Professional, Faith, Education, Military & service, Neighbors & community, Care, Other), with **Family launching the Family View** (no duplicated family functionality). Categories with nothing yet show a gentle prompt (a live roadmap).
+
+**Verification:** 263 scoped Legacy tests green (7 new: classifier mapping for every category incl. former-spouse→romantic / manager→professional / pastor→faith / unknown; `FAMILY_TREE_CATEGORIES`; `save()` stores + re-syncs category even with `update_fields`; GEDCOM commit categorizes married→romantic / parent→family; Family `_edges` includes a spouse but excludes a manager; the hub groups by category and launches Family). `check` + `makemigrations --check` clean; migrations 0021+0022 applied to dev (backfilled).
+
+**Files:** `apps/legacy/models.py` (Category + `classify_category` + `relationship_category` + `save()` + `FAMILY_TREE_CATEGORIES`), `apps/legacy/services/family_tree.py` (`_edges` category filter), `apps/legacy/views.py` (RelationshipsView hub; removed `_FAMILY`), `templates/legacy/relationships.html` (hub), `static/css/legacy.css` (v36), `apps/legacy/migrations/{0021_*, 0022_*}`, `apps/legacy/tests/test_relationship_categories.py` (new), `apps/core/fixtures/release_notes.json`.

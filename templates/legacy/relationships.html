@@ -1,42 +1,45 @@
 {% extends "legacy/base_legacy.html" %}
 
 {% block legacy_content %}
-<div class="lib-head">
-    <div>
-        <h1 class="lib-title">Relationships</h1>
-        <p class="lib-sub">How the people in your life are connected.</p>
-    </div>
-</div>
-
-<section class="lg-card rel-family-card">
-    <div>
-        <h2 class="lg-card-h">Family</h2>
-        <p class="editor-aside-note">Your family — and how everyone connects — lives in the Family view.{% if people_count %} {{ people_count }} {{ people_count|pluralize:"person,people" }}, {{ family_count }} family {{ family_count|pluralize:"connection,connections" }} so far.{% endif %}</p>
-    </div>
-    <a href="{% url 'legacy:family' %}" class="lg-btn-primary">Open Family view →</a>
-</section>
-
-{% if non_family %}
-<section class="profile-sec">
-    <h2 class="profile-sec-title">Beyond family</h2>
-    <div class="chips">
-        {% for r in non_family %}
-        <span class="chip"><a href="{% url 'legacy:person_detail' r.from_person.pk %}">{{ r.from_person.display_name }}</a> — {{ r.relationship_type }} — <a href="{% url 'legacy:person_detail' r.to_person.pk %}">{{ r.to_person.display_name }}</a></span>
-        {% endfor %}
-    </div>
-</section>
-{% endif %}
-
-<section class="profile-sec">
-    <h2 class="profile-sec-title">Coming to Relationships</h2>
-    <p class="editor-aside-note">Family lives in the Family view. Next, Relationships will help you map the other people who shaped your life — each one able to become as rich as family, with their own stories, photos, and memories.</p>
-    <div class="rel-roadmap">
-        {% for title, blurb in roadmap %}
-        <div class="rel-roadmap-item">
-            <span class="rel-roadmap-title">{{ title }}</span>
-            <span class="rel-roadmap-blurb">{{ blurb }}</span>
+<div class="lib">
+    <div class="lib-head">
+        <div>
+            <h1 class="lib-title">Relationships</h1>
+            <p class="lib-sub">Everyone in your life, and how you're connected — the single source of truth for every relationship. Family is one way to explore it.</p>
         </div>
-        {% endfor %}
     </div>
-</section>
+
+    <section class="lg-card rel-family-card">
+        <div>
+            <h2 class="lg-card-h">Family</h2>
+            <p class="editor-aside-note">Your family and how everyone connects, shown as a tree.{% if people_count %} {{ family_count }} family {{ family_count|pluralize:"connection,connections" }} across {{ people_count }} {{ people_count|pluralize:"person,people" }}.{% endif %}</p>
+        </div>
+        <a href="{% url 'legacy:family' %}" class="lg-btn-primary">Open Family view →</a>
+    </section>
+
+    {% for sec in sections %}
+    <section class="profile-sec rel-section">
+        <div class="profile-sec-head">
+            <h2 class="profile-sec-title">{{ sec.label }}{% if sec.items %} <span class="rel-count">{{ sec.items|length }}</span>{% endif %}</h2>
+        </div>
+        {% if sec.items %}
+        <ul class="rel-list">
+            {% for r in sec.items %}
+            <li class="rel-row">
+                <span class="rel-desc">
+                    <a href="{% url 'legacy:person_detail' r.from_person.pk %}" class="lg-link">{{ r.from_person.display_name }}</a>
+                    <span class="rel-type">{{ r.type_label }}</span>
+                    <a href="{% url 'legacy:person_detail' r.to_person.pk %}" class="lg-link">{{ r.to_person.display_name }}</a>
+                    {% if r.rel_status and r.rel_status != 'current' %}<span class="rel-status-tag">{{ r.get_rel_status_display }}</span>{% endif %}
+                </span>
+                <a href="{% url 'legacy:relationship_edit' r.pk %}" class="rel-edit">Edit</a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="rel-section-empty">{{ sec.blurb }} — none recorded yet.</p>
+        {% endif %}
+    </section>
+    {% endfor %}
+</div>
 {% endblock %}

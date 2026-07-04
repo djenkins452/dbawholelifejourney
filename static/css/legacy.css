@@ -1136,3 +1136,8 @@ a.fam-result { text-decoration: none; }
 .rebuild-confirm { }
 .rebuild-note { font-size: 13.5px; color: var(--lg-ink-soft); margin: 0 0 14px; }
 .rebuild-confirm form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+/* Relationships hub */
+.rel-section { margin-top: 10px; }
+.rel-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--lg-surface-2); border: 1px solid var(--lg-border); font-size: 11px; font-weight: 600; color: var(--lg-ink-soft); vertical-align: middle; }
+.rel-section-empty { font-size: 13px; color: var(--lg-muted); font-style: italic; margin: 4px 0 0; }

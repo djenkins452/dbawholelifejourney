@@ -111,8 +111,15 @@ class Person(LegacyOwnedModel):
     # single ordinal for ranking prominence. 0 = unset.
     significance = models.PositiveSmallIntegerField(default=0)
     # The keeper's own node in the Family tree — the "home" position the view
-    # centers on. At most one per user (enforced when set).
+    # centers on. Denormalized from LegacyProfile.self_person for fast reads.
     is_self = models.BooleanField(default=False, db_index=True)
+    # Genealogy provenance — set when a person is committed from a GEDCOM import.
+    # A GEDCOM individual is unique by (source_batch, gedcom_xref); we NEVER merge
+    # distinct individuals by name (that is what caused impossible parent counts).
+    source_batch = models.ForeignKey(
+        'ImportBatch', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='imported_people')
+    gedcom_xref = models.CharField(max_length=40, blank=True, db_index=True)
 
     class Meta:
         ordering = ['display_name']
@@ -797,3 +804,20 @@ class RelationshipAlias(LegacyOwnedModel):
 
     def __str__(self):
         return f"{self.label} → {self.person.display_name if self.person else '?'}"
+
+
+class LegacyProfile(models.Model):
+    """Binds an authenticated WLJ user to the canonical Person that IS them — the
+    permanent focal point of the Family View. Set once; never depends on searching
+    a 1,500-person tree. Supersedes the transient Person.is_self flag (which is
+    kept denormalized for fast reads)."""
+
+    user = models.OneToOneField(
+        'users.User', on_delete=models.CASCADE, related_name='legacy_profile')
+    self_person = models.ForeignKey(
+        Person, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user_id} → {self.self_person_id}"

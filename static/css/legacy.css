@@ -1122,3 +1122,12 @@ a.fam-result { text-decoration: none; }
 .rel-actions { display: flex; gap: 10px; margin-top: 6px; }
 .rel-delete-form { margin-top: 18px; }
 .form-err { display: block; font-size: 12px; color: #c0392b; margin-top: 4px; }
+
+/* Family rebuild (data integrity) */
+.fam-rebuild-link { font-size: 12.5px; color: var(--lg-muted); text-decoration: none; padding: 8px 6px; }
+.fam-rebuild-link:hover { color: var(--lg-accent-ink, #7a5b1e); text-decoration: underline; }
+.rebuild-issues { margin-bottom: 16px; border-color: #e6d3ad; background: #faf4e6; }
+.rebuild-issue-list { margin: 8px 0 0; padding-left: 18px; font-size: 13px; color: #6f5f3d; display: flex; flex-direction: column; gap: 4px; }
+.rebuild-confirm { }
+.rebuild-note { font-size: 13.5px; color: var(--lg-ink-soft); margin: 0 0 14px; }
+.rebuild-confirm form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }

@@ -43167,3 +43167,22 @@ NOTE on live verification: still no in-browser screenshot — `SESSION_COOKIE_SE
 **Verification:** 240 scoped Legacy tests green (7 new: `_full_date` returns a date only with a day (month-only / year-only / ABT / invalid → None); the parser stores both full date and year; commit sets `birth_date`/`death_date` and shows "3 Mar 1945" while a year-only person shows "1948"; marriage full date → relationship `started_date` + "7 Jun 1997"; display prefers full date, falls back to year, empty when unknown). `check` + `makemigrations --check` clean; migration 0018 applied to dev. (Browser screenshot not possible locally — verified via the test client + these unit tests.)
 
 **Files:** `apps/legacy/models.py` (date fields + `display_*` + `fmt_life_date`), `apps/legacy/services/{gedcom_parser.py, import_engine.py, family_tree.py}`, `templates/legacy/{person_detail.html, _pcard.html, _fam_relative.html, family.html}`, `apps/legacy/migrations/0018_*`, `apps/legacy/tests/test_full_dates.py` (new), `apps/core/fixtures/release_notes.json`.
+
+
+## 2026-07-04 — fix(legacy): relationship-graph integrity — no name-merge, real user binding, rebuild
+
+**Why:** The Family Tree exposed bad Canonical Truth: some individuals showed impossible parent counts (e.g. "seven parents"). Data-integrity task — fix the graph, not the visualization. No redesign; no Beth/CoS.
+
+**Root cause (Problem 2):** `commit_genealogy` deduped GEDCOM individuals by NAME (`display_name__iexact`). In a large tree, distinct people share names (multiple "James Robertson"), so they collapsed into ONE Person that accumulated every namesake's parents → impossible structures.
+
+**What:**
+- **One Person per GEDCOM individual, never by name.** People are now keyed on `(source_batch, gedcom_xref)` (new `Person.source_batch` + `gedcom_xref`, migration 0019). Two different "James Robertson" stay two people, each with their own two parents; the user merges true duplicates by hand (Deployment 2). Re-commit is idempotent per xref.
+- **Rebuild for existing data (`rebuild_genealogy`):** a "Looks off?" action on the Family view (confirm page listing detected problems) removes the old name-merged placeholder people that carry no stories and their relationships, then re-commits every GEDCOM batch cleanly. People who've gained stories are preserved; the keeper stays bound. `validate_family_graph` reports any person with >2 biological parents.
+- **Real user binding (Problem 1):** new `LegacyProfile` (user ↔ canonical Person) + `self_binding.get_self_person` — a permanent binding that no longer depends on searching. It self-heals: explicit binding → `is_self` → a name match that accepts middle names ("Danny Jenkins" binds "Danny Ray Jenkins"), persisting the binding the first time. "This is me" and the Family view now use it, so **Family opens centered on the keeper with no searching**.
+- **Problems 3 & 4** (default 3-generation scope; click/search re-roots the tree) were already delivered by the earlier focal-view work; verified unchanged.
+
+**Verification:** 248 scoped Legacy tests green (8 new: two distinct same-named individuals stay distinct with exactly two parents each + graph validates clean; re-commit idempotent per xref; binding persists via LegacyProfile + fuzzy middle-name match + "This is me" binds; rebuild fixes a simulated name-merged 4-parent record → two correct people + healthy graph; rebuild preserves people with stories; rebuild view renders + runs). `check` + `makemigrations --check` clean; migration 0019 applied to dev. (Verified via the test client + these unit tests, which reproduce the exact "seven parents" scenario; local browser screenshots remain blocked by `SESSION_COOKIE_SECURE` vs http.)
+
+**Danny's existing import:** the fix prevents recurrence; to repair the already-imported tree, open **Family → "Looks off?" → Rebuild** once (it rebuilds from the original GEDCOM chunks). After that, Danny → exactly two biological parents, correct spouse/siblings/child.
+
+**Files:** `apps/legacy/models.py` (provenance + `LegacyProfile`), `apps/legacy/services/{self_binding.py (new), import_engine.py (commit fix + rebuild + validate), family_tree.py}`, `apps/legacy/views.py` (binding + GenealogyRebuildView), `apps/legacy/urls.py`, `templates/legacy/{family_rebuild.html (new), family.html, base_legacy.html}`, `static/css/legacy.css` (v34), `apps/legacy/migrations/0019_*`, `apps/legacy/tests/test_graph_integrity.py` (new), `apps/core/fixtures/release_notes.json`.

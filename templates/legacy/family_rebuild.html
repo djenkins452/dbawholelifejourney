@@ -1,0 +1,36 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="lib merge-page">
+    <a href="{% url 'legacy:family' %}" class="editor-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M15 18l-6-6 6-6"/></svg>
+        Family
+    </a>
+
+    <div class="lib-head">
+        <div>
+            <h1 class="lib-title">Rebuild your family tree</h1>
+            <p class="lib-sub">Earlier imports merged different people who happened to share a name, which created impossible family structures. This rebuilds your tree from the original import — one record per real individual — so the connections are correct.</p>
+        </div>
+    </div>
+
+    {% if issues %}
+    <div class="lg-card rebuild-issues">
+        <h2 class="lg-card-h">What's wrong right now</h2>
+        <ul class="rebuild-issue-list">
+            {% for issue in issues %}<li>{{ issue }}</li>{% endfor %}
+        </ul>
+    </div>
+    {% else %}
+    <p class="editor-aside-note">No impossible structures detected right now — but you can still rebuild if the tree looks off.</p>
+    {% endif %}
+
+    <div class="lg-card rebuild-confirm">
+        <p class="rebuild-note">Rebuilding removes placeholder people created by the import that don't have any stories, then re-creates everyone correctly from your genealogy file. People you've written stories about are kept, and you'll stay marked as yourself.</p>
+        <form method="post">{% csrf_token %}
+            <button type="submit" class="lg-btn-primary">Rebuild my family tree</button>
+            <a href="{% url 'legacy:family' %}" class="lg-btn-quiet">Not now</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

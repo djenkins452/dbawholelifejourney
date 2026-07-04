@@ -69,18 +69,10 @@ def _person_row(p):
 
 
 def _resolve_self(user, people):
-    for p in people:
-        if p.is_self:
-            return p.pk
-    full = ""
-    getter = getattr(user, "get_full_name", None)
-    if callable(getter):
-        full = (getter() or "").strip().lower()
-    if full:
-        for p in people:
-            if p.display_name.strip().lower() == full:
-                return p.pk
-    return None
+    """The keeper's Person pk via the permanent binding (self-heals + persists)."""
+    from apps.legacy.services.self_binding import get_self_person
+    p = get_self_person(user)
+    return p.pk if p else None
 
 
 def _neighborhood(focus, parents, children, spouses):

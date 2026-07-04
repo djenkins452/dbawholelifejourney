@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 234,
+    "fields": {
+      "title": "More accurate family relationships",
+      "description": "Legacy now keeps every person in an imported family tree separate, even when two people share the same name — so no one ends up with impossible parents. The Family view always opens centered on you, no searching required. If a tree you imported earlier looks off, open Family and choose \"Looks off?\" to rebuild it correctly from your original file.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-04",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-04T07:00:00Z",
+      "updated_at": "2026-07-04T07:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 233,
     "fields": {
       "title": "Exact dates from your family tree are preserved",

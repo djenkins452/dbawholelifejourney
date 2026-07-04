@@ -1344,6 +1344,29 @@ class ImportRunView(LegacyContextMixin, View):
         return redirect("legacy:import_detail", pk=batch.pk)
 
 
+class GenealogyRebuildView(LegacyContextMixin, View):
+    """Repair genealogy from the old name-merging importer — one Person per
+    individual. Destructive (removes placeholder duplicates), so it confirms first."""
+
+    template_name = "legacy/family_rebuild.html"
+    nav_active = "family"
+
+    def get(self, request, *args, **kwargs):
+        from django.shortcuts import render
+        return render(request, self.template_name, {
+            "issues": import_engine.validate_family_graph(request.user),
+            "nav_active": "family"})
+
+    def post(self, request, *args, **kwargs):
+        removed, created, links = import_engine.rebuild_genealogy(request.user)
+        messages.success(
+            request,
+            f"Rebuilt your family — cleared {removed} merged/placeholder "
+            f"{'record' if removed == 1 else 'records'} and re-created {created} people "
+            f"with {links} correct connections.")
+        return redirect("legacy:family")
+
+
 class GenealogyCommitView(LegacyContextMixin, View):
     """Commit a GEDCOM batch's genealogy queues into canonical People + Relationships."""
 
@@ -1539,11 +1562,9 @@ class PersonSetSelfView(LegacyContextMixin, View):
     """Mark a person as the keeper (the 'me' / home node in the Family tree)."""
 
     def post(self, request, pk, *args, **kwargs):
+        from apps.legacy.services.self_binding import bind_self
         person = get_object_or_404(Person.all_objects, pk=pk, user=request.user)
-        Person.objects.filter(user=request.user, is_self=True).exclude(pk=person.pk).update(is_self=False)
-        if not person.is_self:
-            person.is_self = True
-            person.save(update_fields=["is_self", "updated_at"])
+        bind_self(request.user, person)   # permanent binding, not just a flag
         messages.success(request, f"Got it — you're {person.display_name} in your family tree.")
         nxt = request.POST.get("next")
         return redirect(nxt) if nxt else redirect("legacy:person_detail", pk=person.pk)

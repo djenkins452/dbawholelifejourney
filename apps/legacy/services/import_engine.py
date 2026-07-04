@@ -186,15 +186,24 @@ def commit_genealogy(batch):
     xref_to_person = {}
     people_created = 0
 
+    # ONE Person per GEDCOM individual (identified by its xref) — NEVER merged by
+    # name. Two different people named "James Robertson" stay two people; the user
+    # merges true duplicates by hand. Merging by name is what created impossible
+    # parent counts. Re-commit is idempotent via (source_batch, gedcom_xref).
     for ch in batch.chunks.filter(chunk_kind="gedcom_person"):
         d = ch.data or {}
         name = (d.get("name") or ch.title or "Unknown person").strip()
-        person = Person.objects.filter(user=user, display_name__iexact=name).first()
+        xref = (d.get("xref") or "").strip()
+        person = None
+        if xref:
+            person = Person.all_objects.filter(
+                user=user, source_batch=batch, gedcom_xref=xref).first()
         if person is None:
             person = Person.objects.create(
                 user=user, display_name=name[:200],
                 birth_year=d.get("birth_year"), death_year=d.get("death_year"),
                 birth_date=_d(d.get("birth_date")), death_date=_d(d.get("death_date")),
+                source_batch=batch, gedcom_xref=xref[:40],
                 created_via=Person.CREATED_VIA_IMPORT)
             people_created += 1
         else:
@@ -207,8 +216,8 @@ def commit_genealogy(batch):
                     setattr(person, f, _d(d[f])); fields.append(f)
             if fields:
                 person.save(update_fields=fields + ["updated_at"])
-        if d.get("xref"):
-            xref_to_person[d["xref"]] = person
+        if xref:
+            xref_to_person[xref] = person
         if ch.status != ImportChunk.Status.IMPORTED:
             ch.status = ImportChunk.Status.IMPORTED
             ch.save(update_fields=["status"])
@@ -241,6 +250,60 @@ def commit_genealogy(batch):
 
     batch.refresh_counts()
     return people_created, links_created
+
+
+def rebuild_genealogy(user):
+    """Repair genealogy created by the old name-merging importer. Removes prior
+    import-origin genealogy people that carry no stories (and their relationships),
+    then re-commits every GEDCOM batch cleanly — one Person per individual, no
+    name merging. People who have since gained stories are preserved. Re-binds the
+    keeper afterwards. Returns (removed, people_created, links_created)."""
+    from django.db.models import Count, Q
+    from apps.legacy.models import ImportBatch, Person
+    from apps.legacy.services.self_binding import bind_self, get_self_person
+
+    self_p = get_self_person(user)
+    self_name = self_p.display_name if self_p else None
+
+    stale = (Person.all_objects.filter(user=user).annotate(_mc=Count("memories"))
+             .filter(_mc=0)
+             .filter(Q(source_batch__isnull=False) | Q(created_via=Person.CREATED_VIA_IMPORT)))
+    removed = stale.count()
+    stale.delete()   # cascades their relationships
+
+    people_created = links_created = 0
+    for batch in ImportBatch.all_objects.filter(user=user, source_type="gedcom"):
+        # forget any stale per-chunk person links, then re-commit fresh
+        p, l = commit_genealogy(batch)
+        people_created += p
+        links_created += l
+
+    if self_name:
+        again = Person.objects.filter(user=user, display_name__iexact=self_name).first()
+        if again:
+            bind_self(user, again)
+    return removed, people_created, links_created
+
+
+def validate_family_graph(user):
+    """Diagnostic: return human-readable integrity problems in the relationship
+    graph (e.g. more than two biological-style parents). Empty list = healthy."""
+    from collections import defaultdict
+    from apps.legacy.models import Relationship
+    names, parents = {}, defaultdict(list)
+    for r in (Relationship.objects.filter(user=user)
+              .select_related("from_person", "to_person")):
+        names[r.from_person_id] = r.from_person.display_name
+        names[r.to_person_id] = r.to_person.display_name
+        t = (r.relationship_type or "").lower()
+        if "parent of" in t and not any(k in t for k in ("step", "adoptive", "guardian")):
+            parents[r.to_person_id].append(r.from_person.display_name)
+    issues = []
+    for child_id, ps in parents.items():
+        if len(ps) > 2:
+            issues.append("%s has %d biological parents: %s"
+                          % (names.get(child_id, "?"), len(ps), ", ".join(ps)))
+    return issues
 
 
 def batch_stats(batch):

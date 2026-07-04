@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 222,
+    "fields": {
+      "title": "One photo can belong to many memories",
+      "description": "Media is now fully reusable in Legacy. A photo you add while writing a story reliably stays attached to it — through saving, refreshing, and reopening. And from a photo's page you can now connect it to as many stories as you like: it shows every story it's part of (open any of them, or remove it from one without deleting the photo), the people and places it's connected to, and a searchable list of your other stories with helpful suggestions to add it to. Nothing is ever duplicated — the same picture simply enriches every memory it belongs to.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-03",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-03T20:00:00Z",
+      "updated_at": "2026-07-03T20:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 221,
     "fields": {
       "title": "Legacy suggests a title for your story",

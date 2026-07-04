@@ -122,6 +122,23 @@
             }
         });
 
+        // Media Detail: filter the "add to more stories" picker as you type.
+        var mdSearch = document.querySelector('.md-search-in');
+        if (mdSearch) {
+            var mdPicks = Array.prototype.slice.call(document.querySelectorAll('.md-pick'));
+            var mdEmpty = document.querySelector('.md-picker-empty');
+            mdSearch.addEventListener('input', function () {
+                var q = mdSearch.value.trim().toLowerCase();
+                var shown = 0;
+                mdPicks.forEach(function (p) {
+                    var match = !q || (p.getAttribute('data-title') || '').indexOf(q) > -1;
+                    p.hidden = !match;
+                    if (match) { shown++; }
+                });
+                if (mdEmpty) { mdEmpty.hidden = shown > 0; }
+            });
+        }
+
         // Voice capture — browser speech-to-text, transcribed live into the story.
         var talkBtn = document.getElementById('talkBtn');
         var voiceBody = document.getElementById('memoryBody');
@@ -285,9 +302,38 @@
 
             function snapshot() { return (title ? title.value : '') + ' ' + (body ? body.value : ''); }
             lastSaved = snapshot();
+            var pkPromise = null;   // in-flight "create this memory" request, if any
+
+            // Create the memory EXACTLY ONCE, even when several triggers fire at
+            // once (a photo drop racing the debounced autosave). Without this, two
+            // pk-less saves each create a separate memory and the just-uploaded
+            // photo attaches to the wrong one — the "media not staying attached" bug.
+            function ensurePk() {
+                if (pkInput && pkInput.value) { return Promise.resolve(pkInput.value); }
+                if (pkPromise) { return pkPromise; }
+                var fd = new FormData(form); fd.set('action', 'autosave');
+                pkPromise = fetch(actionUrl, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrfFrom(form) },
+                    body: fd, credentials: 'same-origin'
+                }).then(function (r) { return r.json(); }).then(function (d) {
+                    pkPromise = null;
+                    if (d && d.ok && d.pk) {
+                        if (pkInput && !pkInput.value) {
+                            pkInput.value = d.pk;
+                            if (d.edit_url && window.history.replaceState) { window.history.replaceState({}, '', d.edit_url); }
+                        }
+                        lastSaved = snapshot();
+                        return d.pk;
+                    }
+                    throw new Error('save failed');
+                }).catch(function (e) { pkPromise = null; throw e; });
+                return pkPromise;
+            }
 
             function autosave() {
                 if (snapshot() === lastSaved) { return; }
+                if (pkInput && !pkInput.value) { ensurePk().catch(function () { if (indicator) { indicator.textContent = 'Not saved'; } }); return; }
                 if (indicator) { indicator.textContent = 'Saving…'; }
                 var fd = new FormData(form);
                 fd.set('action', 'autosave');
@@ -318,31 +364,6 @@
             if (title) { title.addEventListener('input', schedule); }
             if (body) { body.addEventListener('input', schedule); }
 
-            // Media belongs with the story — attach while writing (drag-drop / multi).
-            // A memory must exist to hang media on, so save first if needed.
-            function ensureSaved() {
-                return new Promise(function (resolve, reject) {
-                    if (pkInput && pkInput.value) { resolve(pkInput.value); return; }
-                    if (indicator) { indicator.textContent = 'Saving…'; }
-                    var fd = new FormData(form); fd.set('action', 'autosave');
-                    fetch(actionUrl, {
-                        method: 'POST',
-                        headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrfFrom(form) },
-                        body: fd, credentials: 'same-origin'
-                    }).then(function (r) { return r.json(); }).then(function (d) {
-                        if (d && d.ok && d.pk) {
-                            if (pkInput && !pkInput.value) {
-                                pkInput.value = d.pk;
-                                if (d.edit_url && window.history.replaceState) { window.history.replaceState({}, '', d.edit_url); }
-                            }
-                            lastSaved = snapshot();
-                            if (indicator) { indicator.textContent = 'Saved ' + (d.saved_at || ''); }
-                            resolve(d.pk);
-                        } else { reject(); }
-                    }).catch(reject);
-                });
-            }
-
             var mediaPanel = document.getElementById('editorMedia');
             if (mediaPanel) {
                 var grid = document.getElementById('editorMediaGrid');
@@ -371,7 +392,7 @@
                 function uploadFiles(files) {
                     if (!files || !files.length) { return; }
                     mediaPanel.classList.add('is-uploading');
-                    ensureSaved().then(function (pk) {
+                    ensurePk().then(function (pk) {
                         var fd = new FormData();
                         for (var i = 0; i < files.length; i++) { fd.append('file', files[i]); }
                         return fetch('/legacy/memories/' + pk + '/media/add/', {

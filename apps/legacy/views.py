@@ -840,6 +840,29 @@ class MediaUploadView(LegacyContextMixin, View):
         return redirect("legacy:media")
 
 
+def suggest_stories_for_media(media, limit=6):
+    """Stories worth linking this media to — those that share a person, place, or
+    life milestone with the stories it's already on. Helpful, not exhaustive."""
+    attached = list(media.memories.all())
+    if not attached:
+        return []
+    attached_ids = [m.pk for m in attached]
+    person_ids = set(Person.objects.filter(memories__in=attached).values_list("pk", flat=True))
+    place_ids = set(Place.objects.filter(memories__in=attached).values_list("pk", flat=True))
+    ms_ids = set(LifeMilestone.objects.filter(memories__in=attached).values_list("pk", flat=True))
+    q = Q()
+    if person_ids:
+        q |= Q(people__in=person_ids)
+    if place_ids:
+        q |= Q(places__in=place_ids)
+    if ms_ids:
+        q |= Q(milestones__in=ms_ids)
+    if not q:
+        return []
+    return list(Memory.objects.filter(user=media.user).filter(q)
+                .exclude(pk__in=attached_ids).distinct().order_by("-updated_at")[:limit])
+
+
 class MediaDetailView(LegacyContextMixin, DetailView):
     model = Media
     template_name = "legacy/media_detail.html"
@@ -851,8 +874,62 @@ class MediaDetailView(LegacyContextMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["memories"] = self.object.memories.all()
+        media = self.object
+        attached = list(media.memories.all())
+        ctx["memories"] = attached           # backwards-compatible key
+        ctx["attached_stories"] = attached
+        # People / places / milestones reached THROUGH the attached stories.
+        ctx["rel_people"] = Person.objects.filter(memories__in=attached).distinct()
+        ctx["rel_places"] = Place.objects.filter(memories__in=attached).distinct()
+        ctx["rel_milestones"] = LifeMilestone.objects.filter(memories__in=attached).distinct()
+        # Associate-more picker: suggestions first, then the rest to search through.
+        attached_ids = {m.pk for m in attached}
+        suggested = suggest_stories_for_media(media)
+        suggested_ids = {m.pk for m in suggested}
+        ctx["suggested_stories"] = suggested
+        ctx["other_stories"] = list(Memory.objects.filter(user=self.request.user)
+                                    .exclude(pk__in=attached_ids | suggested_ids)
+                                    .order_by("-updated_at")[:60])
         return ctx
+
+
+class MediaAssociateView(LegacyContextMixin, View):
+    """Link one media item to one or more stories — additive, never duplicates
+    the file, one photo can belong to many stories."""
+
+    def post(self, request, pk, *args, **kwargs):
+        media = get_object_or_404(Media.all_objects, pk=pk, user=request.user)
+        ids = request.POST.getlist("story")
+        added = 0
+        for story in Memory.all_objects.filter(user=request.user, pk__in=ids):
+            if story.media.filter(pk=media.pk).exists():
+                continue
+            story.media.add(media)
+            if media.media_type == Media.MediaType.PHOTO and not story.primary_media_id:
+                story.primary_media = media
+                story.save(update_fields=["primary_media", "updated_at"])
+            added += 1
+        if added:
+            messages.success(request, "Linked to %d %s." % (added, "story" if added == 1 else "stories"))
+        else:
+            messages.info(request, "No new stories linked.")
+        return redirect("legacy:media_detail", pk=media.pk)
+
+
+class MediaStoryDetachView(LegacyContextMixin, View):
+    """Remove the link between a media item and ONE story. The file stays in the
+    library and on any other stories — only the relationship is removed."""
+
+    def post(self, request, pk, story_pk, *args, **kwargs):
+        media = get_object_or_404(Media.all_objects, pk=pk, user=request.user)
+        story = get_object_or_404(Memory.all_objects, pk=story_pk, user=request.user)
+        story.media.remove(media)
+        if story.primary_media_id == media.pk:
+            story.primary_media = story.media.filter(
+                media_type=Media.MediaType.PHOTO).exclude(pk=media.pk).order_by("pk").first()
+            story.save(update_fields=["primary_media", "updated_at"])
+        messages.success(request, "Removed from that story — the photo stays in your library.")
+        return redirect("legacy:media_detail", pk=media.pk)
 
 
 class MediaArchiveView(LegacyContextMixin, View):

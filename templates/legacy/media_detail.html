@@ -24,15 +24,67 @@
             <p class="mediadetail-meta">{{ item.get_media_type_display }}{% if item.taken_on %} · {{ item.taken_on }}{% endif %}</p>
 
             <section class="lg-card">
-                <h2 class="lg-card-h">Where this appears</h2>
-                {% if memories %}
-                <ul class="mediadetail-links">
-                    {% for m in memories %}<li><a href="{% url 'legacy:editor' m.pk %}" class="lg-link">{{ m.title|default:"Untitled memory" }}</a></li>{% endfor %}
+                <h2 class="lg-card-h">In these stories{% if attached_stories %} ({{ attached_stories|length }}){% endif %}</h2>
+                {% if attached_stories %}
+                <p class="editor-aside-note">One photo can belong to many stories — nothing is duplicated.</p>
+                <ul class="md-story-list">
+                    {% for m in attached_stories %}
+                    <li class="md-story">
+                        <a href="{% url 'legacy:editor' m.pk %}" class="md-story-open">
+                            <span class="md-story-title">{{ m.title|default:"Untitled memory" }}</span>
+                            <span class="md-story-date">{{ m.created_at|date:"M j, Y" }}</span>
+                        </a>
+                        <form method="post" action="{% url 'legacy:media_story_detach' item.pk m.pk %}" class="md-story-detach">{% csrf_token %}
+                            <button type="submit" class="md-detach-btn" title="Remove from this story" aria-label="Remove from this story">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+                            </button>
+                        </form>
+                    </li>
+                    {% endfor %}
                 </ul>
                 {% else %}
-                <p class="editor-aside-note">Not yet connected to a memory. Add it to one from the memory editor.</p>
+                <p class="editor-aside-note">Not yet in any story. Link it to one or more below — the photo can enrich many memories without being copied.</p>
                 {% endif %}
             </section>
+
+            {% if rel_people or rel_places or rel_milestones %}
+            <section class="lg-card">
+                <h2 class="lg-card-h">Connected through those stories</h2>
+                {% if rel_people %}<div class="md-conn"><span class="md-conn-label">People</span><div class="chips">{% for p in rel_people %}<a href="{% url 'legacy:person_detail' p.pk %}" class="chip chip-link">{{ p.display_name }}</a>{% endfor %}</div></div>{% endif %}
+                {% if rel_places %}<div class="md-conn"><span class="md-conn-label">Places</span><div class="chips">{% for p in rel_places %}<a href="{% url 'legacy:place_detail' p.pk %}" class="chip chip-link">{{ p.name }}</a>{% endfor %}</div></div>{% endif %}
+                {% if rel_milestones %}<div class="md-conn"><span class="md-conn-label">Life Milestones</span><div class="chips">{% for m in rel_milestones %}<a href="{% url 'legacy:milestone_detail' m.pk %}" class="chip chip-link">{{ m.title }}</a>{% endfor %}</div></div>{% endif %}
+            </section>
+            {% endif %}
+
+            {% if suggested_stories or other_stories %}
+            <section class="lg-card">
+                <h2 class="lg-card-h">Add to more stories</h2>
+                <form method="post" action="{% url 'legacy:media_associate' item.pk %}" class="md-associate">
+                    {% csrf_token %}
+                    <div class="md-search">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <input type="search" class="md-search-in" placeholder="Search your stories…" aria-label="Search stories" autocomplete="off">
+                    </div>
+                    <div class="md-picker">
+                        {% for m in suggested_stories %}
+                        <label class="md-pick" data-title="{{ m.title|default:'untitled memory'|lower }}">
+                            <input type="checkbox" name="story" value="{{ m.pk }}">
+                            <span class="md-pick-main"><span class="md-pick-title">{{ m.title|default:"Untitled memory" }}</span><span class="md-pick-sub">{{ m.body|truncatechars:60 }}</span></span>
+                            <span class="disc-tag disc-verified">suggested</span>
+                        </label>
+                        {% endfor %}
+                        {% for m in other_stories %}
+                        <label class="md-pick" data-title="{{ m.title|default:'untitled memory'|lower }}">
+                            <input type="checkbox" name="story" value="{{ m.pk }}">
+                            <span class="md-pick-main"><span class="md-pick-title">{{ m.title|default:"Untitled memory" }}</span><span class="md-pick-sub">{{ m.created_at|date:"M j, Y" }}</span></span>
+                        </label>
+                        {% endfor %}
+                        <p class="md-picker-empty" hidden>No stories match.</p>
+                    </div>
+                    <button type="submit" class="lg-btn-primary md-associate-save">Save associations</button>
+                </form>
+            </section>
+            {% endif %}
 
             <section class="lg-card">
                 <h2 class="lg-card-h">Provenance</h2>

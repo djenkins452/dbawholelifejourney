@@ -331,6 +331,33 @@ body.theme-ember .legacy-root {
 .mediadetail-manage { margin-top: 16px; }
 .mediadetail-manage-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .mediadetail-setaside { font-size: 13px; color: var(--lg-ink-soft); margin-bottom: 10px; }
+
+/* Media Detail — story associations */
+.md-story-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.md-story { display: flex; align-items: center; gap: 6px; }
+.md-story-open { flex: 1; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 7px 9px; border-radius: 9px; text-decoration: none; color: inherit; min-width: 0; transition: background .12s; }
+.md-story-open:hover { background: var(--lg-surface-2); }
+.md-story-title { font-size: 13px; font-weight: 600; color: var(--lg-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-story-date { font-size: 11px; color: var(--lg-muted); flex: 0 0 auto; }
+.md-story-detach { margin: 0; }
+.md-detach-btn { width: 26px; height: 26px; display: grid; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--lg-muted); cursor: pointer; }
+.md-detach-btn:hover { background: #f6e6e2; color: #c0392b; }
+.md-detach-btn svg { width: 13px; height: 13px; }
+.md-conn { margin-top: 8px; }
+.md-conn-label { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--lg-muted); margin-bottom: 4px; }
+.md-associate { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.md-search { display: flex; align-items: center; gap: 7px; border: 1px solid var(--lg-border); border-radius: 9px; padding: 7px 10px; color: var(--lg-muted); }
+.md-search-in { flex: 1; border: 0; outline: none; background: transparent; font-size: 14px; color: var(--lg-ink); }
+.md-picker { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow-y: auto; }
+.md-pick { display: flex; align-items: center; gap: 9px; padding: 7px 9px; border: 1px solid var(--lg-border); border-radius: 9px; cursor: pointer; transition: border-color .12s, background .12s; }
+.md-pick:hover { border-color: var(--lg-border-strong); }
+.md-pick:has(input:checked) { border-color: var(--lg-accent); background: var(--lg-surface-2); }
+.md-pick input { accent-color: var(--lg-accent); margin: 0; }
+.md-pick-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.md-pick-title { font-size: 13px; font-weight: 600; color: var(--lg-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-pick-sub { font-size: 11px; color: var(--lg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.md-picker-empty { font-size: 12px; color: var(--lg-muted); font-style: italic; padding: 6px 2px; }
+.md-associate-save { align-self: flex-start; }
 .lg-btn-ghost:hover { background: var(--lg-surface-2); color: var(--lg-ink); }
 
 /* Flash messages */

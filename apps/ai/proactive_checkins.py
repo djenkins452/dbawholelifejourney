@@ -965,6 +965,20 @@ class ProactiveCheckInService:
         if not self.throttler.can_send(throttle_key):
             return None
 
+        # Respect an explicit "Got it" dismissal: if the user dismissed this exact
+        # observation, do NOT resurface it — unless it has MATERIALLY changed (the
+        # content hash differs, e.g. a different strength or narrative).
+        import hashlib
+        content_hash = hashlib.sha1(
+            f"{correlation_type}|{strength}|{narrative}".encode('utf-8')).hexdigest()[:12]
+        try:
+            from django.core.cache import cache
+            dismissed = cache.get(f"wlj:guidance_dismissed:{self.user.id}:{correlation_type}")
+            if dismissed == content_hash:
+                return None
+        except Exception:
+            pass
+
         domain_str = ' & '.join(d.title() for d in domains[:2])
         strength_label = (
             "a strong" if strength == 'strong'
@@ -994,6 +1008,9 @@ class ProactiveCheckInService:
                 'correlation_type': correlation_type,
                 'strength': strength,
                 'domains': domains,
+                # Identity for a "Got it" dismissal — a later card with the same hash
+                # is suppressed; a materially different one surfaces again.
+                'content_hash': content_hash,
             }
         )
 

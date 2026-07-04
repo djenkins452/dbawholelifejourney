@@ -1984,6 +1984,11 @@ class QuickReplyView(LoginRequiredMixin, AssistantMixin, View):
                     'error': 'Action is required',
                 }, status=400)
 
+            # Make the message id available to handlers that need it (e.g. 'dismiss'
+            # persists the dismissal keyed by the message's guidance identity).
+            if isinstance(params, dict):
+                params.setdefault('message_id', message_id)
+
             # Handle the quick reply ACTION (truth/action handler — runs for
             # every runtime; the action is not conversational).
             from .quick_reply_handlers import handle_quick_reply

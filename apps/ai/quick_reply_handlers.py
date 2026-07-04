@@ -58,6 +58,11 @@ def handle_quick_reply(user, action: str, params: dict) -> dict:
         'mark_task_complete': handle_mark_task_complete,
         'skip_routine_item': handle_skip_routine_item,
         'complete_routine_item': handle_complete_routine_item,
+        # Guidance/insight card actions ("Tell me more", "How to use this" → chat;
+        # "Got it" → dismiss). 'chat' is fulfilled client-side (the card's question is
+        # sent to chat), so the server call is a benign acknowledgement.
+        'chat': handle_chat_ack,
+        'dismiss': handle_dismiss_guidance,
     }
 
     handler = handlers.get(action)
@@ -76,6 +81,39 @@ def handle_quick_reply(user, action: str, params: dict) -> dict:
             'success': False,
             'message': "Something went wrong. Please try again.",
         }
+
+
+def handle_chat_ack(user, params: dict) -> dict:
+    """"Tell me more" / "How to use this" — the card's pre-written question is sent to
+    chat by the client (so Beth expands the observation / explains how to use it). The
+    server call is a benign acknowledgement; nothing to persist."""
+    return {'success': True, 'message': ''}
+
+
+def handle_dismiss_guidance(user, params: dict) -> dict:
+    """"Got it" — dismiss a guidance/insight card and PERSIST the dismissal so the same
+    observation does not resurface unless it materially changes. Keyed by the card's
+    guidance identity (correlation/check-in type) and a content hash: a later card with
+    the same hash is suppressed; a materially different one (new hash) surfaces again."""
+    import hashlib
+    from django.core.cache import cache
+    from .models import AssistantMessage
+
+    message_id = params.get('message_id')
+    if message_id:
+        try:
+            msg = AssistantMessage.objects.get(id=message_id, conversation__user=user)
+            meta = msg.metadata or {}
+            key_id = meta.get('correlation_type') or meta.get('check_in_type') or 'generic'
+            content_hash = meta.get('content_hash') or hashlib.sha1(
+                (msg.content or '').encode('utf-8')).hexdigest()[:12]
+            cache.set(f"wlj:guidance_dismissed:{user.id}:{key_id}",
+                      content_hash, 90 * 24 * 3600)
+        except AssistantMessage.DoesNotExist:
+            pass
+        except Exception as e:
+            logger.warning(f"dismiss_guidance persist failed: {e}")
+    return {'success': True, 'message': ''}
 
 
 def handle_mark_medicine_taken(user, params: dict) -> dict:

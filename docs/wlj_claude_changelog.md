@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — fix(ai): Interactive guidance card buttons now work — Tell me more / How to use this / Got it (WI-1)
+
+Guidance/insight cards ("I've noticed a pattern across your Sleep & Journal data…") showed buttons "Tell me more", "How to use this", "Got it" that did nothing — a broken promise. Root cause: those cards use quick-reply actions `chat` (Tell me more / How to use this) and `dismiss` (Got it), but the server `handle_quick_reply` map had NO handler for either — every click returned "I'm not sure how to handle that action." The client rendered the buttons but also never carried the `chat` action's pre-written question (`reply.value`).
+
+Fix (complete the intended capability; cards unchanged):
+- **"Tell me more" / "How to use this" (`chat`)** — the card's pre-written question ("Tell me more about the sleep_mood pattern", "How can I use this Sleep & Journal insight to improve?") is now sent to Beth through the normal chat path, client-side, so she expands the observation / explains how to use it. `reply.value` is now stored on the button and `handleQuickReply` routes `chat` to `sendMessage` (no endpoint round-trip). A benign server `chat` handler exists so a stray POST is never an "unknown action".
+- **"Got it" (`dismiss`)** — removes the card (bubble + timestamp) and PERSISTS the dismissal: `handle_dismiss_guidance` writes a marker `wlj:guidance_dismissed:<user>:<correlation_type>` = the card's content hash (90-day TTL). `generate_cdce_correlation_check_in` computes that hash (`correlation_type|strength|narrative`) and returns None when a dismissal marker matches — so the same observation does NOT resurface UNLESS it materially changes (a different strength/narrative → different hash → surfaces again). `QuickReplyView` now forwards `message_id` into params so the dismiss handler can identify the card.
+
+CSP-compliant (reuses the existing `data-action='ap-quick-reply'` delegation inside the nonce script; no inline handlers). Regression `apps/ai/tests/test_guidance_card_actions.py` (4): `chat`/`dismiss` are recognized (not "unknown"), dismiss persists the identity+hash marker, and a dismissed observation is suppressed while a materially-changed one resurfaces. 4 GREEN; existing proactive suites unaffected (3 pre-existing `TestNewGenerators` failures in untouched generators confirmed via stash). No model change, no migration.
+
+**Files:** templates/components/assistant_panel.html, apps/ai/views.py, apps/ai/quick_reply_handlers.py, apps/ai/proactive_checkins.py, apps/ai/tests/test_guidance_card_actions.py.
+
+
 ## 2026-07-04 — feat(cos): Historical sleep retrieval — sleep queryable by point in time (WI-3)
 
 "What did I sleep on 7/1?" → returned last night. "What was my sleep the night before?" → returned last night. Sleep truth existed per night but RETRIEVAL was current-only: every sleep question fell to the foundational fact lane, which always returns the latest value. Modelled on Medication Entity Completeness — make sleep fully queryable by point in time, deterministically, from the ONE canonical source.

@@ -611,6 +611,7 @@
                     btn.dataset.replyId = reply.id;
                     btn.dataset.action = 'ap-quick-reply';
                     btn.dataset.replyAction = reply.action;
+                    btn.dataset.replyValue = reply.value || '';
                     btn.dataset.params = JSON.stringify(reply.params || {});
                     btn.dataset.messageId = msgData.id;
                     btnsDiv.appendChild(btn);
@@ -1723,7 +1724,23 @@
 
         var btnsDiv = btn.parentElement;
         btnsDiv.querySelectorAll('.ap-quick-reply-btn').forEach(function(b) { b.disabled = true; });
+
+        // 'chat' actions ("Tell me more", "How to use this") ask Beth the card's
+        // pre-written question — send it through the normal chat path so she expands
+        // the observation / explains how to use it. Handled client-side; no endpoint.
+        if (replyAction === 'chat') {
+            var chatValue = btn.dataset.replyValue || btn.textContent;
+            btnsDiv.innerHTML = '<span class="ap-status-chip" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#6b7280;background:#f3f4f6;border-radius:9999px;padding:3px 10px;cursor:default;">✓ Asked</span>';
+            sendMessage(chatValue, chatMessages, chatInput, sendBtn);
+            return;
+        }
+
         btn.textContent = 'Processing...';
+        // 'dismiss' ("Got it") persists the dismissal so the same observation doesn't
+        // resurface unless it materially changes; the server needs the message id.
+        if (replyAction === 'dismiss') {
+            params.message_id = parseInt(messageId);
+        }
 
         fetch('/assistant/api/quick-reply/', {
             method: 'POST',
@@ -1737,6 +1754,19 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
+            // 'dismiss' removes the card entirely (bubble + its timestamp).
+            if (replyAction === 'dismiss') {
+                var card = btn.closest('.ap-chat-message');
+                if (card) {
+                    var stamp = card.nextElementSibling;
+                    if (stamp && stamp.classList.contains('ap-msg-time')) stamp.remove();
+                    card.style.transition = 'opacity 0.2s'; card.style.opacity = '0';
+                    setTimeout(function() { card.remove(); }, 200);
+                } else {
+                    btnsDiv.innerHTML = '<span class="ap-status-chip" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#6b7280;background:#f3f4f6;border-radius:9999px;padding:3px 10px;cursor:default;">✓ Dismissed</span>';
+                }
+                return;
+            }
             btnsDiv.innerHTML = '<span class="ap-status-chip" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#6b7280;background:#f3f4f6;border-radius:9999px;padding:3px 10px;cursor:default;">✓ Responded</span>';
             if (data.message) addMessage(chatMessages, data.message, false, true);
             if (data.data && data.data.action === 'navigate' && data.data.url) {

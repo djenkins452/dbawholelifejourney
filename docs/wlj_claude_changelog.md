@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — feat(cos): Historical sleep retrieval — sleep queryable by point in time (WI-3)
+
+"What did I sleep on 7/1?" → returned last night. "What was my sleep the night before?" → returned last night. Sleep truth existed per night but RETRIEVAL was current-only: every sleep question fell to the foundational fact lane, which always returns the latest value. Modelled on Medication Entity Completeness — make sleep fully queryable by point in time, deterministically, from the ONE canonical source.
+
+- **Canonical truth** (`apps/health/services/sleep_queries.py`): new `on_date(user, target_date)` (+ shared `_night_for_date`) — the authoritative record for a SPECIFIC night (sleep_date == target_date), same source-precedence selection and canonical time-asleep metric as `last_night` (which now delegates to it). Returns None when there is no record for that night — never inferred.
+- **Retrieval** (`apps/ai/chatgpt_cos/sleep_history.py`): `resolve_night_date` maps a point-in-time expression to a concrete WAKE date — explicit M/D, M/D/Y, "July 1", ISO 2026-07-01; yesterday; the night before / night before last / previous night; N nights/days ago; last <weekday> / <weekday> (most recent past). Returns None for "last night"/no-marker so the existing current path is untouched. Composes a deterministic answer citing the date, or an honest "I don't have a sleep record for <date>" — it never infers or summarizes another night.
+- **Routing**: new `sleep_history` lane inserted BEFORE `foundational_facts` (after `decision_support`); it claims a sleep question only when a historical date resolves, otherwise declines. Registry-order guards updated.
+
+Certified with the production conversation: "What did I sleep on 7/1?" → "On Wednesday, July 1 you slept 4.8 hours (sleep score 85)."; "What was my sleep the night before?" → "On Friday, July 3 you slept 5.8 hours…" (distinct from last night); "How did I sleep last night?" → unchanged (foundational). Regression `apps/ai/tests/test_sleep_history.py` (9): explicit/ISO/month-name/yesterday/night-before-last/N-nights-ago/last-weekday resolution, last-night declined, retrieves the requested night (not last night), `on_date` matches canonical truth, missing night is honest (no substitution), non-sleep declined, and the routed production question reaches `sleep_history`. 46 across sleep-history + conversation-lanes + canonical sleep truth GREEN. No model change, no migration.
+
+**Files:** apps/health/services/sleep_queries.py, apps/ai/chatgpt_cos/sleep_history.py (new), apps/ai/chatgpt_cos/lanes.py, apps/ai/tests/test_conversation_lanes.py, apps/ai/tests/test_sleep_history.py (new).
+
+
 ## 2026-07-04 — fix(cos): Morning check-in happy path — an elaborated feeling reply reaches the briefing (WI-2)
 
 The primary morning happy path failed. Beth: "Good morning…" → user: "I am feeling good. Rested actually. I know 6.4 isn't my 7 hours, but 6.4 is good for me." → generic failure. Reproduced end-to-end: greeting sets the check-in state, but the reply returned planner handler `route` (not `brief_after_checkin`), so every lane declined → `route_message` returned None → tool-loop generic failure.

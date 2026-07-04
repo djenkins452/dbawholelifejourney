@@ -34,6 +34,17 @@ def _foundational_lane(user, message, conversation=None):
     return answer_foundational_fact(user, message)
 
 
+def _sleep_history_lane(user, message, conversation=None):
+    """HISTORICAL SLEEP RETRIEVAL: a sleep question about a specific/historical point
+    in time ("what did I sleep on 7/1?", "the night before?", "last Monday?") is
+    answered deterministically from the canonical record for THAT night — not "last
+    night". Runs BEFORE the foundational fact lane (which always returns the current
+    value). Declines for non-sleep questions and for "last night"/current, so existing
+    behavior is untouched."""
+    from apps.ai.chatgpt_cos import sleep_history
+    return sleep_history.answer(user, message, conversation)
+
+
 def _decision_support_lane(user, message, conversation=None):
     """Layer 2 DECISION SUPPORT: when the user is COMMUNICATING A DECISION (abandoning
     a plan, reprioritizing, accepting a tradeoff, giving up, or calling it a night)
@@ -1173,6 +1184,10 @@ LANE_REGISTRY = (
     # merely names a fact ("just need to take my nightly meds and I'm done") is a
     # tradeoff to evaluate, not a fact to look up. Declines for real questions.
     ("decision_support", _decision_support_lane),
+    # HISTORICAL SLEEP RETRIEVAL runs BEFORE the foundational fact lane so a sleep
+    # question about a specific night ("what did I sleep on 7/1?") retrieves THAT
+    # night instead of always returning "last night". Declines otherwise.
+    ("sleep_history", _sleep_history_lane),
     ("foundational_facts", _foundational_lane),
     ("clarification", _clarification_lane),
     # Continue an active EXTERNAL/general thread BEFORE any personal-coaching lane

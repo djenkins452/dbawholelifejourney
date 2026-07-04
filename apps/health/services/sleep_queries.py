@@ -60,6 +60,44 @@ _FIELDS = ("sleep_date", "source", "total_duration_minutes",
            "asleep_duration_minutes", "quality_score")
 
 
+def _night_for_date(user, target_date):
+    """The AUTHORITATIVE sleep record for a SPECIFIC night (``sleep_date ==
+    target_date``), using the SAME deterministic selection (source precedence, most
+    complete) and canonical time-asleep metric as ``last_night``. Returns the night
+    dict, or ``None`` when there is no data for that night."""
+    from apps.health.models import SleepEntry
+    rows = [r for r in SleepEntry.objects.filter(user=user, sleep_date=target_date)
+            .values(*_FIELDS) if _canonical_minutes(r) is not None]
+    if not rows:
+        return None
+    best = max(rows, key=_rank)
+    mins = _canonical_minutes(best)
+    try:
+        from apps.core.utils import get_user_today
+        days = (get_user_today(user) - target_date).days
+    except Exception:
+        days = 0
+    return {
+        "date": target_date,
+        "minutes": mins,
+        "hours": round(mins / 60, 1),
+        "source": best.get("source"),
+        "in_bed_minutes": best.get("total_duration_minutes"),
+        "asleep_minutes": best.get("asleep_duration_minutes"),
+        "quality": best.get("quality_score"),
+        "freshness": "current" if days <= 1 else "stale",
+        "record_count": len(rows),
+    }
+
+
+def on_date(user, target_date):
+    """Deterministic POINT-IN-TIME sleep retrieval — the night whose WAKE date is
+    ``target_date`` (SleepEntry.sleep_date). Same canonical truth as ``last_night``,
+    for any historical night. Returns ``None`` when there is no record for that night
+    — callers must say so honestly and NEVER infer or substitute another night."""
+    return _night_for_date(user, target_date)
+
+
 def last_night(user):
     """The AUTHORITATIVE sleep record for the most recent night, deterministically.
 
@@ -73,28 +111,7 @@ def last_night(user):
               .values_list("sleep_date", flat=True).first())
     if latest is None:
         return None
-    rows = [r for r in SleepEntry.objects.filter(user=user, sleep_date=latest)
-            .values(*_FIELDS) if _canonical_minutes(r) is not None]
-    if not rows:
-        return None
-    best = max(rows, key=_rank)
-    mins = _canonical_minutes(best)
-    try:
-        from apps.core.utils import get_user_today
-        days = (get_user_today(user) - latest).days
-    except Exception:
-        days = 0
-    return {
-        "date": latest,
-        "minutes": mins,
-        "hours": round(mins / 60, 1),
-        "source": best.get("source"),
-        "in_bed_minutes": best.get("total_duration_minutes"),
-        "asleep_minutes": best.get("asleep_duration_minutes"),
-        "quality": best.get("quality_score"),
-        "freshness": "current" if days <= 1 else "stale",
-        "record_count": len(rows),
-    }
+    return _night_for_date(user, latest)
 
 
 def recent_average_hours(user, days=7):

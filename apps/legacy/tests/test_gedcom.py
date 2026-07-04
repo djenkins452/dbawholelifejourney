@@ -142,3 +142,78 @@ class GedcomImportTests(TestCase):
         kinds = set(batch.chunks.values_list("chunk_kind", flat=True))
         self.assertIn("gedcom_person", kinds)   # structured, bypassed the classifier
         self.assertIn("story", kinds)           # the note, classified
+
+
+# A record loaded with facts Legacy has no canonical home for — the whole point
+# of the preservation guarantee. Occupation, religion, baptism, burial, residence,
+# immigration, military, a source citation, and a custom (_XXXX) tag.
+RICH = """0 HEAD
+0 @I1@ INDI
+1 NAME Marvin /Jenkins/
+1 SEX M
+1 BIRT
+2 DATE 3 MAR 1945
+1 OCCU Railroad conductor
+1 RELI Baptist
+1 BAPM
+2 DATE 1 JUN 1945
+2 PLAC First Baptist, Knoxville
+1 RESI
+2 PLAC Maryville, Tennessee
+1 IMMI
+2 DATE 1948
+1 BURI
+2 PLAC Grandview Cemetery
+1 _MILT US Army, WWII
+1 SOUR State of Tennessee birth index
+0 TRLR
+"""
+
+
+class GedcomPreservationTests(TestCase):
+    """Nothing in a source is silently discarded — every fact is preserved and
+    the completeness report explains what has no canonical home yet."""
+
+    def test_every_fact_is_preserved(self):
+        chunks = gedcom_parser.parse_gedcom(RICH)
+        person = next(c for c in chunks if c["kind"] == "gedcom_person")
+        tags = {f["tag"] for f in person["data"]["facts"]}
+        # Facts Legacy can't store yet are STILL kept on the chunk — not dropped.
+        for tag in ("OCCU", "RELI", "BAPM", "RESI", "IMMI", "BURI", "_MILT", "SOUR"):
+            self.assertIn(tag, tags)
+        occu = next(f for f in person["data"]["facts"] if f["tag"] == "OCCU")
+        self.assertEqual(occu["value"], "Railroad conductor")
+        bapm = next(f for f in person["data"]["facts"] if f["tag"] == "BAPM")
+        self.assertEqual(bapm["place"], "First Baptist, Knoxville")
+
+    def test_coverage_classifies_supported_needs_and_unknown(self):
+        chunks = gedcom_parser.parse_gedcom(RICH)
+        report = gedcom_parser.analyze_coverage(chunks)
+        supported = {r["concept"] for r in report["supported"]}
+        self.assertIn("People", supported)
+        self.assertIn("Births", supported)
+        needs = {r["concept"] for r in report["needs_support"]}
+        for concept in ("Occupation", "Religion", "Baptism", "Residence",
+                        "Immigration", "Burial", "Source citation"):
+            self.assertIn(concept, needs)
+        # Every needs-support item carries an actionable recommendation.
+        for row in report["needs_support"]:
+            self.assertTrue(row["recommendation"])
+        # A custom tag Legacy doesn't recognize is preserved and surfaced, not lost.
+        self.assertIn("_MILT", {r["tag"] for r in report["unknown"]})
+
+    def test_nothing_is_discarded_total(self):
+        chunks = gedcom_parser.parse_gedcom(RICH)
+        report = gedcom_parser.analyze_coverage(chunks)
+        # preserved_total must account for the person + every fact captured.
+        person = next(c for c in chunks if c["kind"] == "gedcom_person")
+        self.assertEqual(report["preserved_total"],
+                         len(person["data"]["facts"]) + 1)
+
+    def test_create_batch_stores_coverage_report(self):
+        u = _make_user("preserve@example.com")
+        batch = create_batch(u, "Tree", "gedcom", RICH,
+                             classifier=lambda units: {})
+        self.assertIn("needs_support", batch.coverage)
+        needs = {r["concept"] for r in batch.coverage["needs_support"]}
+        self.assertIn("Occupation", needs)

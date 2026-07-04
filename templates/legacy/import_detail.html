@@ -69,6 +69,54 @@
     </div>
     {% endif %}
 
+    {% if batch.coverage.needs_support or batch.coverage.unknown or batch.coverage.supported %}
+    <section class="lg-card import-coverage">
+        <div class="import-coverage-head">
+            <h3 class="lg-card-h">Completeness report</h3>
+            <p class="editor-aside-note">Everything in this file was preserved — nothing was thrown away. Here's what Legacy stored as Canonical Truth, what it's holding because there's no home for it yet, and what it didn't recognize.</p>
+        </div>
+
+        {% if batch.coverage.supported %}
+        <div class="coverage-group coverage-imported">
+            <h4 class="coverage-group-title"><span class="coverage-dot ok" aria-hidden="true">✓</span> Imported into your Legacy</h4>
+            <ul class="coverage-list">
+                {% for row in batch.coverage.supported %}
+                <li class="coverage-row"><span class="coverage-concept">{{ row.concept }}</span><span class="coverage-count">{{ row.count }}</span></li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if batch.coverage.needs_support %}
+        <div class="coverage-group coverage-needs">
+            <h4 class="coverage-group-title"><span class="coverage-dot warn" aria-hidden="true">•</span> Preserved — needs a home in Legacy</h4>
+            <p class="coverage-note">This information is safe inside this import. Legacy doesn't have a canonical place to keep it yet. Each one below is a recommendation — nothing is created until you approve it.</p>
+            <ul class="coverage-list">
+                {% for row in batch.coverage.needs_support %}
+                <li class="coverage-row coverage-row-rec">
+                    <span class="coverage-concept">{{ row.concept }}</span>
+                    <span class="coverage-count">{{ row.count }}</span>
+                    {% if row.recommendation %}<span class="coverage-rec">Recommend adding {{ row.recommendation }}</span>{% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if batch.coverage.unknown %}
+        <div class="coverage-group coverage-unknown">
+            <h4 class="coverage-group-title"><span class="coverage-dot unknown" aria-hidden="true">•</span> Preserved — not yet recognized</h4>
+            <p class="coverage-note">Custom or uncommon fields Legacy kept exactly as written, so nothing is lost while we learn what they mean.</p>
+            <ul class="coverage-list coverage-tags">
+                {% for row in batch.coverage.unknown %}
+                <li class="coverage-row"><span class="coverage-tag">{{ row.tag }}</span><span class="coverage-count">{{ row.count }}</span></li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </section>
+    {% endif %}
+
     <h2 class="lg-section-title import-list-title">What Legacy found in {{ batch.source_name }}</h2>
     <p class="editor-aside-note import-queues-intro">One upload, sorted into review queues. Nothing enters your Legacy until you review it.</p>
     {% for q in queues %}

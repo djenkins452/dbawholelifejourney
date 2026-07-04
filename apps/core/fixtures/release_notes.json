@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 237,
+    "fields": {
+      "title": "Legacy imports now keep everything — nothing is thrown away",
+      "description": "When you import a family tree or document, Legacy now preserves every detail it finds — even the ones it can't file away yet, like occupations, church records, burials, residences, immigration, and military service. Each import shows a Completeness report: what was added to your Legacy, what's being safely held because there's no home for it yet (with a suggestion for what to add), and anything Legacy didn't recognize but kept exactly as written. You'll always know nothing was lost.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-04",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-04T12:00:00Z",
+      "updated_at": "2026-07-04T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 236,
     "fields": {
       "title": "Relationships is now the home for everyone in your life",

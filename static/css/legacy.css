@@ -1141,3 +1141,24 @@ a.fam-result { text-decoration: none; }
 .rel-section { margin-top: 10px; }
 .rel-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--lg-surface-2); border: 1px solid var(--lg-border); font-size: 11px; font-weight: 600; color: var(--lg-ink-soft); vertical-align: middle; }
 .rel-section-empty { font-size: 13px; color: var(--lg-muted); font-style: italic; margin: 4px 0 0; }
+
+/* Import completeness / preservation report — proves nothing was discarded */
+.import-coverage { margin-bottom: 22px; }
+.import-coverage-head { margin-bottom: 6px; }
+.coverage-group { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--lg-border); }
+.coverage-group:first-of-type { border-top: 0; padding-top: 0; }
+.coverage-group-title { display: flex; align-items: center; gap: 8px; font-family: var(--lg-sans); font-size: 13.5px; font-weight: 600; color: var(--lg-ink); margin: 0 0 8px; }
+.coverage-dot { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; font-size: 11px; font-weight: 700; line-height: 1; }
+.coverage-dot.ok { background: #e6f0e2; color: #4a7a3a; }
+.coverage-dot.warn { background: #faf0d8; color: #a9822a; }
+.coverage-dot.unknown { background: var(--lg-surface-2); color: var(--lg-muted); }
+.coverage-note { font-size: 12.5px; color: var(--lg-muted); margin: 0 0 10px; }
+.coverage-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.coverage-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 13.5px; color: var(--lg-ink-soft); }
+.coverage-concept { font-weight: 600; color: var(--lg-ink); }
+.coverage-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--lg-surface-2); border: 1px solid var(--lg-border); font-size: 11px; font-weight: 600; color: var(--lg-ink-soft); }
+.coverage-row-rec { align-items: baseline; }
+.coverage-rec { flex: 1 1 240px; font-size: 12.5px; font-style: italic; color: var(--lg-accent-ink, #7a5b1e); }
+.coverage-tags { flex-flow: row wrap; gap: 8px; }
+.coverage-tags .coverage-row { background: var(--lg-surface-2); border: 1px solid var(--lg-border); border-radius: 8px; padding: 4px 9px; gap: 7px; }
+.coverage-tag { font-family: var(--lg-mono, ui-monospace, monospace); font-size: 12px; color: var(--lg-ink); }

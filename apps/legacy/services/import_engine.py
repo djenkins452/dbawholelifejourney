@@ -109,6 +109,10 @@ def create_batch(user, source_name, source_type, raw_text, classifier=None):
         if c.get("kind"):
             kinds[c["index"]] = (c["kind"], c.get("confidence", "high"))
 
+    # Completeness/preservation report — proves nothing in the source was
+    # silently discarded, and surfaces what Legacy can't store canonically yet.
+    coverage = gedcom_parser.analyze_coverage(chunks)
+
     batch = ImportBatch.objects.create(
         user=user,
         source_name=(source_name or "Untitled document")[:255],
@@ -116,6 +120,7 @@ def create_batch(user, source_name, source_type, raw_text, classifier=None):
         total_chunks=len(chunks),
         import_status=ImportBatch.Status.PARSED,
         created_via=ImportBatch.CREATED_VIA_IMPORT,
+        coverage=coverage,
     )
     rows = []
     for c in chunks:

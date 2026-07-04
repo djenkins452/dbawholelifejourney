@@ -774,6 +774,10 @@ class ImportBatch(LegacyOwnedModel):
     total_chunks = models.PositiveIntegerField(default=0)
     imported_count = models.PositiveIntegerField(default=0)
     notes = models.CharField(max_length=500, blank=True)
+    # Completeness/preservation report: what was imported into Canonical Truth,
+    # what was preserved but has no canonical home yet (with a recommendation),
+    # and what wasn't recognized. Proof that nothing was silently discarded.
+    coverage = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ['-created_at']

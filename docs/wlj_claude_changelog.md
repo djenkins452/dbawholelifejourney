@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — feat(legacy): Universal ingestion — preserve every fact, never silently discard
+
+Reframed the Import Orchestrator from "GEDCOM importer" toward the universal ingestion engine for Canonical Truth: **if a source contains information, Legacy preserves it — even when there is no canonical destination yet.** Previously the GEDCOM parser kept only NAME/SEX/BIRT/DEAT/NOTE (people) and HUSB/WIFE/CHIL/MARR (families) and silently dropped everything else — occupation, religion, baptism, confirmation, ordination, burial, cremation, residence, address, immigration, naturalization, military service, titles, custom life events, source citations, and custom `_XXXX` tags.
+
+**Now:** every child tag on every record is captured into `chunk.data["facts"]` (`{tag, value, date, place}`) — nothing is discarded. A `GEDCOM_COVERAGE` table classifies each tag as *supported* (has a canonical home), *needs_support* (recognized, no destination yet — carries a recommendation for the canonical model required), or *structural*. `analyze_coverage()` produces a completeness report stored on `ImportBatch.coverage` at parse time and rendered on the import detail page as three groups: **Imported ✓ / Preserved — needs a home • (with recommendation) / Preserved — not yet recognized •** (custom tags kept verbatim). Per the "Ask Before Inventing" rule, NO new canonical models/domains were created — the report only *recommends* them and awaits approval; the raw facts stay safe inside the import session in the meantime.
+
+**Files:** apps/legacy/services/gedcom_parser.py (`_facts`, `GEDCOM_COVERAGE`, `analyze_coverage`, facts on person+family chunks), apps/legacy/services/import_engine.py (`create_batch` computes+stores coverage), apps/legacy/models.py (`ImportBatch.coverage` JSONField), apps/legacy/migrations/0023_importbatch_coverage.py, templates/legacy/import_detail.html (completeness report), static/css/legacy.css (v37, coverage styles), apps/legacy/tests/test_gedcom.py (4 new tests: facts preserved, coverage classification, nothing-discarded total, batch stores report).
+
+**Why:** Danny's directive — "Do NOT discard it… 1. Identify the information. 2. Explain why Legacy cannot store it. 3. Recommend the canonical model required. 4. Ask for approval." This makes the preservation guarantee provable and turns the report into Legacy's canonical-model roadmap.
+
+**Recommendations surfaced (await approval before building):** Occupation/work-history, Education, Faith (religion/baptism/confirmation/ordination), Burial/cemetery, Residence/address-history, Immigration/migration, Citizenship, Contact (phone/email/address), Titles, Property, general Life-Events, Sources/citations, divorce dates on the marriage relationship.
+
+
 ## 2026-07-04 — feat(dev): Certification Console — add Rebuild Executive Interpretation + Refresh Standing Context
 
 Advanced the Executive Certification Console toward the stated roadmap by registering two more REAL production paths (same shared registry; the template renders new buttons automatically): **Rebuild Executive Interpretation** (`executive_interpretation.interpret` → shows the raw executive read — headline, workload, challenge, disposition, reconciliation — the brief narrates; read-only) and **Refresh Standing Context** (`intelligence_hook.fire_intelligence` → SAE state → PIE insights → PRIE predictions; idempotent, no outward-facing effect). Both verified running for a fresh user via the existing `test_every_registered_action_runs_the_real_path`.

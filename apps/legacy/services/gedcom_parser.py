@@ -153,10 +153,120 @@ def _when_where(date, place, verb):
     return " ".join(parts)
 
 
+# Tags handled structurally elsewhere (not preserved as standalone "facts").
+_STRUCTURAL = {"NAME", "GIVN", "SURN", "SEX", "HUSB", "WIFE", "CHIL", "FAMS",
+               "FAMC", "CONT", "CONC", "TRLR", "HEAD"}
+
+
+def _facts(rec):
+    """EVERY child tag preserved as a fact (tag, value, date, place). Nothing is
+    discarded — including tags Legacy can't yet store and custom (_XXXX) tags. This
+    is the preservation guarantee: the raw fact stays in the import session until a
+    canonical destination exists."""
+    out = []
+    for c in rec["children"]:
+        tag = c["tag"]
+        if tag in ("CONT", "CONC"):
+            continue
+        val = _full_text(c)
+        date = _val(c, "DATE")
+        place = _val(c, "PLAC")
+        if not (val or date or place or c["children"]):
+            continue
+        out.append({"tag": tag, "value": val[:2000], "date": date, "place": place})
+    return out
+
+
+# GEDCOM tag → (status, human concept, recommendation). status is one of:
+#   'supported'      — Legacy has a canonical home for it today
+#   'needs_support'  — recognized, but Legacy has no destination yet (preserved + reported)
+#   'structural'     — used to build People/Relationships, not a standalone fact
+GEDCOM_COVERAGE = {
+    "BIRT": ("supported", "Births", None),
+    "DEAT": ("supported", "Deaths", None),
+    "MARR": ("supported", "Marriages", None),
+    "NOTE": ("supported", "Notes", None),
+    "OBJE": ("supported", "Media references", None),
+    "SEX": ("structural", "Sex", None),
+    "NAME": ("structural", "Name", None),
+    # Recognized, but no canonical destination yet — preserved and reported:
+    "OCCU": ("needs_support", "Occupation", "an Occupation / work-history domain"),
+    "EDUC": ("needs_support", "Education", "an Education domain"),
+    "GRAD": ("needs_support", "Graduation", "an Education domain"),
+    "RELI": ("needs_support", "Religion", "a Faith domain"),
+    "BAPM": ("needs_support", "Baptism", "a Faith / sacraments domain"),
+    "CHR": ("needs_support", "Christening", "a Faith / sacraments domain"),
+    "CONF": ("needs_support", "Confirmation", "a Faith / sacraments domain"),
+    "ORDN": ("needs_support", "Ordination", "a Faith domain"),
+    "BURI": ("needs_support", "Burial", "a Burial / cemetery domain"),
+    "CREM": ("needs_support", "Cremation", "a Burial domain"),
+    "IMMI": ("needs_support", "Immigration", "an Immigration / migration domain"),
+    "EMIG": ("needs_support", "Emigration", "an Immigration / migration domain"),
+    "NATU": ("needs_support", "Naturalization", "a Citizenship domain"),
+    "RESI": ("needs_support", "Residence", "a Residence / address-history domain"),
+    "ADDR": ("needs_support", "Address", "a Contact / address domain"),
+    "PHON": ("needs_support", "Phone", "a Contact domain"),
+    "EMAIL": ("needs_support", "Email", "a Contact domain"),
+    "WWW": ("needs_support", "Website", "a Contact domain"),
+    "TITL": ("needs_support", "Title / honorific", "a Titles field on Person"),
+    "PROP": ("needs_support", "Property", "a Property domain"),
+    "EVEN": ("needs_support", "Custom life event", "a general Life-Events domain"),
+    "FACT": ("needs_support", "Custom fact", "a general Facts domain"),
+    "SOUR": ("needs_support", "Source citation", "a Sources / citations domain"),
+    "REPO": ("needs_support", "Repository", "a Sources domain"),
+    "DIV": ("needs_support", "Divorce", "divorce dates on the marriage relationship"),
+    "CENS": ("needs_support", "Census record", "a Records / sources domain"),
+    "PROB": ("needs_support", "Probate", "a Records domain"),
+    "WILL": ("needs_support", "Will", "a Records domain"),
+    "RETI": ("needs_support", "Retirement", "an Occupation / work-history domain"),
+}
+
+
+def analyze_coverage(chunks):
+    """A completeness report over parsed chunks: what Legacy preserved into
+    Canonical Truth, what it preserved but has no home for (with a recommendation),
+    and what it didn't recognize. Nothing is ever dropped — this is the audit that
+    proves it and becomes Legacy's roadmap."""
+    from collections import Counter
+    people = sum(1 for c in chunks if c.get("kind") == "gedcom_person")
+    families = sum(1 for c in chunks if c.get("kind") == "gedcom_family")
+    tags = Counter()
+    for ch in chunks:
+        for f in (ch.get("data") or {}).get("facts", []):
+            tags[f["tag"]] += 1
+
+    supported = {}
+    needs = {}
+    unknown = {}
+    for tag, n in tags.items():
+        info = GEDCOM_COVERAGE.get(tag)
+        if info is None:
+            unknown[tag] = unknown.get(tag, 0) + n         # unrecognized / custom (_XXXX)
+        elif info[0] == "structural":
+            continue
+        elif info[0] == "supported":
+            supported[info[1]] = supported.get(info[1], 0) + n
+        else:
+            e = needs.setdefault(info[1], {"concept": info[1], "count": 0,
+                                           "recommendation": info[2]})
+            e["count"] += n
+
+    supported_list = ([{"concept": "People", "count": people}] if people else [])
+    supported_list += ([{"concept": "Families & relationships", "count": families}] if families else [])
+    supported_list += [{"concept": c, "count": n} for c, n in sorted(supported.items())]
+    return {
+        "supported": supported_list,
+        "needs_support": sorted(needs.values(), key=lambda x: (-x["count"], x["concept"])),
+        "unknown": [{"tag": t, "count": n} for t, n in sorted(unknown.items())],
+        "preserved_total": int(sum(tags.values())) + people + families,
+    }
+
+
 def parse_gedcom(raw):
     """Parse GEDCOM text into pre-classified import chunks (people + families).
     Each chunk carries its own `kind` so it skips AI classification and lands in
-    the right genealogy queue. Returns a list of chunk dicts."""
+    the right genealogy queue. EVERY fact on a record is preserved in `data.facts`
+    even when Legacy has no canonical home for it yet. Returns a list of chunk dicts."""
     records = _parse_records(raw)
     names = {}   # xref -> display name
     indis, fams = [], []
@@ -209,6 +319,7 @@ def parse_gedcom(raw):
                 "birth_year": _year(bdate), "death_year": _year(ddate),
                 "birth_date": _full_date(bdate), "death_date": _full_date(ddate),
                 "birth_place": bplace, "death_place": dplace,
+                "facts": _facts(rec),
             },
         })
 
@@ -241,6 +352,7 @@ def parse_gedcom(raw):
                 "children": [c["value"] for c in rec["children"] if c["tag"] == "CHIL"],
                 "marriage_year": _year(mdate), "marriage_date": _full_date(mdate),
                 "marriage_place": mplace,
+                "facts": _facts(rec),
             },
         })
 

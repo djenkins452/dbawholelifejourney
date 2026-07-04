@@ -44,6 +44,10 @@ def _noop(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
+    # Not one giant transaction — each user's O(N) repair commits independently,
+    # so this can never hold a long-running lock or stall the whole deploy.
+    atomic = False
+
     dependencies = [
         ("legacy", "0019_person_gedcom_xref_person_source_batch_legacyprofile"),
     ]

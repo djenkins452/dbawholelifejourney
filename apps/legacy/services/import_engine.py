@@ -27,39 +27,51 @@ def _iso_to_date(iso):
 def backfill_gedcom_dates(user):
     """Fill missing full dates (birth/death) onto already-committed genealogy
     people, recovering them from each import chunk's structured data or body text.
-    Non-destructive; only sets a date that's currently empty. Returns count updated."""
+    Non-destructive; only sets a date that's currently empty. Returns count updated.
+
+    O(N): the user's people are loaded ONCE into in-memory lookup maps (by
+    xref-key and by normalized name), so there is no per-chunk query and no
+    case-insensitive table scan; changed people are written with a single
+    bulk_update. Safe on a 1,500-person tree."""
     from apps.legacy.models import ImportBatch, Person
     from apps.legacy.services.gedcom_parser import dates_from_body
 
-    updated = 0
+    people = list(Person.all_objects.filter(user=user).only(
+        "pk", "display_name", "gedcom_xref", "source_batch_id",
+        "birth_date", "death_date", "updated_at"))
+    by_name, by_key = {}, {}
+    for p in people:
+        by_name.setdefault((p.display_name or "").strip().lower(), p)
+        if p.gedcom_xref:
+            by_key[(p.source_batch_id, p.gedcom_xref)] = p
+
+    changed = {}   # pk -> person (deduped; a person may match several chunks)
     for batch in ImportBatch.all_objects.filter(user=user, source_type="gedcom"):
-        for ch in batch.chunks.filter(chunk_kind="gedcom_person"):
+        for ch in batch.chunks.filter(chunk_kind="gedcom_person").only(
+                "data", "body", "chunk_kind", "batch_id"):
             d = ch.data or {}
             body_b, body_d = dates_from_body(ch.body)
             b_iso = d.get("birth_date") or body_b
             de_iso = d.get("death_date") or body_d
             if not b_iso and not de_iso:
                 continue
-            person = None
-            if d.get("xref"):
-                person = Person.all_objects.filter(
-                    user=user, source_batch=batch, gedcom_xref=d["xref"]).first()
+            person = by_key.get((batch.pk, d.get("xref"))) if d.get("xref") else None
             if person is None:
-                name = (d.get("name") or ch.title or "").strip()
-                if name:
-                    person = Person.all_objects.filter(
-                        user=user, display_name__iexact=name).first()
+                person = by_name.get((d.get("name") or ch.title or "").strip().lower())
             if person is None:
                 continue
-            fields = []
+            hit = False
             if person.birth_date is None and _iso_to_date(b_iso):
-                person.birth_date = _iso_to_date(b_iso); fields.append("birth_date")
+                person.birth_date = _iso_to_date(b_iso); hit = True
             if person.death_date is None and _iso_to_date(de_iso):
-                person.death_date = _iso_to_date(de_iso); fields.append("death_date")
-            if fields:
-                person.save(update_fields=fields + ["updated_at"])
-                updated += 1
-    return updated
+                person.death_date = _iso_to_date(de_iso); hit = True
+            if hit:
+                changed[person.pk] = person
+
+    if changed:
+        Person.all_objects.bulk_update(
+            list(changed.values()), ["birth_date", "death_date"], batch_size=500)
+    return len(changed)
 
 
 def create_batch(user, source_name, source_type, raw_text, classifier=None):

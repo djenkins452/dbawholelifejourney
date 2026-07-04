@@ -43214,3 +43214,16 @@ NOTE on live verification: still no in-browser screenshot — `SESSION_COOKIE_SE
 **Verification against Danny's family shape:** 256 scoped Legacy tests green (5 new layout tests + edge-type fix): focus row holds focus + spouse + siblings on the same y (siblings not floated up); spouse adjacent and child centered under the couple; parents above the focus; **Marvin↔Barbara (never married) have no couple line while Marvin↔Gloria (married) do**; up/down/couple-married connectors all present and rendered. `check` + `makemigrations --check` clean (no schema change); Family JS passes `node --check`; a full render confirms the typed connector classes and the new legend.
 
 **Files:** `apps/legacy/services/family_tree.py` (algorithm replacement — relative generations, family-unit layout, typed couple edges), `static/css/legacy.css` (typed connectors + legend; v35), `templates/legacy/{family.html, base_legacy.html}`, `apps/legacy/tests/{test_family.py, test_family_layout.py (new)}`, `apps/core/fixtures/release_notes.json`.
+
+
+## 2026-07-04 — fix(legacy): migration 0020 was O(N²) and hung the deploy — made O(N) + non-atomic
+
+**Why:** Deploys stalled on `0020_backfill_dates_bind_self`. Root cause: `backfill_gedcom_dates` matched each of ~1,500 GEDCOM chunks to a Person with `Person.objects.filter(display_name__iexact=name).first()`. Pre-0019 people have no `source_batch`/`gedcom_xref`, so every chunk fell through to that name lookup, and `__iexact` (UPPER equality, no functional index) is a full table scan — ~1,500 chunks × ~1,500-row scan ≈ **2.25M comparisons (O(N²))**, plus ~1,500 row-by-row `save()` round-trips, all inside **one giant transaction**.
+
+**What:**
+- **O(N) backfill:** the user's people are loaded ONCE into in-memory maps (by `(source_batch, gedcom_xref)` and by normalized name); each chunk is matched in memory (no per-chunk query, no case-insensitive scan); changed people are written with a single `bulk_update`. Proven: query count is constant (4–5) as N grows 200→800, time linear.
+- **Non-atomic migration:** `Migration.atomic = False` on 0020, so each user's small repair commits independently instead of holding one long transaction/lock across the whole deploy. Idempotent and re-runnable (only fills empty dates; binding is upsert).
+
+**Verification:** 27 scoped tests green (backfill + integrity + gedcom); a query-count harness shows `N=200 → 4 queries`, `N=800 → 5 queries` (was ~2N full scans); `check` + `makemigrations --check` clean. Behaviour is unchanged — only the cost.
+
+**Files:** `apps/legacy/services/import_engine.py` (`backfill_gedcom_dates` rewritten O(N) + bulk_update), `apps/legacy/migrations/0020_backfill_dates_bind_self.py` (`atomic = False`).

@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — fix(health): Sleep dashboard context sync — the trend graph follows the history period you're viewing
+
+Dashboard Context Synchronization (not a graph redesign). On the Sleep page the history list and the trend graph could describe DIFFERENT time periods at once: paging history back to May still showed the graph's most-recent-14-days (July). The page presented two truths, and because the graph sits directly above the records, the eye reads it as summarizing those records.
+
+Investigation: `SleepListView.get_context_data` built the history from the paginated queryset (`entries` == `page_obj.object_list`, newest-first, 30/page) but built the chart from an INDEPENDENT fixed query — `entries.filter(sleep_date >= now-14d)` — so the graph never moved when you paged. Two components, two date ranges, no shared context.
+
+Smallest architectural change: the graph now DERIVES its range from the current history page instead of a fixed window. It reads the records the paginator already sliced for this page (`page_obj.object_list`) — the exact same nights the history list renders — sorts them oldest→newest, and builds `chart_labels`/`chart_data`/`chart_quality` from those. No duplicate query, no separate date logic, no new truth: the graph is another visualization of the one active context (the page). Paging (`?page=N`) is one request, so history + graph always move together. Also surfaces `chart_range_start`/`chart_range_end` and a small "Showing <start> – <end>" caption above the chart so the shared window is explicit. The labeled summary cards (LAST NIGHT / 7-DAY AVG / 30-DAY AVG) are intentionally unchanged — they are self-describing fixed windows, not the ambiguous graph.
+
+Regression `apps/health/tests/test_sleep_dashboard_sync.py` (6): first/middle/last page graph == that page's history (labels, count, and range), pagination moves graph + history together across DISJOINT periods (page 1 window is entirely after page 3's), empty history renders with no graph and no crash, and a single-night partial last page. 6 GREEN. No model change, no migration.
+
+**Files:** apps/health/views.py, templates/health/sleep_list.html, apps/health/tests/test_sleep_dashboard_sync.py.
+
+
 ## 2026-07-04 — feat(ios): one-time historical sleep replay — re-import every night through the fixed importer
 
 Follow-up to the sleep-import fix. Verified first: the iOS HealthKit sync uses a hardcoded ROLLING 7-DAY window (`HealthKitManager.syncHealthData` lines 293–294: `endDate = Date()`, `startDate = -7 days`); it is not parameterized (all 6 callers invoke it arg-less), but the underlying `fetchSleep(from:to:)` (and every `fetch*`) already accepts an arbitrary range, and the ingest endpoint is range-agnostic + now idempotent. So the corrected importer only ever replays the last 7 nights — older nights keep whatever the old importer wrote. Confirmed the hypothesis.

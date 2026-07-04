@@ -82,6 +82,9 @@
         <!-- Chart -->
         {% if chart_data %}
         <div class="chart-container mb-6">
+            {% if chart_range_start and chart_range_end %}
+            <p class="chart-range-caption">Showing {{ chart_range_start|date:"M j, Y" }} &ndash; {{ chart_range_end|date:"M j, Y" }}</p>
+            {% endif %}
             <canvas id="sleepChart"></canvas>
         </div>
         {% endif %}
@@ -278,6 +281,13 @@
     border-radius: var(--radius-lg);
     padding: var(--space-4);
     height: 250px;
+}
+
+.chart-range-caption {
+    margin: 0 0 var(--space-2);
+    font-size: 0.8125rem;
+    color: var(--color-text-secondary, #6b7280);
+    text-align: center;
 }
 
 .entry-list {

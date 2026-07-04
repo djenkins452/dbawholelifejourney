@@ -7235,11 +7235,19 @@ class SleepListView(HelpContextMixin, LoginRequiredMixin, ListView):
                 total_minutes = sum(e.total_duration_minutes or 0 for e in month_entries)
                 context["month_avg_hours"] = round(total_minutes / month_entries.count() / 60, 1)
 
-            # Chart data for last 14 days
-            two_weeks_ago = timezone.now() - timedelta(days=14)
-            chart_entries = list(entries.filter(
-                sleep_date__gte=two_weeks_ago.date()
-            ).order_by("sleep_date"))
+            # Chart data — DERIVED FROM THE HISTORY PAGE CURRENTLY BEING VIEWED
+            # (Dashboard Context Synchronization). The graph is not a separate truth or
+            # a fixed recent window; it is another visualization of the SAME nights the
+            # history list below it is showing. Paging back through history therefore
+            # moves the graph to that same period, so the graph, the history, and the
+            # user's mental model always describe one slice of time. Reuses the records
+            # the paginator already sliced for this page (context_object_name "entries"
+            # == page_obj.object_list) — no duplicate query, no separate date logic.
+            page_obj = context.get("page_obj")
+            page_entries = (list(page_obj.object_list) if page_obj is not None
+                            else list(entries[:self.paginate_by]))
+            # History shows newest-first; the graph reads left-to-right oldest-first.
+            chart_entries = sorted(page_entries, key=lambda e: e.sleep_date)
 
             if chart_entries:
                 context["chart_labels"] = json.dumps([
@@ -7253,6 +7261,10 @@ class SleepListView(HelpContextMixin, LoginRequiredMixin, ListView):
                 context["chart_quality"] = json.dumps([
                     e.quality_score or 0 for e in chart_entries
                 ])
+                # The window the graph AND this history page describe — surfaced so the
+                # page can state the shared context explicitly.
+                context["chart_range_start"] = chart_entries[0].sleep_date
+                context["chart_range_end"] = chart_entries[-1].sleep_date
 
             # Sleep stage averages (if data exists)
             stage_entries = [e for e in month_entries if e.has_stage_data]

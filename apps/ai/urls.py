@@ -82,4 +82,6 @@ urlpatterns = [
 
     # Temporary debug endpoint (remove after calibration is working)
     path('api/calibration-debug/', views.CalibrationDebugView.as_view(), name='api_calibration_debug'),
+    # TEMPORARY runtime-proof for the Goals check-in (staff-only; remove after diagnosis)
+    path('api/goals-checkin-debug/', views.GoalsCheckinDebugView.as_view(), name='api_goals_checkin_debug'),
 ]

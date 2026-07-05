@@ -84,6 +84,70 @@ class CalibrationDebugView(LoginRequiredMixin, View):
             return JsonResponse({'error': str(e)}, status=500)
 
 
+class GoalsCheckinDebugView(LoginRequiredMixin, View):
+    """TEMPORARY runtime-proof endpoint (staff-only). Proves, from the LIVE deployed
+    build, exactly which code runs for the Goals check-in reply and what it returns for
+    THIS user — settling whether the One-Brain fix is deployed and executing, or whether
+    the running build/data is not what the report assumed. Remove after diagnosis."""
+
+    def get(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            return JsonResponse({'error': 'staff only'}, status=403)
+        import inspect
+        import os
+        out = {}
+        user = request.user
+        # 0) Deployed build identity + runtime ownership.
+        out['git_sha'] = (os.environ.get('RAILWAY_GIT_COMMIT_SHA')
+                          or os.environ.get('SOURCE_VERSION')
+                          or os.environ.get('GIT_COMMIT') or 'unset')
+        try:
+            out['use_chatgpt_cos'] = getattr(user.preferences, 'use_chatgpt_cos', None)
+        except Exception as e:
+            out['use_chatgpt_cos_error'] = repr(e)
+        # 1) Is the One-Brain resolver code actually in the running build?
+        try:
+            from apps.ai.chatgpt_cos import lanes
+            src = inspect.getsource(lanes.resolve_clarification_option)
+            out['deployed_resolver_calls_strategic_summary'] = ('_strategic_summary' in src)
+            out['deployed_has_strategic_summary_fn'] = hasattr(lanes, '_strategic_summary')
+            out['deployed_resolver_goals_gap_branch'] = (
+                'return _strategic_summary(user) or _GOALS_GAP' in src)
+            out['lanes_file'] = inspect.getsourcefile(lanes.resolve_clarification_option)
+        except Exception as e:
+            out['resolver_introspect_error'] = repr(e)
+        # 2) What does the shared strategic reader return for THIS user?
+        try:
+            out['strategic_summary'] = lanes._strategic_summary(user)
+        except Exception as e:
+            out['strategic_summary_error'] = repr(e)
+        # 3) The underlying strategic sources (the one brain).
+        try:
+            from apps.purpose.mission_selection import select_active_mission_goal
+            g = select_active_mission_goal(user)
+            out['select_active_mission_goal'] = (g.title if g is not None else None)
+        except Exception as e:
+            out['mission_goal_error'] = repr(e)
+        try:
+            from apps.ai.cos_services import get_domain_state
+            st = (get_domain_state(user, 'purpose').get('state') or {})
+            m = st.get('mission')
+            out['purpose_mission_title'] = (m.get('title') if isinstance(m, dict) else m)
+            out['purpose_active_goal_count'] = st.get('active_goal_count')
+            out['purpose_active_titles'] = st.get('active_titles')
+        except Exception as e:
+            out['purpose_state_error'] = repr(e)
+        # 4) The ACTUAL output the check-in "4" reply produces, end to end.
+        try:
+            opt = {'n': 4, 'resolver': 'goals_gap', 'resolution': lanes._GOALS_GAP}
+            ans = lanes.resolve_clarification_option(user, opt)
+            out['resolve_clarification_option_output'] = ans
+            out['output_is_goals_gap'] = (ans == lanes._GOALS_GAP)
+        except Exception as e:
+            out['resolve_error'] = repr(e)
+        return JsonResponse(out, json_dumps_params={'default': str, 'indent': 2})
+
+
 class ExecutiveCertificationConsoleView(LoginRequiredMixin, View):
     """DEVELOPER-ONLY in-app Executive Certification Console. GET renders the action
     buttons; POST runs an action against the REAL production path via the SAME shared

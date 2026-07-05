@@ -6,6 +6,14 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — instrument(cos): staff-only runtime-proof endpoint for the Goals check-in (diagnosis)
+
+Production still returned the hardcoded goals-gap after the One-Brain fix + deploy. Source trace proved the string is single-sourced (`chatgpt_cos/lanes.py` `_GOALS_GAP`) and its only producer for a check-in "4" reply is `resolve_clarification_option` (which the One-Brain fix changed to `_strategic_summary(user) or _GOALS_GAP`); the CoS runtime (`use_chatgpt_cos=True`) reaches it via `CoSGateway → run_chatgpt_cos_generation → ChatGPTCoSService.generate → route_message`. Every path converges on two possibilities that only LIVE runtime data can separate: (a) the resolver ran and `_strategic_summary` returned None, or (b) the deployed build is stale.
+
+Added `GoalsCheckinDebugView` (staff-only, `GET /assistant/api/goals-checkin-debug/`) that reports, from the running build: the git SHA; `use_chatgpt_cos`; whether the deployed `resolve_clarification_option` source contains `_strategic_summary` (proves the code version live); the `_strategic_summary(user)` return; `select_active_mission_goal(user)`; `get_domain_state('purpose')` mission/active-goal-count; and the actual `resolve_clarification_option` output. Instrumentation only — no behavior change. Remove after diagnosis.
+
+**Files:** `apps/ai/views.py` (`GoalsCheckinDebugView`), `apps/ai/urls.py`.
+
 ## 2026-07-05 — fix(routing): rhythm items route to their WORKFLOW, not the Routines page — route from the capability, not the wording
 
 **Bug:** "Journal" and "Log Nutrition" (and Bible Reading / Prayer / Measurements / Log Weight / Log Workout) navigated to the Routines page instead of their actual workflow.

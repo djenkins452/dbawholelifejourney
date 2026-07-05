@@ -6,6 +6,23 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(perf): THE real production dashboard blocker — medication-adherence N+1 (1,613 queries → collapsed)
+
+The async/Celery work did not fix the live symptom (dashboard 5–7s, task completion 15–20s) because the real blocker was never Redis — that was a LOCAL artifact (no local broker). The production blocker is a **query-count N+1 that is invisible on SQLite (in-process, µs/query) but devastating on Postgres-over-the-network (~2–3ms/query)**.
+
+**Root cause:** `apps/health/medicine_utils.py :: _enumerate_expected_doses` called `medicine.schedules.filter(is_active=True)` **inside a 30-day × N-medicine loop**. A `.filter()` on a related manager BYPASSES the `prefetch_related("schedules")` cache the callers set up, so it re-queried `IntakeSchedule` on every iteration. Measured per dashboard render: `build_today_execution` **1,733 queries** (1,613 identical IntakeSchedule SELECTs), composer 907, complete_wake_up 797 — ~3,000 queries/load. This is pulled onto the dashboard request path via `build_today_execution → _collect_medication_items → build_medicine_state → build_treatment_summary → calculate_medicine_adherence_rate(30d)`.
+
+**Fix:**
+- `_enumerate_expected_doses`: hoist the schedule fetch OUT of the day loop and iterate `medicine.schedules.all()` (prefetch cache) filtering `is_active` in Python. Behavior-identical; **build_today_execution 1,733 → 146 queries; composer 907 → 230; complete_wake_up 797 → 120.**
+- `apps/dashboard_v3/services/composer.py :: _warm_sae_if_empty`: prime `user._sae_cache` with the `state_data` it already reads for the emptiness check, so the ~36 identical `UserState` SELECTs per render (one per module read) collapse to zero.
+
+**Result (real DashboardV3View GET, warm):** ~3,000 queries → **316 queries, 280 ms** locally; on Postgres ≈ **6s → ~1–1.5s**. Task-completion POST (`X-V3-Toggle:1`) confirmed short-circuiting to **204 in 21 ms** — the 15–20s was the `window.location.reload()` full dashboard GET (same N+1), now ~1–1.5s.
+
+**Server-side vs front-end:** task-completion is fast server-side (21 ms 204); the user-visible delay was the post-toggle full dashboard reload hitting the same N+1. Fixing the N+1 fixes both symptoms. Remaining (smaller, follow-up): `build_medicine_state` computes the full 30-day treatment summary + observations on the request path but `_collect_medication_items` only uses `schedule_status_today` (~112 queries of the 316); a front-end optimistic checkbox update (vs full reload) would make completion feel instant.
+
+**Files:** apps/health/medicine_utils.py, apps/dashboard_v3/services/composer.py. 388 tests green (medicine adherence, medicine SAE extensions, dashboard_v3, cos_briefing) — the fix is behavior-identical.
+
+
 ## 2026-07-05 — fix(cos): Executive judgment — health-critical actions outrank routine/convenience (overdue meds lead)
 
 Production failure: user "I'm feeling great, lots of energy, sore from yesterday's workout" → Beth led with sleep / tasks / France mission / overdue tasks / shower / measurements and NEVER surfaced that his morning prescription medication was overdue; challenged, she listed the meds instead of directing him to take them. An exceptional Chief of Staff leads with the overdue meds ("take those first — it affects your health") before anything else.

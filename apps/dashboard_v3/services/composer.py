@@ -1809,6 +1809,15 @@ def _warm_sae_if_empty(user) -> None:
         # Fast existence check: do we have populated state_data?
         row = UserState.objects.filter(user=user).only("state_data").first()
         if row is not None and row.state_data:
+            # Prime the per-request SAE cache with the snapshot we just read.
+            # Every downstream get_module_state()/get_user_state() checks
+            # user._sae_cache first, so this collapses the ~30+ identical
+            # UserState SELECTs a single render otherwise issues (one per module
+            # read) into ZERO further queries. Read-only, request-scoped.
+            try:
+                user._sae_cache = row.state_data
+            except Exception:
+                pass
             return  # Common path — already warm.
 
         # Brand-new user — bootstrap once. allow_rebuild=True is the

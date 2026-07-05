@@ -38,13 +38,28 @@ def _enumerate_expected_doses(active_medicines, start_date, end_date, user_today
         list of (medicine_id, schedule_id, day) tuples. len() of the
         returned list is the expected-dose count for the range.
     """
+    # Fetch each medicine's active schedules ONCE, before the day loop — NOT
+    # per-day inside it. Using ``.all()`` (then filtering is_active in Python)
+    # hits the ``prefetch_related("schedules")`` cache the callers set up, so a
+    # 30-day × N-medicine adherence walk issues ZERO extra schedule queries.
+    #
+    # The previous ``medicine.schedules.filter(is_active=True)`` inside the day
+    # loop BYPASSED the prefetch cache (a filtered relation is always a fresh
+    # queryset) and re-queried on every iteration — 30 days × N meds =
+    # hundreds of identical IntakeSchedule SELECTs per call, invisible on
+    # SQLite but ~5–7s of the dashboard load on Postgres (2026-07-05 incident).
+    med_schedules = [
+        (medicine, [s for s in medicine.schedules.all() if s.is_active])
+        for medicine in active_medicines
+    ]
+
     expected = []
     day = start_date
     while day <= end_date:
         day_of_week = day.weekday()  # 0=Mon, 6=Sun
         is_today = (day == user_today)
-        for medicine in active_medicines:
-            for schedule in medicine.schedules.filter(is_active=True):
+        for medicine, schedules in med_schedules:
+            for schedule in schedules:
                 if schedule.applies_to_day(day_of_week):
                     if is_today and schedule.scheduled_time and schedule.scheduled_time > current_time:
                         # Future dose today — not due yet, skip

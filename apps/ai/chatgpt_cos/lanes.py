@@ -373,6 +373,81 @@ def _most_important_lane(user, message, conversation=None):
             "tools_advertised": [], "lane": "priority_now"}
 
 
+# "What is the biggest risk today?" is an EXECUTIVE-RISK question — a whole-life risk
+# synthesis, NOT a health intent or a goal update (the production category error was
+# answering it with mission pace). Domain-scoped risk ("biggest HEALTH risk", "risk to
+# my GOAL") stays with domain reasoning via the qualifier guard.
+_EXEC_RISK_SIGNALS = (
+    "biggest risk", "biggest risks", "greatest risk", "top risk", "main risk",
+    "what risk", "what risks", "what's my risk", "whats my risk", "what is my risk",
+    "most at risk", "any risks", "any risk", "risk today", "risks today",
+    "risk i should", "should i be worried about", "what am i at risk", "what should i be concerned",
+)
+
+
+def _deterministic_risk_answer(user):
+    """The biggest EVIDENCE-BACKED risk today, synthesized across deterministic sources —
+    an executive risk assessment, NEVER a goal update. Impact order: health-critical →
+    computed risk intelligence → execution/at-risk decision → overdue commitments. If
+    nothing rises to a real risk, explain WHY and offer the biggest opportunity. Never
+    returns None."""
+    # 1) Health-critical, time-sensitive — the highest-impact risk.
+    try:
+        from apps.ai.chatgpt_cos.executive_interpretation import _health_critical_actions
+        hc = _health_critical_actions(user)
+        if hc:
+            return (f"The biggest risk to watch today is health-critical: {hc[0]['text']} "
+                    f"— {hc[0]['why']}. Handle that first.")
+    except Exception:
+        logger.warning("executive_risk: health-critical failed", exc_info=True)
+    # 2) Computed risk intelligence (Insight warning/critical, risk predictions).
+    intel = {}
+    try:
+        from apps.ai.cos_intelligence import active_intelligence
+        intel = active_intelligence(user) or {}
+        if intel.get("risks"):
+            r = intel["risks"][0]
+            conf = f", {r['confidence']} confidence" if r.get("confidence") else ""
+            basis = f" (basis: {r['basis']}{conf})" if r.get("basis") else ""
+            return f"The biggest risk today is {r['text']}{basis}."
+    except Exception:
+        logger.warning("executive_risk: intelligence failed", exc_info=True)
+    # 3) The deterministic at-risk decision (overdue commitments / deadlines).
+    try:
+        from apps.ai.cos_services.tool_registry import _h_decision
+        d = _h_decision(user, mode="risk") or {}
+        msg = (d.get("message") or d.get("primary_action") or "").strip()
+        _none = ("no significant risk", "nothing at risk", "no risks", "nothing pressing",
+                 "no meaningful risk", "nothing overdue", "all caught up", "nothing right now")
+        if msg and not any(k in msg.lower() for k in _none):
+            reason = (d.get("reason") or "").strip()
+            tail = f" — {reason.rstrip('.')}" if reason and reason.lower() not in msg.lower() else ""
+            return f"The biggest risk today: {msg}{tail}."
+    except Exception:
+        logger.warning("executive_risk: decision failed", exc_info=True)
+    # 4) No meaningful risk → explain WHY, then offer the biggest opportunity.
+    why = ("Honestly, nothing rises to a real risk today — nothing's overdue, there are "
+           "no health-critical flags, and no warning signals in your data.")
+    opps = (intel.get("opportunities") or [])
+    if opps:
+        return f"{why} If you want a lever instead, the biggest opportunity is {opps[0]['text']}."
+    return f"{why} The best use of the day is steady progress on what matters most to you."
+
+
+def _executive_risk_lane(user, message, conversation=None):
+    """First-class EXECUTIVE RISK synthesis for 'what's my biggest risk today?'. Reuses
+    health-critical + risk intelligence + the at-risk decision; degrades gracefully and
+    NEVER substitutes a goal update. Yields domain-scoped risk questions to reasoning."""
+    norm = _normalize(message)
+    if not any(s in norm for s in _EXEC_RISK_SIGNALS):
+        return None
+    # "biggest HEALTH risk" / "risk to my GOAL" is a DOMAIN question — let reasoning own it.
+    if any(d in norm for d in _OVERVIEW_DOMAIN_QUALIFIERS):
+        return None
+    return {"answer": _deterministic_risk_answer(user), "tools_called": [],
+            "tools_advertised": [], "lane": "executive_risk"}
+
+
 # Honest capability-gap for goals — until a canonical goal engine exists, Beth
 # says so plainly, in natural CoS language (no developer words). She NEVER tells
 # the user to visit a "Goals area" (GB-5).
@@ -1354,6 +1429,9 @@ LANE_REGISTRY = (
     ("next_rhythm", _next_rhythm_lane),
     # "The single most important thing right now" — always deterministic, never the LLM.
     ("priority_now", _most_important_lane),
+    # "What's my biggest risk today?" — whole-life executive risk synthesis, never a
+    # health intent or a goal update.
+    ("executive_risk", _executive_risk_lane),
     ("cos_briefing", _cos_briefing_lane),
     ("personal_reasoning", _reasoning_lane),
     ("general_conversation", _general_lane),

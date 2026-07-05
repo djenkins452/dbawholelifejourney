@@ -222,6 +222,94 @@ class GedcomPreservationTests(TestCase):
         self.assertIn("Career", needs)
 
 
+# A father (M), a mother (F), their child; the father also married a second woman
+# (a step-mother by marriage); and an adopted child in a separate family.
+TYPED = """0 HEAD
+0 @I1@ INDI
+1 NAME Marvin /Jenkins/
+1 SEX M
+0 @I2@ INDI
+1 NAME Barbara /Dorff/
+1 SEX F
+0 @I3@ INDI
+1 NAME Danny /Jenkins/
+1 SEX M
+0 @I4@ INDI
+1 NAME Gloria /Katzell/
+1 SEX F
+0 @I5@ INDI
+1 NAME Adam /Poe/
+1 SEX M
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 CHIL @I3@
+0 @F2@ FAM
+1 HUSB @I1@
+1 WIFE @I4@
+1 CHIL @I5@
+2 _FREL Adopted
+2 _MREL Adopted
+1 MARR
+2 DATE 1980
+0 TRLR
+"""
+
+
+class ImporterTypesRelationshipsTests(TestCase):
+    """The importer produces the most accurate canonical type from the evidence the
+    GEDCOM already carries — SEX, marriage, pedigree — never a generic 'Parent'."""
+
+    def _commit(self, email, ged=TYPED):
+        from apps.legacy.services.import_engine import commit_genealogy
+        u = _make_user(email)
+        batch = create_batch(u, "Tree", "gedcom", ged, classifier=lambda units: {})
+        commit_genealogy(batch)
+        return u
+
+    def _rel(self, u, frm, to):
+        from apps.legacy.models import Person, Relationship
+        a = Person.objects.get(user=u, display_name=frm)
+        b = Person.objects.get(user=u, display_name=to)
+        r = Relationship.objects.filter(user=u, from_person=a, to_person=b).first()
+        return r.relationship_type if r else None
+
+    def test_biological_parents_typed_from_sex(self):
+        u = self._commit("typed1@example.com")
+        self.assertEqual(self._rel(u, "Marvin Jenkins", "Danny Jenkins"), "biological father of")
+        self.assertEqual(self._rel(u, "Barbara Dorff", "Danny Jenkins"), "biological mother of")
+
+    def test_stepmother_inferred_from_marriage(self):
+        # Gloria married Marvin (Danny's biological father) but is not Danny's parent.
+        u = self._commit("typed2@example.com")
+        self.assertEqual(self._rel(u, "Gloria Katzell", "Danny Jenkins"), "stepmother of")
+
+    def test_adoptive_parents_from_pedigree(self):
+        u = self._commit("typed3@example.com")
+        self.assertEqual(self._rel(u, "Marvin Jenkins", "Adam Poe"), "adoptive father of")
+        self.assertEqual(self._rel(u, "Gloria Katzell", "Adam Poe"), "adoptive mother of")
+
+    def test_person_sex_is_stored(self):
+        from apps.legacy.models import Person
+        u = self._commit("typed4@example.com")
+        self.assertEqual(Person.objects.get(user=u, display_name="Marvin Jenkins").sex, "M")
+        self.assertEqual(Person.objects.get(user=u, display_name="Barbara Dorff").sex, "F")
+
+    def test_reimport_upgrades_generic_parent(self):
+        # A pre-existing generic 'parent of' is refined in place, never duplicated.
+        from apps.legacy.models import Person, Relationship
+        from apps.legacy.services.import_engine import refine_existing_family_types
+        u = self._commit("typed5@example.com")
+        marv = Person.objects.get(user=u, display_name="Marvin Jenkins")
+        danny = Person.objects.get(user=u, display_name="Danny Jenkins")
+        Relationship.objects.filter(user=u, from_person=marv, to_person=danny).update(
+            relationship_type="parent of")
+        refine_existing_family_types(u)
+        rels = Relationship.objects.filter(user=u, from_person=marv, to_person=danny)
+        self.assertEqual(rels.count(), 1)                       # not duplicated
+        self.assertEqual(rels.first().relationship_type, "biological father of")
+
+
 class PreservationLayerTests(TestCase):
     """The permanent preservation layer — facts Canonical Truth can't model yet are
     stored durably (never trapped in one import session), so a future domain

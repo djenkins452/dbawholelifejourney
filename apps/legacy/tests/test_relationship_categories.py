@@ -66,8 +66,10 @@ class StoredCategoryTests(TestCase):
                                       classifier=lambda x: (_ for _ in ()).throw(AssertionError())))
         self.assertTrue(Relationship.objects.filter(user=self.user, relationship_type="married to",
                                                     relationship_category="romantic").exists())
-        self.assertTrue(Relationship.objects.filter(user=self.user, relationship_type="parent of",
-                                                    relationship_category="family").exists())
+        # Parents are typed from SEX evidence and categorized family.
+        self.assertTrue(Relationship.objects.filter(user=self.user,
+                        relationship_type="biological father of",
+                        relationship_category="family").exists())
 
 
 class ConsumerTests(TestCase):

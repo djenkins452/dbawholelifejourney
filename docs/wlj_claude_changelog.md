@@ -6,6 +6,24 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — feat(legacy): importer auto-classifies parent types from GEDCOM evidence (no manual correction)
+
+Users keep full CRUD, but nobody should hand-correct thousands of imported parents. The importer now produces the most accurate canonical relationship the source allows, from evidence it already had and was discarding:
+
+- **Person.sex** stored from GEDCOM `SEX` (new nullable field + migration 0026) — evidence used to type parents, never shown as identity.
+- **Parser** captures pedigree it previously dropped: standard `PEDI` under a child's `FAMC` (birth/adopted/foster) and per-parent `_FREL`/`_MREL` (RootsMagic/FTM/Ancestry) → `famc_pedi` / `child_rels` on the chunks.
+- **`commit_genealogy`** types each parent from (SEX + pedigree): male biological → **biological father of**, female biological → **biological mother of**, adopted → **adoptive father/mother of**, foster → **foster parent of**, guardian → **guardian of**. Default is biological; a generic "parent of" is only produced when SEX is genuinely unknown. Parent links now UPSERT (refine in place) so re-import never duplicates.
+- **Step-parents inferred** (`infer_step_parents`): a spouse of a biological/adoptive parent who is not themselves a parent of that child becomes **stepmother/stepfather** (by sex). Idempotent — a recorded step bond is re-detected as a parent and skipped. This is the "Marvin married Gloria → Gloria is Danny's stepmother" case, with no clarification needed.
+- **Existing data fixed without re-import** (`refine_existing_family_types` + data migration 0027): backfills sex from stored chunks, upgrades generic "parent of" → biological by sex, and infers step-parents for every already-imported user. `atomic=False`, per-user try/except so one bad record never blocks the deploy.
+- **Browser** now shows Son/Daughter for children too (using the new sex), alongside the exact parent types shipped earlier.
+
+Clarification is reserved for genuine ambiguity (e.g. unknown sex, or a family unit with no marriage evidence) — not when the GEDCOM already answers it.
+
+**Verified live** (fresh import of a father/mother/child + a second marriage + an adopted child): Marvin→Danny *biological father of*, Barbara→Danny *biological mother of*, Gloria→Danny *stepmother of*, Marvin/Gloria→Adam *adoptive father/mother of*, Person.sex stored. **116 legacy tests green** (+5 importer-typing tests).
+
+**Files:** apps/legacy/models.py (`Person.sex`), migrations 0026/0027, apps/legacy/services/gedcom_parser.py (`_famc_pedi`, `_child_rels`), apps/legacy/services/import_engine.py (`_pedi_base`, `_parent_type`, `infer_step_parents`, `refine_existing_family_types`, typed `_parent_link`), apps/legacy/services/family_tree.py (`_child_role` Son/Daughter), apps/legacy/tests/{test_gedcom,test_family,test_relationship_categories}.py.
+
+
 ## 2026-07-05 — fix(perf): interactive requests must never block on async infrastructure — restore ~2s dashboard + task completion
 
 **Regression:** dashboard load and task-completion (radio buttons) both regressed from ~2s to 15–20s, together.

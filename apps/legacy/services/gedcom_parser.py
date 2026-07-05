@@ -90,6 +90,33 @@ def _event(node, tag):
     return _val(e, "DATE"), _val(e, "PLAC")
 
 
+def _famc_pedi(rec):
+    """Per-family pedigree for an INDI (the standard PEDI tag under FAMC): maps a
+    family xref → 'birth' | 'adopted' | 'foster' | … . Applies to BOTH parents in
+    that family. Empty when the source doesn't qualify the bond (assume biological)."""
+    out = {}
+    for node in rec["children"]:
+        if node["tag"] == "FAMC" and node["value"]:
+            pedi = _val(node, "PEDI").lower().strip()
+            if pedi:
+                out[node["value"]] = pedi
+    return out
+
+
+def _child_rels(rec):
+    """Per-child parent-relationship qualifiers on a FAM's CHIL lines (_FREL / _MREL,
+    as exported by RootsMagic/FTM/Ancestry): maps child xref → {'father','mother'}
+    with values like 'birth'/'adopted'/'step'/'foster'/'guardian'. Empty when absent."""
+    out = {}
+    for node in rec["children"]:
+        if node["tag"] == "CHIL" and node["value"]:
+            frel = _val(node, "_FREL").lower().strip()
+            mrel = _val(node, "_MREL").lower().strip()
+            if frel or mrel:
+                out[node["value"]] = {"father": frel, "mother": mrel}
+    return out
+
+
 # A GEDCOM FAM record defines a family UNIT — a husband, a wife, their children. It
 # does NOT by itself mean the couple married. Legacy PRESERVES EVIDENCE; it never
 # infers truth. Marriage status is one of exactly two things:
@@ -373,6 +400,9 @@ def parse_gedcom(raw):
                 "birth_year": _year(bdate), "death_year": _year(ddate),
                 "birth_date": _full_date(bdate), "death_date": _full_date(ddate),
                 "birth_place": bplace, "death_place": dplace,
+                # Pedigree per family the person is a CHILD in (standard PEDI tag:
+                # birth / adopted / foster), so the importer can type the bond.
+                "famc_pedi": _famc_pedi(rec),
                 "facts": _facts(rec),
             },
         })
@@ -403,12 +433,16 @@ def parse_gedcom(raw):
             "source_ref": (rec["xref"] or "family").strip("@"),
             "kind": "gedcom_family", "confidence": "high",
             "data": {
+                "xref": rec["xref"] or "",
                 "husb": _val(rec, "HUSB"), "wife": _val(rec, "WIFE"),
                 "children": [c["value"] for c in rec["children"] if c["tag"] == "CHIL"],
                 "marriage_year": _year(mdate), "marriage_date": _full_date(mdate),
                 "marriage_place": mplace,
                 "couple_type": couple_type,
                 "marriage_status": marriage_status,
+                # Per-child parent-relationship qualifiers (_FREL/_MREL — RootsMagic/
+                # FTM/Ancestry): {child_xref: {"father": "...", "mother": "..."}}.
+                "child_rels": _child_rels(rec),
                 "facts": _facts(rec),
             },
         })

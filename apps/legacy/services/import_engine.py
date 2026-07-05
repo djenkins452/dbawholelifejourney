@@ -253,6 +253,137 @@ def _couple_bond(family_data):
     return None, None
 
 
+_PARENTISH = ("parent", "father", "mother", "guardian")
+
+
+def _is_parentish(t):
+    t = (t or "").lower()
+    return any(k in t for k in _PARENTISH) and "grand" not in t
+
+
+def _pedi_base(value):
+    """Normalize a pedigree/relationship qualifier to a base kind. '' when unknown
+    (the caller defaults to biological — a plain HUSB/WIFE→CHIL link)."""
+    v = (value or "").lower()
+    if "adopt" in v:
+        return "adopted"
+    if "foster" in v:
+        return "foster"
+    if "step" in v:
+        return "step"
+    if "guardian" in v or "ward" in v:
+        return "guardian"
+    if "birth" in v or "biolog" in v or "natural" in v:
+        return "birth"
+    return ""
+
+
+def _parent_type(sex, base):
+    """The canonical parent relationship_type from (parent sex, pedigree base).
+    Male→father, Female→mother, unknown→neutral. This is how the importer produces
+    'biological father of' / 'stepmother of' / 'adoptive mother of' automatically."""
+    s = (sex or "").upper()
+    m, f = s.startswith("M"), s.startswith("F")
+    if base == "adopted":
+        return "adoptive father of" if m else "adoptive mother of" if f else "adoptive parent of"
+    if base == "foster":
+        return "foster parent of"
+    if base == "guardian":
+        return "guardian of"
+    if base == "step":
+        return "stepfather of" if m else "stepmother of" if f else "step-parent of"
+    return "biological father of" if m else "biological mother of" if f else "parent of"
+
+
+def infer_step_parents(user):
+    """Derive step-parents from evidence already present: a spouse of a biological/
+    adoptive parent who is NOT themselves a parent of that child is a step-parent
+    (stepmother/stepfather by their sex). Idempotent — a step bond already recorded is
+    re-detected as a parent and skipped, so re-running never duplicates. Returns the
+    number of NEW step relationships created."""
+    from collections import defaultdict
+
+    from apps.legacy.models import Relationship
+
+    parents_of = defaultdict(set)    # child_id -> {parent_id}
+    children_of = defaultdict(set)   # parent_id -> {child_id}
+    spouses = defaultdict(set)
+    sex = {}
+    rels = list(Relationship.objects.filter(user=user)
+                .select_related("from_person", "to_person"))
+    for r in rels:
+        t = (r.relationship_type or "").lower()
+        sex[r.from_person_id] = r.from_person.sex
+        sex[r.to_person_id] = r.to_person.sex
+        if _is_parentish(t):
+            children_of[r.from_person_id].add(r.to_person_id)
+            parents_of[r.to_person_id].add(r.from_person_id)
+        elif any(k in t for k in ("married", "spouse", "partner", "husband", "wife")):
+            spouses[r.from_person_id].add(r.to_person_id)
+            spouses[r.to_person_id].add(r.from_person_id)
+
+    existing_pairs = {(r.from_person_id, r.to_person_id) for r in rels}
+    created = 0
+    for parent_id, kids in list(children_of.items()):
+        for spouse_id in spouses.get(parent_id, ()):
+            for child_id in kids:
+                if spouse_id == child_id or spouse_id in parents_of.get(child_id, ()):
+                    continue                      # already a parent → not a step-parent
+                if (spouse_id, child_id) in existing_pairs:
+                    continue
+                s = (sex.get(spouse_id) or "").upper()
+                rtype = ("stepfather of" if s.startswith("M")
+                         else "stepmother of" if s.startswith("F") else "step-parent of")
+                Relationship.objects.create(
+                    user=user, from_person_id=spouse_id, to_person_id=child_id,
+                    relationship_type=rtype)
+                existing_pairs.add((spouse_id, child_id))
+                parents_of[child_id].add(spouse_id)
+                created += 1
+    return created
+
+
+def refine_existing_family_types(user):
+    """Bring ALREADY-imported genealogy up to the evidence-based standard WITHOUT a
+    re-import: backfill Person.sex from the stored import chunks, upgrade generic
+    'parent of' bonds to biological father/mother by that sex, and infer step-parents
+    from marriages. Idempotent. Returns (sex_set, parents_upgraded, steps_created)."""
+    from apps.legacy.models import ImportChunk, Person, Relationship
+
+    sex_by_person = {}
+    for ch in ImportChunk.objects.filter(batch__user=user, chunk_kind="gedcom_person"):
+        d = ch.data or {}
+        xref = (d.get("xref") or "").strip()
+        s = (d.get("sex") or "")[:1].upper()
+        if xref and s in ("M", "F"):
+            sex_by_person[(ch.batch_id, xref)] = s
+
+    sex_set = 0
+    for p in (Person.all_objects.filter(user=user, source_batch__isnull=False)
+              .exclude(gedcom_xref="")):
+        if p.sex:
+            continue
+        s = sex_by_person.get((p.source_batch_id, p.gedcom_xref))
+        if s:
+            p.sex = s
+            p.save(update_fields=["sex", "updated_at"])
+            sex_set += 1
+
+    upgraded = 0
+    for r in (Relationship.objects.filter(user=user, relationship_type="parent of")
+              .select_related("from_person")):
+        s = (r.from_person.sex or "").upper()
+        rtype = ("biological father of" if s.startswith("M")
+                 else "biological mother of" if s.startswith("F") else "")
+        if rtype:
+            r.relationship_type = rtype
+            r.save(update_fields=["relationship_type", "relationship_category", "updated_at"])
+            upgraded += 1
+
+    steps = infer_step_parents(user)
+    return sex_set, upgraded, steps
+
+
 def commit_genealogy(batch):
     """Commit a GEDCOM batch's structured people + families into Canonical Truth:
     Person records (with birth/death years) and spouse / parent-child Relationships.
@@ -265,6 +396,7 @@ def commit_genealogy(batch):
     _d = _iso_to_date
     user = batch.user
     xref_to_person = {}
+    pedi_by_xref = {}     # child xref -> {family xref: pedigree} (standard PEDI)
     people_created = 0
 
     # ONE Person per GEDCOM individual (identified by its xref) — NEVER merged by
@@ -284,9 +416,10 @@ def commit_genealogy(batch):
         if xref:
             person = Person.all_objects.filter(
                 user=user, source_batch=batch, gedcom_xref=xref).first()
+        sex = (d.get("sex") or "")[:1].upper()
         if person is None:
             person = Person.objects.create(
-                user=user, display_name=name[:200],
+                user=user, display_name=name[:200], sex=sex,
                 birth_year=d.get("birth_year"), death_year=d.get("death_year"),
                 birth_date=_d(birth_iso), death_date=_d(death_iso),
                 source_batch=batch, gedcom_xref=xref[:40],
@@ -301,10 +434,13 @@ def commit_genealogy(batch):
                 person.birth_date = _d(birth_iso); fields.append("birth_date")
             if not person.death_date and _d(death_iso):
                 person.death_date = _d(death_iso); fields.append("death_date")
+            if sex and person.sex != sex:
+                person.sex = sex; fields.append("sex")
             if fields:
                 person.save(update_fields=fields + ["updated_at"])
         if xref:
             xref_to_person[xref] = person
+            pedi_by_xref[xref] = d.get("famc_pedi") or {}
         # PERMANENT preservation — every fact Canonical Truth can't model yet is
         # stored durably against this Person, never left only inside the session.
         preserve_facts(user, batch, person, name, (d.get("facts") or []))
@@ -324,8 +460,31 @@ def commit_genealogy(batch):
         if made:
             links_created += 1
 
+    def _parent_link(parent, child, rtype):
+        """Create or REFINE a parent→child bond. Upgrades a generic/less-specific
+        existing parent type (e.g. 'parent of') to the evidence-based one ('biological
+        father of') without duplicating — so re-import improves Canonical Truth."""
+        nonlocal links_created
+        if not parent or not child or parent.pk == child.pk:
+            return
+        existing = None
+        for r in Relationship.objects.filter(user=user, from_person=parent, to_person=child):
+            if _is_parentish(r.relationship_type):
+                existing = r
+                break
+        if existing:
+            if existing.relationship_type != rtype:
+                existing.relationship_type = rtype
+                existing.save(update_fields=["relationship_type", "relationship_category",
+                                             "updated_at"])
+        else:
+            Relationship.objects.create(user=user, from_person=parent, to_person=child,
+                                        relationship_type=rtype)
+            links_created += 1
+
     for ch in batch.chunks.filter(chunk_kind="gedcom_family"):
         d = ch.data or {}
+        fam_xref = d.get("xref") or ""
         husb = xref_to_person.get(d.get("husb"))
         wife = xref_to_person.get(d.get("wife"))
         # A FAM record is a family UNIT — it does NOT imply marriage. Only assert a
@@ -337,15 +496,31 @@ def commit_genealogy(batch):
         if ctype and status == "known":
             _link(husb, wife, "former spouse of" if ctype == "former" else "married to",
                   started_year=d.get("marriage_year"), started_date=_d(d.get("marriage_date")))
+        # Parents are typed from the evidence the GEDCOM already carries — the parent's
+        # SEX (father/mother) and the pedigree qualifier (_FREL/_MREL per parent, or the
+        # child's PEDI for this family). Default is biological. Never a generic "Parent"
+        # when the source knows better.
+        child_rels = d.get("child_rels") or {}
         for x in (d.get("children") or []):
             child = xref_to_person.get(x)
-            for parent in (husb, wife):
-                _link(parent, child, "parent of")
+            if not child:
+                continue
+            cr = child_rels.get(x) or {}
+            child_pedi = (pedi_by_xref.get(x) or {}).get(fam_xref, "")
+            for parent, slot in ((husb, "father"), (wife, "mother")):
+                if not parent:
+                    continue
+                base = _pedi_base(cr.get(slot)) or _pedi_base(child_pedi) or "birth"
+                _parent_link(parent, child, _parent_type(parent.sex, base))
         # Family-level facts (e.g. divorce) preserved too — nothing left behind.
         preserve_facts(user, batch, None, ch.title, (d.get("facts") or []))
         if ch.status != ImportChunk.Status.IMPORTED:
             ch.status = ImportChunk.Status.IMPORTED
             ch.save(update_fields=["status"])
+
+    # A spouse of a biological/adoptive parent who is NOT themselves a parent of the
+    # child is a step-parent — evidence the GEDCOM already implies (marriage + kids).
+    links_created += infer_step_parents(user)
 
     batch.refresh_counts()
     return people_created, links_created

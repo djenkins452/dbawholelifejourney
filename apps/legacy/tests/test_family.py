@@ -43,8 +43,14 @@ class GenealogyCommitTests(TestCase):
         self.assertTrue(Relationship.objects.filter(
             user=self.user, from_person=marvin, relationship_type="married to").exists())
         danny = Person.objects.get(user=self.user, display_name="Danny Jenkins")
-        self.assertEqual(Relationship.objects.filter(
-            user=self.user, to_person=danny, relationship_type="parent of").count(), 2)
+        betty = Person.objects.get(user=self.user, display_name="Betty Jenkins")
+        # Parents are typed from SEX evidence — never left generic "Parent".
+        self.assertTrue(Relationship.objects.filter(
+            user=self.user, from_person=marvin, to_person=danny,
+            relationship_type="biological father of").exists())
+        self.assertTrue(Relationship.objects.filter(
+            user=self.user, from_person=betty, to_person=danny,
+            relationship_type="biological mother of").exists())
 
     def test_commit_is_idempotent(self):
         batch = create_batch(self.user, "Tree", "gedcom", SAMPLE, classifier=_boom)

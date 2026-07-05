@@ -678,6 +678,11 @@ CATEGORY_LABELS = {
 _SIBLING_KW = ("sibling", "brother", "sister")
 
 
+def _child_role(sex):
+    s = (sex or "").upper()
+    return "Son" if s.startswith("M") else "Daughter" if s.startswith("F") else "Child"
+
+
 def browse_person_relationships(user, focal_id=None):
     """The canonical, person-centric relationship browser behind the Relationships
     page: the ACTUAL relationship records that touch one focal person, oriented from
@@ -738,7 +743,7 @@ def browse_person_relationships(user, focal_id=None):
             stored_sibs.add(other.pk)
         elif any(k in t for k in _PARENT_OF):
             if outgoing:                       # focal is the parent → other is the child
-                add("children", 40, "Children", other, "Child", r.pk)
+                add("children", 40, "Children", other, _child_role(other.sex), r.pk)
             else:                              # other is focal's parent → its exact type
                 add("parents", 10, "Parents", other, label, r.pk)
                 parent_ids.add(other.pk)
@@ -747,7 +752,7 @@ def browse_person_relationships(user, focal_id=None):
                 add("parents", 10, "Parents", other, "Parent", r.pk)
                 parent_ids.add(other.pk)
             else:                              # other is focal's child
-                add("children", 40, "Children", other, "Child", r.pk)
+                add("children", 40, "Children", other, _child_role(other.sex), r.pk)
         else:
             cat = r.relationship_category or "other"
             add("cat_" + cat, 60, CATEGORY_LABELS.get(cat, "Other"), other, label, r.pk)

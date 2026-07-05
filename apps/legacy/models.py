@@ -96,6 +96,10 @@ class Person(LegacyOwnedModel):
     relationship_label = models.CharField(
         max_length=120, blank=True, help_text="Relationship to the keeper (e.g. 'your father')",
     )
+    # Biological sex from the source (GEDCOM SEX: 'M'/'F', '' unknown). Evidence, not
+    # identity — used to type parent relationships (biological father vs mother) so the
+    # importer never leaves a generic "Parent" when the source already tells us.
+    sex = models.CharField(max_length=1, blank=True, db_index=True)
     birth_year = models.PositiveIntegerField(null=True, blank=True)
     death_year = models.PositiveIntegerField(null=True, blank=True)
     # Full dates when known (e.g. from GEDCOM "29 MAR 1971"). The *_year fields

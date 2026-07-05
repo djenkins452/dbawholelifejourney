@@ -6,6 +6,21 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(routing): rhythm items route to their WORKFLOW, not the Routines page — route from the capability, not the wording
+
+**Bug:** "Journal" and "Log Nutrition" (and Bible Reading / Prayer / Measurements / Log Weight / Log Workout) navigated to the Routines page instead of their actual workflow.
+
+**Root architectural decision that caused it:** `apps/core/execution/today_execution.py` hardcoded every routine item's `detail_url = reverse('life:routine_list')`. Navigation was determined by the fact that the item *is a routine*, not by the action it represents — so it bypassed the capability resolver (`resolve_action_destination`) entirely. (Focus/Do-This-Now already routed correctly through the resolver; the rhythm tiles did not.)
+
+**Fix — routing originates from the deterministic CAPABILITY:**
+- Rewrote `apps/core/execution/action_routing.py` around an explicit capability layer: `derive_capability(item)` → `_CAPABILITY_URL[cap]`. Capabilities (`log_nutrition`, `create_journal_entry`, `open_bible_reading`, `open_prayer`, `log_measurements`, `log_workout`, `log_weight`, `log_intake`, …) map to the SPECIFIC entry workflow (Log Weight → the weight-entry form, not the domain home). Derivation is metadata-first (source_type → `RoutineSchedule.activity_type` → `Task.module`), title-keyword LAST-resort (for nutrition/weight/measurements/prayer, which have no `activity_type` yet), then a genuine-household fallback. A generic `activity_type='faith'` lets the title pick prayer vs bible WITHIN the faith domain. Uses the `activity_type` already on the item (zero extra queries — no N+1).
+- `today_execution.py`: routine `detail_url` now flows through `resolve_action_destination(...)`.
+
+**Acceptance (all verified):** Log Nutrition → /health/physical/nutrition/ · Journal → /journal/new/ · Bible Reading → /faith/reading-plans/ · Prayer Time → /faith/prayers/ · Measurements → /health/physical/body-composition/log/ · Log Workout → /health/physical/fitness/workout/new/ · Log Weight → /health/physical/weight/log/. Genuine household routines (Shower, Dishwasher) correctly stay on /life/routines/. Rename-safe for anything carrying `activity_type`.
+
+**Files:** apps/core/execution/action_routing.py (capability rewrite), apps/core/execution/today_execution.py; apps/core/execution/tests/test_action_routing.py (updated to specific workflows + an acceptance matrix). 456 execution + dashboard + briefing tests green.
+
+
 ## 2026-07-05 — feat(core): Universal Action Routing — every actionable item knows how to be done
 
 **Capability, not a screen tweak.** Actionable items across WLJ (dashboard, Executive Briefing, accountability cards, Beth, check-ins) mostly described WHAT to do without helping the user DO it. New platform capability: any actionable item resolves to ONE canonical `ActionRoute` so the interaction is identical everywhere — informational / complete_here / open_workflow.

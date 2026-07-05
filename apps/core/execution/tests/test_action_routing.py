@@ -48,21 +48,22 @@ class ActionRoutingTests(TestCase):
         item = {"source_type": "supplement_dose", "source_id": 1, "title": "Fish Oil"}
         self.assertEqual(resolve_action_destination(item), "/health/physical/intake/")
 
-    # ── routine activity_type (canonical, rename-safe) ──
-    def test_workout_routine_routes_to_fitness(self):
+    # ── routine activity_type (canonical, rename-safe) → SPECIFIC workflow ──
+    def test_workout_routine_routes_to_workout_logging(self):
         sched = self._routine_schedule("Morning Lift", activity_type="workout")
         item = {"source_type": "routine_item", "source_id": sched.pk, "title": "Morning Lift"}
-        self.assertEqual(resolve_action_destination(item), "/health/physical/fitness/")
+        self.assertEqual(resolve_action_destination(item),
+                         "/health/physical/fitness/workout/new/")
 
-    def test_bible_routine_routes_to_faith(self):
+    def test_bible_routine_routes_to_bible_reading(self):
         sched = self._routine_schedule("Morning Scripture", activity_type="bible")
         item = {"source_type": "routine_item", "source_id": sched.pk, "title": "Morning Scripture"}
-        self.assertEqual(resolve_action_destination(item), "/faith/")
+        self.assertEqual(resolve_action_destination(item), "/faith/reading-plans/")
 
-    def test_journal_routine_routes_to_journal(self):
+    def test_journal_routine_routes_to_new_entry(self):
         sched = self._routine_schedule("Evening Pages", activity_type="journal")
         item = {"source_type": "routine_item", "source_id": sched.pk, "title": "Evening Pages"}
-        self.assertEqual(resolve_action_destination(item), "/journal/")
+        self.assertEqual(resolve_action_destination(item), "/journal/new/")
 
     def test_household_routine_routes_to_routines(self):
         # No activity_type, household keyword → /life/routines/
@@ -89,14 +90,38 @@ class ActionRoutingTests(TestCase):
 
     # ── rename safety (the headline guarantee) ──
     def test_rename_safe_routing(self):
-        """A renamed Bible routine still routes to /faith/ because resolution
-        keys on activity_type, NOT the title."""
+        """A renamed Bible routine still routes to the reading workflow because
+        resolution keys on activity_type, NOT the title."""
         sched = self._routine_schedule(
             "Completely Unrelated Title", activity_type="bible"
         )
         item = {"source_type": "routine_item", "source_id": sched.pk,
                 "title": "Completely Unrelated Title"}
-        self.assertEqual(resolve_action_destination(item), "/faith/")
+        self.assertEqual(resolve_action_destination(item), "/faith/reading-plans/")
+
+    # ── ACCEPTANCE: routine items route to their WORKFLOW, never Routines ──
+    def test_acceptance_routine_workflows(self):
+        """The reported bug: routine items navigated to the Routines page. Each
+        must route to the workflow its CAPABILITY represents. (activity_type
+        only covers workout/journal/bible/faith; the rest resolve via the
+        documented title bridge because no activity_type exists for them yet.)"""
+        cases = [
+            ("Log Nutrition", None,      "/health/physical/nutrition/"),
+            ("Journal", "journal",       "/journal/new/"),
+            ("Bible Reading", "bible",   "/faith/reading-plans/"),
+            ("Prayer Time", "faith",     "/faith/prayers/"),
+            ("Measurements", None,       "/health/physical/body-composition/log/"),
+            ("Log Workout", None,        "/health/physical/fitness/workout/new/"),
+            ("Log Weight", None,         "/health/physical/weight/log/"),
+        ]
+        for title, activity, expected in cases:
+            sched = self._routine_schedule(title, activity_type=activity)
+            item = {"source_type": "routine_item", "source_id": sched.pk,
+                    "title": title, "activity_type": activity}
+            self.assertEqual(
+                resolve_action_destination(item), expected,
+                f"{title!r} must route to {expected}, not the Routines page.")
+            self.assertNotEqual(resolve_action_destination(item), "/life/routines/")
 
     # ── safe fallback ──
     def test_unknown_falls_back_to_life(self):

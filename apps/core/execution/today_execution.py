@@ -26,6 +26,7 @@ import logging
 
 from django.urls import reverse
 
+from apps.core.execution.action_routing import resolve_action_destination
 from apps.core.utils import classify_time_status, get_user_now, get_user_today
 
 logger = logging.getLogger(__name__)
@@ -281,7 +282,15 @@ def _collect_routine_items(user, user_now, user_today):
                     'dashboard_v2:routine_schedule_toggle',
                     kwargs={'schedule_id': schedule_id},
                 ),
-                'detail_url': reverse('life:routine_list'),
+                # Navigate to the WORKFLOW this routine represents (Journal →
+                # new entry, Log Nutrition → nutrition), resolved from its
+                # deterministic capability — NOT hardcoded to the Routines page.
+                'detail_url': resolve_action_destination({
+                    'source_type': 'routine_item',
+                    'source_id': schedule_id,
+                    'title': item.get('item_name', ''),
+                    'activity_type': item.get('activity_type'),
+                }),
                 'execution_group_type': 'routine',
                 'execution_group_id': item.get('routine_id'),
                 'parent_title': item.get('routine_name', ''),

@@ -320,6 +320,126 @@ def active_intelligence(user):
     return out
 
 
+# How each EAE derived whole-life pattern READS as a non-obvious executive pattern —
+# deterministic rendering of a computed signal (what it means + the lever), never an
+# invented claim. Keyed to the 5 real PatternEngine rules.
+_EAE_PATTERN_COPY = {
+    "recovery_risk": (
+        "you keep training hard while your recovery markers — sleep, biometrics — stay low",
+        "ease the intensity until sleep and recovery catch up; right now you're accruing fatigue, not fitness"),
+    "holistic_momentum": (
+        "several areas of your life are strong at the same time — you're carrying real multi-domain momentum",
+        "name it and press the advantage: this is the window to take on something ambitious, not coast"),
+    "domain_neglect": (
+        "one whole area of your life has been quietly sliding while your attention sits elsewhere",
+        "give that neglected area one deliberate touch this week, before the gap compounds into a setback"),
+    "compliance_drift": (
+        "your medication adherence and your health markers are slipping together — they're moving as one",
+        "treat the adherence slip as the lever; the biometrics are most likely following it, not the reverse"),
+    "wellbeing_convergence": (
+        "your reflection, relationships, and faith practice are all landing at once — your inner life is converging upward",
+        "protect whatever routine is producing this; it's doing more for you than any single habit"),
+}
+
+# Source priority (lower = preferred), per the Executive Pattern spec: EAE derived
+# whole-life patterns first, then CDCE correlations, then cross-domain insights/predictions.
+_PATTERN_SRC_RANK = {"eae_pattern": 0, "cdce_correlation": 1, "cross_domain": 2}
+
+# A whole-life pattern must clear this confidence before it's presentable as executive.
+_PATTERN_CONF_FLOOR = 0.40
+
+
+def whole_life_patterns(user):
+    """Deterministic WHOLE-LIFE pattern candidates for Executive Pattern Discovery, in
+    priority order — (1) EAE derived whole-life patterns, (2) CDCE cross-domain
+    correlations, (3) cross-domain insights/predictions. RAW single-domain dashboard
+    trends (protein low, weight down, sleep average) are NEVER candidates; the strongest
+    one is returned separately as ``observation`` (explicitly a domain observation, not a
+    pattern) so the honest-empty answer can name it. Persisted reads only — never
+    recomputes an engine on the request path. Returns
+    ``{"candidates": [ {text, basis, action, confidence, source} ... ], "observation": {text, module}|None}``."""
+    candidates = []
+    observation = None
+
+    # 1) EAE derived whole-life patterns — a snapshot EXISTS only because the rule fired,
+    #    so presence itself is the evidence; confidence rides along.
+    try:
+        from apps.core.ai_eae.models import SignalSnapshot
+        recent = timezone.now().date() - timedelta(days=3)
+        seen = set()
+        for s in list(SignalSnapshot.objects.filter(
+                user=user, signal_class="derived_pattern", date__gte=recent)
+                .order_by("-date", "-confidence")[:12]):
+            copy = _EAE_PATTERN_COPY.get(s.signal_type)
+            if not copy or s.signal_type in seen:
+                continue
+            seen.add(s.signal_type)
+            text, action = copy
+            candidates.append({
+                "text": text, "action": action,
+                "basis": f"a derived whole-life pattern ({s.signal_type.replace('_', ' ')}) "
+                         f"WLJ computed across your signals",
+                "confidence": float(s.confidence or 0.0), "source": "eae_pattern"})
+    except Exception:
+        logger.debug("patterns: EAE derived read failed", exc_info=True)
+
+    # 2) CDCE cross-domain correlations — statistical links across two life areas.
+    try:
+        from apps.core.ai_cross_domain.models import DomainCorrelation
+        for c in list(DomainCorrelation.objects.filter(user=user, status="active")
+                      .order_by("-strength_score")[:3]):
+            if not (c.narrative or "").strip():
+                continue
+            candidates.append({
+                "text": (c.narrative or "").strip()[:220],
+                "action": f"watch the leading side — {c.domain_a} — to move {c.domain_b}",
+                "basis": f"a {c.strength} correlation between {c.domain_a} and {c.domain_b} "
+                         f"over {getattr(c, 'data_points', 0)} observations",
+                "confidence": float(getattr(c, "strength_score", 0.0) or 0.0),
+                "source": "cdce_correlation"})
+    except Exception:
+        logger.debug("patterns: CDCE correlation read failed", exc_info=True)
+
+    # 3) Cross-domain insights / predictions — multi-domain synthesis rules.
+    try:
+        from apps.core.ai_insights.models import Insight
+        for i in list(Insight.objects.filter(user=user, module="cross_domain")
+                      .exclude(status="dismissed").order_by("-created_at")[:3]):
+            candidates.append({
+                "text": (i.title or (i.message or "")[:160]).strip(),
+                "action": (i.message or "").strip()[:200] or "watch how these two areas move together",
+                "basis": "a cross-domain insight WLJ synthesized",
+                "confidence": float(i.confidence_score or 0.0), "source": "cross_domain"})
+    except Exception:
+        logger.debug("patterns: cross-domain insight read failed", exc_info=True)
+    try:
+        from apps.core.ai_predictions.models import Prediction
+        for p in list(Prediction.objects.filter(user=user, module="cross_domain", status="active")
+                      .order_by("-confidence_score")[:2]):
+            candidates.append({
+                "text": (p.explanation or p.prediction_type).strip()[:200],
+                "action": "act before the forecast lands, not after",
+                "basis": "a cross-domain prediction WLJ computed",
+                "confidence": float(p.confidence_score or 0.0), "source": "cross_domain"})
+    except Exception:
+        logger.debug("patterns: cross-domain prediction read failed", exc_info=True)
+
+    # The strongest RAW single-domain trend — a dashboard observation, NEVER a pattern.
+    # Held aside so the honest-empty answer can name it and say why it isn't executive.
+    try:
+        from apps.core.ai_insights.models import Insight
+        obs = (Insight.objects.filter(user=user)
+               .exclude(module="cross_domain").exclude(status="dismissed")
+               .order_by("-confidence_score", "-created_at").first())
+        if obs is not None:
+            observation = {"text": (obs.title or (obs.message or "")[:120]).strip(),
+                           "module": obs.module}
+    except Exception:
+        logger.debug("patterns: observation read failed", exc_info=True)
+
+    return {"candidates": candidates, "observation": observation}
+
+
 def build_cos_intelligence(user):
     """The standing Chief-of-Staff read: overall, goal pace, recommendation
     effectiveness. Compact + grounded; safe to embed in the LLM context."""

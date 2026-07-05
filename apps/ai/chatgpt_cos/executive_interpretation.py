@@ -71,6 +71,12 @@ class ExecutiveSignals:
     opportunity: dict = None
     predictions: list = field(default_factory=list)
     patterns: list = field(default_factory=list)
+    # The executive PATTERN — a non-obvious whole-life pattern the user is unlikely to
+    # have recognized (EAE derived pattern → CDCE correlation → cross-domain insight/
+    # prediction), ranked by executive value, never a raw single-domain dashboard trend.
+    # {text, basis, action} or None (honest: no whole-life pattern clears the bar yet;
+    # `observation` then names the strongest single-domain trend as NOT a pattern).
+    pattern: dict = None
     guidance: list = field(default_factory=list)
 
     def to_dict(self):
@@ -317,6 +323,37 @@ def _opportunity_assessment(*, workload, ease_load, strategic, tw, reconciliatio
     return {"text": text, "basis": basis, "action": action}
 
 
+def _pattern_assessment(user):
+    """The single EXECUTIVE PATTERN today — a non-obvious whole-life pattern the user is
+    unlikely to have recognized, drawn from ALREADY-COMPUTED whole-life sources in
+    priority order (EAE derived patterns → CDCE correlations → cross-domain insight/
+    prediction) and ranked by executive value, NOT domain count. A raw single-domain
+    dashboard trend (protein low, weight down, sleep average) can never be the pattern —
+    it's an observation, held aside. Returns ``{text, basis, action}`` when a pattern
+    clears the evidence threshold, else ``{observation: {text, module}|None}`` so the
+    honest-empty answer can name the strongest domain trend and say why it isn't a
+    pattern. Never invents a connection to fill the answer."""
+    try:
+        from apps.ai.cos_intelligence import whole_life_patterns, _PATTERN_SRC_RANK, _PATTERN_CONF_FLOOR
+    except Exception:
+        logger.warning("pattern_assessment: reader import failed", exc_info=True)
+        return {"observation": None}
+    try:
+        data = whole_life_patterns(user)
+    except Exception:
+        logger.warning("pattern_assessment: whole_life_patterns failed", exc_info=True)
+        return {"observation": None}
+    qualifying = [c for c in data.get("candidates", [])
+                  if float(c.get("confidence") or 0.0) >= _PATTERN_CONF_FLOOR]
+    if qualifying:
+        # Prefer by source priority (EAE > CDCE > cross-domain), then by confidence.
+        qualifying.sort(key=lambda c: (_PATTERN_SRC_RANK.get(c.get("source"), 9),
+                                       -float(c.get("confidence") or 0.0)))
+        top = qualifying[0]
+        return {"text": top["text"], "basis": top["basis"], "action": top["action"]}
+    return {"observation": data.get("observation")}
+
+
 def interpret(user, low_energy=False, subjective=None):
     """Produce ExecutiveSignals — ALL executive judgment — from deterministic facts
     plus the user's OWN reported state. The Composer narrates these conclusions; it
@@ -488,6 +525,9 @@ def interpret(user, low_energy=False, subjective=None):
         workload=workload, ease_load=ease_load, strategic=strategic, tw=tw,
         reconciliation=reconciliation, subjective=subjective,
         accomplishments=reported_accomplishments)
+    # EXECUTIVE PATTERN — a non-obvious whole-life pattern from already-computed sources
+    # (EAE → CDCE → cross-domain), ranked by executive value, never a single-domain trend.
+    _pattern = _pattern_assessment(user)
     if not biggest_risk and _risks:
         biggest_risk = _risks[0].get("text", "") or biggest_risk
     if not executive_picture:
@@ -512,7 +552,8 @@ def interpret(user, low_energy=False, subjective=None):
 
     return ExecutiveSignals(
         risks=_risks, wins=_wins, opportunity=_opportunity, predictions=_predictions,
-        patterns=_patterns, guidance=_guidance, health_critical=_health_critical,
+        patterns=_patterns, pattern=_pattern, guidance=_guidance,
+        health_critical=_health_critical,
         workload=workload, workload_summary=wsummary,
         today_count=tw["today"], overdue_count=tw["overdue"], soon_count=tw["soon"],
         backlog_count=tw["backlog"], total_pending=tw["total"],

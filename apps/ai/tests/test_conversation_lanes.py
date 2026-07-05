@@ -147,7 +147,7 @@ class RoutingPreservationTests(TestCase):
                          ["temporal", "why_explainer", "referential",
                           "clarification_reply", "conversation_planner",
                           "decision_support", "accomplishment", "sleep_history", "weight_history", "workout_history", "foundational_facts", "clarification",
-                          "general_continuity", "next_rhythm", "priority_now", "executive_risk", "executive_opportunity", "cos_briefing",
+                          "general_continuity", "next_rhythm", "priority_now", "executive_risk", "executive_opportunity", "executive_pattern", "cos_briefing",
                           "personal_reasoning", "general_conversation"])
 
     def test_health_questions_never_claimed_by_new_lanes(self):
@@ -312,7 +312,7 @@ class ApprovedRegistryOrderTests(TestCase):
             [n for n, _ in LANE_REGISTRY],
             ["temporal", "why_explainer", "referential", "clarification_reply",
              "conversation_planner", "decision_support", "accomplishment", "sleep_history", "weight_history", "workout_history", "foundational_facts",
-             "clarification", "general_continuity", "next_rhythm", "priority_now", "executive_risk", "executive_opportunity", "cos_briefing",
+             "clarification", "general_continuity", "next_rhythm", "priority_now", "executive_risk", "executive_opportunity", "executive_pattern", "cos_briefing",
              "personal_reasoning", "general_conversation"])
 
     def test_check_in_routes_to_clarification_and_not_personal_reasoning(self):

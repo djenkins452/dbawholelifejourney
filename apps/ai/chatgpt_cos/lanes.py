@@ -516,6 +516,76 @@ def _executive_opportunity_lane(user, message, conversation=None):
             "tools_advertised": [], "lane": "executive_opportunity"}
 
 
+# "What pattern do you see in my life that I probably don't recognize yet?" — an
+# EXECUTIVE PATTERN (a non-obvious whole-life pattern), computed by interpret() from
+# already-computed cross-domain sources. NEVER a raw single-domain dashboard trend
+# (protein/weight/sleep). Domain-scoped ("pattern in my sleep") yields.
+_EXEC_PATTERN_SIGNALS = (
+    "pattern", "patterns", "don't recognize", "dont recognize", "probably don't",
+    "probably dont", "not noticing", "not aware of", "hidden connection",
+    "hidden pattern", "connect the dots", "blind spot", "what do you notice",
+    "notice about my life", "recognize yet", "what am i not seeing",
+)
+
+
+def _executive_pattern(user):
+    """interpret()'s executive PATTERN assessment. Returns either the executive pattern
+    ``{text, basis, action}`` or an honest-empty marker ``{observation: {text, module}|None}``.
+    The one brain computes it from whole-life state; consumers only present it."""
+    try:
+        from apps.ai.chatgpt_cos.executive_interpretation import interpret
+        return interpret(user).pattern
+    except Exception:
+        logger.warning("executive_pattern: interpret failed", exc_info=True)
+        return None
+
+
+def _deterministic_pattern_answer(user):
+    """Answer 'what pattern do you see that I don't recognize?' from the executive
+    pattern (ASSESSMENT → REASONING → ACTION). If nothing cross-domain clears the bar,
+    answer honestly (no pattern yet · why · strongest single-domain observation labeled
+    NOT a pattern · what evidence would promote it). Never invents a connection, never
+    dresses a single-domain trend up as a whole-life pattern."""
+    from apps.ai.chatgpt_cos.executive_reasoning import frame
+    pat = _executive_pattern(user)
+    if pat and pat.get("action"):
+        return frame(
+            assessment=f"The pattern you probably haven't connected yet is that {pat['text']}",
+            reasoning=pat.get("basis"), action=pat.get("action"))
+    # Honest empty — the four required parts.
+    obs = (pat or {}).get("observation")
+    parts = ["No whole-life pattern clears the bar today — nothing across your domains "
+             "yet has enough corroborating evidence to call an executive pattern."]
+    if obs:
+        parts.append(
+            f"The strongest single signal right now is \"{obs['text']}\" — but that's a "
+            f"{obs['module']} observation, not a pattern: it lives in one area and you "
+            "already see it on your dashboard.")
+        parts.append(
+            "It would become an executive pattern only if it started moving together "
+            "with another part of your life — tracking with your sleep, mood, momentum, "
+            "or adherence over several weeks. Until that corroboration shows up, I won't "
+            "dress a single trend up as a whole-life pattern.")
+    else:
+        parts.append(
+            "As a few more weeks of cross-domain data accumulate, real correlations can "
+            "surface; today there simply isn't enough evidence to claim one honestly.")
+    return " ".join(parts)
+
+
+def _executive_pattern_lane(user, message, conversation=None):
+    """First-class EXECUTIVE PATTERN for 'what pattern do you see that I don't recognize?'.
+    Consumes interpret().pattern (whole-life synthesis, executive-value ranked); NEVER a
+    single-domain trend. Yields domain-scoped pattern questions to domain reasoning."""
+    norm = _normalize(message)
+    if not any(s in norm for s in _EXEC_PATTERN_SIGNALS):
+        return None
+    if any(d in norm for d in _OVERVIEW_DOMAIN_QUALIFIERS):
+        return None
+    return {"answer": _deterministic_pattern_answer(user), "tools_called": [],
+            "tools_advertised": [], "lane": "executive_pattern"}
+
+
 # Honest capability-gap for goals — until a canonical goal engine exists, Beth
 # says so plainly, in natural CoS language (no developer words). She NEVER tells
 # the user to visit a "Goals area" (GB-5).
@@ -1503,6 +1573,9 @@ LANE_REGISTRY = (
     # "What opportunity am I missing?" — executive opportunity (leverage×capacity×timing),
     # never a positive insight.
     ("executive_opportunity", _executive_opportunity_lane),
+    # "What pattern do you see that I don't recognize?" — whole-life executive pattern,
+    # never a single-domain dashboard trend.
+    ("executive_pattern", _executive_pattern_lane),
     ("cos_briefing", _cos_briefing_lane),
     ("personal_reasoning", _reasoning_lane),
     ("general_conversation", _general_lane),

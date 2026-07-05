@@ -6,6 +6,23 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(cos): Executive Pattern Discovery — whole-life synthesis, not a restated domain trend
+
+**Root cause:** "What pattern do you see in my life that I probably don't recognize yet?" answered "Protein has consistently been below target." That's a single-domain nutrition trend — not hidden, not executive, not a life pattern. **No deterministic lane owned pattern questions.** `personal_reasoning` claimed it, the planner returned `intent="other"`, the lane declined, and the question fell to the **generic tool-loop LLM fallback** ([service.py:167](apps/ai/chatgpt_cos/service.py)), which free-associated over the standing-context blob and latched onto the nearest single-domain trend. Nothing computed an executive pattern, nothing preferred cross-domain synthesis, nothing excluded the obvious. Meanwhile WLJ *already computes* whole-life pattern intelligence — it was stranded.
+
+**Fix (no new engine, one brain):** Executive Pattern is now a first-class deterministic assessment computed by `interpret()`, drawing on **already-computed** whole-life sources in priority order and ranking by executive value (not domain count):
+1. **EAE derived whole-life patterns** ([pattern_engine.py](apps/core/ai_eae/pattern_engine.py)) — `recovery_risk`, `holistic_momentum`, `domain_neglect`, `compliance_drift`, `wellbeing_convergence` (a snapshot exists only because the rule fired — presence is the evidence).
+2. **CDCE cross-domain correlations** (`DomainCorrelation`, e.g. sleep↔mood).
+3. **Cross-domain `Insight`/`Prediction`** (`module="cross_domain"`).
+
+New `cos_intelligence.whole_life_patterns()` reads those persisted records (request-path safe, bounded, no recompute) and **hard-excludes raw single-domain dashboard trends** (protein/weight/sleep) from candidacy — the strongest one is held aside as an `observation`. New `_pattern_assessment()` folds the top candidate (≥0.40 confidence) into `ExecutiveSignals.pattern`, else returns the honest-empty marker. New first-class `executive_pattern` lane (after `executive_opportunity`) answers via `frame()`; domain-scoped ("pattern in my sleep") yields.
+
+**Honest empty (4 parts):** no whole-life pattern clears the bar · why (insufficient cross-domain corroboration) · the strongest single-domain trend, explicitly labeled a domain observation NOT a pattern · what evidence would promote it. Never invents a connection.
+
+**Files:** `apps/ai/cos_intelligence.py` (`whole_life_patterns()` + EAE pattern copy/priority/floor), `apps/ai/chatgpt_cos/executive_interpretation.py` (`ExecutiveSignals.pattern`, `_pattern_assessment()`, fold into `interpret()`), `apps/ai/chatgpt_cos/lanes.py` (`executive_pattern` lane + `_executive_pattern()`), tests: new `test_executive_pattern.py`, updated `test_conversation_lanes.py`.
+
+**Verification:** 68 targeted tests green + request-path-safety contract green. Certified end-to-end (real DB, real routing): the validation question routes to `executive_pattern`; with only a protein trend it returns the honest 4-part answer (protein labeled "a nutrition observation, not a pattern"); with a real EAE `domain_neglect` pattern it names the whole-life pattern and protein never leaks. **Protein is never answered as the pattern.**
+
 ## 2026-07-05 — fix(legacy): Family Tree groups children by FAMILY UNIT, not by parent (blended families)
 
 The renderer was grouping a parent's ENTIRE child list as one sibling group. Barbara's children by different fathers were wrongly shown as Danny's siblings. The primary rendering object is now a FAMILY UNIT (a couple + the children THEY had together), keyed by each child's exact lineage parent-SET:

@@ -161,3 +161,51 @@ class LayoutTests(TestCase):
         # Danny is now a CHILD of the focus → below Marvin.
         self.assertGreater(by["Danny Ray Jenkins"]["y"], by["Marvin Jenkins"]["y"])
         self.assertTrue(by["Marvin Jenkins"]["is_focus"])
+
+    def test_half_siblings_render_as_separate_family_units(self):
+        # Barbara had children by several fathers. Each COUPLE is its own family unit;
+        # the focus appears ONLY with his full siblings, half-siblings cluster apart.
+        danny = self._p("Danny", is_self=True, birth_year=1971)
+        barbara = self._p("Barbara", sex="F", birth_year=1939)
+        marvin = self._p("Marvin", sex="M", birth_year=1937)
+        donald = self._p("Donald", sex="M", birth_year=1934)
+        lynne = self._p("Lynne", sex="F", birth_year=1964)      # full sibling (Marvin+Barbara)
+        cheryl = self._p("Cheryl", sex="F", birth_year=1962)    # half (Donald+Barbara)
+        karen = self._p("Karen", sex="F", birth_year=1966)      # half (Donald+Barbara)
+        for c in (danny, lynne):
+            self._rel(marvin, c, "biological father of"); self._rel(barbara, c, "biological mother of")
+        for c in (cheryl, karen):
+            self._rel(donald, c, "biological father of"); self._rel(barbara, c, "biological mother of")
+        g = family_tree.build_family_view(self.user, focus_pk=danny.pk)
+        pos = {n["name"]: n["cx"] for n in g["nodes"]}
+
+        # Danny's cluster (Danny + Lynne) is contiguous and does NOT include the half-sibs.
+        full = sorted([pos["Danny"], pos["Lynne"]])
+        half = sorted([pos["Cheryl"], pos["Karen"]])
+        self.assertLess(max(full), min(half))                   # full-sib cluster is separated
+        # The half-sib cluster is tight (Cheryl & Karen adjacent), apart from the full sibs.
+        self.assertLess(half[1] - half[0], family_tree.CARD_W * 2)
+        self.assertGreater(min(half) - max(full), family_tree.CARD_W)   # a real gap between clusters
+        # Donald sits over his own children, not over Danny's.
+        self.assertGreater(pos["Donald"], max(full))
+
+    def test_half_sibling_scenario_never_overlaps(self):
+        danny = self._p("Danny", is_self=True, birth_year=1971)
+        barbara = self._p("Barbara", sex="F", birth_year=1939)
+        marvin = self._p("Marvin", sex="M", birth_year=1937)
+        william = self._p("William", sex="M", birth_year=1938)
+        fred = self._p("Fred", sex="M", birth_year=1940)
+        kids = {}
+        for nm, dad, by in [("Lynne", marvin, 1964), ("Vicki", william, 1961),
+                            ("James", william, 1969), ("Anthony", fred, 1968), ("Gary", fred, 1963)]:
+            kids[nm] = self._p(nm, birth_year=by)
+            self._rel(dad, kids[nm], "biological father of")
+            self._rel(barbara, kids[nm], "biological mother of")
+        self._rel(marvin, danny, "biological father of"); self._rel(barbara, danny, "biological mother of")
+        nodes = family_tree.build_family_view(self.user, focus_pk=danny.pk)["nodes"]
+        for i in range(len(nodes)):
+            for j in range(i + 1, len(nodes)):
+                a, b = nodes[i], nodes[j]
+                self.assertFalse(abs(a["cx"] - b["cx"]) < family_tree.CARD_W
+                                 and abs(a["cy"] - b["cy"]) < family_tree.CARD_H,
+                                 "%s overlaps %s" % (a["name"], b["name"]))

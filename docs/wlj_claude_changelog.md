@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(legacy): Family Tree groups children by FAMILY UNIT, not by parent (blended families)
+
+The renderer was grouping a parent's ENTIRE child list as one sibling group. Barbara's children by different fathers were wrongly shown as Danny's siblings. The primary rendering object is now a FAMILY UNIT (a couple + the children THEY had together), keyed by each child's exact lineage parent-SET:
+
+- **Full siblings only** cluster with the focus (Marvin+Barbara's children). Half-siblings from a parent's other partners form their OWN clusters, each under the couple that produced them.
+- Each cluster's couple sits over ITS children; the shared parent (Barbara) appears once and a connector drops from BOTH parents of every unit to that unit's children — so half-sib groups are visibly "connected through Barbara".
+- Other units flank on their shared parent's side; the focus's own children still descend from the focus couple. Step-parents (and remarriages with no shown children) flank the spouse they married; a standalone step-parent still shows a dashed bond.
+
+`_layout` rewritten around family units (grouped by `lineage_parents(child)` using the `step_pairs` signal so a "stepmother of" is never counted as a lineage parent). `_neighborhood` now pulls in half-siblings' co-parents. Verified on a Barbara-with-4-fathers scenario: Danny clusters only with his full siblings; Vicki+James (William), Cheryl+Karen (Donald), Gary+Anthony (Fred) each cluster under their father; zero overlaps. 117 legacy tests green (+2 blended-family tests). No model/migration change.
+
+**Files:** apps/legacy/services/family_tree.py (`_layout` family-unit-cluster rewrite, `_neighborhood` co-parents, multi-stem `draw_T`), apps/legacy/tests/test_family_layout.py.
+
+
 ## 2026-07-05 — fix(cos): Executive Opportunity is executive JUDGMENT, not positive-insight aliasing
 
 **Root cause:** "Executive Opportunity" was implemented as *Positive Insight → Opportunity*. `active_intelligence()` surfaced any `Insight.severity=="positive"` (protein on track, weight down, a habit streak) under an `"opportunities"` key, and the no-risk fallback offered those as "the biggest opportunity." That is fundamentally wrong: a positive insight is something already going well (EVIDENCE / a WIN), not a high-leverage move to seize. "What opportunity am I missing today?" → "Protein." — nutrition advice, not executive judgment.

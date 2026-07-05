@@ -608,6 +608,106 @@ _GOALS_GAP = ("I don't have enough active goal information to include goals in "
               "health, and priorities.")
 
 
+def _strategic_summary(user):
+    """The Goals & Commitments view of the ONE executive understanding — the SAME
+    strategic context interpret()/the Executive Briefing/Opportunity consume: mission +
+    where it stands + active commitments + today's highest-leverage move. Returns a
+    composed string, or None ONLY when there is genuinely no mission and no active goals.
+    Consumes the existing brain; it is NOT a second strategic source — it reads
+    interpret() (strategic_focus, highest_leverage), get_domain_state('purpose') (the
+    mission/active-goal snapshot), and select_active_mission_goal() (the very pick
+    build_goal_state itself uses, as the existence source of truth)."""
+    sig = None
+    try:
+        from apps.ai.chatgpt_cos.executive_interpretation import interpret
+        sig = interpret(user)
+    except Exception:
+        logger.warning("goals_checkin: interpret failed", exc_info=True)
+    mission, active_titles, active_count = None, [], 0
+    try:
+        from apps.ai.cos_services import get_domain_state
+        st = (get_domain_state(user, "purpose").get("state") or {})
+        if isinstance(st.get("mission"), dict):
+            mission = st["mission"]
+        active_titles = [t for t in (st.get("active_titles") or []) if t]
+        active_count = int(st.get("active_goal_count") or 0)
+    except Exception:
+        logger.warning("goals_checkin: purpose state read failed", exc_info=True)
+    # The canonical mission pick build_goal_state ITSELF builds from — so Beth NEVER
+    # claims "no goals" while a mission exists, even if the snapshot is momentarily stale.
+    mission_goal = None
+    try:
+        from apps.purpose.mission_selection import select_active_mission_goal
+        mission_goal = select_active_mission_goal(user)
+    except Exception:
+        pass
+
+    strategic = (getattr(sig, "strategic_focus", "") or "").strip() if sig else ""
+    title = ((mission or {}).get("title") or strategic
+             or (mission_goal.title if mission_goal is not None else "")).strip()
+    # Honest-empty ONLY when there is genuinely nothing strategic anywhere in WLJ.
+    if not title and active_count == 0 and not active_titles and mission_goal is None:
+        return None
+
+    focus = (mission or {}).get("current_focus")
+    parts = []
+    if title:
+        stand = []
+        dr = (mission or {}).get("days_remaining")
+        if isinstance(dr, int) and dr >= 0:
+            stand.append(f"{dr} days to target")
+        tl = ((mission or {}).get("momentum_trend") or "").lower()
+        if any(w in tl for w in ("declin", "down", "fall", "slow", "stall")):
+            stand.append("momentum has dipped — worth a deliberate push")
+        elif any(w in tl for w in ("ris", " up", "improv", "strong", "accel")):
+            stand.append("momentum is strong")
+        tail = (" — " + ", ".join(stand)) if stand else ""
+        parts.append(f"Your mission is {title}{tail}.")
+    others = [t for t in active_titles if t and t != title][:3]
+    if others:
+        parts.append("Other active commitments: " + ", ".join(others) + ".")
+    elif active_count > 1 and title:
+        parts.append(f"You have {active_count} active goals in all.")
+    # Today's move — the CONCRETE next action. Prefer the mission's current milestone
+    # (the real lever) over the generic "move it forward"; fall back to interpret()'s
+    # highest_leverage, then to a plain nudge.
+    lever = (getattr(sig, "highest_leverage", "") or "").strip() if sig else ""
+    if focus and title:
+        parts.append(f"The move that matters most today is advancing your current "
+                     f"milestone: {focus}.")
+    elif lever:
+        parts.append(f"The highest-leverage move today is {lever}.")
+    elif title:
+        parts.append(f"Today, the most valuable thing you can do is move {title} forward.")
+    return " ".join(parts) if parts else None
+
+
+# Direct goal/commitment questions must consume the SAME strategic understanding as the
+# check-in and the Executive Briefing — never a divergent LLM path that could contradict.
+_GOALS_CHECKIN_SIGNALS = (
+    "goals and commitments", "goals & commitments", "goals check-in", "goals checkin",
+    "goal check-in", "how are my goals", "how do my goals", "how are my commitments",
+    "how's my mission", "hows my mission", "how is my mission", "my goals looking",
+    "goals looking", "my goals today", "my commitments today",
+    "what commitment matters", "which commitment matters", "what strategic goal",
+    "which strategic goal", "strategic goal should i", "goal should i move forward",
+    "move forward on my goal", "check in on my goals", "check in on my mission",
+)
+
+
+def _goals_checkin_lane(user, message, conversation=None):
+    """Goals & Commitments as a first-class deterministic surface — answers goal/mission/
+    commitment questions from `_strategic_summary` (interpret()'s understanding), so it
+    never contradicts the Executive Briefing/Opportunity. Honest-empty degrades to the
+    goal-gap message; it never drifts to a generic lane."""
+    norm = _normalize(message)
+    if not any(s in norm for s in _GOALS_CHECKIN_SIGNALS):
+        return None
+    ans = _strategic_summary(user)
+    return {"answer": ans or _GOALS_GAP, "tools_called": [],
+            "tools_advertised": [], "lane": "goals_checkin"}
+
+
 # ---------------------------------------------------------------------------
 # Lane 3 — Clarification (DETERMINISTIC; never calls OpenAI). Registry of
 # ambiguity types -> closed trigger set + a templated clarifying question.
@@ -853,14 +953,17 @@ def resolve_clarification_option(user, opt):
         if resolver == "health":
             return _health_overall_summary(user) or static
         if resolver == "goals_gap":
-            return _GOALS_GAP
+            # Consume the ONE executive understanding — honest-empty ONLY if truly no goals.
+            return _strategic_summary(user) or _GOALS_GAP
         if resolver == "full_checkin":
             from apps.core.cos_briefing.daily_agenda import build_daily_agenda
             out = build_daily_agenda(user) or ""
             health = _health_overall_summary(user)
             if health:
                 out += " On your health: " + health
-            out = (out + " " + _GOALS_GAP).strip()
+            goals = _strategic_summary(user)
+            out = ((out + " On your goals: " + goals) if goals
+                   else (out + " " + _GOALS_GAP)).strip()
             return out or static
     except Exception:
         logger.warning("clarification: resolve failed resolver=%s", resolver,
@@ -1582,6 +1685,9 @@ LANE_REGISTRY = (
     # Continue an active EXTERNAL/general thread BEFORE any personal-coaching lane
     # can claim the follow-up (Conversation Continuity).
     ("general_continuity", _general_continuity_lane),
+    # Goals & Commitments — a deterministic consumer of interpret()'s strategic
+    # understanding, so goal questions never contradict the Executive Briefing.
+    ("goals_checkin", _goals_checkin_lane),
     ("next_rhythm", _next_rhythm_lane),
     # "The single most important thing right now" — always deterministic, never the LLM.
     ("priority_now", _most_important_lane),

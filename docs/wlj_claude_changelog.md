@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(cos): One Brain — Goals/Whole-Life check-in consumes the executive understanding (no hardcoded goal-gap)
+
+**Root cause (proven, One Brain investigation):** Beth cited the mission ("France 2027 is the highest-leverage work") on the Executive Briefing/Opportunity while a check-in said "I don't have enough active goal information." The Briefing/Opportunity/Pattern read `interpret()` → `_strategic_focus` → `get_domain_state("purpose").mission`. But the check-in resolvers (`resolve_clarification_option`) for "Goals and commitments" (`goals_gap`) and "Whole Life" (`full_checkin`) returned a **hardcoded `_GOALS_GAP` constant with ZERO goal read** ([lanes.py:855-863]) — a stub predating the goal engine ("until a canonical goal engine exists"). So the check-in denied goals unconditionally even when the mission existed in the shared state. One Brain was violated **by omission**: one surface bypassed the brain entirely.
+
+**Fix (smallest correction — consume the existing brain, no new builder, no second brain):**
+- New `_strategic_summary(user)` reads the SAME understanding the executive surfaces use — `interpret()` (strategic_focus, highest_leverage), `get_domain_state("purpose")` (mission, active_titles, active_goal_count), and `select_active_mission_goal()` (the exact pick `build_goal_state` itself builds from, as the existence source of truth). Composes mission + where it stands (focus, days-to-target, momentum) + other commitments + today's highest-leverage move.
+- `goals_gap` resolver → `_strategic_summary(user) or _GOALS_GAP`; `full_checkin` → agenda + health + "On your goals: " + summary (or the gap). Honest-empty preserved: `_GOALS_GAP` fires ONLY when there is genuinely no mission AND no active goals — and NEVER while a mission exists (even if the SAE snapshot is momentarily stale, the `select_active_mission_goal` guard surfaces it).
+- New first-class `goals_checkin` lane (before `next_rhythm`) so direct goal questions ("give me a goals check-in", "how are my goals looking today", "what commitment matters most today", "what strategic goal should I move forward today") consume the SAME summary and never drift to a divergent LLM path.
+
+**Files:** `apps/ai/chatgpt_cos/lanes.py` (`_strategic_summary`, resolvers, `goals_checkin` lane + registry), tests: new `test_goals_checkin_strategic.py`, `test_conversation_lanes.py` (registry guards).
+
+**Verification:** new goals-checkin tests green (summary consumes one brain; honest-empty only when truly empty; never-empty when a mission exists despite a stale snapshot; resolvers no longer return the hardcoded gap; lane claims the four direct phrasings) + registry guards. No France/Goals hardcoding; no new context builder. (Pre-existing unrelated failure: an evening-time check-in agenda test, fails identically on baseline. Test DB worked around a concurrent session's in-progress `legacy/0032`.)
+
 ## 2026-07-05 — feat(legacy): Person Profile relationships adopt Ancestry-style information architecture (D2)
 
 **What:** The relationship presentation on the Person Profile (and the Relationships page) was a flat list that repeated the role on every row ("Biological father Marvin", "Stepmother Gloria"). Redesigned to follow Ancestry's *information architecture* (not its visual design): relationships are organized into meaningful, descriptive sections so a stranger understands the person's immediate family in seconds:

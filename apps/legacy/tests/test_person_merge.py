@@ -35,7 +35,7 @@ class PersonMergeTests(TestCase):
         loser = self._p("Marvin Jenkins", birth_year=1945)
         winner = self._p("Marvin Lynn Jenkins")
         photo = Media.objects.create(user=self.user, media_type=Media.MediaType.PHOTO)
-        loser.primary_photo = photo; loser.save()
+        loser.portrait = photo; loser.save()
 
         story = Memory.objects.create(user=self.user, title="Fishing")
         story.people.add(loser)
@@ -64,7 +64,7 @@ class PersonMergeTests(TestCase):
         out.refresh_from_db(); self.assertEqual(out.scope_person_id, winner.pk)
         winner.refresh_from_db()
         self.assertEqual(winner.birth_year, 1945)                            # blank fact filled
-        self.assertEqual(winner.primary_photo_id, photo.pk)                  # photo filled
+        self.assertEqual(winner.portrait_id, photo.pk)                  # photo filled
         self.assertIn("Marvin Jenkins", winner.also_known_as)               # old name searchable
 
     def test_dedupes_shared_story(self):

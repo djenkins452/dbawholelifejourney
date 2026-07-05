@@ -18,13 +18,16 @@
                 {% if person.display_birth or person.display_death %} · {{ person.display_birth|default:"?" }}–{{ person.display_death|default:"" }}{% endif %}
                 {% if person.also_known_as %} · "{{ person.also_known_as }}"{% endif %}
             </p>
-            <form method="post" action="{% url 'legacy:person_portrait' person.pk %}" enctype="multipart/form-data" class="portrait-form">
+            <form method="post" action="{% url 'legacy:person_portrait' person.pk %}" enctype="multipart/form-data" class="portrait-form" id="portraitForm">
                 {% csrf_token %}
                 <label class="lg-btn-quiet portrait-label">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                    {% if person.portrait_url %}Change portrait{% else %}Add portrait{% endif %}
-                    <input type="file" name="file" accept="image/*" class="portrait-input">
+                    {% if person.portrait_url %}Change portrait{% else %}Choose portrait{% endif %}
+                    <input type="file" name="file" accept="image/*" class="portrait-input" id="portraitInput">
                 </label>
+                <img class="portrait-preview is-hidden" id="portraitPreview" alt="Portrait preview">
+                <button type="submit" class="lg-btn-primary portrait-save is-hidden" id="portraitSave">Save portrait</button>
+                <button type="button" class="lg-btn-ghost portrait-cancel is-hidden" id="portraitCancel">Cancel</button>
                 <noscript><button type="submit" class="lg-btn-primary">Upload</button></noscript>
                 {% if person.portrait_url %}<button type="submit" name="clear" value="1" class="lg-btn-ghost portrait-clear">Remove</button>{% endif %}
             </form>
@@ -72,7 +75,7 @@
                     {% if md.file and md.media_type == 'photo' %}<img src="{{ md.file.url }}" alt="{{ md.caption }}">{% else %}<span class="media-thumb-kind">{{ md.get_media_type_display }}</span>{% endif %}
                 </a>
                 {% if md.media_type == 'photo' and md.file %}
-                <form method="post" action="{% url 'legacy:person_portrait' person.pk %}" class="media-portrait-form">{% csrf_token %}<input type="hidden" name="media_id" value="{{ md.pk }}"><button type="submit" class="media-portrait-btn"{% if person.primary_photo_id == md.pk %} disabled{% endif %}>{% if person.primary_photo_id == md.pk %}Portrait ✓{% else %}Use as portrait{% endif %}</button></form>
+                <form method="post" action="{% url 'legacy:person_portrait' person.pk %}" class="media-portrait-form">{% csrf_token %}<input type="hidden" name="media_id" value="{{ md.pk }}"><button type="submit" class="media-portrait-btn"{% if person.portrait_id == md.pk %} disabled{% endif %}>{% if person.portrait_id == md.pk %}Portrait ✓{% else %}Use as portrait{% endif %}</button></form>
                 {% endif %}
             </div>
             {% endfor %}
@@ -142,13 +145,32 @@
 </div>
 <script nonce="{{ csp_nonce }}">
 (function () {
-    // Selecting a portrait file submits immediately — one tap to set the portrait.
-    var input = document.querySelector('.portrait-input');
-    if (input) {
-        input.addEventListener('change', function () {
-            if (input.files && input.files.length) { input.form.submit(); }
-        });
+    // Portrait workflow: Choose → Preview → Save. Nothing changes the canonical
+    // Portrait until the user confirms with Save.
+    var input = document.getElementById('portraitInput');
+    var preview = document.getElementById('portraitPreview');
+    var save = document.getElementById('portraitSave');
+    var cancel = document.getElementById('portraitCancel');
+    if (!input || !preview || !save || !cancel) { return; }
+    var objectUrl = null;
+    function reset() {
+        input.value = '';
+        if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = null; }
+        preview.removeAttribute('src');
+        preview.classList.add('is-hidden');
+        save.classList.add('is-hidden');
+        cancel.classList.add('is-hidden');
     }
+    input.addEventListener('change', function () {
+        if (!input.files || !input.files.length) { reset(); return; }
+        if (objectUrl) { URL.revokeObjectURL(objectUrl); }
+        objectUrl = URL.createObjectURL(input.files[0]);
+        preview.src = objectUrl;
+        preview.classList.remove('is-hidden');
+        save.classList.remove('is-hidden');
+        cancel.classList.remove('is-hidden');
+    });
+    cancel.addEventListener('click', reset);
 })();
 </script>
 {% endblock %}

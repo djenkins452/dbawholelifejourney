@@ -320,7 +320,7 @@ class PrimaryPortraitTests(TestCase):
                              {"file": self._img()})
         self.assertRedirects(r, reverse("legacy:person_detail", args=[self.person.pk]))
         self.person.refresh_from_db()
-        self.assertIsNotNone(self.person.primary_photo)
+        self.assertIsNotNone(self.person.portrait)
         self.assertTrue(self.person.portrait_url)                 # reusable accessor works
 
     def test_use_existing_media_as_portrait(self):
@@ -329,15 +329,15 @@ class PrimaryPortraitTests(TestCase):
         self.client.post(reverse("legacy:person_portrait", args=[self.person.pk]),
                          {"media_id": media.pk})
         self.person.refresh_from_db()
-        self.assertEqual(self.person.primary_photo_id, media.pk)
+        self.assertEqual(self.person.portrait_id, media.pk)
 
     def test_clear_portrait_falls_back_to_silhouette(self):
         media = Media.objects.create(user=self.user, media_type=Media.MediaType.PHOTO,
                                      file=self._img(), original_filename="x.jpg")
-        self.person.primary_photo = media; self.person.save()
+        self.person.portrait = media; self.person.save()
         self.client.post(reverse("legacy:person_portrait", args=[self.person.pk]), {"clear": "1"})
         self.person.refresh_from_db()
-        self.assertIsNone(self.person.primary_photo)
+        self.assertIsNone(self.person.portrait)
         self.assertEqual(self.person.portrait_url, "")            # → default silhouette
 
     def test_portrait_only_touches_owner(self):

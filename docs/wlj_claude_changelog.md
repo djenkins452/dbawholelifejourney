@@ -6,6 +6,18 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — refactor(legacy): Person owns a canonical "Portrait" + Choose→Preview→Save workflow
+
+Terminology + workflow refinement for the canonical Person portrait (no Family Tree redesign):
+
+- **Renamed `Person.primary_photo` → `Person.portrait`** — conceptually the Person owns a Portrait; the Media model just stores the file. Data-preserving `RenameField` migration 0032 (NOT a remove+add — caught and reverted an auto-generated destructive migration that would have wiped every portrait). `related_name` → `portrait_for_people`. All consumers updated (family_tree, views, person_merge, templates, tests). `portrait_url` remains the reusable accessor every surface reads, so one portrait still updates the Family Tree, People, Relationships, and profile at once.
+- **Portrait workflow is now Choose → Preview → Save** (no auto-save). Choosing a file shows a bordered preview and reveals Save + Cancel; nothing changes the canonical portrait until Save. Cancel fully resets. Verified live: initial state hides Save/Preview; choosing shows a blob preview + Save + Cancel; Cancel clears everything; family page still renders, no console errors.
+
+Points 3–4 of the review (root-cause debugging discipline; Person as a core Canonical Truth entity — one Person, many views) are noted as the standing direction; no code needed.
+
+**Files:** apps/legacy/models.py (`portrait` field + `portrait_url`), migration 0032 (RenameField), apps/legacy/services/{family_tree,person_merge}.py, apps/legacy/views.py, templates/legacy/{person_detail,base_legacy}.html (workflow + v50), static/css/legacy.css, apps/legacy/tests/{test_people_places_media,test_person_merge}.py. 62 legacy tests green.
+
+
 ## 2026-07-05 — fix(cos): Executive Pattern candidate quality — no analytics artifacts, no jargon, no self-domain "correlations"
 
 **Root cause:** The Executive Pattern CDCE block accepted ANY active `DomainCorrelation` and rendered its action from raw domain slugs. A `health→health` correlation (`detect_nutrition_energy` stores nutrition↔transformation as health⟺health) produced: *"Nutrition compliance (89%) is supporting your transformation score (70/100). A strong correlation between health and health over 52 observations. Watch the leading side — health — to move health."* — a same-domain analytics artifact, a metric-to-score readout, and nonsense slug phrasing. All three are things a Chief of Staff would never say.

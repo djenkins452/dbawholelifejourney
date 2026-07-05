@@ -73,9 +73,9 @@ def merge_people(user, loser, winner):
         if not getattr(winner, f) and getattr(loser, f):
             setattr(winner, f, getattr(loser, f))
             fields.append(f)
-    if not winner.primary_photo_id and loser.primary_photo_id:
-        winner.primary_photo_id = loser.primary_photo_id
-        fields.append("primary_photo")
+    if not winner.portrait_id and loser.portrait_id:
+        winner.portrait_id = loser.portrait_id
+        fields.append("portrait")
 
     # 9. Keep the duplicate's name searchable as an alias on the survivor.
     akas, seen_aka, merged = [], set(), []

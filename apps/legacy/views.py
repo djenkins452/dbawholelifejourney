@@ -602,7 +602,7 @@ class PeopleView(LegacyContextMixin, TemplateView):
         q = (self.request.GET.get("q") or "").strip()
         view_mode = self.request.GET.get("view")
         page = self.request.GET.get("page")
-        base = Person.objects.filter(user=user).select_related("primary_photo")
+        base = Person.objects.filter(user=user).select_related("portrait")
         ctx["q"] = q
         ctx["total_count"] = base.count()
 
@@ -728,8 +728,8 @@ class PersonPortraitView(LegacyContextMixin, View):
         f = request.FILES.get("file")
         media_id = request.POST.get("media_id")
         if request.POST.get("clear"):
-            person.primary_photo = None
-            person.save(update_fields=["primary_photo", "updated_at"])
+            person.portrait = None
+            person.save(update_fields=["portrait", "updated_at"])
             messages.success(request, "Portrait removed.")
         elif f:
             if not is_visual_media(f.name):
@@ -739,13 +739,13 @@ class PersonPortraitView(LegacyContextMixin, View):
                 user=request.user, media_type=Media.MediaType.PHOTO, file=f,
                 original_filename=f.name[:255], created_via=Media.CREATED_VIA_MANUAL,
                 caption=("Portrait of %s" % person.display_name)[:500])
-            person.primary_photo = media
-            person.save(update_fields=["primary_photo", "updated_at"])
+            person.portrait = media
+            person.save(update_fields=["portrait", "updated_at"])
             messages.success(request, "Portrait updated.")
         elif media_id:
             media = get_object_or_404(Media.all_objects, pk=media_id, user=request.user)
-            person.primary_photo = media
-            person.save(update_fields=["primary_photo", "updated_at"])
+            person.portrait = media
+            person.save(update_fields=["portrait", "updated_at"])
             messages.success(request, "Portrait updated.")
         else:
             messages.error(request, "Choose a photo to use as the portrait.")

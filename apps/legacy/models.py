@@ -108,8 +108,11 @@ class Person(LegacyOwnedModel):
     birth_date = models.DateField(null=True, blank=True)
     death_date = models.DateField(null=True, blank=True)
     bio = models.TextField(blank=True, help_text="A 'who they were' narrative")
-    primary_photo = models.ForeignKey(
-        Media, on_delete=models.SET_NULL, null=True, blank=True, related_name='primary_for_people',
+    # The person's canonical PORTRAIT — conceptually owned by the Person; the Media
+    # model just stores the file. One portrait, consumed by every view (Family Tree,
+    # People, Relationships, stories, …). Formerly `primary_photo`.
+    portrait = models.ForeignKey(
+        Media, on_delete=models.SET_NULL, null=True, blank=True, related_name='portrait_for_people',
     )
     # Significance is multi-typed/perspectival in the full model; Phase 1 keeps a
     # single ordinal for ranking prominence. 0 = unset.
@@ -142,11 +145,11 @@ class Person(LegacyOwnedModel):
 
     @property
     def portrait_url(self):
-        """The ONE canonical Primary Portrait for this person — reused everywhere in
-        Legacy (Family tree, People, Relationships, stories, …). Empty when unset, so
-        every surface falls back to the default silhouette. Backed by the existing Media
-        model via `primary_photo`; changing it updates every view at once."""
-        m = self.primary_photo
+        """The ONE canonical Portrait for this person — reused everywhere in Legacy
+        (Family tree, People, Relationships, stories, …). Empty when unset, so every
+        surface falls back to the default silhouette. Backed by the Media model via
+        `portrait`; changing it updates every view at once."""
+        m = self.portrait
         return m.file.url if (m and m.file) else ""
 
 

@@ -118,8 +118,8 @@ def _person_row(p):
         "birth": p.birth_year, "death": p.death_year, "living": p.death_year is None,
         "birth_display": p.display_birth, "death_display": p.display_death,
         "rel": p.relationship_label,
-        "photo": (p.primary_photo.file.url
-                  if (p.primary_photo and p.primary_photo.file) else ""),
+        "photo": (p.portrait.file.url
+                  if (p.portrait and p.portrait.file) else ""),
     }
 
 
@@ -445,8 +445,8 @@ def _layout(user, people, parents, children, spouses, couples, link_style,
                           + aliases.get(p.pk, [])).lower()
         nodes.append({
             "id": p.pk, "name": p.display_name, "initials": _initials(p.display_name),
-            "photo": (p.primary_photo.file.url
-                      if (p.primary_photo and p.primary_photo.file) else ""),
+            "photo": (p.portrait.file.url
+                      if (p.portrait and p.portrait.file) else ""),
             "sex": (p.sex or "").upper()[:1],
             "birth": p.birth_year, "death": p.death_year,
             "birth_display": p.display_birth, "death_display": p.display_death,
@@ -561,7 +561,7 @@ def home_relatives(user):
     siblings, children. Returns Person objects grouped, or None when 'me' isn't
     known yet."""
     from apps.legacy.models import Person
-    people = list(Person.objects.filter(user=user).select_related("primary_photo"))
+    people = list(Person.objects.filter(user=user).select_related("portrait"))
     if not people:
         return None
     by_id = {p.pk: p for p in people}
@@ -591,8 +591,8 @@ def build_family_view(user, focus_pk=None):
 
     all_people = list(Person.objects.filter(user=user).only(
         "pk", "display_name", "is_self", "also_known_as", "birth_year", "death_year",
-        "birth_date", "death_date", "relationship_label", "primary_photo", "sex",
-    ).select_related("primary_photo"))
+        "birth_date", "death_date", "relationship_label", "portrait", "sex",
+    ).select_related("portrait"))
     total = len(all_people)
     if not all_people:
         return {"nodes": [], "edges": [], "width": 0, "height": 0, "shown": 0,
@@ -659,8 +659,8 @@ def build_family_view(user, focus_pk=None):
                 if k != pk}
         panels[pk] = {
             "id": pk, "name": p.display_name, "initials": _initials(p.display_name),
-            "photo": (p.primary_photo.file.url
-                      if (p.primary_photo and p.primary_photo.file) else ""),
+            "photo": (p.portrait.file.url
+                      if (p.portrait and p.portrait.file) else ""),
             "years": _life_years(p), "living": p.death_year is None,
             "rel": p.relationship_label or "", "is_self": pk == me_pk,
             "parents": _rel_rows(parents.get(pk, ())),
@@ -675,7 +675,7 @@ def build_family_view(user, focus_pk=None):
 def build_family_graph(user):
     """Full-graph builder — retained for tests/tools (the page uses build_family_view)."""
     from apps.legacy.models import Person
-    people = list(Person.objects.filter(user=user).select_related("primary_photo"))
+    people = list(Person.objects.filter(user=user).select_related("portrait"))
     if not people:
         return {"nodes": [], "edges": [], "width": 0, "height": 0, "count": 0,
                 "shown": 0, "me": None, "focus": None, "focus_x": 0, "focus_y": 0}
@@ -798,8 +798,8 @@ def browse_person_relationships(user, focal_id=None):
     ordered = sorted(groups.values(), key=lambda g: (g["order"], g["label"]))
     # The focal's canonical Primary Portrait (loaded with its Media for the avatar).
     full_focal = (Person.objects.filter(user=user, pk=focal_id)
-                  .select_related("primary_photo").only(
-                      "pk", "display_name", "sex", "primary_photo").first())
+                  .select_related("portrait").only(
+                      "pk", "display_name", "sex", "portrait").first())
     return {
         "focal": {"id": focal_id, "name": focal.display_name,
                   "years": _life_years(focal), "is_self": focal_id == me_pk,

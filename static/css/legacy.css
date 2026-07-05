@@ -1289,3 +1289,7 @@ a.fam-result { text-decoration: none; }
 .media-portrait-btn { width: 100%; font-size: 11px; font-weight: 600; color: var(--lg-accent-ink, #7a5b1e); background: none; border: 0; cursor: pointer; padding: 2px; font-family: inherit; }
 .media-portrait-btn:hover:not(:disabled) { text-decoration: underline; }
 .media-portrait-btn:disabled { color: var(--lg-muted); cursor: default; }
+
+/* Portrait workflow: Choose → Preview → Save */
+.portrait-form .is-hidden { display: none !important; }
+.portrait-preview { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; border: 2px solid var(--lg-sidebar-gold, #c9a34e); }
